@@ -1,0 +1,38 @@
+
+:root{
+  --samara-plum:#5d1039;
+  --samara-wine:#7a1247;
+  --samara-magenta:#b01264;
+  --samara-rose:#e03a7c;
+  --samara-coral:#f36a4c;
+  --samara-gold:#f6b72d;
+  --samara-pale:#fff3f8;
+  --samara-ink:#382333;
+}
+html,body,#root{background:linear-gradient(145deg,#fffafd,#fff3f8 52%,#fffaf2)!important;color:var(--samara-ink)!important}
+.sidebar,.side-nav,.app-sidebar,.login-v3-left,.login-brand-panel{
+  background:radial-gradient(circle at 90% 5%,rgba(246,183,45,.22),transparent 25%),radial-gradient(circle at 8% 92%,rgba(224,58,124,.26),transparent 35%),linear-gradient(155deg,#5d1039,#85124e 34%,#b01264 68%,#dc3b7b)!important;
+}
+.app-splash,#app-splash{
+  background:radial-gradient(circle at 90% 10%,rgba(246,183,45,.26),transparent 25%),radial-gradient(circle at 10% 90%,rgba(224,58,124,.30),transparent 35%),linear-gradient(145deg,#5d1039,#901253 45%,#c91f72 78%,#e95b78)!important;
+}
+.dashboard-banner,.shift-banner,.hero-banner,.accounts-hero,.clinical-banner{
+  background:linear-gradient(110deg,#741243,#a91360 44%,#dc397a 77%,#ef8054)!important;color:#fff!important;
+}
+.nav-item.active,.sidebar .active,.side-nav .active{background:linear-gradient(90deg,#c3166d,#e23e80)!important;color:#fff!important}
+.btn-primary,.button-primary,button.primary,.login-v3-submit,.primary-action{
+  background:linear-gradient(100deg,#7a1247,#b01264 54%,#e03a7c)!important;border-color:#a5145d!important;color:#fff!important;
+}
+.btn-primary:hover,.button-primary:hover,button.primary:hover{background:linear-gradient(100deg,#64103b,#961151 54%,#cb2a70)!important}
+.card,.panel,.section-card,.dashboard-card,.metric-card{background:linear-gradient(145deg,#fff,#fffafd)!important;border-color:#ecd0de!important}
+.dashboard-card::before,.metric-card::before,.accounts-workflow-card::before{background:linear-gradient(90deg,#7a1247,#b01264 42%,#f36a4c 76%,#f6b72d)!important}
+input:focus,select:focus,textarea:focus{border-color:#c21872!important;box-shadow:0 0 0 3px rgba(194,24,114,.14)!important}
+a,.text-link,.link{color:#a50e5b!important}
+.message.success{background:#fff0f6!important;color:#781345!important;border-color:#e7b7cf!important}
+.badge.success,.status-badge.success,.pill.success{background:#fae7f0!important;color:#781345!important;border-color:#e2adc7!important}
+@media print{
+  h1,h2,h3,h4{color:#791345!important}
+  table th{background:linear-gradient(90deg,#f9e4ee,#fff0dc)!important;color:#5d1039!important}
+  table,th,td{border-color:#c99caf!important}
+  .print-header,.report-header,.consent-header{border-color:#b01264!important}
+}
