@@ -1,0 +1,405 @@
+
+/* Samara Care ERP 1.3.40 — patient-centred numbered layout corrections */
+
+.patient-worklist-panel {
+  padding: 16px 18px 20px;
+}
+
+.patient-work-card {
+  width: 100%;
+  margin: 12px 0;
+  border: 1px solid #d5e3de;
+  border-left: 5px solid #e2a300;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 3px 12px rgba(4, 69, 55, 0.06);
+}
+
+.patient-work-card.high {
+  border-left-color: #cc2929;
+}
+
+.patient-work-card.complete {
+  border-left-color: #138a52;
+  background: #f5fbf8;
+}
+
+.patient-work-card-header {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-height: 78px;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #132d27;
+  font: inherit;
+  text-align: left;
+  display: grid;
+  grid-template-columns: minmax(310px, 1.15fr) minmax(300px, 1.25fr) auto;
+  align-items: center;
+  gap: 18px;
+  cursor: pointer;
+}
+
+.patient-work-card-header:hover {
+  background: #f5faf8;
+}
+
+.patient-work-identity {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.patient-work-identity > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.patient-work-identity strong {
+  font-size: 16px;
+}
+
+.patient-work-identity small {
+  color: #667085;
+}
+
+.patient-row-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 50%;
+  background: #0b6b57;
+  color: #fff;
+  font-weight: 900;
+  font-size: 15px;
+}
+
+.patient-status-dot {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 11px;
+  border-radius: 50%;
+  background: #e2a300;
+}
+
+.patient-status-dot.high {
+  background: #cc2929;
+}
+
+.patient-status-dot.complete {
+  background: #138a52;
+}
+
+.patient-task-preview {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.patient-task-preview span {
+  max-width: 235px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eef5f2;
+  color: #344054;
+  font-size: 12px;
+}
+
+.patient-task-preview .more-tasks {
+  background: #e5efff;
+  color: #175cd3;
+  font-weight: 800;
+}
+
+.patient-work-counts {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.expand-symbol {
+  color: #0b6b57;
+  font-weight: 900;
+}
+
+.patient-work-expanded {
+  padding: 0 16px 16px;
+  border-top: 1px solid #e1ebe7;
+  background: #fbfdfc;
+}
+
+.patient-work-section {
+  margin-top: 12px;
+  border: 1px solid #dde8e4;
+  border-radius: 11px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.patient-work-section h4 {
+  margin: 0;
+  padding: 10px 12px;
+  background: #f0f7f4;
+  border-bottom: 1px solid #dde8e4;
+}
+
+.patient-work-task-row {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 11px 12px;
+  border-bottom: 1px solid #edf2f0;
+}
+
+.patient-work-task-row:last-child {
+  border-bottom: 0;
+}
+
+.numbered-task-row {
+  grid-template-columns: 34px minmax(280px, 1fr) auto auto;
+}
+
+.task-row-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: #e5f1ed;
+  color: #0b6b57;
+  font-weight: 900;
+}
+
+.numbered-medicine-grid {
+  position: relative;
+  padding-top: 45px !important;
+}
+
+.medicine-entry-number {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 29px;
+  height: 29px;
+  border-radius: 50%;
+  background: #0b6b57;
+  color: #fff;
+  font-weight: 900;
+}
+
+.sound-unlock-button {
+  position: fixed !important;
+  right: 18px !important;
+  bottom: 18px !important;
+  z-index: 12000 !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  padding: 11px 17px !important;
+  background: #0b6b57 !important;
+  color: #fff !important;
+  font-weight: 800 !important;
+  box-shadow: 0 8px 24px rgba(4,69,55,.22) !important;
+}
+
+@media (max-width: 1000px) {
+  .patient-work-card-header {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-work-counts {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
+  .patient-worklist-panel {
+    padding: 12px;
+  }
+
+  .patient-work-card-header {
+    padding: 12px;
+  }
+
+  .numbered-task-row {
+    grid-template-columns: 34px 1fr;
+  }
+
+  .numbered-task-row > .pill,
+  .numbered-task-row > .badge,
+  .numbered-task-row > .employee-actions {
+    grid-column: 2;
+  }
+}
+
+
+/* 1.3.41 — action buttons open the authorised regular clinical entry window */
+.patient-work-task-row .employee-actions .btn {
+  min-width: 92px;
+}
+
+.return-after-save-note{margin:0 0 12px;padding:9px 12px;border:1px solid #b7d8cc;border-radius:9px;background:#eef8f4;color:#0b6b57;font-weight:700}
+
+
+/* 1.3.43 — universal action workflow return */
+.action-return-note,
+.return-after-save-note {
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border: 1px solid #b7d8cc;
+  border-radius: 9px;
+  background: #eef8f4;
+  color: #0b6b57;
+  font-weight: 700;
+}
+
+
+/* 1.3.45 — shift task completion synchronisation */
+.linked-task-note {
+  display: block;
+  margin-top: 6px;
+  color: #0b6b57;
+  font-weight: 800;
+}
+
+
+/* 1.3.46 — forwarded care task preselection */
+.linked-task-note {
+  display: block;
+  margin-top: 6px;
+  color: #0b6b57;
+  font-weight: 800;
+}
+
+
+/* 1.3.47 — patient-specific handover and incident forms */
+.form-stack .field,
+.modal-grid .field {
+  min-width: 0;
+}
+
+
+/* 1.3.49 — universal popup completion behaviour */
+.modal-backdrop.action-completing {
+  pointer-events: none;
+  opacity: .72;
+  transition: opacity .18s ease;
+}
+
+.auto-return-note {
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border: 1px solid #b7d8cc;
+  border-radius: 9px;
+  background: #eef8f4;
+  color: #0b6b57;
+  font-weight: 700;
+}
+
+
+/* 1.3.50 — successful handover/incident return */
+.success-return-hint {
+  margin-top: 8px;
+  color: #0b6b57;
+  font-weight: 700;
+}
+
+.clinical-charges-hero{display:flex;justify-content:space-between;gap:18px;align-items:center;padding:22px;margin-bottom:16px;border-radius:18px;background:linear-gradient(135deg,#eaf7f2,#f8fcfa);border:1px solid #cfe4dc}.clinical-charges-hero h3{margin:3px 0 6px;font-size:25px}.clinical-charges-hero p{margin:0;color:#52645e}.clinical-charges-hero small{font-weight:800;color:#0b6b57;letter-spacing:.08em}.clinical-charge-filters{display:grid;grid-template-columns:2fr 1fr 1.5fr;gap:12px;align-items:end}.clinical-charge-modal{width:min(1100px,96vw);max-height:92vh;overflow:auto}.clinical-charge-modal .modal-grid{grid-template-columns:repeat(3,minmax(0,1fr))}@media(max-width:900px){.clinical-charges-hero{align-items:flex-start;flex-direction:column}.clinical-charge-filters,.clinical-charge-modal .modal-grid{grid-template-columns:1fr}}
+
+
+/* Samara Care ERP 2.0.1 — Sidebar submenu spacing and bullet enhancement */
+
+.nav-section {
+  margin-bottom: 10px;
+}
+
+.nav-submenu {
+  display: grid;
+  gap: 5px;
+  padding: 8px 0 5px 8px;
+}
+
+.nav-submenu button {
+  position: relative;
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 10px 14px 10px 45px;
+  border-radius: 11px;
+  font-size: 16px;
+  line-height: 1.3;
+  text-align: left;
+  white-space: normal;
+}
+
+.nav-submenu button::before {
+  content: '';
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #7fb8aa;
+  transform: translateY(-50%);
+  box-shadow: 0 0 0 2px rgba(127, 184, 170, 0.12);
+}
+
+.nav-submenu button:hover {
+  background: rgba(255,255,255,0.08);
+  color: #ffffff;
+}
+
+.nav-submenu button:hover::before {
+  background: #b9ded4;
+  box-shadow: 0 0 0 3px rgba(185, 222, 212, 0.16);
+}
+
+.nav-submenu button.active {
+  background: #0d6756;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.nav-submenu button.active::before {
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.18);
+}
+
+.nav-heading-button {
+  min-height: 44px;
+  font-size: 16px;
+  padding: 11px 12px;
+}
+
+@media (max-width: 950px) {
+  .nav-submenu button {
+    min-height: 44px;
+    padding-left: 46px;
+  }
+
+  .nav-submenu button::before {
+    left: 20px;
+  }
+}

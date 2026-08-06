@@ -1,0 +1,14 @@
+SAMARA CARE ERP V7 — FULL GITHUB PACKAGE
+
+Repository:
+Samara_ERP_V7_Clinical_Charges
+
+Expected URL:
+https://rajaiahboomi-crypto.github.io/Samara_ERP_V7_Clinical_Charges/
+
+1. Run supabase/sql/55_clinical_charges_revenue_management.sql
+2. Upload ALL files and folders to the new repository root.
+3. Enable GitHub Pages using GitHub Actions.
+
+Includes Doctor, Nursing, Physiotherapy, Laboratory, Diagnostic/Imaging, Hospital Visit, Transport, Special Care, Consumables, Food/Nutrition and Miscellaneous clinical charges.
+Version 2.0.0

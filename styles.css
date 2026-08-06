@@ -1,0 +1,687 @@
+:root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#17312b;background:#f4f7f6}*{box-sizing:border-box}body{margin:0;min-height:100vh}.loading{display:grid;place-items:center;min-height:100vh;color:#46635c}.login-shell{min-height:100vh;display:grid;place-items:center;padding:24px;background:linear-gradient(145deg,#e7f2ee,#f7faf9)}.card{background:#fff;border:1px solid #dce7e3;border-radius:22px;box-shadow:0 18px 50px rgba(18,61,50,.12)}.login-card{width:min(440px,100%);padding:32px}.brand{display:flex;gap:15px;align-items:center;margin-bottom:28px}.logo{width:58px;height:58px;border-radius:18px;background:#0b5d4b;color:#fff;display:grid;place-items:center;font-weight:800;font-size:20px}.brand h1{margin:0;font-size:29px}.brand p{margin:4px 0 0;color:#6b817b}.field{display:grid;gap:7px;margin-bottom:17px}.field label{font-weight:700;font-size:14px}.field input,.field select,.field textarea{width:100%;padding:13px 14px;border:1px solid #cddbd6;border-radius:12px;font:inherit;background:#fff}.btn{border:0;border-radius:12px;padding:13px 18px;font:inherit;font-weight:800;cursor:pointer}.btn-primary{background:#0b5d4b;color:#fff}.btn-secondary{background:#e7f2ee;color:#0b5d4b}.btn-danger{background:#feeceb;color:#a12f29}.btn:disabled{opacity:.55;cursor:not-allowed}.full{width:100%}.message{padding:12px 14px;border-radius:12px;margin:14px 0;font-size:14px}.error{background:#feeceb;color:#8b2722}.success{background:#e7f6ed;color:#22643c}.app{min-height:100vh;display:grid;grid-template-columns:250px 1fr}.sidebar{background:#073d33;color:#e9f4f0;padding:22px 16px;position:sticky;top:0;height:100vh}.side-brand{display:flex;gap:12px;align-items:center;padding:8px 10px 25px}.side-logo{width:42px;height:42px;border-radius:12px;background:#fff;color:#0b5d4b;display:grid;place-items:center;font-weight:900}.side-brand strong{display:block;font-size:18px}.side-brand small{color:#a8c6bc}.nav{display:grid;gap:7px}.nav button{border:0;background:transparent;color:#cfe1db;text-align:left;padding:12px 14px;border-radius:11px;font:inherit;cursor:pointer}.nav button.active,.nav button:hover{background:#0d5547;color:#fff}.sidebar-footer{position:absolute;left:16px;right:16px;bottom:18px}.user-chip{padding:12px;border-radius:12px;background:#0d5547;margin-bottom:10px}.user-chip strong,.user-chip small{display:block}.user-chip small{color:#bcd4cc;margin-top:3px}.main{min-width:0}.topbar{height:74px;background:#fff;border-bottom:1px solid #dce7e3;display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:5}.topbar h2{margin:0}.content{padding:26px}.grid{display:grid;gap:18px}.stats{grid-template-columns:repeat(4,minmax(0,1fr))}.stat{padding:20px}.stat span{color:#70857f;font-size:14px}.stat strong{display:block;font-size:29px;margin-top:8px}.panel{padding:22px}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:18px}.panel-head h3{margin:0}.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse;min-width:740px}.table th,.table td{padding:13px 12px;border-bottom:1px solid #e4ece9;text-align:left;white-space:nowrap}.table th{font-size:13px;color:#667c75}.badge{display:inline-flex;padding:5px 9px;border-radius:999px;background:#e7f2ee;color:#0b5d4b;font-size:12px;font-weight:800}.badge.off{background:#f2f2f2;color:#6d6d6d}.actions{display:flex;gap:8px}.modal-backdrop{position:fixed;inset:0;background:rgba(4,29,24,.55);display:grid;place-items:center;padding:20px;z-index:20}.modal{width:min(760px,100%);max-height:92vh;overflow:auto;padding:25px}.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}.close{background:#edf3f1;border:0;border-radius:50%;width:38px;height:38px;font-size:21px;cursor:pointer}.empty{padding:35px;text-align:center;color:#72857f}.mobile-menu{display:none}.install-note{font-size:13px;color:#6e837c;margin-top:15px;text-align:center}@media(max-width:950px){.stats{grid-template-columns:repeat(2,1fr)}.app{grid-template-columns:1fr}.sidebar{display:none}.mobile-menu{display:flex;overflow:auto;background:#073d33;padding:8px;position:sticky;top:74px;z-index:4}.mobile-menu button{border:0;background:transparent;color:#cfe1db;padding:10px 13px;white-space:nowrap;border-radius:9px}.mobile-menu button.active{background:#0d5547;color:#fff}.content{padding:18px}.topbar{padding:0 18px}.modal-grid{grid-template-columns:1fr}}@media(max-width:560px){.stats{grid-template-columns:1fr 1fr}.stat{padding:15px}.stat strong{font-size:23px}.login-card{padding:24px}.content{padding:13px}.panel{padding:16px}.topbar h2{font-size:20px}}
+
+/* v2 assisted-living admission workflow */
+.wide-modal{width:min(1120px,96vw);max-height:94vh;overflow:auto}.section-card{border:1px solid #dfe7e4;border-radius:14px;padding:16px;margin:14px 0;background:#fbfdfc}.section-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.section-title h4{margin:0}.form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.span-2{grid-column:span 2}.span-3{grid-column:1/-1}.check-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.check-card{display:flex;gap:9px;align-items:flex-start;padding:11px;border:1px solid #dfe7e4;border-radius:10px;background:white}.check-card input{margin-top:3px}.repeat-row{display:grid;grid-template-columns:1.5fr .7fr .7fr 1fr 1fr 1.2fr auto;gap:8px;align-items:end;padding:10px 0;border-bottom:1px solid #edf1ef}.repeat-row.care{grid-template-columns:1.3fr .9fr 1fr 1.5fr auto}.icon-btn{border:0;background:#f6dddd;color:#8b1e1e;border-radius:8px;padding:10px;cursor:pointer}.task-group{margin-bottom:20px}.task-card{display:grid;grid-template-columns:1.2fr 1fr 1fr auto;gap:12px;align-items:center;padding:13px;border:1px solid #dfe7e4;border-radius:12px;margin:8px 0;background:white}.task-card.overdue{border-left:5px solid #b42318}.task-card.done{opacity:.7;background:#f3faf6}.task-meta{font-size:.85rem;color:#5f6f68}.pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#e8f4ef;font-size:.78rem}.pill.warning{background:#fff1d6}.pill.danger{background:#fde5e2;color:#8a1c13}.patient-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.patient-tabs button{border:1px solid #d7e0dc;background:white;border-radius:9px;padding:8px 12px;cursor:pointer}.patient-tabs button.active{background:#0e5a49;color:white}.timeline-item{border-left:3px solid #8bbcaf;padding:8px 0 8px 14px;margin-left:8px}.small-note{font-size:.83rem;color:#66756f}.required-note{background:#fff7e6;border:1px solid #f2d08d;padding:10px;border-radius:10px}.textarea{width:100%;min-height:82px;resize:vertical}.time-list{display:flex;gap:6px;flex-wrap:wrap}.time-chip{padding:4px 7px;border-radius:7px;background:#eef5f2;font-size:.8rem}
+@media(max-width:850px){.form-grid,.check-grid{grid-template-columns:1fr 1fr}.repeat-row,.repeat-row.care{grid-template-columns:1fr 1fr}.repeat-row>*:last-child{grid-column:2}.task-card{grid-template-columns:1fr auto}.task-card>div:nth-child(2),.task-card>div:nth-child(3){grid-column:1}}
+@media(max-width:560px){.form-grid,.check-grid{grid-template-columns:1fr}.span-2,.span-3{grid-column:auto}.repeat-row,.repeat-row.care{grid-template-columns:1fr}.repeat-row>*:last-child{grid-column:auto}.wide-modal{width:100vw;height:100vh;max-height:100vh;border-radius:0}.task-card{grid-template-columns:1fr}}
+.special-alert{margin-top:7px;padding:7px 9px;border-radius:8px;background:#fff4d6;border:1px solid #e6b84f;font-size:12px;font-weight:700;color:#765100}.special-nurse-card{border-left:5px solid #d69d19;background:#fffaf0}
+/* v3.1 safe admission and risk assessment */
+.admission-progress{display:flex;gap:8px;overflow:auto;margin:0 0 14px;padding:4px 0}.admission-progress span{white-space:nowrap;padding:7px 10px;border-radius:999px;background:#e9f3ef;color:#28584c;font-size:12px;font-weight:800}.risk-section{border-left:5px solid #d17a16}.selected-risk{background:#fff1e6;border-color:#e5a15d}.risk-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}.risk-badge{padding:4px 7px;border-radius:999px;background:#fee8e4;color:#8b241b;font-size:11px;font-weight:800}.document-link{display:inline-flex;margin-right:8px;margin-top:5px;padding:6px 9px;border-radius:8px;background:#e7f2ee;color:#0b5d4b;text-decoration:none;font-size:12px;font-weight:800}
+.shift-summary{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#073d33;color:white;border-radius:16px;padding:14px 18px;margin-bottom:18px}.shift-summary strong,.shift-summary span{display:block}.shift-summary>div>span{font-size:13px;color:#cce0d9;margin-top:3px}
+
+/* Samara Care ERP V5 unified modules */
+.grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}.bed-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}.bed-card{border:1px solid #cfe2dc;border-radius:14px;padding:15px;background:#f7fbfa;display:flex;flex-direction:column;gap:6px}.bed-card.occupied{background:#e8f5f1;border-color:#78b7a7}.form-stack{display:grid;gap:14px}.table a{color:#0b6656;font-weight:700}.content>.card+.card{margin-top:18px}@media(max-width:800px){.grid.two{grid-template-columns:1fr}.bed-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* V5.1 role-based sectional navigation */
+.app{grid-template-columns:285px 1fr}
+.sidebar{display:flex;flex-direction:column;padding:18px 14px;height:100vh;overflow:hidden}
+.side-brand{flex:0 0 auto;padding:8px 10px 16px}
+.nav-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:2px 3px 14px 0;scrollbar-width:thin;scrollbar-color:#3f786b transparent}
+.nav-scroll::-webkit-scrollbar{width:7px}.nav-scroll::-webkit-scrollbar-thumb{background:#3f786b;border-radius:20px}.nav-scroll::-webkit-scrollbar-track{background:transparent}
+.nav-section{margin-bottom:14px}
+.nav-heading{padding:7px 13px 5px;color:#8fb7ac;font-size:10px;font-weight:900;letter-spacing:.12em}
+.nav{gap:4px}
+.nav button{padding:9px 13px;font-size:14px;width:100%}
+.sidebar-footer{position:static;flex:0 0 auto;border-top:1px solid rgba(255,255,255,.13);padding-top:12px;margin-top:2px}
+.user-chip{padding:10px 11px;margin-bottom:8px}
+.mobile-menu{display:none}
+@media(max-width:950px){
+  .app{grid-template-columns:1fr}.sidebar{display:none}
+  .mobile-menu{display:flex;align-items:center;gap:10px;background:#073d33;padding:10px 14px;position:sticky;top:74px;z-index:4;color:#dcebe6}
+  .mobile-menu label{font-size:12px;font-weight:900;letter-spacing:.08em}
+  .mobile-menu select{min-width:0;flex:1;padding:10px 12px;border:1px solid #2e7162;border-radius:10px;background:#0d5547;color:#fff;font:inherit;font-weight:700}
+  .mobile-menu option,.mobile-menu optgroup{background:#fff;color:#17312b}
+}
+
+/* V5.2 accordion sidebar */
+.nav-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding-right:4px;scrollbar-width:thin;scrollbar-color:#3b786a transparent}
+.nav-scroll::-webkit-scrollbar{width:7px}.nav-scroll::-webkit-scrollbar-thumb{background:#3b786a;border-radius:999px}.nav-scroll::-webkit-scrollbar-track{background:transparent}
+.nav-section{margin:0 0 8px}
+.nav-heading-button{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;border:0;background:transparent;color:#edf8f4;text-align:left;padding:12px 13px;border-radius:11px;font:inherit;font-size:13px;font-weight:900;letter-spacing:.055em;cursor:pointer}
+.nav-heading-button:hover,.nav-section.expanded .nav-heading-button{background:#0d5547;color:#fff}
+.nav-chevron{display:grid;place-items:center;width:23px;height:23px;flex:0 0 23px;border-radius:7px;background:rgba(255,255,255,.12);font-size:18px;line-height:1}
+.nav-submenu{padding:7px 0 3px 10px;animation:menuReveal .16s ease-out}
+.nav-submenu button{position:relative;padding:10px 12px 10px 22px;font-size:14px}
+.nav-submenu button:before{content:'';position:absolute;left:8px;top:50%;width:5px;height:5px;border-radius:50%;background:#6ea598;transform:translateY(-50%)}
+.nav-submenu button.active:before{background:#fff}
+@keyframes menuReveal{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+
+
+/* V5.3 role landing and clickable management dashboard */
+.dashboard-card{border:1px solid var(--border);text-align:left;font:inherit;cursor:pointer;width:100%;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}
+.dashboard-card:hover,.dashboard-card:focus-visible{transform:translateY(-2px);box-shadow:0 10px 24px rgba(15,93,83,.14);border-color:var(--primary);outline:none}
+.dashboard-icon{font-size:1.35rem;line-height:1}
+.dashboard-card small{color:var(--primary);font-weight:700}
+.dashboard-panel-link{width:100%;text-align:left;font:inherit;cursor:pointer;border:1px solid var(--border)}
+.dashboard-panel-link:hover,.dashboard-panel-link:focus-visible{border-color:var(--primary);box-shadow:0 10px 24px rgba(15,93,83,.12);outline:none}
+
+/* V5.4 employee authentication recovery */
+.employee-actions{display:flex;gap:8px;flex-wrap:wrap;min-width:230px}
+.auth-status.on{background:#dcfce7;color:#166534}
+.auth-status.warn{background:#fef3c7;color:#92400e}
+.auth-status.off{background:#fee2e2;color:#991b1b}
+.reset-password-modal{max-width:520px}
+@media(max-width:760px){.employee-actions{min-width:190px}.employee-actions .btn{width:100%}}
+
+.btn-warning{background:#c77800;color:#fff;border-color:#c77800}.btn-warning:hover{filter:brightness(.95)}
+
+/* V5.6 complete employee personnel file */
+.employee-modal{width:min(1120px,96vw)}
+.employee-upload-section{border:1px solid #dce7e3;border-radius:14px;padding:16px;background:#f8fbfa;margin-top:4px}
+.employee-upload-section h4,.employee-doc-list h4{margin:0 0 14px}
+.employee-doc-list{border-top:1px solid #dce7e3;margin-top:18px;padding-top:18px}
+.document-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #e8efec}
+.field small{color:#667c75;font-size:12px}
+.field input[type=file]{padding:10px;background:#f8fbfa}
+@media(max-width:760px){.employee-modal{width:100vw;height:100vh;max-height:100vh;border-radius:0}.document-row{align-items:flex-start;flex-direction:column}.document-row .btn{width:100%}}
+
+.btn-whatsapp{background:#25D366!important;color:#fff!important;border-color:#25D366!important;text-decoration:none;text-align:center;display:inline-flex;align-items:center;justify-content:center}
+.employee-photo-preview{width:120px;height:140px;object-fit:cover;border-radius:14px;border:2px solid #cfe3de;background:#f3f7f6}
+@media(max-width:800px){.employee-actions .btn,.employee-actions a.btn{width:100%;justify-content:center}}
+
+/* V6.3 camera and webcam capture controls */
+.capture-field{align-self:start}
+.capture-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.file-button{position:relative;overflow:hidden;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.file-button input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.selected-files{font-size:.82rem;color:#49635d;margin-top:6px;word-break:break-word}
+.camera-backdrop{z-index:3000}
+.camera-modal{width:min(760px,94vw);max-height:94vh;overflow:auto}
+.camera-stage{background:#0b1714;border-radius:16px;min-height:320px;display:flex;align-items:center;justify-content:center;overflow:hidden;margin:14px 0}
+.camera-video,.camera-preview{display:block;width:100%;max-height:62vh;object-fit:contain;background:#0b1714}
+.camera-canvas{display:none}
+.camera-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+@media(max-width:640px){.capture-actions .btn,.capture-actions .file-button{flex:1 1 130px}.camera-stage{min-height:230px}.camera-actions .btn{flex:1 1 120px}}
+
+.patient-capture-preview{width:130px;height:150px;object-fit:cover;border-radius:16px;border:2px solid #c8ddd8;margin-top:10px;display:block}.capture-actions{display:flex;gap:8px;flex-wrap:wrap}.file-button input{display:none}
+
+
+/* V7.7 Unified Patient Master */
+.patient-master-stats{margin-bottom:18px}.patient-master-modal{width:min(1180px,96vw);max-height:94vh;overflow:auto}.patient-master-header{position:sticky;top:0;background:#fff;z-index:4;padding-bottom:12px}.patient-tab-bar{display:flex;gap:8px;flex-wrap:wrap;position:sticky;top:92px;background:#fff;z-index:3;padding:10px 0;border-bottom:1px solid #dfeae7}.patient-tab{border:0;border-radius:10px;padding:10px 14px;background:#e8f3f0;color:#075f50;font-weight:700;cursor:pointer}.patient-tab.active{background:#086b58;color:#fff}.tab-count{display:inline-flex;min-width:22px;height:22px;align-items:center;justify-content:center;margin-left:7px;border-radius:999px;background:#ffffff55;font-size:12px}.patient-tab-content{padding-top:14px}.patient-photo-placeholder{display:flex;align-items:center;justify-content:center;background:#dce8e5;color:#086b58;font-weight:800}.patient-header-badges{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.duplicate-row{background:#fff8e5}.danger-text{color:#9f2b20}.unassigned-patient-list{display:grid;gap:8px}.message.warning{background:#fff4cf;color:#715800;border:1px solid #f0d46b}
+@media(max-width:760px){.patient-tab-bar{top:70px;overflow-x:auto;flex-wrap:nowrap}.patient-tab{white-space:nowrap}.patient-master-modal{width:98vw}.patient-master-stats{grid-template-columns:1fr 1fr}}
+
+/* =========================================================
+   V8.0 PROFESSIONAL UI / TYPOGRAPHY REFRESH
+   Larger, clearer and touch-friendly across desktop/tablet/mobile
+   ========================================================= */
+:root{
+  font-size:17px;
+  --ui-primary:#086b58;
+  --ui-primary-dark:#064b3f;
+  --ui-text:#17312b;
+  --ui-muted:#60766f;
+  --ui-border:#cdded9;
+  --ui-soft:#eef6f3;
+}
+body{font-size:17px;line-height:1.55;color:var(--ui-text)}
+button,input,select,textarea{font-size:17px}
+.loading{font-size:19px;font-weight:700}
+
+/* Login */
+.login-card{width:min(500px,100%);padding:38px}
+.brand{gap:18px;margin-bottom:32px}.logo{width:66px;height:66px;font-size:24px}
+.brand h1{font-size:34px;line-height:1.15}.brand p{font-size:18px}
+.install-note{font-size:15px;line-height:1.5}
+
+/* Main headings and layout */
+.topbar{height:82px;padding:0 32px}.topbar h2{font-size:32px;line-height:1.2}
+.content{padding:30px}.panel{padding:26px}.panel-head{margin-bottom:22px}
+.panel-head h3{font-size:24px;line-height:1.25}.panel-head small{font-size:15px;color:var(--ui-muted)}
+.section-card{padding:22px;margin:18px 0;border-radius:16px}.section-card h4,.section-title h4{font-size:21px;line-height:1.3}
+.card{border-radius:24px}
+
+/* Forms */
+.field{gap:9px;margin-bottom:20px}.field label{font-size:16px;font-weight:800}
+.field input,.field select,.field textarea{min-height:52px;padding:14px 16px;border-radius:13px;font-size:18px;line-height:1.4}
+.field textarea{min-height:108px}.field small,.small-note{font-size:14px;line-height:1.45}
+.form-grid{gap:18px}.modal-grid{gap:18px}
+.message{padding:15px 17px;font-size:16px;line-height:1.45}
+.required-note{font-size:15px;padding:13px}
+
+/* Buttons and touch targets */
+.btn{min-height:48px;padding:13px 20px;border-radius:12px;font-size:17px;line-height:1.2}
+.btn-primary,.btn-warning,.btn-danger{font-weight:900}
+.close{width:44px;height:44px;font-size:26px}
+.icon-btn{min-height:44px;padding:11px 14px;font-size:15px}
+.capture-actions{gap:10px}.capture-actions .btn,.capture-actions .file-button{min-height:48px}
+
+/* Sidebar */
+.app{grid-template-columns:300px 1fr}
+.sidebar{padding:20px 16px}.side-brand{gap:14px;padding:8px 10px 20px}
+.side-logo{width:48px;height:48px;font-size:17px}.side-brand strong{font-size:21px}.side-brand small{font-size:14px}
+.nav-heading-button{padding:14px 14px;font-size:15px;letter-spacing:.045em}
+.nav-submenu button{padding:12px 14px 12px 25px;font-size:16px;line-height:1.25}
+.nav-chevron{width:27px;height:27px;flex-basis:27px;font-size:20px}
+.user-chip{padding:14px}.user-chip strong{font-size:17px}.user-chip small{font-size:14px}
+
+/* Tables */
+.table{min-width:780px}.table th,.table td{padding:17px 14px;font-size:16px;line-height:1.35}
+.table th{font-size:15px;font-weight:900;color:#536c64;background:#f7fbf9;position:sticky;top:0;z-index:1}
+.table tbody tr{min-height:58px}.table tbody tr:hover{background:#f7fbf9}
+.badge{padding:7px 11px;font-size:14px}
+.employee-actions{gap:10px;min-width:270px}.employee-actions .btn,.employee-actions a.btn{font-size:15px}
+
+/* Dashboard */
+.stats{gap:20px}.stat{padding:25px}.stat span{font-size:17px}.stat strong{font-size:40px;line-height:1.1;margin-top:10px}
+.dashboard-icon{font-size:1.75rem}.dashboard-card small{font-size:14px}.shift-summary{padding:18px 22px}.shift-summary strong{font-size:20px}.shift-summary>div>span{font-size:15px}
+
+/* Admission, care and tasks */
+.admission-progress span{padding:9px 13px;font-size:14px}
+.check-grid{gap:13px}.check-card{padding:14px;font-size:16px;min-height:52px}.check-card input{width:19px;height:19px}
+.repeat-row{gap:10px;padding:14px 0}.task-card{padding:17px;gap:15px}.task-meta{font-size:15px}.pill{padding:6px 10px;font-size:14px}
+.special-alert{font-size:14px;padding:9px 11px}.risk-badge{font-size:13px;padding:6px 9px}
+
+/* Patient master */
+.patient-tab{padding:12px 16px;font-size:16px}.tab-count{font-size:13px}
+.patient-master-stats .stat strong{font-size:38px}.patient-header-badges{gap:9px}
+
+/* Modals */
+.modal{padding:30px}.employee-modal,.patient-master-modal{width:min(1220px,97vw)}
+.employee-photo-preview{width:140px;height:165px}.patient-capture-preview{width:145px;height:170px}
+.document-row{padding:14px 0;font-size:16px}.selected-files{font-size:14px}
+
+/* Mobile and tablet */
+@media(max-width:950px){
+  :root{font-size:18px}
+  .topbar{height:78px}.topbar h2{font-size:28px}
+  .content{padding:20px}.panel{padding:21px}
+  .mobile-menu{top:78px;padding:12px 15px}.mobile-menu label{font-size:15px}.mobile-menu select{min-height:50px;font-size:17px}
+  .field label{font-size:17px}.field input,.field select,.field textarea{font-size:18px;min-height:54px}
+  .btn{font-size:18px;min-height:50px}
+  .table th,.table td{font-size:16px;padding:16px 13px}
+}
+@media(max-width:560px){
+  :root{font-size:18px}
+  .login-shell{padding:14px}.login-card{padding:26px}.brand h1{font-size:30px}.brand p{font-size:17px}
+  .topbar{height:70px;padding:0 15px}.topbar h2{font-size:25px}
+  .content{padding:13px}.panel{padding:16px;border-radius:18px}.panel-head h3{font-size:22px}
+  .section-card{padding:15px}.section-card h4,.section-title h4{font-size:20px}
+  .stats{grid-template-columns:1fr 1fr;gap:12px}.stat{padding:17px}.stat span{font-size:15px}.stat strong{font-size:31px}
+  .field{margin-bottom:17px}.field label{font-size:17px}.field input,.field select,.field textarea{font-size:19px;min-height:55px;padding:14px}
+  .btn{width:auto;min-height:52px;font-size:18px;padding:14px 18px}
+  .capture-actions .btn,.capture-actions .file-button{flex:1 1 145px}
+  .table th,.table td{font-size:16px;padding:15px 12px}
+  .modal{padding:18px}.employee-modal,.patient-master-modal,.wide-modal{width:100vw;height:100vh;max-height:100vh;border-radius:0}
+  .patient-tab{font-size:16px;padding:11px 14px}
+  .message{font-size:16px}
+}
+
+
+/* V8.1 — V3-inspired Rooms & Beds operational master */
+.rooms-hero{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:26px 28px;margin-bottom:20px;border-radius:22px;background:linear-gradient(115deg,#07584d,#14a897);color:#fff;box-shadow:0 12px 30px rgba(5,83,72,.18)}
+.rooms-hero small{display:block;font-size:13px;font-weight:900;letter-spacing:.13em;margin-bottom:7px}.rooms-hero h3{margin:0;font-size:31px}.rooms-hero p{margin:7px 0 0;font-size:16px;color:#e8fffa}.rooms-hero .btn{background:#fff;color:#07584d;border-color:#fff}
+.room-summary{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:20px}.room-summary .stat{min-height:145px}.room-stat-occupied strong{color:#07885e}
+.rooms-master-panel{padding:0;overflow:hidden}.rooms-master-panel .panel-head{padding:24px 26px;margin:0;border-bottom:1px solid #dfe9e6}.rooms-master-panel .table-wrap{border:0;border-radius:0}
+.rooms-table{min-width:1120px}.rooms-table th{font-size:14px;text-transform:uppercase;letter-spacing:.06em;background:#f2f8f6}.rooms-table td{vertical-align:middle}
+.room-status{display:inline-flex;align-items:center;justify-content:center;padding:7px 12px;border-radius:999px;font-size:14px;font-weight:900}.room-status-available{background:#dff8e8;color:#087a45}.room-status-occupied{background:#d7f6e5;color:#057544}.room-status-reserved{background:#fff1c9;color:#9a6500}.room-status-maintenance{background:#ffe0de;color:#a62d27}
+.room-patient{display:flex;flex-direction:column;gap:3px}.room-patient strong{font-size:16px}.room-patient small{font-size:13px;color:var(--ui-muted)}.room-patient .special-alert{width:max-content;margin-top:3px}
+.awaiting-room-panel{margin-top:20px}.awaiting-room-item{display:flex;align-items:center;justify-content:space-between;gap:16px}.awaiting-room-item>div{display:flex;flex-direction:column;gap:5px}.room-bed-modal{width:min(900px,96vw)}
+@media(max-width:950px){.room-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.rooms-hero{padding:21px}.rooms-hero h3{font-size:27px}}
+@media(max-width:560px){.rooms-hero{align-items:flex-start;flex-direction:column}.rooms-hero .btn{width:100%}.room-summary{grid-template-columns:1fr 1fr}.room-summary .stat{min-height:125px}.awaiting-room-item{align-items:stretch;flex-direction:column}.awaiting-room-item .btn{width:100%}}
+
+
+/* V8.2 controlled room and bed selectors */
+.room-bed-select{font-weight:700;border-width:2px;min-height:54px}
+.status-select{font-weight:800;border-width:2px}
+.status-select-available{background:#dff7e8!important;color:#087a3d!important}
+.status-select-occupied{background:#ffe1e1!important;color:#b42318!important}
+.status-select-reserved{background:#e3eeff!important;color:#175cd3!important}
+.status-select-maintenance{background:#eeeeee!important;color:#555!important}
+.room-row-available{background:#f3fff7}
+.room-row-occupied{background:#fff3f3}
+.room-row-reserved{background:#f2f7ff}
+.room-row-female{background:#fff0f7!important;border-left:5px solid #ec4899}
+.room-row-female .room-patient strong{color:#a50f5d}
+.room-status-available{background:#dff7e8!important;color:#087a3d!important}
+.room-status-occupied{background:#ffe1e1!important;color:#b42318!important}
+.room-status-reserved{background:#e3eeff!important;color:#175cd3!important}
+.room-status-maintenance{background:#eeeeee!important;color:#555!important}
+.rooms-table tbody tr{transition:background .15s ease}
+.rooms-table tbody tr:hover{filter:brightness(.985)}
+
+
+/* V9.1 Intelligent Reports */
+.intelligent-report-controls{display:grid;grid-template-columns:minmax(220px,1fr) minmax(280px,2fr) auto;gap:18px;align-items:end}
+.intelligent-report{margin-top:22px}
+.intelligent-summary{padding:20px 22px;margin:18px 0;background:#edf9f6;border-left:5px solid #087a68;border-radius:14px}
+.intelligent-summary h3{margin:0 0 8px}.intelligent-summary p{margin:0;line-height:1.7}
+.patient-report-header{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:18px;background:#f7faf9;border:1px solid #dce9e5;border-radius:14px;margin:15px 0}
+.patient-report-header div:first-child{display:flex;flex-direction:column}.patient-report-header strong{font-size:18px}.patient-report-header span{font-size:22px;font-weight:800}
+.intelligent-stats{margin:18px 0}
+.intelligent-report-section{margin-top:22px;padding-top:18px;border-top:1px solid #dce6e3}
+.intelligent-report-section h3{margin:0 0 12px}
+.intelligent-report-list{display:grid;gap:9px}
+.intelligent-report-item{display:flex;flex-direction:column;gap:4px;padding:13px 16px;border:1px solid #dce6e3;border-radius:12px;background:#fbfdfc}
+.intelligent-report-item span{line-height:1.55}
+@media(max-width:800px){.intelligent-report-controls{grid-template-columns:1fr}.patient-report-header{grid-template-columns:1fr 1fr}}
+@media print{.sidebar,.topbar,.mobile-menu,.no-print,.intelligent-report-controls{display:none!important}.main{margin:0!important}.content{padding:0!important}.printable-report{box-shadow:none!important;border:0!important}.intelligent-report-section{break-inside:avoid}.card{box-shadow:none!important}}
+
+/* =========================================================
+   V9.3 – V3 visual style + readable compact density
+   ========================================================= */
+:root{font-size:17px}
+body{font-size:17px;line-height:1.42}
+
+/* V3 split-screen login */
+.login-v3-shell{padding:32px;background:linear-gradient(135deg,#dff5f0 0%,#f7fbfa 60%,#eef7f4 100%)}
+.login-v3-frame{width:min(1120px,96vw);min-height:620px;display:grid;grid-template-columns:1.12fr .88fr;background:#fff;border:1px solid #d7e5e0;border-radius:28px;overflow:hidden;box-shadow:0 28px 70px rgba(11,74,61,.15)}
+.login-v3-hero{padding:72px 64px;background:linear-gradient(150deg,#075c50 0%,#0c8e7f 100%);color:#fff;display:flex;flex-direction:column;justify-content:center}
+.login-v3-logo{width:72px;height:72px;border-radius:22px;display:grid;place-items:center;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);font-size:31px;font-weight:900;margin-bottom:26px}
+.login-v3-kicker{font-size:13px;font-weight:900;letter-spacing:.14em;margin-bottom:10px}
+.login-v3-hero h1{font-size:44px;line-height:1.08;margin:0 0 20px;font-weight:900}
+.login-v3-description{font-size:20px;line-height:1.55;max-width:560px;margin:0 0 44px;color:#f0fffb}
+.login-v3-features{display:grid;gap:16px;font-size:18px}
+.login-v3-features>div{display:flex;align-items:center;gap:13px}
+.login-v3-features span{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.2);font-weight:900}
+.login-v3-form{padding:72px 58px;display:flex;flex-direction:column;justify-content:center}
+.login-v3-kicker-dark{color:#087565;margin-bottom:12px}
+.login-v3-form h2{font-size:36px;line-height:1.1;margin:0 0 10px;color:#102d27}
+.login-v3-subtitle{font-size:18px;color:#657a74;margin:0 0 28px}
+.login-v3-form .field{gap:9px;margin-bottom:19px}
+.login-v3-form .field label{font-size:16px}
+.login-v3-form .field input{font-size:18px;min-height:54px;padding:14px 16px;border-radius:13px}
+.login-v3-button{min-height:54px;font-size:18px;background:linear-gradient(90deg,#08715f,#109b89);box-shadow:0 10px 22px rgba(9,132,114,.2)}
+.login-v3-version{text-align:center;margin-top:24px;color:#647b75;font-size:14px}
+
+/* Larger readable interface, but less empty vertical space */
+.topbar{height:68px;padding:0 24px}.topbar h2{font-size:27px}
+.content{padding:20px 22px}.panel{padding:18px 20px}.panel-head{margin-bottom:13px}.panel-head h3{font-size:23px}.panel-head small{font-size:15px}
+.field{gap:6px;margin-bottom:12px}.field label{font-size:16px}.field input,.field select,.field textarea{font-size:17px;padding:11px 13px;min-height:46px}
+.btn{font-size:16px;padding:11px 16px;min-height:44px}
+.section-card{padding:14px 16px;margin:10px 0}.section-card h4,.section-title h4{font-size:19px}.form-grid{gap:10px 14px}.modal-grid{gap:11px 15px}
+.table th,.table td{padding:9px 11px;font-size:16px;line-height:1.25}.table th{font-size:14px}.table tbody tr{height:48px}
+.document-row{padding:7px 0}.repeat-row{padding:7px 0}.task-card{padding:10px 12px;margin:6px 0}.timeline-item{padding-top:6px;padding-bottom:6px}
+.nav-heading-button{font-size:15px;padding:10px 12px}.nav-submenu button,.nav button{font-size:16px;padding:9px 12px}.side-brand strong{font-size:19px}.side-brand small{font-size:14px}
+.stat{padding:16px}.stat span{font-size:15px}.stat strong{font-size:32px;margin-top:5px}.grid{gap:14px}.stats{gap:14px}
+.badge{font-size:13px;padding:5px 9px}.small-note,.field small{font-size:14px}.install-note{font-size:14px}
+
+@media(max-width:760px){
+  :root{font-size:16px}.login-v3-shell{padding:0}.login-v3-frame{width:100%;min-height:100vh;border-radius:0;grid-template-columns:1fr}.login-v3-hero{padding:34px 28px}.login-v3-hero h1{font-size:34px}.login-v3-description{font-size:17px;margin-bottom:24px}.login-v3-features{font-size:16px;gap:10px}.login-v3-form{padding:38px 26px}.login-v3-form h2{font-size:31px}
+  .content{padding:13px}.panel{padding:14px}.table th,.table td{font-size:15px;padding:8px 9px}.btn{font-size:16px}.field input,.field select,.field textarea{font-size:16px}
+}
+
+.first-login-card{max-width:620px}.first-login-card h1{font-size:30px;line-height:1.2}.first-login-card p{font-size:17px;line-height:1.55}
+
+/* ERP 1.0.2 global search */
+.topbar{gap:16px}.topbar h2{flex:0 0 auto}.topbar>.badge{flex:0 0 auto}
+.global-search{position:relative;flex:1;max-width:720px;margin-left:auto}
+.global-search-box{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #cddfd9;border-radius:13px;padding:0 10px;min-height:44px;box-shadow:0 3px 10px rgba(7,83,70,.05)}
+.global-search-box:focus-within{border-color:#0a8875;box-shadow:0 0 0 3px rgba(10,136,117,.12)}
+.global-search-icon{font-size:24px;color:#0a7565;line-height:1}
+.global-search-box input{width:100%;border:0;outline:0;background:transparent;font-size:16px;min-height:40px;padding:7px 2px;color:#102d27}
+.global-search-clear{border:0;background:transparent;font-size:24px;color:#60746f;cursor:pointer;padding:0 4px}
+.global-search-results{position:absolute;z-index:300;top:calc(100% + 8px);left:0;right:0;background:#fff;border:1px solid #cddfd9;border-radius:14px;box-shadow:0 18px 45px rgba(8,60,51,.18);max-height:430px;overflow:auto;padding:7px}
+.global-search-result{width:100%;display:grid;grid-template-columns:82px 1fr;align-items:center;gap:10px;text-align:left;border:0;border-bottom:1px solid #e7efec;background:#fff;padding:11px 12px;cursor:pointer;border-radius:9px}
+.global-search-result:last-child{border-bottom:0}.global-search-result:hover{background:#edf8f5}
+.search-type{font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;border-radius:999px;padding:5px 8px;text-align:center}
+.search-type.patient{background:#dff5ed;color:#076b59}.search-type.employee{background:#e7efff;color:#315c9f}
+.search-result-main{display:flex;flex-direction:column;gap:3px;min-width:0}.search-result-main strong{font-size:16px;color:#102d27}.search-result-main small{font-size:13px;color:#60746f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.global-search-empty{padding:18px;text-align:center;color:#60746f;font-size:15px}
+@media(max-width:900px){.topbar{height:auto;min-height:68px;flex-wrap:wrap;padding:10px 16px}.global-search{order:3;flex-basis:100%;max-width:none;margin:0}.global-search-results{position:fixed;top:130px;left:12px;right:12px}}
+
+/* ERP 1.0.3 – Intelligent Reports Version 2 */
+.patient-report-v2{display:grid;grid-template-columns:110px minmax(260px,1fr) auto;gap:18px;align-items:center;padding:20px;border:1px solid var(--line,#d9e5e1);border-radius:18px;background:#f8fcfa;margin-bottom:18px}.patient-report-photo{width:96px;height:112px;border-radius:14px;overflow:hidden;background:#eaf4f1;display:flex;align-items:center;justify-content:center;border:1px solid #c9ded7}.patient-report-photo img{width:100%;height:100%;object-fit:cover}.report-photo-placeholder{font-size:30px;font-weight:800;color:#066b58}.patient-report-identity{display:flex;flex-direction:column;gap:5px}.patient-report-identity strong{font-size:24px}.patient-report-identity span{font-size:15px;color:#46645c}.patient-report-facts{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 24px;border-top:1px solid #d8e7e2;padding-top:14px;font-size:15px}.report-status-badge{padding:10px 14px;border-radius:999px;font-weight:800;text-align:center;white-space:nowrap}.report-status-badge.stable{background:#d9f5e4;color:#11643a}.report-status-badge.warning{background:#fff1c9;color:#8b5a00}.report-status-badge.critical{background:#ffd9d9;color:#a21818}.human-report p{font-size:16px;line-height:1.7;margin:0 0 12px}.report-footer{margin-top:26px;padding-top:18px;border-top:1px solid #d6e3df;display:flex;flex-direction:column;gap:3px;text-align:center;color:#31554b}.report-footer strong{font-size:18px}.report-footer span{font-size:14px}.report-footer small{margin-top:8px;color:#668078}@media(max-width:760px){.patient-report-v2{grid-template-columns:88px 1fr}.report-status-badge{grid-column:1/-1;justify-self:start}.patient-report-facts{grid-template-columns:1fr}.patient-report-photo{width:80px;height:96px}}
+@media print{.patient-report-v2{break-inside:avoid}.report-status-badge{-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-footer{break-inside:avoid}}
+
+
+/* ERP 1.0.4 – Patient Edit Media */
+.patient-edit-media{margin-top:18px}.patient-edit-photo-row{display:grid;grid-template-columns:130px minmax(0,1fr);gap:18px;align-items:start;margin-bottom:18px}.patient-edit-photo-row .patient-photo{width:118px;height:138px}.patient-edit-media .upload-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.uploaded-documents-list .timeline-item{display:flex;align-items:center;justify-content:space-between;gap:14px}.uploaded-documents-list .timeline-item>div:first-child{display:flex;flex-direction:column;gap:3px;min-width:0}.uploaded-documents-list .timeline-item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.patient-edit-modal{max-width:1180px}@media(max-width:760px){.patient-edit-photo-row{grid-template-columns:1fr}.patient-edit-media .upload-grid{grid-template-columns:1fr}.uploaded-documents-list .timeline-item{align-items:flex-start;flex-direction:column}}
+
+
+/* ERP 1.0.5 - A4 Intelligent Report print layout */
+@page{size:A4 portrait;margin:11mm 10mm 12mm}
+@media print{
+  html,body{width:210mm!important;min-height:297mm!important;background:#fff!important;color:#172d28!important;font-size:10.5pt!important}
+  body{margin:0!important;padding:0!important}
+  .app{display:block!important;min-height:auto!important}
+  .sidebar,.topbar,.mobile-menu,.no-print,.intelligent-report-controls,.install-note{display:none!important}
+  .main,.content{display:block!important;width:auto!important;max-width:none!important;margin:0!important;padding:0!important;overflow:visible!important}
+  .printable-report{width:100%!important;max-width:none!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:#fff!important}
+  .printable-report>.panel-head{margin:0 0 5mm!important;padding:0 0 3mm!important;border-bottom:1px solid #b8cbc5!important}
+  .printable-report>.panel-head h2{font-size:18pt!important;line-height:1.2!important;margin:0!important}
+  .printable-report>.panel-head small{font-size:9pt!important}
+  .patient-report-v2{display:grid!important;grid-template-columns:24mm 1fr 45mm!important;gap:4mm!important;padding:4mm!important;margin:0 0 4mm!important;border-radius:3mm!important;break-inside:avoid!important}
+  .patient-report-photo{width:22mm!important;height:27mm!important;border-radius:2mm!important}
+  .patient-report-identity strong{font-size:15pt!important}.patient-report-identity span{font-size:9.5pt!important}
+  .patient-report-facts{grid-template-columns:1fr 1fr!important;gap:2mm 6mm!important;padding-top:3mm!important;font-size:9.5pt!important}
+  .report-status-badge{font-size:9pt!important;padding:2.5mm 3mm!important;white-space:normal!important}
+  .intelligent-summary{padding:4mm!important;margin:0 0 4mm!important;border-radius:3mm!important;break-inside:auto!important}
+  .intelligent-summary h3,.intelligent-report-section h3{font-size:13pt!important;margin:0 0 2mm!important}
+  .human-report p{font-size:10.5pt!important;line-height:1.45!important;margin:0 0 2.2mm!important}
+  .intelligent-stats{grid-template-columns:repeat(4,1fr)!important;gap:2.5mm!important;margin:0 0 4mm!important}
+  .intelligent-stats .stat{padding:3mm!important;border-radius:2.5mm!important;break-inside:avoid!important}
+  .intelligent-stats .stat span{font-size:8.5pt!important}.intelligent-stats .stat strong{font-size:14pt!important;margin-top:1mm!important}
+  .intelligent-report-section{margin-top:4mm!important;padding-top:3mm!important;break-inside:auto!important}
+  .intelligent-report-list{gap:2mm!important}.intelligent-report-item{padding:2.5mm 3mm!important;border-radius:2mm!important;break-inside:avoid!important}
+  .intelligent-report-item strong,.intelligent-report-item span,.small-note{font-size:9.5pt!important;line-height:1.35!important}
+  .report-footer{margin-top:5mm!important;padding-top:3mm!important;break-inside:avoid!important}.report-footer strong{font-size:12pt!important}.report-footer span,.report-footer small{font-size:8.5pt!important}
+  a[href]:after{content:none!important}
+}
+
+.build-info{display:block;opacity:.72;font-size:11px;margin-top:2px;line-height:1.2}
+
+/* ERP 1.0.11 — V3-inspired, concise Intelligent Patient Report */
+.intelligent-report.printable-report{display:flex;flex-direction:column;gap:16px;background:#fff}
+.intelligent-report.printable-report>.panel-head{order:1}
+.intelligent-report.printable-report>.intelligent-summary{order:2}
+.intelligent-report.printable-report>.patient-report-header{order:3}
+.intelligent-report.printable-report>.intelligent-stats{order:4}
+.intelligent-report.printable-report>.intelligent-report-section{order:5}
+.intelligent-report.printable-report>.report-footer{order:6}
+.report-status-badge{display:none!important}
+.patient-report-v2{position:relative;display:grid;grid-template-columns:110px 1fr;gap:18px;padding:20px;border:1px solid #d8e6e2;border-radius:18px;background:#fff}
+.patient-report-v2:before{content:'Resident Overview';grid-column:1/-1;color:#08715f;font-size:20px;font-weight:800;border-bottom:1px solid #d8e6e2;padding-bottom:10px}
+.patient-report-photo{width:100px;height:120px}
+.patient-report-facts{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:10px 28px;border-top:1px solid #d8e6e2;padding-top:14px}
+.intelligent-summary.human-report{border-left:0;border-radius:0;background:#fff;padding:0}
+.intelligent-summary.human-report h3{color:#08715f;border-bottom:2px solid #0c8a74;padding-bottom:8px}
+.intelligent-summary.human-report p{font-size:16px;line-height:1.65;margin:8px 0}
+.intelligent-stats{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.intelligent-stats .stat{padding:12px 14px;min-height:auto}
+.intelligent-report-section{break-inside:avoid}
+.intelligent-report-section h3{color:#08715f;font-size:19px;border-bottom:1px solid #d8e6e2;padding-bottom:7px}
+@media print{
+  @page{size:A4 portrait;margin:12mm}
+  body{font-size:10.5pt;background:#fff!important}
+  .sidebar,.topbar,.mobile-menu,.no-print,.intelligent-report-controls,.content>.card.panel:first-child{display:none!important}
+  .main,.content{margin:0!important;padding:0!important;width:100%!important}
+  .intelligent-report.printable-report{box-shadow:none!important;border:0!important;padding:0!important;gap:10px!important}
+  .intelligent-report.printable-report>.panel-head{margin-bottom:2px}
+  .intelligent-summary.human-report p{font-size:10.5pt;line-height:1.45;margin:5px 0}
+  .patient-report-v2{grid-template-columns:26mm 1fr;padding:10px;border-radius:10px;gap:10px}
+  .patient-report-photo{width:24mm;height:28mm}
+  .patient-report-facts{gap:4px 14px;font-size:9.5pt}
+  .intelligent-stats{grid-template-columns:repeat(4,1fr)!important;gap:6px!important}
+  .intelligent-stats .stat{padding:7px!important}
+  .intelligent-report-section{margin-top:5px}
+  .intelligent-report-section h3{font-size:12pt;margin:5px 0}
+  .intelligent-report-item{padding:7px 9px!important}
+  .report-footer{margin-top:10px!important}
+}
+
+
+/* ERP 1.0.12 - compact V3-style Intelligent Report filters */
+.intelligent-report-controls-v3{display:grid;grid-template-columns:minmax(180px,.7fr) minmax(360px,1.7fr) auto auto;gap:14px;align-items:end}
+.intelligent-report-controls-v3 .field{margin:0}
+.intelligent-report-controls-v3 .btn{min-height:48px;white-space:nowrap}
+.patient-report-v2{grid-template-columns:112px 1fr;align-items:start}
+.patient-report-v2 .patient-report-photo{grid-row:1 / span 2;align-self:start}
+.patient-report-v2 .patient-report-facts{grid-column:1 / -1}
+@media(max-width:1000px){.intelligent-report-controls-v3{grid-template-columns:1fr 1.6fr}.intelligent-report-controls-v3 .btn{width:100%}}
+@media(max-width:700px){.intelligent-report-controls-v3{grid-template-columns:1fr}.patient-report-v2{grid-template-columns:92px 1fr}}
+@media print{.intelligent-report-controls-v3{display:none!important}.intelligent-summary{break-inside:avoid}.patient-report-v2{break-inside:avoid}}
+
+/* ERP 1.0.14 - final Resident Overview alignment */
+.patient-report-v2{
+  display:grid!important;
+  grid-template-columns:112px minmax(0,1fr)!important;
+  grid-template-areas:
+    "overview overview"
+    "photo identity"
+    "facts facts"!important;
+  align-items:start!important;
+  gap:14px 20px!important;
+}
+.patient-report-v2:before{
+  grid-area:overview!important;
+  display:block!important;
+  margin:0!important;
+}
+.patient-report-v2 .patient-report-photo{
+  grid-area:photo!important;
+  grid-row:auto!important;
+  align-self:start!important;
+}
+.patient-report-v2 .patient-report-identity{
+  grid-area:identity!important;
+  align-self:start!important;
+  min-width:0!important;
+}
+.patient-report-v2 .patient-report-identity strong,
+.patient-report-v2 .patient-report-identity span{
+  display:block!important;
+  white-space:normal!important;
+  word-break:normal!important;
+}
+.patient-report-v2 .patient-report-facts{
+  grid-area:facts!important;
+  grid-column:auto!important;
+}
+@media(max-width:700px){
+  .patient-report-v2{
+    grid-template-columns:92px minmax(0,1fr)!important;
+    grid-template-areas:
+      "overview overview"
+      "photo identity"
+      "facts facts"!important;
+  }
+}
+@media print{
+  .patient-report-v2{
+    grid-template-columns:26mm minmax(0,1fr)!important;
+    grid-template-areas:
+      "overview overview"
+      "photo identity"
+      "facts facts"!important;
+    gap:3mm 5mm!important;
+  }
+}
+
+/* ===== ERP 1.0.14 HOSPITAL-STYLE INTELLIGENT PATIENT REPORT ===== */
+.hospital-report{background:#fff!important;max-width:1220px;margin:22px auto;padding:22px!important}
+.hospital-report-title{text-align:center;border-bottom:2px solid #08715f;padding:4px 0 14px;margin-bottom:14px;color:#063f36}
+.hospital-report-title>strong{display:block;font-size:26px;letter-spacing:.5px}.hospital-report-title>span{display:block;font-size:15px;color:#3f5e56}.hospital-report-title h1{font-size:34px;margin:10px 0 4px;color:#075f50}.hospital-report-title small{font-size:14px;color:#38564f}
+.resident-overview-card{border:1px solid #87b8aa;border-radius:15px;overflow:hidden;margin-bottom:14px;background:#fff}
+.resident-overview-heading{background:linear-gradient(90deg,#076b58,#0a8874);color:#fff;font-weight:800;padding:10px 18px;letter-spacing:.4px}
+.resident-overview-grid{display:grid;grid-template-columns:190px 1.15fr 1fr;gap:24px;align-items:center;padding:20px 28px 10px}
+.resident-overview-photo{width:176px;height:210px;border-radius:12px;overflow:hidden;background:#eaf4f1;border:1px solid #c6ddd6;display:flex;align-items:center;justify-content:center}.resident-overview-photo img{width:100%;height:100%;object-fit:cover}
+.resident-overview-main h2{font-size:25px;color:#075f50;margin:0 0 14px}.overview-detail-grid{display:grid;gap:10px}.overview-detail-grid>div,.resident-overview-clinical>div{display:grid;grid-template-columns:145px 1fr;gap:10px;align-items:start}.overview-detail-grid b,.resident-overview-clinical b{color:#183b34}.overview-detail-grid span,.resident-overview-clinical span{color:#223b35}
+.resident-overview-clinical{display:grid;gap:14px;border-left:1px solid #d8e7e2;padding-left:24px}
+.clinical-current-status{display:flex;align-items:center;justify-content:center;gap:12px;max-width:370px;margin:0 auto 18px;padding:10px 24px;border-radius:9px;font-size:16px}.clinical-current-status span{display:inline-flex;width:24px;height:24px;align-items:center;justify-content:center;border-radius:50%;color:#fff}.clinical-current-status.stable{background:#edf8ed;border:1px solid #beddbf;color:#195e2f}.clinical-current-status.stable span{background:#19944c}.clinical-current-status.warning{background:#fff5d7;border:1px solid #ecd58c;color:#7a5600}.clinical-current-status.warning span{background:#d79500}.clinical-current-status.critical{background:#ffe3e3;border:1px solid #efbaba;color:#9b1c1c}.clinical-current-status.critical span{background:#c72c2c}.clinical-current-status strong{font-size:18px}
+.clinical-summary-card{border:1px solid #b7d7cf;border-radius:14px;padding:18px 22px;margin-bottom:14px}.clinical-summary-card h3,.clinical-box h3,.financial-summary-card h3,.recovery-summary-card h3{color:#08715f;margin:0 0 12px;font-size:19px}.clinical-summary-card p{margin:0 0 9px;line-height:1.55;font-size:14px}.clinical-summary-card p:last-child{margin-bottom:0}
+.clinical-report-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:14px}.clinical-box{border:1px solid #bdd9d2;border-radius:14px;padding:16px;background:#fff;break-inside:avoid}.clinical-box h3{display:flex;align-items:center;gap:10px;font-size:17px;border-bottom:1px solid #dbe9e5;padding-bottom:9px}.clinical-box-icon{font-size:22px}.clinical-box-rows{display:grid}.clinical-box-row{display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px dotted #d8e6e2;font-size:13px}.clinical-box-row strong{text-align:right}.clinical-box-note{margin-top:12px;padding:10px;border-radius:8px;background:#f2f8f4;color:#147048;font-weight:700;font-size:13px;text-align:center}
+.financial-summary-card,.recovery-summary-card{border:1px solid #bdd9d2;border-radius:14px;padding:15px 18px;margin-bottom:14px;break-inside:avoid}.financial-summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0}.financial-summary-grid>div{text-align:center;padding:10px;border-right:1px solid #dbe9e5}.financial-summary-grid>div:last-child{border-right:0}.financial-summary-grid span{display:block;color:#31554b;font-size:13px}.financial-summary-grid strong{font-size:19px}.financial-summary-grid .outstanding{background:#f0f8ee;border:1px solid #c8dec3;border-radius:10px}.recovery-summary-card p{margin:0;padding:10px;text-align:center;background:#f3f8f6;border-radius:8px;color:#356157}
+.hospital-report-footer{display:grid;grid-template-columns:1.4fr .7fr .9fr;gap:20px;align-items:center;border:1px solid #bdd9d2;border-radius:14px;padding:14px 18px}.hospital-report-footer>div{display:flex;flex-direction:column;gap:3px}.hospital-report-footer>div+div{border-left:1px solid #cbded8;padding-left:20px}.hospital-report-footer strong{color:#123e35}.hospital-report-footer span{font-size:13px}.hospital-report-footer em{font-size:12px;color:#08715f;font-weight:700}
+@media(max-width:900px){.resident-overview-grid{grid-template-columns:140px 1fr}.resident-overview-photo{width:128px;height:154px}.resident-overview-clinical{grid-column:1/-1;border-left:0;border-top:1px solid #d8e7e2;padding:15px 0 0}.clinical-report-grid{grid-template-columns:1fr 1fr}.financial-summary-grid{grid-template-columns:1fr 1fr}.hospital-report-footer{grid-template-columns:1fr}}
+@media(max-width:620px){.resident-overview-grid{grid-template-columns:1fr}.resident-overview-photo{width:130px;height:155px}.overview-detail-grid>div,.resident-overview-clinical>div{grid-template-columns:1fr}.clinical-report-grid{grid-template-columns:1fr}.financial-summary-grid{grid-template-columns:1fr}.financial-summary-grid>div{border-right:0;border-bottom:1px solid #dbe9e5}.hospital-report-title h1{font-size:25px}}
+@media print{
+  @page{size:A4 portrait;margin:8mm}
+  .hospital-report{width:100%!important;max-width:none!important;margin:0!important;padding:0!important;border:0!important;box-shadow:none!important;font-size:8.7pt!important}
+  .hospital-report>.panel-head{display:none!important}.hospital-report-title{margin-bottom:3mm;padding-bottom:3mm}.hospital-report-title>strong{font-size:17pt}.hospital-report-title>span{font-size:9pt}.hospital-report-title h1{font-size:21pt;margin:2mm 0 1mm}.hospital-report-title small{font-size:8.5pt}
+  .resident-overview-card{border-radius:2.5mm;margin-bottom:3mm;break-inside:avoid}.resident-overview-heading{padding:2mm 4mm;font-size:9.5pt}.resident-overview-grid{grid-template-columns:34mm 1.1fr 1fr;gap:4mm;padding:4mm 5mm 2mm}.resident-overview-photo{width:32mm;height:39mm;border-radius:2mm}.resident-overview-main h2{font-size:14pt;margin-bottom:2mm}.overview-detail-grid,.resident-overview-clinical{gap:1.4mm}.overview-detail-grid>div,.resident-overview-clinical>div{grid-template-columns:30mm 1fr;gap:2mm;font-size:8.5pt}.resident-overview-clinical{padding-left:4mm}.clinical-current-status{margin:0 auto 3mm;padding:1.8mm 5mm;font-size:9pt}.clinical-current-status strong{font-size:10.5pt}.clinical-current-status span{width:5mm;height:5mm}
+  .clinical-summary-card{border-radius:2.5mm;padding:3mm 4mm;margin-bottom:3mm;break-inside:avoid}.clinical-summary-card h3,.clinical-box h3,.financial-summary-card h3,.recovery-summary-card h3{font-size:10.5pt;margin-bottom:2mm}.clinical-summary-card p{font-size:8.3pt;line-height:1.35;margin-bottom:1.5mm}
+  .clinical-report-grid{grid-template-columns:repeat(3,1fr);gap:2.5mm;margin-bottom:3mm}.clinical-box{border-radius:2.5mm;padding:2.5mm}.clinical-box h3{font-size:9.5pt;padding-bottom:1.5mm}.clinical-box-row{font-size:7.7pt;padding:1mm 0}.clinical-box-note{font-size:7.5pt;margin-top:2mm;padding:1.8mm}
+  .financial-summary-card,.recovery-summary-card{border-radius:2.5mm;padding:2.5mm 3mm;margin-bottom:3mm}.financial-summary-grid span{font-size:7.5pt}.financial-summary-grid strong{font-size:11pt}.hospital-report-footer{border-radius:2.5mm;padding:2.5mm 3mm;gap:3mm}.hospital-report-footer span,.hospital-report-footer em{font-size:7.5pt}
+}
+
+/* ===== ERP 1.0.15 DASHBOARD VISUAL REFRESH ===== */
+.dashboard-links{
+  grid-template-columns:repeat(4,minmax(220px,1fr));
+  gap:20px;
+  align-items:stretch;
+}
+.dashboard-card{
+  position:relative;
+  min-height:205px;
+  padding:24px 24px 22px;
+  border-radius:24px;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-end;
+  background:linear-gradient(145deg,#ffffff 0%,#f8fbfa 100%);
+  box-shadow:0 12px 30px rgba(12,74,62,.09);
+}
+.dashboard-card::before{
+  content:"";
+  position:absolute;
+  inset:0 0 auto 0;
+  height:7px;
+  background:var(--dashboard-accent,#0f8f7f);
+}
+.dashboard-card::after{
+  content:"";
+  position:absolute;
+  width:132px;
+  height:132px;
+  border-radius:50%;
+  right:-44px;
+  top:-46px;
+  background:color-mix(in srgb,var(--dashboard-accent,#0f8f7f) 12%,transparent);
+  pointer-events:none;
+}
+.dashboard-card .dashboard-icon{
+  position:absolute;
+  top:28px;
+  right:25px;
+  width:58px;
+  height:58px;
+  border-radius:18px;
+  display:grid;
+  place-items:center;
+  font-size:29px;
+  background:color-mix(in srgb,var(--dashboard-accent,#0f8f7f) 14%,white);
+  box-shadow:0 8px 18px rgba(12,74,62,.08);
+  z-index:1;
+}
+.dashboard-card>span:not(.dashboard-icon){
+  color:#54706a;
+  font-size:17px;
+  line-height:1.25;
+  font-weight:750;
+  max-width:72%;
+  margin-bottom:7px;
+}
+.dashboard-card strong{
+  font-size:42px;
+  line-height:1;
+  letter-spacing:-1.5px;
+  color:#102f29;
+  margin:0 0 15px;
+}
+.dashboard-card small{
+  font-size:14px;
+  color:var(--dashboard-accent,#0b6a59);
+  font-weight:850;
+}
+.dashboard-card:hover,.dashboard-card:focus-visible{
+  transform:translateY(-5px);
+  box-shadow:0 18px 38px rgba(12,74,62,.16);
+}
+.dashboard-card:nth-child(1){--dashboard-accent:#6d4cc7}
+.dashboard-card:nth-child(2){--dashboard-accent:#2878c8}
+.dashboard-card:nth-child(3){--dashboard-accent:#e4931b}
+.dashboard-card:nth-child(4){--dashboard-accent:#0d9b75}
+.dashboard-card:nth-child(5){--dashboard-accent:#d44f72}
+.dashboard-card:nth-child(6){--dashboard-accent:#18a561}
+.dashboard-card:nth-child(7){--dashboard-accent:#d64b3d}
+.dashboard-card:nth-child(8){--dashboard-accent:#0b8a87}
+
+.dashboard-panel-link{
+  min-height:185px;
+  border-radius:24px;
+  padding:27px 28px;
+  background:linear-gradient(145deg,#fff,#f6faf8);
+  box-shadow:0 12px 28px rgba(12,74,62,.08);
+}
+.dashboard-panel-link h3{font-size:23px}
+.dashboard-panel-link p{font-size:16px;line-height:1.55;color:#516b64}
+.dashboard-panel-link .badge{font-size:14px;padding:8px 12px}
+.shift-summary{
+  border-radius:22px;
+  padding:22px 26px;
+  margin-bottom:20px;
+  box-shadow:0 12px 28px rgba(5,55,46,.15);
+  background:linear-gradient(110deg,#073d33,#0b6b5b);
+}
+.shift-summary strong{font-size:24px}
+.shift-summary>div>span{font-size:16px}
+
+@media(max-width:1350px){
+  .dashboard-links{grid-template-columns:repeat(3,minmax(210px,1fr))}
+}
+@media(max-width:1050px){
+  .dashboard-links{grid-template-columns:repeat(2,minmax(190px,1fr))}
+}
+@media(max-width:620px){
+  .dashboard-links{grid-template-columns:1fr 1fr;gap:12px}
+  .dashboard-card{min-height:165px;padding:18px;border-radius:18px}
+  .dashboard-card .dashboard-icon{width:46px;height:46px;font-size:23px;top:20px;right:18px;border-radius:14px}
+  .dashboard-card>span:not(.dashboard-icon){font-size:14px;max-width:68%}
+  .dashboard-card strong{font-size:32px;margin-bottom:10px}
+  .dashboard-card small{font-size:12px}
+  .shift-summary{padding:18px}
+  .shift-summary strong{font-size:20px}
+}
+
+/* ERP 1.0.16 Clinical Dashboard and Vital Signs */
+.clinical-welcome{display:flex;justify-content:space-between;align-items:center;padding:25px 28px;margin-bottom:20px;border-radius:24px;color:#fff;background:linear-gradient(110deg,#073f35,#119786);box-shadow:0 14px 32px rgba(6,74,62,.18)}
+.clinical-welcome small{font-weight:900;letter-spacing:1.2px}.clinical-welcome h2{font-size:30px;margin:5px 0}.clinical-welcome p{margin:0;font-size:16px}.clinical-date{padding:12px 16px;border-radius:14px;background:#ffffff22;font-weight:800}
+.clinical-card-grid{display:grid;grid-template-columns:repeat(3,minmax(210px,1fr));gap:16px;margin-bottom:20px}.clinical-metric{border:0;text-align:left;min-height:165px;padding:22px;border-radius:23px;background:#fff;box-shadow:0 10px 28px rgba(12,74,62,.09);position:relative;cursor:pointer;transition:.2s}.clinical-metric:hover{transform:translateY(-4px);box-shadow:0 17px 35px rgba(12,74,62,.15)}.clinical-metric-icon{position:absolute;right:20px;top:20px;width:50px;height:50px;border-radius:16px;display:grid;place-items:center;font-size:25px;background:#eaf6f3}.clinical-metric strong{display:block;font-size:42px;line-height:1;margin:28px 0 8px}.clinical-metric>span:not(.clinical-metric-icon){font-size:17px;font-weight:800;color:#375b54}.clinical-metric small{display:block;margin-top:12px;font-weight:800}.clinical-red{border-top:5px solid #d92d20}.clinical-amber{border-top:5px solid #e69b19}.clinical-green{border-top:5px solid #12a06f}.clinical-blue{border-top:5px solid #2778c4}.clinical-purple{border-top:5px solid #7656c9}
+.clinical-columns{display:grid;grid-template-columns:1.2fr .8fr;gap:18px}.clinical-panel{border-radius:23px;padding:22px}.clinical-panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.clinical-panel-head h3{font-size:22px;margin:0}.clinical-panel-head small{color:#628079}.clinical-work-row{display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:center;padding:14px 4px;border-bottom:1px solid #e4efec}.clinical-work-row>span{font-size:24px}.clinical-work-row strong,.clinical-work-row small{display:block}.clinical-work-row small{color:#607a74;margin-top:3px}.clinical-work-row b{font-size:12px;color:#b42318;background:#fee4e2;padding:6px 8px;border-radius:999px}.mini-link{border:0;background:#e5f3ef;color:#086b58;font-weight:850;padding:7px 10px;border-radius:10px;cursor:pointer}.clinical-empty{padding:25px;text-align:center;color:#647f78;background:#f5faf8;border-radius:16px}.handover-card{padding:15px;margin:10px 0;border-radius:16px;background:#f6faf9;border-left:5px solid #0e8c78}.handover-card.critical{border-left-color:#d92d20}.handover-card.important{border-left-color:#e69b19}.handover-card strong,.handover-card small{display:block}.handover-card p{margin:8px 0;line-height:1.45}
+.vitals-entry-card{background:#fff;border:1px solid #dcebe7;border-radius:24px;padding:22px}.vitals-patient-row{display:grid;grid-template-columns:1fr 220px;gap:18px;align-items:end;margin-bottom:18px}.vital-live-status{height:64px;padding:9px 16px;border-radius:16px;background:#edf5f3;display:flex;flex-direction:column;justify-content:center}.vital-live-status small{font-size:12px}.vital-live-status strong{font-size:20px}.vital-live-status.normal{background:#e5f8ec;color:#087a3d}.vital-live-status.warning{background:#fff2d8;color:#9a6100}.vital-live-status.critical{background:#fee4e2;color:#b42318}.vital-live-status.not-recorded{background:#eef3f2;color:#526d67}.vitals-grid{display:grid;grid-template-columns:repeat(3,minmax(170px,1fr));gap:14px}.vital-input label{display:block;font-weight:850;margin:0 0 7px}.vital-input-wrap{display:flex;align-items:center;border:1px solid #cbded9;border-radius:14px;background:#fff;overflow:hidden}.vital-input-wrap input{border:0!important;box-shadow:none!important;width:100%;padding:14px;font-size:18px;font-weight:750}.vital-input-wrap span{padding:0 12px;color:#66817a;font-weight:750;white-space:nowrap}.vitals-bottom{display:grid;grid-template-columns:1fr 210px;gap:18px;align-items:end;margin-top:17px}.vitals-save{height:54px}.latest-vitals-strip{display:grid;grid-template-columns:1.5fr repeat(5,1fr);gap:1px;margin:18px 0;background:#dbe9e5;border:1px solid #dbe9e5;border-radius:18px;overflow:hidden}.latest-vitals-strip>div{background:#fff;padding:14px}.latest-vitals-strip small,.latest-vitals-strip strong{display:block}.latest-vitals-strip small{color:#688079}.latest-vitals-strip strong{font-size:18px;margin-top:4px}
+@media(max-width:1100px){.clinical-card-grid{grid-template-columns:repeat(2,1fr)}.clinical-columns{grid-template-columns:1fr}.vitals-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:650px){.clinical-welcome{align-items:flex-start;gap:15px}.clinical-date{display:none}.clinical-card-grid{grid-template-columns:1fr 1fr;gap:10px}.clinical-metric{min-height:145px;padding:16px}.clinical-metric strong{font-size:34px}.clinical-metric-icon{width:42px;height:42px}.vitals-patient-row,.vitals-bottom{grid-template-columns:1fr}.vitals-grid{grid-template-columns:1fr 1fr}.latest-vitals-strip{grid-template-columns:1fr 1fr}}
+
+
+/* v1.1.1 password recovery */
+.login-link-button{border:0;background:transparent;color:#086b58;font-weight:700;cursor:pointer;padding:8px 0;text-align:left;font-size:14px}
+.login-link-button:hover{text-decoration:underline}
+.forgot-password-link{align-self:flex-end;margin-top:-6px;margin-bottom:4px}
+.message.success{background:#e8f7ef;color:#11603f;border:1px solid #b9e3cc}
+
+
+/* v1.1.2 spacious hospital-grade login and medication layout */
+.login-shell{padding:40px 34px}
+.login-hospital-card{width:min(1500px,96vw)!important;min-height:720px!important;border-radius:30px!important;overflow:hidden}
+.login-hospital-brand{padding:72px 64px!important}
+.login-hospital-brand .logo{width:80px!important;height:80px!important;font-size:28px!important;border-radius:22px!important}
+.login-hospital-brand h1{font-size:56px!important;line-height:1.08!important;margin:18px 0 18px!important}
+.login-hospital-brand p{font-size:22px!important;line-height:1.6!important;max-width:610px}
+.login-benefits{gap:22px!important;margin-top:38px!important}.login-benefits li{font-size:19px!important}
+.login-hospital-form{padding:70px 68px!important;display:flex!important;flex-direction:column!important;justify-content:center!important}
+.login-hospital-form h2{font-size:48px!important;line-height:1.1!important;margin:10px 0 10px!important}
+.login-hospital-form>p{font-size:20px!important;margin-bottom:28px!important}
+.login-hospital-form .field{margin-bottom:24px!important;gap:10px!important}
+.login-hospital-form .field label{font-size:17px!important}.login-hospital-form .field input{min-height:62px!important;font-size:19px!important;padding:17px 18px!important}
+.login-hospital-form .btn-primary{min-height:62px!important;font-size:19px!important;margin-top:8px!important}
+.login-hospital-form .forgot-password-link{align-self:center!important;margin:0 0 10px!important;padding:6px 12px!important;font-size:17px!important;color:#087765!important;background:transparent!important;border:0!important;width:auto!important}
+.login-hospital-form .install-note{font-size:15px!important;margin-top:22px!important}
+.medicine-order-row{grid-template-columns:1.35fr .9fr 1.15fr .8fr .95fr 1fr!important;align-items:end}
+.patient-edit-modal{width:min(1320px,97vw)!important}
+@media(max-width:1050px){.login-hospital-card{min-height:auto!important}.login-hospital-brand,.login-hospital-form{padding:46px 38px!important}.login-hospital-brand h1{font-size:44px!important}.login-hospital-form h2{font-size:40px!important}.medicine-order-row{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:620px){.login-shell{padding:14px}.login-hospital-brand,.login-hospital-form{padding:32px 24px!important}.login-hospital-brand h1{font-size:36px!important}.login-hospital-brand p{font-size:18px!important}.login-hospital-form h2{font-size:34px!important}.login-hospital-form .field input{min-height:58px!important}.medicine-order-row{grid-template-columns:1fr!important}}
+
+
+/* ERP 1.1.3 medication time multi-select */
+.time-dropdown{position:relative;width:100%}
+.time-dropdown summary{min-height:42px;padding:10px 12px;border:1px solid #c9d9d5;border-radius:10px;background:#fff;cursor:pointer;list-style:none;display:flex;align-items:center;line-height:1.35}
+.time-dropdown summary::-webkit-details-marker{display:none}
+.time-dropdown summary::after{content:'▾';margin-left:auto;color:#356b60;font-size:14px}
+.time-dropdown[open] summary::after{content:'▴'}
+.time-dropdown-menu{position:absolute;z-index:50;top:calc(100% + 6px);left:0;right:0;max-height:300px;overflow:auto;background:#fff;border:1px solid #c9d9d5;border-radius:12px;box-shadow:0 12px 28px rgba(0,0,0,.16);padding:8px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.time-option{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:500}
+.time-option:hover{background:#eef7f4}
+.time-option input{width:17px;height:17px;accent-color:#087a66}
+.field-hint{display:block;margin-top:5px;font-size:12px}.error-text{color:#a92b2b}
+@media(max-width:700px){.time-dropdown-menu{grid-template-columns:1fr}}
+
+/* ERP 1.1.4 compact medication time picker */
+.time-picker-trigger{width:100%;min-height:42px;padding:9px 12px;border:1px solid #c9d9d5;border-radius:10px;background:#fff;display:flex;align-items:center;gap:8px;text-align:left;cursor:pointer;font:inherit;color:#163c35}
+.time-picker-trigger:hover,.time-picker-trigger:focus{border-color:#0f8f7b;box-shadow:0 0 0 3px rgba(15,143,123,.10);outline:none}
+.time-picker-value{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.time-picker-placeholder{color:#778d88;flex:1}
+.time-picker-caret{color:#356b60}
+.time-chip-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.time-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;background:#e7f4f1;color:#0d6253;font-size:12px;font-weight:700}
+.time-chip button{border:0;background:transparent;color:#0d6253;cursor:pointer;padding:0;font-size:16px;line-height:1}
+.time-picker-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(9,35,31,.38);display:flex;align-items:center;justify-content:center;padding:18px}
+.time-picker-popup{width:min(560px,96vw);max-height:min(620px,90vh);overflow:auto;background:#fff;border-radius:18px;box-shadow:0 24px 70px rgba(0,0,0,.28);padding:18px}
+.time-picker-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
+.time-picker-head h4{margin:0 0 2px;font-size:20px}.time-picker-head small{color:#6d817d}
+.time-picker-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.time-picker-option{min-height:42px;border:1px solid #c9d9d5;border-radius:10px;background:#fff;color:#183f37;font-weight:700;cursor:pointer;padding:8px}
+.time-picker-option:hover{border-color:#0f8f7b;background:#f3fbf9}.time-picker-option.selected{background:#0f7b69;color:#fff;border-color:#0f7b69;box-shadow:0 4px 12px rgba(15,123,105,.22)}
+.time-picker-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid #e2ece9}
+@media(max-width:560px){.time-picker-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.time-picker-popup{padding:14px}.time-picker-actions{display:grid;grid-template-columns:1fr 1fr 1fr}.time-picker-actions .btn{width:100%}}
