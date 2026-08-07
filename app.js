@@ -70,7 +70,7 @@
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.18';
+  const APP_VERSION = '2.8.19';
   const APP_BUILD_DATE = '07-Aug-2026 20:45 IST';
   const APP_SCHEMA_VERSION = '24';
   window.APP_VERSION = APP_VERSION;
@@ -81,7 +81,7 @@
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
   const h = React.createElement;
-  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.18';
+  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.19';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
     h('img',{src:BRAND_LOGO_SRC,className,alt,decoding:'async'});
@@ -419,11 +419,12 @@
       }
       .sidebar .nav-section:nth-of-type(1)>.nav-heading-button::before{content:'⌂'}
       .sidebar .nav-section:nth-of-type(2)>.nav-heading-button::before{content:'⚙'}
-      .sidebar .nav-section:nth-of-type(3)>.nav-heading-button::before{content:'♥'}
-      .sidebar .nav-section:nth-of-type(4)>.nav-heading-button::before{content:'▦'}
-      .sidebar .nav-section:nth-of-type(5)>.nav-heading-button::before{content:'♥'}
-      .sidebar .nav-section:nth-of-type(6)>.nav-heading-button::before{content:'♨'}
-      .sidebar .nav-section:nth-of-type(7)>.nav-heading-button::before{content:'₹'}
+      .sidebar .nav-section:nth-of-type(3)>.nav-heading-button::before{content:'♙'}
+      .sidebar .nav-section:nth-of-type(4)>.nav-heading-button::before{content:'♥'}
+      .sidebar .nav-section:nth-of-type(5)>.nav-heading-button::before{content:'▦'}
+      .sidebar .nav-section:nth-of-type(6)>.nav-heading-button::before{content:'♥'}
+      .sidebar .nav-section:nth-of-type(7)>.nav-heading-button::before{content:'♨'}
+      .sidebar .nav-section:nth-of-type(8)>.nav-heading-button::before{content:'₹'}
       .sidebar .nav-section.expanded>.nav-heading-button::before{color:#fff!important}
 
       /* Number badge on a dedicated strip, away from all labels */
@@ -773,6 +774,9 @@
         mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9'/%3E%3Cpath d='M13.73 21a2 2 0 0 1-3.46 0'/%3E%3C/svg%3E")!important;
       }
 
+      .sidebar .nav-submenu button[data-nav='HR Dashboard']::before{content:'▦'!important;color:#a20f59!important}
+      .sidebar .nav-submenu button[data-nav='Career Applications']::before{content:'▤'!important;color:#c31c67!important}
+      .sidebar .nav-submenu button[data-nav='Interviews']::before{content:'◷'!important;color:#7d1748!important}
       .sidebar .nav-submenu button[data-nav='Employees']::before{
         color:#c21872!important;
         -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='9' cy='8' r='4'/%3E%3Cpath d='M2 21a7 7 0 0 1 14 0M16 4a4 4 0 0 1 0 8M17 13a6 6 0 0 1 5 6'/%3E%3C/svg%3E")!important;
@@ -929,6 +933,13 @@
   }
 
   const ROLES = ['Admin','Manager','Nurse','Caregiver','Accounts','Kitchen'];
+
+  const HR_DEPARTMENTS = ["Nursing", "Caregiving", "Medical", "Physiotherapy & Rehabilitation", "Housekeeping", "Food & Kitchen", "Administration", "HR", "Operations", "Accounts & Finance", "Maintenance", "Security", "Transport", "Marketing & Outreach", "Other"];
+  const HR_DESIGNATIONS = {"Nursing": ["Nurse Manager", "Nursing Supervisor", "Staff Nurse", "ANM"], "Caregiving": ["Senior Caregiver", "Caregiver", "Nursing Assistant"], "Medical": ["Duty Medical Officer – Part Time", "Visiting Doctor", "Medical Officer"], "Physiotherapy & Rehabilitation": ["Physiotherapist", "Rehabilitation Assistant"], "Housekeeping": ["Housekeeping Supervisor", "Housekeeping Staff", "Laundry Staff"], "Food & Kitchen": ["Dietician", "Cook", "Kitchen Assistant", "Food Service Assistant"], "Administration": ["Facility Administrator", "Manager", "Receptionist", "Administrative Assistant"], "HR": ["HR Manager", "HR Executive", "HR Assistant"], "Operations": ["Operations Manager", "Operations Executive", "Facility Coordinator"], "Accounts & Finance": ["Accountant", "Accounts Executive", "Accounts Assistant"], "Maintenance": ["Maintenance Supervisor", "Technician", "Electrician / Plumber"], "Security": ["Security Supervisor", "Security Guard"], "Transport": ["Driver", "Transport Coordinator"], "Marketing & Outreach": ["Marketing Executive", "Community Outreach Executive"], "Other": ["General Application", "Volunteer", "Other"]};
+  const HR_APPLICATION_STATUSES=['New','Under Review','Shortlisted','Interview Scheduled','Selected','Rejected','On Hold','Converted to Employee','Closed'];
+  const employeeDepartment=row=>String(row?.department||'').trim()||(
+    row?.role==='Nurse'?'Nursing':row?.role==='Caregiver'?'Caregiving':row?.role==='Accounts'?'Accounts & Finance':row?.role==='Kitchen'?'Food & Kitchen':['Admin','Manager'].includes(row?.role)?'Administration':'Other'
+  );
   const EMPLOYEE_TITLES = ['Dr.','Prof.','Mr.','Mrs.','Ms.','Miss','Shri','Smt.','Rev.','Fr.','Br.','Sr.','Other'];
   const PATIENT_TITLES = ['Dr.','Mr.','Mrs.','Ms.','Miss','Shri','Smt.','Master','Baby','Kumari','Late','Other'];
   const formalName = row => [String(row?.title||'').trim(),String(row?.full_name||'').trim()].filter(Boolean).join(' ');
@@ -937,7 +948,8 @@
   const BED_CODE_OPTIONS = ['A','B','C','D'];
   const NAV_SECTIONS = [
     { title:'OVERVIEW', items:['Dashboard','Notifications'] },
-    { title:'ADMIN', items:['Employees','Rooms','Care Packages','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
+    { title:'ADMIN', items:['Rooms','Care Packages','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
+    { title:'HR', items:['HR Dashboard','Employees','Career Applications','Interviews'] },
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
@@ -2574,7 +2586,10 @@ Caring with Compassion. Living with Dignity.`;
         h(MobileMenu,{page,setPage,allowed,profile}),
         h('section',{className:'content'},
           page==='Dashboard'&&h(Dashboard,{profile,onNavigate:setPage}),
-          page==='Employees'&&h(Employees,{profile}),
+          page==='HR Dashboard'&&h(HRDashboard,{profile,onNavigate:setPage}),
+          page==='Employees'&&h(Employees,{profile,onNavigate:setPage}),
+          page==='Career Applications'&&h(CareerApplications,{profile,onNavigate:setPage}),
+          page==='Interviews'&&h(HRInterviews,{profile,onNavigate:setPage}),
           page==='Enquiries'&&h(Enquiries,{profile}),
           page==='Admissions'&&h(Admissions,{profile,onNavigate:setPage}),
           page==='Clinical Dashboard'&&h(ClinicalDashboard,{profile,onNavigate:setPage}),
@@ -2956,7 +2971,103 @@ Caring with Compassion. Living with Dignity.`;
     );
   }
 
-  function Employees({profile}){
+
+  function HRDashboard({profile,onNavigate}){
+    const [employees,setEmployees]=React.useState([]),[applications,setApplications]=React.useState([]);
+    async function load(){
+      const [e,a]=await Promise.all([
+        client.from('profiles').select('id,full_name,title,role,department,designation,is_active,active').order('full_name'),
+        client.from('career_applications').select('*').order('created_at',{ascending:false}).limit(100)
+      ]);
+      if(!e.error)setEmployees(e.data||[]);
+      if(!a.error)setApplications(a.data||[]);
+    }
+    React.useEffect(()=>{load();const ch=client.channel('hr-dashboard-live').on('postgres_changes',{event:'*',schema:'public',table:'career_applications'},load).on('postgres_changes',{event:'*',schema:'public',table:'profiles'},load).subscribe();return()=>client.removeChannel(ch)},[]);
+    const active=employees.filter(x=>(x.is_active??x.active)!==false);
+    const now=Date.now();
+    const upcoming=applications.filter(x=>x.interview_at&&new Date(x.interview_at).getTime()>=now).sort((a,b)=>new Date(a.interview_at)-new Date(b.interview_at)).slice(0,6);
+    const cards=[
+      ['Active Employees',active.length,'Employees'],
+      ['Nursing',active.filter(x=>employeeDepartment(x)==='Nursing').length,'Employees'],
+      ['Caregiving',active.filter(x=>employeeDepartment(x)==='Caregiving').length,'Employees'],
+      ['New Applications',applications.filter(x=>x.status==='New').length,'Career Applications'],
+      ['Shortlisted',applications.filter(x=>x.status==='Shortlisted').length,'Career Applications'],
+      ['Interviews',applications.filter(x=>x.status==='Interview Scheduled').length,'Interviews'],
+      ['Selected',applications.filter(x=>x.status==='Selected').length,'Career Applications'],
+      ['On Hold',applications.filter(x=>x.status==='On Hold').length,'Career Applications']
+    ];
+    return h(React.Fragment,null,
+      h(Section,{title:'HR Dashboard',subtitle:'Employees, recruitment applications and interview actions in one workspace'},
+        h('div',{className:'dashboard-grid'},cards.map(([label,value,page])=>h('button',{key:label,className:'stat-card',type:'button',onClick:()=>onNavigate(page)},h('span',null,label),h('strong',null,value)))),
+        h('div',{className:'two-col'},
+          h('div',{className:'card panel'},h('div',{className:'panel-head'},h('div',null,h('h3',null,'Recent Career Applications'),h('small',null,'Newest applications received from the public Careers page')),h('button',{className:'btn btn-secondary',onClick:()=>onNavigate('Career Applications')},'View All')),
+            h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Applicant','Department','Designation','Status','Received'].map(x=>h('th',{key:x},x)))),h('tbody',null,applications.slice(0,6).map(r=>h('tr',{key:r.id},h('td',null,r.applicant_name),h('td',null,r.department),h('td',null,r.designation),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)))),applications.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No career applications received yet.')):null)))),
+          h('div',{className:'card panel'},h('div',{className:'panel-head'},h('div',null,h('h3',null,'Upcoming Interviews'),h('small',null,'Scheduled candidate interviews')),h('button',{className:'btn btn-secondary',onClick:()=>onNavigate('Interviews')},'Open Interviews')),
+            upcoming.length?h('div',{className:'activity-list'},upcoming.map(r=>h('button',{type:'button',className:'activity-item',key:r.id,onClick:()=>onNavigate('Interviews')},h('strong',null,r.applicant_name),h('span',null,`${r.designation} · ${fmt(r.interview_at)}`)))):h('p',{className:'empty'},'No upcoming interviews scheduled.'))
+        )
+      )
+    );
+  }
+
+  function CareerApplications({profile,onNavigate}){
+    const [rows,setRows]=React.useState([]),[selected,setSelected]=React.useState(null),[edit,setEdit]=React.useState(null),[msg,setMsg]=React.useState('');
+    async function load(){const {data,error}=await client.from('career_applications').select('*').order('created_at',{ascending:false});if(error){setMsg(error.message);return}setRows(data||[]);if(selected){const fresh=(data||[]).find(x=>x.id===selected.id);if(fresh){setSelected(fresh);setEdit({...fresh})}}}
+    React.useEffect(()=>{load();const ch=client.channel('career-applications-live').on('postgres_changes',{event:'*',schema:'public',table:'career_applications'},load).subscribe();return()=>client.removeChannel(ch)},[]);
+    function open(row){setSelected(row);setEdit({...row});setMsg('')}
+    async function save(){
+      if(!edit)return;
+      const payload={status:edit.status,hr_remarks:edit.hr_remarks||null,interview_at:edit.interview_at||null,interview_mode:edit.interview_mode||null,interview_venue:edit.interview_venue||null,interview_result:edit.interview_result||null,handled_by:profile.id,updated_at:new Date().toISOString()};
+      const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);if(error){setMsg(error.message);return}setMsg('Career application updated successfully.');await load();
+    }
+    async function openDoc(path){if(!path)return;const {data,error}=await client.storage.from('career-applications').createSignedUrl(path,180);if(error){setMsg(error.message);return}window.open(data.signedUrl,'_blank','noopener')}
+    function whatsappCandidate(row){
+      const phone=String(row.whatsapp||row.mobile||'').replace(/\D/g,'').slice(-10);if(!phone)return '#';
+      const interview=row.interview_at?`\nInterview: ${fmt(row.interview_at)}${row.interview_venue?`\nVenue: ${row.interview_venue}`:''}`:'';
+      const text=`Dear ${row.applicant_name},\n\nGreetings from Samara Assisted Living. Your application ${row.application_id} for ${row.designation} is currently marked as: ${row.status}.${interview}\n\nRegards,\nSamara HR`;
+      return `https://wa.me/91${phone}?text=${encodeURIComponent(text)}`;
+    }
+    function convert(row){
+      const seed={application_id:row.application_id,career_application_id:row.id,full_name:row.applicant_name,mobile:row.mobile,employee_email:row.email,date_of_birth:row.date_of_birth||'',address:[row.address,row.city,row.state,row.pincode].filter(Boolean).join(', '),department:row.department,designation:row.designation,qualification:row.qualification,previous_workplace:row.current_employer||'',role:row.department==='Nursing'?'Nurse':row.department==='Caregiving'?'Caregiver':row.department==='Accounts & Finance'?'Accounts':row.department==='Food & Kitchen'?'Kitchen':'Caregiver'};
+      localStorage.setItem('samara_hr_employee_seed',JSON.stringify(seed));onNavigate('Employees');
+    }
+    const table=h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Application ID','Applicant','Department','Designation','Mobile','Status','Received','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,rows.map(r=>h('tr',{key:r.id},h('td',null,r.application_id),h('td',null,r.applicant_name),h('td',null,r.department),h('td',null,r.designation),h('td',null,r.mobile),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)),h('td',null,h('button',{className:'btn btn-primary',onClick:()=>open(r)},'View / Respond')))),rows.length===0?h('tr',null,h('td',{colSpan:9,className:'empty'},'No career applications received yet.')):null)));
+    const modal=selected&&edit?h('div',{className:'modal-backdrop'},h('div',{className:'card modal employee-modal'},
+      h('div',{className:'panel-head'},h('div',null,h('h3',null,selected.applicant_name),h('small',null,`${selected.application_id} · ${selected.department} · ${selected.designation}`)),h('button',{className:'close',onClick:()=>{setSelected(null);setEdit(null);setMsg('')}},'×')),
+      msg?h('div',{className:`message ${msg.includes('successfully')?'success':'error'}`},msg):null,
+      h('div',{className:'modal-grid'},
+        h('div',{className:'field'},h('label',null,'Mobile'),h('div',null,selected.mobile||'—')),
+        h('div',{className:'field'},h('label',null,'Email'),h('div',null,selected.email||'—')),
+        h('div',{className:'field'},h('label',null,'Qualification'),h('div',null,selected.qualification||'—')),
+        h('div',{className:'field'},h('label',null,'Experience'),h('div',null,selected.experience||'—')),
+        h('div',{className:'field'},h('label',null,'Current / Previous Employer'),h('div',null,selected.current_employer||'—')),
+        h('div',{className:'field'},h('label',null,'Preferred Shift'),h('div',null,selected.preferred_shift||'—')),
+        h('div',{className:'field span-2'},h('label',null,'Address'),h('div',null,[selected.address,selected.city,selected.state,selected.pincode].filter(Boolean).join(', ')||'—')),
+        h('div',{className:'field span-2'},h('label',null,'Skills'),h('div',null,(selected.skills||[]).join(', ')||'—')),
+        h('div',{className:'field span-2'},h('label',null,'Additional Information'),h('div',null,selected.additional_information||'—')),
+        h('div',{className:'field span-2'},h('label',null,'Documents'),h('div',{className:'employee-actions'},selected.resume_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.resume_path)},'Open Resume / CV'):null,selected.photo_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.photo_path)},'Open Photo'):null,selected.certificate_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.certificate_path)},'Open Certificate'):null,selected.identity_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.identity_path)},'Open Identity Proof'):null)),
+        h('div',{className:'field'},h('label',null,'Application Status'),h('select',{value:edit.status||'New',onChange:e=>setEdit({...edit,status:e.target.value})},HR_APPLICATION_STATUSES.map(x=>h('option',{key:x},x)))),
+        h('div',{className:'field'},h('label',null,'Interview Date & Time'),h('input',{type:'datetime-local',value:edit.interview_at?new Date(edit.interview_at).toISOString().slice(0,16):'',onChange:e=>setEdit({...edit,interview_at:e.target.value?new Date(e.target.value).toISOString():null,status:e.target.value?'Interview Scheduled':edit.status})})),
+        h('div',{className:'field'},h('label',null,'Interview Mode'),h('select',{value:edit.interview_mode||'',onChange:e=>setEdit({...edit,interview_mode:e.target.value})},['','In Person','Phone','Video'].map(x=>h('option',{key:x,value:x},x||'Select mode')))),
+        h('div',{className:'field'},h('label',null,'Interview Venue / Link'),h('input',{value:edit.interview_venue||'',onChange:e=>setEdit({...edit,interview_venue:e.target.value})})),
+        h('div',{className:'field span-2'},h('label',null,'HR Remarks'),h('textarea',{rows:3,value:edit.hr_remarks||'',onChange:e=>setEdit({...edit,hr_remarks:e.target.value})})),
+        h('div',{className:'field span-2'},h('label',null,'Interview Result / Notes'),h('textarea',{rows:3,value:edit.interview_result||'',onChange:e=>setEdit({...edit,interview_result:e.target.value})}))
+      ),
+      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('a',{className:'btn btn-whatsapp',href:whatsappCandidate(edit),target:'_blank',rel:'noopener'},'Respond by WhatsApp'),['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Convert to Employee'):null)
+    )):null;
+    return h(React.Fragment,null,h(Section,{title:'Career Applications',subtitle:'Applications submitted through samaraassistedliving.com Careers'},table),modal);
+  }
+
+  function HRInterviews({profile,onNavigate}){
+    const [rows,setRows]=React.useState([]);
+    async function load(){const {data}=await client.from('career_applications').select('*').not('interview_at','is',null).order('interview_at',{ascending:true});setRows(data||[])}
+    React.useEffect(()=>{load();const ch=client.channel('hr-interviews-live').on('postgres_changes',{event:'*',schema:'public',table:'career_applications'},load).subscribe();return()=>client.removeChannel(ch)},[]);
+    return h(Section,{title:'Interviews',subtitle:'Scheduled recruitment interviews and candidate status'},
+      h('div',{className:'panel-head'},h('div',null),h('button',{className:'btn btn-primary',onClick:()=>onNavigate('Career Applications')},'Manage Applications')),
+      h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Applicant','Department / Designation','Interview','Mode','Venue / Link','Status'].map(x=>h('th',{key:x},x)))),h('tbody',null,rows.map(r=>h('tr',{key:r.id},h('td',null,r.applicant_name),h('td',null,`${r.department} · ${r.designation}`),h('td',null,fmt(r.interview_at)),h('td',null,r.interview_mode||'—'),h('td',null,r.interview_venue||'—'),h('td',null,h('span',{className:'badge'},r.status)))),rows.length===0?h('tr',null,h('td',{colSpan:6,className:'empty'},'No interviews scheduled.')):null)))
+    );
+  }
+
+  function Employees({profile,onNavigate}){
     const [rows,setRows]=React.useState([]),[authMap,setAuthMap]=React.useState({}),[show,setShow]=React.useState(false),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [resetTarget,setResetTarget]=React.useState(null),[newPassword,setNewPassword]=React.useState(''),[confirmPassword,setConfirmPassword]=React.useState(''),[resetBusy,setResetBusy]=React.useState(false),[resetMsg,setResetMsg]=React.useState('');
     const [repairTarget,setRepairTarget]=React.useState(null),[repairPassword,setRepairPassword]=React.useState(''),[repairBusy,setRepairBusy]=React.useState(false),[repairMsg,setRepairMsg]=React.useState('');
@@ -2984,8 +3095,22 @@ Caring with Compassion. Living with Dignity.`;
     React.useEffect(()=>()=>{
       if(photoPreview&&photoPreview.startsWith('blob:')) URL.revokeObjectURL(photoPreview);
     },[photoPreview]);
-    const empty={title:'',full_name:'',employee_id:'',designation:'',mobile:'',emergency_contact:'',role:'Caregiver',login_id:'',employee_email:'',password:'',father_guardian_name:'',address:'',date_of_birth:'',date_of_joining:'',blood_group:'',id_card_type:'Aadhaar',id_card_number:'',qualification:'',previous_workplace:'',reference_type:'Direct',reference_name:'',reference_contact:''};
+    const empty={title:'',full_name:'',employee_id:'',department:'Caregiving',designation:'Caregiver',mobile:'',emergency_contact:'',role:'Caregiver',login_id:'',employee_email:'',password:'',father_guardian_name:'',address:'',date_of_birth:'',date_of_joining:'',blood_group:'',id_card_type:'Aadhaar',id_card_number:'',qualification:'',previous_workplace:'',reference_type:'Direct',reference_name:'',reference_contact:''};
     const [form,setForm]=React.useState(empty);
+    const [sourceCareerId,setSourceCareerId]=React.useState('');
+    React.useEffect(()=>{
+      try{
+        const raw=localStorage.getItem('samara_hr_employee_seed');
+        if(!raw)return;
+        const seed=JSON.parse(raw);
+        if(!seed?.full_name)return;
+        setForm(current=>({...current,...seed,password:'',login_id:''}));
+        setSourceCareerId(seed.career_application_id||'');
+        setShow(true);
+        setMsg('Selected career applicant loaded into Employee Master. Complete the remaining mandatory fields and create the employee account.');
+        localStorage.removeItem('samara_hr_employee_seed');
+      }catch(error){console.warn('Unable to load career applicant into Employee Master',error)}
+    },[]);
 
     async function adminRequest(payload){
       const {data:{session}}=await client.auth.getSession();
@@ -3168,6 +3293,7 @@ Caring with Compassion. Living with Dignity.`;
         // Enforce and verify the selected role through the protected server function.
         const roleResult=await adminRequest({action:'set_role',user_id:result.user_id,role:employeeForm.role});
         if(roleResult.role!==employeeForm.role)throw new Error(`Selected role ${employeeForm.role} was not saved correctly.`);
+        const {error:departmentError}=await client.from('profiles').update({department:employeeForm.department||null,designation:employeeForm.designation||null,updated_at:new Date().toISOString()}).or(`id.eq.${result.user_id},auth_user_id.eq.${result.user_id}`);if(departmentError)throw departmentError;
         await uploadEmployeePhoto(result.user_id,photoFiles);
         await uploadEmployeeFiles(result.user_id,[
           {type:'ID Card',files:idFiles},{type:'Qualification Certificate',files:qualificationFiles},{type:'Experience Certificate',files:experienceFiles},{type:'Other Certificate',files:otherFiles},{type:'Camera Capture',files:cameraFiles}
@@ -3178,6 +3304,7 @@ Caring with Compassion. Living with Dignity.`;
         await load();
         const successText=result.repaired?'Employee account repaired successfully.':'New employee added successfully.';
         setMsg(successText);showEmployeeToast('success',successText);
+        if(sourceCareerId){await client.from('career_applications').update({status:'Converted to Employee',linked_employee_id:result.user_id,handled_by:profile.id,updated_at:new Date().toISOString()}).eq('id',sourceCareerId);setSourceCareerId('')}
         setForm(empty);setIdFiles([]);setQualificationFiles([]);setExperienceFiles([]);setOtherFiles([]);setCameraFiles([]);setPhotoFiles([]);setPhotoPreview('');
       }catch(error){
         if(preopened)preopened.close();
@@ -3459,9 +3586,9 @@ Caring with Compassion. Living with Dignity.`;
     const textArea=(label,key,state,setter,required=false)=>h('div',{className:'field span-2'},h('label',null,label),h('textarea',{value:state[key]||'',required,onChange:e=>setter({...state,[key]:e.target.value}),rows:3}));
 
     const table=h('div',{className:'table-wrap'},h('table',{className:'table'},
-      h('thead',null,h('tr',null,['Name','Employee ID','Login ID','Role','Profile Status','Authentication Status','Last sign-in','Actions'].map(x=>h('th',{key:x},x)))),
+      h('thead',null,h('tr',null,['Name','Employee ID','Login ID','Department / Designation','ERP Access','Profile Status','Authentication Status','Last sign-in','Actions'].map(x=>h('th',{key:x},x)))),
       h('tbody',null,rows.map(r=>{const enabled=Boolean(r.is_active??r.active),auth=authMap[r.auth_user_id||r.id],status=authenticationStatus(r),managerBlocked=profile.role==='Manager'&&String(r.role).toLowerCase()==='admin';return h('tr',{key:r.id},
-        h('td',null,formalName(r)),h('td',null,r.employee_id||'—'),h('td',null,r.login_id),h('td',null,r.role),
+        h('td',null,formalName(r)),h('td',null,r.employee_id||'—'),h('td',null,r.login_id),h('td',null,`${employeeDepartment(r)}${r.designation?` · ${r.designation}`:''}`),h('td',null,r.role),
         h('td',null,h('span',{className:`badge ${enabled?'':'off'}`},enabled?'Active':'Disabled')),
         h('td',null,h('span',{className:`badge auth-status ${status.className}`},status.text)),h('td',null,fmt(auth?.last_sign_in_at||r.last_sign_in_at)),
         h('td',null,h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Personnel File'),h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Documents'),h('button',{className:'btn btn-secondary',onClick:()=>printIdCard(r)},'Print ID Card'),r.mobile?h('a',{className:'btn btn-whatsapp',href:whatsappWelcomeUrl(r),target:'_blank',rel:'noopener'},'WhatsApp Welcome'):null,h('button',{className:enabled?'btn btn-danger':'btn btn-secondary',disabled:managerBlocked,onClick:()=>toggle(r)},enabled?'Disable':'Enable'),auth?h('button',{className:'btn btn-primary',disabled:managerBlocked,onClick:()=>openReset(r)},'Reset Password'):h('button',{className:'btn btn-warning',disabled:managerBlocked,onClick:()=>openRepair(r)},'Repair Account')))
@@ -3469,7 +3596,10 @@ Caring with Compassion. Living with Dignity.`;
     );
 
     const personnelFields=(state,setter,includeLogin=true)=>h(React.Fragment,null,
-      selectField('Title / Salutation','title',state,setter,EMPLOYEE_TITLES),field('Employee Name','full_name',state,setter,true),field('Employee ID (auto-generated if blank)','employee_id',state,setter,false),field('Designation','designation',state,setter,false),selectField('Role','role',state,setter,ROLES),
+      selectField('Title / Salutation','title',state,setter,EMPLOYEE_TITLES),field('Employee Name','full_name',state,setter,true),field('Employee ID (auto-generated if blank)','employee_id',state,setter,false),
+      h('div',{className:'field'},h('label',null,'Department'),h('select',{value:state.department||'',required:true,onChange:e=>{const department=e.target.value;const choices=HR_DESIGNATIONS[department]||[];const defaultDesignation=choices[0]||'';const suggestedRole=department==='Nursing'?'Nurse':department==='Caregiving'?'Caregiver':department==='Accounts & Finance'?'Accounts':department==='Food & Kitchen'?'Kitchen':state.role;setter({...state,department,designation:defaultDesignation,role:suggestedRole})}},h('option',{value:''},'Select department'),HR_DEPARTMENTS.map(x=>h('option',{key:x,value:x},x)))),
+      h('div',{className:'field'},h('label',null,'Designation'),h('select',{value:state.designation||'',required:true,onChange:e=>setter({...state,designation:e.target.value})},h('option',{value:''},'Select designation'),(HR_DESIGNATIONS[state.department]||[]).map(x=>h('option',{key:x,value:x},x)))),
+      selectField('ERP Access Role','role',state,setter,ROLES),
       field('Father / Guardian Name','father_guardian_name',state,setter,false),field('Date of Birth','date_of_birth',state,setter,false,'date'),field('Date of Joining','date_of_joining',state,setter,false,'date'),field('Blood Group','blood_group',state,setter,false),
       field('Mobile Number','mobile',state,setter,false),field('Emergency Contact','emergency_contact',state,setter,false),field('Employee Email','employee_email',state,setter,false,'email'),
       field('ID Card Type','id_card_type',state,setter,false),field('ID Card Number','id_card_number',state,setter,false),field('Qualification','qualification',state,setter,false),field('Previous Working Place','previous_workplace',state,setter,false),
@@ -3502,7 +3632,7 @@ Caring with Compassion. Living with Dignity.`;
     const repairModal=repairTarget?h('div',{className:'modal-backdrop'},h('form',{className:'card modal reset-password-modal',onSubmit:repairAccount},h('div',{className:'panel-head'},h('div',null,h('h3',null,'Repair Employee Account'),h('small',null,`${repairTarget.full_name} · ${repairTarget.login_id}`)),h('button',{type:'button',className:'close',onClick:()=>setRepairTarget(null)},'×')),repairMsg&&h('div',{className:`message ${repairMsg.startsWith('Authentication account repaired')?'success':'error'}`},repairMsg),h('p',null,'This employee has a profile but no matching Supabase Authentication account. Enter a temporary password to rebuild the login account.'),h('div',{className:'field'},h('label',null,'Temporary password'),h('input',{type:'password',value:repairPassword,onChange:e=>setRepairPassword(e.target.value),minLength:8,required:true,autoComplete:'new-password'})),h('button',{className:'btn btn-warning full',disabled:repairBusy},repairBusy?'Repairing…':'Repair Account & Enable Login'))):null;
 
     return h(React.Fragment,null,
-      h('div',{className:'card panel'},h('div',{className:'panel-head'},h('div',null,h('h3',null,'Employees'),h('small',null,'Personnel records, documents, central login accounts and Authentication status')),h('button',{className:'btn btn-primary',onClick:()=>{setShow(true);setMsg('')}},'Create Employee')),msg&&!show?h('div',{className:'message error'},msg):null,table),
+      h('div',{className:'card panel'},h('div',{className:'panel-head'},h('div',null,h('h3',null,'Employees'),h('small',null,'HR personnel records, department/designation, documents and ERP access accounts')),h('button',{className:'btn btn-primary',onClick:()=>{setShow(true);setMsg('')}},'Create Employee')),msg&&!show?h('div',{className:'message error'},msg):null,table),
       createModal,detailsModal,resetModal,repairModal,
       cameraConfig?h(CameraCaptureModal,{config:cameraConfig,onClose:()=>setCameraConfig(null)}):null,
       employeeToast&&h('div',{className:`samara-toast ${employeeToast.type}`,role:'status','aria-live':'polite'},
