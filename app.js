@@ -70,8 +70,8 @@
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.24';
-  const APP_BUILD_DATE = '08-Aug-2026 Mobile Save + Toast';
+  const APP_VERSION = '2.8.25';
+  const APP_BUILD_DATE = '08-Aug-2026 Guaranteed Save Confirmation';
   const APP_SCHEMA_VERSION = '24';
   window.APP_VERSION = APP_VERSION;
   window.SAMARA_BUILD = Object.freeze({
@@ -81,7 +81,7 @@
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
   const h = React.createElement;
-  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.24';
+  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.25';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
     h('img',{src:BRAND_LOGO_SRC,className,alt,decoding:'async'});
@@ -1133,35 +1133,47 @@
 
   const showSamaraActionToast = (type='success',title='',text='') => {
     try{
-      document.querySelectorAll('.samara-action-toast').forEach(node=>node.remove());
-      const toast=document.createElement('div');
-      toast.className=`samara-toast samara-action-toast ${type==='error'?'error':'success'}`;
-      toast.setAttribute('role',type==='error'?'alert':'status');
-      toast.setAttribute('aria-live',type==='error'?'assertive':'polite');
+      document.querySelectorAll('.samara-save-confirmation').forEach(node=>node.remove());
 
-      const icon=document.createElement('span');
-      icon.className='samara-toast-icon';
+      const overlay=document.createElement('div');
+      overlay.className=`samara-save-confirmation ${type==='error'?'error':'success'}`;
+      overlay.setAttribute('role',type==='error'?'alert':'status');
+      overlay.setAttribute('aria-live',type==='error'?'assertive':'polite');
+
+      const card=document.createElement('div');
+      card.className='samara-save-confirmation-card';
+
+      const icon=document.createElement('div');
+      icon.className='samara-save-confirmation-icon';
       icon.textContent=type==='error'?'!':'✓';
 
       const copy=document.createElement('div');
+      copy.className='samara-save-confirmation-copy';
       const strong=document.createElement('strong');
-      strong.textContent=title||(type==='error'?'Save failed':'Saved successfully');
+      strong.textContent=title||(type==='error'?'Unable to save':'Saved successfully');
       const span=document.createElement('span');
-      span.textContent=text||(type==='error'?'The entry could not be saved.':'The entry has been saved successfully.');
+      span.textContent=text||(type==='error'?'Please check the entry and try again.':'Your entry has been saved successfully.');
       copy.append(strong,span);
 
-      const close=document.createElement('button');
-      close.type='button';
-      close.setAttribute('aria-label','Close notification');
-      close.textContent='×';
-      close.addEventListener('click',()=>toast.remove());
+      const ok=document.createElement('button');
+      ok.type='button';
+      ok.textContent='OK';
+      ok.addEventListener('click',()=>overlay.remove());
 
-      toast.append(icon,copy,close);
-      document.body.appendChild(toast);
-      window.setTimeout(()=>toast.remove(),4800);
+      card.append(icon,copy,ok);
+      overlay.appendChild(card);
+      document.body.appendChild(overlay);
+
+      // Deliberately stays visible long enough for bedside staff to notice.
+      // It can always be dismissed immediately with OK.
+      window.setTimeout(()=>{ if(overlay.isConnected) overlay.remove(); },8000);
     }catch(error){
-      console.warn('Action notification could not be displayed.',error);
+      console.warn('Save confirmation could not be displayed.',error);
     }
+  };
+
+  const setGlobalActionFailure = (title,text) => {
+    showSamaraActionToast('error',title||'Unable to save',text||'Please check the entry and try again.');
   };
 
   const ensureGlobalActionSuccessStyle = () => {
@@ -2034,6 +2046,103 @@ Caring with Compassion. Living with Dignity.`;
         .content{padding:20px!important}
         .stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}
         .modal{width:min(900px,96vw)!important}
+      }
+
+
+      /* v2.8.25 — Guaranteed save/failure confirmation.
+         Rendered above modals, mobile nav and page navigation. */
+      .samara-save-confirmation{
+        position:fixed!important;
+        inset:0!important;
+        z-index:2147483647!important;
+        display:flex!important;
+        align-items:flex-start!important;
+        justify-content:center!important;
+        padding:calc(18px + env(safe-area-inset-top)) 14px 18px!important;
+        pointer-events:none!important;
+        background:transparent!important;
+      }
+      .samara-save-confirmation-card{
+        width:min(560px,calc(100vw - 28px))!important;
+        min-height:92px!important;
+        display:grid!important;
+        grid-template-columns:50px minmax(0,1fr) auto!important;
+        gap:13px!important;
+        align-items:center!important;
+        padding:16px!important;
+        border-radius:18px!important;
+        color:#fff!important;
+        box-shadow:0 18px 48px rgba(0,0,0,.28)!important;
+        pointer-events:auto!important;
+        animation:samaraConfirmationIn .22s ease-out!important;
+      }
+      .samara-save-confirmation.success .samara-save-confirmation-card{
+        background:linear-gradient(110deg,#087343,#11945a,#22a868)!important;
+        border:2px solid rgba(255,255,255,.45)!important;
+      }
+      .samara-save-confirmation.error .samara-save-confirmation-card{
+        background:linear-gradient(110deg,#a7192b,#c9293c,#df4050)!important;
+        border:2px solid rgba(255,255,255,.45)!important;
+      }
+      .samara-save-confirmation-icon{
+        width:46px!important;
+        height:46px!important;
+        display:flex!important;
+        align-items:center!important;
+        justify-content:center!important;
+        border-radius:50%!important;
+        background:rgba(255,255,255,.20)!important;
+        color:#fff!important;
+        font-size:29px!important;
+        font-weight:950!important;
+      }
+      .samara-save-confirmation-copy{
+        display:grid!important;
+        gap:4px!important;
+        min-width:0!important;
+      }
+      .samara-save-confirmation-copy strong{
+        color:#fff!important;
+        font-size:18px!important;
+        line-height:1.15!important;
+        font-weight:950!important;
+      }
+      .samara-save-confirmation-copy span{
+        color:#fff!important;
+        font-size:14px!important;
+        line-height:1.35!important;
+        font-weight:650!important;
+      }
+      .samara-save-confirmation button{
+        min-width:54px!important;
+        min-height:42px!important;
+        padding:8px 12px!important;
+        border:1px solid rgba(255,255,255,.55)!important;
+        border-radius:12px!important;
+        background:rgba(255,255,255,.16)!important;
+        color:#fff!important;
+        font-size:14px!important;
+        font-weight:900!important;
+      }
+      @keyframes samaraConfirmationIn{
+        from{opacity:0;transform:translateY(-18px) scale(.98)}
+        to{opacity:1;transform:translateY(0) scale(1)}
+      }
+      @media(max-width:650px){
+        .samara-save-confirmation{
+          padding:calc(10px + env(safe-area-inset-top)) 10px 10px!important;
+        }
+        .samara-save-confirmation-card{
+          width:100%!important;
+          grid-template-columns:44px minmax(0,1fr) 48px!important;
+          gap:10px!important;
+          min-height:88px!important;
+          padding:13px!important;
+          border-radius:16px!important;
+        }
+        .samara-save-confirmation-icon{width:42px!important;height:42px!important;font-size:26px!important}
+        .samara-save-confirmation-copy strong{font-size:16px!important}
+        .samara-save-confirmation-copy span{font-size:13px!important}
       }
 
       /* =========================================================

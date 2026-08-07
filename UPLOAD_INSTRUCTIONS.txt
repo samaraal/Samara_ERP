@@ -1,26 +1,24 @@
-SAMARA CARE ERP v2.8.24 — MOBILE SAVE VISIBILITY + GREEN/RED CONFIRMATIONS
+SAMARA CARE ERP v2.8.25 — GUARANTEED SAVE CONFIRMATION
 
 Upload only:
-- app.js
-- index.html
-- service-worker.js
+1. app.js
+2. index.html
+3. service-worker.js
 
-Fixes:
-1. The mobile bottom navigation automatically hides while an entry pop-up/modal is open.
-   This prevents Home / Meds / Vitals / Care / More from covering the Save button.
-2. Extra safe-area space is added at the bottom of mobile entry forms for iPhone.
-3. Successful saves now use a GREEN confirmation pop-up.
-4. Failed saves / validation failures use a RED pop-up.
-5. Medication Administration explicitly shows:
-   - Green: Medication saved
-   - Red: validation/database save failure
-6. Vital Signs now uses the same green/red notification system instead of browser alerts.
-7. Existing Daily Care, Physiotherapy, Handover, Incident and other Samara toasts inherit the
-   standard green-success / red-failure presentation.
+What changed:
+- Save confirmation is now a separate top-level overlay, not a normal page toast.
+- It has the highest display layer, so modal windows, mobile navigation and page changes cannot hide it.
+- SUCCESS = large GREEN confirmation with tick.
+- FAILURE = large RED confirmation with exclamation mark.
+- An OK button is provided.
+- Confirmation remains visible for up to 8 seconds unless staff taps OK.
+- Medication and Vital Signs saves use this confirmation.
+- Existing global successful actions are also routed to the same confirmation.
 
-No SQL / Supabase change is required.
+No SQL / Supabase change.
 
-After deployment:
-- Close/reopen the mobile browser tab once.
-- If using a Home Screen PWA and v2.8.23 remains cached, remove/re-add it once.
-- Test as Nurse: Meds → enter → Save; Vitals → Save; Daily Care → Save.
+IMPORTANT TEST:
+Login as Nurse on iPhone:
+Meds > enter medication administration > Save.
+A green 'Medication saved' confirmation must appear at the TOP of the screen.
+Then test Vitals and Daily Care.
