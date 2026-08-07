@@ -70,8 +70,8 @@
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.16';
-  const APP_BUILD_DATE = '06-Aug-2026 10:45 IST';
+  const APP_VERSION = '2.8.17';
+  const APP_BUILD_DATE = '07-Aug-2026 20:45 IST';
   const APP_SCHEMA_VERSION = '24';
   window.APP_VERSION = APP_VERSION;
   window.SAMARA_BUILD = Object.freeze({
@@ -81,7 +81,7 @@
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
   const h = React.createElement;
-  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.16';
+  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.17';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
     h('img',{src:BRAND_LOGO_SRC,className,alt,decoding:'async'});
@@ -5115,7 +5115,7 @@ Caring with Compassion. Living with Dignity.`;
         h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!familyAccess.enabled,onChange:e=>setFamilyAccess({...familyAccess,enabled:e.target.checked})}),h('span',null,'Enable Family Portal for this resident')),
         familyAccess.enabled&&h('div',{className:'form-grid',style:{marginTop:'12px'}},
           h('div',{className:'field'},h('label',null,'Authorised Relative Name'),h('input',{required:true,value:familyAccess.relative_name,onChange:e=>setFamilyAccess({...familyAccess,relative_name:e.target.value})})),
-          h('div',{className:'field'},h('label',null,'Relationship'),h('input',{required:true,value:familyAccess.relationship,onChange:e=>setFamilyAccess({...familyAccess,relationship:e.target.value}),placeholder:'Son / Daughter / Spouse / Other'})),
+          h('div',{className:'field'},h('label',null,'Relationship'),h('select',{required:true,value:familyAccess.relationship||'',onChange:e=>setFamilyAccess({...familyAccess,relationship:e.target.value})},h('option',{value:''},'Select relationship'),...['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].map(x=>h('option',{key:x,value:x},x)))),
           h('div',{className:'field'},h('label',null,'Family Mobile Number'),h('input',{required:true,inputMode:'numeric',maxLength:10,value:familyAccess.mobile,onChange:e=>setFamilyAccess({...familyAccess,mobile:e.target.value.replace(/\D/g,'').slice(0,10)})})),
           h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:familyAccess.email,onChange:e=>setFamilyAccess({...familyAccess,email:e.target.value})})),
           h('label',{className:'check-card span-2'},h('input',{type:'checkbox',checked:!!familyAccess.primary_contact,onChange:e=>setFamilyAccess({...familyAccess,primary_contact:e.target.checked})}),h('span',null,'Primary Family Contact'))
@@ -5803,6 +5803,8 @@ Caring with Compassion. Living with Dignity.`;
     const [editTarget,setEditTarget]=React.useState(null),[editForm,setEditForm]=React.useState(null),[editBusy,setEditBusy]=React.useState(false),[editMsg,setEditMsg]=React.useState('');
     const [editFamilyAccess,setEditFamilyAccess]=React.useState({enabled:false,id:null,family_user_id:'',relative_name:'',relationship:'',mobile:'',email:'',primary_contact:true,is_active:true});
     const [editFamilyCredential,setEditFamilyCredential]=React.useState(null);
+    const [familyResetBusy,setFamilyResetBusy]=React.useState(null);
+    const [familyResetCredential,setFamilyResetCredential]=React.useState(null);
     const [patientToast,setPatientToast]=React.useState(null);
     const patientToastTimer=React.useRef(null);
     const [duplicateReview,setDuplicateReview]=React.useState(null);
@@ -5846,7 +5848,7 @@ Caring with Compassion. Living with Dignity.`;
     }
     async function openPatient(p){
       setSelected(p);setPhotoUrl('');setTab('Overview');
-      const [m,ma,c,cl,v,ph,ps,d,meal,bill,rec,inc,url]=await Promise.all([
+      const [m,ma,c,cl,v,ph,ps,d,meal,bill,rec,inc,fam,url]=await Promise.all([
         client.from('medication_orders').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}),
         client.from('medication_administrations').select('*').eq('patient_id',p.id).order('scheduled_date',{ascending:false}).limit(100),
         client.from('care_orders').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}),
@@ -5859,9 +5861,10 @@ Caring with Compassion. Living with Dignity.`;
         client.from('billing_transactions').select('*').eq('patient_id',p.id).order('transaction_date',{ascending:false}).limit(200),
         client.from('recovery_events').select('*').eq('patient_id',p.id).order('event_at',{ascending:false}).limit(100),
         client.from('incidents').select('*').eq('patient_id',p.id).order('incident_at',{ascending:false}).limit(100),
+        canEdit?client.from('family_portal_access').select('id,family_user_id,relative_name,relationship,mobile,email,primary_contact,is_active,last_login_at,created_at,updated_at').eq('patient_id',p.id).order('primary_contact',{ascending:false}).order('created_at',{ascending:true}):Promise.resolve({data:[]}),
         resolvePatientPhoto(p)
       ]);
-      setDetails({meds:currentUpcomingMedicineOrders(m.data||[]),mar:ma.data||[],care:c.data||[],careLogs:cl.data||[],vitals:v.data||[],physio:ph.data||[],physioSessions:ps.data||[],docs:d.data||[],meals:meal.data||[],billing:bill.data||[],recovery:rec.data||[],incidents:inc.data||[]});
+      setDetails({meds:currentUpcomingMedicineOrders(m.data||[]),mar:ma.data||[],care:c.data||[],careLogs:cl.data||[],vitals:v.data||[],physio:ph.data||[],physioSessions:ps.data||[],docs:d.data||[],meals:meal.data||[],billing:bill.data||[],recovery:rec.data||[],incidents:inc.data||[],familyAccess:fam?.data||[]});
       setPhotoUrl(url);
     }
     async function openDoc(doc){if(doc.storage_path){const {data,error}=await client.storage.from('patient-documents').createSignedUrl(doc.storage_path,180);if(error)return alert(error.message);window.open(data.signedUrl,'_blank','noopener')}else if(doc.document_url)window.open(doc.document_url,'_blank','noopener')}
@@ -5944,19 +5947,50 @@ Caring with Compassion. Living with Dignity.`;
     async function saveEditedFamilyPortalAccess(){
       if(!editFamilyAccess.enabled){
         if(editFamilyAccess.id){const {error}=await client.rpc('set_family_portal_access_status',{p_access_id:editFamilyAccess.id,p_active:false});if(error)throw error;}
-        return null;
+        return {disabled:true};
       }
       const mobile=String(editFamilyAccess.mobile||'').replace(/\D/g,'').slice(-10);
       if(!String(editFamilyAccess.relative_name||'').trim())throw new Error('Enter the authorised family member name.');
       if(!String(editFamilyAccess.relationship||'').trim())throw new Error('Enter the relationship to the resident.');
       if(mobile.length!==10)throw new Error('Enter a valid 10-digit family mobile number.');
-      const pin=String(Math.floor(100000+Math.random()*900000));
+      const isNew=!editFamilyAccess.id;
+      const pin=isNew?String(Math.floor(100000+Math.random()*900000)):null;
       const {data,error}=await client.rpc('upsert_family_portal_access',{p_patient_id:editTarget.id,p_relative_name:String(editFamilyAccess.relative_name).trim(),p_relationship:String(editFamilyAccess.relationship).trim(),p_mobile:mobile,p_email:String(editFamilyAccess.email||'').trim()||null,p_primary_contact:!!editFamilyAccess.primary_contact,p_pin:pin,p_access_id:editFamilyAccess.id||null});
       if(error)throw error;
-      const credential={...(Array.isArray(data)?data[0]:data),pin,mobile};
-      setEditFamilyCredential(credential);
+      const row=Array.isArray(data)?data[0]:data;
+      const credential={...(row||{}),pin,mobile,isNew};
+      setEditFamilyCredential(pin?credential:null);
       setEditFamilyAccess(prev=>({...prev,id:credential.access_id||prev.id,family_user_id:credential.family_user_id||prev.family_user_id,mobile,is_active:true}));
       return credential;
+    }
+
+    async function resetSelectedFamilyPin(access){
+      if(!canEdit||!selected||!access?.id)return;
+      if(!confirm(`Reset the Family Portal PIN for ${access.relative_name||access.family_user_id||'this family user'}?`))return;
+      setFamilyResetBusy(access.id);
+      setFamilyResetCredential(null);
+      try{
+        const pin=String(Math.floor(100000+Math.random()*900000));
+        const mobile=String(access.mobile||'').replace(/\D/g,'').slice(-10);
+        const {data,error}=await client.rpc('upsert_family_portal_access',{
+          p_patient_id:selected.id,
+          p_relative_name:access.relative_name,
+          p_relationship:access.relationship,
+          p_mobile:mobile,
+          p_email:access.email||null,
+          p_primary_contact:!!access.primary_contact,
+          p_pin:pin,
+          p_access_id:access.id
+        });
+        if(error)throw error;
+        const row=Array.isArray(data)?data[0]:data;
+        const credential={...(row||{}),family_user_id:(row||{}).family_user_id||access.family_user_id,pin,mobile};
+        setFamilyResetCredential(credential);
+        showPatientToast('success',`Family Portal PIN reset successfully for ${credential.family_user_id}.`);
+        setDetails(prev=>prev?{...prev,familyAccess:(prev.familyAccess||[]).map(x=>x.id===access.id?{...x,updated_at:new Date().toISOString()}:x)}:prev);
+      }catch(error){
+        showPatientToast('error',`Unable to reset Family Portal PIN: ${error.message||error}`);
+      }finally{setFamilyResetBusy(null)}
     }
 
     async function savePatientEdit(e){
@@ -5968,7 +6002,8 @@ Caring with Compassion. Living with Dignity.`;
       payload.age=editForm.age===''?null:Number(editForm.age);
       const {data,error}=await client.from('patients').update(payload).eq('id',editTarget.id).select().single();
       if(error){const text=error.message||'Unable to update patient';setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
-      try{await saveEditedFamilyPortalAccess();}
+      let familySaveResult=null;
+      try{familySaveResult=await saveEditedFamilyPortalAccess();}
       catch(familyError){const text=`Patient details saved, but Family Portal access could not be updated: ${familyError.message||familyError}`;setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
       try{
         for(const f of editUploads.photo)await uploadEditDocument(editTarget.id,f,'Patient Photo',true);
@@ -6020,7 +6055,13 @@ Caring with Compassion. Living with Dignity.`;
           if(pe)throw pe;
         }
       }catch(orderError){const text=`Patient details saved, but medicines or care plan could not be updated: ${orderError.message}`;setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
-      const successText='Patient information updated successfully.';
+      const successText=familySaveResult?.pin
+        ?`Patient information updated successfully. Family Portal login created — User ID: ${familySaveResult.family_user_id||editFamilyAccess.family_user_id||'—'} · Temporary PIN: ${familySaveResult.pin}.`
+        :familySaveResult?.disabled
+          ?'Patient information updated successfully. Family Portal access is disabled.'
+          :editFamilyAccess.enabled
+            ?'Patient information and Family Portal access updated successfully.'
+            :'Patient information updated successfully.';
       setEditMsg(successText);showPatientToast('success',successText);await load();await loadEditMedia({...data,id:editTarget.id});
       if(selected?.id===editTarget.id){setSelected(data);setTimeout(()=>openPatient(data),0)}
       setEditUploads({photo:[],identity:[],prescription:[],discharge:[],reports:[],other:[]});setEditBusy(false);
@@ -6790,7 +6831,7 @@ Caring with Compassion. Living with Dignity.`;
       ),
       selected&&details&&h('div',{className:'modal-backdrop'},h('div',{className:'card modal patient-master-modal'},
         h('div',{className:'panel-head patient-master-header'},h('div',{className:'patient-head'},photoUrl?h('img',{src:photoUrl,className:'patient-photo'}):h('div',{className:'patient-photo patient-photo-placeholder'},'SC'),h('div',null,h('h3',null,formalName(selected)),h('small',null,`${selected.patient_id||'—'} · ${selected.admission_type||''} · ${selected.patient_category||''}`),h('div',{className:'patient-header-badges'},h('span',{className:'badge'},selected.is_active===false?'Inactive':'Active'),selected.room_no&&selected.bed_no?h('span',{className:'pill'},`Room ${selected.room_no} · Bed ${selected.bed_no}`):h('span',{className:'pill warning'},'Room not assigned'),selected.special_nurse_required?h('span',{className:'pill warning'},`Special nurse: ${selected.special_nurse_name||'Required'}`):null))),h('div',{className:'employee-actions'},canEdit?h('button',{className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Patient'):h('span',{className:'pill'},'View only'),h('button',{className:'close',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('')}},'×'))),
-        h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Documents',details.docs.length),tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),!clinicalView?tabButton('Billing',details.billing.length):null,tabButton('Timeline',details.recovery.length+details.incidents.length)),
+        h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Documents',details.docs.length),tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),!clinicalView?tabButton('Billing',details.billing.length):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
         h('div',{className:'patient-tab-content'},
           tab==='Overview'&&h('div',{className:'tabs-grid'},
             h('div',{className:'section-card'},h('h4',null,'Identity & Contacts'),h('p',null,`Patient ID: ${selected.patient_id||'—'}`),h('p',null,`Gender / Age: ${selected.gender||'—'} / ${selected.age||'—'}`),h('p',null,`Mobile: ${selected.mobile||'—'}`),h('p',null,selected.address||composePatientAddress(selected)||'Address not recorded'),h('p',null,`District: ${selected.district||'—'} · Taluk: ${selected.taluk||'—'} · PIN: ${selected.pincode||'—'}`),h('p',null,`Attendant: ${selected.attendant_name||'—'} · ${selected.attendant_phone||'—'}`)),
@@ -6805,12 +6846,45 @@ Caring with Compassion. Living with Dignity.`;
           tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${x.preferred_time||'—'} · ${x.precautions||''}`))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'))):sectionEmpty('No physiotherapy sessions.')),
           tab==='Diet'&&h('div',{className:'section-card'},h('h4',null,`Diet Plan: ${selected.diet_plan||'Not recorded'}`),h('p',null,selected.feeding_instruction||'No special feeding instruction.'),h('h4',{style:{marginTop:'18px'}},'Meal Records'),details.meals.length?details.meals.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${x.meal_date||''} · ${x.meal_type} · ${x.consumption_status}`),h('span',null,`${x.menu||'—'} · ${x.remarks||''}`))):sectionEmpty('No meal records.')),
           !clinicalView&&tab==='Billing'&&(()=>{const b=billingSummary(details.billing),due=b.charges-b.payments-b.discounts+b.refunds;return h('div',null,h('div',{className:'grid stats'},[['Charges',b.charges],['Payments',b.payments],['Discounts',b.discounts],['Outstanding',due]].map(([k,v])=>h('div',{className:'card stat',key:k},h('span',null,k),h('strong',null,`₹${v.toLocaleString('en-IN')}`)))),h('div',{className:'section-card'},h('h4',null,'Patient Ledger'),details.billing.length?details.billing.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${x.transaction_type} · ${x.category} · ₹${Number(x.amount||0).toLocaleString('en-IN')}`),h('span',null,`${fmt(x.transaction_date)} · ${x.description||''}`))):sectionEmpty('No billing transactions.')))} )(),
-          tab==='Timeline'&&h('div',{className:'section-card'},h('h4',null,'Recovery & Incident Timeline'),[...details.recovery.map(x=>({id:`r-${x.id}`,date:x.event_at,title:x.event_type,note:x.note,type:'Recovery'})),...details.incidents.map(x=>({id:`i-${x.id}`,date:x.incident_at,title:x.incident_type,note:`${x.severity||''} · ${x.description||''} · ${x.status||''}`,type:'Incident'}))].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${fmt(x.date)} · ${x.type}: ${x.title}`),h('span',null,x.note||'—'))),details.recovery.length+details.incidents.length===0&&sectionEmpty('No recovery or incident events.'))
+          tab==='Timeline'&&h('div',{className:'section-card'},h('h4',null,'Recovery & Incident Timeline'),[...details.recovery.map(x=>({id:`r-${x.id}`,date:x.event_at,title:x.event_type,note:x.note,type:'Recovery'})),...details.incidents.map(x=>({id:`i-${x.id}`,date:x.incident_at,title:x.incident_type,note:`${x.severity||''} · ${x.description||''} · ${x.status||''}`,type:'Incident'}))].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${fmt(x.date)} · ${x.type}: ${x.title}`),h('span',null,x.note||'—'))),details.recovery.length+details.incidents.length===0&&sectionEmpty('No recovery or incident events.')),
+          canEdit&&tab==='Family Portal'&&h('div',{className:'section-card'},
+            h('div',{className:'panel-head'},
+              h('div',null,h('h4',null,'Family Portal Login'),h('small',null,'View the authorised family login details for this resident. Temporary PINs are shown only when first created or reset.')),
+              h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Family Access')
+            ),
+            (details.familyAccess||[]).length
+              ?h('div',null,(details.familyAccess||[]).map(access=>h('div',{className:'section-card',key:access.id,style:{marginTop:'12px'}},
+                h('div',{className:'panel-head'},
+                  h('div',null,h('strong',null,access.relative_name||'Authorised Relative'),h('small',null,`${access.relationship||'Relationship not recorded'}${access.primary_contact?' · Primary contact':''}`)),
+                  h('span',{className:`pill ${access.is_active?'':'warning'}`},access.is_active?'Active':'Disabled')
+                ),
+                h('div',{className:'tabs-grid'},
+                  h('div',null,h('p',null,h('strong',null,'Family User ID: '),access.family_user_id||'—'),h('p',null,h('strong',null,'Registered Mobile: '),access.mobile||'—'),h('p',null,h('strong',null,'Email: '),access.email||'Not recorded')),
+                  h('div',null,h('p',null,h('strong',null,'Last Login: '),access.last_login_at?fmt(access.last_login_at):'Not logged in yet'),h('p',null,h('strong',null,'Access Created: '),access.created_at?fmt(access.created_at):'—'),h('p',null,h('strong',null,'PIN: '),'For security, the existing PIN is not displayed.'))
+                ),
+                access.is_active&&h('div',{className:'actions',style:{marginTop:'10px'}},
+                  h('button',{type:'button',className:'btn btn-secondary',disabled:familyResetBusy===access.id,onClick:()=>resetSelectedFamilyPin(access)},familyResetBusy===access.id?'Resetting…':'Forgot / Reset PIN'),
+                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${String(access.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(`Samara Family Portal
+User ID: ${access.family_user_id||''}
+Portal: https://family.samaraassistedliving.com
+If the PIN is forgotten, please contact Samara to reset it.`)}`,'_blank','noopener')},'Send User ID by WhatsApp')
+                )
+              )))
+              :h('div',null,sectionEmpty('Family Portal access has not been created for this resident.'),h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEditPatient(selected)},'Create Family Portal Access')),
+            familyResetCredential&&h('div',{className:'message success',style:{marginTop:'14px'}},
+              h('strong',null,'New Family Portal PIN generated'),
+              h('div',null,`User ID: ${familyResetCredential.family_user_id||'—'} · Mobile: ${familyResetCredential.mobile||'—'} · Temporary PIN: ${familyResetCredential.pin}`),
+              h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${familyResetCredential.mobile}?text=${encodeURIComponent(`Samara Family Portal login
+User ID: ${familyResetCredential.family_user_id||''}
+Temporary PIN: ${familyResetCredential.pin}
+Portal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send New PIN by WhatsApp')
+            )
+          )
         )
       )),
       canEdit&&editTarget&&editForm&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal patient-edit-modal',onSubmit:savePatientEdit},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Edit Patient Information'),h('small',null,`${editTarget.patient_id||'—'} · Correct duplicate or wrongly entered details`)),h('button',{type:'button',className:'close',onClick:()=>{setEditTarget(null);setEditForm(null)}},'×')),
-        editMsg&&h('div',{className:`message ${editMsg.startsWith('Patient information')?'success':'error'}`},editMsg),
+        editMsg&&h('div',{className:`message ${editMsg.includes('successfully')?'success':'error'}`},editMsg),
         h('div',{className:'modal-grid'},
           selectField('Title / Salutation','title',editForm,setEditForm,PATIENT_TITLES),field('Patient Name','full_name',editForm,setEditForm,true),field('Age','age',editForm,setEditForm,false,'number'),selectField('Gender','gender',editForm,setEditForm,['Male','Female','Other']),field('Patient Mobile','mobile',editForm,setEditForm,false,'tel'),
           field('Emergency Contact Name','attendant_name',editForm,setEditForm,false),field('Emergency Contact Number','attendant_phone',editForm,setEditForm,false,'tel'),
@@ -6867,7 +6941,7 @@ Caring with Compassion. Living with Dignity.`;
           editFamilyAccess.enabled&&h('div',{className:'form-grid',style:{marginTop:'12px'}},
             h('div',{className:'field'},h('label',null,'Family User ID'),h('input',{readOnly:true,value:editFamilyAccess.family_user_id||'Generated when saved'})),
             h('div',{className:'field'},h('label',null,'Authorised Relative Name'),h('input',{required:true,value:editFamilyAccess.relative_name||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,relative_name:e.target.value})})),
-            h('div',{className:'field'},h('label',null,'Relationship'),h('input',{required:true,value:editFamilyAccess.relationship||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,relationship:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Relationship'),h('select',{required:true,value:editFamilyAccess.relationship||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,relationship:e.target.value})},h('option',{value:''},'Select relationship'),...(editFamilyAccess.relationship&&!['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].includes(editFamilyAccess.relationship)?[h('option',{key:editFamilyAccess.relationship,value:editFamilyAccess.relationship},editFamilyAccess.relationship)]:[]),...['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].map(x=>h('option',{key:x,value:x},x)))),
             h('div',{className:'field'},h('label',null,'Family Mobile Number'),h('input',{required:true,inputMode:'numeric',maxLength:10,value:editFamilyAccess.mobile||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,mobile:e.target.value.replace(/\D/g,'').slice(0,10)})})),
             h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:editFamilyAccess.email||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,email:e.target.value})})),
             h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!editFamilyAccess.primary_contact,onChange:e=>setEditFamilyAccess({...editFamilyAccess,primary_contact:e.target.checked})}),h('span',null,'Primary Family Contact'))
