@@ -70,7 +70,7 @@
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.20';
+  const APP_VERSION = '2.8.21';
   const APP_BUILD_DATE = '07-Aug-2026 HR Dashboard Update';
   const APP_SCHEMA_VERSION = '24';
   window.APP_VERSION = APP_VERSION;
@@ -81,7 +81,7 @@
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
   const h = React.createElement;
-  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.20';
+  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.21';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
     h('img',{src:BRAND_LOGO_SRC,className,alt,decoding:'async'});
@@ -2993,16 +2993,15 @@ Caring with Compassion. Living with Dignity.`;
     const selectedCount=applications.filter(x=>x.status==='Selected').length;
     const onHold=applications.filter(x=>x.status==='On Hold').length;
     const deptCount=name=>active.filter(x=>employeeDepartment(x)===name).length;
-    const metricStyle={textAlign:'left',padding:'18px 18px 16px',border:'1px solid #ead0de',borderRadius:'16px',background:'linear-gradient(145deg,#fff 0%,#fff7fb 100%)',minHeight:'118px',cursor:'pointer',boxShadow:'0 5px 16px rgba(122,18,71,.06)'};
     const metrics=[
-      ['Active Employees',active.length,'Employees','♙','Currently employed'],
-      ['Nursing',deptCount('Nursing'),'Employees','⚕','Nursing workforce'],
-      ['Caregiving',deptCount('Caregiving'),'Employees','♡','Caregiving workforce'],
-      ['New Applications',newApps,'Career Applications','＋','Awaiting HR review'],
-      ['Shortlisted',shortlisted,'Career Applications','✓','Candidates shortlisted'],
-      ['Interviews',interviewCount,'Interviews','◷','Interview scheduled'],
-      ['Selected',selectedCount,'Career Applications','★','Candidates selected'],
-      ['On Hold',onHold,'Career Applications','Ⅱ','Applications on hold']
+      ['Active Employees',active.length,'Employees','♙','Currently employed','Open Employees →','#a91360','#f8e6ef'],
+      ['Nursing',deptCount('Nursing'),'Employees','⚕','Nursing workforce','View Nursing Staff →','#d93679','#fde9f2'],
+      ['Caregiving',deptCount('Caregiving'),'Employees','♡','Caregiving workforce','View Caregivers →','#16a36c','#e7f6ef'],
+      ['New Applications',newApps,'Career Applications','＋','Awaiting HR review','Open Applications →','#e23e80','#fde8f1'],
+      ['Shortlisted',shortlisted,'Career Applications','✓','Candidates shortlisted','Review Shortlist →','#2aa97b','#e8f7f1'],
+      ['Interviews',interviewCount,'Interviews','◷','Interview scheduled','Open Interviews →','#f08a4b','#fff0e8'],
+      ['Selected',selectedCount,'Career Applications','★','Candidates selected','View Selected →','#7c62d7','#f0ecfb'],
+      ['On Hold',onHold,'Career Applications','Ⅱ','Applications on hold','Review On Hold →','#7a1247','#f4e9ef']
     ];
     const statusClass=status=>String(status||'').toLowerCase().includes('interview')?'success':'';
     return h(React.Fragment,null,
@@ -3014,14 +3013,14 @@ Caring with Compassion. Living with Dignity.`;
             h('button',{type:'button',className:'btn btn-primary',onClick:()=>onNavigate('Career Applications')},'Career Applications')
           )
         ),
-        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:'12px',marginBottom:'20px'}},metrics.map(([label,value,page,icon,note])=>
-          h('button',{key:label,type:'button',onClick:()=>onNavigate(page),style:metricStyle},
-            h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:'8px'}},
-              h('span',{style:{fontSize:'13px',fontWeight:800,color:'#6d435a'}},label),
-              h('span',{style:{width:'34px',height:'34px',borderRadius:'10px',display:'grid',placeItems:'center',background:'#fae7f0',color:'#a91360',fontSize:'18px',fontWeight:900}},icon)
-            ),
-            h('strong',{style:{display:'block',fontSize:'30px',lineHeight:'1.1',marginTop:'8px',color:'#5d1039'}},value),
-            h('small',{style:{display:'block',marginTop:'6px',color:'#85717c'}},note)
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(265px,1fr))',gap:'20px',marginBottom:'24px'}},metrics.map(([label,value,page,icon,note,action,accent,iconBg])=>
+          h('button',{key:label,type:'button',onClick:()=>onNavigate(page),style:{position:'relative',overflow:'hidden',textAlign:'left',padding:'30px 26px 24px',border:'0',borderRadius:'24px',background:'linear-gradient(145deg,#ffffff 0%,#fffafd 100%)',minHeight:'205px',cursor:'pointer',boxShadow:'0 12px 26px rgba(93,16,57,.10)',outline:'1px solid rgba(234,208,222,.72)'}},
+            h('span',{style:{position:'absolute',left:0,right:0,top:0,height:'7px',background:`linear-gradient(90deg,#7a1247 0%,${accent} 68%,#f6b72d 100%)`}}),
+            h('span',{style:{position:'absolute',right:'0',top:'0',width:'96px',height:'96px',borderRadius:'0 24px 0 38px',display:'grid',placeItems:'center',background:iconBg,color:accent,fontSize:'30px',fontWeight:900}},icon),
+            h('span',{style:{display:'block',maxWidth:'72%',fontSize:'16px',fontWeight:800,color:'#53716a',marginTop:'18px'}},label),
+            h('strong',{style:{display:'block',fontSize:'40px',lineHeight:'1.05',marginTop:'14px',color:'#113c34',letterSpacing:'-.02em'}},value),
+            h('small',{style:{display:'block',marginTop:'10px',fontSize:'14px',color:'#806b77'}},note),
+            h('span',{style:{display:'block',marginTop:'18px',fontSize:'13px',fontWeight:900,color:accent}},action)
           )
         )),
         h('div',{style:{display:'grid',gridTemplateColumns:'minmax(0,1.45fr) minmax(330px,.8fr)',gap:'16px',alignItems:'start'}},
