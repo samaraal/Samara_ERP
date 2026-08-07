@@ -1,25 +1,51 @@
-SAMARA CARE ERP v2.8.28 — PATIENT FILE STABILITY FIX
+SAMARA CARE ERP v2.8.29 — REVISED FINAL PAYMENT MODES
 
-Why only some patients failed:
-- The Patient File used composePatientAddress(selected) only when the stored address was blank.
-- That helper exists inside the Admission form, not inside Patient File.
-- Therefore patients with an existing address opened normally.
-- Patients with missing/older address fields triggered:
-  ReferenceError: composePatientAddress is not defined
+THIS REPLACES THE EARLIER v2.8.29 PACKAGE.
 
-So the behaviour looked related to the patient photograph, but the real deciding
-factor was whether an address fallback was needed.
+Accepted payment modes ONLY:
+1. Cash
+2. UPI
+3. RTGS
+4. Card Payment
 
-Fix:
-- Patient File now uses the shared composePatientAddressGlobal helper through a
-  local patientAddress() function.
-- The v2.8.27 photo-size fix is preserved.
+Removed:
+- Cheque
+- Bank Transfer
+- old generic Card option
 
-Upload only:
-1. app.js
-2. index.html
-3. service-worker.js
+VOUCHER / REFERENCE RULES
 
-No SQL / Supabase change is required.
+Cash
+- System-generated Cash Voucher.
+- Format: CV-YYYY-000001
+- Reference field is read-only.
+- Transaction cannot be posted unless voucher is created.
 
-After deployment, test all four photographed patients.
+Card Payment
+- Same controlled procedure as Cash.
+- System-generated Card Voucher.
+- Format: CARDV-YYYY-000001
+- Reference field is read-only.
+- Transaction cannot be posted unless voucher is created.
+
+UPI
+- User must enter UPI Transaction Reference No.
+- Save is blocked if reference is blank.
+
+RTGS
+- User must enter RTGS Transaction Reference No.
+- Save is blocked if reference is blank.
+
+The global GREEN success / RED failure confirmation is included across ERP and
+Accounts Payment invokes it directly.
+
+INSTALLATION
+1. Run the revised 72_global_confirmation_cash_voucher.sql once.
+   It is safe if the earlier v2.8.29 cash-only SQL was already run.
+2. Replace:
+   app.js
+   index.html
+   service-worker.js
+3. Ctrl + Shift + R after deployment.
+
+Version remains v2.8.29.

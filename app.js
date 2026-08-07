@@ -70,8 +70,8 @@
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.28';
-  const APP_BUILD_DATE = '08-Aug-2026 Patient File Stability';
+  const APP_VERSION = '2.8.29';
+  const APP_BUILD_DATE = '08-Aug-2026 Global Confirmation + Cash/Card Voucher';
   const APP_SCHEMA_VERSION = '24';
   window.APP_VERSION = APP_VERSION;
   window.SAMARA_BUILD = Object.freeze({
@@ -81,7 +81,7 @@
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
   const h = React.createElement;
-  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.28';
+  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.29';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
     h('img',{src:BRAND_LOGO_SRC,className,alt,decoding:'async'});
@@ -3379,6 +3379,51 @@ Caring with Compassion. Living with Dignity.`;
       return()=>observer.disconnect();
     },[]);
 
+
+
+    React.useEffect(()=>{
+      const root=document.getElementById('root');
+      if(!root)return;
+      const handled=new WeakSet();
+
+      const promote=(element)=>{
+        if(!(element instanceof Element)||handled.has(element))return;
+        if(element.closest('.samara-save-confirmation'))return;
+
+        const success=element.matches(
+          '.message.success,.samara-toast.success,.toast.success,[data-toast-type="success"]'
+        );
+        const error=element.matches(
+          '.message.error,.samara-toast.error,.toast.error,[data-toast-type="error"]'
+        );
+        if(!success&&!error)return;
+
+        handled.add(element);
+        const type=success?'success':'error';
+        const strong=element.querySelector('strong');
+        const title=(strong?.textContent||'').trim()||
+          (success?'Saved successfully':'Action failed');
+        const raw=(element.textContent||'').replace(/[×✕]/g,' ').replace(/\s+/g,' ').trim();
+        const text=raw.replace(title,'').trim()||
+          (success?'The procedure has been completed successfully.':'The procedure could not be completed.');
+        showSamaraActionToast(type,title,text);
+      };
+
+      const scan=(node)=>{
+        if(!(node instanceof Element))return;
+        promote(node);
+        node.querySelectorAll?.(
+          '.message.success,.message.error,.samara-toast.success,.samara-toast.error,.toast.success,.toast.error,[data-toast-type="success"],[data-toast-type="error"]'
+        ).forEach(promote);
+      };
+
+      scan(root);
+      const observer=new MutationObserver(mutations=>{
+        mutations.forEach(mutation=>mutation.addedNodes.forEach(scan));
+      });
+      observer.observe(root,{childList:true,subtree:true});
+      return()=>observer.disconnect();
+    },[]);
 
     React.useEffect(()=>{
       ensureSmoothRefreshStyle();
@@ -11836,7 +11881,7 @@ function ShiftHandover({profile,onNavigate}){
       return chargeDates.length?charges/chargeDates.length:0;
     })();
 
-    const modeTotals=['Cash','UPI','Card','Bank Transfer','Cheque'].map(mode=>[
+    const modeTotals=['Cash','UPI','RTGS','Card Payment'].map(mode=>[
       mode,
       sum(rows.filter(row=>String(row.payment_mode||'').toLowerCase()===mode.toLowerCase()),['Payment','Advance'])
     ]);
@@ -11917,7 +11962,7 @@ function ShiftHandover({profile,onNavigate}){
         h('div',{className:'accounts-workflow-grid'},
           [
             ['🧾','Charge Approvals','Approve, partially approve or reject Nurse-raised charges.',pendingApprovals,'approvals'],
-            ['💳','Payments','Receive Cash, UPI, Card, Bank Transfer or Cheque payments.',todayCollections?money(todayCollections):'Open','payments'],
+            ['💳','Payments','Receive Cash, UPI, RTGS or Card payments.',todayCollections?money(todayCollections):'Open','payments'],
             ['📑','Final Billing','Patient-wise ledger, discounts and net payable.',finalBills,'final-billing'],
             ['🚪','Discharge Clearance','Financially clear Management-approved discharges.',dischargeClearance,'clearance'],
             ['↩','Refunds','View and record payment or advance refunds.',money(refundValue),'refunds'],
@@ -12370,6 +12415,7 @@ function ShiftHandover({profile,onNavigate}){
     const [saving,setSaving]=React.useState(false);
     const [message,setMessage]=React.useState('');
     const [toast,setToast]=React.useState(null);
+    const [lastVoucherNo,setLastVoucherNo]=React.useState('');
     const canEnter=['Admin','Manager','Accounts'].includes(profile?.role);
     const canDiscount=profile?.role==='Admin';
 
@@ -12390,7 +12436,18 @@ function ShiftHandover({profile,onNavigate}){
       closure_remarks:'All payments received and final account settled.'
     });
 
+    const isAutoVoucherTransaction=
+      ['Cash','Card Payment'].includes(form.payment_mode) &&
+      ['Payment','Advance','Refund'].includes(form.transaction_type);
+
+    React.useEffect(()=>{
+      if(!isAutoVoucherTransaction)setLastVoucherNo('');
+    },[form.payment_mode,form.transaction_type]);
+
+
+
     function notify(type,title,text){
+      showSamaraActionToast(type,title,text);
       setToast({type,title,text});
       setTimeout(()=>setToast(null),5000);
     }
@@ -12472,19 +12529,28 @@ function ShiftHandover({profile,onNavigate}){
       if(!canEnter||saving)return;
 
       if(!form.patient_id){
-        setMessage('Select a patient before saving the transaction.');
-        return;
+        const text='Select a patient before saving the transaction.';
+        setMessage(text);notify('error','Patient required',text);return;
       }
 
       const amount=Number(form.amount);
       if(!Number.isFinite(amount)||amount<=0){
-        setMessage('Enter a valid amount greater than zero.');
-        return;
+        const text='Enter a valid amount greater than zero.';
+        setMessage(text);notify('error','Amount required',text);return;
       }
 
       if(form.transaction_type==='Discount'&&!canDiscount){
-        setMessage('Discount can be entered only by the Admin.');
-        return;
+        const text='Discount can be entered only by the Admin.';
+        setMessage(text);notify('error','Not permitted',text);return;
+      }
+
+      if(
+        ['Payment','Advance','Refund'].includes(form.transaction_type) &&
+        ['UPI','RTGS'].includes(form.payment_mode) &&
+        !String(form.payment_reference||'').trim()
+      ){
+        const text=`${form.payment_mode} Transaction Reference No. is mandatory.`;
+        setMessage(text);notify('error','Reference required',text);return;
       }
 
       if(
@@ -12499,10 +12565,11 @@ function ShiftHandover({profile,onNavigate}){
       if(
         dischargeTarget &&
         form.transaction_type==='Payment' &&
+        ['UPI','RTGS'].includes(form.payment_mode) &&
         !String(form.payment_reference||'').trim()
       ){
-        setMessage('Payment reference / receipt number is mandatory for discharge settlement.');
-        return;
+        const text=`${form.payment_mode} Transaction Reference No. is mandatory for discharge settlement.`;
+        setMessage(text);notify('error','Reference required',text);return;
       }
 
       if(
@@ -12518,27 +12585,65 @@ function ShiftHandover({profile,onNavigate}){
       setSaving(true);
       setMessage('');
 
-      const payload={
-        patient_id:form.patient_id,
-        transaction_type:form.transaction_type,
-        category:form.category,
-        amount,
-        payment_mode:form.transaction_type==='Charge'?'Not applicable':form.payment_mode,
-        description:[
-          form.description,
-          form.payment_reference?`Reference: ${form.payment_reference}`:''
-        ].filter(Boolean).join(' | '),
-        transaction_date:new Date().toISOString(),
-        entered_by:profile.id
-      };
+      let data=null;
+      let error=null;
+      let actualReference=String(form.payment_reference||'').trim();
 
-      const {data,error}=await client.from('billing_transactions')
-        .insert(payload)
-        .select('id')
-        .single();
+      if(isAutoVoucherTransaction){
+        const voucherResult=await client.rpc('record_voucher_transaction',{
+          p_patient_id:form.patient_id,
+          p_transaction_type:form.transaction_type,
+          p_category:form.category,
+          p_amount:amount,
+          p_payment_mode:form.payment_mode,
+          p_description:form.description||null,
+          p_entered_by:profile.id
+        });
+
+        error=voucherResult.error;
+        const voucherRow=Array.isArray(voucherResult.data)?voucherResult.data[0]:voucherResult.data;
+        if(!error&&voucherRow){
+          data={id:voucherRow.transaction_id};
+          actualReference=String(voucherRow.voucher_no||'').trim();
+          setLastVoucherNo(actualReference);
+          setForm(current=>({...current,payment_reference:actualReference}));
+        }
+      }else{
+        const payload={
+          patient_id:form.patient_id,
+          transaction_type:form.transaction_type,
+          category:form.category,
+          amount,
+          payment_mode:form.transaction_type==='Charge'?'Not applicable':form.payment_mode,
+          payment_reference:actualReference||null,
+          description:[
+            form.description,
+            actualReference?`Reference: ${actualReference}`:''
+          ].filter(Boolean).join(' | '),
+          transaction_date:new Date().toISOString(),
+          entered_by:profile.id
+        };
+
+        const result=await client.from('billing_transactions')
+          .insert(payload)
+          .select('id')
+          .single();
+        data=result.data;
+        error=result.error;
+      }
 
       if(error){
-        setMessage(error.message||'Transaction could not be saved.');
+        const text=error.message||'Transaction could not be saved.';
+        setMessage(text);
+        notify('error','Payment save failed',text);
+        setSaving(false);
+        return;
+      }
+
+      if(isAutoVoucherTransaction&&!actualReference){
+        const text='Voucher number was not generated. The transaction has not been posted.';
+        setMessage(text);
+        notify('error','Voucher required',text);
         setSaving(false);
         return;
       }
@@ -12553,7 +12658,7 @@ function ShiftHandover({profile,onNavigate}){
           category:form.category,
           amount,
           payment_mode:form.payment_mode,
-          payment_reference:form.payment_reference||null
+          payment_reference:actualReference||null
         },
         'Success'
       );
@@ -12573,7 +12678,7 @@ function ShiftHandover({profile,onNavigate}){
           p_remarks:[
             form.closure_remarks,
             `Payment mode: ${form.payment_mode}`,
-            form.payment_reference?`Reference: ${form.payment_reference}`:''
+            actualReference?`Reference: ${actualReference}`:''
           ].filter(Boolean).join(' | ')
         });
 
@@ -12605,14 +12710,18 @@ function ShiftHandover({profile,onNavigate}){
 
       notify(
         'success',
-        `${form.transaction_type} recorded successfully`,
-        `${money(amount)} received through ${form.payment_mode}${form.payment_reference?` · Reference ${form.payment_reference}`:''}.`
+        isAutoVoucherTransaction
+          ?`${form.transaction_type} recorded · ${form.payment_mode==='Cash'?'Cash':'Card'} Voucher ${actualReference}`
+          :`${form.transaction_type} recorded successfully`,
+        isAutoVoucherTransaction
+          ?`${money(amount)} received through ${form.payment_mode}. Voucher ${actualReference} was created automatically and linked to this transaction.`
+          :`${money(amount)} received through ${form.payment_mode}${actualReference?` · Reference ${actualReference}`:''}.`
       );
 
       setForm(current=>({
         ...current,
         amount:'',
-        payment_reference:'',
+        payment_reference:isAutoVoucherTransaction?actualReference:'',
         description:''
       }));
 
@@ -12764,24 +12873,36 @@ function ShiftHandover({profile,onNavigate}){
               step:'0.01',
               required:true,
               value:form.amount,
-              onChange:e=>setForm({...form,amount:e.target.value})
+              onChange:e=>{if(isAutoVoucherTransaction)setLastVoucherNo('');setForm({...form,amount:e.target.value,payment_reference:isAutoVoucherTransaction?'':form.payment_reference})}
             })
           ),
           h('div',{className:'field'},
             h('label',null,'Payment Mode'),
-            h('select',{value:form.payment_mode,onChange:e=>setForm({...form,payment_mode:e.target.value})},
-              ['Cash','UPI','Card','Bank Transfer','Cheque']
+            h('select',{value:form.payment_mode,onChange:e=>{const mode=e.target.value;setLastVoucherNo('');setForm({...form,payment_mode:mode,payment_reference:''})}},
+              ['Cash','UPI','RTGS','Card Payment']
                 .map(option=>h('option',{key:option,value:option},option))
             )
           ),
           h('div',{className:'field'},
-            h('label',null,'Payment Reference / Receipt No.'),
+            h('label',null,
+              isAutoVoucherTransaction
+                ?`${form.payment_mode==='Cash'?'Cash':'Card'} Voucher / Payment Reference No.`
+                :`${form.payment_mode} Transaction Reference No.`
+            ),
             h('input',{
-              value:form.payment_reference,
-              required:!!dischargeTarget,
-              placeholder:'UPI reference, receipt number, card slip or cheque number',
+              value:isAutoVoucherTransaction?(lastVoucherNo||form.payment_reference||''):form.payment_reference,
+              readOnly:isAutoVoucherTransaction,
+              required:['UPI','RTGS'].includes(form.payment_mode)&&['Payment','Advance','Refund'].includes(form.transaction_type),
+              placeholder:isAutoVoucherTransaction
+                ?`Auto-generated when ${form.payment_mode} transaction is saved`
+                :`Enter ${form.payment_mode} transaction reference`,
               onChange:e=>setForm({...form,payment_reference:e.target.value})
-            })
+            }),
+            isAutoVoucherTransaction&&h('small',{className:'muted'},
+              lastVoucherNo
+                ?`${form.payment_mode==='Cash'?'Cash':'Card'} Voucher created: ${lastVoucherNo}`
+                :`${form.payment_mode} transaction will be posted only after the system creates its voucher number.`
+            )
           ),
           h('div',{className:'field span-2'},
             h('label',null,'Description'),
@@ -13786,7 +13907,7 @@ function Reports(){
     else ageing.over30+=value;
   });
 
-  const modeTotals=['Cash','UPI','Card','Bank Transfer','Cheque'].map(mode=>[
+  const modeTotals=['Cash','UPI','RTGS','Card Payment'].map(mode=>[
     mode,
     filtered.filter(row=>['Payment','Advance'].includes(row.transaction_type)&&String(row.payment_mode||'')===mode)
       .reduce((sum,row)=>sum+Number(row.amount||0),0)
@@ -13836,7 +13957,7 @@ function Reports(){
         },h('option',{value:''},'All patients'),state.patients.map(patient=>h('option',{key:patient.id,value:patient.id},
           `${formalName(patient)||patient.full_name} · ${patient.patient_id||'No ID'}`
         )))),
-        miniSelect('Payment Mode',filters.payment_mode,['All','Cash','UPI','Card','Bank Transfer','Cheque'],v=>setFilters({...filters,payment_mode:v}))
+        miniSelect('Payment Mode',filters.payment_mode,['All','Cash','UPI','RTGS','Card Payment'],v=>setFilters({...filters,payment_mode:v}))
       )
     ),
 
