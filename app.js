@@ -957,9 +957,10 @@
     { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Charge Approvals','Payments','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] }
   ];
   const ALL_NAV = NAV_SECTIONS.flatMap(section=>section.items);
+  const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
   const ROLE_NAV={
-    Admin:ALL_NAV,
-    Manager:ALL_NAV.filter(item=>!['System Maintenance','Alert Settings','Payments','Final Billing','Refunds'].includes(item)),
+    Admin:ALL_NAV.filter(item=>!NURSING_ENTRY_NAV.includes(item)),
+    Manager:ALL_NAV.filter(item=>!['System Maintenance','Alert Settings','Payments','Final Billing','Refunds',...NURSING_ENTRY_NAV].includes(item)),
     Nurse:['Clinical Dashboard','Clinical Alerts','Patients','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Notifications'],
     Accounts:['Accounts Dashboard','Charge Approvals','Payments','Final Billing','Discharge Clearance','Refunds','Accounts Reports','Patients','Notifications'],
@@ -8849,6 +8850,7 @@ function RoomsBeds({profile}){
     );
   }
   function ClinicalDashboard({profile,onNavigate}){
+    const oversightOnly=['Admin','Manager'].includes(profile?.role);
     const [state,setState]=React.useState({loading:true,patients:[],medOrders:[],medLogs:[],careOrders:[],careLogs:[],vitals:[],physioOrders:[],physioSessions:[],incidents:[],handovers:[],discharges:[]});
     const today=new Date().toISOString().slice(0,10);
     const timeToMinutes=value=>{const text=String(value||'').trim();const m=text.match(/^(\d{1,2}):(\d{2})/);return m?Number(m[1])*60+Number(m[2]):9999};
@@ -8941,14 +8943,17 @@ function RoomsBeds({profile}){
       ['Discharge',activeDischarges.length,'Discharge','🚪',dischargeTone,dischargeStatusText]
     ];
     return h(React.Fragment,null,
-      h('div',{className:'clinical-welcome'},h('div',null,h('small',null,currentShift().toUpperCase()),h('h2',null,`Good ${new Date().getHours()<12?'Morning':new Date().getHours()<17?'Afternoon':'Evening'}, ${formalName(profile)}`),h('p',null,'Your clinical worklist for today — complete urgent and overdue items first.')),h('div',{className:'clinical-date'},`${new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',weekday:'long'}).format(new Date())}, ${formatDateIN(new Date())}`)),
-      h('div',{className:'clinical-card-grid'},cards.map(([label,value,page,icon,tone,statusText])=>h('button',{type:'button',className:`clinical-metric ${tone}`,key:label,onClick:()=>onNavigate(page)},h('span',{className:'clinical-metric-icon'},icon),h('strong',null,value),h('span',null,label),h('small',null,statusText||`Open ${page} →`)))),
+      oversightOnly&&h('div',{className:'message info'},'VIEW ONLY — Nursing entries and edits are reserved for the nursing team. Admin/Manager may monitor this dashboard, review alerts and perform their separate managerial approval/review functions.'),
+      h('div',{className:'clinical-welcome'},h('div',null,h('small',null,currentShift().toUpperCase()),h('h2',null,`Good ${new Date().getHours()<12?'Morning':new Date().getHours()<17?'Afternoon':'Evening'}, ${formalName(profile)}`),h('p',null,oversightOnly?'Nursing oversight dashboard — view clinical activity, alerts and pending work without entering or editing nursing records.':'Your clinical worklist for today — complete urgent and overdue items first.')),h('div',{className:'clinical-date'},`${new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',weekday:'long'}).format(new Date())}, ${formatDateIN(new Date())}`)),
+      h('div',{className:'clinical-card-grid'},cards.map(([label,value,page,icon,tone,statusText])=>oversightOnly
+        ?h('div',{className:`clinical-metric ${tone}`,key:label},h('span',{className:'clinical-metric-icon'},icon),h('strong',null,value),h('span',null,label),h('small',null,statusText||'View only'))
+        :h('button',{type:'button',className:`clinical-metric ${tone}`,key:label,onClick:()=>onNavigate(page)},h('span',{className:'clinical-metric-icon'},icon),h('strong',null,value),h('span',null,label),h('small',null,statusText||`Open ${page} →`)))),
       h('div',{className:'clinical-columns'},
         h('section',{className:'card clinical-panel'},h('div',{className:'clinical-panel-head'},h('div',null,h('h3',null,'Priority Worklist'),h('small',null,'Overdue and pending tasks requiring attention')),h('button',{className:'btn btn-secondary',onClick:load},'Refresh')),
           medTasks.filter(x=>x.overdue).slice(0,5).map((x,i)=>h('div',{className:'clinical-work-row urgent',key:'m'+i},h('span',null,'💊'),h('div',null,h('strong',null,patientName(x.order)),h('small',null,`${x.order.medicine_name} ${x.order.dose||''} · Due ${x.time}`)),h('b',null,'OVERDUE'))),
-          vitalsPending.slice(0,4).map(p=>h('div',{className:'clinical-work-row',key:p.id},h('span',null,'🩺'),h('div',null,h('strong',null,formalName(p)),h('small',null,`${p.patient_id||''} · Room ${p.room_no||'—'}-${p.bed_no||'—'} · Vitals not entered today`)),h('button',{className:'mini-link',onClick:()=>onNavigate('Vital Signs')},'Enter'))),
-          currentShiftCarePending.slice(0,5).map((x,i)=>h('div',{className:'clinical-work-row',key:`care-${x.id}-${x.taskShift}-${i}`},h('span',null,'✅'),h('div',null,h('strong',null,patientName(x)),h('small',null,`${x.care_type||x.activity||'Care task'} · ${x.taskShift}`)),h('button',{className:'mini-link',onClick:()=>onNavigate('Shift Tasks')},'View'))),
-          upcomingShiftCarePending.length>0&&h('div',{className:'clinical-work-row upcoming-summary'},h('span',null,'🕒'),h('div',null,h('strong',null,`${upcomingShiftCarePending.length} care task(s) scheduled for next shift`),h('small',null,'Shown as a compact summary; they become actionable when the next shift starts.')),h('button',{className:'mini-link',onClick:()=>onNavigate('Shift Tasks')},'Review')),
+          vitalsPending.slice(0,4).map(p=>h('div',{className:'clinical-work-row',key:p.id},h('span',null,'🩺'),h('div',null,h('strong',null,formalName(p)),h('small',null,`${p.patient_id||''} · Room ${p.room_no||'—'}-${p.bed_no||'—'} · Vitals not entered today`)),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>onNavigate('Vital Signs')},'Enter'))),
+          currentShiftCarePending.slice(0,5).map((x,i)=>h('div',{className:'clinical-work-row',key:`care-${x.id}-${x.taskShift}-${i}`},h('span',null,'✅'),h('div',null,h('strong',null,patientName(x)),h('small',null,`${x.care_type||x.activity||'Care task'} · ${x.taskShift}`)),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>onNavigate('Shift Tasks')},'Open'))),
+          upcomingShiftCarePending.length>0&&h('div',{className:'clinical-work-row upcoming-summary'},h('span',null,'🕒'),h('div',null,h('strong',null,`${upcomingShiftCarePending.length} care task(s) scheduled for next shift`),h('small',null,'Shown as a compact summary; they become actionable when the next shift starts.')),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>onNavigate('Shift Tasks')},'Review')),
           dischargeReady.slice(0,3).map(row=>h('div',{className:'clinical-work-row urgent',key:`discharge-${row.id}`},
             h('span',null,'🚪'),
             h('div',null,
