@@ -70,7 +70,7 @@
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.17';
+  const APP_VERSION = '2.8.18';
   const APP_BUILD_DATE = '07-Aug-2026 20:45 IST';
   const APP_SCHEMA_VERSION = '24';
   window.APP_VERSION = APP_VERSION;
@@ -81,7 +81,7 @@
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
   const h = React.createElement;
-  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.17';
+  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.18';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
     h('img',{src:BRAND_LOGO_SRC,className,alt,decoding:'async'});
@@ -2415,35 +2415,8 @@ Caring with Compassion. Living with Dignity.`;
         }catch(_error){}
       }
     },[page]);
-    React.useEffect(()=>{
-      ensureGlobalActionSuccessStyle();
-      const root=document.getElementById('root');
-      if(!root)return;
-
-      let closing=false;
-      const observer=new MutationObserver(mutations=>{
-        if(closing)return;
-        const successDetected=mutations.some(mutation=>
-          [...mutation.addedNodes].some(node=>isSuccessfulEntryElement(node))
-        );
-        if(!successDetected)return;
-
-        const hasPopup=document.querySelector('.modal-backdrop');
-        if(!hasPopup)return;
-
-        closing=true;
-
-        // Keep the action-specific green success message visible first.
-        // Close the entry popup only after the confirmation has been readable.
-        setTimeout(()=>{
-          closeTopActionPopup();
-          closing=false;
-        },3600);
-      });
-
-      observer.observe(root,{childList:true,subtree:true});
-      return()=>observer.disconnect();
-    },[]);
+    // v2.8.18: Pop-up windows remain open until the user explicitly closes them.
+    // Automatic modal closing after success messages has been disabled.
 
     React.useEffect(()=>{
       const handler=()=>setPage('Discharge Clearance');
@@ -7892,7 +7865,7 @@ Caring with Compassion. Living with Dignity.`;
         'Patient discharged successfully',
         `Final nursing clearance completed. Room ${data?.room_no||'—'}-${data?.bed_no||'—'} is now available.`
       );
-      setTimeout(()=>setShowFinalDischarge(false),3600);
+      // v2.8.18: keep Final Discharge window open until Close/Done is selected.
       await load();
       writeAuditEvent(
         'Patient Final Discharge Completed',
