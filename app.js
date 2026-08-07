@@ -70,8 +70,8 @@
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.19';
-  const APP_BUILD_DATE = '07-Aug-2026 20:45 IST';
+  const APP_VERSION = '2.8.20';
+  const APP_BUILD_DATE = '07-Aug-2026 HR Dashboard Update';
   const APP_SCHEMA_VERSION = '24';
   window.APP_VERSION = APP_VERSION;
   window.SAMARA_BUILD = Object.freeze({
@@ -81,7 +81,7 @@
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
   const h = React.createElement;
-  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.19';
+  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.20';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
     h('img',{src:BRAND_LOGO_SRC,className,alt,decoding:'async'});
@@ -2637,7 +2637,7 @@ Caring with Compassion. Living with Dignity.`;
             h('button',{className:'btn btn-secondary',onClick:()=>alertEngine.acknowledge(alertEngine.alerts[0],'Acknowledged',0)},'Acknowledge')
           )
         ),
-        profile&&!alertEngine.soundUnlocked&&h('button',{type:'button',className:'sound-unlock-button',onClick:alertEngine.unlockSound},'🔊 Enable Alert Sound'),
+        profile&&page!=='HR Dashboard'&&!alertEngine.soundUnlocked&&h('button',{type:'button',className:'sound-unlock-button',onClick:alertEngine.unlockSound},'🔊 Enable Alert Sound'),
         h(MobileBottomNav,{page,setPage,allowed,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
         mobileDrawerOpen&&h(MobileNavigationDrawer,{profile,allowed,page,onNavigate:(next)=>{setPage(next);setMobileDrawerOpen(false)},onClose:()=>setMobileDrawerOpen(false)})
       )
@@ -2986,25 +2986,76 @@ Caring with Compassion. Living with Dignity.`;
     React.useEffect(()=>{load();const ch=client.channel('hr-dashboard-live').on('postgres_changes',{event:'*',schema:'public',table:'career_applications'},load).on('postgres_changes',{event:'*',schema:'public',table:'profiles'},load).subscribe();return()=>client.removeChannel(ch)},[]);
     const active=employees.filter(x=>(x.is_active??x.active)!==false);
     const now=Date.now();
-    const upcoming=applications.filter(x=>x.interview_at&&new Date(x.interview_at).getTime()>=now).sort((a,b)=>new Date(a.interview_at)-new Date(b.interview_at)).slice(0,6);
-    const cards=[
-      ['Active Employees',active.length,'Employees'],
-      ['Nursing',active.filter(x=>employeeDepartment(x)==='Nursing').length,'Employees'],
-      ['Caregiving',active.filter(x=>employeeDepartment(x)==='Caregiving').length,'Employees'],
-      ['New Applications',applications.filter(x=>x.status==='New').length,'Career Applications'],
-      ['Shortlisted',applications.filter(x=>x.status==='Shortlisted').length,'Career Applications'],
-      ['Interviews',applications.filter(x=>x.status==='Interview Scheduled').length,'Interviews'],
-      ['Selected',applications.filter(x=>x.status==='Selected').length,'Career Applications'],
-      ['On Hold',applications.filter(x=>x.status==='On Hold').length,'Career Applications']
+    const upcoming=applications.filter(x=>x.interview_at&&new Date(x.interview_at).getTime()>=now).sort((a,b)=>new Date(a.interview_at)-new Date(b.interview_at)).slice(0,5);
+    const newApps=applications.filter(x=>x.status==='New').length;
+    const shortlisted=applications.filter(x=>x.status==='Shortlisted').length;
+    const interviewCount=applications.filter(x=>x.status==='Interview Scheduled').length;
+    const selectedCount=applications.filter(x=>x.status==='Selected').length;
+    const onHold=applications.filter(x=>x.status==='On Hold').length;
+    const deptCount=name=>active.filter(x=>employeeDepartment(x)===name).length;
+    const metricStyle={textAlign:'left',padding:'18px 18px 16px',border:'1px solid #ead0de',borderRadius:'16px',background:'linear-gradient(145deg,#fff 0%,#fff7fb 100%)',minHeight:'118px',cursor:'pointer',boxShadow:'0 5px 16px rgba(122,18,71,.06)'};
+    const metrics=[
+      ['Active Employees',active.length,'Employees','♙','Currently employed'],
+      ['Nursing',deptCount('Nursing'),'Employees','⚕','Nursing workforce'],
+      ['Caregiving',deptCount('Caregiving'),'Employees','♡','Caregiving workforce'],
+      ['New Applications',newApps,'Career Applications','＋','Awaiting HR review'],
+      ['Shortlisted',shortlisted,'Career Applications','✓','Candidates shortlisted'],
+      ['Interviews',interviewCount,'Interviews','◷','Interview scheduled'],
+      ['Selected',selectedCount,'Career Applications','★','Candidates selected'],
+      ['On Hold',onHold,'Career Applications','Ⅱ','Applications on hold']
     ];
+    const statusClass=status=>String(status||'').toLowerCase().includes('interview')?'success':'';
     return h(React.Fragment,null,
       h(Section,{title:'HR Dashboard',subtitle:'Employees, recruitment applications and interview actions in one workspace'},
-        h('div',{className:'dashboard-grid'},cards.map(([label,value,page])=>h('button',{key:label,className:'stat-card',type:'button',onClick:()=>onNavigate(page)},h('span',null,label),h('strong',null,value)))),
-        h('div',{className:'two-col'},
-          h('div',{className:'card panel'},h('div',{className:'panel-head'},h('div',null,h('h3',null,'Recent Career Applications'),h('small',null,'Newest applications received from the public Careers page')),h('button',{className:'btn btn-secondary',onClick:()=>onNavigate('Career Applications')},'View All')),
-            h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Applicant','Department','Designation','Status','Received'].map(x=>h('th',{key:x},x)))),h('tbody',null,applications.slice(0,6).map(r=>h('tr',{key:r.id},h('td',null,r.applicant_name),h('td',null,r.department),h('td',null,r.designation),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)))),applications.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No career applications received yet.')):null)))),
-          h('div',{className:'card panel'},h('div',{className:'panel-head'},h('div',null,h('h3',null,'Upcoming Interviews'),h('small',null,'Scheduled candidate interviews')),h('button',{className:'btn btn-secondary',onClick:()=>onNavigate('Interviews')},'Open Interviews')),
-            upcoming.length?h('div',{className:'activity-list'},upcoming.map(r=>h('button',{type:'button',className:'activity-item',key:r.id,onClick:()=>onNavigate('Interviews')},h('strong',null,r.applicant_name),h('span',null,`${r.designation} · ${fmt(r.interview_at)}`)))):h('p',{className:'empty'},'No upcoming interviews scheduled.'))
+        h('div',{style:{display:'flex',justifyContent:'space-between',gap:'14px',alignItems:'center',flexWrap:'wrap',marginBottom:'16px'}},
+          h('div',null,h('strong',{style:{fontSize:'16px',color:'#5d1039'}},'People & Recruitment Overview'),h('div',{style:{fontSize:'13px',color:'#75616d',marginTop:'3px'}},'Live workforce and recruitment position')), 
+          h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('Employees')},'Employees'),
+            h('button',{type:'button',className:'btn btn-primary',onClick:()=>onNavigate('Career Applications')},'Career Applications')
+          )
+        ),
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:'12px',marginBottom:'20px'}},metrics.map(([label,value,page,icon,note])=>
+          h('button',{key:label,type:'button',onClick:()=>onNavigate(page),style:metricStyle},
+            h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:'8px'}},
+              h('span',{style:{fontSize:'13px',fontWeight:800,color:'#6d435a'}},label),
+              h('span',{style:{width:'34px',height:'34px',borderRadius:'10px',display:'grid',placeItems:'center',background:'#fae7f0',color:'#a91360',fontSize:'18px',fontWeight:900}},icon)
+            ),
+            h('strong',{style:{display:'block',fontSize:'30px',lineHeight:'1.1',marginTop:'8px',color:'#5d1039'}},value),
+            h('small',{style:{display:'block',marginTop:'6px',color:'#85717c'}},note)
+          )
+        )),
+        h('div',{style:{display:'grid',gridTemplateColumns:'minmax(0,1.45fr) minmax(330px,.8fr)',gap:'16px',alignItems:'start'}},
+          h('div',{className:'card panel',style:{overflow:'hidden'}},
+            h('div',{className:'panel-head'},h('div',null,h('h3',null,'Recent Career Applications'),h('small',null,'Newest applications received from the public Careers page')),h('button',{className:'btn btn-secondary',onClick:()=>onNavigate('Career Applications')},'View All')),
+            h('div',{className:'table-wrap'},h('table',{className:'table'},
+              h('thead',null,h('tr',null,['Applicant','Department','Designation','Status','Received'].map(x=>h('th',{key:x},x)))),
+              h('tbody',null,
+                applications.slice(0,6).map(r=>h('tr',{key:r.id},
+                  h('td',null,h('strong',null,r.applicant_name||'—')),
+                  h('td',null,r.department||'—'),
+                  h('td',null,r.designation||'—'),
+                  h('td',null,h('span',{className:`badge ${statusClass(r.status)}`},r.status||'New')),
+                  h('td',null,fmt(r.created_at))
+                )),
+                applications.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No career applications received yet.')):null
+              )
+            ))
+          ),
+          h('div',{className:'card panel'},
+            h('div',{className:'panel-head'},h('div',null,h('h3',null,'Upcoming Interviews'),h('small',null,'Next scheduled candidate interviews')),h('button',{className:'btn btn-secondary',onClick:()=>onNavigate('Interviews')},'Open Interviews')),
+            upcoming.length?h('div',{style:{display:'grid',gap:'10px'}},upcoming.map(r=>h('button',{type:'button',key:r.id,onClick:()=>onNavigate('Interviews'),style:{textAlign:'left',width:'100%',padding:'13px 14px',border:'1px solid #ead0de',borderRadius:'13px',background:'#fffafd',cursor:'pointer'}},
+              h('strong',{style:{display:'block',color:'#5d1039',fontSize:'15px'}},r.applicant_name||'Candidate'),
+              h('span',{style:{display:'block',marginTop:'4px',color:'#65495a'}},r.designation||r.department||'—'),
+              h('span',{style:{display:'block',marginTop:'7px',fontWeight:800,color:'#a91360'}},fmt(r.interview_at)),
+              r.interview_mode?h('small',{style:{display:'block',marginTop:'3px',color:'#85717c'}},[r.interview_mode,r.interview_venue].filter(Boolean).join(' · ')):null
+            ))):h('p',{className:'empty'},'No upcoming interviews scheduled.')
+          )
+        ),
+        h('div',{className:'card panel',style:{marginTop:'16px'}},
+          h('div',{className:'panel-head'},h('div',null,h('h3',null,'Workforce Snapshot'),h('small',null,'Active employees by key department'))),
+          h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:'10px'}},
+            ['Nursing','Caregiving','Administration','Housekeeping','HR','Operations','Accounts & Finance','Food & Kitchen'].map(name=>h('button',{type:'button',key:name,onClick:()=>onNavigate('Employees'),style:{padding:'12px',border:'1px solid #efd7e2',borderRadius:'12px',background:'#fffafd',textAlign:'left',cursor:'pointer'}},h('span',{style:{display:'block',fontSize:'12px',color:'#806575'}},name),h('strong',{style:{display:'block',fontSize:'20px',marginTop:'4px',color:'#6d123f'}},deptCount(name))))
+          )
         )
       )
     );
