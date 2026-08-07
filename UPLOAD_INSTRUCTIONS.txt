@@ -1,51 +1,59 @@
-SAMARA CARE ERP v2.8.29 — REVISED FINAL PAYMENT MODES
+SAMARA CARE ERP v2.8.29 — PAYMENT REPORTS FINAL
 
-THIS REPLACES THE EARLIER v2.8.29 PACKAGE.
+This package retains:
+- Global GREEN success / RED failure confirmations
+- Cash automatic vouchers
+- Card Payment automatic vouchers
+- Payment modes: Cash, UPI, RTGS, Card Payment
 
-Accepted payment modes ONLY:
-1. Cash
-2. UPI
-3. RTGS
-4. Card Payment
+NEW: ACCOUNTS → REPORTS / Accounts Reports
 
-Removed:
-- Cheque
-- Bank Transfer
-- old generic Card option
+Payment Report features:
+- From Date / To Date
+- Quick "Today / Daily Collection"
+- All Patients / individual patient
+- Transaction Type: All / Payment / Advance / Refund
+- Payment Mode: All / Cash / UPI / RTGS / Card Payment
 
-VOUCHER / REFERENCE RULES
+Summary cards:
+- Total Received
+- Cash
+- UPI
+- RTGS
+- Card Payment
+- Refunds
+- Net Collection
 
-Cash
-- System-generated Cash Voucher.
-- Format: CV-YYYY-000001
-- Reference field is read-only.
-- Transaction cannot be posted unless voucher is created.
+Payment register columns:
+- Date & Time
+- Voucher / Reference No.
+- Patient ID
+- Patient Name
+- Transaction Type
+- Payment Mode
+- Amount
+- Received / Entered By
 
-Card Payment
-- Same controlled procedure as Cash.
-- System-generated Card Voucher.
-- Format: CARDV-YYYY-000001
-- Reference field is read-only.
-- Transaction cannot be posted unless voucher is created.
+Additional registers:
+- Cash Voucher Register
+- Card Voucher Register
+- Patient-wise Financial Ledger
+- Detailed Transaction Register
 
-UPI
-- User must enter UPI Transaction Reference No.
-- Save is blocked if reference is blank.
-
-RTGS
-- User must enter RTGS Transaction Reference No.
-- Save is blocked if reference is blank.
-
-The global GREEN success / RED failure confirmation is included across ERP and
-Accounts Payment invokes it directly.
+Output:
+- Print / Save PDF
+- Payment CSV
+- Full Accounts CSV
 
 INSTALLATION
-1. Run the revised 72_global_confirmation_cash_voucher.sql once.
-   It is safe if the earlier v2.8.29 cash-only SQL was already run.
-2. Replace:
+1. If the revised v2.8.29 SQL has already been run successfully, DO NOT run it again.
+2. Replace only:
    app.js
    index.html
    service-worker.js
 3. Ctrl + Shift + R after deployment.
+
+If you have NOT yet run v2.8.29 SQL, run the included
+72_global_confirmation_cash_voucher.sql once before testing Cash/Card voucher reports.
 
 Version remains v2.8.29.

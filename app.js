@@ -71,7 +71,7 @@
 (() => {
   'use strict';
   const APP_VERSION = '2.8.29';
-  const APP_BUILD_DATE = '08-Aug-2026 Global Confirmation + Cash/Card Voucher';
+  const APP_BUILD_DATE = '08-Aug-2026 Global Confirmation + Vouchers + Payment Reports';
   const APP_SCHEMA_VERSION = '24';
   window.APP_VERSION = APP_VERSION;
   window.SAMARA_BUILD = Object.freeze({
@@ -12404,6 +12404,18 @@ function ShiftHandover({profile,onNavigate}){
         .payment-quick-buttons,
         .payment-summary-grid{grid-template-columns:1fr}
       }
+      .payment-report-kpis{
+        grid-template-columns:repeat(4,minmax(0,1fr))!important;
+      }
+      @media(max-width:1100px){
+        .payment-report-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+      }
+      @media(max-width:700px){
+        .payment-report-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+        .accounts-report-actions{display:flex!important;flex-wrap:wrap!important;gap:8px!important}
+        .accounts-report-actions .btn{flex:1 1 145px!important}
+      }
+
     `;
     document.head.appendChild(style);
   };
@@ -13837,12 +13849,13 @@ function ShiftHandover({profile,onNavigate}){
 
 function Reports(){
   React.useEffect(()=>{ensureAccountsWorkspaceStyle()},[]);
-  const [state,setState]=React.useState({loading:true,patients:[],billing:[],incidents:[],discharges:[]});
+  const [state,setState]=React.useState({loading:true,patients:[],billing:[],incidents:[],discharges:[],profiles:[]});
   const [filters,setFilters]=React.useState({
     from:(()=>{const d=new Date();d.setDate(1);return d.toISOString().slice(0,10)})(),
     to:todayISOIndia(),
     patient_id:'',
-    payment_mode:'All'
+    payment_mode:'All',
+    transaction_type:'All'
   });
 
   const money=value=>`₹${Number(value||0).toLocaleString('en-IN',{maximumFractionDigits:2})}`;
@@ -13850,23 +13863,30 @@ function Reports(){
 
   async function load(){
     setState(current=>({...current,loading:true}));
-    const [patients,billing,incidents,discharges]=await Promise.all([
+    const [patients,billing,incidents,discharges,profiles]=await Promise.all([
       client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active,admission_date'),
       client.from('billing_transactions')
-        .select('id,patient_id,transaction_type,category,amount,payment_mode,description,transaction_date,patients(title,full_name,patient_id,room_no,bed_no)')
+        .select('id,patient_id,transaction_type,category,amount,payment_mode,payment_reference,description,transaction_date,entered_by,patients(title,full_name,patient_id,room_no,bed_no)')
         .order('transaction_date',{ascending:false}).limit(5000),
       client.from('incidents').select('id,status'),
-      client.from('patient_discharges').select('id,status,management_status,accounts_status,created_at')
+      client.from('patient_discharges').select('id,status,management_status,accounts_status,created_at'),
+      client.from('profiles').select('id,auth_user_id,title,full_name,login_id,role')
     ]);
     setState({
       loading:false,
       patients:patients.data||[],
       billing:billing.data||[],
       incidents:incidents.data||[],
-      discharges:discharges.data||[]
+      discharges:discharges.data||[],
+      profiles:profiles.data||[]
     });
   }
   React.useEffect(()=>{load()},[]);
+
+  const profileName=id=>{
+    const profile=state.profiles.find(row=>row.id===id||row.auth_user_id===id);
+    return profile?(formalName(profile)||profile.full_name||profile.login_id||'Staff'):'—';
+  };
 
   const filtered=state.billing.filter(row=>{
     const date=dateOnly(row.transaction_date);
@@ -13876,6 +13896,21 @@ function Reports(){
     if(filters.payment_mode!=='All'&&String(row.payment_mode||'')!==filters.payment_mode)return false;
     return true;
   });
+
+  const paymentRows=filtered.filter(row=>{
+    if(!['Payment','Advance','Refund'].includes(row.transaction_type))return false;
+    if(filters.transaction_type!=='All'&&row.transaction_type!==filters.transaction_type)return false;
+    return true;
+  });
+
+  const receivedRows=paymentRows.filter(row=>['Payment','Advance'].includes(row.transaction_type));
+  const refundRows=paymentRows.filter(row=>row.transaction_type==='Refund');
+  const totalReceived=receivedRows.reduce((sum,row)=>sum+Number(row.amount||0),0);
+  const totalRefunds=refundRows.reduce((sum,row)=>sum+Number(row.amount||0),0);
+  const netCollection=totalReceived-totalRefunds;
+  const paymentModeTotal=mode=>receivedRows
+    .filter(row=>String(row.payment_mode||'')===mode)
+    .reduce((sum,row)=>sum+Number(row.amount||0),0);
 
   const sum=types=>filtered.filter(row=>types.includes(row.transaction_type))
     .reduce((total,row)=>total+Number(row.amount||0),0);
@@ -13913,8 +13948,45 @@ function Reports(){
       .reduce((sum,row)=>sum+Number(row.amount||0),0)
   ]);
 
+  const cashVoucherRows=paymentRows.filter(row=>
+    row.payment_mode==='Cash'&&String(row.payment_reference||'').startsWith('CV-')
+  );
+  const cardVoucherRows=paymentRows.filter(row=>
+    row.payment_mode==='Card Payment'&&String(row.payment_reference||'').startsWith('CARDV-')
+  );
+
+  function setToday(){
+    const today=todayISOIndia();
+    setFilters(current=>({...current,from:today,to:today}));
+  }
+
+  function exportPaymentsCSV(){
+    const header=[
+      'Date & Time','Voucher / Reference No.','Patient ID','Patient Name',
+      'Transaction Type','Payment Mode','Amount','Received / Entered By','Description'
+    ];
+    const lines=paymentRows.map(row=>[
+      formatDateTimeIN(row.transaction_date),
+      row.payment_reference||'',
+      row.patients?.patient_id||'',
+      formalName(row.patients||{})||row.patients?.full_name||'',
+      row.transaction_type||'',
+      row.payment_mode||'',
+      Number(row.amount||0),
+      profileName(row.entered_by),
+      String(row.description||'').replace(/\r?\n/g,' ')
+    ]);
+    const csv=[header,...lines].map(cols=>cols.map(value=>`"${String(value??'').replace(/"/g,'""')}"`).join(',')).join('\r\n');
+    const blob=new Blob([`\uFEFF${csv}`],{type:'text/csv;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+    link.href=url;
+    link.download=`Samara_Payment_Report_${filters.from}_to_${filters.to}.csv`;
+    document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
+  }
+
   function exportCSV(){
-    const header=['Date','Patient','Patient ID','Type','Category','Payment Mode','Amount','Description'];
+    const header=['Date','Patient','Patient ID','Type','Category','Payment Mode','Voucher / Reference','Amount','Description'];
     const lines=filtered.map(row=>[
       formatDateIN(row.transaction_date),
       formalName(row.patients||{})||row.patients?.full_name||'',
@@ -13922,6 +13994,7 @@ function Reports(){
       row.transaction_type||'',
       row.category||'',
       row.payment_mode||'',
+      row.payment_reference||'',
       Number(row.amount||0),
       String(row.description||'').replace(/\r?\n/g,' ')
     ]);
@@ -13939,16 +14012,17 @@ function Reports(){
       h('div',null,
         h('small',null,'MANAGEMENT INFORMATION SYSTEM'),
         h('h3',null,'Accounts Reports & Analytics'),
-        h('p',null,'Live revenue, collections, outstanding, payment modes and patient-wise ledgers.')
+        h('p',null,'Payment reports, daily collections, voucher registers, patient ledgers and outstanding analysis.')
       ),
       h('div',{className:'accounts-report-actions'},
         h('button',{className:'btn btn-secondary',onClick:load},state.loading?'Loading…':'↻ Refresh'),
         h('button',{className:'btn btn-secondary',onClick:()=>window.print()},'🖨 Print / PDF'),
-        h('button',{className:'btn btn-secondary',onClick:exportCSV},'⇩ Export CSV')
+        h('button',{className:'btn btn-secondary',onClick:exportPaymentsCSV},'⇩ Payment CSV'),
+        h('button',{className:'btn btn-secondary',onClick:exportCSV},'⇩ Full Accounts CSV')
       )
     ),
 
-    h(Section,{title:'Report Filters',subtitle:'Choose period, patient and payment mode'},
+    h(Section,{title:'Payment Report Filters',subtitle:'Choose period, patient, transaction type and payment mode'},
       h('div',{className:'accounts-report-filters'},
         miniInput('From Date',filters.from,v=>setFilters({...filters,from:v}),false,'date'),
         miniInput('To Date',filters.to,v=>setFilters({...filters,to:v}),false,'date'),
@@ -13957,23 +14031,79 @@ function Reports(){
         },h('option',{value:''},'All patients'),state.patients.map(patient=>h('option',{key:patient.id,value:patient.id},
           `${formalName(patient)||patient.full_name} · ${patient.patient_id||'No ID'}`
         )))),
-        miniSelect('Payment Mode',filters.payment_mode,['All','Cash','UPI','RTGS','Card Payment'],v=>setFilters({...filters,payment_mode:v}))
+        miniSelect('Transaction Type',filters.transaction_type,['All','Payment','Advance','Refund'],v=>setFilters({...filters,transaction_type:v})),
+        miniSelect('Payment Mode',filters.payment_mode,['All','Cash','UPI','RTGS','Card Payment'],v=>setFilters({...filters,payment_mode:v})),
+        h('div',{className:'field'},h('label',null,'Quick Report'),h('button',{type:'button',className:'btn btn-secondary',onClick:setToday},'Today / Daily Collection'))
       )
     ),
 
-    h('div',{className:'accounts-kpi-grid'},
+    h('div',{className:'accounts-kpi-grid payment-report-kpis'},
       [
-        ['Gross Billing',charges,'teal'],
-        ['Collections',collections,'green'],
-        ['Discounts',discounts,'orange'],
-        ['Refunds',refunds,'purple'],
-        ['Net Outstanding',outstanding,'red'],
-        ['Active Patients',state.patients.filter(row=>row.is_active!==false).length,'blue',true],
-        ['Open Incidents',state.incidents.filter(row=>String(row.status||'Open').toLowerCase()!=='closed').length,'red',true],
-        ['Discharges in Process',state.discharges.filter(row=>String(row.status||'').toLowerCase()!=='completed').length,'orange',true]
-      ].map(([label,value,tone,count])=>h('div',{className:`accounts-kpi ${tone}`,key:label},
-        h('span',null,label),h('strong',null,count?value:money(value)),h('small',null,`${formatDateIN(filters.from)} to ${formatDateIN(filters.to)}`)
+        ['Total Received',totalReceived,'green'],
+        ['Cash',paymentModeTotal('Cash'),'green'],
+        ['UPI',paymentModeTotal('UPI'),'teal'],
+        ['RTGS',paymentModeTotal('RTGS'),'blue'],
+        ['Card Payment',paymentModeTotal('Card Payment'),'purple'],
+        ['Refunds',totalRefunds,'red'],
+        ['Net Collection',netCollection,'orange']
+      ].map(([label,value,tone])=>h('div',{className:`accounts-kpi ${tone}`,key:label},
+        h('span',null,label),h('strong',null,money(value)),h('small',null,`${formatDateIN(filters.from)} to ${formatDateIN(filters.to)}`)
       ))
+    ),
+
+    h(LogTable,{
+      title:`Payment Report (${paymentRows.length})`,
+      subtitle:'Date-wise receipt, voucher/reference number and payment mode register',
+      heads:['Date & Time','Voucher / Reference No.','Patient ID','Patient Name','Type','Mode','Amount','Received / Entered By'],
+      rows:paymentRows.map(row=>[
+        formatDateTimeIN(row.transaction_date),
+        row.payment_reference||'—',
+        row.patients?.patient_id||'—',
+        formalName(row.patients||{})||row.patients?.full_name||'—',
+        row.transaction_type||'—',
+        row.payment_mode||'—',
+        money(row.amount),
+        profileName(row.entered_by)
+      ])
+    }),
+
+    h('div',{className:'accounts-dashboard-grid'},
+      h('div',{className:'accounts-panel'},
+        h('div',{className:'accounts-panel-head'},
+          h('div',null,h('h3',null,`Cash Voucher Register (${cashVoucherRows.length})`),h('small',null,'System-generated cash vouchers'))
+        ),
+        h('div',{className:'table-wrap'},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['Voucher No.','Date','Patient','Type','Amount'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,
+            cashVoucherRows.map(row=>h('tr',{key:row.id},
+              h('td',null,row.payment_reference||'—'),
+              h('td',null,formatDateTimeIN(row.transaction_date)),
+              h('td',null,formalName(row.patients||{})||row.patients?.full_name||'—'),
+              h('td',null,row.transaction_type||'—'),
+              h('td',null,money(row.amount))
+            )),
+            !cashVoucherRows.length&&h('tr',null,h('td',{colSpan:5,className:'empty'},'No cash vouchers for the selected period.'))
+          )
+        ))
+      ),
+      h('div',{className:'accounts-panel'},
+        h('div',{className:'accounts-panel-head'},
+          h('div',null,h('h3',null,`Card Voucher Register (${cardVoucherRows.length})`),h('small',null,'System-generated card payment vouchers'))
+        ),
+        h('div',{className:'table-wrap'},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['Voucher No.','Date','Patient','Type','Amount'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,
+            cardVoucherRows.map(row=>h('tr',{key:row.id},
+              h('td',null,row.payment_reference||'—'),
+              h('td',null,formatDateTimeIN(row.transaction_date)),
+              h('td',null,formalName(row.patients||{})||row.patients?.full_name||'—'),
+              h('td',null,row.transaction_type||'—'),
+              h('td',null,money(row.amount))
+            )),
+            !cardVoucherRows.length&&h('tr',null,h('td',{colSpan:5,className:'empty'},'No card vouchers for the selected period.'))
+          )
+        ))
+      )
     ),
 
     h('div',{className:'accounts-dashboard-grid'},
@@ -14015,7 +14145,7 @@ function Reports(){
     h(LogTable,{
       title:`Detailed Transaction Register (${filtered.length})`,
       subtitle:'Filtered billing, payment, discount and refund history',
-      heads:['Date','Patient','Patient ID','Type','Category','Mode','Amount','Description'],
+      heads:['Date','Patient','Patient ID','Type','Category','Mode','Voucher / Reference','Amount','Description'],
       rows:filtered.map(row=>[
         formatDateTimeIN(row.transaction_date),
         formalName(row.patients||{})||row.patients?.full_name||'—',
@@ -14023,6 +14153,7 @@ function Reports(){
         row.transaction_type||'—',
         row.category||'—',
         row.payment_mode||'—',
+        row.payment_reference||'—',
         money(row.amount),
         row.description||'—'
       ])
