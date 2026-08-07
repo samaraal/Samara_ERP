@@ -1,21 +1,42 @@
-SAMARA CARE ERP v2.8.29 — HR WELCOME LOGO UPDATE
+SAMARA CARE ERP v2.8.29 — EMPLOYEE DUAL ADDRESS
 
-Added:
-- Samara Assisted Living logo asset.
-- Branded Samara logo in the ERP employee Welcome/Login Details display.
-- Samara Assisted Living branded heading in the WhatsApp welcome text.
-- Correct ERP address retained: https://app.samaraassistedliving.com
+Added to HR → Employees → Create/Edit Employee:
 
-IMPORTANT:
-A normal WhatsApp click-to-chat link can prefill text but cannot reliably auto-attach an image.
-Therefore the logo is displayed in the ERP welcome/login-details panel, while the WhatsApp
-message carries the Samara Assisted Living branded heading and the correct ERP link.
+CURRENT RESIDENTIAL ADDRESS
+- State
+- District dropdown
+- Taluk dropdown dependent on District
+- Village / Town / City
+- Locality / Area
+- Street Name
+- House / Door No.
+- Apartment / Building Name
+- Flat No.
+- Landmark
+- PIN Code
+- Complete Address auto-composed
 
-Upload/replace the full package contents, including:
-- app.js
-- index.html
-- service-worker.js
-- assets/samara-assisted-living-logo.jpeg
+PERMANENT RESIDENTIAL ADDRESS
+- Same structured fields
+- "Same as Current Address" checkbox
+- When checked, Permanent Address is filled automatically and continues to mirror
+  changes made to Current Address.
 
-No SQL required.
+The District/Taluk lists use the SAME Tamil Nadu master already used in Patient Admission.
+
+Existing employee records:
+- The old Residential Address is retained.
+- SQL migrates it into current_address for backward compatibility.
+- Structured fields can be completed the next time the employee is edited.
+
+INSTALLATION
+1. Run 73_employee_dual_address.sql ONCE in Supabase SQL Editor.
+2. Replace:
+   - app.js
+   - index.html
+   - service-worker.js
+   - keep the existing assets folder/logo
+3. Ctrl + Shift + R after deployment.
+
+No change to patient data.
 Version remains v2.8.29.

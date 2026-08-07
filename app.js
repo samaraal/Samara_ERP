@@ -62,7 +62,49 @@
             transition: none !important;
           }
         }
-      `;
+  
+      .employee-modal .modal-grid{align-items:start}
+      .employee-address-block{
+        margin-top:8px;
+        padding:18px;
+        border:1px solid #ecd0dd;
+        border-radius:18px;
+        background:linear-gradient(145deg,#fff 0%,#fff9fb 100%);
+      }
+      .employee-address-heading{
+        display:flex;
+        justify-content:space-between;
+        align-items:flex-start;
+        gap:14px;
+        margin-bottom:14px;
+      }
+      .employee-address-heading h4{margin:0 0 3px;color:#5d1039}
+      .employee-address-same{
+        display:flex!important;
+        align-items:center;
+        gap:8px;
+        min-height:40px;
+        padding:8px 12px;
+        border-radius:999px;
+        background:#fdebf3;
+        color:#7a1247;
+        font-weight:800;
+        white-space:nowrap;
+      }
+      .employee-address-same input{width:18px!important;height:18px!important;min-height:18px!important}
+      .employee-address-grid{
+        display:grid;
+        grid-template-columns:repeat(2,minmax(0,1fr));
+        gap:12px 14px;
+      }
+      @media(max-width:760px){
+        .employee-address-heading{display:grid;grid-template-columns:1fr}
+        .employee-address-same{width:100%;border-radius:13px;white-space:normal}
+        .employee-address-grid{grid-template-columns:1fr}
+        .employee-address-grid .span-2{grid-column:auto!important}
+      }
+
+    `;
       (doc.head || doc.documentElement).appendChild(style);
     }
   } catch (_error) {}
@@ -71,7 +113,7 @@
 (() => {
   'use strict';
   const APP_VERSION = '2.8.29';
-  const APP_BUILD_DATE = '08-Aug-2026 HR Welcome Logo';
+  const APP_BUILD_DATE = '08-Aug-2026 Employee Dual Address';
   const APP_SCHEMA_VERSION = '24';
   window.APP_VERSION = APP_VERSION;
   window.SAMARA_BUILD = Object.freeze({
@@ -4163,7 +4205,20 @@ Caring with Compassion. Living with Dignity.`;
     React.useEffect(()=>()=>{
       if(photoPreview&&photoPreview.startsWith('blob:')) URL.revokeObjectURL(photoPreview);
     },[photoPreview]);
-    const empty={title:'',full_name:'',employee_id:'',department:'Caregiving',designation:'Caregiver',mobile:'',emergency_contact:'',role:'Caregiver',login_id:'',employee_email:'',password:'',father_guardian_name:'',address:'',date_of_birth:'',date_of_joining:'',blood_group:'',id_card_type:'Aadhaar',id_card_number:'',qualification:'',previous_workplace:'',reference_type:'Direct',reference_name:'',reference_contact:''};
+    const empty={
+      title:'',full_name:'',employee_id:'',department:'Caregiving',designation:'Caregiver',
+      mobile:'',emergency_contact:'',role:'Caregiver',login_id:'',employee_email:'',password:'',
+      father_guardian_name:'',address:'',date_of_birth:'',date_of_joining:'',blood_group:'',
+      id_card_type:'Aadhaar',id_card_number:'',qualification:'',previous_workplace:'',
+      reference_type:'Direct',reference_name:'',reference_contact:'',
+      current_address:'',current_state:'Tamil Nadu',current_district:'',current_taluk:'',
+      current_village_town:'',current_locality_area:'',current_street_name:'',current_house_no:'',
+      current_apartment_name:'',current_flat_no:'',current_landmark:'',current_pincode:'',
+      permanent_same_as_current:false,
+      permanent_address:'',permanent_state:'Tamil Nadu',permanent_district:'',permanent_taluk:'',
+      permanent_village_town:'',permanent_locality_area:'',permanent_street_name:'',permanent_house_no:'',
+      permanent_apartment_name:'',permanent_flat_no:'',permanent_landmark:'',permanent_pincode:''
+    };
     const [form,setForm]=React.useState(empty);
     const [sourceCareerId,setSourceCareerId]=React.useState('');
     React.useEffect(()=>{
@@ -4352,16 +4407,66 @@ Caring with Compassion. Living with Dignity.`;
       const preopened=form.mobile?window.open('about:blank','_blank'):null;
       try{
         let employeeForm={...form};
+        employeeForm.current_address=composeEmployeeAddress(employeeForm,'current');
+        employeeForm.permanent_address=employeeForm.permanent_same_as_current
+          ?employeeForm.current_address
+          :composeEmployeeAddress(employeeForm,'permanent');
+        employeeForm.address=employeeForm.current_address||employeeForm.address||'';
+
         if(!String(employeeForm.employee_id||'').trim()){
           const {data:generatedId,error:idError}=await client.rpc('next_employee_code');
           if(idError)throw idError;
           employeeForm.employee_id=generatedId;
         }
-        const result=await adminRequest({action:'create_or_repair',...employeeForm});
+        const accountForm={...employeeForm};
+        [
+          'current_address','current_state','current_district','current_taluk','current_village_town',
+          'current_locality_area','current_street_name','current_house_no','current_apartment_name',
+          'current_flat_no','current_landmark','current_pincode','permanent_same_as_current',
+          'permanent_address','permanent_state','permanent_district','permanent_taluk',
+          'permanent_village_town','permanent_locality_area','permanent_street_name',
+          'permanent_house_no','permanent_apartment_name','permanent_flat_no','permanent_landmark',
+          'permanent_pincode'
+        ].forEach(key=>delete accountForm[key]);
+        const result=await adminRequest({action:'create_or_repair',...accountForm});
         // Enforce and verify the selected role through the protected server function.
         const roleResult=await adminRequest({action:'set_role',user_id:result.user_id,role:employeeForm.role});
         if(roleResult.role!==employeeForm.role)throw new Error(`Selected role ${employeeForm.role} was not saved correctly.`);
-        const {error:departmentError}=await client.from('profiles').update({department:employeeForm.department||null,designation:employeeForm.designation||null,updated_at:new Date().toISOString()}).or(`id.eq.${result.user_id},auth_user_id.eq.${result.user_id}`);if(departmentError)throw departmentError;
+        const employeeProfileUpdate={
+          department:employeeForm.department||null,
+          designation:employeeForm.designation||null,
+          address:employeeForm.current_address||employeeForm.address||null,
+          current_address:employeeForm.current_address||null,
+          current_state:employeeForm.current_state||'Tamil Nadu',
+          current_district:employeeForm.current_district||null,
+          current_taluk:employeeForm.current_taluk||null,
+          current_village_town:employeeForm.current_village_town||null,
+          current_locality_area:employeeForm.current_locality_area||null,
+          current_street_name:employeeForm.current_street_name||null,
+          current_house_no:employeeForm.current_house_no||null,
+          current_apartment_name:employeeForm.current_apartment_name||null,
+          current_flat_no:employeeForm.current_flat_no||null,
+          current_landmark:employeeForm.current_landmark||null,
+          current_pincode:employeeForm.current_pincode||null,
+          permanent_same_as_current:!!employeeForm.permanent_same_as_current,
+          permanent_address:employeeForm.permanent_address||null,
+          permanent_state:employeeForm.permanent_state||'Tamil Nadu',
+          permanent_district:employeeForm.permanent_district||null,
+          permanent_taluk:employeeForm.permanent_taluk||null,
+          permanent_village_town:employeeForm.permanent_village_town||null,
+          permanent_locality_area:employeeForm.permanent_locality_area||null,
+          permanent_street_name:employeeForm.permanent_street_name||null,
+          permanent_house_no:employeeForm.permanent_house_no||null,
+          permanent_apartment_name:employeeForm.permanent_apartment_name||null,
+          permanent_flat_no:employeeForm.permanent_flat_no||null,
+          permanent_landmark:employeeForm.permanent_landmark||null,
+          permanent_pincode:employeeForm.permanent_pincode||null,
+          updated_at:new Date().toISOString()
+        };
+        const {error:departmentError}=await client.from('profiles')
+          .update(employeeProfileUpdate)
+          .or(`id.eq.${result.user_id},auth_user_id.eq.${result.user_id}`);
+        if(departmentError)throw departmentError;
         await uploadEmployeePhoto(result.user_id,photoFiles);
         await uploadEmployeeFiles(result.user_id,[
           {type:'ID Card',files:idFiles},{type:'Qualification Certificate',files:qualificationFiles},{type:'Experience Certificate',files:experienceFiles},{type:'Other Certificate',files:otherFiles},{type:'Camera Capture',files:cameraFiles}
@@ -4434,7 +4539,13 @@ Caring with Compassion. Living with Dignity.`;
     async function saveDetails(e){
       e.preventDefault();setDetailsBusy(true);setDetailsMsg('');
       try{
-        const payload={...detailsForm};delete payload.password;delete payload.id;delete payload.created_at;delete payload.updated_at;delete payload.last_sign_in_at;
+        const payload={...detailsForm};
+        payload.current_address=composeEmployeeAddress(payload,'current');
+        payload.permanent_address=payload.permanent_same_as_current
+          ?payload.current_address
+          :composeEmployeeAddress(payload,'permanent');
+        payload.address=payload.current_address||payload.address||'';
+        delete payload.password;delete payload.id;delete payload.created_at;delete payload.updated_at;delete payload.last_sign_in_at;
         const requestedRole=payload.role;
         delete payload.role;
         const {error}=await client.from('profiles').update(payload).or(`id.eq.${detailsTarget.id},auth_user_id.eq.${detailsTarget.auth_user_id||detailsTarget.id}`);if(error)throw error;
@@ -4663,6 +4774,208 @@ Caring with Compassion. Living with Dignity.`;
       )}),rows.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'No employees found')):null))
     );
 
+
+    const EMPLOYEE_ADDRESS_KEYS=[
+      'state','district','taluk','village_town','locality_area','street_name',
+      'house_no','apartment_name','flat_no','landmark','pincode'
+    ];
+
+    function composeEmployeeAddress(state,prefix){
+      const value=key=>String(state?.[`${prefix}_${key}`]||'').trim();
+      return [
+        [value('flat_no'),value('apartment_name')].filter(Boolean).join(', '),
+        value('house_no'),
+        value('street_name'),
+        value('locality_area'),
+        value('village_town'),
+        value('taluk'),
+        value('district'),
+        value('state'),
+        value('pincode')
+      ].filter(Boolean).join(', ');
+    }
+
+    function copyCurrentToPermanent(state){
+      const next={...state,permanent_same_as_current:true};
+      EMPLOYEE_ADDRESS_KEYS.forEach(key=>{next[`permanent_${key}`]=state[`current_${key}`]||''});
+      next.permanent_address=composeEmployeeAddress(state,'current');
+      return next;
+    }
+
+    function updateEmployeeAddress(state,setter,prefix,key,value){
+      let next={...state,[`${prefix}_${key}`]:value};
+      if(key==='district'){
+        next[`${prefix}_taluk`]='';
+      }
+      next[`${prefix}_address`]=composeEmployeeAddress(next,prefix);
+
+      // When "same as current" is selected, Permanent Address mirrors Current Address continuously.
+      if(prefix==='current'&&next.permanent_same_as_current){
+        next=copyCurrentToPermanent(next);
+      }
+      setter(next);
+    }
+
+    function employeeAddressFields(state,setter,prefix,title){
+      const isPermanent=prefix==='permanent';
+      const locked=isPermanent&&!!state.permanent_same_as_current;
+      const district=state[`${prefix}_district`]||'';
+      const taluks=TAMIL_NADU_DISTRICT_TALUKS[district]||[];
+
+      return h('div',{className:'employee-address-block span-2'},
+        h('div',{className:'employee-address-heading'},
+          h('div',null,
+            h('h4',null,title),
+            h('small',{className:'muted'},
+              isPermanent
+                ?'Permanent / native residential address'
+                :'Present residential address where the employee is currently staying'
+            )
+          ),
+          isPermanent&&h('label',{className:'employee-address-same'},
+            h('input',{
+              type:'checkbox',
+              checked:!!state.permanent_same_as_current,
+              onChange:e=>{
+                if(e.target.checked){
+                  setter(copyCurrentToPermanent(state));
+                }else{
+                  setter({...state,permanent_same_as_current:false});
+                }
+              }
+            }),
+            h('span',null,'Same as Current Address')
+          )
+        ),
+
+        state.address&&prefix==='current'&&!state.current_district&&!state.current_street_name
+          ?h('div',{className:'message info'},
+              h('strong',null,'Existing address on record: '),
+              state.address,
+              h('br'),
+              h('small',null,'Please complete the structured address fields below when this employee record is next edited.')
+            )
+          :null,
+
+        h('div',{className:'employee-address-grid'},
+          h('div',{className:'field'},h('label',null,'State'),
+            h('select',{
+              value:state[`${prefix}_state`]||'Tamil Nadu',
+              disabled:locked,
+              onChange:e=>updateEmployeeAddress(state,setter,prefix,'state',e.target.value)
+            },
+              h('option',{value:'Tamil Nadu'},'Tamil Nadu')
+            )
+          ),
+
+          h('div',{className:'field'},h('label',null,'District'),
+            h('select',{
+              value:district,
+              disabled:locked,
+              onChange:e=>updateEmployeeAddress(state,setter,prefix,'district',e.target.value)
+            },
+              h('option',{value:''},'Select district'),
+              TAMIL_NADU_DISTRICTS.map(item=>h('option',{key:item,value:item},item))
+            )
+          ),
+
+          h('div',{className:'field'},h('label',null,'Taluk'),
+            h('select',{
+              value:state[`${prefix}_taluk`]||'',
+              disabled:locked||!district,
+              onChange:e=>updateEmployeeAddress(state,setter,prefix,'taluk',e.target.value)
+            },
+              h('option',{value:''},district?'Select taluk':'Select district first'),
+              taluks.map(item=>h('option',{key:item,value:item},item))
+            )
+          ),
+
+          h('div',{className:'field'},h('label',null,'Village / Town / City'),
+            h('input',{
+              value:state[`${prefix}_village_town`]||'',
+              readOnly:locked,
+              placeholder:'Village, town or city',
+              onChange:e=>updateEmployeeAddress(state,setter,prefix,'village_town',e.target.value)
+            })
+          ),
+
+          h('div',{className:'field'},h('label',null,'Locality / Area'),
+            h('input',{
+              value:state[`${prefix}_locality_area`]||'',
+              readOnly:locked,
+              placeholder:'Locality / area',
+              onChange:e=>updateEmployeeAddress(state,setter,prefix,'locality_area',e.target.value)
+            })
+          ),
+
+          h('div',{className:'field'},h('label',null,'Street Name'),
+            h('input',{
+              value:state[`${prefix}_street_name`]||'',
+              readOnly:locked,
+              placeholder:'Street / road name',
+              onChange:e=>updateEmployeeAddress(state,setter,prefix,'street_name',e.target.value)
+            })
+          ),
+
+          h('div',{className:'field'},h('label',null,'House / Door No.'),
+            h('input',{
+              value:state[`${prefix}_house_no`]||'',
+              readOnly:locked,
+              placeholder:'House / Door No.',
+              onChange:e=>updateEmployeeAddress(state,setter,prefix,'house_no',e.target.value)
+            })
+          ),
+
+          h('div',{className:'field'},h('label',null,'Apartment / Building Name'),
+            h('input',{
+              value:state[`${prefix}_apartment_name`]||'',
+              readOnly:locked,
+              placeholder:'Apartment / building',
+              onChange:e=>updateEmployeeAddress(state,setter,prefix,'apartment_name',e.target.value)
+            })
+          ),
+
+          h('div',{className:'field'},h('label',null,'Flat No.'),
+            h('input',{
+              value:state[`${prefix}_flat_no`]||'',
+              readOnly:locked,
+              placeholder:'Flat No.',
+              onChange:e=>updateEmployeeAddress(state,setter,prefix,'flat_no',e.target.value)
+            })
+          ),
+
+          h('div',{className:'field'},h('label',null,'Landmark'),
+            h('input',{
+              value:state[`${prefix}_landmark`]||'',
+              readOnly:locked,
+              placeholder:'Nearby landmark',
+              onChange:e=>updateEmployeeAddress(state,setter,prefix,'landmark',e.target.value)
+            })
+          ),
+
+          h('div',{className:'field'},h('label',null,'PIN Code'),
+            h('input',{
+              value:state[`${prefix}_pincode`]||'',
+              readOnly:locked,
+              inputMode:'numeric',
+              maxLength:6,
+              placeholder:'6-digit PIN',
+              onChange:e=>updateEmployeeAddress(state,setter,prefix,'pincode',e.target.value.replace(/\D/g,'').slice(0,6))
+            })
+          ),
+
+          h('div',{className:'field span-2'},h('label',null,'Complete Address'),
+            h('textarea',{
+              value:composeEmployeeAddress(state,prefix),
+              readOnly:true,
+              rows:2,
+              placeholder:'Address will be composed automatically from the fields above'
+            })
+          )
+        )
+      );
+    }
+
     const personnelFields=(state,setter,includeLogin=true)=>h(React.Fragment,null,
       selectField('Title / Salutation','title',state,setter,EMPLOYEE_TITLES),field('Employee Name','full_name',state,setter,true),field('Employee ID (auto-generated if blank)','employee_id',state,setter,false),
       h('div',{className:'field'},h('label',null,'Department'),h('select',{value:state.department||'',required:true,onChange:e=>{const department=e.target.value;const choices=HR_DESIGNATIONS[department]||[];const defaultDesignation=choices[0]||'';const suggestedRole=department==='Nursing'?'Nurse':department==='Caregiving'?'Caregiver':department==='Accounts & Finance'?'Accounts':department==='Food & Kitchen'?'Kitchen':state.role;setter({...state,department,designation:defaultDesignation,role:suggestedRole})}},h('option',{value:''},'Select department'),HR_DEPARTMENTS.map(x=>h('option',{key:x,value:x},x)))),
@@ -4672,7 +4985,10 @@ Caring with Compassion. Living with Dignity.`;
       field('Mobile Number','mobile',state,setter,false),field('Emergency Contact','emergency_contact',state,setter,false),field('Employee Email','employee_email',state,setter,false,'email'),
       field('ID Card Type','id_card_type',state,setter,false),field('ID Card Number','id_card_number',state,setter,false),field('Qualification','qualification',state,setter,false),field('Previous Working Place','previous_workplace',state,setter,false),
       selectField('Joining Source','reference_type',state,setter,['Direct','Reference']),field('Reference Name','reference_name',state,setter,false),field('Reference Contact','reference_contact',state,setter,false),
-      includeLogin?field('Login ID','login_id',state,setter,true):null,includeLogin?field('Temporary Password','password',state,setter,true,'password'):null,textArea('Residential Address','address',state,setter,false)
+      includeLogin?field('Login ID','login_id',state,setter,true):null,
+      includeLogin?field('Temporary Password','password',state,setter,true,'password'):null,
+      employeeAddressFields(state,setter,'current','Current Residential Address'),
+      employeeAddressFields(state,setter,'permanent','Permanent Residential Address')
     );
 
     const uploadFields=()=>h('div',{className:'employee-upload-section span-2'},h('h4',null,'Employee Photo, Documents and Certificates'),h('p',{className:'small-note'},'Each item provides separate Upload File, Mobile Camera and Webcam options.'),h('div',{className:'modal-grid'},fileInput('Employee Photo',setPhotoFiles,'image/*',true),fileInput('ID Card / Identity Proof',setIdFiles),fileInput('Qualification Certificates',setQualificationFiles),fileInput('Experience / Previous Employment Certificates',setExperienceFiles),fileInput('Other Certificates',setOtherFiles)));
