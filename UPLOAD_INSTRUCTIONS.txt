@@ -1,17 +1,19 @@
-SAMARA CARE ERP v2.8.27 — PATIENT FILE PHOTO DISPLAY FIX
+SAMARA CARE ERP v2.8.28 — PATIENT FILE STABILITY FIX
 
-Problem corrected:
-- When a patient photograph existed, Patient File was allowing the uploaded image
-  to expand to its natural size and cover the patient information.
-- Patients without a photo displayed correctly.
+Why only some patients failed:
+- The Patient File used composePatientAddress(selected) only when the stored address was blank.
+- That helper exists inside the Admission form, not inside Patient File.
+- Therefore patients with an existing address opened normally.
+- Patients with missing/older address fields triggered:
+  ReferenceError: composePatientAddress is not defined
+
+So the behaviour looked related to the patient photograph, but the real deciding
+factor was whether an address fallback was needed.
 
 Fix:
-- Patient photo is now a controlled portrait thumbnail in the Patient File header.
-- Desktop: 92 x 108 px.
-- Mobile: 72 x 84 px.
-- object-fit: cover keeps the photograph proportional.
-- Patient name, ID, status, tabs and all information remain visible beside/below it.
-- The SC placeholder uses exactly the same dimensions when no photo exists.
+- Patient File now uses the shared composePatientAddressGlobal helper through a
+  local patientAddress() function.
+- The v2.8.27 photo-size fix is preserved.
 
 Upload only:
 1. app.js
@@ -20,7 +22,4 @@ Upload only:
 
 No SQL / Supabase change is required.
 
-After deployment:
-- Ctrl + Shift + R on Windows.
-- Reopen the ERP tab once on mobile.
-- Test one patient WITH a photo and one patient WITHOUT a photo.
+After deployment, test all four photographed patients.
