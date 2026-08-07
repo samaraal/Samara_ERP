@@ -1,44 +1,18 @@
-SAMARA CARE ERP v2.8.34 — RESIDENT PROFESSION / FIELD
+SAMARA CARE ERP v2.8.35 — INAUGURATION INVITATION
 
-Added to New Admission, Re-admission, Edit Resident and Resident File.
+Upload/replace ONLY:
+- app.js
+- index.html
+- service-worker.js
+- assets/samara-inauguration-27-08-2026.png
 
-PROFESSION / OCCUPATION
-- Government Employee
-- Private Employee
-- Business / Self-employed
-- Professional Practice
-- Homemaker
-- Agriculture
-- Retired
-- Not Employed
-- Student
-- Other
+Behaviour:
+- Staff login screen remains unobstructed.
+- Invitation appears shortly AFTER successful staff login.
+- Close (×) appears after 4 seconds.
+- Shows once per browser session.
+- Remains visible through 31-Aug-2026 and automatically stops from 01-Sep-2026.
+- Responsive on desktop, iPhone and Android.
 
-FIELD / SECTOR
-- Medical & Healthcare
-- Engineering & Technology
-- Law / Legal
-- Accounting & Finance
-- Education / Teaching
-- Government Administration
-- Business / Commerce
-- Banking / Insurance
-- Information Technology / Software
-- Agriculture
-- Defence / Police
-- Arts / Media
-- Skilled Trade / Technical
-- Social Service / NGO
-- Other
-
-EMPLOYMENT STATUS
-Displayed only for Government Employee / Private Employee:
-- In Service
-- Retired
-
-INSTALL
-1. Run 78_resident_profession_field.sql once.
-2. Replace only app.js, index.html and service-worker.js.
-3. Ctrl + Shift + R.
-
-Version: 2.8.34
+No SQL required.
+Version: 2.8.35

@@ -1,12 +1,12 @@
-const CACHE = 'samara-erp-2.8.34-resident-profession';
+const CACHE = 'samara-erp-2.8.35-inauguration-invitation';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.8.34', './app.js?v=2.8.34',
-  './bootstrap-error.js?v=2.8.34', './health-check.js?v=2.8.34',
-  './config.js?v=2.8.34', './manifest.webmanifest?v=2.8.34',
-  './assets/samara-logo.png?v=2.8.34',
-  './icons/favicon.png?v=2.8.34', './icons/icon-192.png?v=2.8.34',
-  './icons/icon-512.png?v=2.8.34', './icons/icon-maskable-512.png?v=2.8.34',
-  './icons/apple-touch-icon.png?v=2.8.34'
+  './', './index.html', './styles.css?v=2.8.35', './app.js?v=2.8.35',
+  './bootstrap-error.js?v=2.8.35', './health-check.js?v=2.8.35',
+  './config.js?v=2.8.35', './manifest.webmanifest?v=2.8.35',
+  './assets/samara-logo.png?v=2.8.35',
+  './icons/favicon.png?v=2.8.35', './icons/icon-192.png?v=2.8.35',
+  './icons/icon-512.png?v=2.8.35', './icons/icon-maskable-512.png?v=2.8.35',
+  './icons/apple-touch-icon.png?v=2.8.35'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
