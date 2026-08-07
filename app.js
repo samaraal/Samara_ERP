@@ -113,8 +113,10 @@
 (() => {
   'use strict';
   const APP_VERSION = '2.8.29';
-  const APP_BUILD_DATE = '08-Aug-2026 Employee Dual Address';
+  const APP_BUILD_DATE = '08-Aug-2026 Blood Group Dropdown';
   const APP_SCHEMA_VERSION = '24';
+
+  const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
   window.APP_VERSION = APP_VERSION;
   window.SAMARA_BUILD = Object.freeze({
     version: APP_VERSION,
@@ -4981,7 +4983,7 @@ Caring with Compassion. Living with Dignity.`;
       h('div',{className:'field'},h('label',null,'Department'),h('select',{value:state.department||'',required:true,onChange:e=>{const department=e.target.value;const choices=HR_DESIGNATIONS[department]||[];const defaultDesignation=choices[0]||'';const suggestedRole=department==='Nursing'?'Nurse':department==='Caregiving'?'Caregiver':department==='Accounts & Finance'?'Accounts':department==='Food & Kitchen'?'Kitchen':state.role;setter({...state,department,designation:defaultDesignation,role:suggestedRole})}},h('option',{value:''},'Select department'),HR_DEPARTMENTS.map(x=>h('option',{key:x,value:x},x)))),
       h('div',{className:'field'},h('label',null,'Designation'),h('select',{value:state.designation||'',required:true,onChange:e=>setter({...state,designation:e.target.value})},h('option',{value:''},'Select designation'),(HR_DESIGNATIONS[state.department]||[]).map(x=>h('option',{key:x,value:x},x)))),
       selectField('ERP Access Role','role',state,setter,ROLES),
-      field('Father / Guardian Name','father_guardian_name',state,setter,false),field('Date of Birth','date_of_birth',state,setter,false,'date'),field('Date of Joining','date_of_joining',state,setter,false,'date'),field('Blood Group','blood_group',state,setter,false),
+      field('Father / Guardian Name','father_guardian_name',state,setter,false),field('Date of Birth','date_of_birth',state,setter,false,'date'),field('Date of Joining','date_of_joining',state,setter,false,'date'),selectField('Blood Group','blood_group',state,setter,BLOOD_GROUPS),
       field('Mobile Number','mobile',state,setter,false),field('Emergency Contact','emergency_contact',state,setter,false),field('Employee Email','employee_email',state,setter,false,'email'),
       field('ID Card Type','id_card_type',state,setter,false),field('ID Card Number','id_card_number',state,setter,false),field('Qualification','qualification',state,setter,false),field('Previous Working Place','previous_workplace',state,setter,false),
       selectField('Joining Source','reference_type',state,setter,['Direct','Reference']),field('Reference Name','reference_name',state,setter,false),field('Reference Contact','reference_contact',state,setter,false),

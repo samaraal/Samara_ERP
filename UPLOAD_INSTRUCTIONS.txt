@@ -1,42 +1,30 @@
-SAMARA CARE ERP v2.8.29 — EMPLOYEE DUAL ADDRESS
+SAMARA CARE ERP v2.8.29 — BLOOD GROUP DROPDOWN
 
-Added to HR → Employees → Create/Edit Employee:
+Change:
+Blood Group is now a controlled dropdown for BOTH:
+- Patients
+- Employees
 
-CURRENT RESIDENTIAL ADDRESS
-- State
-- District dropdown
-- Taluk dropdown dependent on District
-- Village / Town / City
-- Locality / Area
-- Street Name
-- House / Door No.
-- Apartment / Building Name
-- Flat No.
-- Landmark
-- PIN Code
-- Complete Address auto-composed
+Allowed values:
+A+
+A-
+B+
+B-
+AB+
+AB-
+O+
+O-
+Unknown
 
-PERMANENT RESIDENTIAL ADDRESS
-- Same structured fields
-- "Same as Current Address" checkbox
-- When checked, Permanent Address is filled automatically and continues to mirror
-  changes made to Current Address.
+Purpose:
+- Prevent typing mistakes such as O Positive, O+, 0+, AB Positive, etc.
+- Keep patient and employee records standardised for reports and clinical use.
 
-The District/Taluk lists use the SAME Tamil Nadu master already used in Patient Admission.
+No SQL / Supabase change is required because the existing blood_group column remains text.
 
-Existing employee records:
-- The old Residential Address is retained.
-- SQL migrates it into current_address for backward compatibility.
-- Structured fields can be completed the next time the employee is edited.
+Upload/replace:
+- app.js
+- index.html
+- service-worker.js
 
-INSTALLATION
-1. Run 73_employee_dual_address.sql ONCE in Supabase SQL Editor.
-2. Replace:
-   - app.js
-   - index.html
-   - service-worker.js
-   - keep the existing assets folder/logo
-3. Ctrl + Shift + R after deployment.
-
-No change to patient data.
 Version remains v2.8.29.
