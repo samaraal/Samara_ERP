@@ -113,10 +113,12 @@
 (() => {
   'use strict';
   const APP_VERSION = '2.8.29';
-  const APP_BUILD_DATE = '08-Aug-2026 Blood Group Dropdown';
+  const APP_BUILD_DATE = '08-Aug-2026 MOG Resident ID';
   const APP_SCHEMA_VERSION = '24';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
+  const CURRENT_CENTRE_CODE='MOG';
+  const CURRENT_CENTRE_NAME='Mogappair';
   window.APP_VERSION = APP_VERSION;
   window.SAMARA_BUILD = Object.freeze({
     version: APP_VERSION,
@@ -4671,7 +4673,7 @@ Caring with Compassion. Living with Dignity.`;
 
   <div class="grid">
     <div class="field"><b>Patient Name</b><span>${escapeHtml(formalName(patient)||patient.full_name||'—')}</span></div>
-    <div class="field"><b>Patient ID</b><span>${escapeHtml(patient.patient_id||'—')}</span></div>
+    <div class="field"><b>Resident ID</b><span>${escapeHtml(patient.patient_id||'—')}</span></div>
     <div class="field"><b>Age / Gender</b><span>${escapeHtml(`${patientAge} / ${patientGender}`)}</span></div>
     <div class="field"><b>Room / Bed</b><span>${escapeHtml(roomBed)}</span></div>
     <div class="field"><b>Admission Date</b><span>${escapeHtml(formatDateIN(patient.admission_date))}</span></div>
@@ -5731,11 +5733,13 @@ Caring with Compassion. Living with Dignity.`;
     };
 
     async function generateMonthlyPatientCode(){
-      const rpcResult=await client.rpc('next_monthly_patient_code');
+      // Resident IDs are centre-based, not "patient"-based.
+      // Current centre: MOG = Mogappair. Future centres can use their own code.
+      const rpcResult=await client.rpc('next_resident_code',{p_centre_code:CURRENT_CENTRE_CODE});
       if(!rpcResult.error&&rpcResult.data)return rpcResult.data;
 
       const now=new Date();
-      const prefix=`PAT-${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-`;
+      const prefix=`${CURRENT_CENTRE_CODE}-${now.getFullYear()}-`;
       const {data,error}=await client.from('patients')
         .select('patient_code,patient_id')
         .or(`patient_code.like.${prefix}%,patient_id.like.${prefix}%`)
@@ -5919,7 +5923,7 @@ Caring with Compassion. Living with Dignity.`;
         const qrPayload=[
           'SAMARA CARE ADMISSION CONSENT',
           `Reference: ${consentReference}`,
-          `Patient ID: ${patientCode}`,
+          `Resident ID: ${patientCode}`,
           `Resident: ${formalName(patient)||patient.full_name||''}`,
           `Admission Date: ${admission.admission_date||''}`,
           `Room/Bed: ${admission.room_no||''}/${admission.bed_no||''}`
@@ -6022,7 +6026,7 @@ Caring with Compassion. Living with Dignity.`;
   <div class="identity">
     <div class="identity-grid">
       <div><b>Resident:</b> ${consentEscape(formalName(patient)||patient.full_name)}</div>
-      <div><b>Patient ID:</b> ${consentEscape(patientCode)}</div>
+      <div><b>Resident ID:</b> ${consentEscape(patientCode)}</div>
       <div><b>Consent Reference:</b> ${consentEscape(consentReference)}</div>
       <div><b>Admission Date:</b> ${consentEscape(formatDateIN(admission.admission_date))}</div>
       <div><b>Age / Gender:</b> ${consentEscape(admission.age)} / ${consentEscape(admission.gender)}</div>
@@ -6342,7 +6346,7 @@ Caring with Compassion. Living with Dignity.`;
         try{
           patientCode=await generateMonthlyPatientCode();
         }catch(codeError){
-          setMsg(`Unable to generate Patient ID: ${codeError.message||codeError}`);
+          setMsg(`Unable to generate Resident ID: ${codeError.message||codeError}`);
           setBusy(false);
           return;
         }
@@ -6476,18 +6480,18 @@ Caring with Compassion. Living with Dignity.`;
         h('div',{className:'section-title'},
           h('div',null,
             h('h4',null,'Returning Patient Check'),
-            h('small',null,'The system automatically checks Patient ID, mobile number and patient name to prevent duplicate registration.')
+            h('small',null,'The system automatically checks Resident ID, mobile number and resident name to prevent duplicate registration.')
           ),
           returningPatient&&h('button',{type:'button',className:'btn btn-secondary',onClick:clearReturningPatient},'Cancel Re-admission')
         ),
         h('div',{className:'form-grid'},
           h('div',{className:'field span-2'},
-            h('label',null,'Patient ID / Mobile Number / Patient Name'),
+            h('label',null,'Resident ID / Mobile Number / Resident Name'),
             h('div',{style:{display:'flex',gap:'8px'}},
               h('input',{
                 value:patientSearch,
                 onChange:e=>{setPatientSearch(e.target.value);findReturningPatients(e.target.value)},
-                placeholder:'Example: PAT-0005, 9176735577 or Radha'
+                placeholder:'Example: MOG-2026-0005, 9176735577 or Radha'
               }),
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>findReturningPatients(patientSearch)},'Check')
             )
@@ -6609,7 +6613,7 @@ Caring with Compassion. Living with Dignity.`;
           h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:familyAccess.email,onChange:e=>setFamilyAccess({...familyAccess,email:e.target.value})})),
           h('label',{className:'check-card span-2'},h('input',{type:'checkbox',checked:!!familyAccess.primary_contact,onChange:e=>setFamilyAccess({...familyAccess,primary_contact:e.target.checked})}),h('span',null,'Primary Family Contact'))
         ),
-        familyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},h('strong',null,'Family Portal login created'),h('div',null,`Patient ID: ${familyCredential.patient_id||'—'} · Temporary PIN: ${familyCredential.pin}`),h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${familyCredential.mobile}?text=${encodeURIComponent(`Welcome to Samara Assisted Living Family Portal.\nPatient ID: ${familyCredential.patient_id||''}\nTemporary PIN: ${familyCredential.pin}\nPortal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send Login by WhatsApp'))
+        familyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},h('strong',null,'Family Portal login created'),h('div',null,`Resident ID: ${familyCredential.patient_id||'—'} · Temporary PIN: ${familyCredential.pin}`),h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${familyCredential.mobile}?text=${encodeURIComponent(`Welcome to Samara Assisted Living Family Portal.\nResident ID: ${familyCredential.patient_id||''}\nTemporary PIN: ${familyCredential.pin}\nPortal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send Login by WhatsApp'))
       ),
       h('div',{className:'section-card'},
         h('h4',null,needsHospital?'2. Previous hospital / centre and current care details':'2. Current care requirement and medical details'),
@@ -7546,7 +7550,7 @@ Caring with Compassion. Living with Dignity.`;
         }
       }catch(orderError){const text=`Patient details saved, but medicines or care plan could not be updated: ${orderError.message}`;setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
       const successText=familySaveResult?.pin
-        ?`Patient information updated successfully. Family Portal login created — Patient ID: ${editTarget?.patient_id||'—'} · Temporary PIN: ${familySaveResult.pin}.`
+        ?`Patient information updated successfully. Family Portal login created — Resident ID: ${editTarget?.patient_id||'—'} · Temporary PIN: ${familySaveResult.pin}.`
         :familySaveResult?.disabled
           ?'Patient information updated successfully. Family Portal access is disabled.'
           :editFamilyAccess.enabled
@@ -7561,7 +7565,7 @@ Caring with Compassion. Living with Dignity.`;
       const url=await resolvePatientPhoto(row);const win=window.open('','_blank','width=760,height=820');if(!win){alert('Please allow pop-ups to print the Patient ID card.');return}
       const doctor=row.referring_doctor||row.treating_doctor||row.family_doctor||'—';
       const emergencyName=row.attendant_name||'—';const emergencyPhone=row.attendant_phone||row.mobile||'—';
-      win.document.write(`<!doctype html><html><head><title>Patient ID Card</title><style>body{font-family:Arial;margin:0;padding:24px;background:#fff5fa}.card{width:390px;min-height:650px;margin:auto;background:white;border-radius:24px;overflow:hidden;box-shadow:0 12px 35px #0002;border:2px solid #b01264}.head{background:#b01264;color:white;text-align:center;padding:20px}.head h1{margin:0;font-size:24px}.head p{margin:6px 0 0}.photo{width:125px;height:145px;border:4px solid white;border-radius:16px;object-fit:cover;background:#ddd;margin:14px auto 10px;display:block;box-shadow:0 4px 15px #0003}.body{padding:10px 26px 24px;text-align:center}.name{font-size:25px;font-weight:bold;color:#5d1039}.category{font-size:16px;color:#b01264;margin:4px 0 12px}.grid{text-align:left;line-height:1.55;font-size:15px}.row{padding:4px 0;border-bottom:1px solid #f7e7ef}.label{font-weight:bold;color:#444}.emergency{margin-top:12px;padding:10px;background:#fff4e5;border:1px solid #f2c87d;border-radius:10px}.barcode{margin-top:14px;padding:9px;border-top:1px dashed #aaa;font-family:monospace}.print{display:block;margin:20px auto;padding:12px 24px}@media print{.print{display:none}body{background:white;padding:0}}</style></head><body><div class="card"><div class="head"><h1>SAMARA HEALTH CARE LLP</h1><p>Assisted Living Patient Identity & Emergency Card</p></div><div class="body">${url?`<img class="photo" src="${url}">`:`<div class="photo" style="display:flex;align-items:center;justify-content:center;font-size:48px">SC</div>`}<div class="name">${escapeHtml(formalName(row))}</div><div class="category">${escapeHtml(row.patient_category||'Patient')}</div><div class="grid"><div class="row"><span class="label">Patient ID:</span> ${escapeHtml(row.patient_id||'—')}</div><div class="row"><span class="label">Main Diagnosis:</span> ${escapeHtml(row.diagnosis||'—')}</div><div class="row"><span class="label">Referred / Treating Doctor:</span> ${escapeHtml(doctor)}</div><div class="row"><span class="label">Doctor Mobile:</span> ${escapeHtml(row.doctor_phone||'—')}</div><div class="row"><span class="label">Room / Bed:</span> ${escapeHtml(`${row.room_no||'—'} / ${row.bed_no||'—'}`)}</div><div class="row"><span class="label">Gender / Age:</span> ${escapeHtml(`${row.gender||'—'} / ${row.age||'—'}`)}</div><div class="row"><span class="label">Patient Mobile:</span> ${escapeHtml(row.mobile||'—')}</div><div class="row"><span class="label">Allergies:</span> ${escapeHtml(row.allergies||'None recorded')}</div><div class="emergency"><div><span class="label">Emergency Contact:</span> ${escapeHtml(emergencyName)}</div><div><span class="label">Emergency Mobile:</span> ${escapeHtml(emergencyPhone)}</div></div></div><div class="barcode">${escapeHtml(row.patient_id||row.id)}</div></div></div><button class="print" onclick="window.print()">Print Patient ID Card</button></body></html>`);win.document.close();
+      win.document.write(`<!doctype html><html><head><title>Resident ID Card</title><style>body{font-family:Arial;margin:0;padding:24px;background:#fff5fa}.card{width:390px;min-height:650px;margin:auto;background:white;border-radius:24px;overflow:hidden;box-shadow:0 12px 35px #0002;border:2px solid #b01264}.head{background:#b01264;color:white;text-align:center;padding:20px}.head h1{margin:0;font-size:24px}.head p{margin:6px 0 0}.photo{width:125px;height:145px;border:4px solid white;border-radius:16px;object-fit:cover;background:#ddd;margin:14px auto 10px;display:block;box-shadow:0 4px 15px #0003}.body{padding:10px 26px 24px;text-align:center}.name{font-size:25px;font-weight:bold;color:#5d1039}.category{font-size:16px;color:#b01264;margin:4px 0 12px}.grid{text-align:left;line-height:1.55;font-size:15px}.row{padding:4px 0;border-bottom:1px solid #f7e7ef}.label{font-weight:bold;color:#444}.emergency{margin-top:12px;padding:10px;background:#fff4e5;border:1px solid #f2c87d;border-radius:10px}.barcode{margin-top:14px;padding:9px;border-top:1px dashed #aaa;font-family:monospace}.print{display:block;margin:20px auto;padding:12px 24px}@media print{.print{display:none}body{background:white;padding:0}}</style></head><body><div class="card"><div class="head"><h1>SAMARA HEALTH CARE LLP</h1><p>Assisted Living Patient Identity & Emergency Card</p></div><div class="body">${url?`<img class="photo" src="${url}">`:`<div class="photo" style="display:flex;align-items:center;justify-content:center;font-size:48px">SC</div>`}<div class="name">${escapeHtml(formalName(row))}</div><div class="category">${escapeHtml(row.patient_category||'Patient')}</div><div class="grid"><div class="row"><span class="label">Resident ID:</span> ${escapeHtml(row.patient_id||'—')}</div><div class="row"><span class="label">Main Diagnosis:</span> ${escapeHtml(row.diagnosis||'—')}</div><div class="row"><span class="label">Referred / Treating Doctor:</span> ${escapeHtml(doctor)}</div><div class="row"><span class="label">Doctor Mobile:</span> ${escapeHtml(row.doctor_phone||'—')}</div><div class="row"><span class="label">Room / Bed:</span> ${escapeHtml(`${row.room_no||'—'} / ${row.bed_no||'—'}`)}</div><div class="row"><span class="label">Gender / Age:</span> ${escapeHtml(`${row.gender||'—'} / ${row.age||'—'}`)}</div><div class="row"><span class="label">Patient Mobile:</span> ${escapeHtml(row.mobile||'—')}</div><div class="row"><span class="label">Allergies:</span> ${escapeHtml(row.allergies||'None recorded')}</div><div class="emergency"><div><span class="label">Emergency Contact:</span> ${escapeHtml(emergencyName)}</div><div><span class="label">Emergency Mobile:</span> ${escapeHtml(emergencyPhone)}</div></div></div><div class="barcode">${escapeHtml(row.patient_id||row.id)}</div></div></div><button class="print" onclick="window.print()">Print Resident ID Card</button></body></html>`);win.document.close();
     }
     function duplicateMatches(row){
       const name=String(row.full_name||'').trim().toLowerCase().replace(/\s+/g,' ');
@@ -7707,7 +7711,7 @@ Caring with Compassion. Living with Dignity.`;
         `DELETE: ${formalName(deleteRecord)} (${deleteRecord.patient_code||deleteRecord.patient_id})\n`+
         `KEEP: ${formalName(keepRecord)} (${keepRecord.patient_code||keepRecord.patient_id})\n\n`+
         (hasLinkedHistory
-          ?'All linked records will be reassigned to the retained Patient ID before deletion.'
+          ?'All linked records will be reassigned to the retained Resident ID before deletion.'
           :'This duplicate has no material clinical or financial activity.')+
         '\n\nThis action cannot be undone.'
       );
@@ -7937,7 +7941,7 @@ Caring with Compassion. Living with Dignity.`;
         const qrDataUrl=qrGenerator.toDataURL([
           'SAMARA CARE ADMISSION CONSENT',
           `Reference: ${reference}`,
-          `Patient ID: ${patientCode}`,
+          `Resident ID: ${patientCode}`,
           `Resident: ${formalName(row)||row.full_name||''}`,
           `Admission Date: ${row.admission_date||''}`,
           `Room/Bed: ${row.room_no||''}/${row.bed_no||''}`
@@ -8055,7 +8059,7 @@ Caring with Compassion. Living with Dignity.`;
 
   <div class="identity">
     <div><b>Resident:</b> ${escapeHtml(formalName(row))}</div>
-    <div><b>Patient ID:</b> ${escapeHtml(patientCode)}</div>
+    <div><b>Resident ID:</b> ${escapeHtml(patientCode)}</div>
     <div><b>Consent Reference:</b> ${escapeHtml(reference)}</div>
     <div><b>Admission Date:</b> ${escapeHtml(formatDateIN(row.admission_date))}</div>
     <div><b>Age / Gender:</b> ${escapeHtml(row.age||'—')} / ${escapeHtml(row.gender||'—')}</div>
@@ -8201,7 +8205,7 @@ Caring with Compassion. Living with Dignity.`;
         h('div',{className:'form-grid',style:{marginBottom:'10px'}},
           h('div',{className:'field'},h('label',null,'Search patient / place'),h('input',{
             value:patientSearch,onChange:e=>setPatientSearch(e.target.value),
-            placeholder:'Patient ID, name, mobile, district, taluk, town or PIN'
+            placeholder:'Resident ID, name, mobile, district, taluk, town or PIN'
           })),
           h('div',{className:'field'},h('label',null,'District'),h('select',{
             value:districtFilter,onChange:e=>setDistrictFilter(e.target.value)
@@ -8218,7 +8222,7 @@ Caring with Compassion. Living with Dignity.`;
         ):null,
         h('div',{className:'table-wrap'},
           h('table',{className:'table'},
-            h('thead',null,h('tr',null,['Photo','Patient ID','Patient','District / Town','Admission Type','Category','Room/Bed','Status','Action'].map(x=>h('th',{key:x},x)))),
+            h('thead',null,h('tr',null,['Photo','Resident ID','Patient','District / Town','Admission Type','Category','Room/Bed','Status','Action'].map(x=>h('th',{key:x},x)))),
             h('tbody',null,
               visibleRows.map(r=>h('tr',{key:r.id,className:duplicateCount(r)?'duplicate-row':''},
                 h('td',null,r.photo_storage_path?h('span',{className:'photo-dot'},'Photo'):'—'),
@@ -8260,7 +8264,7 @@ Caring with Compassion. Living with Dignity.`;
             h('button',{type:'button',className:'close',onClick:()=>setDuplicateReview(null)},'×')
           ),
           h('div',{className:'message warning'},
-            'The record marked “Recommended Keep” has the stronger history, completed consent, or earlier registration. Use Merge & Delete Duplicate to transfer linked history safely before deleting the unwanted Patient ID.'
+            'The record marked “Recommended Keep” has the stronger history, completed consent, or earlier registration. Use Merge & Delete Duplicate to transfer linked history safely before deleting the unwanted Resident ID.'
           ),
           h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(320px,1fr))',gap:'12px'}},
             duplicateReview.records.map(record=>
@@ -8324,12 +8328,12 @@ Caring with Compassion. Living with Dignity.`;
         h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Documents',details.docs.length),tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),!clinicalView?tabButton('Billing',details.billing.length):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
         h('div',{className:'patient-tab-content'},
           tab==='Overview'&&h('div',{className:'tabs-grid'},
-            h('div',{className:'section-card'},h('h4',null,'Identity & Contacts'),h('p',null,`Patient ID: ${selected.patient_id||'—'}`),h('p',null,`Gender / Age: ${selected.gender||'—'} / ${selected.age||'—'}`),h('p',null,`Mobile: ${selected.mobile||'—'}`),h('p',null,selected.address||patientAddress(selected)||'Address not recorded'),h('p',null,`District: ${selected.district||'—'} · Taluk: ${selected.taluk||'—'} · PIN: ${selected.pincode||'—'}`),h('p',null,`Attendant: ${selected.attendant_name||'—'} · ${selected.attendant_phone||'—'}`)),
+            h('div',{className:'section-card'},h('h4',null,'Identity & Contacts'),h('p',null,`Resident ID: ${selected.patient_id||'—'}`),h('p',null,`Gender / Age: ${selected.gender||'—'} / ${selected.age||'—'}`),h('p',null,`Mobile: ${selected.mobile||'—'}`),h('p',null,selected.address||patientAddress(selected)||'Address not recorded'),h('p',null,`District: ${selected.district||'—'} · Taluk: ${selected.taluk||'—'} · PIN: ${selected.pincode||'—'}`),h('p',null,`Attendant: ${selected.attendant_name||'—'} · ${selected.attendant_phone||'—'}`)),
             h('div',{className:'section-card'},h('h4',null,'Admission & Medical Overview'),h('p',null,`Admission: ${selected.admission_type||'—'} · ${selected.admission_date||'—'}`),h('p',null,`Hospital / Source: ${selected.hospital_name||selected.referring_source||'—'}`),h('p',null,selected.diagnosis||'Diagnosis not recorded'),h('p',null,`Allergies: ${selected.allergies||'None recorded'}`),h('p',null,selected.special_instructions||'No special instructions')),
             h('div',{className:'section-card'},h('h4',null,'Care Plan Summary'),h('p',null,`${details.meds.length} active medicine order(s)`),h('p',null,`${details.care.length} master care task(s)`),h('p',null,`${details.physio.length} physiotherapy order(s)`),h('p',null,`Diet: ${selected.diet_plan||'Not recorded'}`)),
             h('div',{className:'section-card'},h('h4',null,'Risk & Safety'),h('p',null,[selected.fall_risk&&'Fall risk',selected.pressure_sore_risk&&'Pressure sore risk',selected.aspiration_risk&&'Aspiration risk',selected.wandering_risk&&'Wandering risk',selected.oxygen_required&&'Oxygen required',selected.dressing_required&&'Dressing required'].filter(Boolean).join(', ')||'No active risk flags'),h('p',null,`Open incidents: ${details.incidents.filter(x=>x.status==='Open').length}`))
           ),
-          tab==='Documents'&&h('div',{className:'section-card'},h('div',{className:'panel-head'},h('h4',null,'Patient Documents'),canEdit?h('button',{className:'btn btn-secondary',onClick:()=>printPatientIdCard(selected)},'Print Patient ID Card'):null),details.docs.length?details.docs.map(d=>h('div',{className:'timeline-item',key:d.id},h('strong',null,d.document_type||'Document'),h('span',null,d.document_name||d.file_name||'File'),h('button',{className:'btn btn-secondary',onClick:()=>openDoc(d)},'Open'))):sectionEmpty('No documents uploaded.')),
+          tab==='Documents'&&h('div',{className:'section-card'},h('div',{className:'panel-head'},h('h4',null,'Patient Documents'),canEdit?h('button',{className:'btn btn-secondary',onClick:()=>printPatientIdCard(selected)},'Print Resident ID Card'):null),details.docs.length?details.docs.map(d=>h('div',{className:'timeline-item',key:d.id},h('strong',null,d.document_type||'Document'),h('span',null,d.document_name||d.file_name||'File'),h('button',{className:'btn btn-secondary',onClick:()=>openDoc(d)},'Open'))):sectionEmpty('No documents uploaded.')),
           tab==='Medicines'&&h('div',{className:'section-card'},h('h4',null,'Prescription & Medication Administration'),details.meds.length?details.meds.map(m=>h('div',{className:'timeline-item',key:m.id},h('strong',null,`${m.medicine_name} ${m.strength||''} — ${m.dose}`),h('div',{className:'time-list'},(m.scheduled_times||[]).map(t=>h('span',{className:'time-chip',key:t},medicationTimeLabel(t)))),h('div',{className:'small-note'},`${m.route||''} · ${m.food_instruction||''} · ${m.special_instruction||''}`))):sectionEmpty('No medicine orders.'),h('h4',{style:{marginTop:'18px'}},'Recent MAR'),details.mar.length?details.mar.slice(0,25).map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.scheduled_date)} ${medicationTimeLabel(x.scheduled_time)} · ${x.status}`),h('span',null,x.remarks||'—'))):sectionEmpty('No medicine administration records.')),
           tab==='Nursing'&&h('div',{className:'section-card'},h('h4',null,'Master Care Plan'),details.care.length?details.care.map(c=>h('div',{className:'timeline-item',key:c.id},h('strong',null,c.care_type),h('span',null,`${c.shift} · ${c.frequency} · ${c.instruction||''}`))):sectionEmpty('No care orders.'),h('h4',{style:{marginTop:'18px'}},'Recent Care Records'),details.careLogs.length?details.careLogs.slice(0,30).map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.care_date)} · ${x.shift} · ${x.status}`),h('span',null,x.remarks||'—'))):sectionEmpty('No care records.')),
           tab==='Vitals'&&h('div',{className:'section-card'},h('h4',null,'Vital Signs History'),details.vitals.length?details.vitals.map(v=>h('div',{className:'timeline-item',key:v.id},h('strong',null,`${fmt(v.recorded_at)} · BP ${v.systolic||'—'}/${v.diastolic||'—'}`),h('span',null,`Pulse ${v.pulse||'—'} · SpO₂ ${v.spo2||'—'} · Temp ${v.temperature||'—'} · Sugar ${v.blood_sugar_type||'Not Taken'} ${v.blood_sugar||'—'} · ${v.alert_level||'Normal'}`))):sectionEmpty('No vital signs recorded.')),
@@ -8349,19 +8353,19 @@ Caring with Compassion. Living with Dignity.`;
                   h('span',{className:`pill ${access.is_active?'':'warning'}`},access.is_active?'Active':'Disabled')
                 ),
                 h('div',{className:'tabs-grid'},
-                  h('div',null,h('p',null,h('strong',null,'Login Patient ID: '),selected?.patient_id||'—'),h('p',null,h('strong',null,'Registered Mobile: '),access.mobile||'—'),h('p',null,h('strong',null,'Email: '),access.email||'Not recorded'),h('p',{className:'small-note'},`Internal Family Ref: ${access.family_user_id||'—'}`)),
+                  h('div',null,h('p',null,h('strong',null,'Login Resident ID: '),selected?.patient_id||'—'),h('p',null,h('strong',null,'Registered Mobile: '),access.mobile||'—'),h('p',null,h('strong',null,'Email: '),access.email||'Not recorded'),h('p',{className:'small-note'},`Internal Family Ref: ${access.family_user_id||'—'}`)),
                   h('div',null,h('p',null,h('strong',null,'Last Login: '),access.last_login_at?fmt(access.last_login_at):'Not logged in yet'),h('p',null,h('strong',null,'Access Created: '),access.created_at?fmt(access.created_at):'—'),h('p',null,h('strong',null,'PIN: '),'For security, the existing PIN is not displayed.'))
                 ),
                 access.is_active&&h('div',{className:'actions',style:{marginTop:'10px'}},
                   h('button',{type:'button',className:'btn btn-secondary',disabled:familyResetBusy===access.id,onClick:()=>resetSelectedFamilyPin(access)},familyResetBusy===access.id?'Resetting…':'Forgot / Reset PIN'),
-                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${String(access.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(`Samara Family Portal\nPatient ID: ${selected?.patient_id||''}\nPortal: https://family.samaraassistedliving.com\nIf the PIN is forgotten, please contact Samara to reset it.`)}`,'_blank','noopener')},'Send Patient ID & Portal by WhatsApp')
+                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${String(access.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(`Samara Family Portal\nResident ID: ${selected?.patient_id||''}\nPortal: https://family.samaraassistedliving.com\nIf the PIN is forgotten, please contact Samara to reset it.`)}`,'_blank','noopener')},'Send Resident ID & Portal by WhatsApp')
                 )
               )))
               :h('div',null,sectionEmpty('Family Portal access has not been created for this resident.'),h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEditPatient(selected)},'Create Family Portal Access')),
             familyResetCredential&&h('div',{className:'message success',style:{marginTop:'14px'}},
               h('strong',null,'New Family Portal PIN generated'),
-              h('div',null,`Patient ID: ${selected?.patient_id||'—'} · Temporary PIN: ${familyResetCredential.pin}`),
-              h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${familyResetCredential.mobile}?text=${encodeURIComponent(`Samara Family Portal login\nPatient ID: ${selected?.patient_id||''}\nTemporary PIN: ${familyResetCredential.pin}\nPortal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send New PIN by WhatsApp')
+              h('div',null,`Resident ID: ${selected?.patient_id||'—'} · Temporary PIN: ${familyResetCredential.pin}`),
+              h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${familyResetCredential.mobile}?text=${encodeURIComponent(`Samara Family Portal login\nResident ID: ${selected?.patient_id||''}\nTemporary PIN: ${familyResetCredential.pin}\nPortal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send New PIN by WhatsApp')
             )
           )
         )
@@ -8430,7 +8434,7 @@ Caring with Compassion. Living with Dignity.`;
             h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:editFamilyAccess.email||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,email:e.target.value})})),
             h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!editFamilyAccess.primary_contact,onChange:e=>setEditFamilyAccess({...editFamilyAccess,primary_contact:e.target.checked})}),h('span',null,'Primary Family Contact'))
           ),
-          editFamilyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},h('strong',null,'Family Portal PIN generated'),h('div',null,`Patient ID: ${editTarget?.patient_id||'—'} · Temporary PIN: ${editFamilyCredential.pin}`),h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${editFamilyCredential.mobile}?text=${encodeURIComponent(`Samara Family Portal login\nPatient ID: ${editTarget?.patient_id||''}\nTemporary PIN: ${editFamilyCredential.pin}\nPortal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send Login by WhatsApp'))
+          editFamilyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},h('strong',null,'Family Portal PIN generated'),h('div',null,`Resident ID: ${editTarget?.patient_id||'—'} · Temporary PIN: ${editFamilyCredential.pin}`),h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${editFamilyCredential.mobile}?text=${encodeURIComponent(`Samara Family Portal login\nResident ID: ${editTarget?.patient_id||''}\nTemporary PIN: ${editFamilyCredential.pin}\nPortal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send Login by WhatsApp'))
         ),
         h('div',{className:'section-card'},h('div',{className:'section-title'},h('div',null,h('h4',null,'3. Current and Upcoming Medicines'),h('small',null,'Only active medicines that are current or scheduled for the future are displayed. Expired and replaced prescriptions remain preserved in history.')),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setEditMeds([...editMeds,blankMedicine()])},'Add medicine')),
           editMeds.length?editMeds.map((m,i)=>h('div',{className:'repeat-row medicine-order-row',key:m.id||i},miniInput('Medicine',m.medicine_name,v=>updateEditMed(i,'medicine_name',v),true),miniInput('Strength',m.strength,v=>updateEditMed(i,'strength',v),true),miniSelect('Frequency',m.frequency,['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'],v=>setEditMeds(editMeds.map((row,n)=>n===i?{...row,frequency:v,times:(MEDICATION_FREQUENCY_TIMES[v]||String(row.times||'').split(',').map(normalizeMedicationTime).filter(Boolean)).join(', ')}:row))),miniSelect('Route',m.route,['Oral','IV','IM'],v=>updateEditMed(i,'route',v)),h(MedicationTimeSelector,{label:'Time',value:m.times,onChange:v=>updateEditMed(i,'times',v),required:true}),miniSelect('Food',m.food_instruction,['Before food','After food','With food','No restriction'],v=>updateEditMed(i,'food_instruction',v)),miniSelect('Duration',m.duration,['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','30 Days','Until Doctor Review','Long Term','Custom'],v=>updateEditMed(i,'duration',v)),m.duration==='Custom'&&miniInput('Custom days',m.custom_duration_days,v=>updateEditMed(i,'custom_duration_days',v),true,'number'),miniInput('Start date',m.start_date,v=>updateEditMed(i,'start_date',v),true,'date'),miniInput('Special instruction',m.special_instruction,v=>updateEditMed(i,'special_instruction',v)),h('button',{type:'button',className:'icon-btn',onClick:()=>setEditMeds(editMeds.filter((_,n)=>n!==i))},'Remove'))):h('p',{className:'small-note'},'No current or upcoming medicine is recorded. Use Add medicine to create one.')),
@@ -12282,7 +12286,7 @@ function ShiftHandover({profile,onNavigate}){
           [
             ['🧾','Charge Approvals','Approve, partially approve or reject Nurse-raised charges.',pendingApprovals,'approvals'],
             ['💳','Payments','Receive Cash, UPI, RTGS or Card payments.',todayCollections?money(todayCollections):'Open','payments'],
-            ['📑','Final Billing','Patient-wise ledger, discounts and net payable.',finalBills,'final-billing'],
+            ['📑','Final Billing','Resident-wise ledger, discounts and net payable.',finalBills,'final-billing'],
             ['🚪','Discharge Clearance','Financially clear Management-approved discharges.',dischargeClearance,'clearance'],
             ['↩','Refunds','View and record payment or advance refunds.',money(refundValue),'refunds'],
             ['📊','Accounts Reports','Revenue, collection, ageing and patient-ledger reports.','Open','reports']
@@ -12479,7 +12483,7 @@ function ShiftHandover({profile,onNavigate}){
 
   <div class="grid">
     <div class="field"><b>Patient Name</b><span>${escapeHtml(formalName(patient)||patient.full_name||'—')}</span></div>
-    <div class="field"><b>Patient ID</b><span>${escapeHtml(patient.patient_id||'—')}</span></div>
+    <div class="field"><b>Resident ID</b><span>${escapeHtml(patient.patient_id||'—')}</span></div>
     <div class="field"><b>Room / Bed</b><span>${escapeHtml(roomBed)}</span></div>
     <div class="field"><b>Admission Date</b><span>${escapeHtml(formatDateIN(patient.admission_date))}</span></div>
     <div class="field"><b>Mobile</b><span>${escapeHtml(patient.mobile||patient.attendant_phone||'—')}</span></div>
@@ -12652,7 +12656,7 @@ function ShiftHandover({profile,onNavigate}){
       ),
       h(LogTable,{
         title:loading?'Loading refunds…':`Refund History (${rows.length})`,
-        heads:['Date','Patient','Patient ID','Amount','Mode','Description'],
+        heads:['Date','Patient','Resident ID','Amount','Mode','Description'],
         rows:rows.map(row=>[
           fmt(row.transaction_date),
           formalName(row.patients||{})||row.patients?.full_name||'—',
@@ -13633,7 +13637,7 @@ function ShiftHandover({profile,onNavigate}){
   function IntelligentReports({profile}){
     const today=new Date().toISOString().slice(0,10);
     const [patients,setPatients]=React.useState([]);
-    const [mode,setMode]=React.useState('Patient-wise');
+    const [mode,setMode]=React.useState('Resident-wise');
     const [patientId,setPatientId]=React.useState('');
     const [reportDate,setReportDate]=React.useState(today);
     const [busy,setBusy]=React.useState(false);
@@ -13835,7 +13839,7 @@ function ShiftHandover({profile,onNavigate}){
         setMessage(`Future report dates are not permitted. Report Date has been reset to today (${formatDateIN(today)}).`);
         return;
       }
-      if(activeMode==='Patient-wise'&&!patientId){setMessage('Select a patient.');return;}
+      if(activeMode==='Resident-wise'&&!patientId){setMessage('Select a patient.');return;}
       if(activeMode==='Day-wise'&&!reportDate){setMessage('Select a report date.');return;}
       setBusy(true);
       try{
@@ -13844,13 +13848,13 @@ function ShiftHandover({profile,onNavigate}){
         ]);
         const [pats,vitals,care,careOrders,orders,mar,meals,physioOrders,physioSessions,incidents,billing,recovery,handovers,documents,staff,audit]=results.map(safeRows);
         const selectedPatient=pats.find(p=>p.id===patientId)||patients.find(p=>p.id===patientId)||null;
-        if(activeMode==='Patient-wise'&&selectedPatient&&isFutureDateIndia(selectedPatient.admission_date)){
+        if(activeMode==='Resident-wise'&&selectedPatient&&isFutureDateIndia(selectedPatient.admission_date)){
           throw new Error(`The Patient File contains a future Admission Date (${formatDateIN(selectedPatient.admission_date)}). Please correct it in Patient Edit before generating or sharing the report.`);
         }
         const dayData={
           vitals:byDay(vitals,reportDate,['recorded_at','created_at']),care:byDay(care,reportDate,['completed_at','created_at','care_date']),careOrders:careOrders.filter(x=>x.is_active!==false),mar:byDay(mar,reportDate,['administered_at','created_at','scheduled_date']),meals:byDay(meals,reportDate,['served_at','created_at','meal_date']),physioSessions:byDay(physioSessions,reportDate,['session_at','created_at','session_date']),incidents:byDay(incidents,reportDate,['incident_at','created_at']),billing:byDay(billing,reportDate,['transaction_date','created_at']),recovery:byDay(recovery,reportDate,['event_at','created_at']),handovers:byDay(handovers,reportDate,['created_at','handover_date']),documents:byDay(documents,reportDate,['created_at','report_date']),audit:byDay(audit,reportDate,['created_at'])
         };
-        const data=activeMode==='Patient-wise'?{
+        const data=activeMode==='Resident-wise'?{
           patients:selectedPatient?[selectedPatient]:[],vitals:byPatient(vitals,patientId),care:byPatient(care,patientId),careOrders:byPatient(careOrders,patientId),medicationOrders:byPatient(orders,patientId),mar:byPatient(mar,patientId),meals:byPatient(meals,patientId),physioOrders:byPatient(physioOrders,patientId),physioSessions:byPatient(physioSessions,patientId),incidents:byPatient(incidents,patientId),billing:byPatient(billing,patientId),recovery:byPatient(recovery,patientId),handovers:handovers.filter(r=>text(r.patient_summary).toLowerCase().includes(text(formalName(selectedPatient)).toLowerCase())),documents:byPatient(documents,patientId)
         }:{...dayData,patients:pats.filter(p=>p.is_active!==false&&dateOnly(p.admission_date)<=reportDate),newAdmissions:pats.filter(p=>dateOnly(p.admission_date)===reportDate)};
         const charges=data.billing.filter(x=>x.transaction_type==='Charge').reduce((a,x)=>a+Number(x.amount||0),0);
@@ -13862,7 +13866,7 @@ function ShiftHandover({profile,onNavigate}){
         [...data.care,...data.mar,...data.vitals,...data.physioSessions,...data.incidents,...(data.audit||[])].forEach(r=>[r.completed_by,r.administered_by,r.recorded_by,r.performed_by,r.reported_by,r.user_id].filter(Boolean).forEach(id=>activeStaffIds.add(id)));
         const staffMap=Object.fromEntries(staff.map(x=>[x.id,x]));
         const onDuty=staff.filter(x=>activeStaffIds.has(x.id));
-        const patientPhoto=mode==='Patient-wise'?await resolveReportPatientPhoto(selectedPatient,documents):'';
+        const patientPhoto=mode==='Resident-wise'?await resolveReportPatientPhoto(selectedPatient,documents):'';
         setMode(activeMode);setReport({mode:activeMode,patient:selectedPatient,patientPhoto,date:reportDate,data,staffMap,onDuty,summary:{charges,payments,discounts,outstanding:charges-payments-discounts,criticalVitals:criticalVitals.length,medicinesGiven:data.mar.filter(x=>String(x.status||'').toLowerCase()==='given').length,medicineExceptions:medicineExceptions.length,openingPatients:activeMode==='Day-wise'?data.patients.length:0,newAdmissions:activeMode==='Day-wise'?data.newAdmissions.length:0}});
       }catch(error){setMessage(error.message||'Unable to generate report.');}
       setBusy(false);
@@ -13871,7 +13875,7 @@ function ShiftHandover({profile,onNavigate}){
     function printReport(){
       const previous=document.title;
       const stamp=new Date().toLocaleString('en-GB',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).replace(/[\/:,]/g,'-').replace(/\s+/g,'_');
-      const base=report?.mode==='Patient-wise'?(formalName(report.patient)||'Patient'):'Samara_Daily_Report';
+      const base=report?.mode==='Resident-wise'?(formalName(report.patient)||'Patient'):'Samara_Daily_Report';
       document.title=`${base} - Report as on ${stamp}`;
       window.addEventListener('afterprint',()=>{document.title=previous},{once:true});
       window.print();
@@ -13880,17 +13884,17 @@ function ShiftHandover({profile,onNavigate}){
     function section(title,items,renderer){return h('div',{className:'intelligent-report-section'},h('h3',null,title),items.length?h('div',{className:'intelligent-report-list'},items.map((x,i)=>h('div',{className:'intelligent-report-item',key:i},renderer(x)))):h('p',{className:'small-note'},'No records for this report.'));}
     function narrative(){
       if(!report)return [];
-      if(report.mode==='Patient-wise')return patientHumanNarrative(report.patient||{},report.data);
+      if(report.mode==='Resident-wise')return patientHumanNarrative(report.patient||{},report.data);
       const d=report.data,s=report.summary;
       const opening=`The facility opened the day with ${s.openingPatients} active patient(s). ${s.newAdmissions} new admission(s) were recorded${d.newAdmissions?.length?`: ${d.newAdmissions.map(p=>formalName(p)).join(', ')}`:'.'}`;
       const clinical=`Clinical activity included ${d.vitals.length} vital-sign check(s), ${d.care.length} care task(s), ${d.mar.length} medicine action(s), ${d.meals.length} meal/intake record(s) and ${d.physioSessions.length} physiotherapy session(s). ${s.criticalVitals} critical vital alert(s), ${s.medicineExceptions} medicine exception(s) and ${d.incidents.length} incident(s) require review.`;
       const staffing=`Recorded care activity was entered by ${report.onDuty.length} employee(s) during the day${report.onDuty.length?`: ${report.onDuty.map(x=>`${formalName(x)} (${x.role})`).join(', ')}`:'. No staff activity could be derived from the available records.'}`;
       const finance=`The financial statement for the day shows charges of ${money(s.charges)}, payments of ${money(s.payments)}, discounts of ${money(s.discounts)} and a net outstanding movement of ${money(s.outstanding)}.`;
-      const close=`Overall, the day was ${s.criticalVitals||d.incidents.length?'clinically active and requires managerial/medical follow-up on the alerts noted below':'operationally stable on the available records'}. Patient-wise details are provided in the following section.`;
+      const close=`Overall, the day was ${s.criticalVitals||d.incidents.length?'clinically active and requires managerial/medical follow-up on the alerts noted below':'operationally stable on the available records'}. Resident-wise details are provided in the following section.`;
       return [opening,clinical,staffing,finance,close];
     }
 
-    const selectedPatient=()=>report?.mode==='Patient-wise'?(report.patient||patients.find(p=>p.id===patientId)):null;
+    const selectedPatient=()=>report?.mode==='Resident-wise'?(report.patient||patients.find(p=>p.id===patientId)):null;
     const relativeName=p=>p?.attendant_name||p?.relative_name||p?.emergency_contact_name||p?.family_contact_name||'Authorised Relative';
     const patientPhone=p=>p?.mobile||p?.patient_mobile||p?.phone||'';
     const relativePhone=p=>p?.attendant_phone||p?.relative_phone||p?.emergency_contact_phone||p?.family_contact_phone||p?.reference_contact||'';
@@ -14064,7 +14068,7 @@ function ShiftHandover({profile,onNavigate}){
             h('div',{className:'resident-overview-main'},
               h('h2',null,formalName(p)||'Patient'),
               h('div',{className:'overview-detail-grid'},
-                h('div',null,h('b',null,'Patient ID'),h('span',null,p.patient_id||'—')),
+                h('div',null,h('b',null,'Resident ID'),h('span',null,p.patient_id||'—')),
                 h('div',null,h('b',null,'Room / Bed'),h('span',null,`${p.room_no||'Unassigned'}${p.bed_no?`-${p.bed_no}`:''}`)),
                 h('div',null,h('b',null,'Admission Type'),h('span',null,p.admission_type||'—')),
                 h('div',null,h('b',null,'Admission Date'),h('span',null,formatDateIN(p.admission_date))),
@@ -14115,15 +14119,15 @@ function ShiftHandover({profile,onNavigate}){
         h('form',{className:'intelligent-report-controls intelligent-report-controls-v3',onSubmit:e=>e.preventDefault()},
           h('div',{className:'field report-date-field'},h('label',null,'Report Date'),h('input',{type:'date',value:reportDate,max:todayISOIndia(),onChange:e=>{const next=e.target.value;if(isFutureDateIndia(next)){const today=todayISOIndia();setReportDate(today);setReport(null);setMessage(`Future report dates are not permitted. Report Date has been reset to today (${formatDateIN(today)}).`);return}setReportDate(next);setReport(null);setMessage('')},required:true})),
           h('div',{className:'field report-patient-field'},h('label',null,'Patient'),h('select',{value:patientId,onChange:e=>{setPatientId(e.target.value);setReport(null);setMessage('')}},h('option',{value:''},'Select patient'),patients.map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)} · ${p.patient_id||'NO-ID'}${p.room_no?` · ${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:''}`)))),
-          h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:e=>generate(e,'Patient-wise')},busy&&mode==='Patient-wise'?'Generating…':'Generate Patient Report'),
+          h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:e=>generate(e,'Resident-wise')},busy&&mode==='Resident-wise'?'Generating…':'Generate Patient Report'),
           h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:e=>generate(e,'Day-wise')},busy&&mode==='Day-wise'?'Generating…':'Generate Daily Operations Report')
         ),message&&h('div',{className:'message error'},message)
       ),
       report&&h('div',{className:'card panel intelligent-report printable-report hospital-report'},
-        h('div',{className:'panel-head no-print'},h('div',null,h('h2',null,report.mode==='Patient-wise'?`Patient Care Report – ${formalName(report.patient)||''}`:`Daily Facility Report – ${formatDateIN(report.date)}`),h('small',null,`Prepared by ${formalName(profile)} on ${formatDateTimeIN(new Date())}`)),h('div',{className:'actions'},report.mode==='Patient-wise'&&['Admin','Manager'].includes(profile.role)&&h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>setShareOpen(true)},'WhatsApp'),h('button',{className:'btn btn-secondary',onClick:printReport},'Print / Save PDF'))),
-        report.mode==='Patient-wise'?patientReportBody():h(React.Fragment,null,
+        h('div',{className:'panel-head no-print'},h('div',null,h('h2',null,report.mode==='Resident-wise'?`Patient Care Report – ${formalName(report.patient)||''}`:`Daily Facility Report – ${formatDateIN(report.date)}`),h('small',null,`Prepared by ${formalName(profile)} on ${formatDateTimeIN(new Date())}`)),h('div',{className:'actions'},report.mode==='Resident-wise'&&['Admin','Manager'].includes(profile.role)&&h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>setShareOpen(true)},'WhatsApp'),h('button',{className:'btn btn-secondary',onClick:printReport},'Print / Save PDF'))),
+        report.mode==='Resident-wise'?patientReportBody():h(React.Fragment,null,
           h('div',{className:'intelligent-summary human-report'},h('h3',null,'Executive Daily Summary'),narrative().map((p,i)=>h('p',{key:i},p))),
-          section('Patient-wise Daily Status',report.data.patients,p=>h(React.Fragment,null,h('strong',null,`${p.patient_id||'NO-ID'} · ${formalName(p)}`),h('span',null,dailyPatientNarrative(p,report.data)))),
+          section('Resident-wise Daily Status',report.data.patients,p=>h(React.Fragment,null,h('strong',null,`${p.patient_id||'NO-ID'} · ${formalName(p)}`),h('span',null,dailyPatientNarrative(p,report.data)))),
           section('Employees Active / On Duty',report.onDuty,x=>h(React.Fragment,null,h('strong',null,formalName(x)),h('span',null,`${x.role||'Employee'} · ${x.employee_id||x.login_id||'—'}`))),
           section('Incident Reports',report.data.incidents,r=>h(React.Fragment,null,h('strong',null,patientName(r.patient_id)),h('span',null,`${r.incident_type||r.type||'Incident'} · ${r.description||r.remarks||'—'} · ${fmt(r.incident_at||r.created_at)}`))),
           section('Financial Statement',report.data.billing,r=>h(React.Fragment,null,h('strong',null,patientName(r.patient_id)),h('span',null,`${r.transaction_type||'—'} · ${money(r.amount)} · ${r.description||'—'}`))),
@@ -14281,7 +14285,7 @@ function Reports(){
 
   function exportPaymentsCSV(){
     const header=[
-      'Date & Time','Voucher / Reference No.','Patient ID','Patient Name',
+      'Date & Time','Voucher / Reference No.','Resident ID','Patient Name',
       'Transaction Type','Payment Mode','Amount','Received / Entered By','Description'
     ];
     const lines=paymentRows.map(row=>[
@@ -14305,7 +14309,7 @@ function Reports(){
   }
 
   function exportCSV(){
-    const header=['Date','Patient','Patient ID','Type','Category','Payment Mode','Voucher / Reference','Amount','Description'];
+    const header=['Date','Patient','Resident ID','Type','Category','Payment Mode','Voucher / Reference','Amount','Description'];
     const lines=filtered.map(row=>[
       formatDateIN(row.transaction_date),
       formalName(row.patients||{})||row.patients?.full_name||'',
@@ -14373,7 +14377,7 @@ function Reports(){
     h(LogTable,{
       title:`Payment Report (${paymentRows.length})`,
       subtitle:'Date-wise receipt, voucher/reference number and payment mode register',
-      heads:['Date & Time','Voucher / Reference No.','Patient ID','Patient Name','Type','Mode','Amount','Received / Entered By'],
+      heads:['Date & Time','Voucher / Reference No.','Resident ID','Patient Name','Type','Mode','Amount','Received / Entered By'],
       rows:paymentRows.map(row=>[
         formatDateTimeIN(row.transaction_date),
         row.payment_reference||'—',
@@ -14446,9 +14450,9 @@ function Reports(){
     ),
 
     h(LogTable,{
-      title:`Patient-wise Financial Ledger (${patientLedger.length})`,
+      title:`Resident-wise Financial Ledger (${patientLedger.length})`,
       subtitle:'Charges, receipts, concessions, refunds and balance',
-      heads:['Patient','Patient ID','Room / Bed','Charges','Paid / Advance','Discount','Refund','Balance','Status'],
+      heads:['Patient','Resident ID','Room / Bed','Charges','Paid / Advance','Discount','Refund','Balance','Status'],
       rows:patientLedger.map(row=>[
         formalName(row.patient)||row.patient.full_name,
         row.patient.patient_id||'—',
@@ -14464,7 +14468,7 @@ function Reports(){
     h(LogTable,{
       title:`Detailed Transaction Register (${filtered.length})`,
       subtitle:'Filtered billing, payment, discount and refund history',
-      heads:['Date','Patient','Patient ID','Type','Category','Mode','Voucher / Reference','Amount','Description'],
+      heads:['Date','Patient','Resident ID','Type','Category','Mode','Voucher / Reference','Amount','Description'],
       rows:filtered.map(row=>[
         formatDateTimeIN(row.transaction_date),
         formalName(row.patients||{})||row.patients?.full_name||'—',
