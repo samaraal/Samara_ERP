@@ -1,4 +1,4 @@
-const CACHE = 'samara-erp-2.8.29-payment-reports-final';
+const CACHE = 'samara-erp-2.8.29-hr-access-welcome-fix';
 const SHELL = [
   './', './index.html', './styles.css?v=2.8.29', './app.js?v=2.8.29',
   './bootstrap-error.js?v=2.8.29', './health-check.js?v=2.8.29',

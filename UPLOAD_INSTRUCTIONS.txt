@@ -1,59 +1,35 @@
-SAMARA CARE ERP v2.8.29 — PAYMENT REPORTS FINAL
+SAMARA CARE ERP v2.8.29 — HR ACCESS + WELCOME LINK FIX
 
-This package retains:
-- Global GREEN success / RED failure confirmations
-- Cash automatic vouchers
-- Card Payment automatic vouchers
-- Payment modes: Cash, UPI, RTGS, Card Payment
+Corrections included:
 
-NEW: ACCOUNTS → REPORTS / Accounts Reports
+1. Employee form
+   "ERP Access Role" is changed to "ERP Access Scope".
 
-Payment Report features:
-- From Date / To Date
-- Quick "Today / Daily Collection"
-- All Patients / individual patient
-- Transaction Type: All / Payment / Advance / Refund
-- Payment Mode: All / Cash / UPI / RTGS / Card Payment
+   Options:
+   - Full Access
+   - Department Only
+   - No ERP Access
 
-Summary cards:
-- Total Received
-- Cash
-- UPI
-- RTGS
-- Card Payment
-- Refunds
-- Net Collection
+   This keeps Department and Designation separate from system access.
 
-Payment register columns:
-- Date & Time
-- Voucher / Reference No.
-- Patient ID
-- Patient Name
-- Transaction Type
-- Payment Mode
-- Amount
-- Received / Entered By
+2. Employee Welcome / Login Details
+   OLD GitHub ERP address removed.
+   Correct ERP address:
+   https://app.samaraassistedliving.com
 
-Additional registers:
-- Cash Voucher Register
-- Card Voucher Register
-- Patient-wise Financial Ledger
-- Detailed Transaction Register
+3. Existing v2.8.29 Payment Reports, Cash/Card vouchers and global
+   green/red confirmation features are retained.
 
-Output:
-- Print / Save PDF
-- Payment CSV
-- Full Accounts CSV
+UPLOAD
+Replace:
+- app.js
+- index.html
+- service-worker.js
 
-INSTALLATION
-1. If the revised v2.8.29 SQL has already been run successfully, DO NOT run it again.
-2. Replace only:
-   app.js
-   index.html
-   service-worker.js
-3. Ctrl + Shift + R after deployment.
+No new SQL is required for these two corrections.
 
-If you have NOT yet run v2.8.29 SQL, run the included
-72_global_confirmation_cash_voucher.sql once before testing Cash/Card voucher reports.
+After deployment:
+Ctrl + Shift + R on desktop.
+On mobile/PWA, close and reopen the app; if cached, refresh once.
 
 Version remains v2.8.29.

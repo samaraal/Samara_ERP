@@ -71,7 +71,7 @@
 (() => {
   'use strict';
   const APP_VERSION = '2.8.29';
-  const APP_BUILD_DATE = '08-Aug-2026 Global Confirmation + Vouchers + Payment Reports';
+  const APP_BUILD_DATE = '08-Aug-2026 HR Access Scope + Welcome Link Fix';
   const APP_SCHEMA_VERSION = '24';
   window.APP_VERSION = APP_VERSION;
   window.SAMARA_BUILD = Object.freeze({
@@ -1477,7 +1477,7 @@ We are delighted to have you with us. At Samara, every resident deserves dignity
 
 ${roleLine}${credentials}
 
-ERP Portal: https://rajaiahboomi-crypto.github.io/Samara_AL_ERP_V7/
+Samara Care ERP: https://app.samaraassistedliving.com
 
 Please sign in and create a password of your own choice at the first login.
 
