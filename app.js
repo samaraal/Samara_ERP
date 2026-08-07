@@ -70,8 +70,8 @@
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.26';
-  const APP_BUILD_DATE = '08-Aug-2026 Confirmed Save Feedback';
+  const APP_VERSION = '2.8.27';
+  const APP_BUILD_DATE = '08-Aug-2026 Patient File Photo Fix';
   const APP_SCHEMA_VERSION = '24';
   window.APP_VERSION = APP_VERSION;
   window.SAMARA_BUILD = Object.freeze({
@@ -81,7 +81,7 @@
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
   const h = React.createElement;
-  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.26';
+  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.27';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
     h('img',{src:BRAND_LOGO_SRC,className,alt,decoding:'async'});
@@ -2106,6 +2106,84 @@ Caring with Compassion. Living with Dignity.`;
         .modal{width:min(900px,96vw)!important}
       }
 
+
+
+      /* v2.8.27 — Patient File photo must never expand to the uploaded image's natural size. */
+      .patient-master-modal .patient-master-header{
+        display:flex!important;
+        align-items:center!important;
+        justify-content:space-between!important;
+        gap:16px!important;
+      }
+      .patient-master-modal .patient-head{
+        display:flex!important;
+        align-items:center!important;
+        gap:14px!important;
+        min-width:0!important;
+        flex:1 1 auto!important;
+      }
+      .patient-master-modal .patient-photo{
+        width:92px!important;
+        height:108px!important;
+        min-width:92px!important;
+        max-width:92px!important;
+        min-height:108px!important;
+        max-height:108px!important;
+        object-fit:cover!important;
+        object-position:center!important;
+        border-radius:16px!important;
+        border:1px solid #ead0de!important;
+        display:block!important;
+        flex:0 0 92px!important;
+        overflow:hidden!important;
+      }
+      .patient-master-modal .patient-photo-placeholder{
+        display:flex!important;
+        align-items:center!important;
+        justify-content:center!important;
+        background:linear-gradient(145deg,#fff0f6,#f8dfe9)!important;
+        color:#7a1247!important;
+        font-weight:900!important;
+      }
+      .patient-master-modal .patient-head>div:last-child{
+        min-width:0!important;
+        flex:1 1 auto!important;
+      }
+      .patient-master-modal .patient-head h3{
+        margin:0 0 3px!important;
+      }
+
+      @media(max-width:760px){
+        .patient-master-modal .patient-master-header{
+          align-items:flex-start!important;
+          gap:10px!important;
+        }
+        .patient-master-modal .patient-head{
+          gap:10px!important;
+        }
+        .patient-master-modal .patient-photo{
+          width:72px!important;
+          height:84px!important;
+          min-width:72px!important;
+          max-width:72px!important;
+          min-height:84px!important;
+          max-height:84px!important;
+          flex-basis:72px!important;
+          border-radius:14px!important;
+        }
+        .patient-master-modal .patient-head h3{
+          font-size:20px!important;
+          line-height:1.15!important;
+        }
+        .patient-master-modal .patient-head small{
+          font-size:12px!important;
+          line-height:1.35!important;
+          display:block!important;
+        }
+        .patient-master-modal .employee-actions{
+          flex:0 0 auto!important;
+        }
+      }
 
       /* v2.8.25 — Guaranteed save/failure confirmation.
          Rendered above modals, mobile nav and page navigation. */
@@ -7877,7 +7955,7 @@ Caring with Compassion. Living with Dignity.`;
         )
       ),
       selected&&details&&h('div',{className:'modal-backdrop'},h('div',{className:'card modal patient-master-modal'},
-        h('div',{className:'panel-head patient-master-header'},h('div',{className:'patient-head'},photoUrl?h('img',{src:photoUrl,className:'patient-photo'}):h('div',{className:'patient-photo patient-photo-placeholder'},'SC'),h('div',null,h('h3',null,formalName(selected)),h('small',null,`${selected.patient_id||'—'} · ${selected.admission_type||''} · ${selected.patient_category||''}`),h('div',{className:'patient-header-badges'},h('span',{className:'badge'},selected.is_active===false?'Inactive':'Active'),selected.room_no&&selected.bed_no?h('span',{className:'pill'},`Room ${selected.room_no} · Bed ${selected.bed_no}`):h('span',{className:'pill warning'},'Room not assigned'),selected.special_nurse_required?h('span',{className:'pill warning'},`Special nurse: ${selected.special_nurse_name||'Required'}`):null))),h('div',{className:'employee-actions'},canEdit?h('button',{className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Patient'):h('span',{className:'pill'},'View only'),h('button',{className:'close',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('')}},'×'))),
+        h('div',{className:'panel-head patient-master-header'},h('div',{className:'patient-head',style:{display:'flex',alignItems:'center',gap:'14px',minWidth:0,flex:'1 1 auto'}},photoUrl?h('img',{src:photoUrl,className:'patient-photo',alt:`${formalName(selected)} photo`,style:{width:'92px',height:'108px',maxWidth:'92px',minWidth:'92px',maxHeight:'108px',objectFit:'cover',objectPosition:'center',borderRadius:'16px',border:'1px solid #ead0de',background:'#fff',display:'block',flex:'0 0 92px'}}):h('div',{className:'patient-photo patient-photo-placeholder',style:{width:'92px',height:'108px',maxWidth:'92px',minWidth:'92px',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'16px',flex:'0 0 92px'}},'SC'),h('div',{style:{minWidth:0,flex:'1 1 auto'}},h('h3',null,formalName(selected)),h('small',null,`${selected.patient_id||'—'} · ${selected.admission_type||''} · ${selected.patient_category||''}`),h('div',{className:'patient-header-badges'},h('span',{className:'badge'},selected.is_active===false?'Inactive':'Active'),selected.room_no&&selected.bed_no?h('span',{className:'pill'},`Room ${selected.room_no} · Bed ${selected.bed_no}`):h('span',{className:'pill warning'},'Room not assigned'),selected.special_nurse_required?h('span',{className:'pill warning'},`Special nurse: ${selected.special_nurse_name||'Required'}`):null))),h('div',{className:'employee-actions'},canEdit?h('button',{className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Patient'):h('span',{className:'pill'},'View only'),h('button',{className:'close',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('')}},'×'))),
         h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Documents',details.docs.length),tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),!clinicalView?tabButton('Billing',details.billing.length):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
         h('div',{className:'patient-tab-content'},
           tab==='Overview'&&h('div',{className:'tabs-grid'},

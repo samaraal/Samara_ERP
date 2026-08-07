@@ -1,12 +1,12 @@
-const CACHE = 'samara-erp-2.8.26-confirmed-save-feedback';
+const CACHE = 'samara-erp-2.8.27-patient-photo-fix';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.8.26', './app.js?v=2.8.26',
-  './bootstrap-error.js?v=2.8.26', './health-check.js?v=2.8.26',
-  './config.js?v=2.8.26', './manifest.webmanifest?v=2.8.26',
-  './assets/samara-logo.png?v=2.8.26',
-  './icons/favicon.png?v=2.8.26', './icons/icon-192.png?v=2.8.26',
-  './icons/icon-512.png?v=2.8.26', './icons/icon-maskable-512.png?v=2.8.26',
-  './icons/apple-touch-icon.png?v=2.8.26'
+  './', './index.html', './styles.css?v=2.8.27', './app.js?v=2.8.27',
+  './bootstrap-error.js?v=2.8.27', './health-check.js?v=2.8.27',
+  './config.js?v=2.8.27', './manifest.webmanifest?v=2.8.27',
+  './assets/samara-logo.png?v=2.8.27',
+  './icons/favicon.png?v=2.8.27', './icons/icon-192.png?v=2.8.27',
+  './icons/icon-512.png?v=2.8.27', './icons/icon-maskable-512.png?v=2.8.27',
+  './icons/apple-touch-icon.png?v=2.8.27'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));

@@ -1,34 +1,26 @@
-SAMARA CARE ERP v2.8.26 — CONFIRMED SAVE FEEDBACK
+SAMARA CARE ERP v2.8.27 — PATIENT FILE PHOTO DISPLAY FIX
 
-This update fixes the confirmation issue at the mechanism level.
+Problem corrected:
+- When a patient photograph existed, Patient File was allowing the uploaded image
+  to expand to its natural size and cover the patient information.
+- Patients without a photo displayed correctly.
 
-Why the previous notification could disappear:
-- Several modules refreshed data or navigated immediately after saving.
-- React component notifications could therefore be unmounted before staff saw them.
+Fix:
+- Patient photo is now a controlled portrait thumbnail in the Patient File header.
+- Desktop: 92 x 108 px.
+- Mobile: 72 x 84 px.
+- object-fit: cover keeps the photograph proportional.
+- Patient name, ID, status, tabs and all information remain visible beside/below it.
+- The SC placeholder uses exactly the same dimensions when no photo exists.
 
-What v2.8.26 changes:
-1. The save/failure confirmation is appended directly to document.body.
-2. Its visibility/layout uses INLINE styling — it does not depend on CSS loading or cache.
-3. It uses the maximum practical z-index, above ERP modals and mobile navigation.
-4. Success is GREEN with a large ✓.
-5. Failure is RED with a large !.
-6. It stays for 10 seconds or until staff presses OK.
-7. Mobile vibration feedback is used when supported.
-8. Medication and Vital Signs confirmation occurs immediately after the database save,
-   BEFORE any reload or navigation.
-9. Existing local showToast/notify functions are also connected to the global overlay.
+Upload only:
+1. app.js
+2. index.html
+3. service-worker.js
 
-Patched local showToast helpers: 6
-Patched notify helpers: 1
+No SQL / Supabase change is required.
 
-UPLOAD ONLY:
-- app.js
-- index.html
-- service-worker.js
-
-NO SQL / SUPABASE CHANGE.
-
-TEST:
-Nurse → Meds → save a valid administration.
-A GREEN “Medication saved” panel MUST appear across the TOP of the screen.
-Then intentionally omit a required field — a RED failure panel must appear.
+After deployment:
+- Ctrl + Shift + R on Windows.
+- Reopen the ERP tab once on mobile.
+- Test one patient WITH a photo and one patient WITHOUT a photo.
