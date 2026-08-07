@@ -1,12 +1,12 @@
-const CACHE = 'samara-erp-2.8.7-sidebar-icons-number-spacing';
+const CACHE = 'samara-erp-2.8.22-mobile-polish';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.8.7', './app.js?v=2.8.7',
-  './bootstrap-error.js?v=2.8.7', './health-check.js?v=2.8.7',
-  './config.js?v=2.8.7', './manifest.webmanifest?v=2.8.7',
-  './assets/samara-logo.png?v=2.8.7',
-  './icons/favicon.png?v=2.8.7', './icons/icon-192.png?v=2.8.7',
-  './icons/icon-512.png?v=2.8.7', './icons/icon-maskable-512.png?v=2.8.7',
-  './icons/apple-touch-icon.png?v=2.8.7'
+  './', './index.html', './styles.css?v=2.8.22', './app.js?v=2.8.22',
+  './bootstrap-error.js?v=2.8.22', './health-check.js?v=2.8.22',
+  './config.js?v=2.8.22', './manifest.webmanifest?v=2.8.22',
+  './assets/samara-logo.png?v=2.8.22',
+  './icons/favicon.png?v=2.8.22', './icons/icon-192.png?v=2.8.22',
+  './icons/icon-512.png?v=2.8.22', './icons/icon-maskable-512.png?v=2.8.22',
+  './icons/apple-touch-icon.png?v=2.8.22'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));

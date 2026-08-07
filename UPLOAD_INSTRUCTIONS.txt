@@ -1,0 +1,23 @@
+SAMARA CARE ERP v2.8.22 — iPHONE / ANDROID MOBILE POLISH + CACHE FIX
+
+Upload only:
+- app.js
+- index.html
+- service-worker.js
+
+What this fixes:
+- Restores a proper fixed mobile bottom navigation bar.
+- Adds a full mobile module drawer with Sign Out.
+- Improves iPhone/Android header, search, module selector, cards, forms, tables and modals.
+- Uses 16px form fields on phones to prevent iPhone Safari auto-zoom.
+- Adds safe-area spacing for iPhone notch/home indicator.
+- Updates the ERP shell/cache from old 2.8.7 references to 2.8.22.
+- New service-worker cache name removes stale old-version shell files.
+
+No Supabase SQL change is required.
+
+After GitHub deployment:
+1. Open https://app.samaraassistedliving.com
+2. On iPhone/Android, close any previously installed/old PWA once.
+3. Refresh the browser page.
+4. If an old shell still appears, clear website data once or remove/re-add the Home Screen app.
