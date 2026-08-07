@@ -1,33 +1,24 @@
-SAMARA CARE ERP v2.8.31 — ACCOUNTS PDF / PRINT FIX
+SAMARA CARE ERP v2.8.32 — FULLY ONLINE RECRUITMENT
 
-Problem:
-The Accounts Report PDF was printing the on-screen scrollable table container.
-A PDF cannot be scrolled, so columns/rows outside that box were effectively hidden.
+What changed:
+- Career Application → Create Employee now transfers applicant-entered Employee Master fields 1:1:
+  title, name, guardian, DOB, blood group, mobile, emergency contact, email,
+  ID details, department, designation, qualification, previous workplace,
+  reference details, Current Address and Permanent Address.
+- HR only completes internal employment fields:
+  Employee ID, Date of Joining, ERP Access Scope, Login ID and Temporary Password.
+- Career Application view now displays the full online application and all uploaded documents.
+- On successful Employee creation, the application continues to become
+  "Converted to Employee" and is linked to the employee account.
 
-Fix:
-- Print/PDF uses A4 LANDSCAPE.
-- All report scroll containers become normal expanded content when printing.
-- Tables use full paper width.
-- Long tables automatically continue onto additional PDF pages.
-- Table headers repeat at the top of subsequent pages.
-- Rows are kept together where possible.
-- Text wraps inside cells instead of being clipped.
-- Sidebar, top navigation, buttons and mobile controls are hidden from PDF.
-- Summary cards remain printable above the registers.
+WhatsApp branding:
+- All ERP-prepared WhatsApp messages now include the public Samara logo URL at the top.
+- WhatsApp click-to-chat cannot programmatically attach an image file; including the public logo
+  URL is the reliable universal method and may also produce a WhatsApp link preview.
 
-No SQL / Supabase change.
+INSTALL:
+1. Run 76_online_recruitment_employee_master_alignment.sql ONCE.
+2. Replace only app.js, index.html and service-worker.js.
+3. Ctrl + Shift + R.
 
-UPLOAD ONLY:
-1. app.js
-2. index.html
-3. service-worker.js
-
-After deployment:
-1. Ctrl + Shift + R.
-2. Accounts → Reports.
-3. Apply desired date/payment filters.
-4. Click Print / PDF.
-5. In Chrome print window choose "Save as PDF".
-6. Layout should already be Landscape.
-
-Version: 2.8.31
+Also upload the Website v2.1.0 Careers package separately.

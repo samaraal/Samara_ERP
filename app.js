@@ -112,8 +112,8 @@
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.31';
-  const APP_BUILD_DATE = '08-Aug-2026 Accounts PDF Print Fix';
+  const APP_VERSION = '2.8.32';
+  const APP_BUILD_DATE = '08-Aug-2026 Fully Online Recruitment';
   const APP_SCHEMA_VERSION = '24';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -127,7 +127,7 @@
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
   const h = React.createElement;
-  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.31';
+  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.32';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
     h('img',{src:BRAND_LOGO_SRC,className,alt,decoding:'async'});
@@ -1039,6 +1039,13 @@
   const normalizeLogin = value => value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,'');
   const loginEmail = value => `${normalizeLogin(value)}@${cfg.employeeEmailDomain}`;
   const pad2 = value => String(value).padStart(2,'0');
+  const SAMARA_WHATSAPP_LOGO_URL='https://samaraassistedliving.com/assets/samara-logo.png';
+  const brandWhatsAppText = text => {
+    const raw=String(text||'').trim();
+    if(raw.includes(SAMARA_WHATSAPP_LOGO_URL))return raw;
+    return `SAMARA ASSISTED LIVING\n${SAMARA_WHATSAPP_LOGO_URL}\n\n${raw}`;
+  };
+
   const formatDateIN = value => {
     if(!value)return '—';
     const raw=String(value).trim();
@@ -1532,7 +1539,7 @@ We wish you a successful, fulfilling and rewarding journey with us. All the very
 
 Samara Health Care LLP
 Caring with Compassion. Living with Dignity.`;
-    return `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
+    return `https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(text))}`;
   };
 
 
@@ -4138,27 +4145,96 @@ Caring with Compassion. Living with Dignity.`;
       const phone=String(row.whatsapp||row.mobile||'').replace(/\D/g,'').slice(-10);if(!phone)return '#';
       const interview=row.interview_at?`\nInterview: ${fmt(row.interview_at)}${row.interview_venue?`\nVenue: ${row.interview_venue}`:''}`:'';
       const text=`Dear ${row.applicant_name},\n\nGreetings from Samara Assisted Living. Your application ${row.application_id} for ${row.designation} is currently marked as: ${row.status}.${interview}\n\nRegards,\nSamara HR`;
-      return `https://wa.me/91${phone}?text=${encodeURIComponent(text)}`;
+      return `https://wa.me/91${phone}?text=${encodeURIComponent(brandWhatsAppText(text))}`;
     }
     function convert(row){
-      const seed={application_id:row.application_id,career_application_id:row.id,full_name:row.applicant_name,mobile:row.mobile,employee_email:row.email,date_of_birth:row.date_of_birth||'',address:[row.address,row.city,row.state,row.pincode].filter(Boolean).join(', '),department:row.department,designation:row.designation,qualification:row.qualification,previous_workplace:row.current_employer||'',role:row.department==='Nursing'?'Nurse':row.department==='Caregiving'?'Caregiver':row.department==='Accounts & Finance'?'Accounts':row.department==='Food & Kitchen'?'Kitchen':'Caregiver'};
-      localStorage.setItem('samara_hr_employee_seed',JSON.stringify(seed));onNavigate('Employees');
+      const seed={
+        application_id:row.application_id,
+        career_application_id:row.id,
+        title:row.title||'',
+        full_name:row.applicant_name||'',
+        mobile:row.mobile||'',
+        emergency_contact:row.emergency_contact||'',
+        employee_email:row.email||'',
+        father_guardian_name:row.father_guardian_name||'',
+        date_of_birth:row.date_of_birth||'',
+        blood_group:row.blood_group||'',
+        id_card_type:row.id_card_type||'Aadhaar',
+        id_card_number:row.id_card_number||'',
+        qualification:row.qualification||'',
+        previous_workplace:row.previous_workplace||row.current_employer||'',
+        reference_type:row.reference_type||'Direct',
+        reference_name:row.reference_name||'',
+        reference_contact:row.reference_contact||'',
+        department:row.department||'',
+        designation:row.designation||'',
+        current_address:row.current_address||'',
+        current_state:row.current_state||row.state||'Tamil Nadu',
+        current_district:row.current_district||'',
+        current_taluk:row.current_taluk||'',
+        current_village_town:row.current_village_town||row.city||'',
+        current_locality_area:row.current_locality_area||'',
+        current_street_name:row.current_street_name||'',
+        current_house_no:row.current_house_no||'',
+        current_apartment_name:row.current_apartment_name||'',
+        current_flat_no:row.current_flat_no||'',
+        current_landmark:row.current_landmark||'',
+        current_pincode:row.current_pincode||row.pincode||'',
+        permanent_same_as_current:!!row.permanent_same_as_current,
+        permanent_address:row.permanent_address||'',
+        permanent_state:row.permanent_state||'Tamil Nadu',
+        permanent_district:row.permanent_district||'',
+        permanent_taluk:row.permanent_taluk||'',
+        permanent_village_town:row.permanent_village_town||'',
+        permanent_locality_area:row.permanent_locality_area||'',
+        permanent_street_name:row.permanent_street_name||'',
+        permanent_house_no:row.permanent_house_no||'',
+        permanent_apartment_name:row.permanent_apartment_name||'',
+        permanent_flat_no:row.permanent_flat_no||'',
+        permanent_landmark:row.permanent_landmark||'',
+        permanent_pincode:row.permanent_pincode||'',
+        // HR assigns Employee ID, Date of Joining, ERP Access Scope, Login ID and Password.
+        role:row.department==='Nursing'?'Nurse':
+             row.department==='Caregiving'?'Caregiver':
+             row.department==='Accounts & Finance'?'Accounts':
+             row.department==='Food & Kitchen'?'Kitchen':'Caregiver'
+      };
+      localStorage.setItem('samara_hr_employee_seed',JSON.stringify(seed));
+      onNavigate('Employees');
     }
     const table=h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Application ID','Applicant','Department','Designation','Mobile','Status','Received','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,rows.map(r=>h('tr',{key:r.id},h('td',null,r.application_id),h('td',null,r.applicant_name),h('td',null,r.department),h('td',null,r.designation),h('td',null,r.mobile),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)),h('td',null,h('button',{className:'btn btn-primary',onClick:()=>open(r)},'View / Respond')))),rows.length===0?h('tr',null,h('td',{colSpan:9,className:'empty'},'No career applications received yet.')):null)));
     const modal=selected&&edit?h('div',{className:'modal-backdrop'},h('div',{className:'card modal employee-modal'},
       h('div',{className:'panel-head'},h('div',null,h('h3',null,selected.applicant_name),h('small',null,`${selected.application_id} · ${selected.department} · ${selected.designation}`)),h('button',{className:'close',onClick:()=>{setSelected(null);setEdit(null);setMsg('')}},'×')),
       msg?h('div',{className:`message ${msg.includes('successfully')?'success':'error'}`},msg):null,
       h('div',{className:'modal-grid'},
+        h('div',{className:'field'},h('label',null,'Title / Applicant'),h('div',null,[selected.title,selected.applicant_name].filter(Boolean).join(' ')||'—')),
+        h('div',{className:'field'},h('label',null,'Father / Guardian'),h('div',null,selected.father_guardian_name||'—')),
+        h('div',{className:'field'},h('label',null,'Date of Birth'),h('div',null,formatDateIN(selected.date_of_birth))),
+        h('div',{className:'field'},h('label',null,'Blood Group'),h('div',null,selected.blood_group||'—')),
         h('div',{className:'field'},h('label',null,'Mobile'),h('div',null,selected.mobile||'—')),
+        h('div',{className:'field'},h('label',null,'Emergency Contact'),h('div',null,selected.emergency_contact||'—')),
         h('div',{className:'field'},h('label',null,'Email'),h('div',null,selected.email||'—')),
+        h('div',{className:'field'},h('label',null,'Identity'),h('div',null,[selected.id_card_type,selected.id_card_number].filter(Boolean).join(' · ')||'—')),
         h('div',{className:'field'},h('label',null,'Qualification'),h('div',null,selected.qualification||'—')),
+        h('div',{className:'field'},h('label',null,'Previous Working Place'),h('div',null,selected.previous_workplace||selected.current_employer||'—')),
+        h('div',{className:'field'},h('label',null,'Joining Source'),h('div',null,selected.reference_type||'Direct')),
+        h('div',{className:'field'},h('label',null,'Reference'),h('div',null,[selected.reference_name,selected.reference_contact].filter(Boolean).join(' · ')||'—')),
+        h('div',{className:'field span-2'},h('label',null,'Current Residential Address'),h('div',null,selected.current_address||[selected.current_flat_no,selected.current_apartment_name,selected.current_house_no,selected.current_street_name,selected.current_locality_area,selected.current_village_town,selected.current_taluk,selected.current_district,selected.current_state,selected.current_pincode].filter(Boolean).join(', ')||selected.address||'—')),
+        h('div',{className:'field span-2'},h('label',null,'Permanent Residential Address'),h('div',null,selected.permanent_same_as_current?'Same as Current Address':(selected.permanent_address||[selected.permanent_flat_no,selected.permanent_apartment_name,selected.permanent_house_no,selected.permanent_street_name,selected.permanent_locality_area,selected.permanent_village_town,selected.permanent_taluk,selected.permanent_district,selected.permanent_state,selected.permanent_pincode].filter(Boolean).join(', ')||'—'))),
         h('div',{className:'field'},h('label',null,'Experience'),h('div',null,selected.experience||'—')),
-        h('div',{className:'field'},h('label',null,'Current / Previous Employer'),h('div',null,selected.current_employer||'—')),
         h('div',{className:'field'},h('label',null,'Preferred Shift'),h('div',null,selected.preferred_shift||'—')),
-        h('div',{className:'field span-2'},h('label',null,'Address'),h('div',null,[selected.address,selected.city,selected.state,selected.pincode].filter(Boolean).join(', ')||'—')),
+        h('div',{className:'field'},h('label',null,'Current Salary'),h('div',null,selected.current_salary||'—')),
+        h('div',{className:'field'},h('label',null,'Expected Salary'),h('div',null,selected.expected_salary||'—')),
         h('div',{className:'field span-2'},h('label',null,'Skills'),h('div',null,(selected.skills||[]).join(', ')||'—')),
         h('div',{className:'field span-2'},h('label',null,'Additional Information'),h('div',null,selected.additional_information||'—')),
-        h('div',{className:'field span-2'},h('label',null,'Documents'),h('div',{className:'employee-actions'},selected.resume_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.resume_path)},'Open Resume / CV'):null,selected.photo_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.photo_path)},'Open Photo'):null,selected.certificate_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.certificate_path)},'Open Certificate'):null,selected.identity_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.identity_path)},'Open Identity Proof'):null)),
+        h('div',{className:'field span-2'},h('label',null,'Documents'),h('div',{className:'employee-actions'},
+          selected.resume_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.resume_path)},'Open Resume / CV'):null,
+          selected.photo_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.photo_path)},'Open Employee Photo'):null,
+          (selected.qualification_certificate_path||selected.certificate_path)?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.qualification_certificate_path||selected.certificate_path)},'Open Qualification Certificate'):null,
+          selected.experience_certificate_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.experience_certificate_path)},'Open Experience Certificate'):null,
+          selected.other_certificate_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.other_certificate_path)},'Open Other Certificate'):null,
+          selected.identity_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.identity_path)},'Open Identity Proof'):null
+        )),
         h('div',{className:'field'},h('label',null,'Application Status'),h('select',{value:edit.status||'New',onChange:e=>setEdit({...edit,status:e.target.value})},HR_APPLICATION_STATUSES.map(x=>h('option',{key:x},x)))),
         h('div',{className:'field'},h('label',null,'Interview Date & Time'),h('input',{type:'datetime-local',value:edit.interview_at?new Date(edit.interview_at).toISOString().slice(0,16):'',onChange:e=>setEdit({...edit,interview_at:e.target.value?new Date(e.target.value).toISOString():null,status:e.target.value?'Interview Scheduled':edit.status})})),
         h('div',{className:'field'},h('label',null,'Interview Mode'),h('select',{value:edit.interview_mode||'',onChange:e=>setEdit({...edit,interview_mode:e.target.value})},['','In Person','Phone','Video'].map(x=>h('option',{key:x,value:x},x||'Select mode')))),
@@ -4166,9 +4242,9 @@ Caring with Compassion. Living with Dignity.`;
         h('div',{className:'field span-2'},h('label',null,'HR Remarks'),h('textarea',{rows:3,value:edit.hr_remarks||'',onChange:e=>setEdit({...edit,hr_remarks:e.target.value})})),
         h('div',{className:'field span-2'},h('label',null,'Interview Result / Notes'),h('textarea',{rows:3,value:edit.interview_result||'',onChange:e=>setEdit({...edit,interview_result:e.target.value})}))
       ),
-      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('a',{className:'btn btn-whatsapp',href:whatsappCandidate(edit),target:'_blank',rel:'noopener'},'Respond by WhatsApp'),['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Convert to Employee'):null)
+      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('a',{className:'btn btn-whatsapp',href:whatsappCandidate(edit),target:'_blank',rel:'noopener'},'Respond by WhatsApp'),['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null)
     )):null;
-    return h(React.Fragment,null,h(Section,{title:'Career Applications',subtitle:'Applications submitted through samaraassistedliving.com Careers'},table),modal);
+    return h(React.Fragment,null,h(Section,{title:'Career Applications',subtitle:'Online-only applications submitted through samaraassistedliving.com Careers'},table),modal);
   }
 
   function HRInterviews({profile,onNavigate}){
@@ -4234,7 +4310,7 @@ Caring with Compassion. Living with Dignity.`;
         setForm(current=>({...current,...seed,password:'',login_id:''}));
         setSourceCareerId(seed.career_application_id||'');
         setShow(true);
-        setMsg('Selected career applicant loaded into Employee Master. Complete the remaining mandatory fields and create the employee account.');
+        setMsg('Online career application loaded into Employee Master. Applicant-entered fields are prefilled. HR only needs to verify them and complete Employee ID, Date of Joining, ERP Access Scope, Login ID and Temporary Password.');
         localStorage.removeItem('samara_hr_employee_seed');
       }catch(error){console.warn('Unable to load career applicant into Employee Master',error)}
     },[]);
@@ -6622,7 +6698,7 @@ Caring with Compassion. Living with Dignity.`;
           h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:familyAccess.email,onChange:e=>setFamilyAccess({...familyAccess,email:e.target.value})})),
           h('label',{className:'check-card span-2'},h('input',{type:'checkbox',checked:!!familyAccess.primary_contact,onChange:e=>setFamilyAccess({...familyAccess,primary_contact:e.target.checked})}),h('span',null,'Primary Family Contact'))
         ),
-        familyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},h('strong',null,'Family Portal login created'),h('div',null,`Resident ID: ${familyCredential.patient_id||'—'} · Temporary PIN: ${familyCredential.pin}`),h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${familyCredential.mobile}?text=${encodeURIComponent(`Welcome to Samara Assisted Living Family Portal.\nResident ID: ${familyCredential.patient_id||''}\nTemporary PIN: ${familyCredential.pin}\nPortal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send Login by WhatsApp'))
+        familyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},h('strong',null,'Family Portal login created'),h('div',null,`Resident ID: ${familyCredential.patient_id||'—'} · Temporary PIN: ${familyCredential.pin}`),h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${familyCredential.mobile}?text=${encodeURIComponent(brandWhatsAppText(`Welcome to Samara Assisted Living Family Portal.\nResident ID: ${familyCredential.patient_id||''}\nTemporary PIN: ${familyCredential.pin}\nPortal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send Login by WhatsApp'))
       ),
       h('div',{className:'section-card'},
         h('h4',null,needsHospital?'2. Previous hospital / centre and current care details':'2. Current care requirement and medical details'),
@@ -8367,14 +8443,14 @@ Caring with Compassion. Living with Dignity.`;
                 ),
                 access.is_active&&h('div',{className:'actions',style:{marginTop:'10px'}},
                   h('button',{type:'button',className:'btn btn-secondary',disabled:familyResetBusy===access.id,onClick:()=>resetSelectedFamilyPin(access)},familyResetBusy===access.id?'Resetting…':'Forgot / Reset PIN'),
-                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${String(access.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(`Samara Family Portal\nResident ID: ${selected?.patient_id||''}\nPortal: https://family.samaraassistedliving.com\nIf the PIN is forgotten, please contact Samara to reset it.`)}`,'_blank','noopener')},'Send Resident ID & Portal by WhatsApp')
+                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${String(access.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal\nResident ID: ${selected?.patient_id||''}\nPortal: https://family.samaraassistedliving.com\nIf the PIN is forgotten, please contact Samara to reset it.`))}`,'_blank','noopener')},'Send Resident ID & Portal by WhatsApp')
                 )
               )))
               :h('div',null,sectionEmpty('Family Portal access has not been created for this resident.'),h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEditPatient(selected)},'Create Family Portal Access')),
             familyResetCredential&&h('div',{className:'message success',style:{marginTop:'14px'}},
               h('strong',null,'New Family Portal PIN generated'),
               h('div',null,`Resident ID: ${selected?.patient_id||'—'} · Temporary PIN: ${familyResetCredential.pin}`),
-              h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${familyResetCredential.mobile}?text=${encodeURIComponent(`Samara Family Portal login\nResident ID: ${selected?.patient_id||''}\nTemporary PIN: ${familyResetCredential.pin}\nPortal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send New PIN by WhatsApp')
+              h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${familyResetCredential.mobile}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal login\nResident ID: ${selected?.patient_id||''}\nTemporary PIN: ${familyResetCredential.pin}\nPortal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send New PIN by WhatsApp')
             )
           )
         )
@@ -8443,7 +8519,7 @@ Caring with Compassion. Living with Dignity.`;
             h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:editFamilyAccess.email||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,email:e.target.value})})),
             h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!editFamilyAccess.primary_contact,onChange:e=>setEditFamilyAccess({...editFamilyAccess,primary_contact:e.target.checked})}),h('span',null,'Primary Family Contact'))
           ),
-          editFamilyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},h('strong',null,'Family Portal PIN generated'),h('div',null,`Resident ID: ${editTarget?.patient_id||'—'} · Temporary PIN: ${editFamilyCredential.pin}`),h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${editFamilyCredential.mobile}?text=${encodeURIComponent(`Samara Family Portal login\nResident ID: ${editTarget?.patient_id||''}\nTemporary PIN: ${editFamilyCredential.pin}\nPortal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send Login by WhatsApp'))
+          editFamilyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},h('strong',null,'Family Portal PIN generated'),h('div',null,`Resident ID: ${editTarget?.patient_id||'—'} · Temporary PIN: ${editFamilyCredential.pin}`),h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${editFamilyCredential.mobile}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal login\nResident ID: ${editTarget?.patient_id||''}\nTemporary PIN: ${editFamilyCredential.pin}\nPortal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send Login by WhatsApp'))
         ),
         h('div',{className:'section-card'},h('div',{className:'section-title'},h('div',null,h('h4',null,'3. Current and Upcoming Medicines'),h('small',null,'Only active medicines that are current or scheduled for the future are displayed. Expired and replaced prescriptions remain preserved in history.')),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setEditMeds([...editMeds,blankMedicine()])},'Add medicine')),
           editMeds.length?editMeds.map((m,i)=>h('div',{className:'repeat-row medicine-order-row',key:m.id||i},miniInput('Medicine',m.medicine_name,v=>updateEditMed(i,'medicine_name',v),true),miniInput('Strength',m.strength,v=>updateEditMed(i,'strength',v),true),miniSelect('Frequency',m.frequency,['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'],v=>setEditMeds(editMeds.map((row,n)=>n===i?{...row,frequency:v,times:(MEDICATION_FREQUENCY_TIMES[v]||String(row.times||'').split(',').map(normalizeMedicationTime).filter(Boolean)).join(', ')}:row))),miniSelect('Route',m.route,['Oral','IV','IM'],v=>updateEditMed(i,'route',v)),h(MedicationTimeSelector,{label:'Time',value:m.times,onChange:v=>updateEditMed(i,'times',v),required:true}),miniSelect('Food',m.food_instruction,['Before food','After food','With food','No restriction'],v=>updateEditMed(i,'food_instruction',v)),miniSelect('Duration',m.duration,['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','30 Days','Until Doctor Review','Long Term','Custom'],v=>updateEditMed(i,'duration',v)),m.duration==='Custom'&&miniInput('Custom days',m.custom_duration_days,v=>updateEditMed(i,'custom_duration_days',v),true,'number'),miniInput('Start date',m.start_date,v=>updateEditMed(i,'start_date',v),true,'date'),miniInput('Special instruction',m.special_instruction,v=>updateEditMed(i,'special_instruction',v)),h('button',{type:'button',className:'icon-btn',onClick:()=>setEditMeds(editMeds.filter((_,n)=>n!==i))},'Remove'))):h('p',{className:'small-note'},'No current or upcoming medicine is recorded. Use Add medicine to create one.')),
@@ -14166,7 +14242,7 @@ function ShiftHandover({profile,onNavigate}){
     }
     setShareBusy(true);
     for(const item of prepared){
-      window.open(`https://wa.me/${item.number}?text=${encodeURIComponent(item.text)}`,'_blank','noopener');
+      window.open(`https://wa.me/${item.number}?text=${encodeURIComponent(brandWhatsAppText(item.text))}`,'_blank','noopener');
       await recordCommunication(p,item.type,item.number,item.text);
     }
     setShareBusy(false);setShareOpen(false);loadCommunicationHistory();
