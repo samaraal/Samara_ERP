@@ -4762,7 +4762,7 @@ Caring with Compassion. Living with Dignity.`;
       const pin=String(Math.floor(100000+Math.random()*900000));
       const {data,error}=await client.rpc('upsert_family_portal_access',{p_patient_id:patient.id,p_relative_name:String(familyAccess.relative_name).trim(),p_relationship:String(familyAccess.relationship).trim(),p_mobile:mobile,p_email:String(familyAccess.email||'').trim()||null,p_primary_contact:!!familyAccess.primary_contact,p_pin:pin,p_access_id:null});
       if(error)throw error;
-      const credential={...(Array.isArray(data)?data[0]:data),pin,mobile};
+      const credential={...(Array.isArray(data)?data[0]:data),pin,mobile,patient_id:patient.patient_id||patient.patient_code||''};
       setFamilyCredential(credential);
       return credential;
     }
@@ -5120,7 +5120,7 @@ Caring with Compassion. Living with Dignity.`;
           h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:familyAccess.email,onChange:e=>setFamilyAccess({...familyAccess,email:e.target.value})})),
           h('label',{className:'check-card span-2'},h('input',{type:'checkbox',checked:!!familyAccess.primary_contact,onChange:e=>setFamilyAccess({...familyAccess,primary_contact:e.target.checked})}),h('span',null,'Primary Family Contact'))
         ),
-        familyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},h('strong',null,'Family Portal login created'),h('div',null,`User ID: ${familyCredential.family_user_id||'—'} · Mobile: ${familyCredential.mobile} · Temporary PIN: ${familyCredential.pin}`),h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${familyCredential.mobile}?text=${encodeURIComponent(`Welcome to Samara Assisted Living Family Portal.\nUser ID: ${familyCredential.family_user_id||''}\nTemporary PIN: ${familyCredential.pin}\nPortal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send Login by WhatsApp'))
+        familyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},h('strong',null,'Family Portal login created'),h('div',null,`Patient ID: ${familyCredential.patient_id||'—'} · Temporary PIN: ${familyCredential.pin}`),h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${familyCredential.mobile}?text=${encodeURIComponent(`Welcome to Samara Assisted Living Family Portal.\nPatient ID: ${familyCredential.patient_id||''}\nTemporary PIN: ${familyCredential.pin}\nPortal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send Login by WhatsApp'))
       ),
       h('div',{className:'section-card'},
         h('h4',null,needsHospital?'2. Previous hospital / centre and current care details':'2. Current care requirement and medical details'),
@@ -6056,7 +6056,7 @@ Caring with Compassion. Living with Dignity.`;
         }
       }catch(orderError){const text=`Patient details saved, but medicines or care plan could not be updated: ${orderError.message}`;setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
       const successText=familySaveResult?.pin
-        ?`Patient information updated successfully. Family Portal login created — User ID: ${familySaveResult.family_user_id||editFamilyAccess.family_user_id||'—'} · Temporary PIN: ${familySaveResult.pin}.`
+        ?`Patient information updated successfully. Family Portal login created — Patient ID: ${editTarget?.patient_id||'—'} · Temporary PIN: ${familySaveResult.pin}.`
         :familySaveResult?.disabled
           ?'Patient information updated successfully. Family Portal access is disabled.'
           :editFamilyAccess.enabled
@@ -6864,20 +6864,14 @@ Caring with Compassion. Living with Dignity.`;
                 ),
                 access.is_active&&h('div',{className:'actions',style:{marginTop:'10px'}},
                   h('button',{type:'button',className:'btn btn-secondary',disabled:familyResetBusy===access.id,onClick:()=>resetSelectedFamilyPin(access)},familyResetBusy===access.id?'Resetting…':'Forgot / Reset PIN'),
-                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${String(access.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(`Samara Family Portal
-User ID: ${access.family_user_id||''}
-Portal: https://family.samaraassistedliving.com
-If the PIN is forgotten, please contact Samara to reset it.`)}`,'_blank','noopener')},'Send User ID by WhatsApp')
+                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${String(access.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(`Samara Family Portal\nPatient ID: ${selected?.patient_id||''}\nPortal: https://family.samaraassistedliving.com\nIf the PIN is forgotten, please contact Samara to reset it.`)}`,'_blank','noopener')},'Send Login Details by WhatsApp')
                 )
               )))
               :h('div',null,sectionEmpty('Family Portal access has not been created for this resident.'),h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEditPatient(selected)},'Create Family Portal Access')),
             familyResetCredential&&h('div',{className:'message success',style:{marginTop:'14px'}},
               h('strong',null,'New Family Portal PIN generated'),
-              h('div',null,`User ID: ${familyResetCredential.family_user_id||'—'} · Mobile: ${familyResetCredential.mobile||'—'} · Temporary PIN: ${familyResetCredential.pin}`),
-              h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${familyResetCredential.mobile}?text=${encodeURIComponent(`Samara Family Portal login
-User ID: ${familyResetCredential.family_user_id||''}
-Temporary PIN: ${familyResetCredential.pin}
-Portal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send New PIN by WhatsApp')
+              h('div',null,`Patient ID: ${selected?.patient_id||'—'} · Temporary PIN: ${familyResetCredential.pin}`),
+              h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${familyResetCredential.mobile}?text=${encodeURIComponent(`Samara Family Portal login\nPatient ID: ${selected?.patient_id||''}\nTemporary PIN: ${familyResetCredential.pin}\nPortal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send New PIN by WhatsApp')
             )
           )
         )
@@ -6946,7 +6940,7 @@ Portal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send 
             h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:editFamilyAccess.email||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,email:e.target.value})})),
             h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!editFamilyAccess.primary_contact,onChange:e=>setEditFamilyAccess({...editFamilyAccess,primary_contact:e.target.checked})}),h('span',null,'Primary Family Contact'))
           ),
-          editFamilyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},h('strong',null,'Family Portal PIN generated'),h('div',null,`User ID: ${editFamilyCredential.family_user_id||editFamilyAccess.family_user_id||'—'} · Mobile: ${editFamilyCredential.mobile} · Temporary PIN: ${editFamilyCredential.pin}`),h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${editFamilyCredential.mobile}?text=${encodeURIComponent(`Samara Family Portal login\nUser ID: ${editFamilyCredential.family_user_id||editFamilyAccess.family_user_id||''}\nTemporary PIN: ${editFamilyCredential.pin}\nPortal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send Login by WhatsApp'))
+          editFamilyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},h('strong',null,'Family Portal PIN generated'),h('div',null,`Patient ID: ${editTarget?.patient_id||'—'} · Temporary PIN: ${editFamilyCredential.pin}`),h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${editFamilyCredential.mobile}?text=${encodeURIComponent(`Samara Family Portal login\nPatient ID: ${editTarget?.patient_id||''}\nTemporary PIN: ${editFamilyCredential.pin}\nPortal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send Login by WhatsApp'))
         ),
         h('div',{className:'section-card'},h('div',{className:'section-title'},h('div',null,h('h4',null,'3. Current and Upcoming Medicines'),h('small',null,'Only active medicines that are current or scheduled for the future are displayed. Expired and replaced prescriptions remain preserved in history.')),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setEditMeds([...editMeds,blankMedicine()])},'Add medicine')),
           editMeds.length?editMeds.map((m,i)=>h('div',{className:'repeat-row medicine-order-row',key:m.id||i},miniInput('Medicine',m.medicine_name,v=>updateEditMed(i,'medicine_name',v),true),miniInput('Strength',m.strength,v=>updateEditMed(i,'strength',v),true),miniSelect('Frequency',m.frequency,['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'],v=>setEditMeds(editMeds.map((row,n)=>n===i?{...row,frequency:v,times:(MEDICATION_FREQUENCY_TIMES[v]||String(row.times||'').split(',').map(normalizeMedicationTime).filter(Boolean)).join(', ')}:row))),miniSelect('Route',m.route,['Oral','IV','IM'],v=>updateEditMed(i,'route',v)),h(MedicationTimeSelector,{label:'Time',value:m.times,onChange:v=>updateEditMed(i,'times',v),required:true}),miniSelect('Food',m.food_instruction,['Before food','After food','With food','No restriction'],v=>updateEditMed(i,'food_instruction',v)),miniSelect('Duration',m.duration,['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','30 Days','Until Doctor Review','Long Term','Custom'],v=>updateEditMed(i,'duration',v)),m.duration==='Custom'&&miniInput('Custom days',m.custom_duration_days,v=>updateEditMed(i,'custom_duration_days',v),true,'number'),miniInput('Start date',m.start_date,v=>updateEditMed(i,'start_date',v),true,'date'),miniInput('Special instruction',m.special_instruction,v=>updateEditMed(i,'special_instruction',v)),h('button',{type:'button',className:'icon-btn',onClick:()=>setEditMeds(editMeds.filter((_,n)=>n!==i))},'Remove'))):h('p',{className:'small-note'},'No current or upcoming medicine is recorded. Use Add medicine to create one.')),
