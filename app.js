@@ -70,8 +70,8 @@
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.25';
-  const APP_BUILD_DATE = '08-Aug-2026 Guaranteed Save Confirmation';
+  const APP_VERSION = '2.8.26';
+  const APP_BUILD_DATE = '08-Aug-2026 Confirmed Save Feedback';
   const APP_SCHEMA_VERSION = '24';
   window.APP_VERSION = APP_VERSION;
   window.SAMARA_BUILD = Object.freeze({
@@ -81,7 +81,7 @@
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
   const h = React.createElement;
-  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.25';
+  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.26';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
     h('img',{src:BRAND_LOGO_SRC,className,alt,decoding:'async'});
@@ -1135,40 +1135,98 @@
     try{
       document.querySelectorAll('.samara-save-confirmation').forEach(node=>node.remove());
 
+      const success=type!=='error';
       const overlay=document.createElement('div');
-      overlay.className=`samara-save-confirmation ${type==='error'?'error':'success'}`;
-      overlay.setAttribute('role',type==='error'?'alert':'status');
-      overlay.setAttribute('aria-live',type==='error'?'assertive':'polite');
+      overlay.className=`samara-save-confirmation ${success?'success':'error'}`;
+      overlay.setAttribute('role',success?'status':'alert');
+      overlay.setAttribute('aria-live',success?'polite':'assertive');
+
+      // INLINE layout is deliberate: confirmation must remain visible even if
+      // an old stylesheet, browser cache or React re-render is present.
+      Object.assign(overlay.style,{
+        position:'fixed',
+        left:'0',right:'0',top:'0',
+        zIndex:'2147483647',
+        display:'flex',
+        justifyContent:'center',
+        alignItems:'flex-start',
+        padding:'max(12px, env(safe-area-inset-top)) 10px 10px',
+        pointerEvents:'none'
+      });
 
       const card=document.createElement('div');
-      card.className='samara-save-confirmation-card';
+      Object.assign(card.style,{
+        width:'min(560px, calc(100vw - 20px))',
+        boxSizing:'border-box',
+        display:'grid',
+        gridTemplateColumns:'46px minmax(0,1fr) 54px',
+        alignItems:'center',
+        gap:'11px',
+        minHeight:'92px',
+        padding:'14px',
+        borderRadius:'17px',
+        background:success
+          ?'linear-gradient(110deg,#087343,#11945a,#22a868)'
+          :'linear-gradient(110deg,#a7192b,#c9293c,#df4050)',
+        color:'#ffffff',
+        border:'2px solid rgba(255,255,255,.50)',
+        boxShadow:'0 18px 48px rgba(0,0,0,.30)',
+        pointerEvents:'auto',
+        fontFamily:"Inter, system-ui, -apple-system, 'Segoe UI', sans-serif"
+      });
 
       const icon=document.createElement('div');
-      icon.className='samara-save-confirmation-icon';
-      icon.textContent=type==='error'?'!':'✓';
+      icon.textContent=success?'✓':'!';
+      Object.assign(icon.style,{
+        width:'44px',height:'44px',
+        display:'flex',alignItems:'center',justifyContent:'center',
+        borderRadius:'50%',
+        background:'rgba(255,255,255,.20)',
+        color:'#fff',
+        fontSize:'27px',
+        fontWeight:'900'
+      });
 
       const copy=document.createElement('div');
-      copy.className='samara-save-confirmation-copy';
+      Object.assign(copy.style,{display:'grid',gap:'4px',minWidth:'0'});
       const strong=document.createElement('strong');
-      strong.textContent=title||(type==='error'?'Unable to save':'Saved successfully');
+      strong.textContent=title||(success?'Saved successfully':'Unable to save');
+      Object.assign(strong.style,{color:'#fff',fontSize:'17px',lineHeight:'1.15',fontWeight:'900'});
       const span=document.createElement('span');
-      span.textContent=text||(type==='error'?'Please check the entry and try again.':'Your entry has been saved successfully.');
+      span.textContent=text||(success?'Your entry has been saved successfully.':'Please check the entry and try again.');
+      Object.assign(span.style,{color:'#fff',fontSize:'13px',lineHeight:'1.35',fontWeight:'600'});
       copy.append(strong,span);
 
       const ok=document.createElement('button');
       ok.type='button';
       ok.textContent='OK';
+      Object.assign(ok.style,{
+        minWidth:'50px',minHeight:'42px',
+        padding:'7px 9px',
+        border:'1px solid rgba(255,255,255,.60)',
+        borderRadius:'11px',
+        background:'rgba(255,255,255,.16)',
+        color:'#fff',
+        fontSize:'14px',
+        fontWeight:'900',
+        cursor:'pointer'
+      });
       ok.addEventListener('click',()=>overlay.remove());
 
       card.append(icon,copy,ok);
       overlay.appendChild(card);
       document.body.appendChild(overlay);
 
-      // Deliberately stays visible long enough for bedside staff to notice.
-      // It can always be dismissed immediately with OK.
-      window.setTimeout(()=>{ if(overlay.isConnected) overlay.remove(); },8000);
+      try{
+        if(navigator.vibrate)navigator.vibrate(success?[80]:[100,60,100]);
+      }catch(_){}
+
+      // Staff must have time to notice it. They may dismiss immediately with OK.
+      window.setTimeout(()=>{if(overlay.isConnected)overlay.remove();},10000);
     }catch(error){
-      console.warn('Save confirmation could not be displayed.',error);
+      console.error('Save confirmation display failed:',error);
+      // Last-resort feedback if the DOM notification itself cannot be built.
+      try{window.alert(`${title||'Samara Care ERP'}\n${text||''}`)}catch(_){}
     }
   };
 
@@ -9470,6 +9528,7 @@ function RoomsBeds({profile}){
     },[]);
 
     function showToast(type,text){
+      showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
       setToast({type,text});
       setTimeout(()=>setToast(null),4500);
     }
@@ -9889,6 +9948,7 @@ function RoomsBeds({profile}){
     const toastTimer=React.useRef(null);
 
     function showToast(type,text){
+      showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
       clearTimeout(toastTimer.current);
       setToast({type,text});
       toastTimer.current=setTimeout(()=>setToast(null),4500);
@@ -9956,7 +10016,7 @@ function RoomsBeds({profile}){
         return;
       }
 
-      showToast('success',`${normaliseDailyCareActivity(form.care_type)} recorded successfully for the selected patient.`);
+      showSamaraActionToast('success','Daily care saved',`${normaliseDailyCareActivity(form.care_type)} recorded successfully for the selected patient.`);showToast('success',`${normaliseDailyCareActivity(form.care_type)} recorded successfully for the selected patient.`);
       setForm(current=>({...current,care_order_id:'',remarks:''}));
       await load();
 
@@ -10042,7 +10102,7 @@ function RoomsBeds({profile}){
       setReturnPage(context.return_page||'');
       clearTaskNavigationContext();
     },[]);
-    async function save(e){e.preventDefault();const sugarType=form.blood_sugar_type||'Not Taken';const sugarValue=sugarType==='Not Taken'?null:num(form.blood_sugar);if(sugarType!=='Not Taken'&&sugarValue===null){showSamaraActionToast('error','Cannot save vital signs','Please enter the blood sugar value for the selected test type.');return;}const payload={...form,temperature:num(form.temperature),systolic:num(form.systolic),diastolic:num(form.diastolic),pulse:num(form.pulse),respiration:num(form.respiration),spo2:num(form.spo2),blood_sugar_type:sugarType,blood_sugar:sugarValue,weight:num(form.weight),pain_score:form.pain_score===''?null:Number(form.pain_score),recorded_at:new Date().toISOString(),recorded_by:profile.id};const level=calculateLevel(payload);if(level==='Not Recorded'){showSamaraActionToast('error','Cannot save vital signs','Please enter at least one actual vital-sign measurement before saving.');return;}payload.alert_level=level;const {error}=await client.from('vital_signs').insert(payload);if(error){showSamaraActionToast('error','Vital signs save failed',error.message||'Unable to save vital signs.');return;}setSelectedPatient(form.patient_id);setForm({...form,temperature:'',systolic:'',diastolic:'',pulse:'',respiration:'',spo2:'',blood_sugar_type:'Not Taken',blood_sugar:'',weight:'',pain_score:'',remarks:''});await load();showSamaraActionToast('success','Vital signs saved','The vital-sign entry has been saved successfully.');finishSuccessfulAction({returnPage,onNavigate})}
+    async function save(e){e.preventDefault();const sugarType=form.blood_sugar_type||'Not Taken';const sugarValue=sugarType==='Not Taken'?null:num(form.blood_sugar);if(sugarType!=='Not Taken'&&sugarValue===null){showSamaraActionToast('error','Cannot save vital signs','Please enter the blood sugar value for the selected test type.');return;}const payload={...form,temperature:num(form.temperature),systolic:num(form.systolic),diastolic:num(form.diastolic),pulse:num(form.pulse),respiration:num(form.respiration),spo2:num(form.spo2),blood_sugar_type:sugarType,blood_sugar:sugarValue,weight:num(form.weight),pain_score:form.pain_score===''?null:Number(form.pain_score),recorded_at:new Date().toISOString(),recorded_by:profile.id};const level=calculateLevel(payload);if(level==='Not Recorded'){showSamaraActionToast('error','Cannot save vital signs','Please enter at least one actual vital-sign measurement before saving.');return;}payload.alert_level=level;const {error}=await client.from('vital_signs').insert(payload);if(error){showSamaraActionToast('error','Vital signs save failed',error.message||'Unable to save vital signs.');return;}showSamaraActionToast('success','Vital signs saved','The vital-sign entry has been saved successfully.');setSelectedPatient(form.patient_id);setForm({...form,temperature:'',systolic:'',diastolic:'',pulse:'',respiration:'',spo2:'',blood_sugar_type:'Not Taken',blood_sugar:'',weight:'',pain_score:'',remarks:''});await load();finishSuccessfulAction({returnPage,onNavigate})}
     const patientRows=selectedPatient?rows.filter(r=>r.patient_id===selectedPatient).slice(0,10):rows.slice(0,10);
     const latest=patientRows[0];
     const input=(label,key,unit,opts={})=>h('div',{className:'vital-input'},h('label',null,label),h('div',{className:'vital-input-wrap'},h('input',{type:'number',step:opts.step||'any',min:opts.min,max:opts.max,value:form[key],placeholder:opts.placeholder||'',disabled:Boolean(opts.disabled),onChange:e=>setForm({...form,[key]:e.target.value})}),unit&&h('span',null,unit)));
@@ -10156,7 +10216,7 @@ function RoomsBeds({profile}){
       };
       const {error}=await client.from('medication_administrations').insert(payload);
       if(error){const text=error.message||'Unable to save the Medication Administration Record.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
-      setMarBusy(false);setTab('Today’s MAR');await load();showSamaraActionToast('success','Medication saved','Medication administration has been recorded successfully.');
+      showSamaraActionToast('success','Medication saved','Medication administration has been recorded successfully.');setMarBusy(false);setTab('Today’s MAR');await load();
       finishSuccessfulAction({
         close:()=>setMarTarget(null),
         returnPage,
@@ -10605,6 +10665,7 @@ function RoomsBeds({profile}){
     }
 
     function showToast(type,text){
+      showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
       clearTimeout(toastTimer.current);
       setToast({type,text});
       toastTimer.current=setTimeout(()=>setToast(null),4500);
@@ -10853,6 +10914,7 @@ function RoomsBeds({profile}){
     const [form,setForm]=React.useState(emptyForm);
 
     function showToast(type,text){
+      showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
       clearTimeout(toastTimer.current);
       setToast({type,text});
       toastTimer.current=setTimeout(()=>setToast(null),4500);
@@ -11112,6 +11174,7 @@ function ShiftHandover({profile,onNavigate}){
     React.useEffect(()=>{load()},[]);
 
     function showToast(type,text){
+      showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
       setToast({type,text});
       setTimeout(()=>setToast(null),4000);
     }
@@ -11237,6 +11300,7 @@ function ShiftHandover({profile,onNavigate}){
     },[profile?.id,profile?.role]);
 
     function showToast(type,text){
+      showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
       setToast({type,text});
       setTimeout(()=>setToast(null),4000);
     }
@@ -12732,7 +12796,7 @@ function ShiftHandover({profile,onNavigate}){
     const [form,setForm]=React.useState(fresh());
     const [filter,setFilter]=React.useState({patient_id:'',status:'All',category:'All'});
 
-    const notify=(type,text)=>{setToast({type,text});setTimeout(()=>setToast(null),4500)};
+    const notify=(type,text)=>{showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);setToast({type,text});setTimeout(()=>setToast(null),4500)};
     const pFor=id=>patients.find(p=>p.id===id)||{};
     const pLabel=id=>{const p=pFor(id);return p.id?`${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}-${p.bed_no||'—'}`:'—'};
     const money=v=>v!==null&&v!==undefined&&v!==''?`₹${Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'—';

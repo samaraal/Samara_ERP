@@ -1,12 +1,12 @@
-const CACHE = 'samara-erp-2.8.25-guaranteed-confirmation';
+const CACHE = 'samara-erp-2.8.26-confirmed-save-feedback';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.8.25', './app.js?v=2.8.25',
-  './bootstrap-error.js?v=2.8.25', './health-check.js?v=2.8.25',
-  './config.js?v=2.8.25', './manifest.webmanifest?v=2.8.25',
-  './assets/samara-logo.png?v=2.8.25',
-  './icons/favicon.png?v=2.8.25', './icons/icon-192.png?v=2.8.25',
-  './icons/icon-512.png?v=2.8.25', './icons/icon-maskable-512.png?v=2.8.25',
-  './icons/apple-touch-icon.png?v=2.8.25'
+  './', './index.html', './styles.css?v=2.8.26', './app.js?v=2.8.26',
+  './bootstrap-error.js?v=2.8.26', './health-check.js?v=2.8.26',
+  './config.js?v=2.8.26', './manifest.webmanifest?v=2.8.26',
+  './assets/samara-logo.png?v=2.8.26',
+  './icons/favicon.png?v=2.8.26', './icons/icon-192.png?v=2.8.26',
+  './icons/icon-512.png?v=2.8.26', './icons/icon-maskable-512.png?v=2.8.26',
+  './icons/apple-touch-icon.png?v=2.8.26'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));

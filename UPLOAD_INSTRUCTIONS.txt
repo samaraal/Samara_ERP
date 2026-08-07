@@ -1,24 +1,34 @@
-SAMARA CARE ERP v2.8.25 — GUARANTEED SAVE CONFIRMATION
+SAMARA CARE ERP v2.8.26 — CONFIRMED SAVE FEEDBACK
 
-Upload only:
-1. app.js
-2. index.html
-3. service-worker.js
+This update fixes the confirmation issue at the mechanism level.
 
-What changed:
-- Save confirmation is now a separate top-level overlay, not a normal page toast.
-- It has the highest display layer, so modal windows, mobile navigation and page changes cannot hide it.
-- SUCCESS = large GREEN confirmation with tick.
-- FAILURE = large RED confirmation with exclamation mark.
-- An OK button is provided.
-- Confirmation remains visible for up to 8 seconds unless staff taps OK.
-- Medication and Vital Signs saves use this confirmation.
-- Existing global successful actions are also routed to the same confirmation.
+Why the previous notification could disappear:
+- Several modules refreshed data or navigated immediately after saving.
+- React component notifications could therefore be unmounted before staff saw them.
 
-No SQL / Supabase change.
+What v2.8.26 changes:
+1. The save/failure confirmation is appended directly to document.body.
+2. Its visibility/layout uses INLINE styling — it does not depend on CSS loading or cache.
+3. It uses the maximum practical z-index, above ERP modals and mobile navigation.
+4. Success is GREEN with a large ✓.
+5. Failure is RED with a large !.
+6. It stays for 10 seconds or until staff presses OK.
+7. Mobile vibration feedback is used when supported.
+8. Medication and Vital Signs confirmation occurs immediately after the database save,
+   BEFORE any reload or navigation.
+9. Existing local showToast/notify functions are also connected to the global overlay.
 
-IMPORTANT TEST:
-Login as Nurse on iPhone:
-Meds > enter medication administration > Save.
-A green 'Medication saved' confirmation must appear at the TOP of the screen.
-Then test Vitals and Daily Care.
+Patched local showToast helpers: 6
+Patched notify helpers: 1
+
+UPLOAD ONLY:
+- app.js
+- index.html
+- service-worker.js
+
+NO SQL / SUPABASE CHANGE.
+
+TEST:
+Nurse → Meds → save a valid administration.
+A GREEN “Medication saved” panel MUST appear across the TOP of the screen.
+Then intentionally omit a required field — a RED failure panel must appear.
