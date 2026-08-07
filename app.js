@@ -70,8 +70,8 @@
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.22';
-  const APP_BUILD_DATE = '08-Aug-2026 Mobile Polish';
+  const APP_VERSION = '2.8.23';
+  const APP_BUILD_DATE = '08-Aug-2026 Mobile-First Nursing';
   const APP_SCHEMA_VERSION = '24';
   window.APP_VERSION = APP_VERSION;
   window.SAMARA_BUILD = Object.freeze({
@@ -81,7 +81,7 @@
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
   const h = React.createElement;
-  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.22';
+  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.23';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
     h('img',{src:BRAND_LOGO_SRC,className,alt,decoding:'async'});
@@ -1928,6 +1928,345 @@ Caring with Compassion. Living with Dignity.`;
         .stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}
         .modal{width:min(900px,96vw)!important}
       }
+
+      /* =========================================================
+         v2.8.23 — TRUE MOBILE-FIRST WORKSPACE
+         Designed for bedside nursing on iPhone / Android.
+         ========================================================= */
+      @media(max-width:760px){
+        :root{
+          --mobile-samara-plum:#5d1039;
+          --mobile-samara-wine:#7a1247;
+          --mobile-samara-magenta:#b01264;
+          --mobile-samara-rose:#df3d7c;
+          --mobile-samara-coral:#f36a4c;
+          --mobile-samara-pale:#fff4f8;
+          --mobile-samara-ink:#382333;
+        }
+
+        html,body,#root{
+          width:100%!important;
+          max-width:100%!important;
+          min-width:0!important;
+          overflow-x:hidden!important;
+          background:#fff7fa!important;
+        }
+        .app{
+          display:block!important;
+          width:100%!important;
+          max-width:100%!important;
+          min-width:0!important;
+          margin:0!important;
+          padding:0!important;
+          overflow-x:hidden!important;
+        }
+        .sidebar{display:none!important}
+        .main{
+          display:block!important;
+          width:100%!important;
+          max-width:100%!important;
+          min-width:0!important;
+          margin:0!important;
+          padding:0!important;
+          flex:1 1 100%!important;
+          overflow-x:hidden!important;
+        }
+        .topbar,.mobile-menu,.nursing-mobile-quick-actions,.content{
+          width:100%!important;
+          max-width:100%!important;
+          box-sizing:border-box!important;
+        }
+
+        /* Strict Samara brand palette: remove legacy green/blue dashboard styling. */
+        .dashboard-banner,.shift-banner,.hero-banner,.clinical-banner,
+        .clinical-welcome,.accounts-hero{
+          background:
+            radial-gradient(circle at 92% 8%,rgba(246,183,45,.20),transparent 22%),
+            linear-gradient(120deg,var(--mobile-samara-plum) 0%,var(--mobile-samara-wine) 34%,var(--mobile-samara-magenta) 68%,var(--mobile-samara-rose) 100%)!important;
+          color:#fff!important;
+          border-color:rgba(176,18,100,.22)!important;
+        }
+        .dashboard-banner *,.shift-banner *,.clinical-welcome *{color:#fff!important}
+        .dashboard-card,.metric-card,.clinical-metric,.stat{
+          background:linear-gradient(145deg,#fff 0%,#fff8fb 100%)!important;
+          border-color:#efcfde!important;
+          color:var(--mobile-samara-ink)!important;
+        }
+        .dashboard-card::before,.metric-card::before,.clinical-metric::before,.stat::before{
+          background:linear-gradient(90deg,var(--mobile-samara-plum),var(--mobile-samara-magenta),var(--mobile-samara-coral),#f6b72d)!important;
+        }
+        .dashboard-card a,.dashboard-card button,.metric-card a,.clinical-metric small,
+        .mini-link,.text-link,.link{
+          color:var(--mobile-samara-magenta)!important;
+        }
+
+        /* Compact mobile header: app chrome should not dominate bedside work. */
+        .topbar{
+          grid-template-columns:44px minmax(0,1fr) auto!important;
+          padding:8px 12px 9px!important;
+          gap:7px 9px!important;
+          border-bottom:1px solid #f0d5e2!important;
+          box-shadow:0 5px 18px rgba(93,16,57,.06)!important;
+        }
+        .mobile-brand-header{
+          min-height:36px!important;
+          gap:9px!important;
+        }
+        .mobile-header-brand-logo{width:84px!important;height:34px!important}
+        .mobile-brand-header strong{font-size:15px!important}
+        .topbar h2{font-size:26px!important}
+        .topbar>.badge{
+          background:#f9e8f1!important;
+          color:var(--mobile-samara-wine)!important;
+        }
+        .global-search input{min-height:45px!important}
+
+        /* Generic module dropdown stays for management; bedside staff use task shortcuts. */
+        .mobile-role-nurse .mobile-menu,
+        .mobile-role-caregiver .mobile-menu{
+          display:none!important;
+        }
+
+        /* Bedside quick actions: always visible, large thumb-friendly controls. */
+        .nursing-mobile-quick-actions{
+          display:grid!important;
+          grid-template-columns:repeat(4,minmax(0,1fr))!important;
+          gap:7px!important;
+          padding:9px 10px!important;
+          position:sticky!important;
+          top:132px!important;
+          z-index:65!important;
+          background:rgba(255,247,250,.97)!important;
+          border-bottom:1px solid #efd4e1!important;
+          backdrop-filter:blur(12px)!important;
+        }
+        .nursing-mobile-quick-actions button{
+          min-width:0!important;
+          min-height:70px!important;
+          padding:8px 4px!important;
+          border:1px solid #efd0df!important;
+          border-radius:16px!important;
+          background:#fff!important;
+          color:var(--mobile-samara-ink)!important;
+          display:flex!important;
+          flex-direction:column!important;
+          align-items:center!important;
+          justify-content:center!important;
+          gap:3px!important;
+          box-shadow:0 5px 14px rgba(93,16,57,.06)!important;
+        }
+        .nursing-mobile-quick-actions button.active{
+          background:linear-gradient(145deg,#fff0f6,#ffe7f1)!important;
+          border-color:#df8bb3!important;
+          box-shadow:inset 0 0 0 1px #df8bb3,0 6px 16px rgba(176,18,100,.10)!important;
+        }
+        .nursing-quick-icon{
+          font-size:24px!important;
+          line-height:1!important;
+          color:var(--mobile-samara-magenta)!important;
+        }
+        .nursing-quick-copy{min-width:0!important;text-align:center!important}
+        .nursing-quick-copy strong{
+          display:block!important;
+          font-size:11.5px!important;
+          line-height:1.15!important;
+          color:var(--mobile-samara-wine)!important;
+          white-space:nowrap!important;
+        }
+        .nursing-quick-copy small{
+          display:none!important;
+        }
+
+        .content{
+          padding:12px 10px calc(92px + env(safe-area-inset-bottom))!important;
+        }
+
+        /* Dashboard: use the full phone width and reduce wasted whitespace. */
+        .stats,.dashboard-grid,.clinical-card-grid{
+          grid-template-columns:repeat(2,minmax(0,1fr))!important;
+          gap:10px!important;
+          width:100%!important;
+        }
+        .dashboard-card,.metric-card,.clinical-metric,.stat{
+          min-width:0!important;
+          min-height:158px!important;
+          padding:17px 14px!important;
+          border-radius:22px!important;
+          overflow:hidden!important;
+        }
+        .dashboard-card strong,.metric-card strong,.clinical-metric strong,.stat strong{
+          font-size:34px!important;
+          line-height:1!important;
+          color:var(--mobile-samara-plum)!important;
+        }
+        .dashboard-card span,.metric-card span,.clinical-metric>span:not(.clinical-metric-icon),.stat span{
+          font-size:14px!important;
+          line-height:1.3!important;
+        }
+        .dashboard-card small,.metric-card small,.clinical-metric small{
+          font-size:11.5px!important;
+          line-height:1.3!important;
+        }
+
+        .clinical-welcome{
+          border-radius:22px!important;
+          padding:18px!important;
+          margin-bottom:11px!important;
+        }
+        .clinical-welcome h2{font-size:25px!important;line-height:1.12!important}
+        .clinical-welcome p{font-size:14px!important;line-height:1.45!important}
+        .clinical-date{font-size:12px!important}
+
+        /* Clinical dashboard is the nurse's home screen, not a desktop dashboard squeezed into a phone. */
+        .mobile-role-nurse .clinical-columns,
+        .mobile-role-caregiver .clinical-columns{
+          grid-template-columns:1fr!important;
+          gap:11px!important;
+        }
+        .clinical-panel{
+          padding:14px!important;
+          border-radius:20px!important;
+        }
+        .clinical-work-row{
+          display:grid!important;
+          grid-template-columns:34px minmax(0,1fr) auto!important;
+          gap:9px!important;
+          align-items:center!important;
+          padding:12px 4px!important;
+        }
+        .clinical-work-row strong{font-size:14px!important}
+        .clinical-work-row small{font-size:12px!important;line-height:1.4!important}
+        .clinical-work-row .mini-link{
+          min-height:40px!important;
+          padding:7px 10px!important;
+          border-radius:12px!important;
+          background:#fdebf3!important;
+          border:0!important;
+          font-weight:850!important;
+        }
+
+        /* Entry pages: one-column, large fields, sticky action button. */
+        .mobile-role-nurse .content form,
+        .mobile-role-caregiver .content form{
+          width:100%!important;
+          max-width:none!important;
+        }
+        .mobile-role-nurse .form-grid,
+        .mobile-role-caregiver .form-grid,
+        .mobile-role-nurse .modal-grid,
+        .mobile-role-caregiver .modal-grid{
+          grid-template-columns:1fr!important;
+          gap:11px!important;
+        }
+        .mobile-role-nurse .field,
+        .mobile-role-caregiver .field{
+          width:100%!important;
+          min-width:0!important;
+        }
+        .mobile-role-nurse label,
+        .mobile-role-caregiver label{
+          font-size:14px!important;
+          font-weight:800!important;
+          color:var(--mobile-samara-ink)!important;
+        }
+        .mobile-role-nurse input,
+        .mobile-role-nurse select,
+        .mobile-role-nurse textarea,
+        .mobile-role-caregiver input,
+        .mobile-role-caregiver select,
+        .mobile-role-caregiver textarea{
+          width:100%!important;
+          min-height:50px!important;
+          padding:11px 12px!important;
+          border-radius:14px!important;
+          border-color:#ddc5d1!important;
+          background:#fff!important;
+          font-size:16px!important;
+        }
+        .mobile-role-nurse textarea,
+        .mobile-role-caregiver textarea{min-height:92px!important}
+        .mobile-role-nurse form>.btn.btn-primary,
+        .mobile-role-caregiver form>.btn.btn-primary,
+        .mobile-role-nurse .panel form .btn.btn-primary,
+        .mobile-role-caregiver .panel form .btn.btn-primary{
+          width:100%!important;
+          min-height:54px!important;
+          margin-top:8px!important;
+          border-radius:16px!important;
+          background:linear-gradient(100deg,var(--mobile-samara-wine),var(--mobile-samara-magenta),var(--mobile-samara-rose))!important;
+          color:#fff!important;
+          font-size:16px!important;
+          font-weight:900!important;
+        }
+
+        /* Patient lists: tables remain usable by touch without shrinking the whole app. */
+        .table-wrap{
+          width:100%!important;
+          max-width:100%!important;
+          overflow-x:auto!important;
+          border:1px solid #edd1df!important;
+          background:#fff!important;
+          scrollbar-width:thin;
+        }
+        .table{min-width:720px!important}
+        .table th,.table td{padding:12px 11px!important;font-size:13px!important}
+        .table th{
+          position:sticky!important;
+          top:0!important;
+          z-index:2!important;
+          background:#fff7fa!important;
+          color:var(--mobile-samara-wine)!important;
+        }
+
+        /* Bottom navigation: Samara palette and bedside labels. */
+        .mobile-bottom-nav{
+          background:rgba(255,255,255,.985)!important;
+          border-top-color:#ebcddd!important;
+        }
+        .mobile-bottom-nav button{color:#68485a!important}
+        .mobile-bottom-nav button.active{
+          background:linear-gradient(145deg,#ffeaf3,#ffdfeC)!important;
+          color:var(--mobile-samara-magenta)!important;
+        }
+        .mobile-nav-icon{color:inherit!important}
+
+        /* Drawer is a mobile app menu, not a desktop sidebar replica. */
+        .mobile-nav-drawer{
+          width:min(92vw,390px)!important;
+          background:linear-gradient(180deg,#fff 0%,#fff7fa 100%)!important;
+        }
+        .mobile-drawer-head{
+          background:linear-gradient(120deg,#fff,#fff3f8)!important;
+        }
+        .mobile-drawer-section h4{
+          padding:7px 8px!important;
+          border-radius:10px!important;
+          background:#f9e8f1!important;
+          color:var(--mobile-samara-wine)!important;
+          font-size:12px!important;
+          letter-spacing:.06em!important;
+          text-transform:uppercase!important;
+        }
+        .mobile-drawer-section button{
+          min-height:46px!important;
+          margin:2px 0!important;
+          font-size:14px!important;
+        }
+
+        /* Remove obsolete alert unlock button from nurse bedside pages; sound can unlock on first interaction. */
+        .mobile-role-nurse .sound-unlock-button,
+        .mobile-role-caregiver .sound-unlock-button{
+          display:none!important;
+        }
+      }
+
+      @media(max-width:390px){
+        .nursing-mobile-quick-actions{gap:5px!important;padding:8px 7px!important}
+        .nursing-mobile-quick-actions button{min-height:66px!important;border-radius:14px!important}
+        .nursing-quick-copy strong{font-size:10.5px!important}
+        .stats,.dashboard-grid,.clinical-card-grid{gap:8px!important}
+        .dashboard-card,.metric-card,.clinical-metric,.stat{padding:14px 12px!important}
+      }
     `;
     document.head.appendChild(style);
   };
@@ -2789,7 +3128,7 @@ Caring with Compassion. Living with Dignity.`;
 
     const allowed = ROLE_NAV[profile.role]||['Dashboard'];
     if(!allowed.includes(page)) setTimeout(()=>setPage(ROLE_HOME[profile.role]||allowed[0]||'Notifications'),0);
-    return h('div',{className:'app'},
+    return h('div',{className:`app mobile-role-${String(profile.role||'user').toLowerCase().replace(/[^a-z0-9]+/g,'-')}`},
       h(GlobalFormRequirementManager,{page,profile}),
       h(Sidebar,{profile,page,setPage,allowed}),
       h('main',{className:'main'},
@@ -2804,6 +3143,7 @@ Caring with Compassion. Living with Dignity.`;
           h('span',{className:'badge'},profile.role)
         ),
         h(MobileMenu,{page,setPage,allowed,profile}),
+        h(NursingMobileQuickActions,{profile,page,onNavigate:setPage}),
         h('section',{className:'content'},
           page==='Dashboard'&&h(Dashboard,{profile,onNavigate:setPage}),
           page==='HR Dashboard'&&h(HRDashboard,{profile,onNavigate:setPage}),
@@ -3064,23 +3404,46 @@ Caring with Compassion. Living with Dignity.`;
   function MobileBottomNav({page,setPage,allowed,profile,onOpenMenu}){
     const home=ROLE_HOME[profile.role]||allowed[0]||'Dashboard';
     const choose=(preferred,fallbacks=[])=>[preferred,...fallbacks].find(item=>allowed.includes(item));
+
+    if(CLINICAL_ROLES.includes(profile.role)){
+      const clinicalHome=choose('Clinical Dashboard',[home]);
+      const medicines=choose('Medicines',['Shift Tasks']);
+      const vitals=choose('Vital Signs',['Shift Tasks']);
+      const care=choose('Daily Care',['Shift Tasks']);
+      const items=[
+        clinicalHome&&{page:clinicalHome,icon:'⌂',label:'Home'},
+        medicines&&{page:medicines,icon:'◐',label:'Meds'},
+        vitals&&{page:vitals,icon:'∿',label:'Vitals'},
+        care&&{page:care,icon:'♡',label:'Care'}
+      ].filter(Boolean);
+      return h('nav',{className:'mobile-bottom-nav nursing-mobile-nav','aria-label':'Nursing mobile navigation'},
+        items.map(item=>h('button',{
+          type:'button',key:item.label,
+          className:page===item.page?'active':'',
+          onClick:()=>setPage(item.page),
+          'aria-label':item.label
+        },h('span',{className:'mobile-nav-icon'},item.icon),h('span',null,item.label))),
+        h('button',{type:'button',onClick:onOpenMenu,'aria-label':'Open nursing menu'},
+          h('span',{className:'mobile-nav-icon'},'☰'),h('span',null,'More'))
+      );
+    }
+
     const patients=choose('Patients');
-    const work=CLINICAL_ROLES.includes(profile.role)
-      ? choose('Shift Tasks',['Clinical Dashboard','Daily Care','Vital Signs'])
-      : choose('Clinical Dashboard',['Admissions','Employees','Billing & Payments']);
+    const work=choose('HR Dashboard',['Clinical Dashboard','Admissions','Employees','Billing & Payments']);
     const reports=choose('Reports',['Intelligent Reports','Billing & Payments','Notifications']);
     const items=[
       {page:home,icon:'⌂',label:'Home'},
       patients&&{page:patients,icon:'♙',label:'Patients'},
-      work&&{page:work,icon:'✚',label:CLINICAL_ROLES.includes(profile.role)?'Tasks':'Work'},
+      work&&{page:work,icon:'✚',label:'Work'},
       reports&&{page:reports,icon:'▥',label:'Reports'}
     ].filter(Boolean);
     return h('nav',{className:'mobile-bottom-nav','aria-label':'Mobile navigation'},
-      items.map(item=>h('button',{type:'button',key:item.label,className:page===item.page?'active':'',onClick:()=>setPage(item.page),'aria-label':item.label},h('span',{className:'mobile-nav-icon'},item.icon),h('span',null,item.label))),
-      h('button',{type:'button',onClick:onOpenMenu,'aria-label':'Open all modules'},h('span',{className:'mobile-nav-icon'},'☰'),h('span',null,'Menu'))
+      items.map(item=>h('button',{type:'button',key:item.label,className:page===item.page?'active':'',onClick:()=>setPage(item.page),'aria-label':item.label},
+        h('span',{className:'mobile-nav-icon'},item.icon),h('span',null,item.label))),
+      h('button',{type:'button',onClick:onOpenMenu,'aria-label':'Open all modules'},
+        h('span',{className:'mobile-nav-icon'},'☰'),h('span',null,'Menu'))
     );
   }
-
 
   function MobileNavigationDrawer({profile,allowed,page,onNavigate,onClose}){
     const sections=sectionsFor(allowed,profile.role);
@@ -3104,7 +3467,7 @@ Caring with Compassion. Living with Dignity.`;
           h('button',{type:'button',className:'mobile-drawer-close',onClick:onClose,'aria-label':'Close menu'},'×')
         ),
         h('div',{className:'mobile-drawer-user'},h('strong',null,formalName(profile)),h('span',{className:'badge'},profile.role)),
-        h('button',{type:'button',className:`mobile-drawer-home ${page===home?'active':''}`,onClick:()=>onNavigate(home)},'⌂  Dashboard'),
+        h('button',{type:'button',className:`mobile-drawer-home ${page===home?'active':''}`,onClick:()=>onNavigate(home)},CLINICAL_ROLES.includes(profile.role)?'⌂  Nursing Home':'⌂  Dashboard'),
         h('div',{className:'mobile-drawer-scroll'},sections.map(section=>h('section',{className:'mobile-drawer-section',key:section.title},
           h('h4',null,section.title),
           section.items.map(item=>h('button',{type:'button',key:item,'data-nav':item,className:page===item?'active':'',onClick:()=>onNavigate(item)},displayNavLabel(item,profile.role)))
@@ -3115,6 +3478,28 @@ Caring with Compassion. Living with Dignity.`;
       )
     );
   }
+
+  function NursingMobileQuickActions({profile,page,onNavigate}){
+    if(!CLINICAL_ROLES.includes(profile?.role))return null;
+    const actions=[
+      ['Medicines','◐','Medication','Give / record'],
+      ['Vital Signs','∿','Vitals','Enter observations'],
+      ['Daily Care','♡','Daily Care','Complete care'],
+      ['Shift Tasks','☷','Tasks','Current shift']
+    ];
+    return h('section',{className:'nursing-mobile-quick-actions','aria-label':'Nursing quick actions'},
+      actions.map(([target,icon,label,sub])=>h('button',{
+        type:'button',
+        key:target,
+        className:page===target?'active':'',
+        onClick:()=>onNavigate(target)
+      },
+        h('span',{className:'nursing-quick-icon'},icon),
+        h('span',{className:'nursing-quick-copy'},h('strong',null,label),h('small',null,sub))
+      ))
+    );
+  }
+
 
   function Dashboard({profile,onNavigate}){
     const [stats,setStats]=React.useState({employees:0,patients:0,beds:25,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge'});

@@ -1,23 +1,61 @@
-SAMARA CARE ERP v2.8.22 — iPHONE / ANDROID MOBILE POLISH + CACHE FIX
+SAMARA CARE ERP v2.8.23 — MOBILE-FIRST NURSING WORKSPACE
 
-Upload only:
+This release is intentionally NOT a desktop-page mirror.
+
+Key mobile changes
+------------------
+1. Full phone width
+   - Removes the unused right-side space seen on iPhone.
+   - Mobile main workspace is forced to 100% width.
+
+2. Strict Samara colour identity
+   - Mobile dashboards use Samara plum / magenta / rose / coral.
+   - Legacy green/blue dashboard banners are overridden on mobile.
+
+3. Nurse/Caregiver mobile workflow
+   - Desktop-style Module selector is hidden for clinical staff.
+   - Dedicated always-visible bedside quick actions:
+       Medication
+       Vitals
+       Daily Care
+       Shift Tasks
+   - Clinical Dashboard becomes the mobile nursing Home.
+
+4. Nursing bottom navigation
+   - Home
+   - Meds
+   - Vitals
+   - Care
+   - More
+   These are optimised for one-hand mobile use.
+
+5. Data-entry usability
+   - One-column forms on phones.
+   - Larger 50px+ input controls and 16px text for iPhone.
+   - Full-width primary Save buttons.
+   - Touch-friendly task/action buttons.
+
+6. Dashboard and task lists
+   - Two-column compact cards that use the full screen.
+   - Priority worklist rows are touch optimised.
+   - Tables scroll horizontally inside their own card rather than narrowing the whole app.
+
+7. Mobile drawer
+   - Redesigned as a genuine app menu.
+   - Nursing Home and Sign Out retained.
+
+Files to upload
+---------------
+Replace only:
 - app.js
 - index.html
 - service-worker.js
 
-What this fixes:
-- Restores a proper fixed mobile bottom navigation bar.
-- Adds a full mobile module drawer with Sign Out.
-- Improves iPhone/Android header, search, module selector, cards, forms, tables and modals.
-- Uses 16px form fields on phones to prevent iPhone Safari auto-zoom.
-- Adds safe-area spacing for iPhone notch/home indicator.
-- Updates the ERP shell/cache from old 2.8.7 references to 2.8.22.
-- New service-worker cache name removes stale old-version shell files.
+No Supabase / SQL change is required.
 
-No Supabase SQL change is required.
-
-After GitHub deployment:
-1. Open https://app.samaraassistedliving.com
-2. On iPhone/Android, close any previously installed/old PWA once.
-3. Refresh the browser page.
-4. If an old shell still appears, clear website data once or remove/re-add the Home Screen app.
+After GitHub deployment
+-----------------------
+1. Open app.samaraassistedliving.com on iPhone / Android.
+2. Close the old browser tab once and reopen.
+3. If an installed Home Screen/PWA still shows an older shell, remove and add it once again.
+4. Login as a Nurse and test: Medicines → Vitals → Daily Care → Shift Tasks.
