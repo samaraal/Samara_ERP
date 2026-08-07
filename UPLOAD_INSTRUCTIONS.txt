@@ -1,37 +1,33 @@
-SAMARA CARE ERP v2.8.30 — MOG MONTHLY RESIDENT ID
+SAMARA CARE ERP v2.8.31 — ACCOUNTS PDF / PRINT FIX
 
-NEW PERMANENT FORMAT:
-MOG-YYYY-MM-####
+Problem:
+The Accounts Report PDF was printing the on-screen scrollable table container.
+A PDF cannot be scrolled, so columns/rows outside that box were effectively hidden.
 
-Example:
-MOG-2026-08-0001
+Fix:
+- Print/PDF uses A4 LANDSCAPE.
+- All report scroll containers become normal expanded content when printing.
+- Tables use full paper width.
+- Long tables automatically continue onto additional PDF pages.
+- Table headers repeat at the top of subsequent pages.
+- Rows are kept together where possible.
+- Text wraps inside cells instead of being clipped.
+- Sidebar, top navigation, buttons and mobile controls are hidden from PDF.
+- Summary cards remain printable above the registers.
 
-Meaning:
-MOG  = Mogappair centre
-2026 = year of admission
-08   = month of admission
-0001 = running number within that centre/year/month
+No SQL / Supabase change.
 
-The sequence restarts each month:
-MOG-2026-08-0001
-MOG-2026-08-0002
-...
-MOG-2026-09-0001
+UPLOAD ONLY:
+1. app.js
+2. index.html
+3. service-worker.js
 
-Future centres can use the same structure:
-ANN-2026-08-0001
-POR-2026-08-0001
+After deployment:
+1. Ctrl + Shift + R.
+2. Accounts → Reports.
+3. Apply desired date/payment filters.
+4. Click Print / PDF.
+5. In Chrome print window choose "Save as PDF".
+6. Layout should already be Landscape.
 
-INSTALLATION ORDER
-1. Recommended: export/backup the patients table.
-2. Run 75_mog_monthly_resident_id.sql ONCE.
-3. Replace only:
-   - app.js
-   - index.html
-   - service-worker.js
-4. Ctrl + Shift + R.
-
-The SQL converts existing centre IDs to the monthly format using admission_date
-(where available) and preserves the earlier ID in legacy_patient_id.
-
-No other files are required.
+Version: 2.8.31

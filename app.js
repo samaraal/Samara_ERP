@@ -112,8 +112,8 @@
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.30';
-  const APP_BUILD_DATE = '08-Aug-2026 MOG Monthly Resident ID';
+  const APP_VERSION = '2.8.31';
+  const APP_BUILD_DATE = '08-Aug-2026 Accounts PDF Print Fix';
   const APP_SCHEMA_VERSION = '24';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -127,7 +127,7 @@
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
   const h = React.createElement;
-  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.30';
+  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.31';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
     h('img',{src:BRAND_LOGO_SRC,className,alt,decoding:'async'});
@@ -12736,6 +12736,143 @@ function ShiftHandover({profile,onNavigate}){
         .payment-quick-buttons,
         .payment-summary-grid{grid-template-columns:1fr}
       }
+
+      /* v2.8.31 — PRINT/PDF: never print scrollable report containers */
+      @media print{
+        @page{
+          size:A4 landscape;
+          margin:10mm;
+        }
+
+        html,body,#root,.app,.main,.content{
+          width:auto!important;
+          max-width:none!important;
+          min-width:0!important;
+          height:auto!important;
+          overflow:visible!important;
+          background:#fff!important;
+        }
+
+        .sidebar,.topbar,.mobile-menu,.mobile-bottom-nav,.nursing-mobile-quick-actions,
+        .accounts-report-actions,.btn,.floating,.sound-unlock-button{
+          display:none!important;
+        }
+
+        .content{
+          padding:0!important;
+          margin:0!important;
+        }
+
+        .accounts-hero,
+        .accounts-panel,
+        .panel,
+        .section-card{
+          box-shadow:none!important;
+          break-inside:auto!important;
+          page-break-inside:auto!important;
+          overflow:visible!important;
+          max-height:none!important;
+        }
+
+        .table-wrap,
+        .accounts-table-wrap,
+        .scroll-table,
+        .payment-table-wrap{
+          width:100%!important;
+          max-width:none!important;
+          height:auto!important;
+          max-height:none!important;
+          overflow:visible!important;
+          overflow-x:visible!important;
+          overflow-y:visible!important;
+          border:0!important;
+          box-shadow:none!important;
+        }
+
+        .table,
+        table{
+          width:100%!important;
+          min-width:0!important;
+          max-width:none!important;
+          table-layout:auto!important;
+          border-collapse:collapse!important;
+          font-size:9px!important;
+        }
+
+        .table thead,
+        table thead{
+          display:table-header-group!important;
+        }
+
+        .table tfoot,
+        table tfoot{
+          display:table-footer-group!important;
+        }
+
+        .table tr,
+        table tr{
+          break-inside:avoid!important;
+          page-break-inside:avoid!important;
+        }
+
+        .table th,
+        .table td,
+        table th,
+        table td{
+          white-space:normal!important;
+          overflow:visible!important;
+          text-overflow:clip!important;
+          word-break:break-word!important;
+          padding:4px 5px!important;
+          vertical-align:top!important;
+          position:static!important;
+        }
+
+        .accounts-dashboard-grid,
+        .accounts-kpi-grid,
+        .payment-report-kpis,
+        .accounts-mode-grid{
+          display:grid!important;
+          grid-template-columns:repeat(4,minmax(0,1fr))!important;
+          gap:6px!important;
+        }
+
+        .accounts-kpi{
+          min-height:0!important;
+          padding:8px!important;
+          break-inside:avoid!important;
+        }
+
+        .accounts-kpi strong{
+          font-size:16px!important;
+        }
+
+        .accounts-panel-head{
+          break-after:avoid!important;
+          page-break-after:avoid!important;
+        }
+
+        .accounts-panel h3,
+        .panel h3,
+        .section-card h3{
+          font-size:14px!important;
+        }
+
+        /* Ensure each major report section starts cleanly when required */
+        .accounts-dashboard-grid + .accounts-dashboard-grid,
+        .accounts-dashboard-grid + .accounts-panel,
+        .accounts-panel + .accounts-panel{
+          margin-top:8px!important;
+        }
+
+        /* Payment report and detailed register can flow across multiple PDF pages */
+        .accounts-panel:has(table),
+        .panel:has(table){
+          page-break-inside:auto!important;
+          break-inside:auto!important;
+        }
+      }
+
       .payment-report-kpis{
         grid-template-columns:repeat(4,minmax(0,1fr))!important;
       }
@@ -14348,7 +14485,7 @@ function Reports(){
       ),
       h('div',{className:'accounts-report-actions'},
         h('button',{className:'btn btn-secondary',onClick:load},state.loading?'Loading…':'↻ Refresh'),
-        h('button',{className:'btn btn-secondary',onClick:()=>window.print()},'🖨 Print / PDF'),
+        h('button',{className:'btn btn-secondary',onClick:()=>setTimeout(()=>window.print(),80)},'🖨 Print / PDF'),
         h('button',{className:'btn btn-secondary',onClick:exportPaymentsCSV},'⇩ Payment CSV'),
         h('button',{className:'btn btn-secondary',onClick:exportCSV},'⇩ Full Accounts CSV')
       )

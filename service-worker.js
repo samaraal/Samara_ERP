@@ -1,12 +1,12 @@
-const CACHE = 'samara-erp-2.8.30-mog-monthly-resident-id';
+const CACHE = 'samara-erp-2.8.31-accounts-pdf-print-fix';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.8.30', './app.js?v=2.8.30',
-  './bootstrap-error.js?v=2.8.30', './health-check.js?v=2.8.30',
-  './config.js?v=2.8.30', './manifest.webmanifest?v=2.8.30',
-  './assets/samara-logo.png?v=2.8.30',
-  './icons/favicon.png?v=2.8.30', './icons/icon-192.png?v=2.8.30',
-  './icons/icon-512.png?v=2.8.30', './icons/icon-maskable-512.png?v=2.8.30',
-  './icons/apple-touch-icon.png?v=2.8.30'
+  './', './index.html', './styles.css?v=2.8.31', './app.js?v=2.8.31',
+  './bootstrap-error.js?v=2.8.31', './health-check.js?v=2.8.31',
+  './config.js?v=2.8.31', './manifest.webmanifest?v=2.8.31',
+  './assets/samara-logo.png?v=2.8.31',
+  './icons/favicon.png?v=2.8.31', './icons/icon-192.png?v=2.8.31',
+  './icons/icon-512.png?v=2.8.31', './icons/icon-maskable-512.png?v=2.8.31',
+  './icons/apple-touch-icon.png?v=2.8.31'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
