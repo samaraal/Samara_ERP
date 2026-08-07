@@ -71,7 +71,7 @@
 (() => {
   'use strict';
   const APP_VERSION = '2.8.29';
-  const APP_BUILD_DATE = '08-Aug-2026 HR Access Scope + Welcome Link Fix';
+  const APP_BUILD_DATE = '08-Aug-2026 HR Welcome Logo';
   const APP_SCHEMA_VERSION = '24';
   window.APP_VERSION = APP_VERSION;
   window.SAMARA_BUILD = Object.freeze({
@@ -1464,6 +1464,7 @@
     }[row.role]||'Your contribution will help us provide compassionate, respectful and high-quality care.';
     const credentials=tempPassword?`
 
+SAMARA ASSISTED LIVING
 Your Login Details
 Login ID: ${row.login_id}
 Temporary Password: ${tempPassword}`:`

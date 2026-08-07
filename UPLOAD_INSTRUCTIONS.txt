@@ -1,35 +1,21 @@
-SAMARA CARE ERP v2.8.29 — HR ACCESS + WELCOME LINK FIX
+SAMARA CARE ERP v2.8.29 — HR WELCOME LOGO UPDATE
 
-Corrections included:
+Added:
+- Samara Assisted Living logo asset.
+- Branded Samara logo in the ERP employee Welcome/Login Details display.
+- Samara Assisted Living branded heading in the WhatsApp welcome text.
+- Correct ERP address retained: https://app.samaraassistedliving.com
 
-1. Employee form
-   "ERP Access Role" is changed to "ERP Access Scope".
+IMPORTANT:
+A normal WhatsApp click-to-chat link can prefill text but cannot reliably auto-attach an image.
+Therefore the logo is displayed in the ERP welcome/login-details panel, while the WhatsApp
+message carries the Samara Assisted Living branded heading and the correct ERP link.
 
-   Options:
-   - Full Access
-   - Department Only
-   - No ERP Access
-
-   This keeps Department and Designation separate from system access.
-
-2. Employee Welcome / Login Details
-   OLD GitHub ERP address removed.
-   Correct ERP address:
-   https://app.samaraassistedliving.com
-
-3. Existing v2.8.29 Payment Reports, Cash/Card vouchers and global
-   green/red confirmation features are retained.
-
-UPLOAD
-Replace:
+Upload/replace the full package contents, including:
 - app.js
 - index.html
 - service-worker.js
+- assets/samara-assisted-living-logo.jpeg
 
-No new SQL is required for these two corrections.
-
-After deployment:
-Ctrl + Shift + R on desktop.
-On mobile/PWA, close and reopen the app; if cached, refresh once.
-
+No SQL required.
 Version remains v2.8.29.
