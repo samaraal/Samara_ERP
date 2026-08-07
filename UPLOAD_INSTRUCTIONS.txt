@@ -1,44 +1,37 @@
-SAMARA CARE ERP v2.8.29 — MOG CENTRE-BASED RESIDENT ID
+SAMARA CARE ERP v2.8.30 — MOG MONTHLY RESIDENT ID
 
-Current Centre:
-MOG = Mogappair
+NEW PERMANENT FORMAT:
+MOG-YYYY-MM-####
 
-NEW RESIDENT ID FORMAT
-MOG-2026-0001
-MOG-2026-0002
-...
+Example:
+MOG-2026-08-0001
 
 Meaning:
-MOG = Mogappair centre
-2026 = year
-0001 = running resident number for that centre/year
+MOG  = Mogappair centre
+2026 = year of admission
+08   = month of admission
+0001 = running number within that centre/year/month
 
-IMPORTANT DESIGN
-- The ERP user interface now uses "Resident ID" instead of "Patient ID" for the identifier.
-- Internal database column names patient_id / patient_code are NOT renamed.
-  This deliberately protects all existing Nursing, Billing, Family Portal and reporting links.
-- The former ID is preserved in patients.legacy_patient_id for audit/history.
-- Existing residents are migrated to MOG IDs by year.
-- New residents automatically receive MOG-YYYY-####.
-- centre_master is added so future Samara centres can receive their own 3-character code.
+The sequence restarts each month:
+MOG-2026-08-0001
+MOG-2026-08-0002
+...
+MOG-2026-09-0001
+
+Future centres can use the same structure:
+ANN-2026-08-0001
+POR-2026-08-0001
 
 INSTALLATION ORDER
-1. BACKUP / EXPORT the patients table before ID migration (recommended).
-2. Run 74_mog_resident_id.sql ONCE in Supabase SQL Editor.
-3. Replace:
-   app.js
-   index.html
-   service-worker.js
-   (retain all other existing files/assets)
+1. Recommended: export/backup the patients table.
+2. Run 75_mog_monthly_resident_id.sql ONCE.
+3. Replace only:
+   - app.js
+   - index.html
+   - service-worker.js
 4. Ctrl + Shift + R.
 
-TEST AFTER MIGRATION
-- Open Patients / Residents list.
-- Existing IDs should show MOG-YYYY-####.
-- Open Patient/Resident File.
-- Family Portal login should use the NEW Resident ID.
-- Create one test/new admission: the generated ID should begin MOG-2026-....
-- Check Nursing, Billing and Payment Reports for the same resident.
+The SQL converts existing centre IDs to the monthly format using admission_date
+(where available) and preserves the earlier ID in legacy_patient_id.
 
-No clinical, billing or family records are deleted; links continue through the resident UUID.
-Version remains v2.8.29.
+No other files are required.

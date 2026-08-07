@@ -112,8 +112,8 @@
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.29';
-  const APP_BUILD_DATE = '08-Aug-2026 MOG Resident ID';
+  const APP_VERSION = '2.8.30';
+  const APP_BUILD_DATE = '08-Aug-2026 MOG Monthly Resident ID';
   const APP_SCHEMA_VERSION = '24';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -127,7 +127,7 @@
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
   const h = React.createElement;
-  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.29';
+  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.30';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
     h('img',{src:BRAND_LOGO_SRC,className,alt,decoding:'async'});
@@ -5733,23 +5733,32 @@ Caring with Compassion. Living with Dignity.`;
     };
 
     async function generateMonthlyPatientCode(){
-      // Resident IDs are centre-based, not "patient"-based.
-      // Current centre: MOG = Mogappair. Future centres can use their own code.
-      const rpcResult=await client.rpc('next_resident_code',{p_centre_code:CURRENT_CENTRE_CODE});
+      // Permanent Resident ID format:
+      // CENTRE-YYYY-MM-####  (example: MOG-2026-08-0001)
+      const now=new Date();
+      const year=now.getFullYear();
+      const month=String(now.getMonth()+1).padStart(2,'0');
+
+      const rpcResult=await client.rpc('next_resident_code',{
+        p_centre_code:CURRENT_CENTRE_CODE,
+        p_year:year,
+        p_month:Number(month)
+      });
       if(!rpcResult.error&&rpcResult.data)return rpcResult.data;
 
-      const now=new Date();
-      const prefix=`${CURRENT_CENTRE_CODE}-${now.getFullYear()}-`;
+      const prefix=`${CURRENT_CENTRE_CODE}-${year}-${month}-`;
       const {data,error}=await client.from('patients')
         .select('patient_code,patient_id')
         .or(`patient_code.like.${prefix}%,patient_id.like.${prefix}%`)
         .limit(5000);
       if(error)throw error;
+
       const highest=(data||[]).reduce((max,row)=>{
         const code=String(row.patient_code||row.patient_id||'');
         const match=code.match(/(\d{4})$/);
         return match?Math.max(max,Number(match[1])):max;
       },0);
+
       return `${prefix}${String(highest+1).padStart(4,'0')}`;
     }
 
@@ -6491,7 +6500,7 @@ Caring with Compassion. Living with Dignity.`;
               h('input',{
                 value:patientSearch,
                 onChange:e=>{setPatientSearch(e.target.value);findReturningPatients(e.target.value)},
-                placeholder:'Example: MOG-2026-0005, 9176735577 or Radha'
+                placeholder:'Example: MOG-2026-08-0005, 9176735577 or Radha'
               }),
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>findReturningPatients(patientSearch)},'Check')
             )
