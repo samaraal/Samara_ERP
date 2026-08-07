@@ -2657,6 +2657,23 @@ Caring with Compassion. Living with Dignity.`;
 
   function FirstLoginPasswordChange({profile,onComplete}){
     const [password,setPassword]=React.useState(''),[confirm,setConfirm]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState('');
+    async function saveFamilyPortalAccess(patient){
+      if(!familyAccess.enabled)return null;
+      const mobile=String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10);
+      if(!familyAccess.relative_name.trim())throw new Error('Enter the authorised family member name.');
+      if(!familyAccess.relationship.trim())throw new Error('Enter the relationship to the resident.');
+      if(mobile.length!==10)throw new Error('Enter a valid 10-digit family mobile number.');
+      const pin=String(Math.floor(100000+Math.random()*900000));
+      const {data,error}=await client.rpc('upsert_family_portal_access',{
+        p_patient_id:patient.id,p_relative_name:familyAccess.relative_name.trim(),p_relationship:familyAccess.relationship.trim(),
+        p_mobile:mobile,p_email:familyAccess.email.trim()||null,p_primary_contact:!!familyAccess.primary_contact,p_pin:pin
+      });
+      if(error)throw error;
+      const credential={...(Array.isArray(data)?data[0]:data),pin,mobile};
+      setFamilyCredential(credential);
+      return credential;
+    }
+
     async function submit(e){
       e.preventDefault();setMessage('');
       if(password.length<8){setMessage('Please choose a password containing at least 8 characters.');return}
@@ -3718,6 +3735,8 @@ Caring with Compassion. Living with Dignity.`;
     const today=new Date().toISOString().slice(0,10);
     const initial={admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',age:'',gender:'Male',mobile:'',address:'',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'',referring_doctor:'',referring_source:'',family_doctor:'',attendant_name:'',attendant_phone:'',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
     const [form,setForm]=React.useState(initial),[meds,setMeds]=React.useState([blankMedicine()]),[care,setCare]=React.useState([blankCare()]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
+    const [familyAccess,setFamilyAccess]=React.useState({enabled:false,relative_name:'',relationship:'',mobile:'',email:'',primary_contact:true});
+    const [familyCredential,setFamilyCredential]=React.useState(null);
     const [photoFiles,setPhotoFiles]=React.useState([]),[idFiles,setIdFiles]=React.useState([]),[dischargeFiles,setDischargeFiles]=React.useState([]),[prescriptionFiles,setPrescriptionFiles]=React.useState([]),[reportFiles,setReportFiles]=React.useState([]),[cameraConfig,setCameraConfig]=React.useState(null),[patientPhotoPreview,setPatientPhotoPreview]=React.useState('');
     const [roomBeds,setRoomBeds]=React.useState([]);
     const [consentRecord,setConsentRecord]=React.useState(null);
@@ -4862,6 +4881,7 @@ Caring with Compassion. Living with Dignity.`;
         }
       }
       try{
+        if(familyAccess.enabled)await saveFamilyPortalAccess(patient);
         if(photoFiles[0])await uploadPatientFile(patient.id,photoFiles[0],'Patient Photo',true);
         for(const f of idFiles)await uploadPatientFile(patient.id,f,'Identity Proof');
         for(const f of dischargeFiles)await uploadPatientFile(patient.id,f,needsHospital?'Discharge / Transfer Summary':'Medical History');
@@ -5073,6 +5093,22 @@ Caring with Compassion. Living with Dignity.`;
         h('div',{className:'small-note span-2'},composePatientAddress(form)||'The complete residential address will be assembled automatically from the above fields.'),
         field('Family / attendant name','attendant_name',form,setForm,true),
         field('Attendant phone','attendant_phone',form,setForm,true,'tel')
+      ),
+      h('div',{className:'section-card'},
+        h('div',{className:'section-title'},h('div',null,h('h4',null,'Family Portal Access'),h('small',null,'Create secure access for an authorised relative at the time of admission. Admin/Manager can later edit or disable access from Patient Edit.'))),
+        h('label',{className:'check-card'},h('input',{type:'checkbox',checked:familyAccess.enabled,onChange:e=>setFamilyAccess({...familyAccess,enabled:e.target.checked})}),h('span',null,'Enable Family Portal for this resident')),
+        familyAccess.enabled&&h('div',{className:'form-grid',style:{marginTop:'12px'}},
+          h('div',{className:'field'},h('label',null,'Authorised Relative Name'),h('input',{required:true,value:familyAccess.relative_name,onChange:e=>setFamilyAccess({...familyAccess,relative_name:e.target.value})})),
+          h('div',{className:'field'},h('label',null,'Relationship'),h('input',{required:true,value:familyAccess.relationship,onChange:e=>setFamilyAccess({...familyAccess,relationship:e.target.value}),placeholder:'Son / Daughter / Spouse / Other'})),
+          h('div',{className:'field'},h('label',null,'Family Mobile Number'),h('input',{required:true,inputMode:'numeric',maxLength:10,value:familyAccess.mobile,onChange:e=>setFamilyAccess({...familyAccess,mobile:e.target.value.replace(/\D/g,'').slice(0,10)})})),
+          h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:familyAccess.email,onChange:e=>setFamilyAccess({...familyAccess,email:e.target.value})})),
+          h('label',{className:'check-card span-2'},h('input',{type:'checkbox',checked:familyAccess.primary_contact,onChange:e=>setFamilyAccess({...familyAccess,primary_contact:e.target.checked})}),h('span',null,'Primary Family Contact'))
+        ),
+        familyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},
+          h('strong',null,'Family Portal login created'),
+          h('div',null,`User ID: ${familyCredential.family_user_id||'—'} · Mobile: ${familyCredential.mobile} · Temporary PIN: ${familyCredential.pin}`),
+          h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${familyCredential.mobile}?text=${encodeURIComponent(`Welcome to Samara Assisted Living Family Portal.%0AUser ID: ${familyCredential.family_user_id}%0ATemporary PIN: ${familyCredential.pin}%0APortal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send Login by WhatsApp')
+        )
       ),
       h('div',{className:'small-note',style:{marginBottom:'8px'}},
         'Only Aadhaar / Identity Card is the standard identity document. A temporary exception permits admission without it for now. Photo and all other supporting documents are optional and may be added later.'
@@ -5766,6 +5802,8 @@ Caring with Compassion. Living with Dignity.`;
     const [patientSearch,setPatientSearch]=React.useState('');
     const [districtFilter,setDistrictFilter]=React.useState('All');
     const [editTarget,setEditTarget]=React.useState(null),[editForm,setEditForm]=React.useState(null),[editBusy,setEditBusy]=React.useState(false),[editMsg,setEditMsg]=React.useState('');
+    const [editFamilyAccess,setEditFamilyAccess]=React.useState({enabled:false,id:null,family_user_id:'',relative_name:'',relationship:'',mobile:'',email:'',primary_contact:true,is_active:true});
+    const [editFamilyCredential,setEditFamilyCredential]=React.useState(null);
     const [patientToast,setPatientToast]=React.useState(null);
     const patientToastTimer=React.useRef(null);
     const [duplicateReview,setDuplicateReview]=React.useState(null);
@@ -5848,11 +5886,14 @@ Caring with Compassion. Living with Dignity.`;
         room_no:row.room_no||'',bed_no:row.bed_no||'',allergies:row.allergies||'',special_instructions:row.special_instructions||'',
         admission_date:row.admission_date||'',is_active:row.is_active!==false
       });
-      const [{data:existingMeds},{data:existingCare},{data:existingPhysio}]=await Promise.all([
+      const [{data:existingMeds},{data:existingCare},{data:existingPhysio},{data:existingFamily}]=await Promise.all([
         client.from('medication_orders').select('*').eq('patient_id',row.id).order('created_at'),
         client.from('care_orders').select('*').eq('patient_id',row.id).order('created_at'),
-        client.from('physiotherapy_plans').select('*').eq('patient_id',row.id).order('created_at',{ascending:false}).limit(1).maybeSingle()
+        client.from('physiotherapy_plans').select('*').eq('patient_id',row.id).order('created_at',{ascending:false}).limit(1).maybeSingle(),
+        client.from('family_portal_access').select('id,family_user_id,relative_name,relationship,mobile,email,primary_contact,is_active').eq('patient_id',row.id).eq('is_active',true).order('primary_contact',{ascending:false}).limit(1).maybeSingle()
       ]);
+      setEditFamilyAccess(existingFamily?{enabled:true,...existingFamily}:{enabled:false,id:null,family_user_id:'',relative_name:row.attendant_name||'',relationship:'',mobile:String(row.attendant_phone||'').replace(/\D/g,'').slice(-10),email:'',primary_contact:true,is_active:true});
+      setEditFamilyCredential(null);
       setEditMeds(currentUpcomingMedicineOrders(existingMeds||[]).map(m=>({...blankMedicine(),...m,times:Array.isArray(m.scheduled_times)?m.scheduled_times.join(', '):(m.times||''),custom_duration_days:m.duration_days||''})));
       setEditCare((existingCare||[]).map(c=>({...blankCare(),...c})));
       setEditPhysio(existingPhysio?{
@@ -5901,6 +5942,22 @@ Caring with Compassion. Living with Dignity.`;
       if(['Patient Photo','Patient Photograph'].includes(doc.document_type)){const next=editDocs.find(x=>x.id!==doc.id&&['Patient Photo','Patient Photograph'].includes(x.document_type));await client.from('patients').update({photo_storage_path:next?.storage_path||null}).eq('id',editTarget.id)}
       await loadEditMedia(editTarget);await load();
     }
+    async function saveEditedFamilyPortalAccess(){
+      if(!editFamilyAccess.enabled){
+        if(editFamilyAccess.id){const {error}=await client.rpc('set_family_portal_access_status',{p_access_id:editFamilyAccess.id,p_active:false});if(error)throw error;}
+        return null;
+      }
+      const mobile=String(editFamilyAccess.mobile||'').replace(/\D/g,'').slice(-10);
+      if(!editFamilyAccess.relative_name.trim()||!editFamilyAccess.relationship.trim()||mobile.length!==10)throw new Error('Complete Family Portal relative name, relationship and 10-digit mobile number.');
+      const pin=String(Math.floor(100000+Math.random()*900000));
+      const {data,error}=await client.rpc('upsert_family_portal_access',{
+        p_patient_id:editTarget.id,p_relative_name:editFamilyAccess.relative_name.trim(),p_relationship:editFamilyAccess.relationship.trim(),p_mobile:mobile,
+        p_email:editFamilyAccess.email.trim()||null,p_primary_contact:!!editFamilyAccess.primary_contact,p_pin:pin,p_access_id:editFamilyAccess.id||null
+      });
+      if(error)throw error;
+      const credential={...(Array.isArray(data)?data[0]:data),pin,mobile};setEditFamilyCredential(credential);return credential;
+    }
+
     async function savePatientEdit(e){
       e.preventDefault();setEditBusy(true);setEditMsg('');
       if(isFutureDateIndia(editForm.admission_date)){const text=`Admission date cannot be later than today (${formatDateIN(todayISOIndia())}). Please correct the date.`;setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
@@ -5910,6 +5967,7 @@ Caring with Compassion. Living with Dignity.`;
       payload.age=editForm.age===''?null:Number(editForm.age);
       const {data,error}=await client.from('patients').update(payload).eq('id',editTarget.id).select().single();
       if(error){const text=error.message||'Unable to update patient';setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
+      try{await saveEditedFamilyPortalAccess();}catch(familyError){const text=`Patient details saved, but Family Portal access could not be updated: ${familyError.message}`;setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
       try{
         for(const f of editUploads.photo)await uploadEditDocument(editTarget.id,f,'Patient Photo',true);
         for(const f of editUploads.identity)await uploadEditDocument(editTarget.id,f,'Identity Proof');
@@ -6800,6 +6858,19 @@ Caring with Compassion. Living with Dignity.`;
           h('div',{className:'small-note span-2'},composePatientAddress(editForm)||'Complete address will be assembled automatically.'),
           textareaField('Special Instructions / Precautions','special_instructions',editForm,setEditForm,'span-2'),
           h('label',{className:'check-card span-2'},h('input',{type:'checkbox',checked:editForm.is_active!==false,onChange:e=>setEditForm({...editForm,is_active:e.target.checked})}),h('span',null,'Active Patient Record'))
+        ),
+        h('div',{className:'section-card'},
+          h('div',{className:'section-title'},h('div',null,h('h4',null,'Family Portal Access'),h('small',null,'Create, update or disable the authorised family login for this resident.'))),
+          h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!editFamilyAccess.enabled,onChange:e=>setEditFamilyAccess({...editFamilyAccess,enabled:e.target.checked})}),h('span',null,'Enable Family Portal')),
+          editFamilyAccess.enabled&&h('div',{className:'form-grid',style:{marginTop:'12px'}},
+            h('div',{className:'field'},h('label',null,'Family User ID'),h('input',{readOnly:true,value:editFamilyAccess.family_user_id||'Generated when saved'})),
+            h('div',{className:'field'},h('label',null,'Authorised Relative Name'),h('input',{required:true,value:editFamilyAccess.relative_name||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,relative_name:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Relationship'),h('input',{required:true,value:editFamilyAccess.relationship||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,relationship:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Family Mobile Number'),h('input',{required:true,inputMode:'numeric',maxLength:10,value:editFamilyAccess.mobile||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,mobile:e.target.value.replace(/\D/g,'').slice(0,10)})})),
+            h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:editFamilyAccess.email||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,email:e.target.value})})),
+            h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!editFamilyAccess.primary_contact,onChange:e=>setEditFamilyAccess({...editFamilyAccess,primary_contact:e.target.checked})}),h('span',null,'Primary Family Contact'))
+          ),
+          editFamilyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},h('strong',null,'New Family Portal PIN generated'),h('div',null,`User ID: ${editFamilyCredential.family_user_id} · Mobile: ${editFamilyCredential.mobile} · Temporary PIN: ${editFamilyCredential.pin}`),h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${editFamilyCredential.mobile}?text=${encodeURIComponent(`Samara Family Portal login%0AUser ID: ${editFamilyCredential.family_user_id}%0ATemporary PIN: ${editFamilyCredential.pin}%0APortal: https://family.samaraassistedliving.com`)}`,'_blank','noopener')},'Send Login by WhatsApp'))
         ),
         h('div',{className:'section-card'},h('div',{className:'section-title'},h('div',null,h('h4',null,'3. Current and Upcoming Medicines'),h('small',null,'Only active medicines that are current or scheduled for the future are displayed. Expired and replaced prescriptions remain preserved in history.')),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setEditMeds([...editMeds,blankMedicine()])},'Add medicine')),
           editMeds.length?editMeds.map((m,i)=>h('div',{className:'repeat-row medicine-order-row',key:m.id||i},miniInput('Medicine',m.medicine_name,v=>updateEditMed(i,'medicine_name',v),true),miniInput('Strength',m.strength,v=>updateEditMed(i,'strength',v),true),miniSelect('Frequency',m.frequency,['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'],v=>setEditMeds(editMeds.map((row,n)=>n===i?{...row,frequency:v,times:(MEDICATION_FREQUENCY_TIMES[v]||String(row.times||'').split(',').map(normalizeMedicationTime).filter(Boolean)).join(', ')}:row))),miniSelect('Route',m.route,['Oral','IV','IM'],v=>updateEditMed(i,'route',v)),h(MedicationTimeSelector,{label:'Time',value:m.times,onChange:v=>updateEditMed(i,'times',v),required:true}),miniSelect('Food',m.food_instruction,['Before food','After food','With food','No restriction'],v=>updateEditMed(i,'food_instruction',v)),miniSelect('Duration',m.duration,['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','30 Days','Until Doctor Review','Long Term','Custom'],v=>updateEditMed(i,'duration',v)),m.duration==='Custom'&&miniInput('Custom days',m.custom_duration_days,v=>updateEditMed(i,'custom_duration_days',v),true,'number'),miniInput('Start date',m.start_date,v=>updateEditMed(i,'start_date',v),true,'date'),miniInput('Special instruction',m.special_instruction,v=>updateEditMed(i,'special_instruction',v)),h('button',{type:'button',className:'icon-btn',onClick:()=>setEditMeds(editMeds.filter((_,n)=>n!==i))},'Remove'))):h('p',{className:'small-note'},'No current or upcoming medicine is recorded. Use Add medicine to create one.')),
