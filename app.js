@@ -70,8 +70,8 @@
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.23';
-  const APP_BUILD_DATE = '08-Aug-2026 Mobile-First Nursing';
+  const APP_VERSION = '2.8.24';
+  const APP_BUILD_DATE = '08-Aug-2026 Mobile Save + Toast';
   const APP_SCHEMA_VERSION = '24';
   window.APP_VERSION = APP_VERSION;
   window.SAMARA_BUILD = Object.freeze({
@@ -81,7 +81,7 @@
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
   const h = React.createElement;
-  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.23';
+  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.24';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
     h('img',{src:BRAND_LOGO_SRC,className,alt,decoding:'async'});
@@ -1130,6 +1130,40 @@
   };
 
 
+
+  const showSamaraActionToast = (type='success',title='',text='') => {
+    try{
+      document.querySelectorAll('.samara-action-toast').forEach(node=>node.remove());
+      const toast=document.createElement('div');
+      toast.className=`samara-toast samara-action-toast ${type==='error'?'error':'success'}`;
+      toast.setAttribute('role',type==='error'?'alert':'status');
+      toast.setAttribute('aria-live',type==='error'?'assertive':'polite');
+
+      const icon=document.createElement('span');
+      icon.className='samara-toast-icon';
+      icon.textContent=type==='error'?'!':'✓';
+
+      const copy=document.createElement('div');
+      const strong=document.createElement('strong');
+      strong.textContent=title||(type==='error'?'Save failed':'Saved successfully');
+      const span=document.createElement('span');
+      span.textContent=text||(type==='error'?'The entry could not be saved.':'The entry has been saved successfully.');
+      copy.append(strong,span);
+
+      const close=document.createElement('button');
+      close.type='button';
+      close.setAttribute('aria-label','Close notification');
+      close.textContent='×';
+      close.addEventListener('click',()=>toast.remove());
+
+      toast.append(icon,copy,close);
+      document.body.appendChild(toast);
+      window.setTimeout(()=>toast.remove(),4800);
+    }catch(error){
+      console.warn('Action notification could not be displayed.',error);
+    }
+  };
+
   const ensureGlobalActionSuccessStyle = () => {
     if(document.getElementById('samara-global-action-success-style'))return;
     const style=document.createElement('style');
@@ -1152,9 +1186,9 @@
         padding: 14px 16px !important;
         border: 0 !important;
         border-radius: 13px !important;
-        background: #b01264 !important;
+        background: linear-gradient(105deg,#0b7a4b,#15945e,#22a66a) !important;
         color: #ffffff !important;
-        box-shadow: 0 14px 34px rgba(103,16,61,.30) !important;
+        box-shadow: 0 14px 34px rgba(8,100,62,.28) !important;
         font-weight: 700 !important;
       }
 
@@ -1227,6 +1261,79 @@
       .toast.success button:hover,
       [data-toast-type="success"] button:hover {
         background: rgba(255,255,255,.13) !important;
+      }
+
+      .samara-toast.error,
+      .toast.error,
+      [data-toast-type="error"] {
+        position: fixed !important;
+        top: 46px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        z-index: 50000 !important;
+        display: grid !important;
+        grid-template-columns: 42px minmax(0,1fr) 28px !important;
+        align-items: center !important;
+        gap: 12px !important;
+        min-width: min(525px, calc(100vw - 28px)) !important;
+        max-width: 680px !important;
+        padding: 14px 16px !important;
+        border: 0 !important;
+        border-radius: 13px !important;
+        background: linear-gradient(105deg,#a51f2d,#c92d3d,#df4050) !important;
+        color: #ffffff !important;
+        box-shadow: 0 14px 34px rgba(145,23,39,.28) !important;
+        font-weight: 700 !important;
+      }
+      .samara-toast.error .samara-toast-icon,
+      .toast.error .samara-toast-icon,
+      [data-toast-type="error"] .samara-toast-icon{
+        display:inline-flex!important;
+        align-items:center!important;
+        justify-content:center!important;
+        width:38px!important;
+        height:38px!important;
+        border-radius:50%!important;
+        background:rgba(255,255,255,.18)!important;
+        color:#fff!important;
+        font-size:24px!important;
+        font-weight:900!important;
+      }
+      .samara-toast.error > div,
+      .toast.error > div,
+      [data-toast-type="error"] > div{
+        min-width:0!important;
+        display:grid!important;
+        gap:3px!important;
+      }
+      .samara-toast.error strong,
+      .samara-toast.error span,
+      .toast.error strong,
+      .toast.error span,
+      [data-toast-type="error"] strong,
+      [data-toast-type="error"] span{color:#fff!important}
+      .samara-toast.error button,
+      .toast.error button,
+      [data-toast-type="error"] button{
+        width:28px!important;height:28px!important;padding:0!important;border:0!important;
+        border-radius:50%!important;background:transparent!important;color:#fff!important;
+        font-size:21px!important;font-weight:800!important;
+      }
+      @media(max-width:650px){
+        .samara-toast.success,.samara-toast.error,
+        .toast.success,.toast.error,
+        [data-toast-type="success"],[data-toast-type="error"]{
+          top:calc(10px + env(safe-area-inset-top))!important;
+          left:10px!important;
+          right:10px!important;
+          transform:none!important;
+          min-width:0!important;
+          width:auto!important;
+          max-width:none!important;
+          grid-template-columns:36px minmax(0,1fr) 26px!important;
+          padding:12px 13px!important;
+          border-radius:15px!important;
+        }
       }
 
       .message.success {
@@ -2222,6 +2329,21 @@ Caring with Compassion. Living with Dignity.`;
         .mobile-bottom-nav{
           background:rgba(255,255,255,.985)!important;
           border-top-color:#ebcddd!important;
+        }
+        /* Entry forms must never be covered by the mobile navigation. */
+        .app:has(.modal-backdrop) .mobile-bottom-nav{
+          display:none!important;
+        }
+        .app:has(.modal-backdrop) .content{
+          padding-bottom:calc(20px + env(safe-area-inset-bottom))!important;
+        }
+        .modal{
+          padding-bottom:calc(24px + env(safe-area-inset-bottom))!important;
+        }
+        .modal .actions:last-child,
+        .modal > .btn.btn-primary:last-child,
+        .modal > button.btn-primary:last-child{
+          margin-bottom:calc(8px + env(safe-area-inset-bottom))!important;
         }
         .mobile-bottom-nav button{color:#68485a!important}
         .mobile-bottom-nav button.active{
@@ -9811,7 +9933,7 @@ function RoomsBeds({profile}){
       setReturnPage(context.return_page||'');
       clearTaskNavigationContext();
     },[]);
-    async function save(e){e.preventDefault();const sugarType=form.blood_sugar_type||'Not Taken';const sugarValue=sugarType==='Not Taken'?null:num(form.blood_sugar);if(sugarType!=='Not Taken'&&sugarValue===null)return window.alert('Please enter the blood sugar value for the selected test type.');const payload={...form,temperature:num(form.temperature),systolic:num(form.systolic),diastolic:num(form.diastolic),pulse:num(form.pulse),respiration:num(form.respiration),spo2:num(form.spo2),blood_sugar_type:sugarType,blood_sugar:sugarValue,weight:num(form.weight),pain_score:form.pain_score===''?null:Number(form.pain_score),recorded_at:new Date().toISOString(),recorded_by:profile.id};const level=calculateLevel(payload);if(level==='Not Recorded')return window.alert('Please enter at least one actual vital-sign measurement before saving.');payload.alert_level=level;const {error}=await client.from('vital_signs').insert(payload);if(error)return window.alert(error.message);setSelectedPatient(form.patient_id);setForm({...form,temperature:'',systolic:'',diastolic:'',pulse:'',respiration:'',spo2:'',blood_sugar_type:'Not Taken',blood_sugar:'',weight:'',pain_score:'',remarks:''});await load();finishSuccessfulAction({returnPage,onNavigate})}
+    async function save(e){e.preventDefault();const sugarType=form.blood_sugar_type||'Not Taken';const sugarValue=sugarType==='Not Taken'?null:num(form.blood_sugar);if(sugarType!=='Not Taken'&&sugarValue===null){showSamaraActionToast('error','Cannot save vital signs','Please enter the blood sugar value for the selected test type.');return;}const payload={...form,temperature:num(form.temperature),systolic:num(form.systolic),diastolic:num(form.diastolic),pulse:num(form.pulse),respiration:num(form.respiration),spo2:num(form.spo2),blood_sugar_type:sugarType,blood_sugar:sugarValue,weight:num(form.weight),pain_score:form.pain_score===''?null:Number(form.pain_score),recorded_at:new Date().toISOString(),recorded_by:profile.id};const level=calculateLevel(payload);if(level==='Not Recorded'){showSamaraActionToast('error','Cannot save vital signs','Please enter at least one actual vital-sign measurement before saving.');return;}payload.alert_level=level;const {error}=await client.from('vital_signs').insert(payload);if(error){showSamaraActionToast('error','Vital signs save failed',error.message||'Unable to save vital signs.');return;}setSelectedPatient(form.patient_id);setForm({...form,temperature:'',systolic:'',diastolic:'',pulse:'',respiration:'',spo2:'',blood_sugar_type:'Not Taken',blood_sugar:'',weight:'',pain_score:'',remarks:''});await load();showSamaraActionToast('success','Vital signs saved','The vital-sign entry has been saved successfully.');finishSuccessfulAction({returnPage,onNavigate})}
     const patientRows=selectedPatient?rows.filter(r=>r.patient_id===selectedPatient).slice(0,10):rows.slice(0,10);
     const latest=patientRows[0];
     const input=(label,key,unit,opts={})=>h('div',{className:'vital-input'},h('label',null,label),h('div',{className:'vital-input-wrap'},h('input',{type:'number',step:opts.step||'any',min:opts.min,max:opts.max,value:form[key],placeholder:opts.placeholder||'',disabled:Boolean(opts.disabled),onChange:e=>setForm({...form,[key]:e.target.value})}),unit&&h('span',null,unit)));
@@ -9890,21 +10012,21 @@ function RoomsBeds({profile}){
       e.preventDefault();
       setMarMessage('');
       if(!marTarget)return;
-      if(!marForm.scheduled_time){setMarMessage('Please select the scheduled medicine time.');return;}
+      if(!marForm.scheduled_time){const text='Please select the scheduled medicine time.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;}
       if(['Refused','Missed','Delayed'].includes(marForm.status)&&!String(marForm.remarks||'').trim()){
-        setMarMessage(`Please enter the reason for medicine status “${marForm.status}”.`);return;
+        const text=`Please enter the reason for medicine status “${marForm.status}”.`;setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;
       }
       const entryTime=new Date();
       const administrationTime=marForm.administered_at?new Date(marForm.administered_at):entryTime;
-      if(Number.isNaN(administrationTime.getTime())){setMarMessage('Please enter a valid administration time.');return;}
-      if(administrationTime.getTime()>entryTime.getTime()+5*60*1000){setMarMessage('Administration time cannot be in the future.');return;}
+      if(Number.isNaN(administrationTime.getTime())){const text='Please enter a valid administration time.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;}
+      if(administrationTime.getTime()>entryTime.getTime()+5*60*1000){const text='Administration time cannot be in the future.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;}
       const entryDelayMinutes=Math.max(0,Math.round((entryTime.getTime()-administrationTime.getTime())/60000));
       const isLateEntry=entryDelayMinutes>30;
       if(isLateEntry&&!String(marForm.late_entry_reason||'').trim()){
-        setMarMessage('This is a late entry. Please select a justification category.');return;
+        const text='This is a late entry. Please select a justification category.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;
       }
       if(isLateEntry&&!String(marForm.late_entry_justification||'').trim()){
-        setMarMessage('Please enter a detailed justification for the late entry.');return;
+        const text='Please enter a detailed justification for the late entry.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;
       }
       setMarBusy(true);
       const {data:{user}}=await client.auth.getUser();
@@ -9924,8 +10046,8 @@ function RoomsBeds({profile}){
         late_entry_justification:isLateEntry?String(marForm.late_entry_justification||'').trim():null
       };
       const {error}=await client.from('medication_administrations').insert(payload);
-      if(error){setMarMessage(error.message||'Unable to save the Medication Administration Record.');setMarBusy(false);return;}
-      setMarBusy(false);setTab('Today’s MAR');await load();
+      if(error){const text=error.message||'Unable to save the Medication Administration Record.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
+      setMarBusy(false);setTab('Today’s MAR');await load();showSamaraActionToast('success','Medication saved','Medication administration has been recorded successfully.');
       finishSuccessfulAction({
         close:()=>setMarTarget(null),
         returnPage,

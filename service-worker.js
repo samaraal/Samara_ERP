@@ -1,12 +1,12 @@
-const CACHE = 'samara-erp-2.8.23-mobile-first-nursing';
+const CACHE = 'samara-erp-2.8.24-mobile-save-toast';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.8.23', './app.js?v=2.8.23',
-  './bootstrap-error.js?v=2.8.23', './health-check.js?v=2.8.23',
-  './config.js?v=2.8.23', './manifest.webmanifest?v=2.8.23',
-  './assets/samara-logo.png?v=2.8.23',
-  './icons/favicon.png?v=2.8.23', './icons/icon-192.png?v=2.8.23',
-  './icons/icon-512.png?v=2.8.23', './icons/icon-maskable-512.png?v=2.8.23',
-  './icons/apple-touch-icon.png?v=2.8.23'
+  './', './index.html', './styles.css?v=2.8.24', './app.js?v=2.8.24',
+  './bootstrap-error.js?v=2.8.24', './health-check.js?v=2.8.24',
+  './config.js?v=2.8.24', './manifest.webmanifest?v=2.8.24',
+  './assets/samara-logo.png?v=2.8.24',
+  './icons/favicon.png?v=2.8.24', './icons/icon-192.png?v=2.8.24',
+  './icons/icon-512.png?v=2.8.24', './icons/icon-maskable-512.png?v=2.8.24',
+  './icons/apple-touch-icon.png?v=2.8.24'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));

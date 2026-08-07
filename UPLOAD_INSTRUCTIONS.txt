@@ -1,61 +1,26 @@
-SAMARA CARE ERP v2.8.23 — MOBILE-FIRST NURSING WORKSPACE
+SAMARA CARE ERP v2.8.24 — MOBILE SAVE VISIBILITY + GREEN/RED CONFIRMATIONS
 
-This release is intentionally NOT a desktop-page mirror.
-
-Key mobile changes
-------------------
-1. Full phone width
-   - Removes the unused right-side space seen on iPhone.
-   - Mobile main workspace is forced to 100% width.
-
-2. Strict Samara colour identity
-   - Mobile dashboards use Samara plum / magenta / rose / coral.
-   - Legacy green/blue dashboard banners are overridden on mobile.
-
-3. Nurse/Caregiver mobile workflow
-   - Desktop-style Module selector is hidden for clinical staff.
-   - Dedicated always-visible bedside quick actions:
-       Medication
-       Vitals
-       Daily Care
-       Shift Tasks
-   - Clinical Dashboard becomes the mobile nursing Home.
-
-4. Nursing bottom navigation
-   - Home
-   - Meds
-   - Vitals
-   - Care
-   - More
-   These are optimised for one-hand mobile use.
-
-5. Data-entry usability
-   - One-column forms on phones.
-   - Larger 50px+ input controls and 16px text for iPhone.
-   - Full-width primary Save buttons.
-   - Touch-friendly task/action buttons.
-
-6. Dashboard and task lists
-   - Two-column compact cards that use the full screen.
-   - Priority worklist rows are touch optimised.
-   - Tables scroll horizontally inside their own card rather than narrowing the whole app.
-
-7. Mobile drawer
-   - Redesigned as a genuine app menu.
-   - Nursing Home and Sign Out retained.
-
-Files to upload
----------------
-Replace only:
+Upload only:
 - app.js
 - index.html
 - service-worker.js
 
-No Supabase / SQL change is required.
+Fixes:
+1. The mobile bottom navigation automatically hides while an entry pop-up/modal is open.
+   This prevents Home / Meds / Vitals / Care / More from covering the Save button.
+2. Extra safe-area space is added at the bottom of mobile entry forms for iPhone.
+3. Successful saves now use a GREEN confirmation pop-up.
+4. Failed saves / validation failures use a RED pop-up.
+5. Medication Administration explicitly shows:
+   - Green: Medication saved
+   - Red: validation/database save failure
+6. Vital Signs now uses the same green/red notification system instead of browser alerts.
+7. Existing Daily Care, Physiotherapy, Handover, Incident and other Samara toasts inherit the
+   standard green-success / red-failure presentation.
 
-After GitHub deployment
------------------------
-1. Open app.samaraassistedliving.com on iPhone / Android.
-2. Close the old browser tab once and reopen.
-3. If an installed Home Screen/PWA still shows an older shell, remove and add it once again.
-4. Login as a Nurse and test: Medicines → Vitals → Daily Care → Shift Tasks.
+No SQL / Supabase change is required.
+
+After deployment:
+- Close/reopen the mobile browser tab once.
+- If using a Home Screen PWA and v2.8.23 remains cached, remove/re-add it once.
+- Test as Nurse: Meds → enter → Save; Vitals → Save; Daily Care → Save.
