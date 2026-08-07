@@ -1,24 +1,29 @@
-SAMARA CARE ERP v2.8.32 — FULLY ONLINE RECRUITMENT
+SAMARA CARE ERP v2.8.33 — ESSENTIAL RESIDENT BLOOD GROUP
 
-What changed:
-- Career Application → Create Employee now transfers applicant-entered Employee Master fields 1:1:
-  title, name, guardian, DOB, blood group, mobile, emergency contact, email,
-  ID details, department, designation, qualification, previous workplace,
-  reference details, Current Address and Permanent Address.
-- HR only completes internal employment fields:
-  Employee ID, Date of Joining, ERP Access Scope, Login ID and Temporary Password.
-- Career Application view now displays the full online application and all uploaded documents.
-- On successful Employee creation, the application continues to become
-  "Converted to Employee" and is linked to the employee account.
+Blood Group is now explicitly available in:
+- New Admission
+- Re-admission (existing Blood Group is carried forward)
+- Edit Patient / Resident
+- Patient / Resident File → Identity & Contacts
+- Resident ID Card / admission consent where applicable
 
-WhatsApp branding:
-- All ERP-prepared WhatsApp messages now include the public Samara logo URL at the top.
-- WhatsApp click-to-chat cannot programmatically attach an image file; including the public logo
-  URL is the reliable universal method and may also produce a WhatsApp link preview.
+Controlled dropdown:
+Unknown
+A+
+A-
+B+
+B-
+AB+
+AB-
+O+
+O-
 
-INSTALL:
-1. Run 76_online_recruitment_employee_master_alignment.sql ONCE.
-2. Replace only app.js, index.html and service-worker.js.
+INSTALL
+1. Run 77_resident_blood_group.sql once.
+2. Replace only:
+   app.js
+   index.html
+   service-worker.js
 3. Ctrl + Shift + R.
 
-Also upload the Website v2.1.0 Careers package separately.
+Version: 2.8.33

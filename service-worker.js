@@ -1,12 +1,12 @@
-const CACHE = 'samara-erp-2.8.32-online-recruitment';
+const CACHE = 'samara-erp-2.8.33-resident-blood-group';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.8.32', './app.js?v=2.8.32',
-  './bootstrap-error.js?v=2.8.32', './health-check.js?v=2.8.32',
-  './config.js?v=2.8.32', './manifest.webmanifest?v=2.8.32',
-  './assets/samara-logo.png?v=2.8.32',
-  './icons/favicon.png?v=2.8.32', './icons/icon-192.png?v=2.8.32',
-  './icons/icon-512.png?v=2.8.32', './icons/icon-maskable-512.png?v=2.8.32',
-  './icons/apple-touch-icon.png?v=2.8.32'
+  './', './index.html', './styles.css?v=2.8.33', './app.js?v=2.8.33',
+  './bootstrap-error.js?v=2.8.33', './health-check.js?v=2.8.33',
+  './config.js?v=2.8.33', './manifest.webmanifest?v=2.8.33',
+  './assets/samara-logo.png?v=2.8.33',
+  './icons/favicon.png?v=2.8.33', './icons/icon-192.png?v=2.8.33',
+  './icons/icon-512.png?v=2.8.33', './icons/icon-maskable-512.png?v=2.8.33',
+  './icons/apple-touch-icon.png?v=2.8.33'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
