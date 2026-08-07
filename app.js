@@ -112,11 +112,42 @@
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.33';
-  const APP_BUILD_DATE = '08-Aug-2026 Essential Resident Blood Group';
+  const APP_VERSION = '2.8.34';
+  const APP_BUILD_DATE = '08-Aug-2026 Resident Profession & Field';
   const APP_SCHEMA_VERSION = '24';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
+  const RESIDENT_PROFESSIONS=[
+    'Government Employee',
+    'Private Employee',
+    'Business / Self-employed',
+    'Professional Practice',
+    'Homemaker',
+    'Agriculture',
+    'Retired',
+    'Not Employed',
+    'Student',
+    'Other'
+  ];
+  const RESIDENT_FIELDS=[
+    'Medical & Healthcare',
+    'Engineering & Technology',
+    'Law / Legal',
+    'Accounting & Finance',
+    'Education / Teaching',
+    'Government Administration',
+    'Business / Commerce',
+    'Banking / Insurance',
+    'Information Technology / Software',
+    'Agriculture',
+    'Defence / Police',
+    'Arts / Media',
+    'Skilled Trade / Technical',
+    'Social Service / NGO',
+    'Other'
+  ];
+  const EMPLOYMENT_SERVICE_STATUS=['In Service','Retired'];
+
   const CURRENT_CENTRE_CODE='MOG';
   const CURRENT_CENTRE_NAME='Mogappair';
   window.APP_VERSION = APP_VERSION;
@@ -127,7 +158,7 @@
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
   const h = React.createElement;
-  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.33';
+  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.34';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
     h('img',{src:BRAND_LOGO_SRC,className,alt,decoding:'async'});
@@ -5283,7 +5314,7 @@ Caring with Compassion. Living with Dignity.`;
 
   function Admissions({profile,onNavigate}){
     const today=new Date().toISOString().slice(0,10);
-    const initial={admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',age:'',gender:'Male',blood_group:'Unknown',mobile:'',address:'',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'',referring_doctor:'',referring_source:'',family_doctor:'',attendant_name:'',attendant_phone:'',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
+    const initial={admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'',address:'',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'',referring_doctor:'',referring_source:'',family_doctor:'',attendant_name:'',attendant_phone:'',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
     const [form,setForm]=React.useState(initial),[meds,setMeds]=React.useState([blankMedicine()]),[care,setCare]=React.useState([blankCare()]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [familyAccess,setFamilyAccess]=React.useState({enabled:false,relative_name:'',relationship:'',mobile:'',email:'',primary_contact:true});
     const [familyCredential,setFamilyCredential]=React.useState(null);
@@ -5461,7 +5492,7 @@ Caring with Compassion. Living with Dignity.`;
       let alive=true;
       async function loadPreviousPatients(){
         const {data,error}=await client.from('patients')
-          .select('id,patient_id,patient_code,title,full_name,age,gender,blood_group,mobile,address,state,district,taluk,village_town,locality_area,street_name,house_no,apartment_name,flat_no,landmark,pincode,attendant_name,attendant_phone,allergies,diagnosis,treating_doctor,doctor_phone,hospital_name,photo_storage_path,is_active,admission_date,discharge_date,patient_category,billing_package,diet_plan,feeding_instruction,special_instructions')
+          .select('id,patient_id,patient_code,title,full_name,age,gender,blood_group,profession,profession_field,employment_status,mobile,address,state,district,taluk,village_town,locality_area,street_name,house_no,apartment_name,flat_no,landmark,pincode,attendant_name,attendant_phone,allergies,diagnosis,treating_doctor,doctor_phone,hospital_name,photo_storage_path,is_active,admission_date,discharge_date,patient_category,billing_package,diet_plan,feeding_instruction,special_instructions')
           .order('full_name',{ascending:true});
         if(!alive)return;
         if(error){
@@ -5520,6 +5551,9 @@ Caring with Compassion. Living with Dignity.`;
         age:patient.age||'',
         gender:patient.gender||'Male',
         blood_group:patient.blood_group||'Unknown',
+        profession:patient.profession||'',
+        profession_field:patient.profession_field||'',
+        employment_status:patient.employment_status||'',
         mobile:patient.mobile||'',
         address:patient.address||'',
         state:patient.state||'Tamil Nadu',
@@ -6627,6 +6661,11 @@ Caring with Compassion. Living with Dignity.`;
         field('Age','age',form,setForm,false,'number'),
         selectField('Gender','gender',form,setForm,['Male','Female','Other']),
         selectField('Blood Group','blood_group',form,setForm,BLOOD_GROUPS),
+        selectField('Profession / Occupation','profession',form,setForm,RESIDENT_PROFESSIONS),
+        selectField('Field / Sector','profession_field',form,setForm,RESIDENT_FIELDS),
+        ['Government Employee','Private Employee'].includes(form.profession)
+          ?selectField('Employment Status','employment_status',form,setForm,EMPLOYMENT_SERVICE_STATUS)
+          :null,
         h('div',{className:'field'},h('label',null,'Mobile'),h('input',{
           type:'tel',value:form.mobile,
           onChange:e=>setForm({...form,mobile:e.target.value}),
@@ -8417,7 +8456,7 @@ Caring with Compassion. Living with Dignity.`;
         h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Documents',details.docs.length),tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),!clinicalView?tabButton('Billing',details.billing.length):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
         h('div',{className:'patient-tab-content'},
           tab==='Overview'&&h('div',{className:'tabs-grid'},
-            h('div',{className:'section-card'},h('h4',null,'Identity & Contacts'),h('p',null,`Resident ID: ${selected.patient_id||'—'}`),h('p',null,`Gender / Age: ${selected.gender||'—'} / ${selected.age||'—'}`),h('p',null,`Blood Group: ${selected.blood_group||'Unknown'}`),h('p',null,`Mobile: ${selected.mobile||'—'}`),h('p',null,selected.address||patientAddress(selected)||'Address not recorded'),h('p',null,`District: ${selected.district||'—'} · Taluk: ${selected.taluk||'—'} · PIN: ${selected.pincode||'—'}`),h('p',null,`Attendant: ${selected.attendant_name||'—'} · ${selected.attendant_phone||'—'}`)),
+            h('div',{className:'section-card'},h('h4',null,'Identity & Contacts'),h('p',null,`Resident ID: ${selected.patient_id||'—'}`),h('p',null,`Gender / Age: ${selected.gender||'—'} / ${selected.age||'—'}`),h('p',null,`Blood Group: ${selected.blood_group||'Unknown'}`),h('p',null,`Profession: ${selected.profession||'—'}`),h('p',null,`Field / Sector: ${selected.profession_field||'—'}`),['Government Employee','Private Employee'].includes(selected.profession)?h('p',null,`Employment Status: ${selected.employment_status||'—'}`):null,h('p',null,`Mobile: ${selected.mobile||'—'}`),h('p',null,selected.address||patientAddress(selected)||'Address not recorded'),h('p',null,`District: ${selected.district||'—'} · Taluk: ${selected.taluk||'—'} · PIN: ${selected.pincode||'—'}`),h('p',null,`Attendant: ${selected.attendant_name||'—'} · ${selected.attendant_phone||'—'}`)),
             h('div',{className:'section-card'},h('h4',null,'Admission & Medical Overview'),h('p',null,`Admission: ${selected.admission_type||'—'} · ${selected.admission_date||'—'}`),h('p',null,`Hospital / Source: ${selected.hospital_name||selected.referring_source||'—'}`),h('p',null,selected.diagnosis||'Diagnosis not recorded'),h('p',null,`Allergies: ${selected.allergies||'None recorded'}`),h('p',null,selected.special_instructions||'No special instructions')),
             h('div',{className:'section-card'},h('h4',null,'Care Plan Summary'),h('p',null,`${details.meds.length} active medicine order(s)`),h('p',null,`${details.care.length} master care task(s)`),h('p',null,`${details.physio.length} physiotherapy order(s)`),h('p',null,`Diet: ${selected.diet_plan||'Not recorded'}`)),
             h('div',{className:'section-card'},h('h4',null,'Risk & Safety'),h('p',null,[selected.fall_risk&&'Fall risk',selected.pressure_sore_risk&&'Pressure sore risk',selected.aspiration_risk&&'Aspiration risk',selected.wandering_risk&&'Wandering risk',selected.oxygen_required&&'Oxygen required',selected.dressing_required&&'Dressing required'].filter(Boolean).join(', ')||'No active risk flags'),h('p',null,`Open incidents: ${details.incidents.filter(x=>x.status==='Open').length}`))
@@ -8463,7 +8502,7 @@ Caring with Compassion. Living with Dignity.`;
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Edit Patient Information'),h('small',null,`${editTarget.patient_id||'—'} · Correct duplicate or wrongly entered details`)),h('button',{type:'button',className:'close',onClick:()=>{setEditTarget(null);setEditForm(null)}},'×')),
         editMsg&&h('div',{className:`message ${editMsg.includes('successfully')?'success':'error'}`},editMsg),
         h('div',{className:'modal-grid'},
-          selectField('Title / Salutation','title',editForm,setEditForm,PATIENT_TITLES),field('Patient Name','full_name',editForm,setEditForm,true),field('Age','age',editForm,setEditForm,false,'number'),selectField('Gender','gender',editForm,setEditForm,['Male','Female','Other']),selectField('Blood Group','blood_group',editForm,setEditForm,BLOOD_GROUPS),field('Patient Mobile','mobile',editForm,setEditForm,false,'tel'),
+          selectField('Title / Salutation','title',editForm,setEditForm,PATIENT_TITLES),field('Patient Name','full_name',editForm,setEditForm,true),field('Age','age',editForm,setEditForm,false,'number'),selectField('Gender','gender',editForm,setEditForm,['Male','Female','Other']),selectField('Blood Group','blood_group',editForm,setEditForm,BLOOD_GROUPS),selectField('Profession / Occupation','profession',editForm,setEditForm,RESIDENT_PROFESSIONS),selectField('Field / Sector','profession_field',editForm,setEditForm,RESIDENT_FIELDS),['Government Employee','Private Employee'].includes(editForm.profession)?selectField('Employment Status','employment_status',editForm,setEditForm,EMPLOYMENT_SERVICE_STATUS):null,field('Patient Mobile','mobile',editForm,setEditForm,false,'tel'),
           field('Emergency Contact Name','attendant_name',editForm,setEditForm,false),field('Emergency Contact Number','attendant_phone',editForm,setEditForm,false,'tel'),
           field('Main Diagnosis','diagnosis',editForm,setEditForm,false),field('Referred By Doctor','referring_doctor',editForm,setEditForm,false),field('Treating Doctor','treating_doctor',editForm,setEditForm,false),field('Doctor Mobile','doctor_phone',editForm,setEditForm,false,'tel'),
           field('Hospital / Previous Centre','hospital_name',editForm,setEditForm,false),selectField('Admission Source','admission_type',editForm,setEditForm,[

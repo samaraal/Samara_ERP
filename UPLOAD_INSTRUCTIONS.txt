@@ -1,29 +1,44 @@
-SAMARA CARE ERP v2.8.33 — ESSENTIAL RESIDENT BLOOD GROUP
+SAMARA CARE ERP v2.8.34 — RESIDENT PROFESSION / FIELD
 
-Blood Group is now explicitly available in:
-- New Admission
-- Re-admission (existing Blood Group is carried forward)
-- Edit Patient / Resident
-- Patient / Resident File → Identity & Contacts
-- Resident ID Card / admission consent where applicable
+Added to New Admission, Re-admission, Edit Resident and Resident File.
 
-Controlled dropdown:
-Unknown
-A+
-A-
-B+
-B-
-AB+
-AB-
-O+
-O-
+PROFESSION / OCCUPATION
+- Government Employee
+- Private Employee
+- Business / Self-employed
+- Professional Practice
+- Homemaker
+- Agriculture
+- Retired
+- Not Employed
+- Student
+- Other
+
+FIELD / SECTOR
+- Medical & Healthcare
+- Engineering & Technology
+- Law / Legal
+- Accounting & Finance
+- Education / Teaching
+- Government Administration
+- Business / Commerce
+- Banking / Insurance
+- Information Technology / Software
+- Agriculture
+- Defence / Police
+- Arts / Media
+- Skilled Trade / Technical
+- Social Service / NGO
+- Other
+
+EMPLOYMENT STATUS
+Displayed only for Government Employee / Private Employee:
+- In Service
+- Retired
 
 INSTALL
-1. Run 77_resident_blood_group.sql once.
-2. Replace only:
-   app.js
-   index.html
-   service-worker.js
+1. Run 78_resident_profession_field.sql once.
+2. Replace only app.js, index.html and service-worker.js.
 3. Ctrl + Shift + R.
 
-Version: 2.8.33
+Version: 2.8.34
