@@ -5846,8 +5846,8 @@ Caring with Compassion. Living with Dignity.`;
       const {data}=await client.storage.from('patient-documents').createSignedUrl(path,900);
       return data?.signedUrl||'';
     }
-    async function openPatient(p){
-      setSelected(p);setPhotoUrl('');setTab('Overview');
+    async function openPatient(p,desiredTab='Overview'){
+      setSelected(p);setPhotoUrl('');setTab(desiredTab);
       const [m,ma,c,cl,v,ph,ps,d,meal,bill,rec,inc,fam,url]=await Promise.all([
         client.from('medication_orders').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}),
         client.from('medication_administrations').select('*').eq('patient_id',p.id).order('scheduled_date',{ascending:false}).limit(100),
@@ -6063,7 +6063,7 @@ Caring with Compassion. Living with Dignity.`;
             ?'Patient information and Family Portal access updated successfully.'
             :'Patient information updated successfully.';
       setEditMsg(successText);showPatientToast('success',successText);await load();await loadEditMedia({...data,id:editTarget.id});
-      if(selected?.id===editTarget.id){setSelected(data);setTimeout(()=>openPatient(data),0)}
+      if(selected?.id===editTarget.id){setSelected(data);setTimeout(()=>openPatient(data,editFamilyAccess.enabled?'Family Portal':tab),0)}
       setEditUploads({photo:[],identity:[],prescription:[],discharge:[],reports:[],other:[]});setEditBusy(false);
     }
 
@@ -6859,12 +6859,12 @@ Caring with Compassion. Living with Dignity.`;
                   h('span',{className:`pill ${access.is_active?'':'warning'}`},access.is_active?'Active':'Disabled')
                 ),
                 h('div',{className:'tabs-grid'},
-                  h('div',null,h('p',null,h('strong',null,'Family User ID: '),access.family_user_id||'—'),h('p',null,h('strong',null,'Registered Mobile: '),access.mobile||'—'),h('p',null,h('strong',null,'Email: '),access.email||'Not recorded')),
+                  h('div',null,h('p',null,h('strong',null,'Login Patient ID: '),selected?.patient_id||'—'),h('p',null,h('strong',null,'Registered Mobile: '),access.mobile||'—'),h('p',null,h('strong',null,'Email: '),access.email||'Not recorded'),h('p',{className:'small-note'},`Internal Family Ref: ${access.family_user_id||'—'}`)),
                   h('div',null,h('p',null,h('strong',null,'Last Login: '),access.last_login_at?fmt(access.last_login_at):'Not logged in yet'),h('p',null,h('strong',null,'Access Created: '),access.created_at?fmt(access.created_at):'—'),h('p',null,h('strong',null,'PIN: '),'For security, the existing PIN is not displayed.'))
                 ),
                 access.is_active&&h('div',{className:'actions',style:{marginTop:'10px'}},
                   h('button',{type:'button',className:'btn btn-secondary',disabled:familyResetBusy===access.id,onClick:()=>resetSelectedFamilyPin(access)},familyResetBusy===access.id?'Resetting…':'Forgot / Reset PIN'),
-                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${String(access.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(`Samara Family Portal\nPatient ID: ${selected?.patient_id||''}\nPortal: https://family.samaraassistedliving.com\nIf the PIN is forgotten, please contact Samara to reset it.`)}`,'_blank','noopener')},'Send Login Details by WhatsApp')
+                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${String(access.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(`Samara Family Portal\nPatient ID: ${selected?.patient_id||''}\nPortal: https://family.samaraassistedliving.com\nIf the PIN is forgotten, please contact Samara to reset it.`)}`,'_blank','noopener')},'Send Patient ID & Portal by WhatsApp')
                 )
               )))
               :h('div',null,sectionEmpty('Family Portal access has not been created for this resident.'),h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEditPatient(selected)},'Create Family Portal Access')),
