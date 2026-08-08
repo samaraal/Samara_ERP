@@ -656,7 +656,21 @@ function initSamaraInaugurationInvitation(){
       .mail-message-head{display:grid;gap:5px;padding-bottom:14px;border-bottom:1px solid #eee}
       .mail-message-head h3{margin:0;color:#4f1733}
       .mail-message-body{padding:18px 0;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
-      .mail-compose-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+      
+      /* Titan Mail Compose modal - solid Samara card */
+      .modal-backdrop .modal-card.employee-modal{
+        background:#fffafd!important;
+        opacity:1!important;
+        border:1px solid #e7bfd2!important;
+        border-radius:22px!important;
+        box-shadow:0 24px 70px rgba(65,18,44,.28)!important;
+        overflow:hidden!important;
+      }
+      .modal-backdrop .modal-card.employee-modal .modal-head,
+      .modal-backdrop .modal-card.employee-modal form{background:#fffafd!important}
+      .modal-backdrop .modal-card.employee-modal .mail-compose-grid{padding:18px 20px 6px!important}
+      .modal-backdrop .modal-card.employee-modal .modal-actions{padding:12px 20px 20px!important;background:#fffafd!important}
+.mail-compose-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
       .mail-compose-grid .span-2{grid-column:1/-1}
       .mail-security-note{padding:12px 14px;border-radius:14px;background:#edf8f5;color:#0d6757;font-size:13px}
       @media(max-width:900px){
