@@ -4,7 +4,7 @@
 const SAMARA_INVITATION_END = new Date(2026, 8, 1, 0, 0, 0); // Visible through 31-Aug-2026; stops from 01-Sep-2026.
 const SAMARA_INVITATION_SESSION_KEY = 'samara_erp_inauguration_aug2026_loginfix';
 
-function showSamaraInaugurationInvitation(){
+window.showSamaraInaugurationInvitation=function(){
   try{
     if(new Date() >= SAMARA_INVITATION_END)return;
     if(sessionStorage.getItem(SAMARA_INVITATION_SESSION_KEY)==='shown')return;
@@ -114,7 +114,7 @@ function showSamaraInaugurationInvitation(){
   }catch(error){
     console.warn('Samara inauguration invitation could not be displayed.',error);
   }
-}
+};
 
 function initSamaraInaugurationInvitation(){
   // ERP invitation is triggered from the authenticated React session/profile state.
@@ -234,7 +234,7 @@ function initSamaraInaugurationInvitation(){
 (() => {
   'use strict';
   const APP_VERSION = '2.8.35';
-  const APP_BUILD_DATE = '08-Aug-2026 Inauguration Login Trigger Fix';
+  const APP_BUILD_DATE = '08-Aug-2026 Inauguration Scope Fix';
   const APP_SCHEMA_VERSION = '24';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -3552,7 +3552,7 @@ Caring with Compassion. Living with Dignity.`;
     React.useEffect(()=>{
       if(!session||!profile)return;
       const timer=window.setTimeout(()=>{
-        showSamaraInaugurationInvitation();
+        window.showSamaraInaugurationInvitation?.();
       },900);
       return()=>window.clearTimeout(timer);
     },[session?.user?.id,profile?.id]);
