@@ -233,8 +233,8 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.35';
-  const APP_BUILD_DATE = '08-Aug-2026 Inauguration Scope Fix';
+  const APP_VERSION = '2.8.36';
+  const APP_BUILD_DATE = '08-Aug-2026 Titan Mail Centre';
   const APP_SCHEMA_VERSION = '24';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -279,7 +279,7 @@ function initSamaraInaugurationInvitation(){
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
   const h = React.createElement;
-  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.35';
+  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.36';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
     h('img',{src:BRAND_LOGO_SRC,className,alt,decoding:'async'});
@@ -608,6 +608,72 @@ function initSamaraInaugurationInvitation(){
       .sidebar .nav-submenu button[data-nav='Discharge Clearance']::before,
       .sidebar .nav-submenu button[data-nav='Refunds']::before,
       .sidebar .nav-submenu button[data-nav='Accounts Reports']::before{content:'₹'}
+      .sidebar .nav-submenu button[data-nav='Mail Dashboard']::before{content:'✉'!important;color:#b01264!important}
+
+      .mail-shell{display:grid;gap:18px}
+      .mail-hero{
+        display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;
+        padding:22px;border:1px solid #ecd0dd;border-radius:22px;
+        background:linear-gradient(135deg,#fff 0%,#fff5f9 55%,#f5fbf9 100%);
+      }
+      .mail-hero h3{margin:0 0 5px;color:#49142f;font-size:26px}
+      .mail-hero p{margin:0;color:#667a75}
+      .mail-actions{display:flex;gap:8px;flex-wrap:wrap}
+      .mailbox-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+      .mailbox-card{
+        border:1px solid #ecd0dd;border-radius:20px;padding:18px;background:#fff;
+        text-align:left;cursor:pointer;transition:.18s ease;min-height:150px
+      }
+      .mailbox-card:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(93,16,57,.09)}
+      .mailbox-card.active{border-color:#b01264;box-shadow:0 0 0 2px rgba(176,18,100,.08)}
+      .mailbox-card small{color:#71827d}
+      .mailbox-card strong{display:block;color:#5d1039;font-size:18px;margin:5px 0}
+      .mailbox-card .count{font-size:34px;line-height:1;color:#0c6f5c;font-weight:900}
+      .mail-workspace{
+        display:grid;grid-template-columns:260px minmax(0,1fr);gap:14px;
+        border:1px solid #ecd0dd;border-radius:22px;background:#fff;padding:14px
+      }
+      .mail-folders{display:grid;align-content:start;gap:7px}
+      .mail-folder-btn{
+        border:0;border-radius:13px;padding:12px 13px;background:#faf3f7;text-align:left;
+        font-weight:800;color:#5d1039;cursor:pointer
+      }
+      .mail-folder-btn.active{background:#7c1049;color:#fff}
+      .mail-content{min-width:0}
+      .mail-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+      .mail-toolbar input{flex:1 1 240px;min-width:0}
+      .mail-list{border:1px solid #edf0ef;border-radius:16px;overflow:hidden}
+      .mail-row{
+        display:grid;grid-template-columns:34px minmax(150px,230px) minmax(220px,1fr) 150px;
+        gap:10px;align-items:center;padding:12px 13px;border-bottom:1px solid #eef1f0;cursor:pointer
+      }
+      .mail-row:last-child{border-bottom:0}
+      .mail-row.unread{background:#fff8fb;font-weight:800}
+      .mail-row:hover{background:#f8fbfa}
+      .mail-from,.mail-subject{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .mail-date{font-size:12px;color:#6c7d78;text-align:right}
+      .mail-message{padding:18px;border:1px solid #ecd0dd;border-radius:18px;background:#fff}
+      .mail-message-head{display:grid;gap:5px;padding-bottom:14px;border-bottom:1px solid #eee}
+      .mail-message-head h3{margin:0;color:#4f1733}
+      .mail-message-body{padding:18px 0;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+      .mail-compose-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+      .mail-compose-grid .span-2{grid-column:1/-1}
+      .mail-security-note{padding:12px 14px;border-radius:14px;background:#edf8f5;color:#0d6757;font-size:13px}
+      @media(max-width:900px){
+        .mailbox-grid{grid-template-columns:1fr}
+        .mail-workspace{grid-template-columns:1fr}
+        .mail-folders{grid-template-columns:repeat(4,minmax(0,1fr))}
+        .mail-folder-btn{text-align:center}
+      }
+      @media(max-width:650px){
+        .mail-hero{padding:16px}
+        .mail-hero h3{font-size:22px}
+        .mail-folders{grid-template-columns:repeat(2,minmax(0,1fr))}
+        .mail-row{grid-template-columns:30px 1fr 100px}
+        .mail-row .mail-subject{grid-column:2/-1}
+        .mail-compose-grid{grid-template-columns:1fr}
+        .mail-compose-grid .span-2{grid-column:auto}
+      }
 
       /* Main section symbols */
       .sidebar .nav-heading-button{position:relative!important;padding-left:43px!important}
@@ -1152,7 +1218,8 @@ function initSamaraInaugurationInvitation(){
     { title:'MANAGER', items:['Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
-    { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Charge Approvals','Payments','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] }
+    { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Charge Approvals','Payments','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
+    { title:'MAIL', items:['Mail Dashboard'] }
   ];
   const ALL_NAV = NAV_SECTIONS.flatMap(section=>section.items);
   const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
@@ -1177,6 +1244,7 @@ function initSamaraInaugurationInvitation(){
     'Discharge Clearance':'Discharge Clearance',
     'Refunds':'Refunds',
     'Accounts Reports':'Accounts Reports',
+    'Mail Dashboard':'Mail',
     'Notifications':'Alerts'
   };
   const displayNavLabel=(item,role)=>CLINICAL_ROLES.includes(role)?(ROLE_LABELS[item]||item):item;
@@ -3803,6 +3871,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Discharge Clearance'&&h(DischargeManagement,{profile,mode:'accounts',onNavigate:setPage}),
           page==='Refunds'&&h(RefundsView,{profile,onNavigate:setPage}),
           page==='Accounts Reports'&&h(Reports,{profile,onNavigate:setPage}),
+          page==='Mail Dashboard'&&h(TitanMail,{profile}),
           page==='Recovery Timeline'&&h(RecoveryTimeline,{profile}),
           page==='Reports'&&h(Reports,{profile,onNavigate:setPage}),
           page==='Intelligent Reports'&&h(IntelligentReports,{profile}),
@@ -4127,6 +4196,233 @@ Caring with Compassion. Living with Dignity.`;
     );
   }
 
+
+
+  function TitanMail({profile}){
+    React.useEffect(()=>{ensureCleanWorkspaceLayout()},[]);
+    const [mailbox,setMailbox]=React.useState(profile?.role==='Admin'?'admin':'care');
+    const [folder,setFolder]=React.useState('INBOX');
+    const [messages,setMessages]=React.useState([]);
+    const [counts,setCounts]=React.useState({});
+    const [selected,setSelected]=React.useState(null);
+    const [loading,setLoading]=React.useState(false);
+    const [error,setError]=React.useState('');
+    const [search,setSearch]=React.useState('');
+    const [composeOpen,setComposeOpen]=React.useState(false);
+    const [compose,setCompose]=React.useState({to:'',cc:'',subject:'',body:''});
+    const [sending,setSending]=React.useState(false);
+
+    const mailboxDefs=[
+      {key:'chellaboomi',label:'Director Mail',email:'chellaboomi@samaraassistedliving.com',adminOnly:true,desc:'Private Director mailbox'},
+      {key:'care',label:'Care Mail',email:'care@samaraassistedliving.com',desc:'Resident care and operational communication'},
+      {key:'admin',label:'Admin Mail',email:'admin@samaraassistedliving.com',desc:'Administration and official communication'}
+    ].filter(item=>!item.adminOnly||profile?.role==='Admin');
+
+    React.useEffect(()=>{
+      if(!mailboxDefs.some(item=>item.key===mailbox)){
+        setMailbox(mailboxDefs[0]?.key||'care');
+      }
+    },[profile?.role]);
+
+    async function invoke(action,payload={}){
+      const {data,error}=await client.functions.invoke('titan-mail',{
+        body:{action,mailbox,...payload}
+      });
+      if(error)throw error;
+      if(data?.error)throw new Error(data.error);
+      return data;
+    }
+
+    async function loadCounts(){
+      try{
+        const result=await invoke('counts');
+        setCounts(current=>({...current,[mailbox]:result}));
+      }catch(err){
+        console.warn('Mail counts unavailable',err);
+      }
+    }
+
+    async function loadMessages(){
+      setLoading(true);setError('');setSelected(null);
+      try{
+        const result=await invoke('list',{folder,search:search.trim(),limit:50});
+        setMessages(result.messages||[]);
+        setCounts(current=>({...current,[mailbox]:result.counts||current[mailbox]||{}}));
+      }catch(err){
+        setError(err.message||'Unable to load Titan mailbox.');
+      }finally{
+        setLoading(false);
+      }
+    }
+
+    React.useEffect(()=>{if(mailbox){loadMessages();loadCounts()}},[mailbox,folder]);
+
+    async function openMessage(row){
+      setLoading(true);setError('');
+      try{
+        const result=await invoke('read',{folder,uid:row.uid});
+        setSelected(result.message||null);
+        setMessages(current=>current.map(item=>item.uid===row.uid?{...item,seen:true}:item));
+        loadCounts();
+      }catch(err){
+        setError(err.message||'Unable to open message.');
+      }finally{
+        setLoading(false);
+      }
+    }
+
+    function replyTo(message,replyAll=false){
+      if(!message)return;
+      const to=replyAll
+        ?[message.from?.address,...(message.to||[]).map(x=>x.address)].filter(Boolean).join(', ')
+        :(message.from?.address||'');
+      setCompose({
+        to,
+        cc:replyAll?(message.cc||[]).map(x=>x.address).filter(Boolean).join(', '):'',
+        subject:String(message.subject||'').startsWith('Re:')?message.subject:`Re: ${message.subject||''}`,
+        body:`\n\n--- Original Message ---\nFrom: ${message.from?.name||''} <${message.from?.address||''}>\nDate: ${formatDateTimeIN(message.date)}\nSubject: ${message.subject||''}\n\n${message.text||''}`
+      });
+      setComposeOpen(true);
+    }
+
+    async function sendMail(event){
+      event.preventDefault();
+      if(!compose.to.trim()||!compose.subject.trim()){
+        showSamaraActionToast('error','Email incomplete','Recipient and Subject are required.');
+        return;
+      }
+      setSending(true);setError('');
+      try{
+        await invoke('send',compose);
+        showSamaraActionToast('success','Email sent',`Message sent successfully from ${mailboxDefs.find(x=>x.key===mailbox)?.email||'Samara Mail'}.`);
+        setCompose({to:'',cc:'',subject:'',body:''});
+        setComposeOpen(false);
+        if(folder==='Sent')loadMessages();
+      }catch(err){
+        const text=err.message||'Email could not be sent.';
+        setError(text);
+        showSamaraActionToast('error','Email send failed',text);
+      }finally{
+        setSending(false);
+      }
+    }
+
+    const selectedDef=mailboxDefs.find(x=>x.key===mailbox)||mailboxDefs[0];
+    const currentCounts=counts[mailbox]||{};
+
+    return h('div',{className:'mail-shell'},
+      h('div',{className:'mail-hero'},
+        h('div',null,
+          h('small',null,'SAMARA COMMUNICATION CENTRE'),
+          h('h3',null,'Mail Dashboard'),
+          h('p',null,'Secure access to official Samara Titan mailboxes from the ERP.')
+        ),
+        h('div',{className:'mail-actions'},
+          h('button',{className:'btn btn-primary',onClick:()=>setComposeOpen(true)},'✉ Compose'),
+          h('button',{className:'btn btn-secondary',onClick:()=>{loadMessages();loadCounts()}},loading?'Refreshing…':'↻ Refresh')
+        )
+      ),
+
+      h('div',{className:'mail-security-note'},
+        'Mailbox passwords are not stored in this browser or app.js. Titan credentials remain server-side as Supabase secrets.'
+      ),
+
+      h('div',{className:'mailbox-grid'},
+        mailboxDefs.map(item=>{
+          const c=counts[item.key]||{};
+          return h('button',{
+            type:'button',key:item.key,className:`mailbox-card ${mailbox===item.key?'active':''}`,
+            onClick:()=>{setMailbox(item.key);setFolder('INBOX');setSelected(null)}
+          },
+            h('small',null,item.label),
+            h('strong',null,item.email),
+            h('div',{className:'count'},c.unread??'—'),
+            h('small',null,`Unread · ${item.desc}`)
+          );
+        })
+      ),
+
+      h('div',{className:'mail-workspace'},
+        h('div',{className:'mail-folders'},
+          ['INBOX','Sent','Drafts','Trash'].map(name=>h('button',{
+            type:'button',key:name,className:`mail-folder-btn ${folder===name?'active':''}`,
+            onClick:()=>{setFolder(name);setSelected(null)}
+          },name==='INBOX'?`Inbox ${currentCounts.unread!=null?`(${currentCounts.unread})`:''}`:name))
+        ),
+
+        h('div',{className:'mail-content'},
+          error&&h('div',{className:'message error'},error),
+
+          selected
+            ?h('div',{className:'mail-message'},
+                h('div',{className:'mail-toolbar'},
+                  h('button',{className:'btn btn-secondary',onClick:()=>setSelected(null)},'← Back'),
+                  h('button',{className:'btn btn-secondary',onClick:()=>replyTo(selected,false)},'Reply'),
+                  h('button',{className:'btn btn-secondary',onClick:()=>replyTo(selected,true)},'Reply All'),
+                  h('button',{className:'btn btn-secondary',onClick:()=>setCompose({
+                    to:'',cc:'',subject:`Fwd: ${selected.subject||''}`,
+                    body:`\n\n--- Forwarded Message ---\nFrom: ${selected.from?.name||''} <${selected.from?.address||''}>\nDate: ${formatDateTimeIN(selected.date)}\nSubject: ${selected.subject||''}\n\n${selected.text||''}`
+                  })||setComposeOpen(true)},'Forward')
+                ),
+                h('div',{className:'mail-message-head'},
+                  h('h3',null,selected.subject||'(No subject)'),
+                  h('div',null,h('strong',null,'From: '),`${selected.from?.name||''} <${selected.from?.address||''}>`),
+                  h('div',null,h('strong',null,'To: '),(selected.to||[]).map(x=>x.address).join(', ')||'—'),
+                  selected.cc?.length?h('div',null,h('strong',null,'CC: '),selected.cc.map(x=>x.address).join(', ')):null,
+                  h('small',null,formatDateTimeIN(selected.date))
+                ),
+                h('div',{className:'mail-message-body'},selected.text||selected.htmlText||'(No readable text body)'),
+                selected.attachments?.length?h('div',null,
+                  h('strong',null,'Attachments: '),
+                  selected.attachments.map((a,i)=>h('span',{className:'badge',key:i},a.filename||'Attachment'))
+                ):null
+              )
+            :h(React.Fragment,null,
+                h('div',{className:'mail-toolbar'},
+                  h('input',{
+                    value:search,placeholder:`Search ${selectedDef?.label||'mailbox'}…`,
+                    onChange:e=>setSearch(e.target.value),
+                    onKeyDown:e=>{if(e.key==='Enter')loadMessages()}
+                  }),
+                  h('button',{className:'btn btn-secondary',onClick:loadMessages},'Search')
+                ),
+                loading?h('div',{className:'loading'},'Loading mail…'):
+                h('div',{className:'mail-list'},
+                  messages.length?messages.map(row=>h('div',{
+                    key:row.uid,className:`mail-row ${row.seen?'':'unread'}`,onClick:()=>openMessage(row)
+                  },
+                    h('div',null,row.flagged?'★':row.seen?'○':'●'),
+                    h('div',{className:'mail-from'},row.from?.name||row.from?.address||'Unknown sender'),
+                    h('div',{className:'mail-subject'},row.subject||'(No subject)'),
+                    h('div',{className:'mail-date'},formatDateTimeIN(row.date))
+                  )):h('div',{className:'empty',style:{padding:'28px'}},'No messages found.')
+                )
+              )
+        )
+      ),
+
+      composeOpen&&h('div',{className:'modal-backdrop'},
+        h('div',{className:'modal-card employee-modal',style:{maxWidth:'820px'}},
+          h('div',{className:'modal-head'},
+            h('div',null,h('h3',null,`Compose · ${selectedDef?.email||''}`),h('small',null,'Official Samara email')),
+            h('button',{className:'icon-btn',onClick:()=>setComposeOpen(false)},'×')
+          ),
+          h('form',{onSubmit:sendMail},
+            h('div',{className:'mail-compose-grid'},
+              h('div',{className:'field span-2'},h('label',null,'To *'),h('input',{value:compose.to,onChange:e=>setCompose({...compose,to:e.target.value}),placeholder:'recipient@example.com'})),
+              h('div',{className:'field span-2'},h('label',null,'CC'),h('input',{value:compose.cc,onChange:e=>setCompose({...compose,cc:e.target.value}),placeholder:'Optional; separate multiple addresses with commas'})),
+              h('div',{className:'field span-2'},h('label',null,'Subject *'),h('input',{value:compose.subject,onChange:e=>setCompose({...compose,subject:e.target.value})})),
+              h('div',{className:'field span-2'},h('label',null,'Message'),h('textarea',{rows:12,value:compose.body,onChange:e=>setCompose({...compose,body:e.target.value}),placeholder:'Type your message…'}))
+            ),
+            h('div',{className:'modal-actions'},
+              h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setComposeOpen(false)},'Cancel'),
+              h('button',{type:'submit',className:'btn btn-primary',disabled:sending},sending?'Sending…':'Send Email')
+            )
+          )
+        )
+      )
+    );
+  }
 
   function Dashboard({profile,onNavigate}){
     const [stats,setStats]=React.useState({employees:0,patients:0,beds:25,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge'});

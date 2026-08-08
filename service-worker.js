@@ -1,12 +1,12 @@
-const CACHE = 'samara-erp-2.8.35-inauguration-scope-fix';
+const CACHE = 'samara-erp-2.8.36-titan-mail';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.8.35', './app.js?v=2.8.35',
-  './bootstrap-error.js?v=2.8.35', './health-check.js?v=2.8.35',
-  './config.js?v=2.8.35', './manifest.webmanifest?v=2.8.35',
-  './assets/samara-logo.png?v=2.8.35',
-  './icons/favicon.png?v=2.8.35', './icons/icon-192.png?v=2.8.35',
-  './icons/icon-512.png?v=2.8.35', './icons/icon-maskable-512.png?v=2.8.35',
-  './icons/apple-touch-icon.png?v=2.8.35'
+  './', './index.html', './styles.css?v=2.8.36', './app.js?v=2.8.36',
+  './bootstrap-error.js?v=2.8.36', './health-check.js?v=2.8.36',
+  './config.js?v=2.8.36', './manifest.webmanifest?v=2.8.36',
+  './assets/samara-logo.png?v=2.8.36',
+  './icons/favicon.png?v=2.8.36', './icons/icon-192.png?v=2.8.36',
+  './icons/icon-512.png?v=2.8.36', './icons/icon-maskable-512.png?v=2.8.36',
+  './icons/apple-touch-icon.png?v=2.8.36'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
