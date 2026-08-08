@@ -1,4 +1,4 @@
-const CACHE = 'samara-erp-2.8.35-inauguration-invitation';
+const CACHE = 'samara-erp-2.8.35-inauguration-login-trigger-fix';
 const SHELL = [
   './', './index.html', './styles.css?v=2.8.35', './app.js?v=2.8.35',
   './bootstrap-error.js?v=2.8.35', './health-check.js?v=2.8.35',

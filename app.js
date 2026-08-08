@@ -2,7 +2,7 @@
 (() => {
 
 const SAMARA_INVITATION_END = new Date(2026, 8, 1, 0, 0, 0); // Visible through 31-Aug-2026; stops from 01-Sep-2026.
-const SAMARA_INVITATION_SESSION_KEY = 'samara_inauguration_invitation_27aug2026';
+const SAMARA_INVITATION_SESSION_KEY = 'samara_erp_inauguration_aug2026_loginfix';
 
 function showSamaraInaugurationInvitation(){
   try{
@@ -10,8 +10,6 @@ function showSamaraInaugurationInvitation(){
     if(sessionStorage.getItem(SAMARA_INVITATION_SESSION_KEY)==='shown')return;
     if(document.getElementById('samara-inauguration-modal'))return;
     if(!document.body)return;
-
-    sessionStorage.setItem(SAMARA_INVITATION_SESSION_KEY,'shown');
 
     if(!document.getElementById('samara-inauguration-style')){
       const style=document.createElement('style');
@@ -105,6 +103,7 @@ function showSamaraInaugurationInvitation(){
     card.append(image,close);
     modal.appendChild(card);
     document.body.appendChild(modal);
+    sessionStorage.setItem(SAMARA_INVITATION_SESSION_KEY,'shown');
 
     window.setTimeout(()=>{
       if(document.body.contains(close)){
@@ -118,27 +117,8 @@ function showSamaraInaugurationInvitation(){
 }
 
 function initSamaraInaugurationInvitation(){
-  
-  const checkForSignedInERP=()=>{
-    const text=(document.body?.innerText||'');
-    if(/\bSign out\b/i.test(text)){
-      window.setTimeout(showSamaraInaugurationInvitation,650);
-      return true;
-    }
-    return false;
-  };
-  if(!checkForSignedInERP()){
-    const invitationObserver=new MutationObserver(()=>{
-      if(checkForSignedInERP())invitationObserver.disconnect();
-    });
-    const startObserver=()=>{
-      if(document.body)invitationObserver.observe(document.body,{childList:true,subtree:true});
-      else window.setTimeout(startObserver,100);
-    };
-    startObserver();
-    window.setTimeout(()=>invitationObserver.disconnect(),120000);
-  }
-
+  // ERP invitation is triggered from the authenticated React session/profile state.
+  // This keeps the sign-in screen clear and guarantees display after successful login.
 }
 
   try {
@@ -254,7 +234,7 @@ function initSamaraInaugurationInvitation(){
 (() => {
   'use strict';
   const APP_VERSION = '2.8.35';
-  const APP_BUILD_DATE = '08-Aug-2026 Inauguration Invitation';
+  const APP_BUILD_DATE = '08-Aug-2026 Inauguration Login Trigger Fix';
   const APP_SCHEMA_VERSION = '24';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -3568,6 +3548,15 @@ Caring with Compassion. Living with Dignity.`;
     const [authMessage,setAuthMessage]=React.useState('');
     const [recoveryMode,setRecoveryMode]=React.useState(false);
     const alertEngine=useClinicalAlertEngine(profile,setPage);
+
+    React.useEffect(()=>{
+      if(!session||!profile)return;
+      const timer=window.setTimeout(()=>{
+        showSamaraInaugurationInvitation();
+      },900);
+      return()=>window.clearTimeout(timer);
+    },[session?.user?.id,profile?.id]);
+
     React.useEffect(()=>{
       if(currentPageRef.current!==page){
         previousPageRef.current=currentPageRef.current;
@@ -15007,5 +14996,4 @@ function AuditTrail(){
   function selectField(label,key,form,setForm,options){return h('div',{className:'field',key},h('label',null,label),h('select',{value:form[key],onChange:e=>setForm({...form,[key]:e.target.value})},options.map(x=>h('option',{key:x,value:x},x))))}
 
   ReactDOM.createRoot(document.getElementById('root')).render(h(App));
-  initSamaraInaugurationInvitation();
 })();
