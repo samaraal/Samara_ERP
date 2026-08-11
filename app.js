@@ -4795,11 +4795,12 @@ Caring with Compassion. Living with Dignity.`;
   function CareerApplications({profile,onNavigate}){
     const [rows,setRows]=React.useState([]),[selected,setSelected]=React.useState(null),[edit,setEdit]=React.useState(null),[msg,setMsg]=React.useState('');
     const [interviewDate,setInterviewDate]=React.useState(''),[interviewTime,setInterviewTime]=React.useState('10:00');
+    const [rescheduleDate,setRescheduleDate]=React.useState(''),[rescheduleTime,setRescheduleTime]=React.useState('10:00');
     const interviewTimeOptions=Array.from({length:15},(_,i)=>{const total=10*60+i*30;const hh=Math.floor(total/60),mm=total%60;const value=`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;const hour12=hh>12?hh-12:hh;const ampm=hh>=12?'PM':'AM';return {value,label:`${hour12}.${String(mm).padStart(2,'0')} ${ampm}`}});
     function splitInterviewDateTime(value){if(!value)return {date:'',time:'10:00'};const d=new Date(value);if(Number.isNaN(d.getTime()))return {date:'',time:'10:00'};return {date:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,time:`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}}
     async function load(){const {data,error}=await client.from('career_applications').select('*').order('created_at',{ascending:false});if(error){setMsg(error.message);return}setRows(data||[]);if(selected){const fresh=(data||[]).find(x=>x.id===selected.id);if(fresh){setSelected(fresh);setEdit({...fresh})}}}
     React.useEffect(()=>{load();const ch=client.channel('career-applications-live').on('postgres_changes',{event:'*',schema:'public',table:'career_applications'},load).subscribe();return()=>client.removeChannel(ch)},[]);
-    function open(row){const parts=splitInterviewDateTime(row.interview_at);setSelected(row);setEdit({...row});setInterviewDate(parts.date);setInterviewTime(interviewTimeOptions.some(x=>x.value===parts.time)?parts.time:'10:00');setMsg('')}
+    function open(row){const parts=splitInterviewDateTime(row.interview_at);setSelected(row);setEdit({...row});setInterviewDate(parts.date);setInterviewTime(interviewTimeOptions.some(x=>x.value===parts.time)?parts.time:'10:00');setRescheduleDate('');setRescheduleTime('10:00');setMsg('')}
     function closeApplication(){setSelected(null);setEdit(null);setMsg('')}
     function applicantDataIssues(row){
       const issues=[];
@@ -4819,6 +4820,19 @@ Caring with Compassion. Living with Dignity.`;
       setMsg(`Interview schedule set for ${interviewTimeOptions.find(x=>x.value===interviewTime)?.label||interviewTime}. Click Save HR Update to confirm.`);
     }
     function clearInterviewSchedule(){setInterviewDate('');setInterviewTime('10:00');setEdit({...edit,interview_at:null});setMsg('Interview schedule cleared. Click Save HR Update to confirm.')}
+    function setRescheduledInterview(){
+      if(!rescheduleDate){setMsg('Please select the new interview date.');return}
+      const local=new Date(`${rescheduleDate}T${rescheduleTime}:00`);
+      if(Number.isNaN(local.getTime())){setMsg('Please select a valid reschedule date and time.');return}
+      const oldText=edit?.interview_at?fmt(edit.interview_at):(selected?.interview_at?fmt(selected.interview_at):'Not recorded');
+      const newIso=local.toISOString();
+      if(edit?.interview_at===newIso){setMsg('Please choose a different date or time for rescheduling.');return}
+      const stamp=`Interview rescheduled from ${oldText} to ${fmt(newIso)}.`;
+      const remarks=[edit?.hr_remarks||'',stamp].filter(Boolean).join('\n');
+      setEdit({...edit,interview_at:newIso,status:'Interview Scheduled',hr_remarks:remarks});
+      setInterviewDate(rescheduleDate);setInterviewTime(rescheduleTime);
+      setMsg(`Interview rescheduled to ${fmt(newIso)}. Click Save HR Update, or Send Reschedule WhatsApp to save and notify the applicant.`);
+    }
     async function save(){
       if(!edit)return;
       const payload={status:edit.status,hr_remarks:edit.hr_remarks||null,interview_at:edit.interview_at||null,interview_mode:edit.interview_mode||null,interview_venue:edit.interview_venue||null,interview_result:edit.interview_result||null,handled_by:profile.id,updated_at:new Date().toISOString()};
@@ -4832,7 +4846,7 @@ Caring with Compassion. Living with Dignity.`;
       const phone=String(row.whatsapp||row.mobile||'').replace(/\D/g,'').slice(-10);if(!phone)return '#';
       const interviewDate=row.interview_at?fmt(row.interview_at):'—';
       const venue=row.interview_venue||'Samara Assisted Living, Mogappair, Chennai';
-      const text=`Dear ${candidateDisplayName(row)},\n\nGreetings from Samara Assisted Living.\n\nThank you for your interest in joining our team. We are pleased to invite you for an interview regarding your application for the ${row.designation||'applied'} position.\n\nInterview Date & Time: ${interviewDate}\nVenue: ${venue}\n\nApplication No.: ${row.application_id||'—'}\n\nWe look forward to meeting you. If you have any difficulty attending at the scheduled time, please feel free to contact us at 9976735577.\n\nWarm regards,\nDr. Chella Boomi\nDirector\nSamara Health Care LLP\n9976735577\nCompassion • Comfort • Dignity`;
+      const text=`https://samaraassistedliving.com/\n\n*Dear ${candidateDisplayName(row)},*\n\nGreetings from *Samara Assisted Living*.\n\nThank you for your interest in joining our team. We are pleased to invite you for an interview regarding your application for the *${row.designation||'applied'}* position.\n\n📅 *Interview Date & Time:* ${interviewDate}\n📍 *Venue:* ${venue}\n\n🆔 *Application No.:* ${row.application_id||'—'}\n\nWe look forward to meeting you. Kindly reply to this message with one of the following:\n\n*1. CONFIRMED* – I will attend the interview as scheduled.\n*2. RESCHEDULE* – I would like to request another date/time.\n*3. UNABLE TO ATTEND* – I will not be able to attend.\n\nIf you need any assistance regarding the interview, please contact us at *9976735577*.\n\nWarm regards,\n*Dr. Chella Boomi*\nDirector\n*Samara Health Care LLP*\n📞 *9976735577*\n\n_Compassion • Comfort • Dignity_`;
       return `https://wa.me/91${phone}?text=${encodeURIComponent(text)}`;
     }
     async function sendInterviewWhatsApp(){
@@ -4847,6 +4861,30 @@ Caring with Compassion. Living with Dignity.`;
       setEdit(updated);setSelected({...selected,...updated});
       window.open(whatsappCandidate(updated),'_blank','noopener');
       setMsg('Interview marked as Interview Scheduled and WhatsApp message opened.');
+      await load();
+    }
+    function whatsappRescheduleCandidate(row,previousAt){
+      const phone=String(row.whatsapp||row.mobile||'').replace(/\D/g,'').slice(-10);if(!phone)return '#';
+      const newDate=row.interview_at?fmt(row.interview_at):'—';
+      const oldDate=previousAt?fmt(previousAt):'the earlier scheduled time';
+      const venue=row.interview_venue||'Samara Assisted Living, Mogappair, Chennai';
+      const text=`https://samaraassistedliving.com/\n\n*Dear ${candidateDisplayName(row)},*\n\nGreetings from *Samara Assisted Living*.\n\nWe would like to inform you that, due to an unavoidable change in our schedule, your interview for the *${row.designation||'applied'}* position has been rescheduled. We regret any inconvenience this may cause and appreciate your understanding.\n\n⏰ *Earlier Schedule:* ${oldDate}\n📅 *Revised Interview Date & Time:* ${newDate}\n📍 *Venue:* ${venue}\n\n🆔 *Application No.:* ${row.application_id||'—'}\n\nKindly reply *CONFIRMED* if the revised schedule is convenient. If you need any assistance or another suitable time, please contact us at *9976735577*.\n\nWe look forward to meeting you.\n\nWarm regards,\n*Dr. Chella Boomi*\nDirector\n*Samara Health Care LLP*\n📞 *9976735577*\n\n_Compassion • Comfort • Dignity_`;
+      return `https://wa.me/91${phone}?text=${encodeURIComponent(text)}`;
+    }
+    async function sendRescheduleWhatsApp(){
+      if(!edit)return;
+      const previousAt=selected?.interview_at||null;
+      if(!edit.interview_at){setMsg('Please set the revised interview date and time first.');return}
+      if(previousAt===edit.interview_at){setMsg('Please choose a new date or time before sending a reschedule message.');return}
+      const phone=String(edit.whatsapp||edit.mobile||'').replace(/\D/g,'').slice(-10);
+      if(!phone){setMsg('WhatsApp / mobile number is not available for this applicant.');return}
+      const payload={status:'Interview Scheduled',hr_remarks:edit.hr_remarks||null,interview_at:edit.interview_at,interview_mode:edit.interview_mode||null,interview_venue:edit.interview_venue||null,interview_result:edit.interview_result||null,handled_by:profile.id,updated_at:new Date().toISOString()};
+      const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);
+      if(error){setMsg(error.message);return}
+      const updated={...edit,status:'Interview Scheduled'};
+      window.open(whatsappRescheduleCandidate(updated,previousAt),'_blank','noopener');
+      setSelected({...selected,...updated});setEdit(updated);setRescheduleDate('');setRescheduleTime('10:00');
+      setMsg('Interview rescheduled, status retained as Interview Scheduled, and WhatsApp notification opened.');
       await load();
     }
     function convert(row){
@@ -4951,12 +4989,22 @@ Caring with Compassion. Living with Dignity.`;
           ),
           edit.interview_at?h('small',{style:{display:'block',marginTop:'7px',fontWeight:700,color:'#7d1748'}},`Selected: ${fmt(edit.interview_at)}`):null
         ),
+        (selected.interview_at||edit.status==='Interview Scheduled')?h('div',{className:'field span-2',style:{padding:'12px',border:'1px solid #ead0de',borderRadius:'12px',background:'#fffafd'}},
+          h('label',{style:{fontWeight:800,color:'#7d1748'}},'Reschedule Interview'),
+          selected.interview_at?h('small',{style:{display:'block',marginBottom:'8px',color:'#806575'}},`Current schedule: ${fmt(selected.interview_at)}`):null,
+          h('div',{style:{display:'grid',gridTemplateColumns:'minmax(170px,1fr) minmax(150px,0.7fr) auto',gap:'8px',alignItems:'end'}},
+            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'New Date'),h('input',{type:'date',value:rescheduleDate,onChange:e=>setRescheduleDate(e.target.value)})),
+            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'New Time'),h('select',{value:rescheduleTime,onChange:e=>setRescheduleTime(e.target.value)},interviewTimeOptions.map(x=>h('option',{key:x.value,value:x.value},x.label)))),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:setRescheduledInterview},'Reschedule')
+          ),
+          h('small',{style:{display:'block',marginTop:'7px',color:'#806575'}},'Use this when Samara needs to change an already scheduled interview. The application will remain marked as Interview Scheduled.')
+        ):null,
         h('div',{className:'field'},h('label',null,'Interview Mode'),h('select',{value:edit.interview_mode||'',onChange:e=>setEdit({...edit,interview_mode:e.target.value})},['','In Person','Phone','Video'].map(x=>h('option',{key:x,value:x},x||'Select mode')))),
         h('div',{className:'field'},h('label',null,'Interview Venue / Link'),h('input',{value:edit.interview_venue||'',onChange:e=>setEdit({...edit,interview_venue:e.target.value})})),
         h('div',{className:'field span-2'},h('label',null,'HR Remarks'),h('textarea',{rows:3,value:edit.hr_remarks||'',onChange:e=>setEdit({...edit,hr_remarks:e.target.value})})),
         h('div',{className:'field span-2'},h('label',null,'Interview Result / Notes'),h('textarea',{rows:3,value:edit.interview_result||'',onChange:e=>setEdit({...edit,interview_result:e.target.value})}))
       ),
-      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendInterviewWhatsApp},'Send Interview WhatsApp'),['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null),
+      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendInterviewWhatsApp},'Send Interview WhatsApp'),(selected.interview_at&&edit.interview_at&&selected.interview_at!==edit.interview_at)?h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendRescheduleWhatsApp},'Send Reschedule WhatsApp'):null,['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null),
       h('div',{style:{display:'flex',justifyContent:'center',padding:'14px 0 4px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:closeApplication,style:{minWidth:'180px'}},'Close Window'))
     )):null;
     return h(React.Fragment,null,h(Section,{title:'Career Applications',subtitle:'Online-only applications submitted through samaraassistedliving.com Careers'},table),modal);
@@ -5827,11 +5875,11 @@ Caring with Compassion. Living with Dignity.`;
 
 
   function Enquiries({profile}){
-    const [rows,setRows]=React.useState([]),[form,setForm]=React.useState({patient_name:'',gender:'',family_contact_name:'',family_contact_phone:'',current_location:'Home',reason_for_enquiry:'',expected_admission_date:'',bed_preference:'',special_requirements:'',source:'Direct',status:'New'});
+    const [rows,setRows]=React.useState([]),[form,setForm]=React.useState({patient_name:'',family_contact_name:'',family_contact_phone:'',current_location:'Home',reason_for_enquiry:'',expected_admission_date:'',bed_preference:'',special_requirements:'',source:'Direct',status:'New'});
     async function load(){const {data}=await client.from('pre_admission_enquiries').select('*').order('created_at',{ascending:false});setRows(data||[])}React.useEffect(()=>{load()},[]);
-    async function save(e){e.preventDefault();if(!form.gender)return alert('Please select the patient gender.');const {error}=await client.from('pre_admission_enquiries').insert({...form,handled_by:profile.id});if(error)return alert(error.message);setForm({...form,patient_name:'',gender:'',family_contact_name:'',family_contact_phone:'',reason_for_enquiry:'',special_requirements:''});load()}
+    async function save(e){e.preventDefault();const {error}=await client.from('pre_admission_enquiries').insert({...form,handled_by:profile.id});if(error)return alert(error.message);setForm({...form,patient_name:'',family_contact_name:'',family_contact_phone:'',reason_for_enquiry:'',special_requirements:''});load()}
     async function status(id,value){await client.from('pre_admission_enquiries').update({status:value,updated_at:new Date().toISOString()}).eq('id',id);load()}
-    return h(React.Fragment,null,h(Section,{title:'Pre-Admission Enquiry',subtitle:'Track enquiries, assessments, estimates and bed reservations'},h('form',{className:'modal-grid',onSubmit:save},miniInput('Patient name',form.patient_name,v=>setForm({...form,patient_name:v}),true),miniSelect('Gender',form.gender,['Male','Female','Other'],v=>setForm({...form,gender:v})),miniInput('Family contact',form.family_contact_name,v=>setForm({...form,family_contact_name:v}),true),miniInput('Phone',form.family_contact_phone,v=>setForm({...form,family_contact_phone:v}),true,'tel'),miniSelect('Current location',form.current_location,['Home','Hospital','Clinic','Other Care Centre'],v=>setForm({...form,current_location:v})),miniSelect('Source',form.source,['Direct','Hospital','Doctor','Reference','Website','Other'],v=>setForm({...form,source:v})),miniInput('Expected admission',form.expected_admission_date,v=>setForm({...form,expected_admission_date:v}),false,'date'),miniInput('Bed preference',form.bed_preference,v=>setForm({...form,bed_preference:v})),miniInput('Reason for enquiry',form.reason_for_enquiry,v=>setForm({...form,reason_for_enquiry:v}),true),miniInput('Special requirements',form.special_requirements,v=>setForm({...form,special_requirements:v})),h('button',{className:'btn btn-primary'},'Save Enquiry'))),h(LogTable,{title:'Enquiry Register',heads:['Patient','Gender','Family Contact','Location','Expected Date','Status','Action'],rows:rows.map(r=>[r.patient_name,r.gender||'—',`${r.family_contact_name} · ${r.family_contact_phone}`,r.current_location,r.expected_admission_date||'—',r.status,h('select',{value:r.status,onChange:e=>status(r.id,e.target.value)},['New','Assessment Scheduled','Estimate Sent','Bed Reserved','Converted to Admission','Closed'].map(x=>h('option',{key:x},x)))])}))
+    return h(React.Fragment,null,h(Section,{title:'Pre-Admission Enquiry',subtitle:'Track enquiries, assessments, estimates and bed reservations'},h('form',{className:'modal-grid',onSubmit:save},miniInput('Patient name',form.patient_name,v=>setForm({...form,patient_name:v}),true),miniInput('Family contact',form.family_contact_name,v=>setForm({...form,family_contact_name:v}),true),miniInput('Phone',form.family_contact_phone,v=>setForm({...form,family_contact_phone:v}),true,'tel'),miniSelect('Current location',form.current_location,['Home','Hospital','Clinic','Other Care Centre'],v=>setForm({...form,current_location:v})),miniSelect('Source',form.source,['Direct','Hospital','Doctor','Reference','Website','Other'],v=>setForm({...form,source:v})),miniInput('Expected admission',form.expected_admission_date,v=>setForm({...form,expected_admission_date:v}),false,'date'),miniInput('Bed preference',form.bed_preference,v=>setForm({...form,bed_preference:v})),miniInput('Reason for enquiry',form.reason_for_enquiry,v=>setForm({...form,reason_for_enquiry:v}),true),miniInput('Special requirements',form.special_requirements,v=>setForm({...form,special_requirements:v})),h('button',{className:'btn btn-primary'},'Save Enquiry'))),h(LogTable,{title:'Enquiry Register',heads:['Patient','Family Contact','Location','Expected Date','Status','Action'],rows:rows.map(r=>[r.patient_name,`${r.family_contact_name} · ${r.family_contact_phone}`,r.current_location,r.expected_admission_date||'—',r.status,h('select',{value:r.status,onChange:e=>status(r.id,e.target.value)},['New','Assessment Scheduled','Estimate Sent','Bed Reserved','Converted to Admission','Closed'].map(x=>h('option',{key:x},x)))])}))
   }
 
 
