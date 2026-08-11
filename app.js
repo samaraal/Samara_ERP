@@ -4800,18 +4800,79 @@ Caring with Compassion. Living with Dignity.`;
     function splitInterviewDateTime(value){if(!value)return {date:'',time:'10:00'};const d=new Date(value);if(Number.isNaN(d.getTime()))return {date:'',time:'10:00'};return {date:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,time:`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}}
     async function load(){const {data,error}=await client.from('career_applications').select('*').order('created_at',{ascending:false});if(error){setMsg(error.message);return}setRows(data||[]);if(selected){const fresh=(data||[]).find(x=>x.id===selected.id);if(fresh){setSelected(fresh);setEdit({...fresh})}}}
     React.useEffect(()=>{load();const ch=client.channel('career-applications-live').on('postgres_changes',{event:'*',schema:'public',table:'career_applications'},load).subscribe();return()=>client.removeChannel(ch)},[]);
-    function open(row){const parts=splitInterviewDateTime(row.interview_at);setSelected(row);setEdit({...row});setInterviewDate(parts.date);setInterviewTime(interviewTimeOptions.some(x=>x.value===parts.time)?parts.time:'10:00');setRescheduleDate('');setRescheduleTime('10:00');setMsg('')}
-    function closeApplication(){setSelected(null);setEdit(null);setMsg('')}
+    function normalizeCareerText(value){return String(value||'').trim().toLowerCase().replace(/\s+/g,' ')}
+    function normalizeCareerPhone(value){return String(value||'').replace(/\D/g,'').slice(-10)}
+    function previousDuplicateApplications(row){
+      if(!row)return [];
+      const name=normalizeCareerText(row.applicant_name);
+      const mobile=normalizeCareerPhone(row.mobile);
+      const email=normalizeCareerText(row.email);
+      const dob=String(row.date_of_birth||'').slice(0,10);
+      return rows.filter(other=>{
+        if(!other||other.id===row.id)return false;
+        const otherName=normalizeCareerText(other.applicant_name);
+        if(!name||!otherName||name!==otherName)return false;
+        const sameMobile=mobile&&mobile===normalizeCareerPhone(other.mobile);
+        const sameEmail=email&&email===normalizeCareerText(other.email);
+        const sameDob=dob&&dob===String(other.date_of_birth||'').slice(0,10);
+        return !!(sameMobile||sameEmail||sameDob);
+      }).sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
+    }
     function applicantDataIssues(row){
       const issues=[];
-      const mobile=String(row?.mobile||'').replace(/\D/g,'').slice(-10);
-      const emergency=String(row?.emergency_contact||'').replace(/\D/g,'').slice(-10);
-      if(mobile&&emergency&&mobile===emergency)issues.push('Applicant mobile number and Emergency / Parent contact number are the same.');
-      const gender=String(row?.gender||'').toLowerCase();
-      const title=String(row?.title||'').trim();
+      if(!row)return issues;
+      const duplicates=previousDuplicateApplications(row);
+      if(duplicates.length){
+        const refs=duplicates.slice(0,3).map(x=>`${x.application_id||'previous application'}${x.created_at?` (${formatDateIN(x.created_at)})`:''}`).join(', ');
+        issues.push(`Duplicate application / previous application found with the same applicant details: ${refs}.`);
+      }
+      const mobile=normalizeCareerPhone(row.mobile);
+      const emergency=normalizeCareerPhone(row.emergency_contact);
+      if(mobile&&emergency&&mobile===emergency)issues.push('Same mobile number entered for Applicant and Parent / Emergency Contact. Please provide two different contact numbers.');
+      if(row.mobile&&mobile.length!==10)issues.push('Applicant mobile number is not a valid 10-digit mobile number.');
+      if(row.emergency_contact&&emergency.length!==10)issues.push('Parent / Emergency Contact number is not a valid 10-digit mobile number.');
+      if(!String(row.gender||'').trim())issues.push('Gender is missing. Please provide Gender.');
+      const gender=String(row.gender||'').toLowerCase();
+      const title=String(row.title||'').trim();
+      if(!title)issues.push('Title / Salutation is missing.');
       if(gender==='female'&&['Mr.','Shri','Fr.','Br.'].includes(title))issues.push(`Salutation ${title} does not match Female gender.`);
       if(gender==='male'&&['Mrs.','Ms.','Miss','Smt.','Sr.'].includes(title))issues.push(`Salutation ${title} does not match Male gender.`);
-      return issues;
+      if(!String(row.father_guardian_name||'').trim())issues.push('Father / Mother / Guardian Name is missing.');
+      if(!String(row.email||'').trim())issues.push('Email ID is missing.');
+      else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(row.email).trim()))issues.push('Email ID appears to be invalid.');
+      if(!String(row.department||'').trim())issues.push('Department is missing.');
+      if(!String(row.designation||'').trim())issues.push('Designation is missing.');
+      if(!String(row.qualification||'').trim())issues.push('Qualification is missing.');
+      const refType=normalizeCareerText(row.reference_type);
+      if(refType&&refType!=='direct'){
+        if(!String(row.reference_name||'').trim())issues.push('Reference Name is missing for the selected reference source.');
+        if(!normalizeCareerPhone(row.reference_contact))issues.push('Reference Contact Number is missing for the selected reference source.');
+      }
+      return [...new Set(issues)];
+    }
+    function detectedRemarks(row){
+      const issues=applicantDataIssues(row);
+      return issues.map((issue,index)=>`${index+1}. ${issue}`).join('\n');
+    }
+    function open(row){
+      const parts=splitInterviewDateTime(row.interview_at);
+      const autoRemarks=detectedRemarks(row);
+      setSelected(row);
+      setEdit({...row,hr_remarks:String(row.hr_remarks||'').trim()||autoRemarks});
+      setInterviewDate(parts.date);
+      setInterviewTime(interviewTimeOptions.some(x=>x.value===parts.time)?parts.time:'10:00');
+      setRescheduleDate('');
+      setRescheduleTime('10:00');
+      setMsg(autoRemarks?'System pre-screen detected items requiring HR attention. Please review the suggested reasons before proceeding.':'');
+    }
+    function closeApplication(){setSelected(null);setEdit(null);setMsg('')}
+    function useDetectedRemarks(){
+      const auto=detectedRemarks(selected);
+      if(!auto){setMsg('No discrepancy was automatically detected. HR may enter any other discrepancy manually in HR Remarks.');return}
+      const current=String(edit?.hr_remarks||'').trim();
+      setEdit({...edit,hr_remarks:current&&current!==auto?`${auto}\n${current}`:auto,status:'Returned for Rectification',interview_at:null,interview_mode:null,interview_venue:null,interview_result:null});
+      setInterviewDate('');setInterviewTime('10:00');setRescheduleDate('');setRescheduleTime('10:00');
+      setMsg('Detected reasons added to HR Remarks. Review them and click Return for Rectification to send the WhatsApp message.');
     }
     function setInterviewSchedule(){
       if(!interviewDate){setMsg('Please select the interview date.');return}
@@ -4898,10 +4959,11 @@ Caring with Compassion. Living with Dignity.`;
       if(!remarks){setMsg('HR Remarks is mandatory when returning an application for rectification. Please enter the discrepancy / correction required.');return}
       const phone=String(edit.whatsapp||edit.mobile||'').replace(/\D/g,'').slice(-10);
       if(!phone){setMsg('WhatsApp / mobile number is not available for this applicant.');return}
-      const payload={status:'Returned for Rectification',hr_remarks:remarks,interview_at:edit.interview_at||null,interview_mode:edit.interview_mode||null,interview_venue:edit.interview_venue||null,interview_result:edit.interview_result||null,handled_by:profile.id,updated_at:new Date().toISOString()};
+      const payload={status:'Returned for Rectification',hr_remarks:remarks,interview_at:null,interview_mode:null,interview_venue:null,interview_result:null,handled_by:profile.id,updated_at:new Date().toISOString()};
       const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);
       if(error){setMsg(error.message);return}
-      const updated={...edit,status:'Returned for Rectification',hr_remarks:remarks};
+      const updated={...edit,status:'Returned for Rectification',hr_remarks:remarks,interview_at:null,interview_mode:null,interview_venue:null,interview_result:null};
+      setInterviewDate('');setInterviewTime('10:00');setRescheduleDate('');setRescheduleTime('10:00');
       setEdit(updated);setSelected({...selected,...updated});
       window.open(whatsappRectificationCandidate(updated,remarks),'_blank','noopener');
       setMsg('Application returned for rectification. WhatsApp request opened for the applicant.');
@@ -4964,10 +5026,19 @@ Caring with Compassion. Living with Dignity.`;
       onNavigate('Employees');
     }
     const table=h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Application ID','Applicant','Department','Designation','Mobile','Status','Received','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,rows.map(r=>h('tr',{key:r.id},h('td',null,r.application_id),h('td',null,r.applicant_name),h('td',null,r.department),h('td',null,r.designation),h('td',null,r.mobile),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)),h('td',null,h('button',{className:'btn btn-primary',onClick:()=>open(r)},'View / Respond')))),rows.length===0?h('tr',null,h('td',{colSpan:9,className:'empty'},'No career applications received yet.')):null)));
+    const isRectification=edit?.status==='Returned for Rectification';
     const modal=selected&&edit?h('div',{className:'modal-backdrop'},h('div',{className:'card modal employee-modal'},
       h('div',{className:'panel-head'},h('div',null,h('h3',null,selected.applicant_name),h('small',null,`${selected.application_id} · ${selected.department} · ${selected.designation}`)),h('button',{className:'close',onClick:closeApplication},'×')),
       msg?h('div',{className:`message ${msg.includes('successfully')?'success':'error'}`},msg):null,
-      applicantDataIssues(selected).length?h('div',{className:'message error'},h('strong',null,'Applicant data requires attention'),h('div',{style:{marginTop:'5px'}},applicantDataIssues(selected).join(' '))):null,
+      applicantDataIssues(selected).length?h('div',{className:'message error',style:{borderLeft:'5px solid #c31663'}},
+        h('strong',null,'Smart HR Pre-screen — attention required'),
+        h('div',{style:{marginTop:'7px'}},'The system automatically detected the following possible discrepancies:'),
+        h('ol',{style:{margin:'8px 0 8px 22px',padding:0}},applicantDataIssues(selected).map((issue,index)=>h('li',{key:`hr-issue-${index}`,style:{marginBottom:'5px'}},issue))),
+        h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'10px'}},
+          h('button',{type:'button',className:'btn btn-secondary',onClick:useDetectedRemarks},'Use Detected Reasons & Return'),
+          h('small',{style:{alignSelf:'center',color:'#806575'}},'HR can edit, add or remove reasons in HR Remarks before sending.')
+        )
+      ):h('div',{className:'message success'},h('strong',null,'Smart HR Pre-screen'),h('div',{style:{marginTop:'5px'}},'No obvious discrepancy or duplicate application was automatically detected. HR may still enter any other discrepancy manually.')),
       h('div',{className:'modal-grid'},
         h('div',{className:'field'},h('label',null,'Title / Applicant'),h('div',null,[selected.title,selected.applicant_name].filter(Boolean).join(' ')||'—')),
         h('div',{className:'field'},h('label',null,'Father / Guardian'),h('div',null,selected.father_guardian_name||'—')),
@@ -4999,7 +5070,7 @@ Caring with Compassion. Living with Dignity.`;
           selected.identity_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.identity_path)},'Open Identity Proof'):null
         )),
         h('div',{className:'field'},h('label',null,'Application Status'),h('select',{value:edit.status||'New',onChange:e=>setEdit({...edit,status:e.target.value})},HR_APPLICATION_STATUSES.map(x=>h('option',{key:x},x)))),
-        h('div',{className:'field span-2'},
+        !isRectification?h('div',{className:'field span-2'},
           h('label',null,'Interview Date & Time'),
           h('div',{style:{display:'grid',gridTemplateColumns:'minmax(170px,1fr) minmax(150px,0.7fr) auto auto',gap:'8px',alignItems:'end'}},
             h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'Date'),h('input',{type:'date',value:interviewDate,onChange:e=>setInterviewDate(e.target.value)})),
@@ -5008,8 +5079,8 @@ Caring with Compassion. Living with Dignity.`;
             h('button',{type:'button',className:'btn btn-secondary',onClick:clearInterviewSchedule},'Clear')
           ),
           edit.interview_at?h('small',{style:{display:'block',marginTop:'7px',fontWeight:700,color:'#7d1748'}},`Selected: ${fmt(edit.interview_at)}`):null
-        ),
-        (selected.interview_at||edit.status==='Interview Scheduled')?h('div',{className:'field span-2',style:{padding:'12px',border:'1px solid #ead0de',borderRadius:'12px',background:'#fffafd'}},
+        ):null,
+        !isRectification&&(selected.interview_at||edit.status==='Interview Scheduled')?h('div',{className:'field span-2',style:{padding:'12px',border:'1px solid #ead0de',borderRadius:'12px',background:'#fffafd'}},
           h('label',{style:{fontWeight:800,color:'#7d1748'}},'Reschedule Interview'),
           selected.interview_at?h('small',{style:{display:'block',marginBottom:'8px',color:'#806575'}},`Current schedule: ${fmt(selected.interview_at)}`):null,
           h('div',{style:{display:'grid',gridTemplateColumns:'minmax(170px,1fr) minmax(150px,0.7fr) auto',gap:'8px',alignItems:'end'}},
@@ -5019,12 +5090,13 @@ Caring with Compassion. Living with Dignity.`;
           ),
           h('small',{style:{display:'block',marginTop:'7px',color:'#806575'}},'Use this when Samara needs to change an already scheduled interview. The application will remain marked as Interview Scheduled.')
         ):null,
-        h('div',{className:'field'},h('label',null,'Interview Mode'),h('select',{value:edit.interview_mode||'',onChange:e=>setEdit({...edit,interview_mode:e.target.value})},['','In Person','Phone','Video'].map(x=>h('option',{key:x,value:x},x||'Select mode')))),
-        h('div',{className:'field'},h('label',null,'Interview Venue / Link'),h('input',{value:edit.interview_venue||'',onChange:e=>setEdit({...edit,interview_venue:e.target.value})})),
+        !isRectification?h('div',{className:'field'},h('label',null,'Interview Mode'),h('select',{value:edit.interview_mode||'',onChange:e=>setEdit({...edit,interview_mode:e.target.value})},['','In Person','Phone','Video'].map(x=>h('option',{key:x,value:x},x||'Select mode')))):null,
+        !isRectification?h('div',{className:'field'},h('label',null,'Interview Venue / Link'),h('input',{value:edit.interview_venue||'',onChange:e=>setEdit({...edit,interview_venue:e.target.value})})):null,
+        isRectification?h('div',{className:'message',style:{gridColumn:'1 / -1',background:'#fff7fb',border:'1px solid #ead0de',color:'#7d1748'}},h('strong',null,'Rectification only — no interview is scheduled'),h('div',{style:{marginTop:'5px'}},'Enter the discrepancy / correction required in HR Remarks, then click Return for Rectification. WhatsApp will open with the HR remarks for the applicant to reply with the rectification.')):null,
         h('div',{className:'field span-2'},h('label',null,'HR Remarks'),h('textarea',{rows:3,value:edit.hr_remarks||'',onChange:e=>setEdit({...edit,hr_remarks:e.target.value}),placeholder:'Enter discrepancies / clarification required. Mandatory when returning the application for rectification.'}),h('small',{style:{display:'block',marginTop:'6px',color:'#806575'}},'For Return for Rectification, specify exactly what the applicant must correct or clarify.')),
-        h('div',{className:'field span-2'},h('label',null,'Interview Result / Notes'),h('textarea',{rows:3,value:edit.interview_result||'',onChange:e=>setEdit({...edit,interview_result:e.target.value})}))
+        !isRectification?h('div',{className:'field span-2'},h('label',null,'Interview Result / Notes'),h('textarea',{rows:3,value:edit.interview_result||'',onChange:e=>setEdit({...edit,interview_result:e.target.value})})):null
       ),
-      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-secondary',onClick:returnForRectification,style:{borderColor:'#b31561',color:'#7d1748'}},'Return for Rectification'),h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendInterviewWhatsApp},'Send Interview WhatsApp'),(selected.interview_at&&edit.interview_at&&selected.interview_at!==edit.interview_at)?h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendRescheduleWhatsApp},'Send Reschedule WhatsApp'):null,['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null),
+      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-secondary',onClick:returnForRectification,style:{borderColor:'#b31561',color:'#7d1748'}},'Return & Send WhatsApp'),!isRectification?h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendInterviewWhatsApp},'Send Interview WhatsApp'):null,!isRectification&&(selected.interview_at&&edit.interview_at&&selected.interview_at!==edit.interview_at)?h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendRescheduleWhatsApp},'Send Reschedule WhatsApp'):null,!isRectification&&['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null),
       h('div',{style:{display:'flex',justifyContent:'center',padding:'14px 0 4px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:closeApplication,style:{minWidth:'180px'}},'Close Window'))
     )):null;
     return h(React.Fragment,null,h(Section,{title:'Career Applications',subtitle:'Online-only applications submitted through samaraassistedliving.com Careers'},table),modal);
