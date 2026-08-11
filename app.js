@@ -4957,40 +4957,78 @@ Caring with Compassion. Living with Dignity.`;
       if(!edit)return;
       const remarks=String(edit.hr_remarks||'').trim();
       if(!remarks){setMsg('HR Remarks is mandatory when returning an application for rectification. Please enter the discrepancy / correction required.');return}
-      const phone=String(edit.whatsapp||edit.mobile||'').replace(/\D/g,'').slice(-10);
-      if(!phone){setMsg('WhatsApp / mobile number is not available for this applicant.');return}
 
-      // Open the WhatsApp tab immediately while this click is still a direct user action.
-      // Browsers can block window.open() when it is called only after an awaited database update.
-      const whatsappTab=window.open('about:blank','_blank');
-      if(whatsappTab){
+      const phone=String(edit.whatsapp||edit.mobile||'').replace(/\D/g,'').slice(-10);
+      if(phone.length!==10){setMsg('A valid 10-digit WhatsApp / mobile number is not available for this applicant.');return}
+
+      const updated={
+        ...edit,
+        status:'Returned for Rectification',
+        hr_remarks:remarks,
+        interview_at:null,
+        interview_mode:null,
+        interview_venue:null,
+        interview_result:null
+      };
+
+      // IMPORTANT: open the REAL WhatsApp URL immediately from the button click.
+      // This is more reliable than opening about:blank and redirecting it later.
+      const whatsappUrl=whatsappRectificationCandidate(updated,remarks);
+      let whatsappOpened=false;
+      try{
+        const waWindow=window.open(whatsappUrl,'_blank');
+        whatsappOpened=!!waWindow;
+      }catch(_){
+        whatsappOpened=false;
+      }
+
+      // If a browser blocks the new tab, create a direct user-style link click.
+      if(!whatsappOpened){
         try{
-          whatsappTab.document.title='Opening WhatsApp…';
-          whatsappTab.document.body.innerHTML='<div style="font-family:Arial,sans-serif;padding:28px;font-size:18px">Saving the HR rectification and opening WhatsApp…</div>';
+          const a=document.createElement('a');
+          a.href=whatsappUrl;
+          a.target='_blank';
+          a.rel='noopener noreferrer';
+          a.style.display='none';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          whatsappOpened=true;
         }catch(_){}
       }
 
-      const payload={status:'Returned for Rectification',hr_remarks:remarks,interview_at:null,interview_mode:null,interview_venue:null,interview_result:null,handled_by:profile.id,updated_at:new Date().toISOString()};
+      setMsg(whatsappOpened
+        ?'WhatsApp opened. Saving the application as Returned for Rectification…'
+        :'WhatsApp could not open automatically. Please allow pop-ups for Samara Care ERP and click Return & Send WhatsApp again.'
+      );
+
+      const payload={
+        status:'Returned for Rectification',
+        hr_remarks:remarks,
+        interview_at:null,
+        interview_mode:null,
+        interview_venue:null,
+        interview_result:null,
+        handled_by:profile.id,
+        updated_at:new Date().toISOString()
+      };
+
       const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);
       if(error){
-        if(whatsappTab)whatsappTab.close();
-        setMsg(error.message);
+        setMsg(`WhatsApp ${whatsappOpened?'was opened, but ':''}the ERP could not save the return status: ${error.message}`);
         return;
       }
 
-      const updated={...edit,status:'Returned for Rectification',hr_remarks:remarks,interview_at:null,interview_mode:null,interview_venue:null,interview_result:null};
-      setInterviewDate('');setInterviewTime('10:00');setRescheduleDate('');setRescheduleTime('10:00');
-      setEdit(updated);setSelected({...selected,...updated});
-
-      const whatsappUrl=whatsappRectificationCandidate(updated,remarks);
-      if(whatsappTab){
-        whatsappTab.location.replace(whatsappUrl);
-      }else{
-        // Very strict popup blockers: use the current tab as a reliable fallback.
-        window.location.href=whatsappUrl;
-      }
-
-      setMsg('Application returned for rectification. WhatsApp request opened for the applicant.');
+      setInterviewDate('');
+      setInterviewTime('10:00');
+      setRescheduleDate('');
+      setRescheduleTime('10:00');
+      setEdit(updated);
+      setSelected({...selected,...updated});
+      setMsg(whatsappOpened
+        ?'Application returned for rectification and WhatsApp opened with the HR remarks.'
+        :'Application returned for rectification. Please allow pop-ups and click Return & Send WhatsApp again to open the message.'
+      );
       await load();
     }
     function convert(row){
