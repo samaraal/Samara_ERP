@@ -4800,6 +4800,18 @@ Caring with Compassion. Living with Dignity.`;
     async function load(){const {data,error}=await client.from('career_applications').select('*').order('created_at',{ascending:false});if(error){setMsg(error.message);return}setRows(data||[]);if(selected){const fresh=(data||[]).find(x=>x.id===selected.id);if(fresh){setSelected(fresh);setEdit({...fresh})}}}
     React.useEffect(()=>{load();const ch=client.channel('career-applications-live').on('postgres_changes',{event:'*',schema:'public',table:'career_applications'},load).subscribe();return()=>client.removeChannel(ch)},[]);
     function open(row){const parts=splitInterviewDateTime(row.interview_at);setSelected(row);setEdit({...row});setInterviewDate(parts.date);setInterviewTime(interviewTimeOptions.some(x=>x.value===parts.time)?parts.time:'10:00');setMsg('')}
+    function closeApplication(){setSelected(null);setEdit(null);setMsg('')}
+    function applicantDataIssues(row){
+      const issues=[];
+      const mobile=String(row?.mobile||'').replace(/\D/g,'').slice(-10);
+      const emergency=String(row?.emergency_contact||'').replace(/\D/g,'').slice(-10);
+      if(mobile&&emergency&&mobile===emergency)issues.push('Applicant mobile number and Emergency / Parent contact number are the same.');
+      const gender=String(row?.gender||'').toLowerCase();
+      const title=String(row?.title||'').trim();
+      if(gender==='female'&&['Mr.','Shri','Fr.','Br.'].includes(title))issues.push(`Salutation ${title} does not match Female gender.`);
+      if(gender==='male'&&['Mrs.','Ms.','Miss','Smt.','Sr.'].includes(title))issues.push(`Salutation ${title} does not match Male gender.`);
+      return issues;
+    }
     function setInterviewSchedule(){
       if(!interviewDate){setMsg('Please select the interview date.');return}
       const local=new Date(`${interviewDate}T${interviewTime}:00`);
@@ -4820,7 +4832,7 @@ Caring with Compassion. Living with Dignity.`;
       const phone=String(row.whatsapp||row.mobile||'').replace(/\D/g,'').slice(-10);if(!phone)return '#';
       const interviewDate=row.interview_at?fmt(row.interview_at):'—';
       const venue=row.interview_venue||'Samara Assisted Living, Mogappair, Chennai';
-      const text=`https://samaraassistedliving.com/\n\n*Dear ${candidateDisplayName(row)},*\n\nGreetings from *Samara Assisted Living*.\n\nThank you for your interest in joining our team. We are pleased to invite you for an interview regarding your application for the *${row.designation||'applied'}* position.\n\n📅 *Interview Date & Time:* ${interviewDate}\n📍 *Venue:* ${venue}\n\n🆔 *Application No.:* ${row.application_id||'—'}\n\nWe look forward to meeting you. Kindly reply to this message with one of the following:\n\n*1. CONFIRMED* – I will attend the interview as scheduled.\n*2. RESCHEDULE* – I would like to request another date/time.\n*3. UNABLE TO ATTEND* – I will not be able to attend.\n\nIf you need any assistance regarding the interview, please contact us at *9976735577*.\n\nWarm regards,\n*Dr. Chella Boomi*\nDirector\n*Samara Health Care LLP*\n📞 *9976735577*\n\n_Compassion • Comfort • Dignity_`;
+      const text=`Dear ${candidateDisplayName(row)},\n\nGreetings from Samara Assisted Living.\n\nThank you for your interest in joining our team. We are pleased to invite you for an interview regarding your application for the ${row.designation||'applied'} position.\n\nInterview Date & Time: ${interviewDate}\nVenue: ${venue}\n\nApplication No.: ${row.application_id||'—'}\n\nWe look forward to meeting you. If you have any difficulty attending at the scheduled time, please feel free to contact us at 9976735577.\n\nWarm regards,\nDr. Chella Boomi\nDirector\nSamara Health Care LLP\n9976735577\nCompassion • Comfort • Dignity`;
       return `https://wa.me/91${phone}?text=${encodeURIComponent(text)}`;
     }
     async function sendInterviewWhatsApp(){
@@ -4843,6 +4855,7 @@ Caring with Compassion. Living with Dignity.`;
         career_application_id:row.id,
         title:row.title||'',
         full_name:row.applicant_name||'',
+        gender:row.gender||'',
         mobile:row.mobile||'',
         emergency_contact:row.emergency_contact||'',
         employee_email:row.email||'',
@@ -4894,12 +4907,14 @@ Caring with Compassion. Living with Dignity.`;
     }
     const table=h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Application ID','Applicant','Department','Designation','Mobile','Status','Received','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,rows.map(r=>h('tr',{key:r.id},h('td',null,r.application_id),h('td',null,r.applicant_name),h('td',null,r.department),h('td',null,r.designation),h('td',null,r.mobile),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)),h('td',null,h('button',{className:'btn btn-primary',onClick:()=>open(r)},'View / Respond')))),rows.length===0?h('tr',null,h('td',{colSpan:9,className:'empty'},'No career applications received yet.')):null)));
     const modal=selected&&edit?h('div',{className:'modal-backdrop'},h('div',{className:'card modal employee-modal'},
-      h('div',{className:'panel-head'},h('div',null,h('h3',null,selected.applicant_name),h('small',null,`${selected.application_id} · ${selected.department} · ${selected.designation}`)),h('button',{className:'close',onClick:()=>{setSelected(null);setEdit(null);setMsg('')}},'×')),
+      h('div',{className:'panel-head'},h('div',null,h('h3',null,selected.applicant_name),h('small',null,`${selected.application_id} · ${selected.department} · ${selected.designation}`)),h('button',{className:'close',onClick:closeApplication},'×')),
       msg?h('div',{className:`message ${msg.includes('successfully')?'success':'error'}`},msg):null,
+      applicantDataIssues(selected).length?h('div',{className:'message error'},h('strong',null,'Applicant data requires attention'),h('div',{style:{marginTop:'5px'}},applicantDataIssues(selected).join(' '))):null,
       h('div',{className:'modal-grid'},
         h('div',{className:'field'},h('label',null,'Title / Applicant'),h('div',null,[selected.title,selected.applicant_name].filter(Boolean).join(' ')||'—')),
         h('div',{className:'field'},h('label',null,'Father / Guardian'),h('div',null,selected.father_guardian_name||'—')),
         h('div',{className:'field'},h('label',null,'Date of Birth'),h('div',null,formatDateIN(selected.date_of_birth))),
+        h('div',{className:'field'},h('label',null,'Gender'),h('div',null,selected.gender||'—')),
         h('div',{className:'field'},h('label',null,'Blood Group'),h('div',null,selected.blood_group||'—')),
         h('div',{className:'field'},h('label',null,'Mobile'),h('div',null,selected.mobile||'—')),
         h('div',{className:'field'},h('label',null,'Emergency Contact'),h('div',null,selected.emergency_contact||'—')),
@@ -4941,7 +4956,8 @@ Caring with Compassion. Living with Dignity.`;
         h('div',{className:'field span-2'},h('label',null,'HR Remarks'),h('textarea',{rows:3,value:edit.hr_remarks||'',onChange:e=>setEdit({...edit,hr_remarks:e.target.value})})),
         h('div',{className:'field span-2'},h('label',null,'Interview Result / Notes'),h('textarea',{rows:3,value:edit.interview_result||'',onChange:e=>setEdit({...edit,interview_result:e.target.value})}))
       ),
-      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendInterviewWhatsApp},'Send Interview WhatsApp'),['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null)
+      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendInterviewWhatsApp},'Send Interview WhatsApp'),['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null),
+      h('div',{style:{display:'flex',justifyContent:'center',padding:'14px 0 4px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:closeApplication,style:{minWidth:'180px'}},'Close Window'))
     )):null;
     return h(React.Fragment,null,h(Section,{title:'Career Applications',subtitle:'Online-only applications submitted through samaraassistedliving.com Careers'},table),modal);
   }
