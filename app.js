@@ -4794,9 +4794,19 @@ Caring with Compassion. Living with Dignity.`;
 
   function CareerApplications({profile,onNavigate}){
     const [rows,setRows]=React.useState([]),[selected,setSelected]=React.useState(null),[edit,setEdit]=React.useState(null),[msg,setMsg]=React.useState('');
+    const [interviewDate,setInterviewDate]=React.useState(''),[interviewTime,setInterviewTime]=React.useState('10:00');
+    const interviewTimeOptions=Array.from({length:15},(_,i)=>{const total=10*60+i*30;const hh=Math.floor(total/60),mm=total%60;const value=`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;const hour12=hh>12?hh-12:hh;const ampm=hh>=12?'PM':'AM';return {value,label:`${hour12}.${String(mm).padStart(2,'0')} ${ampm}`}});
+    function splitInterviewDateTime(value){if(!value)return {date:'',time:'10:00'};const d=new Date(value);if(Number.isNaN(d.getTime()))return {date:'',time:'10:00'};return {date:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,time:`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}}
     async function load(){const {data,error}=await client.from('career_applications').select('*').order('created_at',{ascending:false});if(error){setMsg(error.message);return}setRows(data||[]);if(selected){const fresh=(data||[]).find(x=>x.id===selected.id);if(fresh){setSelected(fresh);setEdit({...fresh})}}}
     React.useEffect(()=>{load();const ch=client.channel('career-applications-live').on('postgres_changes',{event:'*',schema:'public',table:'career_applications'},load).subscribe();return()=>client.removeChannel(ch)},[]);
-    function open(row){setSelected(row);setEdit({...row});setMsg('')}
+    function open(row){const parts=splitInterviewDateTime(row.interview_at);setSelected(row);setEdit({...row});setInterviewDate(parts.date);setInterviewTime(interviewTimeOptions.some(x=>x.value===parts.time)?parts.time:'10:00');setMsg('')}
+    function setInterviewSchedule(){
+      if(!interviewDate){setMsg('Please select the interview date.');return}
+      const local=new Date(`${interviewDate}T${interviewTime}:00`);
+      setEdit({...edit,interview_at:local.toISOString(),status:'Interview Scheduled'});
+      setMsg(`Interview schedule set for ${interviewTimeOptions.find(x=>x.value===interviewTime)?.label||interviewTime}. Click Save HR Update to confirm.`);
+    }
+    function clearInterviewSchedule(){setInterviewDate('');setInterviewTime('10:00');setEdit({...edit,interview_at:null});setMsg('Interview schedule cleared. Click Save HR Update to confirm.')}
     async function save(){
       if(!edit)return;
       const payload={status:edit.status,hr_remarks:edit.hr_remarks||null,interview_at:edit.interview_at||null,interview_mode:edit.interview_mode||null,interview_venue:edit.interview_venue||null,interview_result:edit.interview_result||null,handled_by:profile.id,updated_at:new Date().toISOString()};
@@ -4898,7 +4908,16 @@ Caring with Compassion. Living with Dignity.`;
           selected.identity_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.identity_path)},'Open Identity Proof'):null
         )),
         h('div',{className:'field'},h('label',null,'Application Status'),h('select',{value:edit.status||'New',onChange:e=>setEdit({...edit,status:e.target.value})},HR_APPLICATION_STATUSES.map(x=>h('option',{key:x},x)))),
-        h('div',{className:'field'},h('label',null,'Interview Date & Time'),h('input',{type:'datetime-local',value:edit.interview_at?new Date(edit.interview_at).toISOString().slice(0,16):'',onChange:e=>setEdit({...edit,interview_at:e.target.value?new Date(e.target.value).toISOString():null,status:e.target.value?'Interview Scheduled':edit.status})})),
+        h('div',{className:'field span-2'},
+          h('label',null,'Interview Date & Time'),
+          h('div',{style:{display:'grid',gridTemplateColumns:'minmax(170px,1fr) minmax(150px,0.7fr) auto auto',gap:'8px',alignItems:'end'}},
+            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'Date'),h('input',{type:'date',value:interviewDate,onChange:e=>setInterviewDate(e.target.value)})),
+            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'Time'),h('select',{value:interviewTime,onChange:e=>setInterviewTime(e.target.value)},interviewTimeOptions.map(x=>h('option',{key:x.value,value:x.value},x.label)))),
+            h('button',{type:'button',className:'btn btn-primary',onClick:setInterviewSchedule},'Set'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:clearInterviewSchedule},'Clear')
+          ),
+          edit.interview_at?h('small',{style:{display:'block',marginTop:'7px',fontWeight:700,color:'#7d1748'}},`Selected: ${fmt(edit.interview_at)}`):null
+        ),
         h('div',{className:'field'},h('label',null,'Interview Mode'),h('select',{value:edit.interview_mode||'',onChange:e=>setEdit({...edit,interview_mode:e.target.value})},['','In Person','Phone','Video'].map(x=>h('option',{key:x,value:x},x||'Select mode')))),
         h('div',{className:'field'},h('label',null,'Interview Venue / Link'),h('input',{value:edit.interview_venue||'',onChange:e=>setEdit({...edit,interview_venue:e.target.value})})),
         h('div',{className:'field span-2'},h('label',null,'HR Remarks'),h('textarea',{rows:3,value:edit.hr_remarks||'',onChange:e=>setEdit({...edit,hr_remarks:e.target.value})})),
