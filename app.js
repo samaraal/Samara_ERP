@@ -4813,11 +4813,29 @@ Caring with Compassion. Living with Dignity.`;
       const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);if(error){setMsg(error.message);return}setMsg('Career application updated successfully.');await load();
     }
     async function openDoc(path){if(!path)return;const {data,error}=await client.storage.from('career-applications').createSignedUrl(path,180);if(error){setMsg(error.message);return}window.open(data.signedUrl,'_blank','noopener')}
+    function candidateDisplayName(row){
+      return [row.title,row.applicant_name].filter(Boolean).join(' ').trim()||'Candidate';
+    }
     function whatsappCandidate(row){
       const phone=String(row.whatsapp||row.mobile||'').replace(/\D/g,'').slice(-10);if(!phone)return '#';
-      const interview=row.interview_at?`\nInterview: ${fmt(row.interview_at)}${row.interview_venue?`\nVenue: ${row.interview_venue}`:''}`:'';
-      const text=`Dear ${row.applicant_name},\n\nGreetings from Samara Assisted Living. Your application ${row.application_id} for ${row.designation} is currently marked as: ${row.status}.${interview}\n\nRegards,\nSamara HR`;
-      return `https://wa.me/91${phone}?text=${encodeURIComponent(brandWhatsAppText(text))}`;
+      const interviewDate=row.interview_at?fmt(row.interview_at):'—';
+      const venue=row.interview_venue||'Samara Assisted Living, Mogappair, Chennai';
+      const text=`Dear ${candidateDisplayName(row)},\n\nGreetings from Samara Assisted Living.\n\nThank you for your interest in joining our team. We are pleased to invite you for an interview regarding your application for the ${row.designation||'applied'} position.\n\nInterview Date & Time: ${interviewDate}\nVenue: ${venue}\n\nApplication No.: ${row.application_id||'—'}\n\nWe look forward to meeting you. If you have any difficulty attending at the scheduled time, please feel free to contact us at 9976735577.\n\nWarm regards,\nDr. Chella Boomi\nDirector\nSamara Health Care LLP\n9976735577\nCompassion • Comfort • Dignity`;
+      return `https://wa.me/91${phone}?text=${encodeURIComponent(text)}`;
+    }
+    async function sendInterviewWhatsApp(){
+      if(!edit)return;
+      if(!edit.interview_at){setMsg('Please set the interview date and time before sending WhatsApp.');return}
+      const phone=String(edit.whatsapp||edit.mobile||'').replace(/\D/g,'').slice(-10);
+      if(!phone){setMsg('WhatsApp / mobile number is not available for this applicant.');return}
+      const payload={status:'Interview Scheduled',hr_remarks:edit.hr_remarks||null,interview_at:edit.interview_at,interview_mode:edit.interview_mode||null,interview_venue:edit.interview_venue||null,interview_result:edit.interview_result||null,handled_by:profile.id,updated_at:new Date().toISOString()};
+      const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);
+      if(error){setMsg(error.message);return}
+      const updated={...edit,status:'Interview Scheduled'};
+      setEdit(updated);setSelected({...selected,...updated});
+      window.open(whatsappCandidate(updated),'_blank','noopener');
+      setMsg('Interview marked as Interview Scheduled and WhatsApp message opened.');
+      await load();
     }
     function convert(row){
       const seed={
@@ -4923,7 +4941,7 @@ Caring with Compassion. Living with Dignity.`;
         h('div',{className:'field span-2'},h('label',null,'HR Remarks'),h('textarea',{rows:3,value:edit.hr_remarks||'',onChange:e=>setEdit({...edit,hr_remarks:e.target.value})})),
         h('div',{className:'field span-2'},h('label',null,'Interview Result / Notes'),h('textarea',{rows:3,value:edit.interview_result||'',onChange:e=>setEdit({...edit,interview_result:e.target.value})}))
       ),
-      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('a',{className:'btn btn-whatsapp',href:whatsappCandidate(edit),target:'_blank',rel:'noopener'},'Respond by WhatsApp'),['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null)
+      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendInterviewWhatsApp},'Send Interview WhatsApp'),['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null)
     )):null;
     return h(React.Fragment,null,h(Section,{title:'Career Applications',subtitle:'Online-only applications submitted through samaraassistedliving.com Careers'},table),modal);
   }
