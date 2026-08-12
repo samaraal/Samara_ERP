@@ -768,3 +768,15 @@ body{font-size:17px;line-height:1.42}
   .daily-moment-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}
   .daily-moment-actions .btn{width:100%;min-height:52px;white-space:normal}
 }
+
+/* Daily Moments compact portrait cards + storage-friendly mobile presentation */
+.daily-moment-grid{grid-template-columns:repeat(auto-fill,minmax(220px,280px));justify-content:start;align-items:start}
+.daily-moment-card{width:100%;max-width:280px}
+.daily-moment-card video{aspect-ratio:9/16;max-height:440px;object-fit:cover}
+.daily-moment-video-missing{aspect-ratio:9/16}
+@media(max-width:700px){
+  .daily-moment-grid{display:grid;grid-template-columns:1fr;justify-items:center;gap:12px}
+  .daily-moment-card{width:min(76vw,280px);max-width:280px}
+  .daily-moment-card video{width:100%;aspect-ratio:9/16;max-height:440px;object-fit:cover}
+  .daily-moment-meta{padding:10px}
+}

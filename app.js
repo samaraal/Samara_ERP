@@ -8418,13 +8418,13 @@ Caring with Compassion. Living with Dignity.`;
         return;
       }
       try{
-        const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:720},height:{ideal:1280}},audio:true});
+        const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:480,max:540},height:{ideal:854,max:960}},audio:{channelCount:1,sampleRate:32000}});
         momentStreamRef.current=stream;
         momentChunksRef.current=[];
         let recorder;
         const preferred=['video/mp4','video/webm;codecs=vp8,opus','video/webm'];
         const mime=preferred.find(x=>MediaRecorder.isTypeSupported?.(x));
-        recorder=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);
+        recorder=new MediaRecorder(stream,{...(mime?{mimeType:mime}:{}),videoBitsPerSecond:600000,audioBitsPerSecond:64000});
         momentRecorderRef.current=recorder;
         recorder.ondataavailable=e=>{if(e.data&&e.data.size)momentChunksRef.current.push(e.data)};
         recorder.onstop=async()=>{
@@ -8452,7 +8452,7 @@ Caring with Compassion. Living with Dignity.`;
     async function uploadDailyMoment(file){
       if(!selected||!file)return;
       if(!/^video\//i.test(file.type||'')){showPatientToast('error','Please choose a video clip.');return}
-      if(file.size>25*1024*1024){showPatientToast('error','Daily Moment video must be 25 MB or less.');return}
+      if(file.size>8*1024*1024){showPatientToast('error','Daily Moment video must be 8 MB or less. For smaller files, please use Record Video.');return}
       setMomentBusy(true);
       try{
         const duration=await videoDurationSeconds(file);
