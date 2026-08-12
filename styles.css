@@ -755,3 +755,16 @@ body{font-size:17px;line-height:1.42}
 
 /* Samara Daily Moments - 7 day family video updates */
 .daily-moments-wrap{display:grid;gap:16px}.daily-moment-rules{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px}.daily-moment-form{align-items:end}.daily-moment-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}.daily-moment-card{border:1px solid #ead0de;border-radius:16px;background:#fff;overflow:hidden;box-shadow:0 5px 16px rgba(76,23,52,.08)}.daily-moment-card video{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#1e1720}.daily-moment-meta{display:grid;gap:5px;padding:12px}.daily-moment-meta>span,.daily-moment-meta>small{color:#725669}.daily-moment-meta .btn{margin-top:6px;justify-self:start}.daily-moment-video-missing{aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;background:#f7edf2;color:#76586a}.daily-moment-upload input[type=file]{width:100%}@media(max-width:700px){.daily-moment-grid{grid-template-columns:1fr}.daily-moment-form{grid-template-columns:1fr}.daily-moment-form .span-2{grid-column:auto}.daily-moment-card video{max-height:52vh}}
+
+/* Daily Moments: mobile-first portrait video and 10-second recorder */
+.daily-moment-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.daily-moment-recorder{position:fixed;inset:0;z-index:10050;background:rgba(18,12,16,.92);display:flex;align-items:center;justify-content:center;padding:16px}
+.daily-moment-recorder-box{width:min(92vw,430px);display:grid;gap:12px;justify-items:center;color:#fff}
+.daily-moment-recorder-box video{width:100%;aspect-ratio:9/16;max-height:72vh;object-fit:cover;border-radius:18px;background:#000}
+.record-progress{width:100%;height:8px;border-radius:999px;background:rgba(255,255,255,.25);overflow:hidden}.record-progress span{display:block;height:100%;background:currentColor;transition:width .2s linear}
+@media(max-width:700px){
+  .daily-moment-card{width:100%;max-width:100%;margin-inline:auto}
+  .daily-moment-card video{width:100%;aspect-ratio:9/16;max-height:68vh;object-fit:contain;background:#1e1720}
+  .daily-moment-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}
+  .daily-moment-actions .btn{width:100%;min-height:52px;white-space:normal}
+}

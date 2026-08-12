@@ -4906,13 +4906,16 @@ Caring with Compassion. Living with Dignity.`;
     function whatsappCandidate(row){
       const phone=String(row.whatsapp||row.mobile||'').replace(/\D/g,'').slice(-10);if(!phone)return '#';
       const interviewDate=row.interview_at?fmt(row.interview_at):'—';
-      const venue=row.interview_venue||'Samara Assisted Living, Mogappair, Chennai';
-      const text=`https://samaraassistedliving.com/\n\n*Dear ${candidateDisplayName(row)},*\n\nGreetings from *Samara Assisted Living*.\n\nThank you for your interest in joining our team. We are pleased to invite you for an interview regarding your application for the *${row.designation||'applied'}* position.\n\n📅 *Interview Date & Time:* ${interviewDate}\n📍 *Venue:* ${venue}\n\n🆔 *Application No.:* ${row.application_id||'—'}\n\nWe look forward to meeting you. Kindly reply to this message with one of the following:\n\n*1. CONFIRMED* – I will attend the interview as scheduled.\n*2. RESCHEDULE* – I would like to request another date/time.\n*3. UNABLE TO ATTEND* – I will not be able to attend.\n\nIf you need any assistance regarding the interview, please contact us at *9976735577*.\n\nWarm regards,\n*Dr. Chella Boomi*\nDirector\n*Samara Health Care LLP*\n📞 *9976735577*\n\n_Compassion • Comfort • Dignity_`;
+      const mode=row.interview_mode||'In Person';
+      const locationLine=mode==='Online'?`💻 *Interview Mode:* Online\n🔗 *Google Meet Link:* ${row.interview_venue||'—'}`:mode==='Phone'?`📞 *Interview Mode:* Phone`: `👥 *Interview Mode:* In Person\n📍 *Venue:* ${row.interview_venue||'Samara Assisted Living, Mogappair, Chennai'}`;
+      const text=`https://samaraassistedliving.com/\n\n*Dear ${candidateDisplayName(row)},*\n\nGreetings from *Samara Assisted Living*.\n\nThank you for your interest in joining our team. We are pleased to invite you for an interview regarding your application for the *${row.designation||'applied'}* position.\n\n📅 *Interview Date & Time:* ${interviewDate}\n${locationLine}\n\n🆔 *Application No.:* ${row.application_id||'—'}\n\nWe look forward to meeting you. Kindly reply to this message with one of the following:\n\n*1. CONFIRMED* – I will attend the interview as scheduled.\n*2. RESCHEDULE* – I would like to request another date/time.\n*3. UNABLE TO ATTEND* – I will not be able to attend.\n\nIf you need any assistance regarding the interview, please contact us at *9976735577*.\n\nWarm regards,\n*Dr. Chella Boomi*\nDirector\n*Samara Health Care LLP*\n📞 *9976735577*\n\n_Compassion • Comfort • Dignity_`;
       return `https://wa.me/91${phone}?text=${encodeURIComponent(text)}`;
     }
     async function sendInterviewWhatsApp(){
       if(!edit)return;
       if(!edit.interview_at){setMsg('Please set the interview date and time before sending WhatsApp.');return}
+      if(!edit.interview_mode){setMsg('Please select the Interview Mode before sending WhatsApp.');return}
+      if(edit.interview_mode==='Online'&&!String(edit.interview_venue||'').trim()){setMsg('Please enter the Google Meet link for the online interview.');return}
       const phone=String(edit.whatsapp||edit.mobile||'').replace(/\D/g,'').slice(-10);
       if(!phone){setMsg('WhatsApp / mobile number is not available for this applicant.');return}
       const payload={status:'Interview Scheduled',hr_remarks:edit.hr_remarks||null,interview_at:edit.interview_at,interview_mode:edit.interview_mode||null,interview_venue:edit.interview_venue||null,interview_result:edit.interview_result||null,handled_by:profile.id,updated_at:new Date().toISOString()};
@@ -4928,8 +4931,9 @@ Caring with Compassion. Living with Dignity.`;
       const phone=String(row.whatsapp||row.mobile||'').replace(/\D/g,'').slice(-10);if(!phone)return '#';
       const newDate=row.interview_at?fmt(row.interview_at):'—';
       const oldDate=previousAt?fmt(previousAt):'the earlier scheduled time';
-      const venue=row.interview_venue||'Samara Assisted Living, Mogappair, Chennai';
-      const text=`https://samaraassistedliving.com/\n\n*Dear ${candidateDisplayName(row)},*\n\nGreetings from *Samara Assisted Living*.\n\nWe would like to inform you that, due to an unavoidable change in our schedule, your interview for the *${row.designation||'applied'}* position has been rescheduled. We regret any inconvenience this may cause and appreciate your understanding.\n\n⏰ *Earlier Schedule:* ${oldDate}\n📅 *Revised Interview Date & Time:* ${newDate}\n📍 *Venue:* ${venue}\n\n🆔 *Application No.:* ${row.application_id||'—'}\n\nKindly reply *CONFIRMED* if the revised schedule is convenient. If you need any assistance or another suitable time, please contact us at *9976735577*.\n\nWe look forward to meeting you.\n\nWarm regards,\n*Dr. Chella Boomi*\nDirector\n*Samara Health Care LLP*\n📞 *9976735577*\n\n_Compassion • Comfort • Dignity_`;
+      const mode=row.interview_mode||'In Person';
+      const locationLine=mode==='Online'?`💻 *Interview Mode:* Online\n🔗 *Google Meet Link:* ${row.interview_venue||'—'}`:mode==='Phone'?`📞 *Interview Mode:* Phone`: `👥 *Interview Mode:* In Person\n📍 *Venue:* ${row.interview_venue||'Samara Assisted Living, Mogappair, Chennai'}`;
+      const text=`https://samaraassistedliving.com/\n\n*Dear ${candidateDisplayName(row)},*\n\nGreetings from *Samara Assisted Living*.\n\nWe would like to inform you that, due to an unavoidable change in our schedule, your interview for the *${row.designation||'applied'}* position has been rescheduled. We regret any inconvenience this may cause and appreciate your understanding.\n\n⏰ *Earlier Schedule:* ${oldDate}\n📅 *Revised Interview Date & Time:* ${newDate}\n${locationLine}\n\n🆔 *Application No.:* ${row.application_id||'—'}\n\nKindly reply *CONFIRMED* if the revised schedule is convenient. If you need any assistance or another suitable time, please contact us at *9976735577*.\n\nWe look forward to meeting you.\n\nWarm regards,\n*Dr. Chella Boomi*\nDirector\n*Samara Health Care LLP*\n📞 *9976735577*\n\n_Compassion • Comfort • Dignity_`;
       return `https://wa.me/91${phone}?text=${encodeURIComponent(text)}`;
     }
     async function sendRescheduleWhatsApp(){
@@ -5152,8 +5156,8 @@ Caring with Compassion. Living with Dignity.`;
           ),
           h('small',{style:{display:'block',marginTop:'7px',color:'#806575'}},'Use this when Samara needs to change an already scheduled interview. The application will remain marked as Interview Scheduled.')
         ):null,
-        !isRectification?h('div',{className:'field'},h('label',null,'Interview Mode'),h('select',{value:edit.interview_mode||'',onChange:e=>setEdit({...edit,interview_mode:e.target.value})},['','In Person','Phone','Video'].map(x=>h('option',{key:x,value:x},x||'Select mode')))):null,
-        !isRectification?h('div',{className:'field'},h('label',null,'Interview Venue / Link'),h('input',{value:edit.interview_venue||'',onChange:e=>setEdit({...edit,interview_venue:e.target.value})})):null,
+        !isRectification?h('div',{className:'field'},h('label',null,'Interview Mode'),h('select',{value:edit.interview_mode||'',onChange:e=>{const mode=e.target.value;setEdit({...edit,interview_mode:mode,interview_venue:mode==='Phone'?'':edit.interview_venue})}},['','In Person','Phone','Online'].map(x=>h('option',{key:x,value:x},x||'Select mode')))):null,
+        !isRectification&&edit.interview_mode!=='Phone'?h('div',{className:'field'},h('label',null,edit.interview_mode==='Online'?'Google Meet Link':'Interview Venue'),h('input',{type:edit.interview_mode==='Online'?'url':'text',placeholder:edit.interview_mode==='Online'?'https://meet.google.com/xxx-xxxx-xxx':'Samara Assisted Living, Mogappair, Chennai',value:edit.interview_venue||'',onChange:e=>setEdit({...edit,interview_venue:e.target.value})}),edit.interview_mode==='Online'?h('small',{style:{display:'block',marginTop:'5px',color:'#806575'}},'Required for Online interview. This link will be included in the WhatsApp message.'):null):null,
         isRectification?h('div',{className:'message',style:{gridColumn:'1 / -1',background:'#fff7fb',border:'1px solid #ead0de',color:'#7d1748'}},h('strong',null,'Rectification only — no interview is scheduled'),h('div',{style:{marginTop:'5px'}},'Enter the discrepancy / correction required in HR Remarks, then click Return for Rectification. WhatsApp will open with the HR remarks for the applicant to reply with the rectification.')):null,
         h('div',{className:'field span-2'},h('label',null,'HR Remarks'),h('textarea',{rows:3,value:edit.hr_remarks||'',onChange:e=>setEdit({...edit,hr_remarks:e.target.value}),placeholder:'Enter discrepancies / clarification required. Mandatory when returning the application for rectification.'}),h('small',{style:{display:'block',marginTop:'6px',color:'#806575'}},'For Return for Rectification, specify exactly what the applicant must correct or clarify.')),
         !isRectification?h('div',{className:'field span-2'},h('label',null,'Interview Result / Notes'),h('textarea',{rows:3,value:edit.interview_result||'',onChange:e=>setEdit({...edit,interview_result:e.target.value})})):null
@@ -8316,6 +8320,12 @@ Caring with Compassion. Living with Dignity.`;
     const [momentCaption,setMomentCaption]=React.useState('');
     const [momentFamilyVisible,setMomentFamilyVisible]=React.useState(true);
     const [momentInputKey,setMomentInputKey]=React.useState(0);
+    const [momentRecording,setMomentRecording]=React.useState(false);
+    const [momentRecordSeconds,setMomentRecordSeconds]=React.useState(0);
+    const momentRecorderRef=React.useRef(null);
+    const momentStreamRef=React.useRef(null);
+    const momentChunksRef=React.useRef([]);
+    const momentTimerRef=React.useRef(null);
     const [patientToast,setPatientToast]=React.useState(null);
     const patientToastTimer=React.useRef(null);
     const [duplicateReview,setDuplicateReview]=React.useState(null);
@@ -8395,6 +8405,50 @@ Caring with Compassion. Living with Dignity.`;
       });
     }
 
+    function stopDailyMomentRecording(){
+      if(momentTimerRef.current){clearInterval(momentTimerRef.current);momentTimerRef.current=null}
+      const recorder=momentRecorderRef.current;
+      if(recorder&&recorder.state!=='inactive')recorder.stop();
+    }
+
+    async function startDailyMomentRecording(){
+      if(momentBusy||momentRecording)return;
+      if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined'){
+        document.getElementById('daily-moment-record-video')?.click();
+        return;
+      }
+      try{
+        const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:720},height:{ideal:1280}},audio:true});
+        momentStreamRef.current=stream;
+        momentChunksRef.current=[];
+        let recorder;
+        const preferred=['video/mp4','video/webm;codecs=vp8,opus','video/webm'];
+        const mime=preferred.find(x=>MediaRecorder.isTypeSupported?.(x));
+        recorder=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);
+        momentRecorderRef.current=recorder;
+        recorder.ondataavailable=e=>{if(e.data&&e.data.size)momentChunksRef.current.push(e.data)};
+        recorder.onstop=async()=>{
+          if(momentTimerRef.current){clearInterval(momentTimerRef.current);momentTimerRef.current=null}
+          stream.getTracks().forEach(t=>t.stop());momentStreamRef.current=null;
+          setMomentRecording(false);setMomentRecordSeconds(0);
+          const type=recorder.mimeType||'video/webm';
+          const blob=new Blob(momentChunksRef.current,{type});momentChunksRef.current=[];
+          if(!blob.size)return;
+          const ext=type.includes('mp4')?'mp4':'webm';
+          await uploadDailyMoment(new File([blob],`daily-moment-${Date.now()}.${ext}`,{type}));
+        };
+        recorder.start(250);setMomentRecording(true);setMomentRecordSeconds(0);
+        const started=Date.now();
+        momentTimerRef.current=setInterval(()=>{
+          const elapsed=Math.min(10,Math.floor((Date.now()-started)/1000));setMomentRecordSeconds(elapsed);
+          if(Date.now()-started>=10000)stopDailyMomentRecording();
+        },250);
+      }catch(error){
+        momentStreamRef.current?.getTracks?.().forEach(t=>t.stop());momentStreamRef.current=null;setMomentRecording(false);
+        showPatientToast('error',error?.name==='NotAllowedError'?'Camera/microphone permission is required to record a Daily Moment.':(error.message||'Unable to open the camera.'));
+      }
+    }
+
     async function uploadDailyMoment(file){
       if(!selected||!file)return;
       if(!/^video\//i.test(file.type||'')){showPatientToast('error','Please choose a video clip.');return}
@@ -8403,7 +8457,7 @@ Caring with Compassion. Living with Dignity.`;
       try{
         const duration=await videoDurationSeconds(file);
         if(!Number.isFinite(duration)||duration<=0)throw new Error('Unable to confirm the video duration.');
-        if(duration>20.5)throw new Error('Please keep each Daily Moment to 20 seconds or less.');
+        if(duration>10.5)throw new Error('Daily Moments are limited to 10 seconds. Please record a new clip of 10 seconds or less.');
         const ext=(String(file.name||'').split('.').pop()||'mp4').replace(/[^a-z0-9]/gi,'').toLowerCase()||'mp4';
         const stamp=new Date().toISOString().slice(0,10);
         const uid=(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -9424,36 +9478,23 @@ Caring with Compassion. Living with Dignity.`;
           tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${x.preferred_time||'—'} · ${x.precautions||''}`))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'))):sectionEmpty('No physiotherapy sessions.')),
           tab==='Diet'&&h('div',{className:'section-card'},h('h4',null,`Diet Plan: ${selected.diet_plan||'Not recorded'}`),h('p',null,selected.feeding_instruction||'No special feeding instruction.'),h('h4',{style:{marginTop:'18px'}},'Meal Records'),details.meals.length?details.meals.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${x.meal_date||''} · ${x.meal_type} · ${x.consumption_status}`),h('span',null,`${x.menu||'—'} · ${x.remarks||''}`))):sectionEmpty('No meal records.')),
           tab==='Daily Moments'&&h('div',{className:'daily-moments-wrap'},
+            momentRecording&&h('div',{className:'daily-moment-recorder'},h('div',{className:'daily-moment-recorder-box'},h('video',{autoPlay:true,muted:true,playsInline:true,ref:el=>{if(el&&momentStreamRef.current&&el.srcObject!==momentStreamRef.current)el.srcObject=momentStreamRef.current}}),h('strong',null,`Recording ${momentRecordSeconds}/10 sec`),h('div',{className:'record-progress'},h('span',{style:{width:`${Math.min(100,momentRecordSeconds*10)}%`}})),h('button',{type:'button',className:'btn btn-danger',onClick:stopDailyMomentRecording},'Stop now'))),
             h('div',{className:'section-card daily-moment-upload'},
               h('div',{className:'panel-head'},h('div',null,h('h4',null,'Daily Moments'),h('small',null,'Share a brief reassuring glimpse of the resident with authorised family. Clips remain available for 7 days and are then removed.'))),
-              h('div',{className:'daily-moment-rules'},h('span',{className:'pill'},'Up to 20 seconds'),h('span',{className:'pill'},'Maximum 3 clips / day'),h('span',{className:'pill'},'Private Family Portal'),h('span',{className:'pill'},'Auto-delete after 7 days')),
+              h('div',{className:'daily-moment-rules'},h('span',{className:'pill'},'10 seconds · auto-stop'),h('span',{className:'pill'},'Maximum 3 clips / day'),h('span',{className:'pill'},'Private Family Portal'),h('span',{className:'pill'},'Auto-delete after 7 days')),
               h('div',{className:'form-grid daily-moment-form'},
                 h('div',{className:'field span-2'},h('label',null,'Caption / Moment'),h('select',{value:momentCaption,onChange:e=>setMomentCaption(e.target.value)},
-                  h('option',{value:''},'Select moment'),
-                  h('option',{value:'Morning walk'},'Morning walk'),
-                  h('option',{value:'Having breakfast'},'Having breakfast'),
-                  h('option',{value:'Having lunch'},'Having lunch'),
-                  h('option',{value:'Having dinner'},'Having dinner'),
-                  h('option',{value:'Physiotherapy session'},'Physiotherapy session'),
-                  h('option',{value:'Exercise / mobility'},'Exercise / mobility'),
-                  h('option',{value:'Sitting and relaxing comfortably'},'Sitting and relaxing comfortably'),
-                  h('option',{value:'Talking / interacting comfortably'},'Talking / interacting comfortably'),
-                  h('option',{value:'Reading / watching TV / activity'},'Reading / watching TV / activity'),
-                  h('option',{value:'Resting comfortably'},'Resting comfortably'),
-                  h('option',{value:'Personal care completed'},'Personal care completed'),
-                  h('option',{value:'Family video / phone call'},'Family video / phone call'),
-                  h('option',{value:'Other daily moment'},'Other daily moment')
-                )),
+                  ['Select moment','Morning walk','Having breakfast','Having lunch','Having dinner','Physiotherapy session','Exercise / mobility','Sitting and relaxing comfortably','Talking freely','Reading / watching TV / activity','Resting comfortably','Personal care completed','Family video / phone call','Other daily moment'].map((x,i)=>h('option',{key:x,value:i?x:''},x)))),
                 h('label',{className:'check-card'},h('input',{type:'checkbox',checked:momentFamilyVisible,onChange:e=>setMomentFamilyVisible(e.target.checked)}),h('span',null,'Visible to authorised family')),
                 h('div',{className:'field span-2'},
                   h('label',null,'Record / Upload short video'),
-                  h('div',{className:'actions',style:{display:'flex',gap:'10px',flexWrap:'wrap',alignItems:'center'}},
-                    h('button',{type:'button',className:'btn btn-primary',disabled:momentBusy,onClick:()=>document.getElementById('daily-moment-record-video')?.click()},momentBusy?'Uploading…':'🎥 Record Video'),
-                    h('button',{type:'button',className:'btn btn-secondary',disabled:momentBusy,onClick:()=>document.getElementById('daily-moment-upload-video')?.click()},'📁 Upload Existing Video')
+                  h('div',{className:'actions daily-moment-actions'},
+                    h('button',{type:'button',className:'btn btn-primary',disabled:momentBusy||momentRecording,onClick:startDailyMomentRecording},momentRecording?'Recording…':'🎥 Record 10-sec Video'),
+                    h('button',{type:'button',className:'btn btn-secondary',disabled:momentBusy||momentRecording,onClick:()=>document.getElementById('daily-moment-upload-video')?.click()},'📁 Upload Existing Video')
                   ),
                   h('input',{id:'daily-moment-record-video',key:`record-${momentInputKey}`,type:'file',accept:'video/*',capture:'environment',disabled:momentBusy,style:{display:'none'},onChange:e=>{const f=e.target.files?.[0];if(f)uploadDailyMoment(f)}}),
                   h('input',{id:'daily-moment-upload-video',key:`upload-${momentInputKey}`,type:'file',accept:'video/*',disabled:momentBusy,style:{display:'none'},onChange:e=>{const f=e.target.files?.[0];if(f)uploadDailyMoment(f)}}),
-                  h('small',null,momentBusy?'Uploading…':'Tap Record Video on mobile to open the camera. Keep the clip to 20 seconds or less.')
+                  h('small',null,momentBusy?'Uploading…':'Recording stops automatically at 10 seconds. Existing uploads must also be 10 seconds or less.')
                 )
               )
             ),
