@@ -4325,27 +4325,30 @@ Caring with Compassion. Living with Dignity.`;
       }finally{setSaving(false)}
     }
 
+    const feedbackStatStyle={minHeight:'122px',padding:'20px 22px',borderRadius:'22px',display:'flex',flexDirection:'column',justifyContent:'center',gap:'8px',boxShadow:'0 10px 28px rgba(176,18,100,.08)',border:'1px solid rgba(176,18,100,.13)'};
+    const feedbackFilterButtonStyle={minHeight:'46px',padding:'11px 19px',borderRadius:'15px',fontSize:'15px',fontWeight:800,letterSpacing:'.1px',boxShadow:'0 5px 14px rgba(176,18,100,.08)'};
+
     const all=rows;
     const avg=all.filter(x=>x.rating).length?(all.filter(x=>x.rating).reduce((a,x)=>a+Number(x.rating),0)/all.filter(x=>x.rating).length).toFixed(1):'—';
     const count=s=>all.filter(x=>x.status===s).length;
 
     return h('div',{className:'feedback-admin-shell'},
       h('div',{className:'mail-hero'},
-        h('div',null,h('small',null,'SAMARA EXPERIENCE & QUALITY'),h('h3',null,'Feedback Dashboard'),h('p',null,'Website, Family Portal and resident feedback in one management workspace.')),
+        h('div',null,h('small',null,'SAMARA EXPERIENCE & QUALITY'),h('h3',null,'Feedback Dashboard'),h('p',null,'Website, Family Portal and resident feedback in one management workspace. Positive / Negative classification is automatic from rating and written feedback.')),
         h('div',{className:'mail-actions'},h('button',{className:'btn btn-secondary',onClick:load},loading?'Refreshing…':'↻ Refresh'))
       ),
       h('div',{className:'feedback-stat-grid'},
-        h('div',{className:'feedback-stat'},h('small',null,'Total Feedback'),h('strong',null,all.length)),
-        h('div',{className:'feedback-stat'},h('small',null,'Average Rating'),h('strong',null,avg==='—'?'—':`${avg} ★`)),
-        h('div',{className:'feedback-stat'},h('small',null,'New'),h('strong',null,count('New'))),
-        h('div',{className:'feedback-stat'},h('small',null,'Replied'),h('strong',null,count('Replied'))),
-        h('div',{className:'feedback-stat'},h('small',null,'Positive'),h('strong',null,all.filter(x=>x.feedback_nature==='Positive').length)),
-        h('div',{className:'feedback-stat'},h('small',null,'Negative'),h('strong',null,all.filter(x=>x.feedback_nature==='Negative').length))
+        h('div',{className:'feedback-stat',style:feedbackStatStyle},h('small',null,'Total Feedback'),h('strong',null,all.length)),
+        h('div',{className:'feedback-stat',style:feedbackStatStyle},h('small',null,'Average Rating'),h('strong',null,avg==='—'?'—':`${avg} ★`)),
+        h('div',{className:'feedback-stat',style:feedbackStatStyle},h('small',null,'New'),h('strong',null,count('New'))),
+        h('div',{className:'feedback-stat',style:feedbackStatStyle},h('small',null,'Replied'),h('strong',null,count('Replied'))),
+        h('div',{className:'feedback-stat',style:feedbackStatStyle},h('small',null,'Positive'),h('strong',null,all.filter(x=>x.feedback_nature==='Positive').length)),
+        h('div',{className:'feedback-stat',style:feedbackStatStyle},h('small',null,'Negative'),h('strong',null,all.filter(x=>x.feedback_nature==='Negative').length))
       ),
-      h('div',{className:'feedback-filter-row'},['All','New','Under Review','Replied','Closed'].map(x=>h('button',{key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>setFilter(x)},x))),
+      h('div',{className:'feedback-filter-row'},['All','New','Under Review','Replied','Closed'].map(x=>h('button',{key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,style:feedbackFilterButtonStyle,onClick:()=>setFilter(x)},x))),
       h('div',{className:'feedback-filter-row'},
-        h('span',{className:'small-note'},'Feedback From:'),['All','Public','Patient','Relative','Visitor'].map(x=>h('button',{key:`from-${x}`,className:`btn ${fromFilter===x?'btn-primary':'btn-secondary'}`,onClick:()=>setFromFilter(x)},x)),
-        h('span',{className:'small-note',style:{marginLeft:'10px'}},'Type:'),['All','Positive','Negative'].map(x=>h('button',{key:`nature-${x}`,className:`btn ${natureFilter===x?'btn-primary':'btn-secondary'}`,onClick:()=>setNatureFilter(x)},x))
+        h('span',{className:'small-note'},'Feedback From:'),['All','Public','Patient','Relative','Visitor'].map(x=>h('button',{key:`from-${x}`,className:`btn ${fromFilter===x?'btn-primary':'btn-secondary'}`,style:feedbackFilterButtonStyle,onClick:()=>setFromFilter(x)},x)),
+        h('span',{className:'small-note',style:{marginLeft:'10px'}},'Type:'),['All','Positive','Negative'].map(x=>h('button',{key:`nature-${x}`,className:`btn ${natureFilter===x?'btn-primary':'btn-secondary'}`,style:feedbackFilterButtonStyle,onClick:()=>setNatureFilter(x)},x))
       ),
       error&&h('div',{className:'message error'},error),
       h('div',{className:'table-card'},h('table',null,
