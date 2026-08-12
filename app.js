@@ -4215,19 +4215,21 @@ Caring with Compassion. Living with Dignity.`;
 
   function FeedbackDashboard({profile}){
     React.useEffect(()=>{ensureCleanWorkspaceLayout()},[]);
-    const [rows,setRows]=React.useState([]),[loading,setLoading]=React.useState(false),[error,setError]=React.useState(''),[filter,setFilter]=React.useState('All'),[selected,setSelected]=React.useState(null),[reply,setReply]=React.useState(''),[status,setStatus]=React.useState('Under Review'),[saving,setSaving]=React.useState(false);
+    const [rows,setRows]=React.useState([]),[loading,setLoading]=React.useState(false),[error,setError]=React.useState(''),[filter,setFilter]=React.useState('All'),[fromFilter,setFromFilter]=React.useState('All'),[natureFilter,setNatureFilter]=React.useState('All'),[selected,setSelected]=React.useState(null),[reply,setReply]=React.useState(''),[status,setStatus]=React.useState('Under Review'),[saving,setSaving]=React.useState(false);
 
     async function load(){
       setLoading(true);setError('');
       try{
         let q=client.from('feedback').select('*').order('created_at',{ascending:false}).limit(250);
         if(filter!=='All')q=q.eq('status',filter);
+        if(fromFilter!=='All')q=q.eq('feedback_from',fromFilter);
+        if(natureFilter!=='All')q=q.eq('feedback_nature',natureFilter);
         const {data,error}=await q;if(error)throw error;setRows(data||[]);
       }catch(err){setError(err.message||'Unable to load feedback.');}
       finally{setLoading(false)}
     }
 
-    React.useEffect(()=>{load()},[filter]);
+    React.useEffect(()=>{load()},[filter,fromFilter,natureFilter]);
 
     function open(row){
       setSelected(row);
@@ -4340,25 +4342,33 @@ Caring with Compassion. Living with Dignity.`;
         h('div',{className:'feedback-stat'},h('small',null,'Total Feedback'),h('strong',null,all.length)),
         h('div',{className:'feedback-stat'},h('small',null,'Average Rating'),h('strong',null,avg==='—'?'—':`${avg} ★`)),
         h('div',{className:'feedback-stat'},h('small',null,'New'),h('strong',null,count('New'))),
-        h('div',{className:'feedback-stat'},h('small',null,'Replied'),h('strong',null,count('Replied')))
+        h('div',{className:'feedback-stat'},h('small',null,'Replied'),h('strong',null,count('Replied'))),
+        h('div',{className:'feedback-stat'},h('small',null,'Positive'),h('strong',null,all.filter(x=>x.feedback_nature==='Positive').length)),
+        h('div',{className:'feedback-stat'},h('small',null,'Negative'),h('strong',null,all.filter(x=>x.feedback_nature==='Negative').length))
       ),
       h('div',{className:'feedback-filter-row'},['All','New','Under Review','Replied','Closed'].map(x=>h('button',{key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>setFilter(x)},x))),
+      h('div',{className:'feedback-filter-row'},
+        h('span',{className:'small-note'},'Feedback From:'),['All','Public','Patient','Relative','Visitor'].map(x=>h('button',{key:`from-${x}`,className:`btn ${fromFilter===x?'btn-primary':'btn-secondary'}`,onClick:()=>setFromFilter(x)},x)),
+        h('span',{className:'small-note',style:{marginLeft:'10px'}},'Type:'),['All','Positive','Negative'].map(x=>h('button',{key:`nature-${x}`,className:`btn ${natureFilter===x?'btn-primary':'btn-secondary'}`,onClick:()=>setNatureFilter(x)},x))
+      ),
       error&&h('div',{className:'message error'},error),
       h('div',{className:'table-card'},h('table',null,
-        h('thead',null,h('tr',null,h('th',null,'Date'),h('th',null,'Reference'),h('th',null,'Source'),h('th',null,'From'),h('th',null,'Patient'),h('th',null,'Category'),h('th',null,'Rating'),h('th',null,'Status'),h('th',null,'Action'))),
+        h('thead',null,h('tr',null,h('th',null,'Date'),h('th',null,'Reference'),h('th',null,'Channel'),h('th',null,'Feedback From'),h('th',null,'Name'),h('th',null,'Patient'),h('th',null,'Type'),h('th',null,'Category'),h('th',null,'Rating'),h('th',null,'Status'),h('th',null,'Action'))),
         h('tbody',null,
-          loading?h('tr',null,h('td',{colSpan:9},'Loading feedback…')):
+          loading?h('tr',null,h('td',{colSpan:11},'Loading feedback…')):
           rows.length?rows.map(row=>h('tr',{key:row.id},
             h('td',null,formatDateTimeIN(row.created_at)),
             h('td',null,row.feedback_reference||'—'),
             h('td',null,row.source||'—'),
-            h('td',null,row.respondent_name||row.respondent_type||'Anonymous'),
+            h('td',null,row.feedback_from||row.respondent_type||'Public'),
+            h('td',null,row.respondent_name||'Anonymous'),
             h('td',null,row.patient_name||row.patient_code||'—'),
+            h('td',null,h('span',{className:`badge ${row.feedback_nature==='Negative'?'warning':''}`},row.feedback_nature||'—')),
             h('td',null,row.category||'General'),
             h('td',null,row.rating?`${row.rating} ★`:'—'),
             h('td',null,h('span',{className:'badge'},row.status||'New')),
             h('td',null,h('button',{className:'btn btn-secondary',onClick:()=>open(row)},row.admin_reply?'View / Reply':'Review / Reply'))
-          )):h('tr',null,h('td',{colSpan:9},'No feedback found.'))
+          )):h('tr',null,h('td',{colSpan:11},'No feedback found.'))
         )
       )),
       selected&&h('div',{className:'modal-backdrop'},h('div',{className:'modal-card employee-modal feedback-reply-modal'},
@@ -4371,8 +4381,9 @@ Caring with Compassion. Living with Dignity.`;
         ),
         h('div',{className:'feedback-reply-scroll'},
           h('div',{className:'feedback-detail-grid'},
-            h('div',null,h('small',null,'From'),h('strong',null,selected.respondent_name||selected.respondent_type||'Anonymous')),
+            h('div',null,h('small',null,'Feedback From'),h('strong',null,`${selected.feedback_from||selected.respondent_type||'Public'} — ${selected.respondent_name||'Anonymous'}`)),
             h('div',null,h('small',null,'Patient'),h('strong',null,selected.patient_name||selected.patient_code||'—')),
+            h('div',null,h('small',null,'Type'),h('strong',null,selected.feedback_nature||'—')),
             h('div',null,h('small',null,'Category'),h('strong',null,selected.category||'General')),
             h('div',null,h('small',null,'Rating'),h('strong',null,selected.rating?`${selected.rating} / 5 ★`:'Not rated')),
             h('div',null,h('small',null,'WhatsApp'),h('strong',null,selected.mobile?`${selected.mobile}${selected.mobile_verified?' ✓ Verified':''}`:'—')),
