@@ -4294,10 +4294,6 @@ Caring with Compassion. Living with Dignity.`;
         showSamaraActionToast('error','No WhatsApp number','This feedback does not contain a WhatsApp reply number.');
         return;
       }
-      if(selected.reply_requested && !selected.mobile_verified){
-        showSamaraActionToast('error','Number not verified','This website visitor did not complete WhatsApp verification.');
-        return;
-      }
       if(!reply.trim()){
         showSamaraActionToast('error','Reply required','Please enter the management reply first.');
         return;
@@ -4386,7 +4382,7 @@ Caring with Compassion. Living with Dignity.`;
             h('div',null,h('small',null,'Type'),h('strong',null,selected.feedback_nature||'—')),
             h('div',null,h('small',null,'Category'),h('strong',null,selected.category||'General')),
             h('div',null,h('small',null,'Rating'),h('strong',null,selected.rating?`${selected.rating} / 5 ★`:'Not rated')),
-            h('div',null,h('small',null,'WhatsApp'),h('strong',null,selected.mobile?`${selected.mobile}${selected.mobile_verified?' ✓ Verified':''}`:'—')),
+            h('div',null,h('small',null,'Mobile / WhatsApp'),h('strong',null,selected.mobile||'—')),
             h('div',null,h('small',null,'Reply Through'),h('strong',null,selected.source==='Family Portal'?'Family Portal':selected.reply_requested?'WhatsApp':'No reply requested'))
           ),
           h('div',{className:'feedback-original'},h('strong',null,selected.subject||'Feedback'),h('p',null,selected.message||'—')),
@@ -4397,17 +4393,17 @@ Caring with Compassion. Living with Dignity.`;
           selected.source==='Family Portal'
             ?h('div',{className:'feedback-reply-note'},'This management response will be visible to the authorised family member inside Family Portal → Feedback.')
             :selected.reply_requested
-              ?h('div',{className:'feedback-reply-note'},selected.mobile_verified?'The visitor verified this WhatsApp number before submitting feedback.':'Warning: this visitor requested a reply, but the WhatsApp number is not verified.')
+              ?h('div',{className:'feedback-reply-note'},'A WhatsApp reply was requested. Mobile verification is currently not used; Admin/Manager may reply manually to the number provided.')
               :h('div',{className:'feedback-reply-note'},'The sender did not request a reply. You may still save an internal management response.')
         ),
         h('div',{className:'modal-actions feedback-sticky-actions'},
           h('button',{className:'btn btn-secondary',onClick:()=>setSelected(null)},'Cancel'),
           h('button',{className:'btn btn-secondary',disabled:saving,onClick:()=>saveReply(true)},saving?'Saving…':'Save Reply'),
           selected.source!=='Family Portal'&&selected.reply_requested&&selected.mobile
-            ?h('button',{className:'btn btn-primary',disabled:saving||!selected.mobile_verified,onClick:openWhatsAppReply},'Open WhatsApp Reply')
+            ?h('button',{className:'btn btn-primary',disabled:saving,onClick:openWhatsAppReply},'Open WhatsApp Reply')
             :null,
           selected.source!=='Family Portal'&&selected.reply_requested&&selected.mobile
-            ?h('button',{className:'btn btn-primary',disabled:saving||!selected.mobile_verified,onClick:markWhatsAppSent},'Confirm Sent')
+            ?h('button',{className:'btn btn-primary',disabled:saving,onClick:markWhatsAppSent},'Confirm Sent')
             :h('button',{className:'btn btn-primary',disabled:saving,onClick:async()=>{setStatus('Replied');await saveReply(true);}},'Save & Mark Replied')
         )
       ))
