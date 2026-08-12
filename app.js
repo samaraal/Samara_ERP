@@ -4881,18 +4881,69 @@ Caring with Compassion. Living with Dignity.`;
       setMsg(`Interview schedule set for ${interviewTimeOptions.find(x=>x.value===interviewTime)?.label||interviewTime}. Click Save HR Update to confirm.`);
     }
     function clearInterviewSchedule(){setInterviewDate('');setInterviewTime('10:00');setEdit({...edit,interview_at:null});setMsg('Interview schedule cleared. Click Save HR Update to confirm.')}
-    function setRescheduledInterview(){
-      if(!rescheduleDate){setMsg('Please select the new interview date.');return}
+    async function setRescheduledInterview(){
+      if(!edit)return;
+      if(!rescheduleDate){setMsg('Please select the new interview date before rescheduling.');return}
+
       const local=new Date(`${rescheduleDate}T${rescheduleTime}:00`);
       if(Number.isNaN(local.getTime())){setMsg('Please select a valid reschedule date and time.');return}
-      const oldText=edit?.interview_at?fmt(edit.interview_at):(selected?.interview_at?fmt(selected.interview_at):'Not recorded');
+
+      const previousAt=selected?.interview_at||edit?.interview_at||null;
       const newIso=local.toISOString();
-      if(edit?.interview_at===newIso){setMsg('Please choose a different date or time for rescheduling.');return}
+      if(previousAt&&new Date(previousAt).toISOString()===newIso){
+        setMsg('Please choose a different date or time for rescheduling.');
+        return;
+      }
+
+      const phone=String(edit.whatsapp||edit.mobile||'').replace(/\D/g,'').slice(-10);
+      if(phone.length!==10){
+        setMsg('A valid 10-digit WhatsApp / mobile number is not available for this applicant.');
+        return;
+      }
+
+      const oldText=previousAt?fmt(previousAt):'Not recorded';
       const stamp=`Interview rescheduled from ${oldText} to ${fmt(newIso)}.`;
-      const remarks=[edit?.hr_remarks||'',stamp].filter(Boolean).join('\n');
-      setEdit({...edit,interview_at:newIso,status:'Interview Scheduled',hr_remarks:remarks});
-      setInterviewDate(rescheduleDate);setInterviewTime(rescheduleTime);
-      setMsg(`Interview rescheduled to ${fmt(newIso)}. Click Save HR Update, or Send Reschedule WhatsApp to save and notify the applicant.`);
+      const remarks=[edit.hr_remarks||'',stamp].filter(Boolean).join('\n');
+      const updated={...edit,interview_at:newIso,status:'Interview Scheduled',hr_remarks:remarks};
+
+      // Open WhatsApp immediately from the button click so the browser will not block it.
+      const whatsappUrl=whatsappRescheduleCandidate(updated,previousAt);
+      let whatsappOpened=false;
+      try{
+        const wa=window.open(whatsappUrl,'_blank');
+        whatsappOpened=!!wa;
+      }catch(_){whatsappOpened=false}
+
+      const payload={
+        status:'Interview Scheduled',
+        hr_remarks:remarks||null,
+        interview_at:newIso,
+        interview_mode:edit.interview_mode||null,
+        interview_venue:edit.interview_venue||null,
+        interview_result:edit.interview_result||null,
+        handled_by:profile.id,
+        updated_at:new Date().toISOString()
+      };
+
+      const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);
+      if(error){
+        setMsg(`Unable to save the rescheduled interview: ${error.message}`);
+        return;
+      }
+
+      setSelected({...selected,...updated});
+      setEdit(updated);
+      setInterviewDate(rescheduleDate);
+      setInterviewTime(rescheduleTime);
+      setRescheduleDate('');
+      setRescheduleTime('10:00');
+
+      setMsg(whatsappOpened
+        ?`Interview rescheduled to ${fmt(newIso)} and WhatsApp notification opened.`
+        :`Interview rescheduled to ${fmt(newIso)}. Please allow pop-ups for Samara Care ERP and click the button again if WhatsApp did not open.`
+      );
+
+      await load();
     }
     async function save(){
       if(!edit)return;
@@ -5148,7 +5199,7 @@ Caring with Compassion. Living with Dignity.`;
           h('div',{style:{display:'grid',gridTemplateColumns:'minmax(170px,1fr) minmax(150px,0.7fr) auto',gap:'8px',alignItems:'end'}},
             h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'New Date'),h('input',{type:'date',value:rescheduleDate,onChange:e=>setRescheduleDate(e.target.value)})),
             h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'New Time'),h('select',{value:rescheduleTime,onChange:e=>setRescheduleTime(e.target.value)},interviewTimeOptions.map(x=>h('option',{key:x.value,value:x.value},x.label)))),
-            h('button',{type:'button',className:'btn btn-secondary',onClick:setRescheduledInterview},'Reschedule')
+            h('button',{type:'button',className:'btn btn-secondary',onClick:setRescheduledInterview},'Reschedule & Send WhatsApp')
           ),
           h('small',{style:{display:'block',marginTop:'7px',color:'#806575'}},'Use this when Samara needs to change an already scheduled interview. The application will remain marked as Interview Scheduled.')
         ):null,
@@ -5158,7 +5209,7 @@ Caring with Compassion. Living with Dignity.`;
         h('div',{className:'field span-2'},h('label',null,'HR Remarks'),h('textarea',{rows:3,value:edit.hr_remarks||'',onChange:e=>setEdit({...edit,hr_remarks:e.target.value}),placeholder:'Enter discrepancies / clarification required. Mandatory when returning the application for rectification.'}),h('small',{style:{display:'block',marginTop:'6px',color:'#806575'}},'For Return for Rectification, specify exactly what the applicant must correct or clarify.')),
         !isRectification?h('div',{className:'field span-2'},h('label',null,'Interview Result / Notes'),h('textarea',{rows:3,value:edit.interview_result||'',onChange:e=>setEdit({...edit,interview_result:e.target.value})})):null
       ),
-      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-secondary',onClick:returnForRectification,style:{borderColor:'#b31561',color:'#7d1748'}},'Return & Send WhatsApp'),!isRectification?h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendInterviewWhatsApp},'Send Interview WhatsApp'):null,!isRectification&&(selected.interview_at&&edit.interview_at&&selected.interview_at!==edit.interview_at)?h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendRescheduleWhatsApp},'Send Reschedule WhatsApp'):null,!isRectification&&['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null),
+      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-secondary',onClick:returnForRectification,style:{borderColor:'#b31561',color:'#7d1748'}},'Return & Send WhatsApp'),!isRectification?h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendInterviewWhatsApp},'Send Interview WhatsApp'):null,!isRectification&&['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null),
       h('div',{style:{display:'flex',justifyContent:'center',padding:'14px 0 4px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:closeApplication,style:{minWidth:'180px'}},'Close Window'))
     )):null;
     return h(React.Fragment,null,h(Section,{title:'Career Applications',subtitle:'Online-only applications submitted through samaraassistedliving.com Careers'},table),modal);
