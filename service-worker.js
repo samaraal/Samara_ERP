@@ -1,9 +1,9 @@
-const CACHE = 'samara-erp-2.8.38-daily-moments';
+const CACHE = 'samara-erp-2.8.38-global-logo1';
 const SHELL = [
   './', './index.html', './styles.css?v=2.8.38', './app.js?v=2.8.38',
   './bootstrap-error.js?v=2.8.38', './health-check.js?v=2.8.38',
   './config.js?v=2.8.38', './manifest.webmanifest?v=2.8.38',
-  './assets/samara-logo.png?v=2.8.38',
+  './assets/samara-logo.png?v=20260812-global1',
   './icons/favicon.png?v=2.8.38', './icons/icon-192.png?v=2.8.38',
   './icons/icon-512.png?v=2.8.38', './icons/icon-maskable-512.png?v=2.8.38',
   './icons/apple-touch-icon.png?v=2.8.38'

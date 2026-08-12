@@ -279,7 +279,7 @@ function initSamaraInaugurationInvitation(){
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
   const h = React.createElement;
-  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=2.8.36';
+  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=20260812-global1';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
     h('img',{src:BRAND_LOGO_SRC,className,alt,decoding:'async'});
@@ -4215,21 +4215,19 @@ Caring with Compassion. Living with Dignity.`;
 
   function FeedbackDashboard({profile}){
     React.useEffect(()=>{ensureCleanWorkspaceLayout()},[]);
-    const [rows,setRows]=React.useState([]),[loading,setLoading]=React.useState(false),[error,setError]=React.useState(''),[filter,setFilter]=React.useState('All'),[fromFilter,setFromFilter]=React.useState('All'),[natureFilter,setNatureFilter]=React.useState('All'),[selected,setSelected]=React.useState(null),[reply,setReply]=React.useState(''),[status,setStatus]=React.useState('Under Review'),[saving,setSaving]=React.useState(false);
+    const [rows,setRows]=React.useState([]),[loading,setLoading]=React.useState(false),[error,setError]=React.useState(''),[filter,setFilter]=React.useState('All'),[selected,setSelected]=React.useState(null),[reply,setReply]=React.useState(''),[status,setStatus]=React.useState('Under Review'),[saving,setSaving]=React.useState(false);
 
     async function load(){
       setLoading(true);setError('');
       try{
         let q=client.from('feedback').select('*').order('created_at',{ascending:false}).limit(250);
         if(filter!=='All')q=q.eq('status',filter);
-        if(fromFilter!=='All')q=q.eq('feedback_from',fromFilter);
-        if(natureFilter!=='All')q=q.eq('feedback_nature',natureFilter);
         const {data,error}=await q;if(error)throw error;setRows(data||[]);
       }catch(err){setError(err.message||'Unable to load feedback.');}
       finally{setLoading(false)}
     }
 
-    React.useEffect(()=>{load()},[filter,fromFilter,natureFilter]);
+    React.useEffect(()=>{load()},[filter]);
 
     function open(row){
       setSelected(row);
@@ -4294,6 +4292,10 @@ Caring with Compassion. Living with Dignity.`;
         showSamaraActionToast('error','No WhatsApp number','This feedback does not contain a WhatsApp reply number.');
         return;
       }
+      if(selected.reply_requested && !selected.mobile_verified){
+        showSamaraActionToast('error','Number not verified','This website visitor did not complete WhatsApp verification.');
+        return;
+      }
       if(!reply.trim()){
         showSamaraActionToast('error','Reply required','Please enter the management reply first.');
         return;
@@ -4325,49 +4327,38 @@ Caring with Compassion. Living with Dignity.`;
       }finally{setSaving(false)}
     }
 
-    const feedbackStatStyle={minHeight:'122px',padding:'20px 22px',borderRadius:'22px',display:'flex',flexDirection:'column',justifyContent:'center',gap:'8px',boxShadow:'0 10px 28px rgba(176,18,100,.08)',border:'1px solid rgba(176,18,100,.13)'};
-    const feedbackFilterButtonStyle={minHeight:'46px',padding:'11px 19px',borderRadius:'15px',fontSize:'15px',fontWeight:800,letterSpacing:'.1px',boxShadow:'0 5px 14px rgba(176,18,100,.08)'};
-
     const all=rows;
     const avg=all.filter(x=>x.rating).length?(all.filter(x=>x.rating).reduce((a,x)=>a+Number(x.rating),0)/all.filter(x=>x.rating).length).toFixed(1):'—';
     const count=s=>all.filter(x=>x.status===s).length;
 
     return h('div',{className:'feedback-admin-shell'},
       h('div',{className:'mail-hero'},
-        h('div',null,h('small',null,'SAMARA EXPERIENCE & QUALITY'),h('h3',null,'Feedback Dashboard'),h('p',null,'Website, Family Portal and resident feedback in one management workspace. Positive / Negative classification is automatic from rating and written feedback.')),
+        h('div',null,h('small',null,'SAMARA EXPERIENCE & QUALITY'),h('h3',null,'Feedback Dashboard'),h('p',null,'Website, Family Portal and resident feedback in one management workspace.')),
         h('div',{className:'mail-actions'},h('button',{className:'btn btn-secondary',onClick:load},loading?'Refreshing…':'↻ Refresh'))
       ),
       h('div',{className:'feedback-stat-grid'},
-        h('div',{className:'feedback-stat',style:feedbackStatStyle},h('small',null,'Total Feedback'),h('strong',null,all.length)),
-        h('div',{className:'feedback-stat',style:feedbackStatStyle},h('small',null,'Average Rating'),h('strong',null,avg==='—'?'—':`${avg} ★`)),
-        h('div',{className:'feedback-stat',style:feedbackStatStyle},h('small',null,'New'),h('strong',null,count('New'))),
-        h('div',{className:'feedback-stat',style:feedbackStatStyle},h('small',null,'Replied'),h('strong',null,count('Replied'))),
-        h('div',{className:'feedback-stat',style:feedbackStatStyle},h('small',null,'Positive'),h('strong',null,all.filter(x=>x.feedback_nature==='Positive').length)),
-        h('div',{className:'feedback-stat',style:feedbackStatStyle},h('small',null,'Negative'),h('strong',null,all.filter(x=>x.feedback_nature==='Negative').length))
+        h('div',{className:'feedback-stat'},h('small',null,'Total Feedback'),h('strong',null,all.length)),
+        h('div',{className:'feedback-stat'},h('small',null,'Average Rating'),h('strong',null,avg==='—'?'—':`${avg} ★`)),
+        h('div',{className:'feedback-stat'},h('small',null,'New'),h('strong',null,count('New'))),
+        h('div',{className:'feedback-stat'},h('small',null,'Replied'),h('strong',null,count('Replied')))
       ),
-      h('div',{className:'feedback-filter-row'},['All','New','Under Review','Replied','Closed'].map(x=>h('button',{key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,style:feedbackFilterButtonStyle,onClick:()=>setFilter(x)},x))),
-      h('div',{className:'feedback-filter-row'},
-        h('span',{className:'small-note'},'Feedback From:'),['All','Public','Patient','Relative','Visitor'].map(x=>h('button',{key:`from-${x}`,className:`btn ${fromFilter===x?'btn-primary':'btn-secondary'}`,style:feedbackFilterButtonStyle,onClick:()=>setFromFilter(x)},x)),
-        h('span',{className:'small-note',style:{marginLeft:'10px'}},'Type:'),['All','Positive','Negative'].map(x=>h('button',{key:`nature-${x}`,className:`btn ${natureFilter===x?'btn-primary':'btn-secondary'}`,style:feedbackFilterButtonStyle,onClick:()=>setNatureFilter(x)},x))
-      ),
+      h('div',{className:'feedback-filter-row'},['All','New','Under Review','Replied','Closed'].map(x=>h('button',{key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>setFilter(x)},x))),
       error&&h('div',{className:'message error'},error),
       h('div',{className:'table-card'},h('table',null,
-        h('thead',null,h('tr',null,h('th',null,'Date'),h('th',null,'Reference'),h('th',null,'Channel'),h('th',null,'Feedback From'),h('th',null,'Name'),h('th',null,'Patient'),h('th',null,'Type'),h('th',null,'Category'),h('th',null,'Rating'),h('th',null,'Status'),h('th',null,'Action'))),
+        h('thead',null,h('tr',null,h('th',null,'Date'),h('th',null,'Reference'),h('th',null,'Source'),h('th',null,'From'),h('th',null,'Patient'),h('th',null,'Category'),h('th',null,'Rating'),h('th',null,'Status'),h('th',null,'Action'))),
         h('tbody',null,
-          loading?h('tr',null,h('td',{colSpan:11},'Loading feedback…')):
+          loading?h('tr',null,h('td',{colSpan:9},'Loading feedback…')):
           rows.length?rows.map(row=>h('tr',{key:row.id},
             h('td',null,formatDateTimeIN(row.created_at)),
             h('td',null,row.feedback_reference||'—'),
             h('td',null,row.source||'—'),
-            h('td',null,row.feedback_from||row.respondent_type||'Public'),
-            h('td',null,row.respondent_name||'Anonymous'),
+            h('td',null,row.respondent_name||row.respondent_type||'Anonymous'),
             h('td',null,row.patient_name||row.patient_code||'—'),
-            h('td',null,h('span',{className:`badge ${row.feedback_nature==='Negative'?'warning':''}`},row.feedback_nature||'—')),
             h('td',null,row.category||'General'),
             h('td',null,row.rating?`${row.rating} ★`:'—'),
             h('td',null,h('span',{className:'badge'},row.status||'New')),
             h('td',null,h('button',{className:'btn btn-secondary',onClick:()=>open(row)},row.admin_reply?'View / Reply':'Review / Reply'))
-          )):h('tr',null,h('td',{colSpan:11},'No feedback found.'))
+          )):h('tr',null,h('td',{colSpan:9},'No feedback found.'))
         )
       )),
       selected&&h('div',{className:'modal-backdrop'},h('div',{className:'modal-card employee-modal feedback-reply-modal'},
@@ -4380,12 +4371,11 @@ Caring with Compassion. Living with Dignity.`;
         ),
         h('div',{className:'feedback-reply-scroll'},
           h('div',{className:'feedback-detail-grid'},
-            h('div',null,h('small',null,'Feedback From'),h('strong',null,`${selected.feedback_from||selected.respondent_type||'Public'} — ${selected.respondent_name||'Anonymous'}`)),
+            h('div',null,h('small',null,'From'),h('strong',null,selected.respondent_name||selected.respondent_type||'Anonymous')),
             h('div',null,h('small',null,'Patient'),h('strong',null,selected.patient_name||selected.patient_code||'—')),
-            h('div',null,h('small',null,'Type'),h('strong',null,selected.feedback_nature||'—')),
             h('div',null,h('small',null,'Category'),h('strong',null,selected.category||'General')),
             h('div',null,h('small',null,'Rating'),h('strong',null,selected.rating?`${selected.rating} / 5 ★`:'Not rated')),
-            h('div',null,h('small',null,'Mobile / WhatsApp'),h('strong',null,selected.mobile||'—')),
+            h('div',null,h('small',null,'WhatsApp'),h('strong',null,selected.mobile?`${selected.mobile}${selected.mobile_verified?' ✓ Verified':''}`:'—')),
             h('div',null,h('small',null,'Reply Through'),h('strong',null,selected.source==='Family Portal'?'Family Portal':selected.reply_requested?'WhatsApp':'No reply requested'))
           ),
           h('div',{className:'feedback-original'},h('strong',null,selected.subject||'Feedback'),h('p',null,selected.message||'—')),
@@ -4396,17 +4386,17 @@ Caring with Compassion. Living with Dignity.`;
           selected.source==='Family Portal'
             ?h('div',{className:'feedback-reply-note'},'This management response will be visible to the authorised family member inside Family Portal → Feedback.')
             :selected.reply_requested
-              ?h('div',{className:'feedback-reply-note'},'A WhatsApp reply was requested. Mobile verification is currently not used; Admin/Manager may reply manually to the number provided.')
+              ?h('div',{className:'feedback-reply-note'},selected.mobile_verified?'The visitor verified this WhatsApp number before submitting feedback.':'Warning: this visitor requested a reply, but the WhatsApp number is not verified.')
               :h('div',{className:'feedback-reply-note'},'The sender did not request a reply. You may still save an internal management response.')
         ),
         h('div',{className:'modal-actions feedback-sticky-actions'},
           h('button',{className:'btn btn-secondary',onClick:()=>setSelected(null)},'Cancel'),
           h('button',{className:'btn btn-secondary',disabled:saving,onClick:()=>saveReply(true)},saving?'Saving…':'Save Reply'),
           selected.source!=='Family Portal'&&selected.reply_requested&&selected.mobile
-            ?h('button',{className:'btn btn-primary',disabled:saving,onClick:openWhatsAppReply},'Open WhatsApp Reply')
+            ?h('button',{className:'btn btn-primary',disabled:saving||!selected.mobile_verified,onClick:openWhatsAppReply},'Open WhatsApp Reply')
             :null,
           selected.source!=='Family Portal'&&selected.reply_requested&&selected.mobile
-            ?h('button',{className:'btn btn-primary',disabled:saving,onClick:markWhatsAppSent},'Confirm Sent')
+            ?h('button',{className:'btn btn-primary',disabled:saving||!selected.mobile_verified,onClick:markWhatsAppSent},'Confirm Sent')
             :h('button',{className:'btn btn-primary',disabled:saving,onClick:async()=>{setStatus('Replied');await saveReply(true);}},'Save & Mark Replied')
         )
       ))
