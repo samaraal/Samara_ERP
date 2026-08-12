@@ -1,0 +1,26 @@
+SAMARA ERP 2.8.38 - DAILY MOMENTS (7-DAY FAMILY VIDEO CLIPS)
+
+WHAT IS ADDED
+1. Patient Master now has a new "Daily Moments" tab for Admin, Manager, Nurse and Caregiver.
+2. On mobile, staff can record or choose a short video for the selected resident.
+3. Maximum video duration: 20 seconds.
+4. Maximum size: 25 MB.
+5. Maximum: 3 clips per resident per day.
+6. Optional caption such as "Morning walk" or "Physiotherapy session".
+7. "Visible to authorised family" is ON by default.
+8. Clips are private and shown with short-lived signed URLs inside ERP.
+9. Each clip expires after 7 days.
+10. Uploader can delete their own clip; Manager/Admin can delete any clip.
+
+INSTALLATION
+A. FIRST run: 81_daily_moments_7_day_family_videos.sql in Supabase SQL Editor.
+B. Upload the ERP files to the existing GitHub Pages repository, replacing the current files.
+C. Deploy supabase/functions/daily-moments-cleanup/index.ts as Edge Function "daily-moments-cleanup".
+D. Schedule the cleanup function once daily (for example 2:00 AM IST). The SQL already hides expired clips; the cleanup function removes the actual video files and database rows.
+
+IMPORTANT - FAMILY PORTAL
+The ERP ZIP supplied in this chat does not contain the separate Family Portal website source code. The database/storage layer is prepared for Family Portal use through public.active_family_daily_moments, but the Family Portal UI itself must be updated in its own repository/package to display these clips for the logged-in resident only.
+Please provide the latest Family Portal ZIP when ready; it can then be wired to this feature without changing the ERP data model.
+
+WHATSAPP
+No WhatsApp API/template code has been changed in this package. The current working ERP WhatsApp behaviour remains untouched as requested.

@@ -4881,69 +4881,18 @@ Caring with Compassion. Living with Dignity.`;
       setMsg(`Interview schedule set for ${interviewTimeOptions.find(x=>x.value===interviewTime)?.label||interviewTime}. Click Save HR Update to confirm.`);
     }
     function clearInterviewSchedule(){setInterviewDate('');setInterviewTime('10:00');setEdit({...edit,interview_at:null});setMsg('Interview schedule cleared. Click Save HR Update to confirm.')}
-    async function setRescheduledInterview(){
-      if(!edit)return;
-      if(!rescheduleDate){setMsg('Please select the new interview date before rescheduling.');return}
-
+    function setRescheduledInterview(){
+      if(!rescheduleDate){setMsg('Please select the new interview date.');return}
       const local=new Date(`${rescheduleDate}T${rescheduleTime}:00`);
       if(Number.isNaN(local.getTime())){setMsg('Please select a valid reschedule date and time.');return}
-
-      const previousAt=selected?.interview_at||edit?.interview_at||null;
+      const oldText=edit?.interview_at?fmt(edit.interview_at):(selected?.interview_at?fmt(selected.interview_at):'Not recorded');
       const newIso=local.toISOString();
-      if(previousAt&&new Date(previousAt).toISOString()===newIso){
-        setMsg('Please choose a different date or time for rescheduling.');
-        return;
-      }
-
-      const phone=String(edit.whatsapp||edit.mobile||'').replace(/\D/g,'').slice(-10);
-      if(phone.length!==10){
-        setMsg('A valid 10-digit WhatsApp / mobile number is not available for this applicant.');
-        return;
-      }
-
-      const oldText=previousAt?fmt(previousAt):'Not recorded';
+      if(edit?.interview_at===newIso){setMsg('Please choose a different date or time for rescheduling.');return}
       const stamp=`Interview rescheduled from ${oldText} to ${fmt(newIso)}.`;
-      const remarks=[edit.hr_remarks||'',stamp].filter(Boolean).join('\n');
-      const updated={...edit,interview_at:newIso,status:'Interview Scheduled',hr_remarks:remarks};
-
-      // Open WhatsApp immediately from the button click so the browser will not block it.
-      const whatsappUrl=whatsappRescheduleCandidate(updated,previousAt);
-      let whatsappOpened=false;
-      try{
-        const wa=window.open(whatsappUrl,'_blank');
-        whatsappOpened=!!wa;
-      }catch(_){whatsappOpened=false}
-
-      const payload={
-        status:'Interview Scheduled',
-        hr_remarks:remarks||null,
-        interview_at:newIso,
-        interview_mode:edit.interview_mode||null,
-        interview_venue:edit.interview_venue||null,
-        interview_result:edit.interview_result||null,
-        handled_by:profile.id,
-        updated_at:new Date().toISOString()
-      };
-
-      const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);
-      if(error){
-        setMsg(`Unable to save the rescheduled interview: ${error.message}`);
-        return;
-      }
-
-      setSelected({...selected,...updated});
-      setEdit(updated);
-      setInterviewDate(rescheduleDate);
-      setInterviewTime(rescheduleTime);
-      setRescheduleDate('');
-      setRescheduleTime('10:00');
-
-      setMsg(whatsappOpened
-        ?`Interview rescheduled to ${fmt(newIso)} and WhatsApp notification opened.`
-        :`Interview rescheduled to ${fmt(newIso)}. Please allow pop-ups for Samara Care ERP and click the button again if WhatsApp did not open.`
-      );
-
-      await load();
+      const remarks=[edit?.hr_remarks||'',stamp].filter(Boolean).join('\n');
+      setEdit({...edit,interview_at:newIso,status:'Interview Scheduled',hr_remarks:remarks});
+      setInterviewDate(rescheduleDate);setInterviewTime(rescheduleTime);
+      setMsg(`Interview rescheduled to ${fmt(newIso)}. Click Save HR Update, or Send Reschedule WhatsApp to save and notify the applicant.`);
     }
     async function save(){
       if(!edit)return;
@@ -5199,7 +5148,7 @@ Caring with Compassion. Living with Dignity.`;
           h('div',{style:{display:'grid',gridTemplateColumns:'minmax(170px,1fr) minmax(150px,0.7fr) auto',gap:'8px',alignItems:'end'}},
             h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'New Date'),h('input',{type:'date',value:rescheduleDate,onChange:e=>setRescheduleDate(e.target.value)})),
             h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'New Time'),h('select',{value:rescheduleTime,onChange:e=>setRescheduleTime(e.target.value)},interviewTimeOptions.map(x=>h('option',{key:x.value,value:x.value},x.label)))),
-            h('button',{type:'button',className:'btn btn-secondary',onClick:setRescheduledInterview},'Reschedule & Send WhatsApp')
+            h('button',{type:'button',className:'btn btn-secondary',onClick:setRescheduledInterview},'Reschedule')
           ),
           h('small',{style:{display:'block',marginTop:'7px',color:'#806575'}},'Use this when Samara needs to change an already scheduled interview. The application will remain marked as Interview Scheduled.')
         ):null,
@@ -5209,7 +5158,7 @@ Caring with Compassion. Living with Dignity.`;
         h('div',{className:'field span-2'},h('label',null,'HR Remarks'),h('textarea',{rows:3,value:edit.hr_remarks||'',onChange:e=>setEdit({...edit,hr_remarks:e.target.value}),placeholder:'Enter discrepancies / clarification required. Mandatory when returning the application for rectification.'}),h('small',{style:{display:'block',marginTop:'6px',color:'#806575'}},'For Return for Rectification, specify exactly what the applicant must correct or clarify.')),
         !isRectification?h('div',{className:'field span-2'},h('label',null,'Interview Result / Notes'),h('textarea',{rows:3,value:edit.interview_result||'',onChange:e=>setEdit({...edit,interview_result:e.target.value})})):null
       ),
-      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-secondary',onClick:returnForRectification,style:{borderColor:'#b31561',color:'#7d1748'}},'Return & Send WhatsApp'),!isRectification?h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendInterviewWhatsApp},'Send Interview WhatsApp'):null,!isRectification&&['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null),
+      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-secondary',onClick:returnForRectification,style:{borderColor:'#b31561',color:'#7d1748'}},'Return & Send WhatsApp'),!isRectification?h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendInterviewWhatsApp},'Send Interview WhatsApp'):null,!isRectification&&(selected.interview_at&&edit.interview_at&&selected.interview_at!==edit.interview_at)?h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendRescheduleWhatsApp},'Send Reschedule WhatsApp'):null,!isRectification&&['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null),
       h('div',{style:{display:'flex',justifyContent:'center',padding:'14px 0 4px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:closeApplication,style:{minWidth:'180px'}},'Close Window'))
     )):null;
     return h(React.Fragment,null,h(Section,{title:'Career Applications',subtitle:'Online-only applications submitted through samaraassistedliving.com Careers'},table),modal);
@@ -8363,6 +8312,10 @@ Caring with Compassion. Living with Dignity.`;
     const [editFamilyCredential,setEditFamilyCredential]=React.useState(null);
     const [familyResetBusy,setFamilyResetBusy]=React.useState(null);
     const [familyResetCredential,setFamilyResetCredential]=React.useState(null);
+    const [momentBusy,setMomentBusy]=React.useState(false);
+    const [momentCaption,setMomentCaption]=React.useState('');
+    const [momentFamilyVisible,setMomentFamilyVisible]=React.useState(true);
+    const [momentInputKey,setMomentInputKey]=React.useState(0);
     const [patientToast,setPatientToast]=React.useState(null);
     const patientToastTimer=React.useRef(null);
     const [duplicateReview,setDuplicateReview]=React.useState(null);
@@ -8406,7 +8359,7 @@ Caring with Compassion. Living with Dignity.`;
     }
     async function openPatient(p,desiredTab='Overview'){
       setSelected(p);setPhotoUrl('');setTab(desiredTab);
-      const [m,ma,c,cl,v,ph,ps,d,meal,bill,rec,inc,fam,url]=await Promise.all([
+      const [m,ma,c,cl,v,ph,ps,d,meal,bill,rec,inc,fam,mom,url]=await Promise.all([
         client.from('medication_orders').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}),
         client.from('medication_administrations').select('*').eq('patient_id',p.id).order('scheduled_date',{ascending:false}).limit(100),
         client.from('care_orders').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}),
@@ -8420,10 +8373,75 @@ Caring with Compassion. Living with Dignity.`;
         client.from('recovery_events').select('*').eq('patient_id',p.id).order('event_at',{ascending:false}).limit(100),
         client.from('incidents').select('*').eq('patient_id',p.id).order('incident_at',{ascending:false}).limit(100),
         canEdit?client.from('family_portal_access').select('id,family_user_id,relative_name,relationship,mobile,email,primary_contact,is_active,last_login_at,created_at,updated_at').eq('patient_id',p.id).order('primary_contact',{ascending:false}).order('created_at',{ascending:true}):Promise.resolve({data:[]}),
+        client.from('patient_daily_moments').select('*').eq('patient_id',p.id).gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}),
         resolvePatientPhoto(p)
       ]);
-      setDetails({meds:currentUpcomingMedicineOrders(m.data||[]),mar:ma.data||[],care:c.data||[],careLogs:cl.data||[],vitals:v.data||[],physio:ph.data||[],physioSessions:ps.data||[],docs:d.data||[],meals:meal.data||[],billing:bill.data||[],recovery:rec.data||[],incidents:inc.data||[],familyAccess:fam?.data||[]});
+      const momentRows=await Promise.all((mom?.data||[]).map(async row=>{
+        const {data:signed}=await client.storage.from('patient-daily-moments').createSignedUrl(row.storage_path,900);
+        return {...row,signed_url:signed?.signedUrl||''};
+      }));
+      setDetails({meds:currentUpcomingMedicineOrders(m.data||[]),mar:ma.data||[],care:c.data||[],careLogs:cl.data||[],vitals:v.data||[],physio:ph.data||[],physioSessions:ps.data||[],docs:d.data||[],meals:meal.data||[],billing:bill.data||[],recovery:rec.data||[],incidents:inc.data||[],familyAccess:fam?.data||[],dailyMoments:momentRows});
       setPhotoUrl(url);
+    }
+
+    async function videoDurationSeconds(file){
+      return await new Promise((resolve,reject)=>{
+        const video=document.createElement('video');
+        const objectUrl=URL.createObjectURL(file);
+        video.preload='metadata';
+        video.onloadedmetadata=()=>{const d=Number(video.duration||0);URL.revokeObjectURL(objectUrl);resolve(d)};
+        video.onerror=()=>{URL.revokeObjectURL(objectUrl);reject(new Error('Unable to read this video. Please record or choose another clip.'))};
+        video.src=objectUrl;
+      });
+    }
+
+    async function uploadDailyMoment(file){
+      if(!selected||!file)return;
+      if(!/^video\//i.test(file.type||'')){showPatientToast('error','Please choose a video clip.');return}
+      if(file.size>25*1024*1024){showPatientToast('error','Daily Moment video must be 25 MB or less.');return}
+      setMomentBusy(true);
+      try{
+        const duration=await videoDurationSeconds(file);
+        if(!Number.isFinite(duration)||duration<=0)throw new Error('Unable to confirm the video duration.');
+        if(duration>20.5)throw new Error('Please keep each Daily Moment to 20 seconds or less.');
+        const ext=(String(file.name||'').split('.').pop()||'mp4').replace(/[^a-z0-9]/gi,'').toLowerCase()||'mp4';
+        const stamp=new Date().toISOString().slice(0,10);
+        const uid=(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(16).slice(2)}`);
+        const path=`${selected.id}/${stamp}/${uid}.${ext}`;
+        const {error:uploadError}=await client.storage.from('patient-daily-moments').upload(path,file,{cacheControl:'3600',upsert:false,contentType:file.type||'video/mp4'});
+        if(uploadError)throw uploadError;
+        const expiresAt=new Date(Date.now()+7*24*60*60*1000).toISOString();
+        const {error:insertError}=await client.from('patient_daily_moments').insert({
+          patient_id:selected.id,
+          storage_path:path,
+          caption:String(momentCaption||'').trim()||null,
+          duration_seconds:Math.round(duration),
+          file_size_bytes:file.size,
+          mime_type:file.type||'video/mp4',
+          family_visible:!!momentFamilyVisible,
+          uploaded_by:profile?.id||null,
+          expires_at:expiresAt
+        });
+        if(insertError){await client.storage.from('patient-daily-moments').remove([path]);throw insertError}
+        setMomentCaption('');setMomentFamilyVisible(true);setMomentInputKey(x=>x+1);
+        await openPatient(selected,'Daily Moments');
+        showPatientToast('success','Daily Moment uploaded. It will be removed automatically after 7 days.');
+      }catch(error){showPatientToast('error',error.message||'Unable to upload Daily Moment.')}finally{setMomentBusy(false)}
+    }
+
+    async function deleteDailyMoment(moment){
+      if(!moment)return;
+      const allowed=canEdit||String(moment.uploaded_by||'')===String(profile?.id||'');
+      if(!allowed){showPatientToast('error','Only the uploader, Manager or Admin can delete this clip.');return}
+      if(!window.confirm('Delete this Daily Moment now?'))return;
+      setMomentBusy(true);
+      try{
+        await client.storage.from('patient-daily-moments').remove([moment.storage_path]);
+        const {error}=await client.from('patient_daily_moments').delete().eq('id',moment.id);
+        if(error)throw error;
+        await openPatient(selected,'Daily Moments');
+        showPatientToast('success','Daily Moment deleted.');
+      }catch(error){showPatientToast('error',error.message||'Unable to delete Daily Moment.')}finally{setMomentBusy(false)}
     }
     async function openDoc(doc){if(doc.storage_path){const {data,error}=await client.storage.from('patient-documents').createSignedUrl(doc.storage_path,180);if(error)return alert(error.message);window.open(data.signedUrl,'_blank','noopener')}else if(doc.document_url)window.open(doc.document_url,'_blank','noopener')}
     async function loadEditMedia(row){
@@ -8731,7 +8749,8 @@ Caring with Compassion. Living with Dignity.`;
         'shift_handovers',
         'special_nurse_assignments',
         'clinical_alert_acknowledgements',
-        'room_transfer_history'
+        'room_transfer_history',
+        'patient_daily_moments'
       ];
 
       const moved=[];
@@ -9390,7 +9409,7 @@ Caring with Compassion. Living with Dignity.`;
       ),
       selected&&details&&h('div',{className:'modal-backdrop'},h('div',{className:'card modal patient-master-modal'},
         h('div',{className:'panel-head patient-master-header'},h('div',{className:'patient-head',style:{display:'flex',alignItems:'center',gap:'14px',minWidth:0,flex:'1 1 auto'}},photoUrl?h('img',{src:photoUrl,className:'patient-photo',alt:`${formalName(selected)} photo`,style:{width:'92px',height:'108px',maxWidth:'92px',minWidth:'92px',maxHeight:'108px',objectFit:'cover',objectPosition:'center',borderRadius:'16px',border:'1px solid #ead0de',background:'#fff',display:'block',flex:'0 0 92px'}}):h('div',{className:'patient-photo patient-photo-placeholder',style:{width:'92px',height:'108px',maxWidth:'92px',minWidth:'92px',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'16px',flex:'0 0 92px'}},'SC'),h('div',{style:{minWidth:0,flex:'1 1 auto'}},h('h3',null,formalName(selected)),h('small',null,`${selected.patient_id||'—'} · ${selected.admission_type||''} · ${selected.patient_category||''}`),h('div',{className:'patient-header-badges'},h('span',{className:'badge'},selected.is_active===false?'Inactive':'Active'),selected.room_no&&selected.bed_no?h('span',{className:'pill'},`Room ${selected.room_no} · Bed ${selected.bed_no}`):h('span',{className:'pill warning'},'Room not assigned'),selected.special_nurse_required?h('span',{className:'pill warning'},`Special nurse: ${selected.special_nurse_name||'Required'}`):null))),h('div',{className:'employee-actions'},canEdit?h('button',{className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Patient'):h('span',{className:'pill'},'View only'),h('button',{className:'close',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('')}},'×'))),
-        h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Documents',details.docs.length),tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),!clinicalView?tabButton('Billing',details.billing.length):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
+        h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Documents',details.docs.length),tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),tabButton('Daily Moments',(details.dailyMoments||[]).length),!clinicalView?tabButton('Billing',details.billing.length):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
         h('div',{className:'patient-tab-content'},
           tab==='Overview'&&h('div',{className:'tabs-grid'},
             h('div',{className:'section-card'},h('h4',null,'Identity & Contacts'),h('p',null,`Resident ID: ${selected.patient_id||'—'}`),h('p',null,`Gender / Age: ${selected.gender||'—'} / ${selected.age||'—'}`),h('p',null,`Blood Group: ${selected.blood_group||'Unknown'}`),h('p',null,`Profession: ${selected.profession||'—'}`),h('p',null,`Field / Sector: ${selected.profession_field||'—'}`),['Government Employee','Private Employee'].includes(selected.profession)?h('p',null,`Employment Status: ${selected.employment_status||'—'}`):null,h('p',null,`Mobile: ${selected.mobile||'—'}`),h('p',null,selected.address||patientAddress(selected)||'Address not recorded'),h('p',null,`District: ${selected.district||'—'} · Taluk: ${selected.taluk||'—'} · PIN: ${selected.pincode||'—'}`),h('p',null,`Attendant: ${selected.attendant_name||'—'} · ${selected.attendant_phone||'—'}`)),
@@ -9404,6 +9423,32 @@ Caring with Compassion. Living with Dignity.`;
           tab==='Vitals'&&h('div',{className:'section-card'},h('h4',null,'Vital Signs History'),details.vitals.length?details.vitals.map(v=>h('div',{className:'timeline-item',key:v.id},h('strong',null,`${fmt(v.recorded_at)} · BP ${v.systolic||'—'}/${v.diastolic||'—'}`),h('span',null,`Pulse ${v.pulse||'—'} · SpO₂ ${v.spo2||'—'} · Temp ${v.temperature||'—'} · Sugar ${v.blood_sugar_type||'Not Taken'} ${v.blood_sugar||'—'} · ${v.alert_level||'Normal'}`))):sectionEmpty('No vital signs recorded.')),
           tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${x.preferred_time||'—'} · ${x.precautions||''}`))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'))):sectionEmpty('No physiotherapy sessions.')),
           tab==='Diet'&&h('div',{className:'section-card'},h('h4',null,`Diet Plan: ${selected.diet_plan||'Not recorded'}`),h('p',null,selected.feeding_instruction||'No special feeding instruction.'),h('h4',{style:{marginTop:'18px'}},'Meal Records'),details.meals.length?details.meals.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${x.meal_date||''} · ${x.meal_type} · ${x.consumption_status}`),h('span',null,`${x.menu||'—'} · ${x.remarks||''}`))):sectionEmpty('No meal records.')),
+          tab==='Daily Moments'&&h('div',{className:'daily-moments-wrap'},
+            h('div',{className:'section-card daily-moment-upload'},
+              h('div',{className:'panel-head'},h('div',null,h('h4',null,'Daily Moments'),h('small',null,'Share a brief reassuring glimpse of the resident with authorised family. Clips remain available for 7 days and are then removed.'))),
+              h('div',{className:'daily-moment-rules'},h('span',{className:'pill'},'Up to 20 seconds'),h('span',{className:'pill'},'Maximum 3 clips / day'),h('span',{className:'pill'},'Private Family Portal'),h('span',{className:'pill'},'Auto-delete after 7 days')),
+              h('div',{className:'form-grid daily-moment-form'},
+                h('div',{className:'field span-2'},h('label',null,'Caption / Moment'),h('input',{value:momentCaption,maxLength:120,onChange:e=>setMomentCaption(e.target.value),placeholder:'Example: Morning walk, physiotherapy, having breakfast, talking comfortably'})),
+                h('label',{className:'check-card'},h('input',{type:'checkbox',checked:momentFamilyVisible,onChange:e=>setMomentFamilyVisible(e.target.checked)}),h('span',null,'Visible to authorised family')),
+                h('div',{className:'field'},h('label',null,'Record / Upload short video'),h('input',{key:momentInputKey,type:'file',accept:'video/*',capture:'environment',disabled:momentBusy,onChange:e=>{const f=e.target.files?.[0];if(f)uploadDailyMoment(f)}}),h('small',null,momentBusy?'Uploading…':'On mobile, this can open the camera. Keep the clip to 20 seconds or less.'))
+              )
+            ),
+            h('div',{className:'section-card'},
+              h('div',{className:'panel-head'},h('div',null,h('h4',null,'Recent Daily Moments'),h('small',null,`${(details.dailyMoments||[]).length} clip(s) currently available`))),
+              (details.dailyMoments||[]).length
+                ?h('div',{className:'daily-moment-grid'},(details.dailyMoments||[]).map(moment=>h('article',{className:'daily-moment-card',key:moment.id},
+                  moment.signed_url?h('video',{src:moment.signed_url,controls:true,playsInline:true,preload:'metadata'}):h('div',{className:'daily-moment-video-missing'},'Video unavailable'),
+                  h('div',{className:'daily-moment-meta'},
+                    h('strong',null,moment.caption||'Daily Moment'),
+                    h('span',null,`${fmt(moment.created_at)} · ${moment.duration_seconds||'—'} sec`),
+                    h('span',null,moment.family_visible?'Visible to family':'Internal only'),
+                    h('small',null,`Available until ${fmt(moment.expires_at)}`),
+                    (canEdit||String(moment.uploaded_by||'')===String(profile?.id||''))&&h('button',{type:'button',className:'btn btn-danger',disabled:momentBusy,onClick:()=>deleteDailyMoment(moment)},'Delete clip')
+                  )
+                )))
+                :sectionEmpty('No Daily Moments uploaded for this resident yet.')
+            )
+          ),
           !clinicalView&&tab==='Billing'&&(()=>{const b=billingSummary(details.billing),due=b.charges-b.payments-b.discounts+b.refunds;return h('div',null,h('div',{className:'grid stats'},[['Charges',b.charges],['Payments',b.payments],['Discounts',b.discounts],['Outstanding',due]].map(([k,v])=>h('div',{className:'card stat',key:k},h('span',null,k),h('strong',null,`₹${v.toLocaleString('en-IN')}`)))),h('div',{className:'section-card'},h('h4',null,'Patient Ledger'),details.billing.length?details.billing.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${x.transaction_type} · ${x.category} · ₹${Number(x.amount||0).toLocaleString('en-IN')}`),h('span',null,`${fmt(x.transaction_date)} · ${x.description||''}`))):sectionEmpty('No billing transactions.')))} )(),
           tab==='Timeline'&&h('div',{className:'section-card'},h('h4',null,'Recovery & Incident Timeline'),[...details.recovery.map(x=>({id:`r-${x.id}`,date:x.event_at,title:x.event_type,note:x.note,type:'Recovery'})),...details.incidents.map(x=>({id:`i-${x.id}`,date:x.incident_at,title:x.incident_type,note:`${x.severity||''} · ${x.description||''} · ${x.status||''}`,type:'Incident'}))].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${fmt(x.date)} · ${x.type}: ${x.title}`),h('span',null,x.note||'—'))),details.recovery.length+details.incidents.length===0&&sectionEmpty('No recovery or incident events.')),
           canEdit&&tab==='Family Portal'&&h('div',{className:'section-card'},

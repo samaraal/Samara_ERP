@@ -752,3 +752,6 @@ body{font-size:17px;line-height:1.42}
   .feedback-reply-fields{grid-template-columns:1fr}
   .feedback-sticky-actions .btn{flex:1 1 45%}
 }
+
+/* Samara Daily Moments - 7 day family video updates */
+.daily-moments-wrap{display:grid;gap:16px}.daily-moment-rules{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px}.daily-moment-form{align-items:end}.daily-moment-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}.daily-moment-card{border:1px solid #ead0de;border-radius:16px;background:#fff;overflow:hidden;box-shadow:0 5px 16px rgba(76,23,52,.08)}.daily-moment-card video{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#1e1720}.daily-moment-meta{display:grid;gap:5px;padding:12px}.daily-moment-meta>span,.daily-moment-meta>small{color:#725669}.daily-moment-meta .btn{margin-top:6px;justify-self:start}.daily-moment-video-missing{aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;background:#f7edf2;color:#76586a}.daily-moment-upload input[type=file]{width:100%}@media(max-width:700px){.daily-moment-grid{grid-template-columns:1fr}.daily-moment-form{grid-template-columns:1fr}.daily-moment-form .span-2{grid-column:auto}.daily-moment-card video{max-height:52vh}}
