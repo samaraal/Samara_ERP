@@ -1,6 +1,6 @@
-const CACHE = 'samara-erp-2.8.45-hr-return-fix';
+const CACHE = 'samara-erp-2.8.46-whatsapp-fallback';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.8.45', './app.js?v=2.8.45',
+  './', './index.html', './styles.css?v=2.8.46', './app.js?v=2.8.46',
   './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',
   './config.js?v=2.8.40', './manifest.webmanifest?v=2.8.40',
   './assets/samara-logo.png?v=20260812-global1',

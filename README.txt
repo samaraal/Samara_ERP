@@ -1,19 +1,15 @@
-SAMARA CARE ERP V9 – ADAPTIVE SIDEBAR ICONS
-Version 2.8.8
+Samara ERP v2.8.46 - WhatsApp API Failure Fallback
 
-ONLY ONE FILE HAS CHANGED:
-- app.js
+Replace only:
+1. app.js
+2. index.html
+3. service-worker.js
 
-CORRECTIONS
-- Removed the large green circular bullets.
-- Added meaningful coloured symbols for every nursing submenu item.
-- Added specific symbols for Admission, Manager, Admin, Food & Diet and Accounts items.
-- Text colour now adapts to the fixed sidebar gradient:
-  • dark text on the white/light upper area;
-  • white text on the darker lower area;
-  • expanded submenu always uses white text on a darker translucent panel.
-- Increased spacing between icons and text.
-- Improved hover, active and focus contrast.
+No SQL or Edge Function change is required for this patch.
 
-No SQL required.
-Replace app.js, commit, and press Ctrl + Shift + R once.
+Return & Send WhatsApp API behaviour:
+- Tries approved samara_application_returned template first.
+- If Meta API fails, keeps the ERP page open and shows Manual WhatsApp Fallback.
+- Manual fallback opens the old WhatsApp method with the same rectification message pre-filled.
+- Database/status update failure no longer hides the fallback or prevents the API attempt.
+- API accepted messages continue to be recorded in applicant WhatsApp history.

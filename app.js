@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.45';
+  const APP_VERSION = '2.8.46';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -5107,24 +5107,50 @@ Caring with Compassion. Living with Dignity.`;
       if(!remarks.toLowerCase().includes('fresh corrected application')) remarks=`${remarks}\n\n${reapplyInstruction}`;
       const phone=normalizeWhatsAppRecipient(edit.whatsapp||edit.mobile||'');
       if(!phone){setMsg('A valid WhatsApp / mobile number is not available for this applicant.');return}
-      setWaBusy(true);setManualFallbackUrl('');setMsg('Returning application and sending WhatsApp through Meta Cloud API…');
+
       const updated={...edit,status:'Returned for Rectification',hr_remarks:remarks,interview_at:null,interview_mode:null,interview_venue:null,interview_result:null};
-      const payload={status:'Returned for Rectification',hr_remarks:remarks,interview_at:null,interview_mode:null,interview_venue:null,interview_result:null,handled_by:profile.id,updated_at:new Date().toISOString()};
-      const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);
-      if(error){setWaBusy(false);setMsg(error.message);return}
-      setInterviewDate('');setInterviewTime('10:00');setRescheduleDate('');setRescheduleTime('10:00');setEdit(updated);setSelected({...selected,...updated});
+      const fallbackUrl=whatsappRectificationCandidate(updated,remarks);
+      // Prepare the old/manual WhatsApp route before any database/API operation so HR
+      // can still contact the applicant if either the legacy application update or Meta API fails.
+      setWaBusy(true);setManualFallbackUrl('');setMsg('Returning application and sending WhatsApp through Meta Cloud API…');
+
+      let apiAccepted=false;
+      let apiFailure='';
       try{
         const waResult=await sendWhatsAppTemplate({to:phone,templateName:'samara_application_returned',languageCode:'en',bodyParams:[candidateDisplayName(updated),remarks,updated.application_id||'—']});
+        apiAccepted=true;
         const history=await recordHrWhatsApp(updated,{communicationType:'Application Returned',templateName:'samara_application_returned',status:'Accepted',providerMessageId:whatsappProviderMessageId(waResult),messageContent:applicationReturnedSnapshot(updated,remarks),messagePayload:{body_params:[candidateDisplayName(updated),remarks,updated.application_id||'—']}});
-        if(history?.ok===false)setMsg(`Return WhatsApp was accepted by Meta, but communication history could not be saved: ${history.error?.message||'Database permission error'}.`);
-        else setMsg('✓ Application returned. WhatsApp accepted by Meta and recorded in applicant history.');
+        if(history?.ok===false) apiFailure=`Message accepted by Meta, but communication history could not be saved: ${history.error?.message||'Database permission error'}.`;
       }catch(apiError){
-        const history=await recordHrWhatsApp(updated,{communicationType:'Application Returned',templateName:'samara_application_returned',status:'API Failed',errorMessage:String(apiError.message||apiError),messageContent:applicationReturnedSnapshot(updated,remarks),messagePayload:{body_params:[candidateDisplayName(updated),remarks,updated.application_id||'—']}});
-        setManualFallbackUrl(whatsappRectificationCandidate(updated,remarks));
-        setMsg(`Application was returned, but WhatsApp API could not send: ${apiError.message||apiError}. Use Manual WhatsApp Fallback below only if required.${history?.ok===false?' History could not be recorded because of a database permission issue.':''}`);
-      } finally {setWaBusy(false)}
+        apiFailure=String(apiError?.message||apiError||'Unknown WhatsApp API error');
+        await recordHrWhatsApp(updated,{communicationType:'Application Returned',templateName:'samara_application_returned',status:'API Failed',errorMessage:apiFailure,messageContent:applicationReturnedSnapshot(updated,remarks),messagePayload:{body_params:[candidateDisplayName(updated),remarks,updated.application_id||'—']}});
+        setManualFallbackUrl(fallbackUrl);
+      }
+
+      // Save the HR return status separately. A legacy-data constraint must never prevent
+      // WhatsApp communication or hide the manual fallback route.
+      const payload={status:'Returned for Rectification',hr_remarks:remarks,interview_at:null,interview_mode:null,interview_venue:null,interview_result:null,handled_by:profile.id,updated_at:new Date().toISOString()};
+      const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);
+      if(error){
+        if(!apiAccepted)setManualFallbackUrl(fallbackUrl);
+        setMsg(apiAccepted
+          ?`✓ Return WhatsApp was accepted by Meta, but the application status could not be updated: ${error.message}. The message is still recorded in WhatsApp history.`
+          :`The application status could not be updated (${error.message}) and WhatsApp API could not send (${apiFailure}). Use Manual WhatsApp Fallback below to send the rectification message through the old WhatsApp method.`);
+        setWaBusy(false);await loadWhatsAppHistory(edit.id);return;
+      }
+
+      setInterviewDate('');setInterviewTime('10:00');setRescheduleDate('');setRescheduleTime('10:00');setEdit(updated);setSelected({...selected,...updated});
+      if(apiAccepted){
+        setMsg(apiFailure?`✓ Application returned and WhatsApp accepted by Meta. ${apiFailure}`:'✓ Application returned. WhatsApp accepted by Meta and recorded in applicant history.');
+      }else{
+        setManualFallbackUrl(fallbackUrl);
+        setMsg(`Application returned successfully, but WhatsApp API could not send: ${apiFailure}. Click Manual WhatsApp Fallback below to send the same rectification message through the old WhatsApp method.`);
+      }
+      setWaBusy(false);
       await load();
+      await loadWhatsAppHistory(updated.id);
     }
+
     function convert(row){
       const seed={
         application_id:row.application_id,
