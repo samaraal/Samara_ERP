@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.52';
+  const APP_VERSION = '2.8.56';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -4555,6 +4555,24 @@ Caring with Compassion. Living with Dignity.`;
       }
     }
 
+    const backgroundMailboxSyncRef=React.useRef(false);
+    async function syncOtherMailboxCountsInBackground(){
+      if(backgroundMailboxSyncRef.current)return;
+      const others=mailboxDefs.filter(item=>item.key!==mailbox);
+      if(!others.length)return;
+      backgroundMailboxSyncRef.current=true;
+      try{
+        // Keep the dashboard responsive: each other Titan mailbox is synchronised
+        // independently in the background while the selected mailbox stays usable.
+        await Promise.allSettled(others.map(item=>invoke('sync',{mailbox:item.key,folder:'INBOX'})));
+        await loadCounts();
+      }catch(err){
+        console.warn('Background mailbox count refresh failed',err);
+      }finally{
+        backgroundMailboxSyncRef.current=false;
+      }
+    }
+
     async function loadMessages(){
       setLoading(true);setError('');setSelected(null);
       try{
@@ -4594,10 +4612,18 @@ Caring with Compassion. Living with Dignity.`;
         await loadMessages();
         await loadCounts();
         if(cancelled)return;
-        // Never block the inbox on Titan IMAP. Refresh in the background after cached mail is shown.
+        // Never block the inbox on Titan IMAP. Refresh the selected mailbox in the background.
         syncMail({showToast:false});
+        // Also populate/update the dashboard cards for the other authorised mailboxes.
+        // This runs independently, so Director/Care/Admin unread counts do not remain at zero
+        // simply because that mailbox has not been opened during this browser session.
+        syncOtherMailboxCountsInBackground();
       })();
-      const timer=setInterval(()=>{if(!cancelled)syncMail({showToast:false})},5*60*1000);
+      const timer=setInterval(()=>{
+        if(cancelled)return;
+        syncMail({showToast:false});
+        syncOtherMailboxCountsInBackground();
+      },5*60*1000);
       return()=>{cancelled=true;clearInterval(timer)};
     },[mailbox,folder]);
 
