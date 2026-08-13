@@ -4506,6 +4506,8 @@ Caring with Compassion. Living with Dignity.`;
     const [composeOpen,setComposeOpen]=React.useState(false);
     const [compose,setCompose]=React.useState({to:'',cc:'',subject:'',body:''});
     const [sending,setSending]=React.useState(false);
+    const [syncing,setSyncing]=React.useState(false);
+    const [lastSynced,setLastSynced]=React.useState(null);
     const mailCache=window.__SAMARA_TITAN_MAIL_CACHE__||(window.__SAMARA_TITAN_MAIL_CACHE__={lists:{},messages:{}});
     const MAIL_LIST_CACHE_MS=60000;
 
@@ -4532,59 +4534,71 @@ Caring with Compassion. Living with Dignity.`;
 
     async function loadCounts(){
       try{
-        const result=await invoke('counts');
+        const result=await invoke('cache-counts');
         setCounts(current=>({...current,[mailbox]:result}));
+        if(result?.last_synced_at)setLastSynced(result.last_synced_at);
       }catch(err){
-        console.warn('Mail counts unavailable',err);
+        console.warn('Cached mail counts unavailable',err);
       }
     }
 
-    async function loadMessages(force=false){
-      const query=search.trim();
-      const cacheKey=`${mailbox}|${folder}|${query}`;
-      const cached=mailCache.lists[cacheKey];
-      if(!force&&!query&&cached&&(Date.now()-cached.at)<MAIL_LIST_CACHE_MS){
-        setMessages(cached.messages||[]);
-        setCounts(current=>({...current,[mailbox]:cached.counts||current[mailbox]||{}}));
-        setSelected(null);setError('');setLoading(false);
-        return;
-      }
+    async function loadMessages(){
       setLoading(true);setError('');setSelected(null);
       try{
-        const result=await invoke('list',{folder,search:query,limit:10});
-        const rows=result.messages||[];
-        setMessages(rows);
+        const result=await invoke('cache-list',{folder,search:search.trim(),limit:10});
+        setMessages(result.messages||[]);
         setCounts(current=>({...current,[mailbox]:result.counts||current[mailbox]||{}}));
-        if(!query)mailCache.lists[cacheKey]={at:Date.now(),messages:rows,counts:result.counts||{}};
+        if(result?.last_synced_at)setLastSynced(result.last_synced_at);
       }catch(err){
-        setError(err.message||'Unable to load Titan mailbox.');
+        setError(err.message||'Unable to load cached mailbox.');
       }finally{
         setLoading(false);
       }
     }
 
-    React.useEffect(()=>{if(mailbox)loadMessages(false)},[mailbox,folder]);
+    async function syncMail({showToast=false}={}){
+      if(syncing)return;
+      setSyncing(true);
+      try{
+        const result=await invoke('sync',{folder});
+        if(result?.last_synced_at)setLastSynced(result.last_synced_at);
+        await loadMessages();
+        await loadCounts();
+        if(showToast)showSamaraActionToast('success','Mail refreshed',`Latest ${result?.synced??0} messages synchronised from Titan.`);
+      }catch(err){
+        const text=err.message||'Titan synchronisation failed.';
+        setError(text);
+        if(showToast)showSamaraActionToast('error','Mail refresh failed',text);
+      }finally{
+        setSyncing(false);
+      }
+    }
+
+    React.useEffect(()=>{
+      if(!mailbox)return;
+      let cancelled=false;
+      (async()=>{
+        await loadMessages();
+        await loadCounts();
+        if(cancelled)return;
+        // Never block the inbox on Titan IMAP. Refresh in the background after cached mail is shown.
+        syncMail({showToast:false});
+      })();
+      const timer=setInterval(()=>{if(!cancelled)syncMail({showToast:false})},5*60*1000);
+      return()=>{cancelled=true;clearInterval(timer)};
+    },[mailbox,folder]);
 
     async function openMessage(row){
-      const detailKey=`${mailbox}|${folder}|${row.uid}`;
-      const cached=mailCache.messages[detailKey];
-      if(cached){
-        setSelected(cached);setError('');
-        return;
-      }
       setLoading(true);setError('');
       try{
-        const result=await invoke('read',{folder,uid:row.uid});
-        const message=result.message||null;
-        if(message)mailCache.messages[detailKey]=message;
-        setSelected(message);
+        const result=await invoke('cache-read',{folder,uid:row.uid});
+        setSelected(result.message||null);
         setMessages(current=>current.map(item=>item.uid===row.uid?{...item,seen:true}:item));
         if(!row.seen&&folder==='INBOX'){
           setCounts(current=>{
             const existing=current[mailbox]||{};
             return {...current,[mailbox]:{...existing,unread:Math.max(0,Number(existing.unread||0)-1)}};
           });
-          Object.keys(mailCache.lists).forEach(key=>{if(key.startsWith(`${mailbox}|INBOX|`))delete mailCache.lists[key]});
         }
       }catch(err){
         setError(err.message||'Unable to open message.');
@@ -4619,7 +4633,7 @@ Caring with Compassion. Living with Dignity.`;
         showSamaraActionToast('success','Email sent',`Message sent successfully from ${mailboxDefs.find(x=>x.key===mailbox)?.email||'Samara Mail'}.`);
         setCompose({to:'',cc:'',subject:'',body:''});
         setComposeOpen(false);
-        if(folder==='Sent')loadMessages(true);
+        if(folder==='Sent')syncMail({showToast:false});
       }catch(err){
         const text=err.message||'Email could not be sent.';
         setError(text);
@@ -4641,12 +4655,13 @@ Caring with Compassion. Living with Dignity.`;
         ),
         h('div',{className:'mail-actions'},
           h('button',{className:'btn btn-primary',onClick:()=>setComposeOpen(true)},'✉ Compose'),
-          h('button',{className:'btn btn-secondary',onClick:()=>loadMessages(true)},loading?'Refreshing…':'↻ Refresh')
+          h('button',{className:'btn btn-secondary',disabled:syncing,onClick:()=>syncMail({showToast:true})},syncing?'Syncing Titan…':'↻ Refresh Mail')
         )
       ),
 
       h('div',{className:'mail-security-note'},
-        'Mailbox passwords are not stored in this browser or app.js. Titan credentials remain server-side as Supabase secrets.'
+        h('div',null,'Mailbox passwords are not stored in this browser or app.js. Titan credentials remain server-side as Supabase secrets.'),
+        h('div',{style:{marginTop:'5px',fontWeight:700}},lastSynced?`Cached Inbox · Last synced ${formatDateTimeIN(lastSynced)}`:'Cached Inbox · Initial Titan sync is running in the background')
       ),
 
       h('div',{className:'mailbox-grid'},
