@@ -1233,7 +1233,7 @@ function initSamaraInaugurationInvitation(){
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Charge Approvals','Payments','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
-    { title:'COMMUNICATION', items:['Feedback','Mail Dashboard'] }
+    { title:'COMMUNICATION', items:['Family Communication','Feedback','Mail Dashboard'] }
   ];
   const ALL_NAV = NAV_SECTIONS.flatMap(section=>section.items);
   const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
@@ -3885,6 +3885,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Discharge Clearance'&&h(DischargeManagement,{profile,mode:'accounts',onNavigate:setPage}),
           page==='Refunds'&&h(RefundsView,{profile,onNavigate:setPage}),
           page==='Accounts Reports'&&h(Reports,{profile,onNavigate:setPage}),
+          page==='Family Communication'&&h(FamilyCommunicationDashboard,{profile}),
           page==='Feedback'&&h(FeedbackDashboard,{profile}),
           page==='Mail Dashboard'&&h(TitanMail,{profile}),
           page==='Recovery Timeline'&&h(RecoveryTimeline,{profile}),
@@ -4212,6 +4213,23 @@ Caring with Compassion. Living with Dignity.`;
   }
 
 
+
+  function FamilyCommunicationDashboard({profile}){
+    const [visits,setVisits]=React.useState([]),[messages,setMessages]=React.useState([]),[loading,setLoading]=React.useState(false),[error,setError]=React.useState('');
+    const canManage=['Admin','Manager'].includes(profile?.role);
+    async function load(){setLoading(true);setError('');try{const [v,m]=await Promise.all([client.from('family_visit_requests').select('*').order('created_at',{ascending:false}).limit(200),client.from('family_messages').select('*').order('created_at',{ascending:false}).limit(300)]);if(v.error)throw v.error;if(m.error)throw m.error;setVisits(v.data||[]);setMessages(m.data||[]);}catch(e){setError(e.message||'Unable to load family communication.');}finally{setLoading(false)}}
+    React.useEffect(()=>{load()},[]);
+    async function visitStatus(row,status){if(!canManage)return;const note=prompt(status==='Rejected'?'Reason / remarks for rejection:':'Confirmation / visit timing remarks (optional):','');if(note===null)return;const {error}=await client.from('family_visit_requests').update({status,management_remarks:note||null,reviewed_at:new Date().toISOString(),reviewed_by:profile?.id||null}).eq('id',row.id);if(error)return showSamaraActionToast('error','Unable to update visit',error.message);showSamaraActionToast('success','Visit request updated',`Status: ${status}`);load()}
+    async function reply(row){if(!canManage)return;const text=prompt(`Reply to ${row.sender_name||'family member'}:`,'');if(!text?.trim())return;const {error}=await client.from('family_messages').insert({patient_id:row.patient_id,patient_code:row.patient_code,patient_name:row.patient_name,access_id:row.access_id,direction:'ERP_TO_FAMILY',sender_type:'Samara Team',sender_name:formalName(profile)||profile?.full_name||'Samara Team',message:text.trim(),reply_to_id:row.id});if(error)return showSamaraActionToast('error','Unable to send reply',error.message);await client.from('family_messages').update({status:'Replied',read_at:new Date().toISOString()}).eq('id',row.id);showSamaraActionToast('success','Reply sent','The reply is now visible in the Family Portal.');load()}
+    const visitRows=visits.length?visits.map(r=>h('tr',{key:r.id},h('td',null,formatDateTimeIN(r.created_at)),h('td',null,`${r.patient_name||'—'}${r.patient_code?` · ${r.patient_code}`:''}`),h('td',null,`${r.visitor_name||'—'}${r.visitor_mobile?` · ${r.visitor_mobile}`:''}`),h('td',null,`${formatDateIN(r.visit_date)} · ${r.visit_time||'—'}`),h('td',null,r.message||'—'),h('td',null,h('span',{className:'badge'},r.status||'Pending')),h('td',null,canManage?h('div',{className:'actions'},h('button',{className:'btn btn-primary',onClick:()=>visitStatus(r,'Approved')},'Approve'),h('button',{className:'btn btn-secondary',onClick:()=>visitStatus(r,'Rejected')},'Reject')):'—'))):[h('tr',{key:'empty'},h('td',{colSpan:7},'No visit requests found.'))];
+    const messageRows=messages.length?messages.map(r=>h('tr',{key:r.id},h('td',null,formatDateTimeIN(r.created_at)),h('td',null,`${r.patient_name||'—'}${r.patient_code?` · ${r.patient_code}`:''}`),h('td',null,r.direction==='ERP_TO_FAMILY'?(r.sender_name||'Samara Team'):(r.sender_name||'Family')),h('td',null,r.message||'—'),h('td',null,h('span',{className:'badge'},r.status||'Sent')),h('td',null,canManage&&r.direction==='FAMILY_TO_ERP'?h('button',{className:'btn btn-primary',onClick:()=>reply(r)},'Reply'):'—'))):[h('tr',{key:'empty'},h('td',{colSpan:6},'No secure messages found.'))];
+    return h('div',{className:'feedback-admin-shell'},
+      h('div',{className:'section-heading'},h('div',null,h('small',null,'FAMILY PORTAL · ERP'),h('h3',null,'Family Communication'),h('p',null,'Visit requests and secure family messages in one management workspace.')),h('button',{className:'btn btn-secondary',onClick:load},loading?'Refreshing…':'↻ Refresh')),
+      error&&h('div',{className:'message error'},error),
+      h('div',{className:'card'},h('h3',null,'Visit Requests'),h('div',{className:'table-wrap'},h('table',null,h('thead',null,h('tr',null,['Received','Resident','Visitor','Requested Visit','Message','Status','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,visitRows)))),
+      h('div',{className:'card',style:{marginTop:'18px'}},h('h3',null,'Secure Messages'),h('div',{className:'table-wrap'},h('table',null,h('thead',null,h('tr',null,['Time','Resident','From','Message','Status','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,messageRows))))
+    );
+  }
 
   function FeedbackDashboard({profile}){
     React.useEffect(()=>{ensureCleanWorkspaceLayout()},[]);
@@ -7073,7 +7091,7 @@ Caring with Compassion. Living with Dignity.`;
     <tbody>${careHtml}</tbody>
   </table>
 
-  <p><b>Prescribed medication status:</b> ${row.undergoing_prescribed_medication===false?'No prescribed medication declared at admission':'Prescribed medication list recorded below'}</p>
+  <p><b>Prescribed medication status:</b> ${admission.undergoing_prescribed_medication===false?'No prescribed medication declared at admission':'Prescribed medication list recorded below'}</p>
   <p><b>Risks / special arrangements:</b> ${consentEscape(risks)}</p>
   <p><b>Diet / feeding instructions:</b> ${consentEscape(admission.diet_plan)}; ${consentEscape(admission.feeding_instruction||'No additional instruction')}</p>
 
