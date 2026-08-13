@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.44';
+  const APP_VERSION = '2.8.45';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -5101,8 +5101,10 @@ Caring with Compassion. Living with Dignity.`;
     }
     async function returnForRectification(){
       if(!edit||waBusy)return;
-      const remarks=String(edit.hr_remarks||'').trim();
+      let remarks=String(edit.hr_remarks||'').trim();
       if(!remarks){setMsg('HR Remarks is mandatory when returning an application for rectification. Please enter the discrepancy / correction required.');return}
+      const reapplyInstruction='Please submit a fresh corrected application through the Samara Careers page after rectifying the above items.';
+      if(!remarks.toLowerCase().includes('fresh corrected application')) remarks=`${remarks}\n\n${reapplyInstruction}`;
       const phone=normalizeWhatsAppRecipient(edit.whatsapp||edit.mobile||'');
       if(!phone){setMsg('A valid WhatsApp / mobile number is not available for this applicant.');return}
       setWaBusy(true);setManualFallbackUrl('');setMsg('Returning application and sending WhatsApp through Meta Cloud API…');

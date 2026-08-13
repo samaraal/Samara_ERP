@@ -1,0 +1,12 @@
+SAMARA ERP 2.8.45 - RETURN / RECTIFICATION FIX
+
+1. Supabase SQL Editor: run 85_hr_return_rectification_legacy_contact_fix.sql once.
+2. GitHub ERP: replace app.js, index.html, service-worker.js.
+3. Hard refresh Ctrl+Shift+R.
+4. Open the problematic applicant and click Return & Send WhatsApp API.
+
+What changes:
+- Legacy applications with identical Applicant/Emergency mobile numbers can now be processed by HR.
+- New applications (or later edits to those contact fields) still cannot save identical numbers.
+- Return WhatsApp automatically appends an instruction to submit a fresh corrected application through the Samara Careers page.
+- Existing WhatsApp chat/history remains unchanged.
