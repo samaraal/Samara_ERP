@@ -656,7 +656,7 @@ function initSamaraInaugurationInvitation(){
       .mail-message{padding:18px;border:1px solid #ecd0dd;border-radius:18px;background:#fff}
       .mail-message-head{display:grid;gap:5px;padding-bottom:14px;border-bottom:1px solid #eee}
       .mail-message-head h3{margin:0;color:#4f1733}
-      .mail-message-body{padding:18px 0;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+      .mail-message-body{padding:18px 0;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}.mail-html-frame-wrap{padding:14px 0}.mail-html-frame{display:block;width:100%;min-height:620px;border:1px solid #ead6df;border-radius:14px;background:#fff}.mail-plain-note{padding:10px 12px;margin:10px 0;background:#fff8fb;border:1px solid #f0dce5;border-radius:10px;color:#715263;font-size:13px}
       
       /* Titan Mail Compose modal - solid Samara card */
       .modal-backdrop .modal-card.employee-modal{
@@ -4747,7 +4747,20 @@ Caring with Compassion. Living with Dignity.`;
                   selected.cc?.length?h('div',null,h('strong',null,'CC: '),selected.cc.map(x=>x.address).join(', ')):null,
                   h('small',null,formatDateTimeIN(selected.date))
                 ),
-                h('div',{className:'mail-message-body'},selected.text||selected.htmlText||'(No readable text body)'),
+                selected.htmlText
+                  ?h('div',{className:'mail-html-frame-wrap'},
+                      h('iframe',{
+                        className:'mail-html-frame',
+                        title:`Email: ${selected.subject||'(No subject)'}`,
+                        sandbox:'allow-popups allow-popups-to-escape-sandbox',
+                        referrerPolicy:'no-referrer',
+                        srcDoc:selected.htmlText
+                      })
+                    )
+                  :h(React.Fragment,null,
+                      h('div',{className:'mail-plain-note'},'This message has no HTML version. Showing the plain-text email.'),
+                      h('div',{className:'mail-message-body'},selected.text||'(No readable text body)')
+                    ),
                 selected.attachments?.length?h('div',null,
                   h('strong',null,'Attachments: '),
                   selected.attachments.map((a,i)=>h('span',{className:'badge',key:i},a.filename||'Attachment'))

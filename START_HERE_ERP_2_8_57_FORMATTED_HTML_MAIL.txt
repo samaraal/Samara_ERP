@@ -1,0 +1,27 @@
+SAMARA CARE ERP 2.8.57 - FORMATTED TITAN EMAIL VIEWER
+
+Purpose
+- Keeps the fast Supabase Titan mail cache introduced in 2.8.53-2.8.56.
+- Stores and displays the original HTML email when available.
+- Prevents long tracking URLs and image URLs from being shown as plain text in normal HTML emails.
+- Renders HTML email in an isolated, script-disabled iframe.
+- Falls back to plain text only for true text-only emails.
+
+INSTALLATION
+1. Supabase > Edge Functions > titan-mail > Code
+   Replace index.ts with supabase/functions/titan-mail/index.ts from this patch.
+   Deploy. Keep Verify JWT with legacy secret = ON.
+
+2. ERP GitHub repository root
+   Replace:
+   - app.js
+   - index.html
+   - service-worker.js
+
+3. Hard refresh ERP with Ctrl + Shift + R.
+
+4. Open Mail and click Refresh Mail once for each mailbox.
+   Existing cache versions stored stripped HTML text. The new sync will refresh the newest messages with their real HTML email body.
+
+NO SQL CHANGE IS REQUIRED.
+NO TITAN PASSWORD/SECRET CHANGE IS REQUIRED.
