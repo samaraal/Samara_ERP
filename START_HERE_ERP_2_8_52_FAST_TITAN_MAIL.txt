@@ -1,0 +1,17 @@
+SAMARA CARE ERP 2.8.52 - FAST TITAN MAIL
+
+Purpose
+- Load only the latest 10 emails per folder.
+- Remove the duplicate Titan unread-count connection during normal mailbox loading.
+- Cache the latest mailbox list for 60 seconds in the current browser session.
+- Cache an opened email so reopening it is instant.
+- When a message is opened, update the unread count locally instead of making another Titan IMAP connection.
+
+INSTALLATION
+1. Supabase > Edge Functions > titan-mail > Code
+   Replace index.ts with supabase/functions/titan-mail/index.ts from this package and Deploy.
+   Keep Verify JWT with legacy secret ON.
+2. ERP GitHub root: replace app.js, index.html and service-worker.js.
+3. Hard refresh ERP with Ctrl + Shift + R.
+
+No SQL changes. No Titan password/secret changes.

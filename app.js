@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.51';
+  const APP_VERSION = '2.8.52';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -4506,6 +4506,8 @@ Caring with Compassion. Living with Dignity.`;
     const [composeOpen,setComposeOpen]=React.useState(false);
     const [compose,setCompose]=React.useState({to:'',cc:'',subject:'',body:''});
     const [sending,setSending]=React.useState(false);
+    const mailCache=window.__SAMARA_TITAN_MAIL_CACHE__||(window.__SAMARA_TITAN_MAIL_CACHE__={lists:{},messages:{}});
+    const MAIL_LIST_CACHE_MS=60000;
 
     const mailboxDefs=[
       {key:'chellaboomi',label:'Director Mail',email:'chellaboomi@samaraassistedliving.com',adminOnly:true,desc:'Private Director mailbox'},
@@ -4537,12 +4539,23 @@ Caring with Compassion. Living with Dignity.`;
       }
     }
 
-    async function loadMessages(){
+    async function loadMessages(force=false){
+      const query=search.trim();
+      const cacheKey=`${mailbox}|${folder}|${query}`;
+      const cached=mailCache.lists[cacheKey];
+      if(!force&&!query&&cached&&(Date.now()-cached.at)<MAIL_LIST_CACHE_MS){
+        setMessages(cached.messages||[]);
+        setCounts(current=>({...current,[mailbox]:cached.counts||current[mailbox]||{}}));
+        setSelected(null);setError('');setLoading(false);
+        return;
+      }
       setLoading(true);setError('');setSelected(null);
       try{
-        const result=await invoke('list',{folder,search:search.trim(),limit:50});
-        setMessages(result.messages||[]);
+        const result=await invoke('list',{folder,search:query,limit:10});
+        const rows=result.messages||[];
+        setMessages(rows);
         setCounts(current=>({...current,[mailbox]:result.counts||current[mailbox]||{}}));
+        if(!query)mailCache.lists[cacheKey]={at:Date.now(),messages:rows,counts:result.counts||{}};
       }catch(err){
         setError(err.message||'Unable to load Titan mailbox.');
       }finally{
@@ -4550,15 +4563,29 @@ Caring with Compassion. Living with Dignity.`;
       }
     }
 
-    React.useEffect(()=>{if(mailbox){loadMessages();loadCounts()}},[mailbox,folder]);
+    React.useEffect(()=>{if(mailbox)loadMessages(false)},[mailbox,folder]);
 
     async function openMessage(row){
+      const detailKey=`${mailbox}|${folder}|${row.uid}`;
+      const cached=mailCache.messages[detailKey];
+      if(cached){
+        setSelected(cached);setError('');
+        return;
+      }
       setLoading(true);setError('');
       try{
         const result=await invoke('read',{folder,uid:row.uid});
-        setSelected(result.message||null);
+        const message=result.message||null;
+        if(message)mailCache.messages[detailKey]=message;
+        setSelected(message);
         setMessages(current=>current.map(item=>item.uid===row.uid?{...item,seen:true}:item));
-        loadCounts();
+        if(!row.seen&&folder==='INBOX'){
+          setCounts(current=>{
+            const existing=current[mailbox]||{};
+            return {...current,[mailbox]:{...existing,unread:Math.max(0,Number(existing.unread||0)-1)}};
+          });
+          Object.keys(mailCache.lists).forEach(key=>{if(key.startsWith(`${mailbox}|INBOX|`))delete mailCache.lists[key]});
+        }
       }catch(err){
         setError(err.message||'Unable to open message.');
       }finally{
@@ -4592,7 +4619,7 @@ Caring with Compassion. Living with Dignity.`;
         showSamaraActionToast('success','Email sent',`Message sent successfully from ${mailboxDefs.find(x=>x.key===mailbox)?.email||'Samara Mail'}.`);
         setCompose({to:'',cc:'',subject:'',body:''});
         setComposeOpen(false);
-        if(folder==='Sent')loadMessages();
+        if(folder==='Sent')loadMessages(true);
       }catch(err){
         const text=err.message||'Email could not be sent.';
         setError(text);
@@ -4614,7 +4641,7 @@ Caring with Compassion. Living with Dignity.`;
         ),
         h('div',{className:'mail-actions'},
           h('button',{className:'btn btn-primary',onClick:()=>setComposeOpen(true)},'✉ Compose'),
-          h('button',{className:'btn btn-secondary',onClick:()=>{loadMessages();loadCounts()}},loading?'Refreshing…':'↻ Refresh')
+          h('button',{className:'btn btn-secondary',onClick:()=>loadMessages(true)},loading?'Refreshing…':'↻ Refresh')
         )
       ),
 
@@ -4677,9 +4704,9 @@ Caring with Compassion. Living with Dignity.`;
                   h('input',{
                     value:search,placeholder:`Search ${selectedDef?.label||'mailbox'}…`,
                     onChange:e=>setSearch(e.target.value),
-                    onKeyDown:e=>{if(e.key==='Enter')loadMessages()}
+                    onKeyDown:e=>{if(e.key==='Enter')loadMessages(true)}
                   }),
-                  h('button',{className:'btn btn-secondary',onClick:loadMessages},'Search')
+                  h('button',{className:'btn btn-secondary',onClick:()=>loadMessages(true)},'Search')
                 ),
                 loading?h('div',{className:'loading'},'Loading mail…'):
                 h('div',{className:'mail-list'},
