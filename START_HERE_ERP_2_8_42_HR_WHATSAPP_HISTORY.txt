@@ -1,0 +1,39 @@
+SAMARA CARE ERP 2.8.42 — HR WHATSAPP COMMUNICATION HISTORY
+
+WHAT IS NEW
+1. HR Dashboard has a new "WhatsApp Communications" card.
+   - Shows today's recorded WhatsApp attempts.
+   - Shows how many were accepted by Meta today.
+   - Shows failures/fallbacks when present.
+
+2. Every Career Application now contains "WhatsApp Communication History".
+   Each record stores:
+   - Date and time
+   - Communication type
+   - WhatsApp template name
+   - Recipient number
+   - Status
+   - ERP user who sent it
+   - Meta message ID (stored in database)
+   - API error when applicable
+
+3. Current statuses in this release
+   - Accepted = Meta accepted the API request and returned a WhatsApp message ID.
+   - API Failed / Fallback Opened = Cloud API failed and existing WhatsApp fallback was opened.
+
+IMPORTANT
+"Accepted" confirms Meta accepted the message for processing. It is not the same as Delivered or Read.
+The table already includes delivered_at/read_at/failed_at columns so the existing WhatsApp webhook can be enhanced later to update Delivered / Read / Failed status without redesigning HR again.
+
+INSTALLATION ORDER
+1. Supabase SQL Editor: run 82_hr_whatsapp_communication_history.sql once.
+2. GitHub ERP: replace app.js, index.html and service-worker.js.
+3. Wait for GitHub Pages deployment.
+4. Hard refresh the ERP (Ctrl+Shift+R), sign in again.
+5. HR Dashboard should show the WhatsApp Communications card.
+6. Send an interview WhatsApp. Re-open that applicant to see the history entry.
+
+NO CHANGE REQUIRED
+- whatsapp-send Edge Function stays as currently deployed.
+- whatsapp-webhook is not changed in this release.
+- Existing fallback remains available.
