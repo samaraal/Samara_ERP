@@ -1,0 +1,29 @@
+SAMARA CARE ERP 2.8.47 — FAMILY/PATIENT WHATSAPP API MAPPING
+
+This update keeps the existing whatsapp-send Edge Function and manual WhatsApp fallback.
+No SQL migration and no Edge Function change are required for this patch.
+
+Approved-template mapping added/retained:
+1. Patient Admission -> samara_patient_admission
+2. Family Portal Access Notice -> samara_family_portal_access
+   - Uses approved Utility template for patient/portal-access notice.
+   - Temporary PIN remains available through the existing manual login message because Meta Authentication template permission was not available when created.
+3. Daily Report Available -> samara_daily_report
+4. Daily Payable / Outstanding Summary -> samara_bill_reminder
+5. Payment Receipt -> samara_payment_receipt
+6. Review Appointment Reminder -> appointment_review_reminder
+7. Discharge Confirmation -> samara_discharge_confirmation
+8. Daily Moments -> NO WhatsApp notification (Family Portal only)
+
+Installation:
+Replace these live ERP GitHub files only:
+- app.js
+- index.html
+- service-worker.js
+Then hard refresh Ctrl+Shift+R.
+
+Important:
+- Keep Supabase Edge Function whatsapp-send deployed as it is.
+- Keep whatsapp-webhook unchanged.
+- Manual wa.me fallback remains available if Meta API fails.
+- Manual fallback carries branded SAMARA ASSISTED LIVING text; WhatsApp cannot auto-attach the logo image through wa.me.

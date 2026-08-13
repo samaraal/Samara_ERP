@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.46';
+  const APP_VERSION = '2.8.47';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -5107,50 +5107,24 @@ Caring with Compassion. Living with Dignity.`;
       if(!remarks.toLowerCase().includes('fresh corrected application')) remarks=`${remarks}\n\n${reapplyInstruction}`;
       const phone=normalizeWhatsAppRecipient(edit.whatsapp||edit.mobile||'');
       if(!phone){setMsg('A valid WhatsApp / mobile number is not available for this applicant.');return}
-
-      const updated={...edit,status:'Returned for Rectification',hr_remarks:remarks,interview_at:null,interview_mode:null,interview_venue:null,interview_result:null};
-      const fallbackUrl=whatsappRectificationCandidate(updated,remarks);
-      // Prepare the old/manual WhatsApp route before any database/API operation so HR
-      // can still contact the applicant if either the legacy application update or Meta API fails.
       setWaBusy(true);setManualFallbackUrl('');setMsg('Returning application and sending WhatsApp through Meta Cloud API…');
-
-      let apiAccepted=false;
-      let apiFailure='';
-      try{
-        const waResult=await sendWhatsAppTemplate({to:phone,templateName:'samara_application_returned',languageCode:'en',bodyParams:[candidateDisplayName(updated),remarks,updated.application_id||'—']});
-        apiAccepted=true;
-        const history=await recordHrWhatsApp(updated,{communicationType:'Application Returned',templateName:'samara_application_returned',status:'Accepted',providerMessageId:whatsappProviderMessageId(waResult),messageContent:applicationReturnedSnapshot(updated,remarks),messagePayload:{body_params:[candidateDisplayName(updated),remarks,updated.application_id||'—']}});
-        if(history?.ok===false) apiFailure=`Message accepted by Meta, but communication history could not be saved: ${history.error?.message||'Database permission error'}.`;
-      }catch(apiError){
-        apiFailure=String(apiError?.message||apiError||'Unknown WhatsApp API error');
-        await recordHrWhatsApp(updated,{communicationType:'Application Returned',templateName:'samara_application_returned',status:'API Failed',errorMessage:apiFailure,messageContent:applicationReturnedSnapshot(updated,remarks),messagePayload:{body_params:[candidateDisplayName(updated),remarks,updated.application_id||'—']}});
-        setManualFallbackUrl(fallbackUrl);
-      }
-
-      // Save the HR return status separately. A legacy-data constraint must never prevent
-      // WhatsApp communication or hide the manual fallback route.
+      const updated={...edit,status:'Returned for Rectification',hr_remarks:remarks,interview_at:null,interview_mode:null,interview_venue:null,interview_result:null};
       const payload={status:'Returned for Rectification',hr_remarks:remarks,interview_at:null,interview_mode:null,interview_venue:null,interview_result:null,handled_by:profile.id,updated_at:new Date().toISOString()};
       const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);
-      if(error){
-        if(!apiAccepted)setManualFallbackUrl(fallbackUrl);
-        setMsg(apiAccepted
-          ?`✓ Return WhatsApp was accepted by Meta, but the application status could not be updated: ${error.message}. The message is still recorded in WhatsApp history.`
-          :`The application status could not be updated (${error.message}) and WhatsApp API could not send (${apiFailure}). Use Manual WhatsApp Fallback below to send the rectification message through the old WhatsApp method.`);
-        setWaBusy(false);await loadWhatsAppHistory(edit.id);return;
-      }
-
+      if(error){setWaBusy(false);setMsg(error.message);return}
       setInterviewDate('');setInterviewTime('10:00');setRescheduleDate('');setRescheduleTime('10:00');setEdit(updated);setSelected({...selected,...updated});
-      if(apiAccepted){
-        setMsg(apiFailure?`✓ Application returned and WhatsApp accepted by Meta. ${apiFailure}`:'✓ Application returned. WhatsApp accepted by Meta and recorded in applicant history.');
-      }else{
-        setManualFallbackUrl(fallbackUrl);
-        setMsg(`Application returned successfully, but WhatsApp API could not send: ${apiFailure}. Click Manual WhatsApp Fallback below to send the same rectification message through the old WhatsApp method.`);
-      }
-      setWaBusy(false);
+      try{
+        const waResult=await sendWhatsAppTemplate({to:phone,templateName:'samara_application_returned',languageCode:'en',bodyParams:[candidateDisplayName(updated),remarks,updated.application_id||'—']});
+        const history=await recordHrWhatsApp(updated,{communicationType:'Application Returned',templateName:'samara_application_returned',status:'Accepted',providerMessageId:whatsappProviderMessageId(waResult),messageContent:applicationReturnedSnapshot(updated,remarks),messagePayload:{body_params:[candidateDisplayName(updated),remarks,updated.application_id||'—']}});
+        if(history?.ok===false)setMsg(`Return WhatsApp was accepted by Meta, but communication history could not be saved: ${history.error?.message||'Database permission error'}.`);
+        else setMsg('✓ Application returned. WhatsApp accepted by Meta and recorded in applicant history.');
+      }catch(apiError){
+        const history=await recordHrWhatsApp(updated,{communicationType:'Application Returned',templateName:'samara_application_returned',status:'API Failed',errorMessage:String(apiError.message||apiError),messageContent:applicationReturnedSnapshot(updated,remarks),messagePayload:{body_params:[candidateDisplayName(updated),remarks,updated.application_id||'—']}});
+        setManualFallbackUrl(whatsappRectificationCandidate(updated,remarks));
+        setMsg(`Application was returned, but WhatsApp API could not send: ${apiError.message||apiError}. Use Manual WhatsApp Fallback below only if required.${history?.ok===false?' History could not be recorded because of a database permission issue.':''}`);
+      } finally {setWaBusy(false)}
       await load();
-      await loadWhatsAppHistory(updated.id);
     }
-
     function convert(row){
       const seed={
         application_id:row.application_id,
@@ -7475,6 +7449,35 @@ Caring with Compassion. Living with Dignity.`;
       }
     }
 
+    async function sendFamilyPortalAccessWhatsAppApi(credential){
+      if(!credential)return;
+      const reason=String(form.diagnosis||'').trim()||'assisted living care and support';
+      const proposedStay=String(form.patient_category||'').trim()||'As per care requirement';
+      const roomBed=credential.room_bed||[form.room_no,form.bed_no].filter(Boolean).join(' / ')||'—';
+      try{
+        await sendWhatsAppTemplate({
+          to:credential.mobile,
+          templateName:'samara_family_portal_access',
+          languageCode:'en',
+          bodyParams:[credential.relative_name||'Family Member',credential.patient_name||form.full_name||'Patient',formatDateIN(credential.admission_date||form.admission_date),credential.patient_id||'—',reason,proposedStay,roomBed]
+        });
+        setMsg('Family Portal access notification sent successfully through the approved Meta template. The temporary PIN can be sent separately using the existing method below.');
+      }catch(apiError){
+        const text=`Dear ${credential.relative_name||'Family Member'},
+
+Family Portal access has been created for ${credential.patient_name||form.full_name||'the patient'}.
+
+Resident ID: ${credential.patient_id||'—'}
+Temporary PIN: ${credential.pin||'—'}
+Portal: https://family.samaraassistedliving.com
+
+Please keep these login details confidential.`;
+        const number=normalizeWhatsAppRecipient(credential.mobile);
+        if(number)window.open(`https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(text))}`,'_blank','noopener');
+        setMsg(`Family Portal WhatsApp API could not send (${apiError.message||apiError}); the existing login message has been opened as fallback.`);
+      }
+    }
+
     async function submit(e){
       e.preventDefault();
       setAdmissionSaveAttempt(value=>value+1);
@@ -7839,7 +7842,8 @@ Caring with Compassion. Living with Dignity.`;
           h('div',null,`Resident ID: ${familyCredential.patient_id||'—'} · Temporary PIN: ${familyCredential.pin}`),
           h('div',{className:'employee-actions',style:{marginTop:'8px'}},
             h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>sendAdmissionWhatsAppApi(familyCredential)},'Send Admission WhatsApp API'),
-            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${familyCredential.mobile}?text=${encodeURIComponent(brandWhatsAppText(`Welcome to Samara Assisted Living Family Portal.\nResident ID: ${familyCredential.patient_id||''}\nTemporary PIN: ${familyCredential.pin}\nPortal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send Portal Login (Existing Method)')
+            h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>sendFamilyPortalAccessWhatsAppApi(familyCredential)},'Send Family Portal Access API'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${familyCredential.mobile}?text=${encodeURIComponent(brandWhatsAppText(`Welcome to Samara Assisted Living Family Portal.\nResident ID: ${familyCredential.patient_id||''}\nTemporary PIN: ${familyCredential.pin}\nPortal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send Login PIN (Existing Method)')
           )
         )
       ),
@@ -9744,7 +9748,16 @@ Caring with Compassion. Living with Dignity.`;
                 ),
                 access.is_active&&h('div',{className:'actions',style:{marginTop:'10px'}},
                   h('button',{type:'button',className:'btn btn-secondary',disabled:familyResetBusy===access.id,onClick:()=>resetSelectedFamilyPin(access)},familyResetBusy===access.id?'Resetting…':'Forgot / Reset PIN'),
-                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${String(access.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal\nResident ID: ${selected?.patient_id||''}\nPortal: https://family.samaraassistedliving.com\nIf the PIN is forgotten, please contact Samara to reset it.`))}`,'_blank','noopener')},'Send Resident ID & Portal by WhatsApp')
+                  h('button',{type:'button',className:'btn btn-whatsapp',onClick:async()=>{
+                    try{
+                      await sendWhatsAppTemplate({to:access.mobile,templateName:'samara_family_portal_access',languageCode:'en',bodyParams:[access.relative_name||'Family Member',formalName(selected)||selected?.full_name||'Patient',formatDateIN(selected?.admission_date),selected?.patient_id||'—',selected?.diagnosis||'assisted living care and support',selected?.patient_category||'As per care requirement',[selected?.room_no,selected?.bed_no].filter(Boolean).join(' / ')||'—']});
+                      showPatientToast('success','Family Portal WhatsApp sent successfully.');
+                    }catch(error){
+                      window.open(`https://wa.me/91${String(access.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal\nResident ID: ${selected?.patient_id||''}\nPortal: https://family.samaraassistedliving.com\nIf the PIN is forgotten, please contact Samara to reset it.`))}`,'_blank','noopener');
+                      showPatientToast('error',`WhatsApp API failed; existing method opened as fallback. ${error.message||error}`);
+                    }
+                  }},'Send Portal Access WhatsApp API'),
+                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${String(access.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal\nResident ID: ${selected?.patient_id||''}\nPortal: https://family.samaraassistedliving.com\nIf the PIN is forgotten, please contact Samara to reset it.`))}`,'_blank','noopener')},'Existing Method')
                 )
               )))
               :h('div',null,sectionEmpty('Family Portal access has not been created for this resident.'),h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEditPatient(selected)},'Create Family Portal Access')),
@@ -10788,6 +10801,58 @@ Caring with Compassion. Living with Dignity.`;
       );
     }
 
+    async function sendDischargeConfirmationWhatsAppApi(row){
+      const patient=patients.find(p=>p.id===row.patient_id)||{};
+      const to=patient.attendant_phone||row.relative_contact||patient.mobile||'';
+      if(!to){notify('error','WhatsApp not sent','Family / patient WhatsApp number is not available.');return}
+      const recipient=patient.attendant_name||row.relative_name||formalName(patient)||patient.full_name||'Family Member';
+      const patientName=formalName(patient)||patient.full_name||'Patient';
+      const departureAt=row.actual_departure_at||row.updated_at||new Date().toISOString();
+      const departureDate=formatDateIN(String(departureAt).slice(0,10));
+      const departureTime=formatTimeIN(departureAt);
+      try{
+        await sendWhatsAppTemplate({to,templateName:'samara_discharge_confirmation',languageCode:'en',bodyParams:[recipient,patientName,departureDate,departureTime]});
+        notify('success','Discharge WhatsApp sent','Discharge confirmation was sent successfully through the approved Meta template.');
+      }catch(apiError){
+        const number=normalizeWhatsAppRecipient(to);
+        const text=`Dear ${recipient},
+
+We confirm that ${patientName} has completed the discharge process from Samara Assisted Living.
+
+Discharge Date: ${departureDate}
+Discharge Time: ${departureTime}
+
+Thank you for placing your trust in Samara Assisted Living.`;
+        if(number)window.open(`https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(text))}`,'_blank','noopener');
+        notify('error','WhatsApp API failed',`The existing WhatsApp message has been opened as fallback. ${apiError.message||apiError}`);
+      }
+    }
+    async function sendReviewAppointmentWhatsAppApi(row){
+      if(!row.review_appointment_date){notify('error','Reminder not sent','No review appointment date is recorded for this discharge.');return}
+      const patient=patients.find(p=>p.id===row.patient_id)||{};
+      const to=patient.attendant_phone||row.relative_contact||patient.mobile||'';
+      if(!to){notify('error','Reminder not sent','Family / patient WhatsApp number is not available.');return}
+      const recipient=patient.attendant_name||row.relative_name||formalName(patient)||patient.full_name||'Family Member';
+      const patientName=formalName(patient)||patient.full_name||'Patient';
+      const doctorHospital=[row.review_doctor_name,row.review_hospital_clinic].filter(Boolean).join(' / ')||'As advised';
+      const time=row.review_appointment_time?formatTimeIN(`${row.review_appointment_date}T${String(row.review_appointment_time).slice(0,5)}:00`):'As advised';
+      try{
+        await sendWhatsAppTemplate({to,templateName:'appointment_review_reminder',languageCode:'en',bodyParams:[recipient,patientName,formatDateIN(row.review_appointment_date),time,doctorHospital]});
+        notify('success','Review reminder sent','Review appointment reminder was sent successfully through WhatsApp API.');
+      }catch(apiError){
+        const number=normalizeWhatsAppRecipient(to);
+        const text=`Dear ${recipient},
+
+This is a reminder regarding the scheduled review appointment for ${patientName}.
+
+Date: ${formatDateIN(row.review_appointment_date)}
+Time: ${time}
+Doctor / Hospital: ${doctorHospital}`;
+        if(number)window.open(`https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(text))}`,'_blank','noopener');
+        notify('error','WhatsApp API failed',`The existing WhatsApp message has been opened as fallback. ${apiError.message||apiError}`);
+      }
+    }
+
     const visibleRows=rows.filter(row=>!['cancelled','canceled'].includes(
       String(row.status||'').trim().toLowerCase()
     ));
@@ -10847,7 +10912,9 @@ Caring with Compassion. Living with Dignity.`;
                 :row.management_status==='Approved'
                   ?'With Accounts'
                   :'Awaiting Management'
-        )
+        ),
+        ['Admin','Manager'].includes(profile?.role)&&String(row.status||'').trim().toLowerCase()==='completed'&&h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>sendDischargeConfirmationWhatsAppApi(row)},'Send Discharge WhatsApp API'),
+        ['Admin','Manager'].includes(profile?.role)&&String(row.status||'').trim().toLowerCase()==='completed'&&row.review_appointment_date&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>sendReviewAppointmentWhatsAppApi(row)},'Send Review Reminder API')
       )
     ]);
 
@@ -14412,6 +14479,34 @@ function ShiftHandover({profile,onNavigate}){
       }
     }
 
+    async function sendDailyBillWhatsAppApi(){
+      if(!patientFilter){setMessage('Select a patient first.');return}
+      if(pendingBills<=0){setMessage('There is no outstanding amount to notify for the selected patient.');return}
+      const patient=patients.find(p=>p.id===patientFilter)||{};
+      const to=patient.attendant_phone||patient.mobile||'';
+      if(!to){setMessage('Family / patient WhatsApp number is not available in the Patient File.');return}
+      const recipient=patient.attendant_name||formalName(patient)||patient.full_name||'Family Member';
+      const patientName=formalName(patient)||patient.full_name||'Patient';
+      const amount=Number(pendingBills||0).toLocaleString('en-IN',{maximumFractionDigits:2});
+      const dueDate=formatDateIN(new Date().toISOString().slice(0,10));
+      try{
+        await sendWhatsAppTemplate({to,templateName:'samara_bill_reminder',languageCode:'en',bodyParams:[recipient,patientName,amount,dueDate]});
+        notify('success','Daily payable summary sent',`Outstanding amount of ₹${amount} was sent to the authorised family contact through WhatsApp API.`);
+      }catch(apiError){
+        const number=normalizeWhatsAppRecipient(to);
+        const text=`Dear ${recipient},
+
+This is the daily payable summary for ${patientName}.
+
+Outstanding Amount: ₹${amount}
+As on: ${dueDate}
+
+Please access the Samara Family Portal for detailed account information.`;
+        if(number)window.open(`https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(text))}`,'_blank','noopener');
+        setMessage(`WhatsApp API could not send (${apiError.message||apiError}); the existing WhatsApp message has been opened as fallback.`);
+      }
+    }
+
     async function savePaymentAndPossiblyClose(e){
       e.preventDefault();
       if(!canEnter||saving)return;
@@ -14698,7 +14793,8 @@ function ShiftHandover({profile,onNavigate}){
         ),
         h('div',{className:'payment-quick-buttons'},
           h('button',{type:'button',className:'btn btn-primary',onClick:()=>setQuickView('Pending Bills')},'Pending Bills as on Date'),
-          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setQuickView('Complete Transaction History')},'Complete Transaction History')
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setQuickView('Complete Transaction History')},'Complete Transaction History'),
+          patientFilter&&pendingBills>0&&h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendDailyBillWhatsAppApi},'Send Daily Payable WhatsApp API')
         )
       ),
 
