@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.47';
+  const APP_VERSION = '2.8.48';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -1277,7 +1277,7 @@ function initSamaraInaugurationInvitation(){
   const brandWhatsAppText = text => {
     const raw=String(text||'').trim();
     if(raw.includes(SAMARA_WHATSAPP_LOGO_URL))return raw;
-    return `SAMARA ASSISTED LIVING\n${SAMARA_WHATSAPP_LOGO_URL}\n\n${raw}`;
+    return `SAMARA ASSISTED LIVING\nCompassion • Comfort • Dignity\n\n${raw}`;
   };
 
   const normalizeWhatsAppRecipient = value => {
@@ -7473,8 +7473,10 @@ Portal: https://family.samaraassistedliving.com
 
 Please keep these login details confidential.`;
         const number=normalizeWhatsAppRecipient(credential.mobile);
-        if(number)window.open(`https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(text))}`,'_blank','noopener');
-        setMsg(`Family Portal WhatsApp API could not send (${apiError.message||apiError}); the existing login message has been opened as fallback.`);
+        setMsg(`Family Portal WhatsApp API failed: ${apiError.message||apiError}. No manual WhatsApp window was opened automatically.`);
+        if(number&&window.confirm('Meta WhatsApp API could not send this message. Open the manual WhatsApp fallback now?')){
+          window.open(`https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(text))}`,'_blank','noopener');
+        }
       }
     }
 
