@@ -1,0 +1,15 @@
+SAMARA CARE ERP 2.8.43 — HR Applicant File + WhatsApp Confirmation Fix
+
+1. Run 83_hr_whatsapp_history_policy_fix.sql once in Supabase SQL Editor.
+2. Replace app.js, index.html and service-worker.js in the ERP GitHub repository.
+3. Hard refresh (Ctrl+Shift+R).
+
+Changes:
+- Clicking any Career Applications row opens the complete applicant file as a full internal page.
+- Applicant data is grouped in logical chronological sections.
+- WhatsApp communication history is oldest-to-newest.
+- WhatsApp sending never automatically leaves the ERP page on API failure.
+- Persistent success/error confirmation remains visible in the applicant file.
+- Manual WhatsApp fallback is shown only as an explicit button if the API fails.
+- Fixed RLS policy that could prevent WhatsApp history rows from being inserted/read.
+- HR Dashboard WhatsApp count uses local-day boundaries.

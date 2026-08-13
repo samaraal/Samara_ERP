@@ -4793,8 +4793,10 @@ Caring with Compassion. Living with Dignity.`;
     const selectedCount=applications.filter(x=>x.status==='Selected').length;
     const onHold=applications.filter(x=>x.status==='On Hold').length;
     const deptCount=name=>active.filter(x=>employeeDepartment(x)===name).length;
-    const todayKey=new Date().toISOString().slice(0,10);
-    const waToday=waComms.filter(x=>String(x.created_at||'').slice(0,10)===todayKey);
+    const nowLocal=new Date();
+    const todayStart=new Date(nowLocal.getFullYear(),nowLocal.getMonth(),nowLocal.getDate());
+    const tomorrowStart=new Date(nowLocal.getFullYear(),nowLocal.getMonth(),nowLocal.getDate()+1);
+    const waToday=waComms.filter(x=>{const d=new Date(x.created_at||0);return d>=todayStart&&d<tomorrowStart});
     const waAcceptedToday=waToday.filter(x=>['Accepted','Sent','Delivered','Read'].includes(String(x.status||''))).length;
     const waFailedToday=waToday.filter(x=>String(x.status||'').toLowerCase().includes('fail')).length;
     const metrics=[
@@ -4867,7 +4869,7 @@ Caring with Compassion. Living with Dignity.`;
 
   function CareerApplications({profile,onNavigate}){
     const [rows,setRows]=React.useState([]),[selected,setSelected]=React.useState(null),[edit,setEdit]=React.useState(null),[msg,setMsg]=React.useState('');
-    const [waHistory,setWaHistory]=React.useState([]);
+    const [waHistory,setWaHistory]=React.useState([]),[manualFallbackUrl,setManualFallbackUrl]=React.useState(''),[waBusy,setWaBusy]=React.useState(false);
     const [interviewDate,setInterviewDate]=React.useState(''),[interviewTime,setInterviewTime]=React.useState('10:00');
     const [rescheduleDate,setRescheduleDate]=React.useState(''),[rescheduleTime,setRescheduleTime]=React.useState('10:00');
     const interviewTimeOptions=Array.from({length:15},(_,i)=>{const total=10*60+i*30;const hh=Math.floor(total/60),mm=total%60;const value=`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;const hour12=hh>12?hh-12:hh;const ampm=hh>=12?'PM':'AM';return {value,label:`${hour12}.${String(mm).padStart(2,'0')} ${ampm}`}});
@@ -4876,7 +4878,7 @@ Caring with Compassion. Living with Dignity.`;
     React.useEffect(()=>{load();const ch=client.channel('career-applications-live').on('postgres_changes',{event:'*',schema:'public',table:'career_applications'},load).subscribe();return()=>client.removeChannel(ch)},[]);
     async function loadWhatsAppHistory(applicationId){
       if(!applicationId){setWaHistory([]);return}
-      const {data,error}=await client.from('hr_whatsapp_communications').select('*').eq('career_application_id',applicationId).order('created_at',{ascending:false});
+      const {data,error}=await client.from('hr_whatsapp_communications').select('*').eq('career_application_id',applicationId).order('created_at',{ascending:true});
       if(error){console.warn('Unable to load applicant WhatsApp history',error);setWaHistory([]);return}
       setWaHistory(data||[]);
     }
@@ -4884,8 +4886,9 @@ Caring with Compassion. Living with Dignity.`;
       if(!row?.id)return;
       const payload={career_application_id:row.id,application_id:row.application_id||null,applicant_name:row.applicant_name||null,recipient_number:normalizeWhatsAppRecipient(row.whatsapp||row.mobile||''),communication_type:communicationType,template_name:templateName||null,status,provider_message_id:providerMessageId||null,error_message:errorMessage||null,sent_by:profile.id,sent_by_name:formalName(profile),updated_at:new Date().toISOString()};
       const {error}=await client.from('hr_whatsapp_communications').insert(payload);
-      if(error)console.warn('Unable to save WhatsApp communication history',error);
+      if(error){console.warn('Unable to save WhatsApp communication history',error);return {ok:false,error}}
       await loadWhatsAppHistory(row.id);
+      return {ok:true};
     }
     function whatsappProviderMessageId(result){return result?.result?.messages?.[0]?.id||result?.messages?.[0]?.id||null}
     function waStatusStyle(status){const value=String(status||'').toLowerCase();if(value.includes('read')||value.includes('deliver'))return {background:'#e6f7ef',color:'#0f7a4f'};if(value.includes('accept')||value==='sent')return {background:'#edf7ff',color:'#176b9c'};if(value.includes('fail'))return {background:'#fff0f0',color:'#a51d2c'};if(value.includes('fallback'))return {background:'#fff5e8',color:'#9b5e0b'};return {background:'#f4eef2',color:'#6f5362'}}
@@ -4953,9 +4956,10 @@ Caring with Compassion. Living with Dignity.`;
       setRescheduleDate('');
       setRescheduleTime('10:00');
       setMsg(autoRemarks?'System pre-screen detected items requiring HR attention. Please review the suggested reasons before proceeding.':'');
+      setManualFallbackUrl('');
       loadWhatsAppHistory(row.id);
     }
-    function closeApplication(){setSelected(null);setEdit(null);setMsg('');setWaHistory([])}
+    function closeApplication(){setSelected(null);setEdit(null);setMsg('');setWaHistory([]);setManualFallbackUrl('');setWaBusy(false)}
     function useDetectedRemarks(){
       const auto=detectedRemarks(selected);
       if(!auto){setMsg('No discrepancy was automatically detected. HR may enter any other discrepancy manually in HR Remarks.');return}
@@ -5020,26 +5024,28 @@ Caring with Compassion. Living with Dignity.`;
       return `https://wa.me/91${phone}?text=${encodeURIComponent(text)}`;
     }
     async function sendInterviewWhatsApp(){
-      if(!edit)return;
+      if(!edit||waBusy)return;
       if(!edit.interview_at){setMsg('Please set the interview date and time before sending WhatsApp.');return}
       if(!edit.interview_mode){setMsg('Please select the Interview Mode before sending WhatsApp.');return}
       if(edit.interview_mode==='Online'&&!String(edit.interview_venue||'').trim()){setMsg('Please enter the Google Meet / Zoom / Teams link for the online interview.');return}
       const phone=normalizeWhatsAppRecipient(edit.whatsapp||edit.mobile||'');
       if(!phone){setMsg('WhatsApp / mobile number is not available for this applicant.');return}
+      setWaBusy(true);setManualFallbackUrl('');setMsg('Sending interview WhatsApp through Meta Cloud API…');
       const payload={status:'Interview Scheduled',hr_remarks:edit.hr_remarks||null,interview_at:edit.interview_at,interview_mode:edit.interview_mode||null,interview_venue:edit.interview_venue||null,interview_result:edit.interview_result||null,handled_by:profile.id,updated_at:new Date().toISOString()};
       const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);
-      if(error){setMsg(error.message);return}
+      if(error){setWaBusy(false);setMsg(error.message);return}
       const updated={...edit,status:'Interview Scheduled'};
       setEdit(updated);setSelected({...selected,...updated});
       try{
         const waResult=await sendWhatsAppTemplate({to:phone,templateName:'samara_interview_scheduled',languageCode:'en',bodyParams:interviewTemplateParams(updated)});
-        await recordHrWhatsApp(updated,{communicationType:'Interview Scheduled',templateName:'samara_interview_scheduled',status:'Accepted',providerMessageId:whatsappProviderMessageId(waResult)});
-        setMsg('Interview marked as Interview Scheduled and WhatsApp API message accepted by Meta successfully.');
+        const history=await recordHrWhatsApp(updated,{communicationType:'Interview Scheduled',templateName:'samara_interview_scheduled',status:'Accepted',providerMessageId:whatsappProviderMessageId(waResult)});
+        if(history?.ok===false)setMsg(`WhatsApp was accepted by Meta, but the ERP could not save the communication history: ${history.error?.message||'Database permission error'}. Please run the HR WhatsApp history policy fix.`);
+        else setMsg('✓ WhatsApp accepted by Meta successfully. This communication has been recorded in the applicant history below.');
       }catch(apiError){
-        await recordHrWhatsApp(updated,{communicationType:'Interview Scheduled',templateName:'samara_interview_scheduled',status:'API Failed / Fallback Opened',errorMessage:String(apiError.message||apiError)});
-        window.open(whatsappCandidate(updated),'_blank','noopener');
-        setMsg(`Interview saved. WhatsApp API could not send (${apiError.message||apiError}); the existing WhatsApp message has been opened as fallback.`);
-      }
+        const history=await recordHrWhatsApp(updated,{communicationType:'Interview Scheduled',templateName:'samara_interview_scheduled',status:'API Failed',errorMessage:String(apiError.message||apiError)});
+        setManualFallbackUrl(whatsappCandidate(updated));
+        setMsg(`WhatsApp API could not send: ${apiError.message||apiError}. The ERP has NOT left this page. Use the Manual WhatsApp Fallback button below only if required.${history?.ok===false?' Communication history could not be saved because of a database permission issue.':''}`);
+      } finally {setWaBusy(false)}
       await load();
     }
     function whatsappRescheduleCandidate(row,previousAt){
@@ -5049,7 +5055,7 @@ Caring with Compassion. Living with Dignity.`;
       return `https://wa.me/91${phone}?text=${encodeURIComponent(text)}`;
     }
     async function sendRescheduleWhatsApp(){
-      if(!edit)return;
+      if(!edit||waBusy)return;
       const previousAt=selected?.interview_at||null;
       if(!edit.interview_at){setMsg('Please set the revised interview date and time first.');return}
       if(previousAt===edit.interview_at){setMsg('Please choose a new date or time before sending a reschedule message.');return}
@@ -5057,20 +5063,22 @@ Caring with Compassion. Living with Dignity.`;
       if(edit.interview_mode==='Online'&&!String(edit.interview_venue||'').trim()){setMsg('Please enter the online meeting link before sending WhatsApp.');return}
       const phone=normalizeWhatsAppRecipient(edit.whatsapp||edit.mobile||'');
       if(!phone){setMsg('WhatsApp / mobile number is not available for this applicant.');return}
+      setWaBusy(true);setManualFallbackUrl('');setMsg('Sending rescheduled interview WhatsApp through Meta Cloud API…');
       const payload={status:'Interview Scheduled',hr_remarks:edit.hr_remarks||null,interview_at:edit.interview_at,interview_mode:edit.interview_mode||null,interview_venue:edit.interview_venue||null,interview_result:edit.interview_result||null,handled_by:profile.id,updated_at:new Date().toISOString()};
       const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);
-      if(error){setMsg(error.message);return}
+      if(error){setWaBusy(false);setMsg(error.message);return}
       const updated={...edit,status:'Interview Scheduled'};
       setSelected({...selected,...updated});setEdit(updated);setRescheduleDate('');setRescheduleTime('10:00');
       try{
         const waResult=await sendWhatsAppTemplate({to:phone,templateName:'samara_interview_rescheduled',languageCode:'en',bodyParams:interviewTemplateParams(updated)});
-        await recordHrWhatsApp(updated,{communicationType:'Interview Rescheduled',templateName:'samara_interview_rescheduled',status:'Accepted',providerMessageId:whatsappProviderMessageId(waResult)});
-        setMsg('Interview rescheduled and WhatsApp API notification accepted by Meta successfully.');
+        const history=await recordHrWhatsApp(updated,{communicationType:'Interview Rescheduled',templateName:'samara_interview_rescheduled',status:'Accepted',providerMessageId:whatsappProviderMessageId(waResult)});
+        if(history?.ok===false)setMsg(`Reschedule WhatsApp was accepted by Meta, but communication history could not be saved: ${history.error?.message||'Database permission error'}.`);
+        else setMsg('✓ Rescheduled interview WhatsApp accepted by Meta and recorded in applicant history.');
       }catch(apiError){
-        await recordHrWhatsApp(updated,{communicationType:'Interview Rescheduled',templateName:'samara_interview_rescheduled',status:'API Failed / Fallback Opened',errorMessage:String(apiError.message||apiError)});
-        window.open(whatsappRescheduleCandidate(updated,previousAt),'_blank','noopener');
-        setMsg(`Interview rescheduled. WhatsApp API could not send (${apiError.message||apiError}); the existing WhatsApp message has been opened as fallback.`);
-      }
+        const history=await recordHrWhatsApp(updated,{communicationType:'Interview Rescheduled',templateName:'samara_interview_rescheduled',status:'API Failed',errorMessage:String(apiError.message||apiError)});
+        setManualFallbackUrl(whatsappRescheduleCandidate(updated,previousAt));
+        setMsg(`WhatsApp API could not send: ${apiError.message||apiError}. Use Manual WhatsApp Fallback below only if required.${history?.ok===false?' History could not be recorded because of a database permission issue.':''}`);
+      } finally {setWaBusy(false)}
       await load();
     }
     function whatsappRectificationCandidate(row,remarks){
@@ -5079,25 +5087,27 @@ Caring with Compassion. Living with Dignity.`;
       return `https://wa.me/91${phone}?text=${encodeURIComponent(text)}`;
     }
     async function returnForRectification(){
-      if(!edit)return;
+      if(!edit||waBusy)return;
       const remarks=String(edit.hr_remarks||'').trim();
       if(!remarks){setMsg('HR Remarks is mandatory when returning an application for rectification. Please enter the discrepancy / correction required.');return}
       const phone=normalizeWhatsAppRecipient(edit.whatsapp||edit.mobile||'');
       if(!phone){setMsg('A valid WhatsApp / mobile number is not available for this applicant.');return}
+      setWaBusy(true);setManualFallbackUrl('');setMsg('Returning application and sending WhatsApp through Meta Cloud API…');
       const updated={...edit,status:'Returned for Rectification',hr_remarks:remarks,interview_at:null,interview_mode:null,interview_venue:null,interview_result:null};
       const payload={status:'Returned for Rectification',hr_remarks:remarks,interview_at:null,interview_mode:null,interview_venue:null,interview_result:null,handled_by:profile.id,updated_at:new Date().toISOString()};
       const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);
-      if(error){setMsg(error.message);return}
+      if(error){setWaBusy(false);setMsg(error.message);return}
       setInterviewDate('');setInterviewTime('10:00');setRescheduleDate('');setRescheduleTime('10:00');setEdit(updated);setSelected({...selected,...updated});
       try{
         const waResult=await sendWhatsAppTemplate({to:phone,templateName:'samara_application_returned',languageCode:'en',bodyParams:[candidateDisplayName(updated),remarks,updated.application_id||'—']});
-        await recordHrWhatsApp(updated,{communicationType:'Application Returned',templateName:'samara_application_returned',status:'Accepted',providerMessageId:whatsappProviderMessageId(waResult)});
-        setMsg('Application returned for rectification and WhatsApp API notification accepted by Meta successfully with HR remarks.');
+        const history=await recordHrWhatsApp(updated,{communicationType:'Application Returned',templateName:'samara_application_returned',status:'Accepted',providerMessageId:whatsappProviderMessageId(waResult)});
+        if(history?.ok===false)setMsg(`Return WhatsApp was accepted by Meta, but communication history could not be saved: ${history.error?.message||'Database permission error'}.`);
+        else setMsg('✓ Application returned. WhatsApp accepted by Meta and recorded in applicant history.');
       }catch(apiError){
-        await recordHrWhatsApp(updated,{communicationType:'Application Returned',templateName:'samara_application_returned',status:'API Failed / Fallback Opened',errorMessage:String(apiError.message||apiError)});
-        window.open(whatsappRectificationCandidate(updated,remarks),'_blank','noopener');
-        setMsg(`Application returned and saved. WhatsApp API could not send (${apiError.message||apiError}); the existing WhatsApp message has been opened as fallback.`);
-      }
+        const history=await recordHrWhatsApp(updated,{communicationType:'Application Returned',templateName:'samara_application_returned',status:'API Failed',errorMessage:String(apiError.message||apiError)});
+        setManualFallbackUrl(whatsappRectificationCandidate(updated,remarks));
+        setMsg(`Application was returned, but WhatsApp API could not send: ${apiError.message||apiError}. Use Manual WhatsApp Fallback below only if required.${history?.ok===false?' History could not be recorded because of a database permission issue.':''}`);
+      } finally {setWaBusy(false)}
       await load();
     }
     function convert(row){
@@ -5156,11 +5166,11 @@ Caring with Compassion. Living with Dignity.`;
       localStorage.setItem('samara_hr_employee_seed',JSON.stringify(seed));
       onNavigate('Employees');
     }
-    const table=h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Application ID','Applicant','Department','Designation','Mobile','Status','Received','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,rows.map(r=>h('tr',{key:r.id},h('td',null,r.application_id),h('td',null,r.applicant_name),h('td',null,r.department),h('td',null,r.designation),h('td',null,r.mobile),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)),h('td',null,h('button',{className:'btn btn-primary',onClick:()=>open(r)},'View / Respond')))),rows.length===0?h('tr',null,h('td',{colSpan:9,className:'empty'},'No career applications received yet.')):null)));
+    const table=h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Application ID','Applicant','Department','Designation','Mobile','Status','Received','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,rows.map(r=>h('tr',{key:r.id,onClick:()=>open(r),title:'Open complete applicant file',style:{cursor:'pointer'}},h('td',null,r.application_id),h('td',null,h('strong',null,r.applicant_name)),h('td',null,r.department),h('td',null,r.designation),h('td',null,r.mobile),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)),h('td',null,h('button',{type:'button',className:'btn btn-primary',onClick:e=>{e.stopPropagation();open(r)}},'Open File')))),rows.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'No career applications received yet.')):null)));
     const isRectification=edit?.status==='Returned for Rectification';
-    const modal=selected&&edit?h('div',{className:'modal-backdrop'},h('div',{className:'card modal employee-modal'},
-      h('div',{className:'panel-head'},h('div',null,h('h3',null,selected.applicant_name),h('small',null,`${selected.application_id} · ${selected.department} · ${selected.designation}`)),h('button',{className:'close',onClick:closeApplication},'×')),
-      msg?h('div',{className:`message ${msg.includes('successfully')?'success':'error'}`},msg):null,
+    const modal=selected&&edit?h('div',{className:'modal-backdrop',style:{position:'static',inset:'auto',background:'transparent',padding:0,display:'block',zIndex:'auto'}},h('div',{className:'card modal employee-modal',style:{width:'100%',maxWidth:'none',maxHeight:'none',overflow:'visible',margin:0}},
+      h('div',{className:'panel-head'},h('div',null,h('h3',null,'Applicant File — ',selected.applicant_name),h('small',null,`${selected.application_id} · Application received ${fmt(selected.created_at)} · ${selected.department} · ${selected.designation}`)),h('button',{type:'button',className:'btn btn-secondary',onClick:closeApplication},'← Back to Applications')),
+      msg?h('div',{className:`message ${(msg.includes('✓')||msg.includes('successfully')||msg.includes('accepted by Meta'))?'success':'error'}`,style:{position:'sticky',top:'8px',zIndex:5,boxShadow:'0 5px 14px rgba(75,24,52,.10)'}},h('strong',null,msg),manualFallbackUrl?h('div',{style:{marginTop:'10px'}},h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>window.open(manualFallbackUrl,'_blank','noopener')},'Open Manual WhatsApp Fallback')):null):null,
       applicantDataIssues(selected).length?h('div',{className:'message error',style:{borderLeft:'5px solid #c31663'}},
         h('strong',null,'Smart HR Pre-screen — attention required'),
         h('div',{style:{marginTop:'7px'}},'The system automatically detected the following possible discrepancies:'),
@@ -5171,6 +5181,7 @@ Caring with Compassion. Living with Dignity.`;
         )
       ):h('div',{className:'message success'},h('strong',null,'Smart HR Pre-screen'),h('div',{style:{marginTop:'5px'}},'No obvious discrepancy or duplicate application was automatically detected. HR may still enter any other discrepancy manually.')),
       h('div',{className:'modal-grid'},
+        h('div',{className:'span-2',style:{marginTop:'4px',padding:'10px 12px',borderRadius:'10px',background:'#f8eef4',fontWeight:900,color:'#6d123f'}},'1. Application & Personal Details'),
         h('div',{className:'field'},h('label',null,'Title / Applicant'),h('div',null,[selected.title,selected.applicant_name].filter(Boolean).join(' ')||'—')),
         h('div',{className:'field'},h('label',null,'Father / Guardian'),h('div',null,selected.father_guardian_name||'—')),
         h('div',{className:'field'},h('label',null,'Date of Birth'),h('div',null,formatDateIN(selected.date_of_birth))),
@@ -5184,14 +5195,17 @@ Caring with Compassion. Living with Dignity.`;
         h('div',{className:'field'},h('label',null,'Previous Working Place'),h('div',null,selected.previous_workplace||selected.current_employer||'—')),
         h('div',{className:'field'},h('label',null,'Joining Source'),h('div',null,selected.reference_type||'Direct')),
         h('div',{className:'field'},h('label',null,'Reference'),h('div',null,[selected.reference_name,selected.reference_contact].filter(Boolean).join(' · ')||'—')),
+        h('div',{className:'span-2',style:{marginTop:'10px',padding:'10px 12px',borderRadius:'10px',background:'#eef8f4',fontWeight:900,color:'#165f4a'}},'2. Contact & Address Details'),
         h('div',{className:'field span-2'},h('label',null,'Current Residential Address'),h('div',null,selected.current_address||[selected.current_flat_no,selected.current_apartment_name,selected.current_house_no,selected.current_street_name,selected.current_locality_area,selected.current_village_town,selected.current_taluk,selected.current_district,selected.current_state,selected.current_pincode].filter(Boolean).join(', ')||selected.address||'—')),
         h('div',{className:'field span-2'},h('label',null,'Permanent Residential Address'),h('div',null,selected.permanent_same_as_current?'Same as Current Address':(selected.permanent_address||[selected.permanent_flat_no,selected.permanent_apartment_name,selected.permanent_house_no,selected.permanent_street_name,selected.permanent_locality_area,selected.permanent_village_town,selected.permanent_taluk,selected.permanent_district,selected.permanent_state,selected.permanent_pincode].filter(Boolean).join(', ')||'—'))),
+        h('div',{className:'span-2',style:{marginTop:'10px',padding:'10px 12px',borderRadius:'10px',background:'#fff4e9',fontWeight:900,color:'#8a4e16'}},'3. Professional Details'),
         h('div',{className:'field'},h('label',null,'Experience'),h('div',null,selected.experience||'—')),
         h('div',{className:'field'},h('label',null,'Preferred Shift'),h('div',null,selected.preferred_shift||'—')),
         h('div',{className:'field'},h('label',null,'Current Salary'),h('div',null,selected.current_salary||'—')),
         h('div',{className:'field'},h('label',null,'Expected Salary'),h('div',null,selected.expected_salary||'—')),
         h('div',{className:'field span-2'},h('label',null,'Skills'),h('div',null,(selected.skills||[]).join(', ')||'—')),
         h('div',{className:'field span-2'},h('label',null,'Additional Information'),h('div',null,selected.additional_information||'—')),
+        h('div',{className:'span-2',style:{marginTop:'10px',padding:'10px 12px',borderRadius:'10px',background:'#f1effb',fontWeight:900,color:'#5b459d'}},'4. Documents'),
         h('div',{className:'field span-2'},h('label',null,'Documents'),h('div',{className:'employee-actions'},
           selected.resume_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.resume_path)},'Open Resume / CV'):null,
           selected.photo_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.photo_path)},'Open Employee Photo'):null,
@@ -5200,6 +5214,7 @@ Caring with Compassion. Living with Dignity.`;
           selected.other_certificate_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.other_certificate_path)},'Open Other Certificate'):null,
           selected.identity_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.identity_path)},'Open Identity Proof'):null
         )),
+        h('div',{className:'span-2',style:{marginTop:'10px',padding:'10px 12px',borderRadius:'10px',background:'#fcecf4',fontWeight:900,color:'#8b174e'}},'5. HR Processing & Interview'),
         h('div',{className:'field'},h('label',null,'Application Status'),h('select',{value:edit.status||'New',onChange:e=>setEdit({...edit,status:e.target.value})},HR_APPLICATION_STATUSES.map(x=>h('option',{key:x},x)))),
         !isRectification?h('div',{className:'field span-2'},
           h('label',null,'Interview Date & Time'),
@@ -5228,7 +5243,7 @@ Caring with Compassion. Living with Dignity.`;
         !isRectification?h('div',{className:'field span-2'},h('label',null,'Interview Result / Notes'),h('textarea',{rows:3,value:edit.interview_result||'',onChange:e=>setEdit({...edit,interview_result:e.target.value})})):null
       ),
       h('div',{className:'card panel',style:{marginTop:'14px',background:'#fffafd',border:'1px solid #ead0de'}},
-        h('div',{className:'panel-head'},h('div',null,h('h3',null,'WhatsApp Communication History'),h('small',null,'Message attempts recorded for this applicant'))),
+        h('div',{className:'panel-head'},h('div',null,h('h3',null,'6. WhatsApp Communication History'),h('small',null,'Chronological record — oldest communication first'))),
         waHistory.length?h('div',{style:{display:'grid',gap:'9px'}},waHistory.map(item=>h('div',{key:item.id,style:{padding:'11px 12px',border:'1px solid #efd9e4',borderRadius:'12px',background:'#fff'}},
           h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'center',flexWrap:'wrap'}},
             h('strong',{style:{color:'#5d1039'}},item.communication_type||'WhatsApp'),
@@ -5239,10 +5254,10 @@ Caring with Compassion. Living with Dignity.`;
           item.error_message?h('div',{style:{marginTop:'5px',fontSize:'12px',color:'#a51d2c'}},item.error_message):null
         ))):h('p',{className:'empty'},'No WhatsApp communication has been recorded for this applicant yet.')
       ),
-      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-secondary',onClick:returnForRectification,style:{borderColor:'#b31561',color:'#7d1748'}},'Return & Send WhatsApp API'),!isRectification?h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendInterviewWhatsApp},'Send Interview WhatsApp API'):null,!isRectification&&(selected.interview_at&&edit.interview_at&&selected.interview_at!==edit.interview_at)?h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendRescheduleWhatsApp},'Send Reschedule WhatsApp API'):null,!isRectification&&['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null),
-      h('div',{style:{display:'flex',justifyContent:'center',padding:'14px 0 4px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:closeApplication,style:{minWidth:'180px'}},'Close Window'))
+      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-secondary',disabled:waBusy,onClick:returnForRectification,style:{borderColor:'#b31561',color:'#7d1748'}},waBusy?'Please wait…':'Return & Send WhatsApp API'),!isRectification?h('button',{type:'button',className:'btn btn-whatsapp',disabled:waBusy,onClick:sendInterviewWhatsApp},waBusy?'Sending…':'Send Interview WhatsApp API'):null,!isRectification&&(selected.interview_at&&edit.interview_at&&selected.interview_at!==edit.interview_at)?h('button',{type:'button',className:'btn btn-whatsapp',disabled:waBusy,onClick:sendRescheduleWhatsApp},waBusy?'Sending…':'Send Reschedule WhatsApp API'):null,!isRectification&&['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null),
+      h('div',{style:{display:'flex',justifyContent:'center',padding:'14px 0 4px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:closeApplication,style:{minWidth:'180px'}},'← Back to Applications'))
     )):null;
-    return h(React.Fragment,null,h(Section,{title:'Career Applications',subtitle:'Online-only applications submitted through samaraassistedliving.com Careers'},table),modal);
+    return selected&&edit?modal:h(Section,{title:'Career Applications',subtitle:'Click any applicant row to open the complete applicant file in chronological sections'},table);
   }
 
   function HRInterviews({profile,onNavigate}){
