@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.37';
+  const APP_VERSION = '2.8.44';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -4876,19 +4876,32 @@ Caring with Compassion. Living with Dignity.`;
     function splitInterviewDateTime(value){if(!value)return {date:'',time:'10:00'};const d=new Date(value);if(Number.isNaN(d.getTime()))return {date:'',time:'10:00'};return {date:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,time:`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}}
     async function load(){const {data,error}=await client.from('career_applications').select('*').order('created_at',{ascending:false});if(error){setMsg(error.message);return}setRows(data||[]);if(selected){const fresh=(data||[]).find(x=>x.id===selected.id);if(fresh){setSelected(fresh);setEdit({...fresh})}}}
     React.useEffect(()=>{load();const ch=client.channel('career-applications-live').on('postgres_changes',{event:'*',schema:'public',table:'career_applications'},load).subscribe();return()=>client.removeChannel(ch)},[]);
+    React.useEffect(()=>{if(!selected?.id)return;const ch=client.channel(`career-wa-chat-${selected.id}`).on('postgres_changes',{event:'*',schema:'public',table:'hr_whatsapp_communications',filter:`career_application_id=eq.${selected.id}`},()=>loadWhatsAppHistory(selected.id)).subscribe();return()=>client.removeChannel(ch)},[selected?.id]);
     async function loadWhatsAppHistory(applicationId){
       if(!applicationId){setWaHistory([]);return}
       const {data,error}=await client.from('hr_whatsapp_communications').select('*').eq('career_application_id',applicationId).order('created_at',{ascending:true});
       if(error){console.warn('Unable to load applicant WhatsApp history',error);setWaHistory([]);return}
       setWaHistory(data||[]);
     }
-    async function recordHrWhatsApp(row,{communicationType,templateName,status='Accepted',providerMessageId=null,errorMessage=null}){
+    async function recordHrWhatsApp(row,{communicationType,templateName,status='Accepted',providerMessageId=null,errorMessage=null,messageContent='',messageType='template',direction='outbound',messagePayload=null}){
       if(!row?.id)return;
-      const payload={career_application_id:row.id,application_id:row.application_id||null,applicant_name:row.applicant_name||null,recipient_number:normalizeWhatsAppRecipient(row.whatsapp||row.mobile||''),communication_type:communicationType,template_name:templateName||null,status,provider_message_id:providerMessageId||null,error_message:errorMessage||null,sent_by:profile.id,sent_by_name:formalName(profile),updated_at:new Date().toISOString()};
+      const nowIso=new Date().toISOString();
+      const payload={career_application_id:row.id,application_id:row.application_id||null,applicant_name:row.applicant_name||null,recipient_number:normalizeWhatsAppRecipient(row.whatsapp||row.mobile||''),communication_type:communicationType,template_name:templateName||null,status,provider_message_id:providerMessageId||null,error_message:errorMessage||null,sent_by:profile.id,sent_by_name:formalName(profile),direction,message_type:messageType,message_content:String(messageContent||''),message_payload:messagePayload||null,sent_at:direction==='outbound'?nowIso:null,received_at:direction==='inbound'?nowIso:null,updated_at:nowIso};
       const {error}=await client.from('hr_whatsapp_communications').insert(payload);
       if(error){console.warn('Unable to save WhatsApp communication history',error);return {ok:false,error}}
       await loadWhatsAppHistory(row.id);
       return {ok:true};
+    }
+    function interviewScheduledSnapshot(row){
+      const p=interviewTemplateParams(row);
+      return `Dear ${p[0]},\n\nThank you for your interest in joining Samara Assisted Living.\n\nWe are pleased to invite you for an interview for the position of ${p[1]}.\n\nInterview Date: ${p[2]}\nInterview Time: ${p[3]}\nInterview Mode: ${p[4]}\n\n${p[5]}\n\nKindly be available about 10 minutes before the scheduled time.\n\nWe look forward to meeting you.\n\nRegards,\nDr. Chella Boomi\nDirector\nSamara Health Care LLP\nContact: 9976735577`;
+    }
+    function interviewRescheduledSnapshot(row){
+      const p=interviewTemplateParams(row);
+      return `Dear ${p[0]},\n\nYour interview for the position of ${p[1]} at Samara Assisted Living has been rescheduled.\n\nNew Interview Date: ${p[2]}\nNew Interview Time: ${p[3]}\nInterview Mode: ${p[4]}\n\n${p[5]}\n\nWe regret any inconvenience caused by this change.\n\nKindly be available about 10 minutes before the scheduled time.\n\nWe look forward to meeting you.\n\nRegards,\nDr. Chella Boomi\nDirector\nSamara Health Care LLP\nContact: 9976735577`;
+    }
+    function applicationReturnedSnapshot(row,remarks){
+      return `Dear ${candidateDisplayName(row)},\n\nThank you for your application to Samara Assisted Living.\n\nDuring verification of your application, we found that clarification or rectification is required.\n\nHR Remarks:\n${remarks}\n\nKindly review the above remarks and provide the required clarification or corrected information.\n\nApplication Reference: ${row.application_id||'—'}\n\nOnce the required information is received, your application can be reviewed further.\n\nFor any clarification, please contact us.\n\nRegards,\nHR Department\nSamara Assisted Living\nContact: 9976735577`;
     }
     function whatsappProviderMessageId(result){return result?.result?.messages?.[0]?.id||result?.messages?.[0]?.id||null}
     function waStatusStyle(status){const value=String(status||'').toLowerCase();if(value.includes('read')||value.includes('deliver'))return {background:'#e6f7ef',color:'#0f7a4f'};if(value.includes('accept')||value==='sent')return {background:'#edf7ff',color:'#176b9c'};if(value.includes('fail'))return {background:'#fff0f0',color:'#a51d2c'};if(value.includes('fallback'))return {background:'#fff5e8',color:'#9b5e0b'};return {background:'#f4eef2',color:'#6f5362'}}
@@ -5038,11 +5051,11 @@ Caring with Compassion. Living with Dignity.`;
       setEdit(updated);setSelected({...selected,...updated});
       try{
         const waResult=await sendWhatsAppTemplate({to:phone,templateName:'samara_interview_scheduled',languageCode:'en',bodyParams:interviewTemplateParams(updated)});
-        const history=await recordHrWhatsApp(updated,{communicationType:'Interview Scheduled',templateName:'samara_interview_scheduled',status:'Accepted',providerMessageId:whatsappProviderMessageId(waResult)});
+        const history=await recordHrWhatsApp(updated,{communicationType:'Interview Scheduled',templateName:'samara_interview_scheduled',status:'Accepted',providerMessageId:whatsappProviderMessageId(waResult),messageContent:interviewScheduledSnapshot(updated),messagePayload:{body_params:interviewTemplateParams(updated)}});
         if(history?.ok===false)setMsg(`WhatsApp was accepted by Meta, but the ERP could not save the communication history: ${history.error?.message||'Database permission error'}. Please run the HR WhatsApp history policy fix.`);
         else setMsg('✓ WhatsApp accepted by Meta successfully. This communication has been recorded in the applicant history below.');
       }catch(apiError){
-        const history=await recordHrWhatsApp(updated,{communicationType:'Interview Scheduled',templateName:'samara_interview_scheduled',status:'API Failed',errorMessage:String(apiError.message||apiError)});
+        const history=await recordHrWhatsApp(updated,{communicationType:'Interview Scheduled',templateName:'samara_interview_scheduled',status:'API Failed',errorMessage:String(apiError.message||apiError),messageContent:interviewScheduledSnapshot(updated),messagePayload:{body_params:interviewTemplateParams(updated)}});
         setManualFallbackUrl(whatsappCandidate(updated));
         setMsg(`WhatsApp API could not send: ${apiError.message||apiError}. The ERP has NOT left this page. Use the Manual WhatsApp Fallback button below only if required.${history?.ok===false?' Communication history could not be saved because of a database permission issue.':''}`);
       } finally {setWaBusy(false)}
@@ -5071,11 +5084,11 @@ Caring with Compassion. Living with Dignity.`;
       setSelected({...selected,...updated});setEdit(updated);setRescheduleDate('');setRescheduleTime('10:00');
       try{
         const waResult=await sendWhatsAppTemplate({to:phone,templateName:'samara_interview_rescheduled',languageCode:'en',bodyParams:interviewTemplateParams(updated)});
-        const history=await recordHrWhatsApp(updated,{communicationType:'Interview Rescheduled',templateName:'samara_interview_rescheduled',status:'Accepted',providerMessageId:whatsappProviderMessageId(waResult)});
+        const history=await recordHrWhatsApp(updated,{communicationType:'Interview Rescheduled',templateName:'samara_interview_rescheduled',status:'Accepted',providerMessageId:whatsappProviderMessageId(waResult),messageContent:interviewRescheduledSnapshot(updated),messagePayload:{body_params:interviewTemplateParams(updated)}});
         if(history?.ok===false)setMsg(`Reschedule WhatsApp was accepted by Meta, but communication history could not be saved: ${history.error?.message||'Database permission error'}.`);
         else setMsg('✓ Rescheduled interview WhatsApp accepted by Meta and recorded in applicant history.');
       }catch(apiError){
-        const history=await recordHrWhatsApp(updated,{communicationType:'Interview Rescheduled',templateName:'samara_interview_rescheduled',status:'API Failed',errorMessage:String(apiError.message||apiError)});
+        const history=await recordHrWhatsApp(updated,{communicationType:'Interview Rescheduled',templateName:'samara_interview_rescheduled',status:'API Failed',errorMessage:String(apiError.message||apiError),messageContent:interviewRescheduledSnapshot(updated),messagePayload:{body_params:interviewTemplateParams(updated)}});
         setManualFallbackUrl(whatsappRescheduleCandidate(updated,previousAt));
         setMsg(`WhatsApp API could not send: ${apiError.message||apiError}. Use Manual WhatsApp Fallback below only if required.${history?.ok===false?' History could not be recorded because of a database permission issue.':''}`);
       } finally {setWaBusy(false)}
@@ -5100,11 +5113,11 @@ Caring with Compassion. Living with Dignity.`;
       setInterviewDate('');setInterviewTime('10:00');setRescheduleDate('');setRescheduleTime('10:00');setEdit(updated);setSelected({...selected,...updated});
       try{
         const waResult=await sendWhatsAppTemplate({to:phone,templateName:'samara_application_returned',languageCode:'en',bodyParams:[candidateDisplayName(updated),remarks,updated.application_id||'—']});
-        const history=await recordHrWhatsApp(updated,{communicationType:'Application Returned',templateName:'samara_application_returned',status:'Accepted',providerMessageId:whatsappProviderMessageId(waResult)});
+        const history=await recordHrWhatsApp(updated,{communicationType:'Application Returned',templateName:'samara_application_returned',status:'Accepted',providerMessageId:whatsappProviderMessageId(waResult),messageContent:applicationReturnedSnapshot(updated,remarks),messagePayload:{body_params:[candidateDisplayName(updated),remarks,updated.application_id||'—']}});
         if(history?.ok===false)setMsg(`Return WhatsApp was accepted by Meta, but communication history could not be saved: ${history.error?.message||'Database permission error'}.`);
         else setMsg('✓ Application returned. WhatsApp accepted by Meta and recorded in applicant history.');
       }catch(apiError){
-        const history=await recordHrWhatsApp(updated,{communicationType:'Application Returned',templateName:'samara_application_returned',status:'API Failed',errorMessage:String(apiError.message||apiError)});
+        const history=await recordHrWhatsApp(updated,{communicationType:'Application Returned',templateName:'samara_application_returned',status:'API Failed',errorMessage:String(apiError.message||apiError),messageContent:applicationReturnedSnapshot(updated,remarks),messagePayload:{body_params:[candidateDisplayName(updated),remarks,updated.application_id||'—']}});
         setManualFallbackUrl(whatsappRectificationCandidate(updated,remarks));
         setMsg(`Application was returned, but WhatsApp API could not send: ${apiError.message||apiError}. Use Manual WhatsApp Fallback below only if required.${history?.ok===false?' History could not be recorded because of a database permission issue.':''}`);
       } finally {setWaBusy(false)}
@@ -5243,16 +5256,29 @@ Caring with Compassion. Living with Dignity.`;
         !isRectification?h('div',{className:'field span-2'},h('label',null,'Interview Result / Notes'),h('textarea',{rows:3,value:edit.interview_result||'',onChange:e=>setEdit({...edit,interview_result:e.target.value})})):null
       ),
       h('div',{className:'card panel',style:{marginTop:'14px',background:'#fffafd',border:'1px solid #ead0de'}},
-        h('div',{className:'panel-head'},h('div',null,h('h3',null,'6. WhatsApp Communication History'),h('small',null,'Chronological record — oldest communication first'))),
-        waHistory.length?h('div',{style:{display:'grid',gap:'9px'}},waHistory.map(item=>h('div',{key:item.id,style:{padding:'11px 12px',border:'1px solid #efd9e4',borderRadius:'12px',background:'#fff'}},
-          h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'center',flexWrap:'wrap'}},
-            h('strong',{style:{color:'#5d1039'}},item.communication_type||'WhatsApp'),
-            h('span',{style:{...waStatusStyle(item.status),display:'inline-block',padding:'4px 9px',borderRadius:'999px',fontSize:'12px',fontWeight:800}},item.status||'Recorded')
-          ),
-          h('div',{style:{marginTop:'5px',fontSize:'13px',color:'#664f5c'}},`${formatDateTimeIN(item.created_at)} · ${item.recipient_number||'—'}`),
-          h('div',{style:{marginTop:'3px',fontSize:'12px',color:'#8a7180'}},`${item.template_name||'Manual / fallback'} · Sent by ${item.sent_by_name||'ERP User'}`),
-          item.error_message?h('div',{style:{marginTop:'5px',fontSize:'12px',color:'#a51d2c'}},item.error_message):null
-        ))):h('p',{className:'empty'},'No WhatsApp communication has been recorded for this applicant yet.')
+        h('div',{className:'panel-head'},h('div',null,h('h3',null,'6. WhatsApp Communication History'),h('small',null,'Chat-style chronological log — messages sent by Samara and replies received from the applicant'))),
+        waHistory.length?h('div',{style:{display:'grid',gap:'10px',padding:'6px 0'}},waHistory.map(item=>{
+          const inbound=String(item.direction||'outbound').toLowerCase()==='inbound';
+          const bubbleBg=inbound?'#ffffff':'#e9f8ef';
+          const align=inbound?'flex-start':'flex-end';
+          const status=String(item.status||'Recorded');
+          const statusMark=status.toLowerCase()==='read'?'✓✓ Read':status.toLowerCase()==='delivered'?'✓✓ Delivered':status.toLowerCase()==='sent'?'✓ Sent':status.toLowerCase().includes('accept')?'✓ Accepted':status;
+          return h('div',{key:item.id,style:{display:'flex',justifyContent:align}},
+            h('div',{style:{width:'min(82%,760px)',padding:'11px 13px',border:'1px solid #dfd7dc',borderRadius:inbound?'6px 16px 16px 16px':'16px 6px 16px 16px',background:bubbleBg,boxShadow:'0 2px 7px rgba(55,35,45,.06)'}},
+              h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'center',flexWrap:'wrap'}},
+                h('strong',{style:{color:inbound?'#315d54':'#5d1039'}},inbound?(item.contact_name||item.applicant_name||'Applicant'):(item.communication_type||'Samara WhatsApp')),
+                h('span',{style:{...waStatusStyle(status),display:'inline-block',padding:'3px 8px',borderRadius:'999px',fontSize:'11px',fontWeight:800}},inbound?'Received':statusMark)
+              ),
+              item.message_content?h('div',{style:{marginTop:'8px',whiteSpace:'pre-wrap',fontSize:'14px',lineHeight:'1.5',color:'#2e252a'}},item.message_content):h('div',{style:{marginTop:'8px',fontSize:'13px',fontStyle:'italic',color:'#8a7180'}},item.template_name?`Template: ${item.template_name}`:'Message content was not stored for this older record.'),
+              h('div',{style:{marginTop:'8px',display:'flex',justifyContent:'space-between',gap:'8px',flexWrap:'wrap',fontSize:'11px',color:'#8a7180'}},
+                h('span',null,formatDateTimeIN(item.received_at||item.sent_at||item.created_at)),
+                h('span',null,inbound?`From ${item.recipient_number||'—'}`:`To ${item.recipient_number||'—'} · ${item.sent_by_name||'ERP User'}`)
+              ),
+              item.template_name&&!inbound?h('div',{style:{marginTop:'4px',fontSize:'10px',color:'#a08896'}},`Template: ${item.template_name}${item.provider_message_id?` · Meta ID: ${item.provider_message_id}`:''}`):null,
+              item.error_message?h('div',{style:{marginTop:'6px',fontSize:'12px',color:'#a51d2c'}},item.error_message):null
+            )
+          );
+        })):h('p',{className:'empty'},'No WhatsApp communication has been recorded for this applicant yet.')
       ),
       h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-secondary',disabled:waBusy,onClick:returnForRectification,style:{borderColor:'#b31561',color:'#7d1748'}},waBusy?'Please wait…':'Return & Send WhatsApp API'),!isRectification?h('button',{type:'button',className:'btn btn-whatsapp',disabled:waBusy,onClick:sendInterviewWhatsApp},waBusy?'Sending…':'Send Interview WhatsApp API'):null,!isRectification&&(selected.interview_at&&edit.interview_at&&selected.interview_at!==edit.interview_at)?h('button',{type:'button',className:'btn btn-whatsapp',disabled:waBusy,onClick:sendRescheduleWhatsApp},waBusy?'Sending…':'Send Reschedule WhatsApp API'):null,!isRectification&&['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null),
       h('div',{style:{display:'flex',justifyContent:'center',padding:'14px 0 4px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:closeApplication,style:{minWidth:'180px'}},'← Back to Applications'))

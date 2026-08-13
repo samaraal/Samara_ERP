@@ -1,0 +1,25 @@
+SAMARA CARE ERP 2.8.44 — WHATSAPP CHAT LOG
+
+Purpose
+- Store the exact outbound WhatsApp message snapshot for HR communications.
+- Receive applicant WhatsApp replies through the existing Meta webhook.
+- Update Meta status in ERP: Sent / Delivered / Read / Failed.
+- Show the applicant WhatsApp history as chronological chat bubbles.
+
+INSTALLATION ORDER
+1. Supabase SQL Editor: run 84_hr_whatsapp_chat_log.sql once.
+2. Supabase Edge Functions > whatsapp-webhook > Code:
+   replace index.ts with supabase/functions/whatsapp-webhook/index.ts and deploy.
+3. whatsapp-webhook Settings: Verify JWT with legacy secret must remain OFF because Meta calls this endpoint directly.
+4. Meta Developer > WhatsApp > Webhooks: keep the existing callback URL pointing to /functions/v1/whatsapp-webhook and keep the messages subscription enabled. No callback URL change is required if this is already working.
+5. GitHub ERP: replace app.js, index.html, service-worker.js only.
+6. Hard refresh ERP (Ctrl+Shift+R) and log in again.
+7. Send a test HR WhatsApp. Open the applicant file > WhatsApp Communication History.
+8. Reply from the applicant's WhatsApp phone. The reply should appear on the left side of the same applicant chat within seconds.
+
+NOTES
+- Existing older records cannot magically recover their historical body text; they will continue to show the template name only.
+- New outbound messages store the exact message snapshot at send time.
+- Inbound text, image captions, documents, audio/video placeholders, locations, reactions, and interactive replies are logged.
+- Incoming messages are matched to the most recent career application using the applicant mobile/WhatsApp number.
+- Meta status webhooks are matched by provider_message_id (wamid).
