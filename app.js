@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.48';
+  const APP_VERSION = '2.8.49';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -7443,9 +7443,7 @@ Caring with Compassion. Living with Dignity.`;
         });
         setMsg('Patient admission WhatsApp notification sent successfully through the approved Meta template.');
       }catch(apiError){
-        const text=`Dear ${credential.relative_name||'Family Member'},\n\nWe hereby inform you that ${credential.patient_name||form.full_name||'the patient'} has been admitted to Samara Assisted Living on ${formatDateIN(credential.admission_date||form.admission_date)}.\n\nPatient ID: ${credential.patient_id||'—'}\nRoom / Bed: ${credential.room_bed||'—'}\n\nPlease contact Samara Assisted Living for any assistance.`;
-        window.open(`https://wa.me/91${String(credential.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(brandWhatsAppText(text))}`,'_blank','noopener');
-        setMsg(`WhatsApp API could not send (${apiError.message||apiError}); the existing WhatsApp message has been opened as fallback.`);
+        setMsg(`Patient admission WhatsApp API failed: ${apiError.message||apiError}. No manual WhatsApp window was opened automatically.`);
       }
     }
 
@@ -7472,11 +7470,7 @@ Temporary PIN: ${credential.pin||'—'}
 Portal: https://family.samaraassistedliving.com
 
 Please keep these login details confidential.`;
-        const number=normalizeWhatsAppRecipient(credential.mobile);
-        setMsg(`Family Portal WhatsApp API failed: ${apiError.message||apiError}. No manual WhatsApp window was opened automatically.`);
-        if(number&&window.confirm('Meta WhatsApp API could not send this message. Open the manual WhatsApp fallback now?')){
-          window.open(`https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(text))}`,'_blank','noopener');
-        }
+        setMsg(`Family Portal WhatsApp API failed: ${apiError.message||apiError}. Use the Existing Method / Send Login PIN button only if you want to send manually.`);
       }
     }
 
@@ -9755,8 +9749,7 @@ Please keep these login details confidential.`;
                       await sendWhatsAppTemplate({to:access.mobile,templateName:'samara_family_portal_access',languageCode:'en',bodyParams:[access.relative_name||'Family Member',formalName(selected)||selected?.full_name||'Patient',formatDateIN(selected?.admission_date),selected?.patient_id||'—',selected?.diagnosis||'assisted living care and support',selected?.patient_category||'As per care requirement',[selected?.room_no,selected?.bed_no].filter(Boolean).join(' / ')||'—']});
                       showPatientToast('success','Family Portal WhatsApp sent successfully.');
                     }catch(error){
-                      window.open(`https://wa.me/91${String(access.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal\nResident ID: ${selected?.patient_id||''}\nPortal: https://family.samaraassistedliving.com\nIf the PIN is forgotten, please contact Samara to reset it.`))}`,'_blank','noopener');
-                      showPatientToast('error',`WhatsApp API failed; existing method opened as fallback. ${error.message||error}`);
+                      showPatientToast('error',`Family Portal WhatsApp API failed: ${error.message||error}. Use the Existing Method button only if you want to send manually.`);
                     }
                   }},'Send Portal Access WhatsApp API'),
                   h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${String(access.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal\nResident ID: ${selected?.patient_id||''}\nPortal: https://family.samaraassistedliving.com\nIf the PIN is forgotten, please contact Samara to reset it.`))}`,'_blank','noopener')},'Existing Method')
