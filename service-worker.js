@@ -1,6 +1,6 @@
-const CACHE = 'samara-erp-2.8.40-enquiry-intake';
+const CACHE = 'samara-erp-2.8.41-whatsapp-api';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.8.40', './app.js?v=2.8.40',
+  './', './index.html', './styles.css?v=2.8.41', './app.js?v=2.8.41',
   './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',
   './config.js?v=2.8.40', './manifest.webmanifest?v=2.8.40',
   './assets/samara-logo.png?v=20260812-global1',

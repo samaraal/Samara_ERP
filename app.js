@@ -1280,6 +1280,41 @@ function initSamaraInaugurationInvitation(){
     return `SAMARA ASSISTED LIVING\n${SAMARA_WHATSAPP_LOGO_URL}\n\n${raw}`;
   };
 
+  const normalizeWhatsAppRecipient = value => {
+    const digits=String(value||'').replace(/\D/g,'');
+    if(!digits)return '';
+    if(digits.length===10)return `91${digits}`;
+    if(digits.length===11&&digits.startsWith('0'))return `91${digits.slice(1)}`;
+    return digits;
+  };
+  async function sendWhatsAppTemplate({to,templateName,languageCode='en',bodyParams=[],headerImage=SAMARA_WHATSAPP_LOGO_URL}){
+    const recipient=normalizeWhatsAppRecipient(to);
+    if(!recipient)throw new Error('A valid WhatsApp number is required.');
+    const {data:{session}}=await client.auth.getSession();
+    if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
+    const response=await fetch(`${cfg.supabaseUrl}/functions/v1/whatsapp-send`,{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':`Bearer ${session.access_token}`,
+        'apikey':cfg.supabasePublishableKey
+      },
+      body:JSON.stringify({
+        to:recipient,
+        template_name:templateName,
+        language_code:languageCode,
+        header_image:headerImage||null,
+        body_params:(bodyParams||[]).map(value=>String(value??''))
+      })
+    });
+    const result=await response.json().catch(()=>({success:false,error:'Unable to read WhatsApp server response.'}));
+    if(!response.ok||result?.success===false){
+      const metaMessage=result?.error?.error?.message||result?.error?.message||result?.error||`WhatsApp request failed (${response.status})`;
+      throw new Error(typeof metaMessage==='string'?metaMessage:JSON.stringify(metaMessage));
+    }
+    return result;
+  }
+
   const formatDateIN = value => {
     if(!value)return '—';
     const raw=String(value).trim();
@@ -4934,37 +4969,57 @@ Caring with Compassion. Living with Dignity.`;
     function candidateDisplayName(row){
       return [row.title,row.applicant_name].filter(Boolean).join(' ').trim()||'Candidate';
     }
+    function interviewModeDetails(row){
+      const mode=String(row?.interview_mode||'In Person').trim()||'In Person';
+      const detail=String(row?.interview_venue||'').trim();
+      if(mode==='Online')return {mode,detail:detail?`Online interview link: ${detail}`:'Online interview link will be shared by HR.'};
+      if(mode==='Phone')return {mode,detail:'HR will contact you on your registered mobile number at the scheduled time.'};
+      return {mode:'In Person',detail:`Venue: ${detail||'Samara Assisted Living, Mogappair, Chennai – 37'}. Please bring your relevant certificates and identification documents.`};
+    }
+    function interviewTemplateParams(row){
+      const when=row?.interview_at?new Date(row.interview_at):null;
+      const modeInfo=interviewModeDetails(row);
+      return [
+        candidateDisplayName(row),
+        row?.designation||'applied position',
+        when?formatDateIN(when):'—',
+        when?formatTimeIN(when):'—',
+        modeInfo.mode,
+        modeInfo.detail
+      ];
+    }
     function whatsappCandidate(row){
       const phone=String(row.whatsapp||row.mobile||'').replace(/\D/g,'').slice(-10);if(!phone)return '#';
-      const interviewDate=row.interview_at?fmt(row.interview_at):'—';
-      const mode=row.interview_mode||'In Person';
-      const locationLine=mode==='Online'?`💻 *Interview Mode:* Online\n🔗 *Google Meet Link:* ${row.interview_venue||'—'}`:mode==='Phone'?`📞 *Interview Mode:* Phone`: `👥 *Interview Mode:* In Person\n📍 *Venue:* ${row.interview_venue||'Samara Assisted Living, Mogappair, Chennai'}`;
-      const text=`https://samaraassistedliving.com/\n\n*Dear ${candidateDisplayName(row)},*\n\nGreetings from *Samara Assisted Living*.\n\nThank you for your interest in joining our team. We are pleased to invite you for an interview regarding your application for the *${row.designation||'applied'}* position.\n\n📅 *Interview Date & Time:* ${interviewDate}\n${locationLine}\n\n🆔 *Application No.:* ${row.application_id||'—'}\n\nWe look forward to meeting you. Kindly reply to this message with one of the following:\n\n*1. CONFIRMED* – I will attend the interview as scheduled.\n*2. RESCHEDULE* – I would like to request another date/time.\n*3. UNABLE TO ATTEND* – I will not be able to attend.\n\nIf you need any assistance regarding the interview, please contact us at *9976735577*.\n\nWarm regards,\n*Dr. Chella Boomi*\nDirector\n*Samara Health Care LLP*\n📞 *9976735577*\n\n_Compassion • Comfort • Dignity_`;
+      const when=row.interview_at?fmt(row.interview_at):'the scheduled date and time';
+      const modeInfo=interviewModeDetails(row);
+      const text=`Dear ${candidateDisplayName(row)},\n\nThank you for your interest in joining Samara Assisted Living.\n\nWe are pleased to invite you for an interview for the position of ${row.designation||'the applied position'}.\n\nInterview: ${when}\nMode: ${modeInfo.mode}\n${modeInfo.detail}\n\nRegards,\nHR Department\nSamara Assisted Living\nContact: 9976735577`;
       return `https://wa.me/91${phone}?text=${encodeURIComponent(text)}`;
     }
     async function sendInterviewWhatsApp(){
       if(!edit)return;
       if(!edit.interview_at){setMsg('Please set the interview date and time before sending WhatsApp.');return}
       if(!edit.interview_mode){setMsg('Please select the Interview Mode before sending WhatsApp.');return}
-      if(edit.interview_mode==='Online'&&!String(edit.interview_venue||'').trim()){setMsg('Please enter the Google Meet link for the online interview.');return}
-      const phone=String(edit.whatsapp||edit.mobile||'').replace(/\D/g,'').slice(-10);
+      if(edit.interview_mode==='Online'&&!String(edit.interview_venue||'').trim()){setMsg('Please enter the Google Meet / Zoom / Teams link for the online interview.');return}
+      const phone=normalizeWhatsAppRecipient(edit.whatsapp||edit.mobile||'');
       if(!phone){setMsg('WhatsApp / mobile number is not available for this applicant.');return}
       const payload={status:'Interview Scheduled',hr_remarks:edit.hr_remarks||null,interview_at:edit.interview_at,interview_mode:edit.interview_mode||null,interview_venue:edit.interview_venue||null,interview_result:edit.interview_result||null,handled_by:profile.id,updated_at:new Date().toISOString()};
       const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);
       if(error){setMsg(error.message);return}
       const updated={...edit,status:'Interview Scheduled'};
       setEdit(updated);setSelected({...selected,...updated});
-      window.open(whatsappCandidate(updated),'_blank','noopener');
-      setMsg('Interview marked as Interview Scheduled and WhatsApp message opened.');
+      try{
+        await sendWhatsAppTemplate({to:phone,templateName:'samara_interview_scheduled',languageCode:'en',bodyParams:interviewTemplateParams(updated)});
+        setMsg('Interview marked as Interview Scheduled and WhatsApp API message sent successfully.');
+      }catch(apiError){
+        window.open(whatsappCandidate(updated),'_blank','noopener');
+        setMsg(`Interview saved. WhatsApp API could not send (${apiError.message||apiError}); the existing WhatsApp message has been opened as fallback.`);
+      }
       await load();
     }
     function whatsappRescheduleCandidate(row,previousAt){
       const phone=String(row.whatsapp||row.mobile||'').replace(/\D/g,'').slice(-10);if(!phone)return '#';
-      const newDate=row.interview_at?fmt(row.interview_at):'—';
-      const oldDate=previousAt?fmt(previousAt):'the earlier scheduled time';
-      const mode=row.interview_mode||'In Person';
-      const locationLine=mode==='Online'?`💻 *Interview Mode:* Online\n🔗 *Google Meet Link:* ${row.interview_venue||'—'}`:mode==='Phone'?`📞 *Interview Mode:* Phone`: `👥 *Interview Mode:* In Person\n📍 *Venue:* ${row.interview_venue||'Samara Assisted Living, Mogappair, Chennai'}`;
-      const text=`https://samaraassistedliving.com/\n\n*Dear ${candidateDisplayName(row)},*\n\nGreetings from *Samara Assisted Living*.\n\nWe would like to inform you that, due to an unavoidable change in our schedule, your interview for the *${row.designation||'applied'}* position has been rescheduled. We regret any inconvenience this may cause and appreciate your understanding.\n\n⏰ *Earlier Schedule:* ${oldDate}\n📅 *Revised Interview Date & Time:* ${newDate}\n${locationLine}\n\n🆔 *Application No.:* ${row.application_id||'—'}\n\nKindly reply *CONFIRMED* if the revised schedule is convenient. If you need any assistance or another suitable time, please contact us at *9976735577*.\n\nWe look forward to meeting you.\n\nWarm regards,\n*Dr. Chella Boomi*\nDirector\n*Samara Health Care LLP*\n📞 *9976735577*\n\n_Compassion • Comfort • Dignity_`;
+      const modeInfo=interviewModeDetails(row);
+      const text=`Dear ${candidateDisplayName(row)},\n\nYour interview for the position of ${row.designation||'the applied position'} at Samara Assisted Living has been rescheduled.\n\nNew Interview: ${fmt(row.interview_at)}\nMode: ${modeInfo.mode}\n${modeInfo.detail}\n\nWe regret any inconvenience caused by this change.\n\nRegards,\nHR Department\nSamara Assisted Living\nContact: 9976735577`;
       return `https://wa.me/91${phone}?text=${encodeURIComponent(text)}`;
     }
     async function sendRescheduleWhatsApp(){
@@ -4972,98 +5027,47 @@ Caring with Compassion. Living with Dignity.`;
       const previousAt=selected?.interview_at||null;
       if(!edit.interview_at){setMsg('Please set the revised interview date and time first.');return}
       if(previousAt===edit.interview_at){setMsg('Please choose a new date or time before sending a reschedule message.');return}
-      const phone=String(edit.whatsapp||edit.mobile||'').replace(/\D/g,'').slice(-10);
+      if(!edit.interview_mode){setMsg('Please select the Interview Mode before sending WhatsApp.');return}
+      if(edit.interview_mode==='Online'&&!String(edit.interview_venue||'').trim()){setMsg('Please enter the online meeting link before sending WhatsApp.');return}
+      const phone=normalizeWhatsAppRecipient(edit.whatsapp||edit.mobile||'');
       if(!phone){setMsg('WhatsApp / mobile number is not available for this applicant.');return}
       const payload={status:'Interview Scheduled',hr_remarks:edit.hr_remarks||null,interview_at:edit.interview_at,interview_mode:edit.interview_mode||null,interview_venue:edit.interview_venue||null,interview_result:edit.interview_result||null,handled_by:profile.id,updated_at:new Date().toISOString()};
       const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);
       if(error){setMsg(error.message);return}
       const updated={...edit,status:'Interview Scheduled'};
-      window.open(whatsappRescheduleCandidate(updated,previousAt),'_blank','noopener');
       setSelected({...selected,...updated});setEdit(updated);setRescheduleDate('');setRescheduleTime('10:00');
-      setMsg('Interview rescheduled, status retained as Interview Scheduled, and WhatsApp notification opened.');
+      try{
+        await sendWhatsAppTemplate({to:phone,templateName:'samara_interview_rescheduled',languageCode:'en',bodyParams:interviewTemplateParams(updated)});
+        setMsg('Interview rescheduled and WhatsApp API notification sent successfully.');
+      }catch(apiError){
+        window.open(whatsappRescheduleCandidate(updated,previousAt),'_blank','noopener');
+        setMsg(`Interview rescheduled. WhatsApp API could not send (${apiError.message||apiError}); the existing WhatsApp message has been opened as fallback.`);
+      }
       await load();
     }
     function whatsappRectificationCandidate(row,remarks){
       const phone=String(row.whatsapp||row.mobile||'').replace(/\D/g,'').slice(-10);if(!phone)return '#';
-      const text=`https://samaraassistedliving.com/\n\n*Dear ${candidateDisplayName(row)},*\n\nGreetings from *Samara Assisted Living*.\n\nThank you for submitting your application for the *${row.designation||'applied'}* position. During our HR review, we noticed that a few details require clarification or correction before we can proceed further.\n\n📝 *HR Remarks / Required Rectification:*\n${remarks}\n\n🆔 *Application No.:* ${row.application_id||'—'}\n\nKindly *reply to this WhatsApp message with the corrected / missing information and, where applicable, the supporting document details*. Once we receive your clarification, our HR team will review the application again and continue the process.\n\nIf you need any assistance, please contact us at *9976735577*.\n\nWarm regards,\n*Dr. Chella Boomi*\nDirector\n*Samara Health Care LLP*\n📞 *9976735577*\n\n_Compassion • Comfort • Dignity_`;
+      const text=`Dear ${candidateDisplayName(row)},\n\nThank you for your application to Samara Assisted Living.\n\nDuring verification, clarification or rectification is required.\n\nHR Remarks:\n${remarks}\n\nApplication Reference: ${row.application_id||'—'}\n\nPlease provide the required clarification or corrected information.\n\nRegards,\nHR Department\nSamara Assisted Living\nContact: 9976735577`;
       return `https://wa.me/91${phone}?text=${encodeURIComponent(text)}`;
     }
     async function returnForRectification(){
       if(!edit)return;
       const remarks=String(edit.hr_remarks||'').trim();
       if(!remarks){setMsg('HR Remarks is mandatory when returning an application for rectification. Please enter the discrepancy / correction required.');return}
-
-      const phone=String(edit.whatsapp||edit.mobile||'').replace(/\D/g,'').slice(-10);
-      if(phone.length!==10){setMsg('A valid 10-digit WhatsApp / mobile number is not available for this applicant.');return}
-
-      const updated={
-        ...edit,
-        status:'Returned for Rectification',
-        hr_remarks:remarks,
-        interview_at:null,
-        interview_mode:null,
-        interview_venue:null,
-        interview_result:null
-      };
-
-      // IMPORTANT: open the REAL WhatsApp URL immediately from the button click.
-      // This is more reliable than opening about:blank and redirecting it later.
-      const whatsappUrl=whatsappRectificationCandidate(updated,remarks);
-      let whatsappOpened=false;
-      try{
-        const waWindow=window.open(whatsappUrl,'_blank');
-        whatsappOpened=!!waWindow;
-      }catch(_){
-        whatsappOpened=false;
-      }
-
-      // If a browser blocks the new tab, create a direct user-style link click.
-      if(!whatsappOpened){
-        try{
-          const a=document.createElement('a');
-          a.href=whatsappUrl;
-          a.target='_blank';
-          a.rel='noopener noreferrer';
-          a.style.display='none';
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          whatsappOpened=true;
-        }catch(_){}
-      }
-
-      setMsg(whatsappOpened
-        ?'WhatsApp opened. Saving the application as Returned for Rectification…'
-        :'WhatsApp could not open automatically. Please allow pop-ups for Samara Care ERP and click Return & Send WhatsApp again.'
-      );
-
-      const payload={
-        status:'Returned for Rectification',
-        hr_remarks:remarks,
-        interview_at:null,
-        interview_mode:null,
-        interview_venue:null,
-        interview_result:null,
-        handled_by:profile.id,
-        updated_at:new Date().toISOString()
-      };
-
+      const phone=normalizeWhatsAppRecipient(edit.whatsapp||edit.mobile||'');
+      if(!phone){setMsg('A valid WhatsApp / mobile number is not available for this applicant.');return}
+      const updated={...edit,status:'Returned for Rectification',hr_remarks:remarks,interview_at:null,interview_mode:null,interview_venue:null,interview_result:null};
+      const payload={status:'Returned for Rectification',hr_remarks:remarks,interview_at:null,interview_mode:null,interview_venue:null,interview_result:null,handled_by:profile.id,updated_at:new Date().toISOString()};
       const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);
-      if(error){
-        setMsg(`WhatsApp ${whatsappOpened?'was opened, but ':''}the ERP could not save the return status: ${error.message}`);
-        return;
+      if(error){setMsg(error.message);return}
+      setInterviewDate('');setInterviewTime('10:00');setRescheduleDate('');setRescheduleTime('10:00');setEdit(updated);setSelected({...selected,...updated});
+      try{
+        await sendWhatsAppTemplate({to:phone,templateName:'samara_application_returned',languageCode:'en',bodyParams:[candidateDisplayName(updated),remarks,updated.application_id||'—']});
+        setMsg('Application returned for rectification and WhatsApp API notification sent successfully with HR remarks.');
+      }catch(apiError){
+        window.open(whatsappRectificationCandidate(updated,remarks),'_blank','noopener');
+        setMsg(`Application returned and saved. WhatsApp API could not send (${apiError.message||apiError}); the existing WhatsApp message has been opened as fallback.`);
       }
-
-      setInterviewDate('');
-      setInterviewTime('10:00');
-      setRescheduleDate('');
-      setRescheduleTime('10:00');
-      setEdit(updated);
-      setSelected({...selected,...updated});
-      setMsg(whatsappOpened
-        ?'Application returned for rectification and WhatsApp opened with the HR remarks.'
-        :'Application returned for rectification. Please allow pop-ups and click Return & Send WhatsApp again to open the message.'
-      );
       await load();
     }
     function convert(row){
@@ -5189,11 +5193,11 @@ Caring with Compassion. Living with Dignity.`;
         ):null,
         !isRectification?h('div',{className:'field'},h('label',null,'Interview Mode'),h('select',{value:edit.interview_mode||'',onChange:e=>{const mode=e.target.value;setEdit({...edit,interview_mode:mode,interview_venue:mode==='Phone'?'':edit.interview_venue})}},['','In Person','Phone','Online'].map(x=>h('option',{key:x,value:x},x||'Select mode')))):null,
         !isRectification&&edit.interview_mode!=='Phone'?h('div',{className:'field'},h('label',null,edit.interview_mode==='Online'?'Google Meet Link':'Interview Venue'),h('input',{type:edit.interview_mode==='Online'?'url':'text',placeholder:edit.interview_mode==='Online'?'https://meet.google.com/xxx-xxxx-xxx':'Samara Assisted Living, Mogappair, Chennai',value:edit.interview_venue||'',onChange:e=>setEdit({...edit,interview_venue:e.target.value})}),edit.interview_mode==='Online'?h('small',{style:{display:'block',marginTop:'5px',color:'#806575'}},'Required for Online interview. This link will be included in the WhatsApp message.'):null):null,
-        isRectification?h('div',{className:'message',style:{gridColumn:'1 / -1',background:'#fff7fb',border:'1px solid #ead0de',color:'#7d1748'}},h('strong',null,'Rectification only — no interview is scheduled'),h('div',{style:{marginTop:'5px'}},'Enter the discrepancy / correction required in HR Remarks, then click Return for Rectification. WhatsApp will open with the HR remarks for the applicant to reply with the rectification.')):null,
+        isRectification?h('div',{className:'message',style:{gridColumn:'1 / -1',background:'#fff7fb',border:'1px solid #ead0de',color:'#7d1748'}},h('strong',null,'Rectification only — no interview is scheduled'),h('div',{style:{marginTop:'5px'}},'Enter the discrepancy / correction required in HR Remarks, then click Return for Rectification. The ERP will first use the approved WhatsApp API template; the existing WhatsApp method remains available as fallback.')):null,
         h('div',{className:'field span-2'},h('label',null,'HR Remarks'),h('textarea',{rows:3,value:edit.hr_remarks||'',onChange:e=>setEdit({...edit,hr_remarks:e.target.value}),placeholder:'Enter discrepancies / clarification required. Mandatory when returning the application for rectification.'}),h('small',{style:{display:'block',marginTop:'6px',color:'#806575'}},'For Return for Rectification, specify exactly what the applicant must correct or clarify.')),
         !isRectification?h('div',{className:'field span-2'},h('label',null,'Interview Result / Notes'),h('textarea',{rows:3,value:edit.interview_result||'',onChange:e=>setEdit({...edit,interview_result:e.target.value})})):null
       ),
-      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-secondary',onClick:returnForRectification,style:{borderColor:'#b31561',color:'#7d1748'}},'Return & Send WhatsApp'),!isRectification?h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendInterviewWhatsApp},'Send Interview WhatsApp'):null,!isRectification&&(selected.interview_at&&edit.interview_at&&selected.interview_at!==edit.interview_at)?h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendRescheduleWhatsApp},'Send Reschedule WhatsApp'):null,!isRectification&&['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null),
+      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-secondary',onClick:returnForRectification,style:{borderColor:'#b31561',color:'#7d1748'}},'Return & Send WhatsApp API'),!isRectification?h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendInterviewWhatsApp},'Send Interview WhatsApp API'):null,!isRectification&&(selected.interview_at&&edit.interview_at&&selected.interview_at!==edit.interview_at)?h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendRescheduleWhatsApp},'Send Reschedule WhatsApp API'):null,!isRectification&&['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null),
       h('div',{style:{display:'flex',justifyContent:'center',padding:'14px 0 4px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:closeApplication,style:{minWidth:'180px'}},'Close Window'))
     )):null;
     return h(React.Fragment,null,h(Section,{title:'Career Applications',subtitle:'Online-only applications submitted through samaraassistedliving.com Careers'},table),modal);
@@ -7324,9 +7328,40 @@ Caring with Compassion. Living with Dignity.`;
       const pin=String(Math.floor(100000+Math.random()*900000));
       const {data,error}=await client.rpc('upsert_family_portal_access',{p_patient_id:patient.id,p_relative_name:String(familyAccess.relative_name).trim(),p_relationship:String(familyAccess.relationship).trim(),p_mobile:mobile,p_email:String(familyAccess.email||'').trim()||null,p_primary_contact:!!familyAccess.primary_contact,p_pin:pin,p_access_id:null});
       if(error)throw error;
-      const credential={...(Array.isArray(data)?data[0]:data),pin,mobile,patient_id:patient.patient_id||patient.patient_code||''};
+      const credential={
+        ...(Array.isArray(data)?data[0]:data),
+        pin,
+        mobile,
+        patient_id:patient.patient_id||patient.patient_code||'',
+        patient_name:formalName(patient)||patient.full_name||form.full_name||'',
+        relative_name:String(familyAccess.relative_name||'').trim(),
+        admission_date:patient.admission_date||form.admission_date||'',
+        room_bed:[patient.room_no||form.room_no,patient.bed_no||form.bed_no].filter(Boolean).join(' / ')
+      };
       setFamilyCredential(credential);
       return credential;
+    }
+    async function sendAdmissionWhatsAppApi(credential){
+      if(!credential)return;
+      try{
+        await sendWhatsAppTemplate({
+          to:credential.mobile,
+          templateName:'samara_patient_admission',
+          languageCode:'en',
+          bodyParams:[
+            credential.relative_name||'Family Member',
+            credential.patient_name||form.full_name||'Patient',
+            formatDateIN(credential.admission_date||form.admission_date),
+            credential.patient_id||'—',
+            credential.room_bed||[form.room_no,form.bed_no].filter(Boolean).join(' / ')||'—'
+          ]
+        });
+        setMsg('Patient admission WhatsApp notification sent successfully through the approved Meta template.');
+      }catch(apiError){
+        const text=`Dear ${credential.relative_name||'Family Member'},\n\nWe hereby inform you that ${credential.patient_name||form.full_name||'the patient'} has been admitted to Samara Assisted Living on ${formatDateIN(credential.admission_date||form.admission_date)}.\n\nPatient ID: ${credential.patient_id||'—'}\nRoom / Bed: ${credential.room_bed||'—'}\n\nPlease contact Samara Assisted Living for any assistance.`;
+        window.open(`https://wa.me/91${String(credential.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(brandWhatsAppText(text))}`,'_blank','noopener');
+        setMsg(`WhatsApp API could not send (${apiError.message||apiError}); the existing WhatsApp message has been opened as fallback.`);
+      }
     }
 
     async function submit(e){
@@ -7688,7 +7723,14 @@ Caring with Compassion. Living with Dignity.`;
           h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:familyAccess.email,onChange:e=>setFamilyAccess({...familyAccess,email:e.target.value})})),
           h('label',{className:'check-card span-2'},h('input',{type:'checkbox',checked:!!familyAccess.primary_contact,onChange:e=>setFamilyAccess({...familyAccess,primary_contact:e.target.checked})}),h('span',null,'Primary Family Contact'))
         ),
-        familyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},h('strong',null,'Family Portal login created'),h('div',null,`Resident ID: ${familyCredential.patient_id||'—'} · Temporary PIN: ${familyCredential.pin}`),h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${familyCredential.mobile}?text=${encodeURIComponent(brandWhatsAppText(`Welcome to Samara Assisted Living Family Portal.\nResident ID: ${familyCredential.patient_id||''}\nTemporary PIN: ${familyCredential.pin}\nPortal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send Login by WhatsApp'))
+        familyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},
+          h('strong',null,'Family Portal login created'),
+          h('div',null,`Resident ID: ${familyCredential.patient_id||'—'} · Temporary PIN: ${familyCredential.pin}`),
+          h('div',{className:'employee-actions',style:{marginTop:'8px'}},
+            h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>sendAdmissionWhatsAppApi(familyCredential)},'Send Admission WhatsApp API'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${familyCredential.mobile}?text=${encodeURIComponent(brandWhatsAppText(`Welcome to Samara Assisted Living Family Portal.\nResident ID: ${familyCredential.patient_id||''}\nTemporary PIN: ${familyCredential.pin}\nPortal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send Portal Login (Existing Method)')
+          )
+        )
       ),
       h('div',{className:'section-card'},
         h('h4',null,needsHospital?'2. Previous hospital / centre and current care details':'2. Current care requirement and medical details'),
@@ -14121,6 +14163,7 @@ function ShiftHandover({profile,onNavigate}){
     const [message,setMessage]=React.useState('');
     const [toast,setToast]=React.useState(null);
     const [lastVoucherNo,setLastVoucherNo]=React.useState('');
+    const [lastPaymentReceipt,setLastPaymentReceipt]=React.useState(null);
     const canEnter=['Admin','Manager','Accounts'].includes(profile?.role);
     const canDiscount=profile?.role==='Admin';
 
@@ -14228,6 +14271,35 @@ function ShiftHandover({profile,onNavigate}){
       quickView==='Discounts'?visibleRows.filter(row=>row.transaction_type==='Discount'):
       quickView==='Refunds'?visibleRows.filter(row=>row.transaction_type==='Refund'):
       visibleRows;
+
+    async function sendPaymentReceiptWhatsAppApi(receipt){
+      if(!receipt)return;
+      const patient=patients.find(p=>p.id===receipt.patient_id)||{};
+      const to=patient.attendant_phone||patient.mobile||'';
+      if(!to){setMessage('Family / patient WhatsApp number is not available in the Patient File.');return}
+      const recipient=patient.attendant_name||formalName(patient)||patient.full_name||'Family Member';
+      try{
+        await sendWhatsAppTemplate({
+          to,
+          templateName:'samara_payment_receipt',
+          languageCode:'en',
+          bodyParams:[
+            recipient,
+            Number(receipt.amount||0).toLocaleString('en-IN',{maximumFractionDigits:2}),
+            formalName(patient)||patient.full_name||'Patient',
+            formatDateIN(receipt.date),
+            receipt.reference||receipt.transaction_id||'—',
+            receipt.payment_mode||'—'
+          ]
+        });
+        notify('success','WhatsApp receipt sent','Payment receipt notification was sent successfully through the approved Meta template.');
+      }catch(apiError){
+        const number=normalizeWhatsAppRecipient(to);
+        const text=`Dear ${recipient},\n\nThank you. We confirm receipt of ₹${Number(receipt.amount||0).toLocaleString('en-IN')} towards the account of ${formalName(patient)||patient.full_name||'the patient'} on ${formatDateIN(receipt.date)}.\n\nReceipt No.: ${receipt.reference||receipt.transaction_id||'—'}\nPayment Mode: ${receipt.payment_mode||'—'}\n\nSamara Assisted Living`;
+        if(number)window.open(`https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(text))}`,'_blank','noopener');
+        setMessage(`WhatsApp API could not send (${apiError.message||apiError}); the existing WhatsApp message has been opened as fallback.`);
+      }
+    }
 
     async function savePaymentAndPossiblyClose(e){
       e.preventDefault();
@@ -14367,6 +14439,17 @@ function ShiftHandover({profile,onNavigate}){
         },
         'Success'
       );
+
+      if(['Payment','Advance'].includes(form.transaction_type)){
+        setLastPaymentReceipt({
+          patient_id:form.patient_id,
+          amount,
+          payment_mode:form.payment_mode,
+          reference:actualReference||'',
+          transaction_id:data?.id||'',
+          date:new Date().toISOString()
+        });
+      }
 
       const expectedBalance=
         form.transaction_type==='Payment'||form.transaction_type==='Advance'
@@ -14637,7 +14720,12 @@ function ShiftHandover({profile,onNavigate}){
               :'Save Transaction'
           )
         ),
-        message&&h('div',{className:'message error'},message)
+        message&&h('div',{className:'message error'},message),
+        lastPaymentReceipt&&h('div',{className:'message success',style:{marginTop:'10px'}},
+          h('strong',null,'Payment receipt ready'),
+          h('div',null,`${money(lastPaymentReceipt.amount)} · ${lastPaymentReceipt.payment_mode}${lastPaymentReceipt.reference?` · ${lastPaymentReceipt.reference}`:''}`),
+          h('button',{type:'button',className:'btn btn-whatsapp',style:{marginTop:'8px'},onClick:()=>sendPaymentReceiptWhatsAppApi(lastPaymentReceipt)},'Send Payment Receipt WhatsApp API')
+        )
       ),
 
       h(LogTable,{
@@ -15371,6 +15459,32 @@ function ShiftHandover({profile,onNavigate}){
     const {error}=await client.from('patient_communications').insert(payload);
     if(error)console.warn('Communication history could not be saved:',error);
     }
+    async function sendDailyReportWhatsAppApi(){
+    if(!['Admin','Manager'].includes(profile.role))return alert('WhatsApp report sharing is available only to Admin and Manager.');
+    const p=selectedPatient();
+    if(!p)return alert('Generate a patient report before sharing.');
+    const raw=relativePhone(p);
+    const number=normalizeWhatsAppRecipient(raw);
+    if(!number)return alert('Authorised relative WhatsApp number is not available. Please update the Patient File first.');
+    setShareBusy(true);
+    try{
+      await sendWhatsAppTemplate({
+        to:number,
+        templateName:'samara_daily_report',
+        languageCode:'en',
+        bodyParams:[relativeName(p),formalName(p)||p.full_name||'Patient',formatDateIN(report?.date||reportDate)]
+      });
+      await recordCommunication(p,'Relative',number,`Daily report portal notification sent through WhatsApp API for ${formatDateIN(report?.date||reportDate)}.`);
+      alert('Daily report WhatsApp notification sent successfully to the authorised relative.');
+      setShareOpen(false);loadCommunicationHistory();
+    }catch(apiError){
+      const text=buildWhatsAppMessage(p,'Relative');
+      window.open(`https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(text))}`,'_blank','noopener');
+      alert(`WhatsApp API could not send (${apiError.message||apiError}). The existing WhatsApp message has been opened as fallback.`);
+    }
+    setShareBusy(false);
+    }
+
     async function openWhatsAppShare(){
     if(!['Admin','Manager'].includes(profile.role))return alert('WhatsApp report sharing is available only to Admin and Manager.');
     const p=selectedPatient();
@@ -15534,7 +15648,11 @@ function ShiftHandover({profile,onNavigate}){
             h('pre',{style:{whiteSpace:'pre-wrap',fontFamily:'inherit',margin:0,lineHeight:'1.55'}},quickHealthSummary(shareLanguage))
           ),
           h('div',{className:'message'},shareType==='Full Intelligent Report'?'Save the report as PDF first. WhatsApp will open with the prepared message; attach the PDF manually before sending.':'The quick health update has been generated from the selected patient report. Please review it before opening WhatsApp.'),
-          h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShareOpen(false)},'Cancel'),h('button',{type:'button',className:'btn btn-whatsapp',disabled:shareBusy,onClick:openWhatsAppShare},shareBusy?'Opening WhatsApp…':'Open WhatsApp'))
+          h('div',{className:'actions'},
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShareOpen(false)},'Cancel'),
+            h('button',{type:'button',className:'btn btn-whatsapp',disabled:shareBusy,onClick:sendDailyReportWhatsAppApi},shareBusy?'Sending…':'Send Daily Report WhatsApp API'),
+            h('button',{type:'button',className:'btn btn-secondary',disabled:shareBusy,onClick:openWhatsAppShare},shareBusy?'Opening WhatsApp…':'Existing WhatsApp / PDF')
+          )
         )
       )
     );
