@@ -1,0 +1,18 @@
+SAMARA ERP 2.8.50 — FAMILY PORTAL WHATSAPP TEMPLATE LENGTH FIX
+
+Replace ONLY these ERP root files:
+1. app.js
+2. index.html
+3. service-worker.js
+
+No SQL change. No Edge Function change. No WhatsApp template edit.
+
+What changed:
+- samara_family_portal_access still uses exactly 7 approved variables.
+- Long diagnosis text is no longer sent into the template.
+- Variable values are compacted to safe lengths so Meta does not reject the rendered template as "Translated text too long" (#132005).
+- Reason for Admission uses a concise admission/category description.
+- Proposed Period of Stay uses a concise non-invented phrase when no exact planned duration is stored.
+- No automatic manual WhatsApp fallback.
+
+After upload: Ctrl+Shift+R and test Send Portal Access WhatsApp API.

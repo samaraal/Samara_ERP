@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.49';
+  const APP_VERSION = '2.8.50';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -1287,6 +1287,21 @@ function initSamaraInaugurationInvitation(){
     if(digits.length===11&&digits.startsWith('0'))return `91${digits.slice(1)}`;
     return digits;
   };
+  const compactWhatsAppParam = (value,max=60,fallback='—') => {
+    const clean=String(value??'').replace(/\s+/g,' ').trim();
+    if(!clean)return fallback;
+    if(clean.length<=max)return clean;
+    return `${clean.slice(0,Math.max(1,max-1)).trim()}…`;
+  };
+  const familyPortalTemplateParams = ({relativeName,patientName,admissionDate,patientId,reason,proposedStay,roomBed}) => [
+    compactWhatsAppParam(relativeName,40,'Family Member'),
+    compactWhatsAppParam(patientName,50,'Patient'),
+    compactWhatsAppParam(admissionDate,20,'—'),
+    compactWhatsAppParam(patientId,30,'—'),
+    compactWhatsAppParam(reason,45,'Assisted living care'),
+    compactWhatsAppParam(proposedStay,28,'As per agreed care plan'),
+    compactWhatsAppParam(roomBed,35,'—')
+  ];
   async function sendWhatsAppTemplate({to,templateName,languageCode='en',bodyParams=[],headerImage=SAMARA_WHATSAPP_LOGO_URL}){
     const recipient=normalizeWhatsAppRecipient(to);
     if(!recipient)throw new Error('A valid WhatsApp number is required.');
@@ -7449,15 +7464,26 @@ Caring with Compassion. Living with Dignity.`;
 
     async function sendFamilyPortalAccessWhatsAppApi(credential){
       if(!credential)return;
-      const reason=String(form.diagnosis||'').trim()||'assisted living care and support';
-      const proposedStay=String(form.patient_category||'').trim()||'As per care requirement';
+      // Keep the seven variables deliberately concise. The approved Meta template
+      // already contains substantial fixed text; long clinical diagnosis strings can
+      // make the translated/rendered body exceed WhatsApp's template length limit.
+      const reason=String(form.admission_type||form.patient_category||'').trim()||'Assisted living care';
+      const proposedStay=form.patient_category==='Short Stay'?'Short stay – as agreed':'As per agreed care plan';
       const roomBed=credential.room_bed||[form.room_no,form.bed_no].filter(Boolean).join(' / ')||'—';
       try{
         await sendWhatsAppTemplate({
           to:credential.mobile,
           templateName:'samara_family_portal_access',
           languageCode:'en',
-          bodyParams:[credential.relative_name||'Family Member',credential.patient_name||form.full_name||'Patient',formatDateIN(credential.admission_date||form.admission_date),credential.patient_id||'—',reason,proposedStay,roomBed]
+          bodyParams:familyPortalTemplateParams({
+            relativeName:credential.relative_name,
+            patientName:credential.patient_name||form.full_name,
+            admissionDate:formatDateIN(credential.admission_date||form.admission_date),
+            patientId:credential.patient_id,
+            reason,
+            proposedStay,
+            roomBed
+          })
         });
         setMsg('Family Portal access notification sent successfully through the approved Meta template. The temporary PIN can be sent separately using the existing method below.');
       }catch(apiError){
@@ -9746,7 +9772,22 @@ Please keep these login details confidential.`;
                   h('button',{type:'button',className:'btn btn-secondary',disabled:familyResetBusy===access.id,onClick:()=>resetSelectedFamilyPin(access)},familyResetBusy===access.id?'Resetting…':'Forgot / Reset PIN'),
                   h('button',{type:'button',className:'btn btn-whatsapp',onClick:async()=>{
                     try{
-                      await sendWhatsAppTemplate({to:access.mobile,templateName:'samara_family_portal_access',languageCode:'en',bodyParams:[access.relative_name||'Family Member',formalName(selected)||selected?.full_name||'Patient',formatDateIN(selected?.admission_date),selected?.patient_id||'—',selected?.diagnosis||'assisted living care and support',selected?.patient_category||'As per care requirement',[selected?.room_no,selected?.bed_no].filter(Boolean).join(' / ')||'—']});
+                      await sendWhatsAppTemplate({
+                        to:access.mobile,
+                        templateName:'samara_family_portal_access',
+                        languageCode:'en',
+                        bodyParams:familyPortalTemplateParams({
+                          relativeName:access.relative_name,
+                          patientName:formalName(selected)||selected?.full_name,
+                          admissionDate:formatDateIN(selected?.admission_date),
+                          patientId:selected?.patient_id,
+                          // Patient Category is intentionally used here instead of a long diagnosis.
+                          // It matches the approved template's short "Reason for Admission" sample.
+                          reason:selected?.patient_category||'Assisted living care',
+                          proposedStay:selected?.patient_category==='Short Stay'?'Short stay – as agreed':'As per agreed care plan',
+                          roomBed:[selected?.room_no,selected?.bed_no].filter(Boolean).join(' / ')
+                        })
+                      });
                       showPatientToast('success','Family Portal WhatsApp sent successfully.');
                     }catch(error){
                       showPatientToast('error',`Family Portal WhatsApp API failed: ${error.message||error}. Use the Existing Method button only if you want to send manually.`);
