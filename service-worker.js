@@ -1,12 +1,12 @@
-const CACHE = 'samara-erp-2.8.39-family-web-visits';
+const CACHE = 'samara-erp-2.8.40-enquiry-intake';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.8.39', './app.js?v=2.8.39',
-  './bootstrap-error.js?v=2.8.39', './health-check.js?v=2.8.39',
-  './config.js?v=2.8.39', './manifest.webmanifest?v=2.8.39',
+  './', './index.html', './styles.css?v=2.8.40', './app.js?v=2.8.40',
+  './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',
+  './config.js?v=2.8.40', './manifest.webmanifest?v=2.8.40',
   './assets/samara-logo.png?v=20260812-global1',
-  './icons/favicon.png?v=2.8.39', './icons/icon-192.png?v=2.8.39',
-  './icons/icon-512.png?v=2.8.39', './icons/icon-maskable-512.png?v=2.8.39',
-  './icons/apple-touch-icon.png?v=2.8.39'
+  './icons/favicon.png?v=2.8.40', './icons/icon-192.png?v=2.8.40',
+  './icons/icon-512.png?v=2.8.40', './icons/icon-maskable-512.png?v=2.8.40',
+  './icons/apple-touch-icon.png?v=2.8.40'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));

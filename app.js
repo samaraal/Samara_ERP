@@ -4648,10 +4648,10 @@ Caring with Compassion. Living with Dignity.`;
   }
 
   function Dashboard({profile,onNavigate}){
-    const [stats,setStats]=React.useState({employees:0,patients:0,beds:25,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0});
+    const [stats,setStats]=React.useState({employees:0,patients:0,beds:25,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[]});
     React.useEffect(()=>{(async()=>{
       const today=new Date().toISOString().slice(0,10);
-      const [emp,pat,med,care,bill,inc,dis,vis]=await Promise.all([
+      const [emp,pat,med,care,bill,inc,dis,vis,enq]=await Promise.all([
         client.from('profiles').select('*',{count:'exact',head:true}).eq('is_active',true),
         client.from('patients').select('*').eq('is_active',true),
         client.from('medication_administrations').select('*',{count:'exact',head:true}).eq('scheduled_date',today),
@@ -4659,7 +4659,8 @@ Caring with Compassion. Living with Dignity.`;
         client.from('billing_transactions').select('amount,transaction_type'),
         client.from('incidents').select('*',{count:'exact',head:true}).eq('status','Open'),
         client.from('patient_discharges').select('id,status,management_status,accounts_status'),
-        client.from('family_visit_requests').select('*',{count:'exact',head:true}).eq('status','Pending')
+        client.from('family_visit_requests').select('*',{count:'exact',head:true}).eq('status','Pending'),
+        client.from('pre_admission_enquiries').select('id,patient_name,family_contact_name,family_contact_phone,source,status,care_type,created_at',{count:'exact'}).in('status',['New','Contacted','Assessment Scheduled']).order('created_at',{ascending:false}).limit(6)
       ]);
       const patients=pat.data||[];
       const risks=patients.filter(p=>p.fall_risk||p.pressure_sore_risk||p.aspiration_risk||p.wandering_risk||p.infection_risk||p.oxygen_required).length;
@@ -4700,7 +4701,9 @@ Caring with Compassion. Living with Dignity.`;
         incidents:inc.count||0,
         discharges:activeDischarges.length,
         dischargeStatus,
-        visitRequests:vis?.count||0
+        visitRequests:vis?.count||0,
+        enquiries:enq?.count||0,
+        recentEnquiries:enq?.data||[]
       });
     })()},[]);
     const cards=[
@@ -4712,6 +4715,7 @@ Caring with Compassion. Living with Dignity.`;
       {label:'Care actions today',value:stats.care,page:'Daily Care',icon:'✅'},
       {label:'Open incidents',value:stats.incidents,page:'Incidents',icon:'🚨'},
       {label:'Outstanding amount',value:`₹${stats.outstanding.toLocaleString('en-IN')}`,page:'Payments',icon:'₹'},
+      {label:'Admission Enquiries',value:stats.enquiries,page:'Enquiries',icon:'☎',status:stats.enquiries?`${stats.enquiries} awaiting follow-up`:'No new enquiries'},
       {label:'Visit Requests',value:stats.visitRequests,page:'Family Communication',icon:'📅',status:stats.visitRequests?`${stats.visitRequests} pending approval`:'No pending requests'},
       {label:'Discharge',value:stats.discharges,page:'Discharge',icon:'🚪',status:stats.dischargeStatus}
     ];
@@ -4719,8 +4723,14 @@ Caring with Compassion. Living with Dignity.`;
       h('div',{className:'shift-summary'},h('div',null,h('strong',null,currentShift()),h('span',null,'Admin and Manager control dashboard')),h('span',{className:'badge'},formalName(profile))),
       h('div',{className:'grid stats dashboard-links'},cards.map(card=>h('button',{type:'button',className:'card stat dashboard-card',key:card.label,onClick:()=>onNavigate(card.page),title:`Open ${card.page}`},h('span',{className:'dashboard-icon','aria-hidden':'true'},card.icon),h('span',null,card.label),h('strong',null,card.value),h('small',null,card.status||`Open ${card.page} →`)))),
       h('div',{className:'grid two',style:{marginTop:'18px'}},
-        h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>onNavigate('Shift Tasks')},h('div',{className:'panel-head'},h('h3',null,'Today’s operational focus')),h('p',null,'Open medicines, bathing, restroom assistance, feeding, mobility, physiotherapy and special-nurse tasks.'),h('span',{className:'badge'},'Open Shift Tasks →')),
-        h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>onNavigate('Reports')},h('div',{className:'panel-head'},h('h3',null,'Management reports')),h('p',null,'Open occupancy, clinical risks, incidents, billing, collections and outstanding details.'),h('span',{className:'badge'},'Open Reports →'))
+        h('div',{className:'card panel'},
+          h('div',{className:'panel-head'},h('div',null,h('h3',null,'Latest Admission Enquiries'),h('small',null,'Website and Family Portal submissions')),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('Enquiries')},'Open Enquiries')),
+          (stats.recentEnquiries||[]).length?h('div',{style:{display:'grid',gap:'9px'}},stats.recentEnquiries.map(r=>h('button',{type:'button',key:r.id,onClick:()=>onNavigate('Enquiries'),style:{textAlign:'left',padding:'11px 12px',border:'1px solid #ecd6e2',borderRadius:'12px',background:'#fffafd',cursor:'pointer'}},h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center'}},h('strong',{style:{color:'#5d1039'}},r.patient_name||'Resident'),h('span',{className:'badge'},r.source||'Website')),h('small',{style:{display:'block',marginTop:'4px'}},`${r.family_contact_name||'—'} · ${r.family_contact_phone||'—'}`),h('small',{style:{display:'block',marginTop:'3px',color:'#8a6577'}},`${r.care_type||'Admission enquiry'} · ${r.status||'New'} · ${formatDateTimeIN(r.created_at)}`)))):h('p',{className:'empty'},'No new admission enquiries.' )
+        ),
+        h('div',{style:{display:'grid',gap:'12px'}},
+          h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>onNavigate('Shift Tasks')},h('div',{className:'panel-head'},h('h3',null,'Today’s operational focus')),h('p',null,'Open medicines, bathing, restroom assistance, feeding, mobility, physiotherapy and special-nurse tasks.'),h('span',{className:'badge'},'Open Shift Tasks →')),
+          h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>onNavigate('Reports')},h('div',{className:'panel-head'},h('h3',null,'Management reports')),h('p',null,'Open occupancy, clinical risks, incidents, billing, collections and outstanding details.'),h('span',{className:'badge'},'Open Reports →'))
+        )
       )
     );
   }
@@ -6054,11 +6064,38 @@ Caring with Compassion. Living with Dignity.`;
 
 
   function Enquiries({profile}){
-    const [rows,setRows]=React.useState([]),[form,setForm]=React.useState({patient_name:'',family_contact_name:'',family_contact_phone:'',current_location:'Home',reason_for_enquiry:'',expected_admission_date:'',bed_preference:'',special_requirements:'',source:'Direct',status:'New'});
-    async function load(){const {data}=await client.from('pre_admission_enquiries').select('*').order('created_at',{ascending:false});setRows(data||[])}React.useEffect(()=>{load()},[]);
-    async function save(e){e.preventDefault();const {error}=await client.from('pre_admission_enquiries').insert({...form,handled_by:profile.id});if(error)return alert(error.message);setForm({...form,patient_name:'',family_contact_name:'',family_contact_phone:'',reason_for_enquiry:'',special_requirements:''});load()}
-    async function status(id,value){await client.from('pre_admission_enquiries').update({status:value,updated_at:new Date().toISOString()}).eq('id',id);load()}
-    return h(React.Fragment,null,h(Section,{title:'Pre-Admission Enquiry',subtitle:'Track enquiries, assessments, estimates and bed reservations'},h('form',{className:'modal-grid',onSubmit:save},miniInput('Patient name',form.patient_name,v=>setForm({...form,patient_name:v}),true),miniInput('Family contact',form.family_contact_name,v=>setForm({...form,family_contact_name:v}),true),miniInput('Phone',form.family_contact_phone,v=>setForm({...form,family_contact_phone:v}),true,'tel'),miniSelect('Current location',form.current_location,['Home','Hospital','Clinic','Other Care Centre'],v=>setForm({...form,current_location:v})),miniSelect('Source',form.source,['Direct','Hospital','Doctor','Reference','Website','Other'],v=>setForm({...form,source:v})),miniInput('Expected admission',form.expected_admission_date,v=>setForm({...form,expected_admission_date:v}),false,'date'),miniInput('Bed preference',form.bed_preference,v=>setForm({...form,bed_preference:v})),miniInput('Reason for enquiry',form.reason_for_enquiry,v=>setForm({...form,reason_for_enquiry:v}),true),miniInput('Special requirements',form.special_requirements,v=>setForm({...form,special_requirements:v})),h('button',{className:'btn btn-primary'},'Save Enquiry'))),h(LogTable,{title:'Enquiry Register',heads:['Patient','Family Contact','Location','Expected Date','Status','Action'],rows:rows.map(r=>[r.patient_name,`${r.family_contact_name} · ${r.family_contact_phone}`,r.current_location,r.expected_admission_date||'—',r.status,h('select',{value:r.status,onChange:e=>status(r.id,e.target.value)},['New','Assessment Scheduled','Estimate Sent','Bed Reserved','Converted to Admission','Closed'].map(x=>h('option',{key:x},x)))])}))
+    const [rows,setRows]=React.useState([]),[msg,setMsg]=React.useState('');
+    const canManage=['Admin','Manager'].includes(profile?.role);
+    async function load(){
+      const {data,error}=await client.from('pre_admission_enquiries').select('*').order('created_at',{ascending:false});
+      if(error){setMsg(error.message||'Unable to load enquiries.');return;}
+      setRows(data||[]);setMsg('');
+    }
+    React.useEffect(()=>{load();const ch=client.channel('admission-enquiries-live').on('postgres_changes',{event:'*',schema:'public',table:'pre_admission_enquiries'},load).subscribe();return()=>client.removeChannel(ch)},[]);
+    async function status(id,value){
+      if(!canManage)return;
+      const {error}=await client.from('pre_admission_enquiries').update({status:value,updated_at:new Date().toISOString(),handled_by:profile?.id||null}).eq('id',id);
+      if(error){setMsg(error.message||'Unable to update enquiry.');return;}
+      load();
+    }
+    const statuses=['New','Contacted','Assessment Scheduled','Estimate Sent','Bed Reserved','Converted to Admission','Closed'];
+    return h(React.Fragment,null,
+      h(Section,{title:'Admission Enquiries',subtitle:'Read-only intake from the Samara Website and Family Portal. Admin / Manager review and update the status here.'},
+        h('div',{className:'message info'},'New enquiries are submitted only from the public Website or secure Family Portal. ERP staff cannot create enquiry records from this screen.'),
+        msg?h('div',{className:'message error'},msg):null
+      ),
+      h(LogTable,{title:'Enquiry Register',heads:['Received','Source','Resident','Age','Family Contact','Care Type','Preferred Room','Requirements','Status'],rows:rows.map(r=>[
+        formatDateTimeIN(r.created_at),
+        h('span',{className:'badge'},r.source||'Website'),
+        r.patient_name||'—',
+        r.website_age??'—',
+        `${r.family_contact_name||'—'} · ${r.family_contact_phone||'—'}`,
+        r.care_type||r.reason_for_enquiry||'—',
+        r.bed_preference||'—',
+        r.special_requirements||'—',
+        canManage?h('select',{value:r.status||'New',onChange:e=>status(r.id,e.target.value)},statuses.map(x=>h('option',{key:x},x))):h('span',{className:'badge'},r.status||'New')
+      ])})
+    );
   }
 
 
