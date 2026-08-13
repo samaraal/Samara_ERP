@@ -4534,9 +4534,22 @@ Caring with Compassion. Living with Dignity.`;
 
     async function loadCounts(){
       try{
-        const result=await invoke('cache-counts');
-        setCounts(current=>({...current,[mailbox]:result}));
-        if(result?.last_synced_at)setLastSynced(result.last_synced_at);
+        const results=await Promise.all(mailboxDefs.map(async item=>{
+          try{
+            const result=await invoke('cache-counts',{mailbox:item.key});
+            return [item.key,result];
+          }catch(err){
+            console.warn(`Cached counts unavailable for ${item.key}`,err);
+            return [item.key,null];
+          }
+        }));
+        setCounts(current=>{
+          const next={...current};
+          results.forEach(([key,result])=>{if(result)next[key]=result});
+          return next;
+        });
+        const selectedResult=results.find(([key])=>key===mailbox)?.[1];
+        if(selectedResult?.last_synced_at)setLastSynced(selectedResult.last_synced_at);
       }catch(err){
         console.warn('Cached mail counts unavailable',err);
       }
@@ -4684,7 +4697,7 @@ Caring with Compassion. Living with Dignity.`;
           ['INBOX','Sent','Drafts','Trash'].map(name=>h('button',{
             type:'button',key:name,className:`mail-folder-btn ${folder===name?'active':''}`,
             onClick:()=>{setFolder(name);setSelected(null)}
-          },name==='INBOX'?`Inbox ${currentCounts.unread!=null?`(${currentCounts.unread})`:''}`:name))
+          },name==='INBOX'?`Inbox ${currentCounts.total!=null?`(${currentCounts.total})`:''}`:name))
         ),
 
         h('div',{className:'mail-content'},
