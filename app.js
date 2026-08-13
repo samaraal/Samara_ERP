@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.50';
+  const APP_VERSION = '2.8.51';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -608,6 +608,7 @@ function initSamaraInaugurationInvitation(){
       .sidebar .nav-submenu button[data-nav='Discharge Clearance']::before,
       .sidebar .nav-submenu button[data-nav='Refunds']::before,
       .sidebar .nav-submenu button[data-nav='Accounts Reports']::before{content:'₹'}
+      .sidebar .nav-submenu button[data-nav='WhatsApp Inbox']::before{content:'◉'!important;color:#169b67!important}
       .sidebar .nav-submenu button[data-nav='Mail Dashboard']::before{content:'✉'!important;color:#b01264!important}
 
       .mail-shell{display:grid;gap:18px}
@@ -1233,7 +1234,7 @@ function initSamaraInaugurationInvitation(){
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Charge Approvals','Payments','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
-    { title:'COMMUNICATION', items:['Family Communication','Feedback','Mail Dashboard'] }
+    { title:'COMMUNICATION', items:['WhatsApp Inbox','Family Communication','Feedback','Mail Dashboard'] }
   ];
   const ALL_NAV = NAV_SECTIONS.flatMap(section=>section.items);
   const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
@@ -1321,6 +1322,26 @@ function initSamaraInaugurationInvitation(){
         header_image:headerImage||null,
         body_params:(bodyParams||[]).map(value=>String(value??''))
       })
+    });
+    const result=await response.json().catch(()=>({success:false,error:'Unable to read WhatsApp server response.'}));
+    if(!response.ok||result?.success===false){
+      const metaMessage=result?.error?.error?.message||result?.error?.message||result?.error||`WhatsApp request failed (${response.status})`;
+      throw new Error(typeof metaMessage==='string'?metaMessage:JSON.stringify(metaMessage));
+    }
+    return result;
+  }
+
+  async function sendWhatsAppText({to,text}){
+    const recipient=normalizeWhatsAppRecipient(to);
+    const clean=String(text||'').trim();
+    if(!recipient)throw new Error('A valid WhatsApp number is required.');
+    if(!clean)throw new Error('Please enter a reply.');
+    const {data:{session}}=await client.auth.getSession();
+    if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
+    const response=await fetch(`${cfg.supabaseUrl}/functions/v1/whatsapp-send`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey},
+      body:JSON.stringify({to:recipient,message_type:'text',text:clean})
     });
     const result=await response.json().catch(()=>({success:false,error:'Unable to read WhatsApp server response.'}));
     if(!response.ok||result?.success===false){
@@ -3935,6 +3956,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Discharge Clearance'&&h(DischargeManagement,{profile,mode:'accounts',onNavigate:setPage}),
           page==='Refunds'&&h(RefundsView,{profile,onNavigate:setPage}),
           page==='Accounts Reports'&&h(Reports,{profile,onNavigate:setPage}),
+          page==='WhatsApp Inbox'&&h(WhatsAppInbox,{profile}),
           page==='Family Communication'&&h(FamilyCommunicationDashboard,{profile}),
           page==='Feedback'&&h(FeedbackDashboard,{profile}),
           page==='Mail Dashboard'&&h(TitanMail,{profile}),
@@ -4780,6 +4802,117 @@ Caring with Compassion. Living with Dignity.`;
         h('div',{style:{display:'grid',gap:'12px'}},
           h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>onNavigate('Shift Tasks')},h('div',{className:'panel-head'},h('h3',null,'Today’s operational focus')),h('p',null,'Open medicines, bathing, restroom assistance, feeding, mobility, physiotherapy and special-nurse tasks.'),h('span',{className:'badge'},'Open Shift Tasks →')),
           h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>onNavigate('Reports')},h('div',{className:'panel-head'},h('h3',null,'Management reports')),h('p',null,'Open occupancy, clinical risks, incidents, billing, collections and outstanding details.'),h('span',{className:'badge'},'Open Reports →'))
+        )
+      )
+    );
+  }
+
+
+  function WhatsAppInbox({profile}){
+    const [rows,setRows]=React.useState([]),[selectedPhone,setSelectedPhone]=React.useState(''),[query,setQuery]=React.useState(''),[showUnread,setShowUnread]=React.useState(false),[reply,setReply]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState('');
+    const canUse=['Admin','Manager','HR'].includes(String(profile?.role||''));
+    async function load(){
+      if(!canUse)return;
+      const {data,error}=await client.from('hr_whatsapp_communications').select('*').order('created_at',{ascending:true}).limit(1000);
+      if(error){setMessage(error.message);return}
+      setRows(data||[]);
+    }
+    React.useEffect(()=>{
+      load();
+      const ch=client.channel('whatsapp-inbox-live').on('postgres_changes',{event:'*',schema:'public',table:'hr_whatsapp_communications'},load).subscribe();
+      return()=>client.removeChannel(ch);
+    },[]);
+    if(!canUse)return h(Section,{title:'WhatsApp Inbox'},h('p',{className:'empty'},'WhatsApp Inbox is available to Admin and Manager.'));
+    const phoneOf=r=>normalizeWhatsAppRecipient(r.recipient_number||'');
+    const groups={};
+    rows.forEach(r=>{const phone=phoneOf(r);if(!phone)return;(groups[phone]||(groups[phone]=[])).push(r)});
+    const conversations=Object.entries(groups).map(([phone,msgs])=>{
+      const sorted=[...msgs].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+      const last=sorted[sorted.length-1]||{};
+      const inbound=[...sorted].reverse().find(x=>x.direction==='inbound');
+      const unread=sorted.filter(x=>x.direction==='inbound'&&!x.erp_read_at).length;
+      const name=last.contact_name||last.applicant_name||inbound?.contact_name||inbound?.applicant_name||phone;
+      const source=last.source_type||inbound?.source_type||(last.career_application_id?'HR Applicant':'Website / Public');
+      return {phone,msgs:sorted,last,name,source,unread,lastAt:last.created_at};
+    }).sort((a,b)=>new Date(b.lastAt)-new Date(a.lastAt));
+    const filtered=conversations.filter(c=>{
+      if(showUnread&&!c.unread)return false;
+      const hay=`${c.name} ${c.phone} ${c.source} ${c.last.message_content||''}`.toLowerCase();
+      return !query||hay.includes(query.toLowerCase());
+    });
+    const active=conversations.find(c=>c.phone===selectedPhone)||filtered[0]||null;
+    React.useEffect(()=>{if(!selectedPhone&&filtered[0])setSelectedPhone(filtered[0].phone)},[rows,query,showUnread]);
+    React.useEffect(()=>{
+      if(!active)return;
+      const unreadIds=active.msgs.filter(x=>x.direction==='inbound'&&!x.erp_read_at).map(x=>x.id);
+      if(unreadIds.length)client.from('hr_whatsapp_communications').update({erp_read_at:new Date().toISOString(),updated_at:new Date().toISOString()}).in('id',unreadIds).then(load);
+    },[selectedPhone,rows.length]);
+    const latestInbound=active?[...active.msgs].reverse().find(x=>x.direction==='inbound'):null;
+    const within24=latestInbound&&(Date.now()-new Date(latestInbound.received_at||latestInbound.created_at).getTime())<24*60*60*1000;
+    async function sendReply(){
+      if(!active||!reply.trim()||busy)return;
+      if(!within24){setMessage('The 24-hour customer service window has closed. Use an approved WhatsApp template to re-open the conversation.');return}
+      setBusy(true);setMessage('Sending WhatsApp reply…');
+      try{
+        const result=await sendWhatsAppText({to:active.phone,text:reply});
+        const providerId=result?.result?.messages?.[0]?.id||null;
+        const now=new Date().toISOString();
+        const {error}=await client.from('hr_whatsapp_communications').insert({
+          career_application_id:active.last.career_application_id||null,
+          application_id:active.last.application_id||null,
+          applicant_name:active.last.applicant_name||active.name||null,
+          recipient_number:active.phone,
+          communication_type:'WhatsApp Reply',template_name:null,status:'Accepted',provider_message_id:providerId,
+          error_message:null,sent_by:profile.id,sent_by_name:formalName(profile),direction:'outbound',message_type:'text',
+          message_content:reply.trim(),message_payload:result?.result||null,contact_name:active.name,source_type:active.source,
+          sent_at:now,created_at:now,updated_at:now
+        });
+        if(error)throw error;
+        setReply('');setMessage('✓ WhatsApp reply accepted by Meta.');await load();
+      }catch(error){setMessage(`WhatsApp reply failed: ${error.message||error}`)}finally{setBusy(false)}
+    }
+    const unreadTotal=conversations.reduce((n,c)=>n+c.unread,0);
+    return h(React.Fragment,null,
+      h(Section,{title:'WhatsApp Inbox',subtitle:'Website/public enquiries, applicant replies and WhatsApp conversations in one place'},
+        h('div',{style:{display:'flex',gap:'10px',flexWrap:'wrap',alignItems:'center',marginBottom:'14px'}},
+          h('input',{value:query,onChange:e=>setQuery(e.target.value),placeholder:'Search name, mobile or message…',style:{flex:'1 1 320px',minWidth:'230px'}}),
+          h('button',{type:'button',className:`btn ${showUnread?'btn-primary':'btn-secondary'}`,onClick:()=>setShowUnread(!showUnread)},`Unread ${unreadTotal}`),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:load},'Refresh')
+        ),
+        message?h('div',{className:'notice',style:{marginBottom:'12px'}},message):null,
+        h('div',{style:{display:'grid',gridTemplateColumns:'minmax(280px,.72fr) minmax(0,1.55fr)',gap:'14px',alignItems:'stretch'}},
+          h('div',{className:'card',style:{padding:'0',overflow:'hidden',maxHeight:'72vh',overflowY:'auto'}},
+            filtered.length?filtered.map(c=>h('button',{key:c.phone,type:'button',onClick:()=>setSelectedPhone(c.phone),style:{display:'block',width:'100%',textAlign:'left',padding:'14px 15px',border:'0',borderBottom:'1px solid #f0dce6',background:active?.phone===c.phone?'#fce8f1':'#fff',cursor:'pointer'}},
+              h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px'}},h('strong',{style:{color:'#5d1039'}},c.name),c.unread?h('span',{className:'badge success'},c.unread):null),
+              h('small',{style:{display:'block',marginTop:'3px'}},`+${c.phone} · ${c.source}`),
+              h('div',{style:{marginTop:'6px',fontSize:'13px',color:'#705967',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},c.last.message_content||c.last.communication_type||'WhatsApp activity'),
+              h('small',{style:{display:'block',marginTop:'4px',color:'#9a7e8e'}},fmt(c.last.created_at))
+            )):h('p',{className:'empty',style:{padding:'30px'}},'No WhatsApp conversations found.')
+          ),
+          h('div',{className:'card',style:{padding:'14px',minHeight:'520px',display:'flex',flexDirection:'column'}},
+            active?h(React.Fragment,null,
+              h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'flex-start',padding:'4px 4px 12px',borderBottom:'1px solid #efd7e3'}},
+                h('div',null,h('h3',{style:{margin:'0',color:'#4f233d'}},active.name),h('small',null,`+${active.phone} · ${active.source}`)),
+                h('span',{className:`badge ${within24?'success':''}`},within24?'Reply window open':'Template required')
+              ),
+              h('div',{style:{flex:'1',padding:'18px 6px',overflowY:'auto',maxHeight:'52vh',background:'#fbf7f3',borderRadius:'0 0 12px 12px'}},active.msgs.map(r=>{
+                const outgoing=r.direction!=='inbound';
+                return h('div',{key:r.id,style:{display:'flex',justifyContent:outgoing?'flex-end':'flex-start',marginBottom:'10px'}},
+                  h('div',{style:{maxWidth:'78%',padding:'10px 12px',borderRadius:outgoing?'14px 14px 4px 14px':'14px 14px 14px 4px',background:outgoing?'#dff5e9':'#fff',boxShadow:'0 1px 4px rgba(0,0,0,.08)'}},
+                    h('div',{style:{whiteSpace:'pre-wrap',lineHeight:'1.45'}},r.message_content||r.communication_type||'WhatsApp message'),
+                    h('small',{style:{display:'block',marginTop:'6px',textAlign:'right',color:'#7d6d75'}},`${fmt(r.received_at||r.sent_at||r.created_at)}${outgoing?` · ${r.status||'Sent'}`:''}`)
+                  )
+                )
+              })),
+              h('div',{style:{paddingTop:'12px'}},
+                h('textarea',{value:reply,onChange:e=>setReply(e.target.value),placeholder:within24?'Type a reply to this WhatsApp conversation…':'24-hour reply window closed. Use an approved template.',disabled:!within24||busy,rows:3}),
+                h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'center',marginTop:'8px'}},
+                  h('small',{style:{color:'#806b77'}},within24?'Replies are sent through Meta Cloud API.':'Free-text reply is unavailable outside the 24-hour customer service window.'),
+                  h('button',{type:'button',className:'btn btn-primary',disabled:!within24||busy||!reply.trim(),onClick:sendReply},busy?'Sending…':'Send Reply')
+                )
+              )
+            ):h('p',{className:'empty'},'Select a WhatsApp conversation.')
+          )
         )
       )
     );

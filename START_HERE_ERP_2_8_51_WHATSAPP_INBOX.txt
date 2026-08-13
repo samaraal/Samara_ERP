@@ -1,0 +1,32 @@
+SAMARA CARE ERP 2.8.51 — WHATSAPP INBOX
+
+PURPOSE
+Adds a central WhatsApp Inbox to the ERP for website/public WhatsApp enquiries and existing HR applicant conversations.
+
+INSTALLATION ORDER
+1. Supabase SQL Editor: run 87_whatsapp_inbox_public_conversations.sql once.
+2. Supabase Edge Functions > whatsapp-send > Code:
+   replace index.ts with supabase/functions/whatsapp-send/index.ts and Deploy.
+   Keep Verify JWT with legacy secret = ON.
+3. Supabase Edge Functions > whatsapp-webhook > Code:
+   replace index.ts with supabase/functions/whatsapp-webhook/index.ts and Deploy.
+   Keep Verify JWT with legacy secret = OFF because Meta calls this webhook.
+4. ERP GitHub root: replace app.js, index.html and service-worker.js.
+5. Wait for GitHub deployment, then Ctrl + Shift + R.
+
+WHERE TO FIND
+ERP > COMMUNICATION > WhatsApp Inbox
+Available to Admin / Manager (and HR role where enabled).
+
+HOW IT WORKS
+- Incoming WhatsApp messages received by Meta webhook are stored in the shared communication log.
+- Unmatched public numbers are classified as Website / Public.
+- Known recruitment numbers remain HR Applicant.
+- Inbox groups all messages by WhatsApp number and displays a WhatsApp-style chronological chat.
+- Unread incoming count is shown.
+- Opening a conversation marks its incoming messages read in ERP.
+- During Meta's 24-hour customer service window, Admin/Manager can send a normal free-text reply through Cloud API.
+- Outside the 24-hour window, the ERP blocks free-text reply and instructs staff to use an approved template.
+
+IMPORTANT
+No change is required to the website WhatsApp button for basic incoming-message capture.
