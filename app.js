@@ -4221,12 +4221,12 @@ Caring with Compassion. Living with Dignity.`;
     React.useEffect(()=>{load()},[]);
     async function visitStatus(row,status){if(!canManage)return;const note=prompt(status==='Rejected'?'Reason / remarks for rejection:':'Confirmation / visit timing remarks (optional):','');if(note===null)return;const {error}=await client.from('family_visit_requests').update({status,management_remarks:note||null,reviewed_at:new Date().toISOString(),reviewed_by:profile?.id||null}).eq('id',row.id);if(error)return showSamaraActionToast('error','Unable to update visit',error.message);showSamaraActionToast('success','Visit request updated',`Status: ${status}`);load()}
     async function reply(row){if(!canManage)return;const text=prompt(`Reply to ${row.sender_name||'family member'}:`,'');if(!text?.trim())return;const {error}=await client.from('family_messages').insert({patient_id:row.patient_id,patient_code:row.patient_code,patient_name:row.patient_name,access_id:row.access_id,direction:'ERP_TO_FAMILY',sender_type:'Samara Team',sender_name:formalName(profile)||profile?.full_name||'Samara Team',message:text.trim(),reply_to_id:row.id});if(error)return showSamaraActionToast('error','Unable to send reply',error.message);await client.from('family_messages').update({status:'Replied',read_at:new Date().toISOString()}).eq('id',row.id);showSamaraActionToast('success','Reply sent','The reply is now visible in the Family Portal.');load()}
-    const visitRows=visits.length?visits.map(r=>h('tr',{key:r.id},h('td',null,formatDateTimeIN(r.created_at)),h('td',null,`${r.patient_name||'—'}${r.patient_code?` · ${r.patient_code}`:''}`),h('td',null,`${r.visitor_name||'—'}${r.visitor_mobile?` · ${r.visitor_mobile}`:''}`),h('td',null,`${formatDateIN(r.visit_date)} · ${r.visit_time||'—'}`),h('td',null,r.message||'—'),h('td',null,h('span',{className:'badge'},r.status||'Pending')),h('td',null,canManage?h('div',{className:'actions'},h('button',{className:'btn btn-primary',onClick:()=>visitStatus(r,'Approved')},'Approve'),h('button',{className:'btn btn-secondary',onClick:()=>visitStatus(r,'Rejected')},'Reject')):'—'))):[h('tr',{key:'empty'},h('td',{colSpan:7},'No visit requests found.'))];
+    const visitRows=visits.length?visits.map(r=>h('tr',{key:r.id},h('td',null,formatDateTimeIN(r.created_at)),h('td',null,h('span',{className:'badge'},r.source||'Family Portal')),h('td',null,`${r.patient_name||'Public visitor'}${r.patient_code?` · ${r.patient_code}`:''}`),h('td',null,`${r.visitor_name||'—'}${r.visitor_mobile?` · ${r.visitor_mobile}`:''}`),h('td',null,`${formatDateIN(r.visit_date)} · ${r.visit_time||'—'}`),h('td',null,r.message||'—'),h('td',null,h('span',{className:'badge'},r.status||'Pending')),h('td',null,canManage?h('div',{className:'actions'},h('button',{className:'btn btn-primary',onClick:()=>visitStatus(r,'Approved')},'Approve'),h('button',{className:'btn btn-secondary',onClick:()=>visitStatus(r,'Rejected')},'Reject')):'—'))):[h('tr',{key:'empty'},h('td',{colSpan:8},'No visit requests found.'))];
     const messageRows=messages.length?messages.map(r=>h('tr',{key:r.id},h('td',null,formatDateTimeIN(r.created_at)),h('td',null,`${r.patient_name||'—'}${r.patient_code?` · ${r.patient_code}`:''}`),h('td',null,r.direction==='ERP_TO_FAMILY'?(r.sender_name||'Samara Team'):(r.sender_name||'Family')),h('td',null,r.message||'—'),h('td',null,h('span',{className:'badge'},r.status||'Sent')),h('td',null,canManage&&r.direction==='FAMILY_TO_ERP'?h('button',{className:'btn btn-primary',onClick:()=>reply(r)},'Reply'):'—'))):[h('tr',{key:'empty'},h('td',{colSpan:6},'No secure messages found.'))];
     return h('div',{className:'feedback-admin-shell'},
       h('div',{className:'section-heading'},h('div',null,h('small',null,'FAMILY PORTAL · ERP'),h('h3',null,'Family Communication'),h('p',null,'Visit requests and secure family messages in one management workspace.')),h('button',{className:'btn btn-secondary',onClick:load},loading?'Refreshing…':'↻ Refresh')),
       error&&h('div',{className:'message error'},error),
-      h('div',{className:'card'},h('h3',null,'Visit Requests'),h('div',{className:'table-wrap'},h('table',null,h('thead',null,h('tr',null,['Received','Resident','Visitor','Requested Visit','Message','Status','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,visitRows)))),
+      h('div',{className:'card'},h('h3',null,'Visit Requests'),h('div',{className:'table-wrap'},h('table',null,h('thead',null,h('tr',null,['Received','Source','Resident','Visitor','Requested Visit','Message','Status','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,visitRows)))),
       h('div',{className:'card',style:{marginTop:'18px'}},h('h3',null,'Secure Messages'),h('div',{className:'table-wrap'},h('table',null,h('thead',null,h('tr',null,['Time','Resident','From','Message','Status','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,messageRows))))
     );
   }
@@ -4648,17 +4648,18 @@ Caring with Compassion. Living with Dignity.`;
   }
 
   function Dashboard({profile,onNavigate}){
-    const [stats,setStats]=React.useState({employees:0,patients:0,beds:25,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge'});
+    const [stats,setStats]=React.useState({employees:0,patients:0,beds:25,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0});
     React.useEffect(()=>{(async()=>{
       const today=new Date().toISOString().slice(0,10);
-      const [emp,pat,med,care,bill,inc,dis]=await Promise.all([
+      const [emp,pat,med,care,bill,inc,dis,vis]=await Promise.all([
         client.from('profiles').select('*',{count:'exact',head:true}).eq('is_active',true),
         client.from('patients').select('*').eq('is_active',true),
         client.from('medication_administrations').select('*',{count:'exact',head:true}).eq('scheduled_date',today),
         client.from('care_logs').select('*',{count:'exact',head:true}).eq('care_date',today),
         client.from('billing_transactions').select('amount,transaction_type'),
         client.from('incidents').select('*',{count:'exact',head:true}).eq('status','Open'),
-        client.from('patient_discharges').select('id,status,management_status,accounts_status')
+        client.from('patient_discharges').select('id,status,management_status,accounts_status'),
+        client.from('family_visit_requests').select('*',{count:'exact',head:true}).eq('status','Pending')
       ]);
       const patients=pat.data||[];
       const risks=patients.filter(p=>p.fall_risk||p.pressure_sore_risk||p.aspiration_risk||p.wandering_risk||p.infection_risk||p.oxygen_required).length;
@@ -4698,7 +4699,8 @@ Caring with Compassion. Living with Dignity.`;
         risks,
         incidents:inc.count||0,
         discharges:activeDischarges.length,
-        dischargeStatus
+        dischargeStatus,
+        visitRequests:vis?.count||0
       });
     })()},[]);
     const cards=[
@@ -4710,6 +4712,7 @@ Caring with Compassion. Living with Dignity.`;
       {label:'Care actions today',value:stats.care,page:'Daily Care',icon:'✅'},
       {label:'Open incidents',value:stats.incidents,page:'Incidents',icon:'🚨'},
       {label:'Outstanding amount',value:`₹${stats.outstanding.toLocaleString('en-IN')}`,page:'Payments',icon:'₹'},
+      {label:'Visit Requests',value:stats.visitRequests,page:'Family Communication',icon:'📅',status:stats.visitRequests?`${stats.visitRequests} pending approval`:'No pending requests'},
       {label:'Discharge',value:stats.discharges,page:'Discharge',icon:'🚪',status:stats.dischargeStatus}
     ];
     return h(React.Fragment,null,
