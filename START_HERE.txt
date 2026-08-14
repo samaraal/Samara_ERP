@@ -1,4 +1,8 @@
-Samara Care ERP v2.8.89
-Charge Master notification-scope fix only.
-Replace only app.js, index.html, service-worker.js.
-No SQL. No styles.css. No folders.
+Samara Care ERP 2.8.90 - Patient Identity Collision Diagnostic (schema-safe revision)
+
+1. ERP files are unchanged from v2.8.90 Patient Identity Guard.
+2. Run 90_PATIENT_IDENTITY_COLLISION_DIAGNOSTIC_READ_ONLY.sql in Supabase SQL Editor.
+3. This SQL is READ-ONLY. It does not insert, update or delete any data.
+4. Send the Results to ChatGPT. Do NOT run any recovery UPDATE/DELETE SQL yet.
+
+This revision removes assumptions about optional room_beds columns and returns the room row as JSON.

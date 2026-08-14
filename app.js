@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.89';
+  const APP_VERSION = '2.8.90';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '25';
 
@@ -7267,80 +7267,33 @@ Caring with Compassion. Living with Dignity.`;
       if(admissionErrorTimerRef.current)clearTimeout(admissionErrorTimerRef.current);
     },[]);
 
-    const matchingExistingPatient=React.useMemo(()=>{
-      if(returningPatient)return returningPatient;
+    // Admission identity safety guard (2.8.90):
+    // A NEW admission must never reuse/update an ACTIVE patient merely because the
+    // name, mobile number, or selected room happens to match. Existing patient rows
+    // may be updated only after the user explicitly chooses an INACTIVE resident for
+    // re-admission through useReturningPatient().
+    const activeDuplicatePatient=React.useMemo(()=>{
+      if(returningPatient)return null;
       const mobile=String(form.mobile||'').replace(/\D/g,'').slice(-10);
-      const name=String(form.full_name||'').trim().toLowerCase().replace(/\s+/g,' ');
-      if(!mobile&&!name)return null;
+      if(mobile.length!==10)return null;
       return previousPatients.find(patient=>{
+        if(patient.is_active===false)return false;
         const patientMobile=String(patient.mobile||'').replace(/\D/g,'').slice(-10);
-        const patientName=String(patient.full_name||'').trim().toLowerCase().replace(/\s+/g,' ');
-        const sameMobile=mobile&&patientMobile===mobile;
-        const sameName=name&&patientName===name;
-        return patient.is_active!==false&&(sameMobile||sameName);
+        return patientMobile.length===10&&patientMobile===mobile;
       })||null;
-    },[returningPatient,previousPatients,form.mobile,form.full_name]);
-
-    function bedMatchesEnteredPatient(bed){
-      if(!bed)return false;
-
-      const enteredMobile=String(form.mobile||'').replace(/\D/g,'').slice(-10);
-      const occupantMobile=String(bed.occupant_mobile||'').replace(/\D/g,'').slice(-10);
-      if(enteredMobile&&occupantMobile&&enteredMobile===occupantMobile)return true;
-
-      const enteredName=String(form.full_name||'').trim().toLowerCase().replace(/\s+/g,' ');
-      const occupantName=String(bed.occupant_name||'')
-        .replace(/^(mr|mrs|ms|dr)\.?\s+/i,'')
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g,' ');
-      if(enteredName&&occupantName&&enteredName===occupantName)return true;
-
-      const currentCode=
-        returningPatient?.patient_code||
-        returningPatient?.patient_id||
-        matchingExistingPatient?.patient_code||
-        matchingExistingPatient?.patient_id||
-        '';
-      const occupantCode=bed.occupant_patient_id||bed.patient_code||'';
-      return Boolean(currentCode&&occupantCode&&String(currentCode)===String(occupantCode));
-    }
-
-    function occupantPatientForBed(bed){
-      if(!bed||!bedMatchesEnteredPatient(bed))return null;
-      const occupantId=bed.occupant_id||bed.patient_id||'';
-      if(occupantId){
-        const byId=previousPatients.find(patient=>String(patient.id)===String(occupantId));
-        if(byId)return byId;
-      }
-      const occupantCode=String(bed.occupant_patient_id||'');
-      if(occupantCode){
-        const byCode=previousPatients.find(patient=>
-          String(patient.patient_code||patient.patient_id||'')===occupantCode
-        );
-        if(byCode)return byCode;
-      }
-      return null;
-    }
+    },[returningPatient,previousPatients,form.mobile]);
 
     const selectedDraftBed=roomBeds.find(r=>
       String(r.room_no)===String(form.room_no)&&
       String(r.bed_no||r.bed_code||'').toUpperCase()===String(form.bed_no||'').toUpperCase()
     )||null;
 
-    const roomOccupantPatient=occupantPatientForBed(selectedDraftBed);
-    const effectiveExistingPatient=
-      returningPatient||
-      roomOccupantPatient||
-      matchingExistingPatient||
-      null;
-
-    const currentAdmissionPatientId=effectiveExistingPatient?.id||'';
+    // Only an explicitly confirmed re-admission can reuse an existing patient UUID.
+    const effectiveExistingPatient=returningPatient||null;
+    const currentAdmissionPatientId=returningPatient?.id||'';
 
     function bedBelongsToCurrentPatient(bed){
-      if(!bed)return false;
-      if(bedMatchesEnteredPatient(bed))return true;
-      if(!currentAdmissionPatientId)return false;
+      if(!bed||!currentAdmissionPatientId)return false;
       const occupantId=bed.occupant_id||bed.patient_id||'';
       return Boolean(occupantId&&String(occupantId)===String(currentAdmissionPatientId));
     }
@@ -7991,6 +7944,11 @@ Please keep these login details confidential.`;
       setBusy(true);
       setMsg('');
       if(!['Admin','Manager'].includes(profile?.role)){setMsg('Only Admin or Manager can allot a room and complete patient admission.');setBusy(false);return}
+      if(activeDuplicatePatient&&!returningPatient){
+        setMsg(`An active resident already uses mobile ${String(form.mobile||'').replace(/\D/g,'').slice(-10)}: ${formalName(activeDuplicatePatient)||activeDuplicatePatient.full_name} · ${activeDuplicatePatient.patient_id||activeDuplicatePatient.patient_code||'Resident ID unavailable'}. New admission was NOT created. Open the existing Patient File, or correct the mobile number if this is a different person.`);
+        setBusy(false);
+        return;
+      }
       const selectedBed=roomBeds.find(r=>
         String(r.room_no)===String(form.room_no)&&
         String(r.bed_no||r.bed_code||'').toUpperCase()===String(form.bed_no||'').toUpperCase()
