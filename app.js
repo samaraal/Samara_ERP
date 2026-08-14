@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.91';
+  const APP_VERSION = '2.8.93';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '25';
 
@@ -12229,7 +12229,17 @@ function RoomsBeds({profile}){
         }
         return result.data||[];
       });
-      setState({loading:false,patients:data[0],medOrders:data[1],medLogs:data[2],careOrders:data[3],careLogs:data[4],vitals:data[5],physioOrders:data[6],physioSessions:data[7],incidents:data[8],handovers:data[9],discharges:data[10]});
+      const activePatientIds=new Set((data[0]||[]).map(p=>p.id));
+      const seenMedicationOrders=new Set();
+      const validMedicationOrders=(data[1]||[]).filter(order=>{
+        if(!activePatientIds.has(order.patient_id))return false;
+        const schedule=Array.isArray(order.scheduled_times)?order.scheduled_times.map(normalizeMedicationTime).filter(Boolean).sort().join('|'):String(order.scheduled_times||'');
+        const key=[order.patient_id,String(order.medicine_name||order.medicine||'').trim().toLowerCase(),String(order.strength||order.dose||'').trim().toLowerCase(),String(order.frequency||'').trim().toLowerCase(),String(order.route||'').trim().toLowerCase(),schedule].join('::');
+        if(seenMedicationOrders.has(key))return false;
+        seenMedicationOrders.add(key);
+        return true;
+      });
+      setState({loading:false,patients:data[0],medOrders:validMedicationOrders,medLogs:data[2],careOrders:data[3],careLogs:data[4],vitals:data[5],physioOrders:data[6],physioSessions:data[7],incidents:data[8],handovers:data[9],discharges:data[10]});
     }
     React.useEffect(()=>{load();const ch=client.channel('clinical-dashboard-live').on('postgres_changes',{event:'*',schema:'public',table:'vital_signs'},load).on('postgres_changes',{event:'*',schema:'public',table:'medication_administrations'},load).on('postgres_changes',{event:'*',schema:'public',table:'care_logs'},load).on('postgres_changes',{event:'*',schema:'public',table:'incidents'},load).on('postgres_changes',{event:'*',schema:'public',table:'patient_discharges'},load).subscribe();return()=>client.removeChannel(ch)},[]);
     const terminalMedicationStatuses=new Set(['given','refused','withheld','unavailable','missed']);
@@ -12570,6 +12580,8 @@ function RoomsBeds({profile}){
     }
     function orderActive(order){
       if(order.is_active===false)return false;
+      const patient=patientFor(order);
+      if(!patient?.id||patient.is_active===false)return false;
       const status=String(order.status||'').trim().toLowerCase();
       if(['completed','discontinued','stopped','inactive'].includes(status))return false;
       const end=order.end_date||'';

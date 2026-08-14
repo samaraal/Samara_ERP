@@ -1,0 +1,32 @@
+SAMARA CARE ERP v2.8.93 — MEDICATION / NURSING DASHBOARD ONLY
+
+Scope is strictly limited to medication records and medication counts on the Nursing Dashboard.
+No Admission, HR, Accounts, Family Portal, Rooms, billing, discharge, or other workflow is changed.
+
+WHAT THIS UPDATE DOES
+1. Deactivates medication orders that still remain active for inactive/discharged residents.
+2. Deactivates redundant exact duplicate medication orders while retaining one canonical order.
+3. Does NOT delete MAR/history.
+4. Nursing Dashboard medication counts now use only active patients + active valid medication orders.
+5. Medication Administration Active Prescriptions / Today's MAR / Missed counts also exclude inactive patients.
+6. Dashboard also contains a defensive duplicate filter so duplicate rows cannot inflate due/critical counts.
+
+INSTALLATION
+A. First run in Supabase SQL Editor:
+   108_MEDICATION_CLEANUP_ACTIVE_PATIENT_DASHBOARD.sql
+
+   If Supabase warns about the backup table/RLS, choose "Run and enable RLS".
+
+B. Then replace ONLY these ERP root files:
+   app.js
+   index.html
+   service-worker.js
+
+C. Do NOT replace styles.css or any folders.
+
+D. Refresh once. Mobile/PWA should receive the v2.8.93 update message through service-worker.
+
+EXPECTED AFTER CLEANUP
+- Inactive Divya/Radhamani prescriptions will not count as active medication work.
+- Duplicate Mani prescriptions will be reduced to one valid order per exact duplicate set.
+- Nursing Dashboard "Medicines due" and Medication Administration totals will be computed from the same eligible active-patient population.
