@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.60';
+  const APP_VERSION = '2.8.61';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -3829,8 +3829,56 @@ Caring with Compassion. Living with Dignity.`;
         const showUpdatePrompt=()=>{
           if(!hadControllerAtStart||!updateDetected||updatePromptShown)return;
           updatePromptShown=true;
-          alert('Samara Care has been updated. Tap OK to refresh.');
-          window.location.reload();
+
+          // Use our own prompt instead of the iPhone/iPad native alert.
+          // iOS labels native alert buttons as “Close”, which is confusing when
+          // the instruction says “Tap OK”. This guarantees a clear OK button.
+          const existing=document.getElementById('samara-update-refresh-prompt');
+          if(existing)existing.remove();
+
+          const overlay=document.createElement('div');
+          overlay.id='samara-update-refresh-prompt';
+          Object.assign(overlay.style,{
+            position:'fixed',inset:'0',zIndex:'999999',
+            display:'flex',alignItems:'center',justifyContent:'center',
+            padding:'22px',background:'rgba(40,0,22,.46)',
+            backdropFilter:'blur(5px)',WebkitBackdropFilter:'blur(5px)'
+          });
+
+          const card=document.createElement('div');
+          Object.assign(card.style,{
+            width:'min(440px, calc(100vw - 36px))',
+            background:'#fff',borderRadius:'22px',padding:'24px 22px 20px',
+            boxShadow:'0 18px 55px rgba(74,0,39,.30)',textAlign:'center',
+            fontFamily:'inherit',color:'#2f1022'
+          });
+
+          const title=document.createElement('div');
+          title.textContent='Samara Care has been updated.';
+          Object.assign(title.style,{fontSize:'21px',fontWeight:'800',lineHeight:'1.3',marginBottom:'8px'});
+
+          const message=document.createElement('div');
+          message.textContent='Tap OK to refresh.';
+          Object.assign(message.style,{fontSize:'17px',lineHeight:'1.45',marginBottom:'20px',color:'#5d4450'});
+
+          const ok=document.createElement('button');
+          ok.type='button';
+          ok.textContent='OK';
+          Object.assign(ok.style,{
+            width:'100%',minHeight:'52px',border:'0',borderRadius:'14px',
+            background:'#c2185b',color:'#fff',fontSize:'18px',fontWeight:'800',
+            cursor:'pointer',WebkitTapHighlightColor:'transparent'
+          });
+          ok.addEventListener('click',()=>{
+            ok.disabled=true;
+            ok.textContent='Refreshing…';
+            window.location.reload();
+          });
+
+          card.append(title,message,ok);
+          overlay.appendChild(card);
+          document.body.appendChild(overlay);
+          setTimeout(()=>{try{ok.focus({preventScroll:true})}catch(_){ok.focus()}},50);
         };
         navigator.serviceWorker.addEventListener('controllerchange',showUpdatePrompt);
         navigator.serviceWorker.register('./service-worker.js',{updateViaCache:'none'}).then(registration=>{
