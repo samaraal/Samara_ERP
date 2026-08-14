@@ -1,0 +1,10 @@
+Samara Care ERP 2.8.71
+
+Fixes:
+1. Corrected Employees startup error: departmentDashboard is now defined inside Employees.
+2. Employee Department Dashboard works on desktop and mobile.
+3. Active employees only are shown in department drill-down.
+4. System Administrator account (non-employee, no Employee ID) is excluded from Employees without deleting or changing its login.
+5. Personnel File -> Edit workflow remains unchanged.
+
+Upload app.js, styles.css, index.html and service-worker.js.

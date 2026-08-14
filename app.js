@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.70';
+  const APP_VERSION = '2.8.71';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -5557,14 +5557,6 @@ Caring with Compassion. Living with Dignity.`;
       localStorage.setItem('samara_hr_employee_seed',JSON.stringify(seed));
       onNavigate('Employees');
     }
-    const employeeDepartments=[...new Set(rows.filter(r=>Boolean(r.is_active??r.active)).map(r=>employeeDepartment(r)||'Other').filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-    const listRows=rows.filter(r=>Boolean(r.is_active??r.active)&&(!employeeDepartmentFilter||employeeDepartment(r)===employeeDepartmentFilter));
-    const departmentDashboard=!employeeDepartmentFilter?h('div',{className:'employee-department-dashboard'},
-      h('button',{type:'button',className:'employee-dept-card employee-dept-all',onClick:()=>setEmployeeDepartmentFilter('__ALL__')},h('strong',null,'All Employees'),h('span',null,rows.filter(r=>Boolean(r.is_active??r.active)).length)),
-      employeeDepartments.map(dept=>h('button',{type:'button',key:dept,className:'employee-dept-card',onClick:()=>setEmployeeDepartmentFilter(dept)},h('strong',null,dept),h('span',null,rows.filter(r=>Boolean(r.is_active??r.active)&&employeeDepartment(r)===dept).length)))
-    ):null;
-    const effectiveRows=employeeDepartmentFilter==='__ALL__'?rows.filter(r=>Boolean(r.is_active??r.active)):listRows;
-
     const table=h('div',{className:'table-wrap employee-master-table-wrap'},h('table',{className:'table employee-master-table'},h('thead',null,h('tr',null,['Application ID','Applicant','Department','Designation','Mobile','Status','Received','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,effectiveRows.map(r=>h('tr',{key:r.id,onClick:()=>open(r),title:'Open complete applicant file',style:{cursor:'pointer'}},h('td',null,r.application_id),h('td',null,h('strong',null,r.applicant_name)),h('td',null,r.department),h('td',null,r.designation),h('td',null,r.mobile),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)),h('td',null,h('button',{type:'button',className:'btn btn-primary',onClick:e=>{e.stopPropagation();open(r)}},'Open File')))),effectiveRows.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'No career applications received yet.')):null)));
     const isRectification=edit?.status==='Returned for Rectification';
     const modal=selected&&edit?h('div',{className:'modal-backdrop',style:{position:'static',inset:'auto',background:'transparent',padding:0,display:'block',zIndex:'auto'}},h('div',{className:'card modal employee-modal',style:{width:'100%',maxWidth:'none',maxHeight:'none',overflow:'visible',margin:0}},
@@ -6273,14 +6265,33 @@ Caring with Compassion. Living with Dignity.`;
     );
     const textArea=(label,key,state,setter,required=false)=>h('div',{className:'field span-2'},h('label',null,label),h('textarea',{value:state[key]||'',required,onChange:e=>setter({...state,[key]:e.target.value}),rows:3}));
 
+    const isSystemAccount=row=>{
+      const name=String(row?.full_name||'').trim().toLowerCase();
+      const login=String(row?.login_id||row?.username||'').trim().toLowerCase();
+      const employeeId=String(row?.employee_id||'').trim();
+      return !employeeId && (name==='administrator'||name==='system administrator'||login==='administrator'||login==='admin');
+    };
+    const employeeRows=rows.filter(r=>!isSystemAccount(r));
+    const activeEmployeeRows=employeeRows.filter(r=>Boolean(r.is_active??r.active));
+    const employeeDepartments=[...new Set(activeEmployeeRows.map(r=>employeeDepartment(r)||'Other').filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    const effectiveRows=employeeDepartmentFilter==='__ALL__'
+      ? activeEmployeeRows
+      : employeeDepartmentFilter
+        ? activeEmployeeRows.filter(r=>employeeDepartment(r)===employeeDepartmentFilter)
+        : [];
+    const departmentDashboard=!employeeDepartmentFilter?h('div',{className:'employee-department-dashboard'},
+      h('button',{type:'button',className:'employee-dept-card employee-dept-all',onClick:()=>setEmployeeDepartmentFilter('__ALL__')},h('strong',null,'All Employees'),h('span',null,activeEmployeeRows.length)),
+      employeeDepartments.map(dept=>h('button',{type:'button',key:dept,className:'employee-dept-card',onClick:()=>setEmployeeDepartmentFilter(dept)},h('strong',null,dept),h('span',null,activeEmployeeRows.filter(r=>employeeDepartment(r)===dept).length)))
+    ):null;
+
     const table=h('div',{className:'table-wrap employee-master-table-wrap'},h('table',{className:'table employee-master-table'},
       h('thead',null,h('tr',null,['Name','Employee ID','Login ID','Department / Designation','ERP Access','Profile Status','Authentication Status','Last sign-in','Actions'].map(x=>h('th',{key:x},x)))),
-      h('tbody',null,rows.map(r=>{const enabled=Boolean(r.is_active??r.active),auth=authMap[r.auth_user_id||r.id],status=authenticationStatus(r),managerBlocked=profile.role==='Manager'&&String(r.role).toLowerCase()==='admin';return h('tr',{key:r.id,className:`employee-row-touch ${enabled?'employee-active':'employee-disabled'}`,role:'button',tabIndex:0,title:'Tap to open Employee Personnel File',onClick:()=>openDetails(r),onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetails(r)}}},
+      h('tbody',null,effectiveRows.map(r=>{const enabled=Boolean(r.is_active??r.active),auth=authMap[r.auth_user_id||r.id],status=authenticationStatus(r),managerBlocked=profile.role==='Manager'&&String(r.role).toLowerCase()==='admin';return h('tr',{key:r.id,className:`employee-row-touch ${enabled?'employee-active':'employee-disabled'}`,role:'button',tabIndex:0,title:'Tap to open Employee Personnel File',onClick:()=>openDetails(r),onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetails(r)}}},
         h('td',{'data-label':'Employee'},formalName(r)),h('td',{'data-label':'Employee ID'},r.employee_id||'—'),h('td',{'data-label':'Login ID'},r.login_id),h('td',{'data-label':'Department'},`${employeeDepartment(r)}${r.designation?` · ${r.designation}`:''}`),h('td',{'data-label':'Access'},r.role),
         h('td',{'data-label':'Status'},h('span',{className:`badge ${enabled?'':'off'}`},enabled?'Active':'Disabled')),
         h('td',{'data-label':'Authentication'},h('span',{className:`badge auth-status ${status.className}`},status.text)),h('td',{'data-label':'Last sign-in'},fmt(auth?.last_sign_in_at||r.last_sign_in_at)),
         h('td',{'data-label':'Actions'},h('div',{className:'employee-actions',onClick:e=>e.stopPropagation(),onKeyDown:e=>e.stopPropagation()},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Personnel File'),h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Documents'),h('button',{className:'btn btn-secondary',onClick:()=>printIdCard(r)},'Print ID Card'),r.mobile?h('a',{className:'btn btn-whatsapp',href:whatsappWelcomeUrl(r),target:'_blank',rel:'noopener'},'WhatsApp Welcome'):null,h('button',{className:enabled?'btn btn-danger':'btn btn-secondary',disabled:managerBlocked,onClick:()=>toggle(r)},enabled?'Disable':'Enable'),auth?h('button',{className:'btn btn-primary',disabled:managerBlocked,onClick:()=>openReset(r)},'Reset Password'):h('button',{className:'btn btn-warning',disabled:managerBlocked,onClick:()=>openRepair(r)},'Repair Account')))
-      )}),rows.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'No employees found')):null))
+      )}),effectiveRows.length===0?h('tr',null,h('td',{colSpan:9,className:'empty'},'No active employees found in this selection.')):null))
     );
 
 
