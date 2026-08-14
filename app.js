@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.80';
+  const APP_VERSION = '2.8.83';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -14937,12 +14937,15 @@ function ShiftHandover({profile,onNavigate}){
     const [lastPaymentReceipt,setLastPaymentReceipt]=React.useState(null);
     const [refundRequest,setRefundRequest]=React.useState(null);
     const [refundLoading,setRefundLoading]=React.useState(false);
+    const [activeAccountantPresent,setActiveAccountantPresent]=React.useState(false);
     const [refundForm,setRefundForm]=React.useState({
       amount:'',confirm_amount:'',payment_mode:'UPI',payment_reference:'',accounts_remarks:'',
       admin_confirm_amount:'',admin_remarks:'',admin_confirmed:false
     });
     const canEnter=['Admin','Manager','Accounts'].includes(profile?.role);
     const canDiscount=profile?.role==='Admin';
+    const financialVerifierRole=activeAccountantPresent?'Accounts':'Admin';
+    const canVerifyDischargeRefund=profile?.role===financialVerifierRole;
 
     const [dischargeTarget,setDischargeTarget]=React.useState(()=>{
       try{return JSON.parse(sessionStorage.getItem('samara_discharge_payment_target')||'null')}catch(_error){return null}
@@ -15026,6 +15029,16 @@ function ShiftHandover({profile,onNavigate}){
         setRows(data||[]);
         setMessage('');
       }
+      const accountantCheck=await client.from('profiles')
+        .select('id,role,is_active')
+        .eq('role','Accounts')
+        .limit(25);
+      if(accountantCheck.error){
+        console.warn('Accountant availability could not be checked:',accountantCheck.error);
+        setActiveAccountantPresent(false);
+      }else{
+        setActiveAccountantPresent((accountantCheck.data||[]).some(row=>row.is_active!==false));
+      }
       if(dischargeTarget?.discharge_id)await loadRefundRequest(dischargeTarget.discharge_id);
       setLoading(false);
     }
@@ -15087,7 +15100,7 @@ function ShiftHandover({profile,onNavigate}){
     },[dischargeTarget?.discharge_id,patientFilter,advanceBalance]);
 
     async function verifyRefundByAccounts(){
-      if(profile?.role!=='Accounts'||!refundRequest||saving)return;
+      if(!canVerifyDischargeRefund||!refundRequest||saving)return;
       const amount=Number(refundForm.amount),confirmAmount=Number(refundForm.confirm_amount);
       if(!Number.isFinite(amount)||amount<=0||!Number.isFinite(confirmAmount)||confirmAmount<=0){
         notify('error','Refund amount required','Enter the refund amount twice for verification.');return;
@@ -15102,7 +15115,7 @@ function ShiftHandover({profile,onNavigate}){
         notify('error','Reference required','Refund receipt / bank / UPI / transaction reference number is mandatory.');return;
       }
       if(String(refundForm.accounts_remarks||'').trim().length<8){
-        notify('error','Verification remarks required','Enter clear Accounts verification remarks before forwarding to Admin.');return;
+        notify('error','Verification remarks required','Enter clear financial verification remarks before forwarding for independent Admin approval.');return;
       }
       setSaving(true);
       const result=await client.rpc('accounts_verify_discharge_refund',{
@@ -15114,16 +15127,16 @@ function ShiftHandover({profile,onNavigate}){
         p_remarks:String(refundForm.accounts_remarks||'').trim()
       });
       if(result.error){notify('error','Refund verification failed',result.error.message);setSaving(false);return}
-      writeAuditEvent('Discharge Refund Verified by Accounts','Billing',refundRequest.id,{patient_id:form.patient_id,amount,payment_mode:refundForm.payment_mode,payment_reference:refundForm.payment_reference},'Success');
-      notify('success','Refund verified by Accounts','The refund evidence is locked and has been forwarded to an Administrator for independent approval.');
+      writeAuditEvent('Discharge Refund Financially Verified','Billing',refundRequest.id,{patient_id:form.patient_id,amount,payment_mode:refundForm.payment_mode,payment_reference:refundForm.payment_reference},'Success');
+      notify('success','Financial verification completed',activeAccountantPresent?'The Accountant verification is locked. An Administrator must now complete the independent final approval.':'The Admin financial verification is locked. A different Administrator must now complete the independent final approval.');
       await loadRefundRequest(dischargeTarget.discharge_id);setSaving(false);
     }
 
     async function approveRefundByAdmin(){
       if(profile?.role!=='Admin'||!refundRequest||saving)return;
       const amount=Number(refundForm.admin_confirm_amount);
-      if(!Number.isFinite(amount)||amount<=0){notify('error','Confirmation amount required','Re-enter the exact refund amount shown in the verified Accounts record.');return}
-      if(Math.abs(amount-Number(refundRequest.accounts_amount||refundRequest.calculated_refund||0))>0.009){notify('error','Amount mismatch','Admin confirmation amount does not match the Accounts-verified refund amount.');return}
+      if(!Number.isFinite(amount)||amount<=0){notify('error','Confirmation amount required','Re-enter the exact refund amount shown in the verified financial record.');return}
+      if(Math.abs(amount-Number(refundRequest.accounts_amount||refundRequest.calculated_refund||0))>0.009){notify('error','Amount mismatch','Admin confirmation amount does not match the financially verified refund amount.');return}
       if(!refundForm.admin_confirmed){notify('error','Final verification required','Confirm that the patient ledger and refund evidence have been independently checked.');return}
       if(String(refundForm.admin_remarks||'').trim().length<8){notify('error','Admin remarks required','Enter the Admin approval remarks before completing the refund.');return}
       setSaving(true);
@@ -15134,7 +15147,7 @@ function ShiftHandover({profile,onNavigate}){
         p_remarks:String(refundForm.admin_remarks||'').trim()
       });
       if(result.error){notify('error','Refund approval failed',result.error.message);setSaving(false);return}
-      writeAuditEvent('Discharge Refund Approved by Admin','Billing',refundRequest.id,{patient_id:form.patient_id,amount,accounts_reference:refundRequest.payment_reference},'Success');
+      writeAuditEvent('Discharge Refund Approved by Independent Admin','Billing',refundRequest.id,{patient_id:form.patient_id,amount,verification_reference:refundRequest.payment_reference},'Success');
       notify('success','Refund approved and accounts cleared','The refund has been posted to the permanent patient ledger. The discharge has returned automatically to Nursing for final physical clearance.');
       try{sessionStorage.removeItem('samara_discharge_payment_target')}catch(_error){}
       setDischargeTarget(null);
@@ -15463,7 +15476,7 @@ Please access the Samara Family Portal for detailed account information.`;
       },
         h('div',{className:'message info'},
           advanceBalance>0.009
-            ?`Excess patient balance detected: ${money(advanceBalance)} refundable. The system has initiated a dual-control refund workflow. Accounts must verify the refund evidence first; a different Administrator must then approve it before the case returns to Nursing.`
+            ?`Excess patient balance detected: ${money(advanceBalance)} refundable. The system has initiated a dual-control refund workflow. One Administrator must complete the financial verification first; a different Administrator must then approve it before the case returns to Nursing.`
             :'Complete the exact final settlement below. Financial clearance is permitted only after the system verifies the ledger, amount, payment evidence and closure remarks.'
         )
       ),
@@ -15524,7 +15537,7 @@ Please access the Samara Family Portal for detailed account information.`;
 
       dischargeTarget&&advanceBalance>0.009&&h(Section,{
         title:'Refund Required Before Discharge',
-        subtitle:'Dual-control financial clearance · Accounts verification → independent Admin approval → Nursing'
+        subtitle:activeAccountantPresent?'Dual-control financial clearance · Accountant verification → Admin approval → Nursing':'Dual-control financial clearance · Admin fallback verification → independent Admin approval → Nursing'
       },
         h('div',{className:'financial-security-banner'},
           h('strong',null,`System-calculated refund: ${money(advanceBalance)}`),
@@ -15543,9 +15556,9 @@ Please access the Samara Family Portal for detailed account information.`;
             h('small',null,'Revalidated again at every approval stage')
           ),
           h('div',{className:'refund-security-card'},
-            h('span',null,'Accounts Verification'),
+            h('span',null,'Financial Verification'),
             h('strong',null,refundRequest.accounts_verified_at?'Completed':'Pending'),
-            h('small',null,refundRequest.accounts_verified_at?fmt(refundRequest.accounts_verified_at):'Payment evidence required')
+            h('small',null,refundRequest.accounts_verified_at?fmt(refundRequest.accounts_verified_at):(activeAccountantPresent?'Accountant verification required':'Admin fallback verification required'))
           ),
           h('div',{className:'refund-security-card'},
             h('span',null,'Admin Approval'),
@@ -15553,21 +15566,23 @@ Please access the Samara Family Portal for detailed account information.`;
             h('small',null,refundRequest.admin_approved_at?fmt(refundRequest.admin_approved_at):'Independent second-person control')
           )
         ),
-        refundRequest&&profile?.role==='Accounts'&&refundRequest.status==='Pending Accounts Verification'&&h('div',{className:'payment-entry-grid refund-control-form'},
+        refundRequest&&canVerifyDischargeRefund&&refundRequest.status==='Pending Accounts Verification'&&h('div',{className:'payment-entry-grid refund-control-form'},
+          h('div',{className:'message warning span-2'},h('strong',null,activeAccountantPresent?'Accountant financial verification required':'Admin financial verification required (Accountant position vacant)'),h('div',null,activeAccountantPresent?'Enter the actual refund evidence below. The system will re-check the patient ledger. After Accountant verification, an Administrator must complete the independent final approval.':'No active Accountant is currently configured. An Administrator may perform the financial verification. The system will then require a different Administrator for final approval.')),
           h('div',{className:'field'},h('label',null,'Refund Amount *'),h('input',{type:'number',step:'0.01',min:'0.01',value:refundForm.amount,onChange:e=>setRefundForm({...refundForm,amount:e.target.value}),placeholder:'Enter exact refundable amount'})),
           h('div',{className:'field'},h('label',null,'Confirm Refund Amount *'),h('input',{type:'number',step:'0.01',min:'0.01',value:refundForm.confirm_amount,onChange:e=>setRefundForm({...refundForm,confirm_amount:e.target.value}),placeholder:'Re-enter amount independently'})),
           h('div',{className:'field'},h('label',null,'Refund Payment Mode *'),h('select',{value:refundForm.payment_mode,onChange:e=>setRefundForm({...refundForm,payment_mode:e.target.value,payment_reference:''})},['Cash','UPI','RTGS','Card Payment'].map(v=>h('option',{key:v,value:v},v)))),
-          h('div',{className:'field'},h('label',null,'Refund Receipt / Transaction Reference No. *'),h('input',{value:refundForm.payment_reference,onChange:e=>setRefundForm({...refundForm,payment_reference:e.target.value}),placeholder:'Mandatory evidence number'})),
-          h('div',{className:'field span-2'},h('label',null,'Accounts Verification Remarks *'),h('textarea',{rows:3,value:refundForm.accounts_remarks,onChange:e=>setRefundForm({...refundForm,accounts_remarks:e.target.value}),placeholder:'State how the amount and payment evidence were verified.'})),
-          h('button',{type:'button',className:'btn btn-primary span-2',disabled:saving,onClick:verifyRefundByAccounts},saving?'Verifying…':'Verify Refund & Send to Admin')
+          h('div',{className:'field'},h('label',null,'Refund Receipt / Transaction Reference No. *'),h('input',{value:refundForm.payment_reference,onChange:e=>setRefundForm({...refundForm,payment_reference:e.target.value}),placeholder:'Mandatory receipt / bank / UPI reference'})),
+          h('div',{className:'field span-2'},h('label',null,'Financial Closure Remarks *'),h('textarea',{rows:4,value:refundForm.accounts_remarks,onChange:e=>setRefundForm({...refundForm,accounts_remarks:e.target.value}),placeholder:'Confirm refund amount, payment mode, receipt/reference and ledger verification. These remarks become part of the permanent discharge audit trail.'})),
+          h('button',{type:'button',className:'btn btn-primary span-2',disabled:saving,onClick:verifyRefundByAccounts},saving?'Checking ledger & saving…':'Verify Refund & Forward for Independent Approval')
         ),
-        refundRequest&&profile?.role==='Accounts'&&refundRequest.status==='Pending Admin Approval'&&h('div',{className:'message success'},'Accounts verification is complete and locked. Waiting for independent Administrator approval.'),
-        refundRequest&&profile?.role==='Admin'&&refundRequest.status==='Pending Accounts Verification'&&h('div',{className:'message info'},'Waiting for Accounts to enter and verify the refund amount, payment mode, receipt/reference number and verification remarks.'),
+        refundRequest&&activeAccountantPresent&&profile?.role==='Admin'&&refundRequest.status==='Pending Accounts Verification'&&h('div',{className:'message info'},'An active Accountant is configured. Financial verification must be completed by the Accountant before Admin approval becomes available.'),
+        refundRequest&&!activeAccountantPresent&&profile?.role==='Accounts'&&refundRequest.status==='Pending Accounts Verification'&&h('div',{className:'message info'},'This Accounts profile is not currently recognised as an active Accountant. Ask an Administrator to check the employee/profile status.'),
+        refundRequest&&profile?.role==='Accounts'&&refundRequest.status==='Pending Admin Approval'&&h('div',{className:'message success'},'Financial verification is complete and locked. Waiting for independent Administrator approval.'),
         refundRequest&&profile?.role==='Admin'&&refundRequest.status==='Pending Admin Approval'&&h('div',{className:'payment-entry-grid refund-control-form'},
-          h('div',{className:'field'},h('label',null,'Accounts-Verified Amount'),h('input',{readOnly:true,value:money(refundRequest.accounts_amount)})),
+          h('div',{className:'field'},h('label',null,'Verified Refund Amount'),h('input',{readOnly:true,value:money(refundRequest.accounts_amount)})),
           h('div',{className:'field'},h('label',null,'Payment Evidence'),h('input',{readOnly:true,value:`${refundRequest.payment_mode||'—'} · ${refundRequest.payment_reference||'—'}`})),
           h('div',{className:'field'},h('label',null,'Admin Confirm Refund Amount *'),h('input',{type:'number',step:'0.01',min:'0.01',value:refundForm.admin_confirm_amount,onChange:e=>setRefundForm({...refundForm,admin_confirm_amount:e.target.value}),placeholder:'Re-enter verified amount'})),
-          h('div',{className:'field'},h('label',null,'Accounts Remarks'),h('input',{readOnly:true,value:refundRequest.accounts_remarks||'—'})),
+          h('div',{className:'field'},h('label',null,'Financial Verification Remarks'),h('input',{readOnly:true,value:refundRequest.accounts_remarks||'—'})),
           h('div',{className:'field span-2'},h('label',null,'Admin Approval Remarks *'),h('textarea',{rows:3,value:refundForm.admin_remarks,onChange:e=>setRefundForm({...refundForm,admin_remarks:e.target.value}),placeholder:'Confirm independent review of ledger and refund evidence.'})),
           h('label',{className:'financial-confirm-check span-2'},h('input',{type:'checkbox',checked:refundForm.admin_confirmed,onChange:e=>setRefundForm({...refundForm,admin_confirmed:e.target.checked})}),h('span',null,'I independently verified the patient ledger, refundable balance, payment mode and refund receipt/reference evidence.')),
           h('button',{type:'button',className:'btn btn-primary span-2',disabled:saving,onClick:approveRefundByAdmin},saving?'Approving…':'Approve Refund & Return to Nursing')
