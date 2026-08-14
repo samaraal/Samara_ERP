@@ -833,3 +833,69 @@ body{font-size:17px;line-height:1.42}
   .employee-row-touch td{min-height:46px}
   .employee-row-touch{touch-action:manipulation}
 }
+
+/* ERP 2.8.62 — Compact mobile Patients + touch dashboard */
+.patient-stat-touch{font:inherit;text-align:left;width:100%;cursor:pointer;appearance:none;-webkit-appearance:none}
+.patient-stat-touch.active{box-shadow:0 0 0 3px rgba(203,31,105,.18);background:#fff3f8}
+.patient-stat-touch:active,.dashboard-card:active,.dashboard-panel-link:active{transform:scale(.985)}
+.mobile-room-no{display:none}
+
+@media(max-width:760px){
+  /* Patient dashboard cards are touch filters and stay compact. */
+  .patient-master-stats{grid-template-columns:1fr 1fr!important;gap:8px!important;margin-bottom:12px!important}
+  .patient-master-stats .patient-stat-touch{min-height:88px!important;padding:11px 12px!important;border-radius:16px!important;touch-action:manipulation}
+  .patient-master-stats .patient-stat-touch span{font-size:13px!important;line-height:1.2}
+  .patient-master-stats .patient-stat-touch strong{font-size:29px!important;line-height:1;margin-top:5px}
+
+  /* Mobile search: district selector is intentionally removed. */
+  .patient-master-filters{grid-template-columns:1fr!important;gap:0!important}
+  .patient-district-filter{display:none!important}
+  .patient-master-filters .field{margin:0!important}
+  .patient-master-filters input{height:50px!important;font-size:16px!important}
+  .patient-row-hint{display:none!important}
+
+  /* Mobile patient list: only Patient Name + Room No. */
+  .patient-master-table tbody{gap:8px!important}
+  .patient-master-table tr.patient-list-row{padding:0!important;border-radius:15px!important;display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;align-items:center!important;gap:10px!important;min-height:66px!important;box-shadow:0 3px 10px rgba(116,21,69,.055)!important}
+  .patient-master-table tr.patient-list-row td{display:none!important}
+  .patient-master-table tr.patient-list-row td[data-label="Patient"],
+  .patient-master-table tr.patient-list-row td[data-label="Room / Bed"]{display:block!important;width:auto!important;padding:12px 14px!important}
+  .patient-master-table tr.patient-list-row td[data-label="Patient"]{min-width:0!important}
+  .patient-master-table tr.patient-list-row td[data-label="Patient"]::before,
+  .patient-master-table tr.patient-list-row td[data-label="Room / Bed"]::before{display:none!important}
+  .patient-master-table .patient-name-link{display:block!important;width:100%!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-size:18px!important;line-height:1.25!important;color:#3a2230!important}
+  .patient-master-table td[data-label="Patient"] .small-note{display:none!important}
+  .desktop-room-bed{display:none!important}
+  .mobile-room-no{display:inline-flex!important;align-items:center;justify-content:center;white-space:nowrap;border-radius:999px;background:#f7dfe9;color:#8c124e;font-size:14px;font-weight:900;padding:8px 11px}
+  .mobile-room-no.unassigned{background:#f3eeee;color:#765e69;font-size:12px}
+
+  /* Compact Patient File header: identity first, no tall/wrapped block. */
+  .patient-master-modal{padding:0 12px 22px!important}
+  .patient-mobile-back{min-height:50px!important;font-size:16px!important;padding:10px 2px!important}
+  .patient-master-header{top:50px!important;padding:10px 0!important;align-items:center!important;gap:8px!important}
+  .patient-master-header .patient-head{display:grid!important;grid-template-columns:54px minmax(0,1fr)!important;gap:10px!important;align-items:center!important}
+  .patient-master-header .patient-photo{width:54px!important;height:58px!important;min-width:54px!important;max-width:54px!important;max-height:58px!important;flex-basis:54px!important;border-radius:11px!important}
+  .patient-master-header .patient-head>div:last-child{min-width:0!important}
+  .patient-master-header h3{font-size:20px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;margin:0 0 2px!important}
+  .patient-master-header small{display:block!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;font-size:12px!important}
+  .patient-header-badges{margin-top:5px!important;gap:5px!important;flex-wrap:nowrap!important;overflow-x:auto!important;scrollbar-width:none}
+  .patient-header-badges::-webkit-scrollbar{display:none}
+  .patient-header-badges .badge,.patient-header-badges .pill{font-size:11px!important;padding:5px 8px!important;white-space:nowrap!important}
+  .patient-master-header>.employee-actions{position:absolute!important;right:12px!important;top:10px!important;z-index:2}
+  .patient-master-header>.employee-actions .btn{min-height:38px!important;padding:8px 12px!important;font-size:14px!important;border-radius:10px!important}
+  .patient-tab-bar{top:126px!important;padding:7px 12px!important;margin:0 -12px!important;gap:6px!important}
+  .patient-tab{min-height:42px!important;font-size:15px!important;padding:8px 12px!important}
+
+  /* Dashboard: whole cards are explicit mobile touch targets. */
+  .dashboard-links .dashboard-card,.dashboard-panel-link{cursor:pointer!important;touch-action:manipulation!important;min-height:112px!important}
+  .dashboard-links .dashboard-card:after{content:'Tap to open';display:block;font-size:11px;font-weight:800;opacity:.65;margin-top:3px}
+}
+@media(max-width:760px){
+  .patient-master-modal .patient-master-header{top:50px!important;padding:10px 0!important;align-items:center!important;gap:8px!important}
+  .patient-master-modal .patient-master-header .patient-head{display:grid!important;grid-template-columns:54px minmax(0,1fr)!important;gap:10px!important;align-items:center!important;min-width:0!important;padding-right:0!important}
+  .patient-master-modal .patient-master-header .patient-photo{width:54px!important;height:58px!important;min-width:54px!important;max-width:54px!important;min-height:58px!important;max-height:58px!important;flex-basis:54px!important;border-radius:11px!important}
+  .patient-master-modal .patient-master-header .patient-head h3{font-size:20px!important;line-height:1.15!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;margin:0 0 2px!important}
+  .patient-master-modal .patient-master-header .patient-head small{font-size:12px!important;line-height:1.25!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+  .patient-master-modal .patient-master-header>.employee-actions{position:static!important;flex:0 0 auto!important;align-self:center!important}
+  .patient-master-modal .patient-master-header>.employee-actions .btn{width:auto!important;min-width:96px!important;min-height:38px!important;padding:8px 10px!important;font-size:13px!important;white-space:nowrap!important}
+}

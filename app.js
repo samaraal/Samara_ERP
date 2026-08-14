@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.61';
+  const APP_VERSION = '2.8.62';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -8846,6 +8846,7 @@ Please keep these login details confidential.`;
     const [rows,setRows]=React.useState([]),[selected,setSelected]=React.useState(null),[details,setDetails]=React.useState(null),[photoUrl,setPhotoUrl]=React.useState(''),[tab,setTab]=React.useState('Overview');
     const [patientSearch,setPatientSearch]=React.useState('');
     const [districtFilter,setDistrictFilter]=React.useState('All');
+    const [patientQuickFilter,setPatientQuickFilter]=React.useState('all');
     const [editTarget,setEditTarget]=React.useState(null),[editForm,setEditForm]=React.useState(null),[editBusy,setEditBusy]=React.useState(false),[editMsg,setEditMsg]=React.useState('');
     const [editFamilyAccess,setEditFamilyAccess]=React.useState({enabled:false,id:null,family_user_id:'',relative_name:'',relationship:'',mobile:'',email:'',primary_contact:true,is_active:true});
     const [editFamilyCredential,setEditFamilyCredential]=React.useState(null);
@@ -9861,26 +9862,32 @@ Please keep these login details confidential.`;
     const visibleRows=rows.filter(r=>{
       const q=patientSearch.trim().toLowerCase();
       const matchesSearch=!q||[
-        r.patient_id,r.patient_code,formalName(r),r.mobile,r.attendant_phone,
+        r.patient_id,r.patient_code,formalName(r),r.room_no,r.bed_no,r.mobile,r.attendant_phone,
         r.district,r.taluk,r.village_town,r.locality_area,r.street_name,r.pincode
       ].some(value=>String(value||'').toLowerCase().includes(q));
-      return matchesSearch&&(districtFilter==='All'||String(r.district||'')===districtFilter);
+      const matchesDistrict=districtFilter==='All'||String(r.district||'')===districtFilter;
+      const matchesQuick=patientQuickFilter==='all'||
+        (patientQuickFilter==='active'&&r.is_active!==false)||
+        (patientQuickFilter==='assigned'&&r.is_active!==false&&r.room_no&&r.bed_no)||
+        (patientQuickFilter==='awaiting'&&r.is_active!==false&&(!r.room_no||!r.bed_no))||
+        (patientQuickFilter==='duplicates'&&duplicateCount(r)>0);
+      return matchesSearch&&matchesDistrict&&matchesQuick;
     });
     return h(React.Fragment,null,
-      h('div',{className:'grid stats patient-master-stats'},
-        h('div',{className:'card stat'},h('span',null,'Active patients'),h('strong',null,activeRows.length)),
-        h('div',{className:'card stat'},h('span',null,'Room assigned'),h('strong',null,activeRows.filter(x=>x.room_no&&x.bed_no).length)),
-        h('div',{className:'card stat'},h('span',null,'Awaiting room'),h('strong',null,activeRows.filter(x=>!x.room_no||!x.bed_no).length)),
-        h('div',{className:'card stat'},h('span',null,'Possible duplicates'),h('strong',null,duplicateRows.length))
+      h('div',{className:'grid stats patient-master-stats patient-touch-dashboard'},
+        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='active'?'active':''}`,onClick:()=>setPatientQuickFilter(patientQuickFilter==='active'?'all':'active')},h('span',null,'Active patients'),h('strong',null,activeRows.length)),
+        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='assigned'?'active':''}`,onClick:()=>setPatientQuickFilter(patientQuickFilter==='assigned'?'all':'assigned')},h('span',null,'Room assigned'),h('strong',null,activeRows.filter(x=>x.room_no&&x.bed_no).length)),
+        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='awaiting'?'active':''}`,onClick:()=>setPatientQuickFilter(patientQuickFilter==='awaiting'?'all':'awaiting')},h('span',null,'Awaiting room'),h('strong',null,activeRows.filter(x=>!x.room_no||!x.bed_no).length)),
+        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='duplicates'?'active':''}`,onClick:()=>setPatientQuickFilter(patientQuickFilter==='duplicates'?'all':'duplicates')},h('span',null,'Possible duplicates'),h('strong',null,duplicateRows.length))
       ),
       h('div',{className:'card panel'},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Patient Master'),h('small',null,'Single source for identity, admission, nursing, medicines, diet, documents, billing and recovery'))),
-        h('div',{className:'form-grid',style:{marginBottom:'10px'}},
+        h('div',{className:'form-grid patient-master-filters',style:{marginBottom:'10px'}},
           h('div',{className:'field'},h('label',null,'Search patient / place'),h('input',{
             value:patientSearch,onChange:e=>setPatientSearch(e.target.value),
-            placeholder:'Resident ID, name, mobile, district, taluk, town or PIN'
+            placeholder:'Patient name, room no. or Resident ID'
           })),
-          h('div',{className:'field'},h('label',null,'District'),h('select',{
+          h('div',{className:'field patient-district-filter'},h('label',null,'District'),h('select',{
             value:districtFilter,onChange:e=>setDistrictFilter(e.target.value)
           },districtOptions.map(x=>h('option',{key:x,value:x},x))))
         ),
@@ -9914,7 +9921,10 @@ Please keep these login details confidential.`;
                 h('td',{'data-label':'District / Town'},`${r.district||'—'}${r.village_town?` / ${r.village_town}`:''}`),
                 h('td',{'data-label':'Admission Type'},r.admission_type||'—'),
                 h('td',{'data-label':'Category'},r.patient_category||'—'),
-                h('td',{'data-label':'Room / Bed'},r.room_no&&r.bed_no?`${r.room_no}-${r.bed_no}`:h('span',{className:'pill warning'},'Unassigned')),
+                h('td',{'data-label':'Room / Bed'},
+                  h('span',{className:'desktop-room-bed'},r.room_no&&r.bed_no?`${r.room_no}-${r.bed_no}`:'Unassigned'),
+                  h('span',{className:`mobile-room-no ${r.room_no?'':'unassigned'}`},r.room_no?`Room ${r.room_no}`:'Room not assigned')
+                ),
                 h('td',{'data-label':'Status'},h('span',{className:`badge ${r.is_active===false?'off':''}`},r.is_active===false?'Inactive':'Active')),
                 h('td',{'data-label':'Action',className:'patient-row-actions',onClick:e=>e.stopPropagation()},h('div',{className:'employee-actions'},
                   h('button',{className:'btn btn-secondary',onClick:()=>openPatient(r)},clinicalView?'View Patient File':'Open Patient File'),
@@ -9932,7 +9942,7 @@ Please keep these login details confidential.`;
                   canEdit?h('button',{className:'btn btn-secondary',onClick:()=>printPatientIdCard(r)},'Print ID Card'):null
                 ))
               )),
-              visibleRows.length===0&&h('tr',null,h('td',{colSpan:9,className:'empty'},'No patients match the selected search or district'))
+              visibleRows.length===0&&h('tr',null,h('td',{colSpan:9,className:'empty'},'No patients match the selected search or filter'))
             )
           )
         )

@@ -1,0 +1,11 @@
+SAMARA CARE ERP 2.8.62 — MOBILE COMPACT PATIENTS + TOUCH DASHBOARD
+
+Changes:
+1. Mobile Patient list now shows only Patient Name and Room No.
+2. Whole patient card remains touchable to open Patient File.
+3. District selector is hidden on mobile.
+4. Patient search is simplified: Patient name, Room No. or Resident ID.
+5. Patient dashboard statistic cards are touchable filters.
+6. Patient File header is compact on mobile.
+7. Main dashboard cards are reinforced as full touch targets on mobile.
+8. Existing desktop Patient Master remains detailed.

@@ -1,6 +1,6 @@
-const CACHE = 'samara-erp-2.8.61-update-ok-button';
+const CACHE = 'samara-erp-2.8.62-mobile-compact-touch';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.8.61', './app.js?v=2.8.61',
+  './', './index.html', './styles.css?v=2.8.62', './app.js?v=2.8.62',
   './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',
   './config.js?v=2.8.40', './manifest.webmanifest?v=2.8.40',
   './assets/samara-logo.png?v=20260812-global1',
