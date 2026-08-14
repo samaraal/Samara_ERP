@@ -1,12 +1,3 @@
-Samara Care ERP 2.8.87 — Charge Master Admin Menu UI Only
-
-1. NO SQL is required. Do not rerun SQL 89.
-2. Replace ONLY these files in the ERP repository root:
-   - app.js
-   - index.html
-   - service-worker.js
-3. Do not replace styles.css or any folder.
-4. After deployment, hard refresh / reopen the installed PWA.
-5. Admin -> Charge Master should now be visible immediately after Care Packages.
-
-Scope: Admin Charge Master navigation/page only. No other ERP workflow intentionally changed.
+Samara Care ERP 2.8.88 - Charge Master startup fix only.
+Replace only app.js, index.html and service-worker.js.
+No SQL. No styles.css. No folders.

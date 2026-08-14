@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.87';
+  const APP_VERSION = '2.8.88';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '25';
 
@@ -15756,7 +15756,7 @@ Please access the Samara Family Portal for detailed account information.`;
     return h(React.Fragment,null,
       h(Section,{title:'Charge Master',subtitle:'Administrator-controlled chargeable items and fixed tariffs. Nursing can use item names but cannot see financial amounts.'},
         h('div',{style:{display:'flex',justifyContent:'flex-end',marginBottom:'10px'}},h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>saveItem(null)},'+ Add Charge Item')),
-        h(LogTable,{title:'Chargeable Items',heads:['Category','Service / Item','Fixed Tariff (No Bill)','Status','Action'],rows:rows.map(row=>[row.category,row.service_name,row.amount!=null?money(row.amount):'Not set',row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveItem(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggle(row)},row.is_active===false?'Activate':'Deactivate'))])})
+        h(LogTable,{title:'Chargeable Items',heads:['Category','Service / Item','Fixed Tariff (No Bill)','Status','Action'],rows:rows.map(row=>[row.category,row.service_name,row.amount!=null?`₹${Number(row.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveItem(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggle(row)},row.is_active===false?'Activate':'Deactivate'))])})
       )
     );
   }
