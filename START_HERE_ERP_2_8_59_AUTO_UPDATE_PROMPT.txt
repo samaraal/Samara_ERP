@@ -1,0 +1,16 @@
+SAMARA CARE ERP 2.8.59 — MOBILE AUTO UPDATE PROMPT
+
+Upload/replace these files in the ERP root:
+1. app.js
+2. index.html
+3. service-worker.js
+
+New behaviour:
+- From version 2.8.59 onward, whenever a newer service worker is detected, the open ERP displays:
+  “Samara Care has been updated. Tap OK to refresh.”
+- Tapping OK reloads the app so the latest files are used.
+- The first installation does not show the update message.
+- Service-worker checks bypass the browser HTTP cache for reliable update detection.
+
+IMPORTANT FOR THIS FIRST UPGRADE:
+Existing 2.8.58 screens do not yet contain the prompt listener. After uploading 2.8.59, refresh/reopen the mobile app once manually. From then onward future deployments will show the update prompt automatically.

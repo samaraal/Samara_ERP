@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.56';
+  const APP_VERSION = '2.8.59';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -3822,7 +3822,30 @@ Caring with Compassion. Living with Dignity.`;
         if(event==='PASSWORD_RECOVERY') setRecoveryMode(true);
         setSession(next);
       });
-      if('serviceWorker' in navigator) navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
+      if('serviceWorker' in navigator){
+        const hadControllerAtStart=Boolean(navigator.serviceWorker.controller);
+        let updateDetected=false;
+        let updatePromptShown=false;
+        const showUpdatePrompt=()=>{
+          if(!hadControllerAtStart||!updateDetected||updatePromptShown)return;
+          updatePromptShown=true;
+          alert('Samara Care has been updated. Tap OK to refresh.');
+          window.location.reload();
+        };
+        navigator.serviceWorker.addEventListener('controllerchange',showUpdatePrompt);
+        navigator.serviceWorker.register('./service-worker.js',{updateViaCache:'none'}).then(registration=>{
+          const watchWorker=worker=>{
+            if(!worker)return;
+            updateDetected=true;
+            worker.addEventListener('statechange',()=>{
+              if(worker.state==='activated')showUpdatePrompt();
+            });
+          };
+          registration.addEventListener('updatefound',()=>watchWorker(registration.installing));
+          if(registration.waiting)watchWorker(registration.waiting);
+          registration.update().catch(()=>{});
+        }).catch(()=>{});
+      }
       return()=>{
         active=false;
         clearTimeout(revealFailsafe);
