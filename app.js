@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.67';
+  const APP_VERSION = '2.8.68';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -5672,6 +5672,7 @@ Caring with Compassion. Living with Dignity.`;
     const [resetTarget,setResetTarget]=React.useState(null),[newPassword,setNewPassword]=React.useState(''),[confirmPassword,setConfirmPassword]=React.useState(''),[resetBusy,setResetBusy]=React.useState(false),[resetMsg,setResetMsg]=React.useState('');
     const [repairTarget,setRepairTarget]=React.useState(null),[repairPassword,setRepairPassword]=React.useState(''),[repairBusy,setRepairBusy]=React.useState(false),[repairMsg,setRepairMsg]=React.useState('');
     const [detailsTarget,setDetailsTarget]=React.useState(null),[detailsForm,setDetailsForm]=React.useState(null),[detailsDocs,setDetailsDocs]=React.useState([]),[detailsBusy,setDetailsBusy]=React.useState(false),[detailsMsg,setDetailsMsg]=React.useState('');
+    const [detailsEditing,setDetailsEditing]=React.useState(false);
     const [idFiles,setIdFiles]=React.useState([]),[qualificationFiles,setQualificationFiles]=React.useState([]),[experienceFiles,setExperienceFiles]=React.useState([]),[otherFiles,setOtherFiles]=React.useState([]),[cameraFiles,setCameraFiles]=React.useState([]),[photoFiles,setPhotoFiles]=React.useState([]),[photoPreview,setPhotoPreview]=React.useState(''),[welcomeLink,setWelcomeLink]=React.useState('');
     const [cameraConfig,setCameraConfig]=React.useState(null);
     const [employeeToast,setEmployeeToast]=React.useState(null);
@@ -6003,6 +6004,7 @@ Caring with Compassion. Living with Dignity.`;
     }
 
     async function openDetails(row){
+      setDetailsEditing(false);
       setDetailsTarget(row);setDetailsForm({...empty,...row,password:''});setDetailsMsg('');setDetailsDocs([]);
       setIdFiles([]);setQualificationFiles([]);setExperienceFiles([]);setOtherFiles([]);setCameraFiles([]);setPhotoFiles([]);
       setPhotoPreview('');
@@ -6049,6 +6051,7 @@ Caring with Compassion. Living with Dignity.`;
         const resolved=await resolveEmployeePhoto(detailsTarget,900);
         if(resolved.profile)setDetailsTarget(resolved.profile);
         if(resolved.url)setPhotoPreview(resolved.url);
+        setDetailsEditing(false);
       }catch(error){
         const errorText=error.message||'Unable to update employee';
         setDetailsMsg(errorText);showEmployeeToast('error',errorText);
@@ -6487,6 +6490,63 @@ Caring with Compassion. Living with Dignity.`;
       photoPreview?h('img',{src:photoPreview,alt:'Employee photo preview',style:{width:'100%',height:'100%',objectFit:'cover'}}):h('div',{style:{fontSize:'34px',fontWeight:'700',color:'#b01264'}},'SC')
     );
 
+    const personnelInfoItem=(label,value,wide=false)=>h('div',{className:`employee-info-item${wide?' wide':''}`},
+      h('small',null,label),h('strong',null,value||'—')
+    );
+    const personnelReadOnly=()=>{
+      const r=detailsTarget||detailsForm||{};
+      const active=Boolean(r.is_active??r.active);
+      return h('div',{className:'employee-personnel-view'},
+        h('div',{className:'employee-personnel-hero'},
+          personnelPhotoPreview(),
+          h('div',{className:'employee-personnel-identity'},
+            h('h2',null,formalName(r)||r.full_name||'Employee'),
+            h('p',null,[r.employee_id,employeeDepartment(r),r.designation].filter(Boolean).join(' · ')),
+            h('div',{className:'employee-personnel-badges'},
+              h('span',{className:`badge ${active?'':'off'}`},active?'Active':'Disabled'),
+              r.role?h('span',{className:'badge employee-role-badge'},r.role):null
+            )
+          )
+        ),
+        h('section',{className:'employee-info-section'},h('h4',null,'Employment & Access'),
+          h('div',{className:'employee-info-grid'},
+            personnelInfoItem('Employee ID',r.employee_id),
+            personnelInfoItem('Login ID',r.login_id),
+            personnelInfoItem('Department',employeeDepartment(r)),
+            personnelInfoItem('Designation',r.designation),
+            personnelInfoItem('ERP Access Role',r.role),
+            personnelInfoItem('Date of Joining',r.date_of_joining?formatDateIN(r.date_of_joining):'—')
+          )
+        ),
+        h('section',{className:'employee-info-section'},h('h4',null,'Personal & Contact'),
+          h('div',{className:'employee-info-grid'},
+            personnelInfoItem('Father / Guardian',r.father_guardian_name),
+            personnelInfoItem('Date of Birth',r.date_of_birth?formatDateIN(r.date_of_birth):'—'),
+            personnelInfoItem('Blood Group',r.blood_group),
+            personnelInfoItem('Mobile',r.mobile),
+            personnelInfoItem('Emergency Contact',r.emergency_contact),
+            personnelInfoItem('Email',r.employee_email||r.email)
+          )
+        ),
+        h('section',{className:'employee-info-section'},h('h4',null,'Professional Details'),
+          h('div',{className:'employee-info-grid'},
+            personnelInfoItem('Qualification',r.qualification),
+            personnelInfoItem('Previous Working Place',r.previous_workplace),
+            personnelInfoItem('ID Card Type',r.id_card_type),
+            personnelInfoItem('ID Card Number',r.id_card_number),
+            personnelInfoItem('Joining Source',r.reference_type),
+            personnelInfoItem('Reference', [r.reference_name,r.reference_contact].filter(Boolean).join(' · '))
+          )
+        ),
+        h('section',{className:'employee-info-section'},h('h4',null,'Address'),
+          h('div',{className:'employee-info-grid'},
+            personnelInfoItem('Current Residential Address',r.current_address||r.address,true),
+            personnelInfoItem('Permanent Residential Address',r.permanent_same_as_current?(r.current_address||r.address):r.permanent_address,true)
+          )
+        )
+      );
+    };
+
     const createModal=show?h('div',{className:'modal-backdrop'},h('form',{className:'card modal employee-modal',onSubmit:create},
       h('div',{className:'panel-head',style:{alignItems:'flex-start'}},h('div',null,h('h3',null,'Create Employee'),h('small',null,'Personnel details, login account and certificate uploads')),h('div',{style:{display:'flex',gap:'12px',alignItems:'flex-start'}},personnelPhotoPreview(),h('button',{type:'button',className:'close',onClick:()=>{setShow(false);setPhotoPreview('');setPhotoFiles([])}},'×'))),
       msg?h('div',{className:`message ${msg.startsWith('Employee created')||msg.startsWith('Employee account repaired')?'success':'error'}`},msg):null,
@@ -6494,14 +6554,32 @@ Caring with Compassion. Living with Dignity.`;
       h('div',{className:'modal-grid'},personnelFields(form,setForm,true),uploadFields()),h('p',{className:'message success'},'The login account is created and confirmed securely without sending an email.'),h('button',{className:'btn btn-primary full',disabled:busy},busy?'Creating employee and uploading documents…':'Create Employee')
     )):null;
 
-    const detailsModal=detailsTarget&&detailsForm?h('div',{className:'modal-backdrop'},h('form',{className:'card modal employee-modal',onSubmit:saveDetails},
-      h('div',{className:'panel-head',style:{alignItems:'flex-start'}},h('div',null,h('h3',null,'Employee Personnel File'),h('small',null,`${formalName(detailsTarget)} · ${detailsTarget.login_id}`)),h('div',{style:{display:'flex',gap:'12px',alignItems:'flex-start'}},personnelPhotoPreview(),h('button',{type:'button',className:'close',onClick:()=>{setDetailsTarget(null);setPhotoPreview('');setPhotoFiles([])}},'×'))),
+    const closePersonnel=()=>{setDetailsTarget(null);setDetailsEditing(false);setPhotoPreview('');setPhotoFiles([])};
+    const detailsModal=detailsTarget&&detailsForm?h('div',{className:'modal-backdrop'},h('form',{className:`card modal employee-modal employee-personnel-modal ${detailsEditing?'editing':'viewing'}`,onSubmit:saveDetails},
+      h('div',{className:'panel-head employee-personnel-head'},
+        h('div',null,h('h3',null,detailsEditing?'Edit Employee':'Employee Personnel File'),h('small',null,`${formalName(detailsTarget)}${detailsTarget.login_id?` · ${detailsTarget.login_id}`:''}`)),
+        h('button',{type:'button',className:'close employee-top-close','aria-label':'Close employee file',onClick:closePersonnel},'×')
+      ),
       detailsMsg&&h('div',{className:`message ${detailsMsg.startsWith('Employee information')?'success':'error'}`},detailsMsg),
-      h('div',{className:'modal-grid'},personnelFields(detailsForm,setDetailsForm,false),uploadFields()),
-      h('div',{className:'employee-doc-list'},h('h4',null,'Uploaded Documents'),detailsDocs.length?detailsDocs.map(d=>h('div',{className:'document-row',key:d.id},h('span',null,`${d.document_type}: ${d.file_name}`),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openDocument(d)},'Open'))):h('p',{className:'small-note'},'No documents uploaded yet.')),
-      h('button',{className:'btn btn-primary full',disabled:detailsBusy},detailsBusy?'Saving…':'Save Employee Information')
+      detailsEditing
+        ?h(React.Fragment,null,
+          h('div',{className:'modal-grid'},personnelFields(detailsForm,setDetailsForm,false),uploadFields()),
+          h('div',{className:'employee-doc-list'},h('h4',null,'Uploaded Documents'),detailsDocs.length?detailsDocs.map(d=>h('div',{className:'document-row',key:d.id},h('span',null,`${d.document_type}: ${d.file_name}`),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openDocument(d)},'Open'))):h('p',{className:'small-note'},'No documents uploaded yet.'))
+        )
+        :h(React.Fragment,null,
+          personnelReadOnly(),
+          h('div',{className:'employee-doc-list employee-view-documents'},h('h4',null,'Documents'),detailsDocs.length?detailsDocs.map(d=>h('div',{className:'document-row',key:d.id},h('span',null,`${d.document_type}: ${d.file_name}`),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openDocument(d)},'Open'))):h('p',{className:'small-note'},'No documents uploaded yet.'))
+        ),
+      h('div',{className:'employee-personnel-actions'},
+        detailsEditing
+          ?h(React.Fragment,null,
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setDetailsEditing(false);setDetailsForm({...empty,...detailsTarget,password:''});setDetailsMsg('');setPhotoFiles([])}},'Cancel Edit'),
+            h('button',{type:'submit',className:'btn btn-primary',disabled:detailsBusy},detailsBusy?'Saving…':'Save')
+          )
+          :h('button',{type:'button',className:'btn btn-primary',onClick:()=>setDetailsEditing(true)},'Edit Employee'),
+        h('button',{type:'button',className:'btn btn-secondary',onClick:closePersonnel},'Close')
+      )
     )):null;
-
     const resetModal=resetTarget?h('div',{className:'modal-backdrop'},h('form',{className:'card modal reset-password-modal',onSubmit:resetPassword},h('div',{className:'panel-head'},h('div',null,h('h3',null,'Reset Employee Password'),h('small',null,`${resetTarget.full_name} · ${resetTarget.login_id}`)),h('button',{type:'button',className:'close',onClick:()=>setResetTarget(null)},'×')),resetMsg&&h('div',{className:`message ${resetMsg.startsWith('Password reset')?'success':'error'}`},resetMsg),h('div',{className:'field'},h('label',null,'New password'),h('input',{type:'password',value:newPassword,onChange:e=>setNewPassword(e.target.value),minLength:8,required:true,autoComplete:'new-password'})),h('div',{className:'field'},h('label',null,'Confirm new password'),h('input',{type:'password',value:confirmPassword,onChange:e=>setConfirmPassword(e.target.value),minLength:8,required:true,autoComplete:'new-password'})),h('button',{type:'button',className:'btn btn-secondary full',onClick:generateTemporaryPassword},'Generate Temporary Password'),h('p',{className:'small-note'},'Resetting the password also enables and unblocks the employee account. The employee must create a private password at first login.'),h('button',{className:'btn btn-primary full',disabled:resetBusy},resetBusy?'Resetting…':'Reset Password & Enable Account'))):null;
     const repairModal=repairTarget?h('div',{className:'modal-backdrop'},h('form',{className:'card modal reset-password-modal',onSubmit:repairAccount},h('div',{className:'panel-head'},h('div',null,h('h3',null,'Repair Employee Account'),h('small',null,`${repairTarget.full_name} · ${repairTarget.login_id}`)),h('button',{type:'button',className:'close',onClick:()=>setRepairTarget(null)},'×')),repairMsg&&h('div',{className:`message ${repairMsg.startsWith('Authentication account repaired')?'success':'error'}`},repairMsg),h('p',null,'This employee has a profile but no matching Supabase Authentication account. Enter a temporary password to rebuild the login account.'),h('div',{className:'field'},h('label',null,'Temporary password'),h('input',{type:'password',value:repairPassword,onChange:e=>setRepairPassword(e.target.value),minLength:8,required:true,autoComplete:'new-password'})),h('button',{className:'btn btn-warning full',disabled:repairBusy},repairBusy?'Repairing…':'Repair Account & Enable Login'))):null;
 
