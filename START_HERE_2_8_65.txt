@@ -1,0 +1,5 @@
+Samara Care ERP 2.8.65
+1. Patient dashboard filters no longer toggle back to Active/All on a second tap. Awaiting Room and Possible Duplicates remain on the selected result, including a zero-result view.
+2. Mobile Employees list shows active employees only in a compact touch-first layout.
+3. Tap anywhere on an employee row to open the Personnel File.
+Replace app.js, styles.css, index.html and service-worker.js in the ERP root.

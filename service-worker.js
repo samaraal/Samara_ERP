@@ -1,6 +1,6 @@
-const CACHE = 'samara-erp-2.8.64-room-first-mobile-list';
+const CACHE = 'samara-erp-2.8.65-mobile-filter-employee-list';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.8.64', './app.js?v=2.8.64',
+  './', './index.html', './styles.css?v=2.8.65', './app.js?v=2.8.65',
   './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',
   './config.js?v=2.8.40', './manifest.webmanifest?v=2.8.40',
   './assets/samara-logo.png?v=20260812-global1',

@@ -1115,3 +1115,29 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
     white-space:nowrap!important;
   }
 }
+
+
+/* ERP 2.8.65 — Reliable mobile filters + compact active employee directory */
+@media(max-width:760px){
+  /* Employee directory: mobile staff only need active employees and a quick identity row. */
+  .employee-master-table-wrap{width:100%!important;max-width:100%!important;overflow-x:hidden!important;margin:0!important}
+  .employee-master-table{display:block!important;width:100%!important;min-width:0!important;max-width:100%!important}
+  .employee-master-table thead{display:none!important}
+  .employee-master-table tbody{display:flex!important;flex-direction:column!important;width:100%!important;gap:6px!important;padding:6px!important;box-sizing:border-box!important}
+  .employee-master-table tr.employee-disabled{display:none!important}
+  .employee-master-table tr.employee-active.employee-row-touch{
+    display:grid!important;width:100%!important;max-width:100%!important;box-sizing:border-box!important;
+    grid-template-columns:minmax(0,1fr) auto!important;grid-template-rows:auto auto!important;
+    gap:2px 8px!important;min-height:58px!important;padding:9px 11px!important;border:1px solid #efd8e3!important;
+    border-radius:13px!important;background:#fff!important;overflow:hidden!important;
+  }
+  .employee-master-table .employee-row-touch td{display:none!important}
+  .employee-master-table .employee-row-touch td[data-label="Employee"],
+  .employee-master-table .employee-row-touch td[data-label="Department"],
+  .employee-master-table .employee-row-touch td[data-label="Status"]{display:block!important;border:0!important;padding:0!important;min-width:0!important}
+  .employee-master-table .employee-row-touch td[data-label="Employee"]{grid-column:1!important;grid-row:1!important;font-size:17px!important;font-weight:900!important;line-height:1.2!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+  .employee-master-table .employee-row-touch td[data-label="Department"]{grid-column:1!important;grid-row:2!important;font-size:12px!important;line-height:1.2!important;color:#755e6b!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+  .employee-master-table .employee-row-touch td[data-label="Status"]{grid-column:2!important;grid-row:1 / span 2!important;align-self:center!important}
+  .employee-master-table .employee-row-touch td:before{display:none!important}
+  .employee-master-table .employee-row-touch:active{background:#fff1f7!important;transform:scale(.995)!important}
+}
