@@ -1,0 +1,14 @@
+Samara Care ERP 2.8.66 — Reliable Mobile Update
+
+Upload/replace these files in the ERP GitHub root:
+1. app.js
+2. styles.css
+3. index.html
+4. service-worker.js
+
+Update behaviour:
+- Checks for a newer deployed version on app launch.
+- Checks again whenever the mobile app returns to the foreground.
+- Checks periodically while the app is open.
+- Shows: “Samara Care update available” with a large OK button.
+- Mobile Menu now also has “Refresh / Check Update” as a manual fallback.

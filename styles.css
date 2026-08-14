@@ -1117,7 +1117,7 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
 }
 
 
-/* ERP 2.8.65 — Reliable mobile filters + compact active employee directory */
+/* ERP 2.8.66 — Reliable mobile filters + compact active employee directory */
 @media(max-width:760px){
   /* Employee directory: mobile staff only need active employees and a quick identity row. */
   .employee-master-table-wrap{width:100%!important;max-width:100%!important;overflow-x:hidden!important;margin:0!important}
@@ -1141,3 +1141,12 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
   .employee-master-table .employee-row-touch td:before{display:none!important}
   .employee-master-table .employee-row-touch:active{background:#fff1f7!important;transform:scale(.995)!important}
 }
+
+
+/* ERP 2.8.66 — reliable mobile update control */
+.mobile-update-button{
+  width:100%; min-height:48px; border:1px solid rgba(173,20,87,.24); border-radius:14px;
+  background:#fff4f8; color:#9d174d; font:inherit; font-weight:800; text-align:center;
+  cursor:pointer; margin-bottom:8px; -webkit-tap-highlight-color:transparent;
+}
+.mobile-update-button:active{transform:scale(.99)}

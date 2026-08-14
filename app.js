@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.65';
+  const APP_VERSION = '2.8.66';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -3826,13 +3826,14 @@ Caring with Compassion. Living with Dignity.`;
         const hadControllerAtStart=Boolean(navigator.serviceWorker.controller);
         let updateDetected=false;
         let updatePromptShown=false;
-        const showUpdatePrompt=()=>{
-          if(!hadControllerAtStart||!updateDetected||updatePromptShown)return;
+        let remoteUpdateVersion='';
+        let lastUpdateCheckAt=0;
+
+        const showUpdatePrompt=(force=false)=>{
+          if(updatePromptShown)return;
+          if(!force&&(!hadControllerAtStart||!updateDetected))return;
           updatePromptShown=true;
 
-          // Use our own prompt instead of the iPhone/iPad native alert.
-          // iOS labels native alert buttons as “Close”, which is confusing when
-          // the instruction says “Tap OK”. This guarantees a clear OK button.
           const existing=document.getElementById('samara-update-refresh-prompt');
           if(existing)existing.remove();
 
@@ -3854,11 +3855,11 @@ Caring with Compassion. Living with Dignity.`;
           });
 
           const title=document.createElement('div');
-          title.textContent='Samara Care has been updated.';
+          title.textContent='Samara Care update available.';
           Object.assign(title.style,{fontSize:'21px',fontWeight:'800',lineHeight:'1.3',marginBottom:'8px'});
 
           const message=document.createElement('div');
-          message.textContent='Tap OK to refresh.';
+          message.textContent=remoteUpdateVersion?`Version ${remoteUpdateVersion} is ready. Tap OK to refresh.`:'Tap OK to refresh.';
           Object.assign(message.style,{fontSize:'17px',lineHeight:'1.45',marginBottom:'20px',color:'#5d4450'});
 
           const ok=document.createElement('button');
@@ -3869,10 +3870,16 @@ Caring with Compassion. Living with Dignity.`;
             background:'#c2185b',color:'#fff',fontSize:'18px',fontWeight:'800',
             cursor:'pointer',WebkitTapHighlightColor:'transparent'
           });
-          ok.addEventListener('click',()=>{
+          ok.addEventListener('click',async()=>{
             ok.disabled=true;
             ok.textContent='Refreshing…';
-            window.location.reload();
+            try{
+              const registration=await navigator.serviceWorker.getRegistration();
+              await registration?.update();
+            }catch(_error){}
+            const url=new URL(window.location.href);
+            url.searchParams.set('samara_refresh',remoteUpdateVersion||Date.now().toString());
+            window.location.replace(url.toString());
           });
 
           card.append(title,message,ok);
@@ -3880,7 +3887,36 @@ Caring with Compassion. Living with Dignity.`;
           document.body.appendChild(overlay);
           setTimeout(()=>{try{ok.focus({preventScroll:true})}catch(_){ok.focus()}},50);
         };
-        navigator.serviceWorker.addEventListener('controllerchange',showUpdatePrompt);
+
+        const checkRemoteVersion=async(force=false)=>{
+          const now=Date.now();
+          if(!force&&now-lastUpdateCheckAt<45000)return;
+          lastUpdateCheckAt=now;
+          try{
+            const response=await fetch(`./service-worker.js?samara_check=${now}`,{cache:'no-store',headers:{'Cache-Control':'no-cache'}});
+            if(!response.ok)return;
+            const text=await response.text();
+            const match=text.match(/samara-erp-(\d+\.\d+\.\d+)/i);
+            const remote=match?.[1]||'';
+            if(remote&&remote!==APP_VERSION){
+              remoteUpdateVersion=remote;
+              updateDetected=true;
+              showUpdatePrompt(true);
+              return true;
+            }
+          }catch(_error){}
+          return false;
+        };
+
+        navigator.serviceWorker.addEventListener('controllerchange',()=>showUpdatePrompt());
+        navigator.serviceWorker.addEventListener('message',event=>{
+          if(event.data?.type==='SAMARA_UPDATE_AVAILABLE'&&event.data.version&&event.data.version!==APP_VERSION){
+            remoteUpdateVersion=event.data.version;
+            updateDetected=true;
+            showUpdatePrompt(true);
+          }
+        });
+
         navigator.serviceWorker.register('./service-worker.js',{updateViaCache:'none'}).then(registration=>{
           const watchWorker=worker=>{
             if(!worker)return;
@@ -3892,7 +3928,20 @@ Caring with Compassion. Living with Dignity.`;
           registration.addEventListener('updatefound',()=>watchWorker(registration.installing));
           if(registration.waiting)watchWorker(registration.waiting);
           registration.update().catch(()=>{});
-        }).catch(()=>{});
+          setTimeout(()=>checkRemoteVersion(true),900);
+        }).catch(()=>{setTimeout(()=>checkRemoteVersion(true),900)});
+
+        const onResume=()=>{if(document.visibilityState==='visible')checkRemoteVersion(true)};
+        document.addEventListener('visibilitychange',onResume);
+        window.addEventListener('focus',onResume);
+        const updateTimer=setInterval(()=>checkRemoteVersion(false),60000);
+        window.samaraCheckForUpdate=()=>checkRemoteVersion(true);
+
+        window.addEventListener('beforeunload',()=>{
+          clearInterval(updateTimer);
+          document.removeEventListener('visibilitychange',onResume);
+          window.removeEventListener('focus',onResume);
+        },{once:true});
       }
       return()=>{
         active=false;
@@ -4328,6 +4377,13 @@ Caring with Compassion. Living with Dignity.`;
           section.items.map(item=>h('button',{type:'button',key:item,'data-nav':item,className:page===item?'active':'',onClick:()=>onNavigate(item)},displayNavLabel(item,profile.role)))
         ))),
         h('div',{className:'mobile-drawer-footer'},
+          h('button',{type:'button',className:'mobile-update-button',onClick:async()=>{
+            if(typeof window.samaraCheckForUpdate==='function'){
+              const found=await window.samaraCheckForUpdate();
+              if(found)return;
+            }
+            window.location.reload();
+          }},'↻  Refresh / Check Update'),
           h('button',{type:'button',className:'mobile-signout-button',onClick:signOut},'⇥  Sign Out')
         )
       )
