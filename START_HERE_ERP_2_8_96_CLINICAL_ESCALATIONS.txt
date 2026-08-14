@@ -1,0 +1,17 @@
+SAMARA CARE ERP v2.8.96 — CLINICAL ESCALATIONS DASHBOARD
+
+Purpose:
+- Adds a dedicated Clinical Escalations page for Manager and Administrator.
+- Adds an Open Clinical Escalations card to the Admin/Manager home dashboard.
+- Shows type, patient, room/bed, priority, escalation time, elapsed time and reason.
+- Manager/Admin can open the source area and mark an escalation resolved.
+- Resolution remarks are mandatory and stored in the database.
+- The one-time historical backlog remains ONE Regularisation escalation.
+- Future alerts continue to escalate normally after the configured threshold.
+
+INSTALL:
+1. Run 110_CLINICAL_ESCALATION_DASHBOARD_MANAGER_ADMIN.sql in Supabase SQL Editor.
+2. Replace only app.js, index.html, service-worker.js.
+3. No styles.css and no folders.
+
+No medication-count, patient, billing, HR, admission or other unrelated workflow is changed.

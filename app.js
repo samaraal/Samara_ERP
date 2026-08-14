@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.95';
+  const APP_VERSION = '2.8.96';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '25';
 
@@ -1244,7 +1244,7 @@ function initSamaraInaugurationInvitation(){
     { title:'ADMIN', items:['Rooms','Care Packages','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
     { title:'HR', items:['HR Dashboard','Employees','Career Applications','Interviews'] },
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
-    { title:'MANAGER', items:['Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
+    { title:'MANAGER', items:['Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Charge Approvals','Payments','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
@@ -1264,6 +1264,7 @@ function initSamaraInaugurationInvitation(){
   const CLINICAL_ROLES=['Nurse','Caregiver'];
   const ROLE_LABELS={
     'Clinical Dashboard':'Nursing Dashboard',
+    'Clinical Escalations':'Clinical Escalations',
     'Patients':'My Patients',
     'Medicines':'Medication Administration',
     'Charge Approvals':'Bills & Charges',
@@ -2075,6 +2076,83 @@ Caring with Compassion. Living with Dignity.`;
             h('button',{className:'btn btn-secondary',onClick:()=>engine.acknowledge(a,'Acknowledged',0)},a.alert_type==='Regularisation'?'Regularise Backlog':'Acknowledge')
           )
         ])
+      })
+    );
+  }
+
+
+  function ClinicalEscalationsDashboard({profile,onNavigate}){
+    const [rows,setRows]=React.useState([]),[patients,setPatients]=React.useState({}),[filter,setFilter]=React.useState('Open'),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState('');
+    const canView=['Admin','Manager'].includes(profile?.role);
+    const targetForType=type=>{
+      const t=String(type||'').toLowerCase();
+      if(t.includes('med'))return 'Medicines';
+      if(t.includes('vital'))return 'Vital Signs';
+      if(t.includes('care'))return 'Daily Care';
+      if(t.includes('physio'))return 'Physiotherapy';
+      if(t.includes('regular'))return 'Clinical Alerts';
+      return 'Clinical Alerts';
+    };
+    async function load(){
+      if(!canView)return;
+      setBusy(true);setMessage('');
+      try{
+        await client.rpc('process_clinical_alert_escalations');
+        const [esc,pat]=await Promise.all([
+          client.from('clinical_alert_escalations').select('*').order('created_at',{ascending:false}).limit(300),
+          client.from('patients').select('id,full_name,resident_id,room_no,bed_no,is_active')
+        ]);
+        if(esc.error)throw esc.error;
+        if(pat.error)throw pat.error;
+        const map={};(pat.data||[]).forEach(p=>map[p.id]=p);setPatients(map);setRows(esc.data||[]);
+      }catch(e){setMessage(e.message||String(e))}finally{setBusy(false)}
+    }
+    React.useEffect(()=>{load()},[]);
+    async function resolve(row){
+      const remarks=window.prompt('Enter resolution / corrective action taken (mandatory):','');
+      if(remarks===null)return;
+      if(String(remarks).trim().length<5){alert('Please enter a meaningful resolution remark.');return}
+      setBusy(true);setMessage('');
+      const {error}=await client.rpc('resolve_clinical_escalation',{p_escalation_id:row.id,p_resolution_remarks:String(remarks).trim(),p_resolution_action:'Resolved'});
+      setBusy(false);
+      if(error){setMessage(error.message);return}
+      await load();
+    }
+    if(!canView)return h(Section,{title:'Clinical Escalations'},h('div',{className:'message error'},'Clinical Escalations are available only to Manager and Administrator.'));
+    const unresolved=rows.filter(r=>!r.resolved_at);
+    const visible=rows.filter(r=>filter==='All'||(filter==='Open'?!r.resolved_at:!!r.resolved_at));
+    const critical=unresolved.filter(r=>String(r.priority||'').toLowerCase()==='critical').length;
+    const medication=unresolved.filter(r=>String(r.alert_type||'').toLowerCase().includes('med')).length;
+    const regularisation=unresolved.filter(r=>String(r.alert_type||'').toLowerCase()==='regularisation').length;
+    return h(React.Fragment,null,
+      h(Section,{title:'Clinical Escalations',subtitle:'Manager / Administrator oversight of unresolved clinical alerts after escalation threshold',actions:h('button',{className:'btn btn-secondary',disabled:busy,onClick:load},busy?'Refreshing…':'Refresh')},
+        message&&h('div',{className:'message error'},message),
+        h('div',{className:'grid stats'},
+          h('div',{className:'card stat clinical-red'},h('span',null,'Open escalations'),h('strong',null,unresolved.length),h('small',null,'Requires management oversight')),
+          h('div',{className:'card stat clinical-red'},h('span',null,'Critical'),h('strong',null,critical),h('small',null,'Critical unresolved items')),
+          h('div',{className:'card stat clinical-amber'},h('span',null,'Medication'),h('strong',null,medication),h('small',null,'Medication escalations')),
+          h('div',{className:'card stat clinical-blue'},h('span',null,'Regularisation'),h('strong',null,regularisation),h('small',null,'One-time historical backlog'))
+        ),
+        h('div',{className:'field',style:{maxWidth:'260px',marginTop:'14px'}},h('label',null,'Status'),h('select',{value:filter,onChange:e=>setFilter(e.target.value)},['Open','Resolved','All'].map(x=>h('option',{key:x,value:x},x))))
+      ),
+      h(LogTable,{title:`Escalation Register (${visible.length})`,subtitle:'Open source item, review corrective action, and close only after resolution',
+        heads:['Status','Type','Patient','Room / Bed','Priority','Escalated At','Elapsed','Reason','Resolution','Action'],
+        rows:visible.map(r=>{
+          const p=patients[r.patient_id]||{};
+          const elapsed=Math.max(0,Math.floor((Date.now()-new Date(r.created_at).getTime())/60000));
+          return [
+            h('span',{className:'badge',style:r.resolved_at?{background:'#eef5f2',color:'#17624b'}:{background:'#fdecec',color:'#b42318'}},r.resolved_at?'Resolved':'Open'),
+            r.alert_type||'Clinical',
+            p.full_name|| (r.alert_type==='Regularisation'?'All current patients':'—'),
+            p.id?`Room ${p.room_no||'—'}${p.bed_no?'-'+p.bed_no:''}`:'—',
+            r.priority||'—',fmt(r.created_at),r.resolved_at?'—':`${elapsed} min`,r.escalation_reason||'—',
+            r.resolved_at?`${r.resolution_action||'Resolved'} · ${r.resolution_remarks||'—'}${r.resolved_at?` · ${fmt(r.resolved_at)}`:''}`:'Pending management resolution',
+            h('div',{className:'employee-actions'},
+              h('button',{className:'btn btn-secondary',onClick:()=>onNavigate(targetForType(r.alert_type))},'Open Source'),
+              !r.resolved_at&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>resolve(r)},'Mark Resolved')
+            )
+          ];
+        })
       })
     );
   }
@@ -4084,6 +4162,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Admissions'&&h(Admissions,{profile,onNavigate:setPage}),
           page==='Clinical Dashboard'&&h(ClinicalDashboard,{profile,onNavigate:setPage,alertEngine}),
           page==='Clinical Alerts'&&h(ClinicalAlertsPage,{engine:alertEngine,setPage}),
+          page==='Clinical Escalations'&&h(ClinicalEscalationsDashboard,{profile,onNavigate:setPage}),
           page==='Shift Tasks'&&h(ShiftTasks,{profile,onNavigate:setPage}),
           page==='Patients'&&h(Patients,{profile}),
           page==='Discharge'&&h(DischargeManagement,{profile}),
@@ -4970,10 +5049,10 @@ Caring with Compassion. Living with Dignity.`;
   }
 
   function Dashboard({profile,onNavigate}){
-    const [stats,setStats]=React.useState({employees:0,patients:0,beds:25,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[]});
+    const [stats,setStats]=React.useState({employees:0,patients:0,beds:25,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[],escalations:0});
     React.useEffect(()=>{(async()=>{
       const today=new Date().toISOString().slice(0,10);
-      const [emp,pat,med,care,bill,inc,dis,vis,enq]=await Promise.all([
+      const [emp,pat,med,care,bill,inc,dis,vis,enq,esc]=await Promise.all([
         client.from('profiles').select('*',{count:'exact',head:true}).eq('is_active',true),
         client.from('patients').select('*').eq('is_active',true),
         client.from('medication_administrations').select('*',{count:'exact',head:true}).eq('scheduled_date',today),
@@ -4982,7 +5061,8 @@ Caring with Compassion. Living with Dignity.`;
         client.from('incidents').select('*',{count:'exact',head:true}).eq('status','Open'),
         client.from('patient_discharges').select('id,status,management_status,accounts_status'),
         client.from('family_visit_requests').select('*',{count:'exact',head:true}).eq('status','Pending'),
-        client.from('pre_admission_enquiries').select('id,patient_name,family_contact_name,family_contact_phone,source,status,care_type,created_at',{count:'exact'}).in('status',['New','Contacted','Assessment Scheduled']).order('created_at',{ascending:false}).limit(6)
+        client.from('pre_admission_enquiries').select('id,patient_name,family_contact_name,family_contact_phone,source,status,care_type,created_at',{count:'exact'}).in('status',['New','Contacted','Assessment Scheduled']).order('created_at',{ascending:false}).limit(6),
+        client.from('clinical_alert_escalations').select('*',{count:'exact',head:true}).is('resolved_at',null)
       ]);
       const patients=pat.data||[];
       const risks=patients.filter(p=>p.fall_risk||p.pressure_sore_risk||p.aspiration_risk||p.wandering_risk||p.infection_risk||p.oxygen_required).length;
@@ -5025,7 +5105,8 @@ Caring with Compassion. Living with Dignity.`;
         dischargeStatus,
         visitRequests:vis?.count||0,
         enquiries:enq?.count||0,
-        recentEnquiries:enq?.data||[]
+        recentEnquiries:enq?.data||[],
+        escalations:esc?.count||0
       });
     })()},[]);
     const cards=[
@@ -5036,6 +5117,7 @@ Caring with Compassion. Living with Dignity.`;
       {label:'Medicine actions today',value:stats.meds,page:'Shift Tasks',icon:'💊'},
       {label:'Care actions today',value:stats.care,page:'Daily Care',icon:'✅'},
       {label:'Open incidents',value:stats.incidents,page:'Incidents',icon:'🚨'},
+      {label:'Clinical escalations',value:stats.escalations,page:'Clinical Escalations',icon:'🔔',status:stats.escalations?`${stats.escalations} awaiting Manager/Admin action`:'No open escalations'},
       {label:'Outstanding amount',value:`₹${stats.outstanding.toLocaleString('en-IN')}`,page:'Payments',icon:'₹'},
       {label:'Admission Enquiries',value:stats.enquiries,page:'Enquiries',icon:'☎',status:stats.enquiries?`${stats.enquiries} awaiting follow-up`:'No new enquiries'},
       {label:'Visit Requests',value:stats.visitRequests,page:'Family Communication',icon:'📅',status:stats.visitRequests?`${stats.visitRequests} pending approval`:'No pending requests'},
