@@ -1,15 +1,16 @@
-Samara Care ERP 2.8.85 - Multi-charge entry only
+Samara Care ERP 2.8.86 — Charge Master only
 
-Replace ONLY these 3 files in the ERP repository root:
-1. app.js
-2. index.html
-3. service-worker.js
+STRICT SCOPE: Billing / Bills & Charges only. No other ERP area changed.
 
-No SQL update is required for 2.8.85.
-No styles.css change.
-No folders need replacement.
+1. Supabase > SQL Editor: run 89_admin_charge_master_catalog.sql
+2. GitHub ERP root: replace only app.js, index.html and service-worker.js
+3. Do NOT replace styles.css. Do NOT replace any folders.
+4. After deployment, refresh/update the app.
 
-Change made:
-Bills & Charges > Raise Bill / Charge now has '+ Add Charge'.
-A Nurse/Accounts user can add several service/charge requests for the same patient in one form/session and submit them together.
-Each added charge remains separately auditable and goes through the existing Accounts approval/ledger workflow.
+Result:
+- Admin controls Charge Master items and fixed tariffs.
+- Nursing sees charge item names only; tariff/amount remains hidden.
+- Accounts sees/validates financial amounts.
+- Selecting Others opens an editable Other Charge / Service Item field for Nursing and Accounts.
+- When an external bill is available, Accounts verifies actual bill amount.
+- Without a bill, standard items require the Admin-fixed tariff before approval.

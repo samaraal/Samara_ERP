@@ -233,9 +233,9 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.85';
+  const APP_VERSION = '2.8.86';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
-  const APP_SCHEMA_VERSION = '24';
+  const APP_SCHEMA_VERSION = '25';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
   const RESIDENT_PROFESSIONS=[
@@ -15747,8 +15747,9 @@ Please access the Samara Family Portal for detailed account information.`;
     const [files,setFiles]=React.useState([]);
     const [batchItems,setBatchItems]=React.useState([]);
     const [tariffs,setTariffs]=React.useState([]);
+    const [catalog,setCatalog]=React.useState([]);
     const [tariffBusy,setTariffBusy]=React.useState(false);
-    const categories={
+    const defaultCategories={
       'Doctor Services':['General Physician Visit','Emergency Doctor Visit','Specialist Consultation','Teleconsultation','Home Visit','Follow-up Consultation'],
       'Nursing Procedures':['Dressing','Injection','IV Cannulation','IV Fluid Administration','Blood Transfusion Assistance','Catheterization','Ryle’s Tube Feeding','Nebulization','Oxygen Therapy','Suctioning','ECG','Blood Sample Collection','Wound Care','Pressure Sore Care','Other Nursing Procedure'],
       'Physiotherapy':['Regular Physiotherapy Session','Additional Physiotherapy Session','Walking Training','Gait Training','Balance Training','Respiratory Physiotherapy','Electrotherapy','Home Exercise Training','Mobility Assessment','Wheelchair Training','Other Physiotherapy Service'],
@@ -15761,9 +15762,27 @@ Please access the Samara Family Portal for detailed account information.`;
       'Food & Nutrition':['Special Diet','Nutritional Supplements','Tube Feed Formula','Outside Food Purchase'],
       'Miscellaneous':['Laundry','Courier','Miscellaneous Expense']
     };
+    const catalogCategories=React.useMemo(()=>{
+      const map={};
+      (catalog||[]).filter(row=>row.is_active!==false).forEach(row=>{
+        const category=String(row.category||'Miscellaneous').trim()||'Miscellaneous';
+        const service=String(row.service_name||'').trim();
+        if(!service)return;
+        if(!map[category])map[category]=[];
+        if(!map[category].includes(service))map[category].push(service);
+      });
+      Object.keys(map).forEach(category=>{
+        map[category].sort((a,b)=>a.localeCompare(b));
+        if(!map[category].includes('Others'))map[category].push('Others');
+      });
+      return map;
+    },[catalog]);
+    const fallbackCategories=Object.fromEntries(Object.entries(defaultCategories).map(([category,services])=>[category,services.includes('Others')?services:[...services,'Others']]));
+    const categories=Object.keys(catalogCategories).length?catalogCategories:fallbackCategories;
+
     const fresh=()=>({
       patient_id:'',charge_date:todayISOIndia(),service_datetime:localDateTimeValue(),
-      category:'Doctor Services',service_name:'General Physician Visit',
+      category:'Doctor Services',service_name:'General Physician Visit',other_service_name:'',
       service_provider:'',doctor_name:'',description:'General Physician Visit',
       quantity:'1',unit:'Service',unit_cost:'',requested_amount:'',urgency:'Routine',
       billable:true,bill_available:false,bill_number:'',bill_date:'',
@@ -15784,6 +15803,9 @@ Please access the Samara Family Portal for detailed account information.`;
       const authResult=await client.auth.getUser();
       const authUserId=authResult.data?.user?.id||null;
 
+      const masterRequest=['Admin','Accounts'].includes(profile?.role)
+        ?client.from('charge_tariff_master').select('*').order('category').order('display_order').order('service_name')
+        :client.rpc('get_charge_service_catalog');
       const [a,b,c]=await Promise.all([
         client.from('bill_charge_requests')
           .select('*')
@@ -15793,7 +15815,7 @@ Please access the Samara Family Portal for detailed account information.`;
           .select('*')
           .order('ordered_at',{ascending:false})
           .limit(500),
-        client.from('charge_tariff_master').select('*').eq('is_active',true).order('category').order('service_name')
+        masterRequest
       ]);
 
       if(a.error)notify('error',a.error.message);
@@ -15809,7 +15831,11 @@ Please access the Samara Family Portal for detailed account information.`;
         :allRequests;
 
       setRows(visibleRequests);
-      if(!c.error)setTariffs(c.data||[]);
+      if(!c.error){
+        const masterRows=(c.data||[]).map(row=>({...row,is_active:row.is_active!==false}));
+        setCatalog(masterRows);
+        if(['Admin','Accounts'].includes(profile?.role))setTariffs(masterRows);
+      }
       const visibleRequestIds=new Set(visibleRequests.map(row=>row.id));
       setDiagnostics(
         profile?.role==='Nurse'
@@ -15822,17 +15848,22 @@ Please access the Samara Family Portal for detailed account information.`;
       const ch=client.channel('clinical-charges-v2')
         .on('postgres_changes',{event:'*',schema:'public',table:'bill_charge_requests'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'diagnostic_services'},load)
+        .on('postgres_changes',{event:'*',schema:'public',table:'charge_tariff_master'},load)
         .subscribe();
       return()=>client.removeChannel(ch);
     },[]);
 
-    function openNew(){setFiles([]);setBatchItems([]);setForm(fresh());setShow(true)}
+    function openNew(){const base=fresh();const firstCategory=Object.keys(categories)[0]||base.category;const firstService=(categories[firstCategory]||[])[0]||base.service_name;setFiles([]);setBatchItems([]);setForm({...base,category:firstCategory,service_name:firstService,description:firstService});setShow(true)}
     function changeCategory(value){
-      const first=categories[value][0];
-      setForm(current=>({...current,category:value,service_name:first,description:first,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(value)?first:''}));
+      const first=(categories[value]||[])[0]||'Others';
+      setForm(current=>({...current,category:value,service_name:first,other_service_name:'',description:first==='Others'?'':first,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(value)&&first!=='Others'?first:''}));
+    }
+    function changeService(value){
+      setForm(current=>({...current,service_name:value,other_service_name:value==='Others'?current.other_service_name:'',description:value==='Others'?current.other_service_name:value,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(current.category)&&value!=='Others'?value:current.test_name}));
     }
     function validateDraft(draft,draftFiles){
       if(!draft.patient_id)return 'Select the patient.';
+      if(draft.service_name==='Others'&&!String(draft.other_service_name||'').trim())return 'Enter the Other charge / service item.';
       if(isFutureDateIndia(draft.charge_date)||isFutureDateIndia(draft.bill_date))return 'Future dates are not permitted.';
       if(draft.bill_available&&(draftFiles||[]).length===0)return 'Upload the supporting bill / invoice when Bill available is selected.';
       if(draft.bill_available&&!String(draft.bill_number||'').trim())return 'Enter the bill / invoice number.';
@@ -15852,7 +15883,7 @@ Please access the Samara Family Portal for detailed account information.`;
       if(batchItems.some(item=>item.signature===signature)){notify('error','This charge is already added to the list. Change the service/details before adding another.');return}
       setBatchItems(current=>[...current,{form:{...form},files:[...files],signature}]);
       setFiles([]);
-      notify('success',`${form.service_name} added. You can now change the service/details and add another charge.`);
+      notify('success',`${form.service_name==='Others'?(form.other_service_name||'Other item'):form.service_name} added. You can now change the service/details and add another charge.`);
     }
     function removeBatchItem(index){setBatchItems(current=>current.filter((_,i)=>i!==index))}
     async function uploadFiles(requestId,draft,draftFiles){
@@ -15872,14 +15903,16 @@ Please access the Samara Family Portal for detailed account information.`;
     async function saveOne(draft,draftFiles,user){
       const qty=Math.max(1,Number(draft.quantity||1));
       const nurseRaised=profile?.role==='Nurse';
+      const isOther=draft.service_name==='Others';
+      const effectiveService=isOther?String(draft.other_service_name||'').trim():draft.service_name;
       const rate=nurseRaised?0:Number(draft.unit_cost||0);
       const amount=nurseRaised?0:Number(draft.requested_amount||qty*rate||0);
       const payload={
         patient_id:draft.patient_id,charge_date:draft.charge_date,
         service_datetime:new Date(draft.service_datetime).toISOString(),
-        category:draft.category,service_code:draft.service_name.toUpperCase().replace(/[^A-Z0-9]+/g,'_'),
-        service_name:draft.service_name,service_provider:draft.service_provider||null,
-        doctor_name:draft.doctor_name||null,description:draft.description||draft.service_name,
+        category:draft.category,service_code:isOther?'OTHER':effectiveService.toUpperCase().replace(/[^A-Z0-9]+/g,'_'),
+        service_name:effectiveService,service_provider:draft.service_provider||null,
+        doctor_name:draft.doctor_name||null,description:draft.description||effectiveService,
         quantity:qty,unit:draft.unit,
         unit_cost:nurseRaised?null:(rate||null),
         estimated_amount:nurseRaised?null:(qty*rate||null),
@@ -15905,7 +15938,7 @@ Please access the Samara Family Portal for detailed account information.`;
       if(['Laboratory Services','Diagnostic / Imaging'].includes(draft.category)){
         const diag=await client.from('diagnostic_services').insert({
           charge_request_id:saved.data.id,patient_id:draft.patient_id,service_type:draft.category,
-          test_name:draft.test_name||draft.service_name,laboratory_name:draft.laboratory_name||draft.service_provider||null,
+          test_name:draft.test_name||effectiveService,laboratory_name:draft.laboratory_name||draft.service_provider||null,
           sample_type:draft.sample_type||null,ordered_at:payload.service_datetime,
           sample_collected_at:payload.sample_collected_at,report_status:draft.report_status,
           report_received_at:payload.report_received_at,
@@ -15941,7 +15974,8 @@ Please access the Samara Family Portal for detailed account information.`;
     }
     async function decide(row,decision){
       if(!canApprove||busy)return;
-      const tariff=tariffs.find(t=>t.category===row.category&&t.service_name===row.service_name&&t.is_active!==false);
+      const isOther=String(row.service_code||'').toUpperCase()==='OTHER';
+      const tariff=isOther?null:tariffs.find(t=>t.category===row.category&&t.service_name===row.service_name&&t.is_active!==false);
       let amount=row.bill_available?Number(row.requested_amount||0):Number(tariff?.amount||0);
       if(['Approved','Partially Approved'].includes(decision)){
         const defaultAmount=amount>0?String(amount):'';
@@ -15962,7 +15996,7 @@ Please access the Samara Family Portal for detailed account information.`;
       }
       const remarks=prompt('Decision remarks:',decision)||decision;
       setBusy(true);
-      const result=await client.rpc('decide_bill_charge_request_v4',{
+      const result=await client.rpc('decide_bill_charge_request_v5',{
         p_request_id:row.id,
         p_decision:decision,
         p_approved_amount:decision==='Rejected'?0:amount,
@@ -16020,7 +16054,8 @@ Please access the Samara Family Portal for detailed account information.`;
     const basicFields=[
       patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v})),
       h('div',{className:'field'},h('label',null,'Category'),h('select',{value:form.category,onChange:e=>changeCategory(e.target.value)},Object.keys(categories).map(x=>h('option',{key:x,value:x},x)))),
-      h('div',{className:'field'},h('label',null,'Service / Item'),h('select',{value:form.service_name,onChange:e=>setForm({...form,service_name:e.target.value,description:e.target.value,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(form.category)?e.target.value:form.test_name})},categories[form.category].map(x=>h('option',{key:x,value:x},x)))),
+      h('div',{className:'field'},h('label',null,'Service / Item'),h('select',{value:form.service_name,onChange:e=>changeService(e.target.value)},(categories[form.category]||['Others']).map(x=>h('option',{key:x,value:x},x)))),
+      form.service_name==='Others'&&miniInput('Other Charge / Service Item',form.other_service_name,v=>setForm({...form,other_service_name:v,description:v}),true),
       miniInput('Service Date',form.charge_date,v=>setForm({...form,charge_date:v}),true,'date'),
       miniInput('Service Date & Time',form.service_datetime,v=>setForm({...form,service_datetime:v}),true,'datetime-local'),
       miniInput('Provider / Organisation',form.service_provider,v=>setForm({...form,service_provider:v})),
@@ -16083,7 +16118,7 @@ Please access the Samara Family Portal for detailed account information.`;
         batchItems.length>0&&h('div',{className:'card',style:{margin:'10px 0',padding:'10px'}},
           h('strong',null,`Charges added (${batchItems.length})`),
           ...batchItems.map((item,index)=>h('div',{key:index,style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #ead6df'}},
-            h('span',null,`${index+1}. ${item.form.service_name}${item.form.bill_available?' · Bill attached':''}`),
+            h('span',null,`${index+1}. ${item.form.service_name==='Others'?(item.form.other_service_name||'Others'):item.form.service_name}${item.form.bill_available?' · Bill attached':''}`),
             h('button',{type:'button',className:'btn btn-secondary',onClick:()=>removeBatchItem(index)},'Remove')
           ))
         ),
@@ -16094,27 +16129,47 @@ Please access the Samara Family Portal for detailed account information.`;
       )
     ):null;
 
-    async function saveTariff(category,serviceName,currentAmount){
+    async function saveMasterItem(row){
       if(!canManageTariffs)return;
-      const entered=prompt(`Set fixed tariff for ${serviceName}:`,currentAmount!==null&&currentAmount!==undefined?String(currentAmount):'');
+      const category=prompt('Charge category:',row?.category||'Miscellaneous');
+      if(category===null||!String(category).trim())return;
+      const serviceName=prompt('Chargeable service / item:',row?.service_name||'');
+      if(serviceName===null||!String(serviceName).trim())return;
+      const entered=prompt('Admin-fixed tariff when no external bill is available (leave blank to set later):',row?.amount!==null&&row?.amount!==undefined?String(row.amount):'');
       if(entered===null)return;
-      const amount=Number(entered);
-      if(!Number.isFinite(amount)||amount<=0){notify('error','Enter a valid tariff greater than zero.');return}
+      const amount=String(entered).trim()===''?null:Number(entered);
+      if(amount!==null&&(!Number.isFinite(amount)||amount<=0)){notify('error','Enter a valid tariff greater than zero, or leave it blank to set later.');return}
       setTariffBusy(true);
-      const result=await client.from('charge_tariff_master').upsert({category,service_name:serviceName,amount,is_active:true,updated_by:profile.id,updated_at:new Date().toISOString()},{onConflict:'category,service_name'});
+      const payload={id:row?.id||undefined,category:String(category).trim(),service_name:String(serviceName).trim(),amount,is_active:row?.is_active!==false,updated_by:profile.id,updated_at:new Date().toISOString()};
+      if(!payload.id)delete payload.id;
+      const result=row?.id
+        ?await client.from('charge_tariff_master').update(payload).eq('id',row.id)
+        :await client.from('charge_tariff_master').insert(payload);
       setTariffBusy(false);
-      if(result.error)notify('error',result.error.message); else {notify('success','Fixed tariff updated.');await load();}
+      if(result.error)notify('error',result.error.message);else{notify('success',row?.id?'Charge Master item updated.':'Charge Master item added.');await load();}
     }
-    const tariffPanel=canManageTariffs?h(Section,{title:'Charge Master',subtitle:'Admin-only fixed tariffs. These amounts are not displayed to Nursing.'},
-      h(LogTable,{title:'Approved Fixed Tariffs',heads:['Category','Service','Fixed Tariff','Action'],rows:Object.entries(categories).flatMap(([category,services])=>services.map(serviceName=>{
-        const t=tariffs.find(x=>x.category===category&&x.service_name===serviceName&&x.is_active!==false);
-        return [category,serviceName,t?money(t.amount):'Not set',h('button',{className:'btn btn-secondary',disabled:tariffBusy,onClick:()=>saveTariff(category,serviceName,t?.amount)},t?'Edit Tariff':'Set Tariff')];
-      }))})
+    async function toggleMasterItem(row){
+      if(!canManageTariffs)return;
+      setTariffBusy(true);
+      const result=await client.from('charge_tariff_master').update({is_active:row.is_active===false,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',row.id);
+      setTariffBusy(false);
+      if(result.error)notify('error',result.error.message);else{notify('success',row.is_active===false?'Charge item activated.':'Charge item deactivated.');await load();}
+    }
+    const tariffPanel=canManageTariffs?h(Section,{title:'Charge Master',subtitle:'Admin-controlled list of all chargeable services/items. Fixed tariffs and amounts are visible only to Admin/Accounts; Nursing sees item names only. “Others” remains editable for Nursing and Accounts.'},
+      h('div',{style:{display:'flex',justifyContent:'flex-end',marginBottom:'10px'}},h('button',{type:'button',className:'btn btn-primary',disabled:tariffBusy,onClick:()=>saveMasterItem(null)},'+ Add Charge Item')),
+      h(LogTable,{title:'Chargeable Items',heads:['Category','Service / Item','Fixed Tariff (No Bill)','Status','Action'],rows:(tariffs||[]).map(row=>[
+        row.category,row.service_name,row.amount!==null&&row.amount!==undefined?money(row.amount):'Not set',row.is_active===false?'Inactive':'Active',
+        h('div',{className:'employee-actions'},
+          h('button',{className:'btn btn-secondary',disabled:tariffBusy,onClick:()=>saveMasterItem(row)},'Edit'),
+          h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:tariffBusy,onClick:()=>toggleMasterItem(row)},row.is_active===false?'Activate':'Deactivate')
+        )
+      ])})
     ):null;
+
 
     return h(React.Fragment,null,
       h('div',{className:'clinical-charges-hero'},
-        h('div',null,h('small',null,'DOCUMENT ONCE · BILL ACCURATELY'),h('h3',null,'Bills & Charges'),h('p',null,'Nurses record additional services and expenses without seeing charges. Admin maintains fixed tariffs; Accounts verifies bills/tariffs and posts approved charges to the patient ledger.')),
+        h('div',null,h('small',null,'DOCUMENT ONCE · BILL ACCURATELY'),h('h3',null,'Bills & Charges'),h('p',null,'Nurses and Accounts raise charges from the Admin-controlled Charge Master. Nursing never sees amounts; Accounts verifies fixed tariffs or actual bills and posts approved charges to the patient ledger.')),
         canRaise&&h('button',{className:'btn btn-primary',onClick:openNew},'+ Raise Bill / Charge')
       ),
       summary,
