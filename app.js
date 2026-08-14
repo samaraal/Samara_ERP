@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.86';
+  const APP_VERSION = '2.8.87';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '25';
 
@@ -1241,7 +1241,7 @@ function initSamaraInaugurationInvitation(){
   const BED_CODE_OPTIONS = ['A','B','C','D'];
   const NAV_SECTIONS = [
     { title:'OVERVIEW', items:['Dashboard','Notifications'] },
-    { title:'ADMIN', items:['Rooms','Care Packages','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
+    { title:'ADMIN', items:['Rooms','Care Packages','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
     { title:'HR', items:['HR Dashboard','Employees','Career Applications','Interviews'] },
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
@@ -4089,6 +4089,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Discharge'&&h(DischargeManagement,{profile}),
           page==='Rooms'&&h(RoomsBeds,{profile}),
           page==='Care Packages'&&h(CarePackages,{profile}),
+          page==='Charge Master'&&h(ChargeMasterPage,{profile}),
           page==='Form Field Settings'&&h(FormFieldSettings,{profile}),
           page==='Daily Care'&&h(DailyCare,{profile,onNavigate:setPage}),
           page==='Vital Signs'&&h(VitalSigns,{profile,onNavigate:setPage}),
@@ -15734,6 +15735,31 @@ Please access the Samara Family Portal for detailed account information.`;
     );
   }
 
+  function ChargeMasterPage({profile}){
+    const [rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(false);
+    async function load(){
+      const {data,error}=await client.from('charge_tariff_master').select('*').order('category').order('display_order').order('service_name');
+      if(error){notify('error',error.message);return} setRows(data||[]);
+    }
+    React.useEffect(()=>{load()},[]);
+    async function saveItem(row){
+      const category=prompt('Charge category:',row?.category||'Miscellaneous'); if(category===null||!String(category).trim())return;
+      const serviceName=prompt('Chargeable service / item:',row?.service_name||''); if(serviceName===null||!String(serviceName).trim())return;
+      const entered=prompt('Admin-fixed tariff when no external bill is available (leave blank to set later):',row?.amount!=null?String(row.amount):''); if(entered===null)return;
+      const amount=String(entered).trim()===''?null:Number(entered); if(amount!==null&&(!Number.isFinite(amount)||amount<=0)){notify('error','Enter a valid tariff greater than zero, or leave it blank.');return}
+      setBusy(true); const payload={category:String(category).trim(),service_name:String(serviceName).trim(),amount,is_active:row?.is_active!==false,updated_by:profile.id,updated_at:new Date().toISOString()};
+      const result=row?.id?await client.from('charge_tariff_master').update(payload).eq('id',row.id):await client.from('charge_tariff_master').insert(payload); setBusy(false);
+      if(result.error)notify('error',result.error.message); else {notify('success',row?.id?'Charge Master item updated.':'Charge Master item added.');load()}
+    }
+    async function toggle(row){setBusy(true);const {error}=await client.from('charge_tariff_master').update({is_active:row.is_active===false,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',row.id);setBusy(false);if(error)notify('error',error.message);else load()}
+    if(profile?.role!=='Admin')return h(Section,{title:'Charge Master'},h('p',null,'Administrator access only.'));
+    return h(React.Fragment,null,
+      h(Section,{title:'Charge Master',subtitle:'Administrator-controlled chargeable items and fixed tariffs. Nursing can use item names but cannot see financial amounts.'},
+        h('div',{style:{display:'flex',justifyContent:'flex-end',marginBottom:'10px'}},h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>saveItem(null)},'+ Add Charge Item')),
+        h(LogTable,{title:'Chargeable Items',heads:['Category','Service / Item','Fixed Tariff (No Bill)','Status','Action'],rows:rows.map(row=>[row.category,row.service_name,row.amount!=null?money(row.amount):'Not set',row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveItem(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggle(row)},row.is_active===false?'Activate':'Deactivate'))])})
+      )
+    );
+  }
   function ClinicalCharges({profile}){
     const canRaise=['Admin','Manager','Nurse','Accounts'].includes(profile?.role);
     const canApprove=profile?.role==='Accounts';
