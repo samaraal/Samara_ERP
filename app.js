@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.62';
+  const APP_VERSION = '2.8.64';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -6201,10 +6201,10 @@ Caring with Compassion. Living with Dignity.`;
     const table=h('div',{className:'table-wrap'},h('table',{className:'table'},
       h('thead',null,h('tr',null,['Name','Employee ID','Login ID','Department / Designation','ERP Access','Profile Status','Authentication Status','Last sign-in','Actions'].map(x=>h('th',{key:x},x)))),
       h('tbody',null,rows.map(r=>{const enabled=Boolean(r.is_active??r.active),auth=authMap[r.auth_user_id||r.id],status=authenticationStatus(r),managerBlocked=profile.role==='Manager'&&String(r.role).toLowerCase()==='admin';return h('tr',{key:r.id,className:'employee-row-touch',role:'button',tabIndex:0,title:'Tap to open Employee Personnel File',onClick:()=>openDetails(r),onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetails(r)}}},
-        h('td',null,formalName(r)),h('td',null,r.employee_id||'—'),h('td',null,r.login_id),h('td',null,`${employeeDepartment(r)}${r.designation?` · ${r.designation}`:''}`),h('td',null,r.role),
-        h('td',null,h('span',{className:`badge ${enabled?'':'off'}`},enabled?'Active':'Disabled')),
-        h('td',null,h('span',{className:`badge auth-status ${status.className}`},status.text)),h('td',null,fmt(auth?.last_sign_in_at||r.last_sign_in_at)),
-        h('td',null,h('div',{className:'employee-actions',onClick:e=>e.stopPropagation(),onKeyDown:e=>e.stopPropagation()},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Personnel File'),h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Documents'),h('button',{className:'btn btn-secondary',onClick:()=>printIdCard(r)},'Print ID Card'),r.mobile?h('a',{className:'btn btn-whatsapp',href:whatsappWelcomeUrl(r),target:'_blank',rel:'noopener'},'WhatsApp Welcome'):null,h('button',{className:enabled?'btn btn-danger':'btn btn-secondary',disabled:managerBlocked,onClick:()=>toggle(r)},enabled?'Disable':'Enable'),auth?h('button',{className:'btn btn-primary',disabled:managerBlocked,onClick:()=>openReset(r)},'Reset Password'):h('button',{className:'btn btn-warning',disabled:managerBlocked,onClick:()=>openRepair(r)},'Repair Account')))
+        h('td',{'data-label':'Employee'},formalName(r)),h('td',{'data-label':'Employee ID'},r.employee_id||'—'),h('td',{'data-label':'Login ID'},r.login_id),h('td',{'data-label':'Department'},`${employeeDepartment(r)}${r.designation?` · ${r.designation}`:''}`),h('td',{'data-label':'Access'},r.role),
+        h('td',{'data-label':'Status'},h('span',{className:`badge ${enabled?'':'off'}`},enabled?'Active':'Disabled')),
+        h('td',{'data-label':'Authentication'},h('span',{className:`badge auth-status ${status.className}`},status.text)),h('td',{'data-label':'Last sign-in'},fmt(auth?.last_sign_in_at||r.last_sign_in_at)),
+        h('td',{'data-label':'Actions'},h('div',{className:'employee-actions',onClick:e=>e.stopPropagation(),onKeyDown:e=>e.stopPropagation()},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Personnel File'),h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Documents'),h('button',{className:'btn btn-secondary',onClick:()=>printIdCard(r)},'Print ID Card'),r.mobile?h('a',{className:'btn btn-whatsapp',href:whatsappWelcomeUrl(r),target:'_blank',rel:'noopener'},'WhatsApp Welcome'):null,h('button',{className:enabled?'btn btn-danger':'btn btn-secondary',disabled:managerBlocked,onClick:()=>toggle(r)},enabled?'Disable':'Enable'),auth?h('button',{className:'btn btn-primary',disabled:managerBlocked,onClick:()=>openReset(r)},'Reset Password'):h('button',{className:'btn btn-warning',disabled:managerBlocked,onClick:()=>openRepair(r)},'Repair Account')))
       )}),rows.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'No employees found')):null))
     );
 

@@ -899,3 +899,219 @@ body{font-size:17px;line-height:1.42}
   .patient-master-modal .patient-master-header>.employee-actions{position:static!important;flex:0 0 auto!important;align-self:center!important}
   .patient-master-modal .patient-master-header>.employee-actions .btn{width:auto!important;min-width:96px!important;min-height:38px!important;padding:8px 10px!important;font-size:13px!important;white-space:nowrap!important}
 }
+
+/* ========================================================================== */
+/* ERP 2.8.63 — Global mobile-first professional polish                       */
+/* Principle: one-hand use, fewer decisions, compact cards, large touch areas */
+/* ========================================================================== */
+
+html{-webkit-text-size-adjust:100%}
+button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
+
+@media(max-width:760px){
+  /* Remove the duplicate module selector: the fixed Menu button is the single
+     source of navigation on phones. This saves valuable vertical space. */
+  .mobile-menu{display:none!important}
+
+  /* Compact professional app header. */
+  .topbar{
+    grid-template-columns:42px minmax(0,1fr) auto!important;
+    grid-template-rows:auto auto auto!important;
+    gap:5px 8px!important;
+    padding:6px 10px 8px!important;
+    border-bottom:1px solid #f0dbe5!important;
+    box-shadow:0 3px 14px rgba(82,31,57,.055)!important;
+  }
+  .mobile-brand-header{min-height:34px!important;gap:8px!important}
+  .mobile-header-brand-logo{width:78px!important;height:32px!important;object-fit:contain!important}
+  .mobile-brand-header strong{font-size:14px!important;font-weight:850!important;letter-spacing:-.01em!important}
+  .mobile-home-button{width:40px!important;height:40px!important;min-height:40px!important;border-radius:11px!important;font-size:19px!important}
+  .topbar h2{font-size:22px!important;line-height:1.1!important;letter-spacing:-.02em!important}
+  .topbar>.badge{font-size:10px!important;padding:5px 7px!important;max-width:82px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+  .global-search{margin-top:0!important}
+  .global-search input{min-height:42px!important;height:42px!important;border-radius:12px!important;font-size:15px!important;padding-top:8px!important;padding-bottom:8px!important}
+
+  /* Nurses/caregivers already have patient/clinical search inside their work
+     screens. Removing the global search makes their home screen much quicker. */
+  .mobile-role-nurse .global-search,
+  .mobile-role-caregiver .global-search,
+  .mobile-role-nursing .global-search{display:none!important}
+
+  /* Overall workspace density. */
+  .content{padding:10px!important;padding-bottom:calc(84px + env(safe-area-inset-bottom))!important}
+  .content>div,.content>section{max-width:100%!important}
+  .card,.panel,.section-card{border-radius:14px!important;box-shadow:0 3px 12px rgba(82,31,57,.045)!important}
+  .section-card,.panel{padding:13px!important}
+  .section-title{gap:8px!important;margin-bottom:10px!important;align-items:flex-start!important}
+  .section-title h3,.section-title h4,.panel-head h3{font-size:18px!important;line-height:1.2!important;margin:0!important}
+  .section-title small,.section-title p,.small-note{line-height:1.35!important}
+
+  /* Forms: one clear column, large inputs, compact spacing. */
+  .form-grid,.modal-grid,.grid.two,.grid.three,.grid.four{grid-template-columns:1fr!important;gap:9px!important}
+  .field{gap:4px!important;margin-bottom:0!important;min-width:0!important}
+  .field label{font-size:13px!important;font-weight:850!important;line-height:1.25!important;color:#513344!important}
+  .field input,.field select,.field textarea,
+  input:not([type=checkbox]):not([type=radio]),select,textarea{
+    width:100%!important;max-width:100%!important;min-height:46px!important;
+    border-radius:11px!important;padding:10px 12px!important;font-size:16px!important;
+  }
+  textarea{min-height:88px!important;resize:vertical!important}
+  .span-2,.span-3,.span-4{grid-column:1!important}
+
+  /* Buttons: easier to understand and touch, without oversized desktop chrome. */
+  .btn{min-height:46px!important;border-radius:11px!important;padding:10px 13px!important;font-size:14px!important;font-weight:850!important;line-height:1.15!important}
+  .actions,.employee-actions,.modal-actions{gap:7px!important}
+  .actions>.btn,.employee-actions>.btn,.employee-actions>a.btn{flex:1 1 132px!important}
+  .modal-actions{
+    position:sticky!important;bottom:-18px!important;z-index:10!important;
+    margin:14px -18px -18px!important;padding:10px 18px calc(10px + env(safe-area-inset-bottom))!important;
+    background:rgba(255,255,255,.97)!important;border-top:1px solid #efd8e3!important;
+    box-shadow:0 -7px 18px rgba(82,31,57,.07)!important;backdrop-filter:blur(10px)!important;
+  }
+  .modal-actions .btn{flex:1 1 120px!important}
+
+  /* Metrics and dashboard cards: concise, whole-card touch targets. */
+  .stats,.dashboard-grid,.clinical-card-grid,.feedback-stat-grid,.accounts-dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+  .stat,.dashboard-card,.metric-card,.clinical-metric,.feedback-stat{min-height:84px!important;padding:11px 12px!important;border-radius:14px!important}
+  .stat strong,.dashboard-card strong,.metric-card strong,.clinical-metric strong,.feedback-stat strong{font-size:27px!important;line-height:1!important;margin-top:4px!important}
+  .stat span,.dashboard-card>span:not(.dashboard-icon),.metric-card span,.feedback-stat small{font-size:12px!important;line-height:1.2!important}
+  .dashboard-card,.dashboard-panel-link,.metric-card{touch-action:manipulation!important;cursor:pointer!important}
+  .dashboard-links .dashboard-card{min-height:96px!important}
+  .dashboard-links .dashboard-card:after{font-size:10px!important;margin-top:2px!important}
+
+  /* Horizontal tabs should never wrap into a tall wall of buttons. */
+  .tabs,.tab-bar,.patient-tab-bar,.feedback-filter-row,.time-list{
+    display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;
+    -webkit-overflow-scrolling:touch!important;scrollbar-width:none!important;gap:6px!important;
+  }
+  .tabs::-webkit-scrollbar,.tab-bar::-webkit-scrollbar,.patient-tab-bar::-webkit-scrollbar,.feedback-filter-row::-webkit-scrollbar{display:none!important}
+  .tab,.patient-tab,.tabs button,.tab-bar button{flex:0 0 auto!important;white-space:nowrap!important;min-height:42px!important;padding:8px 11px!important}
+
+  /* Data lists: clean shell, no unnecessary wide desktop chrome. */
+  .table-wrap{border-radius:13px!important;box-shadow:none!important;border:1px solid #eedbe4!important;background:#fff!important}
+  .table th{font-size:12px!important;padding:10px!important}
+  .table td{font-size:14px!important;padding:10px!important}
+
+  /* Employees: the complete row is already a touch target. On mobile present
+     only the information needed to choose the right person. */
+  .table tbody .employee-row-touch{
+    display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;
+    align-items:center!important;gap:4px 10px!important;min-height:66px!important;
+    padding:11px 12px!important;border-bottom:1px solid #f0dce5!important;background:#fff!important;
+  }
+  .table tbody .employee-row-touch:last-child{border-bottom:0!important}
+  .employee-row-touch td{display:none!important;border:0!important;padding:0!important;min-height:0!important}
+  .employee-row-touch td[data-label="Employee"],
+  .employee-row-touch td[data-label="Department"],
+  .employee-row-touch td[data-label="Status"]{display:block!important}
+  .employee-row-touch td[data-label="Employee"]{grid-column:1!important;font-size:17px!important;font-weight:900!important;color:#382333!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+  .employee-row-touch td[data-label="Department"]{grid-column:1!important;font-size:12px!important;color:#765d6b!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+  .employee-row-touch td[data-label="Status"]{grid-column:2!important;grid-row:1 / span 2!important;align-self:center!important}
+  .employee-row-touch td:before{display:none!important}
+  .employee-row-touch:active{background:#fff1f7!important;transform:scale(.995)}
+
+  /* Mobile modals are full work pages with a calm, fixed visual rhythm. */
+  .modal-backdrop{padding:0!important;background:rgba(45,24,36,.32)!important}
+  .modal{max-height:100dvh!important;min-height:100dvh!important;border-radius:0!important;padding:14px!important}
+  .modal h2,.modal h3{letter-spacing:-.015em!important}
+
+  /* Status/readability. */
+  .badge,.pill{white-space:nowrap!important}
+  .message,.alert,.notice{border-radius:11px!important;padding:11px 12px!important;line-height:1.35!important}
+  .empty{padding:22px 12px!important;text-align:center!important;color:#786270!important}
+
+  /* Bottom navigation: smaller footprint but still comfortably tappable. */
+  .mobile-bottom-nav{min-height:62px!important;padding:4px 6px calc(4px + env(safe-area-inset-bottom))!important}
+  .mobile-bottom-nav button{min-height:50px!important;border-radius:11px!important;font-size:10px!important}
+  .mobile-nav-icon{font-size:19px!important}
+
+  /* Clinical work is action-first; no decorative whitespace. */
+  .clinical-welcome,.dashboard-banner,.shift-banner,.hero-banner,.accounts-hero,.clinical-banner{padding:14px!important;border-radius:15px!important;margin-bottom:10px!important}
+  .clinical-columns{gap:10px!important}
+  .vitals-grid,.latest-vitals-strip{gap:8px!important}
+
+  /* Daily moments stay portrait and compact. */
+  .daily-moment-grid{gap:10px!important}
+  .daily-moment-card{border-radius:14px!important}
+}
+
+@media(max-width:390px){
+  .content{padding-left:8px!important;padding-right:8px!important}
+  .topbar{padding-left:8px!important;padding-right:8px!important}
+  .stats,.dashboard-grid,.clinical-card-grid,.feedback-stat-grid,.accounts-dashboard-grid{gap:6px!important}
+  .stat,.dashboard-card,.metric-card,.clinical-metric,.feedback-stat{padding:10px!important}
+  .topbar h2{font-size:20px!important}
+}
+
+/* ERP 2.8.64 — Mobile patient list: Room first, patient second, screen-fit */
+@media(max-width:760px){
+  .patient-master-table-wrap{
+    width:100%!important;
+    max-width:100%!important;
+    overflow-x:hidden!important;
+    margin:0!important;
+  }
+  .patient-master-table{
+    width:100%!important;
+    min-width:0!important;
+    max-width:100%!important;
+    table-layout:fixed!important;
+  }
+  .patient-master-table tbody{
+    width:100%!important;
+    gap:6px!important;
+  }
+  .patient-master-table tr.patient-list-row{
+    width:100%!important;
+    max-width:100%!important;
+    box-sizing:border-box!important;
+    grid-template-columns:94px minmax(0,1fr)!important;
+    gap:8px!important;
+    min-height:56px!important;
+    overflow:hidden!important;
+  }
+  .patient-master-table tr.patient-list-row td[data-label="Room / Bed"]{
+    grid-column:1!important;
+    grid-row:1!important;
+    order:1!important;
+    min-width:0!important;
+    padding:8px 0 8px 10px!important;
+    overflow:hidden!important;
+  }
+  .patient-master-table tr.patient-list-row td[data-label="Patient"]{
+    grid-column:2!important;
+    grid-row:1!important;
+    order:2!important;
+    min-width:0!important;
+    max-width:100%!important;
+    padding:8px 10px 8px 0!important;
+    overflow:hidden!important;
+  }
+  .mobile-room-no{
+    display:flex!important;
+    width:84px!important;
+    max-width:84px!important;
+    min-height:38px!important;
+    box-sizing:border-box!important;
+    padding:6px 7px!important;
+    font-size:13px!important;
+    border-radius:12px!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+  }
+  .patient-master-table .patient-name-link{
+    display:block!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    padding:0!important;
+    margin:0!important;
+    text-align:left!important;
+    font-size:17px!important;
+    line-height:1.2!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+  }
+}

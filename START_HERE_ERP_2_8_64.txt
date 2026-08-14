@@ -1,0 +1,14 @@
+SAMARA CARE ERP 2.8.64 — MOBILE PATIENT LIST
+
+Replace these 4 files in the ERP GitHub root:
+1. app.js
+2. styles.css
+3. index.html
+4. service-worker.js
+
+Mobile Patients list:
+- Room No. appears first.
+- Patient Name appears second.
+- Entire row remains touchable.
+- No horizontal scrolling.
+- Compact row height to keep the list within the phone screen.
