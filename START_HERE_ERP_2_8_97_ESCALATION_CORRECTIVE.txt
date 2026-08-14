@@ -1,0 +1,36 @@
+SAMARA CARE ERP v2.8.97 — ESCALATION CORRECTIVE PACKAGE
+
+This package corrects exactly three items:
+
+1. ADMIN / MANAGER CLINICAL ESCALATIONS
+   The frontend wrongly selected patients.resident_id, which does not exist.
+   It now uses the actual patients.patient_id field.
+   This removes the "column patients.resident_id does not exist" error.
+
+2. HISTORICAL REGULARISATION SNAPSHOT
+   The original successful snapshot is restored and frozen as:
+   9 medication + 5 vitals + 0 care + 0 physiotherapy = 14 total
+   cutoff: 14-08-2026 18:18:01.639958 UTC
+   It is NOT recalculated from today's current state.
+
+3. NURSE CLINICAL ALERTS DASHBOARD
+   Nurses now see:
+   - Escalated
+   - Overdue
+   - Due now
+   - Regularisation
+   Escalated items are shown first.
+   Nurses can Complete / Record the source clinical task, but cannot perform
+   Manager/Admin escalation resolution.
+
+INSTALL:
+A. Run:
+   111_FREEZE_ORIGINAL_CLINICAL_REGULARISATION_14_ITEMS.sql
+
+B. Replace only:
+   app.js
+   index.html
+   service-worker.js
+
+Do not replace styles.css or folders.
+No other ERP area is changed.

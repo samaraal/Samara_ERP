@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.96';
+  const APP_VERSION = '2.8.97';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '25';
 
@@ -2055,31 +2055,95 @@ Caring with Compassion. Living with Dignity.`;
 
   function ClinicalAlertsPage({engine,setPage}){
     const [filter,setFilter]=React.useState('All');
-    const rows=(engine.alerts||[]).filter(a=>filter==='All'||a.priority===filter);
+    const [escalatedKeys,setEscalatedKeys]=React.useState(new Set());
+    const [loadingEscalations,setLoadingEscalations]=React.useState(false);
+
+    async function refreshEscalations(){
+      setLoadingEscalations(true);
+      try{
+        const {data,error}=await client.from('clinical_alert_escalations')
+          .select('alert_key,resolved_at')
+          .is('resolved_at',null)
+          .limit(500);
+        if(error)throw error;
+        setEscalatedKeys(new Set((data||[]).map(x=>String(x.alert_key||''))));
+      }catch(e){
+        console.warn('Nurse escalation status:',e?.message||e);
+        setEscalatedKeys(new Set());
+      }finally{
+        setLoadingEscalations(false);
+      }
+    }
+
+    React.useEffect(()=>{refreshEscalations()},[]);
+
+    async function refreshAll(){
+      await engine.refresh();
+      await refreshEscalations();
+    }
+
+    const allRows=(engine.alerts||[]).map(a=>({
+      ...a,
+      isEscalated:escalatedKeys.has(String(a.key||'')),
+      isOverdue:Number(a.overdue_minutes||0)>0
+    }));
+
+    const rows=allRows.filter(a=>{
+      if(filter==='All')return true;
+      if(filter==='Escalated')return a.isEscalated;
+      if(filter==='Overdue')return a.isOverdue&&!a.isEscalated;
+      if(filter==='Due now')return !a.isOverdue&&!a.isEscalated;
+      return a.priority===filter;
+    });
+
+    const escalatedCount=allRows.filter(a=>a.isEscalated).length;
+    const overdueCount=allRows.filter(a=>a.isOverdue&&!a.isEscalated).length;
+    const dueNowCount=allRows.filter(a=>!a.isOverdue&&!a.isEscalated).length;
+    const regularisationCount=allRows.filter(a=>String(a.alert_type||'').toLowerCase()==='regularisation').length;
+
     return h(React.Fragment,null,
-      h(Section,{title:'Clinical Alerts',subtitle:'Live nursing reminders, overdue tasks and escalations',
+      h(Section,{title:'Clinical Alerts',subtitle:'Nursing action dashboard — escalated items first, then overdue and due items',
         actions:h('div',{className:'employee-actions'},
-          h('button',{className:'btn btn-secondary',onClick:engine.refresh},'Refresh'),
+          h('button',{className:'btn btn-secondary',onClick:refreshAll},loadingEscalations?'Refreshing…':'Refresh'),
           h('button',{className:'btn btn-secondary',onClick:engine.unlockSound},engine.soundUnlocked?'Sound Enabled':'Enable Sound'),
           h('button',{className:'btn btn-secondary',onClick:engine.requestNotifications},'Enable Browser Alerts')
         )},
-        h('div',{className:'field',style:{maxWidth:'300px'}},h('label',null,'Priority'),h('select',{value:filter,onChange:e=>setFilter(e.target.value)},['All','Critical','Urgent','Routine'].map(x=>h('option',{key:x,value:x},x))))
-      ),
-      h(LogTable,{title:`Active Alerts (${rows.length})`,subtitle:'Medicine, vital signs, daily care and physiotherapy',
-        heads:['Priority','Patient','Room','Alert','Due','Overdue','Details','Action'],
-        rows:rows.map(a=>[
-          h('span',{className:'badge',style:a.priority==='Critical'?{background:'#fdecec',color:'#b42318'}:a.priority==='Urgent'?{background:'#fff4dd',color:'#9a6700'}:{background:'#eef5ff',color:'#175cd3'}},a.priority),
-          a.patient_name||'—',a.room_label||'—',a.title,fmt(a.due_at),Number(a.overdue_minutes)>0?`${a.overdue_minutes} min`:'Due soon',a.description||'—',
-          h('div',{className:'employee-actions'},
-            h('button',{className:'btn btn-primary',onClick:()=>setPage(a.target_page||'Clinical Alerts')},'Open'),
-            a.alert_type!=='Regularisation'&&h('button',{className:'btn btn-secondary',onClick:()=>engine.acknowledge(a,'Snoozed',5)},'Snooze 5'),
-            h('button',{className:'btn btn-secondary',onClick:()=>engine.acknowledge(a,'Acknowledged',0)},a.alert_type==='Regularisation'?'Regularise Backlog':'Acknowledge')
+        h('div',{className:'grid stats'},
+          h('div',{className:'card stat clinical-red'},h('span',null,'Escalated'),h('strong',null,escalatedCount),h('small',null,'Requires immediate nursing action')),
+          h('div',{className:'card stat clinical-amber'},h('span',null,'Overdue'),h('strong',null,overdueCount),h('small',null,'Not yet escalated')),
+          h('div',{className:'card stat clinical-blue'},h('span',null,'Due now'),h('strong',null,dueNowCount),h('small',null,'Current actionable items')),
+          h('div',{className:'card stat'},h('span',null,'Regularisation'),h('strong',null,regularisationCount),h('small',null,'One consolidated historical backlog'))
+        ),
+        h('div',{className:'field',style:{maxWidth:'300px',marginTop:'14px'}},
+          h('label',null,'View'),
+          h('select',{value:filter,onChange:e=>setFilter(e.target.value)},
+            ['All','Escalated','Overdue','Due now','Critical','Urgent','Routine'].map(x=>h('option',{key:x,value:x},x))
           )
-        ])
+        )
+      ),
+      h(LogTable,{title:`Active Alerts (${rows.length})`,subtitle:'Complete the underlying clinical task; management resolution is not available to Nursing',
+        heads:['Status','Priority','Patient','Room','Alert','Due','Overdue','Details','Action'],
+        rows:rows
+          .sort((a,b)=>(Number(b.isEscalated)-Number(a.isEscalated))||(Number(b.overdue_minutes||0)-Number(a.overdue_minutes||0)))
+          .map(a=>[
+            h('span',{className:'badge',style:a.isEscalated?{background:'#fdecec',color:'#b42318'}:a.isOverdue?{background:'#fff4dd',color:'#9a6700'}:{background:'#eef5ff',color:'#175cd3'}},
+              a.isEscalated?'ESCALATED':a.isOverdue?'OVERDUE':'DUE NOW'),
+            h('span',{className:'badge',style:a.priority==='Critical'?{background:'#fdecec',color:'#b42318'}:a.priority==='Urgent'?{background:'#fff4dd',color:'#9a6700'}:{background:'#eef5ff',color:'#175cd3'}},a.priority),
+            a.patient_name||'—',
+            a.room_label||'—',
+            a.title,
+            fmt(a.due_at),
+            Number(a.overdue_minutes)>0?`${a.overdue_minutes} min`:'Due now',
+            a.description||'—',
+            h('div',{className:'employee-actions'},
+              h('button',{className:'btn btn-primary',onClick:()=>setPage(a.target_page||'Clinical Alerts')},a.alert_type==='Regularisation'?'Review':'Complete / Record'),
+              a.alert_type!=='Regularisation'&&!a.isEscalated&&h('button',{className:'btn btn-secondary',onClick:()=>engine.acknowledge(a,'Snoozed',5)},'Snooze 5'),
+              a.alert_type==='Regularisation'&&h('button',{className:'btn btn-secondary',onClick:()=>engine.acknowledge(a,'Acknowledged',0)},'Regularise Backlog')
+            )
+          ])
       })
     );
   }
-
 
   function ClinicalEscalationsDashboard({profile,onNavigate}){
     const [rows,setRows]=React.useState([]),[patients,setPatients]=React.useState({}),[filter,setFilter]=React.useState('Open'),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState('');
@@ -2100,7 +2164,7 @@ Caring with Compassion. Living with Dignity.`;
         await client.rpc('process_clinical_alert_escalations');
         const [esc,pat]=await Promise.all([
           client.from('clinical_alert_escalations').select('*').order('created_at',{ascending:false}).limit(300),
-          client.from('patients').select('id,full_name,resident_id,room_no,bed_no,is_active')
+          client.from('patients').select('id,full_name,patient_id,room_no,bed_no,is_active')
         ]);
         if(esc.error)throw esc.error;
         if(pat.error)throw pat.error;
