@@ -1,0 +1,20 @@
+SAMARA CARE ERP v2.8.84 — RELEVANT FILES ONLY
+
+STRICTLY BILLING / ACCOUNTS WORKFLOW UPDATE.
+No unrelated ERP files are included in this package.
+
+STEP 1 — SUPABASE
+Open Supabase > SQL Editor and run:
+88_charge_master_accounts_only_financial_control.sql
+
+STEP 2 — GITHUB ERP ROOT
+Replace ONLY these 3 existing files:
+1. app.js
+2. index.html
+3. service-worker.js
+
+DO NOT replace styles.css.
+DO NOT replace any folders.
+DO NOT delete or replace any other ERP files.
+
+The SQL file and START_HERE.txt are NOT for upload to the ERP root unless you want to keep them for reference.

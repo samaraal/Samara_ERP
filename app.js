@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.83';
+  const APP_VERSION = '2.8.84';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -15736,7 +15736,8 @@ Please access the Samara Family Portal for detailed account information.`;
 
   function ClinicalCharges({profile}){
     const canRaise=['Admin','Manager','Nurse','Accounts'].includes(profile?.role);
-    const canApprove=['Admin','Manager','Accounts'].includes(profile?.role);
+    const canApprove=profile?.role==='Accounts';
+    const canManageTariffs=profile?.role==='Admin';
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
     const [diagnostics,setDiagnostics]=React.useState([]);
@@ -15744,6 +15745,8 @@ Please access the Samara Family Portal for detailed account information.`;
     const [busy,setBusy]=React.useState(false);
     const [toast,setToast]=React.useState(null);
     const [files,setFiles]=React.useState([]);
+    const [tariffs,setTariffs]=React.useState([]);
+    const [tariffBusy,setTariffBusy]=React.useState(false);
     const categories={
       'Doctor Services':['General Physician Visit','Emergency Doctor Visit','Specialist Consultation','Teleconsultation','Home Visit','Follow-up Consultation'],
       'Nursing Procedures':['Dressing','Injection','IV Cannulation','IV Fluid Administration','Blood Transfusion Assistance','Catheterization','Ryle’s Tube Feeding','Nebulization','Oxygen Therapy','Suctioning','ECG','Blood Sample Collection','Wound Care','Pressure Sore Care','Other Nursing Procedure'],
@@ -15780,7 +15783,7 @@ Please access the Samara Family Portal for detailed account information.`;
       const authResult=await client.auth.getUser();
       const authUserId=authResult.data?.user?.id||null;
 
-      const [a,b]=await Promise.all([
+      const [a,b,c]=await Promise.all([
         client.from('bill_charge_requests')
           .select('*')
           .order('created_at',{ascending:false})
@@ -15788,7 +15791,8 @@ Please access the Samara Family Portal for detailed account information.`;
         client.from('diagnostic_services')
           .select('*')
           .order('ordered_at',{ascending:false})
-          .limit(500)
+          .limit(500),
+        client.from('charge_tariff_master').select('*').eq('is_active',true).order('category').order('service_name')
       ]);
 
       if(a.error)notify('error',a.error.message);
@@ -15804,6 +15808,7 @@ Please access the Samara Family Portal for detailed account information.`;
         :allRequests;
 
       setRows(visibleRequests);
+      if(!c.error)setTariffs(c.data||[]);
       const visibleRequestIds=new Set(visibleRequests.map(row=>row.id));
       setDiagnostics(
         profile?.role==='Nurse'
@@ -15844,6 +15849,9 @@ Please access the Samara Family Portal for detailed account information.`;
       if(busy)return;
       if(!form.patient_id){notify('error','Select the patient.');return}
       if(isFutureDateIndia(form.charge_date)||isFutureDateIndia(form.bill_date)){notify('error','Future dates are not permitted.');return}
+      if(form.bill_available&&files.length===0){notify('error','Upload the supporting bill / invoice when Bill available is selected.');return}
+      if(form.bill_available&&!String(form.bill_number||'').trim()){notify('error','Enter the bill / invoice number.');return}
+      if(form.bill_available&&!form.bill_date){notify('error','Enter the bill date.');return}
       setBusy(true);
       try{
         const qty=Math.max(1,Number(form.quantity||1));
@@ -15905,13 +15913,16 @@ Please access the Samara Family Portal for detailed account information.`;
     }
     async function decide(row,decision){
       if(!canApprove||busy)return;
-      let amount=Number(row.requested_amount||row.estimated_amount||0);
+      const tariff=tariffs.find(t=>t.category===row.category&&t.service_name===row.service_name&&t.is_active!==false);
+      let amount=row.bill_available?Number(row.requested_amount||0):Number(tariff?.amount||0);
       if(['Approved','Partially Approved'].includes(decision)){
         const defaultAmount=amount>0?String(amount):'';
         const entered=prompt(
-          amount>0
-            ?`Nursing request amount is ${money(amount)}. Confirm or enter the approved amount:`
-            :'Enter the bill / approved amount:',
+          row.bill_available
+            ?'Verify the uploaded bill and enter the actual bill amount:'
+            :amount>0
+              ?`Admin-fixed tariff is ${money(amount)}. Verify or enter the approved amount:`
+              :'No active fixed tariff is configured. Enter the verified amount:',
           defaultAmount
         );
         if(entered===null)return;
@@ -15923,7 +15934,7 @@ Please access the Samara Family Portal for detailed account information.`;
       }
       const remarks=prompt('Decision remarks:',decision)||decision;
       setBusy(true);
-      const result=await client.rpc('decide_bill_charge_request_v3',{
+      const result=await client.rpc('decide_bill_charge_request_v4',{
         p_request_id:row.id,
         p_decision:decision,
         p_approved_amount:decision==='Rejected'?0:amount,
@@ -15958,7 +15969,7 @@ Please access the Samara Family Portal for detailed account information.`;
       rows:filtered.map(r=>[
         formatDateIN(r.charge_date),pLabel(r.patient_id),r.category,r.service_name||r.description,
         r.service_provider||r.hospital_name||r.laboratory_name||'—',
-        `${r.quantity||1} ${r.unit||''}`,money(r.requested_amount||r.estimated_amount),money(r.approved_amount??r.final_amount),
+        `${r.quantity||1} ${r.unit||''}`,profile?.role==='Nurse'?'Hidden':money(r.requested_amount||r.estimated_amount),profile?.role==='Nurse'?'Hidden':money(r.approved_amount??r.final_amount),
         h('span',{className:'badge'},r.approval_status||'Pending'),
         r.decision_by_name||'—',r.decision_at?fmt(r.decision_at):'—',r.decision_remarks||'—',
         h('div',{className:'employee-actions'},
@@ -15988,8 +15999,8 @@ Please access the Samara Family Portal for detailed account information.`;
       miniInput('Doctor / Consultant',form.doctor_name,v=>setForm({...form,doctor_name:v})),
       miniInput('Quantity',form.quantity,v=>setForm({...form,quantity:v}),true,'number'),
       miniInput('Unit',form.unit,v=>setForm({...form,unit:v})),
-      profile?.role!=='Nurse'&&miniInput('Unit Cost',form.unit_cost,v=>setForm({...form,unit_cost:v}),false,'number'),
-      profile?.role!=='Nurse'&&miniInput('Total Amount',form.requested_amount,v=>setForm({...form,requested_amount:v}),false,'number'),
+      profile?.role==='Accounts'&&miniInput('Unit Cost',form.unit_cost,v=>setForm({...form,unit_cost:v}),false,'number'),
+      profile?.role==='Accounts'&&miniInput('Total Amount',form.requested_amount,v=>setForm({...form,requested_amount:v}),false,'number'),
       miniSelect('Urgency',form.urgency,['Routine','Urgent','Emergency'],v=>setForm({...form,urgency:v})),
       h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.billable,onChange:e=>setForm({...form,billable:e.target.checked})}),h('span',null,'Billable')),
       h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.bill_available,onChange:e=>setForm({...form,bill_available:e.target.checked})}),h('span',null,'Bill available'))
@@ -16020,7 +16031,7 @@ Please access the Samara Family Portal for detailed account information.`;
         accept:'image/*,.pdf',
         onChange:e=>setFiles(Array.from(e.target.files||[]))
       }),
-      profile?.role==='Nurse'&&h('small',{className:'small-note'},'Bill upload is optional at the time of request and may be attached when received.')
+      profile?.role==='Nurse'&&h('small',{className:'small-note'},form.bill_available?'Bill / invoice upload is mandatory because Bill available is selected.':'No amount is shown or entered by Nursing. Accounts will apply the Admin-fixed tariff.')
     ));
 
     const modal=show?h('div',{className:'modal-backdrop'},
@@ -16037,7 +16048,7 @@ Please access the Samara Family Portal for detailed account information.`;
         ),
         h('div',{className:'modal-grid'},
           profile?.role==='Nurse'&&h('div',{className:'clinical-charge-note'},
-            'Nursing staff must not enter an amount. Upload the available bill/report; Admin, Manager or Accounts will verify and enter the approved amount.'
+            'Nursing staff record only the service/expense occurrence. Financial amounts are not visible here. If a bill is available, upload it; Accounts will verify it. Otherwise Accounts will use the Admin-fixed tariff.'
           ),
           ...basicFields.filter(Boolean)
         ),
@@ -16045,12 +16056,31 @@ Please access the Samara Family Portal for detailed account information.`;
       )
     ):null;
 
+    async function saveTariff(category,serviceName,currentAmount){
+      if(!canManageTariffs)return;
+      const entered=prompt(`Set fixed tariff for ${serviceName}:`,currentAmount!==null&&currentAmount!==undefined?String(currentAmount):'');
+      if(entered===null)return;
+      const amount=Number(entered);
+      if(!Number.isFinite(amount)||amount<=0){notify('error','Enter a valid tariff greater than zero.');return}
+      setTariffBusy(true);
+      const result=await client.from('charge_tariff_master').upsert({category,service_name:serviceName,amount,is_active:true,updated_by:profile.id,updated_at:new Date().toISOString()},{onConflict:'category,service_name'});
+      setTariffBusy(false);
+      if(result.error)notify('error',result.error.message); else {notify('success','Fixed tariff updated.');await load();}
+    }
+    const tariffPanel=canManageTariffs?h(Section,{title:'Charge Master',subtitle:'Admin-only fixed tariffs. These amounts are not displayed to Nursing.'},
+      h(LogTable,{title:'Approved Fixed Tariffs',heads:['Category','Service','Fixed Tariff','Action'],rows:Object.entries(categories).flatMap(([category,services])=>services.map(serviceName=>{
+        const t=tariffs.find(x=>x.category===category&&x.service_name===serviceName&&x.is_active!==false);
+        return [category,serviceName,t?money(t.amount):'Not set',h('button',{className:'btn btn-secondary',disabled:tariffBusy,onClick:()=>saveTariff(category,serviceName,t?.amount)},t?'Edit Tariff':'Set Tariff')];
+      }))})
+    ):null;
+
     return h(React.Fragment,null,
       h('div',{className:'clinical-charges-hero'},
-        h('div',null,h('small',null,'DOCUMENT ONCE · BILL ACCURATELY'),h('h3',null,'Bills & Charges'),h('p',null,'Nurses raise additional services and expenses. Base room rent and routine nursing charges remain system-generated. Accounts, Manager or Admin approves with a time stamp.')),
+        h('div',null,h('small',null,'DOCUMENT ONCE · BILL ACCURATELY'),h('h3',null,'Bills & Charges'),h('p',null,'Nurses record additional services and expenses without seeing charges. Admin maintains fixed tariffs; Accounts verifies bills/tariffs and posts approved charges to the patient ledger.')),
         canRaise&&h('button',{className:'btn btn-primary',onClick:openNew},'+ Raise Bill / Charge')
       ),
       summary,
+      tariffPanel,
       h(Section,{title:'Bills & Charges Register',subtitle:'Doctor, nursing, physiotherapy, laboratory, hospital, transport and other expenses'},
         h('div',{className:'clinical-charge-filters'},
           patientSelect(patients,filter.patient_id,v=>setFilter({...filter,patient_id:v})),
