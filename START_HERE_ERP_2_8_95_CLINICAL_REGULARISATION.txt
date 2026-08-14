@@ -1,0 +1,22 @@
+SAMARA CARE ERP v2.8.95 — CLINICAL ALERT REGULARISATION
+
+RULE IMPLEMENTED
+1. Everything pending UP TO installation time is consolidated into ONE alert:
+   "One-time Clinical Backlog Regularisation".
+2. Historical pending medication/vitals/care/physio items do NOT generate separate retroactive alerts.
+3. Click "Regularise Backlog" once to acknowledge that historical consolidated alert.
+4. After the cutoff, alerts operate normally item-by-item.
+5. Future unresolved alerts escalate to Manager/Admin after the configured manager escalation interval (default 30 minutes).
+6. Medication Dashboard counts/worklist are NOT changed by this update.
+
+INSTALLATION
+A. First run in Supabase SQL Editor:
+   109_CLINICAL_ALERT_REGULARISATION_ONE_BACKLOG_THEN_NORMAL.sql
+B. Then upload/replace only:
+   app.js
+   index.html
+   service-worker.js
+
+NO styles.css. NO folders.
+
+After SQL, the result will show the one-time backlog counts captured at the cutoff.

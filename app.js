@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.94';
+  const APP_VERSION = '2.8.95';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '25';
 
@@ -2071,8 +2071,8 @@ Caring with Compassion. Living with Dignity.`;
           a.patient_name||'—',a.room_label||'—',a.title,fmt(a.due_at),Number(a.overdue_minutes)>0?`${a.overdue_minutes} min`:'Due soon',a.description||'—',
           h('div',{className:'employee-actions'},
             h('button',{className:'btn btn-primary',onClick:()=>setPage(a.target_page||'Clinical Alerts')},'Open'),
-            h('button',{className:'btn btn-secondary',onClick:()=>engine.acknowledge(a,'Snoozed',5)},'Snooze 5'),
-            h('button',{className:'btn btn-secondary',onClick:()=>engine.acknowledge(a,'Acknowledged',0)},'Acknowledge')
+            a.alert_type!=='Regularisation'&&h('button',{className:'btn btn-secondary',onClick:()=>engine.acknowledge(a,'Snoozed',5)},'Snooze 5'),
+            h('button',{className:'btn btn-secondary',onClick:()=>engine.acknowledge(a,'Acknowledged',0)},a.alert_type==='Regularisation'?'Regularise Backlog':'Acknowledge')
           )
         ])
       })
