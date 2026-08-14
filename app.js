@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.93';
+  const APP_VERSION = '2.8.94';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '25';
 
@@ -12233,6 +12233,10 @@ function RoomsBeds({profile}){
       const seenMedicationOrders=new Set();
       const validMedicationOrders=(data[1]||[]).filter(order=>{
         if(!activePatientIds.has(order.patient_id))return false;
+        if(order.is_active===false)return false;
+        const orderStatus=String(order.status||'').trim().toLowerCase();
+        if(['completed','discontinued','stopped','inactive'].includes(orderStatus))return false;
+        if(order.end_date&&String(order.end_date)<today)return false;
         const schedule=Array.isArray(order.scheduled_times)?order.scheduled_times.map(normalizeMedicationTime).filter(Boolean).sort().join('|'):String(order.scheduled_times||'');
         const key=[order.patient_id,String(order.medicine_name||order.medicine||'').trim().toLowerCase(),String(order.strength||order.dose||'').trim().toLowerCase(),String(order.frequency||'').trim().toLowerCase(),String(order.route||'').trim().toLowerCase(),schedule].join('::');
         if(seenMedicationOrders.has(key))return false;
@@ -12257,10 +12261,29 @@ function RoomsBeds({profile}){
       }
     }));
     const medDueTasks=medTasks.filter(x=>x.due).sort((a,b)=>b.minutesOverdue-a.minutesOverdue);
-    const medCritical=medDueTasks.filter(x=>x.minutesOverdue>=60);
-    const medEscalated=medDueTasks.filter(x=>x.minutesOverdue>=30&&x.minutesOverdue<60);
-    const medOverdue=medDueTasks.filter(x=>x.minutesOverdue>=15&&x.minutesOverdue<30);
-    const medDueNow=medDueTasks.filter(x=>x.minutesOverdue>=0&&x.minutesOverdue<15);
+    const medicationCriticalMinutes=Math.max(1,Number(alertEngine?.settings?.medication_error_minutes||60));
+    const medicationEscalationMinutes=Math.max(1,Number(alertEngine?.settings?.manager_escalation_minutes||30));
+    const medicationOverdueMinutes=15;
+    const medCritical=medDueTasks.filter(x=>x.minutesOverdue>=medicationCriticalMinutes);
+    // "Overdue" is cumulative: Critical doses are also overdue.
+    const medOverdue=medDueTasks.filter(x=>x.minutesOverdue>=medicationOverdueMinutes);
+    const medDueNow=medDueTasks.filter(x=>x.minutesOverdue>=0&&x.minutesOverdue<medicationOverdueMinutes);
+    // Escalated means an actual unresolved medication alert has been generated,
+    // not merely that the clock passed the escalation threshold.
+    const medicationAlertKeys=new Set(
+      (alertEngine?.alerts||[])
+        .filter(a=>{
+          const type=String(a.alert_type||'').toLowerCase();
+          return (type.includes('med')||String(a.target_page||'').toLowerCase().includes('medic')) &&
+            Number(a.overdue_minutes||0)>=medicationEscalationMinutes;
+        })
+        .map(a=>`${a.source_id||''}:${String(a.due_at||'').slice(0,16)}`)
+    );
+    const medEscalated=medDueTasks.filter(x=>{
+      const dueDate=new Date(`${today}T${String(x.time||'').slice(0,5)}:00`);
+      const dueIso=Number.isNaN(dueDate.getTime())?'':dueDate.toISOString().slice(0,16);
+      return medicationAlertKeys.has(`${x.order.id}:${dueIso}`);
+    });
     const carePending=state.careOrders.flatMap(order=>{
       const taskShifts=order.shift==='Both shifts'
         ?['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)']
@@ -12312,7 +12335,7 @@ function RoomsBeds({profile}){
           :'clinical-green';
     const cards=[
       ['Patients under care',state.patients.length,'Patients','👥','clinical-green'],
-      ['Medicines due',medDueTasks.length,'Medicines','💊',medCritical.length||medEscalated.length?'clinical-red':medDueTasks.length?'clinical-amber':'clinical-green',medDueTasks.length?`${medCritical.length} critical · ${medEscalated.length} escalated · ${medOverdue.length} overdue · ${medDueNow.length} due now`:'No medicine currently due'],
+      ['Medicines due',medDueTasks.length,'Medicines','💊',medCritical.length||medEscalated.length?'clinical-red':medDueTasks.length?'clinical-amber':'clinical-green',medDueTasks.length?`${medOverdue.length} overdue total · ${medCritical.length} critical · ${medEscalated.length} escalated · ${medDueNow.length} due now`:'No medicine currently due'],
       ['Clinical alerts',alertEngine?.alerts?.length||0,'Clinical Alerts','🔔',(alertEngine?.alerts?.length||0)?'clinical-red':'clinical-green',(alertEngine?.alerts?.length||0)?'Open unresolved alerts':'No unresolved alert'],
       ['Vitals pending',vitalsPending.length,'Vital Signs','🩺',vitalsPending.length?'clinical-amber':'clinical-green'],
       ['Current-shift care pending',currentShiftCarePending.length,'Shift Tasks','✅',currentShiftCarePending.length?'clinical-amber':'clinical-green'],
@@ -12330,7 +12353,7 @@ function RoomsBeds({profile}){
       h('div',{className:'clinical-columns'},
         h('section',{className:'card clinical-panel'},h('div',{className:'clinical-panel-head'},h('div',null,h('h3',null,'Priority Worklist'),h('small',null,'Overdue and pending tasks requiring attention')),h('button',{className:'btn btn-secondary',onClick:load},'Refresh')),
           medDueTasks.slice(0,8).map((x,i)=>{
-            const level=x.minutesOverdue>=60?'CRITICAL':x.minutesOverdue>=30?'ESCALATED':x.minutesOverdue>=15?'OVERDUE':'DUE NOW';
+            const level=x.minutesOverdue>=medicationCriticalMinutes?'CRITICAL':x.minutesOverdue>=medicationEscalationMinutes?'ESCALATION DUE':x.minutesOverdue>=medicationOverdueMinutes?'OVERDUE':'DUE NOW';
             const linked=state.patients.find(p=>p.id===x.order.patient_id);
             const room=linked?.room_no?`Room ${linked.room_no}${linked.bed_no?`-${linked.bed_no}`:''}`:'';
             return h('div',{className:`clinical-work-row ${x.minutesOverdue>=15?'urgent':''}`,key:'m'+i},h('span',null,'💊'),h('div',null,h('strong',null,patientName(x.order)),h('small',null,`${room}${room?' · ':''}${x.order.medicine_name||x.order.medicine||'Medicine'} ${x.order.strength||x.order.dose||''} · Due ${medicationTimeLabel(x.time)}${x.minutesOverdue>0?` · ${x.minutesOverdue} min overdue`:''}`)),h('b',null,level));
