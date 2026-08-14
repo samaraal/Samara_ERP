@@ -1,8 +1,13 @@
-Samara Care ERP 2.8.90 - Patient Identity Collision Diagnostic (schema-safe revision)
+Samara Care ERP 2.8.91 - UNIQUE PATIENT MOBILE GUARD
 
-1. ERP files are unchanged from v2.8.90 Patient Identity Guard.
-2. Run 90_PATIENT_IDENTITY_COLLISION_DIAGNOSTIC_READ_ONLY.sql in Supabase SQL Editor.
-3. This SQL is READ-ONLY. It does not insert, update or delete any data.
-4. Send the Results to ChatGPT. Do NOT run any recovery UPDATE/DELETE SQL yet.
+1. Run 94_UNIQUE_PATIENT_MOBILE_GUARD.sql in Supabase SQL Editor.
+2. Replace only app.js, index.html and service-worker.js in the ERP repository root.
+3. Do NOT replace styles.css or any folders.
 
-This revision removes assumptions about optional room_beds columns and returns the room row as JSON.
+What this update does:
+- New admission: blocks a mobile number already belonging to ANY other patient, active or inactive.
+- Patient Edit: blocks changing a patient's mobile to another patient's existing mobile.
+- Database trigger: independently blocks duplicate patient mobile numbers even if the browser-side check is bypassed.
+- Re-admission of the SAME patient remains allowed because it reuses the same patient row.
+
+This update does NOT repair the existing Boominathan/Karthi collision. Recovery is being handled separately after identity evidence is confirmed.

@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.90';
+  const APP_VERSION = '2.8.91';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '25';
 
@@ -7272,12 +7272,11 @@ Caring with Compassion. Living with Dignity.`;
     // name, mobile number, or selected room happens to match. Existing patient rows
     // may be updated only after the user explicitly chooses an INACTIVE resident for
     // re-admission through useReturningPatient().
-    const activeDuplicatePatient=React.useMemo(()=>{
+    const duplicateMobilePatient=React.useMemo(()=>{
       if(returningPatient)return null;
       const mobile=String(form.mobile||'').replace(/\D/g,'').slice(-10);
       if(mobile.length!==10)return null;
       return previousPatients.find(patient=>{
-        if(patient.is_active===false)return false;
         const patientMobile=String(patient.mobile||'').replace(/\D/g,'').slice(-10);
         return patientMobile.length===10&&patientMobile===mobile;
       })||null;
@@ -7944,8 +7943,8 @@ Please keep these login details confidential.`;
       setBusy(true);
       setMsg('');
       if(!['Admin','Manager'].includes(profile?.role)){setMsg('Only Admin or Manager can allot a room and complete patient admission.');setBusy(false);return}
-      if(activeDuplicatePatient&&!returningPatient){
-        setMsg(`An active resident already uses mobile ${String(form.mobile||'').replace(/\D/g,'').slice(-10)}: ${formalName(activeDuplicatePatient)||activeDuplicatePatient.full_name} · ${activeDuplicatePatient.patient_id||activeDuplicatePatient.patient_code||'Resident ID unavailable'}. New admission was NOT created. Open the existing Patient File, or correct the mobile number if this is a different person.`);
+      if(duplicateMobilePatient&&!returningPatient){
+        setMsg(`This mobile number is already registered to ${formalName(duplicateMobilePatient)||duplicateMobilePatient.full_name} · ${duplicateMobilePatient.patient_id||duplicateMobilePatient.patient_code||'Resident ID unavailable'}. A different patient cannot use the same mobile number. If this is the same previous resident, use Re-admission; otherwise correct the mobile number.`);
         setBusy(false);
         return;
       }
@@ -9306,6 +9305,13 @@ Please keep these login details confidential.`;
     async function savePatientEdit(e){
       e.preventDefault();setEditBusy(true);setEditMsg('');
       if(isFutureDateIndia(editForm.admission_date)){const text=`Admission date cannot be later than today (${formatDateIN(todayISOIndia())}). Please correct the date.`;setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
+      const normalizedEditMobile=String(editForm.mobile||'').replace(/\D/g,'').slice(-10);
+      if(normalizedEditMobile.length===10){
+        const {data:mobilePatients,error:mobileCheckError}=await client.from('patients').select('id,patient_id,patient_code,title,full_name,mobile');
+        if(mobileCheckError){const text=mobileCheckError.message||'Unable to verify patient mobile number';setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
+        const conflict=(mobilePatients||[]).find(row=>row.id!==editTarget.id&&String(row.mobile||'').replace(/\D/g,'').slice(-10)===normalizedEditMobile);
+        if(conflict){const text=`This mobile number is already registered to ${formalName(conflict)||conflict.full_name} · ${conflict.patient_id||conflict.patient_code||'Resident ID unavailable'}. Patient details were not changed.`;setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
+      }
       const allowed=['title','full_name','age','gender','mobile','address','state','district','taluk','village_town','locality_area','street_name','house_no','apartment_name','flat_no','landmark','pincode','attendant_name','attendant_phone','diagnosis','referring_doctor','treating_doctor','doctor_phone','hospital_name','admission_type','patient_category','room_no','bed_no','allergies','special_instructions','admission_date','is_active','diet_plan','feeding_instruction','fall_risk','pressure_sore_risk','aspiration_risk','wandering_risk','infection_risk','seizure_history','special_nurse_required','special_nurse_name','special_nurse_shift'];
       const payload={};allowed.forEach(k=>payload[k]=editForm[k]===''?null:editForm[k]);
       payload.address=composePatientAddressGlobal(editForm);
