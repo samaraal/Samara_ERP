@@ -1,0 +1,10 @@
+SAMARA CARE ERP 2.8.69
+
+GLOBAL MOBILE HEADER UPDATE
+- App header remains constantly visible while scrolling.
+- Module selector remains with the fixed header when shown.
+- Only the current module/content area scrolls vertically.
+- Bottom navigation remains fixed.
+- Applied globally across mobile ERP pages.
+
+Upload/replace: app.js, styles.css, index.html, service-worker.js
