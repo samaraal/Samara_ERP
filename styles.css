@@ -1315,3 +1315,46 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
 @media(max-width:560px){
   .mobile-header-brand-logo{width:170px!important;height:66px!important;max-width:52vw!important}
 }
+
+
+/* ERP 2.8.78 — Mobile login scrolling fix.
+   v2.8.69 intentionally locks the authenticated app shell so only the module
+   content scrolls. The same html/body/root lock must NOT apply to Login. */
+@media(max-width:760px){
+  html,
+  body,
+  body #root{
+    height:auto!important;
+    min-height:100%!important;
+    max-height:none!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    overscroll-behavior-y:auto!important;
+    -webkit-overflow-scrolling:touch!important;
+  }
+
+  /* Authenticated ERP still keeps the professional fixed chrome and
+     content-only scrolling through its own 100dvh app shell. */
+  body #root > .app{
+    height:100dvh!important;
+    min-height:100dvh!important;
+    max-height:100dvh!important;
+    overflow:hidden!important;
+  }
+
+  /* Login / password recovery must remain naturally scrollable on phones. */
+  body #root > .login-shell,
+  body #root > .login-v3-shell{
+    width:100%!important;
+    min-height:100dvh!important;
+    height:auto!important;
+    max-height:none!important;
+    overflow:visible!important;
+    touch-action:pan-y!important;
+  }
+  .login-v3-frame{
+    height:auto!important;
+    max-height:none!important;
+    overflow:visible!important;
+  }
+}

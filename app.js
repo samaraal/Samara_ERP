@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.75';
+  const APP_VERSION = '2.8.78';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -1957,6 +1957,7 @@ Caring with Compassion. Living with Dignity.`;
     });
     const [soundUnlocked,setSoundUnlocked]=React.useState(false);
     const lastPlayed=React.useRef({});
+    const lastPopup=React.useRef({});
     const audioContext=React.useRef(null);
 
     async function unlockSound(){
@@ -2004,19 +2005,48 @@ Caring with Compassion. Living with Dignity.`;
       const {data,error}=await client.rpc('get_current_clinical_alerts');
       if(error){console.warn('Alert engine:',error.message);setAlerts([]);return}
       const list=(data||[]).map(a=>({...a,key:`${a.alert_type}:${a.source_id}:${a.due_at}`}));
-      setAlerts(list);
-      const top=list.find(a=>['Critical','Urgent'].includes(a.priority));
+      const escalationMinutes=Number(settings.manager_escalation_minutes||30);
+      const isEscalationViewer=['Admin','Manager'].includes(profile?.role);
+      const visibleList=isEscalationViewer?list.filter(a=>Number(a.overdue_minutes)>=escalationMinutes):list;
+      setAlerts(visibleList);
+      const top=visibleList.find(a=>['Critical','Urgent'].includes(a.priority))||visibleList[0];
       if(top){
-        const now=Date.now(),last=lastPlayed.current[top.key]||0;
-        if(now-last>=Math.max(1,Number(settings.repeat_minutes||5))*60000){
+        const now=Date.now(),repeatMs=Math.max(1,Number(settings.repeat_minutes||5))*60000;
+        const last=lastPlayed.current[top.key]||0;
+        if(now-last>=repeatMs){
           lastPlayed.current[top.key]=now;play(top.priority);speak(top);
           if(settings.browser_notifications_enabled&&Notification.permission==='granted'){
             try{new Notification(top.title,{body:`${top.patient_name||''} · ${top.room_label||''}\n${top.description||''}`,tag:top.key,requireInteraction:top.priority==='Critical'})}catch(_){}
           }
         }
+        const popupLast=lastPopup.current[top.key]||0;
+        if(now-popupLast>=repeatMs){
+          lastPopup.current[top.key]=now;
+          const overdue=Number(top.overdue_minutes||0);
+          const heading=isEscalationViewer?'Clinical escalation':'Clinical task due';
+          const detail=`${top.patient_name||'Patient'} · ${top.room_label||''} · ${top.title}${overdue>0?` · ${overdue} min overdue`:''}`;
+          showSamaraActionToast(overdue>=escalationMinutes?'error':'warning',heading,detail);
+        }
       }
-      if(list.some(a=>Number(a.overdue_minutes)>=Number(settings.manager_escalation_minutes||30))){
+      if(list.some(a=>Number(a.overdue_minutes)>=escalationMinutes)){
         client.rpc('process_clinical_alert_escalations').then(()=>{});
+        // WhatsApp escalation is server-side and idempotent. The Edge Function
+        // sends only approved template messages and de-duplicates each alert/stage/recipient.
+        (async()=>{
+          try{
+            const {data:{session}}=await client.auth.getSession();
+            if(!session)return;
+            await fetch(`${cfg.supabaseUrl}/functions/v1/clinical-escalation-whatsapp`,{
+              method:'POST',
+              headers:{
+                'Content-Type':'application/json',
+                'Authorization':`Bearer ${session.access_token}`,
+                'apikey':cfg.supabasePublishableKey
+              },
+              body:JSON.stringify({action:'process'})
+            });
+          }catch(error){console.warn('Clinical WhatsApp escalation:',error?.message||error)}
+        })();
       }
     }
     React.useEffect(()=>{loadSettings()},[]);
@@ -12689,25 +12719,53 @@ function RoomsBeds({profile}){
     const activeOrders=state.orders.filter(orderActive);
     const todayRows=[];
     activeOrders.forEach(order=>parseTimes(order.scheduled_times).forEach(time=>todayRows.push({order,time,log:doseStatus(order,time)})));
-    const missedRows=todayRows.filter(x=>x.log&&['missed','refused','delayed','not given'].includes(String(x.log.status||'').toLowerCase()));
+    const missedRows=todayRows.filter(x=>{
+      if(x.log)return ['missed','refused','delayed','not given','withheld','unavailable'].includes(String(x.log.status||'').toLowerCase());
+      return pendingDoseState(x).minutes>=15;
+    });
     const completedOrders=state.orders.filter(o=>String(o.status||'').toLowerCase()==='completed'||(o.end_date&&o.end_date<today&&o.is_active!==false));
     const discontinuedOrders=state.orders.filter(o=>o.is_active===false||['discontinued','stopped','inactive'].includes(String(o.status||'').toLowerCase()));
     const filtered=rows=>patientFilter?rows.filter(item=>(item.order||item).patient_id===patientFilter):rows;
     const tabs=[['Active Prescriptions',activeOrders.length],['Today’s MAR',todayRows.length],['Missed Medicines',missedRows.length],['Completed Medicines',completedOrders.length],['Discontinued Medicines',discontinuedOrders.length]];
 
+    function scheduledDoseDate(time){
+      const raw=String(time||'').slice(0,8);
+      if(!raw)return null;
+      const d=new Date(`${today}T${raw.length===5?raw+':00':raw}`);
+      return Number.isNaN(d.getTime())?null:d;
+    }
+    function pendingDoseState(item){
+      if(item.log)return {status:item.log.status||'Recorded',audit:item.log.late_entry?`Late entry (${item.log.entry_delay_minutes||0} min) · ${item.log.late_entry_reason||'Justification recorded'}`:'On-time entry',minutes:0};
+      const due=scheduledDoseDate(item.time);if(!due)return {status:'Pending',audit:'Not recorded',minutes:0};
+      const minutes=Math.floor((Date.now()-due.getTime())/60000);
+      if(minutes>=60)return {status:'Critical Pending',audit:`Not recorded · ${minutes} min overdue`,minutes};
+      if(minutes>=30)return {status:'Escalated',audit:`Not recorded · ${minutes} min overdue`,minutes};
+      if(minutes>=15)return {status:'Overdue',audit:`Not recorded · ${minutes} min overdue`,minutes};
+      if(minutes>=0)return {status:'Due Now',audit:minutes?`Not recorded · ${minutes} min overdue`:'Not recorded',minutes};
+      return {status:'Upcoming',audit:'Not due yet',minutes};
+    }
+
     const prescriptionRows=orders=>filtered(orders).map(order=>[
       patientLabel(order),medicineLabel(order),order.route||'—',order.frequency||'—',order.duration||'—',parseTimes(order.scheduled_times).map(medicationTimeLabel).join(', ')||'—',order.food_instruction||'—',order.special_instruction||order.special_instructions||'—',latestMar(order)?.status||'No MAR yet',
       h('button',{type:'button',className:'btn btn-primary',onClick:()=>openMar(order)},'Administer')
     ]);
-    const marRows=items=>filtered(items).map(item=>[
-      patientLabel(item.order),medicineLabel(item.order),medicationTimeLabel(item.time),item.log?.status||'Pending',item.log?.administered_at?fmt(item.log.administered_at):'—',item.log?.entry_recorded_at?fmt(item.log.entry_recorded_at):(item.log?.created_at?fmt(item.log.created_at):'—'),item.log?.late_entry?`Late entry (${item.log.entry_delay_minutes||0} min) · ${item.log.late_entry_reason||'Justification recorded'}`:'On-time entry',item.log?.remarks||'—',
-      h('button',{type:'button',className:item.log?'btn btn-secondary':'btn btn-primary',onClick:()=>openMar(item.order,item.time)},item.log?'View / Correct':'Record Dose')
-    ]);
+    const marRows=items=>filtered(items).map(item=>{
+      const dose=pendingDoseState(item);
+      const urgent=!item.log&&dose.minutes>=15;
+      return [
+        patientLabel(item.order),medicineLabel(item.order),medicationTimeLabel(item.time),
+        h('span',{className:'badge',style:urgent?{background:dose.minutes>=60?'#fdecec':'#fff4dd',color:dose.minutes>=60?'#b42318':'#9a6700'}:{}},dose.status),
+        item.log?.administered_at?fmt(item.log.administered_at):'—',
+        item.log?.entry_recorded_at?fmt(item.log.entry_recorded_at):(item.log?.created_at?fmt(item.log.created_at):'—'),
+        dose.audit,item.log?.remarks||'—',
+        h('button',{type:'button',className:item.log?'btn btn-secondary':urgent?'btn btn-danger':'btn btn-primary',onClick:()=>openMar(item.order,item.time)},item.log?'View / Correct':urgent?'Resolve Dose':'Record Dose')
+      ];
+    });
 
     let table=null;
     if(tab==='Active Prescriptions')table=h(LogTable,{title:'Active Prescription Register',subtitle:'Current medicines transcribed during admission or patient update',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR','Action'],rows:prescriptionRows(activeOrders)});
     if(tab==='Today’s MAR')table=h(LogTable,{title:"Today’s Medication Administration",subtitle:'Scheduled doses and current administration status',heads:['Patient','Medicine','Time','Status','Administered','Entry recorded','Entry audit','Remarks','Action'],rows:marRows(todayRows)});
-    if(tab==='Missed Medicines')table=h(LogTable,{title:'Missed / Refused / Delayed Medicines',subtitle:'Medicine exceptions requiring clinical review',heads:['Patient','Medicine','Time','Status','Administered','Entry recorded','Entry audit','Reason / Remarks','Action'],rows:marRows(missedRows)});
+    if(tab==='Missed Medicines')table=h(LogTable,{title:'Overdue / Exception Medicines',subtitle:'Unresolved overdue doses and medicine exceptions requiring clinical review',heads:['Patient','Medicine','Time','Status','Administered','Entry recorded','Entry audit','Reason / Remarks','Action'],rows:marRows(missedRows)});
     if(tab==='Completed Medicines')table=h(LogTable,{title:'Completed Medicine Courses',subtitle:'Prescription courses completed by status or end date',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR','Action'],rows:prescriptionRows(completedOrders)});
     if(tab==='Discontinued Medicines')table=h(LogTable,{title:'Discontinued Medicines',subtitle:'Stopped or inactive prescriptions retained for history',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR'],rows:prescriptionRows(discontinuedOrders).map(row=>row.slice(0,-1))});
 

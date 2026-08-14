@@ -1,0 +1,2 @@
+ERP 2.8.78 - Mobile login scrolling fix.
+Replace app.js, styles.css, index.html and service-worker.js in the ERP repository root.
