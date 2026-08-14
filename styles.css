@@ -1360,7 +1360,30 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
 }
 
 
-/* ERP 2.8.79 — Clinical dashboard truth + persistent in-app escalation visibility */
+/* ERP 2.8.80 — Clinical dashboard truth + persistent in-app escalation visibility */
 .topbar-clinical-alert-badge{border:0;border-radius:999px;background:#a80d4f;color:#fff;font-weight:900;padding:9px 13px;white-space:nowrap;cursor:pointer;box-shadow:0 5px 14px rgba(168,13,79,.18)}
 .topbar-clinical-alert-badge:focus-visible{outline:3px solid rgba(194,24,91,.25);outline-offset:2px}
 @media(max-width:760px){.topbar-clinical-alert-badge{position:absolute;right:76px;top:12px;min-height:40px;padding:7px 10px;font-size:14px}.clinical-alert-popup{left:14px!important;right:14px!important;bottom:92px!important;max-width:none!important}.clinical-alert-popup-actions .btn{min-height:48px;width:100%}}
+
+/* ERP 2.8.80 — discharge refund dual-control financial security */
+.financial-security-banner{
+  display:flex;flex-direction:column;gap:6px;padding:14px 16px;margin:4px 0 14px;
+  border:1px solid rgba(172,0,82,.22);border-left:5px solid #b0005a;border-radius:14px;
+  background:linear-gradient(135deg,#fff7fb,#fff);color:#351c2c
+}
+.financial-security-banner strong{font-size:1.08rem;color:#8f0048}
+.financial-security-banner span{font-size:.88rem;color:#65515e}
+.refund-security-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.refund-security-card{padding:13px;border:1px solid #ead4df;border-radius:14px;background:#fff;display:flex;flex-direction:column;gap:5px}
+.refund-security-card span{font-size:.76rem;font-weight:700;color:#705a66;text-transform:uppercase;letter-spacing:.03em}
+.refund-security-card strong{font-size:1rem;color:#3d1e31}
+.refund-security-card small{color:#7a6872}
+.refund-control-form{padding:14px;border:1px solid #ead4df;border-radius:16px;background:#fffafd}
+.financial-confirm-check{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid #e4c6d6;border-radius:12px;background:#fff;line-height:1.35;font-weight:600;color:#4b2a3b}
+.financial-confirm-check input{width:20px;height:20px;margin-top:1px;flex:0 0 auto}
+@media(max-width:760px){
+  .refund-security-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .financial-security-banner{padding:12px}
+  .refund-control-form{padding:10px}
+}
+@media(max-width:430px){.refund-security-grid{grid-template-columns:1fr}}

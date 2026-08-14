@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.79';
+  const APP_VERSION = '2.8.80';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -11431,7 +11431,7 @@ Doctor / Hospital: ${doctorHospital}`;
           onClick:()=>openManagementReview(row)
         },'Review & Decide'),
         canCloseAccounts&&row.management_status==='Approved'&&row.status!=='Completed'&&h('button',{className:'btn btn-secondary',onClick:()=>openPayments(row)},'View Payments'),
-        canCloseAccounts&&row.management_status==='Approved'&&row.status!=='Completed'&&row.accounts_status==='Ready to Close'&&h('button',{className:'btn btn-primary',onClick:()=>closeAccounts(row)},'Enter Closure Remarks & Close'),
+        canCloseAccounts&&row.management_status==='Approved'&&row.status!=='Completed'&&row.accounts_status==='Ready to Close'&&h('span',{className:'small-note'},'Financial closure must be completed through Payments with full transaction evidence.'),
         isNurse&&String(row.accounts_status||'').trim().toLowerCase()==='cleared'&&String(row.status||'').trim().toLowerCase()!=='completed'&&h('button',{
           type:'button',
           className:'btn btn-primary',
@@ -14935,6 +14935,12 @@ function ShiftHandover({profile,onNavigate}){
     const [toast,setToast]=React.useState(null);
     const [lastVoucherNo,setLastVoucherNo]=React.useState('');
     const [lastPaymentReceipt,setLastPaymentReceipt]=React.useState(null);
+    const [refundRequest,setRefundRequest]=React.useState(null);
+    const [refundLoading,setRefundLoading]=React.useState(false);
+    const [refundForm,setRefundForm]=React.useState({
+      amount:'',confirm_amount:'',payment_mode:'UPI',payment_reference:'',accounts_remarks:'',
+      admin_confirm_amount:'',admin_remarks:'',admin_confirmed:false
+    });
     const canEnter=['Admin','Manager','Accounts'].includes(profile?.role);
     const canDiscount=profile?.role==='Admin';
 
@@ -14978,6 +14984,33 @@ function ShiftHandover({profile,onNavigate}){
       })}`;
     }
 
+    async function loadRefundRequest(dischargeId){
+      if(!dischargeId){setRefundRequest(null);return null}
+      const {data,error}=await client.from('discharge_refund_requests')
+        .select('*')
+        .eq('discharge_id',dischargeId)
+        .maybeSingle();
+      if(error){
+        if(!String(error.message||'').toLowerCase().includes('does not exist'))console.warn('Refund request could not be loaded:',error);
+        setRefundRequest(null);
+        return null;
+      }
+      setRefundRequest(data||null);
+      if(data){
+        setRefundForm(current=>({
+          ...current,
+          amount:data.accounts_amount!=null?String(data.accounts_amount):(current.amount||''),
+          confirm_amount:data.accounts_confirm_amount!=null?String(data.accounts_confirm_amount):(current.confirm_amount||''),
+          payment_mode:data.payment_mode||current.payment_mode||'UPI',
+          payment_reference:data.payment_reference||current.payment_reference||'',
+          accounts_remarks:data.accounts_remarks||current.accounts_remarks||'',
+          admin_confirm_amount:data.admin_confirm_amount!=null?String(data.admin_confirm_amount):(current.admin_confirm_amount||''),
+          admin_remarks:data.admin_remarks||current.admin_remarks||''
+        }));
+      }
+      return data||null;
+    }
+
     async function load(){
       setLoading(true);
       const {data,error}=await client.from('billing_transactions')
@@ -14993,6 +15026,7 @@ function ShiftHandover({profile,onNavigate}){
         setRows(data||[]);
         setMessage('');
       }
+      if(dischargeTarget?.discharge_id)await loadRefundRequest(dischargeTarget.discharge_id);
       setLoading(false);
     }
 
@@ -15033,6 +15067,80 @@ function ShiftHandover({profile,onNavigate}){
         }));
       }
     },[dischargeTarget?.discharge_id,patientFilter,pendingBills]);
+
+    React.useEffect(()=>{
+      if(!dischargeTarget||patientFilter!==dischargeTarget.patient_id||advanceBalance<=0.009)return;
+      let cancelled=false;
+      (async()=>{
+        setRefundLoading(true);
+        const result=await client.rpc('ensure_discharge_refund_request',{p_discharge_id:dischargeTarget.discharge_id});
+        if(cancelled)return;
+        if(result.error){
+          setMessage(`Refund workflow could not be initiated: ${result.error.message}`);
+          setRefundLoading(false);
+          return;
+        }
+        await loadRefundRequest(dischargeTarget.discharge_id);
+        if(!cancelled)setRefundLoading(false);
+      })();
+      return()=>{cancelled=true};
+    },[dischargeTarget?.discharge_id,patientFilter,advanceBalance]);
+
+    async function verifyRefundByAccounts(){
+      if(profile?.role!=='Accounts'||!refundRequest||saving)return;
+      const amount=Number(refundForm.amount),confirmAmount=Number(refundForm.confirm_amount);
+      if(!Number.isFinite(amount)||amount<=0||!Number.isFinite(confirmAmount)||confirmAmount<=0){
+        notify('error','Refund amount required','Enter the refund amount twice for verification.');return;
+      }
+      if(Math.abs(amount-confirmAmount)>0.009){
+        notify('error','Amounts do not match','Refund Amount and Confirm Refund Amount must be identical.');return;
+      }
+      if(Math.abs(amount-advanceBalance)>0.009){
+        notify('error','Amount blocked',`The system-calculated refundable balance is ${money(advanceBalance)}. The entered amount must match exactly.`);return;
+      }
+      if(!String(refundForm.payment_reference||'').trim()){
+        notify('error','Reference required','Refund receipt / bank / UPI / transaction reference number is mandatory.');return;
+      }
+      if(String(refundForm.accounts_remarks||'').trim().length<8){
+        notify('error','Verification remarks required','Enter clear Accounts verification remarks before forwarding to Admin.');return;
+      }
+      setSaving(true);
+      const result=await client.rpc('accounts_verify_discharge_refund',{
+        p_request_id:refundRequest.id,
+        p_amount:amount,
+        p_confirm_amount:confirmAmount,
+        p_payment_mode:refundForm.payment_mode,
+        p_payment_reference:String(refundForm.payment_reference||'').trim(),
+        p_remarks:String(refundForm.accounts_remarks||'').trim()
+      });
+      if(result.error){notify('error','Refund verification failed',result.error.message);setSaving(false);return}
+      writeAuditEvent('Discharge Refund Verified by Accounts','Billing',refundRequest.id,{patient_id:form.patient_id,amount,payment_mode:refundForm.payment_mode,payment_reference:refundForm.payment_reference},'Success');
+      notify('success','Refund verified by Accounts','The refund evidence is locked and has been forwarded to an Administrator for independent approval.');
+      await loadRefundRequest(dischargeTarget.discharge_id);setSaving(false);
+    }
+
+    async function approveRefundByAdmin(){
+      if(profile?.role!=='Admin'||!refundRequest||saving)return;
+      const amount=Number(refundForm.admin_confirm_amount);
+      if(!Number.isFinite(amount)||amount<=0){notify('error','Confirmation amount required','Re-enter the exact refund amount shown in the verified Accounts record.');return}
+      if(Math.abs(amount-Number(refundRequest.accounts_amount||refundRequest.calculated_refund||0))>0.009){notify('error','Amount mismatch','Admin confirmation amount does not match the Accounts-verified refund amount.');return}
+      if(!refundForm.admin_confirmed){notify('error','Final verification required','Confirm that the patient ledger and refund evidence have been independently checked.');return}
+      if(String(refundForm.admin_remarks||'').trim().length<8){notify('error','Admin remarks required','Enter the Admin approval remarks before completing the refund.');return}
+      setSaving(true);
+      const result=await client.rpc('admin_approve_discharge_refund',{
+        p_request_id:refundRequest.id,
+        p_confirm_amount:amount,
+        p_ledger_confirmed:true,
+        p_remarks:String(refundForm.admin_remarks||'').trim()
+      });
+      if(result.error){notify('error','Refund approval failed',result.error.message);setSaving(false);return}
+      writeAuditEvent('Discharge Refund Approved by Admin','Billing',refundRequest.id,{patient_id:form.patient_id,amount,accounts_reference:refundRequest.payment_reference},'Success');
+      notify('success','Refund approved and accounts cleared','The refund has been posted to the permanent patient ledger. The discharge has returned automatically to Nursing for final physical clearance.');
+      try{sessionStorage.removeItem('samara_discharge_payment_target')}catch(_error){}
+      setDischargeTarget(null);
+      await load();setSaving(false);
+      setTimeout(()=>window.dispatchEvent(new CustomEvent('samara-return-discharge-clearance')),2600);
+    }
 
     const pendingRows=visibleRows.filter(row=>row.transaction_type==='Charge');
     const paymentRows=visibleRows.filter(row=>['Payment','Advance'].includes(row.transaction_type));
@@ -15110,6 +15218,10 @@ Please access the Samara Family Portal for detailed account information.`;
       }
 
       const amount=Number(form.amount);
+      if(dischargeTarget&&advanceBalance>0.009){
+        const text='This discharge has an excess patient balance. Use the controlled Refund Verification workflow; direct transaction posting is blocked.';
+        setMessage(text);notify('error','Controlled refund required',text);return;
+      }
       if(!Number.isFinite(amount)||amount<=0){
         const text='Enter a valid amount greater than zero.';
         setMessage(text);notify('error','Amount required',text);return;
@@ -15350,7 +15462,9 @@ Please access the Samara Family Portal for detailed account information.`;
         subtitle:`${dischargeTarget.patient_name} · ${dischargeTarget.patient_code||'No ID'} · Room ${dischargeTarget.room_no||'—'}${dischargeTarget.bed_no?`-${dischargeTarget.bed_no}`:''}`
       },
         h('div',{className:'message info'},
-          'Complete the final payment below. When Net Payable becomes zero, the system will close the discharge automatically and return the completed status to Nursing.'
+          advanceBalance>0.009
+            ?`Excess patient balance detected: ${money(advanceBalance)} refundable. The system has initiated a dual-control refund workflow. Accounts must verify the refund evidence first; a different Administrator must then approve it before the case returns to Nursing.`
+            :'Complete the exact final settlement below. Financial clearance is permitted only after the system verifies the ledger, amount, payment evidence and closure remarks.'
         )
       ),
 
@@ -15408,7 +15522,60 @@ Please access the Samara Family Portal for detailed account information.`;
         ))
       ),
 
-      h(Section,{
+      dischargeTarget&&advanceBalance>0.009&&h(Section,{
+        title:'Refund Required Before Discharge',
+        subtitle:'Dual-control financial clearance · Accounts verification → independent Admin approval → Nursing'
+      },
+        h('div',{className:'financial-security-banner'},
+          h('strong',null,`System-calculated refund: ${money(advanceBalance)}`),
+          h('span',null,'The amount is derived from the permanent patient ledger and cannot be overridden during discharge.')
+        ),
+        refundLoading&&h('div',{className:'message info'},'Preparing the controlled refund record…'),
+        refundRequest&&h('div',{className:'refund-security-grid'},
+          h('div',{className:'refund-security-card'},
+            h('span',null,'Workflow Status'),
+            h('strong',null,refundRequest.status||'Pending Accounts Verification'),
+            h('small',null,`Request ${String(refundRequest.id||'').slice(0,8).toUpperCase()}`)
+          ),
+          h('div',{className:'refund-security-card'},
+            h('span',null,'Refundable Balance'),
+            h('strong',null,money(refundRequest.calculated_refund||advanceBalance)),
+            h('small',null,'Revalidated again at every approval stage')
+          ),
+          h('div',{className:'refund-security-card'},
+            h('span',null,'Accounts Verification'),
+            h('strong',null,refundRequest.accounts_verified_at?'Completed':'Pending'),
+            h('small',null,refundRequest.accounts_verified_at?fmt(refundRequest.accounts_verified_at):'Payment evidence required')
+          ),
+          h('div',{className:'refund-security-card'},
+            h('span',null,'Admin Approval'),
+            h('strong',null,refundRequest.admin_approved_at?'Completed':'Pending'),
+            h('small',null,refundRequest.admin_approved_at?fmt(refundRequest.admin_approved_at):'Independent second-person control')
+          )
+        ),
+        refundRequest&&profile?.role==='Accounts'&&refundRequest.status==='Pending Accounts Verification'&&h('div',{className:'payment-entry-grid refund-control-form'},
+          h('div',{className:'field'},h('label',null,'Refund Amount *'),h('input',{type:'number',step:'0.01',min:'0.01',value:refundForm.amount,onChange:e=>setRefundForm({...refundForm,amount:e.target.value}),placeholder:'Enter exact refundable amount'})),
+          h('div',{className:'field'},h('label',null,'Confirm Refund Amount *'),h('input',{type:'number',step:'0.01',min:'0.01',value:refundForm.confirm_amount,onChange:e=>setRefundForm({...refundForm,confirm_amount:e.target.value}),placeholder:'Re-enter amount independently'})),
+          h('div',{className:'field'},h('label',null,'Refund Payment Mode *'),h('select',{value:refundForm.payment_mode,onChange:e=>setRefundForm({...refundForm,payment_mode:e.target.value,payment_reference:''})},['Cash','UPI','RTGS','Card Payment'].map(v=>h('option',{key:v,value:v},v)))),
+          h('div',{className:'field'},h('label',null,'Refund Receipt / Transaction Reference No. *'),h('input',{value:refundForm.payment_reference,onChange:e=>setRefundForm({...refundForm,payment_reference:e.target.value}),placeholder:'Mandatory evidence number'})),
+          h('div',{className:'field span-2'},h('label',null,'Accounts Verification Remarks *'),h('textarea',{rows:3,value:refundForm.accounts_remarks,onChange:e=>setRefundForm({...refundForm,accounts_remarks:e.target.value}),placeholder:'State how the amount and payment evidence were verified.'})),
+          h('button',{type:'button',className:'btn btn-primary span-2',disabled:saving,onClick:verifyRefundByAccounts},saving?'Verifying…':'Verify Refund & Send to Admin')
+        ),
+        refundRequest&&profile?.role==='Accounts'&&refundRequest.status==='Pending Admin Approval'&&h('div',{className:'message success'},'Accounts verification is complete and locked. Waiting for independent Administrator approval.'),
+        refundRequest&&profile?.role==='Admin'&&refundRequest.status==='Pending Accounts Verification'&&h('div',{className:'message info'},'Waiting for Accounts to enter and verify the refund amount, payment mode, receipt/reference number and verification remarks.'),
+        refundRequest&&profile?.role==='Admin'&&refundRequest.status==='Pending Admin Approval'&&h('div',{className:'payment-entry-grid refund-control-form'},
+          h('div',{className:'field'},h('label',null,'Accounts-Verified Amount'),h('input',{readOnly:true,value:money(refundRequest.accounts_amount)})),
+          h('div',{className:'field'},h('label',null,'Payment Evidence'),h('input',{readOnly:true,value:`${refundRequest.payment_mode||'—'} · ${refundRequest.payment_reference||'—'}`})),
+          h('div',{className:'field'},h('label',null,'Admin Confirm Refund Amount *'),h('input',{type:'number',step:'0.01',min:'0.01',value:refundForm.admin_confirm_amount,onChange:e=>setRefundForm({...refundForm,admin_confirm_amount:e.target.value}),placeholder:'Re-enter verified amount'})),
+          h('div',{className:'field'},h('label',null,'Accounts Remarks'),h('input',{readOnly:true,value:refundRequest.accounts_remarks||'—'})),
+          h('div',{className:'field span-2'},h('label',null,'Admin Approval Remarks *'),h('textarea',{rows:3,value:refundForm.admin_remarks,onChange:e=>setRefundForm({...refundForm,admin_remarks:e.target.value}),placeholder:'Confirm independent review of ledger and refund evidence.'})),
+          h('label',{className:'financial-confirm-check span-2'},h('input',{type:'checkbox',checked:refundForm.admin_confirmed,onChange:e=>setRefundForm({...refundForm,admin_confirmed:e.target.checked})}),h('span',null,'I independently verified the patient ledger, refundable balance, payment mode and refund receipt/reference evidence.')),
+          h('button',{type:'button',className:'btn btn-primary span-2',disabled:saving,onClick:approveRefundByAdmin},saving?'Approving…':'Approve Refund & Return to Nursing')
+        ),
+        refundRequest&&refundRequest.status==='Completed'&&h('div',{className:'message success'},`Refund ${money(refundRequest.accounts_amount||refundRequest.calculated_refund)} completed and posted to the ledger. Accounts clearance has returned to Nursing.`)
+      ),
+
+      (!dischargeTarget||advanceBalance<=0.009)&&h(Section,{
         title:dischargeTarget?'Final Payment & Discharge Settlement':'Manual Billing & Payment Entry',
         subtitle:dischargeTarget
           ?'Enter payment details. Exact settlement will close the discharge automatically.'

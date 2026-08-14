@@ -1,0 +1,26 @@
+SAMARA CARE ERP 2.8.80 — DISCHARGE REFUND & FINANCIAL SECURITY
+
+1. Replace these ERP root files in GitHub:
+   app.js
+   styles.css
+   index.html
+   service-worker.js
+
+2. In Supabase SQL Editor run:
+   supabase/sql/85_discharge_refund_dual_control_security.sql
+
+WHAT CHANGED
+- Excess patient balance at discharge automatically starts a refund request.
+- Direct one-click Accounts closure is blocked.
+- Accounts must type the refund amount twice, select payment mode, enter refund receipt/reference number and detailed verification remarks.
+- The entered amount must exactly match the system-calculated refundable ledger balance.
+- A separate Admin must independently re-enter the refund amount, confirm ledger/evidence review and enter approval remarks.
+- The same user cannot complete Accounts verification and Admin approval.
+- The database rechecks the live patient ledger before each stage and blocks duplicate refund references.
+- Only after Admin approval is the Refund posted to the permanent billing ledger and Accounts marked Cleared.
+- The discharge then returns to Nursing for final physical discharge confirmation.
+- Existing payment settlement continues through the Payments screen; direct "Approve/Close" without evidence is removed.
+
+IMPORTANT
+- This SQL does not delete existing test/dummy transactions.
+- Test with a dummy discharge having excess advance before using for live operations.
