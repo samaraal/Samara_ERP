@@ -1358,3 +1358,9 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
     overflow:visible!important;
   }
 }
+
+
+/* ERP 2.8.79 — Clinical dashboard truth + persistent in-app escalation visibility */
+.topbar-clinical-alert-badge{border:0;border-radius:999px;background:#a80d4f;color:#fff;font-weight:900;padding:9px 13px;white-space:nowrap;cursor:pointer;box-shadow:0 5px 14px rgba(168,13,79,.18)}
+.topbar-clinical-alert-badge:focus-visible{outline:3px solid rgba(194,24,91,.25);outline-offset:2px}
+@media(max-width:760px){.topbar-clinical-alert-badge{position:absolute;right:76px;top:12px;min-height:40px;padding:7px 10px;font-size:14px}.clinical-alert-popup{left:14px!important;right:14px!important;bottom:92px!important;max-width:none!important}.clinical-alert-popup-actions .btn{min-height:48px;width:100%}}
