@@ -1288,7 +1288,7 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
   }
 }
 
-/* ERP 2.8.72 — Stable Employee master dashboard / department drill-down */
+/* ERP 2.8.74 — Three Samara Administrators separated from HR Employees */
 .employee-department-dashboard{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-top:16px}
 .employee-dept-card{min-height:104px;border:1px solid #ead0dc;border-radius:18px;background:#fffafd;padding:18px;text-align:left;cursor:pointer;box-shadow:0 6px 18px rgba(91,13,53,.05)}
 .employee-dept-card strong{display:block;font-size:17px;color:#391d2b;margin-bottom:10px}

@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.72';
+  const APP_VERSION = '2.8.74';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -1219,6 +1219,20 @@ function initSamaraInaugurationInvitation(){
   const employeeDepartment=row=>String(row?.department||'').trim()||(
     row?.role==='Nurse'?'Nursing':row?.role==='Caregiver'?'Caregiving':row?.role==='Accounts'?'Accounts & Finance':row?.role==='Kitchen'?'Food & Kitchen':['Admin','Manager'].includes(row?.role)?'Administration':'Other'
   );
+  // Samara's present full-access Administrators are management/system users, not HR employees.
+  // Keep them available for ERP login and permissions, but exclude them from Employee dashboards/lists.
+  const isSamaraAdministratorAccount=row=>{
+    const clean=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const name=clean(row?.full_name||row?.name);
+    const login=clean(row?.login_id||row?.username||row?.email?.split('@')[0]);
+    return name==='chellaboomi' ||
+      name==='drchellaboomi' ||
+      name==='maneeshaboominathan' ||
+      name==='boomir' ||
+      login==='chellaboomi' ||
+      login==='rajaiahboomi' ||
+      login==='maneeshaboominathan';
+  };
   const EMPLOYEE_TITLES = ['Dr.','Prof.','Mr.','Mrs.','Ms.','Miss','Shri','Smt.','Rev.','Fr.','Br.','Sr.','Other'];
   const PATIENT_TITLES = ['Dr.','Mr.','Mrs.','Ms.','Miss','Shri','Smt.','Master','Baby','Kumari','Late','Other'];
   const formalName = row => [String(row?.title||'').trim(),String(row?.full_name||'').trim()].filter(Boolean).join(' ');
@@ -5153,7 +5167,7 @@ Caring with Compassion. Living with Dignity.`;
       if(!w.error)setWaComms(w.data||[]);
     }
     React.useEffect(()=>{load();const ch=client.channel('hr-dashboard-live').on('postgres_changes',{event:'*',schema:'public',table:'career_applications'},load).on('postgres_changes',{event:'*',schema:'public',table:'profiles'},load).on('postgres_changes',{event:'*',schema:'public',table:'hr_whatsapp_communications'},load).subscribe();return()=>client.removeChannel(ch)},[]);
-    const active=employees.filter(x=>(x.is_active??x.active)!==false);
+    const active=employees.filter(x=>(x.is_active??x.active)!==false&&!isSamaraAdministratorAccount(x));
     const now=Date.now();
     const upcoming=applications.filter(x=>x.interview_at&&new Date(x.interview_at).getTime()>=now).sort((a,b)=>new Date(a.interview_at)-new Date(b.interview_at)).slice(0,5);
     const newApps=applications.filter(x=>x.status==='New').length;
@@ -6259,10 +6273,13 @@ Caring with Compassion. Living with Dignity.`;
     const textArea=(label,key,state,setter,required=false)=>h('div',{className:'field span-2'},h('label',null,label),h('textarea',{value:state[key]||'',required,onChange:e=>setter({...state,[key]:e.target.value}),rows:3}));
 
     const isSystemAccount=row=>{
-      const name=String(row?.full_name||'').trim().toLowerCase();
+      const name=String(row?.full_name||'').trim().toLowerCase().replace(/\s+/g,' ');
       const login=String(row?.login_id||row?.username||'').trim().toLowerCase();
-      const employeeId=String(row?.employee_id||'').trim();
-      return !employeeId && (name==='administrator'||name==='system administrator'||login==='administrator'||login==='admin');
+      // Current Samara rule: Chellaboomi, rajaiahboomi and Maneesha Boominathan
+      // are the three full-access Administrators and are not HR employees.
+      if(isSamaraAdministratorAccount(row))return true;
+      // Also suppress any legacy placeholder system account named simply Administrator.
+      return name==='administrator' || login==='administrator';
     };
     const employeeRows=rows.filter(r=>!isSystemAccount(r));
     const activeEmployeeRows=employeeRows.filter(r=>Boolean(r.is_active??r.active));

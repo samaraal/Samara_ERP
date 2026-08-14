@@ -1,0 +1,13 @@
+Samara Care ERP 2.8.74
+
+Change:
+- Chellaboomi, rajaiahboomi, and Maneesha Boominathan remain full-access ERP Administrators.
+- These three are excluded from Employees and HR employee counts/department dashboards.
+- Their login/access is NOT deleted or changed.
+- Legacy placeholder account named "Administrator" is also hidden from Employees.
+
+Upload/replace in ERP root:
+1. app.js
+2. styles.css
+3. index.html
+4. service-worker.js
