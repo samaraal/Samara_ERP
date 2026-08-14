@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.66';
+  const APP_VERSION = '2.8.67';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -279,7 +279,7 @@ function initSamaraInaugurationInvitation(){
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
   const h = React.createElement;
-  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=20260812-global1';
+  const BRAND_LOGO_SRC='./assets/samara-logo.png?v=20260814-final';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
     h('img',{src:BRAND_LOGO_SRC,className,alt,decoding:'async'});
@@ -313,9 +313,9 @@ function initSamaraInaugurationInvitation(){
           linear-gradient(150deg,#5d1039 0%,#811248 31%,#b01264 66%,#df3d7c 100%)!important;
       }
       .samara-brand-logo{display:block;object-fit:contain;max-width:100%}
-      .side-brand-logo{width:180px;height:68px;object-fit:contain;object-position:left center}
-      .mobile-header-brand-logo{width:116px;height:42px;object-fit:contain;object-position:left center}
-      .mobile-drawer-brand-logo{width:145px;height:54px;object-fit:contain;object-position:left center}
+      .side-brand-logo{width:215px;height:82px;object-fit:contain;object-position:left center}
+      .mobile-header-brand-logo{width:150px;height:58px;object-fit:contain;object-position:left center}
+      .mobile-drawer-brand-logo{width:175px;height:66px;object-fit:contain;object-position:left center}
       .login-main-brand-logo{width:min(410px,88%);max-height:205px;object-fit:contain;margin:0 auto 18px}
       .auth-brand-logo{width:210px;height:82px;object-fit:contain}
       .side-brand{display:flex!important;flex-direction:column!important;align-items:flex-start!important;gap:2px!important}
@@ -366,7 +366,7 @@ function initSamaraInaugurationInvitation(){
         background:linear-gradient(90deg,transparent,#b01264,#f36a4c,#f6b72d,transparent)!important;
       }
       @media(max-width:720px){
-        .side-brand-logo{width:145px;height:56px}.login-main-brand-logo{width:min(325px,92%);max-height:160px}
+        .side-brand-logo{width:190px;height:72px}.login-main-brand-logo{width:min(325px,92%);max-height:160px}
       }
       @media print{
         h1,h2,h3,h4{color:#791345!important}
@@ -2271,7 +2271,7 @@ Caring with Compassion. Living with Dignity.`;
           gap:12px!important;
           min-width:0!important;
         }
-        .mobile-header-brand-logo{width:105px!important;height:44px!important}
+        .mobile-header-brand-logo{width:150px!important;height:58px!important}
         .mobile-brand-header strong{
           font-size:18px!important;
           color:#382333!important;
@@ -2723,7 +2723,7 @@ Caring with Compassion. Living with Dignity.`;
           min-height:36px!important;
           gap:9px!important;
         }
-        .mobile-header-brand-logo{width:84px!important;height:34px!important}
+        .mobile-header-brand-logo{width:145px!important;height:56px!important}
         .mobile-brand-header strong{font-size:15px!important}
         .topbar h2{font-size:26px!important}
         .topbar>.badge{

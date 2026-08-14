@@ -1150,3 +1150,9 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
   cursor:pointer; margin-bottom:8px; -webkit-tap-highlight-color:transparent;
 }
 .mobile-update-button:active{transform:scale(.99)}
+
+/* ERP 2.8.67 — Final approved Samara logo sizing */
+.side-brand-logo{width:215px!important;height:82px!important;max-width:100%!important;object-fit:contain!important;object-position:left center!important}
+.mobile-header-brand-logo{width:150px!important;height:58px!important;max-width:48vw!important;object-fit:contain!important;object-position:left center!important}
+.mobile-drawer-brand-logo{width:175px!important;height:66px!important;max-width:100%!important;object-fit:contain!important;object-position:left center!important}
+@media(max-width:560px){.mobile-header-brand-logo{width:145px!important;height:56px!important;max-width:48vw!important}}

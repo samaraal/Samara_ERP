@@ -1,0 +1,15 @@
+Samara Care ERP 2.8.67
+
+Purpose:
+- Uses the final approved Samara Assisted Living logo supplied on 14-08-2026.
+- Enlarges the logo on desktop sidebar and mobile header/drawer while preserving proportions.
+- Preserves all ERP 2.8.66 reliable mobile update functionality.
+
+Upload/replace:
+1. app.js
+2. styles.css
+3. index.html
+4. service-worker.js
+5. assets/samara-logo.png
+
+IMPORTANT: Replace the existing assets/samara-logo.png with the included final approved logo.
