@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.84';
+  const APP_VERSION = '2.8.85';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -15745,6 +15745,7 @@ Please access the Samara Family Portal for detailed account information.`;
     const [busy,setBusy]=React.useState(false);
     const [toast,setToast]=React.useState(null);
     const [files,setFiles]=React.useState([]);
+    const [batchItems,setBatchItems]=React.useState([]);
     const [tariffs,setTariffs]=React.useState([]);
     const [tariffBusy,setTariffBusy]=React.useState(false);
     const categories={
@@ -15825,90 +15826,117 @@ Please access the Samara Family Portal for detailed account information.`;
       return()=>client.removeChannel(ch);
     },[]);
 
-    function openNew(){setFiles([]);setForm(fresh());setShow(true)}
+    function openNew(){setFiles([]);setBatchItems([]);setForm(fresh());setShow(true)}
     function changeCategory(value){
       const first=categories[value][0];
       setForm(current=>({...current,category:value,service_name:first,description:first,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(value)?first:''}));
     }
-    async function uploadFiles(requestId){
-      for(const file of files){
+    function validateDraft(draft,draftFiles){
+      if(!draft.patient_id)return 'Select the patient.';
+      if(isFutureDateIndia(draft.charge_date)||isFutureDateIndia(draft.bill_date))return 'Future dates are not permitted.';
+      if(draft.bill_available&&(draftFiles||[]).length===0)return 'Upload the supporting bill / invoice when Bill available is selected.';
+      if(draft.bill_available&&!String(draft.bill_number||'').trim())return 'Enter the bill / invoice number.';
+      if(draft.bill_available&&!draft.bill_date)return 'Enter the bill date.';
+      return '';
+    }
+    function draftSignature(draft,draftFiles){
+      return JSON.stringify({
+        ...draft,
+        files:(draftFiles||[]).map(f=>[f.name,f.size,f.lastModified])
+      });
+    }
+    function addChargeToBatch(){
+      const error=validateDraft(form,files);
+      if(error){notify('error',error);return}
+      const signature=draftSignature(form,files);
+      if(batchItems.some(item=>item.signature===signature)){notify('error','This charge is already added to the list. Change the service/details before adding another.');return}
+      setBatchItems(current=>[...current,{form:{...form},files:[...files],signature}]);
+      setFiles([]);
+      notify('success',`${form.service_name} added. You can now change the service/details and add another charge.`);
+    }
+    function removeBatchItem(index){setBatchItems(current=>current.filter((_,i)=>i!==index))}
+    async function uploadFiles(requestId,draft,draftFiles){
+      for(const file of (draftFiles||[])){
         const safe=String(file.name||'bill').replace(/[^a-zA-Z0-9._-]/g,'_');
-        const path=`${form.patient_id}/clinical-charges/${requestId}/${Date.now()}-${safe}`;
+        const path=`${draft.patient_id}/clinical-charges/${requestId}/${Date.now()}-${safe}`;
         const up=await client.storage.from('patient-documents').upload(path,file,{contentType:file.type||undefined});
         if(up.error)throw up.error;
         const doc=await client.from('patient_documents').insert({
-          patient_id:form.patient_id,document_type:'Clinical Charge Bill / Report',
+          patient_id:draft.patient_id,document_type:'Clinical Charge Bill / Report',
           document_name:file.name,storage_path:path,mime_type:file.type||null,file_size:file.size||null,
           remarks:`Clinical charge ${requestId}`,uploaded_by:profile.id,is_verified:true
         });
         if(doc.error)throw doc.error;
       }
     }
+    async function saveOne(draft,draftFiles,user){
+      const qty=Math.max(1,Number(draft.quantity||1));
+      const nurseRaised=profile?.role==='Nurse';
+      const rate=nurseRaised?0:Number(draft.unit_cost||0);
+      const amount=nurseRaised?0:Number(draft.requested_amount||qty*rate||0);
+      const payload={
+        patient_id:draft.patient_id,charge_date:draft.charge_date,
+        service_datetime:new Date(draft.service_datetime).toISOString(),
+        category:draft.category,service_code:draft.service_name.toUpperCase().replace(/[^A-Z0-9]+/g,'_'),
+        service_name:draft.service_name,service_provider:draft.service_provider||null,
+        doctor_name:draft.doctor_name||null,description:draft.description||draft.service_name,
+        quantity:qty,unit:draft.unit,
+        unit_cost:nurseRaised?null:(rate||null),
+        estimated_amount:nurseRaised?null:(qty*rate||null),
+        requested_amount:nurseRaised?null:(amount||null),
+        billable:draft.billable,bill_available:draft.bill_available,
+        bill_number:draft.bill_number||null,bill_date:draft.bill_date||null,
+        urgency:draft.urgency,status:'Raised',approval_status:'Pending',
+        hospital_name:draft.hospital_name||null,visit_reason:draft.visit_reason||null,
+        out_time:draft.out_time?new Date(draft.out_time).toISOString():null,
+        return_time:draft.return_time?new Date(draft.return_time).toISOString():null,
+        escort_staff:draft.escort_staff||null,relative_accompanied:draft.relative_accompanied,
+        admission_required:draft.admission_required,laboratory_name:draft.laboratory_name||null,
+        test_name:draft.test_name||null,sample_type:draft.sample_type||null,
+        sample_collected_at:draft.sample_collected_at?new Date(draft.sample_collected_at).toISOString():null,
+        report_status:draft.report_status||null,
+        report_received_at:draft.report_received_at?new Date(draft.report_received_at).toISOString():null,
+        transport_type:draft.transport_type||null,paid_by_samara:draft.paid_by_samara,
+        remarks:draft.remarks||null,raised_by:user?.id||profile.id,raised_by_name:formalName(profile)||profile?.full_name||profile?.username||'Nursing staff',raised_at:new Date().toISOString(),returned_to_nurse_at:null,updated_at:new Date().toISOString()
+      };
+      const saved=await client.from('bill_charge_requests').insert(payload).select('*').single();
+      if(saved.error)throw saved.error;
+      if((draftFiles||[]).length)await uploadFiles(saved.data.id,draft,draftFiles);
+      if(['Laboratory Services','Diagnostic / Imaging'].includes(draft.category)){
+        const diag=await client.from('diagnostic_services').insert({
+          charge_request_id:saved.data.id,patient_id:draft.patient_id,service_type:draft.category,
+          test_name:draft.test_name||draft.service_name,laboratory_name:draft.laboratory_name||draft.service_provider||null,
+          sample_type:draft.sample_type||null,ordered_at:payload.service_datetime,
+          sample_collected_at:payload.sample_collected_at,report_status:draft.report_status,
+          report_received_at:payload.report_received_at,
+          bill_amount:nurseRaised?null:(amount||null),
+          paid_by_samara:draft.paid_by_samara,requested_by:user?.id||profile.id
+        });
+        if(diag.error)throw diag.error;
+      }
+      return saved.data;
+    }
     async function save(e){
       e.preventDefault();
       if(busy)return;
-      if(!form.patient_id){notify('error','Select the patient.');return}
-      if(isFutureDateIndia(form.charge_date)||isFutureDateIndia(form.bill_date)){notify('error','Future dates are not permitted.');return}
-      if(form.bill_available&&files.length===0){notify('error','Upload the supporting bill / invoice when Bill available is selected.');return}
-      if(form.bill_available&&!String(form.bill_number||'').trim()){notify('error','Enter the bill / invoice number.');return}
-      if(form.bill_available&&!form.bill_date){notify('error','Enter the bill date.');return}
+      const currentError=validateDraft(form,files);
+      const currentSignature=draftSignature(form,files);
+      const currentAlreadyAdded=batchItems.some(item=>item.signature===currentSignature);
+      const items=[...batchItems];
+      if(!currentAlreadyAdded){
+        if(currentError){notify('error',currentError);return}
+        items.push({form:{...form},files:[...files],signature:currentSignature});
+      }
+      if(items.length===0){notify('error','Add at least one charge.');return}
       setBusy(true);
       try{
-        const qty=Math.max(1,Number(form.quantity||1));
-        const nurseRaised=profile?.role==='Nurse';
-        const rate=nurseRaised?0:Number(form.unit_cost||0);
-        const amount=nurseRaised?0:Number(form.requested_amount||qty*rate||0);
         const auth=await client.auth.getUser();
         const user=auth.data?.user;
-        const payload={
-          patient_id:form.patient_id,charge_date:form.charge_date,
-          service_datetime:new Date(form.service_datetime).toISOString(),
-          category:form.category,service_code:form.service_name.toUpperCase().replace(/[^A-Z0-9]+/g,'_'),
-          service_name:form.service_name,service_provider:form.service_provider||null,
-          doctor_name:form.doctor_name||null,description:form.description||form.service_name,
-          quantity:qty,unit:form.unit,
-          unit_cost:nurseRaised?null:(rate||null),
-          estimated_amount:nurseRaised?null:(qty*rate||null),
-          requested_amount:nurseRaised?null:(amount||null),
-          billable:form.billable,bill_available:form.bill_available,
-          bill_number:form.bill_number||null,bill_date:form.bill_date||null,
-          urgency:form.urgency,status:'Raised',approval_status:'Pending',
-          hospital_name:form.hospital_name||null,visit_reason:form.visit_reason||null,
-          out_time:form.out_time?new Date(form.out_time).toISOString():null,
-          return_time:form.return_time?new Date(form.return_time).toISOString():null,
-          escort_staff:form.escort_staff||null,relative_accompanied:form.relative_accompanied,
-          admission_required:form.admission_required,laboratory_name:form.laboratory_name||null,
-          test_name:form.test_name||null,sample_type:form.sample_type||null,
-          sample_collected_at:form.sample_collected_at?new Date(form.sample_collected_at).toISOString():null,
-          report_status:form.report_status||null,
-          report_received_at:form.report_received_at?new Date(form.report_received_at).toISOString():null,
-          transport_type:form.transport_type||null,paid_by_samara:form.paid_by_samara,
-          remarks:form.remarks||null,raised_by:user?.id||profile.id,raised_by_name:formalName(profile)||profile?.full_name||profile?.username||'Nursing staff',raised_at:new Date().toISOString(),returned_to_nurse_at:null,updated_at:new Date().toISOString()
-        };
-        const saved=await client.from('bill_charge_requests').insert(payload).select('*').single();
-        if(saved.error)throw saved.error;
-
-        setRows(current=>[
-          saved.data,
-          ...current.filter(row=>row.id!==saved.data.id)
-        ]);
-
-        if(files.length)await uploadFiles(saved.data.id);
-        if(['Laboratory Services','Diagnostic / Imaging'].includes(form.category)){
-          const diag=await client.from('diagnostic_services').insert({
-            charge_request_id:saved.data.id,patient_id:form.patient_id,service_type:form.category,
-            test_name:form.test_name||form.service_name,laboratory_name:form.laboratory_name||form.service_provider||null,
-            sample_type:form.sample_type||null,ordered_at:payload.service_datetime,
-            sample_collected_at:payload.sample_collected_at,report_status:form.report_status,
-            report_received_at:payload.report_received_at,
-            bill_amount:nurseRaised?null:(amount||null),
-            paid_by_samara:form.paid_by_samara,requested_by:user?.id||profile.id
-          });
-          if(diag.error)throw diag.error;
-        }
-        notify('success','Bill / charge raised successfully and forwarded for approval.');
+        for(const item of items)await saveOne(item.form,item.files,user);
+        notify('success',`${items.length} bill / charge request${items.length===1?'':'s'} forwarded for approval.`);
+        setBatchItems([]);setFiles([]);
         finishSuccessfulAction({close:()=>setShow(false),refresh:load});
-      }catch(error){notify('error',error.message||'Unable to save clinical charge.')}
+      }catch(error){notify('error',error.message||'Unable to save clinical charges.')}
       setBusy(false);
     }
     async function decide(row,decision){
@@ -16052,7 +16080,17 @@ Please access the Samara Family Portal for detailed account information.`;
           ),
           ...basicFields.filter(Boolean)
         ),
-        h('button',{className:'btn btn-primary full',disabled:busy},busy?'Saving…':'Submit for Approval')
+        batchItems.length>0&&h('div',{className:'card',style:{margin:'10px 0',padding:'10px'}},
+          h('strong',null,`Charges added (${batchItems.length})`),
+          ...batchItems.map((item,index)=>h('div',{key:index,style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'center',padding:'8px 0',borderBottom:'1px solid #ead6df'}},
+            h('span',null,`${index+1}. ${item.form.service_name}${item.form.bill_available?' · Bill attached':''}`),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>removeBatchItem(index)},'Remove')
+          ))
+        ),
+        h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}},
+          h('button',{type:'button',className:'btn btn-secondary full',disabled:busy,onClick:addChargeToBatch},'＋ Add Charge'),
+          h('button',{className:'btn btn-primary full',disabled:busy},busy?'Saving…':batchItems.length?`Submit ${batchItems.length + (batchItems.some(item=>item.signature===draftSignature(form,files))?0:1)} Charges for Approval`:'Submit for Approval')
+        )
       )
     ):null;
 

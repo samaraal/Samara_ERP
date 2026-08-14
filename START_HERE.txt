@@ -1,20 +1,15 @@
-SAMARA CARE ERP v2.8.84 — RELEVANT FILES ONLY
+Samara Care ERP 2.8.85 - Multi-charge entry only
 
-STRICTLY BILLING / ACCOUNTS WORKFLOW UPDATE.
-No unrelated ERP files are included in this package.
-
-STEP 1 — SUPABASE
-Open Supabase > SQL Editor and run:
-88_charge_master_accounts_only_financial_control.sql
-
-STEP 2 — GITHUB ERP ROOT
-Replace ONLY these 3 existing files:
+Replace ONLY these 3 files in the ERP repository root:
 1. app.js
 2. index.html
 3. service-worker.js
 
-DO NOT replace styles.css.
-DO NOT replace any folders.
-DO NOT delete or replace any other ERP files.
+No SQL update is required for 2.8.85.
+No styles.css change.
+No folders need replacement.
 
-The SQL file and START_HERE.txt are NOT for upload to the ERP root unless you want to keep them for reference.
+Change made:
+Bills & Charges > Raise Bill / Charge now has '+ Add Charge'.
+A Nurse/Accounts user can add several service/charge requests for the same patient in one form/session and submit them together.
+Each added charge remains separately auditable and goes through the existing Accounts approval/ledger workflow.
