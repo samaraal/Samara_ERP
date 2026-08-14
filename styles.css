@@ -1296,3 +1296,22 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
 .employee-dept-all{background:linear-gradient(135deg,#fff7fb,#fce7f0)}
 .employee-back-departments{margin:12px 0 4px}
 @media(max-width:700px){.employee-department-dashboard{grid-template-columns:1fr 1fr;gap:10px}.employee-dept-card{min-height:88px;padding:14px;border-radius:16px}.employee-dept-card strong{font-size:15px;line-height:1.2}.employee-dept-card span{height:32px;min-width:32px;font-size:17px}.employee-back-departments{width:100%;min-height:46px}.employee-master-table-wrap{overflow-x:hidden}}
+
+
+/* ERP 2.8.75 — Samara branded mobile Home dashboard + larger final logo */
+.shift-summary{
+  background:linear-gradient(115deg,#7f0b45 0%,#ad1457 58%,#d81b60 100%)!important;
+  box-shadow:0 12px 28px rgba(126,11,69,.20)!important;
+}
+.shift-summary>div>span{color:#fdeaf3!important}
+.shift-summary>.badge{background:#fff1f6!important;color:#8f124d!important}
+.dashboard-card:nth-child(1),.dashboard-card:nth-child(2),.dashboard-card:nth-child(3),.dashboard-card:nth-child(4),
+.dashboard-card:nth-child(5),.dashboard-card:nth-child(6),.dashboard-card:nth-child(7),.dashboard-card:nth-child(8),
+.dashboard-card:nth-child(9),.dashboard-card:nth-child(10),.dashboard-card:nth-child(11){--dashboard-accent:#a91360!important}
+.dashboard-card small{color:var(--dashboard-accent,#a91360)!important}
+.dashboard-card .dashboard-icon{background:#fbeaf2!important}
+.mobile-header-brand-logo{width:178px!important;height:68px!important;max-width:52vw!important;object-fit:contain!important;object-position:left center!important}
+.mobile-drawer-brand-logo{width:205px!important;height:78px!important;max-width:100%!important;object-fit:contain!important;object-position:left center!important}
+@media(max-width:560px){
+  .mobile-header-brand-logo{width:170px!important;height:66px!important;max-width:52vw!important}
+}
