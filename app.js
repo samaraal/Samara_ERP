@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.71';
+  const APP_VERSION = '2.8.72';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -3342,14 +3342,7 @@ Caring with Compassion. Living with Dignity.`;
         setMessage(`Settings table is not ready: ${error.message}`);
         return;
       }
-      const employeeRows=(data||[]).filter(r=>{
-        const name=String(r.full_name||r.name||'').trim().toLowerCase();
-        const login=String(r.login_id||'').trim().toLowerCase();
-        const employeeId=String(r.employee_id||'').trim();
-        const isSystemAdministrator=(name==='administrator'||login==='administrator'||login==='admin')&&!employeeId;
-        return !isSystemAdministrator;
-      });
-      setRows(employeeRows);
+      setRows(data||[]);
     }
     React.useEffect(()=>{load()},[]);
 
@@ -5557,7 +5550,7 @@ Caring with Compassion. Living with Dignity.`;
       localStorage.setItem('samara_hr_employee_seed',JSON.stringify(seed));
       onNavigate('Employees');
     }
-    const table=h('div',{className:'table-wrap employee-master-table-wrap'},h('table',{className:'table employee-master-table'},h('thead',null,h('tr',null,['Application ID','Applicant','Department','Designation','Mobile','Status','Received','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,effectiveRows.map(r=>h('tr',{key:r.id,onClick:()=>open(r),title:'Open complete applicant file',style:{cursor:'pointer'}},h('td',null,r.application_id),h('td',null,h('strong',null,r.applicant_name)),h('td',null,r.department),h('td',null,r.designation),h('td',null,r.mobile),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)),h('td',null,h('button',{type:'button',className:'btn btn-primary',onClick:e=>{e.stopPropagation();open(r)}},'Open File')))),effectiveRows.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'No career applications received yet.')):null)));
+    const table=h('div',{className:'table-wrap employee-master-table-wrap'},h('table',{className:'table employee-master-table'},h('thead',null,h('tr',null,['Application ID','Applicant','Department','Designation','Mobile','Status','Received','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,rows.map(r=>h('tr',{key:r.id,onClick:()=>open(r),title:'Open complete applicant file',style:{cursor:'pointer'}},h('td',null,r.application_id),h('td',null,h('strong',null,r.applicant_name)),h('td',null,r.department),h('td',null,r.designation),h('td',null,r.mobile),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)),h('td',null,h('button',{type:'button',className:'btn btn-primary',onClick:e=>{e.stopPropagation();open(r)}},'Open File')))),rows.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'No career applications received yet.')):null)));
     const isRectification=edit?.status==='Returned for Rectification';
     const modal=selected&&edit?h('div',{className:'modal-backdrop',style:{position:'static',inset:'auto',background:'transparent',padding:0,display:'block',zIndex:'auto'}},h('div',{className:'card modal employee-modal',style:{width:'100%',maxWidth:'none',maxHeight:'none',overflow:'visible',margin:0}},
       h('div',{className:'panel-head'},h('div',null,h('h3',null,'Applicant File — ',selected.applicant_name),h('small',null,`${selected.application_id} · Application received ${fmt(selected.created_at)} · ${selected.department} · ${selected.designation}`)),h('button',{type:'button',className:'btn btn-secondary',onClick:closeApplication},'← Back to Applications')),
