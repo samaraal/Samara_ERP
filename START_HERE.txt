@@ -1,3 +1,4 @@
-Samara Care ERP 2.8.88 - Charge Master startup fix only.
-Replace only app.js, index.html and service-worker.js.
+Samara Care ERP v2.8.89
+Charge Master notification-scope fix only.
+Replace only app.js, index.html, service-worker.js.
 No SQL. No styles.css. No folders.

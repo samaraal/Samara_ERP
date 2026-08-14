@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.88';
+  const APP_VERSION = '2.8.89';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '25';
 
@@ -15737,6 +15737,7 @@ Please access the Samara Family Portal for detailed account information.`;
 
   function ChargeMasterPage({profile}){
     const [rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(false);
+    const notify=(type,text)=>showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
     async function load(){
       const {data,error}=await client.from('charge_tariff_master').select('*').order('category').order('display_order').order('service_name');
       if(error){notify('error',error.message);return} setRows(data||[]);
