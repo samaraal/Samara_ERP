@@ -780,3 +780,45 @@ body{font-size:17px;line-height:1.42}
   .daily-moment-card video{width:100%;aspect-ratio:9/16;max-height:440px;object-fit:cover}
   .daily-moment-meta{padding:10px}
 }
+
+
+/* V2.8.58 — Mobile-first Patient Master row navigation
+   Nurses/caregivers can open a patient by tapping the whole row/card. */
+.patient-row-hint{display:none;margin:8px 0 12px;padding:10px 12px;border-radius:12px;background:#fff0f7;color:#7f1249;font-weight:800;font-size:15px}
+.patient-list-row{cursor:pointer;transition:background .15s ease,box-shadow .15s ease,transform .15s ease}
+.patient-list-row:hover{background:#fff7fb}
+.patient-list-row:focus-visible{outline:3px solid #d82c7d;outline-offset:-3px;background:#fff4f9}
+.patient-mobile-back{display:none}
+
+@media(max-width:760px){
+  .patient-row-hint{display:block}
+  .patient-master-table-wrap{overflow:visible;border:0;background:transparent}
+  .patient-master-table{min-width:0;width:100%;border-collapse:separate;border-spacing:0 12px}
+  .patient-master-table thead{display:none}
+  .patient-master-table tbody,.patient-master-table tr,.patient-master-table td{display:block;width:100%}
+  .patient-master-table tbody{display:grid;gap:12px}
+  .patient-master-table tr.patient-list-row{margin:0;padding:14px 15px 12px;border:1px solid #ead4df;border-radius:18px;background:#fff;box-shadow:0 5px 16px rgba(116,21,69,.07);overflow:hidden}
+  .patient-master-table tr.patient-list-row:active{transform:scale(.992);background:#fff3f8}
+  .patient-master-table td{border:0!important;padding:7px 0!important;display:grid;grid-template-columns:118px minmax(0,1fr);gap:10px;align-items:start;font-size:16px;line-height:1.35}
+  .patient-master-table td::before{content:attr(data-label);font-size:13px;font-weight:900;color:#7c5b6a;text-transform:none;letter-spacing:0}
+  .patient-master-table td[data-label="Patient"]{font-size:19px;padding-top:2px!important}
+  .patient-master-table td[data-label="Patient"]::before{font-size:13px}
+  .patient-master-table .patient-name-link{font-size:19px;font-weight:900;text-align:left;padding:0;min-height:0}
+  .patient-master-table td[data-label="Photo"]{display:none}
+  .patient-master-table .patient-row-actions{display:none!important}
+  .patient-master-table .badge,.patient-master-table .pill{justify-self:start}
+
+  .patient-file-backdrop{align-items:stretch;padding:0;background:#fff;z-index:2500}
+  .patient-master-modal{position:relative!important;width:100vw!important;height:100dvh!important;max-height:100dvh!important;margin:0!important;border-radius:0!important;border:0!important;box-shadow:none!important;padding:0 14px 22px!important;overflow:auto!important}
+  .patient-mobile-back{display:flex;position:sticky;top:0;z-index:7;width:100%;min-height:54px;align-items:center;justify-content:flex-start;border:0;border-bottom:1px solid #ecd6e0;background:#fff;color:#8f0f50;font-size:17px;font-weight:900;padding:12px 4px;cursor:pointer}
+  .patient-master-header{top:54px!important;padding:12px 0!important;margin-bottom:0!important}
+  .patient-master-header .close{display:none!important}
+  .patient-master-header .patient-head{gap:10px!important}
+  .patient-master-header .patient-photo{width:68px!important;height:78px!important;min-width:68px!important;max-width:68px!important;max-height:78px!important;flex-basis:68px!important;border-radius:12px!important}
+  .patient-master-header h3{font-size:21px!important;line-height:1.2;margin:0 0 4px}
+  .patient-master-header small{font-size:13px;line-height:1.3}
+  .patient-tab-bar{top:148px!important;margin:0 -14px;padding:9px 14px;background:#fff;box-shadow:0 4px 8px rgba(90,24,57,.05)}
+  .patient-tab{min-height:46px;font-size:16px;padding:10px 14px}
+  .patient-tab-content{padding-top:10px}
+  .patient-tab-content .tabs-grid{grid-template-columns:1fr!important}
+}

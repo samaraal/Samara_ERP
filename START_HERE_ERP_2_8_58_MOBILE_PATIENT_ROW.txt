@@ -1,0 +1,18 @@
+SAMARA CARE ERP 2.8.58 — MOBILE PATIENT ROW NAVIGATION
+
+Upload/replace these files in the ERP repository root:
+1. app.js
+2. styles.css
+3. index.html
+4. service-worker.js
+
+What changed:
+- Tap anywhere on a patient row to open that patient file.
+- Mobile patient list becomes easy-to-read patient cards.
+- The Action column is hidden on mobile because the whole card is the action.
+- Patient File opens as a full-screen mobile page.
+- A large “← Back to Patients” control is shown at the top.
+- Existing tabs/links inside the Patient File remain available.
+- Desktop action buttons remain unchanged.
+
+After GitHub upload, refresh/reopen the PWA once so version 2.8.58 is loaded.

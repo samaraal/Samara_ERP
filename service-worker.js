@@ -1,6 +1,6 @@
-const CACHE = 'samara-erp-2.8.57-titan-html-mail';
+const CACHE = 'samara-erp-2.8.58-mobile-patient-row';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.8.57', './app.js?v=2.8.57',
+  './', './index.html', './styles.css?v=2.8.58', './app.js?v=2.8.58',
   './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',
   './config.js?v=2.8.40', './manifest.webmanifest?v=2.8.40',
   './assets/samara-logo.png?v=20260812-global1',
