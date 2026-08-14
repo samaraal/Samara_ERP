@@ -1,0 +1,17 @@
+Samara Care ERP 2.8.60
+
+CHANGE
+- Employees screen: the entire employee row is now touch/click accessible.
+- Touching anywhere on the employee row opens the Employee Personnel File.
+- Existing action buttons continue to work independently.
+- Keyboard Enter/Space access included for accessibility.
+- Mobile touch feedback added.
+
+UPLOAD
+Replace these files in the ERP GitHub root:
+1. app.js
+2. styles.css
+3. index.html
+4. service-worker.js
+
+The automatic update prompt introduced in 2.8.59 is retained.

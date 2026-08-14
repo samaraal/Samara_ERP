@@ -822,3 +822,14 @@ body{font-size:17px;line-height:1.42}
   .patient-tab-content{padding-top:10px}
   .patient-tab-content .tabs-grid{grid-template-columns:1fr!important}
 }
+
+
+/* ERP 2.8.60 - Employees: whole-row touch access */
+.employee-row-touch{cursor:pointer;transition:background .15s ease,box-shadow .15s ease}
+.employee-row-touch:hover{background:#fff7fb}
+.employee-row-touch:focus{outline:3px solid rgba(214,54,121,.22);outline-offset:-3px}
+.employee-row-touch:active{background:#fdeaf3}
+@media (max-width: 768px){
+  .employee-row-touch td{min-height:46px}
+  .employee-row-touch{touch-action:manipulation}
+}
