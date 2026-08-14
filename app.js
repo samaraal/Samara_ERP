@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.69';
+  const APP_VERSION = '2.8.70';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '24';
 
@@ -3342,7 +3342,14 @@ Caring with Compassion. Living with Dignity.`;
         setMessage(`Settings table is not ready: ${error.message}`);
         return;
       }
-      setRows(data||[]);
+      const employeeRows=(data||[]).filter(r=>{
+        const name=String(r.full_name||r.name||'').trim().toLowerCase();
+        const login=String(r.login_id||'').trim().toLowerCase();
+        const employeeId=String(r.employee_id||'').trim();
+        const isSystemAdministrator=(name==='administrator'||login==='administrator'||login==='admin')&&!employeeId;
+        return !isSystemAdministrator;
+      });
+      setRows(employeeRows);
     }
     React.useEffect(()=>{load()},[]);
 
@@ -5550,7 +5557,15 @@ Caring with Compassion. Living with Dignity.`;
       localStorage.setItem('samara_hr_employee_seed',JSON.stringify(seed));
       onNavigate('Employees');
     }
-    const table=h('div',{className:'table-wrap employee-master-table-wrap'},h('table',{className:'table employee-master-table'},h('thead',null,h('tr',null,['Application ID','Applicant','Department','Designation','Mobile','Status','Received','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,rows.map(r=>h('tr',{key:r.id,onClick:()=>open(r),title:'Open complete applicant file',style:{cursor:'pointer'}},h('td',null,r.application_id),h('td',null,h('strong',null,r.applicant_name)),h('td',null,r.department),h('td',null,r.designation),h('td',null,r.mobile),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)),h('td',null,h('button',{type:'button',className:'btn btn-primary',onClick:e=>{e.stopPropagation();open(r)}},'Open File')))),rows.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'No career applications received yet.')):null)));
+    const employeeDepartments=[...new Set(rows.filter(r=>Boolean(r.is_active??r.active)).map(r=>employeeDepartment(r)||'Other').filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    const listRows=rows.filter(r=>Boolean(r.is_active??r.active)&&(!employeeDepartmentFilter||employeeDepartment(r)===employeeDepartmentFilter));
+    const departmentDashboard=!employeeDepartmentFilter?h('div',{className:'employee-department-dashboard'},
+      h('button',{type:'button',className:'employee-dept-card employee-dept-all',onClick:()=>setEmployeeDepartmentFilter('__ALL__')},h('strong',null,'All Employees'),h('span',null,rows.filter(r=>Boolean(r.is_active??r.active)).length)),
+      employeeDepartments.map(dept=>h('button',{type:'button',key:dept,className:'employee-dept-card',onClick:()=>setEmployeeDepartmentFilter(dept)},h('strong',null,dept),h('span',null,rows.filter(r=>Boolean(r.is_active??r.active)&&employeeDepartment(r)===dept).length)))
+    ):null;
+    const effectiveRows=employeeDepartmentFilter==='__ALL__'?rows.filter(r=>Boolean(r.is_active??r.active)):listRows;
+
+    const table=h('div',{className:'table-wrap employee-master-table-wrap'},h('table',{className:'table employee-master-table'},h('thead',null,h('tr',null,['Application ID','Applicant','Department','Designation','Mobile','Status','Received','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,effectiveRows.map(r=>h('tr',{key:r.id,onClick:()=>open(r),title:'Open complete applicant file',style:{cursor:'pointer'}},h('td',null,r.application_id),h('td',null,h('strong',null,r.applicant_name)),h('td',null,r.department),h('td',null,r.designation),h('td',null,r.mobile),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)),h('td',null,h('button',{type:'button',className:'btn btn-primary',onClick:e=>{e.stopPropagation();open(r)}},'Open File')))),effectiveRows.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'No career applications received yet.')):null)));
     const isRectification=edit?.status==='Returned for Rectification';
     const modal=selected&&edit?h('div',{className:'modal-backdrop',style:{position:'static',inset:'auto',background:'transparent',padding:0,display:'block',zIndex:'auto'}},h('div',{className:'card modal employee-modal',style:{width:'100%',maxWidth:'none',maxHeight:'none',overflow:'visible',margin:0}},
       h('div',{className:'panel-head'},h('div',null,h('h3',null,'Applicant File — ',selected.applicant_name),h('small',null,`${selected.application_id} · Application received ${fmt(selected.created_at)} · ${selected.department} · ${selected.designation}`)),h('button',{type:'button',className:'btn btn-secondary',onClick:closeApplication},'← Back to Applications')),
@@ -5673,6 +5688,7 @@ Caring with Compassion. Living with Dignity.`;
     const [repairTarget,setRepairTarget]=React.useState(null),[repairPassword,setRepairPassword]=React.useState(''),[repairBusy,setRepairBusy]=React.useState(false),[repairMsg,setRepairMsg]=React.useState('');
     const [detailsTarget,setDetailsTarget]=React.useState(null),[detailsForm,setDetailsForm]=React.useState(null),[detailsDocs,setDetailsDocs]=React.useState([]),[detailsBusy,setDetailsBusy]=React.useState(false),[detailsMsg,setDetailsMsg]=React.useState('');
     const [detailsEditing,setDetailsEditing]=React.useState(false);
+    const [employeeDepartmentFilter,setEmployeeDepartmentFilter]=React.useState('');
     const [idFiles,setIdFiles]=React.useState([]),[qualificationFiles,setQualificationFiles]=React.useState([]),[experienceFiles,setExperienceFiles]=React.useState([]),[otherFiles,setOtherFiles]=React.useState([]),[cameraFiles,setCameraFiles]=React.useState([]),[photoFiles,setPhotoFiles]=React.useState([]),[photoPreview,setPhotoPreview]=React.useState(''),[welcomeLink,setWelcomeLink]=React.useState('');
     const [cameraConfig,setCameraConfig]=React.useState(null);
     const [employeeToast,setEmployeeToast]=React.useState(null);
@@ -6584,7 +6600,7 @@ Caring with Compassion. Living with Dignity.`;
     const repairModal=repairTarget?h('div',{className:'modal-backdrop'},h('form',{className:'card modal reset-password-modal',onSubmit:repairAccount},h('div',{className:'panel-head'},h('div',null,h('h3',null,'Repair Employee Account'),h('small',null,`${repairTarget.full_name} · ${repairTarget.login_id}`)),h('button',{type:'button',className:'close',onClick:()=>setRepairTarget(null)},'×')),repairMsg&&h('div',{className:`message ${repairMsg.startsWith('Authentication account repaired')?'success':'error'}`},repairMsg),h('p',null,'This employee has a profile but no matching Supabase Authentication account. Enter a temporary password to rebuild the login account.'),h('div',{className:'field'},h('label',null,'Temporary password'),h('input',{type:'password',value:repairPassword,onChange:e=>setRepairPassword(e.target.value),minLength:8,required:true,autoComplete:'new-password'})),h('button',{className:'btn btn-warning full',disabled:repairBusy},repairBusy?'Repairing…':'Repair Account & Enable Login'))):null;
 
     return h(React.Fragment,null,
-      h('div',{className:'card panel'},h('div',{className:'panel-head'},h('div',null,h('h3',null,'Employees'),h('small',null,'HR personnel records, department/designation, documents and ERP access accounts')),h('button',{className:'btn btn-primary',onClick:()=>{setShow(true);setMsg('')}},'Create Employee')),msg&&!show?h('div',{className:'message error'},msg):null,table),
+      h('div',{className:'card panel'},h('div',{className:'panel-head'},h('div',null,h('h3',null,employeeDepartmentFilter?`${employeeDepartmentFilter==='__ALL__'?'All':employeeDepartmentFilter} Employees`:'Employee Dashboard'),h('small',null,employeeDepartmentFilter?'Tap an employee to open the Personnel File':'Select a department to view active employees')),h('button',{className:'btn btn-primary',onClick:()=>{setShow(true);setMsg('')}},'Create Employee')),msg&&!show?h('div',{className:'message error'},msg):null,employeeDepartmentFilter?h('button',{type:'button',className:'btn btn-secondary employee-back-departments',onClick:()=>setEmployeeDepartmentFilter('')},'← Departments'):null,departmentDashboard,employeeDepartmentFilter?table:null),
       createModal,detailsModal,resetModal,repairModal,
       cameraConfig?h(CameraCaptureModal,{config:cameraConfig,onClose:()=>setCameraConfig(null)}):null,
       employeeToast&&h('div',{className:`samara-toast ${employeeToast.type}`,role:'status','aria-live':'polite'},

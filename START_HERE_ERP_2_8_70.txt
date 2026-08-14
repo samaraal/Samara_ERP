@@ -1,0 +1,16 @@
+Samara Care ERP 2.8.70
+Employee Department Dashboard + System Administrator Separation
+
+Replace in GitHub root:
+- app.js
+- styles.css
+- index.html
+- service-worker.js
+
+Changes:
+1. Employees opens as a department-wise master dashboard.
+2. Tap a department to see active employees in that department.
+3. All Employees card available.
+4. Tap employee to open Personnel File; editing remains a separate action.
+5. Non-employee system Administrator account is excluded from Employees when it has no Employee ID.
+6. Existing 2.8.69 sticky mobile header and update mechanism retained.

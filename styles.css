@@ -1287,3 +1287,12 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
     z-index:200!important;
   }
 }
+
+/* ERP 2.8.70 — Employee master dashboard / department drill-down */
+.employee-department-dashboard{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-top:16px}
+.employee-dept-card{min-height:104px;border:1px solid #ead0dc;border-radius:18px;background:#fffafd;padding:18px;text-align:left;cursor:pointer;box-shadow:0 6px 18px rgba(91,13,53,.05)}
+.employee-dept-card strong{display:block;font-size:17px;color:#391d2b;margin-bottom:10px}
+.employee-dept-card span{display:inline-flex;min-width:38px;height:38px;padding:0 10px;border-radius:19px;align-items:center;justify-content:center;background:#f9dce9;color:#9d0b55;font-size:20px;font-weight:800}
+.employee-dept-all{background:linear-gradient(135deg,#fff7fb,#fce7f0)}
+.employee-back-departments{margin:12px 0 4px}
+@media(max-width:700px){.employee-department-dashboard{grid-template-columns:1fr 1fr;gap:10px}.employee-dept-card{min-height:88px;padding:14px;border-radius:16px}.employee-dept-card strong{font-size:15px;line-height:1.2}.employee-dept-card span{height:32px;min-width:32px;font-size:17px}.employee-back-departments{width:100%;min-height:46px}.employee-master-table-wrap{overflow-x:hidden}}
