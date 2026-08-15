@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.02';
+  const APP_VERSION = '2.9.04';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '25';
 
@@ -4333,6 +4333,10 @@ Caring with Compassion. Living with Dignity.`;
           ok.addEventListener('click',async()=>{
             ok.disabled=true;
             ok.textContent='Refreshing…';
+            // Never leave the ERP blocked by the update prompt while refreshing.
+            overlay.style.pointerEvents='none';
+            overlay.style.opacity='0';
+            setTimeout(()=>overlay.remove(),180);
             try{
               const registration=await navigator.serviceWorker.getRegistration();
               await registration?.update();
@@ -4348,6 +4352,18 @@ Caring with Compassion. Living with Dignity.`;
           setTimeout(()=>{try{ok.focus({preventScroll:true})}catch(_){ok.focus()}},50);
         };
 
+        const isRemoteVersionNewer=(remote,current)=>{
+          const parse=value=>String(value||'0').split('.').map(part=>Number.parseInt(part,10)||0);
+          const a=parse(remote), b=parse(current);
+          const length=Math.max(a.length,b.length);
+          for(let i=0;i<length;i++){
+            const av=a[i]||0, bv=b[i]||0;
+            if(av>bv)return true;
+            if(av<bv)return false;
+          }
+          return false;
+        };
+
         const checkRemoteVersion=async(force=false)=>{
           const now=Date.now();
           if(!force&&now-lastUpdateCheckAt<45000)return;
@@ -4358,7 +4374,7 @@ Caring with Compassion. Living with Dignity.`;
             const text=await response.text();
             const match=text.match(/samara-erp-(\d+\.\d+\.\d+)/i);
             const remote=match?.[1]||'';
-            if(remote&&remote!==APP_VERSION){
+            if(remote&&isRemoteVersionNewer(remote,APP_VERSION)){
               remoteUpdateVersion=remote;
               updateDetected=true;
               showUpdatePrompt(true);
@@ -4370,7 +4386,7 @@ Caring with Compassion. Living with Dignity.`;
 
         navigator.serviceWorker.addEventListener('controllerchange',()=>showUpdatePrompt());
         navigator.serviceWorker.addEventListener('message',event=>{
-          if(event.data?.type==='SAMARA_UPDATE_AVAILABLE'&&event.data.version&&event.data.version!==APP_VERSION){
+          if(event.data?.type==='SAMARA_UPDATE_AVAILABLE'&&event.data.version&&isRemoteVersionNewer(event.data.version,APP_VERSION)){
             remoteUpdateVersion=event.data.version;
             updateDetected=true;
             showUpdatePrompt(true);
