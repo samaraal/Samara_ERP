@@ -233,8 +233,8 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.04';
-  const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
+  const APP_VERSION = '2.9.05';
+  const APP_BUILD_DATE = '15-Aug-2026 Humanised Tamil Female Voice';
   const APP_SCHEMA_VERSION = '25';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -2097,40 +2097,137 @@ Caring with Compassion. Living with Dignity.`;
     function play(priority){
       playClinicalTone(priority,false);
     }
-    function tamilClinicalVoiceText(a){
+    function clinicalVoiceData(a){
       const title=String(a?.title||a?.alert_type||'').toLowerCase();
       const patient=String(a?.patient_name||a?.patient||'நோயாளர்').trim();
       const room=String(a?.room_label||a?.room||'').trim();
       const details=String(a?.description||a?.details||'').trim();
       const overdue=Math.max(0,Number(a?.overdue_minutes||0));
-      let task='மருத்துவப் பணி நிலுவையில் உள்ளது.';
-      if(title.includes('medication')||title.includes('medicine')||title.includes('மருந்து')){
-        task=details?`${details}. மருந்து கொடுக்க வேண்டியுள்ளது.`:'மருந்து கொடுக்க வேண்டியுள்ளது.';
-      }else if(title.includes('vital')){
-        task='உயிர் அறிகுறிகளை பதிவு செய்ய வேண்டியுள்ளது.';
-      }else if(title.includes('daily care')||title.includes('care')){
-        task='தினசரி பராமரிப்பு பணியை நிறைவு செய்து பதிவு செய்ய வேண்டியுள்ளது.';
-      }else if(title.includes('physio')){
-        task='உடற்பயிற்சி சிகிச்சை பதிவை நிறைவு செய்ய வேண்டியுள்ளது.';
+      const isMedication=title.includes('medication')||title.includes('medicine')||title.includes('மருந்து');
+      const isVitals=title.includes('vital');
+      const isCare=title.includes('daily care')||title.includes('care');
+      const isPhysio=title.includes('physio');
+      return {title,patient,room,details,overdue,isMedication,isVitals,isCare,isPhysio};
+    }
+    function femaleVoiceScore(v,langPrefix){
+      const name=String(v?.name||'').toLowerCase();
+      const lang=String(v?.lang||'').toLowerCase();
+      let score=0;
+      if(lang===langPrefix)score+=100;
+      else if(lang.startsWith(langPrefix.split('-')[0]))score+=70;
+      // Common female / natural voice names exposed by major operating systems.
+      if(/pallavi|neerja|heera|veena|samantha|zira|ava|serena|female|woman/.test(name))score+=45;
+      if(/natural|neural|enhanced|premium/.test(name))score+=20;
+      if(/google|microsoft|apple/.test(name))score+=5;
+      return score;
+    }
+    function bestVoice(voices,langPrefix,fallbackPrefix=''){
+      const language=langPrefix.toLowerCase();
+      let candidates=(voices||[]).filter(v=>String(v.lang||'').toLowerCase().startsWith(language.split('-')[0]));
+      if(!candidates.length&&fallbackPrefix){
+        const fp=fallbackPrefix.toLowerCase();
+        candidates=(voices||[]).filter(v=>String(v.lang||'').toLowerCase().startsWith(fp.split('-')[0]));
       }
-      const delay=overdue>0?`${Math.round(overdue)} நிமிடங்கள் தாமதமாகியுள்ளது. `:'';
-      return `சமராவின் அவசர வேண்டுகோள். உங்கள் கவனத்திற்கு — ${room?`அறை ${room}. `:''}${task} ${delay}தயவு செய்து உடனடியாக கவனித்து பதிவு செய்யவும்.`;
+      return candidates.sort((a,b)=>femaleVoiceScore(b,language)-femaleVoiceScore(a,language))[0]||null;
+    }
+    function waitForSpeechVoices(){
+      const synth=window.speechSynthesis;
+      if(!synth)return Promise.resolve([]);
+      const ready=synth.getVoices?.()||[];
+      if(ready.length)return Promise.resolve(ready);
+      return new Promise(resolve=>{
+        let done=false;
+        const finish=()=>{if(done)return;done=true;resolve(synth.getVoices?.()||[])};
+        const old=synth.onvoiceschanged;
+        synth.onvoiceschanged=()=>{try{if(typeof old==='function')old()}catch(_){}finish()};
+        window.setTimeout(finish,700);
+      });
+    }
+    function roomForSpeech(room){
+      return String(room||'').trim().replace(/([0-9])/g,'$1 ').replace(/[-_/]/g,' ').replace(/\s+/g,' ').trim();
+    }
+    function medicineForSpeech(details){
+      return String(details||'மருந்து')
+        .replace(/\bmg\b/gi,' milligram ')
+        .replace(/\bmcg\b/gi,' microgram ')
+        .replace(/\bml\b/gi,' millilitre ')
+        .replace(/\btab(?:let)?s?\b/gi,' tablet ')
+        .replace(/\bcaps?(?:ule)?s?\b/gi,' capsule ')
+        .replace(/[|•]/g,', ')
+        .replace(/\s+/g,' ').trim();
+    }
+    function speakUtteranceSequence(segments,voices){
+      const synth=window.speechSynthesis;
+      if(!synth||!segments.length)return;
+      const tamilVoice=bestVoice(voices,'ta-in');
+      const englishVoice=bestVoice(voices,'en-in','en');
+      let index=0;
+      const next=()=>{
+        if(index>=segments.length)return;
+        const seg=segments[index++];
+        const u=new SpeechSynthesisUtterance(seg.text);
+        u.lang=seg.lang||'ta-IN';
+        u.rate=seg.rate||.78;
+        u.pitch=seg.pitch||1.06;
+        u.volume=1;
+        if((u.lang||'').toLowerCase().startsWith('ta')&&tamilVoice)u.voice=tamilVoice;
+        else if((u.lang||'').toLowerCase().startsWith('en')&&englishVoice)u.voice=englishVoice;
+        u.onend=()=>window.setTimeout(next,seg.pause??190);
+        u.onerror=()=>window.setTimeout(next,120);
+        synth.speak(u);
+      };
+      console.info('Samara clinical voice',{
+        tamilVoice:tamilVoice?.name||'device default',
+        englishVoice:englishVoice?.name||'device default'
+      });
+      next();
+    }
+    function humanisedClinicalVoiceSegments(a){
+      const d=clinicalVoiceData(a);
+      const segments=[
+        {text:'சமராவின் அவசர வேண்டுகோள்.',lang:'ta-IN',rate:.76,pause:260},
+        {text:'உங்கள் கவனத்திற்கு.',lang:'ta-IN',rate:.74,pause:300}
+      ];
+      if(d.room){
+        segments.push({text:'அறை எண்.',lang:'ta-IN',rate:.72,pause:180});
+        segments.push({text:roomForSpeech(d.room),lang:'en-IN',rate:.62,pitch:1.05,pause:360});
+      }
+      if(d.patient){
+        segments.push({text:'நோயாளியின் பெயர்.',lang:'ta-IN',rate:.72,pause:180});
+        segments.push({text:d.patient,lang:'en-IN',rate:.64,pitch:1.04,pause:380});
+      }
+      if(d.isMedication){
+        segments.push({text:'கொடுக்க வேண்டிய மருந்து.',lang:'ta-IN',rate:.72,pause:190});
+        segments.push({text:medicineForSpeech(d.details||'Medicine'),lang:'en-IN',rate:.61,pitch:1.03,pause:420});
+        segments.push({text:'மருந்து கொடுக்க வேண்டியுள்ளது.',lang:'ta-IN',rate:.75,pause:240});
+      }else if(d.isVitals){
+        segments.push({text:'உயிர் அறிகுறிகளை பதிவு செய்ய வேண்டியுள்ளது.',lang:'ta-IN',rate:.75,pause:260});
+      }else if(d.isCare){
+        segments.push({text:'தினசரி பராமரிப்பு பணியை நிறைவு செய்து பதிவு செய்ய வேண்டியுள்ளது.',lang:'ta-IN',rate:.75,pause:260});
+      }else if(d.isPhysio){
+        segments.push({text:'உடற்பயிற்சி சிகிச்சை பதிவை நிறைவு செய்ய வேண்டியுள்ளது.',lang:'ta-IN',rate:.75,pause:260});
+      }else{
+        segments.push({text:'மருத்துவப் பணி நிலுவையில் உள்ளது.',lang:'ta-IN',rate:.75,pause:260});
+      }
+      if(d.overdue>0){
+        segments.push({text:`${Math.round(d.overdue)} நிமிடங்கள் தாமதமாகியுள்ளது.`,lang:'ta-IN',rate:.72,pause:260});
+      }
+      segments.push({
+        text:d.isMedication?'தயவு செய்து உடனடியாக கவனித்து, மருந்தை கொடுத்த பின் பதிவு செய்யவும்.':'தயவு செய்து உடனடியாக கவனித்து பதிவு செய்யவும்.',
+        lang:'ta-IN',rate:.74,pause:0
+      });
+      return segments;
     }
     function speak(a){
       if(!settings.voice_enabled||!soundUnlocked||!window.speechSynthesis)return;
       window.speechSynthesis.cancel();
-      const text=tamilClinicalVoiceText(a);
-      const speakNow=()=>{
-        const u=new SpeechSynthesisUtterance(text);
-        u.lang='ta-IN';
-        const voices=window.speechSynthesis.getVoices?.()||[];
-        const tamilVoice=voices.find(v=>String(v.lang||'').toLowerCase().startsWith('ta'));
-        if(tamilVoice)u.voice=tamilVoice;
-        u.rate=.84;u.pitch=1;u.volume=1;
-        window.speechSynthesis.speak(u);
-      };
-      // Let the alert tone finish first so the Tamil announcement is clear.
-      window.setTimeout(speakNow,2200);
+      // Let the clinical tone finish, then use a paced Tamil announcement.
+      window.setTimeout(async()=>{
+        if(!settings.voice_enabled||!soundUnlocked||!window.speechSynthesis)return;
+        const voices=await waitForSpeechVoices();
+        window.speechSynthesis.cancel();
+        speakUtteranceSequence(humanisedClinicalVoiceSegments(a),voices);
+      },2300);
     }
     async function requestNotifications(){
       if(!('Notification' in window))return false;
