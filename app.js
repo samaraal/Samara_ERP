@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.08';
+  const APP_VERSION = '2.9.09';
   const APP_BUILD_DATE = '15-Aug-2026 Single Clear Tamil Voice';
   const APP_SCHEMA_VERSION = '25';
 
@@ -2146,7 +2146,7 @@ Caring with Compassion. Living with Dignity.`;
       });
     }
     const TAMIL_DIGITS={
-      '0':'பூஜ்ஜியம்','1':'ஒன்று','2':'இரண்டு','3':'மூன்று','4':'நான்கு',
+      '0':'பூஜியம்','1':'ஒன்று','2':'இரண்டு','3':'மூன்று','4':'நான்கு',
       '5':'ஐந்து','6':'ஆறு','7':'ஏழு','8':'எட்டு','9':'ஒன்பது'
     };
     const TAMIL_LETTERS={
@@ -2158,7 +2158,7 @@ Caring with Compassion. Living with Dignity.`;
     function tamilIntegerWords(n){
       n=Number(n);
       if(!Number.isFinite(n)||n<0||n>9999||!Number.isInteger(n))return String(n);
-      const ones=['பூஜ்ஜியம்','ஒன்று','இரண்டு','மூன்று','நான்கு','ஐந்து','ஆறு','ஏழு','எட்டு','ஒன்பது','பத்து','பதினொன்று','பன்னிரண்டு','பதின்மூன்று','பதினான்கு','பதினைந்து','பதினாறு','பதினேழு','பதினெட்டு','பத்தொன்பது'];
+      const ones=['பூஜியம்','ஒன்று','இரண்டு','மூன்று','நான்கு','ஐந்து','ஆறு','ஏழு','எட்டு','ஒன்பது','பத்து','பதினொன்று','பன்னிரண்டு','பதின்மூன்று','பதினான்கு','பதினைந்து','பதினாறு','பதினேழு','பதினெட்டு','பத்தொன்பது'];
       const tens=['','','இருபது','முப்பது','நாற்பது','ஐம்பது','அறுபது','எழுபது','எண்பது','தொண்ணூறு'];
       if(n<20)return ones[n];
       if(n<100){const t=Math.floor(n/10),r=n%10;return tens[t]+(r?' '+ones[r]:'');}
@@ -2195,7 +2195,7 @@ Caring with Compassion. Living with Dignity.`;
         .replace(/\bParacetamol\b/gi,'பாராசிட்டமால்');
       value=value.replace(/(\d+(?:\.\d+)?)\s*(mg|mcg|ml)\b/gi,(_,num,unit)=>{
         const n=Number(num);
-        const spoken=Number.isInteger(n)?tamilIntegerWords(n):String(num).split('').map(ch=>TAMIL_DIGITS[ch]||ch).join(' ');
+        const spoken=(n===500)?'ஐந்நூறு':(Number.isInteger(n)?tamilIntegerWords(n):String(num).split('').map(ch=>TAMIL_DIGITS[ch]||ch).join(' '));
         const u={mg:'மில்லிகிராம்',mcg:'மைக்ரோகிராம்',ml:'மில்லிலிட்டர்'}[String(unit).toLowerCase()]||unit;
         return ` ${spoken} ${u} `;
       });
@@ -2235,23 +2235,24 @@ Caring with Compassion. Living with Dignity.`;
     }
     function humanisedClinicalVoiceSegments(a){
       const d=clinicalVoiceData(a);
-      // v2.9.08: concise single-speaker announcement with Tamil-friendly room/dosage pronunciation.
+      // v2.9.09: clarity-first single-speaker Tamil announcement; short phrases reduce TTS slurring.
       // Keep the overall pace natural, with deliberate pauses only around the
       // three critical identifiers: room, resident and medicine.
       const segments=[
         {text:'சமராவின் அவசர வேண்டுகோள்.',lang:'ta-IN',rate:.88,pause:180}
       ];
       if(d.room){
-        segments.push({text:'அறை எண்.',lang:'ta-IN',rate:.84,pause:120});
-        segments.push({text:roomForSpeech(d.room),lang:'ta-IN',rate:.78,pause:260});
+        segments.push({text:'அறை.',lang:'ta-IN',rate:.86,pause:90});
+        segments.push({text:'எண்.',lang:'ta-IN',rate:.86,pause:120});
+        segments.push({text:roomForSpeech(d.room),lang:'ta-IN',rate:.82,pause:250});
       }
       if(d.patient){
         segments.push({text:'நோயாளியின் பெயர்.',lang:'ta-IN',rate:.84,pause:120});
-        segments.push({text:patientForSpeech(d.patient),lang:'ta-IN',rate:.78,pause:260});
+        segments.push({text:patientForSpeech(d.patient),lang:'ta-IN',rate:.82,pause:250});
       }
       if(d.isMedication){
         segments.push({text:'கொடுக்க வேண்டிய மருந்து.',lang:'ta-IN',rate:.84,pause:125});
-        segments.push({text:medicineForSpeech(d.details||'Medicine'),lang:'ta-IN',rate:.76,pause:290});
+        segments.push({text:medicineForSpeech(d.details||'Medicine'),lang:'ta-IN',rate:.80,pause:300});
       }else if(d.isVitals){
         segments.push({text:'உயிர் அறிகுறிகளை பதிவு செய்ய வேண்டியுள்ளது.',lang:'ta-IN',rate:.86,pause:180});
       }else if(d.isCare){
@@ -2264,10 +2265,12 @@ Caring with Compassion. Living with Dignity.`;
       if(!d.isMedication && d.overdue>0){
         segments.push({text:`${Math.round(d.overdue)} நிமிடங்கள் தாமதமாகியுள்ளது.`,lang:'ta-IN',rate:.84,pause:180});
       }
-      segments.push({
-        text:d.isMedication?'தயவு செய்து உடனடியாக கவனித்து, மருந்தை கொடுத்த பின் பதிவு செய்யவும்.':'தயவு செய்து உடனடியாக கவனித்து பதிவு செய்யவும்.',
-        lang:'ta-IN',rate:.86,pause:0
-      });
+      if(d.isMedication){
+        segments.push({text:'தயவு செய்து உடனே கவனிக்கவும்.',lang:'ta-IN',rate:.82,pause:180});
+        segments.push({text:'மருந்து கொடுத்த பிறகு பதிவு செய்யவும்.',lang:'ta-IN',rate:.82,pause:0});
+      }else{
+        segments.push({text:'தயவு செய்து உடனே கவனித்து பதிவு செய்யவும்.',lang:'ta-IN',rate:.82,pause:0});
+      }
       return segments;
     }
     function speak(a){
