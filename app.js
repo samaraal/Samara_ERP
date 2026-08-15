@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.15';
+  const APP_VERSION = '2.9.16';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2203,9 +2203,9 @@ Caring with Compassion. Living with Dignity.`;
       const th=Math.floor(n/1000),r=n%1000;const thword=th===1?'ஆயிரம்':ones[th]+' ஆயிரம்';return thword+(r?' '+tamilIntegerWords(r):'');
     }
     function roomForSpeech(room){
-      // Room identifiers are spoken digit-by-digit for clinical clarity.
-      // Conversational South-Indian usage: 101 => ஒன்று சீரோ ஒன்று.
-      const roomDigits={...TAMIL_DIGITS,'0':'சீரோ'};
+      // Pure-Tamil room pronunciation, digit by digit for clinical clarity.
+      // Example: 101 => ஒன்று பூஜியம் ஒன்று.
+      const roomDigits={...TAMIL_DIGITS};
       return String(room||'').trim().toUpperCase().split('').map(ch=>{
         if(roomDigits[ch])return roomDigits[ch];
         if(TAMIL_LETTERS[ch])return TAMIL_LETTERS[ch];
@@ -2227,34 +2227,26 @@ Caring with Compassion. Living with Dignity.`;
       let value=String(details||'மருந்து').trim();
       value=value.replace(/\btest\b/gi,'').replace(/\s+/g,' ').trim();
 
-      // Clarity-first medicine dictionary. These are intentionally written the way
-      // Tamil/Indian speech engines tend to pronounce them most clearly for staff.
+      // v2.9.16: clarity-first PURE TAMIL pronunciation. Brand names remain
+      // recognisable medicine names; strengths and units are spoken in Tamil.
       const medicinePronunciations=[
-        [/\bDolo\b/gi,'டோ லோ'],
-        [/\bCrocin\b/gi,'க்ரோ சின்'],
-        [/\bEcosprin\b/gi,'எகோ ஸ்பிரின்'],
+        [/\bDolo\b/gi,'டோலோ'],
+        [/\bCrocin\b/gi,'க்ரோசின்'],
+        [/\bEcosprin\b/gi,'எகோஸ்பிரின்'],
         [/\bParacetamol\b/gi,'பாராசிட்டமால்'],
-        [/\bShelcal\b/gi,'ஷெல் கால்'],
-        [/\bPantop\b/gi,'பான் டாப்']
+        [/\bShelcal\b/gi,'ஷெல்கால்'],
+        [/\bPantop\b/gi,'பான்டாப்']
       ];
       medicinePronunciations.forEach(([pattern,spoken])=>{ value=value.replace(pattern,spoken); });
 
-      // For medicine strengths, use familiar Indian-English number words rather than
-      // formal Tamil number construction. This is easier for nurses/caregivers and
-      // avoids browser Tamil TTS distorting large numeric doses.
-      const indianEnglishDose={
-        '50':'ஃபிஃப்டி','75':'செவன்ட்டி ஃபைவ்','100':'ஒன் ஹண்ட்ரெட்',
-        '125':'ஒன் டுவென்ட்டி ஃபைவ்','150':'ஒன் ஃபிஃப்டி','200':'டூ ஹண்ட்ரெட்',
-        '250':'டூ ஃபிஃப்டி','300':'த்ரீ ஹண்ட்ரெட்','400':'ஃபோர் ஹண்ட்ரெட்',
-        '500':'ஃபைவ் ஹண்ட்ரெட்','650':'சிக்ஸ் ஃபிஃப்டி','750':'செவன் ஃபிஃப்டி',
-        '1000':'ஒன் தவுசண்ட்'
-      };
       value=value.replace(/(\d+(?:\.\d+)?)\s*(mg|mcg|ml)\b/gi,(_,num,unit)=>{
-        const key=String(num);
         const n=Number(num);
-        const spoken=indianEnglishDose[key] || (Number.isInteger(n)
-          ? String(num).split('').map(ch=>ch==='0'?'சீரோ':({1:'ஒன்',2:'டூ',3:'த்ரீ',4:'ஃபோர்',5:'ஃபைவ்',6:'சிக்ஸ்',7:'செவன்',8:'எய்ட்',9:'நைன்'}[ch]||ch)).join(' ')
-          : String(num).split('').map(ch=>ch==='.'?'பாயிண்ட்':(ch==='0'?'சீரோ':({1:'ஒன்',2:'டூ',3:'த்ரீ',4:'ஃபோர்',5:'ஃபைவ்',6:'சிக்ஸ்',7:'செவன்',8:'எய்ட்',9:'நைன்'}[ch]||ch))).join(' '));
+        let spoken;
+        if(Number.isInteger(n)) spoken=tamilIntegerWords(n);
+        else {
+          const [whole,decimal='']=String(num).split('.');
+          spoken=`${tamilIntegerWords(Number(whole))} புள்ளி ${decimal.split('').map(ch=>TAMIL_DIGITS[ch]||ch).join(' ')}`;
+        }
         const u={mg:'மில்லிகிராம்',mcg:'மைக்ரோகிராம்',ml:'மில்லிலிட்டர்'}[String(unit).toLowerCase()]||unit;
         return ` ${spoken} ${u} `;
       });
@@ -2294,7 +2286,7 @@ Caring with Compassion. Living with Dignity.`;
     }
     function humanisedClinicalVoiceSegments(a){
       const d=clinicalVoiceData(a);
-      // v2.9.12: continuous clarity-first Tamil/Indian clinical utterance.
+      // v2.9.16: continuous pure-Tamil clinical utterance with live overdue time.
       // Avoids browser-generated gaps/joins between room, patient and medicine details.
       if(d.isMedication){
         const parts=['சமராவின் அவசர வேண்டுகோள்.'];
