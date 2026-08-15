@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.97';
+  const APP_VERSION = '2.8.98';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '25';
 
@@ -2082,6 +2082,32 @@ Caring with Compassion. Living with Dignity.`;
       await refreshEscalations();
     }
 
+    function openClinicalTask(a){
+      const page=a.target_page||'Clinical Alerts';
+      if(page==='Clinical Alerts'){setPage(page);return;}
+      const context={
+        page,
+        return_page:'Clinical Alerts',
+        patient_id:a.patient_id||'',
+        source_id:a.source_id||'',
+        alert_key:a.key||'',
+        alert_type:a.alert_type||'',
+        from_escalation:Boolean(a.isEscalated)
+      };
+      if(page==='Medicines'){
+        context.order_id=a.source_id||'';
+        const due=new Date(a.due_at);
+        if(!Number.isNaN(due.getTime()))context.scheduled_time=`${String(due.getHours()).padStart(2,'0')}:${String(due.getMinutes()).padStart(2,'0')}`;
+      }else if(page==='Daily Care'){
+        context.care_order_id=a.source_id||'';
+        context.care_type=String(a.title||'').replace(/^Daily Care Due:\s*/i,'')||'Daily Care';
+      }else if(page==='Physiotherapy'){
+        context.plan_id=a.source_id||'';
+      }
+      saveTaskNavigationContext(context);
+      setPage(page);
+    }
+
     const allRows=(engine.alerts||[]).map(a=>({
       ...a,
       isEscalated:escalatedKeys.has(String(a.key||'')),
@@ -2136,7 +2162,7 @@ Caring with Compassion. Living with Dignity.`;
             Number(a.overdue_minutes)>0?`${a.overdue_minutes} min`:'Due now',
             a.description||'—',
             h('div',{className:'employee-actions'},
-              h('button',{className:'btn btn-primary',onClick:()=>setPage(a.target_page||'Clinical Alerts')},a.alert_type==='Regularisation'?'Review':'Complete / Record'),
+              h('button',{className:'btn btn-primary',onClick:()=>openClinicalTask(a)},a.alert_type==='Regularisation'?'Review':'Complete / Record'),
               a.alert_type!=='Regularisation'&&!a.isEscalated&&h('button',{className:'btn btn-secondary',onClick:()=>engine.acknowledge(a,'Snoozed',5)},'Snooze 5'),
               a.alert_type==='Regularisation'&&h('button',{className:'btn btn-secondary',onClick:()=>engine.acknowledge(a,'Acknowledged',0)},'Regularise Backlog')
             )
@@ -12651,7 +12677,7 @@ function RoomsBeds({profile}){
     return h(React.Fragment,null,
       h(Section,{title:'Daily Care Entry',subtitle:'Bath, restroom, hygiene, feeding, mobility and positioning'},
         returnPage&&h('div',{className:'return-after-save-note'},
-          h('strong',null,'Opened from Shift Tasks. '),
+          h('strong',null,returnPage==='Clinical Alerts'?'Opened from Clinical Alerts. ':'Opened from Shift Tasks. '),
           `After saving, this care task will be marked against the current shift and the system will return automatically to ${returnPage}.`
         ),
         h('form',{className:'modal-grid',onSubmit:save},

@@ -1,0 +1,23 @@
+SAMARA CARE ERP v2.8.98 — NURSE CLINICAL ALERTS → ESCALATION ACTION
+
+Continuation from v2.8.97 only. No earlier work is repeated.
+
+WHAT IS COMPLETED
+1. Nurse / Caregiver Clinical Alerts retains the Escalated / Overdue / Due now / Regularisation views.
+2. Escalated items remain first and clearly marked ESCALATED.
+3. Complete / Record now opens the actual underlying clinical task with navigation context:
+   - Medication → Medicines / MAR, selected resident + medicine order + scheduled time
+   - Vital Signs → Vital Signs, selected resident
+   - Daily Care → Daily Care, selected resident + care order/activity
+   - Physiotherapy → Physiotherapy, selected resident + plan
+4. After the nurse records/completes the source task, the workflow returns to Clinical Alerts.
+5. Nurse / Caregiver still CANNOT administratively resolve an escalation.
+6. Manager / Administrator Clinical Escalations Register and mandatory resolution/corrective remarks remain unchanged.
+7. Existing 30-minute escalation logic and audit/escalation workflow are unchanged.
+
+UPLOAD / REPLACE ONLY
+- app.js
+- index.html
+- service-worker.js
+
+No SQL change is required for this v2.8.98 continuation.
