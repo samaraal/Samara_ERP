@@ -1,0 +1,32 @@
+SAMARA CARE ERP v2.9.00 — SMART HOVER + NOTIFICATION CENTRE
+
+WHAT CHANGED
+1. Top-right Clinical Alert bell is now an active notification centre.
+   - Laptop/desktop: move the cursor over the bell to see a live summary.
+   - Shows priority, resident, room, alert, and overdue time.
+   - Click the bell / Open all / any preview item to open full Clinical Alerts.
+   - Mobile continues to use tap/click for the full Clinical Alerts screen.
+
+2. Stronger clinical alert sound.
+   - Replaces the thin single oscillator tone with a stronger multi-tone repeated clinical pattern.
+   - Critical alerts use the longest repeated pattern; Urgent and Routine use shorter patterns.
+   - The temporary Test Alert is retained so sound/browser notification can be tested safely.
+
+3. ERP-wide Smart Hover framework.
+   - Desktop hover/focus can show useful context for actionable controls that already contain
+     aria-label/title/navigation/secondary information.
+   - It does NOT change Save/Approve/Complete/etc. button behaviour.
+   - Click/tap remains the full action/open-record behaviour.
+   - No hover dependency on mobile.
+
+FILES TO REPLACE
+- app.js
+- index.html
+- service-worker.js
+
+NO SQL REQUIRED.
+
+IMPORTANT AFTER UPLOAD
+Hard refresh once, or accept the Samara update prompt, so the new service-worker cache is loaded.
+For sound, click "Enable Sound" once in each browser/device because browsers require a user gesture.
+For browser notifications, click "Enable Browser Alerts" once in each browser/device and Allow permission.

@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.99';
+  const APP_VERSION = '2.9.00';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '25';
 
@@ -1961,29 +1961,47 @@ Caring with Compassion. Living with Dignity.`;
     const lastPopup=React.useRef({});
     const audioContext=React.useRef(null);
 
+    function playClinicalTone(priority='Routine',force=false){
+      if(!force&&(!settings.sound_enabled||!soundUnlocked))return;
+      try{
+        const Ctx=window.AudioContext||window.webkitAudioContext;
+        const ctx=audioContext.current||(audioContext.current=new Ctx());
+        if(ctx.state==='suspended')ctx.resume().catch(()=>{});
+        const level=String(priority||'Routine');
+        const pulses=level==='Critical'?6:level==='Urgent'?4:3;
+        const now=ctx.currentTime+.02;
+        const master=ctx.createGain();
+        master.gain.setValueAtTime(.82,now);
+        master.connect(ctx.destination);
+        for(let i=0;i<pulses;i++){
+          const t=now+i*.38;
+          const primary=ctx.createOscillator();
+          const secondary=ctx.createOscillator();
+          const gain=ctx.createGain();
+          primary.type='square'; secondary.type='sine';
+          const base=level==='Critical'?920:level==='Urgent'?820:740;
+          primary.frequency.setValueAtTime(base+(i%2?120:0),t);
+          secondary.frequency.setValueAtTime((base+(i%2?120:0))*1.5,t);
+          primary.connect(gain);secondary.connect(gain);gain.connect(master);
+          gain.gain.setValueAtTime(.0001,t);
+          gain.gain.exponentialRampToValueAtTime(.22,t+.025);
+          gain.gain.setValueAtTime(.22,t+.15);
+          gain.gain.exponentialRampToValueAtTime(.0001,t+.26);
+          primary.start(t);secondary.start(t);primary.stop(t+.28);secondary.stop(t+.28);
+        }
+      }catch(error){console.warn('Clinical alert sound unavailable',error)}
+    }
     async function unlockSound(){
       try{
         const Ctx=window.AudioContext||window.webkitAudioContext;
         const ctx=audioContext.current||(audioContext.current=new Ctx());
         if(ctx.state==='suspended')await ctx.resume();
         setSoundUnlocked(true);
-        const osc=ctx.createOscillator(),gain=ctx.createGain();
-        osc.connect(gain);gain.connect(ctx.destination);osc.frequency.value=440;
-        gain.gain.setValueAtTime(.08,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.18);
-        osc.start();osc.stop(ctx.currentTime+.2);
+        playClinicalTone('Routine',true);
       }catch(error){console.warn('Sound unavailable',error)}
     }
     function play(priority){
-      if(!settings.sound_enabled||!soundUnlocked)return;
-      try{
-        const ctx=audioContext.current;
-        const pulses=priority==='Critical'?3:priority==='Urgent'?2:1;
-        const osc=ctx.createOscillator(),gain=ctx.createGain(),now=ctx.currentTime;
-        osc.frequency.value=priority==='Critical'?880:priority==='Urgent'?660:440;
-        osc.connect(gain);gain.connect(ctx.destination);gain.gain.setValueAtTime(.0001,now);
-        for(let i=0;i<pulses;i++){const t=now+i*.27;gain.gain.exponentialRampToValueAtTime(.16,t+.02);gain.gain.exponentialRampToValueAtTime(.0001,t+.17)}
-        osc.start(now);osc.stop(now+pulses*.3+.2);
-      }catch(error){}
+      playClinicalTone(priority,false);
     }
     function speak(a){
       if(!settings.voice_enabled||!soundUnlocked||!window.speechSynthesis)return;
@@ -2005,11 +2023,7 @@ Caring with Compassion. Living with Dignity.`;
           const ctx=audioContext.current||(audioContext.current=new Ctx());
           if(ctx.state==='suspended')await ctx.resume();
           setSoundUnlocked(true);
-          const now=ctx.currentTime,osc=ctx.createOscillator(),gain=ctx.createGain();
-          osc.connect(gain);gain.connect(ctx.destination);osc.frequency.value=880;
-          gain.gain.setValueAtTime(.0001,now);
-          for(let i=0;i<3;i++){const t=now+i*.27;gain.gain.exponentialRampToValueAtTime(.18,t+.02);gain.gain.exponentialRampToValueAtTime(.0001,t+.17)}
-          osc.start(now);osc.stop(now+1.05);
+          playClinicalTone('Critical',true);
         }
       }catch(error){console.warn('Test sound unavailable',error)}
       let permission=('Notification' in window)?Notification.permission:'unsupported';
@@ -3903,8 +3917,100 @@ Caring with Compassion. Living with Dignity.`;
     document.head.appendChild(style);
   }
 
+
+  function GlobalSmartHover(){
+    React.useEffect(()=>{
+      if(!window.matchMedia||!window.matchMedia('(hover:hover) and (pointer:fine)').matches)return;
+      const tip=document.createElement('div');
+      tip.className='samara-smart-hover';
+      tip.setAttribute('role','tooltip');
+      document.body.appendChild(tip);
+      let active=null;
+      const clean=text=>String(text||'').replace(/\s+/g,' ').trim();
+      const detailsFor=el=>{
+        if(!el||el.classList?.contains('topbar-clinical-alert-badge'))return '';
+        const explicit=clean(el.getAttribute?.('data-hover-info'));
+        if(explicit)return explicit;
+        const aria=clean(el.getAttribute?.('aria-label'));
+        const title=clean(el.getAttribute?.('title'));
+        if(title&&title!==clean(el.textContent))return title;
+        if(aria&&aria!==clean(el.textContent))return aria;
+        const nav=clean(el.getAttribute?.('data-nav'));
+        if(nav)return `Open ${nav} for full information`;
+        const secondary=el.querySelector?.('small,p,.sub,.subtitle,.card-subtitle,.metric-label');
+        const text=clean(el.textContent);
+        if(secondary&&text.length>12)return text.slice(0,260);
+        return '';
+      };
+      const position=(el)=>{
+        const r=el.getBoundingClientRect();
+        const w=Math.min(360,window.innerWidth-24);
+        tip.style.maxWidth=`${w}px`;
+        tip.style.left=`${Math.max(12,Math.min(window.innerWidth-w-12,r.left+r.width/2-w/2))}px`;
+        const above=r.top>150;
+        tip.style.top=above?'auto':`${Math.min(window.innerHeight-80,r.bottom+10)}px`;
+        tip.style.bottom=above?`${Math.max(12,window.innerHeight-r.top+10)}px`:'auto';
+      };
+      const show=(el)=>{
+        const info=detailsFor(el);if(!info)return;
+        active=el;tip.textContent=info;tip.classList.add('show');position(el);
+      };
+      const hide=()=>{active=null;tip.classList.remove('show')};
+      const targetFrom=e=>e.target?.closest?.('[data-hover-info],[data-nav],button[aria-label],button[title],a[aria-label],a[title],button:has(small),button:has(p),[role="button"][aria-label]');
+      const over=e=>{const el=targetFrom(e);if(el&&el!==active)show(el)};
+      const out=e=>{if(active&&!active.contains(e.relatedTarget))hide()};
+      const focus=e=>{const el=targetFrom(e);if(el)show(el)};
+      const blur=e=>{if(active&&!active.contains(e.relatedTarget))hide()};
+      document.addEventListener('mouseover',over,true);document.addEventListener('mouseout',out,true);
+      document.addEventListener('focusin',focus,true);document.addEventListener('focusout',blur,true);
+      return()=>{document.removeEventListener('mouseover',over,true);document.removeEventListener('mouseout',out,true);document.removeEventListener('focusin',focus,true);document.removeEventListener('focusout',blur,true);tip.remove()};
+    },[]);
+    return null;
+  }
+
+  function ClinicalAlertBell({engine,onOpen}){
+    const [preview,setPreview]=React.useState(false);
+    const rows=(engine?.alerts||[]).slice().sort((a,b)=>{
+      const rank={Critical:3,Urgent:2,Routine:1};
+      return (rank[b.priority]||0)-(rank[a.priority]||0)||Number(b.overdue_minutes||0)-Number(a.overdue_minutes||0);
+    });
+    if(!rows.length)return null;
+    const escalationMinutes=Number(engine?.settings?.manager_escalation_minutes||30);
+    const escalated=rows.filter(a=>Number(a.overdue_minutes||0)>=escalationMinutes).length;
+    const openFull=()=>{setPreview(false);onOpen('Clinical Alerts')};
+    return h('div',{className:'topbar-alert-centre',onMouseEnter:()=>setPreview(true),onMouseLeave:()=>setPreview(false)},
+      h('button',{type:'button',className:'topbar-clinical-alert-badge',onClick:openFull,'aria-label':`${rows.length} unresolved clinical alerts. Hover for summary; click for full information.`,'aria-expanded':preview?'true':'false'},`🔔 ${rows.length}`),
+      preview&&h('div',{className:'topbar-alert-preview',onClick:e=>e.stopPropagation()},
+        h('div',{className:'topbar-alert-preview-head'},
+          h('div',null,h('strong',null,'Clinical Alerts'),h('small',null,escalated?`${escalated} escalated · ${rows.length} total unresolved`:`${rows.length} unresolved · none escalated yet`)),
+          h('button',{type:'button',className:'topbar-alert-open-all',onClick:openFull},'Open all')
+        ),
+        h('div',{className:'topbar-alert-preview-list'},rows.slice(0,5).map(a=>h('button',{type:'button',className:`topbar-alert-preview-item ${String(a.priority||'Routine').toLowerCase()}`,key:a.key||`${a.alert_type}-${a.source_id}`,onClick:openFull},
+          h('span',{className:'alert-preview-priority'},a.priority||'Routine'),
+          h('strong',null,a.patient_name||'Patient'),
+          h('span',null,[a.room_label,a.title].filter(Boolean).join(' · ')),
+          h('small',null,Number(a.overdue_minutes||0)>0?`${Number(a.overdue_minutes)} min overdue`:'Due now')
+        ))),
+        rows.length>5&&h('div',{className:'topbar-alert-more'},`+ ${rows.length-5} more alerts — click the bell for the complete list`)
+      )
+    );
+  }
+
+  function ensureSmartHoverStyles(){
+    if(document.getElementById('samara-smart-hover-styles'))return;
+    const style=document.createElement('style');style.id='samara-smart-hover-styles';
+    style.textContent=`
+      .samara-smart-hover{position:fixed;z-index:10080;display:none;padding:9px 12px;border-radius:10px;background:#2f1d29;color:#fff;font-size:12px;font-weight:700;line-height:1.35;box-shadow:0 10px 26px rgba(0,0,0,.2);pointer-events:none}.samara-smart-hover.show{display:block}
+      .topbar-alert-centre{position:relative;display:flex;align-items:center;z-index:100}
+      .topbar-alert-preview{position:absolute;right:0;top:calc(100% + 10px);width:min(420px,calc(100vw - 28px));background:#fff;border:1px solid #ead1de;border-radius:16px;box-shadow:0 18px 48px rgba(74,20,49,.22);overflow:hidden;z-index:10100;text-align:left}
+      .topbar-alert-preview-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px;background:#fff7fb;border-bottom:1px solid #f0dce6}.topbar-alert-preview-head>div{display:flex;flex-direction:column;gap:2px}.topbar-alert-preview-head strong{color:#6f153f;font-size:15px}.topbar-alert-preview-head small{color:#715b68;font-weight:700}.topbar-alert-open-all{border:0;border-radius:9px;background:#a80d4f;color:#fff;padding:8px 11px;font-weight:900;cursor:pointer}
+      .topbar-alert-preview-list{max-height:360px;overflow:auto}.topbar-alert-preview-item{width:100%;display:grid;grid-template-columns:72px 1fr auto;gap:3px 9px;align-items:center;border:0;border-bottom:1px solid #f0e3e9;background:#fff;padding:11px 13px;text-align:left;cursor:pointer}.topbar-alert-preview-item:hover{background:#fff8fb}.topbar-alert-preview-item strong{color:#35222d}.topbar-alert-preview-item>span:not(.alert-preview-priority){grid-column:2/4;color:#66535f;font-size:12px}.topbar-alert-preview-item small{grid-column:3;color:#8a405f;font-weight:800}.alert-preview-priority{font-size:10px;font-weight:900;text-transform:uppercase;border-radius:999px;padding:4px 7px;text-align:center;background:#edf3ff;color:#2860ad}.topbar-alert-preview-item.urgent .alert-preview-priority{background:#fff0d9;color:#a05a00}.topbar-alert-preview-item.critical .alert-preview-priority{background:#ffe5e7;color:#b2192d}.topbar-alert-more{padding:9px 13px;color:#6b5662;background:#fffafd;font-size:12px;font-weight:700}
+      @media(max-width:760px){.topbar-alert-centre{position:absolute;right:76px;top:12px}.topbar-alert-centre .topbar-clinical-alert-badge{position:static!important}.topbar-alert-preview{display:none!important}.samara-smart-hover{display:none!important}}
+    `;document.head.appendChild(style);
+  }
+
   function App(){
-    React.useEffect(()=>{ensureCleanWorkspaceLayout();ensureCompactDataEntryStyle()},[]);
+    React.useEffect(()=>{ensureCleanWorkspaceLayout();ensureCompactDataEntryStyle();ensureSmartHoverStyles()},[]);
     const LAST_OPEN_PAGE_KEY='samara_last_open_page_v1';
     const readLastOpenPage=()=>{
       try{
@@ -4254,6 +4360,7 @@ Caring with Compassion. Living with Dignity.`;
     const allowed = ROLE_NAV[profile.role]||['Dashboard'];
     if(!allowed.includes(page)) setTimeout(()=>setPage(ROLE_HOME[profile.role]||allowed[0]||'Notifications'),0);
     return h('div',{className:`app mobile-role-${String(profile.role||'user').toLowerCase().replace(/[^a-z0-9]+/g,'-')}`},
+      h(GlobalSmartHover),
       h(GlobalFormRequirementManager,{page,profile}),
       h(Sidebar,{profile,page,setPage,allowed}),
       h('main',{className:'main'},
@@ -4265,7 +4372,7 @@ Caring with Compassion. Living with Dignity.`;
           h('button',{type:'button',className:'mobile-home-button','aria-label':'Go to dashboard',title:'Dashboard',onClick:()=>setPage(ROLE_HOME[profile.role]||allowed[0])},'⌂'),
           h('h2',null,displayNavLabel(page,profile.role)),
           h(GlobalSearch,{onNavigate:setPage,profile}),
-          alertEngine.alerts.length>0&&h('button',{type:'button',className:'topbar-clinical-alert-badge',onClick:()=>setPage('Clinical Alerts'),'aria-label':`${alertEngine.alerts.length} unresolved clinical alerts`},`🔔 ${alertEngine.alerts.length}`),
+          h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
           h('span',{className:'badge'},profile.role)
         ),
         h(MobileMenu,{page,setPage,allowed,profile}),
