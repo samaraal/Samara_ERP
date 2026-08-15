@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.07';
+  const APP_VERSION = '2.9.08';
   const APP_BUILD_DATE = '15-Aug-2026 Single Clear Tamil Voice';
   const APP_SCHEMA_VERSION = '25';
 
@@ -2145,16 +2145,63 @@ Caring with Compassion. Living with Dignity.`;
         window.setTimeout(finish,700);
       });
     }
+    const TAMIL_DIGITS={
+      '0':'பூஜ்ஜியம்','1':'ஒன்று','2':'இரண்டு','3':'மூன்று','4':'நான்கு',
+      '5':'ஐந்து','6':'ஆறு','7':'ஏழு','8':'எட்டு','9':'ஒன்பது'
+    };
+    const TAMIL_LETTERS={
+      'A':'ஏ','B':'பி','C':'சி','D':'டி','E':'ஈ','F':'எஃப்','G':'ஜி','H':'எச்',
+      'I':'ஐ','J':'ஜே','K':'கே','L':'எல்','M':'எம்','N':'என்','O':'ஓ','P':'பி',
+      'Q':'க்யூ','R':'ஆர்','S':'எஸ்','T':'டி','U':'யூ','V':'வி','W':'டபிள்யூ',
+      'X':'எக்ஸ்','Y':'ஒய்','Z':'செட்'
+    };
+    function tamilIntegerWords(n){
+      n=Number(n);
+      if(!Number.isFinite(n)||n<0||n>9999||!Number.isInteger(n))return String(n);
+      const ones=['பூஜ்ஜியம்','ஒன்று','இரண்டு','மூன்று','நான்கு','ஐந்து','ஆறு','ஏழு','எட்டு','ஒன்பது','பத்து','பதினொன்று','பன்னிரண்டு','பதின்மூன்று','பதினான்கு','பதினைந்து','பதினாறு','பதினேழு','பதினெட்டு','பத்தொன்பது'];
+      const tens=['','','இருபது','முப்பது','நாற்பது','ஐம்பது','அறுபது','எழுபது','எண்பது','தொண்ணூறு'];
+      if(n<20)return ones[n];
+      if(n<100){const t=Math.floor(n/10),r=n%10;return tens[t]+(r?' '+ones[r]:'');}
+      if(n<1000){const h=Math.floor(n/100),r=n%100;const hword=h===1?'நூறு':ones[h]+' நூறு';return hword+(r?' '+tamilIntegerWords(r):'');}
+      const th=Math.floor(n/1000),r=n%1000;const thword=th===1?'ஆயிரம்':ones[th]+' ஆயிரம்';return thword+(r?' '+tamilIntegerWords(r):'');
+    }
     function roomForSpeech(room){
-      return String(room||'').trim().replace(/([0-9])/g,'$1 ').replace(/[-_/]/g,' ').replace(/\s+/g,' ').trim();
+      // Room identifiers are identifiers, not quantities: 101 => ஒன்று பூஜ்ஜியம் ஒன்று.
+      return String(room||'').trim().toUpperCase().split('').map(ch=>{
+        if(TAMIL_DIGITS[ch])return TAMIL_DIGITS[ch];
+        if(TAMIL_LETTERS[ch])return TAMIL_LETTERS[ch];
+        if(/[-_/ ]/.test(ch))return ' ';
+        return ch;
+      }).join(' ').replace(/\s+/g,' ').trim();
+    }
+    function patientForSpeech(name){
+      let value=String(name||'').trim();
+      // Do not let test-only English placeholders pollute pronunciation.
+      value=value.replace(/\btest\b/gi,'').replace(/\bresident\b/gi,'').replace(/\s+/g,' ').trim();
+      const known={
+        'radhakrishnan':'ராதாகிருஷ்ணன்',
+        'radha krishnan':'ராதாகிருஷ்ணன்'
+      };
+      return known[value.toLowerCase()]||value||'நோயாளர்';
     }
     function medicineForSpeech(details){
-      return String(details||'மருந்து')
-        .replace(/\bmg\b/gi,' milligram ')
-        .replace(/\bmcg\b/gi,' microgram ')
-        .replace(/\bml\b/gi,' millilitre ')
-        .replace(/\btab(?:let)?s?\b/gi,' tablet ')
-        .replace(/\bcaps?(?:ule)?s?\b/gi,' capsule ')
+      let value=String(details||'மருந்து').trim();
+      value=value.replace(/\btest\b/gi,'').replace(/\s+/g,' ').trim();
+      // A few common medicine names are supplied as Tamil phonetics for clearer local TTS.
+      value=value
+        .replace(/\bDolo\b/gi,'டோலோ')
+        .replace(/\bCrocin\b/gi,'க்ரோசின்')
+        .replace(/\bEcosprin\b/gi,'எகோஸ்பிரின்')
+        .replace(/\bParacetamol\b/gi,'பாராசிட்டமால்');
+      value=value.replace(/(\d+(?:\.\d+)?)\s*(mg|mcg|ml)\b/gi,(_,num,unit)=>{
+        const n=Number(num);
+        const spoken=Number.isInteger(n)?tamilIntegerWords(n):String(num).split('').map(ch=>TAMIL_DIGITS[ch]||ch).join(' ');
+        const u={mg:'மில்லிகிராம்',mcg:'மைக்ரோகிராம்',ml:'மில்லிலிட்டர்'}[String(unit).toLowerCase()]||unit;
+        return ` ${spoken} ${u} `;
+      });
+      return value
+        .replace(/\btab(?:let)?s?\b/gi,' மாத்திரை ')
+        .replace(/\bcaps?(?:ule)?s?\b/gi,' கேப்சூல் ')
         .replace(/[|•]/g,', ')
         .replace(/\s+/g,' ').trim();
     }
@@ -2188,7 +2235,7 @@ Caring with Compassion. Living with Dignity.`;
     }
     function humanisedClinicalVoiceSegments(a){
       const d=clinicalVoiceData(a);
-      // v2.9.07: concise, easy-to-understand single-speaker clinical announcement.
+      // v2.9.08: concise single-speaker announcement with Tamil-friendly room/dosage pronunciation.
       // Keep the overall pace natural, with deliberate pauses only around the
       // three critical identifiers: room, resident and medicine.
       const segments=[
@@ -2196,15 +2243,15 @@ Caring with Compassion. Living with Dignity.`;
       ];
       if(d.room){
         segments.push({text:'அறை எண்.',lang:'ta-IN',rate:.84,pause:120});
-        segments.push({text:roomForSpeech(d.room),lang:'ta-IN',rate:.72,pause:300});
+        segments.push({text:roomForSpeech(d.room),lang:'ta-IN',rate:.78,pause:260});
       }
       if(d.patient){
         segments.push({text:'நோயாளியின் பெயர்.',lang:'ta-IN',rate:.84,pause:120});
-        segments.push({text:d.patient,lang:'ta-IN',rate:.74,pause:310});
+        segments.push({text:patientForSpeech(d.patient),lang:'ta-IN',rate:.78,pause:260});
       }
       if(d.isMedication){
         segments.push({text:'கொடுக்க வேண்டிய மருந்து.',lang:'ta-IN',rate:.84,pause:125});
-        segments.push({text:medicineForSpeech(d.details||'Medicine'),lang:'ta-IN',rate:.72,pause:330});
+        segments.push({text:medicineForSpeech(d.details||'Medicine'),lang:'ta-IN',rate:.76,pause:290});
       }else if(d.isVitals){
         segments.push({text:'உயிர் அறிகுறிகளை பதிவு செய்ய வேண்டியுள்ளது.',lang:'ta-IN',rate:.86,pause:180});
       }else if(d.isCare){
@@ -2256,12 +2303,12 @@ Caring with Compassion. Living with Dignity.`;
         try{permission=await Notification.requestPermission()}catch(_){}
       }
       if(permission==='granted'){
-        try{new Notification('TEST CLINICAL ALERT · Test Medicine 500 mg',{body:'Medication Due · Test Medicine 500 mg\nTest Resident · Room TEST-101 · Due now',tag:`samara-test-${Date.now()}`,requireInteraction:true})}catch(_){}
+        try{new Notification('TEST CLINICAL ALERT · Dolo 500 mg',{body:'Medication Due · Dolo 500 mg\nRadhakrishnan · Room 101 · Due now',tag:`samara-test-${Date.now()}`,requireInteraction:true})}catch(_){}
         setSettings(s=>({...s,browser_notifications_enabled:true}));
       }
       if(navigator.vibrate)try{navigator.vibrate([180,90,180,90,180])}catch(_){}
-      showClinicalAlertPopup({heading:'TEST CLINICAL ALERT',patient:'Test Resident',room:'TEST-101',alertType:'Medication Due',details:'Test Medicine 500 mg',dueText:'Due now',message:'Please attend and record immediately.',priority:'Critical',test:true});
-      speak({title:'Medication Due',patient_name:'Test Resident',room_label:'TEST-101',description:'Test Medicine 500 mg',overdue_minutes:0});
+      showClinicalAlertPopup({heading:'TEST CLINICAL ALERT',patient:'Radhakrishnan',room:'101',alertType:'Medication Due',details:'Dolo 500 mg',dueText:'Due now',message:'Please attend and record immediately.',priority:'Critical',test:true});
+      speak({title:'Medication Due',patient_name:'Radhakrishnan',room_label:'101',description:'Dolo 500 mg',overdue_minutes:0});
       return permission;
     }
     async function loadSettings(){
