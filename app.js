@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.18';
+  const APP_VERSION = '2.9.19';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2208,31 +2208,58 @@ Caring with Compassion. Living with Dignity.`;
       const th=Math.floor(n/1000),r=n%1000;const thword=th===1?'ஆயிரம்':ones[th]+' ஆயிரம்';return thword+(r?' '+tamilIntegerWords(r):'');
     }
     function roomForSpeech(room){
-      // Pure-Tamil room pronunciation, digit by digit for clinical clarity.
-      // Example: 101 => ஒன்று பூஜியம் ஒன்று.
+      // v2.9.19: speak only the human room/bed label, never UUIDs, resident IDs,
+      // prefixes or long database references.
+      let raw=String(room||'').trim().toUpperCase();
+      raw=raw
+        .replace(/\bROOM\b|\bRM\b|\bBED\b/gi,' ')
+        .replace(/\bMOG-\d{4}-\d{2}-\d{4}\b/gi,' ')
+        .replace(/[A-F0-9]{8}-[A-F0-9-]{20,}/gi,' ')
+        .replace(/\s+/g,' ').trim();
+      const useful=(raw.match(/\b\d{1,4}(?:\s*[-/]\s*[A-Z])?\b/)||[])[0]||raw;
       const roomDigits={...TAMIL_DIGITS};
-      return String(room||'').trim().toUpperCase().split('').map(ch=>{
+      return String(useful).trim().split('').map(ch=>{
         if(roomDigits[ch])return roomDigits[ch];
         if(TAMIL_LETTERS[ch])return TAMIL_LETTERS[ch];
         if(/[-_/ ]/.test(ch))return ' ';
-        return ch;
-      }).join(' ').replace(/\s+/g,' ').trim();
+        return '';
+      }).join(' ').replace(/\s+/g,' ').trim()||'அறை விவரம் இல்லை';
     }
     function patientForSpeech(name){
       let value=String(name||'').trim();
-      // Do not let test-only English placeholders pollute pronunciation.
-      value=value.replace(/\btest\b/gi,'').replace(/\bresident\b/gi,'').replace(/\s+/g,' ').trim();
+      // v2.9.19: strip technical prefixes/IDs and retain only the actual display name.
+      value=value
+        .replace(/\b(test|resident|patient|care patient|care patients)\b/gi,' ')
+        .replace(/\bMOG-\d{4}-\d{2}-\d{4}\b/gi,' ')
+        .replace(/[A-F0-9]{8}-[A-F0-9-]{20,}/gi,' ')
+        .replace(/[|•]/g,' ')
+        .replace(/\s+/g,' ').trim();
+      // Common Samara/Indian names can be tuned here without changing alert logic.
       const known={
         'radhakrishnan':'ராதாகிருஷ்ணன்',
-        'radha krishnan':'ராதாகிருஷ்ணன்'
+        'radha krishnan':'ராதாகிருஷ்ணன்',
+        'radhakrishna':'ராதாகிருஷ்ணா',
+        'boominathan':'பூமிநாதன்',
+        'boominaathan':'பூமிநாதன்',
+        'karthi':'கார்த்தி',
+        'divya':'திவ்யா',
+        'murugan':'முருகன்',
+        'lakshmi':'லட்சுமி',
+        'laxmi':'லட்சுமி'
       };
-      return known[value.toLowerCase()]||value||'நோயாளர்';
+      const key=value.toLowerCase().replace(/\./g,'').trim();
+      return known[key]||value||'நோயாளர்';
     }
     function medicineForSpeech(details){
       let value=String(details||'மருந்து').trim();
-      value=value.replace(/\btest\b/gi,'').replace(/\s+/g,' ').trim();
+      value=value
+        .replace(/\btest\b/gi,' ')
+        .replace(/\b(medication due|medicine due|due now|pending|overdue|critical|high|routine)\b/gi,' ')
+        .replace(/\bMOG-\d{4}-\d{2}-\d{4}\b/gi,' ')
+        .replace(/[A-F0-9]{8}-[A-F0-9-]{20,}/gi,' ')
+        .replace(/\s+/g,' ').trim();
 
-      // v2.9.18: clarity-first PURE TAMIL pronunciation. Brand names remain
+      // v2.9.19: clarity-first PURE TAMIL pronunciation. Brand names remain
       // recognisable medicine names; strengths and units are spoken in Tamil.
       const medicinePronunciations=[
         [/\bDolo\b/gi,'டோலோ'],
@@ -2240,7 +2267,11 @@ Caring with Compassion. Living with Dignity.`;
         [/\bEcosprin\b/gi,'எகோஸ்பிரின்'],
         [/\bParacetamol\b/gi,'பாராசிட்டமால்'],
         [/\bShelcal\b/gi,'ஷெல்கால்'],
-        [/\bPantop\b/gi,'பான்டாப்']
+        [/\bPantop\b/gi,'பான்டாப்'],
+        [/\bAmlodipine\b/gi,'அம்லோடிபின்'],
+        [/\bMetformin\b/gi,'மெட்ஃபார்மின்'],
+        [/\bTelmisartan\b/gi,'டெல்மிசார்டன்'],
+        [/\bAtorvastatin\b/gi,'அடோர்வாஸ்டாட்டின்']
       ];
       medicinePronunciations.forEach(([pattern,spoken])=>{ value=value.replace(pattern,spoken); });
 
@@ -2291,7 +2322,7 @@ Caring with Compassion. Living with Dignity.`;
     }
     function humanisedClinicalVoiceSegments(a){
       const d=clinicalVoiceData(a);
-      // v2.9.18: continuous pure-Tamil clinical utterance with live overdue time.
+      // v2.9.19: continuous pure-Tamil clinical utterance with live overdue time.
       // Avoids browser-generated gaps/joins between room, patient and medicine details.
       if(d.isMedication){
         const parts=['சமராவின் அவசர வேண்டுகோள்.'];
@@ -2314,13 +2345,19 @@ Caring with Compassion. Living with Dignity.`;
       if(d.room) segments.push({text:`அறை எண் ${roomForSpeech(d.room)}.`,lang:'ta-IN',rate:.86,pause:170});
       if(d.patient) segments.push({text:`நோயாளியின் பெயர் ${patientForSpeech(d.patient)}.`,lang:'ta-IN',rate:.86,pause:170});
       if(d.isVitals){
-        segments.push({text:'உயிர் அறிகுறிகளை பதிவு செய்ய வேண்டியுள்ளது.',lang:'ta-IN',rate:.86,pause:160});
+        const lower=String(d.details||'').toLowerCase();
+        let vitalText='உயிர் அறிகுறிகள் இன்னும் பதிவு செய்யப்படவில்லை.';
+        if(lower.includes('blood pressure')||lower.includes('bp'))vitalText='ரத்த அழுத்தம் இன்னும் பதிவு செய்யப்படவில்லை.';
+        else if(lower.includes('temperature'))vitalText='உடல் வெப்பநிலை இன்னும் பதிவு செய்யப்படவில்லை.';
+        else if(lower.includes('pulse'))vitalText='நாடித்துடிப்பு இன்னும் பதிவு செய்யப்படவில்லை.';
+        else if(lower.includes('spo2')||lower.includes('oxygen'))vitalText='ஆக்சிஜன் அளவு இன்னும் பதிவு செய்யப்படவில்லை.';
+        segments.push({text:vitalText,lang:'ta-IN',rate:.86,pause:160});
       }else if(d.isCare){
-        segments.push({text:'தினசரி பராமரிப்பு பணியை நிறைவு செய்து பதிவு செய்ய வேண்டியுள்ளது.',lang:'ta-IN',rate:.86,pause:160});
+        segments.push({text:'தினசரி பராமரிப்பு பணி இன்னும் நிறைவு செய்யப்படவில்லை.',lang:'ta-IN',rate:.86,pause:160});
       }else if(d.isPhysio){
-        segments.push({text:'உடற்பயிற்சி சிகிச்சை பதிவை நிறைவு செய்ய வேண்டியுள்ளது.',lang:'ta-IN',rate:.86,pause:160});
+        segments.push({text:'உடற்பயிற்சி சிகிச்சை பதிவு இன்னும் நிறைவு செய்யப்படவில்லை.',lang:'ta-IN',rate:.86,pause:160});
       }else{
-        segments.push({text:'மருத்துவப் பணி நிலுவையில் உள்ளது.',lang:'ta-IN',rate:.86,pause:160});
+        segments.push({text:'நிர்ணயிக்கப்பட்ட மருத்துவ பணி இன்னும் நிறைவு செய்யப்படவில்லை.',lang:'ta-IN',rate:.86,pause:160});
       }
       if(d.overdue>0) segments.push({text:tamilOverdueSpeech(d.overdue),lang:'ta-IN',rate:.84,pause:160});
       segments.push({text:'தயவு செய்து உடனே கவனித்து பதிவு செய்யவும்.',lang:'ta-IN',rate:.84,pause:0});
@@ -2383,16 +2420,14 @@ Caring with Compassion. Living with Dignity.`;
           setSoundUnlocked(true);
         }
       }catch(error){console.warn('Escalation voice test audio unlock unavailable',error)}
-      const threshold=Math.max(1,Number(settings.manager_escalation_minutes||30));
-      const live=(alerts||[])
-        .filter(a=>Number(actualOverdueMinutes(a))>=threshold)
-        .sort((a,b)=>Number(actualOverdueMinutes(b))-Number(actualOverdueMinutes(a)))[0];
-      const sample=live||{
+      // v2.9.19: playback must be predictable. Never select a live alert/UUID for testing.
+      // This isolates pronunciation from real patient data and lets staff compare versions.
+      const sample={
         title:'Medication Due',
         patient_name:'Radhakrishnan',
         room_label:'101',
         description:'Dolo 500 mg',
-        overdue_minutes:37
+        overdue_minutes:95
       };
       try{
         const voices=await waitForSpeechVoices();
