@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.42';
+  const APP_VERSION = '2.9.40';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -245,7 +245,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '15-Aug-2026 Azure Neural Tamil Voice, Local Fallback';
+  const APP_BUILD_DATE = '15-Aug-2026 Hybrid Neural Tamil Clinical Voice';
   const APP_SCHEMA_VERSION = '25';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -2065,7 +2065,6 @@ Caring with Compassion. Living with Dignity.`;
     const lastPlayed=React.useRef({});
     const lastPopup=React.useRef({});
     const audioContext=React.useRef(null);
-    const cloudVoiceAudio=React.useRef(null);
 
     function playClinicalTone(priority='Routine',force=false){
       if(!force&&(!settings.sound_enabled||!soundUnlocked))return;
@@ -2181,10 +2180,6 @@ Caring with Compassion. Living with Dignity.`;
       // Prefer a clear female voice where the device exposes one, but clarity/language wins.
       if(/pallavi|neerja|heera|veena|female|woman/.test(name))score+=35;
       if(/natural|neural|enhanced|premium/.test(name))score+=12;
-      // "Compact" voices are the lowest-fidelity offline synthesis tier some
-      // platforms ship (notably iOS/macOS) — pick a better installed voice
-      // over it whenever one is available on the same device.
-      if(/compact/.test(name))score-=15;
       // Explicitly avoid US/UK/AU voices for English clinical data.
       if(/en-us|en-gb|en-au/.test(lang))score-=200;
       return score;
@@ -2242,22 +2237,11 @@ Caring with Compassion. Living with Dignity.`;
       if(n<1000){const h=Math.floor(n/100),r=n%100;const hword=h===1?'நூறு':ones[h]+' நூறு';return hword+(r?' '+tamilIntegerWords(r):'');}
       const th=Math.floor(n/1000),r=n%1000;const thword=th===1?'ஆயிரம்':ones[th]+' ஆயிரம்';return thword+(r?' '+tamilIntegerWords(r):'');
     }
-    function tamilDigitsSpeech(digits){
-      // Room/phone-style numbers are read digit-by-digit in natural Tamil
-      // ("101" -> "ஒன்று பூஜியம் ஒன்று"), not as a cardinal quantity
-      // ("one hundred and one"). This also avoids the TTS engine silently
-      // code-switching to English to read a bare Arabic numeral.
-      return String(digits||'').split('').map(ch=>TAMIL_DIGITS[ch]||ch).join(' ');
-    }
-    function roomBedForSpeech(room){
-      // v2.9.41: the bed suffix is a critical patient-safety identifier, so it
-      // must be spoken as an actual Tamil word (from TAMIL_LETTERS), never as
-      // raw Latin letters — most Tamil/India voices either mumble, skip, or
-      // silently drop bare English letters like "A"/"AAA" because they have no
-      // letter-name pronunciation rule for the Tamil locale.
-      // Display formatting (e.g. "101-A") is completely unaffected; only the
-      // spoken form changes. Returns the room and bed as separate strings so
-      // callers can place them in their own paced utterance segments.
+    function roomForSpeech(room){
+      // v2.9.40: use Tamil letter pronunciations for bed suffix in TTS.
+      // Display remains unchanged; speech receives:
+      // 101-A => "101 - ஏ"
+      // 102-B => "102 - பி"
       let raw=String(room||'').trim().toUpperCase();
 
       let m=raw.match(/(?:ROOM|RM)?\s*(\d{1,4})\s*(?:[-\/]|\s)\s*([A-Z])\b/i);
@@ -2266,24 +2250,12 @@ Caring with Compassion. Living with Dignity.`;
       if(m){
         const roomNo=m[1];
         const bed=m[2].toUpperCase();
-        return {roomText:tamilDigitsSpeech(roomNo),bedText:TAMIL_LETTERS[bed]||bed};
+        const tamilBed=TAMIL_LETTERS[bed]||bed;
+        return `${roomNo} - ${tamilBed}`;
       }
 
       m=raw.match(/\b(\d{1,4})\b/);
-      return {roomText:m?tamilDigitsSpeech(m[1]):raw,bedText:''};
-    }
-    function roomSpeechSegments(room){
-      // Room number, then the bed letter spoken on its own and repeated once
-      // — a short clinical read-back so the bed is never lost or misheard,
-      // instead of the old trick of gluing "AAA"/"BBB" onto the room number.
-      const {roomText,bedText}=roomBedForSpeech(room);
-      if(!roomText&&!bedText)return [];
-      const segs=[{text:`அறை எண் ${roomText}.`,rate:.85,pause:200}];
-      if(bedText){
-        segs.push({text:`படுக்கை ${bedText}.`,rate:.78,pause:260});
-        segs.push({text:`மீண்டும், படுக்கை ${bedText}.`,rate:.78,pause:220});
-      }
-      return segs;
+      return m ? m[1] : raw;
     }
     function patientForSpeech(name){
       let value=String(name||'').trim();
@@ -2427,17 +2399,12 @@ Caring with Compassion. Living with Dignity.`;
 
     function humanisedClinicalVoiceSegments(a){
       const d=clinicalVoiceData(a);
-      // v2.9.41: speak as a SEQUENCE of short, separately-paced utterances
-      // (each its own SpeechSynthesisUtterance via speakUtteranceSequence)
-      // instead of one long run-on string. A single giant utterance reads in
-      // a flat, breathless monotone on almost every local Tamil/India voice —
-      // real gaps between sentences (and around the room/bed identifiers) are
-      // what make it sound like a person pausing to speak clearly rather than
-      // a machine reading a paragraph.
+      // v2.9.40: continuous pure-Tamil clinical utterance with live overdue time.
+      // Avoids browser-generated gaps/joins between room, patient and medicine details.
       if(d.isMedication){
-        const segments=[{text:'சமராவின் அவசர வேண்டுகோள்.',lang:'ta-IN',rate:.88,pause:260}];
-        segments.push(...roomSpeechSegments(d.room).map(s=>({...s,lang:'ta-IN'})));
-        if(d.patient) segments.push({text:`நோயாளியின் பெயர் ${patientForSpeech(d.patient)}.`,lang:'ta-IN',rate:.88,pause:220});
+        const parts=['சமராவின் அவசர வேண்டுகோள்.'];
+        if(d.room) parts.push(`அறை எண் ${roomForSpeech(d.room)}.`);
+        if(d.patient) parts.push(`நோயாளியின் பெயர் ${patientForSpeech(d.patient)}.`);
 
         // v2.9.40: medication escalation speech must never lose the medicine name.
         // Current alert rows commonly keep the brand in title ("Medicine Due: Dolo")
@@ -2451,35 +2418,32 @@ Caring with Compassion. Living with Dignity.`;
           titleMedicine && !/^Medicine$/i.test(titleMedicine) ? titleMedicine : '',
           detailText
         ].filter(Boolean).join(' ');
-        segments.push({text:`கொடுக்க வேண்டிய மருந்து ${medicineForSpeech(combinedMedicine||titleMedicine||detailText||'Medicine')}.`,lang:'ta-IN',rate:.85,pause:240});
+        parts.push(`கொடுக்க வேண்டிய மருந்து ${medicineForSpeech(combinedMedicine||titleMedicine||detailText||'Medicine')}.`);
 
         const escalationMinutes=Math.max(1,Number(settings.manager_escalation_minutes||30));
         if(d.overdue>=escalationMinutes){
-          segments.push({text:`மருந்து கொடுக்க வேண்டிய நேரத்திலிருந்து ${tamilDurationSpeech(d.overdue)} தாமதமாகியுள்ளது.`,lang:'ta-IN',rate:.85,pause:240});
+          parts.push(`மருந்து கொடுக்க வேண்டிய நேரத்திலிருந்து ${tamilDurationSpeech(d.overdue)} தாமதமாகியுள்ளது.`);
         }else if(d.overdue>0){
-          segments.push({text:tamilOverdueSpeech(d.overdue),lang:'ta-IN',rate:.85,pause:240});
+          parts.push(tamilOverdueSpeech(d.overdue));
         }
-        segments.push({text:'தயவு செய்து உடனே கவனிக்கவும்.',lang:'ta-IN',rate:.9,pause:200});
-        segments.push({text:'மருந்து கொடுத்த பிறகு பதிவு செய்யவும்.',lang:'ta-IN',rate:.9,pause:200});
-        segments.push({text:'நன்றி.',lang:'ta-IN',rate:.9,pause:0});
-        return segments;
+        parts.push('தயவு செய்து உடனே கவனிக்கவும்.');
+        parts.push('மருந்து கொடுத்த பிறகு பதிவு செய்யவும்.');
+        parts.push('நன்றி.');
+        return [{text:parts.join(' '),lang:'ta-IN',rate:.88,pause:0}];
       }
       // v2.9.40: intentionally short non-medication announcements.
       // Staff only need the pending category, patient name and room number.
       const staffPrefix=staffVoicePrefix();
-      const categoryLine=
-        d.isVitals?'வைட்டல்ஸ் பெண்டிங்.':
-        d.isCare?'டெய்லி கேர் பெண்டிங்.':
-        d.isPhysio?'பிசியோதெரபி பெண்டிங்.':
-        'கிளினிக்கல் டாஸ்க் பெண்டிங்.';
-      const segments=[
-        {text:staffPrefix,lang:'ta-IN',rate:.88,pause:200},
-        {text:categoryLine,lang:'ta-IN',rate:.88,pause:220},
-        {text:`நோயாளியின் பெயர் ${patientForSpeech(d.patient)}.`,lang:'ta-IN',rate:.88,pause:220}
-      ];
-      segments.push(...roomSpeechSegments(d.room).map(s=>({...s,lang:'ta-IN'})));
-      segments.push({text:'நன்றி.',lang:'ta-IN',rate:.9,pause:0});
-      return segments;
+      if(d.isVitals){
+        return [{text:`${staffPrefix} வைட்டல்ஸ் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.88,pause:0}];
+      }
+      if(d.isCare){
+        return [{text:`${staffPrefix} டெய்லி கேர் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.88,pause:0}];
+      }
+      if(d.isPhysio){
+        return [{text:`${staffPrefix} பிசியோதெரபி பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.88,pause:0}];
+      }
+      return [{text:`${staffPrefix} கிளினிக்கல் டாஸ்க் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.88,pause:0}];
     }
     async function speakLocalClinicalVoice(a){
       if(!window.speechSynthesis)return false;
@@ -2488,94 +2452,15 @@ Caring with Compassion. Living with Dignity.`;
       speakUtteranceSequence(humanisedClinicalVoiceSegments(a),voices);
       return true;
     }
-    const CLOUD_VOICE_TIMEOUT_MS=6000;
-    function withTimeout(promise,ms,message){
-      return new Promise((resolve,reject)=>{
-        const timer=window.setTimeout(()=>reject(new Error(message||'Timed out.')),ms);
-        promise.then(
-          value=>{window.clearTimeout(timer);resolve(value)},
-          error=>{window.clearTimeout(timer);reject(error)}
-        );
-      });
-    }
-    function stopCloudClinicalAudio(){
-      try{
-        const current=cloudVoiceAudio.current;
-        if(current){current.pause();current.currentTime=0}
-      }catch(_){}
-      cloudVoiceAudio.current=null;
-    }
-    async function fetchCloudClinicalAudio(segments){
-      // The client only ever sends plain text + pacing numbers, never markup —
-      // the clinical-tts Edge Function builds the actual SSML server-side, so
-      // there is nothing here a compromised tab could inject into the paid
-      // Azure Speech request.
-      const payloadSegments=(segments||[])
-        .map(seg=>({
-          text:String(seg?.text||'').trim(),
-          rate:Number(seg?.rate)||1,
-          pause:Math.max(0,Number(seg?.pause)||0)
-        }))
-        .filter(seg=>seg.text);
-      if(!payloadSegments.length)throw new Error('Nothing to speak.');
-      const {data,error}=await client.functions.invoke('clinical-tts',{
-        body:{segments:payloadSegments},
-        responseType:'blob'
-      });
-      if(error)throw error;
-      if(!(data instanceof Blob)||!data.size)throw new Error('Cloud voice returned no audio.');
-      return data;
-    }
-    function playCloudClinicalAudio(blob){
-      return new Promise((resolve,reject)=>{
-        const url=URL.createObjectURL(blob);
-        const audioEl=new Audio(url);
-        cloudVoiceAudio.current=audioEl;
-        const cleanup=()=>{
-          URL.revokeObjectURL(url);
-          if(cloudVoiceAudio.current===audioEl)cloudVoiceAudio.current=null;
-        };
-        audioEl.onended=()=>{cleanup();resolve()};
-        audioEl.onerror=()=>{cleanup();reject(new Error('Cloud voice playback failed.'))};
-        audioEl.play().catch(error=>{cleanup();reject(error)});
-      });
-    }
-    async function speakCloudClinicalVoice(a){
-      const segments=humanisedClinicalVoiceSegments(a);
-      if(!segments.length)return false;
-      const blob=await withTimeout(
-        fetchCloudClinicalAudio(segments),
-        CLOUD_VOICE_TIMEOUT_MS,
-        'Cloud voice timed out.'
-      );
-      await playCloudClinicalAudio(blob);
-      return true;
-    }
-    // v2.9.41: cloud-first, local-fallback. The Azure neural Tamil voice
-    // (ta-IN-PallaviNeural) is used whenever it is reachable so every staff
-    // device — phone, tablet, desktop — hears the same natural, human voice
-    // regardless of what (if any) Tamil voice is installed locally. If the
-    // Supabase/Azure call fails or times out for any reason (offline, quota,
-    // region outage, function not yet deployed), this silently falls back to
-    // the device's own local Tamil/India voice so an alert is never lost for
-    // want of network access.
-    async function speakClinicalVoice(a){
-      try{window.speechSynthesis?.cancel()}catch(_){}
-      stopCloudClinicalAudio();
-      try{
-        if(await speakCloudClinicalVoice(a))return;
-      }catch(error){
-        console.warn('Cloud clinical voice unavailable, falling back to local voice:',error?.message||error);
-      }
-      try{await speakLocalClinicalVoice(a)}catch(error){console.warn('Clinical voice unavailable:',error)}
-    }
     function speak(a){
       if(!settings.voice_enabled||!soundUnlocked)return;
       try{window.speechSynthesis?.cancel()}catch(_){}
-      stopCloudClinicalAudio();
+      // v2.9.14: local/offline voice path only. Azure/remote TTS is intentionally
+      // disabled. Human-recorded phrase clips can be added later without changing
+      // the alert/escalation timing logic.
       window.setTimeout(async()=>{
         if(!settings.voice_enabled||!soundUnlocked)return;
-        await speakClinicalVoice(a);
+        try{await speakLocalClinicalVoice(a)}catch(error){console.warn('Clinical voice unavailable:',error)}
       },2300);
     }
     async function requestNotifications(){
@@ -2610,17 +2495,29 @@ Caring with Compassion. Living with Dignity.`;
     }
     async function testVitalsVoice(){
       const sample={title:'Vitals Due',patient_name:'Radhakrishnan',room_label:'101',description:'Vitals pending',overdue_minutes:0};
-      try{await speakClinicalVoice(sample)}catch(error){console.warn('Vitals voice playback unavailable:',error)}
+      try{
+        const voices=await waitForSpeechVoices();
+        window.speechSynthesis?.cancel();
+        speakUtteranceSequence(humanisedClinicalVoiceSegments(sample),voices);
+      }catch(error){console.warn('Vitals voice playback unavailable:',error)}
     }
 
     async function testDailyCareVoice(){
       const sample={title:'Daily Care Due',patient_name:'Radhakrishnan',room_label:'101',description:'Daily care pending',overdue_minutes:0};
-      try{await speakClinicalVoice(sample)}catch(error){console.warn('Daily care voice playback unavailable:',error)}
+      try{
+        const voices=await waitForSpeechVoices();
+        window.speechSynthesis?.cancel();
+        speakUtteranceSequence(humanisedClinicalVoiceSegments(sample),voices);
+      }catch(error){console.warn('Daily care voice playback unavailable:',error)}
     }
 
     async function testClinicalTaskVoice(){
       const sample={title:'Clinical Task Due',patient_name:'Radhakrishnan',room_label:'101',description:'Clinical task pending',overdue_minutes:0};
-      try{await speakClinicalVoice(sample)}catch(error){console.warn('Clinical task voice playback unavailable:',error)}
+      try{
+        const voices=await waitForSpeechVoices();
+        window.speechSynthesis?.cancel();
+        speakUtteranceSequence(humanisedClinicalVoiceSegments(sample),voices);
+      }catch(error){console.warn('Clinical task voice playback unavailable:',error)}
     }
 
     async function playCurrentLiveEscalation(){
@@ -2645,7 +2542,9 @@ Caring with Compassion. Living with Dignity.`;
       }
 
       try{
-        await speakClinicalVoice(live);
+        const voices=await waitForSpeechVoices();
+        window.speechSynthesis?.cancel();
+        speakUtteranceSequence(humanisedClinicalVoiceSegments(live),voices);
       }catch(error){
         console.warn('Live escalation voice playback unavailable:',error);
       }
@@ -2670,7 +2569,9 @@ Caring with Compassion. Living with Dignity.`;
         overdue_minutes:95
       };
       try{
-        await speakClinicalVoice(sample);
+        const voices=await waitForSpeechVoices();
+        window.speechSynthesis?.cancel();
+        speakUtteranceSequence(humanisedClinicalVoiceSegments(sample),voices);
       }catch(error){
         console.warn('Escalation voice playback unavailable:',error);
       }
