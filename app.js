@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.09';
+  const APP_VERSION = '2.9.10';
   const APP_BUILD_DATE = '15-Aug-2026 Single Clear Tamil Voice';
   const APP_SCHEMA_VERSION = '25';
 
@@ -2189,7 +2189,7 @@ Caring with Compassion. Living with Dignity.`;
       value=value.replace(/\btest\b/gi,'').replace(/\s+/g,' ').trim();
       // A few common medicine names are supplied as Tamil phonetics for clearer local TTS.
       value=value
-        .replace(/\bDolo\b/gi,'டோலோ')
+        .replace(/\bDolo\b/gi,'டோலோ…')
         .replace(/\bCrocin\b/gi,'க்ரோசின்')
         .replace(/\bEcosprin\b/gi,'எகோஸ்பிரின்')
         .replace(/\bParacetamol\b/gi,'பாராசிட்டமால்');
@@ -2197,7 +2197,7 @@ Caring with Compassion. Living with Dignity.`;
         const n=Number(num);
         const spoken=(n===500)?'ஐந்நூறு':(Number.isInteger(n)?tamilIntegerWords(n):String(num).split('').map(ch=>TAMIL_DIGITS[ch]||ch).join(' '));
         const u={mg:'மில்லிகிராம்',mcg:'மைக்ரோகிராம்',ml:'மில்லிலிட்டர்'}[String(unit).toLowerCase()]||unit;
-        return ` ${spoken} ${u} `;
+        return ` ${spoken}… ${u} `;
       });
       return value
         .replace(/\btab(?:let)?s?\b/gi,' மாத்திரை ')
@@ -2235,15 +2235,14 @@ Caring with Compassion. Living with Dignity.`;
     }
     function humanisedClinicalVoiceSegments(a){
       const d=clinicalVoiceData(a);
-      // v2.9.09: clarity-first single-speaker Tamil announcement; short phrases reduce TTS slurring.
+      // v2.9.10: natural 'அறை எண்' phrase + clearer medicine-name/strength pauses.
       // Keep the overall pace natural, with deliberate pauses only around the
       // three critical identifiers: room, resident and medicine.
       const segments=[
         {text:'சமராவின் அவசர வேண்டுகோள்.',lang:'ta-IN',rate:.88,pause:180}
       ];
       if(d.room){
-        segments.push({text:'அறை.',lang:'ta-IN',rate:.86,pause:90});
-        segments.push({text:'எண்.',lang:'ta-IN',rate:.86,pause:120});
+        segments.push({text:'அறை எண்.',lang:'ta-IN',rate:.86,pause:120});
         segments.push({text:roomForSpeech(d.room),lang:'ta-IN',rate:.82,pause:250});
       }
       if(d.patient){
