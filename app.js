@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.25';
+  const APP_VERSION = '2.9.26';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2217,7 +2217,7 @@ Caring with Compassion. Living with Dignity.`;
       const th=Math.floor(n/1000),r=n%1000;const thword=th===1?'ஆயிரம்':ones[th]+' ஆயிரம்';return thword+(r?' '+tamilIntegerWords(r):'');
     }
     function roomForSpeech(room){
-      // v2.9.25: speak only the human room/bed label, never UUIDs, resident IDs,
+      // v2.9.26: speak only the human room/bed label, never UUIDs, resident IDs,
       // prefixes or long database references.
       let raw=String(room||'').trim().toUpperCase();
       raw=raw
@@ -2238,7 +2238,7 @@ Caring with Compassion. Living with Dignity.`;
     }
     function patientForSpeech(name){
       let value=String(name||'').trim();
-      // v2.9.25: strip technical prefixes/IDs and retain only the actual display name.
+      // v2.9.26: strip technical prefixes/IDs and retain only the actual display name.
       value=value
         .replace(/\b(test|resident|patient|care patient|care patients)\b/gi,' ')
         .replace(/\bMOG-\d{4}-\d{2}-\d{4}\b/gi,' ')
@@ -2355,7 +2355,7 @@ Caring with Compassion. Living with Dignity.`;
 
     function humanisedClinicalVoiceSegments(a){
       const d=clinicalVoiceData(a);
-      // v2.9.25: continuous pure-Tamil clinical utterance with live overdue time.
+      // v2.9.26: continuous pure-Tamil clinical utterance with live overdue time.
       // Avoids browser-generated gaps/joins between room, patient and medicine details.
       if(d.isMedication){
         const parts=['சமராவின் அவசர வேண்டுகோள்.'];
@@ -2373,7 +2373,7 @@ Caring with Compassion. Living with Dignity.`;
         parts.push('நன்றி.');
         return [{text:parts.join(' '),lang:'ta-IN',rate:.88,pause:0}];
       }
-      // v2.9.25: intentionally short non-medication announcements.
+      // v2.9.26: intentionally short non-medication announcements.
       // Staff only need the pending category, patient name and room number.
       const staffPrefix=staffVoicePrefix();
       if(d.isVitals){
@@ -2463,7 +2463,7 @@ Caring with Compassion. Living with Dignity.`;
     }
 
     async function playCurrentLiveEscalation(){
-      // v2.9.25: a live escalation is defined by the unresolved
+      // v2.9.26: a live escalation is defined by the unresolved
       // clinical_alert_escalations register, not merely by elapsed minutes.
       const live=(alerts||[])
         .map(a=>({...a,overdue_minutes:actualOverdueMinutes(a)}))
@@ -2501,7 +2501,7 @@ Caring with Compassion. Living with Dignity.`;
           setSoundUnlocked(true);
         }
       }catch(error){console.warn('Escalation voice test audio unlock unavailable',error)}
-      // v2.9.25: playback must be predictable. Never select a live alert/UUID for testing.
+      // v2.9.26: playback must be predictable. Never select a live alert/UUID for testing.
       // This isolates pronunciation from real patient data and lets staff compare versions.
       const sample={
         title:'Medication Due',
@@ -2528,7 +2528,7 @@ Caring with Compassion. Living with Dignity.`;
       const {data,error}=await client.rpc('get_current_clinical_alerts');
       if(error){console.warn('Alert engine:',error.message);setAlerts([]);return}
 
-      // v2.9.25: resolve patient identity from the Patient Master before display,
+      // v2.9.26: resolve patient identity from the Patient Master before display,
       // notifications or voice. RPC/source text is never trusted for patient/room speech.
       const rawAlerts=data||[];
       const patientIds=[...new Set(rawAlerts.map(a=>a?.patient_id).filter(Boolean))];
@@ -2569,7 +2569,7 @@ Caring with Compassion. Living with Dignity.`;
 
       const escalationMinutes=Number(settings.manager_escalation_minutes||30);
 
-      // v2.9.25: if actionable items have crossed the threshold, process the
+      // v2.9.26: if actionable items have crossed the threshold, process the
       // escalation RPC first and WAIT for it. Previously this was fire-and-forget,
       // so the Nurse screen could remain "Overdue" until a later refresh.
       const thresholdCandidates=list.filter(a=>
