@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.19';
+  const APP_VERSION = '2.9.20';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2142,7 +2142,8 @@ Caring with Compassion. Living with Dignity.`;
       if(!m)return '';
       if(m<60)return `${tamilIntegerWords(m)} நிமிடங்கள்`;
       const h=Math.floor(m/60),r=m%60;
-      const hourPart=`${tamilIntegerWords(h)} மணி நேரம்`;
+      const hourWord=h===1?'ஒரு':tamilIntegerWords(h);
+      const hourPart=`${hourWord} மணி நேரம்`;
       const minutePart=r?` ${tamilIntegerWords(r)} நிமிடங்கள்`:'';
       return `${hourPart}${minutePart}`;
     }
@@ -2196,19 +2197,27 @@ Caring with Compassion. Living with Dignity.`;
       'Q':'க்யூ','R':'ஆர்','S':'எஸ்','T':'டி','U':'யூ','V':'வி','W':'டபிள்யூ',
       'X':'எக்ஸ்','Y':'ஒய்','Z':'செட்'
     };
+    // Tuned spoken-number list. Add a pronunciation here once and every alert reuses it.
+    const TAMIL_SPOKEN_NUMBER_OVERRIDES={
+      21:'இருபத்தொன்று',22:'இருபத்திரண்டு',23:'இருபத்துமூன்று',24:'இருபத்துநான்கு',25:'இருபத்தைந்து',
+      26:'இருபத்தாறு',27:'இருபத்தேழு',28:'இருபத்தெட்டு',29:'இருபத்தொன்பது',
+      31:'முப்பத்தொன்று',32:'முப்பத்திரண்டு',33:'முப்பத்துமூன்று',34:'முப்பத்துநான்கு',35:'முப்பத்தைந்து',
+      36:'முப்பத்தாறு',37:'முப்பத்தேழு',38:'முப்பத்தெட்டு',39:'முப்பத்தொன்பது',
+      45:'நாற்பத்தைந்து',55:'ஐம்பத்தைந்து',500:'ஐநூறு'
+    };
     function tamilIntegerWords(n){
       n=Number(n);
       if(!Number.isFinite(n)||n<0||n>9999||!Number.isInteger(n))return String(n);
+      if(TAMIL_SPOKEN_NUMBER_OVERRIDES[n])return TAMIL_SPOKEN_NUMBER_OVERRIDES[n];
       const ones=['பூஜியம்','ஒன்று','இரண்டு','மூன்று','நான்கு','ஐந்து','ஆறு','ஏழு','எட்டு','ஒன்பது','பத்து','பதினொன்று','பன்னிரண்டு','பதின்மூன்று','பதினான்கு','பதினைந்து','பதினாறு','பதினேழு','பதினெட்டு','பத்தொன்பது'];
       const tens=['','','இருபது','முப்பது','நாற்பது','ஐம்பது','அறுபது','எழுபது','எண்பது','தொண்ணூறு'];
       if(n<20)return ones[n];
       if(n<100){const t=Math.floor(n/10),r=n%10;return tens[t]+(r?' '+ones[r]:'');}
-      if(n===500)return 'ஐநூறு';
       if(n<1000){const h=Math.floor(n/100),r=n%100;const hword=h===1?'நூறு':ones[h]+' நூறு';return hword+(r?' '+tamilIntegerWords(r):'');}
       const th=Math.floor(n/1000),r=n%1000;const thword=th===1?'ஆயிரம்':ones[th]+' ஆயிரம்';return thword+(r?' '+tamilIntegerWords(r):'');
     }
     function roomForSpeech(room){
-      // v2.9.19: speak only the human room/bed label, never UUIDs, resident IDs,
+      // v2.9.20: speak only the human room/bed label, never UUIDs, resident IDs,
       // prefixes or long database references.
       let raw=String(room||'').trim().toUpperCase();
       raw=raw
@@ -2227,7 +2236,7 @@ Caring with Compassion. Living with Dignity.`;
     }
     function patientForSpeech(name){
       let value=String(name||'').trim();
-      // v2.9.19: strip technical prefixes/IDs and retain only the actual display name.
+      // v2.9.20: strip technical prefixes/IDs and retain only the actual display name.
       value=value
         .replace(/\b(test|resident|patient|care patient|care patients)\b/gi,' ')
         .replace(/\bMOG-\d{4}-\d{2}-\d{4}\b/gi,' ')
@@ -2259,8 +2268,7 @@ Caring with Compassion. Living with Dignity.`;
         .replace(/[A-F0-9]{8}-[A-F0-9-]{20,}/gi,' ')
         .replace(/\s+/g,' ').trim();
 
-      // v2.9.19: clarity-first PURE TAMIL pronunciation. Brand names remain
-      // recognisable medicine names; strengths and units are spoken in Tamil.
+      // Reusable medicine pronunciation list. New/common medicines can be tuned here once.
       const medicinePronunciations=[
         [/\bDolo\b/gi,'டோலோ'],
         [/\bCrocin\b/gi,'க்ரோசின்'],
@@ -2322,7 +2330,7 @@ Caring with Compassion. Living with Dignity.`;
     }
     function humanisedClinicalVoiceSegments(a){
       const d=clinicalVoiceData(a);
-      // v2.9.19: continuous pure-Tamil clinical utterance with live overdue time.
+      // v2.9.20: continuous pure-Tamil clinical utterance with live overdue time.
       // Avoids browser-generated gaps/joins between room, patient and medicine details.
       if(d.isMedication){
         const parts=['சமராவின் அவசர வேண்டுகோள்.'];
@@ -2339,29 +2347,18 @@ Caring with Compassion. Living with Dignity.`;
         parts.push('மருந்து கொடுத்த பிறகு பதிவு செய்யவும்.');
         return [{text:parts.join(' '),lang:'ta-IN',rate:.88,pause:0}];
       }
-      const segments=[
-        {text:'சமராவின் அவசர வேண்டுகோள்.',lang:'ta-IN',rate:.88,pause:150}
-      ];
-      if(d.room) segments.push({text:`அறை எண் ${roomForSpeech(d.room)}.`,lang:'ta-IN',rate:.86,pause:170});
-      if(d.patient) segments.push({text:`நோயாளியின் பெயர் ${patientForSpeech(d.patient)}.`,lang:'ta-IN',rate:.86,pause:170});
+      // v2.9.20: intentionally short non-medication announcements.
+      // Staff only need the pending category, patient name and room number.
       if(d.isVitals){
-        const lower=String(d.details||'').toLowerCase();
-        let vitalText='உயிர் அறிகுறிகள் இன்னும் பதிவு செய்யப்படவில்லை.';
-        if(lower.includes('blood pressure')||lower.includes('bp'))vitalText='ரத்த அழுத்தம் இன்னும் பதிவு செய்யப்படவில்லை.';
-        else if(lower.includes('temperature'))vitalText='உடல் வெப்பநிலை இன்னும் பதிவு செய்யப்படவில்லை.';
-        else if(lower.includes('pulse'))vitalText='நாடித்துடிப்பு இன்னும் பதிவு செய்யப்படவில்லை.';
-        else if(lower.includes('spo2')||lower.includes('oxygen'))vitalText='ஆக்சிஜன் அளவு இன்னும் பதிவு செய்யப்படவில்லை.';
-        segments.push({text:vitalText,lang:'ta-IN',rate:.86,pause:160});
-      }else if(d.isCare){
-        segments.push({text:'தினசரி பராமரிப்பு பணி இன்னும் நிறைவு செய்யப்படவில்லை.',lang:'ta-IN',rate:.86,pause:160});
-      }else if(d.isPhysio){
-        segments.push({text:'உடற்பயிற்சி சிகிச்சை பதிவு இன்னும் நிறைவு செய்யப்படவில்லை.',lang:'ta-IN',rate:.86,pause:160});
-      }else{
-        segments.push({text:'நிர்ணயிக்கப்பட்ட மருத்துவ பணி இன்னும் நிறைவு செய்யப்படவில்லை.',lang:'ta-IN',rate:.86,pause:160});
+        return [{text:`வைட்டல்ஸ் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}.`,lang:'ta-IN',rate:.88,pause:0}];
       }
-      if(d.overdue>0) segments.push({text:tamilOverdueSpeech(d.overdue),lang:'ta-IN',rate:.84,pause:160});
-      segments.push({text:'தயவு செய்து உடனே கவனித்து பதிவு செய்யவும்.',lang:'ta-IN',rate:.84,pause:0});
-      return segments;
+      if(d.isCare){
+        return [{text:`டெய்லி கேர் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}.`,lang:'ta-IN',rate:.88,pause:0}];
+      }
+      if(d.isPhysio){
+        return [{text:`பிசியோதெரபி பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}.`,lang:'ta-IN',rate:.88,pause:0}];
+      }
+      return [{text:`கிளினிக்கல் டாஸ்க் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}.`,lang:'ta-IN',rate:.88,pause:0}];
     }
     async function speakLocalClinicalVoice(a){
       if(!window.speechSynthesis)return false;
@@ -2411,6 +2408,24 @@ Caring with Compassion. Living with Dignity.`;
       speak({title:'Medication Due',patient_name:'Radhakrishnan',room_label:'101',description:'Dolo 500 mg',overdue_minutes:0});
       return permission;
     }
+    async function testVitalsVoice(){
+      const sample={title:'Vitals Due',patient_name:'Radhakrishnan',room_label:'101',description:'Vitals pending',overdue_minutes:0};
+      try{
+        const voices=await waitForSpeechVoices();
+        window.speechSynthesis?.cancel();
+        speakUtteranceSequence(humanisedClinicalVoiceSegments(sample),voices);
+      }catch(error){console.warn('Vitals voice playback unavailable:',error)}
+    }
+
+    async function testDailyCareVoice(){
+      const sample={title:'Daily Care Due',patient_name:'Radhakrishnan',room_label:'101',description:'Daily care pending',overdue_minutes:0};
+      try{
+        const voices=await waitForSpeechVoices();
+        window.speechSynthesis?.cancel();
+        speakUtteranceSequence(humanisedClinicalVoiceSegments(sample),voices);
+      }catch(error){console.warn('Daily care voice playback unavailable:',error)}
+    }
+
     async function testEscalationVoice(){
       try{
         const Ctx=window.AudioContext||window.webkitAudioContext;
@@ -2420,7 +2435,7 @@ Caring with Compassion. Living with Dignity.`;
           setSoundUnlocked(true);
         }
       }catch(error){console.warn('Escalation voice test audio unlock unavailable',error)}
-      // v2.9.19: playback must be predictable. Never select a live alert/UUID for testing.
+      // v2.9.20: playback must be predictable. Never select a live alert/UUID for testing.
       // This isolates pronunciation from real patient data and lets staff compare versions.
       const sample={
         title:'Medication Due',
@@ -2499,7 +2514,7 @@ Caring with Compassion. Living with Dignity.`;
       },{onConflict:'alert_key'});
       if(error)throw error;await refresh();
     }
-    return {alerts,settings,setSettings,soundUnlocked,unlockSound,requestNotifications,testClinicalAlert,testEscalationVoice,refresh,acknowledge,setPage};
+    return {alerts,settings,setSettings,soundUnlocked,unlockSound,requestNotifications,testClinicalAlert,testVitalsVoice,testDailyCareVoice,testEscalationVoice,refresh,acknowledge,setPage};
   }
 
   function ClinicalAlertsPage({engine,setPage}){
@@ -2583,6 +2598,8 @@ Caring with Compassion. Living with Dignity.`;
           h('button',{className:'btn btn-secondary',onClick:engine.unlockSound},engine.soundUnlocked?'Sound Enabled':'Enable Sound'),
           h('button',{className:'btn btn-secondary',onClick:engine.requestNotifications},'Enable Browser Alerts'),
           h('button',{className:'btn btn-primary',onClick:engine.testClinicalAlert},'🔔 Test Alert'),
+          h('button',{className:'btn btn-secondary',onClick:engine.testVitalsVoice},'▶ Test Vitals Voice'),
+          h('button',{className:'btn btn-secondary',onClick:engine.testDailyCareVoice},'▶ Test Daily Care Voice'),
           h('button',{className:'btn btn-secondary',onClick:engine.testEscalationVoice},'▶ Test Escalation Voice')
         )},
         h('div',{className:'grid stats'},
