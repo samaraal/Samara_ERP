@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.20';
+  const APP_VERSION = '2.9.21';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2217,7 +2217,7 @@ Caring with Compassion. Living with Dignity.`;
       const th=Math.floor(n/1000),r=n%1000;const thword=th===1?'ஆயிரம்':ones[th]+' ஆயிரம்';return thword+(r?' '+tamilIntegerWords(r):'');
     }
     function roomForSpeech(room){
-      // v2.9.20: speak only the human room/bed label, never UUIDs, resident IDs,
+      // v2.9.21: speak only the human room/bed label, never UUIDs, resident IDs,
       // prefixes or long database references.
       let raw=String(room||'').trim().toUpperCase();
       raw=raw
@@ -2236,7 +2236,7 @@ Caring with Compassion. Living with Dignity.`;
     }
     function patientForSpeech(name){
       let value=String(name||'').trim();
-      // v2.9.20: strip technical prefixes/IDs and retain only the actual display name.
+      // v2.9.21: strip technical prefixes/IDs and retain only the actual display name.
       value=value
         .replace(/\b(test|resident|patient|care patient|care patients)\b/gi,' ')
         .replace(/\bMOG-\d{4}-\d{2}-\d{4}\b/gi,' ')
@@ -2328,9 +2328,24 @@ Caring with Compassion. Living with Dignity.`;
       });
       next();
     }
+    function signedInStaffForSpeech(){
+      const value=String(
+        (typeof formalName==='function'?formalName(profile):'')||
+        profile?.full_name||
+        profile?.name||
+        profile?.login_id||
+        ''
+      ).replace(/\s+/g,' ').trim();
+      return value;
+    }
+    function staffVoicePrefix(){
+      const staff=signedInStaffForSpeech();
+      return staff?`டியர் ஸ்டாஃப் ${staff}.`:'டியர் ஸ்டாஃப்.';
+    }
+
     function humanisedClinicalVoiceSegments(a){
       const d=clinicalVoiceData(a);
-      // v2.9.20: continuous pure-Tamil clinical utterance with live overdue time.
+      // v2.9.21: continuous pure-Tamil clinical utterance with live overdue time.
       // Avoids browser-generated gaps/joins between room, patient and medicine details.
       if(d.isMedication){
         const parts=['சமராவின் அவசர வேண்டுகோள்.'];
@@ -2345,20 +2360,22 @@ Caring with Compassion. Living with Dignity.`;
         }
         parts.push('தயவு செய்து உடனே கவனிக்கவும்.');
         parts.push('மருந்து கொடுத்த பிறகு பதிவு செய்யவும்.');
+        parts.push('நன்றி.');
         return [{text:parts.join(' '),lang:'ta-IN',rate:.88,pause:0}];
       }
-      // v2.9.20: intentionally short non-medication announcements.
+      // v2.9.21: intentionally short non-medication announcements.
       // Staff only need the pending category, patient name and room number.
+      const staffPrefix=staffVoicePrefix();
       if(d.isVitals){
-        return [{text:`வைட்டல்ஸ் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}.`,lang:'ta-IN',rate:.88,pause:0}];
+        return [{text:`${staffPrefix} வைட்டல்ஸ் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.88,pause:0}];
       }
       if(d.isCare){
-        return [{text:`டெய்லி கேர் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}.`,lang:'ta-IN',rate:.88,pause:0}];
+        return [{text:`${staffPrefix} டெய்லி கேர் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.88,pause:0}];
       }
       if(d.isPhysio){
-        return [{text:`பிசியோதெரபி பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}.`,lang:'ta-IN',rate:.88,pause:0}];
+        return [{text:`${staffPrefix} பிசியோதெரபி பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.88,pause:0}];
       }
-      return [{text:`கிளினிக்கல் டாஸ்க் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}.`,lang:'ta-IN',rate:.88,pause:0}];
+      return [{text:`${staffPrefix} கிளினிக்கல் டாஸ்க் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.88,pause:0}];
     }
     async function speakLocalClinicalVoice(a){
       if(!window.speechSynthesis)return false;
@@ -2426,6 +2443,15 @@ Caring with Compassion. Living with Dignity.`;
       }catch(error){console.warn('Daily care voice playback unavailable:',error)}
     }
 
+    async function testClinicalTaskVoice(){
+      const sample={title:'Clinical Task Due',patient_name:'Radhakrishnan',room_label:'101',description:'Clinical task pending',overdue_minutes:0};
+      try{
+        const voices=await waitForSpeechVoices();
+        window.speechSynthesis?.cancel();
+        speakUtteranceSequence(humanisedClinicalVoiceSegments(sample),voices);
+      }catch(error){console.warn('Clinical task voice playback unavailable:',error)}
+    }
+
     async function testEscalationVoice(){
       try{
         const Ctx=window.AudioContext||window.webkitAudioContext;
@@ -2435,7 +2461,7 @@ Caring with Compassion. Living with Dignity.`;
           setSoundUnlocked(true);
         }
       }catch(error){console.warn('Escalation voice test audio unlock unavailable',error)}
-      // v2.9.20: playback must be predictable. Never select a live alert/UUID for testing.
+      // v2.9.21: playback must be predictable. Never select a live alert/UUID for testing.
       // This isolates pronunciation from real patient data and lets staff compare versions.
       const sample={
         title:'Medication Due',
@@ -2514,7 +2540,7 @@ Caring with Compassion. Living with Dignity.`;
       },{onConflict:'alert_key'});
       if(error)throw error;await refresh();
     }
-    return {alerts,settings,setSettings,soundUnlocked,unlockSound,requestNotifications,testClinicalAlert,testVitalsVoice,testDailyCareVoice,testEscalationVoice,refresh,acknowledge,setPage};
+    return {alerts,settings,setSettings,soundUnlocked,unlockSound,requestNotifications,testClinicalAlert,testVitalsVoice,testDailyCareVoice,testClinicalTaskVoice,testEscalationVoice,refresh,acknowledge,setPage};
   }
 
   function ClinicalAlertsPage({engine,setPage}){
@@ -2600,6 +2626,7 @@ Caring with Compassion. Living with Dignity.`;
           h('button',{className:'btn btn-primary',onClick:engine.testClinicalAlert},'🔔 Test Alert'),
           h('button',{className:'btn btn-secondary',onClick:engine.testVitalsVoice},'▶ Test Vitals Voice'),
           h('button',{className:'btn btn-secondary',onClick:engine.testDailyCareVoice},'▶ Test Daily Care Voice'),
+          h('button',{className:'btn btn-secondary',onClick:engine.testClinicalTaskVoice},'▶ Test Clinical Task Voice'),
           h('button',{className:'btn btn-secondary',onClick:engine.testEscalationVoice},'▶ Test Escalation Voice')
         )},
         h('div',{className:'grid stats'},
