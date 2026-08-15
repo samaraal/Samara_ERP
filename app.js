@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.13';
+  const APP_VERSION = '2.9.14';
   const APP_BUILD_DATE = '15-Aug-2026 Hybrid Neural Tamil Clinical Voice';
   const APP_SCHEMA_VERSION = '25';
 
@@ -2102,12 +2102,38 @@ Caring with Compassion. Living with Dignity.`;
       const patient=String(a?.patient_name||a?.patient||'நோயாளர்').trim();
       const room=String(a?.room_label||a?.room||'').trim();
       const details=String(a?.description||a?.details||'').trim();
-      const overdue=Math.max(0,Number(a?.overdue_minutes||0));
+      const overdue=actualOverdueMinutes(a);
       const isMedication=title.includes('medication')||title.includes('medicine')||title.includes('மருந்து');
       const isVitals=title.includes('vital');
       const isCare=title.includes('daily care')||title.includes('care');
       const isPhysio=title.includes('physio');
       return {title,patient,room,details,overdue,isMedication,isVitals,isCare,isPhysio};
+    }
+    function actualOverdueMinutes(a){
+      const serverValue=Math.max(0,Number(a?.overdue_minutes||0));
+      const dueRaw=a?.due_at||a?.dueAt||null;
+      if(!dueRaw)return serverValue;
+      const due=new Date(dueRaw);
+      if(Number.isNaN(due.getTime()))return serverValue;
+      const computed=Math.max(0,Math.floor((Date.now()-due.getTime())/60000));
+      // Never allow a stale server-side threshold value (for example 30) to
+      // understate the real elapsed delay shown or announced to staff.
+      return Math.max(serverValue,computed);
+    }
+    function englishOverdueLabel(minutes){
+      const m=Math.max(0,Math.floor(Number(minutes||0)));
+      if(m<60)return `${m} min overdue`;
+      const h=Math.floor(m/60),r=m%60;
+      return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
+    }
+    function tamilOverdueSpeech(minutes){
+      const m=Math.max(0,Math.floor(Number(minutes||0)));
+      if(!m)return '';
+      if(m<60)return `${tamilIntegerWords(m)} நிமிடங்கள் தாமதமாகியுள்ளது.`;
+      const h=Math.floor(m/60),r=m%60;
+      const hourPart=`${tamilIntegerWords(h)} மணி நேரம்`;
+      const minutePart=r?` ${tamilIntegerWords(r)} நிமிடங்கள்`:'';
+      return `${hourPart}${minutePart} தாமதமாகியுள்ளது.`;
     }
     function singleVoiceScore(v){
       const name=String(v?.name||'').toLowerCase();
@@ -2264,6 +2290,7 @@ Caring with Compassion. Living with Dignity.`;
         if(d.room) parts.push(`அறை எண் ${roomForSpeech(d.room)}.`);
         if(d.patient) parts.push(`நோயாளியின் பெயர் ${patientForSpeech(d.patient)}.`);
         parts.push(`கொடுக்க வேண்டிய மருந்து ${medicineForSpeech(d.details||'Medicine')}.`);
+        if(d.overdue>0) parts.push(tamilOverdueSpeech(d.overdue));
         parts.push('தயவு செய்து உடனே கவனிக்கவும்.');
         parts.push('மருந்து கொடுத்த பிறகு பதிவு செய்யவும்.');
         return [{text:parts.join(' '),lang:'ta-IN',rate:.88,pause:0}];
@@ -2282,54 +2309,11 @@ Caring with Compassion. Living with Dignity.`;
       }else{
         segments.push({text:'மருத்துவப் பணி நிலுவையில் உள்ளது.',lang:'ta-IN',rate:.86,pause:160});
       }
-      if(d.overdue>0) segments.push({text:`${Math.round(d.overdue)} நிமிடங்கள் தாமதமாகியுள்ளது.`,lang:'ta-IN',rate:.84,pause:160});
+      if(d.overdue>0) segments.push({text:tamilOverdueSpeech(d.overdue),lang:'ta-IN',rate:.84,pause:160});
       segments.push({text:'தயவு செய்து உடனே கவனித்து பதிவு செய்யவும்.',lang:'ta-IN',rate:.84,pause:0});
       return segments;
     }
-    const neuralVoiceCache=React.useRef(new Map());
-    function clinicalNeuralPayload(a){
-      const d=clinicalVoiceData(a);
-      return {
-        alert_type:d.isMedication?'medication':d.isVitals?'vitals':d.isCare?'care':d.isPhysio?'physio':'clinical',
-        room:String(d.room||''),
-        patient:String(d.patient||''),
-        details:String(d.details||''),
-        overdue_minutes:Number(d.overdue||0)
-      };
-    }
-    function base64ToArrayBuffer(base64){
-      const binary=atob(String(base64||''));
-      const bytes=new Uint8Array(binary.length);
-      for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
-      return bytes.buffer;
-    }
-    async function playNeuralClinicalVoice(a){
-      const payload=clinicalNeuralPayload(a);
-      const cacheKey=JSON.stringify(payload);
-      let audioBuffer=neuralVoiceCache.current.get(cacheKey)||null;
-      const Ctx=window.AudioContext||window.webkitAudioContext;
-      const ctx=audioContext.current||(audioContext.current=new Ctx());
-      if(ctx.state==='suspended')await ctx.resume();
-      if(!audioBuffer){
-        const {data,error}=await client.functions.invoke('clinical-tts',{body:payload});
-        if(error)throw error;
-        if(!data?.audio_base64)throw new Error(data?.error||'Neural voice audio was not returned');
-        audioBuffer=await ctx.decodeAudioData(base64ToArrayBuffer(data.audio_base64).slice(0));
-        neuralVoiceCache.current.set(cacheKey,audioBuffer);
-        // Limit memory: keep only the 12 most recent alert phrases.
-        while(neuralVoiceCache.current.size>12){
-          const first=neuralVoiceCache.current.keys().next().value;
-          neuralVoiceCache.current.delete(first);
-        }
-      }
-      const source=ctx.createBufferSource();
-      source.buffer=audioBuffer;
-      const gain=ctx.createGain();gain.gain.value=1;
-      source.connect(gain);gain.connect(ctx.destination);source.start(0);
-      console.info('Samara clinical voice',{mode:'Azure Neural Tamil',voice:'ta-IN-PallaviNeural'});
-      return true;
-    }
-    async function speakBrowserFallback(a){
+    async function speakLocalClinicalVoice(a){
       if(!window.speechSynthesis)return false;
       const voices=await waitForSpeechVoices();
       window.speechSynthesis.cancel();
@@ -2339,15 +2323,12 @@ Caring with Compassion. Living with Dignity.`;
     function speak(a){
       if(!settings.voice_enabled||!soundUnlocked)return;
       try{window.speechSynthesis?.cancel()}catch(_){}
-      // Let the clinical tone finish first. Neural voice is primary; browser TTS is fallback.
+      // v2.9.14: local/offline voice path only. Azure/remote TTS is intentionally
+      // disabled. Human-recorded phrase clips can be added later without changing
+      // the alert/escalation timing logic.
       window.setTimeout(async()=>{
         if(!settings.voice_enabled||!soundUnlocked)return;
-        try{
-          await playNeuralClinicalVoice(a);
-        }catch(error){
-          console.warn('Neural clinical voice unavailable; using browser fallback:',error?.message||error);
-          try{await speakBrowserFallback(a)}catch(fallbackError){console.warn('Browser clinical voice unavailable:',fallbackError)}
-        }
+        try{await speakLocalClinicalVoice(a)}catch(error){console.warn('Clinical voice unavailable:',error)}
       },2300);
     }
     async function requestNotifications(){
@@ -2388,7 +2369,10 @@ Caring with Compassion. Living with Dignity.`;
       if(!profile)return;
       const {data,error}=await client.rpc('get_current_clinical_alerts');
       if(error){console.warn('Alert engine:',error.message);setAlerts([]);return}
-      const list=(data||[]).map(a=>({...a,key:`${a.alert_type}:${a.source_id}:${a.due_at}`}));
+      const list=(data||[]).map(a=>{
+        const liveOverdue=actualOverdueMinutes(a);
+        return {...a,overdue_minutes:liveOverdue,key:`${a.alert_type}:${a.source_id}:${a.due_at}`};
+      });
       const escalationMinutes=Number(settings.manager_escalation_minutes||30);
       const isEscalationViewer=['Admin','Manager'].includes(profile?.role);
       const visibleList=isEscalationViewer?list.filter(a=>Number(a.overdue_minutes)>=escalationMinutes):list;
@@ -2400,7 +2384,7 @@ Caring with Compassion. Living with Dignity.`;
         if(now-last>=repeatMs){
           lastPlayed.current[top.key]=now;play(top.priority);speak(top);
           if(settings.browser_notifications_enabled&&Notification.permission==='granted'){
-            try{new Notification(`${top.title}${top.description?` · ${top.description}`:''}`,{body:`${top.description||top.title||'Clinical task due'}\n${top.patient_name||'Patient'} · ${top.room_label||''}${Number(top.overdue_minutes||0)>0?` · ${Number(top.overdue_minutes)} min overdue`:' · Due now'}`,tag:top.key,requireInteraction:top.priority==='Critical'})}catch(_){}
+            try{new Notification(`${top.title}${top.description?` · ${top.description}`:''}`,{body:`${top.description||top.title||'Clinical task due'}\n${top.patient_name||'Patient'} · ${top.room_label||''}${Number(top.overdue_minutes||0)>0?` · ${englishOverdueLabel(top.overdue_minutes)}`:' · Due now'}`,tag:top.key,requireInteraction:top.priority==='Critical'})}catch(_){}
           }
         }
         const popupLast=lastPopup.current[top.key]||0;
@@ -2411,7 +2395,7 @@ Caring with Compassion. Living with Dignity.`;
           showClinicalAlertPopup({
             heading,patient:top.patient_name||'Patient',room:top.room_label||'',
             alertType:top.title||'Clinical task due',details:top.description||top.title||'Clinical task due',
-            dueText:overdue>0?`${overdue} min overdue`:'Due now',
+            dueText:overdue>0?englishOverdueLabel(overdue):'Due now',
             message:overdue>=escalationMinutes?'Escalated — please attend and record immediately.':'Please attend and record immediately.',
             priority:top.priority||'Routine'
           });
@@ -2548,7 +2532,7 @@ Caring with Compassion. Living with Dignity.`;
             a.room_label||'—',
             a.title,
             fmt(a.due_at),
-            Number(a.overdue_minutes)>0?`${a.overdue_minutes} min`:'Due now',
+            Number(a.overdue_minutes)>0?englishOverdueLabel(a.overdue_minutes):'Due now',
             a.description||'—',
             h('div',{className:'employee-actions'},
               h('button',{className:'btn btn-primary',onClick:()=>openClinicalTask(a)},a.alert_type==='Regularisation'?'Review':'Complete / Record'),
@@ -4336,7 +4320,7 @@ Caring with Compassion. Living with Dignity.`;
           h('span',{className:'alert-preview-priority'},a.priority||'Routine'),
           h('strong',null,a.patient_name||'Patient'),
           h('span',null,[a.room_label,a.title].filter(Boolean).join(' · ')),
-          h('small',null,Number(a.overdue_minutes||0)>0?`${Number(a.overdue_minutes)} min overdue`:'Due now')
+          h('small',null,Number(a.overdue_minutes||0)>0?englishOverdueLabel(a.overdue_minutes):'Due now')
         ))),
         rows.length>5&&h('div',{className:'topbar-alert-more'},`+ ${rows.length-5} more alerts — click the bell for the complete list`)
       )
