@@ -2238,10 +2238,10 @@ Caring with Compassion. Living with Dignity.`;
       const th=Math.floor(n/1000),r=n%1000;const thword=th===1?'ஆயிரம்':ones[th]+' ஆயிரம்';return thword+(r?' '+tamilIntegerWords(r):'');
     }
     function roomForSpeech(room){
-      // v2.9.40: use Tamil letter pronunciations for bed suffix in TTS.
+      // v2.9.40: exaggerate the bed suffix for TTS only.
       // Display remains unchanged; speech receives:
-      // 101-A => "101 - ஏ"
-      // 102-B => "102 - பி"
+      // 101-A => "101 - AAA"
+      // 102-B => "102 - BBB"
       let raw=String(room||'').trim().toUpperCase();
 
       let m=raw.match(/(?:ROOM|RM)?\s*(\d{1,4})\s*(?:[-\/]|\s)\s*([A-Z])\b/i);
@@ -2250,8 +2250,8 @@ Caring with Compassion. Living with Dignity.`;
       if(m){
         const roomNo=m[1];
         const bed=m[2].toUpperCase();
-        const tamilBed=TAMIL_LETTERS[bed]||bed;
-        return `${roomNo} - ${tamilBed}`;
+        const repeated=`${bed}${bed}${bed}`;
+        return `${roomNo} - ${repeated}`;
       }
 
       m=raw.match(/\b(\d{1,4})\b/);
