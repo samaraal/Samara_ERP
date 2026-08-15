@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.24';
+  const APP_VERSION = '2.9.25';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2217,7 +2217,7 @@ Caring with Compassion. Living with Dignity.`;
       const th=Math.floor(n/1000),r=n%1000;const thword=th===1?'ஆயிரம்':ones[th]+' ஆயிரம்';return thword+(r?' '+tamilIntegerWords(r):'');
     }
     function roomForSpeech(room){
-      // v2.9.24: speak only the human room/bed label, never UUIDs, resident IDs,
+      // v2.9.25: speak only the human room/bed label, never UUIDs, resident IDs,
       // prefixes or long database references.
       let raw=String(room||'').trim().toUpperCase();
       raw=raw
@@ -2238,7 +2238,7 @@ Caring with Compassion. Living with Dignity.`;
     }
     function patientForSpeech(name){
       let value=String(name||'').trim();
-      // v2.9.24: strip technical prefixes/IDs and retain only the actual display name.
+      // v2.9.25: strip technical prefixes/IDs and retain only the actual display name.
       value=value
         .replace(/\b(test|resident|patient|care patient|care patients)\b/gi,' ')
         .replace(/\bMOG-\d{4}-\d{2}-\d{4}\b/gi,' ')
@@ -2355,7 +2355,7 @@ Caring with Compassion. Living with Dignity.`;
 
     function humanisedClinicalVoiceSegments(a){
       const d=clinicalVoiceData(a);
-      // v2.9.24: continuous pure-Tamil clinical utterance with live overdue time.
+      // v2.9.25: continuous pure-Tamil clinical utterance with live overdue time.
       // Avoids browser-generated gaps/joins between room, patient and medicine details.
       if(d.isMedication){
         const parts=['சமராவின் அவசர வேண்டுகோள்.'];
@@ -2373,7 +2373,7 @@ Caring with Compassion. Living with Dignity.`;
         parts.push('நன்றி.');
         return [{text:parts.join(' '),lang:'ta-IN',rate:.88,pause:0}];
       }
-      // v2.9.24: intentionally short non-medication announcements.
+      // v2.9.25: intentionally short non-medication announcements.
       // Staff only need the pending category, patient name and room number.
       const staffPrefix=staffVoicePrefix();
       if(d.isVitals){
@@ -2463,14 +2463,19 @@ Caring with Compassion. Living with Dignity.`;
     }
 
     async function playCurrentLiveEscalation(){
-      const threshold=Math.max(1,Number(settings.manager_escalation_minutes||30));
+      // v2.9.25: a live escalation is defined by the unresolved
+      // clinical_alert_escalations register, not merely by elapsed minutes.
       const live=(alerts||[])
         .map(a=>({...a,overdue_minutes:actualOverdueMinutes(a)}))
-        .filter(a=>Number(a.overdue_minutes)>=threshold)
+        .filter(a=>
+          a.is_escalated===true &&
+          String(a.alert_type||'').toLowerCase()!=='regularisation' &&
+          !String(a.title||'').toLowerCase().includes('backlog regularisation')
+        )
         .sort((a,b)=>Number(b.overdue_minutes)-Number(a.overdue_minutes))[0];
 
       if(!live){
-        alert('No live escalation is currently available to play.');
+        alert('There are no current live escalations.');
         return;
       }
       if(!live.patient_id||!live.patient_name||live.patient_name==='Patient'){
@@ -2496,7 +2501,7 @@ Caring with Compassion. Living with Dignity.`;
           setSoundUnlocked(true);
         }
       }catch(error){console.warn('Escalation voice test audio unlock unavailable',error)}
-      // v2.9.24: playback must be predictable. Never select a live alert/UUID for testing.
+      // v2.9.25: playback must be predictable. Never select a live alert/UUID for testing.
       // This isolates pronunciation from real patient data and lets staff compare versions.
       const sample={
         title:'Medication Due',
@@ -2523,7 +2528,7 @@ Caring with Compassion. Living with Dignity.`;
       const {data,error}=await client.rpc('get_current_clinical_alerts');
       if(error){console.warn('Alert engine:',error.message);setAlerts([]);return}
 
-      // v2.9.24: resolve patient identity from the Patient Master before display,
+      // v2.9.25: resolve patient identity from the Patient Master before display,
       // notifications or voice. RPC/source text is never trusted for patient/room speech.
       const rawAlerts=data||[];
       const patientIds=[...new Set(rawAlerts.map(a=>a?.patient_id).filter(Boolean))];
@@ -2541,7 +2546,7 @@ Caring with Compassion. Living with Dignity.`;
         }
       }
 
-      const list=rawAlerts.map(a=>{
+      let list=rawAlerts.map(a=>{
         const liveOverdue=actualOverdueMinutes(a);
         const p=patientMap[String(a?.patient_id||'')]||null;
         const patientName=p
@@ -2557,12 +2562,67 @@ Caring with Compassion. Living with Dignity.`;
           patient_name:patientName||'Patient',
           room_label:roomLabel||'',
           overdue_minutes:liveOverdue,
-          key:`${a.alert_type}:${a.source_id}:${a.due_at}`
+          key:`${a.alert_type}:${a.source_id}:${a.due_at}`,
+          is_escalated:false
         };
       });
+
       const escalationMinutes=Number(settings.manager_escalation_minutes||30);
+
+      // v2.9.25: if actionable items have crossed the threshold, process the
+      // escalation RPC first and WAIT for it. Previously this was fire-and-forget,
+      // so the Nurse screen could remain "Overdue" until a later refresh.
+      const thresholdCandidates=list.filter(a=>
+        Number(a.overdue_minutes)>=escalationMinutes &&
+        String(a.alert_type||'').toLowerCase()!=='regularisation' &&
+        !String(a.title||'').toLowerCase().includes('backlog regularisation')
+      );
+      if(thresholdCandidates.length){
+        try{
+          const {error:processError}=await client.rpc('process_clinical_alert_escalations');
+          if(processError)throw processError;
+        }catch(processError){
+          console.warn('Clinical escalation processing:',processError?.message||processError);
+        }
+      }
+
+      // Authoritative escalation state comes from the unresolved escalation register.
+      // Match by alert_key first, then source identity as a safeguard for older rows
+      // whose alert_key format may differ from the current UI key.
+      let openEscalations=[];
+      try{
+        const {data:escRows,error:escError}=await client
+          .from('clinical_alert_escalations')
+          .select('alert_key,alert_type,source_id,patient_id,due_at,resolved_at')
+          .is('resolved_at',null)
+          .limit(500);
+        if(escError)throw escError;
+        openEscalations=escRows||[];
+      }catch(escError){
+        console.warn('Clinical escalation status:',escError?.message||escError);
+      }
+
+      const escKeys=new Set(openEscalations.map(e=>String(e.alert_key||'')).filter(Boolean));
+      const escSources=new Set(openEscalations.map(e=>String(e.source_id||'')).filter(Boolean));
+      const escComposite=new Set(openEscalations.map(e=>
+        `${String(e.alert_type||'').toLowerCase()}|${String(e.source_id||'')}|${String(e.patient_id||'')}`
+      ));
+
+      list=list.map(a=>{
+        const regularisation=
+          String(a.alert_type||'').toLowerCase()==='regularisation' ||
+          String(a.title||'').toLowerCase().includes('backlog regularisation');
+        const composite=`${String(a.alert_type||'').toLowerCase()}|${String(a.source_id||'')}|${String(a.patient_id||'')}`;
+        const confirmed=!regularisation && (
+          escKeys.has(String(a.key||'')) ||
+          escComposite.has(composite) ||
+          (a.source_id && escSources.has(String(a.source_id)))
+        );
+        return {...a,is_escalated:Boolean(confirmed)};
+      });
+
       const isEscalationViewer=['Admin','Manager'].includes(profile?.role);
-      const visibleList=isEscalationViewer?list.filter(a=>Number(a.overdue_minutes)>=escalationMinutes):list;
+      const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list;
       setAlerts(visibleList);
       const top=visibleList.find(a=>['Critical','Urgent'].includes(a.priority))||visibleList[0];
       if(top){
@@ -2588,11 +2648,8 @@ Caring with Compassion. Living with Dignity.`;
           });
         }
       }
-      if(list.some(a=>Number(a.overdue_minutes)>=escalationMinutes)){
-        client.rpc('process_clinical_alert_escalations').then(()=>{});
-        // WhatsApp escalation is intentionally deferred. ERP / browser alerts and
-        // Manager + Administrator in-app escalation remain active in this release.
-      }
+      // Escalation processing is awaited earlier in refresh() so status is current
+      // before the Nurse/Manager UI and playback controls are updated.
     }
     React.useEffect(()=>{loadSettings()},[]);
     React.useEffect(()=>{
@@ -2625,7 +2682,7 @@ Caring with Compassion. Living with Dignity.`;
           .is('resolved_at',null)
           .limit(500);
         if(error)throw error;
-        setEscalatedKeys(new Set((data||[]).map(x=>String(x.alert_key||''))));
+        setEscalatedKeys(new Set((data||[]).map(x=>String(x.alert_key||'')).filter(Boolean)));
       }catch(e){
         console.warn('Nurse escalation status:',e?.message||e);
         setEscalatedKeys(new Set());
@@ -2669,7 +2726,7 @@ Caring with Compassion. Living with Dignity.`;
 
     const allRows=(engine.alerts||[]).map(a=>({
       ...a,
-      isEscalated:escalatedKeys.has(String(a.key||'')),
+      isEscalated:Boolean(a.is_escalated)||escalatedKeys.has(String(a.key||'')),
       isOverdue:Number(a.overdue_minutes||0)>0
     }));
 
