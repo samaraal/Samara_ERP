@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.23';
+  const APP_VERSION = '2.9.24';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2217,7 +2217,7 @@ Caring with Compassion. Living with Dignity.`;
       const th=Math.floor(n/1000),r=n%1000;const thword=th===1?'ஆயிரம்':ones[th]+' ஆயிரம்';return thword+(r?' '+tamilIntegerWords(r):'');
     }
     function roomForSpeech(room){
-      // v2.9.23: speak only the human room/bed label, never UUIDs, resident IDs,
+      // v2.9.24: speak only the human room/bed label, never UUIDs, resident IDs,
       // prefixes or long database references.
       let raw=String(room||'').trim().toUpperCase();
       raw=raw
@@ -2225,7 +2225,9 @@ Caring with Compassion. Living with Dignity.`;
         .replace(/\bMOG-\d{4}-\d{2}-\d{4}\b/gi,' ')
         .replace(/[A-F0-9]{8}-[A-F0-9-]{20,}/gi,' ')
         .replace(/\s+/g,' ').trim();
-      const useful=(raw.match(/\b\d{1,4}(?:\s*[-/]\s*[A-Z])?\b/)||[])[0]||raw;
+      const match=(raw.match(/\b\d{1,4}(?:\s*[-/]\s*[A-Z])?\b/)||[])[0]||'';
+      const useful=match;
+      if(!useful)return 'அறை விவரம் இல்லை';
       const roomDigits={...TAMIL_DIGITS};
       return String(useful).trim().split('').map(ch=>{
         if(roomDigits[ch])return roomDigits[ch];
@@ -2236,7 +2238,7 @@ Caring with Compassion. Living with Dignity.`;
     }
     function patientForSpeech(name){
       let value=String(name||'').trim();
-      // v2.9.23: strip technical prefixes/IDs and retain only the actual display name.
+      // v2.9.24: strip technical prefixes/IDs and retain only the actual display name.
       value=value
         .replace(/\b(test|resident|patient|care patient|care patients)\b/gi,' ')
         .replace(/\bMOG-\d{4}-\d{2}-\d{4}\b/gi,' ')
@@ -2257,7 +2259,15 @@ Caring with Compassion. Living with Dignity.`;
         'laxmi':'லட்சுமி'
       };
       const key=value.toLowerCase().replace(/\./g,'').trim();
-      return known[key]||value||'நோயாளர்';
+      if(known[key])return known[key];
+      // Never read IDs / technical refs / machine labels as a patient's name.
+      const looksTechnical=
+        !value||
+        /[{}_[\]<>]/.test(value)||
+        /[A-Z]{2,}[-_0-9]{2,}/.test(value)||
+        /\b(?:MOG|UUID|PATIENTS?|CARE_PATIENTS?|SOURCE|RECORD|ROW)\b/i.test(value)||
+        (value.match(/[0-9]/g)||[]).length>=4;
+      return looksTechnical?'நோயாளர்':value;
     }
     function medicineForSpeech(details){
       let value=String(details||'மருந்து').trim();
@@ -2345,7 +2355,7 @@ Caring with Compassion. Living with Dignity.`;
 
     function humanisedClinicalVoiceSegments(a){
       const d=clinicalVoiceData(a);
-      // v2.9.23: continuous pure-Tamil clinical utterance with live overdue time.
+      // v2.9.24: continuous pure-Tamil clinical utterance with live overdue time.
       // Avoids browser-generated gaps/joins between room, patient and medicine details.
       if(d.isMedication){
         const parts=['சமராவின் அவசர வேண்டுகோள்.'];
@@ -2363,7 +2373,7 @@ Caring with Compassion. Living with Dignity.`;
         parts.push('நன்றி.');
         return [{text:parts.join(' '),lang:'ta-IN',rate:.88,pause:0}];
       }
-      // v2.9.23: intentionally short non-medication announcements.
+      // v2.9.24: intentionally short non-medication announcements.
       // Staff only need the pending category, patient name and room number.
       const staffPrefix=staffVoicePrefix();
       if(d.isVitals){
@@ -2463,6 +2473,10 @@ Caring with Compassion. Living with Dignity.`;
         alert('No live escalation is currently available to play.');
         return;
       }
+      if(!live.patient_id||!live.patient_name||live.patient_name==='Patient'){
+        alert('The live escalation could not be matched to the Patient Master. Please refresh Clinical Alerts.');
+        return;
+      }
 
       try{
         const voices=await waitForSpeechVoices();
@@ -2482,7 +2496,7 @@ Caring with Compassion. Living with Dignity.`;
           setSoundUnlocked(true);
         }
       }catch(error){console.warn('Escalation voice test audio unlock unavailable',error)}
-      // v2.9.23: playback must be predictable. Never select a live alert/UUID for testing.
+      // v2.9.24: playback must be predictable. Never select a live alert/UUID for testing.
       // This isolates pronunciation from real patient data and lets staff compare versions.
       const sample={
         title:'Medication Due',
@@ -2508,9 +2522,43 @@ Caring with Compassion. Living with Dignity.`;
       if(!profile)return;
       const {data,error}=await client.rpc('get_current_clinical_alerts');
       if(error){console.warn('Alert engine:',error.message);setAlerts([]);return}
-      const list=(data||[]).map(a=>{
+
+      // v2.9.24: resolve patient identity from the Patient Master before display,
+      // notifications or voice. RPC/source text is never trusted for patient/room speech.
+      const rawAlerts=data||[];
+      const patientIds=[...new Set(rawAlerts.map(a=>a?.patient_id).filter(Boolean))];
+      let patientMap={};
+      if(patientIds.length){
+        try{
+          const {data:patientRows,error:patientError}=await client
+            .from('patients')
+            .select('id,title,full_name,patient_id,room_no,bed_no,is_active')
+            .in('id',patientIds);
+          if(patientError)throw patientError;
+          (patientRows||[]).forEach(p=>{patientMap[String(p.id)]=p});
+        }catch(patientError){
+          console.warn('Clinical alert patient hydration:',patientError?.message||patientError);
+        }
+      }
+
+      const list=rawAlerts.map(a=>{
         const liveOverdue=actualOverdueMinutes(a);
-        return {...a,overdue_minutes:liveOverdue,key:`${a.alert_type}:${a.source_id}:${a.due_at}`};
+        const p=patientMap[String(a?.patient_id||'')]||null;
+        const patientName=p
+          ? [p.title,p.full_name].filter(Boolean).join(' ').trim()
+          : '';
+        const roomLabel=p
+          ? [p.room_no,p.bed_no].filter(Boolean).join('-').trim()
+          : '';
+        return {
+          ...a,
+          // Prefer Patient Master values. If unresolved, use safe generic labels;
+          // never pass raw machine references to speech.
+          patient_name:patientName||'Patient',
+          room_label:roomLabel||'',
+          overdue_minutes:liveOverdue,
+          key:`${a.alert_type}:${a.source_id}:${a.due_at}`
+        };
       });
       const escalationMinutes=Number(settings.manager_escalation_minutes||30);
       const isEscalationViewer=['Admin','Manager'].includes(profile?.role);
