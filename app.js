@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.28';
+  const APP_VERSION = '2.9.29';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2101,6 +2101,10 @@ Caring with Compassion. Living with Dignity.`;
         const Ctx=window.AudioContext||window.webkitAudioContext;
         const ctx=audioContext.current||(audioContext.current=new Ctx());
         if(ctx.state==='suspended')await ctx.resume();
+        // v2.9.29: one Nurse action unlocks both tone + automatic clinical voice
+        // for the current browser session. Browser autoplay still requires this
+        // explicit user gesture once per page/device session.
+        setSettings(s=>({...s,sound_enabled:true,voice_enabled:true}));
         setSoundUnlocked(true);
         playClinicalTone('Routine',true);
       }catch(error){console.warn('Sound unavailable',error)}
@@ -2203,7 +2207,11 @@ Caring with Compassion. Living with Dignity.`;
       26:'இருபத்தாறு',27:'இருபத்தேழு',28:'இருபத்தெட்டு',29:'இருபத்தொன்பது',
       31:'முப்பத்தொன்று',32:'முப்பத்திரண்டு',33:'முப்பத்துமூன்று',34:'முப்பத்துநான்கு',35:'முப்பத்தைந்து',
       36:'முப்பத்தாறு',37:'முப்பத்தேழு',38:'முப்பத்தெட்டு',39:'முப்பத்தொன்பது',
-      45:'நாற்பத்தைந்து',55:'ஐம்பத்தைந்து',500:'ஐநூறு'
+      41:'நாற்பத்தொன்று',42:'நாற்பத்திரண்டு',43:'நாற்பத்துமூன்று',44:'நாற்பத்துநான்கு',45:'நாற்பத்தைந்து',
+      46:'நாற்பத்தாறு',47:'நாற்பத்தேழு',48:'நாற்பத்தெட்டு',49:'நாற்பத்தொன்பது',
+      51:'ஐம்பத்தொன்று',52:'ஐம்பத்திரண்டு',53:'ஐம்பத்துமூன்று',54:'ஐம்பத்துநான்கு',55:'ஐம்பத்தைந்து',
+      56:'ஐம்பத்தாறு',57:'ஐம்பத்தேழு',58:'ஐம்பத்தெட்டு',59:'ஐம்பத்தொன்பது',
+      500:'ஐநூறு'
     };
     function tamilIntegerWords(n){
       n=Number(n);
@@ -2217,7 +2225,7 @@ Caring with Compassion. Living with Dignity.`;
       const th=Math.floor(n/1000),r=n%1000;const thword=th===1?'ஆயிரம்':ones[th]+' ஆயிரம்';return thword+(r?' '+tamilIntegerWords(r):'');
     }
     function roomForSpeech(room){
-      // v2.9.28: speak only the human room/bed label, never UUIDs, resident IDs,
+      // v2.9.29: speak only the human room/bed label, never UUIDs, resident IDs,
       // prefixes or long database references.
       let raw=String(room||'').trim().toUpperCase();
       raw=raw
@@ -2238,8 +2246,9 @@ Caring with Compassion. Living with Dignity.`;
     }
     function patientForSpeech(name){
       let value=String(name||'').trim();
-      // v2.9.28: strip technical prefixes/IDs and retain only the actual display name.
+      // v2.9.29: titles are display metadata, not part of the spoken patient name.
       value=value
+        .replace(/\b(Mr|Mrs|Ms|Miss|Dr|Shri|Smt|Master|Baby|Kumari)\.?\b/gi,' ')
         .replace(/\b(test|resident|patient|care patient|care patients)\b/gi,' ')
         .replace(/\bMOG-\d{4}-\d{2}-\d{4}\b/gi,' ')
         .replace(/[A-F0-9]{8}-[A-F0-9-]{20,}/gi,' ')
@@ -2255,6 +2264,10 @@ Caring with Compassion. Living with Dignity.`;
         'karthi':'கார்த்தி',
         'divya':'திவ்யா',
         'murugan':'முருகன்',
+        'saravanan':'சரவணன்',
+        'ramyapriyaa':'ரம்யப்ரியா',
+        'ramya priyaa':'ரம்யப்ரியா',
+        'mani':'மணி',
         'lakshmi':'லட்சுமி',
         'laxmi':'லட்சுமி'
       };
@@ -2355,7 +2368,7 @@ Caring with Compassion. Living with Dignity.`;
 
     function humanisedClinicalVoiceSegments(a){
       const d=clinicalVoiceData(a);
-      // v2.9.28: continuous pure-Tamil clinical utterance with live overdue time.
+      // v2.9.29: continuous pure-Tamil clinical utterance with live overdue time.
       // Avoids browser-generated gaps/joins between room, patient and medicine details.
       if(d.isMedication){
         const parts=['சமராவின் அவசர வேண்டுகோள்.'];
@@ -2373,7 +2386,7 @@ Caring with Compassion. Living with Dignity.`;
         parts.push('நன்றி.');
         return [{text:parts.join(' '),lang:'ta-IN',rate:.88,pause:0}];
       }
-      // v2.9.28: intentionally short non-medication announcements.
+      // v2.9.29: intentionally short non-medication announcements.
       // Staff only need the pending category, patient name and room number.
       const staffPrefix=staffVoicePrefix();
       if(d.isVitals){
@@ -2463,7 +2476,7 @@ Caring with Compassion. Living with Dignity.`;
     }
 
     async function playCurrentLiveEscalation(){
-      // v2.9.28: a live escalation is defined by the unresolved
+      // v2.9.29: a live escalation is defined by the unresolved
       // clinical_alert_escalations register, not merely by elapsed minutes.
       const live=(alerts||[])
         .map(a=>({...a,overdue_minutes:actualOverdueMinutes(a)}))
@@ -2501,7 +2514,7 @@ Caring with Compassion. Living with Dignity.`;
           setSoundUnlocked(true);
         }
       }catch(error){console.warn('Escalation voice test audio unlock unavailable',error)}
-      // v2.9.28: playback must be predictable. Never select a live alert/UUID for testing.
+      // v2.9.29: playback must be predictable. Never select a live alert/UUID for testing.
       // This isolates pronunciation from real patient data and lets staff compare versions.
       const sample={
         title:'Medication Due',
@@ -2528,7 +2541,7 @@ Caring with Compassion. Living with Dignity.`;
       const {data,error}=await client.rpc('get_current_clinical_alerts');
       if(error){console.warn('Alert engine:',error.message);setAlerts([]);return}
 
-      // v2.9.28: resolve patient identity from the Patient Master before display,
+      // v2.9.29: resolve patient identity from the Patient Master before display,
       // notifications or voice. RPC/source text is never trusted for patient/room speech.
       const rawAlerts=data||[];
       const patientIds=[...new Set(rawAlerts.map(a=>a?.patient_id).filter(Boolean))];
@@ -2569,7 +2582,7 @@ Caring with Compassion. Living with Dignity.`;
 
       const escalationMinutes=Number(settings.manager_escalation_minutes||30);
 
-      // v2.9.28: if actionable items have crossed the threshold, process the
+      // v2.9.29: if actionable items have crossed the threshold, process the
       // escalation RPC first and WAIT for it. Previously this was fire-and-forget,
       // so the Nurse screen could remain "Overdue" until a later refresh.
       const thresholdCandidates=list.filter(a=>
@@ -2602,7 +2615,7 @@ Caring with Compassion. Living with Dignity.`;
         console.warn('Clinical escalation status:',escError?.message||escError);
       }
 
-      // v2.9.28: normalize UUID/text values before matching.
+      // v2.9.29: normalize UUID/text values before matching.
       // source_id is authoritative because the escalation backend stores the
       // same source UUID returned by get_current_clinical_alerts().
       const norm=v=>String(v??'').trim().toLowerCase();
