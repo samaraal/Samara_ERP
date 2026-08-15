@@ -233,8 +233,8 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.05';
-  const APP_BUILD_DATE = '15-Aug-2026 Humanised Tamil Female Voice';
+  const APP_VERSION = '2.9.06';
+  const APP_BUILD_DATE = '15-Aug-2026 Single Clear Tamil Voice';
   const APP_SCHEMA_VERSION = '25';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -2109,26 +2109,28 @@ Caring with Compassion. Living with Dignity.`;
       const isPhysio=title.includes('physio');
       return {title,patient,room,details,overdue,isMedication,isVitals,isCare,isPhysio};
     }
-    function femaleVoiceScore(v,langPrefix){
+    function singleVoiceScore(v){
       const name=String(v?.name||'').toLowerCase();
       const lang=String(v?.lang||'').toLowerCase();
       let score=0;
-      if(lang===langPrefix)score+=100;
-      else if(lang.startsWith(langPrefix.split('-')[0]))score+=70;
-      // Common female / natural voice names exposed by major operating systems.
-      if(/pallavi|neerja|heera|veena|samantha|zira|ava|serena|female|woman/.test(name))score+=45;
-      if(/natural|neural|enhanced|premium/.test(name))score+=20;
-      if(/google|microsoft|apple/.test(name))score+=5;
+      // One voice for the entire announcement. Prefer Tamil / India voices only.
+      if(lang==='ta-in')score+=150;
+      else if(lang.startsWith('ta'))score+=120;
+      else if(lang==='en-in')score+=80;
+      else if(lang.startsWith('en-in'))score+=70;
+      // Prefer a clear female voice where the device exposes one, but clarity/language wins.
+      if(/pallavi|neerja|heera|veena|female|woman/.test(name))score+=35;
+      if(/natural|neural|enhanced|premium/.test(name))score+=12;
+      // Explicitly avoid US/UK/AU voices for English clinical data.
+      if(/en-us|en-gb|en-au/.test(lang))score-=200;
       return score;
     }
-    function bestVoice(voices,langPrefix,fallbackPrefix=''){
-      const language=langPrefix.toLowerCase();
-      let candidates=(voices||[]).filter(v=>String(v.lang||'').toLowerCase().startsWith(language.split('-')[0]));
-      if(!candidates.length&&fallbackPrefix){
-        const fp=fallbackPrefix.toLowerCase();
-        candidates=(voices||[]).filter(v=>String(v.lang||'').toLowerCase().startsWith(fp.split('-')[0]));
-      }
-      return candidates.sort((a,b)=>femaleVoiceScore(b,language)-femaleVoiceScore(a,language))[0]||null;
+    function bestSingleClinicalVoice(voices){
+      const india=(voices||[]).filter(v=>{
+        const lang=String(v.lang||'').toLowerCase();
+        return lang.startsWith('ta')||lang==='en-in'||lang.startsWith('en-in');
+      });
+      return india.sort((a,b)=>singleVoiceScore(b)-singleVoiceScore(a))[0]||null;
     }
     function waitForSpeechVoices(){
       const synth=window.speechSynthesis;
@@ -2159,26 +2161,28 @@ Caring with Compassion. Living with Dignity.`;
     function speakUtteranceSequence(segments,voices){
       const synth=window.speechSynthesis;
       if(!synth||!segments.length)return;
-      const tamilVoice=bestVoice(voices,'ta-in');
-      const englishVoice=bestVoice(voices,'en-in','en');
+      const singleVoice=bestSingleClinicalVoice(voices);
+      const voiceLang=String(singleVoice?.lang||'ta-IN').toLowerCase();
+      const speechLang=voiceLang.startsWith('ta')?'ta-IN':'en-IN';
       let index=0;
       const next=()=>{
         if(index>=segments.length)return;
         const seg=segments[index++];
         const u=new SpeechSynthesisUtterance(seg.text);
-        u.lang=seg.lang||'ta-IN';
-        u.rate=seg.rate||.78;
-        u.pitch=seg.pitch||1.06;
+        // Keep exactly one speaker. Never switch voices inside one clinical alert.
+        u.lang=speechLang;
+        if(singleVoice)u.voice=singleVoice;
+        u.rate=seg.rate||.72;
+        u.pitch=1.0;
         u.volume=1;
-        if((u.lang||'').toLowerCase().startsWith('ta')&&tamilVoice)u.voice=tamilVoice;
-        else if((u.lang||'').toLowerCase().startsWith('en')&&englishVoice)u.voice=englishVoice;
-        u.onend=()=>window.setTimeout(next,seg.pause??190);
-        u.onerror=()=>window.setTimeout(next,120);
+        u.onend=()=>window.setTimeout(next,seg.pause??220);
+        u.onerror=()=>window.setTimeout(next,140);
         synth.speak(u);
       };
       console.info('Samara clinical voice',{
-        tamilVoice:tamilVoice?.name||'device default',
-        englishVoice:englishVoice?.name||'device default'
+        singleVoice:singleVoice?.name||'device default',
+        language:singleVoice?.lang||speechLang,
+        mode:'one speaker; Tamil/India voice only'
       });
       next();
     }
@@ -2190,15 +2194,15 @@ Caring with Compassion. Living with Dignity.`;
       ];
       if(d.room){
         segments.push({text:'அறை எண்.',lang:'ta-IN',rate:.72,pause:180});
-        segments.push({text:roomForSpeech(d.room),lang:'en-IN',rate:.62,pitch:1.05,pause:360});
+        segments.push({text:roomForSpeech(d.room),lang:'ta-IN',rate:.60,pause:420});
       }
       if(d.patient){
         segments.push({text:'நோயாளியின் பெயர்.',lang:'ta-IN',rate:.72,pause:180});
-        segments.push({text:d.patient,lang:'en-IN',rate:.64,pitch:1.04,pause:380});
+        segments.push({text:d.patient,lang:'ta-IN',rate:.62,pause:430});
       }
       if(d.isMedication){
         segments.push({text:'கொடுக்க வேண்டிய மருந்து.',lang:'ta-IN',rate:.72,pause:190});
-        segments.push({text:medicineForSpeech(d.details||'Medicine'),lang:'en-IN',rate:.61,pitch:1.03,pause:420});
+        segments.push({text:medicineForSpeech(d.details||'Medicine'),lang:'ta-IN',rate:.60,pause:460});
         segments.push({text:'மருந்து கொடுக்க வேண்டியுள்ளது.',lang:'ta-IN',rate:.75,pause:240});
       }else if(d.isVitals){
         segments.push({text:'உயிர் அறிகுறிகளை பதிவு செய்ய வேண்டியுள்ளது.',lang:'ta-IN',rate:.75,pause:260});
