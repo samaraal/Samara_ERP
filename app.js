@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.06';
+  const APP_VERSION = '2.9.07';
   const APP_BUILD_DATE = '15-Aug-2026 Single Clear Tamil Voice';
   const APP_SCHEMA_VERSION = '25';
 
@@ -2188,37 +2188,38 @@ Caring with Compassion. Living with Dignity.`;
     }
     function humanisedClinicalVoiceSegments(a){
       const d=clinicalVoiceData(a);
+      // v2.9.07: concise, easy-to-understand single-speaker clinical announcement.
+      // Keep the overall pace natural, with deliberate pauses only around the
+      // three critical identifiers: room, resident and medicine.
       const segments=[
-        {text:'சமராவின் அவசர வேண்டுகோள்.',lang:'ta-IN',rate:.76,pause:260},
-        {text:'உங்கள் கவனத்திற்கு.',lang:'ta-IN',rate:.74,pause:300}
+        {text:'சமராவின் அவசர வேண்டுகோள்.',lang:'ta-IN',rate:.88,pause:180}
       ];
       if(d.room){
-        segments.push({text:'அறை எண்.',lang:'ta-IN',rate:.72,pause:180});
-        segments.push({text:roomForSpeech(d.room),lang:'ta-IN',rate:.60,pause:420});
+        segments.push({text:'அறை எண்.',lang:'ta-IN',rate:.84,pause:120});
+        segments.push({text:roomForSpeech(d.room),lang:'ta-IN',rate:.72,pause:300});
       }
       if(d.patient){
-        segments.push({text:'நோயாளியின் பெயர்.',lang:'ta-IN',rate:.72,pause:180});
-        segments.push({text:d.patient,lang:'ta-IN',rate:.62,pause:430});
+        segments.push({text:'நோயாளியின் பெயர்.',lang:'ta-IN',rate:.84,pause:120});
+        segments.push({text:d.patient,lang:'ta-IN',rate:.74,pause:310});
       }
       if(d.isMedication){
-        segments.push({text:'கொடுக்க வேண்டிய மருந்து.',lang:'ta-IN',rate:.72,pause:190});
-        segments.push({text:medicineForSpeech(d.details||'Medicine'),lang:'ta-IN',rate:.60,pause:460});
-        segments.push({text:'மருந்து கொடுக்க வேண்டியுள்ளது.',lang:'ta-IN',rate:.75,pause:240});
+        segments.push({text:'கொடுக்க வேண்டிய மருந்து.',lang:'ta-IN',rate:.84,pause:125});
+        segments.push({text:medicineForSpeech(d.details||'Medicine'),lang:'ta-IN',rate:.72,pause:330});
       }else if(d.isVitals){
-        segments.push({text:'உயிர் அறிகுறிகளை பதிவு செய்ய வேண்டியுள்ளது.',lang:'ta-IN',rate:.75,pause:260});
+        segments.push({text:'உயிர் அறிகுறிகளை பதிவு செய்ய வேண்டியுள்ளது.',lang:'ta-IN',rate:.86,pause:180});
       }else if(d.isCare){
-        segments.push({text:'தினசரி பராமரிப்பு பணியை நிறைவு செய்து பதிவு செய்ய வேண்டியுள்ளது.',lang:'ta-IN',rate:.75,pause:260});
+        segments.push({text:'தினசரி பராமரிப்பு பணியை நிறைவு செய்து பதிவு செய்ய வேண்டியுள்ளது.',lang:'ta-IN',rate:.86,pause:180});
       }else if(d.isPhysio){
-        segments.push({text:'உடற்பயிற்சி சிகிச்சை பதிவை நிறைவு செய்ய வேண்டியுள்ளது.',lang:'ta-IN',rate:.75,pause:260});
+        segments.push({text:'உடற்பயிற்சி சிகிச்சை பதிவை நிறைவு செய்ய வேண்டியுள்ளது.',lang:'ta-IN',rate:.86,pause:180});
       }else{
-        segments.push({text:'மருத்துவப் பணி நிலுவையில் உள்ளது.',lang:'ta-IN',rate:.75,pause:260});
+        segments.push({text:'மருத்துவப் பணி நிலுவையில் உள்ளது.',lang:'ta-IN',rate:.86,pause:180});
       }
-      if(d.overdue>0){
-        segments.push({text:`${Math.round(d.overdue)} நிமிடங்கள் தாமதமாகியுள்ளது.`,lang:'ta-IN',rate:.72,pause:260});
+      if(!d.isMedication && d.overdue>0){
+        segments.push({text:`${Math.round(d.overdue)} நிமிடங்கள் தாமதமாகியுள்ளது.`,lang:'ta-IN',rate:.84,pause:180});
       }
       segments.push({
         text:d.isMedication?'தயவு செய்து உடனடியாக கவனித்து, மருந்தை கொடுத்த பின் பதிவு செய்யவும்.':'தயவு செய்து உடனடியாக கவனித்து பதிவு செய்யவும்.',
-        lang:'ta-IN',rate:.74,pause:0
+        lang:'ta-IN',rate:.86,pause:0
       });
       return segments;
     }
