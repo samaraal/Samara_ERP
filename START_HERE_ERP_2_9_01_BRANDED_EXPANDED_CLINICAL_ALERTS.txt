@@ -1,0 +1,16 @@
+SAMARA CARE ERP v2.9.01 — BRANDED EXPANDED CLINICAL ALERTS
+
+Upload/replace only:
+1. app.js
+2. index.html
+3. service-worker.js
+
+No SQL is required.
+
+Changes:
+- Clinical alert popup enlarged for desktop and mobile.
+- Full resident, room, alert type, medicine/details, due status and action message shown in-app.
+- Test and live clinical alert panels use Samara magenta/pink logo shades; no green alert panel.
+- Native browser/mobile notification text front-loads medicine/details where available.
+- Native OS notification banner dimensions remain controlled by iOS/Android/browser.
+- Strong multi-tone alert and v2.9.00 smart-hover notification centre retained.

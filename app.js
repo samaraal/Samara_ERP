@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.00';
+  const APP_VERSION = '2.9.01';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '25';
 
@@ -1539,7 +1539,7 @@ function initSamaraInaugurationInvitation(){
         padding:'14px',
         borderRadius:'17px',
         background:success
-          ?'linear-gradient(110deg,#087343,#11945a,#22a868)'
+          ?'linear-gradient(110deg,#7b1747,#a80d4f,#c41465)'
           :'linear-gradient(110deg,#a7192b,#c9293c,#df4050)',
         color:'#ffffff',
         border:'2px solid rgba(255,255,255,.50)',
@@ -1629,9 +1629,9 @@ function initSamaraInaugurationInvitation(){
         padding: 14px 16px !important;
         border: 0 !important;
         border-radius: 13px !important;
-        background: linear-gradient(105deg,#0b7a4b,#15945e,#22a66a) !important;
+        background: linear-gradient(105deg,#7b1747,#a80d4f,#c41465) !important;
         color: #ffffff !important;
-        box-shadow: 0 14px 34px rgba(8,100,62,.28) !important;
+        box-shadow: 0 14px 34px rgba(122,18,71,.28) !important;
         font-weight: 700 !important;
       }
 
@@ -1949,6 +1949,100 @@ Caring with Compassion. Living with Dignity.`;
   }
 
 
+  function showClinicalAlertPopup({
+    heading='CLINICAL ALERT',
+    patient='Patient',
+    room='',
+    alertType='Clinical task due',
+    details='',
+    dueText='Due now',
+    message='Please attend and record immediately.',
+    priority='Routine',
+    test=false
+  }={}){
+    try{
+      document.querySelectorAll('.samara-clinical-alert-overlay').forEach(node=>node.remove());
+      const overlay=document.createElement('div');
+      overlay.className='samara-clinical-alert-overlay';
+      overlay.setAttribute('role','alert');
+      overlay.setAttribute('aria-live','assertive');
+      Object.assign(overlay.style,{
+        position:'fixed',left:'0',right:'0',top:'0',zIndex:'2147483647',
+        display:'flex',justifyContent:'center',alignItems:'flex-start',
+        padding:'max(12px, env(safe-area-inset-top)) 10px 10px',pointerEvents:'none'
+      });
+
+      const card=document.createElement('div');
+      card.className='samara-clinical-alert-card';
+      Object.assign(card.style,{
+        width:'min(1080px, calc(100vw - 24px))',boxSizing:'border-box',
+        display:'grid',gridTemplateColumns:'74px minmax(0,1fr) 78px',alignItems:'center',
+        gap:'18px',minHeight:'160px',padding:'22px 24px',borderRadius:'22px',
+        background:'linear-gradient(118deg,#7b1747 0%,#a80d4f 48%,#c41465 100%)',
+        color:'#fff',border:'2px solid rgba(255,255,255,.55)',
+        boxShadow:'0 20px 56px rgba(99,13,55,.34)',pointerEvents:'auto',
+        fontFamily:"Inter,system-ui,-apple-system,'Segoe UI',sans-serif"
+      });
+
+      const icon=document.createElement('div');
+      icon.textContent='🔔';
+      Object.assign(icon.style,{width:'70px',height:'70px',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'50%',background:'rgba(255,255,255,.16)',fontSize:'35px'});
+
+      const body=document.createElement('div');
+      Object.assign(body.style,{display:'grid',gap:'12px',minWidth:'0'});
+      const head=document.createElement('div');
+      Object.assign(head.style,{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap'});
+      const title=document.createElement('strong');
+      title.textContent=heading;
+      Object.assign(title.style,{fontSize:'25px',lineHeight:'1.08',fontWeight:'950',letterSpacing:'.2px',color:'#fff'});
+      head.appendChild(title);
+      if(test){
+        const testPill=document.createElement('span');testPill.textContent='TEST';
+        Object.assign(testPill.style,{fontSize:'11px',fontWeight:'950',padding:'5px 9px',borderRadius:'999px',background:'#ffe0ee',color:'#7b1747'});
+        head.appendChild(testPill);
+      }
+      const grid=document.createElement('div');
+      grid.className='samara-clinical-alert-detail-grid';
+      Object.assign(grid.style,{display:'grid',gridTemplateColumns:'minmax(220px,1fr) minmax(280px,1.35fr)',gap:'8px 28px',fontSize:'15px',lineHeight:'1.35',fontWeight:'700'});
+      const row=(label,value)=>{
+        const d=document.createElement('div');
+        Object.assign(d.style,{display:'grid',gridTemplateColumns:'100px minmax(0,1fr)',gap:'8px',minWidth:'0'});
+        const l=document.createElement('span');l.textContent=label;Object.assign(l.style,{opacity:'.86',fontWeight:'800'});
+        const v=document.createElement('span');v.textContent=value||'—';Object.assign(v.style,{fontWeight:'900',overflowWrap:'anywhere'});
+        d.append(l,v);return d;
+      };
+      grid.append(
+        row('Resident',patient),row('Details',details||alertType),
+        row('Room',room||'—'),row('Due Time',dueText||'Due now'),
+        row('Alert Type',alertType),row('Message',message)
+      );
+      body.append(head,grid);
+
+      const ok=document.createElement('button');ok.type='button';ok.textContent='OK';
+      Object.assign(ok.style,{minWidth:'76px',minHeight:'58px',padding:'10px 14px',border:'2px solid rgba(255,255,255,.72)',borderRadius:'14px',background:'rgba(255,255,255,.13)',color:'#fff',fontSize:'20px',fontWeight:'950',cursor:'pointer'});
+      ok.addEventListener('click',()=>overlay.remove());
+      card.append(icon,body,ok);overlay.appendChild(card);document.body.appendChild(overlay);
+
+      if(!document.getElementById('samara-clinical-alert-responsive-style')){
+        const style=document.createElement('style');style.id='samara-clinical-alert-responsive-style';
+        style.textContent=`
+          @media(max-width:700px){
+            .samara-clinical-alert-overlay{padding:calc(8px + env(safe-area-inset-top)) 7px 8px!important}
+            .samara-clinical-alert-card{width:calc(100vw - 14px)!important;min-height:0!important;grid-template-columns:52px minmax(0,1fr)!important;gap:10px 12px!important;padding:16px 14px!important;border-radius:19px!important;align-items:start!important}
+            .samara-clinical-alert-card>div:first-child{width:50px!important;height:50px!important;font-size:27px!important}
+            .samara-clinical-alert-card>div:nth-child(2)>div:first-child strong{font-size:20px!important}
+            .samara-clinical-alert-detail-grid{grid-template-columns:1fr!important;gap:7px!important;font-size:14px!important}
+            .samara-clinical-alert-detail-grid>div{grid-template-columns:86px minmax(0,1fr)!important}
+            .samara-clinical-alert-card>button{grid-column:1/3!important;width:100%!important;min-height:48px!important;font-size:17px!important;margin-top:3px!important}
+          }
+        `;document.head.appendChild(style);
+      }
+      try{if(navigator.vibrate)navigator.vibrate(priority==='Critical'?[180,80,180,80,180]:[130,70,130])}catch(_){}
+      window.setTimeout(()=>{if(overlay.isConnected)overlay.remove()},20000);
+    }catch(error){console.warn('Clinical popup unavailable:',error)}
+  }
+
+
   function useClinicalAlertEngine(profile,setPage){
     const [alerts,setAlerts]=React.useState([]);
     const [settings,setSettings]=React.useState({
@@ -2031,11 +2125,11 @@ Caring with Compassion. Living with Dignity.`;
         try{permission=await Notification.requestPermission()}catch(_){}
       }
       if(permission==='granted'){
-        try{new Notification('TEST CLINICAL ALERT',{body:'Test Resident · Room TEST-101\nMedication Due · Test Medicine 500 mg · Due now',tag:`samara-test-${Date.now()}`,requireInteraction:true})}catch(_){}
+        try{new Notification('TEST CLINICAL ALERT · Test Medicine 500 mg',{body:'Medication Due · Test Medicine 500 mg\nTest Resident · Room TEST-101 · Due now',tag:`samara-test-${Date.now()}`,requireInteraction:true})}catch(_){}
         setSettings(s=>({...s,browser_notifications_enabled:true}));
       }
       if(navigator.vibrate)try{navigator.vibrate([180,90,180,90,180])}catch(_){}
-      showSamaraActionToast('warning','TEST CLINICAL ALERT','Test Resident · Room TEST-101 · Medication Due · Test Medicine 500 mg · Due now');
+      showClinicalAlertPopup({heading:'TEST CLINICAL ALERT',patient:'Test Resident',room:'TEST-101',alertType:'Medication Due',details:'Test Medicine 500 mg',dueText:'Due now',message:'Please attend and record immediately.',priority:'Critical',test:true});
       return permission;
     }
     async function loadSettings(){
@@ -2058,16 +2152,21 @@ Caring with Compassion. Living with Dignity.`;
         if(now-last>=repeatMs){
           lastPlayed.current[top.key]=now;play(top.priority);speak(top);
           if(settings.browser_notifications_enabled&&Notification.permission==='granted'){
-            try{new Notification(top.title,{body:`${top.patient_name||''} · ${top.room_label||''}\n${top.description||''}`,tag:top.key,requireInteraction:top.priority==='Critical'})}catch(_){}
+            try{new Notification(`${top.title}${top.description?` · ${top.description}`:''}`,{body:`${top.description||top.title||'Clinical task due'}\n${top.patient_name||'Patient'} · ${top.room_label||''}${Number(top.overdue_minutes||0)>0?` · ${Number(top.overdue_minutes)} min overdue`:' · Due now'}`,tag:top.key,requireInteraction:top.priority==='Critical'})}catch(_){}
           }
         }
         const popupLast=lastPopup.current[top.key]||0;
         if(now-popupLast>=repeatMs){
           lastPopup.current[top.key]=now;
           const overdue=Number(top.overdue_minutes||0);
-          const heading=isEscalationViewer?'Clinical escalation':'Clinical task due';
-          const detail=`${top.patient_name||'Patient'} · ${top.room_label||''} · ${top.title}${overdue>0?` · ${overdue} min overdue`:''}`;
-          showSamaraActionToast(overdue>=escalationMinutes?'error':'warning',heading,detail);
+          const heading=isEscalationViewer?'CLINICAL ESCALATION':'CLINICAL ALERT';
+          showClinicalAlertPopup({
+            heading,patient:top.patient_name||'Patient',room:top.room_label||'',
+            alertType:top.title||'Clinical task due',details:top.description||top.title||'Clinical task due',
+            dueText:overdue>0?`${overdue} min overdue`:'Due now',
+            message:overdue>=escalationMinutes?'Escalated — please attend and record immediately.':'Please attend and record immediately.',
+            priority:top.priority||'Routine'
+          });
         }
       }
       if(list.some(a=>Number(a.overdue_minutes)>=escalationMinutes)){
