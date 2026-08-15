@@ -233,7 +233,18 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.14';
+  const APP_VERSION = '2.9.15';
+
+  // Shared overdue label helper used by both the clinical alert engine and UI pages.
+  // Keep this in application scope: ClinicalAlertsPage and the global notification
+  // centre render outside the alert-engine hook and must be able to call it safely.
+  function englishOverdueLabel(minutes){
+    const m=Math.max(0,Math.floor(Number(minutes||0)));
+    if(m<60)return `${m} min overdue`;
+    const h=Math.floor(m/60),r=m%60;
+    return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
+  }
+
   const APP_BUILD_DATE = '15-Aug-2026 Hybrid Neural Tamil Clinical Voice';
   const APP_SCHEMA_VERSION = '25';
 
