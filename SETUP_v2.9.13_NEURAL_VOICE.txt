@@ -1,0 +1,32 @@
+SAMARA CARE ERP v2.9.13 — ONE-TIME NEURAL VOICE SETUP
+
+Front-end files to replace as usual:
+  app.js
+  index.html
+  service-worker.js
+
+Additional one-time server file:
+  supabase/functions/clinical-tts/index.ts
+
+1. In Microsoft Azure, create/use a Speech resource and note:
+   - Speech resource key
+   - Speech region (example: centralindia)
+
+2. In your Supabase project, add Edge Function secrets:
+   AZURE_SPEECH_KEY=<your Azure Speech key>
+   AZURE_SPEECH_REGION=<your Azure Speech region>
+
+3. Deploy the Supabase Edge Function named exactly:
+   clinical-tts
+
+4. Keep JWT verification enabled (normal Supabase authenticated invocation).
+
+5. Open Samara ERP -> Clinical Alerts -> enable Sound + Voice -> Test Alert.
+
+Expected primary voice:
+  Microsoft Azure Tamil (India) female neural voice: ta-IN-PallaviNeural
+
+Fallback:
+  If Azure/Supabase is unavailable, ERP automatically falls back to the device/browser Tamil/India voice from v2.9.12.
+
+No database SQL migration is required.
