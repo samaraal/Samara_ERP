@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.32';
+  const APP_VERSION = '2.9.33';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2101,7 +2101,7 @@ Caring with Compassion. Living with Dignity.`;
         const Ctx=window.AudioContext||window.webkitAudioContext;
         const ctx=audioContext.current||(audioContext.current=new Ctx());
         if(ctx.state==='suspended')await ctx.resume();
-        // v2.9.32: one Nurse action unlocks both tone + automatic clinical voice
+        // v2.9.33: one Nurse action unlocks both tone + automatic clinical voice
         // for the current browser session. Browser autoplay still requires this
         // explicit user gesture once per page/device session.
         setSettings(s=>({...s,sound_enabled:true,voice_enabled:true}));
@@ -2225,28 +2225,56 @@ Caring with Compassion. Living with Dignity.`;
       const th=Math.floor(n/1000),r=n%1000;const thword=th===1?'ஆயிரம்':ones[th]+' ஆயிரம்';return thword+(r?' '+tamilIntegerWords(r):'');
     }
     function roomForSpeech(room){
-      // v2.9.32: speak only the human room/bed label, never UUIDs, resident IDs,
-      // prefixes or long database references.
+      // v2.9.33: speak room digits clearly and bed suffix separately.
+      // Examples:
+      //   101-A => ஒன்று பூஜியம் ஒன்று, ஏ
+      //   101-B => ஒன்று பூஜியம் ஒன்று, பி
       let raw=String(room||'').trim().toUpperCase();
       raw=raw
         .replace(/\bROOM\b|\bRM\b|\bBED\b/gi,' ')
         .replace(/\bMOG-\d{4}-\d{2}-\d{4}\b/gi,' ')
         .replace(/[A-F0-9]{8}-[A-F0-9-]{20,}/gi,' ')
         .replace(/\s+/g,' ').trim();
-      const match=(raw.match(/\b\d{1,4}(?:\s*[-/]\s*[A-Z])?\b/)||[])[0]||'';
-      const useful=match;
-      if(!useful)return 'அறை விவரம் இல்லை';
-      const roomDigits={...TAMIL_DIGITS};
-      return String(useful).trim().split('').map(ch=>{
-        if(roomDigits[ch])return roomDigits[ch];
-        if(TAMIL_LETTERS[ch])return TAMIL_LETTERS[ch];
-        if(/[-_/ ]/.test(ch))return ' ';
-        return '';
-      }).join(' ').replace(/\s+/g,' ').trim()||'அறை விவரம் இல்லை';
+
+      const m=raw.match(/\b(\d{1,4})(?:\s*[-/]\s*([A-Z]))?\b/);
+      if(!m)return 'அறை விவரம் இல்லை';
+
+      const digits=String(m[1]).split('').map(ch=>TAMIL_DIGITS[ch]||ch).join(' ');
+      const bed=String(m[2]||'').trim();
+      if(!bed)return digits;
+
+      const BED_SUFFIX_SPEECH={
+        A:'ஏ',
+        B:'பி',
+        C:'சி',
+        D:'டி',
+        E:'ஈ',
+        F:'எஃப்'
+      };
+      const bedSpeech=BED_SUFFIX_SPEECH[bed]||bed;
+      return `${digits}, ${bedSpeech}`;
     }
     function patientForSpeech(name){
       let value=String(name||'').trim();
-      // v2.9.32: titles are display metadata, not part of the spoken patient name.
+
+      // v2.9.33: handle Indian-style initials clearly.
+      // Examples:
+      //   R Boominathan  -> ஆர், பூமிநாதன்
+      //   R. Boominathan -> ஆர், பூமிநாதன்
+      // The comma creates a short natural pause before the main name.
+      const initialMatch=value.match(/^([A-Za-z])\.?(?:\s+)(.+)$/);
+      if(initialMatch){
+        const INITIAL_SPEECH={
+          A:'ஏ', B:'பி', C:'சி', D:'டி', E:'ஈ', F:'எஃப்', G:'ஜி', H:'எச்',
+          I:'ஐ', J:'ஜே', K:'கே', L:'எல்', M:'எம்', N:'என்', O:'ஓ',
+          P:'பி', Q:'க்யூ', R:'ஆர்', S:'எஸ்', T:'டி', U:'யூ', V:'வி',
+          W:'டபிள்யூ', X:'எக்ஸ்', Y:'வை', Z:'ஜெட்'
+        };
+        const initial=INITIAL_SPEECH[initialMatch[1].toUpperCase()]||initialMatch[1];
+        const rest=patientForSpeech(initialMatch[2]);
+        return `${initial}, ${rest}`;
+      }
+      // v2.9.33: titles are display metadata, not part of the spoken patient name.
       value=value
         .replace(/\b(Mr|Mrs|Ms|Miss|Dr|Shri|Smt|Master|Baby|Kumari)\.?\b/gi,' ')
         .replace(/\b(test|resident|patient|care patient|care patients)\b/gi,' ')
@@ -2368,7 +2396,7 @@ Caring with Compassion. Living with Dignity.`;
 
     function humanisedClinicalVoiceSegments(a){
       const d=clinicalVoiceData(a);
-      // v2.9.32: continuous pure-Tamil clinical utterance with live overdue time.
+      // v2.9.33: continuous pure-Tamil clinical utterance with live overdue time.
       // Avoids browser-generated gaps/joins between room, patient and medicine details.
       if(d.isMedication){
         const parts=['சமராவின் அவசர வேண்டுகோள்.'];
@@ -2386,7 +2414,7 @@ Caring with Compassion. Living with Dignity.`;
         parts.push('நன்றி.');
         return [{text:parts.join(' '),lang:'ta-IN',rate:.88,pause:0}];
       }
-      // v2.9.32: intentionally short non-medication announcements.
+      // v2.9.33: intentionally short non-medication announcements.
       // Staff only need the pending category, patient name and room number.
       const staffPrefix=staffVoicePrefix();
       if(d.isVitals){
@@ -2476,7 +2504,7 @@ Caring with Compassion. Living with Dignity.`;
     }
 
     async function playCurrentLiveEscalation(){
-      // v2.9.32: a live escalation is defined by the unresolved
+      // v2.9.33: a live escalation is defined by the unresolved
       // clinical_alert_escalations register, not merely by elapsed minutes.
       const live=(alerts||[])
         .map(a=>({...a,overdue_minutes:actualOverdueMinutes(a)}))
@@ -2514,7 +2542,7 @@ Caring with Compassion. Living with Dignity.`;
           setSoundUnlocked(true);
         }
       }catch(error){console.warn('Escalation voice test audio unlock unavailable',error)}
-      // v2.9.32: playback must be predictable. Never select a live alert/UUID for testing.
+      // v2.9.33: playback must be predictable. Never select a live alert/UUID for testing.
       // This isolates pronunciation from real patient data and lets staff compare versions.
       const sample={
         title:'Medication Due',
@@ -2541,7 +2569,7 @@ Caring with Compassion. Living with Dignity.`;
       const {data,error}=await client.rpc('get_current_clinical_alerts');
       if(error){console.warn('Alert engine:',error.message);setAlerts([]);return}
 
-      // v2.9.32: resolve patient identity from the Patient Master before display,
+      // v2.9.33: resolve patient identity from the Patient Master before display,
       // notifications or voice. RPC/source text is never trusted for patient/room speech.
       const rawAlerts=data||[];
       const patientIds=[...new Set(rawAlerts.map(a=>a?.patient_id).filter(Boolean))];
@@ -2582,7 +2610,7 @@ Caring with Compassion. Living with Dignity.`;
 
       const escalationMinutes=Number(settings.manager_escalation_minutes||30);
 
-      // v2.9.32: if actionable items have crossed the threshold, process the
+      // v2.9.33: if actionable items have crossed the threshold, process the
       // escalation RPC first and WAIT for it. Previously this was fire-and-forget,
       // so the Nurse screen could remain "Overdue" until a later refresh.
       const thresholdCandidates=list.filter(a=>
@@ -2615,7 +2643,7 @@ Caring with Compassion. Living with Dignity.`;
         console.warn('Clinical escalation status:',escError?.message||escError);
       }
 
-      // v2.9.32: normalize UUID/text values before matching.
+      // v2.9.33: normalize UUID/text values before matching.
       // source_id is authoritative because the escalation backend stores the
       // same source UUID returned by get_current_clinical_alerts().
       const norm=v=>String(v??'').trim().toLowerCase();
@@ -2643,7 +2671,7 @@ Caring with Compassion. Living with Dignity.`;
       const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list;
       setAlerts(visibleList);
 
-      // v2.9.32: rotating automatic alert queue.
+      // v2.9.33: rotating automatic alert queue.
       // Previously only the first Critical/Urgent row ("top") was ever spoken,
       // which could starve patients lower in the list indefinitely.
       const now=Date.now();
