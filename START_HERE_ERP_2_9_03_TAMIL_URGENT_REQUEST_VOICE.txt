@@ -1,0 +1,14 @@
+Samara Care ERP v2.9.03
+Tamil Clinical Voice Wording Update
+
+Upload/replace only:
+1. app.js
+2. index.html
+3. service-worker.js
+
+No SQL required.
+
+Medication voice format:
+“சமராவின் அவசர வேண்டுகோள். உங்கள் கவனத்திற்கு — அறை [Room]. [Medicine + Strength] மருந்து கொடுக்க வேண்டியுள்ளது. தயவு செய்து உடனடியாக கவனித்து பதிவு செய்யவும்.”
+
+On-screen alerts remain in English.

@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.01';
+  const APP_VERSION = '2.9.02';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '25';
 
@@ -2097,11 +2097,40 @@ Caring with Compassion. Living with Dignity.`;
     function play(priority){
       playClinicalTone(priority,false);
     }
+    function tamilClinicalVoiceText(a){
+      const title=String(a?.title||a?.alert_type||'').toLowerCase();
+      const patient=String(a?.patient_name||a?.patient||'நோயாளர்').trim();
+      const room=String(a?.room_label||a?.room||'').trim();
+      const details=String(a?.description||a?.details||'').trim();
+      const overdue=Math.max(0,Number(a?.overdue_minutes||0));
+      let task='மருத்துவப் பணி நிலுவையில் உள்ளது.';
+      if(title.includes('medication')||title.includes('medicine')||title.includes('மருந்து')){
+        task=details?`${details}. மருந்து கொடுக்க வேண்டியுள்ளது.`:'மருந்து கொடுக்க வேண்டியுள்ளது.';
+      }else if(title.includes('vital')){
+        task='உயிர் அறிகுறிகளை பதிவு செய்ய வேண்டியுள்ளது.';
+      }else if(title.includes('daily care')||title.includes('care')){
+        task='தினசரி பராமரிப்பு பணியை நிறைவு செய்து பதிவு செய்ய வேண்டியுள்ளது.';
+      }else if(title.includes('physio')){
+        task='உடற்பயிற்சி சிகிச்சை பதிவை நிறைவு செய்ய வேண்டியுள்ளது.';
+      }
+      const delay=overdue>0?`${Math.round(overdue)} நிமிடங்கள் தாமதமாகியுள்ளது. `:'';
+      return `சமராவின் அவசர வேண்டுகோள். உங்கள் கவனத்திற்கு — ${room?`அறை ${room}. `:''}${task} ${delay}தயவு செய்து உடனடியாக கவனித்து பதிவு செய்யவும்.`;
+    }
     function speak(a){
       if(!settings.voice_enabled||!soundUnlocked||!window.speechSynthesis)return;
       window.speechSynthesis.cancel();
-      const u=new SpeechSynthesisUtterance(a.voice_text||`${a.title}. ${a.patient_name||''}. ${a.room_label||''}`);
-      u.rate=.92;u.volume=.9;window.speechSynthesis.speak(u);
+      const text=tamilClinicalVoiceText(a);
+      const speakNow=()=>{
+        const u=new SpeechSynthesisUtterance(text);
+        u.lang='ta-IN';
+        const voices=window.speechSynthesis.getVoices?.()||[];
+        const tamilVoice=voices.find(v=>String(v.lang||'').toLowerCase().startsWith('ta'));
+        if(tamilVoice)u.voice=tamilVoice;
+        u.rate=.84;u.pitch=1;u.volume=1;
+        window.speechSynthesis.speak(u);
+      };
+      // Let the alert tone finish first so the Tamil announcement is clear.
+      window.setTimeout(speakNow,2200);
     }
     async function requestNotifications(){
       if(!('Notification' in window))return false;
@@ -2130,6 +2159,7 @@ Caring with Compassion. Living with Dignity.`;
       }
       if(navigator.vibrate)try{navigator.vibrate([180,90,180,90,180])}catch(_){}
       showClinicalAlertPopup({heading:'TEST CLINICAL ALERT',patient:'Test Resident',room:'TEST-101',alertType:'Medication Due',details:'Test Medicine 500 mg',dueText:'Due now',message:'Please attend and record immediately.',priority:'Critical',test:true});
+      speak({title:'Medication Due',patient_name:'Test Resident',room_label:'TEST-101',description:'Test Medicine 500 mg',overdue_minutes:0});
       return permission;
     }
     async function loadSettings(){
