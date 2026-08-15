@@ -1,0 +1,17 @@
+SAMARA CARE ERP v2.8.99 — CLINICAL ALERT TEST
+
+Purpose
+- Adds a temporary “🔔 Test Alert” button to Nurse/Caregiver Clinical Alerts.
+- Tests audible alert, vibration (where supported), in-app toast and browser notification.
+- Uses dummy Test Resident / Room TEST-101 / Test Medicine data.
+- Does NOT create a patient, medication, acknowledgement or escalation database record.
+
+TEST
+1. Upload app.js, index.html and service-worker.js.
+2. Open ERP on Nurse mobile and refresh/update to v2.8.99.
+3. Nurse → Clinical Alerts.
+4. Tap “🔔 Test Alert”.
+5. If browser asks for notification permission, choose Allow.
+6. Confirm sound + in-app TEST CLINICAL ALERT + browser notification.
+
+No SQL required.

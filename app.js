@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.8.98';
+  const APP_VERSION = '2.8.99';
   const APP_BUILD_DATE = '09-Aug-2026 Feedback v1.1 Verified Reply';
   const APP_SCHEMA_VERSION = '25';
 
@@ -1997,6 +1997,33 @@ Caring with Compassion. Living with Dignity.`;
       if(permission==='granted'){setSettings(s=>({...s,browser_notifications_enabled:true}));return true}
       return false;
     }
+    async function testClinicalAlert(){
+      // Local, non-clinical test only: no patient/task/escalation row is written.
+      try{
+        const Ctx=window.AudioContext||window.webkitAudioContext;
+        if(Ctx){
+          const ctx=audioContext.current||(audioContext.current=new Ctx());
+          if(ctx.state==='suspended')await ctx.resume();
+          setSoundUnlocked(true);
+          const now=ctx.currentTime,osc=ctx.createOscillator(),gain=ctx.createGain();
+          osc.connect(gain);gain.connect(ctx.destination);osc.frequency.value=880;
+          gain.gain.setValueAtTime(.0001,now);
+          for(let i=0;i<3;i++){const t=now+i*.27;gain.gain.exponentialRampToValueAtTime(.18,t+.02);gain.gain.exponentialRampToValueAtTime(.0001,t+.17)}
+          osc.start(now);osc.stop(now+1.05);
+        }
+      }catch(error){console.warn('Test sound unavailable',error)}
+      let permission=('Notification' in window)?Notification.permission:'unsupported';
+      if(permission==='default'){
+        try{permission=await Notification.requestPermission()}catch(_){}
+      }
+      if(permission==='granted'){
+        try{new Notification('TEST CLINICAL ALERT',{body:'Test Resident · Room TEST-101\nMedication Due · Test Medicine 500 mg · Due now',tag:`samara-test-${Date.now()}`,requireInteraction:true})}catch(_){}
+        setSettings(s=>({...s,browser_notifications_enabled:true}));
+      }
+      if(navigator.vibrate)try{navigator.vibrate([180,90,180,90,180])}catch(_){}
+      showSamaraActionToast('warning','TEST CLINICAL ALERT','Test Resident · Room TEST-101 · Medication Due · Test Medicine 500 mg · Due now');
+      return permission;
+    }
     async function loadSettings(){
       const {data}=await client.from('clinical_alert_settings').select('*').eq('is_active',true).order('updated_at',{ascending:false}).limit(1).maybeSingle();
       if(data)setSettings(s=>({...s,...data}));
@@ -2050,7 +2077,7 @@ Caring with Compassion. Living with Dignity.`;
       },{onConflict:'alert_key'});
       if(error)throw error;await refresh();
     }
-    return {alerts,settings,setSettings,soundUnlocked,unlockSound,requestNotifications,refresh,acknowledge,setPage};
+    return {alerts,settings,setSettings,soundUnlocked,unlockSound,requestNotifications,testClinicalAlert,refresh,acknowledge,setPage};
   }
 
   function ClinicalAlertsPage({engine,setPage}){
@@ -2132,7 +2159,8 @@ Caring with Compassion. Living with Dignity.`;
         actions:h('div',{className:'employee-actions'},
           h('button',{className:'btn btn-secondary',onClick:refreshAll},loadingEscalations?'Refreshing…':'Refresh'),
           h('button',{className:'btn btn-secondary',onClick:engine.unlockSound},engine.soundUnlocked?'Sound Enabled':'Enable Sound'),
-          h('button',{className:'btn btn-secondary',onClick:engine.requestNotifications},'Enable Browser Alerts')
+          h('button',{className:'btn btn-secondary',onClick:engine.requestNotifications},'Enable Browser Alerts'),
+          h('button',{className:'btn btn-primary',onClick:engine.testClinicalAlert},'🔔 Test Alert')
         )},
         h('div',{className:'grid stats'},
           h('div',{className:'card stat clinical-red'},h('span',null,'Escalated'),h('strong',null,escalatedCount),h('small',null,'Requires immediate nursing action')),
