@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.16';
+  const APP_VERSION = '2.9.18';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2137,14 +2137,18 @@ Caring with Compassion. Living with Dignity.`;
       const h=Math.floor(m/60),r=m%60;
       return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
     }
-    function tamilOverdueSpeech(minutes){
+    function tamilDurationSpeech(minutes){
       const m=Math.max(0,Math.floor(Number(minutes||0)));
       if(!m)return '';
-      if(m<60)return `${tamilIntegerWords(m)} நிமிடங்கள் தாமதமாகியுள்ளது.`;
+      if(m<60)return `${tamilIntegerWords(m)} நிமிடங்கள்`;
       const h=Math.floor(m/60),r=m%60;
       const hourPart=`${tamilIntegerWords(h)} மணி நேரம்`;
       const minutePart=r?` ${tamilIntegerWords(r)} நிமிடங்கள்`:'';
-      return `${hourPart}${minutePart} தாமதமாகியுள்ளது.`;
+      return `${hourPart}${minutePart}`;
+    }
+    function tamilOverdueSpeech(minutes){
+      const duration=tamilDurationSpeech(minutes);
+      return duration?`${duration} தாமதமாகியுள்ளது.`:'';
     }
     function singleVoiceScore(v){
       const name=String(v?.name||'').toLowerCase();
@@ -2199,6 +2203,7 @@ Caring with Compassion. Living with Dignity.`;
       const tens=['','','இருபது','முப்பது','நாற்பது','ஐம்பது','அறுபது','எழுபது','எண்பது','தொண்ணூறு'];
       if(n<20)return ones[n];
       if(n<100){const t=Math.floor(n/10),r=n%10;return tens[t]+(r?' '+ones[r]:'');}
+      if(n===500)return 'ஐநூறு';
       if(n<1000){const h=Math.floor(n/100),r=n%100;const hword=h===1?'நூறு':ones[h]+' நூறு';return hword+(r?' '+tamilIntegerWords(r):'');}
       const th=Math.floor(n/1000),r=n%1000;const thword=th===1?'ஆயிரம்':ones[th]+' ஆயிரம்';return thword+(r?' '+tamilIntegerWords(r):'');
     }
@@ -2227,7 +2232,7 @@ Caring with Compassion. Living with Dignity.`;
       let value=String(details||'மருந்து').trim();
       value=value.replace(/\btest\b/gi,'').replace(/\s+/g,' ').trim();
 
-      // v2.9.16: clarity-first PURE TAMIL pronunciation. Brand names remain
+      // v2.9.18: clarity-first PURE TAMIL pronunciation. Brand names remain
       // recognisable medicine names; strengths and units are spoken in Tamil.
       const medicinePronunciations=[
         [/\bDolo\b/gi,'டோலோ'],
@@ -2286,14 +2291,19 @@ Caring with Compassion. Living with Dignity.`;
     }
     function humanisedClinicalVoiceSegments(a){
       const d=clinicalVoiceData(a);
-      // v2.9.16: continuous pure-Tamil clinical utterance with live overdue time.
+      // v2.9.18: continuous pure-Tamil clinical utterance with live overdue time.
       // Avoids browser-generated gaps/joins between room, patient and medicine details.
       if(d.isMedication){
         const parts=['சமராவின் அவசர வேண்டுகோள்.'];
         if(d.room) parts.push(`அறை எண் ${roomForSpeech(d.room)}.`);
         if(d.patient) parts.push(`நோயாளியின் பெயர் ${patientForSpeech(d.patient)}.`);
         parts.push(`கொடுக்க வேண்டிய மருந்து ${medicineForSpeech(d.details||'Medicine')}.`);
-        if(d.overdue>0) parts.push(tamilOverdueSpeech(d.overdue));
+        const escalationMinutes=Math.max(1,Number(settings.manager_escalation_minutes||30));
+        if(d.overdue>=escalationMinutes){
+          parts.push(`மருந்து கொடுக்க வேண்டிய நேரத்திலிருந்து ${tamilDurationSpeech(d.overdue)} தாமதமாகியுள்ளது.`);
+        }else if(d.overdue>0){
+          parts.push(tamilOverdueSpeech(d.overdue));
+        }
         parts.push('தயவு செய்து உடனே கவனிக்கவும்.');
         parts.push('மருந்து கொடுத்த பிறகு பதிவு செய்யவும்.');
         return [{text:parts.join(' '),lang:'ta-IN',rate:.88,pause:0}];
@@ -2364,6 +2374,35 @@ Caring with Compassion. Living with Dignity.`;
       speak({title:'Medication Due',patient_name:'Radhakrishnan',room_label:'101',description:'Dolo 500 mg',overdue_minutes:0});
       return permission;
     }
+    async function testEscalationVoice(){
+      try{
+        const Ctx=window.AudioContext||window.webkitAudioContext;
+        if(Ctx){
+          const ctx=audioContext.current||(audioContext.current=new Ctx());
+          if(ctx.state==='suspended')await ctx.resume();
+          setSoundUnlocked(true);
+        }
+      }catch(error){console.warn('Escalation voice test audio unlock unavailable',error)}
+      const threshold=Math.max(1,Number(settings.manager_escalation_minutes||30));
+      const live=(alerts||[])
+        .filter(a=>Number(actualOverdueMinutes(a))>=threshold)
+        .sort((a,b)=>Number(actualOverdueMinutes(b))-Number(actualOverdueMinutes(a)))[0];
+      const sample=live||{
+        title:'Medication Due',
+        patient_name:'Radhakrishnan',
+        room_label:'101',
+        description:'Dolo 500 mg',
+        overdue_minutes:37
+      };
+      try{
+        const voices=await waitForSpeechVoices();
+        window.speechSynthesis?.cancel();
+        speakUtteranceSequence(humanisedClinicalVoiceSegments(sample),voices);
+      }catch(error){
+        console.warn('Escalation voice playback unavailable:',error);
+      }
+    }
+
     async function loadSettings(){
       const {data}=await client.from('clinical_alert_settings').select('*').eq('is_active',true).order('updated_at',{ascending:false}).limit(1).maybeSingle();
       if(data)setSettings(s=>({...s,...data}));
@@ -2425,7 +2464,7 @@ Caring with Compassion. Living with Dignity.`;
       },{onConflict:'alert_key'});
       if(error)throw error;await refresh();
     }
-    return {alerts,settings,setSettings,soundUnlocked,unlockSound,requestNotifications,testClinicalAlert,refresh,acknowledge,setPage};
+    return {alerts,settings,setSettings,soundUnlocked,unlockSound,requestNotifications,testClinicalAlert,testEscalationVoice,refresh,acknowledge,setPage};
   }
 
   function ClinicalAlertsPage({engine,setPage}){
@@ -2508,7 +2547,8 @@ Caring with Compassion. Living with Dignity.`;
           h('button',{className:'btn btn-secondary',onClick:refreshAll},loadingEscalations?'Refreshing…':'Refresh'),
           h('button',{className:'btn btn-secondary',onClick:engine.unlockSound},engine.soundUnlocked?'Sound Enabled':'Enable Sound'),
           h('button',{className:'btn btn-secondary',onClick:engine.requestNotifications},'Enable Browser Alerts'),
-          h('button',{className:'btn btn-primary',onClick:engine.testClinicalAlert},'🔔 Test Alert')
+          h('button',{className:'btn btn-primary',onClick:engine.testClinicalAlert},'🔔 Test Alert'),
+          h('button',{className:'btn btn-secondary',onClick:engine.testEscalationVoice},'▶ Test Escalation Voice')
         )},
         h('div',{className:'grid stats'},
           h('div',{className:'card stat clinical-red'},h('span',null,'Escalated'),h('strong',null,escalatedCount),h('small',null,'Requires immediate nursing action')),
