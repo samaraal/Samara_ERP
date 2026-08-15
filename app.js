@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.29';
+  const APP_VERSION = '2.9.30';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2101,7 +2101,7 @@ Caring with Compassion. Living with Dignity.`;
         const Ctx=window.AudioContext||window.webkitAudioContext;
         const ctx=audioContext.current||(audioContext.current=new Ctx());
         if(ctx.state==='suspended')await ctx.resume();
-        // v2.9.29: one Nurse action unlocks both tone + automatic clinical voice
+        // v2.9.30: one Nurse action unlocks both tone + automatic clinical voice
         // for the current browser session. Browser autoplay still requires this
         // explicit user gesture once per page/device session.
         setSettings(s=>({...s,sound_enabled:true,voice_enabled:true}));
@@ -2225,7 +2225,7 @@ Caring with Compassion. Living with Dignity.`;
       const th=Math.floor(n/1000),r=n%1000;const thword=th===1?'ஆயிரம்':ones[th]+' ஆயிரம்';return thword+(r?' '+tamilIntegerWords(r):'');
     }
     function roomForSpeech(room){
-      // v2.9.29: speak only the human room/bed label, never UUIDs, resident IDs,
+      // v2.9.30: speak only the human room/bed label, never UUIDs, resident IDs,
       // prefixes or long database references.
       let raw=String(room||'').trim().toUpperCase();
       raw=raw
@@ -2246,7 +2246,7 @@ Caring with Compassion. Living with Dignity.`;
     }
     function patientForSpeech(name){
       let value=String(name||'').trim();
-      // v2.9.29: titles are display metadata, not part of the spoken patient name.
+      // v2.9.30: titles are display metadata, not part of the spoken patient name.
       value=value
         .replace(/\b(Mr|Mrs|Ms|Miss|Dr|Shri|Smt|Master|Baby|Kumari)\.?\b/gi,' ')
         .replace(/\b(test|resident|patient|care patient|care patients)\b/gi,' ')
@@ -2368,7 +2368,7 @@ Caring with Compassion. Living with Dignity.`;
 
     function humanisedClinicalVoiceSegments(a){
       const d=clinicalVoiceData(a);
-      // v2.9.29: continuous pure-Tamil clinical utterance with live overdue time.
+      // v2.9.30: continuous pure-Tamil clinical utterance with live overdue time.
       // Avoids browser-generated gaps/joins between room, patient and medicine details.
       if(d.isMedication){
         const parts=['சமராவின் அவசர வேண்டுகோள்.'];
@@ -2386,7 +2386,7 @@ Caring with Compassion. Living with Dignity.`;
         parts.push('நன்றி.');
         return [{text:parts.join(' '),lang:'ta-IN',rate:.88,pause:0}];
       }
-      // v2.9.29: intentionally short non-medication announcements.
+      // v2.9.30: intentionally short non-medication announcements.
       // Staff only need the pending category, patient name and room number.
       const staffPrefix=staffVoicePrefix();
       if(d.isVitals){
@@ -2476,7 +2476,7 @@ Caring with Compassion. Living with Dignity.`;
     }
 
     async function playCurrentLiveEscalation(){
-      // v2.9.29: a live escalation is defined by the unresolved
+      // v2.9.30: a live escalation is defined by the unresolved
       // clinical_alert_escalations register, not merely by elapsed minutes.
       const live=(alerts||[])
         .map(a=>({...a,overdue_minutes:actualOverdueMinutes(a)}))
@@ -2514,7 +2514,7 @@ Caring with Compassion. Living with Dignity.`;
           setSoundUnlocked(true);
         }
       }catch(error){console.warn('Escalation voice test audio unlock unavailable',error)}
-      // v2.9.29: playback must be predictable. Never select a live alert/UUID for testing.
+      // v2.9.30: playback must be predictable. Never select a live alert/UUID for testing.
       // This isolates pronunciation from real patient data and lets staff compare versions.
       const sample={
         title:'Medication Due',
@@ -2541,7 +2541,7 @@ Caring with Compassion. Living with Dignity.`;
       const {data,error}=await client.rpc('get_current_clinical_alerts');
       if(error){console.warn('Alert engine:',error.message);setAlerts([]);return}
 
-      // v2.9.29: resolve patient identity from the Patient Master before display,
+      // v2.9.30: resolve patient identity from the Patient Master before display,
       // notifications or voice. RPC/source text is never trusted for patient/room speech.
       const rawAlerts=data||[];
       const patientIds=[...new Set(rawAlerts.map(a=>a?.patient_id).filter(Boolean))];
@@ -2582,7 +2582,7 @@ Caring with Compassion. Living with Dignity.`;
 
       const escalationMinutes=Number(settings.manager_escalation_minutes||30);
 
-      // v2.9.29: if actionable items have crossed the threshold, process the
+      // v2.9.30: if actionable items have crossed the threshold, process the
       // escalation RPC first and WAIT for it. Previously this was fire-and-forget,
       // so the Nurse screen could remain "Overdue" until a later refresh.
       const thresholdCandidates=list.filter(a=>
@@ -2615,7 +2615,7 @@ Caring with Compassion. Living with Dignity.`;
         console.warn('Clinical escalation status:',escError?.message||escError);
       }
 
-      // v2.9.29: normalize UUID/text values before matching.
+      // v2.9.30: normalize UUID/text values before matching.
       // source_id is authoritative because the escalation backend stores the
       // same source UUID returned by get_current_clinical_alerts().
       const norm=v=>String(v??'').trim().toLowerCase();
@@ -2642,27 +2642,60 @@ Caring with Compassion. Living with Dignity.`;
       const isEscalationViewer=['Admin','Manager'].includes(profile?.role);
       const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list;
       setAlerts(visibleList);
-      const top=visibleList.find(a=>['Critical','Urgent'].includes(a.priority))||visibleList[0];
-      if(top){
-        const now=Date.now(),repeatMs=Math.max(1,Number(settings.repeat_minutes||5))*60000;
-        const last=lastPlayed.current[top.key]||0;
-        if(now-last>=repeatMs){
-          lastPlayed.current[top.key]=now;play(top.priority);speak(top);
-          if(settings.browser_notifications_enabled&&Notification.permission==='granted'){
-            try{new Notification(`${top.title}${top.description?` · ${top.description}`:''}`,{body:`${top.description||top.title||'Clinical task due'}\n${top.patient_name||'Patient'} · ${top.room_label||''}${Number(top.overdue_minutes||0)>0?` · ${englishOverdueLabel(top.overdue_minutes)}`:' · Due now'}`,tag:top.key,requireInteraction:top.priority==='Critical'})}catch(_){}
-          }
+
+      // v2.9.30: rotating automatic alert queue.
+      // Previously only the first Critical/Urgent row ("top") was ever spoken,
+      // which could starve patients lower in the list indefinitely.
+      const now=Date.now();
+      const repeatMs=Math.max(1,Number(settings.repeat_minutes||5))*60000;
+      const priorityRank={Critical:0,Urgent:1,Routine:2};
+      const ordered=[...visibleList].sort((a,b)=>{
+        const ae=a.is_escalated?0:1,be=b.is_escalated?0:1;
+        if(ae!==be)return ae-be;
+        const ap=priorityRank[a.priority]??3,bp=priorityRank[b.priority]??3;
+        if(ap!==bp)return ap-bp;
+        return Number(b.overdue_minutes||0)-Number(a.overdue_minutes||0);
+      });
+
+      // Pick ONE eligible item per refresh so voices never overlap.
+      // Every unresolved alert gets a turn because each alert has its own lastPlayed timestamp.
+      const nextToAnnounce=ordered.find(a=>{
+        const last=lastPlayed.current[a.key]||0;
+        return now-last>=repeatMs;
+      });
+
+      if(nextToAnnounce){
+        lastPlayed.current[nextToAnnounce.key]=now;
+        play(nextToAnnounce.priority);
+        speak(nextToAnnounce);
+
+        if(settings.browser_notifications_enabled&&Notification.permission==='granted'){
+          try{
+            new Notification(
+              `${nextToAnnounce.title}${nextToAnnounce.description?` · ${nextToAnnounce.description}`:''}`,
+              {
+                body:`${nextToAnnounce.description||nextToAnnounce.title||'Clinical task due'}\n${nextToAnnounce.patient_name||'Patient'} · ${nextToAnnounce.room_label||''}${Number(nextToAnnounce.overdue_minutes||0)>0?` · ${englishOverdueLabel(nextToAnnounce.overdue_minutes)}`:' · Due now'}`,
+                tag:nextToAnnounce.key,
+                requireInteraction:nextToAnnounce.priority==='Critical'
+              }
+            )
+          }catch(_){}
         }
-        const popupLast=lastPopup.current[top.key]||0;
+
+        const popupLast=lastPopup.current[nextToAnnounce.key]||0;
         if(now-popupLast>=repeatMs){
-          lastPopup.current[top.key]=now;
-          const overdue=Number(top.overdue_minutes||0);
-          const heading=isEscalationViewer?'CLINICAL ESCALATION':'CLINICAL ALERT';
+          lastPopup.current[nextToAnnounce.key]=now;
+          const overdue=Number(nextToAnnounce.overdue_minutes||0);
+          const heading=nextToAnnounce.is_escalated?'CLINICAL ESCALATION':'CLINICAL ALERT';
           showClinicalAlertPopup({
-            heading,patient:top.patient_name||'Patient',room:top.room_label||'',
-            alertType:top.title||'Clinical task due',details:top.description||top.title||'Clinical task due',
+            heading,
+            patient:nextToAnnounce.patient_name||'Patient',
+            room:nextToAnnounce.room_label||'',
+            alertType:nextToAnnounce.title||'Clinical task due',
+            details:nextToAnnounce.description||nextToAnnounce.title||'Clinical task due',
             dueText:overdue>0?englishOverdueLabel(overdue):'Due now',
-            message:overdue>=escalationMinutes?'Escalated — please attend and record immediately.':'Please attend and record immediately.',
-            priority:top.priority||'Routine'
+            message:nextToAnnounce.is_escalated?'Escalated — please attend and record immediately.':'Please attend and record immediately.',
+            priority:nextToAnnounce.priority||'Routine'
           });
         }
       }
