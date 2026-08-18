@@ -1387,3 +1387,9 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
   .refund-control-form{padding:10px}
 }
 @media(max-width:430px){.refund-security-grid{grid-template-columns:1fr}}
+
+
+/* ERP 2.9.46 — keep the live clinical alert action reliably tappable/clickable. */
+.clinical-alert-popup{pointer-events:auto;position:relative;z-index:10040}
+.clinical-alert-popup-actions{position:relative;z-index:10041;pointer-events:auto}
+.clinical-alert-popup-actions .btn{pointer-events:auto;touch-action:manipulation;cursor:pointer}

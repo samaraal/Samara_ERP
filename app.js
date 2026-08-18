@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.45';
+  const APP_VERSION = '2.9.46';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5204,7 +5204,30 @@ Caring with Compassion. Living with Dignity.`;
           h('span',null,alertEngine.alerts[0].room_label||''),
           h('p',null,alertEngine.alerts[0].description||''),
           h('div',{className:'clinical-alert-popup-actions'},
-            h('button',{className:'btn btn-primary',onClick:()=>setPage(alertEngine.alerts[0].target_page||'Clinical Alerts')},'Open to Resolve')
+            h('button',{type:'button',className:'btn btn-primary',onClick:()=>{
+              const liveAlert=alertEngine.alerts[0];
+              if(!liveAlert)return;
+              const target=liveAlert.target_page||'Clinical Alerts';
+              if(target!=='Clinical Alerts'){
+                const context={
+                  page:target,return_page:'Clinical Alerts',patient_id:liveAlert.patient_id||'',source_id:liveAlert.source_id||'',
+                  alert_key:liveAlert.key||'',alert_type:liveAlert.alert_type||'',from_escalation:Boolean(liveAlert.isEscalated)
+                };
+                if(target==='Medicines'){
+                  context.order_id=liveAlert.source_id||'';
+                  const due=new Date(liveAlert.due_at);
+                  if(!Number.isNaN(due.getTime()))context.scheduled_time=`${String(due.getHours()).padStart(2,'0')}:${String(due.getMinutes()).padStart(2,'0')}`;
+                }else if(target==='Daily Care'){
+                  context.care_order_id=liveAlert.source_id||'';
+                  context.care_type=String(liveAlert.title||'').replace(/^Daily Care Due:\s*/i,'')||'Daily Care';
+                }else if(target==='Physiotherapy'){
+                  context.plan_id=liveAlert.source_id||'';
+                }
+                saveTaskNavigationContext(context);
+              }
+              setPage(target);
+              window.requestAnimationFrame(()=>window.scrollTo({top:0,left:0,behavior:'smooth'}));
+            }},'Open to Resolve')
           )
         ),
         profile&&page!=='HR Dashboard'&&!alertEngine.soundUnlocked&&h('button',{type:'button',className:'sound-unlock-button',onClick:alertEngine.unlockSound},'🔊 Enable Alert Sound'),
@@ -6113,11 +6136,11 @@ Caring with Compassion. Living with Dignity.`;
       {label:'Available beds',value:Math.max(0,stats.beds-stats.patients),page:'Rooms & Beds',icon:'🛏️'},
       {label:'High-risk patients',value:stats.risks,page:'Patients',icon:'⚠️'},
       {label:'Active employees',value:stats.employees,page:'Employees',icon:'🧑‍⚕️'},
-      {label:'Medicine actions today',value:stats.meds,page:'Shift Tasks',icon:'💊'},
+      {label:'Medicine Actions Today',value:stats.meds,page:'Shift Tasks',icon:'💊'},
       {label:'Care actions today',value:stats.care,page:'Daily Care',icon:'✅'},
       {label:'Open incidents',value:stats.incidents,page:'Incidents',icon:'🚨'},
       {label:'Clinical escalations',value:stats.escalations,page:'Clinical Escalations',icon:'🔔',status:stats.escalations?`${stats.escalations} awaiting Manager/Admin action`:'No open escalations'},
-      {label:'Outstanding amount',value:`₹${stats.outstanding.toLocaleString('en-IN')}`,page:'Payments',icon:'₹'},
+      {label:'Outstanding Amount',value:`₹${stats.outstanding.toLocaleString('en-IN')}`,page:'Payments',icon:'₹'},
       {label:'Admission Enquiries',value:stats.enquiries,page:'Enquiries',icon:'☎',status:stats.enquiries?`${stats.enquiries} awaiting follow-up`:'No new enquiries'},
       {label:'Visit Requests',value:stats.visitRequests,page:'Family Communication',icon:'📅',status:stats.visitRequests?`${stats.visitRequests} pending approval`:'No pending requests'},
       {label:'Discharge',value:stats.discharges,page:'Discharge',icon:'🚪',status:stats.dischargeStatus}
@@ -6131,7 +6154,7 @@ Caring with Compassion. Living with Dignity.`;
           (stats.recentEnquiries||[]).length?h('div',{style:{display:'grid',gap:'9px'}},stats.recentEnquiries.map(r=>h('button',{type:'button',key:r.id,onClick:()=>onNavigate('Enquiries'),style:{textAlign:'left',padding:'11px 12px',border:'1px solid #ecd6e2',borderRadius:'12px',background:'#fffafd',cursor:'pointer'}},h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center'}},h('strong',{style:{color:'#5d1039'}},r.patient_name||'Resident'),h('span',{className:'badge'},r.source||'Website')),h('small',{style:{display:'block',marginTop:'4px'}},`${r.family_contact_name||'—'} · ${r.family_contact_phone||'—'}`),h('small',{style:{display:'block',marginTop:'3px',color:'#8a6577'}},`${r.care_type||'Admission enquiry'} · ${r.status||'New'} · ${formatDateTimeIN(r.created_at)}`)))):h('p',{className:'empty'},'No new admission enquiries.' )
         ),
         h('div',{style:{display:'grid',gap:'12px'}},
-          h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>onNavigate('Shift Tasks')},h('div',{className:'panel-head'},h('h3',null,'Today’s operational focus')),h('p',null,'Open medicines, bathing, restroom assistance, feeding, mobility, physiotherapy and special-nurse tasks.'),h('span',{className:'badge'},'Open Shift Tasks →')),
+          h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>onNavigate('Shift Tasks')},h('div',{className:'panel-head'},h('h3',null,'Today’s Operational Focus')),h('p',null,'Open medicines, bathing, restroom assistance, feeding, mobility, physiotherapy and special-nurse tasks.'),h('span',{className:'badge'},'Open Shift Tasks →')),
           h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>onNavigate('Reports')},h('div',{className:'panel-head'},h('h3',null,'Management reports')),h('p',null,'Open occupancy, clinical risks, incidents, billing, collections and outstanding details.'),h('span',{className:'badge'},'Open Reports →'))
         )
       )
