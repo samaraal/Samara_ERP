@@ -7029,7 +7029,6 @@ Caring with Compassion. Living with Dignity.`;
 
     async function create(e){
       e.preventDefault();setBusy(true);setMsg('');setWelcomeLink('');
-      const preopened=form.mobile?window.open('about:blank','_blank'):null;
       try{
         let employeeForm={...form};
         employeeForm.current_address=composeEmployeeAddress(employeeForm,'current');
@@ -7098,14 +7097,12 @@ Caring with Compassion. Living with Dignity.`;
         ]);
         const createdRow={...employeeForm,id:result.user_id};
         const link=whatsappWelcomeUrl(createdRow,employeeForm.password);setWelcomeLink(link);
-        if(preopened&&link){preopened.location.href=link}else if(preopened){preopened.close()}
         await load();
         const successText=result.repaired?'Employee account repaired successfully.':'New employee added successfully.';
         setMsg(successText);showEmployeeToast('success',successText);
         if(sourceCareerId){await client.from('career_applications').update({status:'Converted to Employee',linked_employee_id:result.user_id,handled_by:profile.id,updated_at:new Date().toISOString()}).eq('id',sourceCareerId);setSourceCareerId('')}
         setForm(empty);setIdFiles([]);setQualificationFiles([]);setExperienceFiles([]);setOtherFiles([]);setCameraFiles([]);setPhotoFiles([]);setPhotoPreview('');
       }catch(error){
-        if(preopened)preopened.close();
         const errorText=error.message||'Unable to create employee';
         setMsg(errorText);showEmployeeToast('error',errorText);
       }
