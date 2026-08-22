@@ -1,0 +1,46 @@
+SAMARA CARE ERP v2.9.47 - MOBILE BACKGROUND PUSH NOTIFICATIONS
+=============================================================
+
+WHAT CHANGED
+1. Mobile/PWA: Tamil voice and Samara custom clinical tone are disabled.
+2. Laptop/Desktop: existing Samara clinical tone + Tamil voice remain unchanged.
+3. Mobile: true Web Push support added. Once enabled on the phone, clinical alerts can appear even when the ERP is closed/phone is locked.
+4. Normal clinical push -> active Nurse/Caregiver devices.
+5. Formal escalation push -> active Manager/Admin devices.
+6. Tapping a push opens Samara ERP directly at Clinical Alerts.
+7. One push is sent for the original alert; a second push is sent only if it becomes a formal escalation.
+
+ONE-TIME SUPABASE SETUP
+A. Run in Supabase SQL Editor:
+   97_mobile_background_push.sql
+
+B. Deploy Edge Function:
+   supabase/functions/clinical-push-dispatch/index.ts
+   Function name: clinical-push-dispatch
+   Deploy with JWT verification disabled because the scheduled call is protected by CRON_SECRET.
+
+C. Add the FOUR secrets from the separately supplied PRIVATE SETUP file:
+   VAPID_PUBLIC_KEY
+   VAPID_PRIVATE_KEY
+   VAPID_SUBJECT
+   CRON_SECRET
+
+D. Schedule clinical-push-dispatch to run EVERY 1 MINUTE in Supabase scheduled/cron functions.
+   Method: POST
+   Header: x-cron-secret = your CRON_SECRET
+
+MOBILE USER SETUP (ONCE PER PHONE)
+1. Open Samara Care ERP and sign in.
+2. Go to Clinical Alerts.
+3. Tap "Enable Mobile Notifications".
+4. Allow notifications when the phone asks.
+5. Android/Chrome: background push works after permission is granted.
+6. iPhone/iPad: use iOS/iPadOS 16.4 or later, install Samara Care to Home Screen, open the installed PWA, then tap Enable Mobile Notifications.
+
+TEST
+- In Clinical Alerts, tap "Test Alert" for an on-device test.
+- For true closed-app testing, complete the server setup above, close Samara ERP, create/allow a real clinical due item, and wait for the scheduled dispatcher.
+
+IMPORTANT
+- Do NOT upload the separate PRIVATE SETUP file to GitHub.
+- service-worker.js, app.js, config.js and index.html must all be replaced from this release.

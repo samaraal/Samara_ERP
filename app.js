@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.46';
+  const APP_VERSION = '2.9.47';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -289,6 +289,36 @@ function initSamaraInaugurationInvitation(){
     schemaVersion: APP_SCHEMA_VERSION
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
+
+  // v2.9.47: Mobile/PWA clinical alerts use OS push notifications only.
+  // Samara's custom tone + Tamil speech remain desktop/laptop features.
+  function isMobileClinicalDevice(){
+    try{
+      const coarse=window.matchMedia?.('(pointer: coarse)')?.matches;
+      const noHover=window.matchMedia?.('(hover: none)')?.matches;
+      const narrow=window.matchMedia?.('(max-width: 900px)')?.matches;
+      const mobileUA=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'');
+      return Boolean(mobileUA||(coarse&&noHover&&narrow));
+    }catch(_){return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'')}
+  }
+  function base64UrlToUint8Array(value){
+    const padding='='.repeat((4-value.length%4)%4);
+    const base64=(value+padding).replace(/-/g,'+').replace(/_/g,'/');
+    const raw=atob(base64);
+    return Uint8Array.from([...raw].map(ch=>ch.charCodeAt(0)));
+  }
+  async function showSystemNotification(title,options={}){
+    if(!('Notification' in window)||Notification.permission!=='granted')return false;
+    try{
+      if('serviceWorker' in navigator){
+        const registration=await navigator.serviceWorker.ready;
+        await registration.showNotification(title,options);
+        return true;
+      }
+      new Notification(title,options);
+      return true;
+    }catch(error){console.warn('System notification unavailable:',error);return false}
+  }
   const h = React.createElement;
   const BRAND_LOGO_SRC='./assets/samara-logo.png?v=20260814-final';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
@@ -2067,8 +2097,9 @@ Caring with Compassion. Living with Dignity.`;
     const audioContext=React.useRef(null);
 
     function playClinicalTone(priority='Routine',force=false){
+      if(isMobileClinicalDevice())return;
       if(!force&&(!settings.sound_enabled||!soundUnlocked))return;
-      try{
+      if(!isMobileClinicalDevice())try{
         const Ctx=window.AudioContext||window.webkitAudioContext;
         const ctx=audioContext.current||(audioContext.current=new Ctx());
         if(ctx.state==='suspended')ctx.resume().catch(()=>{});
@@ -2097,6 +2128,7 @@ Caring with Compassion. Living with Dignity.`;
       }catch(error){console.warn('Clinical alert sound unavailable',error)}
     }
     async function unlockSound(){
+      if(isMobileClinicalDevice())return false;
       try{
         const Ctx=window.AudioContext||window.webkitAudioContext;
         const ctx=audioContext.current||(audioContext.current=new Ctx());
@@ -2525,6 +2557,7 @@ Caring with Compassion. Living with Dignity.`;
       return true;
     }
     function speak(a){
+      if(isMobileClinicalDevice())return;
       if(!settings.voice_enabled||!soundUnlocked)return;
       try{window.speechSynthesis?.cancel()}catch(_){}
       // v2.9.14: local/offline voice path only. Azure/remote TTS is intentionally
@@ -2536,10 +2569,62 @@ Caring with Compassion. Living with Dignity.`;
       },2300);
     }
     async function requestNotifications(){
-      if(!('Notification' in window))return false;
+      if(!('Notification' in window)){
+        alert('Notifications are not supported by this browser.');
+        return false;
+      }
       const permission=await Notification.requestPermission();
-      if(permission==='granted'){setSettings(s=>({...s,browser_notifications_enabled:true}));return true}
-      return false;
+      if(permission!=='granted')return false;
+      setSettings(s=>({...s,browser_notifications_enabled:true}));
+
+      // Desktop/laptop may use ordinary browser notifications. Mobile/PWA is
+      // additionally registered for true background Web Push notifications.
+      if(!isMobileClinicalDevice())return true;
+      try{
+        if(!('serviceWorker' in navigator)||!('PushManager' in window)){
+          alert('Background push is not supported on this mobile browser. On iPhone/iPad, install Samara Care to the Home Screen and enable notifications there.');
+          return false;
+        }
+        const vapidPublicKey=String(window.SAMARA_CONFIG?.vapidPublicKey||'').trim();
+        if(!vapidPublicKey){
+          alert('Samara mobile push is awaiting server configuration. Please contact the Administrator.');
+          return false;
+        }
+        const registration=await navigator.serviceWorker.ready;
+        let subscription=await registration.pushManager.getSubscription();
+        if(!subscription){
+          subscription=await registration.pushManager.subscribe({
+            userVisibleOnly:true,
+            applicationServerKey:base64UrlToUint8Array(vapidPublicKey)
+          });
+        }
+        const json=subscription.toJSON();
+        const {data:{user}}=await client.auth.getUser();
+        if(!user?.id)throw new Error('Please sign in again before enabling mobile notifications.');
+        const {error}=await client.from('push_subscriptions').upsert({
+          user_id:user.id,
+          profile_id:profile?.id||user.id,
+          endpoint:subscription.endpoint,
+          p256dh:json.keys?.p256dh||'',
+          auth_key:json.keys?.auth||'',
+          user_agent:navigator.userAgent||'',
+          device_type:'mobile',
+          is_active:true,
+          last_seen_at:new Date().toISOString(),
+          updated_at:new Date().toISOString()
+        },{onConflict:'endpoint'});
+        if(error)throw error;
+        await showSystemNotification('Samara Mobile Notifications Enabled',{
+          body:'Clinical alerts can now reach this device even when Samara Care is closed.',
+          icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',tag:'samara-push-enabled',
+          data:{url:'./?push_page=Clinical%20Alerts'}
+        });
+        return true;
+      }catch(error){
+        console.warn('Mobile push registration:',error);
+        alert(`Unable to enable mobile background notifications. ${error?.message||error}`);
+        return false;
+      }
     }
     async function testClinicalAlert(){
       // Local, non-clinical test only: no patient/task/escalation row is written.
@@ -2557,12 +2642,12 @@ Caring with Compassion. Living with Dignity.`;
         try{permission=await Notification.requestPermission()}catch(_){}
       }
       if(permission==='granted'){
-        try{new Notification('TEST CLINICAL ALERT · Dolo 500 mg',{body:'Medication Due · Dolo 500 mg\nRadhakrishnan · Room 101 · Due now',tag:`samara-test-${Date.now()}`,requireInteraction:true})}catch(_){}
+        await showSystemNotification('TEST CLINICAL ALERT · Dolo 500 mg',{body:'Medication Due · Dolo 500 mg\nRadhakrishnan · Room 101 · Due now',tag:`samara-test-${Date.now()}`,requireInteraction:true,icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',data:{url:'./?push_page=Clinical%20Alerts'}});
         setSettings(s=>({...s,browser_notifications_enabled:true}));
       }
       if(navigator.vibrate)try{navigator.vibrate([180,90,180,90,180])}catch(_){}
       showClinicalAlertPopup({heading:'TEST CLINICAL ALERT',patient:'Radhakrishnan',room:'101',alertType:'Medication Due',details:'Dolo 500 mg',dueText:'Due now',message:'Please attend and record immediately.',priority:'Critical',test:true});
-      speak({title:'Medication Due',patient_name:'Radhakrishnan',room_label:'101',description:'Dolo 500 mg',overdue_minutes:0});
+      if(!isMobileClinicalDevice())speak({title:'Medication Due',patient_name:'Radhakrishnan',room_label:'101',description:'Dolo 500 mg',overdue_minutes:0});
       return permission;
     }
     async function testVitalsVoice(){
@@ -2787,16 +2872,16 @@ Caring with Compassion. Living with Dignity.`;
         speak(nextToAnnounce);
 
         if(settings.browser_notifications_enabled&&Notification.permission==='granted'){
-          try{
-            new Notification(
-              `${nextToAnnounce.title}${nextToAnnounce.description?` · ${nextToAnnounce.description}`:''}`,
-              {
-                body:`${nextToAnnounce.description||nextToAnnounce.title||'Clinical task due'}\n${nextToAnnounce.patient_name||'Patient'} · ${nextToAnnounce.room_label||''}${Number(nextToAnnounce.overdue_minutes||0)>0?` · ${englishOverdueLabel(nextToAnnounce.overdue_minutes)}`:' · Due now'}`,
-                tag:nextToAnnounce.key,
-                requireInteraction:nextToAnnounce.priority==='Critical'
-              }
-            )
-          }catch(_){}
+          showSystemNotification(
+            `${nextToAnnounce.title}${nextToAnnounce.description?` · ${nextToAnnounce.description}`:''}`,
+            {
+              body:`${nextToAnnounce.description||nextToAnnounce.title||'Clinical task due'}\n${nextToAnnounce.patient_name||'Patient'} · ${nextToAnnounce.room_label||''}${Number(nextToAnnounce.overdue_minutes||0)>0?` · ${englishOverdueLabel(nextToAnnounce.overdue_minutes)}`:' · Due now'}`,
+              tag:nextToAnnounce.key,
+              requireInteraction:nextToAnnounce.priority==='Critical',
+              icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',
+              data:{url:'./?push_page=Clinical%20Alerts'}
+            }
+          );
         }
 
         const popupLast=lastPopup.current[nextToAnnounce.key]||0;
@@ -2838,6 +2923,7 @@ Caring with Compassion. Living with Dignity.`;
   }
 
   function ClinicalAlertsPage({engine,setPage}){
+    const mobileClinicalDevice=isMobileClinicalDevice();
     const [filter,setFilter]=React.useState('All');
     const [escalatedKeys,setEscalatedKeys]=React.useState(new Set());
     const [loadingEscalations,setLoadingEscalations]=React.useState(false);
@@ -2916,7 +3002,7 @@ Caring with Compassion. Living with Dignity.`;
       h(Section,{title:'Clinical Alerts',subtitle:'Nursing action dashboard — escalated items first, then overdue and due items',
         actions:h('div',{className:'employee-actions'},
           h('button',{className:'btn btn-secondary',onClick:refreshAll},loadingEscalations?'Refreshing…':'Refresh'),
-          h('button',{
+          !mobileClinicalDevice&&h('button',{
           className:'btn btn-secondary',
           style:{
             background:engine.soundUnlocked?'#dff3e4':'#fde2e2',
@@ -2926,13 +3012,13 @@ Caring with Compassion. Living with Dignity.`;
           onClick:engine.toggleSound,
           title:engine.soundUnlocked?'Click to disable alert sound and automatic voice':'Click to enable alert sound and automatic voice'
         },engine.soundUnlocked?'✓ Sound Enabled':'Enable Sound'),
-          h('button',{className:'btn btn-secondary',onClick:engine.requestNotifications},'Enable Browser Alerts'),
+          h('button',{className:'btn btn-secondary',onClick:engine.requestNotifications},mobileClinicalDevice?'Enable Mobile Notifications':'Enable Browser Alerts'),
           h('button',{className:'btn btn-primary',onClick:engine.testClinicalAlert},'🔔 Test Alert'),
-          h('button',{className:'btn btn-secondary',onClick:engine.testVitalsVoice},'▶ Test Vitals Voice'),
-          h('button',{className:'btn btn-secondary',onClick:engine.testDailyCareVoice},'▶ Test Daily Care Voice'),
-          h('button',{className:'btn btn-secondary',onClick:engine.testClinicalTaskVoice},'▶ Test Clinical Task Voice'),
-          h('button',{className:'btn btn-secondary',onClick:engine.testSampleEscalationVoice},'▶ Sample Escalation Voice'),
-          h('button',{className:'btn btn-primary',onClick:engine.playCurrentLiveEscalation},'▶ Play Current Live Escalation')
+          !mobileClinicalDevice&&h('button',{className:'btn btn-secondary',onClick:engine.testVitalsVoice},'▶ Test Vitals Voice'),
+          !mobileClinicalDevice&&h('button',{className:'btn btn-secondary',onClick:engine.testDailyCareVoice},'▶ Test Daily Care Voice'),
+          !mobileClinicalDevice&&h('button',{className:'btn btn-secondary',onClick:engine.testClinicalTaskVoice},'▶ Test Clinical Task Voice'),
+          !mobileClinicalDevice&&h('button',{className:'btn btn-secondary',onClick:engine.testSampleEscalationVoice},'▶ Sample Escalation Voice'),
+          !mobileClinicalDevice&&h('button',{className:'btn btn-primary',onClick:engine.playCurrentLiveEscalation},'▶ Play Current Live Escalation')
         )},
         h('div',{className:'grid stats'},
           h('div',{className:'card stat clinical-red'},h('span',null,'Escalated'),h('strong',null,escalatedCount),h('small',null,'Requires immediate nursing action')),
@@ -5100,10 +5186,13 @@ Caring with Compassion. Living with Dignity.`;
 
         if(firstWorkspaceLoad){
           workspaceInitialisedForUserRef.current=session.user.id;
-          const pageToRestore=allowedPages.includes(savedPage)
-            ?savedPage
-            :(ROLE_HOME[data.role]||allowedPages[0]||'Notifications');
+          let pushPage='';
+          try{pushPage=new URLSearchParams(window.location.search).get('push_page')||''}catch(_){}
+          const pageToRestore=(pushPage&&allowedPages.includes(pushPage))
+            ?pushPage
+            :(allowedPages.includes(savedPage)?savedPage:(ROLE_HOME[data.role]||allowedPages[0]||'Notifications'));
           setPage(pageToRestore);
+          if(pushPage){try{history.replaceState(null,'',window.location.pathname+window.location.hash)}catch(_){}}
         }else if(!allowedPages.includes(currentPageRef.current)){
           setPage(ROLE_HOME[data.role]||allowedPages[0]||'Notifications');
         }
