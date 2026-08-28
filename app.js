@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.49';
+  const APP_VERSION = '2.9.50';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -4998,74 +4998,9 @@ Caring with Compassion. Living with Dignity.`;
         setSession(next);
       });
       if('serviceWorker' in navigator){
-        const hadControllerAtStart=Boolean(navigator.serviceWorker.controller);
-        let updateDetected=false;
         let updatePromptShown=false;
         let remoteUpdateVersion='';
         let lastUpdateCheckAt=0;
-
-        const showUpdatePrompt=(force=false)=>{
-          if(updatePromptShown)return;
-          if(!force&&(!hadControllerAtStart||!updateDetected))return;
-          updatePromptShown=true;
-
-          const existing=document.getElementById('samara-update-refresh-prompt');
-          if(existing)existing.remove();
-
-          const overlay=document.createElement('div');
-          overlay.id='samara-update-refresh-prompt';
-          Object.assign(overlay.style,{
-            position:'fixed',inset:'0',zIndex:'999999',
-            display:'flex',alignItems:'center',justifyContent:'center',
-            padding:'22px',background:'rgba(40,0,22,.46)',
-            backdropFilter:'blur(5px)',WebkitBackdropFilter:'blur(5px)'
-          });
-
-          const card=document.createElement('div');
-          Object.assign(card.style,{
-            width:'min(440px, calc(100vw - 36px))',
-            background:'#fff',borderRadius:'22px',padding:'24px 22px 20px',
-            boxShadow:'0 18px 55px rgba(74,0,39,.30)',textAlign:'center',
-            fontFamily:'inherit',color:'#2f1022'
-          });
-
-          const title=document.createElement('div');
-          title.textContent='Samara Care update available.';
-          Object.assign(title.style,{fontSize:'21px',fontWeight:'800',lineHeight:'1.3',marginBottom:'8px'});
-
-          const message=document.createElement('div');
-          message.textContent=remoteUpdateVersion?`Version ${remoteUpdateVersion} is ready. Tap OK to refresh.`:'Tap OK to refresh.';
-          Object.assign(message.style,{fontSize:'17px',lineHeight:'1.45',marginBottom:'20px',color:'#5d4450'});
-
-          const ok=document.createElement('button');
-          ok.type='button';
-          ok.textContent='OK';
-          Object.assign(ok.style,{
-            width:'100%',minHeight:'52px',border:'0',borderRadius:'14px',
-            background:'#c2185b',color:'#fff',fontSize:'18px',fontWeight:'800',
-            cursor:'pointer',WebkitTapHighlightColor:'transparent'
-          });
-          ok.addEventListener('click',async()=>{
-            ok.disabled=true;
-            ok.textContent='Refreshing…';
-            // Never leave the ERP blocked by the update prompt while refreshing.
-            overlay.style.pointerEvents='none';
-            overlay.style.opacity='0';
-            setTimeout(()=>overlay.remove(),180);
-            try{
-              const registration=await navigator.serviceWorker.getRegistration();
-              await registration?.update();
-            }catch(_error){}
-            const url=new URL(window.location.href);
-            url.searchParams.set('samara_refresh',remoteUpdateVersion||Date.now().toString());
-            window.location.replace(url.toString());
-          });
-
-          card.append(title,message,ok);
-          overlay.appendChild(card);
-          document.body.appendChild(overlay);
-          setTimeout(()=>{try{ok.focus({preventScroll:true})}catch(_){ok.focus()}},50);
-        };
 
         const isRemoteVersionNewer=(remote,current)=>{
           const parse=value=>String(value||'0').split('.').map(part=>Number.parseInt(part,10)||0);
@@ -5079,45 +5014,76 @@ Caring with Compassion. Living with Dignity.`;
           return false;
         };
 
+        const showUpdatePrompt=()=>{
+          // Only a strictly newer version may display this prompt.
+          if(updatePromptShown||!remoteUpdateVersion||!isRemoteVersionNewer(remoteUpdateVersion,APP_VERSION))return;
+          updatePromptShown=true;
+
+          const existing=document.getElementById('samara-update-refresh-prompt');
+          if(existing)existing.remove();
+
+          const overlay=document.createElement('div');
+          overlay.id='samara-update-refresh-prompt';
+          Object.assign(overlay.style,{
+            position:'fixed',inset:'0',zIndex:'999999',display:'flex',alignItems:'center',justifyContent:'center',
+            padding:'22px',background:'rgba(40,0,22,.46)',backdropFilter:'blur(5px)',WebkitBackdropFilter:'blur(5px)'
+          });
+          const card=document.createElement('div');
+          Object.assign(card.style,{
+            width:'min(440px, calc(100vw - 36px))',background:'#fff',borderRadius:'22px',padding:'24px 22px 20px',
+            boxShadow:'0 18px 55px rgba(74,0,39,.30)',textAlign:'center',fontFamily:'inherit',color:'#2f1022'
+          });
+          const title=document.createElement('div');
+          title.textContent='Samara Care update available.';
+          Object.assign(title.style,{fontSize:'21px',fontWeight:'800',lineHeight:'1.3',marginBottom:'8px'});
+          const message=document.createElement('div');
+          message.textContent=`Version ${remoteUpdateVersion} is ready. Tap OK to refresh.`;
+          Object.assign(message.style,{fontSize:'17px',lineHeight:'1.45',marginBottom:'20px',color:'#5d4450'});
+          const ok=document.createElement('button');
+          ok.type='button'; ok.textContent='OK';
+          Object.assign(ok.style,{width:'100%',minHeight:'52px',border:'0',borderRadius:'14px',background:'#c2185b',color:'#fff',fontSize:'18px',fontWeight:'800',cursor:'pointer',WebkitTapHighlightColor:'transparent'});
+          ok.addEventListener('click',async()=>{
+            ok.disabled=true; ok.textContent='Refreshing…';
+            overlay.style.pointerEvents='none'; overlay.style.opacity='0'; setTimeout(()=>overlay.remove(),180);
+            try{ const registration=await navigator.serviceWorker.getRegistration(); await registration?.update(); }catch(_error){}
+            const url=new URL(window.location.href);
+            url.searchParams.set('samara_refresh',remoteUpdateVersion);
+            window.location.replace(url.toString());
+          });
+          card.append(title,message,ok); overlay.appendChild(card); document.body.appendChild(overlay);
+          setTimeout(()=>{try{ok.focus({preventScroll:true})}catch(_){ok.focus()}},50);
+        };
+
         const checkRemoteVersion=async(force=false)=>{
           const now=Date.now();
-          if(!force&&now-lastUpdateCheckAt<45000)return;
+          if(!force&&now-lastUpdateCheckAt<45000)return false;
           lastUpdateCheckAt=now;
           try{
             const response=await fetch(`./service-worker.js?samara_check=${now}`,{cache:'no-store',headers:{'Cache-Control':'no-cache'}});
-            if(!response.ok)return;
+            if(!response.ok)return false;
             const text=await response.text();
             const match=text.match(/samara-erp-(\d+\.\d+\.\d+)/i);
             const remote=match?.[1]||'';
             if(remote&&isRemoteVersionNewer(remote,APP_VERSION)){
               remoteUpdateVersion=remote;
-              updateDetected=true;
-              showUpdatePrompt(true);
+              showUpdatePrompt();
               return true;
             }
           }catch(_error){}
           return false;
         };
 
-        // A service-worker lifecycle event does NOT by itself mean a newer ERP version exists.
-        // Only show the update prompt after comparing the remote semantic version with APP_VERSION.
-        navigator.serviceWorker.addEventListener('controllerchange',()=>{checkRemoteVersion(true)});
+        // Service-worker lifecycle events never show the update dialog by themselves.
+        // This prevents same-version install/activate/controllerchange loops.
         navigator.serviceWorker.addEventListener('message',event=>{
-          if(event.data?.type==='SAMARA_UPDATE_AVAILABLE'&&event.data.version&&isRemoteVersionNewer(event.data.version,APP_VERSION)){
-            remoteUpdateVersion=event.data.version;
-            updateDetected=true;
-            showUpdatePrompt(true);
+          const remote=event.data?.type==='SAMARA_UPDATE_AVAILABLE'?event.data?.version:'';
+          if(remote&&isRemoteVersionNewer(remote,APP_VERSION)){
+            remoteUpdateVersion=remote;
+            showUpdatePrompt();
           }
         });
 
         navigator.serviceWorker.register('./service-worker.js',{updateViaCache:'none'}).then(registration=>{
-          registration.addEventListener('updatefound',()=>{
-            const worker=registration.installing;
-            if(!worker)return;
-            worker.addEventListener('statechange',()=>{
-              if(worker.state==='activated')checkRemoteVersion(true);
-            });
-          });
           registration.update().catch(()=>{});
           setTimeout(()=>checkRemoteVersion(true),900);
         }).catch(()=>{setTimeout(()=>checkRemoteVersion(true),900)});
