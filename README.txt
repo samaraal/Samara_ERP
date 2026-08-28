@@ -1,15 +1,13 @@
-Samara Care ERP v2.9.51 — Login Hang Fix
+Samara Care ERP v2.9.52 - Startup Hang Fix
 
 Replace only:
-1. index.html
-2. app.js
-3. service-worker.js
+- index.html
+- app.js
+- service-worker.js
 
-What changed:
-- Prevents optional login security Edge Function from leaving the button forever on “Signing in…”.
-- Adds a 6-second timeout to the optional security pre-check / login audit request.
-- Adds bounded timeouts to Login ID resolution and Supabase authentication.
-- Always restores the Sign in button and shows an error if a network/auth request fails or times out.
-- Keeps the v2.9.50 update-prompt permanent fix.
+Fixes:
+- Prevents indefinite Loading Samara Care screen if Supabase session restore stalls.
+- Adds bounded employee-profile startup lookup.
+- Falls back to sign-in with a clear message instead of hanging.
 
-No SQL or Edge Function deployment is required.
+No SQL or Edge Function changes required.

@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.51';
+  const APP_VERSION = '2.9.52';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -4973,15 +4973,32 @@ Caring with Compassion. Living with Dignity.`;
       updateSplashStatus('Checking secure session…');
       let active=true;
       const minimumVisible=new Promise(resolve=>setTimeout(resolve,420));
-      const sessionReady=client.auth.getSession().then(({data})=>{
-        if(!active)return;
-        updateSplashStatus(data.session?'Loading your workspace…':'Preparing sign-in…');
-        setSession(data.session||null);
-      }).catch(error=>{
-        console.error('Session refresh failed:',error);
-      }).finally(()=>{
-        if(active)setLoading(false);
-      });
+      // v2.9.52: startup must never hang forever while Supabase restores a cached session.
+      // Some browsers/PWA states can leave auth.getSession() pending indefinitely.
+      const startupTimeoutMs=8000;
+      const sessionReady=(async()=>{
+        let timer;
+        try{
+          const timeout=new Promise((_,reject)=>{
+            timer=setTimeout(()=>reject(new Error('Session restore timed out')),startupTimeoutMs);
+          });
+          const result=await Promise.race([client.auth.getSession(),timeout]);
+          if(!active)return;
+          const restoredSession=result?.data?.session||null;
+          updateSplashStatus(restoredSession?'Loading your workspace…':'Preparing sign-in…');
+          setSession(restoredSession);
+        }catch(error){
+          console.warn('Session restore fallback:',error?.message||error);
+          if(!active)return;
+          // Show the sign-in screen instead of trapping the user on Loading Samara Care.
+          updateSplashStatus('Preparing sign-in…');
+          setSession(null);
+          setAuthMessage('Secure session check took too long. Please sign in again.');
+        }finally{
+          clearTimeout(timer);
+          if(active)setLoading(false);
+        }
+      })();
 
       const revealFailsafe=setTimeout(()=>{
         if(active)finishSmoothRefresh();
@@ -5115,16 +5132,32 @@ Caring with Compassion. Living with Dignity.`;
       }
       (async()=>{
         let data=null;
-        const direct=await client.from('profiles').select('*').or(`id.eq.${session.user.id},auth_user_id.eq.${session.user.id}`).maybeSingle();
-        if(direct.error) console.error(direct.error);
-        data=direct.data||null;
+        const profileTimeout=(promise,ms,label)=>{
+          let timer;
+          const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} timed out`)),ms)});
+          return Promise.race([promise,timeout]).finally(()=>clearTimeout(timer));
+        };
+        try{
+          const direct=await profileTimeout(
+            client.from('profiles').select('*').or(`id.eq.${session.user.id},auth_user_id.eq.${session.user.id}`).maybeSingle(),
+            10000,
+            'Employee profile lookup'
+          );
+          if(direct.error) console.error(direct.error);
+          data=direct.data||null;
 
-        // Login-only compatibility repair: securely locate and link an existing
-        // employee profile when the Authentication account was created separately.
-        if(!data){
-          const repaired=await client.rpc('get_my_employee_profile');
-          if(repaired.error) console.error(repaired.error);
-          data=repaired.data||null;
+          // Login-only compatibility repair: securely locate and link an existing
+          // employee profile when the Authentication account was created separately.
+          if(!data){
+            const repaired=await profileTimeout(client.rpc('get_my_employee_profile'),10000,'Employee profile repair');
+            if(repaired.error) console.error(repaired.error);
+            data=repaired.data||null;
+          }
+        }catch(error){
+          console.error('Employee profile startup failed:',error);
+          setAuthMessage('Unable to load your employee profile. Please sign in again.');
+          await client.auth.signOut().catch(()=>{});
+          return;
         }
 
         if(!data){
