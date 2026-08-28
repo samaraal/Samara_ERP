@@ -1,19 +1,14 @@
-Samara ERP v2.9.49 - WhatsApp General Follow-up UI
+Samara Care ERP v2.9.49 - Repeating Update Prompt Fix v2
 
-Replace these ERP files:
-- app.js
-- index.html
-- config.js
-- service-worker.js
+Replace ONLY: app.js
 
-No SQL required.
-No Edge Function change from v2.9.48.
+Cause fixed:
+The ERP was treating service-worker lifecycle events (controllerchange/updatefound/activated)
+as proof that a newer version existed. Those events can occur even when both the app and
+service worker are already version 2.9.49, causing the same update dialog to reappear.
 
-WhatsApp Inbox expired conversations now use:
-Template: samara_general_followup
-Language: en
-{{1}} = customer/contact name automatically
-{{2}} = editable 'Regarding' field, default: your assisted living enquiry
-A preview is shown before sending.
+New behaviour:
+The update dialog is shown ONLY when the remote service-worker semantic version is actually
+newer than APP_VERSION.
 
-IMPORTANT: Sending will work only after Meta marks samara_general_followup as Approved.
+No SQL / Edge Function / service-worker replacement required.

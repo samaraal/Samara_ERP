@@ -5099,7 +5099,9 @@ Caring with Compassion. Living with Dignity.`;
           return false;
         };
 
-        navigator.serviceWorker.addEventListener('controllerchange',()=>showUpdatePrompt());
+        // A service-worker lifecycle event does NOT by itself mean a newer ERP version exists.
+        // Only show the update prompt after comparing the remote semantic version with APP_VERSION.
+        navigator.serviceWorker.addEventListener('controllerchange',()=>{checkRemoteVersion(true)});
         navigator.serviceWorker.addEventListener('message',event=>{
           if(event.data?.type==='SAMARA_UPDATE_AVAILABLE'&&event.data.version&&isRemoteVersionNewer(event.data.version,APP_VERSION)){
             remoteUpdateVersion=event.data.version;
@@ -5109,15 +5111,13 @@ Caring with Compassion. Living with Dignity.`;
         });
 
         navigator.serviceWorker.register('./service-worker.js',{updateViaCache:'none'}).then(registration=>{
-          const watchWorker=worker=>{
+          registration.addEventListener('updatefound',()=>{
+            const worker=registration.installing;
             if(!worker)return;
-            updateDetected=true;
             worker.addEventListener('statechange',()=>{
-              if(worker.state==='activated')showUpdatePrompt();
+              if(worker.state==='activated')checkRemoteVersion(true);
             });
-          };
-          registration.addEventListener('updatefound',()=>watchWorker(registration.installing));
-          if(registration.waiting)watchWorker(registration.waiting);
+          });
           registration.update().catch(()=>{});
           setTimeout(()=>checkRemoteVersion(true),900);
         }).catch(()=>{setTimeout(()=>checkRemoteVersion(true),900)});
