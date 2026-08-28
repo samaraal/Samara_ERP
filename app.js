@@ -6253,7 +6253,7 @@ Caring with Compassion. Living with Dignity.`;
 
   function WhatsAppInbox({profile}){
     const [rows,setRows]=React.useState([]),[selectedPhone,setSelectedPhone]=React.useState(''),[query,setQuery]=React.useState(''),[showUnread,setShowUnread]=React.useState(false),[reply,setReply]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState('');
-    const [templateName,setTemplateName]=React.useState(()=>localStorage.getItem('samara-wa-reopen-template')||''),[templateLanguage,setTemplateLanguage]=React.useState(()=>localStorage.getItem('samara-wa-template-language')||'en'),[templateParams,setTemplateParams]=React.useState(''),[mediaBusyId,setMediaBusyId]=React.useState('');
+    const [templateName,setTemplateName]=React.useState('samara_general_followup'),[templateLanguage,setTemplateLanguage]=React.useState('en'),[templateRegarding,setTemplateRegarding]=React.useState('your assisted living enquiry'),[mediaBusyId,setMediaBusyId]=React.useState('');
     const canUse=['Admin','Manager','HR'].includes(String(profile?.role||''));
     async function load(){
       if(!canUse)return;
@@ -6342,7 +6342,9 @@ Caring with Compassion. Living with Dignity.`;
     async function sendReopenTemplate(){
       if(!active||busy)return;
       const name=templateName.trim();if(!name){setMessage('Enter the exact approved Meta template name.');return}
-      const params=templateParams.split('\n').map(x=>x.trim()).filter(Boolean);
+      const customerName=String(active.name||'').trim()||'Customer';
+      const regarding=String(templateRegarding||'').trim()||'your assisted living enquiry';
+      const params=[customerName,regarding];
       setBusy(true);setMessage('Sending approved WhatsApp template…');
       try{
         const result=await sendWhatsAppTemplate({to:active.phone,templateName:name,languageCode:templateLanguage.trim()||'en',bodyParams:params,headerImage:''});
@@ -6354,7 +6356,7 @@ Caring with Compassion. Living with Dignity.`;
           message_content:summary,message_payload:result?.result||null,contact_name:active.name,source_type:active.source,sent_at:now,created_at:now,updated_at:now
         });
         if(error)throw error;
-        localStorage.setItem('samara-wa-reopen-template',name);localStorage.setItem('samara-wa-template-language',templateLanguage.trim()||'en');
+        
         setMessage('✓ Approved template accepted by Meta. Free-text reply will become available after the customer replies.');await load();
       }catch(error){setMessage(`Template send failed: ${error.message||error}`)}finally{setBusy(false)}
     }
@@ -6399,16 +6401,16 @@ Caring with Compassion. Living with Dignity.`;
                   h('button',{type:'button',className:'btn btn-primary',disabled:busy||!reply.trim(),onClick:sendReply},busy?'Sending…':'Send Reply')
                 )
               ):h('div',{style:{paddingTop:'12px',borderTop:'1px solid #efd7e3'}},
-                h('div',{style:{fontWeight:'700',color:'#5d1039',marginBottom:'8px'}},'Re-open conversation with an approved template'),
-                h('small',{style:{display:'block',color:'#806b77',marginBottom:'10px'}},'Use any template already approved in Meta. Enter body variables one per line, in the same order as {{1}}, {{2}}, {{3}}…'),
-                h('div',{style:{display:'grid',gridTemplateColumns:'minmax(0,2fr) minmax(90px,.6fr)',gap:'8px'}},
-                  h('input',{value:templateName,onChange:e=>setTemplateName(e.target.value),placeholder:'Approved template name, e.g. samara_follow_up'}),
-                  h('input',{value:templateLanguage,onChange:e=>setTemplateLanguage(e.target.value),placeholder:'en'})
+                h('div',{style:{fontWeight:'700',color:'#5d1039',marginBottom:'8px'}},'Re-open WhatsApp Conversation'),
+                h('small',{style:{display:'block',color:'#806b77',marginBottom:'10px'}},'General Follow-up template · Customer name is filled automatically. Edit only the enquiry/reason if required.'),
+                h('div',{style:{display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1.4fr)',gap:'8px'}},
+                  h('div',null,h('small',{style:{display:'block',marginBottom:'4px',color:'#806b77'}},'Customer name'),h('input',{value:active.name||'Customer',readOnly:true})),
+                  h('div',null,h('small',{style:{display:'block',marginBottom:'4px',color:'#806b77'}},'Regarding'),h('input',{value:templateRegarding,onChange:e=>setTemplateRegarding(e.target.value),placeholder:'your assisted living enquiry'}))
                 ),
-                h('textarea',{value:templateParams,onChange:e=>setTemplateParams(e.target.value),placeholder:'Template body values — one per line\nExample:\nMr. Kumar\nYour enquiry about assisted living',rows:3,style:{marginTop:'8px'}}),
+                h('div',{style:{marginTop:'10px',padding:'10px 12px',background:'#fbf7f3',border:'1px solid #efd7e3',borderRadius:'10px',whiteSpace:'pre-wrap',lineHeight:'1.45'}},`Dear ${active.name||'Customer'},\nGreetings from Samara Assisted Living.\nWe received your message regarding ${templateRegarding||'your assisted living enquiry'}. We apologise for the delay in responding.\nPlease reply to this message and our team will be happy to assist you.\n\nThank you,\nSamara Assisted Living`),
                 h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'center',marginTop:'8px'}},
-                  h('small',{style:{color:'#806b77'}},'After the customer replies, the normal 24-hour free-text window opens automatically.'),
-                  h('button',{type:'button',className:'btn btn-primary',disabled:busy||!templateName.trim(),onClick:sendReopenTemplate},busy?'Sending…':'Send Approved Template')
+                  h('small',{style:{color:'#806b77'}},'After the customer replies, normal free-text WhatsApp replies become available for 24 hours.'),
+                  h('button',{type:'button',className:'btn btn-primary',disabled:busy||!templateRegarding.trim(),onClick:sendReopenTemplate},busy?'Sending…':'Send WhatsApp')
                 )
               )
             ):h('p',{className:'empty'},'Select a WhatsApp conversation.')

@@ -1,15 +1,19 @@
-Samara ERP v2.8.46 - WhatsApp API Failure Fallback
+Samara ERP v2.9.49 - WhatsApp General Follow-up UI
 
-Replace only:
-1. app.js
-2. index.html
-3. service-worker.js
+Replace these ERP files:
+- app.js
+- index.html
+- config.js
+- service-worker.js
 
-No SQL or Edge Function change is required for this patch.
+No SQL required.
+No Edge Function change from v2.9.48.
 
-Return & Send WhatsApp API behaviour:
-- Tries approved samara_application_returned template first.
-- If Meta API fails, keeps the ERP page open and shows Manual WhatsApp Fallback.
-- Manual fallback opens the old WhatsApp method with the same rectification message pre-filled.
-- Database/status update failure no longer hides the fallback or prevents the API attempt.
-- API accepted messages continue to be recorded in applicant WhatsApp history.
+WhatsApp Inbox expired conversations now use:
+Template: samara_general_followup
+Language: en
+{{1}} = customer/contact name automatically
+{{2}} = editable 'Regarding' field, default: your assisted living enquiry
+A preview is shown before sending.
+
+IMPORTANT: Sending will work only after Meta marks samara_general_followup as Approved.
