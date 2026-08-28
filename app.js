@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.50';
+  const APP_VERSION = '2.9.51';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5343,10 +5343,28 @@ Caring with Compassion. Living with Dignity.`;
     const [recoveryMessage,setRecoveryMessage]=React.useState('');
     React.useEffect(()=>{if(externalMessage)setMessage(externalMessage)},[externalMessage]);
     async function securityRequest(payload){
-      const response=await fetch(`${cfg.supabaseUrl}/functions/v1/admin-users`,{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey},body:JSON.stringify(payload)});
-      const result=await response.json().catch(()=>({}));
-      if(!response.ok||result.error)throw new Error(result.error||'Unable to complete the security request');
-      return result;
+      // The login_precheck / audit Edge Function is helpful, but it must never
+      // leave the whole ERP stuck on "Signing in…" if the function is slow.
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),6000);
+      try{
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/admin-users`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey},
+          body:JSON.stringify(payload),
+          signal:controller.signal
+        });
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok||result.error)throw new Error(result.error||'Unable to complete the security request');
+        return result;
+      }finally{
+        clearTimeout(timer);
+      }
+    }
+    async function withLoginTimeout(promise,ms,label){
+      let timer;
+      const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} timed out. Please try again.`)),ms)});
+      try{return await Promise.race([promise,timeout])}finally{clearTimeout(timer)}
     }
     async function submit(e){
       e.preventDefault();setBusy(true);setMessage('');if(onClearMessage)onClearMessage();
@@ -5355,24 +5373,31 @@ Caring with Compassion. Living with Dignity.`;
         const check=await securityRequest({action:'login_precheck',login_id:normalized});
         if(check.locked){setMessage('This account is temporarily locked after repeated unsuccessful attempts. Please try again later or contact the Administrator.');setBusy(false);return}
       }catch(_error){/* Sign-in remains available if the optional security check is temporarily unavailable. */}
+      try{
       let email='';
       if(login.includes('@')){
         email=login.trim().toLowerCase();
       }else{
-        const {data:resolved,error:resolveError}=await client.rpc('resolve_employee_login',{p_login_id:normalized});
+        const {data:resolved,error:resolveError}=await withLoginTimeout(client.rpc('resolve_employee_login',{p_login_id:normalized}),12000,'Login verification');
         if(resolveError){setMessage('Unable to verify the Login ID. Please contact the Administrator.');setBusy(false);return}
         email=String(resolved||'').trim().toLowerCase();
         if(!email){setMessage('Incorrect Login ID or password.');setBusy(false);return}
       }
-      const {error}=await client.auth.signInWithPassword({email,password});
+      const {error}=await withLoginTimeout(client.auth.signInWithPassword({email,password}),15000,'Sign in');
       if(error){
         try{await securityRequest({action:'login_failure',login_id:normalized})}catch(_error){}
         setMessage(error.message==='Invalid login credentials'?'Incorrect Login ID or password.':error.message);
       }else{
-        try{await securityRequest({action:'login_success',login_id:normalized})}catch(_error){}
-        await writeAuditEvent('User Login','Authentication',normalized,{login_id:normalized},'Success');
+        // Successful authentication must take the user into the ERP immediately.
+        // Security/audit logging is best-effort and must not block navigation.
+        securityRequest({action:'login_success',login_id:normalized}).catch(()=>{});
+        Promise.resolve(writeAuditEvent('User Login','Authentication',normalized,{login_id:normalized},'Success')).catch(()=>{});
       }
-      setBusy(false);
+      }catch(error){
+        setMessage(error?.message||'Unable to sign in. Please check the connection and try again.');
+      }finally{
+        setBusy(false);
+      }
     }
     async function requestRecovery(e){
       e.preventDefault();setRecoveryBusy(true);setRecoveryMessage('');

@@ -1,14 +1,15 @@
-Samara Care ERP v2.9.50 — Update Prompt Permanent Fix
+Samara Care ERP v2.9.51 — Login Hang Fix
 
-Replace ONLY these 3 files in the ERP root:
+Replace only:
 1. index.html
 2. app.js
 3. service-worker.js
 
-No SQL. No Edge Function changes.
-
 What changed:
-- Version bumped to 2.9.50 to force a clean cache break from the looping v2.9.49 build.
-- Same-version service-worker install/activate/controllerchange events can no longer open the update popup.
-- The popup is shown only when service-worker.js on the server contains a STRICTLY NEWER semantic version than the running app.
-- Service worker no longer broadcasts an update message merely because it activated.
+- Prevents optional login security Edge Function from leaving the button forever on “Signing in…”.
+- Adds a 6-second timeout to the optional security pre-check / login audit request.
+- Adds bounded timeouts to Login ID resolution and Supabase authentication.
+- Always restores the Sign in button and shows an error if a network/auth request fails or times out.
+- Keeps the v2.9.50 update-prompt permanent fix.
+
+No SQL or Edge Function deployment is required.
