@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.52';
+  const APP_VERSION = '2.9.48';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -4973,32 +4973,15 @@ Caring with Compassion. Living with Dignity.`;
       updateSplashStatus('Checking secure session…');
       let active=true;
       const minimumVisible=new Promise(resolve=>setTimeout(resolve,420));
-      // v2.9.52: startup must never hang forever while Supabase restores a cached session.
-      // Some browsers/PWA states can leave auth.getSession() pending indefinitely.
-      const startupTimeoutMs=8000;
-      const sessionReady=(async()=>{
-        let timer;
-        try{
-          const timeout=new Promise((_,reject)=>{
-            timer=setTimeout(()=>reject(new Error('Session restore timed out')),startupTimeoutMs);
-          });
-          const result=await Promise.race([client.auth.getSession(),timeout]);
-          if(!active)return;
-          const restoredSession=result?.data?.session||null;
-          updateSplashStatus(restoredSession?'Loading your workspace…':'Preparing sign-in…');
-          setSession(restoredSession);
-        }catch(error){
-          console.warn('Session restore fallback:',error?.message||error);
-          if(!active)return;
-          // Show the sign-in screen instead of trapping the user on Loading Samara Care.
-          updateSplashStatus('Preparing sign-in…');
-          setSession(null);
-          setAuthMessage('Secure session check took too long. Please sign in again.');
-        }finally{
-          clearTimeout(timer);
-          if(active)setLoading(false);
-        }
-      })();
+      const sessionReady=client.auth.getSession().then(({data})=>{
+        if(!active)return;
+        updateSplashStatus(data.session?'Loading your workspace…':'Preparing sign-in…');
+        setSession(data.session||null);
+      }).catch(error=>{
+        console.error('Session refresh failed:',error);
+      }).finally(()=>{
+        if(active)setLoading(false);
+      });
 
       const revealFailsafe=setTimeout(()=>{
         if(active)finishSmoothRefresh();
@@ -5015,9 +4998,74 @@ Caring with Compassion. Living with Dignity.`;
         setSession(next);
       });
       if('serviceWorker' in navigator){
+        const hadControllerAtStart=Boolean(navigator.serviceWorker.controller);
+        let updateDetected=false;
         let updatePromptShown=false;
         let remoteUpdateVersion='';
         let lastUpdateCheckAt=0;
+
+        const showUpdatePrompt=(force=false)=>{
+          if(updatePromptShown)return;
+          if(!force&&(!hadControllerAtStart||!updateDetected))return;
+          updatePromptShown=true;
+
+          const existing=document.getElementById('samara-update-refresh-prompt');
+          if(existing)existing.remove();
+
+          const overlay=document.createElement('div');
+          overlay.id='samara-update-refresh-prompt';
+          Object.assign(overlay.style,{
+            position:'fixed',inset:'0',zIndex:'999999',
+            display:'flex',alignItems:'center',justifyContent:'center',
+            padding:'22px',background:'rgba(40,0,22,.46)',
+            backdropFilter:'blur(5px)',WebkitBackdropFilter:'blur(5px)'
+          });
+
+          const card=document.createElement('div');
+          Object.assign(card.style,{
+            width:'min(440px, calc(100vw - 36px))',
+            background:'#fff',borderRadius:'22px',padding:'24px 22px 20px',
+            boxShadow:'0 18px 55px rgba(74,0,39,.30)',textAlign:'center',
+            fontFamily:'inherit',color:'#2f1022'
+          });
+
+          const title=document.createElement('div');
+          title.textContent='Samara Care update available.';
+          Object.assign(title.style,{fontSize:'21px',fontWeight:'800',lineHeight:'1.3',marginBottom:'8px'});
+
+          const message=document.createElement('div');
+          message.textContent=remoteUpdateVersion?`Version ${remoteUpdateVersion} is ready. Tap OK to refresh.`:'Tap OK to refresh.';
+          Object.assign(message.style,{fontSize:'17px',lineHeight:'1.45',marginBottom:'20px',color:'#5d4450'});
+
+          const ok=document.createElement('button');
+          ok.type='button';
+          ok.textContent='OK';
+          Object.assign(ok.style,{
+            width:'100%',minHeight:'52px',border:'0',borderRadius:'14px',
+            background:'#c2185b',color:'#fff',fontSize:'18px',fontWeight:'800',
+            cursor:'pointer',WebkitTapHighlightColor:'transparent'
+          });
+          ok.addEventListener('click',async()=>{
+            ok.disabled=true;
+            ok.textContent='Refreshing…';
+            // Never leave the ERP blocked by the update prompt while refreshing.
+            overlay.style.pointerEvents='none';
+            overlay.style.opacity='0';
+            setTimeout(()=>overlay.remove(),180);
+            try{
+              const registration=await navigator.serviceWorker.getRegistration();
+              await registration?.update();
+            }catch(_error){}
+            const url=new URL(window.location.href);
+            url.searchParams.set('samara_refresh',remoteUpdateVersion||Date.now().toString());
+            window.location.replace(url.toString());
+          });
+
+          card.append(title,message,ok);
+          overlay.appendChild(card);
+          document.body.appendChild(overlay);
+          setTimeout(()=>{try{ok.focus({preventScroll:true})}catch(_){ok.focus()}},50);
+        };
 
         const isRemoteVersionNewer=(remote,current)=>{
           const parse=value=>String(value||'0').split('.').map(part=>Number.parseInt(part,10)||0);
@@ -5031,76 +5079,45 @@ Caring with Compassion. Living with Dignity.`;
           return false;
         };
 
-        const showUpdatePrompt=()=>{
-          // Only a strictly newer version may display this prompt.
-          if(updatePromptShown||!remoteUpdateVersion||!isRemoteVersionNewer(remoteUpdateVersion,APP_VERSION))return;
-          updatePromptShown=true;
-
-          const existing=document.getElementById('samara-update-refresh-prompt');
-          if(existing)existing.remove();
-
-          const overlay=document.createElement('div');
-          overlay.id='samara-update-refresh-prompt';
-          Object.assign(overlay.style,{
-            position:'fixed',inset:'0',zIndex:'999999',display:'flex',alignItems:'center',justifyContent:'center',
-            padding:'22px',background:'rgba(40,0,22,.46)',backdropFilter:'blur(5px)',WebkitBackdropFilter:'blur(5px)'
-          });
-          const card=document.createElement('div');
-          Object.assign(card.style,{
-            width:'min(440px, calc(100vw - 36px))',background:'#fff',borderRadius:'22px',padding:'24px 22px 20px',
-            boxShadow:'0 18px 55px rgba(74,0,39,.30)',textAlign:'center',fontFamily:'inherit',color:'#2f1022'
-          });
-          const title=document.createElement('div');
-          title.textContent='Samara Care update available.';
-          Object.assign(title.style,{fontSize:'21px',fontWeight:'800',lineHeight:'1.3',marginBottom:'8px'});
-          const message=document.createElement('div');
-          message.textContent=`Version ${remoteUpdateVersion} is ready. Tap OK to refresh.`;
-          Object.assign(message.style,{fontSize:'17px',lineHeight:'1.45',marginBottom:'20px',color:'#5d4450'});
-          const ok=document.createElement('button');
-          ok.type='button'; ok.textContent='OK';
-          Object.assign(ok.style,{width:'100%',minHeight:'52px',border:'0',borderRadius:'14px',background:'#c2185b',color:'#fff',fontSize:'18px',fontWeight:'800',cursor:'pointer',WebkitTapHighlightColor:'transparent'});
-          ok.addEventListener('click',async()=>{
-            ok.disabled=true; ok.textContent='Refreshing…';
-            overlay.style.pointerEvents='none'; overlay.style.opacity='0'; setTimeout(()=>overlay.remove(),180);
-            try{ const registration=await navigator.serviceWorker.getRegistration(); await registration?.update(); }catch(_error){}
-            const url=new URL(window.location.href);
-            url.searchParams.set('samara_refresh',remoteUpdateVersion);
-            window.location.replace(url.toString());
-          });
-          card.append(title,message,ok); overlay.appendChild(card); document.body.appendChild(overlay);
-          setTimeout(()=>{try{ok.focus({preventScroll:true})}catch(_){ok.focus()}},50);
-        };
-
         const checkRemoteVersion=async(force=false)=>{
           const now=Date.now();
-          if(!force&&now-lastUpdateCheckAt<45000)return false;
+          if(!force&&now-lastUpdateCheckAt<45000)return;
           lastUpdateCheckAt=now;
           try{
             const response=await fetch(`./service-worker.js?samara_check=${now}`,{cache:'no-store',headers:{'Cache-Control':'no-cache'}});
-            if(!response.ok)return false;
+            if(!response.ok)return;
             const text=await response.text();
             const match=text.match(/samara-erp-(\d+\.\d+\.\d+)/i);
             const remote=match?.[1]||'';
             if(remote&&isRemoteVersionNewer(remote,APP_VERSION)){
               remoteUpdateVersion=remote;
-              showUpdatePrompt();
+              updateDetected=true;
+              showUpdatePrompt(true);
               return true;
             }
           }catch(_error){}
           return false;
         };
 
-        // Service-worker lifecycle events never show the update dialog by themselves.
-        // This prevents same-version install/activate/controllerchange loops.
+        navigator.serviceWorker.addEventListener('controllerchange',()=>showUpdatePrompt());
         navigator.serviceWorker.addEventListener('message',event=>{
-          const remote=event.data?.type==='SAMARA_UPDATE_AVAILABLE'?event.data?.version:'';
-          if(remote&&isRemoteVersionNewer(remote,APP_VERSION)){
-            remoteUpdateVersion=remote;
-            showUpdatePrompt();
+          if(event.data?.type==='SAMARA_UPDATE_AVAILABLE'&&event.data.version&&isRemoteVersionNewer(event.data.version,APP_VERSION)){
+            remoteUpdateVersion=event.data.version;
+            updateDetected=true;
+            showUpdatePrompt(true);
           }
         });
 
         navigator.serviceWorker.register('./service-worker.js',{updateViaCache:'none'}).then(registration=>{
+          const watchWorker=worker=>{
+            if(!worker)return;
+            updateDetected=true;
+            worker.addEventListener('statechange',()=>{
+              if(worker.state==='activated')showUpdatePrompt();
+            });
+          };
+          registration.addEventListener('updatefound',()=>watchWorker(registration.installing));
+          if(registration.waiting)watchWorker(registration.waiting);
           registration.update().catch(()=>{});
           setTimeout(()=>checkRemoteVersion(true),900);
         }).catch(()=>{setTimeout(()=>checkRemoteVersion(true),900)});
@@ -5132,32 +5149,16 @@ Caring with Compassion. Living with Dignity.`;
       }
       (async()=>{
         let data=null;
-        const profileTimeout=(promise,ms,label)=>{
-          let timer;
-          const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} timed out`)),ms)});
-          return Promise.race([promise,timeout]).finally(()=>clearTimeout(timer));
-        };
-        try{
-          const direct=await profileTimeout(
-            client.from('profiles').select('*').or(`id.eq.${session.user.id},auth_user_id.eq.${session.user.id}`).maybeSingle(),
-            10000,
-            'Employee profile lookup'
-          );
-          if(direct.error) console.error(direct.error);
-          data=direct.data||null;
+        const direct=await client.from('profiles').select('*').or(`id.eq.${session.user.id},auth_user_id.eq.${session.user.id}`).maybeSingle();
+        if(direct.error) console.error(direct.error);
+        data=direct.data||null;
 
-          // Login-only compatibility repair: securely locate and link an existing
-          // employee profile when the Authentication account was created separately.
-          if(!data){
-            const repaired=await profileTimeout(client.rpc('get_my_employee_profile'),10000,'Employee profile repair');
-            if(repaired.error) console.error(repaired.error);
-            data=repaired.data||null;
-          }
-        }catch(error){
-          console.error('Employee profile startup failed:',error);
-          setAuthMessage('Unable to load your employee profile. Please sign in again.');
-          await client.auth.signOut().catch(()=>{});
-          return;
+        // Login-only compatibility repair: securely locate and link an existing
+        // employee profile when the Authentication account was created separately.
+        if(!data){
+          const repaired=await client.rpc('get_my_employee_profile');
+          if(repaired.error) console.error(repaired.error);
+          data=repaired.data||null;
         }
 
         if(!data){
@@ -5376,28 +5377,10 @@ Caring with Compassion. Living with Dignity.`;
     const [recoveryMessage,setRecoveryMessage]=React.useState('');
     React.useEffect(()=>{if(externalMessage)setMessage(externalMessage)},[externalMessage]);
     async function securityRequest(payload){
-      // The login_precheck / audit Edge Function is helpful, but it must never
-      // leave the whole ERP stuck on "Signing in…" if the function is slow.
-      const controller=new AbortController();
-      const timer=setTimeout(()=>controller.abort(),6000);
-      try{
-        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/admin-users`,{
-          method:'POST',
-          headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey},
-          body:JSON.stringify(payload),
-          signal:controller.signal
-        });
-        const result=await response.json().catch(()=>({}));
-        if(!response.ok||result.error)throw new Error(result.error||'Unable to complete the security request');
-        return result;
-      }finally{
-        clearTimeout(timer);
-      }
-    }
-    async function withLoginTimeout(promise,ms,label){
-      let timer;
-      const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} timed out. Please try again.`)),ms)});
-      try{return await Promise.race([promise,timeout])}finally{clearTimeout(timer)}
+      const response=await fetch(`${cfg.supabaseUrl}/functions/v1/admin-users`,{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey},body:JSON.stringify(payload)});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok||result.error)throw new Error(result.error||'Unable to complete the security request');
+      return result;
     }
     async function submit(e){
       e.preventDefault();setBusy(true);setMessage('');if(onClearMessage)onClearMessage();
@@ -5406,31 +5389,24 @@ Caring with Compassion. Living with Dignity.`;
         const check=await securityRequest({action:'login_precheck',login_id:normalized});
         if(check.locked){setMessage('This account is temporarily locked after repeated unsuccessful attempts. Please try again later or contact the Administrator.');setBusy(false);return}
       }catch(_error){/* Sign-in remains available if the optional security check is temporarily unavailable. */}
-      try{
       let email='';
       if(login.includes('@')){
         email=login.trim().toLowerCase();
       }else{
-        const {data:resolved,error:resolveError}=await withLoginTimeout(client.rpc('resolve_employee_login',{p_login_id:normalized}),12000,'Login verification');
+        const {data:resolved,error:resolveError}=await client.rpc('resolve_employee_login',{p_login_id:normalized});
         if(resolveError){setMessage('Unable to verify the Login ID. Please contact the Administrator.');setBusy(false);return}
         email=String(resolved||'').trim().toLowerCase();
         if(!email){setMessage('Incorrect Login ID or password.');setBusy(false);return}
       }
-      const {error}=await withLoginTimeout(client.auth.signInWithPassword({email,password}),15000,'Sign in');
+      const {error}=await client.auth.signInWithPassword({email,password});
       if(error){
         try{await securityRequest({action:'login_failure',login_id:normalized})}catch(_error){}
         setMessage(error.message==='Invalid login credentials'?'Incorrect Login ID or password.':error.message);
       }else{
-        // Successful authentication must take the user into the ERP immediately.
-        // Security/audit logging is best-effort and must not block navigation.
-        securityRequest({action:'login_success',login_id:normalized}).catch(()=>{});
-        Promise.resolve(writeAuditEvent('User Login','Authentication',normalized,{login_id:normalized},'Success')).catch(()=>{});
+        try{await securityRequest({action:'login_success',login_id:normalized})}catch(_error){}
+        await writeAuditEvent('User Login','Authentication',normalized,{login_id:normalized},'Success');
       }
-      }catch(error){
-        setMessage(error?.message||'Unable to sign in. Please check the connection and try again.');
-      }finally{
-        setBusy(false);
-      }
+      setBusy(false);
     }
     async function requestRecovery(e){
       e.preventDefault();setRecoveryBusy(true);setRecoveryMessage('');
@@ -6277,7 +6253,7 @@ Caring with Compassion. Living with Dignity.`;
 
   function WhatsAppInbox({profile}){
     const [rows,setRows]=React.useState([]),[selectedPhone,setSelectedPhone]=React.useState(''),[query,setQuery]=React.useState(''),[showUnread,setShowUnread]=React.useState(false),[reply,setReply]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState('');
-    const [templateName,setTemplateName]=React.useState('samara_general_followup'),[templateLanguage,setTemplateLanguage]=React.useState('en'),[templateRegarding,setTemplateRegarding]=React.useState('your assisted living enquiry'),[mediaBusyId,setMediaBusyId]=React.useState('');
+    const [templateName,setTemplateName]=React.useState(()=>localStorage.getItem('samara-wa-reopen-template')||''),[templateLanguage,setTemplateLanguage]=React.useState(()=>localStorage.getItem('samara-wa-template-language')||'en'),[templateParams,setTemplateParams]=React.useState(''),[mediaBusyId,setMediaBusyId]=React.useState('');
     const canUse=['Admin','Manager','HR'].includes(String(profile?.role||''));
     async function load(){
       if(!canUse)return;
@@ -6366,9 +6342,7 @@ Caring with Compassion. Living with Dignity.`;
     async function sendReopenTemplate(){
       if(!active||busy)return;
       const name=templateName.trim();if(!name){setMessage('Enter the exact approved Meta template name.');return}
-      const customerName=String(active.name||'').trim()||'Customer';
-      const regarding=String(templateRegarding||'').trim()||'your assisted living enquiry';
-      const params=[customerName,regarding];
+      const params=templateParams.split('\n').map(x=>x.trim()).filter(Boolean);
       setBusy(true);setMessage('Sending approved WhatsApp template…');
       try{
         const result=await sendWhatsAppTemplate({to:active.phone,templateName:name,languageCode:templateLanguage.trim()||'en',bodyParams:params,headerImage:''});
@@ -6380,7 +6354,7 @@ Caring with Compassion. Living with Dignity.`;
           message_content:summary,message_payload:result?.result||null,contact_name:active.name,source_type:active.source,sent_at:now,created_at:now,updated_at:now
         });
         if(error)throw error;
-        
+        localStorage.setItem('samara-wa-reopen-template',name);localStorage.setItem('samara-wa-template-language',templateLanguage.trim()||'en');
         setMessage('✓ Approved template accepted by Meta. Free-text reply will become available after the customer replies.');await load();
       }catch(error){setMessage(`Template send failed: ${error.message||error}`)}finally{setBusy(false)}
     }
@@ -6425,16 +6399,16 @@ Caring with Compassion. Living with Dignity.`;
                   h('button',{type:'button',className:'btn btn-primary',disabled:busy||!reply.trim(),onClick:sendReply},busy?'Sending…':'Send Reply')
                 )
               ):h('div',{style:{paddingTop:'12px',borderTop:'1px solid #efd7e3'}},
-                h('div',{style:{fontWeight:'700',color:'#5d1039',marginBottom:'8px'}},'Re-open WhatsApp Conversation'),
-                h('small',{style:{display:'block',color:'#806b77',marginBottom:'10px'}},'General Follow-up template · Customer name is filled automatically. Edit only the enquiry/reason if required.'),
-                h('div',{style:{display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1.4fr)',gap:'8px'}},
-                  h('div',null,h('small',{style:{display:'block',marginBottom:'4px',color:'#806b77'}},'Customer name'),h('input',{value:active.name||'Customer',readOnly:true})),
-                  h('div',null,h('small',{style:{display:'block',marginBottom:'4px',color:'#806b77'}},'Regarding'),h('input',{value:templateRegarding,onChange:e=>setTemplateRegarding(e.target.value),placeholder:'your assisted living enquiry'}))
+                h('div',{style:{fontWeight:'700',color:'#5d1039',marginBottom:'8px'}},'Re-open conversation with an approved template'),
+                h('small',{style:{display:'block',color:'#806b77',marginBottom:'10px'}},'Use any template already approved in Meta. Enter body variables one per line, in the same order as {{1}}, {{2}}, {{3}}…'),
+                h('div',{style:{display:'grid',gridTemplateColumns:'minmax(0,2fr) minmax(90px,.6fr)',gap:'8px'}},
+                  h('input',{value:templateName,onChange:e=>setTemplateName(e.target.value),placeholder:'Approved template name, e.g. samara_follow_up'}),
+                  h('input',{value:templateLanguage,onChange:e=>setTemplateLanguage(e.target.value),placeholder:'en'})
                 ),
-                h('div',{style:{marginTop:'10px',padding:'10px 12px',background:'#fbf7f3',border:'1px solid #efd7e3',borderRadius:'10px',whiteSpace:'pre-wrap',lineHeight:'1.45'}},`Dear ${active.name||'Customer'},\nGreetings from Samara Assisted Living.\nWe received your message regarding ${templateRegarding||'your assisted living enquiry'}. We apologise for the delay in responding.\nPlease reply to this message and our team will be happy to assist you.\n\nThank you,\nSamara Assisted Living`),
+                h('textarea',{value:templateParams,onChange:e=>setTemplateParams(e.target.value),placeholder:'Template body values — one per line\nExample:\nMr. Kumar\nYour enquiry about assisted living',rows:3,style:{marginTop:'8px'}}),
                 h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'center',marginTop:'8px'}},
-                  h('small',{style:{color:'#806b77'}},'After the customer replies, normal free-text WhatsApp replies become available for 24 hours.'),
-                  h('button',{type:'button',className:'btn btn-primary',disabled:busy||!templateRegarding.trim(),onClick:sendReopenTemplate},busy?'Sending…':'Send WhatsApp')
+                  h('small',{style:{color:'#806b77'}},'After the customer replies, the normal 24-hour free-text window opens automatically.'),
+                  h('button',{type:'button',className:'btn btn-primary',disabled:busy||!templateName.trim(),onClick:sendReopenTemplate},busy?'Sending…':'Send Approved Template')
                 )
               )
             ):h('p',{className:'empty'},'Select a WhatsApp conversation.')
