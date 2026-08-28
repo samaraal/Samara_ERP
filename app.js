@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.47';
+  const APP_VERSION = '2.9.48';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6253,6 +6253,7 @@ Caring with Compassion. Living with Dignity.`;
 
   function WhatsAppInbox({profile}){
     const [rows,setRows]=React.useState([]),[selectedPhone,setSelectedPhone]=React.useState(''),[query,setQuery]=React.useState(''),[showUnread,setShowUnread]=React.useState(false),[reply,setReply]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState('');
+    const [templateName,setTemplateName]=React.useState(()=>localStorage.getItem('samara-wa-reopen-template')||''),[templateLanguage,setTemplateLanguage]=React.useState(()=>localStorage.getItem('samara-wa-template-language')||'en'),[templateParams,setTemplateParams]=React.useState(''),[mediaBusyId,setMediaBusyId]=React.useState('');
     const canUse=['Admin','Manager','HR'].includes(String(profile?.role||''));
     async function load(){
       if(!canUse)return;
@@ -6292,27 +6293,70 @@ Caring with Compassion. Living with Dignity.`;
     },[selectedPhone,rows.length]);
     const latestInbound=active?[...active.msgs].reverse().find(x=>x.direction==='inbound'):null;
     const within24=latestInbound&&(Date.now()-new Date(latestInbound.received_at||latestInbound.created_at).getTime())<24*60*60*1000;
+    function mediaInfo(r){
+      if(r?.direction!=='inbound')return null;
+      const type=String(r?.message_type||'').toLowerCase();
+      const payload=r?.message_payload||{};
+      const block=payload?.[type]||{};
+      const id=String(block?.id||'').trim();
+      if(!id||!['image','audio','video','document','sticker'].includes(type))return null;
+      return {id,type,filename:block?.filename||'',mime:block?.mime_type||''};
+    }
+    async function openMedia(r){
+      const media=mediaInfo(r);if(!media||mediaBusyId)return;
+      setMediaBusyId(r.id);setMessage('Opening WhatsApp media…');
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        const token=session?.access_token||cfg.supabaseAnonKey;
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/whatsapp-media`,{
+          method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabaseAnonKey,'Authorization':`Bearer ${token}`},body:JSON.stringify({media_id:media.id})
+        });
+        if(!response.ok){const e=await response.json().catch(()=>({}));throw new Error(e?.error||`Unable to retrieve media (${response.status})`)}
+        const blob=await response.blob();
+        const url=URL.createObjectURL(blob);
+        const win=window.open(url,'_blank','noopener');
+        if(!win){
+          const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';a.click();
+        }
+        setTimeout(()=>URL.revokeObjectURL(url),60000);
+        setMessage('✓ WhatsApp media opened.');
+      }catch(error){setMessage(`Unable to open WhatsApp media: ${error.message||error}`)}finally{setMediaBusyId('')}
+    }
     async function sendReply(){
       if(!active||!reply.trim()||busy)return;
-      if(!within24){setMessage('The 24-hour customer service window has closed. Use an approved WhatsApp template to re-open the conversation.');return}
+      if(!within24){setMessage('The 24-hour customer service window has closed. Send an approved WhatsApp template first.');return}
       setBusy(true);setMessage('Sending WhatsApp reply…');
       try{
         const result=await sendWhatsAppText({to:active.phone,text:reply});
         const providerId=result?.result?.messages?.[0]?.id||null;
         const now=new Date().toISOString();
         const {error}=await client.from('hr_whatsapp_communications').insert({
-          career_application_id:active.last.career_application_id||null,
-          application_id:active.last.application_id||null,
-          applicant_name:active.last.applicant_name||active.name||null,
-          recipient_number:active.phone,
-          communication_type:'WhatsApp Reply',template_name:null,status:'Accepted',provider_message_id:providerId,
-          error_message:null,sent_by:profile.id,sent_by_name:formalName(profile),direction:'outbound',message_type:'text',
-          message_content:reply.trim(),message_payload:result?.result||null,contact_name:active.name,source_type:active.source,
-          sent_at:now,created_at:now,updated_at:now
+          career_application_id:active.last.career_application_id||null,application_id:active.last.application_id||null,applicant_name:active.last.applicant_name||active.name||null,recipient_number:active.phone,
+          communication_type:'WhatsApp Reply',template_name:null,status:'Accepted',provider_message_id:providerId,error_message:null,sent_by:profile.id,sent_by_name:formalName(profile),direction:'outbound',message_type:'text',
+          message_content:reply.trim(),message_payload:result?.result||null,contact_name:active.name,source_type:active.source,sent_at:now,created_at:now,updated_at:now
         });
         if(error)throw error;
         setReply('');setMessage('✓ WhatsApp reply accepted by Meta.');await load();
       }catch(error){setMessage(`WhatsApp reply failed: ${error.message||error}`)}finally{setBusy(false)}
+    }
+    async function sendReopenTemplate(){
+      if(!active||busy)return;
+      const name=templateName.trim();if(!name){setMessage('Enter the exact approved Meta template name.');return}
+      const params=templateParams.split('\n').map(x=>x.trim()).filter(Boolean);
+      setBusy(true);setMessage('Sending approved WhatsApp template…');
+      try{
+        const result=await sendWhatsAppTemplate({to:active.phone,templateName:name,languageCode:templateLanguage.trim()||'en',bodyParams:params,headerImage:''});
+        const providerId=result?.result?.messages?.[0]?.id||null;const now=new Date().toISOString();
+        const summary=params.length?`Template: ${name}\n${params.map((v,i)=>`{{${i+1}}}: ${v}`).join('\n')}`:`Template: ${name}`;
+        const {error}=await client.from('hr_whatsapp_communications').insert({
+          career_application_id:active.last.career_application_id||null,application_id:active.last.application_id||null,applicant_name:active.last.applicant_name||active.name||null,recipient_number:active.phone,
+          communication_type:'WhatsApp Re-open Template',template_name:name,status:'Accepted',provider_message_id:providerId,error_message:null,sent_by:profile.id,sent_by_name:formalName(profile),direction:'outbound',message_type:'template',
+          message_content:summary,message_payload:result?.result||null,contact_name:active.name,source_type:active.source,sent_at:now,created_at:now,updated_at:now
+        });
+        if(error)throw error;
+        localStorage.setItem('samara-wa-reopen-template',name);localStorage.setItem('samara-wa-template-language',templateLanguage.trim()||'en');
+        setMessage('✓ Approved template accepted by Meta. Free-text reply will become available after the customer replies.');await load();
+      }catch(error){setMessage(`Template send failed: ${error.message||error}`)}finally{setBusy(false)}
     }
     const unreadTotal=conversations.reduce((n,c)=>n+c.unread,0);
     return h(React.Fragment,null,
@@ -6339,19 +6383,32 @@ Caring with Compassion. Living with Dignity.`;
                 h('span',{className:`badge ${within24?'success':''}`},within24?'Reply window open':'Template required')
               ),
               h('div',{style:{flex:'1',padding:'18px 6px',overflowY:'auto',maxHeight:'52vh',background:'#fbf7f3',borderRadius:'0 0 12px 12px'}},active.msgs.map(r=>{
-                const outgoing=r.direction!=='inbound';
+                const outgoing=r.direction!=='inbound';const media=mediaInfo(r);
                 return h('div',{key:r.id,style:{display:'flex',justifyContent:outgoing?'flex-end':'flex-start',marginBottom:'10px'}},
                   h('div',{style:{maxWidth:'78%',padding:'10px 12px',borderRadius:outgoing?'14px 14px 4px 14px':'14px 14px 14px 4px',background:outgoing?'#dff5e9':'#fff',boxShadow:'0 1px 4px rgba(0,0,0,.08)'}},
                     h('div',{style:{whiteSpace:'pre-wrap',lineHeight:'1.45'}},r.message_content||r.communication_type||'WhatsApp message'),
+                    media?h('button',{type:'button',className:'btn btn-secondary',disabled:mediaBusyId===r.id,onClick:()=>openMedia(r),style:{marginTop:'8px',padding:'6px 10px',fontSize:'12px'}},mediaBusyId===r.id?'Opening…':media.type==='audio'?'▶ Play voice / audio':media.type==='document'?'Open document':media.type==='image'?'View image':media.type==='video'?'▶ Play video':'View sticker'):null,
                     h('small',{style:{display:'block',marginTop:'6px',textAlign:'right',color:'#7d6d75'}},`${fmt(r.received_at||r.sent_at||r.created_at)}${outgoing?` · ${r.status||'Sent'}`:''}`)
                   )
                 )
               })),
-              h('div',{style:{paddingTop:'12px'}},
-                h('textarea',{value:reply,onChange:e=>setReply(e.target.value),placeholder:within24?'Type a reply to this WhatsApp conversation…':'24-hour reply window closed. Use an approved template.',disabled:!within24||busy,rows:3}),
+              within24?h('div',{style:{paddingTop:'12px'}},
+                h('textarea',{value:reply,onChange:e=>setReply(e.target.value),placeholder:'Type a reply to this WhatsApp conversation…',disabled:busy,rows:3}),
                 h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'center',marginTop:'8px'}},
-                  h('small',{style:{color:'#806b77'}},within24?'Replies are sent through Meta Cloud API.':'Free-text reply is unavailable outside the 24-hour customer service window.'),
-                  h('button',{type:'button',className:'btn btn-primary',disabled:!within24||busy||!reply.trim(),onClick:sendReply},busy?'Sending…':'Send Reply')
+                  h('small',{style:{color:'#806b77'}},'Replies are sent through Meta Cloud API.'),
+                  h('button',{type:'button',className:'btn btn-primary',disabled:busy||!reply.trim(),onClick:sendReply},busy?'Sending…':'Send Reply')
+                )
+              ):h('div',{style:{paddingTop:'12px',borderTop:'1px solid #efd7e3'}},
+                h('div',{style:{fontWeight:'700',color:'#5d1039',marginBottom:'8px'}},'Re-open conversation with an approved template'),
+                h('small',{style:{display:'block',color:'#806b77',marginBottom:'10px'}},'Use any template already approved in Meta. Enter body variables one per line, in the same order as {{1}}, {{2}}, {{3}}…'),
+                h('div',{style:{display:'grid',gridTemplateColumns:'minmax(0,2fr) minmax(90px,.6fr)',gap:'8px'}},
+                  h('input',{value:templateName,onChange:e=>setTemplateName(e.target.value),placeholder:'Approved template name, e.g. samara_follow_up'}),
+                  h('input',{value:templateLanguage,onChange:e=>setTemplateLanguage(e.target.value),placeholder:'en'})
+                ),
+                h('textarea',{value:templateParams,onChange:e=>setTemplateParams(e.target.value),placeholder:'Template body values — one per line\nExample:\nMr. Kumar\nYour enquiry about assisted living',rows:3,style:{marginTop:'8px'}}),
+                h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'center',marginTop:'8px'}},
+                  h('small',{style:{color:'#806b77'}},'After the customer replies, the normal 24-hour free-text window opens automatically.'),
+                  h('button',{type:'button',className:'btn btn-primary',disabled:busy||!templateName.trim(),onClick:sendReopenTemplate},busy?'Sending…':'Send Approved Template')
                 )
               )
             ):h('p',{className:'empty'},'Select a WhatsApp conversation.')

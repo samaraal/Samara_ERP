@@ -1,0 +1,34 @@
+SAMARA CARE ERP v2.9.48 – WHATSAPP INBOX MEDIA + APPROVED TEMPLATE REPLY
+
+WHAT THIS UPDATE DOES
+1. Incoming WhatsApp image, document, audio/voice, video and sticker messages stored by the existing webhook can now be opened from WhatsApp Inbox.
+2. When the 24-hour customer-service window is closed, the Inbox now shows a "Re-open conversation with an approved template" panel.
+3. Admin/Manager/HR can enter any APPROVED Meta template name, language code and body parameters directly in the ERP and send it without changing source code.
+4. When the customer replies, the normal 24-hour free-text reply window opens automatically.
+
+FILES TO UPLOAD TO THE ERP WEB ROOT
+- app.js
+- index.html
+- config.js
+- service-worker.js
+
+NEW SUPABASE EDGE FUNCTION
+- supabase/functions/whatsapp-media/index.ts
+
+Deploy the new function from the project folder:
+  supabase functions deploy whatsapp-media
+
+The function uses the existing secret:
+  WHATSAPP_ACCESS_TOKEN
+
+Optional existing secret:
+  WHATSAPP_GRAPH_API_VERSION
+If it is not present, the function defaults to v25.0.
+
+IMPORTANT
+- Do NOT remove or replace the existing whatsapp-webhook or whatsapp-send functions.
+- No new SQL is required for this update. The existing message_payload already stores the incoming Meta media ID.
+- Older media can only be opened while Meta still retains that media. If Meta has expired/deleted a media object, the ERP will show that it is no longer available.
+- Free-form WhatsApp messages outside the 24-hour customer service window remain prohibited by Meta. The new panel sends an already-approved template; it does not bypass Meta rules.
+
+VERSION: 2.9.48
