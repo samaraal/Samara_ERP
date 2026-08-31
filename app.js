@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.63';
+  const APP_VERSION = '2.9.64';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -18637,4 +18637,14 @@ function AuditTrail(){
   function selectField(label,key,form,setForm,options){return h('div',{className:'field',key},h('label',null,label),h('select',{value:form[key],onChange:e=>setForm({...form,[key]:e.target.value})},options.map(x=>h('option',{key:x,value:x},x))))}
 
   ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+})();
+
+
+(function(){
+  if (!document.getElementById('samara-mail-mobile-v2964')) {
+    const s=document.createElement('style');
+    s.id='samara-mail-mobile-v2964';
+    s.textContent='\n/* v2.9.64 — Mail Dashboard mobile optimisation */\n@media (max-width: 700px) {\n  /* Mail workspace uses full available mobile width */\n  .mail-dashboard, .mail-dashboard-shell, .mail-content, .mail-panel,\n  .mail-list-panel, .mail-message-panel {\n    min-width: 0 !important;\n    max-width: 100% !important;\n  }\n\n  /* Mail folder selector becomes a compact horizontal strip */\n  .mail-folders, .mail-folder-nav, .mail-sidebar-folders {\n    display: flex !important;\n    flex-direction: row !important;\n    gap: 6px !important;\n    width: 100% !important;\n    overflow-x: auto !important;\n    padding: 6px 0 !important;\n    position: static !important;\n  }\n  .mail-folders > *, .mail-folder-nav > *, .mail-sidebar-folders > * {\n    flex: 0 0 auto !important;\n    min-width: auto !important;\n    white-space: nowrap !important;\n  }\n\n  /* List rows: sender + subject on left, compact date/time on right */\n  .mail-row, .mail-list-row, .mail-message-row {\n    display: grid !important;\n    grid-template-columns: minmax(0,1fr) auto !important;\n    grid-template-rows: auto auto !important;\n    column-gap: 10px !important;\n    row-gap: 3px !important;\n    align-items: start !important;\n    padding: 12px 10px !important;\n    min-height: 72px !important;\n  }\n  .mail-row .mail-sender, .mail-list-row .mail-sender, .mail-message-row .mail-sender,\n  .mail-row .sender, .mail-list-row .sender {\n    grid-column: 1 !important;\n    grid-row: 1 !important;\n    min-width: 0 !important;\n    overflow: hidden !important;\n    text-overflow: ellipsis !important;\n    white-space: nowrap !important;\n    font-weight: 700 !important;\n  }\n  .mail-row .mail-subject, .mail-list-row .mail-subject, .mail-message-row .mail-subject,\n  .mail-row .subject, .mail-list-row .subject {\n    grid-column: 1 !important;\n    grid-row: 2 !important;\n    min-width: 0 !important;\n    overflow: hidden !important;\n    text-overflow: ellipsis !important;\n    white-space: nowrap !important;\n  }\n  .mail-row .mail-date, .mail-list-row .mail-date, .mail-message-row .mail-date,\n  .mail-row time, .mail-list-row time {\n    grid-column: 2 !important;\n    grid-row: 1 / span 2 !important;\n    width: auto !important;\n    min-width: 72px !important;\n    max-width: 88px !important;\n    white-space: normal !important;\n    word-break: keep-all !important;\n    overflow-wrap: normal !important;\n    text-align: right !important;\n    font-size: 11px !important;\n    line-height: 1.25 !important;\n  }\n\n  /* Message view is full-width and controls wrap neatly */\n  .mail-message-view, .mail-reader, .mail-detail {\n    width: 100% !important;\n    max-width: 100% !important;\n    min-width: 0 !important;\n  }\n  .mail-message-actions, .mail-reader-actions {\n    display: flex !important;\n    flex-wrap: wrap !important;\n    gap: 6px !important;\n  }\n  .mail-body {\n    overflow-wrap: anywhere !important;\n    word-break: normal !important;\n  }\n  .mail-body img {\n    max-width: 100% !important;\n    height: auto !important;\n  }\n\n  /* Clinical alert must not cover communication workspaces */\n  body:has(.mail-dashboard) .clinical-alert-overlay,\n  body:has(.mail-dashboard) .clinical-alert-card,\n  body:has(.mail-dashboard) .open-to-resolve-bar,\n  body:has(.mail-dashboard) .alert-resolution-dock {\n    max-height: 48px !important;\n    overflow: hidden !important;\n  }\n}\n';
+    document.head.appendChild(s);
+  }
 })();
