@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.58';
+  const APP_VERSION = '2.9.59';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6042,7 +6042,9 @@ Caring with Compassion. Living with Dignity.`;
         showSamaraActionToast('success','Email sent',`Message sent successfully from ${mailboxDefs.find(x=>x.key===mailbox)?.email||'Samara Mail'}.`);
         setCompose({to:'',cc:'',subject:'',body:''});
         setComposeOpen(false);
-        if(folder==='Sent')syncMail({showToast:false});
+        // The Edge Function archives the sent copy into Titan IMAP and refreshes
+        // the Sent cache. Reload immediately when the Sent folder is already open.
+        if(folder==='Sent')await loadMessages();
       }catch(err){
         const text=err.message||'Email could not be sent.';
         setError(text);
