@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.54';
+  const APP_VERSION = '2.9.55';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6311,11 +6311,21 @@ Thank you,
 Samara Assisted Living`;
     }
     const canUse=['Admin','Manager','HR'].includes(String(profile?.role||''));
-    async function load(){
+    async function load(showStatus=false){
       if(!canUse)return;
-      const {data,error}=await client.from('hr_whatsapp_communications').select('*').order('created_at',{ascending:true}).limit(1000);
-      if(error){setMessage(error.message);return}
-      setRows(data||[]);
+      if(showStatus)setMessage('Refreshing WhatsApp Inbox…');
+      try{
+        // Fetch the NEWEST 1000 rows. The previous ascending+limit query returned
+        // the oldest 1000 records, so once the table grew past 1000 rows new
+        // WhatsApp messages could never appear even after pressing Refresh.
+        const {data,error}=await client.from('hr_whatsapp_communications').select('*').order('created_at',{ascending:false}).limit(1000);
+        if(error)throw error;
+        // Keep the local array chronological for conversation rendering.
+        setRows((data||[]).slice().reverse());
+        if(showStatus)setMessage(`✓ WhatsApp Inbox refreshed at ${new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}.`);
+      }catch(error){
+        setMessage(`Unable to refresh WhatsApp Inbox: ${error?.message||error}`);
+      }
     }
     React.useEffect(()=>{
       load();
@@ -6453,7 +6463,7 @@ Samara Assisted Living`;
         h('div',{style:{display:'flex',gap:'10px',flexWrap:'wrap',alignItems:'center',marginBottom:'14px'}},
           h('input',{value:query,onChange:e=>setQuery(e.target.value),placeholder:'Search name, mobile or message…',style:{flex:'1 1 320px',minWidth:'230px'}}),
           h('button',{type:'button',className:`btn ${showUnread?'btn-primary':'btn-secondary'}`,onClick:()=>setShowUnread(!showUnread)},`Unread ${unreadTotal}`),
-          h('button',{type:'button',className:'btn btn-secondary',onClick:load},'Refresh')
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>load(true)},'Refresh')
         ),
         message?h('div',{className:'notice',style:{marginBottom:'12px'}},message):null,
         h('div',{style:{display:'grid',gridTemplateColumns:'minmax(300px,.72fr) minmax(0,1.65fr)',gap:'0',alignItems:'stretch',border:'1px solid #ead9df',borderRadius:'16px',overflow:'hidden',background:'#fff',minHeight:'640px'}},
@@ -13686,7 +13696,7 @@ function RoomsBeds({profile}){
         ?h('div',{className:`clinical-metric ${tone}`,key:label},h('span',{className:'clinical-metric-icon'},icon),h('strong',null,value),h('span',null,label),h('small',null,statusText||'View only'))
         :h('button',{type:'button',className:`clinical-metric ${tone}`,key:label,onClick:()=>onNavigate(page)},h('span',{className:'clinical-metric-icon'},icon),h('strong',null,value),h('span',null,label),h('small',null,statusText||`Open ${page} →`)))),
       h('div',{className:'clinical-columns'},
-        h('section',{className:'card clinical-panel'},h('div',{className:'clinical-panel-head'},h('div',null,h('h3',null,'Priority Worklist'),h('small',null,'Overdue and pending tasks requiring attention')),h('button',{className:'btn btn-secondary',onClick:load},'Refresh')),
+        h('section',{className:'card clinical-panel'},h('div',{className:'clinical-panel-head'},h('div',null,h('h3',null,'Priority Worklist'),h('small',null,'Overdue and pending tasks requiring attention')),h('button',{className:'btn btn-secondary',onClick:()=>load(true)},'Refresh')),
           medDueTasks.slice(0,8).map((x,i)=>{
             const level=x.minutesOverdue>=medicationCriticalMinutes?'CRITICAL':x.minutesOverdue>=medicationEscalationMinutes?'ESCALATION DUE':x.minutesOverdue>=medicationOverdueMinutes?'OVERDUE':'DUE NOW';
             const linked=state.patients.find(p=>p.id===x.order.patient_id);
