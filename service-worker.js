@@ -1,8 +1,8 @@
-const CACHE = 'samara-erp-2.9.62-mail-signature-side-by-side';
+const CACHE = 'samara-erp-2.9.63-mail-signature-side-by-side';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.9.62', './app.js?v=2.9.62',
+  './', './index.html', './styles.css?v=2.9.63', './app.js?v=2.9.63',
   './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',
-  './config.js?v=2.9.62', './manifest.webmanifest?v=2.8.40', './assets/samara-mail-logo.png',
+  './config.js?v=2.9.63', './manifest.webmanifest?v=2.8.40', './assets/samara-mail-logo.png',
   './assets/samara-logo.png?v=20260812-global1',
   './icons/favicon.png?v=2.8.40', './icons/icon-192.png?v=2.8.40',
   './icons/icon-512.png?v=2.8.40', './icons/icon-maskable-512.png?v=2.8.40',
