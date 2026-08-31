@@ -1,8 +1,8 @@
-const CACHE = 'samara-erp-2.9.55-whatsapp-refresh-fix';
+const CACHE = 'samara-erp-2.9.56-whatsapp-mobile-fix';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.9.55', './app.js?v=2.9.55',
+  './', './index.html', './styles.css?v=2.9.56', './app.js?v=2.9.56',
   './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',
-  './config.js?v=2.9.55', './manifest.webmanifest?v=2.8.40',
+  './config.js?v=2.9.56', './manifest.webmanifest?v=2.8.40',
   './assets/samara-logo.png?v=20260812-global1',
   './icons/favicon.png?v=2.8.40', './icons/icon-192.png?v=2.8.40',
   './icons/icon-512.png?v=2.8.40', './icons/icon-maskable-512.png?v=2.8.40',

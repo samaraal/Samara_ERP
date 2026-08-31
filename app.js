@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.55';
+  const APP_VERSION = '2.9.56';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6276,7 +6276,7 @@ Caring with Compassion. Living with Dignity.`;
 
 
   function WhatsAppInbox({profile}){
-    const [rows,setRows]=React.useState([]),[selectedPhone,setSelectedPhone]=React.useState(''),[query,setQuery]=React.useState(''),[showUnread,setShowUnread]=React.useState(false),[reply,setReply]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState('');
+    const [rows,setRows]=React.useState([]),[selectedPhone,setSelectedPhone]=React.useState(''),[query,setQuery]=React.useState(''),[showUnread,setShowUnread]=React.useState(false),[reply,setReply]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState(''),[isMobile,setIsMobile]=React.useState(()=>window.matchMedia('(max-width: 700px)').matches);
     const WA_REOPEN_TEMPLATES=[
       {name:'samara_general_followup',label:'General Follow-up',regarding:'your assisted living enquiry'},
       {name:'samara_admission_followup',label:'Admission / Care Enquiry',regarding:'your family member'},
@@ -6284,6 +6284,50 @@ Caring with Compassion. Living with Dignity.`;
     ];
     const [templateName,setTemplateName]=React.useState('samara_general_followup'),[templateLanguage]=React.useState('en'),[templateRegarding,setTemplateRegarding]=React.useState('your assisted living enquiry'),[mediaBusyId,setMediaBusyId]=React.useState('');
     const selectedTemplate=WA_REOPEN_TEMPLATES.find(t=>t.name===templateName)||WA_REOPEN_TEMPLATES[0];
+    React.useEffect(()=>{
+      const mq=window.matchMedia('(max-width: 700px)');
+      const sync=()=>setIsMobile(mq.matches);
+      sync();
+      mq.addEventListener?.('change',sync);
+      return()=>mq.removeEventListener?.('change',sync);
+    },[]);
+    React.useEffect(()=>{
+      if(document.getElementById('samara-wa-mobile-style'))return;
+      const style=document.createElement('style');style.id='samara-wa-mobile-style';
+      style.textContent=`
+        .wa-inbox-shell{display:grid;grid-template-columns:minmax(300px,.72fr) minmax(0,1.65fr);gap:0;align-items:stretch;border:1px solid #ead9df;border-radius:16px;overflow:hidden;background:#fff;min-height:640px}
+        .wa-conversation-list{border-right:1px solid #e6d5dc;background:#fff;max-height:76vh;overflow-y:auto}
+        .wa-chat-pane{min-width:0;display:flex;flex-direction:column;height:76vh;background:#efeae2}
+        .wa-chat-head{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 14px;background:#f0f2f5;border-bottom:1px solid #ddd}
+        .wa-mobile-back{display:none}
+        .wa-chat-scroll{flex:1;padding:18px 22px;overflow-y:auto;background:linear-gradient(rgba(239,234,226,.94),rgba(239,234,226,.94));min-height:0}
+        .wa-free-composer{padding:10px 12px;background:#f0f2f5;border-top:1px solid #ddd;display:flex;gap:8px;align-items:flex-end}
+        .wa-template-composer{padding:10px 12px;background:#f0f2f5;border-top:1px solid #ddd}
+        .wa-template-grid{display:grid;grid-template-columns:minmax(180px,.8fr) minmax(180px,1fr) auto;gap:8px;align-items:end}
+        @media(max-width:700px){
+          .wa-inbox-shell{display:block!important;min-height:0!important;border-radius:12px!important;overflow:hidden!important}
+          .wa-conversation-list{display:block!important;border-right:0!important;max-height:calc(100dvh - 250px)!important;min-height:420px!important}
+          .wa-chat-pane{display:none!important;height:calc(100dvh - 205px)!important;min-height:520px!important}
+          .wa-inbox-shell.wa-mobile-chat-open .wa-conversation-list{display:none!important}
+          .wa-inbox-shell.wa-mobile-chat-open .wa-chat-pane{display:flex!important}
+          .wa-chat-head{position:sticky;top:0;z-index:4;padding:8px 10px!important}
+          .wa-mobile-back{display:inline-grid!important;place-items:center;width:38px;height:38px;min-width:38px;border:0;border-radius:50%;background:#fff;color:#5d1039;font-size:24px;font-weight:800;cursor:pointer}
+          .wa-chat-scroll{padding:12px 8px!important}
+          .wa-chat-scroll>div>div{max-width:88%!important;font-size:14px}
+          .wa-free-composer{position:sticky;bottom:0;z-index:5;padding:8px!important}
+          .wa-free-composer textarea{min-height:44px!important;max-height:110px!important}
+          .wa-free-composer .btn{min-width:72px!important;padding-left:12px!important;padding-right:12px!important}
+          .wa-template-composer{position:sticky;bottom:0;z-index:5;padding:8px!important}
+          .wa-template-grid{grid-template-columns:1fr!important}
+          .wa-template-grid .btn{width:100%!important}
+          .wa-inbox-toolbar{gap:6px!important;margin-bottom:8px!important}
+          .wa-inbox-toolbar input{flex:1 1 100%!important;min-width:0!important;width:100%!important}
+          .wa-inbox-toolbar .btn{flex:1 1 calc(50% - 3px)!important;padding:10px 8px!important}
+          .wa-inbox-status{font-size:12px!important;margin-bottom:8px!important}
+        }
+      `;
+      document.head.appendChild(style);
+    },[]);
     function chooseReopenTemplate(name){
       const next=WA_REOPEN_TEMPLATES.find(t=>t.name===name)||WA_REOPEN_TEMPLATES[0];
       setTemplateName(next.name);setTemplateRegarding(next.regarding);
@@ -6351,7 +6395,7 @@ Samara Assisted Living`;
       return !query||hay.includes(query.toLowerCase());
     });
     const active=conversations.find(c=>c.phone===selectedPhone)||filtered[0]||null;
-    React.useEffect(()=>{if(!selectedPhone&&filtered[0])setSelectedPhone(filtered[0].phone)},[rows,query,showUnread]);
+    React.useEffect(()=>{if(!isMobile&&!selectedPhone&&filtered[0])setSelectedPhone(filtered[0].phone)},[rows,query,showUnread,isMobile]);
     React.useEffect(()=>{
       if(!active)return;
       const unreadIds=active.msgs.filter(x=>x.direction==='inbound'&&!x.erp_read_at).map(x=>x.id);
@@ -6460,14 +6504,14 @@ Samara Assisted Living`;
     const unreadTotal=conversations.reduce((n,c)=>n+c.unread,0);
     return h(React.Fragment,null,
       h(Section,{title:'WhatsApp Inbox',subtitle:'Website/public enquiries, applicant replies and WhatsApp conversations in one place'},
-        h('div',{style:{display:'flex',gap:'10px',flexWrap:'wrap',alignItems:'center',marginBottom:'14px'}},
+        h('div',{className:'wa-inbox-toolbar',style:{display:'flex',gap:'10px',flexWrap:'wrap',alignItems:'center',marginBottom:'14px'}},
           h('input',{value:query,onChange:e=>setQuery(e.target.value),placeholder:'Search name, mobile or message…',style:{flex:'1 1 320px',minWidth:'230px'}}),
           h('button',{type:'button',className:`btn ${showUnread?'btn-primary':'btn-secondary'}`,onClick:()=>setShowUnread(!showUnread)},`Unread ${unreadTotal}`),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>load(true)},'Refresh')
         ),
-        message?h('div',{className:'notice',style:{marginBottom:'12px'}},message):null,
-        h('div',{style:{display:'grid',gridTemplateColumns:'minmax(300px,.72fr) minmax(0,1.65fr)',gap:'0',alignItems:'stretch',border:'1px solid #ead9df',borderRadius:'16px',overflow:'hidden',background:'#fff',minHeight:'640px'}},
-          h('div',{style:{borderRight:'1px solid #e6d5dc',background:'#fff',maxHeight:'76vh',overflowY:'auto'}},
+        message?h('div',{className:'notice wa-inbox-status',style:{marginBottom:'12px'}},message):null,
+        h('div',{className:`wa-inbox-shell ${isMobile&&selectedPhone?'wa-mobile-chat-open':''}`},
+          h('div',{className:'wa-conversation-list'},
             filtered.length?filtered.map(c=>h('button',{key:c.phone,type:'button',onClick:()=>setSelectedPhone(c.phone),style:{display:'block',width:'100%',textAlign:'left',padding:'13px 14px',border:'0',borderBottom:'1px solid #f0e5e9',background:active?.phone===c.phone?'#f3f5f6':'#fff',cursor:'pointer'}},
               h('div',{style:{display:'flex',alignItems:'center',gap:'10px'}},
                 h('div',{style:{width:'42px',height:'42px',borderRadius:'50%',display:'grid',placeItems:'center',background:'#e8edef',color:'#5d1039',fontWeight:'800',flex:'0 0 auto'}},String(c.name||'?').trim().slice(0,1).toUpperCase()),
@@ -6478,16 +6522,17 @@ Samara Assisted Living`;
               )
             )):h('p',{className:'empty',style:{padding:'30px'}},'No WhatsApp conversations found.')
           ),
-          h('div',{style:{minWidth:0,display:'flex',flexDirection:'column',height:'76vh',background:'#efeae2'}},
+          h('div',{className:'wa-chat-pane'},
             active?h(React.Fragment,null,
-              h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'center',padding:'10px 14px',background:'#f0f2f5',borderBottom:'1px solid #ddd'}},
-                h('div',{style:{display:'flex',gap:'10px',alignItems:'center',minWidth:0}},
+              h('div',{className:'wa-chat-head'},
+                h('div',{style:{display:'flex',gap:'8px',alignItems:'center',minWidth:0}},
+                  isMobile?h('button',{type:'button',className:'wa-mobile-back',onClick:()=>setSelectedPhone(''),'aria-label':'Back to conversations'},'‹'):null,
                   h('div',{style:{width:'40px',height:'40px',borderRadius:'50%',display:'grid',placeItems:'center',background:'#dfe5e7',color:'#5d1039',fontWeight:'800'}},String(active.name||'?').trim().slice(0,1).toUpperCase()),
                   h('div',{style:{minWidth:0}},h('div',{style:{fontWeight:'800',color:'#2e252a',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},active.name),h('small',{style:{color:'#6e6268'}},`+${active.phone} · ${active.source}`))
                 ),
                 h('span',{className:`badge ${within24?'success':''}`},within24?'Reply window open':'Template required')
               ),
-              h('div',{style:{flex:'1',padding:'18px 22px',overflowY:'auto',background:'linear-gradient(rgba(239,234,226,.94),rgba(239,234,226,.94))',minHeight:0}},active.msgs.map(r=>{
+              h('div',{className:'wa-chat-scroll'},active.msgs.map(r=>{
                 const outgoing=r.direction!=='inbound';const media=mediaInfo(r);const text=chatText(r);
                 return h('div',{key:r.id,style:{display:'flex',justifyContent:outgoing?'flex-end':'flex-start',marginBottom:'8px'}},
                   h('div',{style:{position:'relative',maxWidth:'72%',padding:'8px 10px 6px',borderRadius:outgoing?'8px 0 8px 8px':'0 8px 8px 8px',background:outgoing?'#d9fdd3':'#fff',boxShadow:'0 1px 1px rgba(0,0,0,.08)',color:'#292229'}},
@@ -6497,12 +6542,12 @@ Samara Assisted Living`;
                   )
                 )
               })),
-              within24?h('div',{style:{padding:'10px 12px',background:'#f0f2f5',borderTop:'1px solid #ddd',display:'flex',gap:'8px',alignItems:'flex-end'}},
+              within24?h('div',{className:'wa-free-composer'},
                 h('textarea',{value:reply,onChange:e=>setReply(e.target.value),placeholder:'Type a message',disabled:busy,rows:2,style:{flex:1,resize:'none',borderRadius:'10px',background:'#fff',margin:0}}),
                 h('button',{type:'button',className:'btn btn-primary',disabled:busy||!reply.trim(),onClick:sendReply,style:{minWidth:'96px'}},busy?'Sending…':'Send')
-              ):h('div',{style:{padding:'10px 12px',background:'#f0f2f5',borderTop:'1px solid #ddd'}},
+              ):h('div',{className:'wa-template-composer'},
                 h('div',{style:{fontWeight:'800',color:'#5d1039',marginBottom:'6px'}},'24-hour window closed · send an approved template'),
-                h('div',{style:{display:'grid',gridTemplateColumns:'minmax(180px,.8fr) minmax(180px,1fr) auto',gap:'8px',alignItems:'end'}},
+                h('div',{className:'wa-template-grid'},
                   h('div',null,h('small',{style:{display:'block',marginBottom:'3px',color:'#6e6268'}},'Template'),h('select',{value:templateName,onChange:e=>chooseReopenTemplate(e.target.value),style:{width:'100%'}},WA_REOPEN_TEMPLATES.map(t=>h('option',{key:t.name,value:t.name},t.label)))),
                   h('div',null,h('small',{style:{display:'block',marginBottom:'3px',color:'#6e6268'}},'Regarding'),h('input',{value:templateRegarding,onChange:e=>setTemplateRegarding(e.target.value),placeholder:selectedTemplate.regarding,style:{width:'100%'}})),
                   h('button',{type:'button',className:'btn btn-primary',disabled:busy||!templateRegarding.trim(),onClick:sendReopenTemplate,style:{whiteSpace:'nowrap'}},busy?'Sending…':'Send template')
