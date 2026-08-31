@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.56';
+  const APP_VERSION = '2.9.57';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6506,7 +6506,15 @@ Samara Assisted Living`;
       h(Section,{title:'WhatsApp Inbox',subtitle:'Website/public enquiries, applicant replies and WhatsApp conversations in one place'},
         h('div',{className:'wa-inbox-toolbar',style:{display:'flex',gap:'10px',flexWrap:'wrap',alignItems:'center',marginBottom:'14px'}},
           h('input',{value:query,onChange:e=>setQuery(e.target.value),placeholder:'Search name, mobile or message…',style:{flex:'1 1 320px',minWidth:'230px'}}),
-          h('button',{type:'button',className:`btn ${showUnread?'btn-primary':'btn-secondary'}`,onClick:()=>setShowUnread(!showUnread)},`Unread ${unreadTotal}`),
+          h('button',{type:'button',className:`btn ${showUnread?'btn-primary':'btn-secondary'}`,onClick:()=>{
+            const next=!showUnread;
+            setShowUnread(next);
+            // On mobile the chat pane hides the conversation list while a conversation
+            // is selected. Tapping Unread must therefore return to the list first.
+            if(isMobile)setSelectedPhone('');
+            // Clear any search that could hide unread conversations.
+            if(next)setQuery('');
+          }},`Unread ${unreadTotal}`),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>load(true)},'Refresh')
         ),
         message?h('div',{className:'notice wa-inbox-status',style:{marginBottom:'12px'}},message):null,
