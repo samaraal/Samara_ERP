@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.57';
+  const APP_VERSION = '2.9.58';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6054,6 +6054,8 @@ Caring with Compassion. Living with Dignity.`;
 
     const selectedDef=mailboxDefs.find(x=>x.key===mailbox)||mailboxDefs[0];
     const currentCounts=counts[mailbox]||{};
+    const mailSignatureName=String(profile?.full_name||'').trim()||'Samara Team';
+    const mailSignatureRole=String(profile?.role||'').trim()||'Staff';
 
     return h('div',{className:'mail-shell'},
       h('div',{className:'mail-hero'},
@@ -6171,7 +6173,22 @@ Caring with Compassion. Living with Dignity.`;
               h('div',{className:'field span-2'},h('label',null,'To *'),h('input',{value:compose.to,onChange:e=>setCompose({...compose,to:e.target.value}),placeholder:'recipient@example.com'})),
               h('div',{className:'field span-2'},h('label',null,'CC'),h('input',{value:compose.cc,onChange:e=>setCompose({...compose,cc:e.target.value}),placeholder:'Optional; separate multiple addresses with commas'})),
               h('div',{className:'field span-2'},h('label',null,'Subject *'),h('input',{value:compose.subject,onChange:e=>setCompose({...compose,subject:e.target.value})})),
-              h('div',{className:'field span-2'},h('label',null,'Message'),h('textarea',{rows:12,value:compose.body,onChange:e=>setCompose({...compose,body:e.target.value}),placeholder:'Type your message…'}))
+              h('div',{className:'field span-2'},h('label',null,'Message'),h('textarea',{rows:12,value:compose.body,onChange:e=>setCompose({...compose,body:e.target.value}),placeholder:'Type your message…'})),
+              h('div',{className:'field span-2'},
+                h('label',null,'Automatic Samara Footer'),
+                h('div',{style:{border:'1px solid #ead7df',borderRadius:'14px',padding:'14px',background:'#fffafc',display:'flex',gap:'14px',alignItems:'center',flexWrap:'wrap'}},
+                  h('img',{src:'./assets/samara-mail-logo.png',alt:'Samara Assisted Living',style:{width:'150px',maxWidth:'42%',height:'auto'}}),
+                  h('div',{style:{fontSize:'13px',lineHeight:'1.55',color:'#4b3540'}},
+                    h('strong',{style:{fontSize:'14px',color:'#7b0b45'}},mailSignatureName),
+                    h('div',null,mailSignatureRole),
+                    h('div',null,'Samara Assisted Living'),
+                    h('div',null,'RBK VILLA, No: 23-A, Reddipalayam Road, Jeswant Nagar Phase 1, Mogappair West, Chennai 600037.'),
+                    h('div',null,`Email: ${selectedDef?.email||''}`),
+                    h('div',null,'Website: www.samaraassistedliving.com')
+                  )
+                ),
+                h('small',{className:'small-note'},'This footer is added automatically to every email sent from the ERP and cannot be accidentally deleted from the message body.')
+              )
             ),
             h('div',{className:'modal-actions'},
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setComposeOpen(false)},'Cancel'),

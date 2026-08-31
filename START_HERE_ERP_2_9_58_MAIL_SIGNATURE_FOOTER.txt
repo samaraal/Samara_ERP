@@ -1,0 +1,26 @@
+SAMARA CARE ERP v2.9.58 - AUTOMATIC EMAIL FOOTER
+
+Replace in GitHub / ERP:
+1. app.js
+2. index.html
+3. service-worker.js
+4. assets/samara-mail-logo.png
+
+Supabase Edge Function:
+Replace and redeploy the EXISTING function:
+  supabase/functions/titan-mail/index.ts
+Do not create a new function.
+
+No SQL required.
+
+Every email sent from the ERP Mail Dashboard now receives an automatic footer containing:
+- Samara logo
+- Logged-in staff member full name
+- Logged-in ERP role (Admin / Manager)
+- Samara Assisted Living
+- Address
+- Sending mailbox email address
+- Website
+- Compassion • Comfort • Dignity
+
+The compose window shows a non-editable preview of the automatic footer.
