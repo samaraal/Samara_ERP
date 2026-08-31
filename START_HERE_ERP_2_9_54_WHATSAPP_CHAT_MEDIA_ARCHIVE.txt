@@ -1,0 +1,27 @@
+SAMARA CARE ERP 2.9.54 — WHATSAPP CHAT LAYOUT + MEDIA ARCHIVE
+
+WHAT CHANGED
+1. WhatsApp Inbox redesigned to resemble a normal WhatsApp chat:
+   - received messages on the left (white)
+   - sent messages on the right (green)
+   - compact conversation list with avatar, last message and time
+   - normal composer at the bottom while the 24-hour reply window is open
+   - compact approved-template composer when the 24-hour window is closed
+   - sent templates are displayed as the actual message text instead of raw {{1}}/{{2}} technical details
+2. Incoming documents/images/audio/video/stickers are now archived immediately to private Supabase Storage when the webhook receives them.
+3. Open attachment first uses Samara's archived copy. Older records fall back to Meta.
+4. If an older Meta attachment is no longer available, ERP shows a clear message asking for the file to be resent instead of briefly dimming the button and failing unclearly.
+
+REPLACE THESE ERP FILES
+- app.js
+- index.html
+- service-worker.js
+
+DEPLOY THESE SUPABASE EDGE FUNCTIONS
+- supabase/functions/whatsapp-webhook/index.ts
+- supabase/functions/whatsapp-media/index.ts
+
+No SQL is required. The webhook creates the private 'whatsapp-media' Storage bucket automatically when the first new media message arrives.
+
+IMPORTANT ABOUT OLD FILES
+The existing 18-08-2026 documents shown in the screenshot return Meta Graph API error code 100 / object unavailable. If Meta no longer exposes those old media objects, code cannot recreate the bytes. Those particular files must be resent by the sender unless another copy was saved elsewhere. From v2.9.54 onward, new inbound attachments are copied to Samara's own private Storage at receipt time, so they remain available independently of Meta's temporary media availability.

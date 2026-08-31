@@ -1,8 +1,8 @@
-const CACHE = 'samara-erp-2.9.53-whatsapp-approved-templates';
+const CACHE = 'samara-erp-2.9.54-whatsapp-chat-media-archive';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.9.53', './app.js?v=2.9.53',
+  './', './index.html', './styles.css?v=2.9.54', './app.js?v=2.9.54',
   './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',
-  './config.js?v=2.9.53', './manifest.webmanifest?v=2.8.40',
+  './config.js?v=2.9.54', './manifest.webmanifest?v=2.8.40',
   './assets/samara-logo.png?v=20260812-global1',
   './icons/favicon.png?v=2.8.40', './icons/icon-192.png?v=2.8.40',
   './icons/icon-512.png?v=2.8.40', './icons/icon-maskable-512.png?v=2.8.40',

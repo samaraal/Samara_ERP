@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.53';
+  const APP_VERSION = '2.9.54';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6354,9 +6354,18 @@ Samara Assisted Living`;
       const type=String(r?.message_type||'').toLowerCase();
       const payload=r?.message_payload||{};
       const block=payload?.[type]||{};
+      const archived=payload?._samara_media||{};
       const id=String(block?.id||'').trim();
-      if(!id||!['image','audio','video','document','sticker'].includes(type))return null;
-      return {id,type,filename:block?.filename||'',mime:block?.mime_type||''};
+      const storedPath=String(archived?.path||'').trim();
+      if(!['image','audio','video','document','sticker'].includes(type)||(!id&&!storedPath))return null;
+      return {id,type,filename:archived?.filename||block?.filename||'',mime:archived?.mime_type||block?.mime_type||'',storedPath,storedBucket:archived?.bucket||'whatsapp-media'};
+    }
+    function mediaLabel(media){
+      if(media.type==='audio')return '▶ Play voice / audio';
+      if(media.type==='document')return media.filename?`📄 ${media.filename}`:'📄 Open document';
+      if(media.type==='image')return '🖼 View image';
+      if(media.type==='video')return '▶ Play video';
+      return 'View sticker';
     }
     async function openMedia(r){
       const media=mediaInfo(r);if(!media||mediaBusyId)return;
@@ -6365,18 +6374,40 @@ Samara Assisted Living`;
         const {data:{session}}=await client.auth.getSession();
         const token=session?.access_token||cfg.supabaseAnonKey;
         const response=await fetch(`${cfg.supabaseUrl}/functions/v1/whatsapp-media`,{
-          method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabaseAnonKey,'Authorization':`Bearer ${token}`},body:JSON.stringify({media_id:media.id})
+          method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabaseAnonKey,'Authorization':`Bearer ${token}`},body:JSON.stringify({media_id:media.id,stored_path:media.storedPath,stored_bucket:media.storedBucket})
         });
-        if(!response.ok){const e=await response.json().catch(()=>({}));throw new Error(e?.error||`Unable to retrieve media (${response.status})`)}
+        if(!response.ok){
+          const e=await response.json().catch(()=>({}));
+          const err=new Error(e?.error||`Unable to retrieve media (${response.status})`);err.status=response.status;throw err;
+        }
         const blob=await response.blob();
         const url=URL.createObjectURL(blob);
         const win=window.open(url,'_blank','noopener');
-        if(!win){
-          const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';a.click();
-        }
-        setTimeout(()=>URL.revokeObjectURL(url),60000);
-        setMessage('✓ WhatsApp media opened.');
-      }catch(error){setMessage(`Unable to open WhatsApp media: ${error.message||error}`)}finally{setMediaBusyId('')}
+        if(!win){const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';a.download=media.filename||'';a.click()}
+        setTimeout(()=>URL.revokeObjectURL(url),120000);
+        setMessage('✓ WhatsApp attachment opened.');
+      }catch(error){
+        if(error?.status===410)setMessage('This older WhatsApp attachment is no longer available from Meta. Ask the sender to resend it. New incoming files will be archived automatically in Samara ERP.');
+        else setMessage(`Unable to open WhatsApp media: ${error.message||error}`)
+      }finally{setMediaBusyId('')}
+    }
+    function chatText(r){
+      const raw=String(r?.message_content||r?.communication_type||'WhatsApp message');
+      if(String(r?.message_type||'').toLowerCase()==='template'){
+        const one=(raw.match(/\{\{1\}\}:\s*(.*)/)||[])[1]||r?.contact_name||r?.applicant_name||'Customer';
+        const two=(raw.match(/\{\{2\}\}:\s*(.*)/)||[])[1]||'your enquiry';
+        const name=String(r?.template_name||'');
+        if(name==='samara_admission_followup')return `Dear ${one},\nGreetings from Samara Assisted Living.\nThank you for contacting us regarding care and admission support for ${two}. Our team will be happy to understand your requirements and assist you further.\nPlease reply to this message to continue the conversation.\n\nThank you,\nSamara Assisted Living`;
+        if(name==='samara_callback_request')return `Dear ${one},\nGreetings from Samara Assisted Living.\nWe would like to speak with you regarding ${two}. Please reply to this message or let us know a convenient time for our team to contact you.\n\nThank you,\nSamara Assisted Living`;
+        if(name==='samara_general_followup')return `Dear ${one},\nGreetings from Samara Assisted Living.\nWe received your message regarding ${two}. We apologise for the delay in responding.\nPlease reply to this message and our team will be happy to assist you.\n\nThank you,\nSamara Assisted Living`;
+      }
+      if(/^\[Audio \/ voice message received\]$/i.test(raw))return 'Voice message';
+      if(/^\[Image received\]$/i.test(raw))return 'Photo';
+      if(/^\[Video received\]$/i.test(raw))return 'Video';
+      if(/^\[Sticker received\]$/i.test(raw))return 'Sticker';
+      const doc=raw.match(/^\[Document received(?::\s*([^\]—]+))?(?:\s*—\s*([^\]]+))?\]$/i);
+      if(doc)return doc[2]?`${doc[1]||'Document'}\n${doc[2]}`:(doc[1]||'Document');
+      return raw;
     }
     async function sendReply(){
       if(!active||!reply.trim()||busy)return;
@@ -6425,52 +6456,50 @@ Samara Assisted Living`;
           h('button',{type:'button',className:'btn btn-secondary',onClick:load},'Refresh')
         ),
         message?h('div',{className:'notice',style:{marginBottom:'12px'}},message):null,
-        h('div',{style:{display:'grid',gridTemplateColumns:'minmax(280px,.72fr) minmax(0,1.55fr)',gap:'14px',alignItems:'stretch'}},
-          h('div',{className:'card',style:{padding:'0',overflow:'hidden',maxHeight:'72vh',overflowY:'auto'}},
-            filtered.length?filtered.map(c=>h('button',{key:c.phone,type:'button',onClick:()=>setSelectedPhone(c.phone),style:{display:'block',width:'100%',textAlign:'left',padding:'14px 15px',border:'0',borderBottom:'1px solid #f0dce6',background:active?.phone===c.phone?'#fce8f1':'#fff',cursor:'pointer'}},
-              h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px'}},h('strong',{style:{color:'#5d1039'}},c.name),c.unread?h('span',{className:'badge success'},c.unread):null),
-              h('small',{style:{display:'block',marginTop:'3px'}},`+${c.phone} · ${c.source}`),
-              h('div',{style:{marginTop:'6px',fontSize:'13px',color:'#705967',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},c.last.message_content||c.last.communication_type||'WhatsApp activity'),
-              h('small',{style:{display:'block',marginTop:'4px',color:'#9a7e8e'}},fmt(c.last.created_at))
+        h('div',{style:{display:'grid',gridTemplateColumns:'minmax(300px,.72fr) minmax(0,1.65fr)',gap:'0',alignItems:'stretch',border:'1px solid #ead9df',borderRadius:'16px',overflow:'hidden',background:'#fff',minHeight:'640px'}},
+          h('div',{style:{borderRight:'1px solid #e6d5dc',background:'#fff',maxHeight:'76vh',overflowY:'auto'}},
+            filtered.length?filtered.map(c=>h('button',{key:c.phone,type:'button',onClick:()=>setSelectedPhone(c.phone),style:{display:'block',width:'100%',textAlign:'left',padding:'13px 14px',border:'0',borderBottom:'1px solid #f0e5e9',background:active?.phone===c.phone?'#f3f5f6':'#fff',cursor:'pointer'}},
+              h('div',{style:{display:'flex',alignItems:'center',gap:'10px'}},
+                h('div',{style:{width:'42px',height:'42px',borderRadius:'50%',display:'grid',placeItems:'center',background:'#e8edef',color:'#5d1039',fontWeight:'800',flex:'0 0 auto'}},String(c.name||'?').trim().slice(0,1).toUpperCase()),
+                h('div',{style:{minWidth:0,flex:1}},
+                  h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'baseline'}},h('strong',{style:{color:'#2e252a',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},c.name),h('small',{style:{color:'#8b7c84',flex:'0 0 auto'}},fmt(c.last.created_at))),
+                  h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center',marginTop:'4px'}},h('span',{style:{fontSize:'13px',color:'#756870',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},chatText(c.last).replace(/\n/g,' ')),c.unread?h('span',{className:'badge success'},c.unread):null)
+                )
+              )
             )):h('p',{className:'empty',style:{padding:'30px'}},'No WhatsApp conversations found.')
           ),
-          h('div',{className:'card',style:{padding:'14px',minHeight:'520px',display:'flex',flexDirection:'column'}},
+          h('div',{style:{minWidth:0,display:'flex',flexDirection:'column',height:'76vh',background:'#efeae2'}},
             active?h(React.Fragment,null,
-              h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'flex-start',padding:'4px 4px 12px',borderBottom:'1px solid #efd7e3'}},
-                h('div',null,h('h3',{style:{margin:'0',color:'#4f233d'}},active.name),h('small',null,`+${active.phone} · ${active.source}`)),
+              h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'center',padding:'10px 14px',background:'#f0f2f5',borderBottom:'1px solid #ddd'}},
+                h('div',{style:{display:'flex',gap:'10px',alignItems:'center',minWidth:0}},
+                  h('div',{style:{width:'40px',height:'40px',borderRadius:'50%',display:'grid',placeItems:'center',background:'#dfe5e7',color:'#5d1039',fontWeight:'800'}},String(active.name||'?').trim().slice(0,1).toUpperCase()),
+                  h('div',{style:{minWidth:0}},h('div',{style:{fontWeight:'800',color:'#2e252a',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},active.name),h('small',{style:{color:'#6e6268'}},`+${active.phone} · ${active.source}`))
+                ),
                 h('span',{className:`badge ${within24?'success':''}`},within24?'Reply window open':'Template required')
               ),
-              h('div',{style:{flex:'1',padding:'18px 6px',overflowY:'auto',maxHeight:'52vh',background:'#fbf7f3',borderRadius:'0 0 12px 12px'}},active.msgs.map(r=>{
-                const outgoing=r.direction!=='inbound';const media=mediaInfo(r);
-                return h('div',{key:r.id,style:{display:'flex',justifyContent:outgoing?'flex-end':'flex-start',marginBottom:'10px'}},
-                  h('div',{style:{maxWidth:'78%',padding:'10px 12px',borderRadius:outgoing?'14px 14px 4px 14px':'14px 14px 14px 4px',background:outgoing?'#dff5e9':'#fff',boxShadow:'0 1px 4px rgba(0,0,0,.08)'}},
-                    h('div',{style:{whiteSpace:'pre-wrap',lineHeight:'1.45'}},r.message_content||r.communication_type||'WhatsApp message'),
-                    media?h('button',{type:'button',className:'btn btn-secondary',disabled:mediaBusyId===r.id,onClick:()=>openMedia(r),style:{marginTop:'8px',padding:'6px 10px',fontSize:'12px'}},mediaBusyId===r.id?'Opening…':media.type==='audio'?'▶ Play voice / audio':media.type==='document'?'Open document':media.type==='image'?'View image':media.type==='video'?'▶ Play video':'View sticker'):null,
-                    h('small',{style:{display:'block',marginTop:'6px',textAlign:'right',color:'#7d6d75'}},`${fmt(r.received_at||r.sent_at||r.created_at)}${outgoing?` · ${r.status||'Sent'}`:''}`)
+              h('div',{style:{flex:'1',padding:'18px 22px',overflowY:'auto',background:'linear-gradient(rgba(239,234,226,.94),rgba(239,234,226,.94))',minHeight:0}},active.msgs.map(r=>{
+                const outgoing=r.direction!=='inbound';const media=mediaInfo(r);const text=chatText(r);
+                return h('div',{key:r.id,style:{display:'flex',justifyContent:outgoing?'flex-end':'flex-start',marginBottom:'8px'}},
+                  h('div',{style:{position:'relative',maxWidth:'72%',padding:'8px 10px 6px',borderRadius:outgoing?'8px 0 8px 8px':'0 8px 8px 8px',background:outgoing?'#d9fdd3':'#fff',boxShadow:'0 1px 1px rgba(0,0,0,.08)',color:'#292229'}},
+                    h('div',{style:{whiteSpace:'pre-wrap',lineHeight:'1.42',fontSize:'14px',paddingRight:'4px'}},text),
+                    media?h('button',{type:'button',disabled:mediaBusyId===r.id,onClick:()=>openMedia(r),style:{display:'block',marginTop:'8px',padding:'7px 10px',border:'0',borderRadius:'7px',background:'#f0f2f5',color:'#5d1039',fontWeight:'700',cursor:mediaBusyId===r.id?'wait':'pointer',maxWidth:'100%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},mediaBusyId===r.id?'Opening…':mediaLabel(media)):null,
+                    h('small',{style:{display:'block',marginTop:'4px',textAlign:'right',color:'#667781',fontSize:'11px'}},`${fmt(r.received_at||r.sent_at||r.created_at)}${outgoing?`  ${String(r.status||'Sent').toLowerCase()==='read'?'✓✓':String(r.status||'Sent').toLowerCase()==='delivered'?'✓✓':'✓'}`:''}`)
                   )
                 )
               })),
-              within24?h('div',{style:{paddingTop:'12px'}},
-                h('textarea',{value:reply,onChange:e=>setReply(e.target.value),placeholder:'Type a reply to this WhatsApp conversation…',disabled:busy,rows:3}),
-                h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'center',marginTop:'8px'}},
-                  h('small',{style:{color:'#806b77'}},'Replies are sent through Meta Cloud API.'),
-                  h('button',{type:'button',className:'btn btn-primary',disabled:busy||!reply.trim(),onClick:sendReply},busy?'Sending…':'Send Reply')
-                )
-              ):h('div',{style:{paddingTop:'12px',borderTop:'1px solid #efd7e3'}},
-                h('div',{style:{fontWeight:'700',color:'#5d1039',marginBottom:'8px'}},'Re-open WhatsApp Conversation'),
-                h('small',{style:{display:'block',color:'#806b77',marginBottom:'10px'}},'Choose one of the approved Samara templates. Customer name and language are filled automatically.'),
-                h('div',{style:{display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1fr)',gap:'8px'}},
-                  h('div',null,h('small',{style:{display:'block',marginBottom:'4px',color:'#806b77'}},'Approved template'),h('select',{value:templateName,onChange:e=>chooseReopenTemplate(e.target.value)},WA_REOPEN_TEMPLATES.map(t=>h('option',{key:t.name,value:t.name},t.label)))),
-                  h('div',null,h('small',{style:{display:'block',marginBottom:'4px',color:'#806b77'}},'Customer name · {{1}}'),h('input',{value:active.name||'Customer',readOnly:true}))
+              within24?h('div',{style:{padding:'10px 12px',background:'#f0f2f5',borderTop:'1px solid #ddd',display:'flex',gap:'8px',alignItems:'flex-end'}},
+                h('textarea',{value:reply,onChange:e=>setReply(e.target.value),placeholder:'Type a message',disabled:busy,rows:2,style:{flex:1,resize:'none',borderRadius:'10px',background:'#fff',margin:0}}),
+                h('button',{type:'button',className:'btn btn-primary',disabled:busy||!reply.trim(),onClick:sendReply,style:{minWidth:'96px'}},busy?'Sending…':'Send')
+              ):h('div',{style:{padding:'10px 12px',background:'#f0f2f5',borderTop:'1px solid #ddd'}},
+                h('div',{style:{fontWeight:'800',color:'#5d1039',marginBottom:'6px'}},'24-hour window closed · send an approved template'),
+                h('div',{style:{display:'grid',gridTemplateColumns:'minmax(180px,.8fr) minmax(180px,1fr) auto',gap:'8px',alignItems:'end'}},
+                  h('div',null,h('small',{style:{display:'block',marginBottom:'3px',color:'#6e6268'}},'Template'),h('select',{value:templateName,onChange:e=>chooseReopenTemplate(e.target.value),style:{width:'100%'}},WA_REOPEN_TEMPLATES.map(t=>h('option',{key:t.name,value:t.name},t.label)))),
+                  h('div',null,h('small',{style:{display:'block',marginBottom:'3px',color:'#6e6268'}},'Regarding'),h('input',{value:templateRegarding,onChange:e=>setTemplateRegarding(e.target.value),placeholder:selectedTemplate.regarding,style:{width:'100%'}})),
+                  h('button',{type:'button',className:'btn btn-primary',disabled:busy||!templateRegarding.trim(),onClick:sendReopenTemplate,style:{whiteSpace:'nowrap'}},busy?'Sending…':'Send template')
                 ),
-                h('div',{style:{marginTop:'8px'}},h('small',{style:{display:'block',marginBottom:'4px',color:'#806b77'}},'Regarding · {{2}}'),h('input',{value:templateRegarding,onChange:e=>setTemplateRegarding(e.target.value),placeholder:selectedTemplate.regarding})),
-                h('div',{style:{marginTop:'10px',padding:'10px 12px',background:'#fbf7f3',border:'1px solid #efd7e3',borderRadius:'10px',whiteSpace:'pre-wrap',lineHeight:'1.45'}},reopenPreview(active.name||'Customer',templateRegarding||selectedTemplate.regarding)),
-                h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'center',marginTop:'8px'}},
-                  h('small',{style:{color:'#806b77'}},'After the customer replies, normal free-text WhatsApp replies become available for 24 hours.'),
-                  h('button',{type:'button',className:'btn btn-primary',disabled:busy||!templateRegarding.trim(),onClick:sendReopenTemplate},busy?'Sending…':'Send WhatsApp')
-                )
+                h('small',{style:{display:'block',marginTop:'6px',color:'#6e6268'}},`To: ${active.name||'Customer'} · Preview available from the sent message after sending.`)
               )
-            ):h('p',{className:'empty'},'Select a WhatsApp conversation.')
+            ):h('p',{className:'empty',style:{margin:'auto'}},'Select a WhatsApp conversation.')
           )
         )
       )
