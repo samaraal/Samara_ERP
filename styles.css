@@ -1394,14 +1394,14 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
 .clinical-alert-popup-actions{position:relative;z-index:10041;pointer-events:auto}
 .clinical-alert-popup-actions .btn{pointer-events:auto;touch-action:manipulation;cursor:pointer}
 
-/* ERP 2.9.65 — Mobile clinical escalation popup visibility fix
-   Keeps the live escalation fully above dashboard cards and bottom navigation. */
+/* ERP 2.9.66 — Mobile clinical escalation popup visibility fix
+   Lowered slightly to leave more of the dashboard clean while keeping the action reachable. */
 @media (max-width:760px){
   body #root > .app .clinical-alert-popup{
     position:fixed!important;
     left:12px!important;
     right:12px!important;
-    bottom:calc(82px + env(safe-area-inset-bottom))!important;
+    bottom:calc(54px + env(safe-area-inset-bottom))!important;
     top:auto!important;
     width:auto!important;
     max-width:none!important;
