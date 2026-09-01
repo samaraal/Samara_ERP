@@ -5295,6 +5295,13 @@ Caring with Compassion. Living with Dignity.`;
             h('button',{type:'button',className:'btn btn-primary',onClick:()=>{
               const liveAlert=alertEngine.alerts[0];
               if(!liveAlert)return;
+              // Manager/Admin escalations must open the Clinical Escalations register,
+              // where management can review the source task and close the escalation with remarks.
+              if(liveAlert.isEscalated && ['Admin','Manager'].includes(profile?.role)){
+                setPage('Clinical Escalations');
+                window.requestAnimationFrame(()=>window.scrollTo({top:0,left:0,behavior:'smooth'}));
+                return;
+              }
               const target=liveAlert.target_page||'Clinical Alerts';
               if(target!=='Clinical Alerts'){
                 const context={

@@ -1,13 +1,17 @@
-Samara Care ERP 2.8.91 - UNIQUE PATIENT MOBILE GUARD
+SAMARA CARE ERP — OPEN TO RESOLVE FIX
 
-1. Run 94_UNIQUE_PATIENT_MOBILE_GUARD.sql in Supabase SQL Editor.
-2. Replace only app.js, index.html and service-worker.js in the ERP repository root.
-3. Do NOT replace styles.css or any folders.
+Problem fixed:
+On Manager/Admin mobile dashboard, tapping "Open to Resolve" on an escalated clinical alert did not open the management resolution screen.
 
-What this update does:
-- New admission: blocks a mobile number already belonging to ANY other patient, active or inactive.
-- Patient Edit: blocks changing a patient's mobile to another patient's existing mobile.
-- Database trigger: independently blocks duplicate patient mobile numbers even if the browser-side check is bypassed.
-- Re-admission of the SAME patient remains allowed because it reuses the same patient row.
+What changed:
+- Escalated alerts for Manager/Admin now open the dedicated "Clinical Escalations" register.
+- From there, management can use "Open Source" to review the clinical task and "Mark Resolved" after completion with mandatory remarks.
+- Nurse/Caregiver workflow is unchanged.
+- Cache version bumped so installed PWA receives the corrected app.js.
 
-This update does NOT repair the existing Boominathan/Karthi collision. Recovery is being handled separately after identity evidence is confirmed.
+Replace these 3 files only:
+1. app.js
+2. index.html
+3. service-worker.js
+
+Then deploy and fully close/reopen the installed Samara app once.
