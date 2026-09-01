@@ -1,17 +1,14 @@
-SAMARA CARE ERP — OPEN TO RESOLVE FIX
+SAMARA CARE – UPDATE POPUP LOOP FIX
 
-Problem fixed:
-On Manager/Admin mobile dashboard, tapping "Open to Resolve" on an escalated clinical alert did not open the management resolution screen.
+Cause:
+app.js still reported APP_VERSION 2.9.64 while service-worker.js reported 2.9.65.
+Therefore the ERP continuously believed 2.9.65 was a newer version and showed the update popup after every refresh.
 
-What changed:
-- Escalated alerts for Manager/Admin now open the dedicated "Clinical Escalations" register.
-- From there, management can use "Open Source" to review the clinical task and "Mark Resolved" after completion with mandatory remarks.
-- Nurse/Caregiver workflow is unchanged.
-- Cache version bumped so installed PWA receives the corrected app.js.
+Fix:
+Replace ONLY app.js with the included file.
+No SQL or other file change is required.
 
-Replace these 3 files only:
-1. app.js
-2. index.html
-3. service-worker.js
-
-Then deploy and fully close/reopen the installed Samara app once.
+After deployment:
+1. Fully close the Samara Care app/browser tab.
+2. Reopen it once.
+3. If the update prompt appears once more, tap OK once. It should not repeat after that.
