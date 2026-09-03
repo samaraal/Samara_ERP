@@ -6612,6 +6612,9 @@ Samara Assisted Living`;
                     outgoing&&(/Payment Receipt|Daily Payable Reminder/i.test(String(r.communication_type||'')))?h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748',marginBottom:'5px'}},`${r.communication_type}${r.sent_by_name?` · ${r.sent_by_name}`:''}`):null,
                     h('div',{style:{whiteSpace:'pre-wrap',lineHeight:'1.42',fontSize:'14px',paddingRight:'4px'}},text),
                     media?h('button',{type:'button',disabled:mediaBusyId===r.id,onClick:()=>openMedia(r),style:{display:'block',marginTop:'8px',padding:'7px 10px',border:'0',borderRadius:'7px',background:'#f0f2f5',color:'#5d1039',fontWeight:'700',cursor:mediaBusyId===r.id?'wait':'pointer',maxWidth:'100%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},mediaBusyId===r.id?'Opening…':mediaLabel(media)):null,
+                    outgoing&&['samara_bill_reminder','samara_payment_receipt'].includes(String(r.template_name||'').toLowerCase())
+                      ?h('a',{href:'https://family.samaraassistedliving.com/',target:'_blank',rel:'noopener noreferrer',style:{display:'block',marginTop:'9px',padding:'8px 10px',borderRadius:'7px',background:'#fff',border:'1px solid #b8d9c5',color:'#087f5b',fontWeight:'800',textAlign:'center',textDecoration:'none'}},String(r.template_name||'').toLowerCase()==='samara_payment_receipt'?'↗ View Family Portal website':'↗ View Family Portal')
+                      :null,
                     h('small',{style:{display:'block',marginTop:'4px',textAlign:'right',color:'#667781',fontSize:'11px'}},`${fmt(r.received_at||r.sent_at||r.created_at)}${outgoing?`  ${String(r.status||'Sent').toLowerCase()==='read'?'✓✓':String(r.status||'Sent').toLowerCase()==='delivered'?'✓✓':'✓'}`:''}`)
                   )
                 )

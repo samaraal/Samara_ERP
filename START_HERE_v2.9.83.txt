@@ -1,0 +1,42 @@
+SAMARA CARE ERP v2.9.83
+AUTOMATIC DAILY PAYABLE TEST + FAMILY PORTAL BUTTON
+
+PART A — FAMILY PORTAL BUTTON IN ERP WHATSAPP INBOX
+1. Replace app.js from this ZIP.
+2. Hard refresh ERP: Ctrl + Shift + R.
+3. Open WhatsApp Inbox.
+4. Daily Payable Reminder messages will now show:
+      View Family Portal
+   Payment Receipt messages will show:
+      View Family Portal website
+5. The button opens:
+      https://family.samaraassistedliving.com/
+
+NOTE:
+The actual Meta WhatsApp template already contains its approved Family Portal button.
+This v2.9.83 change makes the ERP Inbox representation show the same action too.
+
+PART B — TEST THE AUTOMATIC MESSAGE NOW
+Do NOT click the ERP green Send Daily Payable button for this test.
+
+Use Supabase Dashboard:
+1. Open Supabase > Edge Functions > daily-payable-whatsapp.
+2. Confirm Verify JWT with legacy secret is OFF.
+3. Open the function's Invoke/Test option and invoke the function once.
+   This executes the SAME backend function used by the automatic schedule and does not
+   depend on the ERP page being open.
+4. Expected result:
+   - Eligible active patient with outstanding > 0 gets samara_bill_reminder.
+   - ERP WhatsApp Inbox shows:
+       Daily Payable Reminder · Automated
+       Samara System · Automated
+   - View Family Portal appears beneath the message.
+   - A patient already sent today's automatic reminder is skipped by duplicate protection.
+
+WHY WE USE INVOKE FOR THE FIRST TEST
+It tests the automatic backend path immediately without creating a temporary recurring
+cron job that could accidentally resend tomorrow if not removed.
+
+PART C — PERMANENT DAILY SCHEDULE
+After the automatic test is confirmed, create the permanent Supabase Cron schedule.
+Recommended Samara timing: 8:00 PM IST daily.
