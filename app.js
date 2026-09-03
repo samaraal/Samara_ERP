@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.69';
+  const APP_VERSION = '2.9.70';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5327,6 +5327,10 @@ Caring with Compassion. Living with Dignity.`;
             h('button',{type:'button',className:'btn btn-primary',onClick:()=>{
               const liveAlert=topClinicalAlert;
               if(!liveAlert)return;
+              // Hide the popup before navigating on mobile/frontline screens so it cannot
+              // cover the task form and make the tap appear unresponsive. This does NOT
+              // resolve or acknowledge the alert; it only suppresses the popup temporarily.
+              setClinicalPopupSnooze({key:topClinicalAlertKey,until:Date.now()+5*60*1000});
               // Manager/Admin escalations must open the Clinical Escalations register,
               // where management can review the source task and close the escalation with remarks.
               if(liveAlert.isEscalated && ['Admin','Manager'].includes(profile?.role)){
@@ -10408,7 +10412,7 @@ Please keep these login details confidential.`;
                   h('span',{className:'task-row-number'},medicineIndex+1),
                   h('div',null,h('strong',null,x.label),h('small',null,`${x.time} · ${x.order.route||'—'} · ${x.order.food_instruction||'—'}`)),
                   x.log?h('span',{className:'badge'},x.log.status):h('span',{className:'pill warning'},'Pending'),
-                  !x.log&&h('div',{className:'employee-actions'},
+                  x.log?h('button',{type:'button',className:'btn btn-secondary clinical-action-done',disabled:true},'Done ✓'):h('div',{className:'employee-actions'},
                     h('button',{className:'btn btn-primary',onClick:()=>openRegularTask('Medicines',{
                       patient_id:x.patient_id,order_id:x.order.id,scheduled_time:x.time,status:'Given'
                     })},'Complete'),
@@ -10426,7 +10430,7 @@ Please keep these login details confidential.`;
                   h('span',{className:'task-row-number'},careIndex+1),
                   h('div',null,h('strong',null,x.label),h('small',null,`${x.order.frequency||'Daily'}${x.order.instruction?` · ${x.order.instruction}`:''}`)),
                   x.log?h('span',{className:'badge'},x.log.status):h('span',{className:'pill warning'},'Pending'),
-                  !x.log&&h('div',{className:'employee-actions'},
+                  x.log?h('button',{type:'button',className:'btn btn-secondary clinical-action-done',disabled:true},'Done ✓'):h('div',{className:'employee-actions'},
                     h('button',{className:'btn btn-primary',onClick:()=>openRegularTask('Daily Care',{
                       patient_id:x.patient_id,care_order_id:x.order.id,care_type:x.label,shift:x.taskShift,status:'Completed'
                     })},'Complete'),
@@ -10443,7 +10447,7 @@ Please keep these login details confidential.`;
                 h('div',{className:`patient-work-task-row ${group.vitalsCompleted?'done':''}`},
                   h('div',null,h('strong',null,'Current shift vital observations'),h('small',null,group.vitalsCompleted?'Recorded today':'Not yet recorded today')),
                   group.vitalsCompleted?h('span',{className:'badge'},'Completed'):h('span',{className:'pill warning'},'Pending'),
-                  !group.vitalsCompleted&&h('button',{className:'btn btn-primary',onClick:()=>openRegularTask('Vital Signs',{patient_id:group.id})},'Enter Vitals')
+                  group.vitalsCompleted?h('button',{type:'button',className:'btn btn-secondary clinical-action-done',disabled:true},'Recorded ✓'):h('button',{className:'btn btn-primary',onClick:()=>openRegularTask('Vital Signs',{patient_id:group.id})},'Enter Vitals')
                 )
               ),
 
@@ -10453,7 +10457,7 @@ Please keep these login details confidential.`;
                   h('span',{className:'task-row-number'},physioIndex+1),
                   h('div',null,h('strong',null,x.label),h('small',null,`${x.time||shift} · ${x.order.frequency||'—'}`)),
                   x.log?h('span',{className:'badge'},x.log.status):h('span',{className:'pill warning'},'Pending'),
-                  !x.log&&h('div',{className:'employee-actions'},
+                  x.log?h('button',{type:'button',className:'btn btn-secondary clinical-action-done',disabled:true},'Done ✓'):h('div',{className:'employee-actions'},
                     h('button',{className:'btn btn-primary',onClick:()=>openRegularTask('Physiotherapy',{
                       patient_id:x.patient_id,plan_id:x.order.id,status:'Completed'
                     })},'Complete'),
@@ -14088,7 +14092,8 @@ function RoomsBeds({profile}){
   function Medicines({profile,onNavigate}){
     const today=new Date().toISOString().slice(0,10);
     const [state,setState]=React.useState({loading:true,orders:[],mar:[],patients:[],error:''});
-    const [tab,setTab]=React.useState('Active Prescriptions');
+    const isFrontlineClinical=['Nurse','Caregiver'].includes(profile?.role);
+    const [tab,setTab]=React.useState(()=>isFrontlineClinical?'Today’s MAR':'Active Prescriptions');
     const [patientFilter,setPatientFilter]=React.useState('');
     const [marTarget,setMarTarget]=React.useState(null);
     const [marForm,setMarForm]=React.useState({scheduled_time:'',status:'Given',administered_at:'',remarks:'',late_entry_reason:'',late_entry_justification:''});
@@ -14129,11 +14134,23 @@ function RoomsBeds({profile}){
     }
     function firstPendingTime(order){
       const times=parseTimes(order.scheduled_times);
-      return times.find(time=>!doseStatus(order,time))||times[0]||normalizeMedicationTime(`${String(new Date().getHours()).padStart(2,'0')}:00`);
+      if(times.length){
+        const pending=times.find(time=>!doseStatus(order,time));
+        return pending||'';
+      }
+      return normalizeMedicationTime(`${String(new Date().getHours()).padStart(2,'0')}:00`);
     }
     function openMar(order,time=''){
       const scheduled=time||firstPendingTime(order);
+      if(!scheduled){
+        showSamaraActionToast('success','Already recorded','All scheduled doses for this prescription have already been recorded today.');
+        return;
+      }
       const existing=doseStatus(order,scheduled);
+      if(existing&&isFrontlineClinical){
+        showSamaraActionToast('success','Dose already recorded',`${medicineLabel(order)} at ${medicationTimeLabel(scheduled)} is already recorded as ${existing.status||'completed'}.`);
+        return;
+      }
       setMarTarget(order);
       setMarForm({
         scheduled_time:scheduled,
@@ -14165,6 +14182,11 @@ function RoomsBeds({profile}){
       }
       if(isLateEntry&&!String(marForm.late_entry_justification||'').trim()){
         const text='Please enter a detailed justification for the late entry.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;
+      }
+      const alreadyRecorded=doseStatus(marTarget,marForm.scheduled_time);
+      if(alreadyRecorded&&isFrontlineClinical){
+        const text=`This dose has already been recorded as ${alreadyRecorded.status||'completed'}. It cannot be administered twice.`;
+        setMarMessage(text);showSamaraActionToast('success','Dose already recorded',text);return;
       }
       setMarBusy(true);
       const {data:{user}}=await client.auth.getUser();
@@ -14258,10 +14280,14 @@ function RoomsBeds({profile}){
       return {status:'Upcoming',audit:'Not due yet',minutes};
     }
 
-    const prescriptionRows=orders=>filtered(orders).map(order=>[
-      patientLabel(order),medicineLabel(order),order.route||'—',order.frequency||'—',order.duration||'—',parseTimes(order.scheduled_times).map(medicationTimeLabel).join(', ')||'—',order.food_instruction||'—',order.special_instruction||order.special_instructions||'—',latestMar(order)?.status||'No MAR yet',
-      h('button',{type:'button',className:'btn btn-primary',onClick:()=>openMar(order)},'Administer')
-    ]);
+    const prescriptionRows=orders=>filtered(orders).map(order=>{
+      const pendingTime=firstPendingTime(order);
+      const allTodayDone=parseTimes(order.scheduled_times).length>0&&!pendingTime;
+      return [
+        patientLabel(order),medicineLabel(order),order.route||'—',order.frequency||'—',order.duration||'—',parseTimes(order.scheduled_times).map(medicationTimeLabel).join(', ')||'—',order.food_instruction||'—',order.special_instruction||order.special_instructions||'—',latestMar(order)?.status||'No MAR yet',
+        h('button',{type:'button',className:`btn ${allTodayDone?'btn-secondary clinical-action-done':'btn-primary'}`,disabled:allTodayDone,onClick:()=>openMar(order,pendingTime)},allTodayDone?'Done Today ✓':'Administer')
+      ];
+    });
     const marRows=items=>filtered(items).map(item=>{
       const dose=pendingDoseState(item);
       const urgent=!item.log&&dose.minutes>=15;
@@ -14271,16 +14297,16 @@ function RoomsBeds({profile}){
         item.log?.administered_at?fmt(item.log.administered_at):'—',
         item.log?.entry_recorded_at?fmt(item.log.entry_recorded_at):(item.log?.created_at?fmt(item.log.created_at):'—'),
         dose.audit,item.log?.remarks||'—',
-        h('button',{type:'button',className:item.log?'btn btn-secondary':urgent?'btn btn-danger':'btn btn-primary',onClick:()=>openMar(item.order,item.time)},item.log?'View / Correct':urgent?'Resolve Dose':'Record Dose')
+        h('button',{type:'button',className:item.log&&isFrontlineClinical?'btn btn-secondary clinical-action-done':item.log?'btn btn-secondary':urgent?'btn btn-danger':'btn btn-primary',disabled:Boolean(item.log&&isFrontlineClinical),onClick:()=>openMar(item.order,item.time)},item.log?(isFrontlineClinical?'Recorded ✓':'View / Correct'):(urgent?'Resolve Dose':'Record Dose'))
       ];
     });
 
     let table=null;
-    if(tab==='Active Prescriptions')table=h(LogTable,{title:'Active Prescription Register',subtitle:'Current medicines transcribed during admission or patient update',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR','Action'],rows:prescriptionRows(activeOrders)});
-    if(tab==='Today’s MAR')table=h(LogTable,{title:"Today’s Medication Administration",subtitle:'Scheduled doses and current administration status',heads:['Patient','Medicine','Time','Status','Administered','Entry recorded','Entry audit','Remarks','Action'],rows:marRows(todayRows)});
-    if(tab==='Missed Medicines')table=h(LogTable,{title:'Overdue / Exception Medicines',subtitle:'Unresolved overdue doses and medicine exceptions requiring clinical review',heads:['Patient','Medicine','Time','Status','Administered','Entry recorded','Entry audit','Reason / Remarks','Action'],rows:marRows(missedRows)});
-    if(tab==='Completed Medicines')table=h(LogTable,{title:'Completed Medicine Courses',subtitle:'Prescription courses completed by status or end date',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR','Action'],rows:prescriptionRows(completedOrders)});
-    if(tab==='Discontinued Medicines')table=h(LogTable,{title:'Discontinued Medicines',subtitle:'Stopped or inactive prescriptions retained for history',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR'],rows:prescriptionRows(discontinuedOrders).map(row=>row.slice(0,-1))});
+    if(tab==='Active Prescriptions')table=h(LogTable,{className:'medication-log-table',title:'Active Prescription Register',subtitle:'Current medicines transcribed during admission or patient update',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR','Action'],rows:prescriptionRows(activeOrders)});
+    if(tab==='Today’s MAR')table=h(LogTable,{className:'medication-log-table medication-mar-table',title:"Today’s Medication Administration",subtitle:'Scheduled doses and current administration status',heads:['Patient','Medicine','Time','Status','Administered','Entry recorded','Entry audit','Remarks','Action'],rows:marRows(todayRows)});
+    if(tab==='Missed Medicines')table=h(LogTable,{className:'medication-log-table medication-mar-table',title:'Overdue / Exception Medicines',subtitle:'Unresolved overdue doses and medicine exceptions requiring clinical review',heads:['Patient','Medicine','Time','Status','Administered','Entry recorded','Entry audit','Reason / Remarks','Action'],rows:marRows(missedRows)});
+    if(tab==='Completed Medicines')table=h(LogTable,{className:'medication-log-table',title:'Completed Medicine Courses',subtitle:'Prescription courses completed by status or end date',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR','Action'],rows:prescriptionRows(completedOrders)});
+    if(tab==='Discontinued Medicines')table=h(LogTable,{className:'medication-log-table',title:'Discontinued Medicines',subtitle:'Stopped or inactive prescriptions retained for history',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR'],rows:prescriptionRows(discontinuedOrders).map(row=>row.slice(0,-1))});
 
     const targetTimes=marTarget?parseTimes(marTarget.scheduled_times):[];
     const currentEntryDelay=marForm.administered_at?Math.max(0,Math.round((Date.now()-new Date(marForm.administered_at).getTime())/60000)):0;
@@ -18699,13 +18725,13 @@ function AuditTrail(){
     );
   }
 
-  function LogTable({title,subtitle,heads,rows}){
-    return h(Section,{title,subtitle},
-      h('div',{className:'table-wrap'},
-        h('table',{className:'table'},
+  function LogTable({title,subtitle,heads,rows,className=''}){
+    return h(Section,{title,subtitle,className},
+      h('div',{className:`table-wrap ${className}`.trim()},
+        h('table',{className:`table ${className}`.trim()},
           h('thead',null,h('tr',null,heads.map(x=>h('th',{key:x},x)))),
           h('tbody',null,
-            ...rows.map((r,i)=>h('tr',{key:i},...r.map((v,j)=>h('td',{key:j},v)))),
+            ...rows.map((r,i)=>h('tr',{key:i},...r.map((v,j)=>h('td',{key:j,'data-label':heads[j]||''},v)))),
             rows.length===0?h('tr',null,h('td',{colSpan:heads.length,className:'empty'},'No records found')):null
           )
         )

@@ -1,0 +1,41 @@
+SAMARA CARE ERP 2.9.70 — MOBILE CLINICAL USABILITY
+===================================================
+
+Purpose
+-------
+Mobile-first correction for Nurses and Caregivers.
+
+Changes
+-------
+1. Medication opens on Today's MAR for Nurse/Caregiver users.
+2. Medication and MAR desktop tables are converted to compact mobile cards.
+3. Medicine name, patient, scheduled time, status and action are visible without horizontal scrolling.
+4. Recorded medication doses show "Recorded ✓" and are disabled for Nurse/Caregiver users.
+5. A second safety check prevents the same scheduled dose being recorded twice from the Medication screen.
+6. Completed Shift Task actions (medicine, basic care, vitals, physiotherapy) stay visible but dim/disabled.
+7. "Open to Resolve" temporarily hides the current alert popup before navigation, so the popup cannot cover the task screen on mobile. The alert itself remains unresolved.
+8. Nurse/Caregiver mobile header and quick-action area are more compact so more working content fits on screen.
+9. Mobile UI requests a light colour scheme to avoid Android/browser forced-dark rendering hiding table content.
+10. Cache/version bumped to 2.9.70 so installed PWAs receive the corrected files.
+
+Files to replace
+----------------
+app.js
+styles.css
+index.html
+service-worker.js
+
+SQL
+---
+No SQL change required.
+
+Recommended mobile test
+-----------------------
+1. Close the installed ERP/PWA completely and reopen after deployment.
+2. Confirm the displayed version is 2.9.70.
+3. Sign in as Nurse/Caregiver and open Meds.
+4. Select a patient with active prescriptions.
+5. Verify Today's MAR dose cards are visible and Record Dose/Administer opens the MAR form.
+6. Save one dose; confirm the same dose becomes "Recorded ✓" and cannot be tapped again.
+7. Open Shift Tasks; verify completed care/vitals/physio/medicine actions are dimmed.
+8. When a Clinical Alert popup appears, tap Open to Resolve and confirm the target task opens immediately without the popup remaining over it.
