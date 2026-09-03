@@ -1,6 +1,6 @@
-const CACHE = 'samara-erp-2.9.68-management-escalation-auto-hide';
+const CACHE = 'samara-erp-2.9.69-admission-resume-recovery';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.9.64', './app.js?v=2.9.68',
+  './', './index.html', './styles.css?v=2.9.64', './app.js?v=2.9.69',
   './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',
   './config.js?v=2.9.64', './manifest.webmanifest?v=2.8.40', './assets/samara-mail-logo.png',
   './assets/samara-logo.png?v=20260812-global1',

@@ -1,0 +1,10 @@
+SAMARA CARE ERP v2.9.69 — ADMISSION RESUME RECOVERY
+
+Fix:
+- Resumed/interrupted Admission no longer fails with duplicate mobile when the patient row and room allocation were already created.
+- Safe recovery requires the same mobile-linked patient, same resident name, and the exact selected occupied room/bed.
+- Genuine duplicate-mobile protection remains active for different residents.
+- Includes v2.9.68 Admin/Manager Clinical Escalation auto-hide behavior.
+
+Replace: app.js, index.html, service-worker.js
+No SQL change required.

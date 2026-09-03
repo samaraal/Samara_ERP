@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.68';
+  const APP_VERSION = '2.9.69';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -4889,7 +4889,7 @@ Caring with Compassion. Living with Dignity.`;
       return()=>window.clearTimeout(timer);
     },[clinicalPopupSnooze.key,clinicalPopupSnooze.until]);
 
-    // v2.9.68: Management escalation popups are advisory, not workflow-blocking.
+    // v2.9.69: Management escalation popups are advisory, not workflow-blocking.
     // Admin/Manager see the escalation prominently for 8 seconds, after which the
     // popup auto-hides until the configured repeat interval. The escalation itself
     // remains unresolved and visible in the bell / Clinical Escalations register.
@@ -8753,10 +8753,24 @@ Samara Assisted Living`;
       String(r.bed_no||r.bed_code||'').toUpperCase()===String(form.bed_no||'').toUpperCase()
     )||null;
 
-    // Re-admission can reuse an inactive patient UUID. In addition, an interrupted
-    // admission draft may resume ONLY the exact patient UUID that this draft created.
-    // This preserves the unique-mobile safety rule for every unrelated patient.
-    const effectiveExistingPatient=returningPatient||draftLinkedPatient||null;
+    // Recovery for legacy/interrupted drafts created before patient_id was linked:
+    // resume only when the duplicate-mobile patient is ALSO the occupant of the exact
+    // selected room/bed AND the resident name matches. This prevents a genuine new
+    // resident from being attached to somebody else merely because a mobile is reused.
+    const interruptedAdmissionPatient=React.useMemo(()=>{
+      if(returningPatient||draftLinkedPatient||!duplicateMobilePatient||!selectedDraftBed)return null;
+      const occupantId=selectedDraftBed.occupant_id||selectedDraftBed.patient_id||'';
+      if(!occupantId||String(occupantId)!==String(duplicateMobilePatient.id))return null;
+      const cleanName=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+      const formName=cleanName(form.full_name);
+      const patientName=cleanName(duplicateMobilePatient.full_name);
+      if(!formName||!patientName||formName!==patientName)return null;
+      return duplicateMobilePatient;
+    },[returningPatient,draftLinkedPatient,duplicateMobilePatient,selectedDraftBed,form.full_name]);
+
+    // Re-admission can reuse an inactive patient UUID. An interrupted admission may
+    // resume either its explicitly linked UUID or the strictly verified legacy row above.
+    const effectiveExistingPatient=returningPatient||draftLinkedPatient||interruptedAdmissionPatient||null;
     const currentAdmissionPatientId=effectiveExistingPatient?.id||'';
 
     function bedBelongsToCurrentPatient(bed){
@@ -9411,7 +9425,7 @@ Please keep these login details confidential.`;
       setBusy(true);
       setMsg('');
       if(!['Admin','Manager'].includes(profile?.role)){setMsg('Only Admin or Manager can allot a room and complete patient admission.');setBusy(false);return}
-      if(duplicateMobilePatient&&!returningPatient){
+      if(duplicateMobilePatient&&!returningPatient&&!interruptedAdmissionPatient){
         setMsg(`This mobile number is already registered to ${formalName(duplicateMobilePatient)||duplicateMobilePatient.full_name} · ${duplicateMobilePatient.patient_id||duplicateMobilePatient.patient_code||'Resident ID unavailable'}. A different patient cannot use the same mobile number. If this is the same previous resident, use Re-admission; otherwise correct the mobile number.`);
         setBusy(false);
         return;
