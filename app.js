@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.74';
+  const APP_VERSION = '2.9.75';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7165,13 +7165,14 @@ Samara Assisted Living`;
     const isApprovals=mode==='approvals';
     const [rows,setRows]=React.useState([]),[profiles,setProfiles]=React.useState([]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [showForm,setShowForm]=React.useState(false);
+    const [submitBusy,setSubmitBusy]=React.useState(false),[modalMsg,setModalMsg]=React.useState(''),[submitted,setSubmitted]=React.useState(false);
     const empty={request_type:'Leave',leave_type:'Casual Leave',from_date:todayISOIndia(),to_date:todayISOIndia(),shift_part:'Full Day',permission_date:todayISOIndia(),permission_from:'',permission_to:'',reason:'',handover_remarks:'',contact_during_absence:''};
     const [form,setForm]=React.useState(empty);
     const byId=id=>profiles.find(x=>x.id===id)||{};
     const statusLabel=s=>({pending_superior:'Pending Superior',pending_management:'Pending Management',approved:'Approved',rejected:'Rejected',cancelled:'Cancelled'}[s]||s||'—');
     const statusClass=s=>s==='approved'?'success':s==='rejected'?'error':'';
     async function load(){
-      setBusy(true);setMsg('');
+      setBusy(true);
       const [reqRes,profRes]=await Promise.all([
         client.from('absence_requests').select('*').order('created_at',{ascending:false}).limit(300),
         client.rpc('get_absence_people')
@@ -7182,16 +7183,25 @@ Samara Assisted Living`;
     }
     React.useEffect(()=>{load();const ch=client.channel(`absence-${mode}`).on('postgres_changes',{event:'*',schema:'public',table:'absence_requests'},load).subscribe();return()=>client.removeChannel(ch)},[mode]);
     async function submit(e){
-      e.preventDefault();setBusy(true);setMsg('');
+      e.preventDefault();
+      if(submitBusy||submitted)return;
+      setSubmitBusy(true);setModalMsg('Submitting request…');setMsg('');
       try{
         const payload={request_type:form.request_type,reason:form.reason.trim(),handover_remarks:form.handover_remarks.trim()||null,contact_during_absence:form.contact_during_absence.trim()||null};
         if(form.request_type==='Leave')Object.assign(payload,{leave_type:form.leave_type,from_date:form.from_date,to_date:form.to_date,shift_part:form.shift_part});
         else Object.assign(payload,{permission_date:form.permission_date,permission_from:form.permission_from,permission_to:form.permission_to});
         const {error}=await client.from('absence_requests').insert(payload);if(error)throw error;
         await writeAuditEvent('Submitted','Leave / Permission',null,{type:form.request_type});
-        setMsg(`${form.request_type} request submitted successfully.`);setForm({...empty});setShowForm(false);await load();
-      }catch(error){setMsg(error.message||'Unable to submit request')}
-      setBusy(false);
+        const success=`${form.request_type} request submitted successfully.`;
+        setSubmitted(true);setModalMsg(success);setMsg(success);
+        await load();
+        setTimeout(()=>{setShowForm(false);setForm({...empty});setModalMsg('');setSubmitted(false)},1100);
+      }catch(error){
+        const text=error.message||'Unable to submit request';
+        setModalMsg(text);setMsg(text);
+      }finally{
+        setSubmitBusy(false);
+      }
     }
     async function act(row,action){
       let remarks='';
@@ -7245,7 +7255,7 @@ Samara Assisted Living`;
         h('div',{className:'field span-2'},h('label',null,'Reason'),h('textarea',{required:true,rows:3,value:form.reason,onChange:e=>setForm({...form,reason:e.target.value}),placeholder:'Enter the reason for leave / permission'})),
         h('div',{className:'field span-2'},h('label',null,'Handover / Duty Arrangement'),h('textarea',{rows:2,value:form.handover_remarks,onChange:e=>setForm({...form,handover_remarks:e.target.value}),placeholder:'Mention duty handover or replacement arrangement, if applicable'})),
         miniInput('Contact During Absence',form.contact_during_absence,v=>setForm({...form,contact_during_absence:v}),false,'tel')
-      ),h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowForm(false)},'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:busy},busy?'Submitting…':'Submit Request'))
+      ),modalMsg?h('div',{className:`message ${submitted?'success':''}`,style:{marginTop:'12px'}},modalMsg):null,h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:submitBusy,onClick:()=>setShowForm(false)},submitted?'Close':'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:submitBusy||submitted},submitted?'Submitted ✓':(submitBusy?'Submitting…':'Submit Request')))
     )):null;
     if(isApprovals){
       const directCount=rows.filter(r=>r.status==='pending_superior'&&r.reporting_superior_id===profile.id).length;
@@ -7253,7 +7263,7 @@ Samara Assisted Living`;
       if(!['Admin','Manager'].includes(profile.role)&&directCount===0)return h(Section,{title:'Leave Approvals',subtitle:'Requests from employees reporting to you'},h('div',{className:'empty'},'No leave or permission requests are awaiting your approval.'));
       return h(React.Fragment,null,h(Section,{title:'Leave Approvals',subtitle:['Admin','Manager'].includes(profile.role)?`Management approval queue · ${managementCount} pending`:`Reporting superior approval queue · ${directCount} pending`,actions:h('button',{className:'btn btn-secondary',onClick:load,disabled:busy},'Refresh')},msg?h('div',{className:'message'},msg):null,h('div',{className:'absence-list'},...pending.map(requestCard)),pending.length===0?h('div',{className:'empty'},'No requests awaiting action.'):null),history.length?h(Section,{title:'Recent Decisions',subtitle:'Completed approval history'},h('div',{className:'absence-list'},...history.slice(0,30).map(requestCard))):null);
     }
-    return h(React.Fragment,null,h(Section,{title:'My Leave & Permission',subtitle:'Apply and track your leave, permission and approval status',actions:h('button',{className:'btn btn-primary',onClick:()=>{setForm({...empty});setShowForm(true)}},'＋ New Request')},msg?h('div',{className:'message'},msg):null,h('div',{className:'absence-summary'},h('div',null,h('strong',null,pending.length),h('small',null,'Pending')),h('div',null,h('strong',null,visible.filter(r=>r.status==='approved').length),h('small',null,'Approved')),h('div',null,h('strong',null,visible.filter(r=>r.status==='rejected').length),h('small',null,'Rejected'))),h('div',{className:'absence-list'},...visible.map(requestCard)),visible.length===0?h('div',{className:'empty'},'No leave or permission requests submitted yet.'):null),formModal);
+    return h(React.Fragment,null,h(Section,{title:'My Leave & Permission',subtitle:'Apply and track your leave, permission and approval status',actions:h('button',{className:'btn btn-primary',onClick:()=>{setForm({...empty});setModalMsg('');setSubmitted(false);setShowForm(true)}},'＋ New Request')},msg?h('div',{className:'message'},msg):null,h('div',{className:'absence-summary'},h('div',null,h('strong',null,pending.length),h('small',null,'Pending')),h('div',null,h('strong',null,visible.filter(r=>r.status==='approved').length),h('small',null,'Approved')),h('div',null,h('strong',null,visible.filter(r=>r.status==='rejected').length),h('small',null,'Rejected'))),h('div',{className:'absence-list'},...visible.map(requestCard)),visible.length===0?h('div',{className:'empty'},'No leave or permission requests submitted yet.'):null),formModal);
   }
 
   function Employees({profile,onNavigate}){
