@@ -1,0 +1,25 @@
+SAMARA CARE ERP v2.9.74 - LEAVE & PERMISSION WORKFLOW
+
+1. In Supabase -> SQL Editor, run: 97_leave_permission_workflow.sql
+2. Replace these files in the ERP deployment:
+   - app.js
+   - styles.css
+   - index.html
+   - service-worker.js
+3. Deploy / publish the site.
+4. Sign in as Admin/Manager -> HR -> Employees and set each employee's Reporting Superior.
+5. Employees will then see:
+   - My Leave & Permission
+   - Leave Approvals (shows actionable requests only when they have direct reports, or for Manager/Admin)
+
+WORKFLOW
+Employee submits request -> Reporting Superior recommends -> Manager/Admin approves.
+If no Reporting Superior is assigned, request goes directly to Manager/Admin.
+Manager/Admin may approve a pending request directly when required.
+Rejection requires remarks. Employees may cancel while pending.
+All workflow actions are written to Audit Log.
+
+REQUEST TYPES
+- Leave: Casual, Sick, Emergency, Compensatory Off, Leave Without Pay, Other
+- Permission: Date + From Time + To Time
+- Handover / Duty Arrangement and contact during absence are available.

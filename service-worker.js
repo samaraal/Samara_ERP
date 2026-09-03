@@ -1,6 +1,6 @@
-const CACHE = 'samara-erp-2.9.73-nurse-medication-window';
+const CACHE = 'samara-erp-2.9.74-leave-permission';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.9.70', './app.js?v=2.9.70',
+  './', './index.html', './styles.css?v=2.9.74', './app.js?v=2.9.74',
   './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',
   './config.js?v=2.9.70', './manifest.webmanifest?v=2.8.40', './assets/samara-mail-logo.png',
   './assets/samara-logo.png?v=20260812-global1',

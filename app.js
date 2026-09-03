@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.73';
+  const APP_VERSION = '2.9.74';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -246,7 +246,7 @@ function initSamaraInaugurationInvitation(){
   }
 
   const APP_BUILD_DATE = '15-Aug-2026 Hybrid Neural Tamil Clinical Voice';
-  const APP_SCHEMA_VERSION = '25';
+  const APP_SCHEMA_VERSION = '26';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
   const RESIDENT_PROFESSIONS=[
@@ -1283,7 +1283,7 @@ function initSamaraInaugurationInvitation(){
   const NAV_SECTIONS = [
     { title:'OVERVIEW', items:['Dashboard','Notifications'] },
     { title:'ADMIN', items:['Rooms','Care Packages','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
-    { title:'HR', items:['HR Dashboard','Employees','Career Applications','Interviews'] },
+    { title:'HR', items:['HR Dashboard','Employees','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
@@ -1296,10 +1296,10 @@ function initSamaraInaugurationInvitation(){
   const ROLE_NAV={
     Admin:ALL_NAV.filter(item=>!NURSING_ENTRY_NAV.includes(item)),
     Manager:ALL_NAV.filter(item=>!['System Maintenance','Alert Settings','Payments','Final Billing','Refunds',...NURSING_ENTRY_NAV].includes(item)),
-    Nurse:['Clinical Dashboard','Clinical Alerts','Patients','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','Notifications'],
-    Caregiver:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Notifications'],
-    Accounts:['Accounts Dashboard','Charge Approvals','Payments','Final Billing','Discharge Clearance','Refunds','Accounts Reports','Patients','Notifications'],
-    Kitchen:['Notifications','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet']
+    Nurse:['Clinical Dashboard','Clinical Alerts','Patients','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My Leave & Permission','Leave Approvals','Notifications'],
+    Caregiver:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Leave Approvals','Notifications'],
+    Accounts:['Accounts Dashboard','Charge Approvals','Payments','Final Billing','Discharge Clearance','Refunds','Accounts Reports','Patients','My Leave & Permission','Leave Approvals','Notifications'],
+    Kitchen:['Notifications','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission','Leave Approvals']
   };
   const ROLE_HOME={Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet'};
   const CLINICAL_ROLES=['Nurse','Caregiver'];
@@ -1322,7 +1322,7 @@ function initSamaraInaugurationInvitation(){
   const sectionsFor = (allowed,role) => {
     if(CLINICAL_ROLES.includes(role)){
       return [
-        {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','Notifications'].filter(item=>allowed.includes(item))}
+        {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My Leave & Permission','Leave Approvals','Notifications'].filter(item=>allowed.includes(item))}
       ];
     }
     return NAV_SECTIONS.map(section=>({...section,items:section.items.filter(item=>allowed.includes(item))})).filter(section=>section.items.length);
@@ -5272,6 +5272,8 @@ Caring with Compassion. Living with Dignity.`;
           page==='Dashboard'&&h(Dashboard,{profile,onNavigate:setPage}),
           page==='HR Dashboard'&&h(HRDashboard,{profile,onNavigate:setPage}),
           page==='Employees'&&h(Employees,{profile,onNavigate:setPage}),
+          page==='My Leave & Permission'&&h(LeavePermission,{profile,mode:'mine'}),
+          page==='Leave Approvals'&&h(LeavePermission,{profile,mode:'approvals'}),
           page==='Career Applications'&&h(CareerApplications,{profile,onNavigate:setPage}),
           page==='Interviews'&&h(HRInterviews,{profile,onNavigate:setPage}),
           page==='Enquiries'&&h(Enquiries,{profile}),
@@ -7159,6 +7161,101 @@ Samara Assisted Living`;
     );
   }
 
+  function LeavePermission({profile,mode='mine'}){
+    const isApprovals=mode==='approvals';
+    const [rows,setRows]=React.useState([]),[profiles,setProfiles]=React.useState([]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
+    const [showForm,setShowForm]=React.useState(false);
+    const empty={request_type:'Leave',leave_type:'Casual Leave',from_date:todayISOIndia(),to_date:todayISOIndia(),shift_part:'Full Day',permission_date:todayISOIndia(),permission_from:'',permission_to:'',reason:'',handover_remarks:'',contact_during_absence:''};
+    const [form,setForm]=React.useState(empty);
+    const byId=id=>profiles.find(x=>x.id===id)||{};
+    const statusLabel=s=>({pending_superior:'Pending Superior',pending_management:'Pending Management',approved:'Approved',rejected:'Rejected',cancelled:'Cancelled'}[s]||s||'—');
+    const statusClass=s=>s==='approved'?'success':s==='rejected'?'error':'';
+    async function load(){
+      setBusy(true);setMsg('');
+      const [reqRes,profRes]=await Promise.all([
+        client.from('absence_requests').select('*').order('created_at',{ascending:false}).limit(300),
+        client.rpc('get_absence_people')
+      ]);
+      if(reqRes.error){setMsg(reqRes.error.message||'Unable to load leave requests');setRows([])}else setRows(reqRes.data||[]);
+      if(!profRes.error)setProfiles(profRes.data||[]);
+      setBusy(false);
+    }
+    React.useEffect(()=>{load();const ch=client.channel(`absence-${mode}`).on('postgres_changes',{event:'*',schema:'public',table:'absence_requests'},load).subscribe();return()=>client.removeChannel(ch)},[mode]);
+    async function submit(e){
+      e.preventDefault();setBusy(true);setMsg('');
+      try{
+        const payload={request_type:form.request_type,reason:form.reason.trim(),handover_remarks:form.handover_remarks.trim()||null,contact_during_absence:form.contact_during_absence.trim()||null};
+        if(form.request_type==='Leave')Object.assign(payload,{leave_type:form.leave_type,from_date:form.from_date,to_date:form.to_date,shift_part:form.shift_part});
+        else Object.assign(payload,{permission_date:form.permission_date,permission_from:form.permission_from,permission_to:form.permission_to});
+        const {error}=await client.from('absence_requests').insert(payload);if(error)throw error;
+        await writeAuditEvent('Submitted','Leave / Permission',null,{type:form.request_type});
+        setMsg(`${form.request_type} request submitted successfully.`);setForm({...empty});setShowForm(false);await load();
+      }catch(error){setMsg(error.message||'Unable to submit request')}
+      setBusy(false);
+    }
+    async function act(row,action){
+      let remarks='';
+      if(['reject','approve','recommend'].includes(action))remarks=window.prompt(action==='reject'?'Reason / remarks for rejection:':'Approval / recommendation remarks (optional):','')??'';
+      if(action==='reject'&&!remarks.trim())return;
+      setBusy(true);setMsg('');
+      const {data,error}=await client.rpc('process_absence_request',{p_request_id:row.id,p_action:action,p_remarks:remarks.trim()||null});
+      if(error)setMsg(error.message||'Unable to process request');else{setMsg(data?.message||'Request updated successfully.');await load()}
+      setBusy(false);
+    }
+    function duration(r){
+      if(r.request_type==='Permission')return [r.permission_from,r.permission_to].filter(Boolean).join(' – ');
+      if(!r.from_date||!r.to_date)return '—';
+      const days=Math.floor((new Date(r.to_date+'T00:00:00')-new Date(r.from_date+'T00:00:00'))/86400000)+1;
+      return `${formatDateIN(r.from_date)}${r.to_date!==r.from_date?` – ${formatDateIN(r.to_date)}`:''} · ${days} day${days===1?'':'s'} · ${r.shift_part||'Full Day'}`;
+    }
+    const visible=isApprovals?rows.filter(r=>r.employee_id!==profile.id):rows.filter(r=>r.employee_id===profile.id);
+    const pending=visible.filter(r=>['pending_superior','pending_management'].includes(r.status));
+    const history=visible.filter(r=>!['pending_superior','pending_management'].includes(r.status));
+    function canRecommend(r){return r.status==='pending_superior'&&r.reporting_superior_id===profile.id&&!['Admin','Manager'].includes(profile.role)}
+    function canManage(r){return ['Admin','Manager'].includes(profile.role)&&['pending_superior','pending_management'].includes(r.status)}
+    function requestCard(r){
+      const emp=byId(r.employee_id);const superior=byId(r.reporting_superior_id);
+      return h('div',{className:'absence-card',key:r.id},
+        h('div',{className:'absence-card-head'},h('div',null,h('strong',null,isApprovals?(formalName(emp)||r.employee_name||'Employee'):`${r.request_type} Request`),h('small',null,`REQ-${String(r.id).padStart(5,'0')} · ${fmt(r.created_at)}`)),h('span',{className:`badge ${statusClass(r.status)}`},statusLabel(r.status))),
+        h('div',{className:'absence-grid'},
+          h('div',null,h('small',null,'Type'),h('strong',null,r.request_type==='Leave'?(r.leave_type||'Leave'):'Permission')),
+          h('div',null,h('small',null,r.request_type==='Leave'?'Period':'Date / Time'),h('strong',null,r.request_type==='Leave'?duration(r):`${formatDateIN(r.permission_date)} · ${duration(r)}`)),
+          h('div',null,h('small',null,'Reporting Superior'),h('strong',null,formalName(superior)||'Manager / Admin directly')),
+          h('div',null,h('small',null,'Reason'),h('strong',null,r.reason||'—')),
+          r.handover_remarks?h('div',null,h('small',null,'Handover'),h('strong',null,r.handover_remarks)):null,
+          r.superior_remarks?h('div',null,h('small',null,'Superior Remarks'),h('strong',null,r.superior_remarks)):null,
+          r.management_remarks?h('div',null,h('small',null,'Management Remarks'),h('strong',null,r.management_remarks)):null
+        ),
+        h('div',{className:'absence-actions'},
+          !isApprovals&&['pending_superior','pending_management'].includes(r.status)?h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'cancel')},'Cancel Request'):null,
+          isApprovals&&canRecommend(r)?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>act(r,'recommend')},'Recommend'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'reject')},'Reject')):null,
+          isApprovals&&canManage(r)?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>act(r,'approve')},'Approve'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'reject')},'Reject')):null
+        )
+      );
+    }
+    const formModal=showForm?h('div',{className:'modal-backdrop'},h('form',{className:'card modal absence-modal',onSubmit:submit},
+      h('div',{className:'panel-head'},h('div',null,h('h3',null,'Apply for Leave / Permission'),h('small',null,'Your request will follow the configured approval hierarchy')),h('button',{type:'button',className:'close',onClick:()=>setShowForm(false)},'×')),
+      h('div',{className:'modal-grid'},
+        h('div',{className:'field'},h('label',null,'Request Type'),h('select',{value:form.request_type,onChange:e=>setForm({...form,request_type:e.target.value})},['Leave','Permission'].map(x=>h('option',{key:x},x)))),
+        form.request_type==='Leave'?h(React.Fragment,null,
+          h('div',{className:'field'},h('label',null,'Leave Type'),h('select',{value:form.leave_type,onChange:e=>setForm({...form,leave_type:e.target.value})},['Casual Leave','Sick Leave','Emergency Leave','Compensatory Off','Leave Without Pay','Other'].map(x=>h('option',{key:x},x)))),
+          miniInput('From Date',form.from_date,v=>setForm({...form,from_date:v}),true,'date'),miniInput('To Date',form.to_date,v=>setForm({...form,to_date:v}),true,'date'),
+          h('div',{className:'field'},h('label',null,'Shift / Day'),h('select',{value:form.shift_part,onChange:e=>setForm({...form,shift_part:e.target.value})},['Full Day','Day Shift','Night Shift','First Half','Second Half'].map(x=>h('option',{key:x},x))))
+        ):h(React.Fragment,null,miniInput('Permission Date',form.permission_date,v=>setForm({...form,permission_date:v}),true,'date'),miniInput('From Time',form.permission_from,v=>setForm({...form,permission_from:v}),true,'time'),miniInput('To Time',form.permission_to,v=>setForm({...form,permission_to:v}),true,'time')),
+        h('div',{className:'field span-2'},h('label',null,'Reason'),h('textarea',{required:true,rows:3,value:form.reason,onChange:e=>setForm({...form,reason:e.target.value}),placeholder:'Enter the reason for leave / permission'})),
+        h('div',{className:'field span-2'},h('label',null,'Handover / Duty Arrangement'),h('textarea',{rows:2,value:form.handover_remarks,onChange:e=>setForm({...form,handover_remarks:e.target.value}),placeholder:'Mention duty handover or replacement arrangement, if applicable'})),
+        miniInput('Contact During Absence',form.contact_during_absence,v=>setForm({...form,contact_during_absence:v}),false,'tel')
+      ),h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowForm(false)},'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:busy},busy?'Submitting…':'Submit Request'))
+    )):null;
+    if(isApprovals){
+      const directCount=rows.filter(r=>r.status==='pending_superior'&&r.reporting_superior_id===profile.id).length;
+      const managementCount=['Admin','Manager'].includes(profile.role)?rows.filter(r=>['pending_superior','pending_management'].includes(r.status)&&r.employee_id!==profile.id).length:0;
+      if(!['Admin','Manager'].includes(profile.role)&&directCount===0)return h(Section,{title:'Leave Approvals',subtitle:'Requests from employees reporting to you'},h('div',{className:'empty'},'No leave or permission requests are awaiting your approval.'));
+      return h(React.Fragment,null,h(Section,{title:'Leave Approvals',subtitle:['Admin','Manager'].includes(profile.role)?`Management approval queue · ${managementCount} pending`:`Reporting superior approval queue · ${directCount} pending`,actions:h('button',{className:'btn btn-secondary',onClick:load,disabled:busy},'Refresh')},msg?h('div',{className:'message'},msg):null,h('div',{className:'absence-list'},...pending.map(requestCard)),pending.length===0?h('div',{className:'empty'},'No requests awaiting action.'):null),history.length?h(Section,{title:'Recent Decisions',subtitle:'Completed approval history'},h('div',{className:'absence-list'},...history.slice(0,30).map(requestCard))):null);
+    }
+    return h(React.Fragment,null,h(Section,{title:'My Leave & Permission',subtitle:'Apply and track your leave, permission and approval status',actions:h('button',{className:'btn btn-primary',onClick:()=>{setForm({...empty});setShowForm(true)}},'＋ New Request')},msg?h('div',{className:'message'},msg):null,h('div',{className:'absence-summary'},h('div',null,h('strong',null,pending.length),h('small',null,'Pending')),h('div',null,h('strong',null,visible.filter(r=>r.status==='approved').length),h('small',null,'Approved')),h('div',null,h('strong',null,visible.filter(r=>r.status==='rejected').length),h('small',null,'Rejected'))),h('div',{className:'absence-list'},...visible.map(requestCard)),visible.length===0?h('div',{className:'empty'},'No leave or permission requests submitted yet.'):null),formModal);
+  }
+
   function Employees({profile,onNavigate}){
     const [rows,setRows]=React.useState([]),[authMap,setAuthMap]=React.useState({}),[show,setShow]=React.useState(false),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [resetTarget,setResetTarget]=React.useState(null),[newPassword,setNewPassword]=React.useState(''),[confirmPassword,setConfirmPassword]=React.useState(''),[resetBusy,setResetBusy]=React.useState(false),[resetMsg,setResetMsg]=React.useState('');
@@ -7190,7 +7287,7 @@ Samara Assisted Living`;
       if(photoPreview&&photoPreview.startsWith('blob:')) URL.revokeObjectURL(photoPreview);
     },[photoPreview]);
     const empty={
-      title:'',full_name:'',employee_id:'',department:'Caregiving',designation:'Caregiver',
+      title:'',full_name:'',employee_id:'',department:'Caregiving',designation:'Caregiver',reporting_superior_id:'',
       mobile:'',emergency_contact:'',role:'Caregiver',login_id:'',employee_email:'',password:'',
       father_guardian_name:'',address:'',date_of_birth:'',date_of_joining:'',blood_group:'',
       id_card_type:'Aadhaar',id_card_number:'',qualification:'',previous_workplace:'',
@@ -7986,6 +8083,7 @@ Samara Assisted Living`;
       h('div',{className:'field'},h('label',null,'Department'),h('select',{value:state.department||'',required:true,onChange:e=>{const department=e.target.value;const choices=HR_DESIGNATIONS[department]||[];const defaultDesignation=choices[0]||'';const suggestedRole=department==='Nursing'?'Nurse':department==='Caregiving'?'Caregiver':department==='Accounts & Finance'?'Accounts':department==='Food & Kitchen'?'Kitchen':state.role;setter({...state,department,designation:defaultDesignation,role:suggestedRole})}},h('option',{value:''},'Select department'),HR_DEPARTMENTS.map(x=>h('option',{key:x,value:x},x)))),
       h('div',{className:'field'},h('label',null,'Designation'),h('select',{value:state.designation||'',required:true,onChange:e=>setter({...state,designation:e.target.value})},h('option',{value:''},'Select designation'),(HR_DESIGNATIONS[state.department]||[]).map(x=>h('option',{key:x,value:x},x)))),
       selectField('ERP Access Role','role',state,setter,ROLES),
+      h('div',{className:'field'},h('label',null,'Reporting Superior'),h('select',{value:state.reporting_superior_id||'',onChange:e=>setter({...state,reporting_superior_id:e.target.value})},h('option',{value:''},'Manager / Admin directly'),rows.filter(r=>r.id!==state.id&&!isSamaraAdministratorAccount(r)&&(r.is_active??r.active)!==false).sort((a,b)=>formalName(a).localeCompare(formalName(b))).map(r=>h('option',{key:r.id,value:r.id},`${formalName(r)} · ${r.designation||r.role}`)))),
       field('Father / Guardian Name','father_guardian_name',state,setter,false),field('Date of Birth','date_of_birth',state,setter,false,'date'),field('Date of Joining','date_of_joining',state,setter,false,'date'),selectField('Blood Group','blood_group',state,setter,BLOOD_GROUPS),
       field('Mobile Number','mobile',state,setter,false),field('Emergency Contact','emergency_contact',state,setter,false),field('Employee Email','employee_email',state,setter,false,'email'),
       field('ID Card Type','id_card_type',state,setter,false),field('ID Card Number','id_card_number',state,setter,false),field('Qualification','qualification',state,setter,false),field('Previous Working Place','previous_workplace',state,setter,false),
@@ -8027,6 +8125,7 @@ Samara Assisted Living`;
             personnelInfoItem('Department',employeeDepartment(r)),
             personnelInfoItem('Designation',r.designation),
             personnelInfoItem('ERP Access Role',r.role),
+            personnelInfoItem('Reporting Superior',formalName(rows.find(x=>x.id===r.reporting_superior_id))||'Manager / Admin directly'),
             personnelInfoItem('Date of Joining',r.date_of_joining?formatDateIN(r.date_of_joining):'—')
           )
         ),
