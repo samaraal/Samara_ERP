@@ -6636,7 +6636,7 @@ Samara Assisted Living`;
                 h('textarea',{value:reply,onChange:e=>setReply(e.target.value),placeholder:'Type a message',disabled:busy,rows:2,style:{flex:1,resize:'none',borderRadius:'10px',background:'#fff',margin:0}}),
                 h('button',{type:'button',className:'btn btn-primary',disabled:busy||!reply.trim(),onClick:sendReply,style:{minWidth:'96px'}},busy?'Sending…':'Send')
               ):h('div',{className:'wa-template-composer'},
-                h('div',{style:{fontWeight:'800',color:'#5d1039',marginBottom:'6px'}},'24-hour window closed · send an approved template'),
+                h('div',{style:{fontWeight:'800',color:'#5d1039',marginBottom:'6px'}},'Free-text reply unavailable · customer has not messaged within 24 hours. Use an approved WhatsApp template.'),
                 h('div',{className:'wa-template-grid'},
                   h('div',null,h('small',{style:{display:'block',marginBottom:'3px',color:'#6e6268'}},'Template'),h('select',{value:templateName,onChange:e=>chooseReopenTemplate(e.target.value),style:{width:'100%'}},WA_REOPEN_TEMPLATES.map(t=>h('option',{key:t.name,value:t.name},t.label)))),
                   h('div',null,h('small',{style:{display:'block',marginBottom:'3px',color:'#6e6268'}},'Regarding'),h('input',{value:templateRegarding,onChange:e=>setTemplateRegarding(e.target.value),placeholder:selectedTemplate.regarding,style:{width:'100%'}})),
