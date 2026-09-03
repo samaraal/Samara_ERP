@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.71';
+  const APP_VERSION = '2.9.72';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -14285,7 +14285,7 @@ function RoomsBeds({profile}){
       taskNavigationHandled.current=true;
       setReturnPage(context.return_page||'');
       setPatientFilter(context.patient_id||'');
-      setTab('Active Prescriptions');
+      setTab('Today’s MAR');
       const target=state.orders.find(order=>order.id===context.order_id)
         ||state.orders.find(order=>order.patient_id===context.patient_id);
       if(target){
@@ -14349,6 +14349,31 @@ function RoomsBeds({profile}){
       ];
     });
 
+    const nursePending=filtered(todayRows).filter(item=>!item.log).sort((a,b)=>{
+      const A=pendingDoseState(a),B=pendingDoseState(b);
+      const rank=x=>x.minutes>=60?0:x.minutes>=15?1:x.minutes>=0?2:3;
+      return rank(A)-rank(B)||scheduledDoseDate(a.time)-scheduledDoseDate(b.time);
+    });
+    const nurseCompleted=filtered(todayRows).filter(item=>item.log);
+    const nurseMedicationCards=h('div',{className:'nurse-medication-workspace'},
+      h('div',{className:'nurse-priority-head'},
+        h('div',null,h('h2',null,'Medicines to Give'),h('small',null,'Due and upcoming doses first. Tap only the medicine you are giving.')),
+        h('button',{type:'button',className:'btn btn-secondary nurse-refresh',onClick:load},state.loading?'…':'Refresh')
+      ),
+      patientFilter&&h('button',{type:'button',className:'nurse-clear-filter',onClick:()=>setPatientFilter('')},'× Show all patients'),
+      nursePending.length?h('div',{className:'nurse-dose-list'},nursePending.map(item=>{
+        const dose=pendingDoseState(item),p=patientFor(item.order),urgent=dose.minutes>=15,due=dose.minutes>=0;
+        return h('div',{className:`nurse-dose-card ${urgent?'urgent':due?'due':'upcoming'}`,key:`${item.order.id}-${item.time}`},
+          h('div',{className:'nurse-dose-top'},h('strong',null,formalName(p)||p.full_name||'Patient'),h('span',{className:'nurse-room'},p.room_no?`Room ${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:'—')),
+          h('div',{className:'nurse-medicine-name'},medicineLabel(item.order)),
+          h('div',{className:'nurse-dose-meta'},h('span',null,medicationTimeLabel(item.time)),item.order.route&&h('span',null,item.order.route),item.order.food_instruction&&h('span',null,item.order.food_instruction)),
+          h('div',{className:'nurse-dose-action'},h('span',{className:`nurse-dose-status ${urgent?'urgent':''}`},dose.status),h('button',{type:'button',className:urgent?'btn btn-danger':'btn btn-primary',onClick:()=>openMar(item.order,item.time)},urgent?'GIVE / RESOLVE':'ADMINISTER'))
+        );
+      })):h('div',{className:'nurse-all-done'},h('strong',null,'✓ No pending medicines'),h('span',null,'There are no unrecorded scheduled doses for the selected patient(s) today.')),
+      h('details',{className:'nurse-secondary'},h('summary',null,`Completed today (${nurseCompleted.length})`),h('div',{className:'nurse-completed-list'},nurseCompleted.map(item=>h('div',{className:'nurse-completed-dose',key:`done-${item.order.id}-${item.time}`},h('span',null,`✓ ${patientFor(item.order).full_name||'Patient'} · ${medicineLabel(item.order)} · ${medicationTimeLabel(item.time)}`),h('button',{type:'button',disabled:true},'Recorded ✓'))))),
+      h('details',{className:'nurse-secondary'},h('summary',null,'Prescription / history'),h('div',{className:'nurse-history-note'},'Prescription history is kept secondary for nursing use. Managers and Administrators retain the full register view.'))
+    );
+
     let table=null;
     if(tab==='Active Prescriptions')table=h(LogTable,{className:'medication-log-table',title:'Active Prescription Register',subtitle:'Current medicines transcribed during admission or patient update',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR','Action'],rows:prescriptionRows(activeOrders)});
     if(tab==='Today’s MAR')table=h(LogTable,{className:'medication-log-table medication-mar-table',title:"Today’s Medication Administration",subtitle:'Scheduled doses and current administration status',heads:['Patient','Medicine','Time','Status','Administered','Entry recorded','Entry audit','Remarks','Action'],rows:marRows(todayRows)});
@@ -14363,13 +14388,13 @@ function RoomsBeds({profile}){
     return h(React.Fragment,null,
       h(Section,{title:'Medication Administration & Prescription Register',subtitle:'Unified prescription history and MAR status from the patient record'},
         state.error&&h('div',{className:'message error'},`Unable to load part of the medication register: ${state.error}`),
-        h('div',{className:'panel-head'},
+        !isFrontlineClinical&&h('div',{className:'panel-head'},
           h('div',{className:'field',style:{minWidth:'260px',marginBottom:0}},h('label',null,'Patient filter'),h('select',{value:patientFilter,onChange:e=>setPatientFilter(e.target.value)},h('option',{value:''},'All patients'),state.patients.filter(p=>p.is_active!==false).map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)||p.full_name} · ${p.patient_id||'No ID'}`)))),
           h('button',{type:'button',className:'btn btn-secondary',onClick:load},state.loading?'Loading…':'Refresh')
         ),
-        h('div',{className:'time-chip-list',style:{marginTop:'16px'}},tabs.map(([name,count])=>h('button',{type:'button',key:name,className:`btn ${tab===name?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(name)},`${name} (${count})`)))
+        !isFrontlineClinical&&h('div',{className:'time-chip-list',style:{marginTop:'16px'}},tabs.map(([name,count])=>h('button',{type:'button',key:name,className:`btn ${tab===name?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(name)},`${name} (${count})`)))
       ),
-      state.loading?h('div',{className:'card panel loading'},'Loading medication register…'):table,
+      state.loading?h('div',{className:'card panel loading'},'Loading medication register…'):(isFrontlineClinical?nurseMedicationCards:table),
       marTarget&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)closeMar()}},
         h('form',{className:'card modal',onSubmit:saveMar},
           h('div',{className:'panel-head'},h('div',null,h('h3',null,'Medication Administration'),h('small',null,'Record each dose without overwriting prescription history')),h('button',{type:'button',className:'close',onClick:closeMar},'×')),

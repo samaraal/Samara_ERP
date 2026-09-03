@@ -1617,3 +1617,25 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
   .clinical-alert-popup-actions{display:grid!important;grid-template-columns:1fr!important;gap:7px!important}
   .clinical-alert-popup-actions .btn{touch-action:manipulation!important;pointer-events:auto!important;position:relative!important;z-index:2147483640!important}
 }
+
+/* v2.9.72 Nurse/Caregiver priority-first mobile clinical workspace */
+.nurse-medication-workspace{display:none}
+@media (max-width:700px){
+  .nurse-medication-workspace{display:block;padding:8px 10px 92px}
+  .nurse-priority-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 10px}
+  .nurse-priority-head h2{font-size:20px;line-height:1.1;margin:0 0 2px}.nurse-priority-head small{font-size:12px;line-height:1.25;opacity:.75}
+  .nurse-refresh{min-height:36px!important;padding:7px 10px!important;font-size:12px!important}
+  .nurse-clear-filter{border:0;background:transparent;text-decoration:underline;font-size:12px;margin:0 0 8px;padding:4px}
+  .nurse-dose-list{display:grid;gap:8px}.nurse-dose-card{border:1px solid var(--border,#ddd);border-radius:14px;padding:11px 12px;background:var(--card,#fff)}
+  .nurse-dose-card.due{border-width:2px}.nurse-dose-card.urgent{border-width:2px}
+  .nurse-dose-top{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:14px}.nurse-dose-top strong{font-size:15px}.nurse-room{font-size:12px;white-space:nowrap;opacity:.78}
+  .nurse-medicine-name{font-size:18px;font-weight:800;line-height:1.15;margin:7px 0 5px}
+  .nurse-dose-meta{display:flex;flex-wrap:wrap;gap:5px;font-size:12px}.nurse-dose-meta span{padding:3px 7px;border-radius:999px;background:rgba(127,127,127,.12)}
+  .nurse-dose-action{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px}.nurse-dose-status{font-size:12px;font-weight:700}.nurse-dose-action .btn{min-height:42px!important;padding:9px 15px!important;font-size:14px!important;font-weight:800!important}
+  .nurse-all-done{display:flex;flex-direction:column;gap:3px;padding:18px;border:1px solid var(--border,#ddd);border-radius:14px;text-align:center;opacity:.8}.nurse-all-done strong{font-size:17px}.nurse-all-done span{font-size:12px}
+  .nurse-secondary{margin-top:10px;border:1px solid var(--border,#ddd);border-radius:12px;padding:0 10px;opacity:.78}.nurse-secondary summary{padding:11px 2px;font-size:13px;font-weight:700;cursor:pointer}
+  .nurse-completed-list{display:grid;gap:5px;padding-bottom:9px}.nurse-completed-dose{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:7px 8px;border-radius:9px;background:rgba(127,127,127,.08);font-size:11px;opacity:.65}.nurse-completed-dose button{border:0;border-radius:7px;padding:5px 7px;font-size:10px;opacity:.55}
+  .nurse-history-note{font-size:11px;padding:0 2px 10px;line-height:1.35}
+  /* Keep the administration modal short and readable on phone */
+  .modal-backdrop .modal{max-height:92vh!important;overflow:auto!important;padding:14px!important}.modal-backdrop .modal h3{font-size:18px!important}.modal-backdrop .modal .modal-grid{gap:8px!important}.modal-backdrop .modal .field label{font-size:11px!important}.modal-backdrop .modal input,.modal-backdrop .modal select,.modal-backdrop .modal textarea{font-size:14px!important;padding:9px!important;min-height:40px!important}.modal-backdrop .modal textarea{min-height:58px!important}
+}
