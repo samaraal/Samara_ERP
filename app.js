@@ -16892,12 +16892,23 @@ function ShiftHandover({profile,onNavigate}){
       quickView==='Refunds'?visibleRows.filter(row=>row.transaction_type==='Refund'):
       visibleRows;
 
-    async function sendPaymentReceiptWhatsAppApi(receipt){
-      if(!receipt)return;
+    async function sendPaymentReceiptWhatsAppApi(receipt,{automatic=false}={}){
+      if(!receipt)return false;
       const patient=patients.find(p=>p.id===receipt.patient_id)||{};
       const to=patient.attendant_phone||patient.mobile||'';
-      if(!to){setMessage('Family / patient WhatsApp number is not available in the Patient File.');return}
+      if(!to){
+        const text='Family / patient WhatsApp number is not available in the Patient File.';
+        setMessage(text);
+        if(automatic)notify('error','Payment saved · WhatsApp not sent',text);
+        return false;
+      }
       const recipient=patient.attendant_name||formalName(patient)||patient.full_name||'Family Member';
+      const patientName=formalName(patient)||patient.full_name||'Patient';
+      const purpose=[
+        String(receipt.category||'').trim(),
+        String(receipt.description||'').trim()
+      ].filter(Boolean).join(' · ');
+      const patientAndPurpose=purpose?`${patientName} – ${purpose}`:patientName;
       try{
         await sendWhatsAppTemplate({
           to,
@@ -16906,18 +16917,43 @@ function ShiftHandover({profile,onNavigate}){
           bodyParams:[
             recipient,
             Number(receipt.amount||0).toLocaleString('en-IN',{maximumFractionDigits:2}),
-            formalName(patient)||patient.full_name||'Patient',
+            patientAndPurpose,
             formatDateIN(receipt.date),
             receipt.reference||receipt.transaction_id||'—',
             receipt.payment_mode||'—'
           ]
         });
-        notify('success','WhatsApp receipt sent','Payment receipt notification was sent successfully through the approved Meta template.');
+        if(automatic){
+          notify(
+            'success',
+            'Payment saved · WhatsApp receipt sent',
+            `${money(receipt.amount)} received${purpose?` towards ${purpose}`:''}. The approved payment receipt template was sent automatically.`
+          );
+        }else{
+          notify('success','WhatsApp receipt sent','Payment receipt notification was sent successfully through the approved Meta template.');
+        }
+        return true;
       }catch(apiError){
+        const errorText=apiError?.message||String(apiError);
+        if(automatic){
+          setMessage(`Payment was saved successfully, but WhatsApp receipt was NOT sent (${errorText}). Use Resend Payment Receipt below.`);
+          notify('error','Payment saved · WhatsApp not sent','The financial transaction is safe. Use Resend Payment Receipt to retry the WhatsApp notification.');
+          return false;
+        }
         const number=normalizeWhatsAppRecipient(to);
-        const text=`Dear ${recipient},\n\nThank you. We confirm receipt of ₹${Number(receipt.amount||0).toLocaleString('en-IN')} towards the account of ${formalName(patient)||patient.full_name||'the patient'} on ${formatDateIN(receipt.date)}.\n\nReceipt No.: ${receipt.reference||receipt.transaction_id||'—'}\nPayment Mode: ${receipt.payment_mode||'—'}\n\nSamara Assisted Living`;
+        const text=`Dear ${recipient},
+
+Thank you. We confirm receipt of ₹${Number(receipt.amount||0).toLocaleString('en-IN')} for ${patientName}.
+
+Towards: ${purpose||'Patient account'}
+Receipt No.: ${receipt.reference||receipt.transaction_id||'—'}
+Payment Mode: ${receipt.payment_mode||'—'}
+Date: ${formatDateIN(receipt.date)}
+
+Samara Assisted Living`;
         if(number)window.open(`https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(text))}`,'_blank','noopener');
-        setMessage(`WhatsApp API could not send (${apiError.message||apiError}); the existing WhatsApp message has been opened as fallback.`);
+        setMessage(`WhatsApp API could not send (${errorText}); the existing WhatsApp message has been opened as fallback.`);
+        return false;
       }
     }
 
@@ -17092,15 +17128,20 @@ Please access the Samara Family Portal for detailed account information.`;
         'Success'
       );
 
+      let savedPaymentReceipt=null;
       if(['Payment','Advance'].includes(form.transaction_type)){
-        setLastPaymentReceipt({
+        savedPaymentReceipt={
           patient_id:form.patient_id,
           amount,
           payment_mode:form.payment_mode,
           reference:actualReference||'',
           transaction_id:data?.id||'',
-          date:new Date().toISOString()
-        });
+          date:new Date().toISOString(),
+          category:form.category||form.transaction_type,
+          description:String(form.description||'').trim()
+        };
+        setLastPaymentReceipt(savedPaymentReceipt);
+        await sendPaymentReceiptWhatsAppApi(savedPaymentReceipt,{automatic:true});
       }
 
       const expectedBalance=
@@ -17433,8 +17474,8 @@ Please access the Samara Family Portal for detailed account information.`;
         message&&h('div',{className:'message error'},message),
         lastPaymentReceipt&&h('div',{className:'message success',style:{marginTop:'10px'}},
           h('strong',null,'Payment receipt ready'),
-          h('div',null,`${money(lastPaymentReceipt.amount)} · ${lastPaymentReceipt.payment_mode}${lastPaymentReceipt.reference?` · ${lastPaymentReceipt.reference}`:''}`),
-          h('button',{type:'button',className:'btn btn-whatsapp',style:{marginTop:'8px'},onClick:()=>sendPaymentReceiptWhatsAppApi(lastPaymentReceipt)},'Send Payment Receipt WhatsApp API')
+          h('div',null,`${money(lastPaymentReceipt.amount)} · ${lastPaymentReceipt.category||'Payment'} · ${lastPaymentReceipt.payment_mode}${lastPaymentReceipt.reference?` · ${lastPaymentReceipt.reference}`:''}`),
+          h('button',{type:'button',className:'btn btn-whatsapp',style:{marginTop:'8px'},onClick:()=>sendPaymentReceiptWhatsAppApi(lastPaymentReceipt)},'Resend Payment Receipt WhatsApp API')
         )
       ),
 

@@ -1,0 +1,54 @@
+SAMARA CARE ERP v2.9.80 — PAYMENT WHATSAPP AUTOMATION
+
+WHAT CHANGES
+1. Payment / Advance WhatsApp receipt is now sent automatically immediately after a successful financial transaction.
+2. It reuses the already approved Meta template: samara_payment_receipt.
+3. The existing six-variable template is preserved.
+4. Payment purpose is included by sending the patient variable as:
+   <Patient Name> – <Category> · <Description>
+   Examples:
+   Mrs. Ramyapriyaa – Advance
+   Mrs. Ramyapriyaa – Final Settlement
+   Mrs. Ramyapriyaa – Room Charges · August balance
+5. Payment save is NEVER rolled back just because Meta WhatsApp fails.
+6. If Meta fails, ERP shows a clear warning and the button remains available as:
+   Resend Payment Receipt WhatsApp API
+7. Manual resend keeps the existing WhatsApp fallback.
+
+AUTOMATIC DAILY PAYABLE
+- New Edge Function: daily-payable-whatsapp
+- Reuses existing approved template: samara_bill_reminder
+- Sends only to ACTIVE patients with outstanding balance > ₹0.
+- Uses the same live ledger formula as ERP:
+  Charge - Payment - Advance - Discount + Refund
+- Sends at most once per patient per calendar day.
+- Settled / credit-balance patients are skipped.
+- Failed attempts are logged and can be retried on the next run.
+
+INSTALL
+A. FRONTEND
+Replace app.js with the app.js in this ZIP.
+
+B. DATABASE
+Run 98_payment_whatsapp_auto.sql in Supabase SQL Editor.
+
+C. EDGE FUNCTION
+Deploy:
+  supabase/functions/daily-payable-whatsapp/index.ts
+
+The function uses the same WhatsApp secrets already used by whatsapp-send:
+  WHATSAPP_ACCESS_TOKEN
+  WHATSAPP_PHONE_NUMBER_ID
+and Supabase-provided:
+  SUPABASE_URL
+  SUPABASE_SERVICE_ROLE_KEY
+
+D. SCHEDULE
+In Supabase, schedule the daily-payable-whatsapp Edge Function once daily.
+Recommended operational timing for Samara: after the day's routine billing has been posted.
+If you want a fixed time, 8:00 PM IST is a practical default; it can be changed at any time.
+
+NO NEW META TEMPLATE IS REQUIRED.
+Existing templates used:
+- samara_payment_receipt
+- samara_bill_reminder
