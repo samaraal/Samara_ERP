@@ -16665,6 +16665,8 @@ function ShiftHandover({profile,onNavigate}){
     const [toast,setToast]=React.useState(null);
     const [lastVoucherNo,setLastVoucherNo]=React.useState('');
     const [lastPaymentReceipt,setLastPaymentReceipt]=React.useState(null);
+    const [dailyPayableSent,setDailyPayableSent]=React.useState(false);
+    const [dailyPayableChecking,setDailyPayableChecking]=React.useState(false);
     const [refundRequest,setRefundRequest]=React.useState(null);
     const [refundLoading,setRefundLoading]=React.useState(false);
     const [activeAccountantPresent,setActiveAccountantPresent]=React.useState(false);
@@ -16894,6 +16896,83 @@ function ShiftHandover({profile,onNavigate}){
       quickView==='Refunds'?visibleRows.filter(row=>row.transaction_type==='Refund'):
       visibleRows;
 
+    React.useEffect(()=>{
+      let cancelled=false;
+      async function checkDailyPayableSent(){
+        setDailyPayableSent(false);
+        if(!patientFilter||pendingBills<=0)return;
+        const patient=patients.find(p=>p.id===patientFilter)||{};
+        const to=normalizeWhatsAppRecipient(patient.attendant_phone||patient.mobile||'');
+        if(!to)return;
+        setDailyPayableChecking(true);
+        try{
+          const start=new Date();
+          start.setHours(0,0,0,0);
+          const {data,error}=await client.from('hr_whatsapp_communications')
+            .select('id,template_name,recipient_number,created_at,message_payload')
+            .eq('template_name','samara_bill_reminder')
+            .eq('recipient_number',to)
+            .gte('created_at',start.toISOString())
+            .order('created_at',{ascending:false})
+            .limit(20);
+          if(error)throw error;
+          const found=(data||[]).some(r=>{
+            const payload=r?.message_payload||{};
+            return !payload?.patient_id||String(payload.patient_id)===String(patientFilter);
+          });
+          if(!cancelled)setDailyPayableSent(found);
+        }catch(error){
+          console.warn('Could not check today Daily Payable status:',error);
+        }finally{
+          if(!cancelled)setDailyPayableChecking(false);
+        }
+      }
+      checkDailyPayableSent();
+      return()=>{cancelled=true};
+    },[patientFilter,pendingBills,patients]);
+
+    async function ensureWhatsAppInboxLog({sendResult,to,communicationLog,templateName,messageType='template'}){
+      if(sendResult?.history_logged===true)return true;
+      const providerId=sendResult?.result?.messages?.[0]?.id||null;
+      if(providerId){
+        const existing=await client.from('hr_whatsapp_communications')
+          .select('id')
+          .eq('provider_message_id',providerId)
+          .maybeSingle();
+        if(existing?.data?.id)return true;
+      }
+      const now=new Date().toISOString();
+      const row={
+        career_application_id:null,
+        application_id:null,
+        applicant_name:communicationLog?.contact_name||null,
+        recipient_number:normalizeWhatsAppRecipient(to),
+        communication_type:communicationLog?.communication_type||'WhatsApp API',
+        template_name:templateName||null,
+        status:'Accepted',
+        provider_message_id:providerId,
+        error_message:null,
+        sent_by:communicationLog?.sent_by||profile?.id||null,
+        sent_by_name:communicationLog?.sent_by_name||formalName(profile)||'Samara System',
+        direction:'outbound',
+        message_type:messageType,
+        message_content:communicationLog?.message_content||'',
+        message_payload:communicationLog?.message_payload||sendResult?.result||null,
+        contact_name:communicationLog?.contact_name||null,
+        source_type:communicationLog?.source_type||'Patient / Family',
+        sent_at:now,
+        created_at:now,
+        updated_at:now
+      };
+      const {error}=await client.from('hr_whatsapp_communications').insert(row);
+      if(error){
+        console.error('WhatsApp Inbox fallback log failed:',error,row);
+        setMessage(`WhatsApp was sent, but ERP Inbox logging failed: ${error.message||error}`);
+        return false;
+      }
+      return true;
+    }
+
     async function sendPaymentReceiptWhatsAppApi(receipt,{automatic=false}={}){
       if(!receipt)return false;
       const patient=patients.find(p=>p.id===receipt.patient_id)||{};
@@ -16927,19 +17006,7 @@ For any clarification regarding the account, please contact Samara Assisted Livi
 
 Thank you.`;
       try{
-        await sendWhatsAppTemplate({
-          to,
-          templateName:'samara_payment_receipt',
-          languageCode:'en',
-          bodyParams:[
-            recipient,
-            amountText,
-            patientName,
-            paidDate,
-            reference,
-            paymentMode
-          ],
-          communicationLog:{
+        const communicationLog={
             communication_type:`Payment Receipt${receipt.category?` · ${receipt.category}`:''}`,
             message_content:renderedMessage,
             contact_name:recipient,
@@ -16955,13 +17022,29 @@ Thank you.`;
               payment_mode:paymentMode,
               reference
             }
-          }
+          };
+        const sendResult=await sendWhatsAppTemplate({
+          to,
+          templateName:'samara_payment_receipt',
+          languageCode:'en',
+          bodyParams:[
+            recipient,
+            amountText,
+            patientName,
+            paidDate,
+            reference,
+            paymentMode
+          ],
+          communicationLog
+        });
+        const inboxLogged=await ensureWhatsAppInboxLog({
+          sendResult,to,communicationLog,templateName:'samara_payment_receipt'
         });
         if(automatic){
           notify(
             'success',
             'Payment saved · WhatsApp receipt sent',
-            `${money(receipt.amount)} received${purpose?` towards ${purpose}`:''}. Receipt sent and recorded in WhatsApp Inbox.`
+            `${money(receipt.amount)} received${purpose?` towards ${purpose}`:''}. Receipt sent${inboxLogged?' and recorded in WhatsApp Inbox':' (Inbox logging needs attention)'}.`
           );
         }else{
           notify('success','WhatsApp receipt sent','Payment receipt was sent and recorded in WhatsApp Inbox.');
@@ -16991,9 +17074,10 @@ Samara Assisted Living`;
       }
     }
 
-    async function sendDailyBillWhatsAppApi(){
+    async function sendDailyBillWhatsAppApi({resend=false}={}){
       if(!patientFilter){setMessage('Select a patient first.');return}
       if(pendingBills<=0){setMessage('There is no outstanding amount to notify for the selected patient.');return}
+      if(dailyPayableSent&&!resend)return;
       const patient=patients.find(p=>p.id===patientFilter)||{};
       const to=patient.attendant_phone||patient.mobile||'';
       if(!to){setMessage('Family / patient WhatsApp number is not available in the Patient File.');return}
@@ -17016,22 +17100,37 @@ You may access the Samara Family Portal using the button below to view the accou
 If payment has already been made, kindly disregard this message.
 
 Thank you.`;
-        await sendWhatsAppTemplate({
+        const communicationLog={
+          communication_type:`Daily Payable Reminder · ${resend?'Resent':'Manual'}`,
+          message_content:renderedMessage,
+          contact_name:recipient,
+          source_type:'Patient / Family · Accounts',
+          sent_by:profile?.id||null,
+          sent_by_name:formalName(profile)||'Accounts',
+          message_payload:{
+            patient_id:patient.id,
+            patient_name:patientName,
+            amount:Number(pendingBills||0),
+            due_date:dueDate,
+            resend:Boolean(resend)
+          }
+        };
+        const sendResult=await sendWhatsAppTemplate({
           to,
           templateName:'samara_bill_reminder',
           languageCode:'en',
           bodyParams:[recipient,patientName,amount,dueDate],
-          communicationLog:{
-            communication_type:'Daily Payable Reminder · Manual',
-            message_content:renderedMessage,
-            contact_name:recipient,
-            source_type:'Patient / Family · Accounts',
-            sent_by:profile?.id||null,
-            sent_by_name:formalName(profile)||'Accounts',
-            message_payload:{patient_id:patient.id,patient_name:patientName,amount:Number(pendingBills||0),due_date:dueDate}
-          }
+          communicationLog
         });
-        notify('success','Daily payable summary sent',`Outstanding amount of ₹${amount} was sent to the authorised family contact through WhatsApp API.`);
+        const inboxLogged=await ensureWhatsAppInboxLog({
+          sendResult,to,communicationLog,templateName:'samara_bill_reminder'
+        });
+        setDailyPayableSent(true);
+        notify(
+          'success',
+          resend?'Daily payable summary resent':'Daily payable summary sent',
+          `Outstanding amount of ₹${amount} was sent to the authorised family contact${inboxLogged?' and recorded in WhatsApp Inbox':' through WhatsApp API; Inbox logging needs attention'}.`
+        );
       }catch(apiError){
         const number=normalizeWhatsAppRecipient(to);
         const text=`Dear ${recipient},
@@ -17345,7 +17444,20 @@ Please access the Samara Family Portal for detailed account information.`;
         h('div',{className:'payment-quick-buttons'},
           h('button',{type:'button',className:'btn btn-primary',onClick:()=>setQuickView('Pending Bills')},'Pending Bills as on Date'),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setQuickView('Complete Transaction History')},'Complete Transaction History'),
-          patientFilter&&pendingBills>0&&h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendDailyBillWhatsAppApi},'Send Daily Payable WhatsApp API')
+          patientFilter&&pendingBills>0&&h(React.Fragment,null,
+            h('button',{
+              type:'button',
+              className:'btn btn-whatsapp',
+              disabled:dailyPayableSent||dailyPayableChecking,
+              onClick:()=>sendDailyBillWhatsAppApi({resend:false}),
+              style:(dailyPayableSent||dailyPayableChecking)?{opacity:.58,cursor:'not-allowed'}:null
+            },dailyPayableChecking?'Checking WhatsApp Status…':dailyPayableSent?'Daily Payable WhatsApp Sent ✓':'Send Daily Payable WhatsApp API'),
+            dailyPayableSent&&h('button',{
+              type:'button',
+              className:'btn btn-secondary',
+              onClick:()=>sendDailyBillWhatsAppApi({resend:true})
+            },'Resend Daily Payable WhatsApp')
+          )
         )
       ),
 

@@ -1,0 +1,42 @@
+SAMARA CARE ERP v2.9.82 — WHATSAPP INBOX + DAILY PAYABLE BUTTON FIX
+
+FIX 1 — WHATSAPP SENT BUT NOT VISIBLE IN ERP INBOX
+The ERP no longer assumes that a successful Meta API response means the communication
+history was saved.
+
+After Meta accepts a Payment Receipt or Daily Payable template:
+1. ERP checks whether whatsapp-send confirms history_logged=true.
+2. If not confirmed, ERP checks by Meta provider_message_id.
+3. If still missing, ERP inserts the outbound communication directly into
+   hr_whatsapp_communications.
+4. Therefore the message appears in the existing WhatsApp Inbox even if the deployed
+   whatsapp-send Edge Function is an older copy or its internal logging did not run.
+
+FIX 2 — DAILY PAYABLE BUTTON
+Before sending:
+  Send Daily Payable WhatsApp API   [green]
+
+After successful send:
+  Daily Payable WhatsApp Sent ✓     [disabled]
+  Resend Daily Payable WhatsApp     [separate secondary button]
+
+The ERP also checks today's WhatsApp history when a patient is selected, so the sent
+state survives a page refresh where the chat history is available.
+
+INSTALL
+1. Replace app.js.
+2. Hard refresh ERP (Ctrl + Shift + R).
+3. If you already redeployed both v2.9.81 Edge Functions, no Edge Function change is
+   required for this frontend robustness fix.
+4. If unsure, redeploy the included whatsapp-send/index.ts and
+   daily-payable-whatsapp/index.ts once.
+
+TEST
+1. Select a patient with outstanding amount.
+2. Click Send Daily Payable WhatsApp API.
+3. After Meta success, green button must become:
+      Daily Payable WhatsApp Sent ✓
+   and be disabled.
+4. A new Resend Daily Payable WhatsApp button must appear.
+5. Open WhatsApp Inbox and select the same family mobile conversation.
+6. The exact Daily Payable template message must be visible.
