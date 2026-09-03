@@ -1618,7 +1618,7 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
   .clinical-alert-popup-actions .btn{touch-action:manipulation!important;pointer-events:auto!important;position:relative!important;z-index:2147483640!important}
 }
 
-/* v2.9.72 Nurse/Caregiver priority-first mobile clinical workspace */
+/* v2.9.73 Nurse/Caregiver priority-first mobile clinical workspace */
 .nurse-medication-workspace{display:none}
 @media (max-width:700px){
   .nurse-medication-workspace{display:block;padding:8px 10px 92px}
@@ -1636,6 +1636,9 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
   .nurse-secondary{margin-top:10px;border:1px solid var(--border,#ddd);border-radius:12px;padding:0 10px;opacity:.78}.nurse-secondary summary{padding:11px 2px;font-size:13px;font-weight:700;cursor:pointer}
   .nurse-completed-list{display:grid;gap:5px;padding-bottom:9px}.nurse-completed-dose{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:7px 8px;border-radius:9px;background:rgba(127,127,127,.08);font-size:11px;opacity:.65}.nurse-completed-dose button{border:0;border-radius:7px;padding:5px 7px;font-size:10px;opacity:.55}
   .nurse-history-note{font-size:11px;padding:0 2px 10px;line-height:1.35}
+
+  .nurse-missed{border-color:rgba(180,35,24,.32)!important}.nurse-missed summary{font-weight:800!important}
+  .nurse-missed-list{display:grid;gap:6px;padding-bottom:9px}.nurse-missed-dose{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 9px;border-radius:10px;background:rgba(180,35,24,.07);font-size:11px}.nurse-missed-dose>div{min-width:0;display:flex;flex-direction:column;gap:2px}.nurse-missed-dose strong{font-size:12px;line-height:1.25}.nurse-missed-dose small{font-size:10px;opacity:.75}.nurse-missed-dose .btn{min-height:34px!important;padding:6px 9px!important;font-size:11px!important;white-space:nowrap}
   /* Keep the administration modal short and readable on phone */
   .modal-backdrop .modal{max-height:92vh!important;overflow:auto!important;padding:14px!important}.modal-backdrop .modal h3{font-size:18px!important}.modal-backdrop .modal .modal-grid{gap:8px!important}.modal-backdrop .modal .field label{font-size:11px!important}.modal-backdrop .modal input,.modal-backdrop .modal select,.modal-backdrop .modal textarea{font-size:14px!important;padding:9px!important;min-height:40px!important}.modal-backdrop .modal textarea{min-height:58px!important}
 }

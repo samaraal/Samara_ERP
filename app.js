@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.72';
+  const APP_VERSION = '2.9.73';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -14349,27 +14349,43 @@ function RoomsBeds({profile}){
       ];
     });
 
-    const nursePending=filtered(todayRows).filter(item=>!item.log).sort((a,b)=>{
-      const A=pendingDoseState(a),B=pendingDoseState(b);
-      const rank=x=>x.minutes>=60?0:x.minutes>=15?1:x.minutes>=0?2:3;
-      return rank(A)-rank(B)||scheduledDoseDate(a.time)-scheduledDoseDate(b.time);
-    });
-    const nurseCompleted=filtered(todayRows).filter(item=>item.log);
+    const nurseExceptionStatuses=['missed','refused','delayed','not given','withheld','unavailable'];
+    const nurseActionable=filtered(todayRows).filter(item=>{
+      if(item.log)return false;
+      const minutes=pendingDoseState(item).minutes;
+      return minutes>=-30&&minutes<=30;
+    }).sort((a,b)=>scheduledDoseDate(a.time)-scheduledDoseDate(b.time));
+    const nurseMissed=filtered(todayRows).filter(item=>{
+      if(item.log)return nurseExceptionStatuses.includes(String(item.log.status||'').toLowerCase());
+      return pendingDoseState(item).minutes>30;
+    }).sort((a,b)=>scheduledDoseDate(a.time)-scheduledDoseDate(b.time));
+    const nurseCompleted=filtered(todayRows).filter(item=>item.log&&!nurseExceptionStatuses.includes(String(item.log.status||'').toLowerCase()));
     const nurseMedicationCards=h('div',{className:'nurse-medication-workspace'},
       h('div',{className:'nurse-priority-head'},
-        h('div',null,h('h2',null,'Medicines to Give'),h('small',null,'Due and upcoming doses first. Tap only the medicine you are giving.')),
+        h('div',null,h('h2',null,'Medicines Due Now'),h('small',null,'Only doses within 30 minutes before or after the scheduled time are shown here.')),
         h('button',{type:'button',className:'btn btn-secondary nurse-refresh',onClick:load},state.loading?'…':'Refresh')
       ),
       patientFilter&&h('button',{type:'button',className:'nurse-clear-filter',onClick:()=>setPatientFilter('')},'× Show all patients'),
-      nursePending.length?h('div',{className:'nurse-dose-list'},nursePending.map(item=>{
-        const dose=pendingDoseState(item),p=patientFor(item.order),urgent=dose.minutes>=15,due=dose.minutes>=0;
-        return h('div',{className:`nurse-dose-card ${urgent?'urgent':due?'due':'upcoming'}`,key:`${item.order.id}-${item.time}`},
+      nurseActionable.length?h('div',{className:'nurse-dose-list'},nurseActionable.map(item=>{
+        const dose=pendingDoseState(item),p=patientFor(item.order),due=dose.minutes>=0;
+        return h('div',{className:`nurse-dose-card ${due?'due':'upcoming'}`,key:`${item.order.id}-${item.time}`},
           h('div',{className:'nurse-dose-top'},h('strong',null,formalName(p)||p.full_name||'Patient'),h('span',{className:'nurse-room'},p.room_no?`Room ${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:'—')),
           h('div',{className:'nurse-medicine-name'},medicineLabel(item.order)),
           h('div',{className:'nurse-dose-meta'},h('span',null,medicationTimeLabel(item.time)),item.order.route&&h('span',null,item.order.route),item.order.food_instruction&&h('span',null,item.order.food_instruction)),
-          h('div',{className:'nurse-dose-action'},h('span',{className:`nurse-dose-status ${urgent?'urgent':''}`},dose.status),h('button',{type:'button',className:urgent?'btn btn-danger':'btn btn-primary',onClick:()=>openMar(item.order,item.time)},urgent?'GIVE / RESOLVE':'ADMINISTER'))
+          h('div',{className:'nurse-dose-action'},h('span',{className:'nurse-dose-status'},due?'Due now':'Due shortly'),h('button',{type:'button',className:'btn btn-primary',onClick:()=>openMar(item.order,item.time)},'ADMINISTER'))
         );
-      })):h('div',{className:'nurse-all-done'},h('strong',null,'✓ No pending medicines'),h('span',null,'There are no unrecorded scheduled doses for the selected patient(s) today.')),
+      })):h('div',{className:'nurse-all-done'},h('strong',null,'✓ No medicine due now'),h('span',null,'Only medicines within the current ±30 minute administration window appear here.')),
+      nurseMissed.length?h('details',{className:'nurse-secondary nurse-missed'},
+        h('summary',null,`Missed / Overdue (${nurseMissed.length})`),
+        h('div',{className:'nurse-missed-list'},nurseMissed.map(item=>{
+          const p=patientFor(item.order),dose=pendingDoseState(item);
+          const status=item.log?(item.log.status||'Exception'):`${dose.minutes} min overdue`;
+          return h('div',{className:'nurse-missed-dose',key:`missed-${item.order.id}-${item.time}`},
+            h('div',null,h('strong',null,`${formalName(p)||p.full_name||'Patient'} · ${medicineLabel(item.order)}`),h('small',null,`${medicationTimeLabel(item.time)} · ${status}`)),
+            h('button',{type:'button',className:'btn btn-danger',onClick:()=>openMar(item.order,item.time)},item.log?'VIEW':'ATTEND')
+          );
+        }))
+      ):null,
       h('details',{className:'nurse-secondary'},h('summary',null,`Completed today (${nurseCompleted.length})`),h('div',{className:'nurse-completed-list'},nurseCompleted.map(item=>h('div',{className:'nurse-completed-dose',key:`done-${item.order.id}-${item.time}`},h('span',null,`✓ ${patientFor(item.order).full_name||'Patient'} · ${medicineLabel(item.order)} · ${medicationTimeLabel(item.time)}`),h('button',{type:'button',disabled:true},'Recorded ✓'))))),
       h('details',{className:'nurse-secondary'},h('summary',null,'Prescription / history'),h('div',{className:'nurse-history-note'},'Prescription history is kept secondary for nursing use. Managers and Administrators retain the full register view.'))
     );

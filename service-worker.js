@@ -1,4 +1,4 @@
-const CACHE = 'samara-erp-2.9.72-admission-day-medication-boundary';
+const CACHE = 'samara-erp-2.9.73-nurse-medication-window';
 const SHELL = [
   './', './index.html', './styles.css?v=2.9.70', './app.js?v=2.9.70',
   './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',

@@ -1,0 +1,13 @@
+SAMARA CARE ERP v2.9.73 — NURSE MEDICATION WINDOW
+
+Mobile Nurse/Caregiver Medication screen:
+- Primary list shows only unrecorded doses within ±30 minutes of scheduled time.
+- Doses more than 30 minutes overdue move to a separate Missed / Overdue section.
+- Explicit exception MAR statuses (Missed, Refused, Delayed, Not Given, Withheld, Unavailable) are shown in that separate section.
+- Completed doses remain secondary and inactive.
+- Prescription/history remains secondary.
+- Admin/Manager detailed medication registers are unchanged.
+- v2.9.71 admission-day medication boundary remains in force.
+
+No new SQL is required for v2.9.73.
+Replace: app.js, styles.css, index.html, service-worker.js
