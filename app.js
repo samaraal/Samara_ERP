@@ -6609,7 +6609,20 @@ Samara Assisted Living`;
                 const outgoing=r.direction!=='inbound';const media=mediaInfo(r);const text=chatText(r);
                 return h('div',{key:r.id,style:{display:'flex',justifyContent:outgoing?'flex-end':'flex-start',marginBottom:'8px'}},
                   h('div',{style:{position:'relative',maxWidth:'72%',padding:'8px 10px 6px',borderRadius:outgoing?'8px 0 8px 8px':'0 8px 8px 8px',background:outgoing?'#d9fdd3':'#fff',boxShadow:'0 1px 1px rgba(0,0,0,.08)',color:'#292229'}},
-                    outgoing&&(/Payment Receipt|Daily Payable Reminder/i.test(String(r.communication_type||'')))?h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748',marginBottom:'5px'}},`${r.communication_type}${r.sent_by_name?` · ${r.sent_by_name}`:''}`):null,
+                    outgoing&&(/Payment Receipt|Daily Payable Reminder/i.test(String(r.communication_type||'')))?h(React.Fragment,null,
+                      h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748',marginBottom:'6px',display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}},
+                        h('span',null,String(r.communication_type||'')),
+                        /Automated/i.test(`${r.communication_type||''} ${r.sent_by_name||''}`)
+                          ?h('span',{style:{padding:'2px 7px',borderRadius:'999px',background:'#7d1748',color:'#fff',fontSize:'10px',letterSpacing:'.2px'}},'AUTOMATED · Samara System')
+                          :(r.sent_by_name?h('span',{style:{fontWeight:'700',color:'#7b6871'}},`· ${r.sent_by_name}`):null)
+                      ),
+                      ['samara_bill_reminder','samara_payment_receipt'].includes(String(r.template_name||'').toLowerCase())
+                        ?h('div',{style:{background:'#fff',border:'1px solid #ecdce4',borderRadius:'8px',padding:'8px 10px',marginBottom:'9px',textAlign:'center'}},
+                            h('img',{src:BRAND_LOGO_SRC,alt:'Samara Assisted Living',style:{display:'block',width:'128px',maxWidth:'70%',height:'auto',margin:'0 auto 5px'}}),
+                            h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748'}},'Greetings from Samara Assisted Living')
+                          )
+                        :null
+                    ):null,
                     h('div',{style:{whiteSpace:'pre-wrap',lineHeight:'1.42',fontSize:'14px',paddingRight:'4px'}},text),
                     media?h('button',{type:'button',disabled:mediaBusyId===r.id,onClick:()=>openMedia(r),style:{display:'block',marginTop:'8px',padding:'7px 10px',border:'0',borderRadius:'7px',background:'#f0f2f5',color:'#5d1039',fontWeight:'700',cursor:mediaBusyId===r.id?'wait':'pointer',maxWidth:'100%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},mediaBusyId===r.id?'Opening…':mediaLabel(media)):null,
                     outgoing&&['samara_bill_reminder','samara_payment_receipt'].includes(String(r.template_name||'').toLowerCase())

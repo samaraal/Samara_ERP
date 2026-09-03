@@ -1,0 +1,41 @@
+SAMARA CARE ERP v2.9.84
+WHATSAPP TEMPLATE BRANDING + AUTOMATED BADGE
+
+CHANGES
+1. Payment Receipt and Daily Payable template messages in ERP WhatsApp Inbox now show:
+   - Samara Assisted Living logo
+   - "Greetings from Samara Assisted Living"
+   - Existing approved message body
+   - Existing View Family Portal button
+
+2. Truly automatic backend messages are now unmistakable:
+   AUTOMATED · Samara System
+
+3. Manually triggered messages continue to show the employee name, e.g.
+   Daily Payable Reminder · Manual · Boomi R
+
+IMPORTANT ABOUT THE SCREENSHOT
+The message you showed was a MANUAL send, so "Manual · Boomi R" is correct.
+An AUTOMATED badge can appear only after daily-payable-whatsapp is invoked by the
+backend / scheduler.
+
+INSTALL
+- Replace app.js
+- Ctrl + Shift + R
+- No SQL change is required.
+- No Edge Function redeployment is required if v2.9.81/82 functions are already deployed.
+
+TEST AUTOMATIC MESSAGE NOW
+1. Do NOT click the green ERP Daily Payable button.
+2. Supabase > Edge Functions > daily-payable-whatsapp.
+3. Use Invoke/Test once.
+4. Open ERP > WhatsApp Inbox > Refresh.
+5. The new entry should show:
+   Daily Payable Reminder · Automated
+   AUTOMATED · Samara System
+   Samara logo/header
+   View Family Portal
+
+NOTE ON DUPLICATE PROTECTION
+If the same patient already received today's AUTOMATIC reminder, the backend may skip
+that patient. A manual send does not itself count as the automatic scheduler log.
