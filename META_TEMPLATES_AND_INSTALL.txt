@@ -1,0 +1,111 @@
+SAMARA CARE ERP v2.9.87 — EMERGENCY WHATSAPP COMMUNICATION
+
+Create these TWO templates in Meta before using the ERP Emergency button.
+
+============================================================
+1) samara_emergency_hospital_transfer
+============================================================
+Category: Utility
+Language: English
+Header: IMAGE
+Use the same Samara logo image/header used by your existing Utility templates.
+
+BODY:
+
+Dear {{1}},
+
+Greetings from Samara Assisted Living.
+
+This is an URGENT communication regarding {{2}}.
+
+Due to an urgent change in condition, {{2}} is being shifted / has been shifted to {{3}} at {{4}}.
+
+We attempted to contact you but could not reach you.
+Contact attempt: {{5}}
+
+Please contact Samara Assisted Living immediately.
+
+Thank you.
+
+SAMPLE VARIABLES:
+{{1}} Mr. Rajesh Kumar
+{{2}} Mrs. Lakshmi
+{{3}} Apollo Hospitals, Vanagaram
+{{4}} 03-09-2026 11:45 PM
+{{5}} Called twice; no response
+
+RECOMMENDED META BUTTON:
+Call phone number
+Button text: Call Samara
+Use Samara's primary contact/emergency number.
+
+============================================================
+2) samara_urgent_contact_required
+============================================================
+Category: Utility
+Language: English
+Header: IMAGE
+Use the same Samara logo.
+
+BODY:
+
+Dear {{1}},
+
+Greetings from Samara Assisted Living.
+
+URGENT: We need to speak with you regarding {{2}}.
+
+We attempted to contact you but could not reach you.
+Contact attempt: {{3}}
+Time: {{4}}
+
+Please contact Samara Assisted Living immediately.
+
+Thank you.
+
+SAMPLE VARIABLES:
+{{1}} Mr. Rajesh Kumar
+{{2}} Mrs. Lakshmi
+{{3}} Called twice; no response
+{{4}} 03-09-2026 11:45 PM
+
+RECOMMENDED META BUTTON:
+Call phone number
+Button text: Call Samara
+
+============================================================
+ERP WORKFLOW
+============================================================
+WhatsApp Inbox > select family conversation > red "Emergency" button.
+
+Emergency Hospital Transfer captures:
+- Resident name
+- Hospital name
+- Emergency/transfer time
+- Contact attempts / remarks
+- Preview
+
+Urgent Contact Required captures:
+- Resident name
+- Time
+- Contact attempts / remarks
+- Preview
+
+Every successful emergency message is saved in the same WhatsApp conversation with:
+- EMERGENCY label
+- URGENT sender badge
+- sender name
+- Meta provider message ID
+- Sent / Delivered / Read / Failed updates through the existing webhook
+
+INSTALL
+1. Replace app.js.
+2. Ctrl + Shift + R.
+3. Create and get both templates ACTIVE in Meta.
+4. No SQL required.
+5. No Edge Function change required if your current whatsapp-send already sends IMAGE headers.
+
+IMPORTANT
+The ERP emergency WhatsApp is an additional documented communication channel.
+Clinical escalation, ambulance/hospital transfer and telephone attempts must continue
+without waiting for WhatsApp delivery/read.

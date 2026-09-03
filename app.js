@@ -6348,6 +6348,13 @@ Caring with Compassion. Living with Dignity.`;
       {name:'samara_callback_request',label:'Callback Request',regarding:'your enquiry'}
     ];
     const [templateName,setTemplateName]=React.useState('samara_general_followup'),[templateLanguage]=React.useState('en'),[templateRegarding,setTemplateRegarding]=React.useState('your assisted living enquiry'),[mediaBusyId,setMediaBusyId]=React.useState('');
+    const [showEmergency,setShowEmergency]=React.useState(false);
+    const [emergencyType,setEmergencyType]=React.useState('hospital_transfer');
+    const [emergencyPatient,setEmergencyPatient]=React.useState('');
+    const [emergencyHospital,setEmergencyHospital]=React.useState('');
+    const [emergencyTime,setEmergencyTime]=React.useState(()=>new Date().toISOString().slice(0,16));
+    const [emergencyAttempt,setEmergencyAttempt]=React.useState('Called authorised attendant; no response.');
+    const [emergencyBusy,setEmergencyBusy]=React.useState(false);
     const selectedTemplate=WA_REOPEN_TEMPLATES.find(t=>t.name===templateName)||WA_REOPEN_TEMPLATES[0];
     React.useEffect(()=>{
       const mq=window.matchMedia('(max-width: 700px)');
@@ -6528,6 +6535,119 @@ Samara Assisted Living`;
       if(doc)return doc[2]?`${doc[1]||'Document'}\n${doc[2]}`:(doc[1]||'Document');
       return raw;
     }
+    function emergencyPreview(){
+      const customer=String(active?.name||'Family Member').trim()||'Family Member';
+      const patient=String(emergencyPatient||'the resident').trim();
+      const when=emergencyTime?formatDateTimeIN(new Date(emergencyTime).toISOString()):formatDateTimeIN(new Date().toISOString());
+      if(emergencyType==='hospital_transfer'){
+        const hospital=String(emergencyHospital||'the hospital').trim();
+        return `Dear ${customer},
+
+Greetings from Samara Assisted Living.
+
+This is an URGENT communication regarding ${patient}.
+
+Due to an urgent change in condition, ${patient} is being shifted / has been shifted to ${hospital} at ${when}.
+
+We attempted to contact you but could not reach you.
+Contact attempt: ${emergencyAttempt||'No response.'}
+
+Please contact Samara Assisted Living immediately.
+
+Thank you.`;
+      }
+      return `Dear ${customer},
+
+Greetings from Samara Assisted Living.
+
+URGENT: We need to speak with you regarding ${patient}.
+
+We attempted to contact you but could not reach you.
+Contact attempt: ${emergencyAttempt||'No response.'}
+Time: ${when}
+
+Please contact Samara Assisted Living immediately.
+
+Thank you.`;
+    }
+
+    async function sendEmergencyTemplate(){
+      if(!active||emergencyBusy)return;
+      const customer=String(active.name||'').trim()||'Family Member';
+      const patient=String(emergencyPatient||'').trim();
+      if(!patient){setMessage('Enter / confirm the patient name.');return}
+      if(emergencyType==='hospital_transfer'&&!String(emergencyHospital||'').trim()){
+        setMessage('Enter the hospital name for emergency transfer.');return
+      }
+      const when=emergencyTime?formatDateTimeIN(new Date(emergencyTime).toISOString()):formatDateTimeIN(new Date().toISOString());
+      const attempt=String(emergencyAttempt||'Called authorised attendant; no response.').trim();
+      const name=emergencyType==='hospital_transfer'
+        ?'samara_emergency_hospital_transfer'
+        :'samara_urgent_contact_required';
+      const params=emergencyType==='hospital_transfer'
+        ?[customer,patient,String(emergencyHospital).trim(),when,attempt]
+        :[customer,patient,attempt,when];
+      const rendered=emergencyPreview();
+      const now=new Date().toISOString();
+      const log={
+        communication_type:emergencyType==='hospital_transfer'
+          ?'EMERGENCY · Hospital Transfer'
+          :'EMERGENCY · Urgent Contact Required',
+        message_content:rendered,
+        contact_name:customer,
+        source_type:'Patient / Family · Emergency',
+        sent_by:profile?.id||null,
+        sent_by_name:formalName(profile)||'Samara Management',
+        message_payload:{
+          patient_name:patient,
+          emergency_type:emergencyType,
+          hospital:emergencyHospital||null,
+          event_time:when,
+          contact_attempt:attempt
+        }
+      };
+      setEmergencyBusy(true);setMessage('Sending emergency WhatsApp template…');
+      try{
+        const result=await sendWhatsAppTemplate({
+          to:active.phone,templateName:name,languageCode:'en',bodyParams:params,communicationLog:log
+        });
+        const providerId=result?.result?.messages?.[0]?.id||null;
+        if(result?.history_logged!==true){
+          const existing=providerId
+            ?await client.from('hr_whatsapp_communications').select('id').eq('provider_message_id',providerId).maybeSingle()
+            :{data:null};
+          if(!existing?.data?.id){
+            const {error}=await client.from('hr_whatsapp_communications').insert({
+              career_application_id:active.last.career_application_id||null,
+              application_id:active.last.application_id||null,
+              applicant_name:active.last.applicant_name||active.name||null,
+              recipient_number:active.phone,
+              communication_type:log.communication_type,
+              template_name:name,
+              status:'Accepted',
+              provider_message_id:providerId,
+              error_message:null,
+              sent_by:profile.id,
+              sent_by_name:formalName(profile),
+              direction:'outbound',
+              message_type:'template',
+              message_content:rendered,
+              message_payload:log.message_payload,
+              contact_name:customer,
+              source_type:log.source_type,
+              sent_at:now,created_at:now,updated_at:now
+            });
+            if(error)throw error;
+          }
+        }
+        setMessage('✓ Emergency WhatsApp accepted by Meta and recorded in ERP Inbox.');
+        setShowEmergency(false);
+        await load();
+      }catch(error){
+        setMessage(`Emergency template send failed: ${error.message||error}. Confirm that ${name} is approved and ACTIVE in Meta.`);
+      }finally{setEmergencyBusy(false)}
+    }
+
     async function sendReply(){
       if(!active||!reply.trim()||busy)return;
       if(!within24){setMessage('The 24-hour customer service window has closed. Send an approved WhatsApp template first.');return}
@@ -6603,20 +6723,25 @@ Samara Assisted Living`;
                   h('div',{style:{width:'40px',height:'40px',borderRadius:'50%',display:'grid',placeItems:'center',background:'#dfe5e7',color:'#5d1039',fontWeight:'800'}},String(active.name||'?').trim().slice(0,1).toUpperCase()),
                   h('div',{style:{minWidth:0}},h('div',{style:{fontWeight:'800',color:'#2e252a',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},active.name),h('small',{style:{color:'#6e6268'}},`+${active.phone} · ${active.source}`))
                 ),
-                h('span',{className:`badge ${within24?'success':''}`},within24?'Reply window open':'Template required')
+                h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}},
+                  h('button',{type:'button',className:'btn',onClick:()=>{setEmergencyPatient('');setEmergencyHospital('');setEmergencyAttempt('Called authorised attendant; no response.');setEmergencyTime(new Date().toISOString().slice(0,16));setShowEmergency(true)},style:{background:'#b42336',color:'#fff',border:'1px solid #8e1627',fontWeight:'900',padding:'8px 12px'}},'🚨 Emergency'),
+                  h('span',{className:`badge ${within24?'success':''}`},within24?'Reply window open':'Template required')
+                )
               ),
               h('div',{className:'wa-chat-scroll'},active.msgs.map(r=>{
                 const outgoing=r.direction!=='inbound';const media=mediaInfo(r);const text=chatText(r);
                 return h('div',{key:r.id,style:{display:'flex',justifyContent:outgoing?'flex-end':'flex-start',marginBottom:'8px'}},
                   h('div',{style:{position:'relative',maxWidth:'72%',padding:'8px 10px 6px',borderRadius:outgoing?'8px 0 8px 8px':'0 8px 8px 8px',background:outgoing?'#d9fdd3':'#fff',boxShadow:'0 1px 1px rgba(0,0,0,.08)',color:'#292229'}},
-                    outgoing&&(/Payment Receipt|Daily Payable Reminder/i.test(String(r.communication_type||'')))?h(React.Fragment,null,
+                    outgoing&&(/Payment Receipt|Daily Payable Reminder|EMERGENCY/i.test(String(r.communication_type||'')))?h(React.Fragment,null,
                       h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748',marginBottom:'6px',display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}},
                         h('span',null,String(r.communication_type||'')),
-                        /Automated/i.test(`${r.communication_type||''} ${r.sent_by_name||''}`)
-                          ?h('span',{style:{padding:'2px 7px',borderRadius:'999px',background:'#7d1748',color:'#fff',fontSize:'10px',letterSpacing:'.2px'}},'AUTOMATED · Samara System')
-                          :(r.sent_by_name?h('span',{style:{fontWeight:'700',color:'#7b6871'}},`· ${r.sent_by_name}`):null)
+                        /EMERGENCY/i.test(String(r.communication_type||''))
+                          ?h('span',{style:{padding:'2px 7px',borderRadius:'999px',background:'#b42336',color:'#fff',fontSize:'10px',letterSpacing:'.2px'}},`URGENT · ${r.sent_by_name||'Samara Management'}`)
+                          :/Automated/i.test(`${r.communication_type||''} ${r.sent_by_name||''}`)
+                            ?h('span',{style:{padding:'2px 7px',borderRadius:'999px',background:'#7d1748',color:'#fff',fontSize:'10px',letterSpacing:'.2px'}},'AUTOMATED · Samara System')
+                            :(r.sent_by_name?h('span',{style:{fontWeight:'700',color:'#7b6871'}},`· ${r.sent_by_name}`):null)
                       ),
-                      ['samara_bill_reminder','samara_payment_receipt'].includes(String(r.template_name||'').toLowerCase())
+                      ['samara_bill_reminder','samara_payment_receipt','samara_emergency_hospital_transfer','samara_urgent_contact_required'].includes(String(r.template_name||'').toLowerCase())
                         ?h('div',{style:{background:'#fff',border:'1px solid #ecdce4',borderRadius:'8px',padding:'8px 10px',marginBottom:'9px',textAlign:'center'}},
                             h('img',{src:BRAND_LOGO_SRC,alt:'Samara Assisted Living',style:{display:'block',width:'128px',maxWidth:'70%',height:'auto',margin:'0 auto 5px'}}),
                             h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748'}},'Greetings from Samara Assisted Living')
@@ -6646,7 +6771,49 @@ Samara Assisted Living`;
               )
             ):h('p',{className:'empty',style:{margin:'auto'}},'Select a WhatsApp conversation.')
           )
-        )
+        ),
+        showEmergency&&active?h('div',{className:'modal show',onClick:e=>{if(e.target===e.currentTarget&&!emergencyBusy)setShowEmergency(false)}},
+          h('div',{className:'modal-card',style:{maxWidth:'720px',border:'2px solid #b42336'}},
+            h('div',{className:'modal-head'},
+              h('div',null,
+                h('h3',{style:{color:'#9d1428',margin:0}},'🚨 Emergency WhatsApp Communication'),
+                h('small',null,'For urgent resident/family communication. This action is recorded in the WhatsApp history.')
+              ),
+              h('button',{type:'button',className:'icon-btn',disabled:emergencyBusy,onClick:()=>setShowEmergency(false)},'×')
+            ),
+            h('div',{style:{display:'grid',gap:'12px'}},
+              h('div',{className:'grid two'},
+                h(Field,{label:'Emergency Type',required:true},
+                  h('select',{value:emergencyType,onChange:e=>setEmergencyType(e.target.value)},
+                    h('option',{value:'hospital_transfer'},'Emergency Hospital Transfer'),
+                    h('option',{value:'urgent_contact'},'Urgent Contact Required')
+                  )
+                ),
+                h(Field,{label:'Family / Attender'},h('input',{value:active.name||'',disabled:true}))
+              ),
+              h(Field,{label:'Patient / Resident Name',required:true},
+                h('input',{value:emergencyPatient,onChange:e=>setEmergencyPatient(e.target.value),placeholder:'Enter resident name'})
+              ),
+              emergencyType==='hospital_transfer'?h(Field,{label:'Hospital Name',required:true},
+                h('input',{value:emergencyHospital,onChange:e=>setEmergencyHospital(e.target.value),placeholder:'Hospital being shifted to'})
+              ):null,
+              h(Field,{label:'Emergency / Contact Time',required:true},
+                h('input',{type:'datetime-local',value:emergencyTime,onChange:e=>setEmergencyTime(e.target.value)})
+              ),
+              h(Field,{label:'Contact Attempts / Remarks',required:true},
+                h('textarea',{value:emergencyAttempt,onChange:e=>setEmergencyAttempt(e.target.value),rows:3,placeholder:'Example: Called twice at 11:40 PM and 11:43 PM; no response.'})
+              ),
+              h('div',{style:{border:'1px solid #f0c8cf',background:'#fff7f8',borderRadius:'12px',padding:'12px'}},
+                h('strong',{style:{display:'block',color:'#9d1428',marginBottom:'7px'}},'Message Preview'),
+                h('div',{style:{whiteSpace:'pre-wrap',lineHeight:'1.45'}},emergencyPreview())
+              ),
+              h('div',{style:{display:'flex',gap:'10px',justifyContent:'flex-end',flexWrap:'wrap'}},
+                h('button',{type:'button',className:'btn btn-secondary',disabled:emergencyBusy,onClick:()=>setShowEmergency(false)},'Cancel'),
+                h('button',{type:'button',className:'btn',disabled:emergencyBusy,onClick:sendEmergencyTemplate,style:{background:'#b42336',color:'#fff',fontWeight:'900'}},emergencyBusy?'Sending Emergency…':'Send Emergency WhatsApp')
+              )
+            )
+          )
+        ):null
       )
     );
   }
