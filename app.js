@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.70';
+  const APP_VERSION = '2.9.71';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -13714,6 +13714,27 @@ function RoomsBeds({profile}){
     const parseClinicalTimes=value=>Array.isArray(value)?value.filter(Boolean).map(normalizeMedicationTime).filter(Boolean):String(value||'').split(',').map(normalizeMedicationTime).filter(Boolean);
     const nowDate=new Date();
     const nowMinutes=nowDate.getHours()*60+nowDate.getMinutes();
+    function admissionBoundaryForToday(patient){
+      if(!patient||String(patient.admission_date||'').slice(0,10)!==today)return null;
+      const candidates=[patient.admission_datetime,patient.admission_timestamp,patient.admitted_at,patient.updated_at,patient.created_at].filter(Boolean);
+      for(const value of candidates){
+        const stamp=new Date(value);
+        if(Number.isNaN(stamp.getTime()))continue;
+        const localDate=`${stamp.getFullYear()}-${String(stamp.getMonth()+1).padStart(2,'0')}-${String(stamp.getDate()).padStart(2,'0')}`;
+        if(localDate!==today)continue;
+        const boundary=new Date(`${today}T${String(stamp.getHours()).padStart(2,'0')}:${String(stamp.getMinutes()).padStart(2,'0')}:${String(stamp.getSeconds()).padStart(2,'0')}`);
+        if(!Number.isNaN(boundary.getTime()))return boundary;
+      }
+      return null;
+    }
+    function doseWasBeforeAdmissionToday(patientId,time){
+      const patient=state.patients.find(p=>p.id===patientId);
+      const boundary=admissionBoundaryForToday(patient);
+      if(!boundary)return false;
+      const normalized=normalizeMedicationTime(time);
+      const due=new Date(`${today}T${normalized}:00`);
+      return !Number.isNaN(due.getTime())&&due.getTime()<boundary.getTime();
+    }
     async function load(){
       const results=await Promise.all([
         client.from('patients').select('*').eq('is_active',true),
@@ -13757,6 +13778,9 @@ function RoomsBeds({profile}){
     const terminalMedicationStatuses=new Set(['given','refused','withheld','unavailable','missed']);
     const medTasks=[];
     state.medOrders.forEach(order=>parseClinicalTimes(order.scheduled_times).forEach(time=>{
+      // Admission-day protection: a scheduled dose that fell before the resident
+      // was actually admitted is not due, missed, overdue or a medication error.
+      if(doseWasBeforeAdmissionToday(order.patient_id,time))return;
       const done=state.medLogs.some(log=>
         log.order_id===order.id&&
         String(log.scheduled_date||today)===today&&
@@ -14090,7 +14114,7 @@ function RoomsBeds({profile}){
   }
 
   function Medicines({profile,onNavigate}){
-    const today=new Date().toISOString().slice(0,10);
+    const today=todayISOIndia();
     const [state,setState]=React.useState({loading:true,orders:[],mar:[],patients:[],error:''});
     const isFrontlineClinical=['Nurse','Caregiver'].includes(profile?.role);
     const [tab,setTab]=React.useState(()=>isFrontlineClinical?'Today’s MAR':'Active Prescriptions');
@@ -14120,6 +14144,26 @@ function RoomsBeds({profile}){
       return !end||end>=today;
     }
     function patientFor(order){return state.patients.find(p=>p.id===order.patient_id)||{};}
+    function admissionBoundaryForPatient(patient){
+      if(!patient||String(patient.admission_date||'').slice(0,10)!==today)return null;
+      const candidates=[patient.admission_datetime,patient.admission_timestamp,patient.admitted_at,patient.updated_at,patient.created_at].filter(Boolean);
+      for(const value of candidates){
+        const stamp=new Date(value);
+        if(Number.isNaN(stamp.getTime()))continue;
+        const localDate=`${stamp.getFullYear()}-${String(stamp.getMonth()+1).padStart(2,'0')}-${String(stamp.getDate()).padStart(2,'0')}`;
+        if(localDate!==today)continue;
+        const boundary=new Date(`${today}T${String(stamp.getHours()).padStart(2,'0')}:${String(stamp.getMinutes()).padStart(2,'0')}:${String(stamp.getSeconds()).padStart(2,'0')}`);
+        if(!Number.isNaN(boundary.getTime()))return boundary;
+      }
+      return null;
+    }
+    function doseWasBeforeAdmission(order,time){
+      const boundary=admissionBoundaryForPatient(patientFor(order));
+      if(!boundary)return false;
+      const normalized=normalizeMedicationTime(time);
+      const due=new Date(`${today}T${normalized}:00`);
+      return !Number.isNaN(due.getTime())&&due.getTime()<boundary.getTime();
+    }
     function patientLabel(order){
       const p=patientFor(order);
       const name=formalName(p)||p.full_name||'Patient';
@@ -14133,7 +14177,7 @@ function RoomsBeds({profile}){
       return state.mar.find(x=>x.order_id===order.id&&String(x.scheduled_date||'')===today&&String(x.scheduled_time||'').slice(0,5)===String(time||'').slice(0,5));
     }
     function firstPendingTime(order){
-      const times=parseTimes(order.scheduled_times);
+      const times=parseTimes(order.scheduled_times).filter(time=>!doseWasBeforeAdmission(order,time));
       if(times.length){
         const pending=times.find(time=>!doseStatus(order,time));
         return pending||'';
@@ -14220,7 +14264,7 @@ function RoomsBeds({profile}){
       const [ordersResult,marResult,patientsResult]=await Promise.all([
         client.from('medication_orders').select('*').order('created_at',{ascending:false}),
         client.from('medication_administrations').select('*').order('scheduled_date',{ascending:false}).order('scheduled_time',{ascending:false}).limit(1000),
-        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').order('full_name')
+        client.from('patients').select('*').order('full_name')
       ]);
       const errors=[ordersResult.error,marResult.error,patientsResult.error].filter(Boolean);
       setState({loading:false,orders:ordersResult.data||[],mar:marResult.data||[],patients:patientsResult.data||[],error:errors.map(e=>e.message).join(' | ')});
@@ -14253,7 +14297,10 @@ function RoomsBeds({profile}){
 
     const activeOrders=state.orders.filter(orderActive);
     const todayRows=[];
-    activeOrders.forEach(order=>parseTimes(order.scheduled_times).forEach(time=>todayRows.push({order,time,log:doseStatus(order,time)})));
+    activeOrders.forEach(order=>parseTimes(order.scheduled_times).forEach(time=>{
+      if(doseWasBeforeAdmission(order,time))return;
+      todayRows.push({order,time,log:doseStatus(order,time)});
+    }));
     const missedRows=todayRows.filter(x=>{
       if(x.log)return ['missed','refused','delayed','not given','withheld','unavailable'].includes(String(x.log.status||'').toLowerCase());
       return pendingDoseState(x).minutes>=15;
@@ -14282,7 +14329,8 @@ function RoomsBeds({profile}){
 
     const prescriptionRows=orders=>filtered(orders).map(order=>{
       const pendingTime=firstPendingTime(order);
-      const allTodayDone=parseTimes(order.scheduled_times).length>0&&!pendingTime;
+      const eligibleTimes=parseTimes(order.scheduled_times).filter(time=>!doseWasBeforeAdmission(order,time));
+      const allTodayDone=eligibleTimes.length>0&&!pendingTime;
       return [
         patientLabel(order),medicineLabel(order),order.route||'—',order.frequency||'—',order.duration||'—',parseTimes(order.scheduled_times).map(medicationTimeLabel).join(', ')||'—',order.food_instruction||'—',order.special_instruction||order.special_instructions||'—',latestMar(order)?.status||'No MAR yet',
         h('button',{type:'button',className:`btn ${allTodayDone?'btn-secondary clinical-action-done':'btn-primary'}`,disabled:allTodayDone,onClick:()=>openMar(order,pendingTime)},allTodayDone?'Done Today ✓':'Administer')
