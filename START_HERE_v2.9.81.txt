@@ -1,0 +1,46 @@
+SAMARA CARE ERP v2.9.81 — PAYMENT / DAILY PAYABLE WHATSAPP CHAT LOGGING
+
+PURPOSE
+Every successful payment receipt and Daily Payable WhatsApp template now also appears
+inside the existing ERP WhatsApp Inbox, in the same conversation grouped by family mobile number.
+
+PAYMENT RECEIPT
+- Uses the existing approved Meta template: samara_payment_receipt
+- Keeps the Patient Name variable clean (no 'Advance' / 'Final Settlement' added to Meta wording)
+- ERP chat displays the actual rendered approved template text
+- Internal chat label shows the payment category, e.g.
+  Payment Receipt · Advance · Accounts · Automated
+  Payment Receipt · Final Settlement · Accounts · Automated
+- Meta provider message ID is stored, so the existing webhook can update:
+  Accepted / Sent / Delivered / Read / Failed
+
+DAILY PAYABLE
+- Uses existing approved Meta template: samara_bill_reminder
+- Automatic scheduled messages are inserted into the same WhatsApp Inbox
+- Label: Daily Payable Reminder · Automated · Samara System · Automated
+- Same Meta delivery/read status tracking continues through the existing webhook
+
+IMPORTANT
+The payment category is an ERP internal chat label. It is NOT inserted awkwardly into
+the approved Meta patient-name variable. Therefore the actual WhatsApp template stays
+consistent with the Meta-approved wording you showed.
+
+INSTALL
+1. Replace app.js
+2. Redeploy Edge Function: whatsapp-send
+   File: supabase/functions/whatsapp-send/index.ts
+3. Redeploy Edge Function: daily-payable-whatsapp
+   File: supabase/functions/daily-payable-whatsapp/index.ts
+4. No new SQL is required if v2.9.80 SQL has already been run.
+5. No new Meta template approval is required.
+
+TEST
+A. Save a Payment / Advance in ERP.
+B. Confirm WhatsApp arrives.
+C. Open ERP > WhatsApp Inbox.
+D. Open the same family mobile conversation.
+E. The Payment Receipt should be visible there immediately.
+F. After WhatsApp is delivered/read, the ticks/status should update via the existing webhook.
+
+Then manually invoke daily-payable-whatsapp once and confirm the Daily Payable message
+appears in the same conversation.

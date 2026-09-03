@@ -1359,7 +1359,7 @@ function initSamaraInaugurationInvitation(){
     compactWhatsAppParam(proposedStay,28,'As per agreed care plan'),
     compactWhatsAppParam(roomBed,35,'—')
   ];
-  async function sendWhatsAppTemplate({to,templateName,languageCode='en',bodyParams=[],headerImage=SAMARA_WHATSAPP_LOGO_URL}){
+  async function sendWhatsAppTemplate({to,templateName,languageCode='en',bodyParams=[],headerImage=SAMARA_WHATSAPP_LOGO_URL,communicationLog=null}){
     const recipient=normalizeWhatsAppRecipient(to);
     if(!recipient)throw new Error('A valid WhatsApp number is required.');
     const {data:{session}}=await client.auth.getSession();
@@ -1376,7 +1376,8 @@ function initSamaraInaugurationInvitation(){
         template_name:templateName,
         language_code:languageCode,
         header_image:headerImage||null,
-        body_params:(bodyParams||[]).map(value=>String(value??''))
+        body_params:(bodyParams||[]).map(value=>String(value??'')),
+        communication_log:communicationLog||null
       })
     });
     const result=await response.json().catch(()=>({success:false,error:'Unable to read WhatsApp server response.'}));
@@ -6608,6 +6609,7 @@ Samara Assisted Living`;
                 const outgoing=r.direction!=='inbound';const media=mediaInfo(r);const text=chatText(r);
                 return h('div',{key:r.id,style:{display:'flex',justifyContent:outgoing?'flex-end':'flex-start',marginBottom:'8px'}},
                   h('div',{style:{position:'relative',maxWidth:'72%',padding:'8px 10px 6px',borderRadius:outgoing?'8px 0 8px 8px':'0 8px 8px 8px',background:outgoing?'#d9fdd3':'#fff',boxShadow:'0 1px 1px rgba(0,0,0,.08)',color:'#292229'}},
+                    outgoing&&(/Payment Receipt|Daily Payable Reminder/i.test(String(r.communication_type||'')))?h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748',marginBottom:'5px'}},`${r.communication_type}${r.sent_by_name?` · ${r.sent_by_name}`:''}`):null,
                     h('div',{style:{whiteSpace:'pre-wrap',lineHeight:'1.42',fontSize:'14px',paddingRight:'4px'}},text),
                     media?h('button',{type:'button',disabled:mediaBusyId===r.id,onClick:()=>openMedia(r),style:{display:'block',marginTop:'8px',padding:'7px 10px',border:'0',borderRadius:'7px',background:'#f0f2f5',color:'#5d1039',fontWeight:'700',cursor:mediaBusyId===r.id?'wait':'pointer',maxWidth:'100%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},mediaBusyId===r.id?'Opening…':mediaLabel(media)):null,
                     h('small',{style:{display:'block',marginTop:'4px',textAlign:'right',color:'#667781',fontSize:'11px'}},`${fmt(r.received_at||r.sent_at||r.created_at)}${outgoing?`  ${String(r.status||'Sent').toLowerCase()==='read'?'✓✓':String(r.status||'Sent').toLowerCase()==='delivered'?'✓✓':'✓'}`:''}`)
@@ -16908,7 +16910,22 @@ function ShiftHandover({profile,onNavigate}){
         String(receipt.category||'').trim(),
         String(receipt.description||'').trim()
       ].filter(Boolean).join(' · ');
-      const patientAndPurpose=purpose?`${patientName} – ${purpose}`:patientName;
+      const amountText=Number(receipt.amount||0).toLocaleString('en-IN',{maximumFractionDigits:2});
+      const paidDate=formatDateIN(receipt.date);
+      const reference=receipt.reference||receipt.transaction_id||'—';
+      const paymentMode=receipt.payment_mode||'—';
+      const renderedMessage=`Dear ${recipient},
+
+Thank you. We confirm receipt of ₹${amountText} towards the account of ${patientName} on ${paidDate}.
+
+Receipt No.: ${reference}
+Payment Mode: ${paymentMode}
+
+The payment has been recorded in our system.
+
+For any clarification regarding the account, please contact Samara Assisted Living.
+
+Thank you.`;
       try{
         await sendWhatsAppTemplate({
           to,
@@ -16916,21 +16933,38 @@ function ShiftHandover({profile,onNavigate}){
           languageCode:'en',
           bodyParams:[
             recipient,
-            Number(receipt.amount||0).toLocaleString('en-IN',{maximumFractionDigits:2}),
-            patientAndPurpose,
-            formatDateIN(receipt.date),
-            receipt.reference||receipt.transaction_id||'—',
-            receipt.payment_mode||'—'
-          ]
+            amountText,
+            patientName,
+            paidDate,
+            reference,
+            paymentMode
+          ],
+          communicationLog:{
+            communication_type:`Payment Receipt${receipt.category?` · ${receipt.category}`:''}`,
+            message_content:renderedMessage,
+            contact_name:recipient,
+            source_type:'Patient / Family · Accounts',
+            sent_by:profile?.id||null,
+            sent_by_name:automatic?'Accounts · Automated':(formalName(profile)||'Accounts'),
+            message_payload:{
+              patient_id:receipt.patient_id,
+              patient_name:patientName,
+              category:receipt.category||'Payment',
+              description:receipt.description||'',
+              amount:Number(receipt.amount||0),
+              payment_mode:paymentMode,
+              reference
+            }
+          }
         });
         if(automatic){
           notify(
             'success',
             'Payment saved · WhatsApp receipt sent',
-            `${money(receipt.amount)} received${purpose?` towards ${purpose}`:''}. The approved payment receipt template was sent automatically.`
+            `${money(receipt.amount)} received${purpose?` towards ${purpose}`:''}. Receipt sent and recorded in WhatsApp Inbox.`
           );
         }else{
-          notify('success','WhatsApp receipt sent','Payment receipt notification was sent successfully through the approved Meta template.');
+          notify('success','WhatsApp receipt sent','Payment receipt was sent and recorded in WhatsApp Inbox.');
         }
         return true;
       }catch(apiError){
@@ -16943,12 +16977,12 @@ function ShiftHandover({profile,onNavigate}){
         const number=normalizeWhatsAppRecipient(to);
         const text=`Dear ${recipient},
 
-Thank you. We confirm receipt of ₹${Number(receipt.amount||0).toLocaleString('en-IN')} for ${patientName}.
+Thank you. We confirm receipt of ₹${amountText} for ${patientName}.
 
 Towards: ${purpose||'Patient account'}
-Receipt No.: ${receipt.reference||receipt.transaction_id||'—'}
-Payment Mode: ${receipt.payment_mode||'—'}
-Date: ${formatDateIN(receipt.date)}
+Receipt No.: ${reference}
+Payment Mode: ${paymentMode}
+Date: ${paidDate}
 
 Samara Assisted Living`;
         if(number)window.open(`https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(text))}`,'_blank','noopener');
@@ -16968,7 +17002,35 @@ Samara Assisted Living`;
       const amount=Number(pendingBills||0).toLocaleString('en-IN',{maximumFractionDigits:2});
       const dueDate=formatDateIN(new Date().toISOString().slice(0,10));
       try{
-        await sendWhatsAppTemplate({to,templateName:'samara_bill_reminder',languageCode:'en',bodyParams:[recipient,patientName,amount,dueDate]});
+        const renderedMessage=`Dear ${recipient},
+
+This is a gentle reminder regarding the outstanding amount for ${patientName}.
+
+Amount Due: ₹${amount}
+Due Date: ${dueDate}
+
+Please arrange payment at your convenience.
+
+You may access the Samara Family Portal using the button below to view the account details.
+
+If payment has already been made, kindly disregard this message.
+
+Thank you.`;
+        await sendWhatsAppTemplate({
+          to,
+          templateName:'samara_bill_reminder',
+          languageCode:'en',
+          bodyParams:[recipient,patientName,amount,dueDate],
+          communicationLog:{
+            communication_type:'Daily Payable Reminder · Manual',
+            message_content:renderedMessage,
+            contact_name:recipient,
+            source_type:'Patient / Family · Accounts',
+            sent_by:profile?.id||null,
+            sent_by_name:formalName(profile)||'Accounts',
+            message_payload:{patient_id:patient.id,patient_name:patientName,amount:Number(pendingBills||0),due_date:dueDate}
+          }
+        });
         notify('success','Daily payable summary sent',`Outstanding amount of ₹${amount} was sent to the authorised family contact through WhatsApp API.`);
       }catch(apiError){
         const number=normalizeWhatsAppRecipient(to);
