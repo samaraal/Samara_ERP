@@ -1,0 +1,17 @@
+SAMARA CARE ERP v2.9.68 — MANAGEMENT ESCALATION AUTO-HIDE
+
+CHANGE
+- Administrator / Manager Clinical Escalation popup displays for approximately 8 seconds.
+- It then auto-hides so normal ERP work can continue.
+- If still unresolved, it can appear again after the configured alert repeat interval (normally 5 minutes).
+- The escalation is NOT acknowledged or resolved by auto-hide.
+- It remains continuously available in the Clinical Alert bell and Clinical Escalations register.
+- Nurse / Caregiver clinical-task popup behaviour is unchanged and remains persistent.
+- Existing “Open to Resolve” and “Remind in 5 min” controls remain available while the popup is visible.
+
+FILES TO REPLACE
+1. app.js
+2. index.html
+3. service-worker.js
+
+NO SQL CHANGE REQUIRED.

@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.65';
+  const APP_VERSION = '2.9.68';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -4875,7 +4875,36 @@ Caring with Compassion. Living with Dignity.`;
     const [mobileDrawerOpen,setMobileDrawerOpen]=React.useState(false);
     const [authMessage,setAuthMessage]=React.useState('');
     const [recoveryMode,setRecoveryMode]=React.useState(false);
+    const [clinicalPopupSnooze,setClinicalPopupSnooze]=React.useState({key:'',until:0});
     const alertEngine=useClinicalAlertEngine(profile,setPage);
+    const topClinicalAlert=alertEngine.alerts[0]||null;
+    const topClinicalAlertKey=topClinicalAlert?.key||topClinicalAlert?.id||topClinicalAlert?.source_id||'';
+    const clinicalPopupVisible=Boolean(topClinicalAlert)&&!(
+      clinicalPopupSnooze.key===topClinicalAlertKey&&clinicalPopupSnooze.until>Date.now()
+    );
+    React.useEffect(()=>{
+      if(!clinicalPopupSnooze.until)return;
+      const delay=Math.max(0,clinicalPopupSnooze.until-Date.now());
+      const timer=window.setTimeout(()=>setClinicalPopupSnooze({key:'',until:0}),delay+50);
+      return()=>window.clearTimeout(timer);
+    },[clinicalPopupSnooze.key,clinicalPopupSnooze.until]);
+
+    // v2.9.68: Management escalation popups are advisory, not workflow-blocking.
+    // Admin/Manager see the escalation prominently for 8 seconds, after which the
+    // popup auto-hides until the configured repeat interval. The escalation itself
+    // remains unresolved and visible in the bell / Clinical Escalations register.
+    // Nurses/Caregivers retain the persistent clinical-task popup behaviour.
+    React.useEffect(()=>{
+      if(!topClinicalAlert||!['Admin','Manager'].includes(profile?.role))return;
+      const key=topClinicalAlertKey;
+      if(!key)return;
+      if(clinicalPopupSnooze.key===key&&clinicalPopupSnooze.until>Date.now())return;
+      const timer=window.setTimeout(()=>{
+        const repeatMinutes=Math.max(1,Number(alertEngine.settings?.repeat_minutes||5));
+        setClinicalPopupSnooze({key,until:Date.now()+repeatMinutes*60000});
+      },8000);
+      return()=>window.clearTimeout(timer);
+    },[topClinicalAlertKey,profile?.role,clinicalPopupSnooze.key,clinicalPopupSnooze.until,alertEngine.settings?.repeat_minutes]);
 
     React.useEffect(()=>{
       if(!session||!profile)return;
@@ -5286,14 +5315,17 @@ Caring with Compassion. Living with Dignity.`;
           page==='Alert Settings'&&h(AlertSettings,{profile,engine:alertEngine}),
           page==='System Maintenance'&&h(SystemMaintenance,{profile})
         ),
-        alertEngine.alerts[0]&&h('div',{className:`clinical-alert-popup ${String(alertEngine.alerts[0].priority||'Routine').toLowerCase()}`},
-          h('div',{className:'clinical-alert-popup-head'},h('strong',null,alertEngine.alerts[0].priority==='Critical'?'🔴 ':alertEngine.alerts[0].priority==='Urgent'?'🟠 ':'🔵 ',alertEngine.alerts[0].title)),
-          h('strong',null,alertEngine.alerts[0].patient_name||'Patient'),
-          h('span',null,alertEngine.alerts[0].room_label||''),
-          h('p',null,alertEngine.alerts[0].description||''),
+        clinicalPopupVisible&&topClinicalAlert&&h('div',{className:`clinical-alert-popup ${String(topClinicalAlert.priority||'Routine').toLowerCase()}`},
+          h('div',{className:'clinical-alert-popup-head'},h('strong',null,topClinicalAlert.priority==='Critical'?'🔴 ':topClinicalAlert.priority==='Urgent'?'🟠 ':'🔵 ',topClinicalAlert.title)),
+          h('strong',null,topClinicalAlert.patient_name||'Patient'),
+          h('span',null,topClinicalAlert.room_label||''),
+          h('p',null,topClinicalAlert.description||''),
           h('div',{className:'clinical-alert-popup-actions'},
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{
+              setClinicalPopupSnooze({key:topClinicalAlertKey,until:Date.now()+5*60*1000});
+            }},page==='Admissions'?'Continue Admission · Remind in 5 min':'Remind in 5 min'),
             h('button',{type:'button',className:'btn btn-primary',onClick:()=>{
-              const liveAlert=alertEngine.alerts[0];
+              const liveAlert=topClinicalAlert;
               if(!liveAlert)return;
               // Manager/Admin escalations must open the Clinical Escalations register,
               // where management can review the source task and close the escalation with remarks.
@@ -8328,6 +8360,7 @@ Samara Assisted Living`;
     const [carePackages,setCarePackages]=React.useState(defaultCarePackages);
     const [previousPatients,setPreviousPatients]=React.useState([]);
     const [returningPatient,setReturningPatient]=React.useState(null);
+    const [draftPatientId,setDraftPatientId]=React.useState('');
     const [patientSearch,setPatientSearch]=React.useState('');
     const [matchList,setMatchList]=React.useState([]);
     const ADMISSION_DRAFT_KEY=`samara_admission_draft_${profile?.id||'current'}`;
@@ -8344,6 +8377,7 @@ Samara Assisted Living`;
             setMeds(Array.isArray(draft.meds)&&draft.meds.length?draft.meds:[blankMedicine()]);
             setCare(Array.isArray(draft.care)&&draft.care.length?draft.care:[blankCare()]);
             setReturningPatient(draft.returningPatient||null);
+            setDraftPatientId(draft.patient_id||'');
             setDraftRestored(true);
             setMsg('Saved Admission draft restored. Uploaded files must be selected again for browser security.');
           }else if(raw){
@@ -8375,6 +8409,7 @@ Samara Assisted Living`;
             meds,
             care,
             returningPatient,
+            patient_id:draftPatientId||null,
             saved_at:new Date().toISOString()
           }));
           setLastAutoSavedAt(new Date());
@@ -8383,12 +8418,13 @@ Samara Assisted Living`;
         }
       },700);
       return()=>clearTimeout(timer);
-    },[form,meds,care,returningPatient,busy]);
+    },[form,meds,care,returningPatient,draftPatientId,busy]);
 
     function clearAdmissionDraft(){
       try{localStorage.removeItem(ADMISSION_DRAFT_KEY)}catch(_error){}
       setDraftRestored(false);
       setLastAutoSavedAt(null);
+      setDraftPatientId('');
     }
 
     React.useEffect(()=>{
@@ -8696,24 +8732,32 @@ Samara Assisted Living`;
     // name, mobile number, or selected room happens to match. Existing patient rows
     // may be updated only after the user explicitly chooses an INACTIVE resident for
     // re-admission through useReturningPatient().
+    const draftLinkedPatient=React.useMemo(()=>
+      draftPatientId?previousPatients.find(patient=>String(patient.id)===String(draftPatientId))||null:null,
+      [draftPatientId,previousPatients]
+    );
+
     const duplicateMobilePatient=React.useMemo(()=>{
       if(returningPatient)return null;
       const mobile=String(form.mobile||'').replace(/\D/g,'').slice(-10);
       if(mobile.length!==10)return null;
       return previousPatients.find(patient=>{
+        if(draftPatientId&&String(patient.id)===String(draftPatientId))return false;
         const patientMobile=String(patient.mobile||'').replace(/\D/g,'').slice(-10);
         return patientMobile.length===10&&patientMobile===mobile;
       })||null;
-    },[returningPatient,previousPatients,form.mobile]);
+    },[returningPatient,draftPatientId,previousPatients,form.mobile]);
 
     const selectedDraftBed=roomBeds.find(r=>
       String(r.room_no)===String(form.room_no)&&
       String(r.bed_no||r.bed_code||'').toUpperCase()===String(form.bed_no||'').toUpperCase()
     )||null;
 
-    // Only an explicitly confirmed re-admission can reuse an existing patient UUID.
-    const effectiveExistingPatient=returningPatient||null;
-    const currentAdmissionPatientId=returningPatient?.id||'';
+    // Re-admission can reuse an inactive patient UUID. In addition, an interrupted
+    // admission draft may resume ONLY the exact patient UUID that this draft created.
+    // This preserves the unique-mobile safety rule for every unrelated patient.
+    const effectiveExistingPatient=returningPatient||draftLinkedPatient||null;
+    const currentAdmissionPatientId=effectiveExistingPatient?.id||'';
 
     function bedBelongsToCurrentPatient(bed){
       if(!bed||!currentAdmissionPatientId)return false;
@@ -9461,6 +9505,19 @@ Please keep these login details confidential.`;
           .single();
         if(createError){setMsg(createError.message);setBusy(false);return}
         patient=created;
+        // Link the browser draft to the newly created patient immediately. If a
+        // clinical escalation or navigation interrupts the remaining admission setup,
+        // reopening Admissions resumes this exact row instead of attempting a duplicate insert.
+        setDraftPatientId(patient.id);
+        try{
+          const rawDraft=localStorage.getItem(ADMISSION_DRAFT_KEY);
+          const currentDraft=rawDraft?JSON.parse(rawDraft):{};
+          localStorage.setItem(ADMISSION_DRAFT_KEY,JSON.stringify({
+            ...currentDraft,form,meds,care,returningPatient,patient_id:patient.id,saved_at:new Date().toISOString()
+          }));
+        }catch(draftLinkError){
+          console.warn('Unable to link Admission draft to created patient:',draftLinkError);
+        }
         if(!selectedBedIsCurrentPatient){
           const {error:roomAssignError}=await client.rpc('assign_patient_room',{
             p_patient_id:patient.id,
@@ -9469,6 +9526,15 @@ Please keep these login details confidential.`;
           });
           if(roomAssignError){
             await client.from('patients').delete().eq('id',patient.id);
+            setDraftPatientId('');
+            try{
+              const rawDraft=localStorage.getItem(ADMISSION_DRAFT_KEY);
+              if(rawDraft){
+                const currentDraft=JSON.parse(rawDraft);
+                delete currentDraft.patient_id;
+                localStorage.setItem(ADMISSION_DRAFT_KEY,JSON.stringify(currentDraft));
+              }
+            }catch(_error){}
             setMsg(roomAssignError.message||'Unable to allot the selected room.');
             setBusy(false);
             return;
