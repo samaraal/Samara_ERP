@@ -1,0 +1,24 @@
+SAMARA ERP v2.10.00 — GENERAL FOLLOW-UP REPLY MENU
+=================================================
+
+1. Replace app.js, index.html, config.js and service-worker.js.
+2. Redeploy supabase/functions/whatsapp-webhook.
+3. Keep the v2.9.99 wide header asset already deployed:
+   assets/samara-whatsapp-header.jpg
+
+META TEMPLATE: samara_general_followup
+Add exactly three QUICK REPLY buttons in this exact order and spelling:
+1. Admission Details
+2. Request a Call
+3. Our Location
+
+When the recipient selects a button, the webhook records the choice in the ERP
+Inbox and automatically sends the corresponding branded response. Our Location
+includes Samara's complete address and a Google Maps link.
+
+The existing WhatsApp secrets must also be available to whatsapp-webhook:
+- WHATSAPP_ACCESS_TOKEN
+- WHATSAPP_PHONE_NUMBER_ID
+- SAMARA_WHATSAPP_LOGO_URL (optional; the public wide image is the default)
+
+No SQL is required.

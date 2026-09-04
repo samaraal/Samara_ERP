@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.99';
+  const APP_VERSION = '2.10.00';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6435,6 +6435,11 @@ Caring with Compassion. Living with Dignity.`;
       const next=WA_REOPEN_TEMPLATES.find(t=>t.name===name)||WA_REOPEN_TEMPLATES[0];
       setTemplateName(next.name);setTemplateRegarding(next.regarding);
     }
+    function templateReplyButtons(name){
+      if(name==='samara_general_followup')return ['Admission Details','Request a Call','Our Location'];
+      if(name==='samara_callback_request')return ['Please call me'];
+      return [];
+    }
     function reopenPreview(customer,regarding){
       if(templateName==='samara_admission_followup')return `Dear ${customer},
 Greetings from Samara Assisted Living.
@@ -6813,8 +6818,8 @@ Thank you.`;
                       )
                     ):null,
                     h('div',{style:{whiteSpace:'pre-wrap',lineHeight:'1.42',fontSize:'14px',paddingRight:'4px'}},text),
-                    outgoing&&String(r.template_name||'').toLowerCase()==='samara_callback_request'
-                      ?h('div',{style:{display:'block',marginTop:'9px',padding:'8px 10px',borderRadius:'7px',background:'#fff',border:'1px solid #b8d9c5',color:'#087f5b',fontWeight:'800',textAlign:'center'}},'↩ Please call me')
+                    outgoing&&templateReplyButtons(String(r.template_name||'').toLowerCase()).length
+                      ?h('div',{style:{marginTop:'9px',borderTop:'1px solid #d8e6dc'}},templateReplyButtons(String(r.template_name||'').toLowerCase()).map(label=>h('div',{key:label,style:{display:'block',padding:'8px 10px',background:'#fff',borderBottom:'1px solid #d8e6dc',color:'#087f5b',fontWeight:'800',textAlign:'center'}},`↩ ${label}`)))
                       :null,
                     media?h('button',{type:'button',disabled:mediaBusyId===r.id,onClick:()=>openMedia(r),style:{display:'block',marginTop:'8px',padding:'7px 10px',border:'0',borderRadius:'7px',background:'#f0f2f5',color:'#5d1039',fontWeight:'700',cursor:mediaBusyId===r.id?'wait':'pointer',maxWidth:'100%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},mediaBusyId===r.id?'Opening…':mediaLabel(media)):null,
                     outgoing&&['samara_bill_reminder','samara_payment_receipt','samara_family_portal_access','employee_welcome_samara'].includes(String(r.template_name||'').toLowerCase())
