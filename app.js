@@ -3108,7 +3108,13 @@ Caring with Compassion. Living with Dignity.`;
   }
 
   function ClinicalEscalationsDashboard({profile,onNavigate}){
-    const [rows,setRows]=React.useState([]),[patients,setPatients]=React.useState({}),[filter,setFilter]=React.useState('Open'),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState('');
+    const [rows,setRows]=React.useState([]),[patients,setPatients]=React.useState({}),[filter,setFilter]=React.useState(()=>{
+      try{
+        const value=sessionStorage.getItem('samara-escalation-filter')||'';
+        sessionStorage.removeItem('samara-escalation-filter');
+        return value==='open'?'Open':'Open';
+      }catch(_error){return 'Open'}
+    }),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState('');
     const canView=['Admin','Manager'].includes(profile?.role);
     const targetForType=type=>{
       const t=String(type||'').toLowerCase();
@@ -5755,17 +5761,27 @@ Caring with Compassion. Living with Dignity.`;
 
   function FamilyCommunicationDashboard({profile}){
     const [visits,setVisits]=React.useState([]),[messages,setMessages]=React.useState([]),[loading,setLoading]=React.useState(false),[error,setError]=React.useState('');
+    const [dashboardVisitFilter,setDashboardVisitFilter]=React.useState(()=>{
+      try{
+        const value=sessionStorage.getItem('samara-visit-filter')||'';
+        sessionStorage.removeItem('samara-visit-filter');
+        return value==='pending'?'pending':'';
+      }catch(_error){return ''}
+    });
     const canManage=['Admin','Manager'].includes(profile?.role);
     async function load(){setLoading(true);setError('');try{const [v,m]=await Promise.all([client.from('family_visit_requests').select('*').order('created_at',{ascending:false}).limit(200),client.from('family_messages').select('*').order('created_at',{ascending:false}).limit(300)]);if(v.error)throw v.error;if(m.error)throw m.error;setVisits(v.data||[]);setMessages(m.data||[]);}catch(e){setError(e.message||'Unable to load family communication.');}finally{setLoading(false)}}
     React.useEffect(()=>{load()},[]);
     async function visitStatus(row,status){if(!canManage)return;const note=prompt(status==='Rejected'?'Reason / remarks for rejection:':'Confirmation / visit timing remarks (optional):','');if(note===null)return;const {error}=await client.from('family_visit_requests').update({status,management_remarks:note||null,reviewed_at:new Date().toISOString(),reviewed_by:profile?.id||null}).eq('id',row.id);if(error)return showSamaraActionToast('error','Unable to update visit',error.message);showSamaraActionToast('success','Visit request updated',`Status: ${status}`);load()}
     async function reply(row){if(!canManage)return;const text=prompt(`Reply to ${row.sender_name||'family member'}:`,'');if(!text?.trim())return;const {error}=await client.from('family_messages').insert({patient_id:row.patient_id,patient_code:row.patient_code,patient_name:row.patient_name,access_id:row.access_id,direction:'ERP_TO_FAMILY',sender_type:'Samara Team',sender_name:formalName(profile)||profile?.full_name||'Samara Team',message:text.trim(),reply_to_id:row.id});if(error)return showSamaraActionToast('error','Unable to send reply',error.message);await client.from('family_messages').update({status:'Replied',read_at:new Date().toISOString()}).eq('id',row.id);showSamaraActionToast('success','Reply sent','The reply is now visible in the Family Portal.');load()}
-    const visitRows=visits.length?visits.map(r=>h('tr',{key:r.id},h('td',null,formatDateTimeIN(r.created_at)),h('td',null,h('span',{className:'badge'},r.source||'Family Portal')),h('td',null,`${r.patient_name||'Public visitor'}${r.patient_code?` · ${r.patient_code}`:''}`),h('td',null,`${r.visitor_name||'—'}${r.visitor_mobile?` · ${r.visitor_mobile}`:''}`),h('td',null,`${formatDateIN(r.visit_date)} · ${r.visit_time||'—'}`),h('td',null,r.message||'—'),h('td',null,h('span',{className:'badge'},r.status||'Pending')),h('td',null,canManage?h('div',{className:'actions'},h('button',{className:'btn btn-primary',onClick:()=>visitStatus(r,'Approved')},'Approve'),h('button',{className:'btn btn-secondary',onClick:()=>visitStatus(r,'Rejected')},'Reject')):'—'))):[h('tr',{key:'empty'},h('td',{colSpan:8},'No visit requests found.'))];
+    const visibleVisits=dashboardVisitFilter==='pending'
+      ?visits.filter(r=>String(r.status||'Pending')==='Pending')
+      :visits;
+    const visitRows=visibleVisits.length?visibleVisits.map(r=>h('tr',{key:r.id},h('td',null,formatDateTimeIN(r.created_at)),h('td',null,h('span',{className:'badge'},r.source||'Family Portal')),h('td',null,`${r.patient_name||'Public visitor'}${r.patient_code?` · ${r.patient_code}`:''}`),h('td',null,`${r.visitor_name||'—'}${r.visitor_mobile?` · ${r.visitor_mobile}`:''}`),h('td',null,`${formatDateIN(r.visit_date)} · ${r.visit_time||'—'}`),h('td',null,r.message||'—'),h('td',null,h('span',{className:'badge'},r.status||'Pending')),h('td',null,canManage?h('div',{className:'actions'},h('button',{className:'btn btn-primary',onClick:()=>visitStatus(r,'Approved')},'Approve'),h('button',{className:'btn btn-secondary',onClick:()=>visitStatus(r,'Rejected')},'Reject')):'—'))):[h('tr',{key:'empty'},h('td',{colSpan:8},'No visit requests found.'))];
     const messageRows=messages.length?messages.map(r=>h('tr',{key:r.id},h('td',null,formatDateTimeIN(r.created_at)),h('td',null,`${r.patient_name||'—'}${r.patient_code?` · ${r.patient_code}`:''}`),h('td',null,r.direction==='ERP_TO_FAMILY'?(r.sender_name||'Samara Team'):(r.sender_name||'Family')),h('td',null,r.message||'—'),h('td',null,h('span',{className:'badge'},r.status||'Sent')),h('td',null,canManage&&r.direction==='FAMILY_TO_ERP'?h('button',{className:'btn btn-primary',onClick:()=>reply(r)},'Reply'):'—'))):[h('tr',{key:'empty'},h('td',{colSpan:6},'No secure messages found.'))];
     return h('div',{className:'feedback-admin-shell'},
       h('div',{className:'section-heading'},h('div',null,h('small',null,'FAMILY PORTAL · ERP'),h('h3',null,'Family Communication'),h('p',null,'Visit requests and secure family messages in one management workspace.')),h('button',{className:'btn btn-secondary',onClick:load},loading?'Refreshing…':'↻ Refresh')),
       error&&h('div',{className:'message error'},error),
-      h('div',{className:'card'},h('h3',null,'Visit Requests'),h('div',{className:'table-wrap'},h('table',null,h('thead',null,h('tr',null,['Received','Source','Resident','Visitor','Requested Visit','Message','Status','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,visitRows)))),
+      h('div',{className:'card'},h('div',{className:'panel-head'},h('h3',null,dashboardVisitFilter==='pending'?`Pending Visit Requests (${visibleVisits.length})`:'Visit Requests'),dashboardVisitFilter&&h('button',{className:'btn btn-secondary',onClick:()=>setDashboardVisitFilter('')},'Show All Visits')),h('div',{className:'table-wrap'},h('table',null,h('thead',null,h('tr',null,['Received','Source','Resident','Visitor','Requested Visit','Message','Status','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,visitRows)))),
       h('div',{className:'card',style:{marginTop:'18px'}},h('h3',null,'Secure Messages'),h('div',{className:'table-wrap'},h('table',null,h('thead',null,h('tr',null,['Time','Resident','From','Message','Status','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,messageRows))))
     );
   }
@@ -6421,17 +6437,17 @@ Caring with Compassion. Living with Dignity.`;
     const cards=[
       {label:'Current patients',value:stats.patients,page:'Patients',icon:'👥',patientFilter:'active'},
       {label:'Available beds',value:stats.availableBeds,page:'Rooms & Beds',icon:'🛏️',roomBedFilter:'available',status:stats.availableBeds?`${stats.availableBeds} currently available bed${stats.availableBeds===1?'':'s'}`:'No beds currently available'},
-      {label:'High-risk patients',value:stats.risks,page:'Patients',icon:'⚠️'},
+      {label:'High-risk patients',value:stats.risks,page:'Patients',icon:'⚠️',patientFilter:'high-risk'},
       {label:'Active employees',value:stats.employees,page:'Employees',icon:'🧑‍⚕️',employeeFilter:'__ALL__'},
       {label:'Medicine Actions Today',value:medicineActionsToday,page:'Clinical Alerts',icon:'💊',clinicalFocus:'Medication',status:medicineActionsToday?`${medicineActionsToday} pending / due medication action${medicineActionsToday===1?'':'s'}`:'No medication actions due'},
       {label:'Care actions today',value:careActionsToday,page:'Clinical Alerts',icon:'✅',clinicalFocus:'Daily Care',status:careActionsToday?`${careActionsToday} pending / due care action${careActionsToday===1?'':'s'}`:'No care actions due'},
-      {label:'Open incidents',value:stats.incidents,page:'Incidents',icon:'🚨'},
-      {label:'Clinical escalations',value:stats.escalations,page:'Clinical Escalations',icon:'🔔',status:stats.escalations?`${stats.escalations} awaiting Manager/Admin action`:'No open escalations'},
-      {label:'Outstanding Amount',value:`₹${stats.outstanding.toLocaleString('en-IN')}`,page:'Payments',icon:'₹'},
+      {label:'Open incidents',value:stats.incidents,page:'Incidents',icon:'🚨',incidentFilter:'open'},
+      {label:'Clinical escalations',value:stats.escalations,page:'Clinical Escalations',icon:'🔔',escalationFilter:'open',status:stats.escalations?`${stats.escalations} awaiting Manager/Admin action`:'No open escalations'},
+      {label:'Outstanding Amount',value:`₹${stats.outstanding.toLocaleString('en-IN')}`,page:'Payments',icon:'₹',paymentFilter:'outstanding'},
       {label:'Package Expiry',value:stats.packageExpiry,page:'Package Expiry Dashboard',icon:'📦',status:stats.packageExpiry?`${stats.packageExpiry} expired / expiring within 2 days`:'No package expiry due'},
-      {label:'Admission Enquiries',value:stats.enquiries,page:'Enquiries',icon:'☎',status:stats.enquiries?`${stats.enquiries} awaiting follow-up`:'No new enquiries'},
-      {label:'Visit Requests',value:stats.visitRequests,page:'Family Communication',icon:'📅',status:stats.visitRequests?`${stats.visitRequests} pending approval`:'No pending requests'},
-      {label:'Discharge',value:stats.discharges,page:'Discharge',icon:'🚪',status:stats.dischargeStatus}
+      {label:'Admission Enquiries',value:stats.enquiries,page:'Enquiries',icon:'☎',enquiryFilter:'active',status:stats.enquiries?`${stats.enquiries} awaiting follow-up`:'No new enquiries'},
+      {label:'Visit Requests',value:stats.visitRequests,page:'Family Communication',icon:'📅',visitFilter:'pending',status:stats.visitRequests?`${stats.visitRequests} pending approval`:'No pending requests'},
+      {label:'Discharge',value:stats.discharges,page:'Discharge',icon:'🚪',dischargeFilter:'open',status:stats.dischargeStatus}
     ];
     return h(React.Fragment,null,
       h('div',{className:'shift-summary'},h('div',null,h('strong',null,currentShift()),h('span',null,'Admin and Manager control dashboard')),h('span',{className:'badge'},formalName(profile))),
@@ -6460,6 +6476,14 @@ Caring with Compassion. Living with Dignity.`;
             else sessionStorage.removeItem('samara-clinical-alert-focus');
           }catch(_error){}
         }
+        try{
+          if(card.incidentFilter)sessionStorage.setItem('samara-incident-filter',card.incidentFilter);
+          if(card.escalationFilter)sessionStorage.setItem('samara-escalation-filter',card.escalationFilter);
+          if(card.paymentFilter)sessionStorage.setItem('samara-payment-filter',card.paymentFilter);
+          if(card.enquiryFilter)sessionStorage.setItem('samara-enquiry-filter',card.enquiryFilter);
+          if(card.visitFilter)sessionStorage.setItem('samara-visit-filter',card.visitFilter);
+          if(card.dischargeFilter)sessionStorage.setItem('samara-discharge-filter',card.dischargeFilter);
+        }catch(_error){}
         onNavigate(card.page);
       },title:`Open ${card.page}`},h('span',{className:'dashboard-icon','aria-hidden':'true'},card.icon),h('span',null,card.label),h('strong',null,card.value),h('small',null,card.status||`Open ${card.page} →`)))),
       h('div',{className:'grid two',style:{marginTop:'18px'}},
@@ -8652,6 +8676,13 @@ Thank you.`;
 
   function Enquiries({profile}){
     const [rows,setRows]=React.useState([]),[msg,setMsg]=React.useState('');
+    const [dashboardEnquiryFilter,setDashboardEnquiryFilter]=React.useState(()=>{
+      try{
+        const value=sessionStorage.getItem('samara-enquiry-filter')||'';
+        sessionStorage.removeItem('samara-enquiry-filter');
+        return value==='active'?'active':'';
+      }catch(_error){return ''}
+    });
     const canManage=['Admin','Manager'].includes(profile?.role);
     async function load(){
       const {data,error}=await client.from('pre_admission_enquiries').select('*').order('created_at',{ascending:false});
@@ -8666,12 +8697,15 @@ Thank you.`;
       load();
     }
     const statuses=['New','Contacted','Assessment Scheduled','Estimate Sent','Bed Reserved','Converted to Admission','Closed'];
+    const enquiryDisplayRows=dashboardEnquiryFilter==='active'
+      ?rows.filter(r=>['New','Contacted','Assessment Scheduled'].includes(String(r.status||'New')))
+      :rows;
     return h(React.Fragment,null,
       h(Section,{title:'Admission Enquiries',subtitle:'Read-only intake from the Samara Website and Family Portal. Admin / Manager review and update the status here.'},
         h('div',{className:'message info'},'New enquiries are submitted only from the public Website or secure Family Portal. ERP staff cannot create enquiry records from this screen.'),
         msg?h('div',{className:'message error'},msg):null
       ),
-      h(LogTable,{title:'Enquiry Register',heads:['Received','Source','Resident','Age','Family Contact','Care Type','Preferred Room','Requirements','Status'],rows:rows.map(r=>[
+      h(LogTable,{title:dashboardEnquiryFilter==='active'?`Active Admission Enquiries (${enquiryDisplayRows.length})`:'Enquiry Register',heads:['Received','Source','Resident','Age','Family Contact','Care Type','Preferred Room','Requirements','Status'],rows:enquiryDisplayRows.map(r=>[
         formatDateTimeIN(r.created_at),
         h('span',{className:'badge'},r.source||'Website'),
         r.patient_name||'—',
@@ -11076,7 +11110,7 @@ Please keep these login details confidential.`;
       try{
         const requested=sessionStorage.getItem('samara-patient-list-filter');
         sessionStorage.removeItem('samara-patient-list-filter');
-        return ['active','assigned','awaiting','duplicates'].includes(requested)?requested:'all';
+        return ['active','assigned','awaiting','high-risk','duplicates'].includes(requested)?requested:'all';
       }catch(_error){return 'all'}
     });
     const [editTarget,setEditTarget]=React.useState(null),[editForm,setEditForm]=React.useState(null),[editBusy,setEditBusy]=React.useState(false),[editMsg,setEditMsg]=React.useState('');
@@ -12192,6 +12226,7 @@ Please keep these login details confidential.`;
         (patientQuickFilter==='active'&&r.is_active!==false)||
         (patientQuickFilter==='assigned'&&r.is_active!==false&&r.room_no&&r.bed_no)||
         (patientQuickFilter==='awaiting'&&r.is_active!==false&&(!r.room_no||!r.bed_no))||
+        (patientQuickFilter==='high-risk'&&r.is_active!==false&&Boolean(r.fall_risk||r.pressure_sore_risk||r.aspiration_risk||r.wandering_risk||r.infection_risk||r.oxygen_required))||
         (patientQuickFilter==='duplicates'&&duplicateCount(r)>0);
       return matchesSearch&&matchesDistrict&&matchesQuick;
     });
@@ -12200,6 +12235,7 @@ Please keep these login details confidential.`;
         h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='active'?'active':''}`,onClick:()=>setPatientQuickFilter('active')},h('span',null,'Active patients'),h('strong',null,activeRows.length)),
         h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='assigned'?'active':''}`,onClick:()=>setPatientQuickFilter('assigned')},h('span',null,'Room assigned'),h('strong',null,activeRows.filter(x=>x.room_no&&x.bed_no).length)),
         h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='awaiting'?'active':''}`,onClick:()=>setPatientQuickFilter('awaiting')},h('span',null,'Awaiting room'),h('strong',null,activeRows.filter(x=>!x.room_no||!x.bed_no).length)),
+        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='high-risk'?'active':''}`,onClick:()=>setPatientQuickFilter('high-risk')},h('span',null,'High-risk patients'),h('strong',null,activeRows.filter(x=>x.fall_risk||x.pressure_sore_risk||x.aspiration_risk||x.wandering_risk||x.infection_risk||x.oxygen_required).length)),
         h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='duplicates'?'active':''}`,onClick:()=>setPatientQuickFilter('duplicates')},h('span',null,'Possible duplicates'),h('strong',null,duplicateRows.length))
       ),
       h('div',{className:'card panel'},
@@ -12738,6 +12774,13 @@ Please keep these login details confidential.`;
     const [busy,setBusy]=React.useState(false);
     const [toast,setToast]=React.useState(null);
     const [message,setMessage]=React.useState('');
+    const [dashboardDischargeFilter,setDashboardDischargeFilter]=React.useState(()=>{
+      try{
+        const value=sessionStorage.getItem('samara-discharge-filter')||'';
+        sessionStorage.removeItem('samara-discharge-filter');
+        return value==='open'?'open':'';
+      }catch(_error){return ''}
+    });
     const [paymentTarget,setPaymentTarget]=React.useState(null);
     const [managementReviewRow,setManagementReviewRow]=React.useState(null);
     const [managementBilling,setManagementBilling]=React.useState([]);
@@ -12852,6 +12895,7 @@ Please keep these login details confidential.`;
     const isOpenDischarge=row=>!['completed','cancelled','closed'].includes(
       String(row?.status||'').trim().toLowerCase()
     );
+    const dashboardDischargeRows=dashboardDischargeFilter==='open'?rows.filter(isOpenDischarge):rows;
     const openDischargeForPatient=patientId=>rows.find(row=>
       row.patient_id===patientId&&isOpenDischarge(row)
     )||null;
@@ -16270,6 +16314,13 @@ function ShiftHandover({profile,onNavigate}){
   function Incidents({profile,onNavigate}){
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
+    const [dashboardIncidentFilter,setDashboardIncidentFilter]=React.useState(()=>{
+      try{
+        const value=sessionStorage.getItem('samara-incident-filter')||'';
+        sessionStorage.removeItem('samara-incident-filter');
+        return value==='open'?'open':'';
+      }catch(_error){return ''}
+    });
     const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [saving,setSaving]=React.useState(false);
     const [actionBusy,setActionBusy]=React.useState('');
@@ -16408,7 +16459,10 @@ function ShiftHandover({profile,onNavigate}){
       await load();
     }
 
-    const registerRows=rows.map(r=>[
+    const incidentDisplayRows=dashboardIncidentFilter==='open'
+      ?rows.filter(r=>String(r.status||'Open')!=='Closed')
+      :rows;
+    const registerRows=incidentDisplayRows.map(r=>[
       r.incident_no||'—',
       r.patients?.full_name||'—',
       r.patients?`${r.patients.room_no||'—'}-${r.patients.bed_no||'—'}`:'—',
@@ -17753,6 +17807,13 @@ function ShiftHandover({profile,onNavigate}){
     });
 
     const [patientFilter,setPatientFilter]=React.useState(dischargeTarget?.patient_id||'');
+    const [dashboardPaymentFocus,setDashboardPaymentFocus]=React.useState(()=>{
+      try{
+        const value=sessionStorage.getItem('samara-payment-filter')||'';
+        sessionStorage.removeItem('samara-payment-filter');
+        return value==='outstanding'?'outstanding':'';
+      }catch(_error){return ''}
+    });
     const [quickView,setQuickView]=React.useState('Pending Bills');
     const [form,setForm]=React.useState({
       patient_id:dischargeTarget?.patient_id||'',
@@ -17890,6 +17951,21 @@ function ShiftHandover({profile,onNavigate}){
     const netPayable=totals.Charge-paidTotal-totals.Discount+totals.Refund;
     const pendingBills=Math.max(0,netPayable);
     const advanceBalance=Math.max(0,-netPayable);
+
+    const outstandingByPatient=(()=>{
+      const grouped={};
+      rows.forEach(row=>{
+        const id=row.patient_id||'';
+        if(!id)return;
+        const amount=Number(row.amount||0);
+        const type=String(row.transaction_type||'Charge');
+        if(!grouped[id])grouped[id]={patient_id:id,patient:row.patients||{},balance:0};
+        if(type==='Charge')grouped[id].balance+=amount;
+        else if(type==='Payment'||type==='Advance'||type==='Discount')grouped[id].balance-=amount;
+        else if(type==='Refund')grouped[id].balance+=amount;
+      });
+      return Object.values(grouped).filter(x=>x.balance>0.009).sort((a,b)=>b.balance-a.balance);
+    })();
 
     React.useEffect(()=>{
       if(dischargeTarget&&patientFilter===dischargeTarget.patient_id&&pendingBills>0){
@@ -18744,6 +18820,18 @@ Please access the Samara Family Portal for detailed account information.`;
           h('button',{type:'button',className:'btn btn-whatsapp',style:{marginTop:'8px'},onClick:()=>sendPaymentReceiptWhatsAppApi(lastPaymentReceipt)},'Resend Payment Receipt WhatsApp API')
         )
       ),
+
+      dashboardPaymentFocus==='outstanding'&&h(LogTable,{
+        title:`Outstanding Patients (${outstandingByPatient.length})`,
+        subtitle:'Patient-wise live amount payable represented by the Dashboard Outstanding Amount',
+        heads:['Patient','Resident ID','Room / Bed','Outstanding'],
+        rows:outstandingByPatient.map(item=>[
+          formalName(item.patient)||item.patient?.full_name||'—',
+          item.patient?.patient_id||'—',
+          `${item.patient?.room_no||'—'}${item.patient?.bed_no?`-${item.patient.bed_no}`:''}`,
+          money(item.balance)
+        ])
+      }),
 
       h(LogTable,{
         title:quickView==='Complete Transaction History'

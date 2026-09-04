@@ -1,0 +1,29 @@
+Samara Care ERP v2.11.10
+DASHBOARD DRILL-DOWNS – WINDOWS + MOBILE
+
+Replace only:
+app.js
+
+Dashboard cards now behave as true drill-downs on BOTH desktop/Windows and mobile/PWA:
+
+- Current Patients → active/current patients only
+- Available Beds → available bed details only
+- High-risk Patients → active high-risk patients only
+- Active Employees → active Employee Master staff only
+- Medicine Actions Today → pending/due medication clinical alerts
+- Care Actions Today → pending/due Daily Care clinical alerts
+- Open Incidents → open incident register only
+- Clinical Escalations → unresolved/open escalations
+- Outstanding Amount → Payments plus patient-wise Outstanding Patients table
+- Package Expiry → Package Expiry Dashboard
+- Admission Enquiries → New / Contacted / Assessment Scheduled enquiries only
+- Visit Requests → Pending visit requests only
+- Discharge → active/open discharge workflow records
+
+The normal left-menu pages remain available for the full registers.
+
+Responsive behavior:
+The same filter/navigation logic is used by the React PWA on Windows and mobile.
+Existing responsive tables/cards continue to control presentation on smaller screens.
+
+No SQL and no database records are changed.
