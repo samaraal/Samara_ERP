@@ -1,0 +1,16 @@
+SAMARA CARE ERP v2.9.89 — DIRECT MESSAGE LAYOUT FIX
+
+Replace these three files:
+1. app.js
+2. index.html
+3. service-worker.js
+
+Fix:
+- The Direct Message heading now occupies its own line.
+- The complete message box and Send Direct button appear beneath it.
+- When the 24-hour window is closed, the full disabled message box remains visible with a clear explanation.
+- Approved WhatsApp templates remain available below the direct-message section.
+
+No SQL or Edge Function deployment is required.
+
+After uploading, refresh using Ctrl + Shift + R once.

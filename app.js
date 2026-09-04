@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.88';
+  const APP_VERSION = '2.9.89';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6777,10 +6777,12 @@ Thank you.`;
                   )
                 )
               })),
-              h('div',{className:'wa-free-composer',style:{opacity:within24?1:.68}},
-                h('div',{style:{flex:'1 1 100%',fontWeight:'800',color:within24?'#087f5b':'#5d1039',marginBottom:'4px'}},within24?'Direct message · reply window open':'Direct message locked · family member has not replied within the last 24 hours'),
-                h('textarea',{value:reply,onChange:e=>setReply(e.target.value),placeholder:within24?'Type a direct message':'Direct messaging becomes available after the family member replies',disabled:busy||!within24,rows:2,style:{flex:1,resize:'none',borderRadius:'10px',background:'#fff',margin:0}}),
-                h('button',{type:'button',className:'btn btn-primary',disabled:busy||!within24||!reply.trim(),onClick:sendReply,style:{minWidth:'96px'}},busy?'Sending…':'Send direct')
+              h('div',{className:'wa-free-composer',style:{display:'block',opacity:within24?1:.72}},
+                h('div',{style:{fontWeight:'800',color:within24?'#087f5b':'#5d1039',marginBottom:'7px'}},within24?'Direct message · reply window open':'Direct message locked · family member has not replied within the last 24 hours'),
+                h('div',{style:{display:'flex',gap:'10px',alignItems:'stretch'}},
+                  h('textarea',{value:reply,onChange:e=>setReply(e.target.value),placeholder:within24?'Type a direct message':'Direct messaging becomes available after the family member replies',disabled:busy||!within24,rows:2,style:{flex:'1 1 auto',minWidth:0,resize:'none',borderRadius:'10px',background:'#fff',margin:0}}),
+                  h('button',{type:'button',className:'btn btn-primary',disabled:busy||!within24||!reply.trim(),onClick:sendReply,style:{minWidth:'110px'}},busy?'Sending…':'Send direct')
+                )
               ),
               h('div',{className:'wa-template-composer'},
                 h('div',{style:{fontWeight:'800',color:'#5d1039',marginBottom:'6px'}},'Approved WhatsApp templates · available inside or outside the 24-hour reply window'),
