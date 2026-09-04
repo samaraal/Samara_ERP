@@ -1,0 +1,19 @@
+SAMARA ERP v2.9.99 — WHATSAPP SENT/RECEIVED PARITY
+==================================================
+
+1. Replace app.js, index.html, config.js and service-worker.js.
+2. Add assets/samara-whatsapp-header.jpg without renaming it.
+3. Redeploy supabase/functions/whatsapp-send.
+4. In Meta WhatsApp Manager, use the same new wide image as the sample Image
+   Header for every Samara template. Do not use the previous large logo image.
+
+The Callback Request preview now matches the approved template wording shown
+on the recipient's phone and includes its "Please call me" quick-reply button.
+New messages are stored using the exact rendered ERP text instead of being
+reconstructed later from placeholder values.
+
+IMPORTANT: WhatsApp delivers the ACTIVE template content held by Meta. If any
+other preview differs, that template's exact Meta body and buttons must be made
+identical in the ERP before further use.
+
+No SQL is required.

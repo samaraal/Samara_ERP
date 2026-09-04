@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.98';
+  const APP_VERSION = '2.9.99';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1356,7 +1356,7 @@ function initSamaraInaugurationInvitation(){
   const normalizeLogin = value => value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,'');
   const loginEmail = value => `${normalizeLogin(value)}@${cfg.employeeEmailDomain}`;
   const pad2 = value => String(value).padStart(2,'0');
-  const SAMARA_WHATSAPP_LOGO_URL='https://samaraassistedliving.com/assets/samara-logo.png';
+  const SAMARA_WHATSAPP_LOGO_URL='https://app.samaraassistedliving.com/assets/samara-whatsapp-header.jpg?v=20260904';
   const brandWhatsAppText = text => {
     const raw=String(text||'').trim();
     if(raw.includes(SAMARA_WHATSAPP_LOGO_URL))return raw;
@@ -6445,7 +6445,7 @@ Thank you,
 Samara Assisted Living`;
       if(templateName==='samara_callback_request')return `Dear ${customer},
 Greetings from Samara Assisted Living.
-We would like to speak with you regarding ${regarding}. Please reply to this message or let us know a convenient time for our team to contact you.
+We tried to reach you regarding ${regarding}. Please reply to this message or let us know a convenient time for our team to contact you.
 
 Thank you,
 Samara Assisted Living`;
@@ -6591,7 +6591,7 @@ Caring with Compassion. Living with Dignity.`;
         const two=(raw.match(/\{\{2\}\}:\s*(.*)/)||[])[1]||'your enquiry';
         const name=String(r?.template_name||'');
         if(name==='samara_admission_followup')return `Dear ${one},\nGreetings from Samara Assisted Living.\nThank you for contacting us regarding care and admission support for ${two}. Our team will be happy to understand your requirements and assist you further.\nPlease reply to this message to continue the conversation.\n\nThank you,\nSamara Assisted Living`;
-        if(name==='samara_callback_request')return `Dear ${one},\nGreetings from Samara Assisted Living.\nWe would like to speak with you regarding ${two}. Please reply to this message or let us know a convenient time for our team to contact you.\n\nThank you,\nSamara Assisted Living`;
+        if(name==='samara_callback_request')return `Dear ${one},\nGreetings from Samara Assisted Living.\nWe tried to reach you regarding ${two}. Please reply to this message or let us know a convenient time for our team to contact you.\n\nThank you,\nSamara Assisted Living`;
         if(name==='samara_general_followup')return `Dear ${one},\nGreetings from Samara Assisted Living.\nWe received your message regarding ${two}. We apologise for the delay in responding.\nPlease reply to this message and our team will be happy to assist you.\n\nThank you,\nSamara Assisted Living`;
       }
       if(/^\[Audio \/ voice message received\]$/i.test(raw))return 'Voice message';
@@ -6742,11 +6742,11 @@ Thank you.`;
       try{
         const result=await sendWhatsAppTemplate({to:active.phone,templateName:name,languageCode:templateLanguage||'en',bodyParams:params});
         const providerId=result?.result?.messages?.[0]?.id||null;const now=new Date().toISOString();
-        const summary=params.length?`Template: ${name}\n${params.map((v,i)=>`{{${i+1}}}: ${v}`).join('\n')}`:`Template: ${name}`;
+        const rendered=reopenPreview(customerName,regarding);
         const {error}=await client.from('hr_whatsapp_communications').insert({
           career_application_id:active.last.career_application_id||null,application_id:active.last.application_id||null,applicant_name:active.last.applicant_name||active.name||null,recipient_number:active.phone,
           communication_type:'WhatsApp Re-open Template',template_name:name,status:'Accepted',provider_message_id:providerId,error_message:null,sent_by:profile.id,sent_by_name:formalName(profile),direction:'outbound',message_type:'template',
-          message_content:summary,message_payload:result?.result||null,contact_name:active.name,source_type:active.source,sent_at:now,created_at:now,updated_at:now
+          message_content:rendered,message_payload:{provider_result:result?.result||null,body_params:params,button_text:name==='samara_callback_request'?'Please call me':null},contact_name:active.name,source_type:active.source,sent_at:now,created_at:now,updated_at:now
         });
         if(error)throw error;
         
@@ -6813,6 +6813,9 @@ Thank you.`;
                       )
                     ):null,
                     h('div',{style:{whiteSpace:'pre-wrap',lineHeight:'1.42',fontSize:'14px',paddingRight:'4px'}},text),
+                    outgoing&&String(r.template_name||'').toLowerCase()==='samara_callback_request'
+                      ?h('div',{style:{display:'block',marginTop:'9px',padding:'8px 10px',borderRadius:'7px',background:'#fff',border:'1px solid #b8d9c5',color:'#087f5b',fontWeight:'800',textAlign:'center'}},'↩ Please call me')
+                      :null,
                     media?h('button',{type:'button',disabled:mediaBusyId===r.id,onClick:()=>openMedia(r),style:{display:'block',marginTop:'8px',padding:'7px 10px',border:'0',borderRadius:'7px',background:'#f0f2f5',color:'#5d1039',fontWeight:'700',cursor:mediaBusyId===r.id?'wait':'pointer',maxWidth:'100%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},mediaBusyId===r.id?'Opening…':mediaLabel(media)):null,
                     outgoing&&['samara_bill_reminder','samara_payment_receipt','samara_family_portal_access','employee_welcome_samara'].includes(String(r.template_name||'').toLowerCase())
                       ?h('a',{href:String(r.template_name||'').toLowerCase()==='employee_welcome_samara'?'https://app.samaraassistedliving.com/':'https://family.samaraassistedliving.com/',target:'_blank',rel:'noopener noreferrer',style:{display:'block',marginTop:'9px',padding:'8px 10px',borderRadius:'7px',background:'#fff',border:'1px solid #b8d9c5',color:'#087f5b',fontWeight:'800',textAlign:'center',textDecoration:'none'}},String(r.template_name||'').toLowerCase()==='employee_welcome_samara'?'↗ Open Samara Care ERP':String(r.template_name||'').toLowerCase()==='samara_payment_receipt'?'↗ View Family Portal website':'↗ View Family Portal')
