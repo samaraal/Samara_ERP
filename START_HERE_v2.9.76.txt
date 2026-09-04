@@ -1,0 +1,19 @@
+SAMARA CARE ERP v2.9.76 — MEDICATION ADMISSION BOUNDARY RELIABILITY
+
+Completed:
+- Retains the Nurse/Caregiver ±30-minute Medicines Due Now window.
+- Retains the separate Missed / Overdue and Completed sections.
+- Excludes doses scheduled before the resident's actual admission time.
+- Prevents a later same-day patient edit from incorrectly moving the admission
+  boundary forward and hiding a valid medication dose.
+- Keeps updated_at as a controlled fallback for re-admission of an older
+  patient record when no dedicated admission timestamp exists.
+
+No new SQL is required.
+
+Replace:
+- app.js
+- index.html
+- service-worker.js
+
+After deployment, open the ERP and accept the update/refresh prompt.

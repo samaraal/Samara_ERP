@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.75';
+  const APP_VERSION = '2.9.76';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -14010,7 +14010,15 @@ function RoomsBeds({profile}){
     const nowMinutes=nowDate.getHours()*60+nowDate.getMinutes();
     function admissionBoundaryForToday(patient){
       if(!patient||String(patient.admission_date||'').slice(0,10)!==today)return null;
-      const candidates=[patient.admission_datetime,patient.admission_timestamp,patient.admitted_at,patient.updated_at,patient.created_at].filter(Boolean);
+      // Prefer a true admission timestamp. For first admissions, created_at is
+      // the reliable fallback; updated_at may change later when staff edit the
+      // patient and must not move the medication eligibility boundary forward.
+      // Use updated_at only for a re-admission where created_at is from an
+      // earlier date and no dedicated admission timestamp is available.
+      const explicit=[patient.admission_datetime,patient.admission_timestamp,patient.admitted_at].filter(Boolean);
+      const createdDate=String(patient.created_at||'').slice(0,10);
+      const fallback=createdDate===today?[patient.created_at]:[patient.updated_at,patient.created_at];
+      const candidates=[...explicit,...fallback].filter(Boolean);
       for(const value of candidates){
         const stamp=new Date(value);
         if(Number.isNaN(stamp.getTime()))continue;
@@ -14440,7 +14448,13 @@ function RoomsBeds({profile}){
     function patientFor(order){return state.patients.find(p=>p.id===order.patient_id)||{};}
     function admissionBoundaryForPatient(patient){
       if(!patient||String(patient.admission_date||'').slice(0,10)!==today)return null;
-      const candidates=[patient.admission_datetime,patient.admission_timestamp,patient.admitted_at,patient.updated_at,patient.created_at].filter(Boolean);
+      // Do not let an ordinary same-day patient edit redefine admission time.
+      // created_at is preferred for a first admission; updated_at is retained
+      // only as a re-admission fallback when the patient record is older.
+      const explicit=[patient.admission_datetime,patient.admission_timestamp,patient.admitted_at].filter(Boolean);
+      const createdDate=String(patient.created_at||'').slice(0,10);
+      const fallback=createdDate===today?[patient.created_at]:[patient.updated_at,patient.created_at];
+      const candidates=[...explicit,...fallback].filter(Boolean);
       for(const value of candidates){
         const stamp=new Date(value);
         if(Number.isNaN(stamp.getTime()))continue;
