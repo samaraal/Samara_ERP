@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.91';
+  const APP_VERSION = '2.9.92';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7808,7 +7808,7 @@ Thank you.`;
           templateName:'employee_welcome_samara',
           languageCode:'en',
           bodyParams:[employeeName,designation],
-          headerImage:null,
+          headerImage:SAMARA_WHATSAPP_LOGO_URL,
           communicationLog:{
             communication_type:`Employee Welcome${resend?' · Resent':''}`,
             message_content:`Dear ${employeeName},\n\nWelcome to the Samara Family.\nDesignation: ${designation}\nLogin ID: ${loginId}\nERP: https://app.samaraassistedliving.com`,

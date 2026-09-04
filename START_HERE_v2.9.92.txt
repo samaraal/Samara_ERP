@@ -1,0 +1,17 @@
+SAMARA CARE ERP v2.9.92 — EMPLOYEE WELCOME TEMPLATE FORMAT FIX
+
+Replace these three files:
+1. app.js
+2. index.html
+3. service-worker.js
+
+Fix:
+- Corrected Meta error #132012 for employee_welcome_samara.
+- Restored the Samara image header required by the approved template format.
+- Retains the correct two body variables: employee name and actual designation.
+- ERP access role is not used as designation.
+- Successful API submissions are recorded in WhatsApp Inbox.
+
+No SQL or Edge Function deployment is required.
+
+After uploading, refresh using Ctrl + Shift + R once.
