@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.89';
+  const APP_VERSION = '2.9.90';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7482,7 +7482,8 @@ Thank you.`;
     const [detailsTarget,setDetailsTarget]=React.useState(null),[detailsForm,setDetailsForm]=React.useState(null),[detailsDocs,setDetailsDocs]=React.useState([]),[detailsBusy,setDetailsBusy]=React.useState(false),[detailsMsg,setDetailsMsg]=React.useState('');
     const [detailsEditing,setDetailsEditing]=React.useState(false);
     const [employeeDepartmentFilter,setEmployeeDepartmentFilter]=React.useState('');
-    const [idFiles,setIdFiles]=React.useState([]),[qualificationFiles,setQualificationFiles]=React.useState([]),[experienceFiles,setExperienceFiles]=React.useState([]),[otherFiles,setOtherFiles]=React.useState([]),[cameraFiles,setCameraFiles]=React.useState([]),[photoFiles,setPhotoFiles]=React.useState([]),[photoPreview,setPhotoPreview]=React.useState(''),[welcomeLink,setWelcomeLink]=React.useState('');
+    const [idFiles,setIdFiles]=React.useState([]),[qualificationFiles,setQualificationFiles]=React.useState([]),[experienceFiles,setExperienceFiles]=React.useState([]),[otherFiles,setOtherFiles]=React.useState([]),[cameraFiles,setCameraFiles]=React.useState([]),[photoFiles,setPhotoFiles]=React.useState([]),[photoPreview,setPhotoPreview]=React.useState(''),[welcomeEmployee,setWelcomeEmployee]=React.useState(null);
+    const [welcomeBusy,setWelcomeBusy]=React.useState(''),[welcomeSentNumbers,setWelcomeSentNumbers]=React.useState(new Set());
     const [cameraConfig,setCameraConfig]=React.useState(null);
     const [employeeToast,setEmployeeToast]=React.useState(null);
     const employeeToastTimer=React.useRef(null);
@@ -7549,9 +7550,13 @@ Thank you.`;
     }
 
     async function load(){
-      const {data,error}=await client.from('profiles').select('*').order('created_at',{ascending:false});
+      const [{data,error},{data:welcomeLogs}]=await Promise.all([
+        client.from('profiles').select('*').order('created_at',{ascending:false}),
+        client.from('hr_whatsapp_communications').select('recipient_number').eq('template_name','employee_welcome_samara').order('created_at',{ascending:false}).limit(1000)
+      ]);
       if(error){setMsg(error.message||'Unable to load employees');return}
       setRows(data||[]);
+      setWelcomeSentNumbers(new Set((welcomeLogs||[]).map(row=>normalizeWhatsAppRecipient(row.recipient_number||'')).filter(Boolean)));
       try{
         const result=await adminRequest({action:'auth_status'});
         const map={};(result.users||[]).forEach(u=>{map[u.id]=u});setAuthMap(map);
@@ -7703,7 +7708,7 @@ Thank you.`;
     }
 
     async function create(e){
-      e.preventDefault();setBusy(true);setMsg('');setWelcomeLink('');
+      e.preventDefault();setBusy(true);setMsg('');setWelcomeEmployee(null);
       try{
         let employeeForm={...form};
         employeeForm.current_address=composeEmployeeAddress(employeeForm,'current');
@@ -7771,7 +7776,7 @@ Thank you.`;
           {type:'ID Card',files:idFiles},{type:'Qualification Certificate',files:qualificationFiles},{type:'Experience Certificate',files:experienceFiles},{type:'Other Certificate',files:otherFiles},{type:'Camera Capture',files:cameraFiles}
         ]);
         const createdRow={...employeeForm,id:result.user_id};
-        const link=whatsappWelcomeUrl(createdRow,employeeForm.password);setWelcomeLink(link);
+        setWelcomeEmployee(createdRow);
         await load();
         const successText=result.repaired?'Employee account repaired successfully.':'New employee added successfully.';
         setMsg(successText);showEmployeeToast('success',successText);
@@ -7785,6 +7790,43 @@ Thank you.`;
     }
 
     async function toggle(row){try{await adminRequest({action:'toggle',user_id:row.id,is_active:!(row.is_active??row.active)});await load()}catch(error){alert(error.message||'Unable to update employee')}}
+    function employeeWelcomeSent(row){
+      const number=normalizeWhatsAppRecipient(row?.mobile||'');
+      return Boolean(number&&welcomeSentNumbers.has(number));
+    }
+    async function sendEmployeeWelcomeApi(row,{resend=false}={}){
+      const number=normalizeWhatsAppRecipient(row?.mobile||'');
+      if(!number||welcomeBusy)return;
+      const busyKey=String(row?.id||number);
+      const employeeName=formalName(row)||row?.full_name||'Colleague';
+      const designation=String(row?.designation||'').trim()||String(row?.department||'').trim()||'Team Member';
+      const loginId=String(row?.login_id||'').trim()||'To be provided by HR';
+      setWelcomeBusy(busyKey);
+      try{
+        const result=await sendWhatsAppTemplate({
+          to:number,
+          templateName:'employee_welcome_samara',
+          languageCode:'en',
+          bodyParams:[employeeName,designation,loginId],
+          headerImage:null,
+          communicationLog:{
+            communication_type:`Employee Welcome${resend?' · Resent':''}`,
+            message_content:`Dear ${employeeName},\n\nWelcome to the Samara Family.\nDesignation: ${designation}\nLogin ID: ${loginId}\nERP: https://app.samaraassistedliving.com`,
+            contact_name:employeeName,
+            source_type:'HR · Employee Welcome',
+            sent_by:profile?.id||null,
+            sent_by_name:formalName(profile)||'Samara HR',
+            message_payload:{employee_id:row?.id||null,employee_code:row?.employee_id||null,designation,login_id:loginId,resend:Boolean(resend)}
+          }
+        });
+        setWelcomeSentNumbers(current=>new Set([...current,number]));
+        const text=result?.history_logged===true?'Employee welcome WhatsApp accepted by Meta and recorded in WhatsApp Inbox.':'Employee welcome WhatsApp accepted by Meta; Inbox logging needs verification.';
+        setMsg(text);showEmployeeToast('success',text);
+      }catch(error){
+        const text=`Employee welcome WhatsApp API failed: ${error.message||error}`;
+        setMsg(text);showEmployeeToast('error',text);
+      }finally{setWelcomeBusy('')}
+    }
     function openReset(row){setResetTarget(row);setNewPassword('');setConfirmPassword('');setResetMsg('')}
     function generateTemporaryPassword(){
       const upper='ABCDEFGHJKLMNPQRSTUVWXYZ',lower='abcdefghijkmnopqrstuvwxyz',digits='23456789',symbols='@#$%';
@@ -8091,7 +8133,7 @@ Thank you.`;
         h('td',{'data-label':'Employee'},formalName(r)),h('td',{'data-label':'Employee ID'},r.employee_id||'—'),h('td',{'data-label':'Login ID'},r.login_id),h('td',{'data-label':'Department'},`${employeeDepartment(r)}${r.designation?` · ${r.designation}`:''}`),h('td',{'data-label':'Access'},r.role),
         h('td',{'data-label':'Status'},h('span',{className:`badge ${enabled?'':'off'}`},enabled?'Active':'Disabled')),
         h('td',{'data-label':'Authentication'},h('span',{className:`badge auth-status ${status.className}`},status.text)),h('td',{'data-label':'Last sign-in'},fmt(auth?.last_sign_in_at||r.last_sign_in_at)),
-        h('td',{'data-label':'Actions'},h('div',{className:'employee-actions',onClick:e=>e.stopPropagation(),onKeyDown:e=>e.stopPropagation()},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Personnel File'),h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Documents'),h('button',{className:'btn btn-secondary',onClick:()=>printIdCard(r)},'Print ID Card'),r.mobile?h('a',{className:'btn btn-whatsapp',href:whatsappWelcomeUrl(r),target:'_blank',rel:'noopener'},'WhatsApp Welcome'):null,h('button',{className:enabled?'btn btn-danger':'btn btn-secondary',disabled:managerBlocked,onClick:()=>toggle(r)},enabled?'Disable':'Enable'),auth?h('button',{className:'btn btn-primary',disabled:managerBlocked,onClick:()=>openReset(r)},'Reset Password'):h('button',{className:'btn btn-warning',disabled:managerBlocked,onClick:()=>openRepair(r)},'Repair Account')))
+        h('td',{'data-label':'Actions'},h('div',{className:'employee-actions',onClick:e=>e.stopPropagation(),onKeyDown:e=>e.stopPropagation()},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Personnel File'),h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Documents'),h('button',{className:'btn btn-secondary',onClick:()=>printIdCard(r)},'Print ID Card'),r.mobile?h('button',{type:'button',className:employeeWelcomeSent(r)?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:welcomeBusy===String(r.id)||employeeWelcomeSent(r),onClick:()=>sendEmployeeWelcomeApi(r)},welcomeBusy===String(r.id)?'Sending…':employeeWelcomeSent(r)?'WhatsApp Welcome Sent ✓':'WhatsApp Welcome API'):null,employeeWelcomeSent(r)?h('button',{type:'button',className:'btn btn-secondary',disabled:welcomeBusy===String(r.id),onClick:()=>sendEmployeeWelcomeApi(r,{resend:true})},welcomeBusy===String(r.id)?'Resending…':'Resend Welcome'):null,h('button',{className:enabled?'btn btn-danger':'btn btn-secondary',disabled:managerBlocked,onClick:()=>toggle(r)},enabled?'Disable':'Enable'),auth?h('button',{className:'btn btn-primary',disabled:managerBlocked,onClick:()=>openReset(r)},'Reset Password'):h('button',{className:'btn btn-warning',disabled:managerBlocked,onClick:()=>openRepair(r)},'Repair Account')))
       )}),effectiveRows.length===0?h('tr',null,h('td',{colSpan:9,className:'empty'},'No active employees found in this selection.')):null))
     );
 
@@ -8380,7 +8422,7 @@ Thank you.`;
     const createModal=show?h('div',{className:'modal-backdrop'},h('form',{className:'card modal employee-modal',onSubmit:create},
       h('div',{className:'panel-head',style:{alignItems:'flex-start'}},h('div',null,h('h3',null,'Create Employee'),h('small',null,'Personnel details, login account and certificate uploads')),h('div',{style:{display:'flex',gap:'12px',alignItems:'flex-start'}},personnelPhotoPreview(),h('button',{type:'button',className:'close',onClick:()=>{setShow(false);setPhotoPreview('');setPhotoFiles([])}},'×'))),
       msg?h('div',{className:`message ${msg.startsWith('Employee created')||msg.startsWith('Employee account repaired')?'success':'error'}`},msg):null,
-      welcomeLink&&h('a',{className:'btn btn-whatsapp full',href:welcomeLink,target:'_blank',rel:'noopener'},'Send Welcome Message on WhatsApp'),
+      welcomeEmployee&&h('button',{type:'button',className:employeeWelcomeSent(welcomeEmployee)?'btn btn-secondary clinical-action-done full':'btn btn-whatsapp full',disabled:Boolean(welcomeBusy)||employeeWelcomeSent(welcomeEmployee),onClick:()=>sendEmployeeWelcomeApi(welcomeEmployee)},welcomeBusy?'Sending Welcome by API…':employeeWelcomeSent(welcomeEmployee)?'Employee Welcome WhatsApp Sent ✓':'Send Employee Welcome by WhatsApp API'),
       h('div',{className:'modal-grid'},personnelFields(form,setForm,true),uploadFields()),h('p',{className:'message success'},'The login account is created and confirmed securely without sending an email.'),h('button',{className:'btn btn-primary full',disabled:busy},busy?'Creating employee and uploading documents…':'Create Employee')
     )):null;
 

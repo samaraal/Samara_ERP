@@ -1,0 +1,18 @@
+SAMARA CARE ERP v2.9.90 — EMPLOYEE WELCOME WHATSAPP API
+
+Replace these three files:
+1. app.js
+2. index.html
+3. service-worker.js
+
+Changes:
+- Employee WhatsApp Welcome now uses the approved employee_welcome_samara Cloud API template.
+- The old wa.me/manual route has been removed from the Employees list and new-employee confirmation.
+- Template values use employee name, actual designation and Login ID. ERP role is not used as designation.
+- Successful submissions are recorded in WhatsApp Inbox.
+- The green button becomes dim and disabled after acceptance by Meta.
+- A separate Resend Welcome button is then available.
+
+No SQL or Edge Function deployment is required because the existing generic whatsapp-send function is reused.
+
+After uploading, refresh using Ctrl + Shift + R once.
