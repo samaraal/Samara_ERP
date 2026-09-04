@@ -1,0 +1,14 @@
+Samara Care ERP v2.11.05
+Admission Details readability fix
+
+Replace only app.js.
+
+The Admission Details screen now has:
+- clear space between labels and values
+- aligned two-column rows on desktop
+- more vertical spacing
+- subtle separators
+- clean wrapping for long text
+- stacked label/value layout on mobile
+
+No SQL or business-logic changes.
