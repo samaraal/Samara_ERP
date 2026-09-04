@@ -1,0 +1,26 @@
+Samara Care ERP v2.11.06
+ACTIVE EMPLOYEE COUNT – SINGLE SOURCE OF TRUTH
+
+Replace only:
+app.js
+
+Fix:
+- Main Dashboard "Active employees" now uses the exact same Employee Master logic as HR → Employees.
+- Samara ERP management/admin login accounts are excluded unless they are genuine Employee Master staff.
+- Legacy generic "Administrator" system profile is excluded.
+- Duplicate profile records are deduplicated.
+- Only active Employee Master records are counted.
+
+Expected result from the screenshots:
+Main Dashboard Active employees should change from 11 to 5, matching:
+  All Employees: 5
+  Accounts & Finance: 1
+  Administration: 1
+  Nursing: 3
+
+Navigation:
+- Clicking Dashboard → Active employees opens HR Employee Master directly in "All Employees",
+  showing exactly the same active employees represented by the dashboard count.
+- Opening Employees normally from the HR menu still opens the department dashboard.
+
+No SQL, employee records, authentication accounts, billing or WhatsApp logic changed.

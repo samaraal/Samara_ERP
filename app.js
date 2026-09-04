@@ -6286,7 +6286,7 @@ Caring with Compassion. Living with Dignity.`;
     React.useEffect(()=>{(async()=>{
       const today=new Date().toISOString().slice(0,10);
       const [emp,pat,med,care,bill,inc,dis,vis,enq,esc]=await Promise.all([
-        client.from('profiles').select('*',{count:'exact',head:true}).eq('is_active',true),
+        client.from('profiles').select('*').eq('is_active',true),
         client.from('patients').select('*').eq('is_active',true),
         client.from('medication_administrations').select('*',{count:'exact',head:true}).eq('scheduled_date',today),
         client.from('care_logs').select('*',{count:'exact',head:true}).eq('care_date',today),
@@ -6298,6 +6298,19 @@ Caring with Compassion. Living with Dignity.`;
         client.from('clinical_alert_escalations').select('*',{count:'exact',head:true}).is('resolved_at',null)
       ]);
       const patients=pat.data||[];
+
+      // Keep Dashboard "Active employees" identical to HR → Employees.
+      // ERP management/system accounts are logins, not Employee Master staff.
+      const dashboardEmployeeRows=deduplicateEmployeeProfiles(
+        (emp.data||[]).filter(row=>{
+          const name=String(row?.full_name||'').trim().toLowerCase().replace(/\s+/g,' ');
+          const login=String(row?.login_id||row?.username||'').trim().toLowerCase();
+          if(isSamaraAdministratorAccount(row))return false;
+          return name!=='administrator'&&login!=='administrator';
+        })
+      ).filter(row=>Boolean(row.is_active??row.active));
+      const activeEmployeeCount=dashboardEmployeeRows.length;
+
       const todayDate=new Date(`${today}T00:00:00`);
       const soonDate=new Date(todayDate);soonDate.setDate(soonDate.getDate()+2);
       const packageExpiry=patients.filter(p=>{
@@ -6333,7 +6346,7 @@ Caring with Compassion. Living with Dignity.`;
         'No active discharge';
 
       setStats({
-        employees:emp.count||0,
+        employees:activeEmployeeCount,
         patients:patients.length,
         beds:25,
         meds:med.count||0,
@@ -6354,7 +6367,7 @@ Caring with Compassion. Living with Dignity.`;
       {label:'Current patients',value:stats.patients,page:'Patients',icon:'👥',patientFilter:'active'},
       {label:'Available beds',value:Math.max(0,stats.beds-stats.patients),page:'Rooms & Beds',icon:'🛏️'},
       {label:'High-risk patients',value:stats.risks,page:'Patients',icon:'⚠️'},
-      {label:'Active employees',value:stats.employees,page:'Employees',icon:'🧑‍⚕️'},
+      {label:'Active employees',value:stats.employees,page:'Employees',icon:'🧑‍⚕️',employeeFilter:'__ALL__'},
       {label:'Medicine Actions Today',value:stats.meds,page:'Shift Tasks',icon:'💊'},
       {label:'Care actions today',value:stats.care,page:'Daily Care',icon:'✅'},
       {label:'Open incidents',value:stats.incidents,page:'Incidents',icon:'🚨'},
@@ -6372,6 +6385,12 @@ Caring with Compassion. Living with Dignity.`;
           try{
             if(card.patientFilter)sessionStorage.setItem('samara-patient-list-filter',card.patientFilter);
             else sessionStorage.removeItem('samara-patient-list-filter');
+          }catch(_error){}
+        }
+        if(card.page==='Employees'){
+          try{
+            if(card.employeeFilter)sessionStorage.setItem('samara-employee-list-filter',card.employeeFilter);
+            else sessionStorage.removeItem('samara-employee-list-filter');
           }catch(_error){}
         }
         onNavigate(card.page);
@@ -7568,7 +7587,13 @@ Thank you.`;
     const [repairTarget,setRepairTarget]=React.useState(null),[repairPassword,setRepairPassword]=React.useState(''),[repairBusy,setRepairBusy]=React.useState(false),[repairMsg,setRepairMsg]=React.useState('');
     const [detailsTarget,setDetailsTarget]=React.useState(null),[detailsForm,setDetailsForm]=React.useState(null),[detailsDocs,setDetailsDocs]=React.useState([]),[detailsBusy,setDetailsBusy]=React.useState(false),[detailsMsg,setDetailsMsg]=React.useState('');
     const [detailsEditing,setDetailsEditing]=React.useState(false);
-    const [employeeDepartmentFilter,setEmployeeDepartmentFilter]=React.useState('');
+    const [employeeDepartmentFilter,setEmployeeDepartmentFilter]=React.useState(()=>{
+      try{
+        const requested=sessionStorage.getItem('samara-employee-list-filter');
+        sessionStorage.removeItem('samara-employee-list-filter');
+        return requested==='__ALL__'?'__ALL__':'';
+      }catch(_error){return ''}
+    });
     const [idFiles,setIdFiles]=React.useState([]),[qualificationFiles,setQualificationFiles]=React.useState([]),[experienceFiles,setExperienceFiles]=React.useState([]),[otherFiles,setOtherFiles]=React.useState([]),[cameraFiles,setCameraFiles]=React.useState([]),[photoFiles,setPhotoFiles]=React.useState([]),[photoPreview,setPhotoPreview]=React.useState(''),[welcomeEmployee,setWelcomeEmployee]=React.useState(null);
     const [welcomeBusy,setWelcomeBusy]=React.useState(''),[welcomeSentNumbers,setWelcomeSentNumbers]=React.useState(new Set());
     const [cameraConfig,setCameraConfig]=React.useState(null);
