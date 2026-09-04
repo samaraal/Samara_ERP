@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.01';
+  const APP_VERSION = '2.10.02';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -13390,6 +13390,45 @@ Please keep these login details confidential.`;
             message_payload:{discharge_id:row.id,patient_id:row.patient_id,automatic:Boolean(automatic),resend:Boolean(resend)}
           }
         });
+        let inboxRecorded=result?.history_logged===true;
+        if(!inboxRecorded){
+          const providerId=result.provider_message_id;
+          const existing=await client.from('hr_whatsapp_communications')
+            .select('id')
+            .eq('provider_message_id',providerId)
+            .maybeSingle();
+          if(existing.error){
+            console.error('Discharge WhatsApp Inbox verification failed:',existing.error);
+          }else if(existing.data?.id){
+            inboxRecorded=true;
+          }else{
+            const now=new Date().toISOString();
+            const inboxLog=await client.from('hr_whatsapp_communications').insert({
+              career_application_id:null,
+              application_id:null,
+              applicant_name:recipient,
+              recipient_number:normalizeWhatsAppRecipient(to),
+              communication_type:resend?'Discharge Confirmation Resent':'Automatic Discharge Confirmation',
+              template_name:'samara_discharge_confirmation',
+              status:'Accepted',
+              provider_message_id:providerId,
+              error_message:null,
+              sent_by:profile?.id||null,
+              sent_by_name:automatic?'Samara System':formalName(profile)||profile?.full_name||'Samara Team',
+              direction:'outbound',
+              message_type:'template',
+              message_content:`Discharge confirmation for ${patientName} on ${departureDate} at ${departureTime}`,
+              message_payload:{discharge_id:row.id,patient_id:row.patient_id,automatic:Boolean(automatic),resend:Boolean(resend)},
+              contact_name:recipient,
+              source_type:'Patient / Family · Discharge',
+              sent_at:now,
+              created_at:now,
+              updated_at:now
+            });
+            if(inboxLog.error)console.error('Discharge WhatsApp Inbox fallback log failed:',inboxLog.error);
+            else inboxRecorded=true;
+          }
+        }
         const updateResult=await client.from('patient_discharges').update({
           discharge_whatsapp_sent_at:new Date().toISOString(),
           discharge_whatsapp_message_id:result.provider_message_id,
@@ -13397,7 +13436,13 @@ Please keep these login details confidential.`;
           updated_at:new Date().toISOString()
         }).eq('id',row.id);
         if(updateResult.error)console.warn('Discharge WhatsApp status could not be saved:',updateResult.error);
-        if(!automatic)notify('success',resend?'Discharge WhatsApp resent':'Discharge WhatsApp sent','Meta accepted the approved discharge confirmation template.');
+        if(!automatic)notify(
+          inboxRecorded?'success':'warning',
+          resend?'Discharge WhatsApp resent':'Discharge WhatsApp sent',
+          inboxRecorded
+            ?'Meta accepted the approved template and the communication is recorded in WhatsApp Inbox.'
+            :'Meta accepted the message, but its Inbox entry could not be confirmed. Do not resend solely for this warning.'
+        );
         return true;
       }catch(apiError){
         await client.from('patient_discharges').update({

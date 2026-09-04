@@ -1,0 +1,19 @@
+Samara Care ERP v2.10.02 — Discharge WhatsApp Inbox guarantee
+
+Replace these website files:
+- app.js
+- config.js
+- index.html
+- service-worker.js
+
+Then refresh once using Ctrl + Shift + R.
+
+No additional SQL is required if SQL files 98 and 99 were already run.
+
+Behaviour
+- Every discharge confirmation accepted by Meta is verified in WhatsApp Inbox
+  using the unique Meta message ID.
+- If server-side Inbox logging did not complete, the ERP creates the Inbox entry.
+- The history records recipient, patient/discharge reference, template name,
+  sender, sent time, automatic/resend status and Meta message ID.
+- Duplicate Inbox entries are prevented by checking the Meta message ID first.
