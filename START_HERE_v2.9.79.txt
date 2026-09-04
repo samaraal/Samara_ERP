@@ -1,0 +1,17 @@
+SAMARA CARE ERP v2.9.79 — FAMILY PORTAL WHATSAPP PRESENTATION
+
+FIXED
+- After successful Family Portal WhatsApp acceptance and Inbox logging, the
+  green Send button becomes dim and disabled.
+- The disabled button reads: Portal Access WhatsApp Sent ✓
+- The sent state is restored when the Patient File is reopened.
+- Family Portal WhatsApp messages in ERP Inbox now show the Samara logo header,
+  "Greetings from Samara Assisted Living" and a View Family Portal footer button,
+  matching the Daily Payable message presentation.
+
+REPLACE ONLY
+- app.js
+- index.html
+- service-worker.js
+
+No SQL or Edge Function deployment is required.

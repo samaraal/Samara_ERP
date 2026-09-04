@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.78';
+  const APP_VERSION = '2.9.79';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6736,7 +6736,7 @@ Thank you.`;
                 const outgoing=r.direction!=='inbound';const media=mediaInfo(r);const text=chatText(r);
                 return h('div',{key:r.id,style:{display:'flex',justifyContent:outgoing?'flex-end':'flex-start',marginBottom:'8px'}},
                   h('div',{style:{position:'relative',maxWidth:'72%',padding:'8px 10px 6px',borderRadius:outgoing?'8px 0 8px 8px':'0 8px 8px 8px',background:outgoing?'#d9fdd3':'#fff',boxShadow:'0 1px 1px rgba(0,0,0,.08)',color:'#292229'}},
-                    outgoing&&(/Payment Receipt|Daily Payable Reminder|EMERGENCY/i.test(String(r.communication_type||'')))?h(React.Fragment,null,
+                    outgoing&&(/Payment Receipt|Daily Payable Reminder|Family Portal Access|EMERGENCY/i.test(String(r.communication_type||'')))?h(React.Fragment,null,
                       h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748',marginBottom:'6px',display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}},
                         h('span',null,String(r.communication_type||'')),
                         /EMERGENCY/i.test(String(r.communication_type||''))
@@ -6745,7 +6745,7 @@ Thank you.`;
                             ?h('span',{style:{padding:'2px 7px',borderRadius:'999px',background:'#7d1748',color:'#fff',fontSize:'10px',letterSpacing:'.2px'}},'AUTOMATED · Samara System')
                             :(r.sent_by_name?h('span',{style:{fontWeight:'700',color:'#7b6871'}},`· ${r.sent_by_name}`):null)
                       ),
-                      ['samara_bill_reminder','samara_payment_receipt','samara_emergency_hospital_transfer','samara_urgent_contact_required'].includes(String(r.template_name||'').toLowerCase())
+                      ['samara_bill_reminder','samara_payment_receipt','samara_family_portal_access','samara_emergency_hospital_transfer','samara_urgent_contact_required'].includes(String(r.template_name||'').toLowerCase())
                         ?h('div',{style:{background:'#fff',border:'1px solid #ecdce4',borderRadius:'8px',padding:'8px 10px',marginBottom:'9px',textAlign:'center'}},
                             h('img',{src:BRAND_LOGO_SRC,alt:'Samara Assisted Living',style:{display:'block',width:'128px',maxWidth:'70%',height:'auto',margin:'0 auto 5px'}}),
                             h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748'}},'Greetings from Samara Assisted Living')
@@ -6754,7 +6754,7 @@ Thank you.`;
                     ):null,
                     h('div',{style:{whiteSpace:'pre-wrap',lineHeight:'1.42',fontSize:'14px',paddingRight:'4px'}},text),
                     media?h('button',{type:'button',disabled:mediaBusyId===r.id,onClick:()=>openMedia(r),style:{display:'block',marginTop:'8px',padding:'7px 10px',border:'0',borderRadius:'7px',background:'#f0f2f5',color:'#5d1039',fontWeight:'700',cursor:mediaBusyId===r.id?'wait':'pointer',maxWidth:'100%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},mediaBusyId===r.id?'Opening…':mediaLabel(media)):null,
-                    outgoing&&['samara_bill_reminder','samara_payment_receipt'].includes(String(r.template_name||'').toLowerCase())
+                    outgoing&&['samara_bill_reminder','samara_payment_receipt','samara_family_portal_access'].includes(String(r.template_name||'').toLowerCase())
                       ?h('a',{href:'https://family.samaraassistedliving.com/',target:'_blank',rel:'noopener noreferrer',style:{display:'block',marginTop:'9px',padding:'8px 10px',borderRadius:'7px',background:'#fff',border:'1px solid #b8d9c5',color:'#087f5b',fontWeight:'800',textAlign:'center',textDecoration:'none'}},String(r.template_name||'').toLowerCase()==='samara_payment_receipt'?'↗ View Family Portal website':'↗ View Family Portal')
                       :null,
                     h('small',{style:{display:'block',marginTop:'4px',textAlign:'right',color:'#667781',fontSize:'11px'}},`${fmt(r.received_at||r.sent_at||r.created_at)}${outgoing?`  ${String(r.status||'Sent').toLowerCase()==='read'?'✓✓':String(r.status||'Sent').toLowerCase()==='delivered'?'✓✓':'✓'}`:''}`)
@@ -10877,7 +10877,7 @@ Please keep these login details confidential.`;
     }
     async function openPatient(p,desiredTab='Overview'){
       setSelected(p);setPhotoUrl('');setTab(desiredTab);
-      const [m,ma,c,cl,v,ph,ps,d,meal,bill,rec,inc,fam,mom,url]=await Promise.all([
+      const [m,ma,c,cl,v,ph,ps,d,meal,bill,rec,inc,fam,mom,wa,url]=await Promise.all([
         client.from('medication_orders').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}),
         client.from('medication_administrations').select('*').eq('patient_id',p.id).order('scheduled_date',{ascending:false}).limit(100),
         client.from('care_orders').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}),
@@ -10892,14 +10892,26 @@ Please keep these login details confidential.`;
         client.from('incidents').select('*').eq('patient_id',p.id).order('incident_at',{ascending:false}).limit(100),
         canEdit?client.from('family_portal_access').select('id,family_user_id,relative_name,relationship,mobile,email,primary_contact,is_active,last_login_at,created_at,updated_at').eq('patient_id',p.id).order('primary_contact',{ascending:false}).order('created_at',{ascending:true}):Promise.resolve({data:[]}),
         client.from('patient_daily_moments').select('*').eq('patient_id',p.id).gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}),
+        canEdit?client.from('hr_whatsapp_communications').select('id,recipient_number,template_name,status,provider_message_id,message_payload,created_at').eq('template_name','samara_family_portal_access').order('created_at',{ascending:false}).limit(500):Promise.resolve({data:[]}),
         resolvePatientPhoto(p)
       ]);
       const momentRows=await Promise.all((mom?.data||[]).map(async row=>{
         const {data:signed}=await client.storage.from('patient-daily-moments').createSignedUrl(row.storage_path,900);
         return {...row,signed_url:signed?.signedUrl||''};
       }));
-      setDetails({meds:currentUpcomingMedicineOrders(m.data||[]),mar:ma.data||[],care:c.data||[],careLogs:cl.data||[],vitals:v.data||[],physio:ph.data||[],physioSessions:ps.data||[],docs:d.data||[],meals:meal.data||[],billing:bill.data||[],recovery:rec.data||[],incidents:inc.data||[],familyAccess:fam?.data||[],dailyMoments:momentRows});
+      setDetails({meds:currentUpcomingMedicineOrders(m.data||[]),mar:ma.data||[],care:c.data||[],careLogs:cl.data||[],vitals:v.data||[],physio:ph.data||[],physioSessions:ps.data||[],docs:d.data||[],meals:meal.data||[],billing:bill.data||[],recovery:rec.data||[],incidents:inc.data||[],familyAccess:fam?.data||[],dailyMoments:momentRows,familyWhatsApp:wa?.data||[]});
       setPhotoUrl(url);
+    }
+
+    function familyPortalWhatsAppSent(access){
+      const recipient=normalizeWhatsAppRecipient(access?.mobile||'');
+      if(!recipient)return false;
+      return (details?.familyWhatsApp||[]).some(row=>{
+        if(normalizeWhatsAppRecipient(row.recipient_number)!==recipient)return false;
+        const payload=row.message_payload||{};
+        const linked=[payload.patient_id,payload.patient_code].filter(Boolean).map(String);
+        return !linked.length||linked.includes(String(selected?.id||''))||linked.includes(String(selected?.patient_id||''));
+      });
     }
 
     async function videoDurationSeconds(file){
@@ -12066,9 +12078,9 @@ Please keep these login details confidential.`;
                   h('div',null,h('p',null,h('strong',null,'Login Resident ID: '),selected?.patient_id||'—'),h('p',null,h('strong',null,'Registered Mobile: '),access.mobile||'—'),h('p',null,h('strong',null,'Email: '),access.email||'Not recorded'),h('p',{className:'small-note'},`Internal Family Ref: ${access.family_user_id||'—'}`)),
                   h('div',null,h('p',null,h('strong',null,'Last Login: '),access.last_login_at?fmt(access.last_login_at):'Not logged in yet'),h('p',null,h('strong',null,'Access Created: '),access.created_at?fmt(access.created_at):'—'),h('p',null,h('strong',null,'PIN: '),'For security, the existing PIN is not displayed.'))
                 ),
-                access.is_active&&h('div',{className:'actions',style:{marginTop:'10px'}},
+                access.is_active&&(()=>{const portalWhatsAppSent=familyPortalWhatsAppSent(access);return h('div',{className:'actions',style:{marginTop:'10px'}},
                   h('button',{type:'button',className:'btn btn-secondary',disabled:familyResetBusy===access.id,onClick:()=>resetSelectedFamilyPin(access)},familyResetBusy===access.id?'Resetting…':'Forgot / Reset PIN'),
-                  h('button',{type:'button',className:'btn btn-whatsapp',onClick:async()=>{
+                  h('button',{type:'button',className:portalWhatsAppSent?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:portalWhatsAppSent,onClick:async()=>{
                     try{
                       const recipient=access.relative_name||'Family Member';
                       const patientName=formalName(selected)||selected?.full_name||'Patient';
@@ -12097,13 +12109,14 @@ Please keep these login details confidential.`;
                           message_payload:{patient_id:selected?.id||null,patient_code:selected?.patient_id||null,patient_name:patientName,portal:'https://family.samaraassistedliving.com'}
                         }
                       });
+                      if(result?.history_logged===true)setDetails(current=>current?{...current,familyWhatsApp:[{id:`accepted-${result.provider_message_id}`,recipient_number:normalizeWhatsAppRecipient(access.mobile),template_name:'samara_family_portal_access',status:'Accepted',provider_message_id:result.provider_message_id,message_payload:{patient_id:selected?.id||null,patient_code:selected?.patient_id||null},created_at:new Date().toISOString()},...(current.familyWhatsApp||[])]}:current);
                       showPatientToast(result?.history_logged===true?'success':'error',result?.history_logged===true?'Family Portal WhatsApp accepted by Meta and recorded in WhatsApp Inbox.':'WhatsApp was accepted by Meta, but Inbox logging failed. Check the deployed whatsapp-send function.');
                     }catch(error){
                       showPatientToast('error',`Family Portal WhatsApp API failed: ${error.message||error}. Use the Existing Method button only if you want to send manually.`);
                     }
-                  }},'Send Portal Access WhatsApp API'),
+                  }},portalWhatsAppSent?'Portal Access WhatsApp Sent ✓':'Send Portal Access WhatsApp API'),
                   h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${String(access.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal\nResident ID: ${selected?.patient_id||''}\nPortal: https://family.samaraassistedliving.com\nIf the PIN is forgotten, please contact Samara to reset it.`))}`,'_blank','noopener')},'Existing Method')
-                )
+                )})()
               )))
               :h('div',null,sectionEmpty('Family Portal access has not been created for this resident.'),h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEditPatient(selected)},'Create Family Portal Access')),
             familyResetCredential&&h('div',{className:'message success',style:{marginTop:'14px'}},
