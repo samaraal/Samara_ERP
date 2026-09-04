@@ -1,0 +1,22 @@
+SAMARA CARE ERP v2.9.94 — SHIFT MEDICATION AND COMPACT TASKS
+
+Replace these three files:
+1. app.js
+2. index.html
+3. service-worker.js
+
+Medication Administration:
+- Adds Medication for This Shift beside Refresh for Nurses and Caregivers.
+- Shows only future, unrecorded medication in the current Day or Night shift across all patients.
+- Keeps Medicines Due Now limited to the existing ±30-minute action window.
+- Missed/Overdue and Completed sections remain separate.
+
+Shift Tasks:
+- Summary boxes are substantially more compact for mobile screens.
+- Every box is tappable.
+- Patient, Attention, Current-Shift and Next-Shift boxes filter and scroll to the relevant patient worklist.
+- Medicines, Care, Vitals and Physiotherapy boxes open their relevant operational screens.
+
+No SQL or Edge Function deployment is required.
+
+After uploading, refresh using Ctrl + Shift + R once.

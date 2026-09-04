@@ -1,6 +1,6 @@
-const CACHE = 'samara-erp-2.9.93-employee-welcome-inbox-display';
+const CACHE = 'samara-erp-2.9.94-shift-medication-compact-tasks';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.9.93', './app.js?v=2.9.93',
+  './', './index.html', './styles.css?v=2.9.94', './app.js?v=2.9.94',
   './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',
   './config.js?v=2.9.70', './manifest.webmanifest?v=2.8.40', './assets/samara-mail-logo.png',
   './assets/samara-logo.png?v=20260812-global1',

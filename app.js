@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.93';
+  const APP_VERSION = '2.9.94';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -10513,6 +10513,7 @@ Please keep these login details confidential.`;
     const [vitals,setVitals]=React.useState([]);
     const [loading,setLoading]=React.useState(true);
     const [expanded,setExpanded]=React.useState({});
+    const [dashboardFilter,setDashboardFilter]=React.useState('all');
     function openRegularTask(page,context){
       saveTaskNavigationContext({page,return_page:'Shift Tasks',...context});
       onNavigate?.(page);
@@ -10743,6 +10744,18 @@ Please keep these login details confidential.`;
     const vitalsPending=patientGroups.filter(x=>x.vitalsPending).length;
     const physioPending=physioTasks.filter(x=>!x.log).length;
     const nextShiftScheduled=upcomingCareTasks.length;
+    const visiblePatientGroups=dashboardFilter==='attention'||dashboardFilter==='pending'
+      ?patientGroups.filter(group=>group.pending>0)
+      :dashboardFilter==='upcoming'
+        ?patientGroups.filter(group=>group.upcomingCare.length>0)
+        :patientGroups;
+    function focusWorklist(filter){
+      setDashboardFilter(filter);
+      setTimeout(()=>document.querySelector('.patient-worklist-panel')?.scrollIntoView({behavior:'smooth',block:'start'}),40);
+    }
+    function compactTaskStat(label,value,onClick,style={}){
+      return h('button',{type:'button',className:'card stat',onClick,style:{...style,minHeight:'82px',padding:'12px 14px',textAlign:'left',cursor:'pointer',width:'100%',border:'1px solid #ead0de'}},h('span',{style:{fontSize:'13px',lineHeight:'1.25'}},label),h('strong',{style:{fontSize:'30px',lineHeight:'1.05',color:style.color||'#7d1748'}},value));
+    }
 
     if(loading)return h('div',{className:'loading'},'Loading today’s patient worklist…');
 
@@ -10756,23 +10769,23 @@ Please keep these login details confidential.`;
       ),
 
       h('div',{className:'grid stats patient-worklist-stats'},
-        h('div',{className:'card stat'},h('span',null,'Patients in Worklist'),h('strong',null,patientGroups.length)),
-        h('div',{className:'card stat',style:{background:'#fff4dd'}},h('span',null,'Patients Need Attention'),h('strong',{style:{color:'#9a6700'}},patientsNeedingAttention)),
-        h('div',{className:'card stat',style:{background:'#fdecec'}},h('span',null,'Current-Shift Tasks Pending'),h('strong',{style:{color:'#b42318'}},totalPending)),
-        h('div',{className:'card stat'},h('span',null,'Medicines Due'),h('strong',null,medicationPending)),
-        h('div',{className:'card stat'},h('span',null,'Care Pending'),h('strong',null,carePending)),
-        h('div',{className:'card stat'},h('span',null,'Vitals Pending'),h('strong',null,vitalsPending)),
-        h('div',{className:'card stat'},h('span',null,'Physiotherapy Pending'),h('strong',null,physioPending)),
-        h('div',{className:'card stat',style:{background:'#eef5ff'}},h('span',null,'Next-Shift Care Scheduled'),h('strong',{style:{color:'#175cd3'}},nextShiftScheduled))
+        compactTaskStat('Patients in Worklist',patientGroups.length,()=>focusWorklist('all')),
+        compactTaskStat('Patients Need Attention',patientsNeedingAttention,()=>focusWorklist('attention'),{background:'#fff4dd',color:'#9a6700'}),
+        compactTaskStat('Current-Shift Tasks Pending',totalPending,()=>focusWorklist('pending'),{background:'#fdecec',color:'#b42318'}),
+        compactTaskStat('Medicines Due',medicationPending,()=>onNavigate?.('Medicines')),
+        compactTaskStat('Care Pending',carePending,()=>onNavigate?.('Daily Care')),
+        compactTaskStat('Vitals Pending',vitalsPending,()=>onNavigate?.('Vital Signs')),
+        compactTaskStat('Physiotherapy Pending',physioPending,()=>onNavigate?.('Physiotherapy')),
+        compactTaskStat('Next-Shift Care Scheduled',nextShiftScheduled,()=>focusWorklist('upcoming'),{background:'#eef5ff',color:'#175cd3'})
       ),
 
       h('div',{className:'card panel patient-worklist-panel'},
         h('div',{className:'panel-head'},
           h('div',null,h('h3',null,'Today’s Patient Worklist'),h('small',null,'One compact card per patient. Expand only the patient currently being attended.')),
-          h('span',{className:'badge'},`${patientsNeedingAttention} patient(s) need attention`)
+          h('div',{className:'actions'},dashboardFilter!=='all'?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setDashboardFilter('all')},'Show All'):null,h('span',{className:'badge'},`${visiblePatientGroups.length} patient(s) shown`))
         ),
 
-        patientGroups.map((group,patientIndex)=>{
+        visiblePatientGroups.map((group,patientIndex)=>{
           const open=!!expanded[group.id];
           const p=group.patient||{};
           const statusClass=group.pending===0?'complete':group.pending>=5?'high':'pending';
@@ -14602,6 +14615,7 @@ function RoomsBeds({profile}){
     const [marForm,setMarForm]=React.useState({scheduled_time:'',status:'Given',administered_at:'',remarks:'',late_entry_reason:'',late_entry_justification:''});
     const [marBusy,setMarBusy]=React.useState(false);
     const [marMessage,setMarMessage]=React.useState('');
+    const [showShiftMedication,setShowShiftMedication]=React.useState(false);
     const [returnPage,setReturnPage]=React.useState('');
     const taskNavigationHandled=React.useRef(false);
 
@@ -14845,12 +14859,31 @@ function RoomsBeds({profile}){
       return pendingDoseState(item).minutes>30;
     }).sort((a,b)=>scheduledDoseDate(a.time)-scheduledDoseDate(b.time));
     const nurseCompleted=filtered(todayRows).filter(item=>item.log&&!nurseExceptionStatuses.includes(String(item.log.status||'').toLowerCase()));
+    const nurseShiftUpcoming=filtered(todayRows).filter(item=>{
+      if(item.log)return false;
+      return shiftForTime(item.time)===currentShift()&&pendingDoseState(item).minutes<0;
+    }).sort((a,b)=>scheduledDoseDate(a.time)-scheduledDoseDate(b.time));
     const nurseMedicationCards=h('div',{className:'nurse-medication-workspace'},
       h('div',{className:'nurse-priority-head'},
         h('div',null,h('h2',null,'Medicines Due Now'),h('small',null,'Only doses within 30 minutes before or after the scheduled time are shown here.')),
-        h('button',{type:'button',className:'btn btn-secondary nurse-refresh',onClick:load},state.loading?'…':'Refresh')
+        h('div',{className:'actions'},
+          h('button',{type:'button',className:showShiftMedication?'btn btn-primary':'btn btn-secondary',onClick:()=>setShowShiftMedication(value=>!value)},showShiftMedication?'Hide Shift Medication':`Medication for This Shift (${nurseShiftUpcoming.length})`),
+          h('button',{type:'button',className:'btn btn-secondary nurse-refresh',onClick:load},state.loading?'…':'Refresh')
+        )
       ),
       patientFilter&&h('button',{type:'button',className:'nurse-clear-filter',onClick:()=>setPatientFilter('')},'× Show all patients'),
+      showShiftMedication&&h('div',{className:'section-card',style:{marginBottom:'14px',padding:'14px'}},
+        h('div',{className:'panel-head'},h('div',null,h('h3',{style:{margin:0}},'Upcoming Medication for This Shift'),h('small',null,`${currentShift()} · Not yet administered · All patients`)),h('span',{className:'badge'},`${nurseShiftUpcoming.length} upcoming`)),
+        nurseShiftUpcoming.length?h('div',{className:'nurse-dose-list'},nurseShiftUpcoming.map(item=>{
+          const p=patientFor(item.order);
+          return h('div',{className:'nurse-dose-card upcoming',key:`shift-${item.order.id}-${item.time}`},
+            h('div',{className:'nurse-dose-top'},h('strong',null,formalName(p)||p.full_name||'Patient'),h('span',{className:'nurse-room'},p.room_no?`Room ${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:'—')),
+            h('div',{className:'nurse-medicine-name'},medicineLabel(item.order)),
+            h('div',{className:'nurse-dose-meta'},h('span',null,medicationTimeLabel(item.time)),item.order.route&&h('span',null,item.order.route),item.order.food_instruction&&h('span',null,item.order.food_instruction)),
+            h('div',{className:'nurse-dose-action'},h('span',{className:'nurse-dose-status'},'Upcoming this shift'))
+          );
+        })):h('div',{className:'nurse-all-done'},h('strong',null,'✓ No further medication in this shift'),h('span',null,'There are no future, unrecorded doses before this shift ends.'))
+      ),
       nurseActionable.length?h('div',{className:'nurse-dose-list'},nurseActionable.map(item=>{
         const dose=pendingDoseState(item),p=patientFor(item.order),due=dose.minutes>=0;
         return h('div',{className:`nurse-dose-card ${due?'due':'upcoming'}`,key:`${item.order.id}-${item.time}`},
