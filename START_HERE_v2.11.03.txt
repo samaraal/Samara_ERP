@@ -1,0 +1,15 @@
+Samara Care ERP v2.11.03
+DASHBOARD CURRENT PATIENTS FILTER
+
+Replace only:
+app.js
+
+Changes:
+1. Clicking Dashboard → Current patients now opens Patient Master already filtered to Active patients.
+   Example: if the dashboard says Current patients = 4, the opened list shows those 4 active patients only.
+2. Opening Patients normally from the left menu still opens the complete patient list.
+3. The existing Active patients quick-filter remains selected, so the user can clearly see why only current patients are shown.
+4. Package Expiry dashboard card wording/window is aligned to the requested 2-day advance period
+   instead of 3 days.
+
+No SQL, patient data, billing, WhatsApp or database logic changed.
