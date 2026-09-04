@@ -1,0 +1,30 @@
+Samara Care ERP v2.11.04
+PATIENT CARD – ADMISSION DETAILS
+
+Replace only:
+app.js
+
+New feature:
+- A new "Admission Details" button appears at the top of every Patient Card.
+- The same item is also available as a Patient Card tab.
+- Clicking it shows a complete admission summary including:
+  • Admission date and admission type
+  • Active/admitted status
+  • Room / Bed and care level
+  • Billing basis
+  • Current package
+  • Package start date
+  • Package expiry date
+  • Package status / days remaining
+  • Package room class and package fee
+  • Clear post-package rule: automatic Room + Nursing Daily Fare unless renewed
+  • Hospital/source and referral details
+  • Treating doctor/contact
+  • Diagnosis, procedure/treatment and allergies
+  • Attendant/emergency contact
+  • Special nurse details
+  • Special instructions and precautions
+
+Dates are displayed dd-mm-yyyy.
+
+No SQL, billing calculation, WhatsApp, package-renewal or database changes.

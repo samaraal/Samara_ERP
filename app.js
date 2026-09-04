@@ -12076,6 +12076,19 @@ Please keep these login details confidential.`;
     const duplicateRows=rows.filter(r=>duplicateCount(r)>0);
     const activeRows=rows.filter(r=>r.is_active!==false);
     const districtOptions=['All',...Array.from(new Set(rows.map(r=>String(r.district||'').trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b))];
+    const admissionDateLabel=value=>value?formatDateIN(String(value).slice(0,10)):'—';
+    const admissionMoney=value=>value===null||value===undefined||value===''?'—':`₹${Number(value||0).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:2})}`;
+    const packageExpiryStatus=row=>{
+      if(!row?.package_end_date)return 'Daily Fare / No active package expiry';
+      const end=new Date(`${String(row.package_end_date).slice(0,10)}T00:00:00`);
+      const now=new Date(`${todayISOIndia()}T00:00:00`);
+      const days=Math.round((end-now)/86400000);
+      if(days<0)return `Expired ${Math.abs(days)} day${Math.abs(days)===1?'':'s'} ago`;
+      if(days===0)return 'Expires today';
+      return `${days} day${days===1?'':'s'} remaining`;
+    };
+    const admissionField=(label,value)=>h('div',{className:'patient-admission-field'},h('span',null,label),h('strong',null,value||'—'));
+
     const visibleRows=rows.filter(r=>{
       const q=patientSearch.trim().toLowerCase();
       const matchesSearch=!q||[
@@ -12235,14 +12248,62 @@ Please keep these login details confidential.`;
       ),
       selected&&details&&h('div',{className:'modal-backdrop patient-file-backdrop'},h('div',{className:'card modal patient-master-modal'},
         h('button',{type:'button',className:'patient-mobile-back',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('')}},'← Back to Patients'),
-        h('div',{className:'panel-head patient-master-header'},h('div',{className:'patient-head',style:{display:'flex',alignItems:'center',gap:'14px',minWidth:0,flex:'1 1 auto'}},photoUrl?h('img',{src:photoUrl,className:'patient-photo',alt:`${formalName(selected)} photo`,style:{width:'92px',height:'108px',maxWidth:'92px',minWidth:'92px',maxHeight:'108px',objectFit:'cover',objectPosition:'center',borderRadius:'16px',border:'1px solid #ead0de',background:'#fff',display:'block',flex:'0 0 92px'}}):h('div',{className:'patient-photo patient-photo-placeholder',style:{width:'92px',height:'108px',maxWidth:'92px',minWidth:'92px',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'16px',flex:'0 0 92px'}},'SC'),h('div',{style:{minWidth:0,flex:'1 1 auto'}},h('h3',null,formalName(selected)),h('small',null,`${selected.patient_id||'—'} · ${selected.admission_type||''} · ${selected.patient_category||''}`),h('div',{className:'patient-header-badges'},h('span',{className:'badge'},selected.is_active===false?'Inactive':'Active'),selected.room_no&&selected.bed_no?h('span',{className:'pill'},`Room ${selected.room_no} · Bed ${selected.bed_no}`):h('span',{className:'pill warning'},'Room not assigned'),selected.special_nurse_required?h('span',{className:'pill warning'},`Special nurse: ${selected.special_nurse_name||'Required'}`):null))),h('div',{className:'employee-actions'},canEdit?h('button',{className:'btn btn-secondary',onClick:()=>setShowFamilyDetails(true)},'Family Details'):null,canEdit?h('button',{className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Patient'):h('span',{className:'pill'},'View only'),h('button',{className:'close',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false)}},'×'))),
-        h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Documents',details.docs.length),tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),tabButton('Daily Moments',(details.dailyMoments||[]).length),!clinicalView?tabButton('Billing',details.billing.length):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
+        h('div',{className:'panel-head patient-master-header'},h('div',{className:'patient-head',style:{display:'flex',alignItems:'center',gap:'14px',minWidth:0,flex:'1 1 auto'}},photoUrl?h('img',{src:photoUrl,className:'patient-photo',alt:`${formalName(selected)} photo`,style:{width:'92px',height:'108px',maxWidth:'92px',minWidth:'92px',maxHeight:'108px',objectFit:'cover',objectPosition:'center',borderRadius:'16px',border:'1px solid #ead0de',background:'#fff',display:'block',flex:'0 0 92px'}}):h('div',{className:'patient-photo patient-photo-placeholder',style:{width:'92px',height:'108px',maxWidth:'92px',minWidth:'92px',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'16px',flex:'0 0 92px'}},'SC'),h('div',{style:{minWidth:0,flex:'1 1 auto'}},h('h3',null,formalName(selected)),h('small',null,`${selected.patient_id||'—'} · ${selected.admission_type||''} · ${selected.patient_category||''}`),h('div',{className:'patient-header-badges'},h('span',{className:'badge'},selected.is_active===false?'Inactive':'Active'),selected.room_no&&selected.bed_no?h('span',{className:'pill'},`Room ${selected.room_no} · Bed ${selected.bed_no}`):h('span',{className:'pill warning'},'Room not assigned'),selected.special_nurse_required?h('span',{className:'pill warning'},`Special nurse: ${selected.special_nurse_name||'Required'}`):null))),h('div',{className:'employee-actions'},
+          h('button',{className:'btn btn-secondary',onClick:()=>setTab('Admission Details')},'Admission Details'),
+          canEdit?h('button',{className:'btn btn-secondary',onClick:()=>setShowFamilyDetails(true)},'Family Details'):null,
+          canEdit?h('button',{className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Patient'):h('span',{className:'pill'},'View only'),h('button',{className:'close',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false)}},'×'))),
+        h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Admission Details'),tabButton('Documents',details.docs.length),tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),tabButton('Daily Moments',(details.dailyMoments||[]).length),!clinicalView?tabButton('Billing',details.billing.length):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
         h('div',{className:'patient-tab-content'},
           tab==='Overview'&&h('div',{className:'tabs-grid'},
             h('div',{className:'section-card'},h('h4',null,'Identity & Contacts'),h('p',null,`Resident ID: ${selected.patient_id||'—'}`),h('p',null,`Gender / Age: ${selected.gender||'—'} / ${selected.age||'—'}`),h('p',null,`Blood Group: ${selected.blood_group||'Unknown'}`),h('p',null,`Profession: ${selected.profession||'—'}`),h('p',null,`Field / Sector: ${selected.profession_field||'—'}`),['Government Employee','Private Employee'].includes(selected.profession)?h('p',null,`Employment Status: ${selected.employment_status||'—'}`):null,h('p',null,`Mobile: ${selected.mobile||'—'}`),h('p',null,selected.address||patientAddress(selected)||'Address not recorded'),h('p',null,`District: ${selected.district||'—'} · Taluk: ${selected.taluk||'—'} · PIN: ${selected.pincode||'—'}`),h('p',null,`Attendant: ${selected.attendant_name||'—'} · ${selected.attendant_phone||'—'}`)),
             h('div',{className:'section-card'},h('h4',null,'Admission & Medical Overview'),h('p',null,`Admission: ${selected.admission_type||'—'} · ${selected.admission_date||'—'}`),h('p',null,`Hospital / Source: ${selected.hospital_name||selected.referring_source||'—'}`),h('p',null,selected.diagnosis||'Diagnosis not recorded'),h('p',null,`Allergies: ${selected.allergies||'None recorded'}`),h('p',null,selected.special_instructions||'No special instructions')),
             h('div',{className:'section-card'},h('h4',null,'Care Plan Summary'),h('p',null,`${details.meds.length} active medicine order(s)`),h('p',null,`${details.care.length} master care task(s)`),h('p',null,`${details.physio.length} physiotherapy order(s)`),h('p',null,`Diet: ${selected.diet_plan||'Not recorded'}`)),
             h('div',{className:'section-card'},h('h4',null,'Risk & Safety'),h('p',null,[selected.fall_risk&&'Fall risk',selected.pressure_sore_risk&&'Pressure sore risk',selected.aspiration_risk&&'Aspiration risk',selected.wandering_risk&&'Wandering risk',selected.oxygen_required&&'Oxygen required',selected.dressing_required&&'Dressing required'].filter(Boolean).join(', ')||'No active risk flags'),h('p',null,`Open incidents: ${details.incidents.filter(x=>x.status==='Open').length}`))
+          ),
+          tab==='Admission Details'&&h('div',{className:'tabs-grid patient-admission-details'},
+            h('div',{className:'section-card'},
+              h('h4',null,'Admission'),
+              admissionField('Resident ID',selected.patient_id||selected.patient_code),
+              admissionField('Status',selected.is_active===false?'Inactive / Discharged':'Active / Admitted'),
+              admissionField('Date of Admission',admissionDateLabel(selected.admission_date)),
+              admissionField('Admission Type',selected.admission_type),
+              admissionField('Patient Category',selected.patient_category),
+              admissionField('Room / Bed',selected.room_no?`Room ${selected.room_no}${selected.bed_no?` · Bed ${selected.bed_no}`:''}`:'Not assigned'),
+              admissionField('Care Level',selected.care_level||selected.care_category)
+            ),
+            h('div',{className:'section-card'},
+              h('h4',null,'Package & Billing'),
+              admissionField('Billing Basis',selected.billing_package||selected.package_id?'Package':'Daily Fare'),
+              admissionField('Current Package',selected.billing_package||'No Package / Daily Billing'),
+              admissionField('Package Start Date',admissionDateLabel(selected.package_start_date)),
+              admissionField('Package Expiry Date',admissionDateLabel(selected.package_end_date)),
+              admissionField('Package Status',packageExpiryStatus(selected)),
+              admissionField('Package Room Class',selected.package_room_class),
+              admissionField('Package Fee',admissionMoney(selected.package_fee)),
+              admissionField('After Package Expiry',selected.package_end_date?'Automatic Room + Nursing Daily Fare unless renewed':'Daily Fare applicable')
+            ),
+            h('div',{className:'section-card'},
+              h('h4',null,'Referral & Medical'),
+              admissionField('Hospital / Source',selected.hospital_name||selected.referring_source),
+              admissionField('Referred By',selected.referred_by||selected.referring_doctor||selected.referral_name),
+              admissionField('Referral Contact',selected.referral_contact||selected.referred_by_contact),
+              admissionField('Treating Doctor',selected.treating_doctor),
+              admissionField('Treating Doctor Contact',selected.treating_doctor_contact||selected.doctor_contact),
+              admissionField('Diagnosis',selected.diagnosis),
+              admissionField('Procedure / Treatment',selected.procedure||selected.treatment),
+              admissionField('Allergies',selected.allergies||'None recorded')
+            ),
+            h('div',{className:'section-card'},
+              h('h4',null,'Family / Special Care'),
+              admissionField('Attendant / Relative',selected.attendant_name),
+              admissionField('Attendant Mobile',selected.attendant_phone),
+              admissionField('Emergency Contact',selected.emergency_contact_name||selected.emergency_contact),
+              admissionField('Emergency Mobile',selected.emergency_contact_phone||selected.emergency_phone),
+              admissionField('Special Nurse',selected.special_nurse_required?(selected.special_nurse_name||'Required'):'Not required'),
+              admissionField('Special Nurse Shift',selected.special_nurse_shift||selected.special_nurse_required_shift),
+              admissionField('Special Instructions',selected.special_instructions||'None'),
+              admissionField('Precautions',selected.special_precautions||selected.precautions||'None')
+            )
           ),
           tab==='Documents'&&h('div',{className:'section-card'},h('div',{className:'panel-head'},h('h4',null,'Patient Documents'),canEdit?h('button',{className:'btn btn-secondary',onClick:()=>printPatientIdCard(selected)},'Print Resident ID Card'):null),details.docs.length?details.docs.map(d=>h('div',{className:'timeline-item',key:d.id},h('strong',null,d.document_type||'Document'),h('span',null,d.document_name||d.file_name||'File'),h('button',{className:'btn btn-secondary',onClick:()=>openDoc(d)},'Open'))):sectionEmpty('No documents uploaded.')),
           tab==='Medicines'&&h('div',{className:'section-card'},h('h4',null,'Prescription & Medication Administration'),details.meds.length?details.meds.map(m=>h('div',{className:'timeline-item',key:m.id},h('strong',null,`${m.medicine_name} ${m.strength||''} — ${m.dose}`),h('div',{className:'time-list'},(m.scheduled_times||[]).map(t=>h('span',{className:'time-chip',key:t},medicationTimeLabel(t)))),h('div',{className:'small-note'},`${m.route||''} · ${m.food_instruction||''} · ${m.special_instruction||''}`))):sectionEmpty('No medicine orders.'),h('h4',{style:{marginTop:'18px'}},'Recent MAR'),details.mar.length?details.mar.slice(0,25).map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.scheduled_date)} ${medicationTimeLabel(x.scheduled_time)} · ${x.status}`),h('span',null,x.remarks||'—'))):sectionEmpty('No medicine administration records.')),
