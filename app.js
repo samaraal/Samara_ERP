@@ -6300,12 +6300,13 @@ Caring with Compassion. Living with Dignity.`;
   }
 
   function Dashboard({profile,onNavigate,alertEngine}){
-    const [stats,setStats]=React.useState({employees:0,patients:0,beds:25,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[],escalations:0,packageExpiry:0});
+    const [stats,setStats]=React.useState({employees:0,patients:0,availableBeds:0,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[],escalations:0,packageExpiry:0});
     React.useEffect(()=>{(async()=>{
       const today=new Date().toISOString().slice(0,10);
-      const [emp,pat,med,care,bill,inc,dis,vis,enq,esc]=await Promise.all([
+      const [emp,pat,beds,med,care,bill,inc,dis,vis,enq,esc]=await Promise.all([
         client.from('profiles').select('*').eq('is_active',true),
         client.from('patients').select('*').eq('is_active',true),
+        client.from('room_beds').select('id,room_no,bed_no,status,patient_id,occupant_id'),
         client.from('medication_administrations').select('*',{count:'exact',head:true}).eq('scheduled_date',today),
         client.from('care_logs').select('*',{count:'exact',head:true}).eq('care_date',today),
         client.from('billing_transactions').select('amount,transaction_type'),
@@ -6328,6 +6329,23 @@ Caring with Compassion. Living with Dignity.`;
         })
       ).filter(row=>Boolean(row.is_active??row.active));
       const activeEmployeeCount=dashboardEmployeeRows.length;
+
+      // Actual bed availability comes from Room & Bed Master, not a hard-coded capacity.
+      // A bed is available only when:
+      // 1) its Room & Bed status is Available, AND
+      // 2) it is not linked to an active patient either by patient_id/occupant_id or room+bed.
+      const roomBedRows=beds.data||[];
+      const bedHasActivePatient=bed=>{
+        const linkedId=bed.occupant_id||bed.patient_id;
+        if(linkedId&&patients.some(p=>String(p.id)===String(linkedId)))return true;
+        return patients.some(p=>
+          String(p.room_no||'')===String(bed.room_no||'')&&
+          String(p.bed_no||'').trim().toUpperCase()===String(bed.bed_no||'').trim().toUpperCase()
+        );
+      };
+      const availableBeds=roomBedRows.filter(bed=>
+        String(bed.status||'Available')==='Available'&&!bedHasActivePatient(bed)
+      ).length;
 
       const todayDate=new Date(`${today}T00:00:00`);
       const soonDate=new Date(todayDate);soonDate.setDate(soonDate.getDate()+2);
@@ -6373,7 +6391,7 @@ Caring with Compassion. Living with Dignity.`;
       setStats({
         employees:activeEmployeeCount,
         patients:patients.length,
-        beds:25,
+        availableBeds,
         meds:med.count||0,
         care:care.count||0,
         outstanding,
@@ -6402,7 +6420,7 @@ Caring with Compassion. Living with Dignity.`;
 
     const cards=[
       {label:'Current patients',value:stats.patients,page:'Patients',icon:'👥',patientFilter:'active'},
-      {label:'Available beds',value:Math.max(0,stats.beds-stats.patients),page:'Rooms & Beds',icon:'🛏️'},
+      {label:'Available beds',value:stats.availableBeds,page:'Rooms & Beds',icon:'🛏️',roomBedFilter:'available',status:stats.availableBeds?`${stats.availableBeds} currently available bed${stats.availableBeds===1?'':'s'}`:'No beds currently available'},
       {label:'High-risk patients',value:stats.risks,page:'Patients',icon:'⚠️'},
       {label:'Active employees',value:stats.employees,page:'Employees',icon:'🧑‍⚕️',employeeFilter:'__ALL__'},
       {label:'Medicine Actions Today',value:medicineActionsToday,page:'Clinical Alerts',icon:'💊',clinicalFocus:'Medication',status:medicineActionsToday?`${medicineActionsToday} pending / due medication action${medicineActionsToday===1?'':'s'}`:'No medication actions due'},
@@ -6428,6 +6446,12 @@ Caring with Compassion. Living with Dignity.`;
           try{
             if(card.employeeFilter)sessionStorage.setItem('samara-employee-list-filter',card.employeeFilter);
             else sessionStorage.removeItem('samara-employee-list-filter');
+          }catch(_error){}
+        }
+        if(card.page==='Rooms & Beds'){
+          try{
+            if(card.roomBedFilter)sessionStorage.setItem('samara-room-bed-filter',card.roomBedFilter);
+            else sessionStorage.removeItem('samara-room-bed-filter');
           }catch(_error){}
         }
         if(card.page==='Clinical Alerts'){
@@ -14245,6 +14269,13 @@ function RoomsBeds({profile}){
     const [busy,setBusy]=React.useState(false);
     const [msg,setMsg]=React.useState('');
     const [toast,setToast]=React.useState(null);
+    const [dashboardBedFilter,setDashboardBedFilter]=React.useState(()=>{
+      try{
+        const requested=sessionStorage.getItem('samara-room-bed-filter')||'';
+        sessionStorage.removeItem('samara-room-bed-filter');
+        return requested==='available'?'available':'';
+      }catch(_error){return ''}
+    });
 
     async function load(){
       setLoading(true);setMsg('');
@@ -14284,6 +14315,7 @@ function RoomsBeds({profile}){
       return p?`${formalName(p)} · ${p.patient_id||'—'}`:'Former / discharged patient';
     }
     const availableRows=rows.filter(r=>!patientFor(r)&&r.status==='Available');
+    const displayedRoomRows=dashboardBedFilter==='available'?availableRows:rows;
     const occupied=rows.filter(r=>patientFor(r)||r.status==='Occupied').length;
     const reserved=rows.filter(r=>r.status==='Reserved').length;
     const maintenance=rows.filter(r=>r.status==='Maintenance').length;
@@ -14428,12 +14460,20 @@ function RoomsBeds({profile}){
       ),
 
       h('div',{className:'card panel'},
-        h('div',{className:'panel-head'},h('div',null,h('h3',null,'Room, Bed & Tariff Master'),h('small',null,'Only Admin/Manager may change tariffs, allot rooms or shift patients.'))),
+        h('div',{className:'panel-head'},
+          h('div',null,
+            h('h3',null,dashboardBedFilter==='available'?'Available Beds Details':'Room, Bed & Tariff Master'),
+            h('small',null,dashboardBedFilter==='available'
+              ?`${availableRows.length} bed${availableRows.length===1?' is':'s are'} currently available for allotment.`
+              :'Only Admin/Manager may change tariffs, allot rooms or shift patients.')
+          ),
+          dashboardBedFilter==='available'&&h('button',{className:'btn btn-secondary',onClick:()=>setDashboardBedFilter('')},'Show All Beds')
+        ),
         msg&&h('div',{className:'message error'},msg),
         h('div',{className:'table-wrap'},h('table',{className:'table rooms-table'},
           h('thead',null,h('tr',null,['Room','Bed','Type','Floor / Wing','Room Rent / Day','Nursing / Day','Special Nurse / Day','Status','Patient','Action'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,
-            rows.map(row=>{
+            displayedRoomRows.map(row=>{
               const p=patientFor(row),status=p?'Occupied':row.status;
               return h('tr',{key:row.id},
                 h('td',null,h('strong',null,row.room_no)),h('td',null,row.bed_no),h('td',null,row.room_type||'—'),

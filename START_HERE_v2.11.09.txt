@@ -1,0 +1,16 @@
+Samara Care ERP v2.11.09
+DASHBOARD → AVAILABLE BEDS DETAILS
+
+Replace only:
+app.js
+
+Changes:
+- Dashboard Available Beds count continues to use actual live availability.
+- Clicking Available Beds now opens Rooms Management already filtered to AVAILABLE beds only.
+- The page heading becomes "Available Beds Details".
+- It shows the actual available beds with:
+  Room, Bed, Type, Floor/Wing, Room Rent/Day, Nursing/Day, Special Nurse/Day and Status.
+- A "Show All Beds" button returns to the complete Room & Bed Master.
+- Opening Rooms & Beds normally from the menu still shows all beds.
+
+No SQL or database changes.
