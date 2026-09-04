@@ -2957,6 +2957,13 @@ Caring with Compassion. Living with Dignity.`;
   function ClinicalAlertsPage({engine,setPage}){
     const mobileClinicalDevice=isMobileClinicalDevice();
     const [filter,setFilter]=React.useState('All');
+    const [dashboardFocus,setDashboardFocus]=React.useState(()=>{
+      try{
+        const value=sessionStorage.getItem('samara-clinical-alert-focus')||'';
+        sessionStorage.removeItem('samara-clinical-alert-focus');
+        return ['Medication','Daily Care'].includes(value)?value:'';
+      }catch(_error){return ''}
+    });
     const [escalatedKeys,setEscalatedKeys]=React.useState(new Set());
     const [loadingEscalations,setLoadingEscalations]=React.useState(false);
 
@@ -3018,6 +3025,16 @@ Caring with Compassion. Living with Dignity.`;
     }));
 
     const rows=allRows.filter(a=>{
+      const focusMatch=!dashboardFocus||
+        (dashboardFocus==='Medication'&&(
+          String(a.target_page||'')==='Medicines'||
+          /medicat|medicine/i.test(`${a.alert_type||''} ${a.title||''}`)
+        ))||
+        (dashboardFocus==='Daily Care'&&(
+          String(a.target_page||'')==='Daily Care'||
+          /daily care|care due/i.test(`${a.alert_type||''} ${a.title||''}`)
+        ));
+      if(!focusMatch)return false;
       if(filter==='All')return true;
       if(filter==='Escalated')return a.isEscalated;
       if(filter==='Overdue')return a.isOverdue&&!a.isEscalated;
@@ -3031,8 +3048,9 @@ Caring with Compassion. Living with Dignity.`;
     const regularisationCount=allRows.filter(a=>String(a.alert_type||'').toLowerCase()==='regularisation').length;
 
     return h(React.Fragment,null,
-      h(Section,{title:'Clinical Alerts',subtitle:'Nursing action dashboard — escalated items first, then overdue and due items',
+      h(Section,{title:dashboardFocus?`${dashboardFocus} Actions`:'Clinical Alerts',subtitle:dashboardFocus?`Dashboard view · ${dashboardFocus} actions currently due / pending`:'Nursing action dashboard — escalated items first, then overdue and due items',
         actions:h('div',{className:'employee-actions'},
+          dashboardFocus&&h('button',{className:'btn btn-secondary',onClick:()=>setDashboardFocus('')},'Show All Clinical Alerts'),
           h('button',{className:'btn btn-secondary',onClick:refreshAll},loadingEscalations?'Refreshing…':'Refresh'),
           !mobileClinicalDevice&&h('button',{
           className:'btn btn-secondary',
@@ -5302,7 +5320,7 @@ Caring with Compassion. Living with Dignity.`;
         h(MobileMenu,{page,setPage,allowed,profile}),
         h(NursingMobileQuickActions,{profile,page,onNavigate:setPage}),
         h('section',{className:'content'},
-          page==='Dashboard'&&h(Dashboard,{profile,onNavigate:setPage}),
+          page==='Dashboard'&&h(Dashboard,{profile,onNavigate:setPage,alertEngine}),
           page==='HR Dashboard'&&h(HRDashboard,{profile,onNavigate:setPage}),
           page==='Employees'&&h(Employees,{profile,onNavigate:setPage}),
           page==='My Leave & Permission'&&h(LeavePermission,{profile,mode:'mine'}),
@@ -6281,7 +6299,7 @@ Caring with Compassion. Living with Dignity.`;
     );
   }
 
-  function Dashboard({profile,onNavigate}){
+  function Dashboard({profile,onNavigate,alertEngine}){
     const [stats,setStats]=React.useState({employees:0,patients:0,beds:25,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[],escalations:0,packageExpiry:0});
     React.useEffect(()=>{(async()=>{
       const today=new Date().toISOString().slice(0,10);
@@ -6319,7 +6337,14 @@ Caring with Compassion. Living with Dignity.`;
         return end<=soonDate;
       }).length;
       const risks=patients.filter(p=>p.fall_risk||p.pressure_sore_risk||p.aspiration_risk||p.wandering_risk||p.infection_risk||p.oxygen_required).length;
-      const outstanding=(bill.data||[]).reduce((a,x)=>a+(x.transaction_type==='Charge'?Number(x.amount||0):-Number(x.amount||0)),0);
+      const outstanding=Math.max(0,(bill.data||[]).reduce((total,row)=>{
+        const amount=Number(row.amount||0);
+        const type=String(row.transaction_type||'Charge');
+        if(type==='Charge')return total+amount;
+        if(type==='Payment'||type==='Advance'||type==='Discount')return total-amount;
+        if(type==='Refund')return total+amount;
+        return total;
+      },0));
       const activeDischarges=(dis.data||[]).filter(row=>{
         const status=String(row.status||'').trim().toLowerCase();
         return !['completed','closed','cancelled','canceled'].includes(status);
@@ -6363,13 +6388,25 @@ Caring with Compassion. Living with Dignity.`;
         packageExpiry
       });
     })()},[]);
+    // Dashboard clinical action cards represent ACTIVE/PENDING actions, not completed logs.
+    // The Clinical Alert engine is already the authoritative source for due/overdue nursing work.
+    const dashboardAlerts=(alertEngine?.alerts||[]).filter(alert=>String(alert.alert_type||'').toLowerCase()!=='regularisation');
+    const medicineActionsToday=dashboardAlerts.filter(alert=>
+      String(alert.target_page||'')==='Medicines' ||
+      /medicat|medicine/i.test(`${alert.alert_type||''} ${alert.title||''}`)
+    ).length;
+    const careActionsToday=dashboardAlerts.filter(alert=>
+      String(alert.target_page||'')==='Daily Care' ||
+      /daily care|care due/i.test(`${alert.alert_type||''} ${alert.title||''}`)
+    ).length;
+
     const cards=[
       {label:'Current patients',value:stats.patients,page:'Patients',icon:'👥',patientFilter:'active'},
       {label:'Available beds',value:Math.max(0,stats.beds-stats.patients),page:'Rooms & Beds',icon:'🛏️'},
       {label:'High-risk patients',value:stats.risks,page:'Patients',icon:'⚠️'},
       {label:'Active employees',value:stats.employees,page:'Employees',icon:'🧑‍⚕️',employeeFilter:'__ALL__'},
-      {label:'Medicine Actions Today',value:stats.meds,page:'Shift Tasks',icon:'💊'},
-      {label:'Care actions today',value:stats.care,page:'Daily Care',icon:'✅'},
+      {label:'Medicine Actions Today',value:medicineActionsToday,page:'Clinical Alerts',icon:'💊',clinicalFocus:'Medication',status:medicineActionsToday?`${medicineActionsToday} pending / due medication action${medicineActionsToday===1?'':'s'}`:'No medication actions due'},
+      {label:'Care actions today',value:careActionsToday,page:'Clinical Alerts',icon:'✅',clinicalFocus:'Daily Care',status:careActionsToday?`${careActionsToday} pending / due care action${careActionsToday===1?'':'s'}`:'No care actions due'},
       {label:'Open incidents',value:stats.incidents,page:'Incidents',icon:'🚨'},
       {label:'Clinical escalations',value:stats.escalations,page:'Clinical Escalations',icon:'🔔',status:stats.escalations?`${stats.escalations} awaiting Manager/Admin action`:'No open escalations'},
       {label:'Outstanding Amount',value:`₹${stats.outstanding.toLocaleString('en-IN')}`,page:'Payments',icon:'₹'},
@@ -6391,6 +6428,12 @@ Caring with Compassion. Living with Dignity.`;
           try{
             if(card.employeeFilter)sessionStorage.setItem('samara-employee-list-filter',card.employeeFilter);
             else sessionStorage.removeItem('samara-employee-list-filter');
+          }catch(_error){}
+        }
+        if(card.page==='Clinical Alerts'){
+          try{
+            if(card.clinicalFocus)sessionStorage.setItem('samara-clinical-alert-focus',card.clinicalFocus);
+            else sessionStorage.removeItem('samara-clinical-alert-focus');
           }catch(_error){}
         }
         onNavigate(card.page);

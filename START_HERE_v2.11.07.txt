@@ -1,0 +1,42 @@
+Samara Care ERP v2.11.07
+DASHBOARD FINANCIAL + CLINICAL ACTIONS FIX
+
+Replace only:
+app.js
+
+FIX 1 — Outstanding Amount
+The Dashboard was treating Refund as money received and subtracting it.
+That is wrong. In Samara billing:
+  Charge  = add to payable
+  Payment = subtract
+  Advance = subtract
+  Discount = subtract
+  Refund = ADD BACK to payable
+
+This was exactly why the screenshots differed:
+  Dashboard: ₹1,03,250
+  Payments:  ₹2,48,850
+
+The Dashboard now uses the same sign convention as Payments, so the values should match.
+
+FIX 2 — Medicine Actions Today
+The old Dashboard counted medication_administrations already recorded today.
+That is a COMPLETED-record count, not a pending-action count.
+It now uses the live Clinical Alert engine and shows medication actions that are actually due/pending.
+
+FIX 3 — Care Actions Today
+The old Dashboard counted care_logs already recorded today.
+It now shows live Daily Care actions that are actually due/pending.
+
+FIX 4 — Card navigation
+Admin/Manager are intentionally not allowed to perform Nursing entry screens directly.
+Previously the Dashboard cards tried to open Shift Tasks / Daily Care, so role protection immediately
+returned the user and the cards appeared to do nothing.
+
+Now:
+  Medicine Actions Today → Clinical Alerts filtered to Medication
+  Care Actions Today     → Clinical Alerts filtered to Daily Care
+
+A "Show All Clinical Alerts" button clears the dashboard focus.
+
+No SQL, billing transaction, medication record or care record is changed.
