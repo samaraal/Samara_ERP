@@ -1,0 +1,32 @@
+SAMARA CARE ERP v2.9.77 — WHATSAPP ACCEPTANCE VERIFICATION
+
+WHY THIS UPDATE
+The ERP could previously show a successful WhatsApp message when the Edge
+Function returned HTTP success without a valid Meta WhatsApp message ID.
+Also, synchronous API acceptance was described as delivery.
+
+FIXED
+- Every template and free-text API action now requires a valid Meta message ID.
+- A response without a message ID is treated as failure, not success.
+- Success notices now say "accepted by Meta" and await webhook delivery status.
+- Payment Receipt, Daily Payable, Patient Admission, Family Portal Access and
+  Daily Report actions use the stricter verification automatically.
+- Failed WhatsApp does not roll back a successfully saved financial transaction.
+
+DEPLOYMENT
+1. Replace the full ERP files/folders from this package.
+2. Supabase > Edge Functions > whatsapp-send > replace index.ts with:
+   supabase/functions/whatsapp-send/index.ts
+3. Deploy whatsapp-send.
+4. Do not change Verify JWT or the existing WhatsApp secrets.
+5. No SQL is required.
+
+TEST
+1. Send one approved template to a test mobile.
+2. ERP must show "accepted by Meta" only when a Meta message ID is returned.
+3. Open WhatsApp Inbox and confirm the message has a Meta ID.
+4. Confirm webhook status later changes to Delivered, Read or Failed.
+
+IMPORTANT
+"Accepted by Meta" is not the same as "Delivered to phone". Delivery can only
+be confirmed from Meta's webhook status event.

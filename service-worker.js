@@ -1,6 +1,6 @@
-const CACHE = 'samara-erp-2.9.76-medication-admission-boundary-fix';
+const CACHE = 'samara-erp-2.9.77-whatsapp-acceptance-verification';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.9.76', './app.js?v=2.9.76',
+  './', './index.html', './styles.css?v=2.9.77', './app.js?v=2.9.77',
   './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',
   './config.js?v=2.9.70', './manifest.webmanifest?v=2.8.40', './assets/samara-mail-logo.png',
   './assets/samara-logo.png?v=20260812-global1',

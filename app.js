@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.76';
+  const APP_VERSION = '2.9.77';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1385,7 +1385,9 @@ function initSamaraInaugurationInvitation(){
       const metaMessage=result?.error?.error?.message||result?.error?.message||result?.error||`WhatsApp request failed (${response.status})`;
       throw new Error(typeof metaMessage==='string'?metaMessage:JSON.stringify(metaMessage));
     }
-    return result;
+    const providerMessageId=result?.provider_message_id||result?.result?.messages?.[0]?.id||result?.messages?.[0]?.id||'';
+    if(!providerMessageId)throw new Error('Meta did not return a WhatsApp message ID. The message is NOT confirmed as accepted.');
+    return {...result,provider_message_id:providerMessageId};
   }
 
   async function sendWhatsAppText({to,text}){
@@ -1405,7 +1407,9 @@ function initSamaraInaugurationInvitation(){
       const metaMessage=result?.error?.error?.message||result?.error?.message||result?.error||`WhatsApp request failed (${response.status})`;
       throw new Error(typeof metaMessage==='string'?metaMessage:JSON.stringify(metaMessage));
     }
-    return result;
+    const providerMessageId=result?.provider_message_id||result?.result?.messages?.[0]?.id||result?.messages?.[0]?.id||'';
+    if(!providerMessageId)throw new Error('Meta did not return a WhatsApp message ID. The message is NOT confirmed as accepted.');
+    return {...result,provider_message_id:providerMessageId};
   }
 
   const formatDateIN = value => {
@@ -6951,7 +6955,7 @@ Thank you.`;
     function applicationReturnedSnapshot(row,remarks){
       return `Dear ${candidateDisplayName(row)},\n\nThank you for your application to Samara Assisted Living.\n\nDuring verification of your application, we found that clarification or rectification is required.\n\nHR Remarks:\n${remarks}\n\nKindly review the above remarks and provide the required clarification or corrected information.\n\nApplication Reference: ${row.application_id||'—'}\n\nOnce the required information is received, your application can be reviewed further.\n\nFor any clarification, please contact us.\n\nRegards,\nHR Department\nSamara Assisted Living\nContact: 9976735577`;
     }
-    function whatsappProviderMessageId(result){return result?.result?.messages?.[0]?.id||result?.messages?.[0]?.id||null}
+    function whatsappProviderMessageId(result){return result?.provider_message_id||result?.result?.messages?.[0]?.id||result?.messages?.[0]?.id||null}
     function waStatusStyle(status){const value=String(status||'').toLowerCase();if(value.includes('read')||value.includes('deliver'))return {background:'#e6f7ef',color:'#0f7a4f'};if(value.includes('accept')||value==='sent')return {background:'#edf7ff',color:'#176b9c'};if(value.includes('fail'))return {background:'#fff0f0',color:'#a51d2c'};if(value.includes('fallback'))return {background:'#fff5e8',color:'#9b5e0b'};return {background:'#f4eef2',color:'#6f5362'}}
     function normalizeCareerText(value){return String(value||'').trim().toLowerCase().replace(/\s+/g,' ')}
     function normalizeCareerPhone(value){return String(value||'').replace(/\D/g,'').slice(-10)}
@@ -9672,7 +9676,7 @@ Thank you.`;
             credential.room_bed||[form.room_no,form.bed_no].filter(Boolean).join(' / ')||'—'
           ]
         });
-        setMsg('Patient admission WhatsApp notification sent successfully through the approved Meta template.');
+        setMsg('Patient admission WhatsApp was accepted by Meta. Delivery status will be confirmed through the WhatsApp status update.');
       }catch(apiError){
         setMsg(`Patient admission WhatsApp API failed: ${apiError.message||apiError}. No manual WhatsApp window was opened automatically.`);
       }
@@ -9701,7 +9705,7 @@ Thank you.`;
             roomBed
           })
         });
-        setMsg('Family Portal access notification sent successfully through the approved Meta template. The temporary PIN can be sent separately using the existing method below.');
+        setMsg('Family Portal access notification was accepted by Meta. Delivery status will be confirmed through the WhatsApp status update. The temporary PIN can be sent separately using the existing method below.');
       }catch(apiError){
         const text=`Dear ${credential.relative_name||'Family Member'},
 
@@ -12059,7 +12063,7 @@ Please keep these login details confidential.`;
                           roomBed:[selected?.room_no,selected?.bed_no].filter(Boolean).join(' / ')
                         })
                       });
-                      showPatientToast('success','Family Portal WhatsApp sent successfully.');
+                      showPatientToast('success','Family Portal WhatsApp accepted by Meta; awaiting delivery confirmation.');
                     }catch(error){
                       showPatientToast('error',`Family Portal WhatsApp API failed: ${error.message||error}. Use the Existing Method button only if you want to send manually.`);
                     }
@@ -17130,7 +17134,8 @@ function ShiftHandover({profile,onNavigate}){
 
     async function ensureWhatsAppInboxLog({sendResult,to,communicationLog,templateName,messageType='template'}){
       if(sendResult?.history_logged===true)return true;
-      const providerId=sendResult?.result?.messages?.[0]?.id||null;
+      const providerId=sendResult?.provider_message_id||sendResult?.result?.messages?.[0]?.id||null;
+      if(!providerId)throw new Error('Meta message ID is missing; WhatsApp acceptance is not confirmed.');
       if(providerId){
         const existing=await client.from('hr_whatsapp_communications')
           .select('id')
@@ -17240,11 +17245,11 @@ Thank you.`;
         if(automatic){
           notify(
             'success',
-            'Payment saved · WhatsApp receipt sent',
-            `${money(receipt.amount)} received${purpose?` towards ${purpose}`:''}. Receipt sent${inboxLogged?' and recorded in WhatsApp Inbox':' (Inbox logging needs attention)'}.`
+            'Payment saved · WhatsApp accepted',
+            `${money(receipt.amount)} received${purpose?` towards ${purpose}`:''}. Meta accepted the receipt${inboxLogged?' and it was recorded in WhatsApp Inbox':' (Inbox logging needs attention)'}. Await delivery confirmation.`
           );
         }else{
-          notify('success','WhatsApp receipt sent','Payment receipt was sent and recorded in WhatsApp Inbox.');
+          notify('success','WhatsApp receipt accepted','Meta accepted the payment receipt and it was recorded in WhatsApp Inbox. Await delivery confirmation.');
         }
         return true;
       }catch(apiError){
@@ -17325,8 +17330,8 @@ Thank you.`;
         setDailyPayableSent(true);
         notify(
           'success',
-          resend?'Daily payable summary resent':'Daily payable summary sent',
-          `Outstanding amount of ₹${amount} was sent to the authorised family contact${inboxLogged?' and recorded in WhatsApp Inbox':' through WhatsApp API; Inbox logging needs attention'}.`
+          resend?'Daily payable accepted again':'Daily payable accepted',
+          `Meta accepted the ₹${amount} reminder${inboxLogged?' and it was recorded in WhatsApp Inbox':' through WhatsApp API; Inbox logging needs attention'}. Await delivery confirmation.`
         );
       }catch(apiError){
         const number=normalizeWhatsAppRecipient(to);
@@ -18746,7 +18751,7 @@ Please access the Samara Family Portal for detailed account information.`;
         bodyParams:[relativeName(p),formalName(p)||p.full_name||'Patient',formatDateIN(report?.date||reportDate)]
       });
       await recordCommunication(p,'Relative',number,`Daily report portal notification sent through WhatsApp API for ${formatDateIN(report?.date||reportDate)}.`);
-      alert('Daily report WhatsApp notification sent successfully to the authorised relative.');
+      alert('Daily report WhatsApp notification was accepted by Meta. Delivery status will be confirmed through the WhatsApp status update.');
       setShareOpen(false);loadCommunicationHistory();
     }catch(apiError){
       const text=buildWhatsAppMessage(p,'Relative');
