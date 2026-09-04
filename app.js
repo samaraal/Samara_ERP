@@ -16792,6 +16792,10 @@ function ShiftHandover({profile,onNavigate}){
         ?`${patient.room_no}${patient.bed_no?` / Bed ${patient.bed_no}`:''}`
         :'—';
 
+      // Bill header branding: use the standard Samara logo already shipped with the ERP.
+      // Absolute URL is used so the image also loads reliably inside the print pop-up window.
+      const billLogoUrl=new URL('assets/samara-logo.png',window.location.href).href;
+
       win.document.write(`<!doctype html>
 <html>
 <head>
@@ -16802,8 +16806,11 @@ function ShiftHandover({profile,onNavigate}){
   body{margin:0;background:#fff5fa;font-family:Arial,sans-serif;color:#382333}
   .sheet{width:210mm;min-height:297mm;margin:12px auto;background:#fff;padding:14mm;box-shadow:0 10px 32px #0002}
   .head{display:flex;justify-content:space-between;gap:20px;padding-bottom:14px;border-bottom:3px solid #b01264}
-  .brand h1{margin:0;color:#7a1247;font-size:26px}
-  .brand p{margin:4px 0;color:#735d69}
+  .brand{display:flex;align-items:center;min-width:0}
+  .brand-logo{display:block;width:190px;max-width:100%;height:86px;object-fit:contain;object-position:left center}
+  .brand-fallback{display:none}
+  .brand-fallback h1{margin:0;color:#7a1247;font-size:26px}
+  .brand-fallback p{margin:4px 0;color:#735d69}
   .invoice{text-align:right}
   .invoice strong{display:block;font-size:19px;color:#b01264}
   .invoice span{display:block;margin-top:5px;font-size:12px}
@@ -16833,6 +16840,7 @@ function ShiftHandover({profile,onNavigate}){
   @media print{
     body{background:#fff}
     .sheet{width:auto;min-height:auto;margin:0;box-shadow:none;padding:8mm}
+    .brand-logo{width:180px;height:82px}
     .print{display:none}
     @page{size:A4;margin:8mm}
   }
@@ -16842,9 +16850,17 @@ function ShiftHandover({profile,onNavigate}){
 <div class="sheet">
   <div class="head">
     <div class="brand">
-      <h1>SAMARA HEALTH CARE LLP</h1>
-      <p>Samara Care Assisted Living</p>
-      <p>Complete Patient Bill & Account Statement</p>
+      <img
+        class="brand-logo"
+        src="${escapeHtml(billLogoUrl)}"
+        alt="Samara Assisted Living"
+        onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
+      >
+      <div class="brand-fallback">
+        <h1>SAMARA HEALTH CARE LLP</h1>
+        <p>Samara Care Assisted Living</p>
+        <p>Complete Patient Bill & Account Statement</p>
+      </div>
     </div>
     <div class="invoice">
       <strong>${escapeHtml(invoiceNo)}</strong>

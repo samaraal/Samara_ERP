@@ -1,0 +1,16 @@
+Samara Care ERP v2.10.13
+COMPLETE BILL HEADER – SAMARA LOGO
+
+Replace only:
+app.js
+
+What changed:
+- Complete Patient Bill / Account Statement now shows the standard Samara Assisted Living logo
+  at the top-left instead of the plain text company heading.
+- Uses the existing asset: assets/samara-logo.png
+- Invoice number, Bill Date and Prepared By remain on the right.
+- Includes a plain-text fallback only if the logo asset fails to load.
+- No billing logic, SQL, WhatsApp, package, ledger or calculation code was changed.
+
+Important:
+Do NOT replace any SQL or Edge Function for this update.
