@@ -14487,6 +14487,7 @@ function RoomsBeds({profile}){
     if(loading)return h('div',{className:'loading'},'Loading Rooms Management…');
 
     return h(React.Fragment,null,
+      h('style',null,`.available-bed-compact-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}.available-bed-compact-row{display:flex;flex-direction:column;gap:7px;padding:12px 14px;border:1px solid #cfe9db;border-radius:12px;background:#f3fbf6}.available-bed-compact-main{display:flex;align-items:center;justify-content:space-between;gap:12px}.available-bed-compact-main strong{font-size:15px;color:#382333}.available-bed-compact-main span{font-size:13px;color:#735d69}.available-bed-compact-rates{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:#5d4654}.available-bed-compact-meta{display:flex;align-items:center;justify-content:space-between;gap:10px}.available-bed-compact-meta small{color:#735d69}@media(max-width:640px){.available-bed-compact-list{grid-template-columns:1fr}.available-bed-compact-row{padding:11px 12px}.available-bed-compact-main{align-items:flex-start}.available-bed-compact-rates{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px}}`),
       h('div',{className:'rooms-hero'},
         h('div',null,h('small',null,'ADMIN / MANAGER CONTROL'),h('h3',null,'Rooms Management'),h('p',null,'Room master, tariff fixation, admission allotment and patient room-shifting history.')),
         canManage&&h('button',{className:'btn btn-primary',onClick:openNew},'+ Add Room / Bed')
@@ -14510,33 +14511,53 @@ function RoomsBeds({profile}){
           dashboardBedFilter==='available'&&h('button',{className:'btn btn-secondary',onClick:()=>setDashboardBedFilter('')},'Show All Beds')
         ),
         msg&&h('div',{className:'message error'},msg),
-        h('div',{className:'table-wrap'},h('table',{className:'table rooms-table'},
-          h('thead',null,h('tr',null,['Room','Bed','Type','Floor / Wing','Room Rent / Day','Nursing / Day','Special Nurse / Day','Status','Patient','Action'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,
-            displayedRoomRows.map(row=>{
-              const p=patientFor(row),status=p?'Occupied':row.status;
-              return h('tr',{key:row.id},
-                h('td',null,h('strong',null,row.room_no)),h('td',null,row.bed_no),h('td',null,row.room_type||'—'),
-                h('td',null,[row.floor,row.wing].filter(Boolean).join(' / ')||'—'),
-                h('td',null,`₹${Number(row.room_daily_rate??row.daily_rate??0).toLocaleString('en-IN')}`),
-                h('td',null,`₹${Number(row.nursing_daily_rate||0).toLocaleString('en-IN')}`),
-                h('td',null,`₹${Number(row.special_nurse_daily_rate||0).toLocaleString('en-IN')}`),
-                h('td',null,h('span',{className:`room-status room-status-${String(status).toLowerCase()}`},status)),
-                h('td',null,
-                  p?h('div',null,h('strong',null,formalName(p)),h('small',null,p.patient_id||'—')):
-                  status==='Reserved'?h('div',null,h('strong',null,row.reserved_for_name||'Reservation details pending'),h('small',null,row.expected_admission_date?`Expected: ${formatDateIN(row.expected_admission_date)}`:'Expected date not entered')):'—'
-                ),
-                h('td',null,canManage?h('div',{className:'employee-actions'},
-                  status==='Reserved'&&h('button',{className:'btn btn-secondary',onClick:()=>openReservationView(row)},'View'),
-                  h('button',{className:'btn btn-secondary',onClick:()=>openEdit(row)},'Edit / Tariff'),
-                  p&&h('button',{className:'btn btn-primary',onClick:()=>openTransfer(row)},'Shift Room'),
-                  h('button',{className:'btn btn-danger',disabled:!!p,onClick:()=>removeRoom(row)},'Delete')
-                ):status==='Reserved'?h('button',{className:'btn btn-secondary',onClick:()=>openReservationView(row)},'View'):h('span',{className:'small-note'},'View only'))
+        dashboardBedFilter==='available'
+          ?h('div',{className:'available-bed-compact-list'},
+              availableRows.length
+                ?availableRows.map(row=>h('div',{className:'available-bed-compact-row',key:row.id},
+                    h('div',{className:'available-bed-compact-main'},
+                      h('strong',null,`Room ${row.room_no}-${row.bed_no}`),
+                      h('span',null,row.room_type||'Room')
+                    ),
+                    h('div',{className:'available-bed-compact-rates'},
+                      h('span',null,`Room ₹${Number(row.room_daily_rate??row.daily_rate??0).toLocaleString('en-IN')}/day`),
+                      h('span',null,`Nursing ₹${Number(row.nursing_daily_rate||0).toLocaleString('en-IN')}/day`),
+                      Number(row.special_nurse_daily_rate||0)>0&&h('span',null,`Special Nurse ₹${Number(row.special_nurse_daily_rate||0).toLocaleString('en-IN')}/day`)
+                    ),
+                    h('div',{className:'available-bed-compact-meta'},
+                      [row.floor,row.wing].filter(Boolean).length?h('small',null,[row.floor,row.wing].filter(Boolean).join(' / ')):null,
+                      h('span',{className:'room-status room-status-available'},'Available')
+                    )
+                  ))
+                :h('div',{className:'empty'},'No beds currently available.')
+            )
+          :h('div',{className:'table-wrap'},h('table',{className:'table rooms-table'},
+              h('thead',null,h('tr',null,['Room','Bed','Type','Floor / Wing','Room Rent / Day','Nursing / Day','Special Nurse / Day','Status','Patient','Action'].map(x=>h('th',{key:x},x)))),
+              h('tbody',null,
+                displayedRoomRows.map(row=>{
+                  const p=patientFor(row),status=p?'Occupied':row.status;
+                  return h('tr',{key:row.id},
+                    h('td',null,h('strong',null,row.room_no)),h('td',null,row.bed_no),h('td',null,row.room_type||'—'),
+                    h('td',null,[row.floor,row.wing].filter(Boolean).join(' / ')||'—'),
+                    h('td',null,`₹${Number(row.room_daily_rate??row.daily_rate??0).toLocaleString('en-IN')}`),
+                    h('td',null,`₹${Number(row.nursing_daily_rate||0).toLocaleString('en-IN')}`),
+                    h('td',null,`₹${Number(row.special_nurse_daily_rate||0).toLocaleString('en-IN')}`),
+                    h('td',null,h('span',{className:`room-status room-status-${String(status).toLowerCase()}`},status)),
+                    h('td',null,
+                      p?h('div',null,h('strong',null,formalName(p)),h('small',null,p.patient_id||'—')):
+                      status==='Reserved'?h('div',null,h('strong',null,row.reserved_for_name||'Reservation details pending'),h('small',null,row.expected_admission_date?`Expected: ${formatDateIN(row.expected_admission_date)}`:'Expected date not entered')):'—'
+                    ),
+                    h('td',null,canManage?h('div',{className:'employee-actions'},
+                      status==='Reserved'&&h('button',{className:'btn btn-secondary',onClick:()=>openReservationView(row)},'View'),
+                      h('button',{className:'btn btn-secondary',onClick:()=>openEdit(row)},'Edit / Tariff'),
+                      p&&h('button',{className:'btn btn-primary',onClick:()=>openTransfer(row)},'Shift Room'),
+                      h('button',{className:'btn btn-danger',disabled:!!p,onClick:()=>removeRoom(row)},'Delete')
+                    ):status==='Reserved'?h('button',{className:'btn btn-secondary',onClick:()=>openReservationView(row)},'View'):h('span',{className:'small-note'},'View only'))
+                  )
+                }),
+                rows.length===0&&h('tr',null,h('td',{colSpan:10,className:'empty'},'No rooms configured.'))
               )
-            }),
-            rows.length===0&&h('tr',null,h('td',{colSpan:10,className:'empty'},'No rooms configured.'))
-          )
-        ))
+            ))
       ),
 
       h(LogTable,{

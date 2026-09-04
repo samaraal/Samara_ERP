@@ -1,0 +1,24 @@
+Samara Care ERP v2.11.12
+COMPACT AVAILABLE BEDS DETAILS
+
+Replace only:
+app.js
+
+When Dashboard → Available Beds is clicked:
+- Opens Available Beds Details only
+- Shows only available beds
+- Uses a compact, easy-to-read card/list layout similar to the admission room selector
+- Each available bed shows:
+  • Room / Bed
+  • Room Type
+  • Room Rent / Day
+  • Nursing Charge / Day
+  • Special Nurse Charge / Day (only if applicable)
+  • Floor / Wing (if entered)
+  • Available status
+- Responsive on Windows and mobile
+- "Show All Beds" returns to the full Room & Bed Master
+
+The Dashboard count itself is unchanged.
+
+No SQL or database changes.
