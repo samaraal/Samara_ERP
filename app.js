@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.96';
+  const APP_VERSION = '2.9.97';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1277,6 +1277,28 @@ function initSamaraInaugurationInvitation(){
       login==='rajaiahboomi' ||
       login==='maneeshaboominathan' ||
       login==='ram';
+  };
+  const employeeProfileScore=row=>{
+    const department=employeeDepartment(row);
+    return (row?.employee_id?40:0)+(row?.auth_user_id?30:0)+(row?.login_id?20:0)+
+      (row?.mobile?10:0)+(row?.designation?10:0)+(department==='Nursing'?25:department&&department!=='Administration'?12:0);
+  };
+  const deduplicateEmployeeProfiles=source=>{
+    const unique=[];
+    const clean=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const keys=row=>new Set([
+      row?.employee_id&&`employee:${clean(row.employee_id)}`,
+      row?.auth_user_id&&`auth:${clean(row.auth_user_id)}`,
+      row?.mobile&&`mobile:${String(row.mobile).replace(/\D/g,'').slice(-10)}`,
+      (row?.full_name||row?.name)&&`name:${clean(row.full_name||row.name)}`
+    ].filter(Boolean));
+    for(const row of source||[]){
+      const rowKeys=keys(row);
+      const index=unique.findIndex(existing=>[...rowKeys].some(key=>keys(existing).has(key)));
+      if(index<0){unique.push(row);continue}
+      if(employeeProfileScore(row)>employeeProfileScore(unique[index]))unique[index]=row;
+    }
+    return unique;
   };
   const EMPLOYEE_TITLES = ['Dr.','Prof.','Mr.','Mrs.','Ms.','Miss','Shri','Smt.','Rev.','Fr.','Br.','Sr.','Other'];
   const PATIENT_TITLES = ['Dr.','Mr.','Mrs.','Ms.','Miss','Shri','Smt.','Master','Baby','Kumari','Late','Other'];
@@ -6880,7 +6902,7 @@ Thank you.`;
       if(!w.error)setWaComms(w.data||[]);
     }
     React.useEffect(()=>{load();const ch=client.channel('hr-dashboard-live').on('postgres_changes',{event:'*',schema:'public',table:'career_applications'},load).on('postgres_changes',{event:'*',schema:'public',table:'profiles'},load).on('postgres_changes',{event:'*',schema:'public',table:'hr_whatsapp_communications'},load).subscribe();return()=>client.removeChannel(ch)},[]);
-    const active=employees.filter(x=>(x.is_active??x.active)!==false&&!isSamaraAdministratorAccount(x));
+    const active=deduplicateEmployeeProfiles(employees.filter(x=>(x.is_active??x.active)!==false&&!isSamaraAdministratorAccount(x)));
     const now=Date.now();
     const upcoming=applications.filter(x=>x.interview_at&&new Date(x.interview_at).getTime()>=now).sort((a,b)=>new Date(a.interview_at)-new Date(b.interview_at)).slice(0,5);
     const newApps=applications.filter(x=>x.status==='New').length;
@@ -8152,7 +8174,7 @@ Thank you.`;
       // Also suppress any legacy placeholder system account named simply Administrator.
       return name==='administrator' || login==='administrator';
     };
-    const employeeRows=rows.filter(r=>!isSystemAccount(r));
+    const employeeRows=deduplicateEmployeeProfiles(rows.filter(r=>!isSystemAccount(r)));
     const activeEmployeeRows=employeeRows.filter(r=>Boolean(r.is_active??r.active));
     const employeeDepartments=[...new Set(activeEmployeeRows.map(r=>employeeDepartment(r)||'Other').filter(Boolean))].sort((a,b)=>a.localeCompare(b));
     const effectiveRows=employeeDepartmentFilter==='__ALL__'
@@ -8494,7 +8516,7 @@ Thank you.`;
     const repairModal=repairTarget?h('div',{className:'modal-backdrop'},h('form',{className:'card modal reset-password-modal',onSubmit:repairAccount},h('div',{className:'panel-head'},h('div',null,h('h3',null,'Repair Employee Account'),h('small',null,`${repairTarget.full_name} · ${repairTarget.login_id}`)),h('button',{type:'button',className:'close',onClick:()=>setRepairTarget(null)},'×')),repairMsg&&h('div',{className:`message ${repairMsg.startsWith('Authentication account repaired')?'success':'error'}`},repairMsg),h('p',null,'This employee has a profile but no matching Supabase Authentication account. Enter a temporary password to rebuild the login account.'),h('div',{className:'field'},h('label',null,'Temporary password'),h('input',{type:'password',value:repairPassword,onChange:e=>setRepairPassword(e.target.value),minLength:8,required:true,autoComplete:'new-password'})),h('button',{className:'btn btn-warning full',disabled:repairBusy},repairBusy?'Repairing…':'Repair Account & Enable Login'))):null;
 
     return h(React.Fragment,null,
-      h('div',{className:'card panel'},h('div',{className:'panel-head'},h('div',null,h('h3',null,employeeDepartmentFilter?`${employeeDepartmentFilter==='__ALL__'?'All':employeeDepartmentFilter} Employees`:'Employee Dashboard'),h('small',null,employeeDepartmentFilter?'Tap an employee to open the Personnel File':'Select a department to view active employees')),h('button',{className:'btn btn-primary',onClick:()=>{setShow(true);setMsg('')}},'Create Employee')),msg&&!show?h('div',{className:'message error'},msg):null,employeeDepartmentFilter?h('button',{type:'button',className:'btn btn-secondary employee-back-departments',onClick:()=>setEmployeeDepartmentFilter('')},'← Departments'):null,departmentDashboard,employeeDepartmentFilter?table:null),
+      h('div',{className:'card panel'},h('div',{className:'panel-head'},h('div',null,h('h3',null,employeeDepartmentFilter?`${employeeDepartmentFilter==='__ALL__'?'All':employeeDepartmentFilter} Employees`:'Employee Dashboard'),h('small',null,employeeDepartmentFilter?'Tap an employee to open the Personnel File':'Select a department to view active employees')),h('div',{className:'employee-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('HR Dashboard')},'← HR Dashboard'),h('button',{className:'btn btn-primary',onClick:()=>{setShow(true);setMsg('')}},'Create Employee'))),msg&&!show?h('div',{className:'message error'},msg):null,employeeDepartmentFilter?h('button',{type:'button',className:'btn btn-secondary employee-back-departments',onClick:()=>setEmployeeDepartmentFilter('')},'← Departments'):null,departmentDashboard,employeeDepartmentFilter?table:null),
       createModal,detailsModal,resetModal,repairModal,
       cameraConfig?h(CameraCaptureModal,{config:cameraConfig,onClose:()=>setCameraConfig(null)}):null,
       employeeToast&&h('div',{className:`samara-toast ${employeeToast.type}`,role:'status','aria-live':'polite'},
