@@ -1,0 +1,21 @@
+Samara Care ERP v2.10.03 — Discharge WhatsApp sending state and exact Inbox copy
+
+Replace:
+- app.js
+- config.js
+- index.html
+- service-worker.js
+
+Refresh once using Ctrl + Shift + R.
+
+No additional SQL is required when SQL 98 and 99 have already been run.
+
+Changes
+- The selected discharge WhatsApp button becomes Sending… and is disabled while
+  the Meta API request is in progress.
+- After Meta accepts the message, the primary button immediately becomes the
+  disabled WhatsApp Sent ✓ state; Resend WhatsApp remains a separate control.
+- The WhatsApp Inbox stores and displays the complete approved discharge message,
+  rather than a shortened summary.
+- The Inbox payload also retains the four template values and the View Family
+  Portal button details.

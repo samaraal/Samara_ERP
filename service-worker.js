@@ -1,8 +1,8 @@
-const CACHE = 'samara-erp-2.10.02-discharge-whatsapp-inbox';
+const CACHE = 'samara-erp-2.10.03-discharge-message-state';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.10.02', './app.js?v=2.10.02',
+  './', './index.html', './styles.css?v=2.10.03', './app.js?v=2.10.03',
   './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',
-  './config.js?v=2.10.02', './manifest.webmanifest?v=2.8.40', './assets/samara-mail-logo.png',
+  './config.js?v=2.10.03', './manifest.webmanifest?v=2.8.40', './assets/samara-mail-logo.png',
   './assets/samara-logo.png?v=20260812-global1',
   './assets/samara-whatsapp-header.jpg?v=20260904',
   './icons/favicon.png?v=2.8.40', './icons/icon-192.png?v=2.8.40',

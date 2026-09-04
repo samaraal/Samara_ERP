@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.02';
+  const APP_VERSION = '2.10.03';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6822,7 +6822,7 @@ Thank you.`;
                       ?h('div',{style:{marginTop:'9px',borderTop:'1px solid #d8e6dc'}},templateReplyButtons(String(r.template_name||'').toLowerCase()).map(label=>h('div',{key:label,style:{display:'block',padding:'8px 10px',background:'#fff',borderBottom:'1px solid #d8e6dc',color:'#087f5b',fontWeight:'800',textAlign:'center'}},`↩ ${label}`)))
                       :null,
                     media?h('button',{type:'button',disabled:mediaBusyId===r.id,onClick:()=>openMedia(r),style:{display:'block',marginTop:'8px',padding:'7px 10px',border:'0',borderRadius:'7px',background:'#f0f2f5',color:'#5d1039',fontWeight:'700',cursor:mediaBusyId===r.id?'wait':'pointer',maxWidth:'100%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},mediaBusyId===r.id?'Opening…':mediaLabel(media)):null,
-                    outgoing&&['samara_bill_reminder','samara_payment_receipt','samara_family_portal_access','employee_welcome_samara'].includes(String(r.template_name||'').toLowerCase())
+                    outgoing&&['samara_bill_reminder','samara_payment_receipt','samara_family_portal_access','samara_discharge_confirmation','employee_welcome_samara'].includes(String(r.template_name||'').toLowerCase())
                       ?h('a',{href:String(r.template_name||'').toLowerCase()==='employee_welcome_samara'?'https://app.samaraassistedliving.com/':'https://family.samaraassistedliving.com/',target:'_blank',rel:'noopener noreferrer',style:{display:'block',marginTop:'9px',padding:'8px 10px',borderRadius:'7px',background:'#fff',border:'1px solid #b8d9c5',color:'#087f5b',fontWeight:'800',textAlign:'center',textDecoration:'none'}},String(r.template_name||'').toLowerCase()==='employee_welcome_samara'?'↗ Open Samara Care ERP':String(r.template_name||'').toLowerCase()==='samara_payment_receipt'?'↗ View Family Portal website':'↗ View Family Portal')
                       :null,
                     h('small',{style:{display:'block',marginTop:'4px',textAlign:'right',color:'#667781',fontSize:'11px'}},`${fmt(r.received_at||r.sent_at||r.created_at)}${outgoing?`  ${String(r.status||'Sent').toLowerCase()==='read'?'✓✓':String(r.status||'Sent').toLowerCase()==='delivered'?'✓✓':'✓'}`:''}`)
@@ -12565,6 +12565,7 @@ Please keep these login details confidential.`;
     const [rectificationNote,setRectificationNote]=React.useState('');
     const [showFinalDischarge,setShowFinalDischarge]=React.useState(false);
     const [finalDischargeRow,setFinalDischargeRow]=React.useState(null);
+    const [dischargeWhatsAppBusy,setDischargeWhatsAppBusy]=React.useState('');
     const [finalForm,setFinalForm]=React.useState({
       discharge_summary_handed_over:false,
       medicines_handed_over:false,
@@ -13362,6 +13363,8 @@ Please keep these login details confidential.`;
     }
 
     async function sendDischargeConfirmationWhatsAppApi(row,{automatic=false,resend=false}={}){
+      const busyKey=String(row?.id||'discharge');
+      if(dischargeWhatsAppBusy===busyKey)return false;
       const patient=patients.find(p=>p.id===row.patient_id)||{};
       const to=patient.attendant_phone||row.relative_contact||patient.mobile||'';
       if(!to){
@@ -13374,6 +13377,23 @@ Please keep these login details confidential.`;
       const departureAt=row.actual_departure_at||row.updated_at||new Date().toISOString();
       const departureDate=formatDateIN(String(departureAt).slice(0,10));
       const departureTime=formatTimeIN(departureAt);
+      const renderedMessage=`Dear ${recipient},
+
+We confirm that ${patientName} has been discharged from Samara Assisted Living.
+
+Discharge Date: ${departureDate}
+Discharge Time: ${departureTime}
+
+The discharge formalities have been completed.
+
+Thank you for placing your trust in Samara Assisted Living. We wish the patient continued recovery and good health.
+
+For any further assistance, please contact us.
+
+Thank you.
+
+Samara Assisted Living • Compassion • Comfort • Dignity`;
+      setDischargeWhatsAppBusy(busyKey);
       try{
         const result=await sendWhatsAppTemplate({
           to,
@@ -13386,8 +13406,16 @@ Please keep these login details confidential.`;
             sent_by:profile?.id||null,
             sent_by_name:automatic?'Samara System':formalName(profile)||profile?.full_name||'Samara Team',
             source_type:'Patient / Family',
-            message_content:`Discharge confirmation for ${patientName} on ${departureDate} at ${departureTime}`,
-            message_payload:{discharge_id:row.id,patient_id:row.patient_id,automatic:Boolean(automatic),resend:Boolean(resend)}
+            message_content:renderedMessage,
+            message_payload:{
+              discharge_id:row.id,
+              patient_id:row.patient_id,
+              automatic:Boolean(automatic),
+              resend:Boolean(resend),
+              body_params:[recipient,patientName,departureDate,departureTime],
+              button_text:'View Family Portal',
+              button_url:'https://family.samaraassistedliving.com'
+            }
           }
         });
         let inboxRecorded=result?.history_logged===true;
@@ -13417,8 +13445,16 @@ Please keep these login details confidential.`;
               sent_by_name:automatic?'Samara System':formalName(profile)||profile?.full_name||'Samara Team',
               direction:'outbound',
               message_type:'template',
-              message_content:`Discharge confirmation for ${patientName} on ${departureDate} at ${departureTime}`,
-              message_payload:{discharge_id:row.id,patient_id:row.patient_id,automatic:Boolean(automatic),resend:Boolean(resend)},
+              message_content:renderedMessage,
+              message_payload:{
+                discharge_id:row.id,
+                patient_id:row.patient_id,
+                automatic:Boolean(automatic),
+                resend:Boolean(resend),
+                body_params:[recipient,patientName,departureDate,departureTime],
+                button_text:'View Family Portal',
+                button_url:'https://family.samaraassistedliving.com'
+              },
               contact_name:recipient,
               source_type:'Patient / Family · Discharge',
               sent_at:now,
@@ -13436,6 +13472,12 @@ Please keep these login details confidential.`;
           updated_at:new Date().toISOString()
         }).eq('id',row.id);
         if(updateResult.error)console.warn('Discharge WhatsApp status could not be saved:',updateResult.error);
+        setRows(current=>current.map(item=>item.id===row.id?{
+          ...item,
+          discharge_whatsapp_sent_at:new Date().toISOString(),
+          discharge_whatsapp_message_id:result.provider_message_id,
+          discharge_whatsapp_status:'Accepted'
+        }:item));
         if(!automatic)notify(
           inboxRecorded?'success':'warning',
           resend?'Discharge WhatsApp resent':'Discharge WhatsApp sent',
@@ -13449,8 +13491,11 @@ Please keep these login details confidential.`;
           discharge_whatsapp_status:'Failed',
           updated_at:new Date().toISOString()
         }).eq('id',row.id);
+        setRows(current=>current.map(item=>item.id===row.id?{...item,discharge_whatsapp_status:'Failed'}:item));
         if(!automatic)notify('error','WhatsApp API failed',`${apiError.message||apiError}. No old WhatsApp route was opened; use Retry WhatsApp after checking the Meta template.`);
         throw apiError;
+      }finally{
+        setDischargeWhatsAppBusy(current=>current===busyKey?'':current);
       }
     }
     async function sendReviewAppointmentWhatsAppApi(row){
@@ -13542,7 +13587,9 @@ Doctor / Hospital: ${doctorHospital}`;
                   :'Awaiting Management'
         ),
         ['Admin','Manager','Nurse'].includes(profile?.role)&&String(row.status||'').trim().toLowerCase()==='completed'&&(
-          row.discharge_whatsapp_status==='Accepted'
+          dischargeWhatsAppBusy===String(row.id)
+            ?h('button',{type:'button',className:'btn btn-whatsapp',disabled:true},'Sending…')
+            :row.discharge_whatsapp_status==='Accepted'
             ?h(React.Fragment,null,
               h('button',{type:'button',className:'btn btn-whatsapp',disabled:true},'WhatsApp Sent ✓'),
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>sendDischargeConfirmationWhatsAppApi(row,{resend:true}).catch(()=>{})},'Resend WhatsApp')
