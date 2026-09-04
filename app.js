@@ -6322,7 +6322,7 @@ Caring with Compassion. Living with Dignity.`;
       const [emp,pat,beds,med,care,bill,inc,dis,vis,enq,esc]=await Promise.all([
         client.from('profiles').select('*').eq('is_active',true),
         client.from('patients').select('*').eq('is_active',true),
-        client.from('room_beds').select('id,room_no,bed_no,status,patient_id,occupant_id'),
+        client.from('room_beds').select('*').order('room_no',{ascending:true}).order('bed_no',{ascending:true}),
         client.from('medication_administrations').select('*',{count:'exact',head:true}).eq('scheduled_date',today),
         client.from('care_logs').select('*',{count:'exact',head:true}).eq('care_date',today),
         client.from('billing_transactions').select('amount,transaction_type'),
@@ -6346,21 +6346,17 @@ Caring with Compassion. Living with Dignity.`;
       ).filter(row=>Boolean(row.is_active??row.active));
       const activeEmployeeCount=dashboardEmployeeRows.length;
 
-      // Actual bed availability comes from Room & Bed Master, not a hard-coded capacity.
-      // A bed is available only when:
-      // 1) its Room & Bed status is Available, AND
-      // 2) it is not linked to an active patient either by patient_id/occupant_id or room+bed.
+      // Use the SAME availability rule as Rooms & Beds so both screens always agree.
       const roomBedRows=beds.data||[];
-      const bedHasActivePatient=bed=>{
-        const linkedId=bed.occupant_id||bed.patient_id;
-        if(linkedId&&patients.some(p=>String(p.id)===String(linkedId)))return true;
-        return patients.some(p=>
+      const dashboardPatientForBed=bed=>
+        patients.find(p=>String(p.id||'')===String(bed.patient_id||''))||
+        patients.find(p=>
           String(p.room_no||'')===String(bed.room_no||'')&&
           String(p.bed_no||'').trim().toUpperCase()===String(bed.bed_no||'').trim().toUpperCase()
-        );
-      };
+        )||
+        null;
       const availableBeds=roomBedRows.filter(bed=>
-        String(bed.status||'Available')==='Available'&&!bedHasActivePatient(bed)
+        !dashboardPatientForBed(bed)&&String(bed.status||'Available')==='Available'
       ).length;
 
       const todayDate=new Date(`${today}T00:00:00`);

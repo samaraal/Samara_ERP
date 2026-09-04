@@ -1,0 +1,22 @@
+Samara Care ERP v2.11.11
+AVAILABLE BEDS COUNT – CORRECTED
+
+Replace only:
+app.js
+
+Cause of the 0 count:
+The Dashboard query introduced an occupant_id field in the room_beds select.
+That field is not required by the existing Rooms & Beds implementation and can make the
+Dashboard room query fail / return no usable rows in deployments where that column is absent.
+
+Fix:
+- Dashboard now loads room_beds with select('*'), exactly like Rooms Management.
+- Dashboard uses the SAME availability rule as Rooms & Beds:
+    status = Available
+    AND no active patient matches that bed by patient_id or Room/Bed.
+- Therefore Dashboard Available Beds and Rooms & Beds Available count will stay identical.
+- Clicking the card still opens Available Beds Details only.
+
+Based on the current ERP screen, expected Dashboard count: 21.
+
+No SQL or database record changes.
