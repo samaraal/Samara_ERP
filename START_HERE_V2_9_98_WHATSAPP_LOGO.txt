@@ -1,0 +1,44 @@
+SAMARA ERP v2.9.98 — WHATSAPP LOGO HEADER
+==========================================
+
+1. Replace the four website files:
+   app.js
+   index.html
+   config.js
+   service-worker.js
+
+2. Redeploy this Supabase Edge Function:
+   supabase/functions/whatsapp-send
+
+3. META TEMPLATE REQUIREMENT
+Every approved Samara WhatsApp template must use Header type: IMAGE.
+Use the Samara logo as the sample header media when creating or editing the template.
+
+Templates currently used by the ERP include:
+   samara_general_followup
+   samara_admission_followup
+   samara_callback_request
+   samara_patient_admission
+   samara_family_portal_access
+   samara_bill_reminder
+   samara_payment_receipt
+   samara_daily_report
+   samara_discharge_confirmation
+   appointment_review_reminder
+   employee_welcome_samara
+   samara_interview_scheduled
+   samara_interview_rescheduled
+   samara_application_returned
+   samara_emergency_hospital_transfer
+   samara_urgent_contact_required
+
+The ERP now always supplies this public logo URL as the image header:
+https://samaraassistedliving.com/assets/samara-logo.png
+
+If a template was approved without an IMAGE header, Meta will reject an image-header
+parameter. Edit or recreate that template with Header type IMAGE and wait until it is ACTIVE.
+
+Direct replies inside WhatsApp's 24-hour service window are sent as a logo image with
+the reply text as its caption, so the recipient sees Samara branding on those messages too.
+
+No SQL is required.

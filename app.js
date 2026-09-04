@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.97';
+  const APP_VERSION = '2.9.98';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1426,7 +1426,7 @@ function initSamaraInaugurationInvitation(){
     const response=await fetch(`${cfg.supabaseUrl}/functions/v1/whatsapp-send`,{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey},
-      body:JSON.stringify({to:recipient,message_type:'text',text:clean})
+      body:JSON.stringify({to:recipient,message_type:'image',image_link:SAMARA_WHATSAPP_LOGO_URL,caption:clean})
     });
     const result=await response.json().catch(()=>({success:false,error:'Unable to read WhatsApp server response.'}));
     if(!response.ok||result?.success===false){
@@ -6798,21 +6798,19 @@ Thank you.`;
                 const outgoing=r.direction!=='inbound';const media=mediaInfo(r);const text=chatText(r);
                 return h('div',{key:r.id,style:{display:'flex',justifyContent:outgoing?'flex-end':'flex-start',marginBottom:'8px'}},
                   h('div',{style:{position:'relative',maxWidth:'72%',padding:'8px 10px 6px',borderRadius:outgoing?'8px 0 8px 8px':'0 8px 8px 8px',background:outgoing?'#d9fdd3':'#fff',boxShadow:'0 1px 1px rgba(0,0,0,.08)',color:'#292229'}},
-                    outgoing&&(/Payment Receipt|Daily Payable Reminder|Family Portal Access|Employee Welcome|EMERGENCY/i.test(String(r.communication_type||'')))?h(React.Fragment,null,
+                    outgoing?h(React.Fragment,null,
                       h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748',marginBottom:'6px',display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}},
-                        h('span',null,String(r.communication_type||'')),
+                        h('span',null,String(r.communication_type||'Samara WhatsApp')),
                         /EMERGENCY/i.test(String(r.communication_type||''))
                           ?h('span',{style:{padding:'2px 7px',borderRadius:'999px',background:'#b42336',color:'#fff',fontSize:'10px',letterSpacing:'.2px'}},`URGENT · ${r.sent_by_name||'Samara Management'}`)
                           :/Automated/i.test(`${r.communication_type||''} ${r.sent_by_name||''}`)
                             ?h('span',{style:{padding:'2px 7px',borderRadius:'999px',background:'#7d1748',color:'#fff',fontSize:'10px',letterSpacing:'.2px'}},'AUTOMATED · Samara System')
                             :(r.sent_by_name?h('span',{style:{fontWeight:'700',color:'#7b6871'}},`· ${r.sent_by_name}`):null)
                       ),
-                      ['samara_bill_reminder','samara_payment_receipt','samara_family_portal_access','employee_welcome_samara','samara_emergency_hospital_transfer','samara_urgent_contact_required'].includes(String(r.template_name||'').toLowerCase())
-                        ?h('div',{style:{background:'#fff',border:'1px solid #ecdce4',borderRadius:'8px',padding:'8px 10px',marginBottom:'9px',textAlign:'center'}},
-                            h('img',{src:BRAND_LOGO_SRC,alt:'Samara Assisted Living',style:{display:'block',width:'128px',maxWidth:'70%',height:'auto',margin:'0 auto 5px'}}),
-                            String(r.template_name||'').toLowerCase()!=='employee_welcome_samara'?h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748'}},'Greetings from Samara Assisted Living'):null
-                          )
-                        :null
+                      h('div',{style:{background:'#fff',border:'1px solid #ecdce4',borderRadius:'8px',padding:'8px 10px',marginBottom:'9px',textAlign:'center'}},
+                        h('img',{src:BRAND_LOGO_SRC,alt:'Samara Assisted Living',style:{display:'block',width:'128px',maxWidth:'70%',height:'auto',margin:'0 auto 5px'}}),
+                        String(r.template_name||'').toLowerCase()!=='employee_welcome_samara'?h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748'}},'Greetings from Samara Assisted Living'):null
+                      )
                     ):null,
                     h('div',{style:{whiteSpace:'pre-wrap',lineHeight:'1.42',fontSize:'14px',paddingRight:'4px'}},text),
                     media?h('button',{type:'button',disabled:mediaBusyId===r.id,onClick:()=>openMedia(r),style:{display:'block',marginTop:'8px',padding:'7px 10px',border:'0',borderRadius:'7px',background:'#f0f2f5',color:'#5d1039',fontWeight:'700',cursor:mediaBusyId===r.id?'wait':'pointer',maxWidth:'100%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},mediaBusyId===r.id?'Opening…':mediaLabel(media)):null,
