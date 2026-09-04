@@ -1,0 +1,54 @@
+Samara Care ERP v2.11.00
+PACKAGE EXPIRY + RENEWAL + AUTO DAILY-FARE + WHATSAPP
+
+FEATURES
+1. New Package Expiry Dashboard for Admin, Manager and Accounts.
+2. Main Admin/Manager dashboard gets a Package Expiry card.
+3. Accounts Command Centre gets a Package Expiry KPI.
+4. Renewal options are dynamic from Care Packages:
+   - Weekly
+   - Fortnightly
+   - Monthly
+5. Renewal continues from the day after the old package expiry.
+6. If no renewal is chosen, "Continue Daily Fare" switches the resident to Daily Billing.
+7. Existing daily-billing engine remains the automatic fallback after package expiry.
+8. New package-expiry WhatsApp Edge Function sends renewal options to the relative.
+9. Renewal uses current room class fee from Care Packages.
+10. The package-overlap cleanup already installed in v2.10.12 automatically removes any
+    Room/Nursing daily rows that overlap a subsequently renewed package.
+
+INSTALL
+A. Replace:
+   app.js
+
+B. Supabase SQL Editor:
+   Run supabase/sql/107_package_expiry_renewal_dashboard.sql
+
+C. Deploy Edge Function:
+   supabase/functions/package-expiry-whatsapp/index.ts
+
+D. Meta WhatsApp:
+   Create and obtain approval for the template in WHATSAPP_TEMPLATE.txt
+   Template name: samara_package_expiry_options
+   Category: Utility
+
+E. Edge Function secrets:
+   Existing:
+   - WHATSAPP_ACCESS_TOKEN
+   - WHATSAPP_PHONE_NUMBER_ID
+   - WHATSAPP_GRAPH_API_VERSION
+   New optional:
+   - WHATSAPP_PACKAGE_EXPIRY_TEMPLATE_NAME=samara_package_expiry_options
+   - WHATSAPP_PACKAGE_EXPIRY_TEMPLATE_LANGUAGE=en
+
+AUTOMATION
+Schedule package-expiry-whatsapp once daily, recommended 09:00 AM IST.
+The function sends one reminder per patient/package expiry. It also supports manual resend
+from Package Expiry Dashboard.
+
+IMPORTANT
+- Configure at least one active Weekly, Fortnightly and Monthly Care Package if you want
+  all three renewal buttons enabled.
+- No renewal = Daily Fare continues automatically after package expiry.
+- Renewal is confirmed by Admin / Manager / Accounts from ERP; a family WhatsApp reply
+  does not directly create a financial charge.

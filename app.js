@@ -1314,7 +1314,7 @@ function initSamaraInaugurationInvitation(){
     { title:'MANAGER', items:['Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
-    { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Charge Approvals','Payments','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
+    { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
     { title:'COMMUNICATION', items:['WhatsApp Inbox','Family Communication','Feedback','Mail Dashboard'] }
   ];
   const ALL_NAV = NAV_SECTIONS.flatMap(section=>section.items);
@@ -1324,7 +1324,7 @@ function initSamaraInaugurationInvitation(){
     Manager:ALL_NAV.filter(item=>!['System Maintenance','Alert Settings','Payments','Final Billing','Refunds',...NURSING_ENTRY_NAV].includes(item)),
     Nurse:['Clinical Dashboard','Clinical Alerts','Patients','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My Leave & Permission','Leave Approvals','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Leave Approvals','Notifications'],
-    Accounts:['Accounts Dashboard','Charge Approvals','Payments','Final Billing','Discharge Clearance','Refunds','Accounts Reports','Patients','My Leave & Permission','Leave Approvals','Notifications'],
+    Accounts:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Final Billing','Discharge Clearance','Refunds','Accounts Reports','Patients','My Leave & Permission','Leave Approvals','Notifications'],
     Kitchen:['Notifications','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission','Leave Approvals']
   };
   const ROLE_HOME={Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet'};
@@ -1336,6 +1336,7 @@ function initSamaraInaugurationInvitation(){
     'Medicines':'Medication Administration',
     'Charge Approvals':'Bills & Charges',
     'Accounts Dashboard':'Accounts Dashboard',
+    'Package Expiry Dashboard':'Package Expiry Dashboard',
     'Payments':'Payments',
     'Final Billing':'Final Billing',
     'Discharge Clearance':'Discharge Clearance',
@@ -5330,6 +5331,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Incidents'&&h(Incidents,{profile,onNavigate:setPage}),
           page==='Documents'&&h(Documents,{profile}),
           page==='Accounts Dashboard'&&h(AccountsDashboard,{profile,onNavigate:setPage}),
+          page==='Package Expiry Dashboard'&&h(PackageExpiryDashboard,{profile,onNavigate:setPage}),
           page==='Charge Approvals'&&h(ClinicalCharges,{profile}),
           page==='Payments'&&h(BillingPayments,{profile}),
           page==='Final Billing'&&h(FinalBillingView,{profile,onNavigate:setPage}),
@@ -6280,7 +6282,7 @@ Caring with Compassion. Living with Dignity.`;
   }
 
   function Dashboard({profile,onNavigate}){
-    const [stats,setStats]=React.useState({employees:0,patients:0,beds:25,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[],escalations:0});
+    const [stats,setStats]=React.useState({employees:0,patients:0,beds:25,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[],escalations:0,packageExpiry:0});
     React.useEffect(()=>{(async()=>{
       const today=new Date().toISOString().slice(0,10);
       const [emp,pat,med,care,bill,inc,dis,vis,enq,esc]=await Promise.all([
@@ -6296,6 +6298,13 @@ Caring with Compassion. Living with Dignity.`;
         client.from('clinical_alert_escalations').select('*',{count:'exact',head:true}).is('resolved_at',null)
       ]);
       const patients=pat.data||[];
+      const todayDate=new Date(`${today}T00:00:00`);
+      const soonDate=new Date(todayDate);soonDate.setDate(soonDate.getDate()+3);
+      const packageExpiry=patients.filter(p=>{
+        if(!p.package_id||!p.package_end_date)return false;
+        const end=new Date(`${String(p.package_end_date).slice(0,10)}T00:00:00`);
+        return end<=soonDate;
+      }).length;
       const risks=patients.filter(p=>p.fall_risk||p.pressure_sore_risk||p.aspiration_risk||p.wandering_risk||p.infection_risk||p.oxygen_required).length;
       const outstanding=(bill.data||[]).reduce((a,x)=>a+(x.transaction_type==='Charge'?Number(x.amount||0):-Number(x.amount||0)),0);
       const activeDischarges=(dis.data||[]).filter(row=>{
@@ -6337,7 +6346,8 @@ Caring with Compassion. Living with Dignity.`;
         visitRequests:vis?.count||0,
         enquiries:enq?.count||0,
         recentEnquiries:enq?.data||[],
-        escalations:esc?.count||0
+        escalations:esc?.count||0,
+        packageExpiry
       });
     })()},[]);
     const cards=[
@@ -6350,6 +6360,7 @@ Caring with Compassion. Living with Dignity.`;
       {label:'Open incidents',value:stats.incidents,page:'Incidents',icon:'🚨'},
       {label:'Clinical escalations',value:stats.escalations,page:'Clinical Escalations',icon:'🔔',status:stats.escalations?`${stats.escalations} awaiting Manager/Admin action`:'No open escalations'},
       {label:'Outstanding Amount',value:`₹${stats.outstanding.toLocaleString('en-IN')}`,page:'Payments',icon:'₹'},
+      {label:'Package Expiry',value:stats.packageExpiry,page:'Package Expiry Dashboard',icon:'📦',status:stats.packageExpiry?`${stats.packageExpiry} expired / expiring within 3 days`:'No package expiry due'},
       {label:'Admission Enquiries',value:stats.enquiries,page:'Enquiries',icon:'☎',status:stats.enquiries?`${stats.enquiries} awaiting follow-up`:'No new enquiries'},
       {label:'Visit Requests',value:stats.visitRequests,page:'Family Communication',icon:'📅',status:stats.visitRequests?`${stats.visitRequests} pending approval`:'No pending requests'},
       {label:'Discharge',value:stats.discharges,page:'Discharge',icon:'🚪',status:stats.dischargeStatus}
@@ -16508,6 +16519,196 @@ function ShiftHandover({profile,onNavigate}){
     document.head.appendChild(style);
   };
 
+
+  function PackageExpiryDashboard({profile,onNavigate}){
+    const allowed=['Admin','Manager','Accounts'].includes(profile?.role);
+    const [rows,setRows]=React.useState([]);
+    const [packages,setPackages]=React.useState([]);
+    const [loading,setLoading]=React.useState(true);
+    const [busy,setBusy]=React.useState('');
+    const [message,setMessage]=React.useState('');
+
+    const today=todayISOIndia();
+    const dateOnly=value=>String(value||'').slice(0,10);
+    const dateDiff=(a,b)=>Math.round((new Date(`${dateOnly(a)}T00:00:00`)-new Date(`${dateOnly(b)}T00:00:00`))/86400000);
+    const money=value=>`₹${Number(value||0).toLocaleString('en-IN',{maximumFractionDigits:2})}`;
+
+    function optionKind(pkg){
+      const unit=String(pkg?.duration_unit||'').toLowerCase();
+      const value=Number(pkg?.duration_value||0);
+      const days=unit.startsWith('week')?value*7:unit.startsWith('month')?value*30:value;
+      if((unit.startsWith('week')&&value===1)||days===7)return 'Weekly';
+      if((unit.startsWith('week')&&value===2)||days===14||days===15)return 'Fortnightly';
+      if((unit.startsWith('month')&&value===1)||days===30||days===31)return 'Monthly';
+      return '';
+    }
+    function packageFee(pkg,row){
+      const cls=String(row.package_room_class||'').toLowerCase();
+      if(cls.includes('private'))return Number(pkg.private_fee||0);
+      if(cls.includes('general'))return Number(pkg.general_fee||0);
+      return Number(pkg.twin_fee||0);
+    }
+    function statusOf(row){
+      const diff=dateDiff(row.package_end_date,today);
+      if(diff<0)return {label:'Expired',tone:'error',days:diff};
+      if(diff===0)return {label:'Expires Today',tone:'warning',days:0};
+      if(diff<=3)return {label:`Expires in ${diff} day${diff===1?'':'s'}`,tone:'warning',days:diff};
+      return {label:`Active · ${diff} days left`,tone:'success',days:diff};
+    }
+    function renewalOptions(row){
+      return ['Weekly','Fortnightly','Monthly'].map(kind=>{
+        const pkg=packages.find(item=>optionKind(item)===kind&&item.is_active!==false);
+        return {kind,pkg,fee:pkg?packageFee(pkg,row):0};
+      });
+    }
+
+    async function load(){
+      setLoading(true);
+      setMessage('');
+      const [pat,pkg]=await Promise.all([
+        client.from('patients')
+          .select('id,patient_id,title,full_name,room_no,bed_no,mobile,attendant_name,attendant_phone,billing_package,package_id,package_start_date,package_end_date,package_fee,package_room_class,is_active')
+          .eq('is_active',true)
+          .not('package_end_date','is',null)
+          .order('package_end_date',{ascending:true}),
+        client.from('care_packages').select('*').eq('is_active',true).order('package_name')
+      ]);
+      if(pat.error){setMessage(pat.error.message);setRows([])}
+      else setRows(pat.data||[]);
+      if(pkg.error)setMessage(prev=>prev||pkg.error.message);
+      else setPackages(pkg.data||[]);
+      setLoading(false);
+    }
+
+    React.useEffect(()=>{
+      if(!allowed)return;
+      load();
+      const channel=client.channel('package-expiry-dashboard-live')
+        .on('postgres_changes',{event:'*',schema:'public',table:'patients'},load)
+        .on('postgres_changes',{event:'*',schema:'public',table:'billing_transactions'},load)
+        .on('postgres_changes',{event:'*',schema:'public',table:'care_packages'},load)
+        .subscribe();
+      return()=>client.removeChannel(channel);
+    },[allowed]);
+
+    async function renew(row,opt){
+      if(!opt.pkg)return;
+      const label=`${opt.kind} · ${opt.pkg.package_name} · ${money(opt.fee)}`;
+      if(!window.confirm(`Renew ${formalName(row)} with ${label}?\n\nCoverage will continue from the day after the current package expiry. Any automatic daily Room/Nursing charges inside the renewed coverage will be safely removed by the package-overlap protection.`))return;
+      setBusy(`${row.id}:${opt.kind}`);setMessage('');
+      const {data,error}=await client.rpc('renew_patient_package',{
+        p_patient_id:row.id,
+        p_package_id:opt.pkg.id,
+        p_start_date:null
+      });
+      setBusy('');
+      if(error){setMessage(error.message);return}
+      setMessage(`✓ ${formalName(row)} renewed: ${data?.package_name||opt.pkg.package_name} · ${formatDateIN(data?.coverage_start)} to ${formatDateIN(data?.coverage_end)} · ${money(data?.package_fee||opt.fee)}.`);
+      await load();
+    }
+
+    async function keepDaily(row){
+      if(!window.confirm(`Continue ${formalName(row)} on Daily Fare after package expiry?\n\nNo new package charge will be created. Daily Room + Nursing billing will continue automatically.`))return;
+      setBusy(`${row.id}:daily`);setMessage('');
+      const {data,error}=await client.rpc('set_patient_daily_billing',{p_patient_id:row.id});
+      setBusy('');
+      if(error){setMessage(error.message);return}
+      setMessage(`✓ ${formalName(row)} will continue on Daily Fare.`);
+      await load();
+    }
+
+    async function sendReminder(row){
+      setBusy(`${row.id}:wa`);setMessage('');
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/package-expiry-whatsapp`,{
+          method:'POST',
+          headers:{
+            'Content-Type':'application/json',
+            ...(session?.access_token?{Authorization:`Bearer ${session.access_token}`}:{})
+          },
+          body:JSON.stringify({patient_id:row.id,force:true})
+        });
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok||result.success===false)throw new Error(result.error||'Unable to send package-expiry WhatsApp.');
+        const detail=(result.details||[])[0];
+        setMessage(detail?.status==='Sent'
+          ?`✓ Package expiry WhatsApp sent to ${detail.recipient||'relative'}.`
+          :`Package WhatsApp request completed: ${detail?.status||'No message sent'}.`);
+      }catch(error){
+        setMessage(error.message||String(error));
+      }finally{
+        setBusy('');
+      }
+    }
+
+    if(!allowed)return h(Section,{title:'Package Expiry Dashboard'},h('div',{className:'message error'},'Admin, Manager or Accounts access is required.'));
+
+    const sorted=[...rows].sort((a,b)=>String(a.package_end_date||'').localeCompare(String(b.package_end_date||'')));
+    const attention=sorted.filter(row=>dateDiff(row.package_end_date,today)<=3);
+    const expired=sorted.filter(row=>dateDiff(row.package_end_date,today)<0).length;
+    const todayCount=sorted.filter(row=>dateDiff(row.package_end_date,today)===0).length;
+    const soon=sorted.filter(row=>{const d=dateDiff(row.package_end_date,today);return d>0&&d<=3}).length;
+
+    return h(React.Fragment,null,
+      h('div',{className:'accounts-hero'},
+        h('div',null,
+          h('small',null,'PACKAGE CONTROL · RENEWAL · DAILY FARE'),
+          h('h3',null,'Package Expiry Dashboard'),
+          h('p',null,'Track package expiry, send family WhatsApp options and renew Weekly, Fortnightly or Monthly. If no renewal is selected, Daily Fare continues automatically.')
+        ),
+        h('div',{className:'accounts-actions'},
+          h('button',{className:'btn btn-secondary',onClick:load},loading?'Loading…':'↻ Refresh'),
+          h('button',{className:'btn btn-secondary',onClick:()=>onNavigate?.('Care Packages')},'Manage Packages')
+        )
+      ),
+      h('div',{className:'accounts-kpi-grid'},
+        [
+          ['Expired',expired,'red','Requires renewal decision'],
+          ['Expires Today',todayCount,'orange','Family reminder due'],
+          ['Next 3 Days',soon,'blue','Upcoming package expiry'],
+          ['Attention Required',attention.length,'purple','Expired or expiring soon']
+        ].map(([label,value,tone,note])=>h('div',{className:`accounts-kpi ${tone}`,key:label},h('span',null,label),h('strong',null,value),h('small',null,note)))
+      ),
+      message&&h('div',{className:message.startsWith('✓')?'message success':'message error'},message),
+      h(Section,{title:loading?'Loading package residents…':`Package Residents (${sorted.length})`,subtitle:'Renewal starts from the day after the current package expiry; daily fare is the automatic fallback.'},
+        sorted.length?h('div',{className:'table-wrap'},
+          h('table',{className:'table'},
+            h('thead',null,h('tr',null,
+              ['Resident','Room','Current Package','Expiry','Status','Family Contact','Renewal Options','Action'].map(x=>h('th',{key:x},x))
+            )),
+            h('tbody',null,sorted.map(row=>{
+              const status=statusOf(row);
+              const opts=renewalOptions(row);
+              return h('tr',{key:row.id},
+                h('td',null,h('strong',null,formalName(row)||row.full_name),h('small',{style:{display:'block'}},row.patient_id||'—')),
+                h('td',null,`${row.room_no||'—'}${row.bed_no?`-${row.bed_no}`:''}`,h('small',{style:{display:'block'}},row.package_room_class||'')),
+                h('td',null,row.billing_package||'Package',h('small',{style:{display:'block'}},row.package_fee?money(row.package_fee):'')),
+                h('td',null,formatDateIN(row.package_end_date)),
+                h('td',null,h('span',{className:`badge ${status.tone}`},status.label)),
+                h('td',null,row.attendant_name||'Family Member',h('small',{style:{display:'block'}},row.attendant_phone||row.mobile||'No WhatsApp number')),
+                h('td',null,h('div',{style:{display:'grid',gap:'6px'}},
+                  opts.map(opt=>h('button',{
+                    type:'button',
+                    className:'btn btn-secondary',
+                    key:opt.kind,
+                    disabled:busy||!opt.pkg,
+                    title:opt.pkg?`${opt.pkg.package_name} · ${money(opt.fee)}`:`Configure a ${opt.kind} package in Care Packages`,
+                    onClick:()=>renew(row,opt)
+                  },opt.pkg?`${opt.kind} · ${money(opt.fee)}`:`${opt.kind} · Not configured`))
+                )),
+                h('td',null,h('div',{style:{display:'grid',gap:'6px'}},
+                  h('button',{type:'button',className:'btn btn-primary',disabled:busy||!(row.attendant_phone||row.mobile),onClick:()=>sendReminder(row)},busy===`${row.id}:wa`?'Sending…':'WhatsApp Options'),
+                  h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>keepDaily(row)},busy===`${row.id}:daily`?'Saving…':'Continue Daily Fare')
+                ))
+              );
+            }))
+          )
+        ):h('p',{className:'empty'},'No active package residents.')
+      )
+    );
+  }
+
   function AccountsDashboard({profile,onNavigate}){
     React.useEffect(()=>{ensureAccountsWorkspaceStyle()},[]);
     const [state,setState]=React.useState({
@@ -16528,7 +16729,7 @@ function ShiftHandover({profile,onNavigate}){
         client.from('patient_discharges')
           .select('id,status,management_status,accounts_status,created_at'),
         client.from('patients')
-          .select('id,is_active,admission_date,room_no,bed_no')
+          .select('id,is_active,admission_date,room_no,bed_no,package_id,package_end_date')
       ]);
       setState({
         loading:false,
@@ -16574,6 +16775,12 @@ function ShiftHandover({profile,onNavigate}){
       String(row.accounts_status||'').toLowerCase()!=='cleared' &&
       String(row.status||'').toLowerCase()!=='completed'
     ).length;
+    const packageExpiry=state.patients.filter(row=>{
+      if(row.is_active===false||!row.package_id||!row.package_end_date)return false;
+      const end=new Date(`${String(row.package_end_date).slice(0,10)}T00:00:00`);
+      const limit=new Date(`${today}T00:00:00`);limit.setDate(limit.getDate()+3);
+      return end<=limit;
+    }).length;
     const refundValue=refunds;
     const averageDailyRevenue=(()=>{
       const chargeDates=[...new Set(rows.filter(row=>row.transaction_type==='Charge').map(row=>dateKey(row.transaction_date)).filter(Boolean))];
@@ -16594,6 +16801,7 @@ function ShiftHandover({profile,onNavigate}){
       ['Pending Approvals',pendingApprovals,'Charge Approvals','orange','Clinical charges awaiting decision',true],
       ['Pending Final Bills',finalBills,'Final Billing','purple','Active patients with balance',true],
       ['Discharge Clearance',dischargeClearance,'Discharge Clearance','orange','Management-approved cases',true],
+      ['Package Expiry',packageExpiry,'Package Expiry Dashboard','orange','Expired / expiring within 3 days',true],
       ['Average Daily Revenue',averageDailyRevenue,'Accounts Reports','blue','Based on charge-posting days']
     ];
 
