@@ -14321,7 +14321,7 @@ function RoomsBeds({profile}){
       setLoading(true);setMsg('');
       const [roomResult,patientResult,historyResult]=await Promise.all([
         client.from('room_beds').select('*').order('room_no',{ascending:true}).order('bed_no',{ascending:true}),
-        client.from('patients').select('id,patient_id,title,full_name,gender,room_no,bed_no,patient_category,special_nurse_required,is_active').eq('is_active',true).order('full_name'),
+        client.from('patients').select('id,patient_id,title,full_name,gender,room_no,bed_no,patient_category,special_nurse_required,is_active,billing_package,package_end_date').eq('is_active',true).order('full_name'),
         client.from('room_transfer_history').select('*').order('effective_at',{ascending:false}).limit(300)
       ]);
       if(roomResult.error){setMsg(roomResult.error.message||'Unable to load rooms');setRows([])}else setRows(roomResult.data||[]);
@@ -14355,8 +14355,9 @@ function RoomsBeds({profile}){
       return p?`${formalName(p)} · ${p.patient_id||'—'}`:'Former / discharged patient';
     }
     const availableRows=rows.filter(r=>!patientFor(r)&&r.status==='Available');
+    const occupiedRows=rows.filter(r=>patientFor(r)||r.status==='Occupied');
     const displayedRoomRows=dashboardBedFilter==='available'?availableRows:rows;
-    const occupied=rows.filter(r=>patientFor(r)||r.status==='Occupied').length;
+    const occupied=occupiedRows.length;
     const reserved=rows.filter(r=>r.status==='Reserved').length;
     const maintenance=rows.filter(r=>r.status==='Maintenance').length;
 
@@ -14487,7 +14488,7 @@ function RoomsBeds({profile}){
     if(loading)return h('div',{className:'loading'},'Loading Rooms Management…');
 
     return h(React.Fragment,null,
-      h('style',null,`.available-bed-compact-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}.available-bed-compact-row{display:flex;flex-direction:column;gap:7px;padding:12px 14px;border:1px solid #cfe9db;border-radius:12px;background:#f3fbf6}.available-bed-compact-main{display:flex;align-items:center;justify-content:space-between;gap:12px}.available-bed-compact-main strong{font-size:15px;color:#382333}.available-bed-compact-main span{font-size:13px;color:#735d69}.available-bed-compact-rates{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:#5d4654}.available-bed-compact-meta{display:flex;align-items:center;justify-content:space-between;gap:10px}.available-bed-compact-meta small{color:#735d69}@media(max-width:640px){.available-bed-compact-list{grid-template-columns:1fr}.available-bed-compact-row{padding:11px 12px}.available-bed-compact-main{align-items:flex-start}.available-bed-compact-rates{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px}}`),
+      h('style',null,`.available-bed-compact-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}.available-bed-compact-row{display:flex;flex-direction:column;gap:7px;padding:12px 14px;border:1px solid #cfe9db;border-radius:12px;background:#f3fbf6}.available-bed-compact-main{display:flex;align-items:center;justify-content:space-between;gap:12px}.available-bed-compact-main strong{font-size:15px;color:#382333}.available-bed-compact-main span{font-size:13px;color:#735d69}.available-bed-compact-rates{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:#5d4654}.available-bed-compact-meta{display:flex;align-items:center;justify-content:space-between;gap:10px}.available-bed-compact-meta small{color:#735d69}@media(max-width:640px){.available-bed-compact-list{grid-template-columns:1fr}.available-bed-compact-row{padding:11px 12px}.available-bed-compact-main{align-items:flex-start}.available-bed-compact-rates{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px}}.occupied-bed-panel{margin-top:16px}.occupied-bed-compact-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px}.occupied-bed-compact-row{display:flex;flex-direction:column;gap:8px;padding:13px 14px;border:1px solid #efc7c7;border-radius:12px;background:#fff7f7}.occupied-bed-compact-main{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.occupied-bed-compact-main>div{display:flex;gap:10px;align-items:baseline}.occupied-bed-compact-main strong{font-size:15px;color:#382333}.occupied-bed-compact-main span{font-size:13px;color:#735d69}.occupied-bed-patient{display:flex;align-items:baseline;gap:8px}.occupied-bed-patient strong{font-size:14px;color:#7a1247}.occupied-bed-patient small{color:#735d69}.occupied-bed-meta{display:grid;grid-template-columns:1fr 1fr;gap:10px}.occupied-bed-meta>div{display:flex;flex-direction:column;gap:2px}.occupied-bed-meta span{font-size:12px;color:#735d69}.occupied-bed-meta strong{font-size:13px;color:#382333}@media(max-width:640px){.occupied-bed-compact-list{grid-template-columns:1fr}.occupied-bed-meta{grid-template-columns:1fr}.occupied-bed-compact-main>div{display:block}.occupied-bed-patient{display:block}}`),
       h('div',{className:'rooms-hero'},
         h('div',null,h('small',null,'ADMIN / MANAGER CONTROL'),h('h3',null,'Rooms Management'),h('p',null,'Room master, tariff fixation, admission allotment and patient room-shifting history.')),
         canManage&&h('button',{className:'btn btn-primary',onClick:openNew},'+ Add Room / Bed')
@@ -14558,6 +14559,41 @@ function RoomsBeds({profile}){
                 rows.length===0&&h('tr',null,h('td',{colSpan:10,className:'empty'},'No rooms configured.'))
               )
             ))
+      ),
+
+      dashboardBedFilter==='available'&&h('div',{className:'card panel occupied-bed-panel'},
+        h('div',{className:'panel-head'},
+          h('div',null,
+            h('h3',null,'Occupied Bed Details'),
+            h('small',null,`${occupiedRows.length} occupied bed${occupiedRows.length===1?'':'s'} · Expected availability is based on the resident package expiry date.`)
+          )
+        ),
+        occupiedRows.length
+          ?h('div',{className:'occupied-bed-compact-list'},
+              occupiedRows.map(row=>{
+                const p=patientFor(row);
+                const expiry=p?.package_end_date?formatDateIN(p.package_end_date):'Not fixed';
+                const packageName=p?.billing_package||'Daily Fare / No Package';
+                return h('div',{className:'occupied-bed-compact-row',key:`occupied-${row.id}`},
+                  h('div',{className:'occupied-bed-compact-main'},
+                    h('div',null,
+                      h('strong',null,`Room ${row.room_no}-${row.bed_no}`),
+                      h('span',null,row.room_type||'Room')
+                    ),
+                    h('span',{className:'room-status room-status-occupied'},'Occupied')
+                  ),
+                  h('div',{className:'occupied-bed-patient'},
+                    h('strong',null,p?formalName(p):'Patient details unavailable'),
+                    p&&h('small',null,p.patient_id||'—')
+                  ),
+                  h('div',{className:'occupied-bed-meta'},
+                    h('div',null,h('span',null,'Package'),h('strong',null,packageName)),
+                    h('div',null,h('span',null,'Expected Availability'),h('strong',null,expiry))
+                  )
+                );
+              })
+            )
+          :h('div',{className:'empty'},'No occupied beds.')
       ),
 
       h(LogTable,{

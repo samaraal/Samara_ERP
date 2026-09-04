@@ -1,0 +1,31 @@
+Samara Care ERP v2.11.14
+AVAILABLE BEDS + OCCUPIED BEDS DETAILS
+
+Replace only:
+app.js
+
+When Dashboard → Available Beds is clicked, the page now shows:
+
+1. Available Beds Details
+   - Room / Bed
+   - Room Type
+   - Room Rent
+   - Nursing Charge
+   - Special Nurse Charge (when applicable)
+   - Floor / Wing
+   - Available status
+
+2. Occupied Bed Details directly beneath it
+   - Room / Bed
+   - Room Type
+   - Patient Name
+   - Resident ID
+   - Current Package / Daily Fare
+   - Expected Availability = Package Expiry Date
+   - Occupied status
+
+If an occupied resident has no package expiry date, Expected Availability shows "Not fixed".
+
+Responsive for Windows and mobile/PWA.
+
+No SQL or database changes.
