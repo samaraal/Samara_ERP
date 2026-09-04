@@ -4434,6 +4434,7 @@ Caring with Compassion. Living with Dignity.`;
 
   function FormFieldSettings({profile}){
     const [rows,setRows]=React.useState([]);
+    const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [moduleName,setModuleName]=React.useState('Admissions');
     const [search,setSearch]=React.useState('');
     const [message,setMessage]=React.useState('');
@@ -7428,6 +7429,7 @@ Thank you.`;
 
   function HRInterviews({profile,onNavigate}){
     const [rows,setRows]=React.useState([]);
+    const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     async function load(){const {data}=await client.from('career_applications').select('*').not('interview_at','is',null).order('interview_at',{ascending:true});setRows(data||[])}
     React.useEffect(()=>{load();const ch=client.channel('hr-interviews-live').on('postgres_changes',{event:'*',schema:'public',table:'career_applications'},load).subscribe();return()=>client.removeChannel(ch)},[]);
     return h(Section,{title:'Interviews',subtitle:'Scheduled recruitment interviews and candidate status'},
@@ -12421,6 +12423,7 @@ Please keep these login details confidential.`;
 
   function usePatients(){
     const [rows,setRows]=React.useState([]);
+    const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const load=React.useCallback(async()=>{const {data,error}=await client.from('patients').select('*').eq('is_active',true).order('full_name');if(error)console.error(error);setRows(data||[])},[]);
     React.useEffect(()=>{load();const ch=client.channel(`active-patients-${Math.random()}`).on('postgres_changes',{event:'*',schema:'public',table:'patients'},load).subscribe();return()=>client.removeChannel(ch)},[load]);
     return [rows,load];
@@ -12549,6 +12552,7 @@ Please keep these login details confidential.`;
     const canApprove=!isAccountsClearance&&['Admin','Manager'].includes(profile?.role);
     const canCloseAccounts=isAccountsClearance&&['Admin','Accounts'].includes(profile?.role);
     const [rows,setRows]=React.useState([]);
+    const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [patients,setPatients]=React.useState([]);
     const [show,setShow]=React.useState(false);
     const [editing,setEditing]=React.useState(null);
@@ -14072,6 +14076,7 @@ function RoomsBeds({profile}){
       expected_admission_date:'',reservation_notes:''
     };
     const [rows,setRows]=React.useState([]);
+    const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [patients,setPatients]=React.useState([]);
     const [history,setHistory]=React.useState([]);
     const [loading,setLoading]=React.useState(true);
@@ -14613,6 +14618,7 @@ function RoomsBeds({profile}){
     const activeShift=currentShift();
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
+    const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [form,setForm]=React.useState({patient_id:'',care_order_id:'',care_type:DAILY_CARE_ACTIVITY_OPTIONS[0],shift:currentShift(),status:'Completed',remarks:''});
     const [saving,setSaving]=React.useState(false);
     const [toast,setToast]=React.useState(null);
@@ -15959,6 +15965,7 @@ function RoomsBeds({profile}){
 function ShiftHandover({profile,onNavigate}){
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
+    const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [saving,setSaving]=React.useState(false);
     const [toast,setToast]=React.useState(null);
     const [returnPage]=React.useState(()=>{
@@ -16068,6 +16075,7 @@ function ShiftHandover({profile,onNavigate}){
   function Incidents({profile,onNavigate}){
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
+    const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [saving,setSaving]=React.useState(false);
     const [actionBusy,setActionBusy]=React.useState('');
     const [toast,setToast]=React.useState(null);
@@ -16685,6 +16693,7 @@ function ShiftHandover({profile,onNavigate}){
     const [patients]=usePatients();
     const [patientId,setPatientId]=React.useState('');
     const [rows,setRows]=React.useState([]);
+    const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [loading,setLoading]=React.useState(false);
     const [message,setMessage]=React.useState('');
 
@@ -17000,6 +17009,7 @@ function ShiftHandover({profile,onNavigate}){
 
   function RefundsView({profile,onNavigate}){
     const [rows,setRows]=React.useState([]);
+    const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [loading,setLoading]=React.useState(true);
 
     async function load(){
@@ -17251,6 +17261,7 @@ function ShiftHandover({profile,onNavigate}){
   function BillingPayments({profile}){
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
+    const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [loading,setLoading]=React.useState(true);
     const [saving,setSaving]=React.useState(false);
     const [message,setMessage]=React.useState('');
@@ -17377,8 +17388,30 @@ function ShiftHandover({profile,onNavigate}){
       return()=>client.removeChannel(channel);
     },[]);
 
+    React.useEffect(()=>{
+      let cancelled=false;
+      if(!patientFilter){
+        setPatientLedgerRows([]);
+        return()=>{cancelled=true};
+      }
+      (async()=>{
+        const {data,error}=await client.from('billing_transactions')
+          .select('*,patients(full_name,title,patient_id,room_no,bed_no)')
+          .eq('patient_id',patientFilter)
+          .order('transaction_date',{ascending:false});
+        if(cancelled)return;
+        if(error){
+          console.error('Selected patient ledger could not be loaded:',error);
+          setPatientLedgerRows(rows.filter(row=>row.patient_id===patientFilter));
+        }else{
+          setPatientLedgerRows(data||[]);
+        }
+      })();
+      return()=>{cancelled=true};
+    },[patientFilter,rows]);
+
     const visibleRows=patientFilter
-      ?rows.filter(row=>row.patient_id===patientFilter)
+      ?patientLedgerRows
       :rows;
 
     const totals=visibleRows.reduce((sum,row)=>{
@@ -18302,6 +18335,7 @@ Please access the Samara Family Portal for detailed account information.`;
     const canManageTariffs=profile?.role==='Admin';
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
+    const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [diagnostics,setDiagnostics]=React.useState([]);
     const [show,setShow]=React.useState(false);
     const [busy,setBusy]=React.useState(false);
@@ -19650,6 +19684,7 @@ function Reports(){
 
 function AuditTrail(){
     const [rows,setRows]=React.useState([]);
+    const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [profiles,setProfiles]=React.useState([]);
     const [loading,setLoading]=React.useState(true);
     const [message,setMessage]=React.useState('');
