@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.79';
+  const APP_VERSION = '2.9.85';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -10824,6 +10824,7 @@ Please keep these login details confidential.`;
     const [editFamilyCredential,setEditFamilyCredential]=React.useState(null);
     const [familyResetBusy,setFamilyResetBusy]=React.useState(null);
     const [familyResetCredential,setFamilyResetCredential]=React.useState(null);
+    const [familyPortalWaBusy,setFamilyPortalWaBusy]=React.useState('');
     const [momentBusy,setMomentBusy]=React.useState(false);
     const [momentCaption,setMomentCaption]=React.useState('');
     const [momentFamilyVisible,setMomentFamilyVisible]=React.useState(true);
@@ -10912,6 +10913,44 @@ Please keep these login details confidential.`;
         const linked=[payload.patient_id,payload.patient_code].filter(Boolean).map(String);
         return !linked.length||linked.includes(String(selected?.id||''))||linked.includes(String(selected?.patient_id||''));
       });
+    }
+
+    async function sendPatientPortalWhatsApp(access,{resend=false}={}){
+      if(!access?.id||familyPortalWaBusy)return;
+      setFamilyPortalWaBusy(access.id);
+      try{
+        const recipient=access.relative_name||'Family Member';
+        const patientName=formalName(selected)||selected?.full_name||'Patient';
+        const result=await sendWhatsAppTemplate({
+          to:access.mobile,
+          templateName:'samara_family_portal_access',
+          languageCode:'en',
+          bodyParams:familyPortalTemplateParams({
+            relativeName:access.relative_name,
+            patientName,
+            admissionDate:formatDateIN(selected?.admission_date),
+            patientId:selected?.patient_id,
+            reason:selected?.patient_category||'Assisted living care',
+            proposedStay:selected?.patient_category==='Short Stay'?'Short stay – as agreed':'As per agreed care plan',
+            roomBed:[selected?.room_no,selected?.bed_no].filter(Boolean).join(' / ')
+          }),
+          communicationLog:{
+            communication_type:`Family Portal Access${resend?' · Resent':''}`,
+            message_content:`Dear ${recipient},\n\nFamily Portal access is available for ${patientName}.\nResident ID: ${selected?.patient_id||'—'}\nPortal: https://family.samaraassistedliving.com`,
+            contact_name:recipient,
+            source_type:'Patient / Family · Family Portal',
+            sent_by:profile?.id||null,
+            sent_by_name:formalName(profile)||'Samara Management',
+            message_payload:{patient_id:selected?.id||null,patient_code:selected?.patient_id||null,patient_name:patientName,portal:'https://family.samaraassistedliving.com',resend:Boolean(resend)}
+          }
+        });
+        if(result?.history_logged===true)setDetails(current=>current?{...current,familyWhatsApp:[{id:`accepted-${result.provider_message_id}`,recipient_number:normalizeWhatsAppRecipient(access.mobile),template_name:'samara_family_portal_access',status:'Accepted',provider_message_id:result.provider_message_id,message_payload:{patient_id:selected?.id||null,patient_code:selected?.patient_id||null,resend:Boolean(resend)},created_at:new Date().toISOString()},...(current.familyWhatsApp||[])]}:current);
+        showPatientToast(result?.history_logged===true?'success':'error',result?.history_logged===true?(resend?'Family Portal WhatsApp resent and recorded in WhatsApp Inbox.':'Family Portal WhatsApp accepted by Meta and recorded in WhatsApp Inbox.'):'WhatsApp was accepted by Meta, but Inbox logging failed. Check the deployed whatsapp-send function.');
+      }catch(error){
+        showPatientToast('error',`Family Portal WhatsApp API failed: ${error.message||error}. Use the Existing Method button only if you want to send manually.`);
+      }finally{
+        setFamilyPortalWaBusy('');
+      }
     }
 
     async function videoDurationSeconds(file){
@@ -12080,41 +12119,8 @@ Please keep these login details confidential.`;
                 ),
                 access.is_active&&(()=>{const portalWhatsAppSent=familyPortalWhatsAppSent(access);return h('div',{className:'actions',style:{marginTop:'10px'}},
                   h('button',{type:'button',className:'btn btn-secondary',disabled:familyResetBusy===access.id,onClick:()=>resetSelectedFamilyPin(access)},familyResetBusy===access.id?'Resetting…':'Forgot / Reset PIN'),
-                  h('button',{type:'button',className:portalWhatsAppSent?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:portalWhatsAppSent,onClick:async()=>{
-                    try{
-                      const recipient=access.relative_name||'Family Member';
-                      const patientName=formalName(selected)||selected?.full_name||'Patient';
-                      const result=await sendWhatsAppTemplate({
-                        to:access.mobile,
-                        templateName:'samara_family_portal_access',
-                        languageCode:'en',
-                        bodyParams:familyPortalTemplateParams({
-                          relativeName:access.relative_name,
-                          patientName:formalName(selected)||selected?.full_name,
-                          admissionDate:formatDateIN(selected?.admission_date),
-                          patientId:selected?.patient_id,
-                          // Patient Category is intentionally used here instead of a long diagnosis.
-                          // It matches the approved template's short "Reason for Admission" sample.
-                          reason:selected?.patient_category||'Assisted living care',
-                          proposedStay:selected?.patient_category==='Short Stay'?'Short stay – as agreed':'As per agreed care plan',
-                          roomBed:[selected?.room_no,selected?.bed_no].filter(Boolean).join(' / ')
-                        }),
-                        communicationLog:{
-                          communication_type:'Family Portal Access',
-                          message_content:`Dear ${recipient},\n\nFamily Portal access is available for ${patientName}.\nResident ID: ${selected?.patient_id||'—'}\nPortal: https://family.samaraassistedliving.com`,
-                          contact_name:recipient,
-                          source_type:'Patient / Family · Family Portal',
-                          sent_by:profile?.id||null,
-                          sent_by_name:formalName(profile)||'Samara Management',
-                          message_payload:{patient_id:selected?.id||null,patient_code:selected?.patient_id||null,patient_name:patientName,portal:'https://family.samaraassistedliving.com'}
-                        }
-                      });
-                      if(result?.history_logged===true)setDetails(current=>current?{...current,familyWhatsApp:[{id:`accepted-${result.provider_message_id}`,recipient_number:normalizeWhatsAppRecipient(access.mobile),template_name:'samara_family_portal_access',status:'Accepted',provider_message_id:result.provider_message_id,message_payload:{patient_id:selected?.id||null,patient_code:selected?.patient_id||null},created_at:new Date().toISOString()},...(current.familyWhatsApp||[])]}:current);
-                      showPatientToast(result?.history_logged===true?'success':'error',result?.history_logged===true?'Family Portal WhatsApp accepted by Meta and recorded in WhatsApp Inbox.':'WhatsApp was accepted by Meta, but Inbox logging failed. Check the deployed whatsapp-send function.');
-                    }catch(error){
-                      showPatientToast('error',`Family Portal WhatsApp API failed: ${error.message||error}. Use the Existing Method button only if you want to send manually.`);
-                    }
-                  }},portalWhatsAppSent?'Portal Access WhatsApp Sent ✓':'Send Portal Access WhatsApp API'),
+                  h('button',{type:'button',className:portalWhatsAppSent?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:portalWhatsAppSent||familyPortalWaBusy===access.id,onClick:()=>sendPatientPortalWhatsApp(access)},familyPortalWaBusy===access.id?'Sending…':portalWhatsAppSent?'Portal Access WhatsApp Sent ✓':'Send Portal Access WhatsApp API'),
+                  portalWhatsAppSent?h('button',{type:'button',className:'btn btn-secondary',disabled:familyPortalWaBusy===access.id,onClick:()=>sendPatientPortalWhatsApp(access,{resend:true})},familyPortalWaBusy===access.id?'Resending…':'Resend Portal Access WhatsApp'):null,
                   h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${String(access.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal\nResident ID: ${selected?.patient_id||''}\nPortal: https://family.samaraassistedliving.com\nIf the PIN is forgotten, please contact Samara to reset it.`))}`,'_blank','noopener')},'Existing Method')
                 )})()
               )))

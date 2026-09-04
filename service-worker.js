@@ -1,6 +1,6 @@
-const CACHE = 'samara-erp-2.9.79-family-portal-whatsapp-state';
+const CACHE = 'samara-erp-2.9.85-family-portal-whatsapp-resend';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.9.79', './app.js?v=2.9.79',
+  './', './index.html', './styles.css?v=2.9.85', './app.js?v=2.9.85',
   './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',
   './config.js?v=2.9.70', './manifest.webmanifest?v=2.8.40', './assets/samara-mail-logo.png',
   './assets/samara-logo.png?v=20260812-global1',

@@ -1,0 +1,16 @@
+SAMARA CARE ERP v2.9.85 — FAMILY PORTAL WHATSAPP RESEND
+
+ADDED
+- The original sent button remains dim and disabled as a permanent indicator.
+- A separate Resend Portal Access WhatsApp button appears after the first send.
+- Every resend uses the approved Meta template and creates a new entry in the
+  same ERP WhatsApp Inbox conversation with a new Meta message ID.
+- The resend button shows Resending… and is disabled while processing, preventing
+  accidental duplicate clicks.
+
+REPLACE ONLY
+- app.js
+- index.html
+- service-worker.js
+
+No SQL or Edge Function deployment is required.
