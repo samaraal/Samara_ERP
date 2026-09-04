@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.94';
+  const APP_VERSION = '2.9.95';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7064,7 +7064,21 @@ Thank you.`;
       setManualFallbackUrl('');
       loadWhatsAppHistory(row.id);
     }
-    function closeApplication(){setSelected(null);setEdit(null);setMsg('');setWaHistory([]);setManualFallbackUrl('');setWaBusy(false)}
+    function backToApplications(){setSelected(null);setEdit(null);setMsg('');setWaHistory([]);setManualFallbackUrl('');setWaBusy(false)}
+    async function closeCareerApplication(){
+      if(!edit||edit.status==='Closed')return;
+      const reason=prompt('Enter the reason / HR remarks for closing this application:',String(edit.hr_remarks||''));
+      if(reason===null)return;
+      if(!String(reason).trim()){setMsg('Closure remarks are mandatory before closing an application.');return}
+      if(!confirm(`Close the application of ${selected?.applicant_name||'this applicant'}?`))return;
+      const now=new Date().toISOString();
+      const payload={status:'Closed',hr_remarks:String(reason).trim(),handled_by:profile.id,updated_at:now};
+      const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);
+      if(error){setMsg(error.message||'Unable to close the career application.');return}
+      setSelected({...selected,...payload});setEdit({...edit,...payload});
+      setMsg('Career application closed successfully.');
+      await load();
+    }
     function useDetectedRemarks(){
       const auto=detectedRemarks(selected);
       if(!auto){setMsg('No discrepancy was automatically detected. HR may enter any other discrepancy manually in HR Remarks.');return}
@@ -7276,7 +7290,7 @@ Thank you.`;
     const table=h('div',{className:'table-wrap employee-master-table-wrap'},h('table',{className:'table employee-master-table'},h('thead',null,h('tr',null,['Application ID','Applicant','Department','Designation','Mobile','Status','Received','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,rows.map(r=>h('tr',{key:r.id,onClick:()=>open(r),title:'Open complete applicant file',style:{cursor:'pointer'}},h('td',null,r.application_id),h('td',null,h('strong',null,r.applicant_name)),h('td',null,r.department),h('td',null,r.designation),h('td',null,r.mobile),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)),h('td',null,h('button',{type:'button',className:'btn btn-primary',onClick:e=>{e.stopPropagation();open(r)}},'Open File')))),rows.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'No career applications received yet.')):null)));
     const isRectification=edit?.status==='Returned for Rectification';
     const modal=selected&&edit?h('div',{className:'modal-backdrop',style:{position:'static',inset:'auto',background:'transparent',padding:0,display:'block',zIndex:'auto'}},h('div',{className:'card modal employee-modal',style:{width:'100%',maxWidth:'none',maxHeight:'none',overflow:'visible',margin:0}},
-      h('div',{className:'panel-head'},h('div',null,h('h3',null,'Applicant File — ',selected.applicant_name),h('small',null,`${selected.application_id} · Application received ${fmt(selected.created_at)} · ${selected.department} · ${selected.designation}`)),h('button',{type:'button',className:'btn btn-secondary',onClick:closeApplication},'← Back to Applications')),
+      h('div',{className:'panel-head'},h('div',null,h('h3',null,'Applicant File — ',selected.applicant_name),h('small',null,`${selected.application_id} · Application received ${fmt(selected.created_at)} · ${selected.department} · ${selected.designation}`)),h('div',{className:'employee-actions'},edit.status!=='Closed'?h('button',{type:'button',className:'btn btn-secondary',onClick:closeCareerApplication,style:{borderColor:'#b31561',color:'#7d1748'}},'Close Application'):h('span',{className:'badge'},'Closed'),h('button',{type:'button',className:'btn btn-secondary',onClick:backToApplications},'← Back to Applications'))),
       msg?h('div',{className:`message ${(msg.includes('✓')||msg.includes('successfully')||msg.includes('accepted by Meta'))?'success':'error'}`,style:{position:'sticky',top:'8px',zIndex:5,boxShadow:'0 5px 14px rgba(75,24,52,.10)'}},h('strong',null,msg),manualFallbackUrl?h('div',{style:{marginTop:'10px'}},h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>window.open(manualFallbackUrl,'_blank','noopener')},'Open Manual WhatsApp Fallback')):null):null,
       applicantDataIssues(selected).length?h('div',{className:'message error',style:{borderLeft:'5px solid #c31663'}},
         h('strong',null,'Smart HR Pre-screen — attention required'),
@@ -7375,7 +7389,7 @@ Thank you.`;
         })):h('p',{className:'empty'},'No WhatsApp communication has been recorded for this applicant yet.')
       ),
       h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-secondary',disabled:waBusy,onClick:returnForRectification,style:{borderColor:'#b31561',color:'#7d1748'}},waBusy?'Please wait…':'Return & Send WhatsApp API'),!isRectification?h('button',{type:'button',className:'btn btn-whatsapp',disabled:waBusy,onClick:sendInterviewWhatsApp},waBusy?'Sending…':'Send Interview WhatsApp API'):null,!isRectification&&(selected.interview_at&&edit.interview_at&&selected.interview_at!==edit.interview_at)?h('button',{type:'button',className:'btn btn-whatsapp',disabled:waBusy,onClick:sendRescheduleWhatsApp},waBusy?'Sending…':'Send Reschedule WhatsApp API'):null,!isRectification&&['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null),
-      h('div',{style:{display:'flex',justifyContent:'center',padding:'14px 0 4px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:closeApplication,style:{minWidth:'180px'}},'← Back to Applications'))
+      h('div',{style:{display:'flex',justifyContent:'center',padding:'14px 0 4px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:backToApplications,style:{minWidth:'180px'}},'← Back to Applications'))
     )):null;
     return selected&&edit?modal:h(Section,{title:'Career Applications',subtitle:'Click any applicant row to open the complete applicant file in chronological sections'},table);
   }
