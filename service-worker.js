@@ -1,8 +1,8 @@
-const CACHE = 'samara-erp-2.10.00-whatsapp-reply-menu';
+const CACHE = 'samara-erp-2.10.01-discharge-nurse-auto-whatsapp';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.10.00', './app.js?v=2.10.00',
+  './', './index.html', './styles.css?v=2.10.01', './app.js?v=2.10.01',
   './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',
-  './config.js?v=2.10.00', './manifest.webmanifest?v=2.8.40', './assets/samara-mail-logo.png',
+  './config.js?v=2.10.01', './manifest.webmanifest?v=2.8.40', './assets/samara-mail-logo.png',
   './assets/samara-logo.png?v=20260812-global1',
   './assets/samara-whatsapp-header.jpg?v=20260904',
   './icons/favicon.png?v=2.8.40', './icons/icon-192.png?v=2.8.40',

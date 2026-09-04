@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.00';
+  const APP_VERSION = '2.10.01';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -13323,10 +13323,27 @@ Please keep these login details confidential.`;
         return;
       }
 
+      const completedRow={
+        ...finalDischargeRow,
+        status:'Completed',
+        completed_by:profile?.id||null,
+        completed_by_name:formalName(profile)||profile?.full_name||profile?.login_id||'Nurse',
+        completed_at:new Date().toISOString(),
+        actual_departure_at:new Date(finalForm.actual_departure_time).toISOString()
+      };
+      let whatsappAccepted=false;
+      let whatsappError='';
+      try{
+        whatsappAccepted=await sendDischargeConfirmationWhatsAppApi(completedRow,{automatic:true});
+      }catch(sendError){
+        whatsappError=sendError?.message||String(sendError||'WhatsApp API unavailable');
+      }
       notify(
-        'success',
+        whatsappAccepted?'success':'warning',
         'Patient discharged successfully',
-        `Final nursing clearance completed. Room ${data?.room_no||'—'}-${data?.bed_no||'—'} is now available.`
+        whatsappAccepted
+          ?`Final nursing clearance completed by ${completedRow.completed_by_name}. The family discharge confirmation was accepted by Meta.`
+          :`Final nursing clearance completed and the room is available. Family WhatsApp was not sent${whatsappError?`: ${whatsappError}`:''}. Use Retry WhatsApp in the register.`
       );
       // v2.8.18: keep Final Discharge window open until Close/Done is selected.
       await load();
@@ -13344,30 +13361,51 @@ Please keep these login details confidential.`;
       );
     }
 
-    async function sendDischargeConfirmationWhatsAppApi(row){
+    async function sendDischargeConfirmationWhatsAppApi(row,{automatic=false,resend=false}={}){
       const patient=patients.find(p=>p.id===row.patient_id)||{};
       const to=patient.attendant_phone||row.relative_contact||patient.mobile||'';
-      if(!to){notify('error','WhatsApp not sent','Family / patient WhatsApp number is not available.');return}
+      if(!to){
+        const error=new Error('Family / patient WhatsApp number is not available.');
+        if(!automatic)notify('error','WhatsApp not sent',error.message);
+        throw error;
+      }
       const recipient=patient.attendant_name||row.relative_name||formalName(patient)||patient.full_name||'Family Member';
       const patientName=formalName(patient)||patient.full_name||'Patient';
       const departureAt=row.actual_departure_at||row.updated_at||new Date().toISOString();
       const departureDate=formatDateIN(String(departureAt).slice(0,10));
       const departureTime=formatTimeIN(departureAt);
       try{
-        await sendWhatsAppTemplate({to,templateName:'samara_discharge_confirmation',languageCode:'en',bodyParams:[recipient,patientName,departureDate,departureTime]});
-        notify('success','Discharge WhatsApp sent','Discharge confirmation was sent successfully through the approved Meta template.');
+        const result=await sendWhatsAppTemplate({
+          to,
+          templateName:'samara_discharge_confirmation',
+          languageCode:'en',
+          bodyParams:[recipient,patientName,departureDate,departureTime],
+          communicationLog:{
+            contact_name:recipient,
+            communication_type:resend?'Discharge Confirmation Resent':'Automatic Discharge Confirmation',
+            sent_by:profile?.id||null,
+            sent_by_name:automatic?'Samara System':formalName(profile)||profile?.full_name||'Samara Team',
+            source_type:'Patient / Family',
+            message_content:`Discharge confirmation for ${patientName} on ${departureDate} at ${departureTime}`,
+            message_payload:{discharge_id:row.id,patient_id:row.patient_id,automatic:Boolean(automatic),resend:Boolean(resend)}
+          }
+        });
+        const updateResult=await client.from('patient_discharges').update({
+          discharge_whatsapp_sent_at:new Date().toISOString(),
+          discharge_whatsapp_message_id:result.provider_message_id,
+          discharge_whatsapp_status:'Accepted',
+          updated_at:new Date().toISOString()
+        }).eq('id',row.id);
+        if(updateResult.error)console.warn('Discharge WhatsApp status could not be saved:',updateResult.error);
+        if(!automatic)notify('success',resend?'Discharge WhatsApp resent':'Discharge WhatsApp sent','Meta accepted the approved discharge confirmation template.');
+        return true;
       }catch(apiError){
-        const number=normalizeWhatsAppRecipient(to);
-        const text=`Dear ${recipient},
-
-We confirm that ${patientName} has completed the discharge process from Samara Assisted Living.
-
-Discharge Date: ${departureDate}
-Discharge Time: ${departureTime}
-
-Thank you for placing your trust in Samara Assisted Living.`;
-        if(number)window.open(`https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(text))}`,'_blank','noopener');
-        notify('error','WhatsApp API failed',`The existing WhatsApp message has been opened as fallback. ${apiError.message||apiError}`);
+        await client.from('patient_discharges').update({
+          discharge_whatsapp_status:'Failed',
+          updated_at:new Date().toISOString()
+        }).eq('id',row.id);
+        if(!automatic)notify('error','WhatsApp API failed',`${apiError.message||apiError}. No old WhatsApp route was opened; use Retry WhatsApp after checking the Meta template.`);
+        throw apiError;
       }
     }
     async function sendReviewAppointmentWhatsAppApi(row){
@@ -13406,6 +13444,7 @@ Doctor / Hospital: ${doctorHospital}`;
         ?`${row.voluntary_requested_by||'Voluntary'} · ${row.voluntary_requester_name||'—'} · ${row.voluntary_requester_contact||'—'}`
         :`${row.instructed_by_name||'—'} · ${row.instructed_by_contact||'—'}`,
       formatDateIN(row.proposed_discharge_date),
+      row.initiated_by_name||'—',
       h('span',{className:`badge ${row.management_status==='Approved'?'':'off'}`},row.management_status||'Pending'),
       row.management_approved_by_name||'—',
       row.management_approved_at?fmt(row.management_approved_at):'—',
@@ -13413,6 +13452,7 @@ Doctor / Hospital: ${doctorHospital}`;
       row.accounts_cleared_by_name||'—',
       row.accounts_cleared_at?fmt(row.accounts_cleared_at):'—',
       h('span',{className:`badge ${row.status==='Completed'?'':'off'}`},row.status||'Initiated'),
+      row.status==='Completed'?(row.completed_by_name||'—'):'—',
       h('div',{className:'employee-actions'},
         isHistoricalDuplicate(row)&&['Admin','Manager','Nurse'].includes(profile?.role)&&h('button',{
           type:'button',
@@ -13456,7 +13496,14 @@ Doctor / Hospital: ${doctorHospital}`;
                   ?'With Accounts'
                   :'Awaiting Management'
         ),
-        ['Admin','Manager'].includes(profile?.role)&&String(row.status||'').trim().toLowerCase()==='completed'&&h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>sendDischargeConfirmationWhatsAppApi(row)},'Send Discharge WhatsApp API'),
+        ['Admin','Manager','Nurse'].includes(profile?.role)&&String(row.status||'').trim().toLowerCase()==='completed'&&(
+          row.discharge_whatsapp_status==='Accepted'
+            ?h(React.Fragment,null,
+              h('button',{type:'button',className:'btn btn-whatsapp',disabled:true},'WhatsApp Sent ✓'),
+              h('button',{type:'button',className:'btn btn-secondary',onClick:()=>sendDischargeConfirmationWhatsAppApi(row,{resend:true}).catch(()=>{})},'Resend WhatsApp')
+            )
+            :h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>sendDischargeConfirmationWhatsAppApi(row).catch(()=>{})},row.discharge_whatsapp_status==='Failed'?'Retry WhatsApp API':'Send Discharge WhatsApp API')
+        ),
         ['Admin','Manager'].includes(profile?.role)&&String(row.status||'').trim().toLowerCase()==='completed'&&row.review_appointment_date&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>sendReviewAppointmentWhatsAppApi(row)},'Send Review Reminder API')
       )
     ]);
@@ -13492,7 +13539,7 @@ Doctor / Hospital: ${doctorHospital}`;
         )
       ),
       h(LogTable,{title:isAccountsClearance?`Pending Financial Clearance (${tableRows.length})`:`Discharge Workflow Register (${tableRows.length})`,
-        heads:['Patient','Initiation Basis','Instruction / Request','Date','Management','Decision By','Decision Time','Accounts','Closed By','Closure Time','Final Status','Action'],
+        heads:['Patient','Initiation Basis','Instruction / Request','Date','Initiated By','Management','Decision By','Decision Time','Accounts','Closed By','Closure Time','Final Status','Completed By','Action'],
         rows:tableRows
       }),
       show&&h('div',{className:'modal-backdrop'},

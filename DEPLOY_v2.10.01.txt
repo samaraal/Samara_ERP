@@ -1,0 +1,26 @@
+Samara Care ERP v2.10.01 — Discharge nurse names and automatic family WhatsApp
+
+Deployment order
+1. In Supabase SQL Editor, run:
+   supabase/sql/98_discharge_nurse_names_auto_whatsapp.sql
+2. Replace the website files:
+   app.js
+   config.js
+   index.html
+   service-worker.js
+3. Deploy/reload the site, then refresh once with Ctrl + Shift + R.
+
+What changes
+- Discharge Workflow Register shows Initiated By and Completed By.
+- Existing discharge records are backfilled from their saved staff IDs where possible.
+- When Nursing completes Final Discharge Clearance, the approved
+  samara_discharge_confirmation Meta template is sent automatically.
+- Meta acceptance and message ID are saved on the discharge row.
+- After acceptance, the primary button is disabled as WhatsApp Sent ✓ and a
+  separate Resend WhatsApp button remains available.
+- If Meta sending fails, clinical discharge remains completed and Retry WhatsApp
+  API is shown. The old wa.me route is not opened.
+
+Required existing service
+- The deployed whatsapp-send Edge Function and the approved Meta template
+  samara_discharge_confirmation must remain active.
