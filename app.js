@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.95';
+  const APP_VERSION = '2.9.96';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1264,15 +1264,19 @@ function initSamaraInaugurationInvitation(){
   // Keep them available for ERP login and permissions, but exclude them from Employee dashboards/lists.
   const isSamaraAdministratorAccount=row=>{
     const clean=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const role=clean(row?.role);
     const name=clean(row?.full_name||row?.name);
     const login=clean(row?.login_id||row?.username||row?.email?.split('@')[0]);
-    return name==='chellaboomi' ||
+    return role==='admin' ||
+      name==='chellaboomi' ||
       name==='drchellaboomi' ||
       name==='maneeshaboominathan' ||
       name==='boomir' ||
+      name==='ram' ||
       login==='chellaboomi' ||
       login==='rajaiahboomi' ||
-      login==='maneeshaboominathan';
+      login==='maneeshaboominathan' ||
+      login==='ram';
   };
   const EMPLOYEE_TITLES = ['Dr.','Prof.','Mr.','Mrs.','Ms.','Miss','Shri','Smt.','Rev.','Fr.','Br.','Sr.','Other'];
   const PATIENT_TITLES = ['Dr.','Mr.','Mrs.','Ms.','Miss','Shri','Smt.','Master','Baby','Kumari','Late','Other'];
@@ -8142,8 +8146,8 @@ Thank you.`;
     const isSystemAccount=row=>{
       const name=String(row?.full_name||'').trim().toLowerCase().replace(/\s+/g,' ');
       const login=String(row?.login_id||row?.username||'').trim().toLowerCase();
-      // Current Samara rule: Chellaboomi, rajaiahboomi and Maneesha Boominathan
-      // are the three full-access Administrators and are not HR employees.
+      // Samara Directors/Admins (including Boomi, Chella, Maneesha and Ram)
+      // are ERP management accounts and are not HR employees.
       if(isSamaraAdministratorAccount(row))return true;
       // Also suppress any legacy placeholder system account named simply Administrator.
       return name==='administrator' || login==='administrator';
