@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.85';
+  const APP_VERSION = '2.9.86';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5287,7 +5287,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Clinical Alerts'&&h(ClinicalAlertsPage,{engine:alertEngine,setPage}),
           page==='Clinical Escalations'&&h(ClinicalEscalationsDashboard,{profile,onNavigate:setPage}),
           page==='Shift Tasks'&&h(ShiftTasks,{profile,onNavigate:setPage}),
-          page==='Patients'&&h(Patients,{profile}),
+          page==='Patients'&&h(Patients,{profile,onNavigate:setPage}),
           page==='Discharge'&&h(DischargeManagement,{profile}),
           page==='Rooms'&&h(RoomsBeds,{profile}),
           page==='Care Packages'&&h(CarePackages,{profile}),
@@ -6452,6 +6452,22 @@ Samara Assisted Living`;
       const ch=client.channel('whatsapp-inbox-live').on('postgres_changes',{event:'*',schema:'public',table:'hr_whatsapp_communications'},load).subscribe();
       return()=>client.removeChannel(ch);
     },[]);
+    React.useEffect(()=>{
+      let context=null;
+      try{context=JSON.parse(sessionStorage.getItem('samara_patient_whatsapp_context')||'null')}catch(_error){}
+      if(!context)return;
+      const phone=normalizeWhatsAppRecipient(context.phone||'');
+      if(!phone||!rows.some(row=>normalizeWhatsAppRecipient(row.recipient_number||'')===phone))return;
+      setSelectedPhone(phone);
+      if(context.open_emergency){
+        setEmergencyPatient(context.patient_name||'');
+        setEmergencyHospital('');
+        setEmergencyAttempt('Called authorised attendant; no response.');
+        setEmergencyTime(new Date().toISOString().slice(0,16));
+        setShowEmergency(true);
+      }
+      try{sessionStorage.removeItem('samara_patient_whatsapp_context')}catch(_error){}
+    },[rows.length]);
     if(!canUse)return h(Section,{title:'WhatsApp Inbox'},h('p',{className:'empty'},'WhatsApp Inbox is available to Admin and Manager.'));
     const phoneOf=r=>normalizeWhatsAppRecipient(r.recipient_number||'');
     const groups={};
@@ -6728,7 +6744,6 @@ Thank you.`;
                   h('div',{style:{minWidth:0}},h('div',{style:{fontWeight:'800',color:'#2e252a',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},active.name),h('small',{style:{color:'#6e6268'}},`+${active.phone} · ${active.source}`))
                 ),
                 h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}},
-                  h('button',{type:'button',className:'btn',onClick:()=>{setEmergencyPatient('');setEmergencyHospital('');setEmergencyAttempt('Called authorised attendant; no response.');setEmergencyTime(new Date().toISOString().slice(0,16));setShowEmergency(true)},style:{background:'#b42336',color:'#fff',border:'1px solid #8e1627',fontWeight:'900',padding:'8px 12px'}},'🚨 Emergency'),
                   h('span',{className:`badge ${within24?'success':''}`},within24?'Reply window open':'Template required')
                 )
               ),
@@ -10811,7 +10826,7 @@ Please keep these login details confidential.`;
   function currentShift(){const h=new Date().getHours();return h>=7&&h<19?'Day Shift (7 AM–7 PM)':'Night Shift (7 PM–7 AM)'}
   function shiftForTime(value){const h=Number(String(value).slice(0,2));return h>=7&&h<19?'Day Shift (7 AM–7 PM)':'Night Shift (7 PM–7 AM)'}
 
-  function Patients({profile}){
+  function Patients({profile,onNavigate}){
     const patientAddress=(source={})=>composePatientAddressGlobal(source);
     const canEdit=['Admin','Manager'].includes(profile?.role);
     const clinicalView=CLINICAL_ROLES.includes(profile?.role);
@@ -10825,6 +10840,7 @@ Please keep these login details confidential.`;
     const [familyResetBusy,setFamilyResetBusy]=React.useState(null);
     const [familyResetCredential,setFamilyResetCredential]=React.useState(null);
     const [familyPortalWaBusy,setFamilyPortalWaBusy]=React.useState('');
+    const [showFamilyDetails,setShowFamilyDetails]=React.useState(false);
     const [momentBusy,setMomentBusy]=React.useState(false);
     const [momentCaption,setMomentCaption]=React.useState('');
     const [momentFamilyVisible,setMomentFamilyVisible]=React.useState(true);
@@ -10913,6 +10929,24 @@ Please keep these login details confidential.`;
         const linked=[payload.patient_id,payload.patient_code].filter(Boolean).map(String);
         return !linked.length||linked.includes(String(selected?.id||''))||linked.includes(String(selected?.patient_id||''));
       });
+    }
+
+    function primaryFamilyContact(){
+      const list=details?.familyAccess||[];
+      return list.find(row=>row.is_active!==false&&row.primary_contact)||list.find(row=>row.is_active!==false)||list[0]||null;
+    }
+
+    function openPatientWhatsApp(openEmergency=false){
+      const access=primaryFamilyContact();
+      const phone=normalizeWhatsAppRecipient(access?.mobile||selected?.attendant_phone||selected?.mobile||'');
+      if(!phone){showPatientToast('error','Authorised family WhatsApp number is not available.');return}
+      try{sessionStorage.setItem('samara_patient_whatsapp_context',JSON.stringify({phone,contact_name:access?.relative_name||selected?.attendant_name||'Family Member',patient_id:selected?.id||null,patient_name:formalName(selected)||selected?.full_name||'Patient',open_emergency:Boolean(openEmergency)}))}catch(_error){}
+      setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false);
+      onNavigate?.('WhatsApp Inbox');
+    }
+
+    function familyCorrespondenceAddress(){
+      return selected?.attendant_address||selected?.family_address||selected?.relative_address||patientAddress(selected)||selected?.address||'Not recorded';
     }
 
     async function sendPatientPortalWhatsApp(access,{resend=false}={}){
@@ -12048,7 +12082,7 @@ Please keep these login details confidential.`;
       ),
       selected&&details&&h('div',{className:'modal-backdrop patient-file-backdrop'},h('div',{className:'card modal patient-master-modal'},
         h('button',{type:'button',className:'patient-mobile-back',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('')}},'← Back to Patients'),
-        h('div',{className:'panel-head patient-master-header'},h('div',{className:'patient-head',style:{display:'flex',alignItems:'center',gap:'14px',minWidth:0,flex:'1 1 auto'}},photoUrl?h('img',{src:photoUrl,className:'patient-photo',alt:`${formalName(selected)} photo`,style:{width:'92px',height:'108px',maxWidth:'92px',minWidth:'92px',maxHeight:'108px',objectFit:'cover',objectPosition:'center',borderRadius:'16px',border:'1px solid #ead0de',background:'#fff',display:'block',flex:'0 0 92px'}}):h('div',{className:'patient-photo patient-photo-placeholder',style:{width:'92px',height:'108px',maxWidth:'92px',minWidth:'92px',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'16px',flex:'0 0 92px'}},'SC'),h('div',{style:{minWidth:0,flex:'1 1 auto'}},h('h3',null,formalName(selected)),h('small',null,`${selected.patient_id||'—'} · ${selected.admission_type||''} · ${selected.patient_category||''}`),h('div',{className:'patient-header-badges'},h('span',{className:'badge'},selected.is_active===false?'Inactive':'Active'),selected.room_no&&selected.bed_no?h('span',{className:'pill'},`Room ${selected.room_no} · Bed ${selected.bed_no}`):h('span',{className:'pill warning'},'Room not assigned'),selected.special_nurse_required?h('span',{className:'pill warning'},`Special nurse: ${selected.special_nurse_name||'Required'}`):null))),h('div',{className:'employee-actions'},canEdit?h('button',{className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Patient'):h('span',{className:'pill'},'View only'),h('button',{className:'close',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('')}},'×'))),
+        h('div',{className:'panel-head patient-master-header'},h('div',{className:'patient-head',style:{display:'flex',alignItems:'center',gap:'14px',minWidth:0,flex:'1 1 auto'}},photoUrl?h('img',{src:photoUrl,className:'patient-photo',alt:`${formalName(selected)} photo`,style:{width:'92px',height:'108px',maxWidth:'92px',minWidth:'92px',maxHeight:'108px',objectFit:'cover',objectPosition:'center',borderRadius:'16px',border:'1px solid #ead0de',background:'#fff',display:'block',flex:'0 0 92px'}}):h('div',{className:'patient-photo patient-photo-placeholder',style:{width:'92px',height:'108px',maxWidth:'92px',minWidth:'92px',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'16px',flex:'0 0 92px'}},'SC'),h('div',{style:{minWidth:0,flex:'1 1 auto'}},h('h3',null,formalName(selected)),h('small',null,`${selected.patient_id||'—'} · ${selected.admission_type||''} · ${selected.patient_category||''}`),h('div',{className:'patient-header-badges'},h('span',{className:'badge'},selected.is_active===false?'Inactive':'Active'),selected.room_no&&selected.bed_no?h('span',{className:'pill'},`Room ${selected.room_no} · Bed ${selected.bed_no}`):h('span',{className:'pill warning'},'Room not assigned'),selected.special_nurse_required?h('span',{className:'pill warning'},`Special nurse: ${selected.special_nurse_name||'Required'}`):null))),h('div',{className:'employee-actions'},canEdit?h('button',{className:'btn btn-secondary',onClick:()=>setShowFamilyDetails(true)},'Family Details'):null,canEdit?h('button',{className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Patient'):h('span',{className:'pill'},'View only'),h('button',{className:'close',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false)}},'×'))),
         h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Documents',details.docs.length),tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),tabButton('Daily Moments',(details.dailyMoments||[]).length),!clinicalView?tabButton('Billing',details.billing.length):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
         h('div',{className:'patient-tab-content'},
           tab==='Overview'&&h('div',{className:'tabs-grid'},
@@ -12105,7 +12139,11 @@ Please keep these login details confidential.`;
           canEdit&&tab==='Family Portal'&&h('div',{className:'section-card'},
             h('div',{className:'panel-head'},
               h('div',null,h('h4',null,'Family Portal Login'),h('small',null,'View the authorised family login details for this resident. Temporary PINs are shown only when first created or reset.')),
-              h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Family Access')
+              h('div',{className:'actions'},
+                h('button',{type:'button',className:'btn btn-whatsapp',disabled:!primaryFamilyContact(),onClick:()=>openPatientWhatsApp(false)},'WhatsApp Messages'),
+                h('button',{type:'button',className:'btn',disabled:!primaryFamilyContact(),onClick:()=>openPatientWhatsApp(true),style:{background:'#b42336',color:'#fff',border:'1px solid #8e1627',fontWeight:'900'}},'🚨 Emergency'),
+                h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Family Access')
+              )
             ),
             (details.familyAccess||[]).length
               ?h('div',null,(details.familyAccess||[]).map(access=>h('div',{className:'section-card',key:access.id,style:{marginTop:'12px'}},
@@ -12132,6 +12170,21 @@ Please keep these login details confidential.`;
             )
           )
         )
+      )),
+      showFamilyDetails&&selected&&details&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setShowFamilyDetails(false)}},h('div',{className:'card modal',style:{maxWidth:'680px'}},
+        h('div',{className:'panel-head'},h('div',null,h('h3',null,'Family Details'),h('small',null,`${formalName(selected)||selected.full_name||'Resident'} · Authorised family contact`)),h('button',{type:'button',className:'close',onClick:()=>setShowFamilyDetails(false)},'×')),
+        (()=>{const family=primaryFamilyContact();return h('div',{className:'modal-grid'},
+          h('div',{className:'field'},h('label',null,'Relative / Authorised Person'),h('input',{readOnly:true,value:family?.relative_name||selected?.attendant_name||'Not recorded'})),
+          h('div',{className:'field'},h('label',null,'Relationship'),h('input',{readOnly:true,value:family?.relationship||'Not recorded'})),
+          h('div',{className:'field'},h('label',null,'Mobile Number'),h('input',{readOnly:true,value:family?.mobile||selected?.attendant_phone||'Not recorded'})),
+          h('div',{className:'field'},h('label',null,'Email'),h('input',{readOnly:true,value:family?.email||'Not recorded'})),
+          h('div',{className:'field span-2'},h('label',null,'Family / Correspondence Address'),h('textarea',{readOnly:true,rows:4,value:familyCorrespondenceAddress()})),
+          h('div',{className:'actions span-2'},
+            h('button',{type:'button',className:'btn btn-whatsapp',disabled:!family,onClick:()=>openPatientWhatsApp(false)},'WhatsApp Messages'),
+            h('button',{type:'button',className:'btn',disabled:!family,onClick:()=>openPatientWhatsApp(true),style:{background:'#b42336',color:'#fff',fontWeight:'900'}},'🚨 Emergency'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowFamilyDetails(false)},'Close')
+          )
+        )})()
       )),
       canEdit&&editTarget&&editForm&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal patient-edit-modal',onSubmit:savePatientEdit},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Edit Patient Information'),h('small',null,`${editTarget.patient_id||'—'} · Correct duplicate or wrongly entered details`)),h('button',{type:'button',className:'close',onClick:()=>{setEditTarget(null);setEditForm(null)}},'×')),

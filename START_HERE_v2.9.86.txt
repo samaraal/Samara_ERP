@@ -1,0 +1,17 @@
+SAMARA CARE ERP v2.9.86 — RELEVANT FILES ONLY
+
+Replace these three files in the ERP deployment:
+1. app.js
+2. index.html
+3. service-worker.js
+
+Changes:
+- Removes the Emergency button from the WhatsApp Inbox header.
+- Adds WhatsApp Messages and Emergency actions to Patient > Family Portal.
+- Adds a Family Details button to the patient-card header.
+- Family Details shows the authorised relative's name, relationship, phone, email and correspondence address.
+- Patient WhatsApp actions open the matching conversation; Emergency opens the existing emergency workflow for that resident.
+
+No database SQL or Edge Function deployment is required for this update.
+
+After uploading, hard-refresh the browser once so the new service-worker cache is activated.
