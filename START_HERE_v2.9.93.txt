@@ -1,0 +1,16 @@
+SAMARA CARE ERP v2.9.93 — EMPLOYEE WELCOME INBOX DISPLAY
+
+Replace these three files:
+1. app.js
+2. index.html
+3. service-worker.js
+
+Fix:
+- WhatsApp Inbox now displays the complete approved employee_welcome_samara content instead of the shortened internal summary.
+- Adds the Samara logo header, complete welcome wording, designation paragraph, first-time registration instruction, formal signature and Open Samara Care ERP button.
+- The already-sent Employee Welcome message is reconstructed from its stored employee name and designation, so it also displays in the full format.
+- Actual WhatsApp API delivery remains unchanged because the recipient already receives the correct approved Meta template.
+
+No SQL or Edge Function deployment is required.
+
+After uploading, refresh using Ctrl + Shift + R once.

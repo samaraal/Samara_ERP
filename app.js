@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.92';
+  const APP_VERSION = '2.9.93';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6540,6 +6540,26 @@ Samara Assisted Living`;
     }
     function chatText(r){
       const raw=String(r?.message_content||r?.communication_type||'WhatsApp message');
+      if(String(r?.template_name||'').toLowerCase()==='employee_welcome_samara'){
+        const employeeName=r?.contact_name||r?.applicant_name||'Colleague';
+        const designation=r?.message_payload?.designation||'Team Member';
+        return `Dear ${employeeName},
+
+Welcome to the Samara Family! 🌿
+
+We are delighted to have you with us. At Samara, every resident deserves dignity, compassion and respect. From today, you become an important part of that mission.
+
+As a ${designation}, your commitment and service will make a meaningful difference in the lives of our residents.
+
+Your employee profile has been created in Samara Care ERP.
+
+Please open Samara Care ERP using the button below and complete your first-time registration by creating your Username and Password.
+
+We wish you a successful, fulfilling and rewarding journey with us. All the very best!
+
+Samara Health Care LLP
+Caring with Compassion. Living with Dignity.`;
+      }
       if(String(r?.message_type||'').toLowerCase()==='template'){
         const one=(raw.match(/\{\{1\}\}:\s*(.*)/)||[])[1]||r?.contact_name||r?.applicant_name||'Customer';
         const two=(raw.match(/\{\{2\}\}:\s*(.*)/)||[])[1]||'your enquiry';
@@ -6752,7 +6772,7 @@ Thank you.`;
                 const outgoing=r.direction!=='inbound';const media=mediaInfo(r);const text=chatText(r);
                 return h('div',{key:r.id,style:{display:'flex',justifyContent:outgoing?'flex-end':'flex-start',marginBottom:'8px'}},
                   h('div',{style:{position:'relative',maxWidth:'72%',padding:'8px 10px 6px',borderRadius:outgoing?'8px 0 8px 8px':'0 8px 8px 8px',background:outgoing?'#d9fdd3':'#fff',boxShadow:'0 1px 1px rgba(0,0,0,.08)',color:'#292229'}},
-                    outgoing&&(/Payment Receipt|Daily Payable Reminder|Family Portal Access|EMERGENCY/i.test(String(r.communication_type||'')))?h(React.Fragment,null,
+                    outgoing&&(/Payment Receipt|Daily Payable Reminder|Family Portal Access|Employee Welcome|EMERGENCY/i.test(String(r.communication_type||'')))?h(React.Fragment,null,
                       h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748',marginBottom:'6px',display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}},
                         h('span',null,String(r.communication_type||'')),
                         /EMERGENCY/i.test(String(r.communication_type||''))
@@ -6761,17 +6781,17 @@ Thank you.`;
                             ?h('span',{style:{padding:'2px 7px',borderRadius:'999px',background:'#7d1748',color:'#fff',fontSize:'10px',letterSpacing:'.2px'}},'AUTOMATED · Samara System')
                             :(r.sent_by_name?h('span',{style:{fontWeight:'700',color:'#7b6871'}},`· ${r.sent_by_name}`):null)
                       ),
-                      ['samara_bill_reminder','samara_payment_receipt','samara_family_portal_access','samara_emergency_hospital_transfer','samara_urgent_contact_required'].includes(String(r.template_name||'').toLowerCase())
+                      ['samara_bill_reminder','samara_payment_receipt','samara_family_portal_access','employee_welcome_samara','samara_emergency_hospital_transfer','samara_urgent_contact_required'].includes(String(r.template_name||'').toLowerCase())
                         ?h('div',{style:{background:'#fff',border:'1px solid #ecdce4',borderRadius:'8px',padding:'8px 10px',marginBottom:'9px',textAlign:'center'}},
                             h('img',{src:BRAND_LOGO_SRC,alt:'Samara Assisted Living',style:{display:'block',width:'128px',maxWidth:'70%',height:'auto',margin:'0 auto 5px'}}),
-                            h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748'}},'Greetings from Samara Assisted Living')
+                            String(r.template_name||'').toLowerCase()!=='employee_welcome_samara'?h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748'}},'Greetings from Samara Assisted Living'):null
                           )
                         :null
                     ):null,
                     h('div',{style:{whiteSpace:'pre-wrap',lineHeight:'1.42',fontSize:'14px',paddingRight:'4px'}},text),
                     media?h('button',{type:'button',disabled:mediaBusyId===r.id,onClick:()=>openMedia(r),style:{display:'block',marginTop:'8px',padding:'7px 10px',border:'0',borderRadius:'7px',background:'#f0f2f5',color:'#5d1039',fontWeight:'700',cursor:mediaBusyId===r.id?'wait':'pointer',maxWidth:'100%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},mediaBusyId===r.id?'Opening…':mediaLabel(media)):null,
-                    outgoing&&['samara_bill_reminder','samara_payment_receipt','samara_family_portal_access'].includes(String(r.template_name||'').toLowerCase())
-                      ?h('a',{href:'https://family.samaraassistedliving.com/',target:'_blank',rel:'noopener noreferrer',style:{display:'block',marginTop:'9px',padding:'8px 10px',borderRadius:'7px',background:'#fff',border:'1px solid #b8d9c5',color:'#087f5b',fontWeight:'800',textAlign:'center',textDecoration:'none'}},String(r.template_name||'').toLowerCase()==='samara_payment_receipt'?'↗ View Family Portal website':'↗ View Family Portal')
+                    outgoing&&['samara_bill_reminder','samara_payment_receipt','samara_family_portal_access','employee_welcome_samara'].includes(String(r.template_name||'').toLowerCase())
+                      ?h('a',{href:String(r.template_name||'').toLowerCase()==='employee_welcome_samara'?'https://app.samaraassistedliving.com/':'https://family.samaraassistedliving.com/',target:'_blank',rel:'noopener noreferrer',style:{display:'block',marginTop:'9px',padding:'8px 10px',borderRadius:'7px',background:'#fff',border:'1px solid #b8d9c5',color:'#087f5b',fontWeight:'800',textAlign:'center',textDecoration:'none'}},String(r.template_name||'').toLowerCase()==='employee_welcome_samara'?'↗ Open Samara Care ERP':String(r.template_name||'').toLowerCase()==='samara_payment_receipt'?'↗ View Family Portal website':'↗ View Family Portal')
                       :null,
                     h('small',{style:{display:'block',marginTop:'4px',textAlign:'right',color:'#667781',fontSize:'11px'}},`${fmt(r.received_at||r.sent_at||r.created_at)}${outgoing?`  ${String(r.status||'Sent').toLowerCase()==='read'?'✓✓':String(r.status||'Sent').toLowerCase()==='delivered'?'✓✓':'✓'}`:''}`)
                   )
@@ -7811,7 +7831,7 @@ Thank you.`;
           headerImage:SAMARA_WHATSAPP_LOGO_URL,
           communicationLog:{
             communication_type:`Employee Welcome${resend?' · Resent':''}`,
-            message_content:`Dear ${employeeName},\n\nWelcome to the Samara Family.\nDesignation: ${designation}\nLogin ID: ${loginId}\nERP: https://app.samaraassistedliving.com`,
+            message_content:`Dear ${employeeName},\n\nWelcome to the Samara Family! 🌿\n\nWe are delighted to have you with us. At Samara, every resident deserves dignity, compassion and respect. From today, you become an important part of that mission.\n\nAs a ${designation}, your commitment and service will make a meaningful difference in the lives of our residents.\n\nYour employee profile has been created in Samara Care ERP.\n\nPlease open Samara Care ERP using the button below and complete your first-time registration by creating your Username and Password.\n\nWe wish you a successful, fulfilling and rewarding journey with us. All the very best!\n\nSamara Health Care LLP\nCaring with Compassion. Living with Dignity.`,
             contact_name:employeeName,
             source_type:'HR · Employee Welcome',
             sent_by:profile?.id||null,

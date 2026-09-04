@@ -1,6 +1,6 @@
-const CACHE = 'samara-erp-2.9.92-employee-welcome-header-format';
+const CACHE = 'samara-erp-2.9.93-employee-welcome-inbox-display';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.9.92', './app.js?v=2.9.92',
+  './', './index.html', './styles.css?v=2.9.93', './app.js?v=2.9.93',
   './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',
   './config.js?v=2.9.70', './manifest.webmanifest?v=2.8.40', './assets/samara-mail-logo.png',
   './assets/samara-logo.png?v=20260812-global1',
