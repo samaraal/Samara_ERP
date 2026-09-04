@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.87';
+  const APP_VERSION = '2.9.88';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6777,11 +6777,13 @@ Thank you.`;
                   )
                 )
               })),
-              within24?h('div',{className:'wa-free-composer'},
-                h('textarea',{value:reply,onChange:e=>setReply(e.target.value),placeholder:'Type a message',disabled:busy,rows:2,style:{flex:1,resize:'none',borderRadius:'10px',background:'#fff',margin:0}}),
-                h('button',{type:'button',className:'btn btn-primary',disabled:busy||!reply.trim(),onClick:sendReply,style:{minWidth:'96px'}},busy?'Sending…':'Send')
-              ):h('div',{className:'wa-template-composer'},
-                h('div',{style:{fontWeight:'800',color:'#5d1039',marginBottom:'6px'}},'Free-text reply unavailable · customer has not messaged within 24 hours. Use an approved WhatsApp template.'),
+              h('div',{className:'wa-free-composer',style:{opacity:within24?1:.68}},
+                h('div',{style:{flex:'1 1 100%',fontWeight:'800',color:within24?'#087f5b':'#5d1039',marginBottom:'4px'}},within24?'Direct message · reply window open':'Direct message locked · family member has not replied within the last 24 hours'),
+                h('textarea',{value:reply,onChange:e=>setReply(e.target.value),placeholder:within24?'Type a direct message':'Direct messaging becomes available after the family member replies',disabled:busy||!within24,rows:2,style:{flex:1,resize:'none',borderRadius:'10px',background:'#fff',margin:0}}),
+                h('button',{type:'button',className:'btn btn-primary',disabled:busy||!within24||!reply.trim(),onClick:sendReply,style:{minWidth:'96px'}},busy?'Sending…':'Send direct')
+              ),
+              h('div',{className:'wa-template-composer'},
+                h('div',{style:{fontWeight:'800',color:'#5d1039',marginBottom:'6px'}},'Approved WhatsApp templates · available inside or outside the 24-hour reply window'),
                 h('div',{className:'wa-template-grid'},
                   h('div',null,h('small',{style:{display:'block',marginBottom:'3px',color:'#6e6268'}},'Template'),h('select',{value:templateName,onChange:e=>chooseReopenTemplate(e.target.value),style:{width:'100%'}},WA_REOPEN_TEMPLATES.map(t=>h('option',{key:t.name,value:t.name},t.label)))),
                   h('div',null,h('small',{style:{display:'block',marginBottom:'3px',color:'#6e6268'}},'Regarding'),h('input',{value:templateRegarding,onChange:e=>setTemplateRegarding(e.target.value),placeholder:selectedTemplate.regarding,style:{width:'100%'}})),

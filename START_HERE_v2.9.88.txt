@@ -1,0 +1,18 @@
+SAMARA CARE ERP v2.9.88 — DIRECT MESSAGES + TEMPLATES
+
+Replace these three files:
+1. app.js
+2. index.html
+3. service-worker.js
+
+WhatsApp Inbox now displays both sections:
+- Direct messages: enabled when the family member has messaged within the previous 24 hours.
+- Approved templates: available at all times, including outside the reply window.
+
+When the reply window is closed, the direct-message field remains visible but disabled and clearly explains that a family reply is required. Sending an outbound template alone does not open the direct-message window.
+
+The v2.9.87 startup fix and v2.9.86 patient Family Details, WhatsApp Messages and Emergency changes are retained.
+
+No SQL or Edge Function deployment is required.
+
+After uploading, refresh using Ctrl + Shift + R once.
