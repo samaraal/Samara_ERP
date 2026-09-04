@@ -1,0 +1,33 @@
+Samara Care ERP v2.11.01
+PACKAGE EXPIRY WHATSAPP QUICK-REPLY BUTTONS
+
+This update adds the safer family-response workflow requested.
+
+WHAT CHANGED
+- WhatsApp template now has 3 Quick Reply buttons:
+  Weekly / Fortnightly / Monthly
+- Daily Fare is selected by replying DAILY.
+- A family tap/reply does NOT renew or charge automatically.
+- The existing WhatsApp webhook records the choice in package_renewal_requests.
+- Package Expiry Dashboard shows the Family Request.
+- Admin / Manager / Accounts confirms the final renewal or Daily Fare in ERP.
+- On confirmation, the family request is marked Completed.
+
+INSTALL
+1. Replace app.js
+2. Run:
+   supabase/sql/108_package_quick_reply_requests.sql
+3. Redeploy:
+   supabase/functions/package-expiry-whatsapp/index.ts
+4. Redeploy the EXISTING:
+   supabase/functions/whatsapp-webhook/index.ts
+   Keep the same existing webhook URL and Verify Token.
+5. Update/create the Meta template using:
+   WHATSAPP_TEMPLATE_WITH_BUTTONS.txt
+
+META BUTTON ORDER MUST BE:
+0 = Weekly
+1 = Fortnightly
+2 = Monthly
+
+No changes are needed to the daily-payable WhatsApp function.

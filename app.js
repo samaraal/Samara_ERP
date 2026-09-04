@@ -16524,6 +16524,7 @@ function ShiftHandover({profile,onNavigate}){
     const allowed=['Admin','Manager','Accounts'].includes(profile?.role);
     const [rows,setRows]=React.useState([]);
     const [packages,setPackages]=React.useState([]);
+    const [requests,setRequests]=React.useState([]);
     const [loading,setLoading]=React.useState(true);
     const [busy,setBusy]=React.useState('');
     const [message,setMessage]=React.useState('');
@@ -16555,6 +16556,10 @@ function ShiftHandover({profile,onNavigate}){
       if(diff<=3)return {label:`Expires in ${diff} day${diff===1?'':'s'}`,tone:'warning',days:diff};
       return {label:`Active · ${diff} days left`,tone:'success',days:diff};
     }
+    function requestOf(row){
+      return requests.find(r=>r.patient_id===row.id&&dateOnly(r.package_end_date)===dateOnly(row.package_end_date))||null;
+    }
+
     function renewalOptions(row){
       return ['Weekly','Fortnightly','Monthly'].map(kind=>{
         const pkg=packages.find(item=>optionKind(item)===kind&&item.is_active!==false);
@@ -16565,18 +16570,21 @@ function ShiftHandover({profile,onNavigate}){
     async function load(){
       setLoading(true);
       setMessage('');
-      const [pat,pkg]=await Promise.all([
+      const [pat,pkg,req]=await Promise.all([
         client.from('patients')
           .select('id,patient_id,title,full_name,room_no,bed_no,mobile,attendant_name,attendant_phone,billing_package,package_id,package_start_date,package_end_date,package_fee,package_room_class,is_active')
           .eq('is_active',true)
           .not('package_end_date','is',null)
           .order('package_end_date',{ascending:true}),
-        client.from('care_packages').select('*').eq('is_active',true).order('package_name')
+        client.from('care_packages').select('*').eq('is_active',true).order('package_name'),
+        client.from('package_renewal_requests').select('*').order('requested_at',{ascending:false}).limit(500)
       ]);
       if(pat.error){setMessage(pat.error.message);setRows([])}
       else setRows(pat.data||[]);
       if(pkg.error)setMessage(prev=>prev||pkg.error.message);
       else setPackages(pkg.data||[]);
+      if(req.error)setMessage(prev=>prev||req.error.message);
+      else setRequests(req.data||[]);
       setLoading(false);
     }
 
@@ -16587,6 +16595,7 @@ function ShiftHandover({profile,onNavigate}){
         .on('postgres_changes',{event:'*',schema:'public',table:'patients'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'billing_transactions'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'care_packages'},load)
+        .on('postgres_changes',{event:'*',schema:'public',table:'package_renewal_requests'},load)
         .subscribe();
       return()=>client.removeChannel(channel);
     },[allowed]);
@@ -16675,7 +16684,7 @@ function ShiftHandover({profile,onNavigate}){
         sorted.length?h('div',{className:'table-wrap'},
           h('table',{className:'table'},
             h('thead',null,h('tr',null,
-              ['Resident','Room','Current Package','Expiry','Status','Family Contact','Renewal Options','Action'].map(x=>h('th',{key:x},x))
+              ['Resident','Room','Current Package','Expiry','Status','Family Contact','Family Request','Renewal Options','Action'].map(x=>h('th',{key:x},x))
             )),
             h('tbody',null,sorted.map(row=>{
               const status=statusOf(row);
@@ -16687,6 +16696,16 @@ function ShiftHandover({profile,onNavigate}){
                 h('td',null,formatDateIN(row.package_end_date)),
                 h('td',null,h('span',{className:`badge ${status.tone}`},status.label)),
                 h('td',null,row.attendant_name||'Family Member',h('small',{style:{display:'block'}},row.attendant_phone||row.mobile||'No WhatsApp number')),
+                h('td',null,(()=>{
+                  const req=requestOf(row);
+                  return req
+                    ?h('div',null,
+                        h('span',{className:`badge ${String(req.status||'Pending')==='Pending'?'warning':'success'}`},req.requested_option||'Pending'),
+                        h('small',{style:{display:'block',marginTop:'5px'}},req.status||'Pending'),
+                        h('small',{style:{display:'block'}},req.requested_at?formatDateTimeIN(req.requested_at):'')
+                      )
+                    :h('span',{className:'small-note'},'Awaiting family');
+                })()),
                 h('td',null,h('div',{style:{display:'grid',gap:'6px'}},
                   opts.map(opt=>h('button',{
                     type:'button',
