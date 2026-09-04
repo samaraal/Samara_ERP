@@ -1,0 +1,12 @@
+SAMARA CARE ERP v2.9.87 — STARTUP FIX
+
+Replace these three files:
+1. app.js
+2. index.html
+3. service-worker.js
+
+This release fixes the "ReferenceError: Field is not defined" startup error in the Emergency WhatsApp form while retaining the v2.9.86 patient Family Details, WhatsApp Messages and Emergency changes.
+
+No SQL or Edge Function deployment is required.
+
+After uploading, refresh using Ctrl + Shift + R once.
