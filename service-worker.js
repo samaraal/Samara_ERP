@@ -1,6 +1,6 @@
-const CACHE = 'samara-erp-2.9.77-whatsapp-acceptance-verification';
+const CACHE = 'samara-erp-2.9.78-whatsapp-inbox-logging';
 const SHELL = [
-  './', './index.html', './styles.css?v=2.9.77', './app.js?v=2.9.77',
+  './', './index.html', './styles.css?v=2.9.78', './app.js?v=2.9.78',
   './bootstrap-error.js?v=2.8.40', './health-check.js?v=2.8.40',
   './config.js?v=2.9.70', './manifest.webmanifest?v=2.8.40', './assets/samara-mail-logo.png',
   './assets/samara-logo.png?v=20260812-global1',

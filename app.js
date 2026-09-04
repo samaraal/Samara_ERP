@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.9.77';
+  const APP_VERSION = '2.9.78';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -9664,19 +9664,31 @@ Thank you.`;
     async function sendAdmissionWhatsAppApi(credential){
       if(!credential)return;
       try{
-        await sendWhatsAppTemplate({
+        const recipient=credential.relative_name||'Family Member';
+        const patientName=credential.patient_name||form.full_name||'Patient';
+        const admissionDate=formatDateIN(credential.admission_date||form.admission_date);
+        const result=await sendWhatsAppTemplate({
           to:credential.mobile,
           templateName:'samara_patient_admission',
           languageCode:'en',
           bodyParams:[
-            credential.relative_name||'Family Member',
-            credential.patient_name||form.full_name||'Patient',
-            formatDateIN(credential.admission_date||form.admission_date),
+            recipient,
+            patientName,
+            admissionDate,
             credential.patient_id||'—',
             credential.room_bed||[form.room_no,form.bed_no].filter(Boolean).join(' / ')||'—'
-          ]
+          ],
+          communicationLog:{
+            communication_type:'Patient Admission Notification',
+            message_content:`Dear ${recipient},\n\n${patientName} was admitted to Samara Assisted Living on ${admissionDate}.\nResident ID: ${credential.patient_id||'—'}\nRoom / Bed: ${credential.room_bed||'—'}`,
+            contact_name:recipient,
+            source_type:'Patient / Family · Admission',
+            sent_by:profile?.id||null,
+            sent_by_name:formalName(profile)||'Samara Admission',
+            message_payload:{patient_id:credential.patient_id||null,patient_name:patientName,admission_date:admissionDate}
+          }
         });
-        setMsg('Patient admission WhatsApp was accepted by Meta. Delivery status will be confirmed through the WhatsApp status update.');
+        setMsg(result?.history_logged===true?'Patient admission WhatsApp was accepted by Meta and recorded in WhatsApp Inbox. Delivery status will follow.':'Patient admission WhatsApp was accepted by Meta, but Inbox logging failed. Please check the Edge Function deployment.');
       }catch(apiError){
         setMsg(`Patient admission WhatsApp API failed: ${apiError.message||apiError}. No manual WhatsApp window was opened automatically.`);
       }
@@ -9691,7 +9703,9 @@ Thank you.`;
       const proposedStay=form.patient_category==='Short Stay'?'Short stay – as agreed':'As per agreed care plan';
       const roomBed=credential.room_bed||[form.room_no,form.bed_no].filter(Boolean).join(' / ')||'—';
       try{
-        await sendWhatsAppTemplate({
+        const recipient=credential.relative_name||'Family Member';
+        const patientName=credential.patient_name||form.full_name||'Patient';
+        const result=await sendWhatsAppTemplate({
           to:credential.mobile,
           templateName:'samara_family_portal_access',
           languageCode:'en',
@@ -9703,9 +9717,18 @@ Thank you.`;
             reason,
             proposedStay,
             roomBed
-          })
+          }),
+          communicationLog:{
+            communication_type:'Family Portal Access',
+            message_content:`Dear ${recipient},\n\nFamily Portal access is available for ${patientName}.\nResident ID: ${credential.patient_id||'—'}\nPortal: https://family.samaraassistedliving.com`,
+            contact_name:recipient,
+            source_type:'Patient / Family · Family Portal',
+            sent_by:profile?.id||null,
+            sent_by_name:formalName(profile)||'Samara Admission',
+            message_payload:{patient_id:credential.patient_id||null,patient_name:patientName,portal:'https://family.samaraassistedliving.com'}
+          }
         });
-        setMsg('Family Portal access notification was accepted by Meta. Delivery status will be confirmed through the WhatsApp status update. The temporary PIN can be sent separately using the existing method below.');
+        setMsg(result?.history_logged===true?'Family Portal WhatsApp was accepted by Meta and recorded in WhatsApp Inbox. Delivery status will follow. The temporary PIN can be sent separately.':'Family Portal WhatsApp was accepted by Meta, but Inbox logging failed. Please check the Edge Function deployment.');
       }catch(apiError){
         const text=`Dear ${credential.relative_name||'Family Member'},
 
@@ -12047,7 +12070,9 @@ Please keep these login details confidential.`;
                   h('button',{type:'button',className:'btn btn-secondary',disabled:familyResetBusy===access.id,onClick:()=>resetSelectedFamilyPin(access)},familyResetBusy===access.id?'Resetting…':'Forgot / Reset PIN'),
                   h('button',{type:'button',className:'btn btn-whatsapp',onClick:async()=>{
                     try{
-                      await sendWhatsAppTemplate({
+                      const recipient=access.relative_name||'Family Member';
+                      const patientName=formalName(selected)||selected?.full_name||'Patient';
+                      const result=await sendWhatsAppTemplate({
                         to:access.mobile,
                         templateName:'samara_family_portal_access',
                         languageCode:'en',
@@ -12061,9 +12086,18 @@ Please keep these login details confidential.`;
                           reason:selected?.patient_category||'Assisted living care',
                           proposedStay:selected?.patient_category==='Short Stay'?'Short stay – as agreed':'As per agreed care plan',
                           roomBed:[selected?.room_no,selected?.bed_no].filter(Boolean).join(' / ')
-                        })
+                        }),
+                        communicationLog:{
+                          communication_type:'Family Portal Access',
+                          message_content:`Dear ${recipient},\n\nFamily Portal access is available for ${patientName}.\nResident ID: ${selected?.patient_id||'—'}\nPortal: https://family.samaraassistedliving.com`,
+                          contact_name:recipient,
+                          source_type:'Patient / Family · Family Portal',
+                          sent_by:profile?.id||null,
+                          sent_by_name:formalName(profile)||'Samara Management',
+                          message_payload:{patient_id:selected?.id||null,patient_code:selected?.patient_id||null,patient_name:patientName,portal:'https://family.samaraassistedliving.com'}
+                        }
                       });
-                      showPatientToast('success','Family Portal WhatsApp accepted by Meta; awaiting delivery confirmation.');
+                      showPatientToast(result?.history_logged===true?'success':'error',result?.history_logged===true?'Family Portal WhatsApp accepted by Meta and recorded in WhatsApp Inbox.':'WhatsApp was accepted by Meta, but Inbox logging failed. Check the deployed whatsapp-send function.');
                     }catch(error){
                       showPatientToast('error',`Family Portal WhatsApp API failed: ${error.message||error}. Use the Existing Method button only if you want to send manually.`);
                     }
@@ -18744,14 +18778,23 @@ Please access the Samara Family Portal for detailed account information.`;
     if(!number)return alert('Authorised relative WhatsApp number is not available. Please update the Patient File first.');
     setShareBusy(true);
     try{
-      await sendWhatsAppTemplate({
+      const result=await sendWhatsAppTemplate({
         to:number,
         templateName:'samara_daily_report',
         languageCode:'en',
-        bodyParams:[relativeName(p),formalName(p)||p.full_name||'Patient',formatDateIN(report?.date||reportDate)]
+        bodyParams:[relativeName(p),formalName(p)||p.full_name||'Patient',formatDateIN(report?.date||reportDate)],
+        communicationLog:{
+          communication_type:'Daily Patient Report',
+          message_content:`Daily report notification for ${formalName(p)||p.full_name||'Patient'} dated ${formatDateIN(report?.date||reportDate)}.`,
+          contact_name:relativeName(p),
+          source_type:'Patient / Family · Clinical Report',
+          sent_by:profile?.id||null,
+          sent_by_name:formalName(profile)||'Samara Management',
+          message_payload:{patient_id:p.id,patient_code:p.patient_id||null,report_date:report?.date||reportDate}
+        }
       });
       await recordCommunication(p,'Relative',number,`Daily report portal notification sent through WhatsApp API for ${formatDateIN(report?.date||reportDate)}.`);
-      alert('Daily report WhatsApp notification was accepted by Meta. Delivery status will be confirmed through the WhatsApp status update.');
+      alert(result?.history_logged===true?'Daily report WhatsApp was accepted by Meta and recorded in WhatsApp Inbox. Delivery status will follow.':'Daily report WhatsApp was accepted by Meta, but Inbox logging failed. Please check the Edge Function deployment.');
       setShareOpen(false);loadCommunicationHistory();
     }catch(apiError){
       const text=buildWhatsAppMessage(p,'Relative');

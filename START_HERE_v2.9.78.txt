@@ -1,0 +1,27 @@
+SAMARA CARE ERP v2.9.78 — WHATSAPP INBOX LOGGING FIX
+
+FIXED
+- Family Portal Access WhatsApp accepted by Meta is now written to the existing
+  ERP WhatsApp Inbox with its Meta message ID.
+- Patient Admission and Daily Report templates use the same reliable logging.
+- Meta webhook Delivered / Read / Failed events can update the same entry.
+- If Meta accepts the message but database logging fails, ERP clearly reports
+  that separate problem instead of claiming the Inbox was updated.
+
+RELEVANT FILES
+- app.js
+- index.html
+- service-worker.js
+- supabase/functions/whatsapp-send/index.ts
+
+DEPLOYMENT
+1. Replace app.js, index.html and service-worker.js in the ERP.
+2. Supabase > Edge Functions > whatsapp-send > Code.
+3. Replace index.ts with supabase/functions/whatsapp-send/index.ts and deploy.
+4. No SQL is required.
+5. Refresh ERP and confirm v2.9.78.
+
+TEST
+Send Family Portal Access WhatsApp API. The message should immediately appear
+in ERP > WhatsApp Inbox as Accepted with a Meta ID. Its status should later
+change to Delivered, Read or Failed when the Meta webhook event arrives.
