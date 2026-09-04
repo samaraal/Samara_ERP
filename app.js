@@ -16988,18 +16988,47 @@ function ShiftHandover({profile,onNavigate}){
       const chargeRows=Object.values(groupedCharges);
       const transactionRows=rows.filter(row=>['Payment','Advance','Discount','Refund'].includes(row.transaction_type));
 
+      const billDateOnly=value=>{
+        const raw=String(value||'').slice(0,10);
+        if(/^\d{4}-\d{2}-\d{2}$/.test(raw)){
+          const [y,m,d]=raw.split('-');
+          return `${d}-${m}-${y}`;
+        }
+        return raw||'—';
+      };
+      const simplifyChargeDescription=(category,items)=>{
+        if(!['Room Charges','Nursing Charges'].includes(category))return null;
+        const dated=(items||[]).map(item=>({
+          date:String(item.source_date||item.transaction_date||'').slice(0,10),
+          amount:Number(item.amount||0)
+        })).filter(item=>/^\d{4}-\d{2}-\d{2}$/.test(item.date))
+          .sort((a,b)=>a.date.localeCompare(b.date));
+        if(!dated.length)return null;
+        const total=dated.reduce((sum,item)=>sum+item.amount,0);
+        return {
+          text:`${dated.length} day${dated.length===1?'':'s'} (from ${billDateOnly(dated[0].date)} to ${billDateOnly(dated[dated.length-1].date)})`,
+          total
+        };
+      };
+
       const itemHtml=chargeRows.length
-        ?chargeRows.map((group,index)=>`
+        ?chargeRows.map((group,index)=>{
+          const simple=simplifyChargeDescription(group.category,group.items);
+          const rawDetail=group.items.map(item=>item.description||'').filter(Boolean).join(' | ')||'—';
+          const detail=simple
+            ?simple.text
+            :rawDetail.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g,'$3-$2-$1');
+          return `
           <tr>
             <td>${index+1}</td>
             <td>
               <strong>${escapeHtml(group.category)}</strong>
-              <div class="detail">${escapeHtml(group.items.map(item=>item.description||'').filter(Boolean).join(' | ')||'—')}</div>
+              <div class="detail">${escapeHtml(detail)}</div>
             </td>
             <td>${escapeHtml(String(group.items.length))}</td>
             <td class="amount">${escapeHtml(money(group.amount))}</td>
           </tr>
-        `).join('')
+        `}).join('')
         :`<tr><td colspan="4" class="empty">No charges recorded.</td></tr>`;
 
       const paymentHtml=transactionRows.length
@@ -17022,7 +17051,6 @@ function ShiftHandover({profile,onNavigate}){
       // Bill header branding: use the standard Samara logo already shipped with the ERP.
       // Absolute URL is used so the image also loads reliably inside the print pop-up window.
       const billLogoUrl=new URL('assets/samara-logo.png',window.location.href).href;
-
       win.document.write(`<!doctype html>
 <html>
 <head>
@@ -17034,7 +17062,7 @@ function ShiftHandover({profile,onNavigate}){
   .sheet{width:210mm;min-height:297mm;margin:12px auto;background:#fff;padding:14mm;box-shadow:0 10px 32px #0002}
   .head{display:flex;justify-content:space-between;gap:20px;padding-bottom:14px;border-bottom:3px solid #b01264}
   .brand{display:flex;align-items:center;min-width:0}
-  .brand-logo{display:block;width:190px;max-width:100%;height:86px;object-fit:contain;object-position:left center}
+  .brand-logo{display:block;width:225px;max-width:100%;height:100px;object-fit:contain;object-position:left center}
   .brand-fallback{display:none}
   .brand-fallback h1{margin:0;color:#7a1247;font-size:26px}
   .brand-fallback p{margin:4px 0;color:#735d69}
@@ -17067,7 +17095,7 @@ function ShiftHandover({profile,onNavigate}){
   @media print{
     body{background:#fff}
     .sheet{width:auto;min-height:auto;margin:0;box-shadow:none;padding:8mm}
-    .brand-logo{width:180px;height:82px}
+    .brand-logo{width:215px;height:96px}
     .print{display:none}
     @page{size:A4;margin:8mm}
   }
@@ -17157,6 +17185,17 @@ function ShiftHandover({profile,onNavigate}){
     }
 
     const chargeGroups=Object.values(groupedCharges);
+    const compactChargeDescription=group=>{
+      if(!['Room Charges','Nursing Charges'].includes(group.category)){
+        return (group.items.map(item=>item.description).filter(Boolean).join(' | ')||'—')
+          .replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g,'$3-$2-$1');
+      }
+      const dated=group.items.map(item=>String(item.source_date||item.transaction_date||'').slice(0,10))
+        .filter(value=>/^\d{4}-\d{2}-\d{2}$/.test(value)).sort();
+      if(!dated.length)return `${group.items.length} day${group.items.length===1?'':'s'}`;
+      const display=value=>{const [y,m,d]=value.split('-');return `${d}-${m}-${y}`};
+      return `${dated.length} day${dated.length===1?'':'s'} (from ${display(dated[0])} to ${display(dated[dated.length-1])})`;
+    };
 
     return h(React.Fragment,null,
       h('div',{className:'accounts-hero'},
@@ -17212,7 +17251,7 @@ function ShiftHandover({profile,onNavigate}){
             index+1,
             group.category,
             group.items.length,
-            group.items.map(item=>item.description).filter(Boolean).join(' | ')||'—',
+            compactChargeDescription(group),
             money(group.amount)
           ])
         }),

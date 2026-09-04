@@ -1,0 +1,22 @@
+Samara Care ERP v2.11.02
+COMPLETE BILL – LOGO / DATE / COMPACT ROOM & NURSING SUMMARY
+
+Replace only:
+app.js
+
+Changes:
+1. Samara logo at the top-left of the Complete Bill is slightly larger.
+2. Dates displayed in the bill are dd-mm-yyyy.
+   This also converts package Coverage dates printed from transaction descriptions.
+3. Room Charges and Nursing Charges are no longer printed as one long line for every day.
+   They are summarized as:
+      Room Charges
+      17 days (from 19-08-2026 to 04-09-2026)      ₹34,000.00
+
+      Nursing Charges
+      17 days (from 19-08-2026 to 04-09-2026)      ₹13,600.00
+4. The same compact wording is used in the on-screen Complete Bill charge summary.
+5. No SQL, billing calculation, package logic, WhatsApp logic or ledger data is changed.
+
+For the attached Mrs. Ramyapriyaa bill, the existing source contains 17 Room entries totaling
+₹34,000 and 17 Nursing entries totaling ₹13,600, from 19-08-2026 through 04-09-2026.
