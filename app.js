@@ -6432,7 +6432,7 @@ Caring with Compassion. Living with Dignity.`;
 
     const cards=[
       {label:'Current patients',value:stats.patients,page:'Patients',icon:'👥',patientFilter:'active'},
-      {label:'Available beds',value:stats.availableBeds,page:'Rooms & Beds',icon:'🛏️',roomBedFilter:'available',status:stats.availableBeds?`${stats.availableBeds} currently available bed${stats.availableBeds===1?'':'s'}`:'No beds currently available'},
+      {label:'Available beds',value:stats.availableBeds,page:'Rooms',icon:'🛏️',roomBedFilter:'available',status:stats.availableBeds?`${stats.availableBeds} currently available bed${stats.availableBeds===1?'':'s'}`:'No beds currently available'},
       {label:'High-risk patients',value:stats.risks,page:'Patients',icon:'⚠️',patientFilter:'high-risk'},
       {label:'Active employees',value:stats.employees,page:'Employees',icon:'🧑‍⚕️',employeeFilter:'__ALL__'},
       {label:'Medicine Actions Today',value:medicineActionsToday,page:'Clinical Alerts',icon:'💊',clinicalFocus:'Medication',status:medicineActionsToday?`${medicineActionsToday} pending / due medication action${medicineActionsToday===1?'':'s'}`:'No medication actions due'},
@@ -6460,7 +6460,7 @@ Caring with Compassion. Living with Dignity.`;
             else sessionStorage.removeItem('samara-employee-list-filter');
           }catch(_error){}
         }
-        if(card.page==='Rooms & Beds'){
+        if(card.page==='Rooms'){
           try{
             if(card.roomBedFilter)sessionStorage.setItem('samara-room-bed-filter',card.roomBedFilter);
             else sessionStorage.removeItem('samara-room-bed-filter');

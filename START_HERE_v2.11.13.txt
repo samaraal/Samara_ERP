@@ -1,0 +1,18 @@
+Samara Care ERP v2.11.13
+AVAILABLE BEDS CLICK – ROUTE FIX
+
+Replace only:
+app.js
+
+Root cause:
+The Dashboard card was navigating to "Rooms & Beds", but the actual ERP route is "Rooms".
+Because "Rooms & Beds" is not a valid allowed page, the app immediately rejected/reset the navigation,
+so the compact Available Beds Details view never appeared.
+
+Fix:
+- Available Beds card now navigates to the real "Rooms" route.
+- The one-time "available" filter is preserved.
+- Clicking Available Beds now opens the compact Available Beds Details view.
+- Works on Windows and mobile/PWA.
+
+No SQL or database changes.
