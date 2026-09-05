@@ -1,5 +1,5 @@
 SAMARA CARE ERP – MOBILE PATIENT FILE FIX
-Version: 2.10.09
+Version: 2.10.10
 
 REPLACE THESE 4 FILES IN THE ERP WEBSITE ROOT
 1. index.html
@@ -9,7 +9,7 @@ REPLACE THESE 4 FILES IN THE ERP WEBSITE ROOT
 
 NO SQL / SUPABASE DATABASE CHANGE IS REQUIRED.
 
-WHAT IS FIXED IN v2.10.09
+WHAT IS FIXED IN v2.10.10
 • On iPhone/Android, the Patient File now opens ABOVE the sticky Samara header and Module bar.
 • The top of the Patient File can no longer be hidden behind the app header.
 • “Back to Patients”, patient identity/header, and the first tab row remain accessible.
@@ -19,4 +19,10 @@ WHAT IS FIXED IN v2.10.09
 
 DEPLOYMENT
 Upload/replace the four files above in the same website root used for the current ERP.
-The PWA version was increased from 2.10.08 to 2.10.09, so each device can detect the new release independently.
+The PWA version was increased from 2.10.08 to 2.10.10, so each device can detect the new release independently.
+
+
+ADDITIONAL FIXES IN v2.10.10
+- Mobile Patient File now takes over the full screen while open; the underlying sticky Header, Module bar, bottom navigation and Alert Sound control are hidden until the file is closed. This avoids iPhone stacking overlap that hid the first rows.
+- Identity & Contacts now uses a clean three-part label : value grid (for example, Resident ID  :  MOG-...) with separate Address, District / Taluk and PIN rows for easier reading.
+- No SQL or Supabase database change is required.

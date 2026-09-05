@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.09';
+  const APP_VERSION = '2.10.10';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -3758,7 +3758,7 @@ Caring with Compassion. Living with Dignity.`;
         }
       }
 
-      /* v2.10.09 — Mobile Patient File must open above the sticky app chrome.
+      /* v2.10.10 — Mobile Patient File must open above the sticky app chrome.
          The previous modal was rendered underneath the topbar/module selector on iPhone,
          hiding the Back button, resident header and first tabs. */
       @media(max-width:760px){
@@ -3827,6 +3827,75 @@ Caring with Compassion. Living with Dignity.`;
         .patient-file-backdrop .section-card,
         .patient-file-backdrop .tabs-grid,
         .patient-file-backdrop [id]{scroll-margin-top:122px!important}
+
+        /* v2.10.10 — When a Patient File is open, give it the whole mobile screen.
+           Hiding the underlying sticky app chrome avoids iOS stacking-context overlap. */
+        .app:has(.patient-file-backdrop) .topbar,
+        .app:has(.patient-file-backdrop) .mobile-menu,
+        .app:has(.patient-file-backdrop) .mobile-bottom-nav,
+        .app:has(.patient-file-backdrop) .alert-sound-button,
+        .app:has(.patient-file-backdrop) .enable-alert-sound,
+        .app:has(.patient-file-backdrop) [data-alert-sound]{
+          display:none!important;
+        }
+        .app:has(.patient-file-backdrop) .content{
+          padding:0!important;
+        }
+        .patient-file-backdrop{
+          z-index:2147483000!important;
+          background:#f8f4f6!important;
+          padding:calc(6px + env(safe-area-inset-top)) 6px calc(6px + env(safe-area-inset-bottom))!important;
+        }
+        .patient-file-backdrop .patient-master-modal{
+          border-radius:16px!important;
+          padding:10px 12px calc(18px + env(safe-area-inset-bottom))!important;
+        }
+        .patient-file-backdrop .patient-mobile-back{
+          top:0!important;
+          margin-bottom:8px!important;
+        }
+        .patient-file-backdrop .patient-tab-bar{
+          top:52px!important;
+          margin:8px -12px 12px!important;
+          padding:8px 12px!important;
+        }
+
+        /* Cleaner label : value layout for mobile Patient Overview. */
+        .patient-file-backdrop .patient-overview-fields{
+          display:grid!important;
+          gap:0!important;
+        }
+        .patient-file-backdrop .patient-overview-field{
+          display:grid!important;
+          grid-template-columns:minmax(104px,38%) 14px minmax(0,1fr)!important;
+          column-gap:8px!important;
+          align-items:start!important;
+          padding:9px 0!important;
+          margin:0!important;
+          border-bottom:1px solid #f0e2e8!important;
+          line-height:1.4!important;
+        }
+        .patient-file-backdrop .patient-overview-field:last-child{border-bottom:0!important}
+        .patient-file-backdrop .patient-overview-label{
+          color:#705a66!important;
+          font-weight:700!important;
+          min-width:0!important;
+        }
+        .patient-file-backdrop .patient-overview-colon{
+          color:#705a66!important;
+          text-align:center!important;
+          font-weight:700!important;
+        }
+        .patient-file-backdrop .patient-overview-value{
+          min-width:0!important;
+          color:#34232d!important;
+          font-weight:500!important;
+          overflow-wrap:anywhere!important;
+          word-break:normal!important;
+        }
+        .patient-file-backdrop .patient-overview-field.patient-overview-address .patient-overview-value{
+          white-space:normal!important;
+        }
       }
 
       /* v2.8.25 — Guaranteed save/failure confirmation.
@@ -12721,7 +12790,22 @@ Please keep these login details confidential.`;
         h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Admission Details'),tabButton('Documents',details.docs.length),tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),tabButton('Daily Moments',(details.dailyMoments||[]).length),!clinicalView?tabButton('Billing',details.billing.length):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
         h('div',{className:'patient-tab-content'},
           tab==='Overview'&&h('div',{className:'tabs-grid'},
-            h('div',{className:'section-card'},h('h4',null,'Identity & Contacts'),h('p',null,`Resident ID: ${selected.patient_id||'—'}`),h('p',null,`Gender / Age: ${selected.gender||'—'} / ${selected.age||'—'}`),h('p',null,`Blood Group: ${selected.blood_group||'Unknown'}`),h('p',null,`Profession: ${selected.profession||'—'}`),h('p',null,`Field / Sector: ${selected.profession_field||'—'}`),['Government Employee','Private Employee'].includes(selected.profession)?h('p',null,`Employment Status: ${selected.employment_status||'—'}`):null,h('p',null,`Mobile: ${selected.mobile||'—'}`),h('p',null,selected.address||patientAddress(selected)||'Address not recorded'),h('p',null,`District: ${selected.district||'—'} · Taluk: ${selected.taluk||'—'} · PIN: ${selected.pincode||'—'}`),h('p',null,`Attendant: ${selected.attendant_name||'—'} · ${selected.attendant_phone||'—'}`)),
+            h('div',{className:'section-card'},
+              h('h4',null,'Identity & Contacts'),
+              h('div',{className:'patient-overview-fields'},
+                h('div',{className:'patient-overview-field'},h('span',{className:'patient-overview-label'},'Resident ID'),h('span',{className:'patient-overview-colon'},':'),h('span',{className:'patient-overview-value'},selected.patient_id||'—')),
+                h('div',{className:'patient-overview-field'},h('span',{className:'patient-overview-label'},'Gender / Age'),h('span',{className:'patient-overview-colon'},':'),h('span',{className:'patient-overview-value'},`${selected.gender||'—'} / ${selected.age||'—'}`)),
+                h('div',{className:'patient-overview-field'},h('span',{className:'patient-overview-label'},'Blood Group'),h('span',{className:'patient-overview-colon'},':'),h('span',{className:'patient-overview-value'},selected.blood_group||'Unknown')),
+                h('div',{className:'patient-overview-field'},h('span',{className:'patient-overview-label'},'Profession'),h('span',{className:'patient-overview-colon'},':'),h('span',{className:'patient-overview-value'},selected.profession||'—')),
+                h('div',{className:'patient-overview-field'},h('span',{className:'patient-overview-label'},'Field / Sector'),h('span',{className:'patient-overview-colon'},':'),h('span',{className:'patient-overview-value'},selected.profession_field||'—')),
+                ['Government Employee','Private Employee'].includes(selected.profession)?h('div',{className:'patient-overview-field'},h('span',{className:'patient-overview-label'},'Employment Status'),h('span',{className:'patient-overview-colon'},':'),h('span',{className:'patient-overview-value'},selected.employment_status||'—')):null,
+                h('div',{className:'patient-overview-field'},h('span',{className:'patient-overview-label'},'Mobile'),h('span',{className:'patient-overview-colon'},':'),h('span',{className:'patient-overview-value'},selected.mobile||'—')),
+                h('div',{className:'patient-overview-field patient-overview-address'},h('span',{className:'patient-overview-label'},'Address'),h('span',{className:'patient-overview-colon'},':'),h('span',{className:'patient-overview-value'},selected.address||patientAddress(selected)||'Address not recorded')),
+                h('div',{className:'patient-overview-field'},h('span',{className:'patient-overview-label'},'District / Taluk'),h('span',{className:'patient-overview-colon'},':'),h('span',{className:'patient-overview-value'},`${selected.district||'—'} / ${selected.taluk||'—'}`)),
+                h('div',{className:'patient-overview-field'},h('span',{className:'patient-overview-label'},'PIN'),h('span',{className:'patient-overview-colon'},':'),h('span',{className:'patient-overview-value'},selected.pincode||'—')),
+                h('div',{className:'patient-overview-field'},h('span',{className:'patient-overview-label'},'Attendant'),h('span',{className:'patient-overview-colon'},':'),h('span',{className:'patient-overview-value'},`${selected.attendant_name||'—'}${selected.attendant_phone?` · ${selected.attendant_phone}`:''}`))
+              )
+            ),
             h('div',{className:'section-card'},h('h4',null,'Admission & Medical Overview'),h('p',null,`Admission: ${selected.admission_type||'—'} · ${selected.admission_date||'—'}`),h('p',null,`Hospital / Source: ${selected.hospital_name||selected.referring_source||'—'}`),h('p',null,selected.diagnosis||'Diagnosis not recorded'),h('p',null,`Allergies: ${selected.allergies||'None recorded'}`),h('p',null,selected.special_instructions||'No special instructions')),
             h('div',{className:'section-card'},h('h4',null,'Care Plan Summary'),h('p',null,`${details.meds.length} active medicine order(s)`),h('p',null,`${details.care.length} master care task(s)`),h('p',null,`${details.physio.length} physiotherapy order(s)`),h('p',null,`Diet: ${selected.diet_plan||'Not recorded'}`)),
             h('div',{className:'section-card'},h('h4',null,'Risk & Safety'),h('p',null,[selected.fall_risk&&'Fall risk',selected.pressure_sore_risk&&'Pressure sore risk',selected.aspiration_risk&&'Aspiration risk',selected.wandering_risk&&'Wandering risk',selected.oxygen_required&&'Oxygen required',selected.dressing_required&&'Dressing required'].filter(Boolean).join(', ')||'No active risk flags'),h('p',null,`Open incidents: ${details.incidents.filter(x=>x.status==='Open').length}`))
