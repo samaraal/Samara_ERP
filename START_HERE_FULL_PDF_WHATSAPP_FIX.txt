@@ -1,0 +1,38 @@
+SAMARA ERP — INTELLIGENT PATIENT REPORT PDF WHATSAPP FIX
+
+Problem fixed
+- The old ERP button used template `samara_daily_report`, which sent only the notification text/image.
+- The corrected flow calls `daily-patient-report`, generates the Intelligent Patient Care Report as an A4 PDF, uploads it to the private patient-reports bucket, creates a temporary signed URL, and sends the PDF as a WhatsApp DOCUMENT template header.
+
+Replace / deploy only
+1. Replace app.js
+2. Redeploy Supabase Edge Function:
+   supabase/functions/daily-patient-report/index.ts
+
+No new SQL is required for this correction.
+
+Meta template required
+Template name: samara_daily_patient_report
+Header type: DOCUMENT
+Body variables:
+{{1}} = recipient name
+{{2}} = patient name
+{{3}} = report date
+Suggested body:
+Dear {{1}},
+Please find attached the Intelligent Patient Care Report for {{2}} dated {{3}}.
+Regards,
+Samara Assisted Living
+
+Important
+- The DOCUMENT header is mandatory. An IMAGE-header template such as the older samara_daily_report cannot carry the PDF attachment.
+- Keep "Verify JWT with legacy secret" OFF for daily-patient-report. The function now authenticates manual ERP sends in its own code and separately validates x-cron-secret for scheduled sends.
+
+How to test
+1. Manager > Intelligent Reports
+2. Generate a patient report
+3. WhatsApp
+4. Sharing option defaults to Full Intelligent Report
+5. Click "Send Full Report PDF WhatsApp API"
+6. WhatsApp should receive an attached PDF document, not only the one-line notification.
+7. Check Communication > WhatsApp Logs for Accepted / Sent / Delivered / Read.

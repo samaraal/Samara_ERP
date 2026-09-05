@@ -19847,7 +19847,7 @@ Please access the Samara Family Portal for detailed account information.`;
     const [report,setReport]=React.useState(null);
     const [shareOpen,setShareOpen]=React.useState(false);
     const [shareRecipient,setShareRecipient]=React.useState('Relative');
-    const [shareType,setShareType]=React.useState('Quick Health Update');
+    const [shareType,setShareType]=React.useState('Full Intelligent Report');
     const [shareLanguage,setShareLanguage]=React.useState('English');
     const [communicationRows,setCommunicationRows]=React.useState([]);
     const [shareBusy,setShareBusy]=React.useState(false);
@@ -20212,28 +20212,30 @@ Please access the Samara Family Portal for detailed account information.`;
     if(!number)return alert('Authorised relative WhatsApp number is not available. Please update the Patient File first.');
     setShareBusy(true);
     try{
-      const result=await sendWhatsAppTemplate({
-        to:number,
-        templateName:'samara_daily_report',
-        languageCode:'en',
-        bodyParams:[relativeName(p),formalName(p)||p.full_name||'Patient',formatDateIN(report?.date||reportDate)],
-        communicationLog:{
-          communication_type:'Daily Patient Report',
-          message_content:`Daily report notification for ${formalName(p)||p.full_name||'Patient'} dated ${formatDateIN(report?.date||reportDate)}.`,
-          contact_name:relativeName(p),
-          source_type:'Patient / Family · Clinical Report',
-          sent_by:profile?.id||null,
-          sent_by_name:formalName(profile)||'Samara Management',
-          message_payload:{patient_id:p.id,patient_code:p.patient_id||null,report_date:report?.date||reportDate}
-        }
+      const {data:{session}}=await client.auth.getSession();
+      if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
+      const response=await fetch(`${cfg.supabaseUrl}/functions/v1/daily-patient-report`,{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'Authorization':`Bearer ${session.access_token}`,
+          'apikey':cfg.supabasePublishableKey
+        },
+        body:JSON.stringify({
+          mode:'manual',
+          patient_id:p.id,
+          report_date:report?.date||reportDate,
+          recipient_mobile:number,
+          recipient_name:relativeName(p)||'Family Member'
+        })
       });
-      await recordCommunication(p,'Relative',number,`Daily report portal notification sent through WhatsApp API for ${formatDateIN(report?.date||reportDate)}.`);
-      alert(result?.history_logged===true?'Daily report WhatsApp was accepted by Meta and recorded in WhatsApp Inbox. Delivery status will follow.':'Daily report WhatsApp was accepted by Meta, but Inbox logging failed. Please check the Edge Function deployment.');
+      const result=await response.json().catch(()=>({ok:false,error:'Unable to read report server response.'}));
+      if(!response.ok||result?.ok===false)throw new Error(result?.error||`Report WhatsApp request failed (${response.status})`);
+      await recordCommunication(p,'Relative',number,`Full Intelligent Patient Report PDF sent through WhatsApp API for ${formatDateIN(report?.date||reportDate)}. Meta ID: ${result?.provider_message_id||'—'}`);
+      alert('Full Intelligent Patient Report PDF was accepted by Meta. The PDF is attached to the WhatsApp message; delivery status will follow in WhatsApp Logs.');
       setShareOpen(false);loadCommunicationHistory();
     }catch(apiError){
-      const text=buildWhatsAppMessage(p,'Relative');
-      window.open(`https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(text))}`,'_blank','noopener');
-      alert(`WhatsApp API could not send (${apiError.message||apiError}). The existing WhatsApp message has been opened as fallback.`);
+      alert(`Full report PDF could not be sent through WhatsApp API: ${apiError.message||apiError}`);
     }
     setShareBusy(false);
     }
@@ -20405,10 +20407,10 @@ Please access the Samara Family Portal for detailed account information.`;
             h('h4',null,'Quick Health Update Preview'),
             h('pre',{style:{whiteSpace:'pre-wrap',fontFamily:'inherit',margin:0,lineHeight:'1.55'}},quickHealthSummary(shareLanguage))
           ),
-          h('div',{className:'message'},shareType==='Full Intelligent Report'?'Save the report as PDF first. WhatsApp will open with the prepared message; attach the PDF manually before sending.':'The quick health update has been generated from the selected patient report. Please review it before opening WhatsApp.'),
+          h('div',{className:'message'},shareType==='Full Intelligent Report'?'The complete A4 Intelligent Patient Report will be generated and attached automatically as a PDF through the WhatsApp API.':'Quick Health Update sends text only. Choose Full Intelligent Report to send the complete PDF.'),
           h('div',{className:'actions'},
             h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShareOpen(false)},'Cancel'),
-            h('button',{type:'button',className:'btn btn-whatsapp',disabled:shareBusy,onClick:sendDailyReportWhatsAppApi},shareBusy?'Sending…':'Send Daily Report WhatsApp API'),
+            h('button',{type:'button',className:'btn btn-whatsapp',disabled:shareBusy,onClick:sendDailyReportWhatsAppApi},shareBusy?'Generating & Sending PDF…':'Send Full Report PDF WhatsApp API'),
             h('button',{type:'button',className:'btn btn-secondary',disabled:shareBusy,onClick:openWhatsAppShare},shareBusy?'Opening WhatsApp…':'Existing WhatsApp / PDF')
           )
         )
