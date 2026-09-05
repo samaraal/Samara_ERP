@@ -14462,6 +14462,16 @@ function RoomsBeds({profile}){
       setTransfer({patient_id:p.id,to_room_bed_id:'',reason:'',effective_at:new Date().toISOString().slice(0,16)});
       setShowTransfer(true);
     }
+    function transferFromBed(){
+      const p=patients.find(x=>x.id===transfer.patient_id);
+      if(!p)return null;
+      return rows.find(r=>r.patient_id===p.id)
+        ||rows.find(r=>String(r.room_no||'')===String(p.room_no||'')&&String(r.bed_no||'').toUpperCase()===String(p.bed_no||'').toUpperCase())
+        ||null;
+    }
+    function transferToBed(){return rows.find(r=>String(r.id)===String(transfer.to_room_bed_id))||null}
+    function roomTariffTotal(r){return Number(r?.room_daily_rate??r?.daily_rate??0)+Number(r?.nursing_daily_rate||0)+Number(r?.special_nurse_daily_rate||0)}
+    function roomTariffMoney(value){return `₹${Number(value||0).toLocaleString('en-IN')}`}
 
     async function transferPatient(e){
       e.preventDefault();
@@ -14478,7 +14488,7 @@ function RoomsBeds({profile}){
       setBusy(false);
       if(error){showToast('error',error.message||'Unable to shift patient.');return}
       setShowTransfer(false);
-      showToast('success','Patient shifted successfully. Previous room history is preserved and all patient bills remain linked.');
+      showToast('success','Patient shifted successfully. Previous room history is preserved and the applicable room/nursing tariff has been synchronised with Accounts from the shift date.');
       await load();
       writeAuditEvent('Patient Room Shifted','Rooms',transfer.patient_id,data||{},'Success');
     }
@@ -14677,15 +14687,31 @@ function RoomsBeds({profile}){
         h('button',{type:'button',className:'btn btn-secondary full',onClick:()=>{setShowReservation(false);setReservationRow(null)}},'Close')
       )),
 
-      showTransfer&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:transferPatient},
+      showTransfer&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:transferPatient,style:{width:'min(820px,96vw)'}},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Shift Patient to Another Room'),h('small',null,patientName(transfer.patient_id))),h('button',{type:'button',className:'close',onClick:()=>setShowTransfer(false)},'×')),
-        h('div',{className:'modal-grid'},
-          h('div',{className:'field span-2'},h('label',null,'New Room / Bed'),h('select',{required:true,value:transfer.to_room_bed_id,onChange:e=>setTransfer({...transfer,to_room_bed_id:e.target.value})},h('option',{value:''},'Select available room/bed'),availableRows.map(r=>h('option',{key:r.id,value:r.id},`Room ${r.room_no}-${r.bed_no} · ${r.room_type} · Room ₹${Number(r.room_daily_rate??r.daily_rate??0).toLocaleString('en-IN')} + Nursing ₹${Number(r.nursing_daily_rate||0).toLocaleString('en-IN')}`)))),
-          h('div',{className:'field'},h('label',null,'Effective Date & Time'),h('input',{type:'datetime-local',value:transfer.effective_at,onChange:e=>setTransfer({...transfer,effective_at:e.target.value}),max:new Date().toISOString().slice(0,16),required:true})),
-          h('div',{className:'field span-2'},h('label',null,'Reason for Shifting'),h('textarea',{required:true,rows:4,value:transfer.reason,onChange:e=>setTransfer({...transfer,reason:e.target.value}),placeholder:'Clinical need, patient/relative request, maintenance, upgrade/downgrade, gender allocation, etc.'}))
-        ),
-        h('p',{className:'small-note'},'The patient ID and complete billing history remain unchanged. Future automatic room, nursing and special-nurse charges will use the new room tariff.'),
-        h('button',{className:'btn btn-primary full',disabled:busy},busy?'Shifting…':'Confirm Room Shift')
+        (()=>{const from=transferFromBed(),to=transferToBed();return h(React.Fragment,null,
+          from&&h('div',{style:{padding:'12px 14px',border:'1px solid #efc7d9',borderRadius:'12px',background:'#fff8fb',marginBottom:'12px'}},
+            h('small',{style:{display:'block',color:'#806675',marginBottom:'5px'}},'CURRENT ROOM / BED'),
+            h('strong',{style:{color:'#5f123c'}},`Room ${from.room_no}-${from.bed_no} · ${from.room_type||'Room'}`),
+            h('div',{style:{marginTop:'5px',fontSize:'13px'}},`Room ${roomTariffMoney(from.room_daily_rate??from.daily_rate)}/day · Nursing ${roomTariffMoney(from.nursing_daily_rate)}/day${Number(from.special_nurse_daily_rate||0)>0?` · Special Nurse ${roomTariffMoney(from.special_nurse_daily_rate)}/day`:''}`)),
+          h('div',{className:'modal-grid'},
+            h('div',{className:'field span-2'},h('label',null,'Shift To — Available Room / Bed'),h('select',{required:true,value:transfer.to_room_bed_id,onChange:e=>setTransfer({...transfer,to_room_bed_id:e.target.value})},h('option',{value:''},'Select available room/bed'),availableRows.map(r=>h('option',{key:r.id,value:r.id},`Room ${r.room_no}-${r.bed_no} · ${r.room_type} · Room ₹${Number(r.room_daily_rate??r.daily_rate??0).toLocaleString('en-IN')} + Nursing ₹${Number(r.nursing_daily_rate||0).toLocaleString('en-IN')}`)))),
+            h('div',{className:'field'},h('label',null,'Effective Date & Time'),h('input',{type:'datetime-local',value:transfer.effective_at,onChange:e=>setTransfer({...transfer,effective_at:e.target.value}),max:new Date().toISOString().slice(0,16),required:true})),
+            h('div',{className:'field span-2'},h('label',null,'Reason for Shifting'),h('textarea',{required:true,rows:4,value:transfer.reason,onChange:e=>setTransfer({...transfer,reason:e.target.value}),placeholder:'Clinical need, patient/relative request, maintenance, upgrade/downgrade, gender allocation, etc.'}))
+          ),
+          to&&from&&h('div',{style:{marginTop:'12px',padding:'14px 16px',border:'1px solid #eab6cf',borderRadius:'14px',background:'linear-gradient(135deg,#fff4f8,#fdeaf2)'}},
+            h('div',{style:{display:'flex',justifyContent:'space-between',gap:'12px',flexWrap:'wrap',alignItems:'center'}},
+              h('div',null,h('small',{style:{color:'#806675'}},'NEW ROOM / BED'),h('strong',{style:{display:'block',fontSize:'16px',color:'#9d0b50'}},`Room ${to.room_no}-${to.bed_no} · ${to.room_type||'Room'}`)),
+              h('strong',{style:{color:roomTariffTotal(to)>roomTariffTotal(from)?'#b42318':roomTariffTotal(to)<roomTariffTotal(from)?'#087a36':'#5f123c'}},`${roomTariffTotal(to)>roomTariffTotal(from)?'+':''}${roomTariffMoney(roomTariffTotal(to)-roomTariffTotal(from))}/day`)),
+            h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:'8px',marginTop:'10px'}},
+              h('div',null,h('small',null,'Room Rent'),h('strong',{style:{display:'block'}},`${roomTariffMoney(from.room_daily_rate??from.daily_rate)} → ${roomTariffMoney(to.room_daily_rate??to.daily_rate)}`)),
+              h('div',null,h('small',null,'Routine Nursing'),h('strong',{style:{display:'block'}},`${roomTariffMoney(from.nursing_daily_rate)} → ${roomTariffMoney(to.nursing_daily_rate)}`)),
+              h('div',null,h('small',null,'Daily Total'),h('strong',{style:{display:'block'}},`${roomTariffMoney(roomTariffTotal(from))} → ${roomTariffMoney(roomTariffTotal(to))}`))
+            ),
+            h('p',{style:{margin:'11px 0 0',fontSize:'13px',fontWeight:700,color:'#7d1747'}},'Accounts impact: the new room and nursing tariff will apply from the effective shift date. Earlier billing remains unchanged. Automatic accommodation charges for the affected date(s) will be synchronised in the patient ledger.'))
+        )})(),
+        h('p',{className:'small-note'},'The patient ID, payments and previous billing history remain unchanged. The room shift and tariff change are recorded in Room Shift History and reflected in Accounts.'),
+        h('button',{className:'btn btn-primary full',disabled:busy},busy?'Shifting & Updating Accounts…':'Confirm Room Shift & Update Accounts')
       )),
 
       toast&&h('div',{className:`samara-toast ${toast.type}`},h('span',{className:'samara-toast-icon'},toast.type==='success'?'✓':'!'),h('div',null,h('strong',null,toast.type==='success'?'Rooms updated':'Update failed'),h('span',null,toast.text)),h('button',{onClick:()=>setToast(null)},'×'))
