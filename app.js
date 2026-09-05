@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.05';
+  const APP_VERSION = '2.10.06';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5179,6 +5179,9 @@ Caring with Compassion. Living with Dignity.`;
         let updatePromptShown=false;
         let remoteUpdateVersion='';
         let lastUpdateCheckAt=0;
+        const UPDATE_ACK_KEY='samara_acknowledged_app_version';
+        let acknowledgedVersion='';
+        try{acknowledgedVersion=localStorage.getItem(UPDATE_ACK_KEY)||''}catch(_error){}
 
         const isRemoteVersionNewer=(remote,current)=>{
           const parse=value=>String(value||'0').split('.').map(part=>Number.parseInt(part,10)||0);
@@ -5193,8 +5196,11 @@ Caring with Compassion. Living with Dignity.`;
         };
 
         const showUpdatePrompt=()=>{
-          // Only a strictly newer version may display this prompt.
-          if(updatePromptShown||!remoteUpdateVersion||!isRemoteVersionNewer(remoteUpdateVersion,APP_VERSION))return;
+          // The acknowledgement is stored on each device/browser separately.
+          // This means accepting an update on Windows never suppresses the notice on an iPhone/PWA.
+          const currentBuildNeedsAcknowledgement=remoteUpdateVersion===APP_VERSION&&acknowledgedVersion!==APP_VERSION;
+          const trulyNewRemote=isRemoteVersionNewer(remoteUpdateVersion,APP_VERSION);
+          if(updatePromptShown||!remoteUpdateVersion||(!trulyNewRemote&&!currentBuildNeedsAcknowledgement))return;
           updatePromptShown=true;
 
           const existing=document.getElementById('samara-update-refresh-prompt');
@@ -5223,6 +5229,10 @@ Caring with Compassion. Living with Dignity.`;
           ok.addEventListener('click',async()=>{
             ok.disabled=true; ok.textContent='Updating…';
             overlay.style.pointerEvents='none'; overlay.style.opacity='0'; setTimeout(()=>overlay.remove(),180);
+            try{
+              localStorage.setItem(UPDATE_ACK_KEY,remoteUpdateVersion);
+              acknowledgedVersion=remoteUpdateVersion;
+            }catch(_error){}
             try{ const registration=await navigator.serviceWorker.getRegistration(); await registration?.update(); }catch(_error){}
             const url=new URL(window.location.href);
             url.searchParams.set('samara_refresh',remoteUpdateVersion);
@@ -5265,6 +5275,14 @@ Caring with Compassion. Living with Dignity.`;
           registration.update().catch(()=>{});
           setTimeout(()=>checkRemoteVersion(true),900);
         }).catch(()=>{setTimeout(()=>checkRemoteVersion(true),900)});
+
+        // Also announce the current release once on EACH device. This covers the
+        // common mobile-PWA case where the browser fetched the new app.js before
+        // the old app had a chance to show the update notice.
+        if(acknowledgedVersion!==APP_VERSION){
+          remoteUpdateVersion=APP_VERSION;
+          setTimeout(()=>showUpdatePrompt(),1250);
+        }
 
         const onResume=()=>{if(document.visibilityState==='visible')checkRemoteVersion(true)};
         document.addEventListener('visibilitychange',onResume);
@@ -6581,7 +6599,7 @@ Caring with Compassion. Living with Dignity.`;
 
   function WhatsAppInbox({profile}){
     const Field=({label,required=false,children})=>h('div',{className:'field'},h('label',null,label,required?h('span',{style:{color:'#b42336',marginLeft:'4px'}},'*'):null),children);
-    const [rows,setRows]=React.useState([]),[selectedPhone,setSelectedPhone]=React.useState(''),[query,setQuery]=React.useState(''),[showUnread,setShowUnread]=React.useState(false),[reply,setReply]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState(''),[isMobile,setIsMobile]=React.useState(()=>window.matchMedia('(max-width: 700px)').matches),[patientContext,setPatientContext]=React.useState(null);
+    const [rows,setRows]=React.useState([]),[selectedPhone,setSelectedPhone]=React.useState(''),[query,setQuery]=React.useState(''),[showUnread,setShowUnread]=React.useState(false),[reply,setReply]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState(''),[isMobile,setIsMobile]=React.useState(()=>window.matchMedia('(max-width: 700px)').matches),[patientContext,setPatientContext]=React.useState(null),[mobileComposer,setMobileComposer]=React.useState('');
     const WA_REOPEN_TEMPLATES=[
       {name:'samara_general_followup',label:'General Follow-up',regarding:'your assisted living enquiry'},
       {name:'samara_admission_followup',label:'Admission / Care Enquiry',regarding:'your family member'},
@@ -6596,6 +6614,7 @@ Caring with Compassion. Living with Dignity.`;
     const [emergencyAttempt,setEmergencyAttempt]=React.useState('Called authorised attendant; no response.');
     const [emergencyBusy,setEmergencyBusy]=React.useState(false);
     const selectedTemplate=WA_REOPEN_TEMPLATES.find(t=>t.name===templateName)||WA_REOPEN_TEMPLATES[0];
+    React.useEffect(()=>{setMobileComposer('')},[selectedPhone]);
     React.useEffect(()=>{
       const mq=window.matchMedia('(max-width: 700px)');
       const sync=()=>setIsMobile(mq.matches);
@@ -6616,26 +6635,35 @@ Caring with Compassion. Living with Dignity.`;
         .wa-free-composer{padding:10px 12px;background:#f0f2f5;border-top:1px solid #ddd;display:flex;gap:8px;align-items:flex-end}
         .wa-template-composer{padding:10px 12px;background:#f0f2f5;border-top:1px solid #ddd}
         .wa-template-grid{display:grid;grid-template-columns:minmax(180px,.8fr) minmax(180px,1fr) auto;gap:8px;align-items:end}
+        .wa-mobile-actions{display:none}
         @media(max-width:700px){
           .wa-inbox-shell{display:block!important;min-height:0!important;border-radius:12px!important;overflow:hidden!important}
           .wa-conversation-list{display:block!important;border-right:0!important;max-height:calc(100dvh - 250px)!important;min-height:420px!important}
-          .wa-chat-pane{display:none!important;height:calc(100dvh - 205px)!important;min-height:520px!important}
+          .wa-chat-pane{display:none!important;height:calc(100dvh - 172px)!important;min-height:480px!important;max-height:calc(100dvh - 172px)!important}
           .wa-inbox-shell.wa-mobile-chat-open .wa-conversation-list{display:none!important}
           .wa-inbox-shell.wa-mobile-chat-open .wa-chat-pane{display:flex!important}
-          .wa-chat-head{position:sticky;top:0;z-index:4;padding:8px 10px!important}
+          .wa-chat-head{position:sticky;top:0;z-index:6;padding:8px 10px!important;min-height:58px!important}
           .wa-mobile-back{display:inline-grid!important;place-items:center;width:38px;height:38px;min-width:38px;border:0;border-radius:50%;background:#fff;color:#5d1039;font-size:24px;font-weight:800;cursor:pointer}
-          .wa-chat-scroll{padding:12px 8px!important}
+          .wa-chat-scroll{padding:10px 8px 12px!important;overscroll-behavior:contain!important}
           .wa-chat-scroll>div>div{max-width:88%!important;font-size:14px}
-          .wa-free-composer{position:sticky;bottom:0;z-index:5;padding:8px!important}
+          .wa-free-composer{padding:10px!important;position:relative!important;z-index:7!important}
           .wa-free-composer textarea{min-height:44px!important;max-height:110px!important}
           .wa-free-composer .btn{min-width:72px!important;padding-left:12px!important;padding-right:12px!important}
-          .wa-template-composer{position:sticky;bottom:0;z-index:5;padding:8px!important}
+          .wa-template-composer{padding:10px!important;position:relative!important;z-index:7!important}
           .wa-template-grid{grid-template-columns:1fr!important}
           .wa-template-grid .btn{width:100%!important}
           .wa-inbox-toolbar{gap:6px!important;margin-bottom:8px!important}
           .wa-inbox-toolbar input{flex:1 1 100%!important;min-width:0!important;width:100%!important}
           .wa-inbox-toolbar .btn{flex:1 1 calc(50% - 3px)!important;padding:10px 8px!important}
           .wa-inbox-status{font-size:12px!important;margin-bottom:8px!important}
+
+          .wa-mobile-actions{display:flex!important;align-items:center;gap:8px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:#f7f3f5;border-top:1px solid #dfd2d8;position:sticky;bottom:0;z-index:8}
+          .wa-mobile-actions-status{min-width:0;flex:1;font-size:12px;font-weight:800;line-height:1.25;color:#5d1039}
+          .wa-mobile-action-btn{min-height:42px;border:0;border-radius:11px;padding:9px 12px;font-weight:800;font-size:13px;white-space:nowrap;background:#087667;color:#fff}
+          .wa-mobile-action-btn.secondary{background:#a5145a}
+          .wa-mobile-composer-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;font-weight:800;color:#5d1039}
+          .wa-mobile-composer-close{width:34px;height:34px;border:0;border-radius:50%;background:#fff;color:#5d1039;font-size:20px;font-weight:900}
+          .wa-mobile-chat-open~*{} 
         }
       `;
       document.head.appendChild(style);
@@ -6994,7 +7022,7 @@ Thank you.`;
           h('div',null,h('strong',null,patientContext.patient_name),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},patientContext.patient_code?`· ${patientContext.patient_code}`:''),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},`· +${patientContext.phone}`)),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPatientContext(null);setSelectedPhone('');setQuery('');setShowUnread(false);}},'Show All WhatsApp')
         ):null,
-        h('div',{className:'wa-inbox-toolbar',style:{display:'flex',gap:'10px',flexWrap:'wrap',alignItems:'center',marginBottom:'14px'}},
+        (!isMobile||!selectedPhone)?h('div',{className:'wa-inbox-toolbar',style:{display:'flex',gap:'10px',flexWrap:'wrap',alignItems:'center',marginBottom:'14px'}},
           h('input',{value:query,onChange:e=>setQuery(e.target.value),placeholder:'Search name, mobile or message…',style:{flex:'1 1 320px',minWidth:'230px'}}),
           h('button',{type:'button',className:`btn ${showUnread?'btn-primary':'btn-secondary'}`,onClick:()=>{
             const next=!showUnread;
@@ -7006,8 +7034,8 @@ Thank you.`;
             if(next)setQuery('');
           }},`Unread ${unreadTotal}`),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>load(true)},'Refresh')
-        ),
-        message?h('div',{className:'notice wa-inbox-status',style:{marginBottom:'12px'}},message):null,
+        ):null,
+        message&&(!isMobile||!selectedPhone)?h('div',{className:'notice wa-inbox-status',style:{marginBottom:'12px'}},message):null,
         h('div',{className:`wa-inbox-shell ${isMobile&&selectedPhone?'wa-mobile-chat-open':''}`},
           h('div',{className:'wa-conversation-list'},
             filtered.length?filtered.map(c=>h('button',{key:c.phone,type:'button',onClick:()=>setSelectedPhone(c.phone),style:{display:'block',width:'100%',textAlign:'left',padding:'13px 14px',border:'0',borderBottom:'1px solid #f0e5e9',background:active?.phone===c.phone?'#f3f5f6':'#fff',cursor:'pointer'}},
@@ -7024,7 +7052,7 @@ Thank you.`;
             active?h(React.Fragment,null,
               h('div',{className:'wa-chat-head'},
                 h('div',{style:{display:'flex',gap:'8px',alignItems:'center',minWidth:0}},
-                  isMobile?h('button',{type:'button',className:'wa-mobile-back',onClick:()=>setSelectedPhone(''),'aria-label':'Back to conversations'},'‹'):null,
+                  isMobile?h('button',{type:'button',className:'wa-mobile-back',onClick:()=>{setMobileComposer('');setSelectedPhone('')},'aria-label':'Back to conversations'},'‹'):null,
                   h('div',{style:{width:'40px',height:'40px',borderRadius:'50%',display:'grid',placeItems:'center',background:'#dfe5e7',color:'#5d1039',fontWeight:'800'}},String(active.name||'?').trim().slice(0,1).toUpperCase()),
                   h('div',{style:{minWidth:0}},h('div',{style:{fontWeight:'800',color:'#2e252a',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},active.name),h('small',{style:{color:'#6e6268'}},`+${active.phone} · ${active.source}`))
                 ),
@@ -7062,22 +7090,29 @@ Thank you.`;
                   )
                 )
               })),
-              h('div',{className:'wa-free-composer',style:{display:'block',opacity:within24?1:.72}},
-                h('div',{style:{fontWeight:'800',color:within24?'#087f5b':'#5d1039',marginBottom:'7px'}},within24?'Direct message · reply window open':'Direct message locked · family member has not replied within the last 24 hours'),
+              isMobile?h('div',{className:'wa-mobile-actions'},
+                h('div',{className:'wa-mobile-actions-status',style:{color:within24?'#087f5b':'#5d1039'}},within24?'Reply window open':'24-hour window closed · use an approved template'),
+                within24?h('button',{type:'button',className:'wa-mobile-action-btn',onClick:()=>setMobileComposer(mobileComposer==='reply'?'':'reply')},mobileComposer==='reply'?'Close':'Reply'):null,
+                h('button',{type:'button',className:'wa-mobile-action-btn secondary',onClick:()=>setMobileComposer(mobileComposer==='template'?'':'template')},mobileComposer==='template'?'Close':'Template')
+              ):null,
+              (!isMobile||mobileComposer==='reply')?h('div',{className:'wa-free-composer',style:{display:'block',opacity:within24?1:.72}},
+                isMobile?h('div',{className:'wa-mobile-composer-title'},h('span',null,'Direct WhatsApp reply'),h('button',{type:'button',className:'wa-mobile-composer-close',onClick:()=>setMobileComposer(''),'aria-label':'Close reply'},'×')):
+                  h('div',{style:{fontWeight:'800',color:within24?'#087f5b':'#5d1039',marginBottom:'7px'}},within24?'Direct message · reply window open':'Direct message locked · family member has not replied within the last 24 hours'),
                 h('div',{style:{display:'flex',gap:'10px',alignItems:'stretch'}},
                   h('textarea',{value:reply,onChange:e=>setReply(e.target.value),placeholder:within24?'Type a direct message':'Direct messaging becomes available after the family member replies',disabled:busy||!within24,rows:2,style:{flex:'1 1 auto',minWidth:0,resize:'none',borderRadius:'10px',background:'#fff',margin:0}}),
-                  h('button',{type:'button',className:'btn btn-primary',disabled:busy||!within24||!reply.trim(),onClick:sendReply,style:{minWidth:'110px'}},busy?'Sending…':'Send direct')
+                  h('button',{type:'button',className:'btn btn-primary',disabled:busy||!within24||!reply.trim(),onClick:sendReply,style:{minWidth:isMobile?'86px':'110px'}},busy?'Sending…':'Send')
                 )
-              ),
-              h('div',{className:'wa-template-composer'},
-                h('div',{style:{fontWeight:'800',color:'#5d1039',marginBottom:'6px'}},'Approved WhatsApp templates · available inside or outside the 24-hour reply window'),
+              ):null,
+              (!isMobile||mobileComposer==='template')?h('div',{className:'wa-template-composer'},
+                isMobile?h('div',{className:'wa-mobile-composer-title'},h('span',null,'Send approved template'),h('button',{type:'button',className:'wa-mobile-composer-close',onClick:()=>setMobileComposer(''),'aria-label':'Close template'},'×')):
+                  h('div',{style:{fontWeight:'800',color:'#5d1039',marginBottom:'6px'}},'Approved WhatsApp templates · available inside or outside the 24-hour reply window'),
                 h('div',{className:'wa-template-grid'},
                   h('div',null,h('small',{style:{display:'block',marginBottom:'3px',color:'#6e6268'}},'Template'),h('select',{value:templateName,onChange:e=>chooseReopenTemplate(e.target.value),style:{width:'100%'}},WA_REOPEN_TEMPLATES.map(t=>h('option',{key:t.name,value:t.name},t.label)))),
                   h('div',null,h('small',{style:{display:'block',marginBottom:'3px',color:'#6e6268'}},'Regarding'),h('input',{value:templateRegarding,onChange:e=>setTemplateRegarding(e.target.value),placeholder:selectedTemplate.regarding,style:{width:'100%'}})),
                   h('button',{type:'button',className:'btn btn-primary',disabled:busy||!templateRegarding.trim(),onClick:sendReopenTemplate,style:{whiteSpace:'nowrap'}},busy?'Sending…':'Send template')
                 ),
-                h('small',{style:{display:'block',marginTop:'6px',color:'#6e6268'}},`To: ${active.name||'Customer'} · Preview available from the sent message after sending.`)
-              )
+                h('small',{style:{display:'block',marginTop:'6px',color:'#6e6268'}},`To: ${active.name||'Customer'}`)
+              ):null
             ):h('p',{className:'empty',style:{margin:'auto'}},'Select a WhatsApp conversation.')
           )
         ),
