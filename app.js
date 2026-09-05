@@ -645,6 +645,7 @@ function initSamaraInaugurationInvitation(){
       .sidebar .nav-submenu button[data-nav='Accounts Dashboard']::before,
       .sidebar .nav-submenu button[data-nav='Charge Approvals']::before,
       .sidebar .nav-submenu button[data-nav='Payments']::before,
+      .sidebar .nav-submenu button[data-nav='Patient Ledger']::before,
       .sidebar .nav-submenu button[data-nav='Final Billing']::before,
       .sidebar .nav-submenu button[data-nav='Discharge Clearance']::before,
       .sidebar .nav-submenu button[data-nav='Refunds']::before,
@@ -844,6 +845,7 @@ function initSamaraInaugurationInvitation(){
       .sidebar .nav-submenu button[data-nav='Accounts Dashboard']::before{content:'₹'!important;color:#f6b72d!important}
       .sidebar .nav-submenu button[data-nav='Charge Approvals']::before{content:'✓'!important;color:#43c59e!important}
       .sidebar .nav-submenu button[data-nav='Payments']::before{content:'₹'!important;color:#f6b72d!important}
+      .sidebar .nav-submenu button[data-nav='Patient Ledger']::before{content:'≡'!important;color:#d21f70!important}
       .sidebar .nav-submenu button[data-nav='Final Billing']::before{content:'▧'!important;color:#f59b23!important}
       .sidebar .nav-submenu button[data-nav='Discharge Clearance']::before{content:'⇥'!important;color:#f36a4c!important}
       .sidebar .nav-submenu button[data-nav='Refunds']::before{content:'↶'!important;color:#37b3c8!important}
@@ -1314,17 +1316,17 @@ function initSamaraInaugurationInvitation(){
     { title:'MANAGER', items:['Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
-    { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
+    { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
     { title:'COMMUNICATION', items:['WhatsApp Inbox','Family Communication','Feedback','Mail Dashboard'] }
   ];
   const ALL_NAV = NAV_SECTIONS.flatMap(section=>section.items);
   const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
   const ROLE_NAV={
     Admin:ALL_NAV.filter(item=>!NURSING_ENTRY_NAV.includes(item)),
-    Manager:ALL_NAV.filter(item=>!['System Maintenance','Alert Settings','Payments','Final Billing','Refunds',...NURSING_ENTRY_NAV].includes(item)),
+    Manager:ALL_NAV.filter(item=>!['System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds',...NURSING_ENTRY_NAV].includes(item)),
     Nurse:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My Leave & Permission','Leave Approvals','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Leave Approvals','Notifications'],
-    Accounts:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Final Billing','Discharge Clearance','Refunds','Accounts Reports','Patients','My Leave & Permission','Leave Approvals','Notifications'],
+    Accounts:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','Patients','My Leave & Permission','Leave Approvals','Notifications'],
     Kitchen:['Notifications','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission','Leave Approvals']
   };
   const ROLE_HOME={Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet'};
@@ -1339,6 +1341,7 @@ function initSamaraInaugurationInvitation(){
     'Accounts Dashboard':'Accounts Dashboard',
     'Package Expiry Dashboard':'Package Expiry Dashboard',
     'Payments':'Payments',
+    'Patient Ledger':'Patient Ledger',
     'Final Billing':'Final Billing',
     'Discharge Clearance':'Discharge Clearance',
     'Refunds':'Refunds',
@@ -5359,6 +5362,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Package Expiry Dashboard'&&h(PackageExpiryDashboard,{profile,onNavigate:setPage}),
           page==='Charge Approvals'&&h(ClinicalCharges,{profile}),
           page==='Payments'&&h(BillingPayments,{profile}),
+          page==='Patient Ledger'&&h(PatientLedgerView,{profile,onNavigate:setPage}),
           page==='Final Billing'&&h(FinalBillingView,{profile,onNavigate:setPage}),
           page==='Discharge Clearance'&&h(DischargeManagement,{profile,mode:'accounts',onNavigate:setPage}),
           page==='Refunds'&&h(RefundsView,{profile,onNavigate:setPage}),
@@ -14306,8 +14310,7 @@ function RoomsBeds({profile}){
     const [showReservation,setShowReservation]=React.useState(false);
     const [reservationRow,setReservationRow]=React.useState(null);
     const [form,setForm]=React.useState(empty);
-    const [transfer,setTransfer]=React.useState({patient_id:'',to_room_bed_id:'',reason_type:'',reason:'',effective_at:new Date().toISOString().slice(0,16)});
-    const [transferSearch,setTransferSearch]=React.useState('');
+    const [transfer,setTransfer]=React.useState({patient_id:'',to_room_bed_id:'',reason:'',effective_at:new Date().toISOString().slice(0,16)});
     const [editing,setEditing]=React.useState(null);
     const [busy,setBusy]=React.useState(false);
     const [msg,setMsg]=React.useState('');
@@ -14460,12 +14463,12 @@ function RoomsBeds({profile}){
     function openTransfer(row){
       const p=patientFor(row);
       if(!p)return;
-      setTransfer({patient_id:p.id,to_room_bed_id:'',reason_type:'',reason:'',effective_at:new Date().toISOString().slice(0,16)});setTransferSearch('');
+      setTransfer({patient_id:p.id,to_room_bed_id:'',reason:'',effective_at:new Date().toISOString().slice(0,16)});
       setShowTransfer(true);
     }
     function openTransferManager(){
       if(!canManage)return;
-      setTransfer({patient_id:'',to_room_bed_id:'',reason_type:'',reason:'',effective_at:new Date().toISOString().slice(0,16)});setTransferSearch('');
+      setTransfer({patient_id:'',to_room_bed_id:'',reason:'',effective_at:new Date().toISOString().slice(0,16)});
       setShowTransfer(true);
     }
     function transferFromBed(){
@@ -14484,14 +14487,12 @@ function RoomsBeds({profile}){
       if(!canManage||busy)return;
       if(!transfer.patient_id){showToast('error','Select the patient to be shifted.');return}
       if(!transfer.to_room_bed_id){showToast('error','Select the new room and bed.');return}
-      if(!transfer.reason_type){showToast('error','Select a reason for room shifting.');return}
-      if(transfer.reason_type==='Other'&&!transfer.reason.trim()){showToast('error','Please enter the other reason for shifting.');return}
-      const finalReason=transfer.reason_type==='Other'?transfer.reason.trim():transfer.reason_type;
+      if(!transfer.reason.trim()){showToast('error','Reason for room shifting is mandatory.');return}
       setBusy(true);
       const {data,error}=await client.rpc('transfer_patient_room',{
         p_patient_id:transfer.patient_id,
         p_to_room_bed_id:transfer.to_room_bed_id,
-        p_reason:finalReason,
+        p_reason:transfer.reason.trim(),
         p_effective_at:new Date(transfer.effective_at).toISOString()
       });
       setBusy(false);
@@ -14701,15 +14702,11 @@ function RoomsBeds({profile}){
 
       showTransfer&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:transferPatient,style:{width:'min(820px,96vw)'}},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Shift Room / Bed'),h('small',null,transfer.patient_id?patientName(transfer.patient_id):'Select an occupied resident and available destination bed')),h('button',{type:'button',className:'close',onClick:()=>setShowTransfer(false)},'×')),
-        h('div',{className:'field',style:{marginBottom:'10px'}},
-          h('label',null,'Search Patient / Resident'),
-          h('input',{type:'search',value:transferSearch,onChange:e=>setTransferSearch(e.target.value),placeholder:'Search by name, patient ID or room / bed…',autoFocus:true})
-        ),
         h('div',{className:'field',style:{marginBottom:'12px'}},
           h('label',null,'Patient / Resident'),
           h('select',{required:true,value:transfer.patient_id,onChange:e=>setTransfer({...transfer,patient_id:e.target.value,to_room_bed_id:''})},
             h('option',{value:''},'Select occupied resident'),
-            occupiedRows.filter(r=>{const p=patientFor(r);if(!p)return false;const q=String(transferSearch||'').trim().toLowerCase();if(!q)return true;return `${formalName(p)} ${p.patient_id||''} ${r.room_no||''}-${r.bed_no||''}`.toLowerCase().includes(q)}).map(r=>{const p=patientFor(r);return p?h('option',{key:p.id,value:p.id},`${formalName(p)} · ${p.patient_id||''} · Room ${r.room_no}-${r.bed_no}`):null})
+            occupiedRows.map(r=>{const p=patientFor(r);return p?h('option',{key:p.id,value:p.id},`${formalName(p)} · ${p.patient_id||''} · Room ${r.room_no}-${r.bed_no}`):null})
           )
         ),
         (()=>{const from=transferFromBed(),to=transferToBed();return h(React.Fragment,null,
@@ -14720,11 +14717,7 @@ function RoomsBeds({profile}){
           h('div',{className:'modal-grid'},
             h('div',{className:'field span-2'},h('label',null,'Shift To — Available Room / Bed'),h('select',{required:true,value:transfer.to_room_bed_id,onChange:e=>setTransfer({...transfer,to_room_bed_id:e.target.value})},h('option',{value:''},'Select available room/bed'),availableRows.map(r=>h('option',{key:r.id,value:r.id},`Room ${r.room_no}-${r.bed_no} · ${r.room_type} · Room ₹${Number(r.room_daily_rate??r.daily_rate??0).toLocaleString('en-IN')} + Nursing ₹${Number(r.nursing_daily_rate||0).toLocaleString('en-IN')}`)))),
             h('div',{className:'field'},h('label',null,'Effective Date & Time'),h('input',{type:'datetime-local',value:transfer.effective_at,onChange:e=>setTransfer({...transfer,effective_at:e.target.value}),max:new Date().toISOString().slice(0,16),required:true})),
-            h('div',{className:'field span-2'},h('label',null,'Reason for Shifting'),h('select',{required:true,value:transfer.reason_type,onChange:e=>setTransfer({...transfer,reason_type:e.target.value,reason:e.target.value==='Other'?transfer.reason:''})},
-              h('option',{value:''},'Select reason'),
-              ['Patient / Relative Request','Clinical Requirement','Upgrade to Higher Room Category','Downgrade to Lower Room Category','Maintenance / Repair','Infection Control / Isolation','Gender / Privacy Requirement','Operational / Bed Management','Other'].map(reason=>h('option',{key:reason,value:reason},reason))
-            )),
-            transfer.reason_type==='Other'&&h('div',{className:'field span-2'},h('label',null,'Other Reason'),h('textarea',{required:true,rows:3,value:transfer.reason,onChange:e=>setTransfer({...transfer,reason:e.target.value}),placeholder:'Enter the reason for room / bed shifting'}))
+            h('div',{className:'field span-2'},h('label',null,'Reason for Shifting'),h('textarea',{required:true,rows:4,value:transfer.reason,onChange:e=>setTransfer({...transfer,reason:e.target.value}),placeholder:'Clinical need, patient/relative request, maintenance, upgrade/downgrade, gender allocation, etc.'}))
           ),
           to&&from&&h('div',{style:{marginTop:'12px',padding:'14px 16px',border:'1px solid #eab6cf',borderRadius:'14px',background:'linear-gradient(135deg,#fff4f8,#fdeaf2)'}},
             h('div',{style:{display:'flex',justifyContent:'space-between',gap:'12px',flexWrap:'wrap',alignItems:'center'}},
@@ -17902,6 +17895,174 @@ function ShiftHandover({profile,onNavigate}){
     `;
     document.head.appendChild(style);
   };
+
+  function PatientLedgerView({profile,onNavigate}){
+    const [patients]=usePatients();
+    const [query,setQuery]=React.useState('');
+    const [selectedId,setSelectedId]=React.useState('');
+    const [ledger,setLedger]=React.useState([]);
+    const [roomBed,setRoomBed]=React.useState(null);
+    const [shifts,setShifts]=React.useState([]);
+    const [loading,setLoading]=React.useState(false);
+    const [message,setMessage]=React.useState('');
+
+    const money=value=>`₹${Number(value||0).toLocaleString('en-IN',{maximumFractionDigits:2})}`;
+    const patientLabel=p=>`${formalName(p)||p.full_name||'Patient'} · ${p.patient_id||'No ID'}${p.room_no?` · Room ${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:''}`;
+    const q=String(query||'').trim().toLowerCase();
+    const matches=(patients||[]).filter(p=>{
+      if(!q)return false;
+      const hay=[formalName(p),p.full_name,p.patient_id,p.room_no,p.bed_no,p.mobile,p.attendant_phone]
+        .filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(q);
+    }).slice(0,12);
+    const selected=(patients||[]).find(p=>p.id===selectedId)||null;
+
+    async function loadPatientLedger(patient){
+      if(!patient?.id){setLedger([]);setRoomBed(null);setShifts([]);return}
+      setLoading(true);setMessage('');
+      try{
+        const [ledgerRes,bedByPatientRes,shiftRes]=await Promise.all([
+          client.from('billing_transactions').select('*').eq('patient_id',patient.id).order('transaction_date',{ascending:true}),
+          client.from('room_beds').select('*').eq('patient_id',patient.id).maybeSingle(),
+          client.from('room_transfer_history').select('*').eq('patient_id',patient.id).order('effective_at',{ascending:false}).limit(20)
+        ]);
+        if(ledgerRes.error)throw ledgerRes.error;
+        let bed=bedByPatientRes.data||null;
+        if(!bed&&patient.room_no){
+          const fallback=await client.from('room_beds').select('*')
+            .eq('room_no',patient.room_no)
+            .eq('bed_no',patient.bed_no||'')
+            .maybeSingle();
+          if(!fallback.error)bed=fallback.data||null;
+        }
+        setLedger(ledgerRes.data||[]);
+        setRoomBed(bed);
+        if(shiftRes.error){console.warn('Room shift history could not be loaded:',shiftRes.error);setShifts([])}
+        else setShifts(shiftRes.data||[]);
+      }catch(error){
+        console.error('Patient Ledger could not be loaded:',error);
+        setMessage(error?.message||'Patient Ledger could not be loaded.');
+        setLedger([]);setRoomBed(null);setShifts([]);
+      }finally{setLoading(false)}
+    }
+
+    React.useEffect(()=>{if(selected)loadPatientLedger(selected)},[selectedId]);
+    React.useEffect(()=>{
+      if(!selectedId)return;
+      const channel=client.channel(`patient-ledger-${selectedId}`)
+        .on('postgres_changes',{event:'*',schema:'public',table:'billing_transactions',filter:`patient_id=eq.${selectedId}`},()=>loadPatientLedger(selected))
+        .on('postgres_changes',{event:'*',schema:'public',table:'room_transfer_history',filter:`patient_id=eq.${selectedId}`},()=>loadPatientLedger(selected))
+        .subscribe();
+      return()=>client.removeChannel(channel);
+    },[selectedId]);
+
+    const totals=ledger.reduce((sum,row)=>{
+      const amount=Number(row.amount||0),type=String(row.transaction_type||'Charge');
+      if(type==='Charge')sum.charges+=amount;
+      else if(type==='Payment'||type==='Advance')sum.receipts+=amount;
+      else if(type==='Discount')sum.discounts+=amount;
+      else if(type==='Refund')sum.refunds+=amount;
+      return sum;
+    },{charges:0,receipts:0,discounts:0,refunds:0});
+    const balance=totals.charges-totals.receipts-totals.discounts+totals.refunds;
+
+    let running=0;
+    const rowsWithBalance=ledger.map(row=>{
+      const amount=Number(row.amount||0),type=String(row.transaction_type||'Charge');
+      const debit=(type==='Charge'||type==='Refund')?amount:0;
+      const credit=(type==='Payment'||type==='Advance'||type==='Discount')?amount:0;
+      running+=debit-credit;
+      return {...row,_debit:debit,_credit:credit,_balance:running};
+    }).reverse();
+
+    const autoRoom=[...ledger].reverse().find(row=>String(row.source_type||'').toLowerCase()==='daily room charge'||(/room/i.test(String(row.category||''))&&row.auto_generated===true));
+    const autoNursing=[...ledger].reverse().find(row=>String(row.source_type||'').toLowerCase()==='daily nursing charge'||(/nursing/i.test(String(row.category||''))&&row.auto_generated===true));
+    const roomRate=Number(roomBed?.room_daily_rate||roomBed?.daily_rate||0);
+    const nursingRate=Number(roomBed?.nursing_daily_rate||0);
+    const roomMatches=!roomBed||!autoRoom?null:Math.abs(Number(autoRoom.amount||0)-roomRate)<0.01;
+    const nursingMatches=!roomBed||!autoNursing?null:Math.abs(Number(autoNursing.amount||0)-nursingRate)<0.01;
+    const latestShift=shifts[0]||null;
+
+    function choosePatient(p){setSelectedId(p.id);setQuery(patientLabel(p))}
+
+    return h('div',{className:'stack patient-ledger-page'},
+      h('style',null,`
+        .patient-ledger-page .ledger-search-wrap{position:relative;max-width:820px}
+        .patient-ledger-page .ledger-search-results{position:absolute;z-index:40;left:0;right:0;top:calc(100% + 6px);background:#fff;border:1px solid #efbed2;border-radius:14px;box-shadow:0 14px 32px rgba(110,14,62,.18);max-height:340px;overflow:auto}
+        .patient-ledger-page .ledger-search-result{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #f6dce7;background:#fff;padding:12px 14px;cursor:pointer;color:#3f2635}
+        .patient-ledger-page .ledger-search-result:hover{background:#fff1f7}
+        .patient-ledger-page .ledger-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+        .patient-ledger-page .ledger-kpi{background:linear-gradient(145deg,#fff,#fff5f9);border:1px solid #f0c7d7;border-radius:18px;padding:14px 16px}
+        .patient-ledger-page .ledger-kpi span{display:block;color:#7a6872;font-size:12px;margin-bottom:5px}.patient-ledger-page .ledger-kpi strong{font-size:24px;color:#56102f}
+        .patient-ledger-page .tariff-check{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px}
+        .patient-ledger-page .tariff-cell{background:#fff7fa;border:1px solid #f2cedc;border-radius:12px;padding:11px}
+        .patient-ledger-page .tariff-ok{color:#078637;font-weight:800}.patient-ledger-page .tariff-warn{color:#c51f2e;font-weight:800}
+        .patient-ledger-page .ledger-table-wrap{overflow:auto}.patient-ledger-page table{min-width:900px;width:100%;border-collapse:collapse}
+        .patient-ledger-page th{background:#fff0f6;color:#66103b;text-align:left;padding:10px;border-bottom:1px solid #efc5d5;position:sticky;top:0}.patient-ledger-page td{padding:10px;border-bottom:1px solid #f0e1e7;vertical-align:top}
+        .patient-ledger-page .ledger-debit{color:#b91c1c;font-weight:700}.patient-ledger-page .ledger-credit{color:#087c39;font-weight:700}.patient-ledger-page .ledger-balance{font-weight:800;color:#47162f}
+        .patient-ledger-page .shift-row{padding:10px 0;border-bottom:1px solid #f0dbe4}.patient-ledger-page .shift-row:last-child{border-bottom:0}
+        @media(max-width:900px){.patient-ledger-page .ledger-kpis,.patient-ledger-page .tariff-check{grid-template-columns:repeat(2,minmax(0,1fr))}}
+      `),
+      h('div',{className:'page-hero'},
+        h('div',null,h('div',{className:'eyebrow'},'ACCOUNTS / BILLING'),h('h2',null,'Patient Ledger'),h('p',null,'Search any resident and review the complete financial history, running balance, current room tariff and room-shift tariff synchronisation.')),
+        h('button',{className:'btn btn-secondary',onClick:()=>onNavigate?.('Payments')},'Open Payments')
+      ),
+      h('div',{className:'section-card'},
+        h('h3',null,'Search Patient / Resident'),
+        h('div',{className:'ledger-search-wrap'},
+          h('input',{className:'input',value:query,placeholder:'Search by patient name, Patient ID, room / bed or mobile number…',onChange:e=>{setQuery(e.target.value);if(selectedId&&e.target.value!==patientLabel(selected))setSelectedId('')}}),
+          q&&!selectedId&&h('div',{className:'ledger-search-results'},
+            matches.length?matches.map(p=>h('button',{key:p.id,type:'button',className:'ledger-search-result',onClick:()=>choosePatient(p)},
+              h('strong',null,formalName(p)||p.full_name||'Patient'),
+              h('div',{className:'small-note'},`${p.patient_id||'No Patient ID'}${p.room_no?` · Room ${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:''}${p.mobile?` · ${p.mobile}`:''}`)
+            )):h('div',{style:{padding:'14px'},className:'small-note'},'No matching patient found.')
+          )
+        ),
+        selected&&h('div',{className:'small-note',style:{marginTop:'9px'}},`Selected: ${patientLabel(selected)}`)
+      ),
+      message&&h('div',{className:'alert error'},message),
+      loading&&h('div',{className:'section-card'},'Loading Patient Ledger…'),
+      selected&&!loading&&h(React.Fragment,null,
+        h('div',{className:'ledger-kpis'},
+          [['Total Charges',totals.charges],['Payments / Advances',totals.receipts],['Discounts',totals.discounts],['Current Payable',balance]].map(([label,value])=>
+            h('div',{className:'ledger-kpi',key:label},h('span',null,label),h('strong',null,money(value)))
+          )
+        ),
+        h('div',{className:'section-card'},
+          h('h3',null,'Current Tariff Verification'),
+          h('p',{className:'small-note'},'This section lets Accounts immediately confirm whether the latest automatic accommodation charges match the resident’s current room / bed tariff.'),
+          h('div',{className:'tariff-check'},
+            h('div',{className:'tariff-cell'},h('span',{className:'small-note'},'Current Room / Bed'),h('strong',null,roomBed?`${roomBed.room_no||'—'}${roomBed.bed_no?`-${roomBed.bed_no}`:''} · ${roomBed.room_type||roomBed.type||'Room'}`:'Not linked')),
+            h('div',{className:'tariff-cell'},h('span',{className:'small-note'},'Current Room Tariff'),h('strong',null,money(roomRate)),autoRoom&&h('div',{className:roomMatches?'tariff-ok':'tariff-warn'},roomMatches?'✓ Latest ledger charge matches':`⚠ Latest ledger: ${money(autoRoom.amount)}`)),
+            h('div',{className:'tariff-cell'},h('span',{className:'small-note'},'Current Nursing Tariff'),h('strong',null,money(nursingRate)),autoNursing&&h('div',{className:nursingMatches?'tariff-ok':'tariff-warn'},nursingMatches?'✓ Latest ledger charge matches':`⚠ Latest ledger: ${money(autoNursing.amount)}`)),
+            h('div',{className:'tariff-cell'},h('span',{className:'small-note'},'Latest Room Shift / Accounts Sync'),latestShift?h(React.Fragment,null,h('strong',null,`${latestShift.from_room_no||'—'}${latestShift.from_bed_no?`-${latestShift.from_bed_no}`:''} → ${latestShift.to_room_no||'—'}${latestShift.to_bed_no?`-${latestShift.to_bed_no}`:''}`),h('div',{className:latestShift.accounts_synced?'tariff-ok':'tariff-warn'},latestShift.accounts_synced?'✓ Accounts synchronised':'⚠ Accounts sync pending')):h('strong',null,'No room shift recorded'))
+          )
+        ),
+        shifts.length>0&&h('div',{className:'section-card'},
+          h('h3',null,`Room Shift / Tariff History (${shifts.length})`),
+          shifts.map(s=>h('div',{className:'shift-row',key:s.id},
+            h('strong',null,`${s.from_room_no||'—'}${s.from_bed_no?`-${s.from_bed_no}`:''} → ${s.to_room_no||'—'}${s.to_bed_no?`-${s.to_bed_no}`:''}`),
+            h('div',{className:'small-note'},`${fmt(s.effective_at)} · ${s.reason||'No reason recorded'} · Room ${money(s.from_room_daily_rate)} → ${money(s.to_room_daily_rate)} · Nursing ${money(s.from_nursing_daily_rate)} → ${money(s.to_nursing_daily_rate)}`),
+            h('div',{className:s.accounts_synced?'tariff-ok':'tariff-warn'},s.accounts_synced?'Accounts synchronised':'Accounts sync pending')
+          ))
+        ),
+        h('div',{className:'section-card'},
+          h('div',{style:{display:'flex',justifyContent:'space-between',gap:'12px',alignItems:'center',flexWrap:'wrap'}},h('div',null,h('h3',{style:{marginBottom:'2px'}},'Complete Patient Ledger'),h('div',{className:'small-note'},`${ledger.length} transaction${ledger.length===1?'':'s'} · newest first`)),h('button',{className:'btn btn-secondary',onClick:()=>loadPatientLedger(selected)},'Refresh')),
+          ledger.length?h('div',{className:'ledger-table-wrap'},h('table',null,
+            h('thead',null,h('tr',null,['Date / Time','Particulars','Debit','Credit','Balance','Source / Reference'].map(x=>h('th',{key:x},x)))),
+            h('tbody',null,rowsWithBalance.map(row=>h('tr',{key:row.id},
+              h('td',null,fmt(row.transaction_date||row.created_at)),
+              h('td',null,h('strong',null,`${row.transaction_type||'Transaction'} · ${row.category||'General'}`),row.description&&h('div',{className:'small-note'},row.description)),
+              h('td',{className:'ledger-debit'},row._debit?money(row._debit):'—'),
+              h('td',{className:'ledger-credit'},row._credit?money(row._credit):'—'),
+              h('td',{className:'ledger-balance'},money(row._balance)),
+              h('td',null,h('div',null,row.source_type||row.payment_mode||'—'),h('div',{className:'small-note'},row.payment_reference||row.reference_no||row.source_key||''))
+            )))
+          )):h('div',{className:'empty-state'},'No billing transactions have been recorded for this patient yet.')
+        )
+      )
+    );
+  }
 
   function BillingPayments({profile}){
     const [patients]=usePatients();
