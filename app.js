@@ -17981,7 +17981,9 @@ function ShiftHandover({profile,onNavigate}){
     const nursingRate=Number(roomBed?.nursing_daily_rate||0);
     const roomMatches=!roomBed||!autoRoom?null:Math.abs(Number(autoRoom.amount||0)-roomRate)<0.01;
     const nursingMatches=!roomBed||!autoNursing?null:Math.abs(Number(autoNursing.amount||0)-nursingRate)<0.01;
-    const latestShift=shifts[0]||null;
+    const isInitialAllotment=s=>String(s?.reason||'').toLowerCase().includes('initial admission') || (!s?.from_room_no && !s?.from_bed_no);
+    const actualShifts=shifts.filter(s=>!isInitialAllotment(s));
+    const latestShift=actualShifts[0]||null;
 
     function choosePatient(p){setSelectedId(p.id);setQuery(patientLabel(p))}
 
@@ -17990,7 +17992,9 @@ function ShiftHandover({profile,onNavigate}){
     }
     function downloadLedgerExcel(){
       if(!selected)return;
-      const shiftRows=shifts.map(s=>`<tr><td>${escapeExcel(fmt(s.effective_at))}</td><td>${escapeExcel(`${s.from_room_no||'—'}${s.from_bed_no?`-${s.from_bed_no}`:''} → ${s.to_room_no||'—'}${s.to_bed_no?`-${s.to_bed_no}`:''}`)}</td><td>${escapeExcel(s.reason||'')}</td><td>${escapeExcel(money(s.from_room_daily_rate))}</td><td>${escapeExcel(money(s.to_room_daily_rate))}</td><td>${escapeExcel(money(s.from_nursing_daily_rate))}</td><td>${escapeExcel(money(s.to_nursing_daily_rate))}</td><td>${escapeExcel(s.accounts_synced?'Accounts synchronised':'Accounts sync pending')}</td></tr>`).join('');
+      const shiftRows=shifts.map(s=>isInitialAllotment(s)
+        ? `<tr><td>${escapeExcel(fmt(s.effective_at))}</td><td>${escapeExcel(`Initial Allotment → ${s.to_room_no||'—'}${s.to_bed_no?`-${s.to_bed_no}`:''}`)}</td><td>${escapeExcel(s.reason||'Initial admission room allotment')}</td><td colspan="5">Historical initial allotment</td></tr>`
+        : `<tr><td>${escapeExcel(fmt(s.effective_at))}</td><td>${escapeExcel(`${s.from_room_no||'—'}${s.from_bed_no?`-${s.from_bed_no}`:''} → ${s.to_room_no||'—'}${s.to_bed_no?`-${s.to_bed_no}`:''}`)}</td><td>${escapeExcel(s.reason||'')}</td><td>${escapeExcel(money(s.from_room_daily_rate))}</td><td>${escapeExcel(money(s.to_room_daily_rate))}</td><td>${escapeExcel(money(s.from_nursing_daily_rate))}</td><td>${escapeExcel(money(s.to_nursing_daily_rate))}</td><td>${escapeExcel(s.accounts_synced?'Accounts synchronised':'Accounts sync pending')}</td></tr>`).join('');
       const ledgerRows=rowsWithBalance.map(row=>`<tr><td>${escapeExcel(fmt(row.transaction_date||row.created_at))}</td><td>${escapeExcel(`${row.transaction_type||'Transaction'} · ${row.category||'General'}`)}</td><td>${escapeExcel(row.description||'')}</td><td>${row._debit||''}</td><td>${row._credit||''}</td><td>${row._balance}</td><td>${escapeExcel(row.source_type||row.payment_mode||'')}</td><td>${escapeExcel(row.payment_reference||row.reference_no||row.source_key||'')}</td></tr>`).join('');
       const roomText=roomBed?`${roomBed.room_no||'—'}${roomBed.bed_no?`-${roomBed.bed_no}`:''} · ${roomBed.room_type||roomBed.type||'Room'}`:'Not linked';
       const html=`<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;color:#321523}h1{color:#a20b55}h2{color:#8b174d;margin-top:24px}table{border-collapse:collapse;width:100%;margin:8px 0 18px}th,td{border:1px solid #d9a8bd;padding:7px;text-align:left}th{background:#fbe7f0;color:#6d123c}.money{mso-number-format:"₹\#\,##0.00"}</style></head><body>
@@ -18078,11 +18082,16 @@ function ShiftHandover({profile,onNavigate}){
         ),
         shifts.length>0&&h('div',{className:'section-card'},
           h('h3',null,`Room Shift / Tariff History (${shifts.length})`),
-          shifts.map(s=>h('div',{className:'shift-row',key:s.id},
-            h('strong',null,`${s.from_room_no||'—'}${s.from_bed_no?`-${s.from_bed_no}`:''} → ${s.to_room_no||'—'}${s.to_bed_no?`-${s.to_bed_no}`:''}`),
-            h('div',{className:'small-note'},`${fmt(s.effective_at)} · ${s.reason||'No reason recorded'} · Room ${money(s.from_room_daily_rate)} → ${money(s.to_room_daily_rate)} · Nursing ${money(s.from_nursing_daily_rate)} → ${money(s.to_nursing_daily_rate)}`),
-            h('div',{className:s.accounts_synced?'tariff-ok':'tariff-warn'},s.accounts_synced?'Accounts synchronised':'Accounts sync pending')
-          ))
+          shifts.map(s=>isInitialAllotment(s)
+            ? h('div',{className:'shift-row',key:s.id},
+                h('strong',null,`Initial Allotment → ${s.to_room_no||'—'}${s.to_bed_no?`-${s.to_bed_no}`:''}`),
+                h('div',{className:'small-note'},`${fmt(s.effective_at)} · ${s.reason||'Initial admission room allotment'}`)
+              )
+            : h('div',{className:'shift-row',key:s.id},
+                h('strong',null,`${s.from_room_no||'—'}${s.from_bed_no?`-${s.from_bed_no}`:''} → ${s.to_room_no||'—'}${s.to_bed_no?`-${s.to_bed_no}`:''}`),
+                h('div',{className:'small-note'},`${fmt(s.effective_at)} · ${s.reason||'No reason recorded'} · Room ${money(s.from_room_daily_rate)} → ${money(s.to_room_daily_rate)} · Nursing ${money(s.from_nursing_daily_rate)} → ${money(s.to_nursing_daily_rate)}`),
+                h('div',{className:s.accounts_synced?'tariff-ok':'tariff-warn'},s.accounts_synced?'Accounts synchronised':'Accounts sync pending')
+              ))
         ),
         h('div',{className:'section-card'},
           h('div',{style:{display:'flex',justifyContent:'space-between',gap:'12px',alignItems:'center',flexWrap:'wrap'}},
