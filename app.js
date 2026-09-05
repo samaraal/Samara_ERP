@@ -18001,15 +18001,41 @@ function ShiftHandover({profile,onNavigate}){
       const html=`<!doctype html><html><head><meta charset="utf-8"><style>
       body{font-family:Arial,sans-serif;color:#321523;background:#fff;margin:14px}h1{color:#a20b55;margin:0;font-size:26px}h2{color:#a20b55;margin:22px 0 6px;padding:6px 8px;background:#fff0f6;border-left:4px solid #c21867}table{border-collapse:collapse;width:100%;margin:8px 0 18px}th,td{border:1px solid #d9a8bd;padding:7px;text-align:left}th{background:#fbe7f0;color:#6d123c}.money{mso-number-format:"₹\#\,##0.00"}.brand{width:100%;border-collapse:collapse;margin:0 0 12px}.brand td{border:0!important;padding:3px 8px;vertical-align:middle}.brand-logo{width:230px;height:auto}.brand-sub{color:#6c5a63;font-weight:700}.footer{margin-top:18px;border-top:2px solid #e7b4ca;padding-top:10px;color:#6a4154;font-size:11px;line-height:1.45}.footer strong{color:#a20b55}
       </style></head><body>
-      <table class="brand"><tr><td style="width:250px"><img class="brand-logo" src="${patientLedgerSamaraLogo}" alt="Samara Assisted Living"></td><td><h1>Samara Care ERP – Patient Ledger</h1><div class="brand-sub">Compassion • Comfort • Dignity</div></td></tr></table>
-      <table><tr><th>Patient / Resident</th><td>${escapeExcel(formalName(selected)||selected.full_name||'Patient')}</td><th>Patient ID</th><td>${escapeExcel(selected.patient_id||'')}</td></tr><tr><th>Current Room / Bed</th><td>${escapeExcel(roomText)}</td><th>Exported On</th><td>${escapeExcel(new Date().toLocaleString('en-IN'))}</td></tr></table>
+      <table class="brand"><tr><td style="width:250px"><img class="brand-logo" src="samara-logo.png" alt="Samara Assisted Living"></td><td><h1>Samara Care ERP – Patient Ledger</h1><div class="brand-sub">Compassion • Comfort • Dignity</div></td></tr></table>
+      <table><tr><th>Patient / Resident</th><td>${escapeExcel(formalName(selected)||selected.full_name||'Patient')}</td><th>Patient ID</th><td>${escapeExcel(selected.patient_id||'')}</td></tr><tr><th>Current Room / Bed</th><td>${escapeExcel(roomText)}</td><th>Exported On</th><td>${escapeExcel(fmt(new Date()))}</td></tr></table>
       <h2>Financial Summary</h2><table><tr><th>Total Charges</th><th>Payments / Advances</th><th>Discounts</th><th>Refunds</th><th>Current Payable</th></tr><tr><td>${totals.charges}</td><td>${totals.receipts}</td><td>${totals.discounts}</td><td>${totals.refunds}</td><td>${balance}</td></tr></table>
       <h2>Current Tariff Verification</h2><table><tr><th>Current Room / Bed</th><th>Room Tariff / day</th><th>Nursing Tariff / day</th><th>Latest Room Charge</th><th>Latest Nursing Charge</th><th>Latest Room Shift / Accounts Sync</th></tr><tr><td>${escapeExcel(roomText)}</td><td>${roomRate}</td><td>${nursingRate}</td><td>${autoRoom?Number(autoRoom.amount||0):''}${roomMatches===true?' (Matches)':roomMatches===false?' (Mismatch)':''}</td><td>${autoNursing?Number(autoNursing.amount||0):''}${nursingMatches===true?' (Matches)':nursingMatches===false?' (Mismatch)':''}</td><td>${escapeExcel(latestShift?`${latestShift.from_room_no||'—'}${latestShift.from_bed_no?`-${latestShift.from_bed_no}`:''} → ${latestShift.to_room_no||'—'}${latestShift.to_bed_no?`-${latestShift.to_bed_no}`:''} · ${latestShift.accounts_synced?'Accounts synchronised':'Accounts sync pending'}`:'No room shift recorded')}</td></tr></table>
       <h2>Room Shift / Tariff History</h2><table><tr><th>Effective Date / Time</th><th>Room Shift</th><th>Reason</th><th>Old Room Tariff</th><th>New Room Tariff</th><th>Old Nursing Tariff</th><th>New Nursing Tariff</th><th>Accounts Status</th></tr>${shiftRows||'<tr><td colspan="8">No room shift history</td></tr>'}</table>
       <h2>Complete Patient Ledger</h2><table><tr><th>Date / Time</th><th>Particulars</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th><th>Source</th><th>Reference</th></tr>${ledgerRows||'<tr><td colspan="8">No billing transactions</td></tr>'}</table>
       <div class="footer"><strong>Samara Assisted Living</strong> · RBK VILLA, No: 23-A, Reddipalayam Road, Jeswant Nagar Phase 1, Mogappair West, Chennai 600037.<br>9976735577 · 7395961616 · care@samaraassistedliving.com · www.samaraassistedliving.com<br><em>Professional care. Personal attention. Complete peace of mind.</em></div>
       </body></html>`;
-      const blob=new Blob(['\ufeff',html],{type:'application/vnd.ms-excel;charset=utf-8;'});
+      // Excel's HTML import treats normal image/data-URI references as external links.
+      // Package the workbook as MHTML and attach the Samara logo inside the file so it
+      // remains visible after download, e-mailing or opening on another computer.
+      const logoBase64=String(patientLedgerSamaraLogo||'').replace(/^data:image\/png;base64,/i,'');
+      const boundary='----=_SamaraLedger_'+Date.now();
+      const mhtml=[
+        'MIME-Version: 1.0',
+        `Content-Type: multipart/related; boundary=\"${boundary}\"`,
+        '',
+        `--${boundary}`,
+        'Content-Type: text/html; charset=\"utf-8\"',
+        'Content-Transfer-Encoding: 8bit',
+        'Content-Location: patient-ledger.htm',
+        '',
+        html,
+        '',
+        `--${boundary}`,
+        'Content-Type: image/png',
+        'Content-Transfer-Encoding: base64',
+        'Content-Location: samara-logo.png',
+        '',
+        logoBase64.replace(/(.{76})/g,'$1\r\n'),
+        '',
+        `--${boundary}--`,
+        ''
+      ].join('\r\n');
+      const blob=new Blob([mhtml],{type:'application/vnd.ms-excel;charset=utf-8;'});
       const url=URL.createObjectURL(blob);
       const a=document.createElement('a');a.href=url;
       const safeName=String(formalName(selected)||selected.full_name||selected.patient_id||'Patient').replace(/[^a-zA-Z0-9_-]+/g,'_').replace(/^_+|_+$/g,'');
