@@ -14306,7 +14306,8 @@ function RoomsBeds({profile}){
     const [showReservation,setShowReservation]=React.useState(false);
     const [reservationRow,setReservationRow]=React.useState(null);
     const [form,setForm]=React.useState(empty);
-    const [transfer,setTransfer]=React.useState({patient_id:'',to_room_bed_id:'',reason:'',effective_at:new Date().toISOString().slice(0,16)});
+    const [transfer,setTransfer]=React.useState({patient_id:'',to_room_bed_id:'',reason_type:'',reason:'',effective_at:new Date().toISOString().slice(0,16)});
+    const [transferSearch,setTransferSearch]=React.useState('');
     const [editing,setEditing]=React.useState(null);
     const [busy,setBusy]=React.useState(false);
     const [msg,setMsg]=React.useState('');
@@ -14459,12 +14460,12 @@ function RoomsBeds({profile}){
     function openTransfer(row){
       const p=patientFor(row);
       if(!p)return;
-      setTransfer({patient_id:p.id,to_room_bed_id:'',reason:'',effective_at:new Date().toISOString().slice(0,16)});
+      setTransfer({patient_id:p.id,to_room_bed_id:'',reason_type:'',reason:'',effective_at:new Date().toISOString().slice(0,16)});setTransferSearch('');
       setShowTransfer(true);
     }
     function openTransferManager(){
       if(!canManage)return;
-      setTransfer({patient_id:'',to_room_bed_id:'',reason:'',effective_at:new Date().toISOString().slice(0,16)});
+      setTransfer({patient_id:'',to_room_bed_id:'',reason_type:'',reason:'',effective_at:new Date().toISOString().slice(0,16)});setTransferSearch('');
       setShowTransfer(true);
     }
     function transferFromBed(){
@@ -14483,12 +14484,14 @@ function RoomsBeds({profile}){
       if(!canManage||busy)return;
       if(!transfer.patient_id){showToast('error','Select the patient to be shifted.');return}
       if(!transfer.to_room_bed_id){showToast('error','Select the new room and bed.');return}
-      if(!transfer.reason.trim()){showToast('error','Reason for room shifting is mandatory.');return}
+      if(!transfer.reason_type){showToast('error','Select a reason for room shifting.');return}
+      if(transfer.reason_type==='Other'&&!transfer.reason.trim()){showToast('error','Please enter the other reason for shifting.');return}
+      const finalReason=transfer.reason_type==='Other'?transfer.reason.trim():transfer.reason_type;
       setBusy(true);
       const {data,error}=await client.rpc('transfer_patient_room',{
         p_patient_id:transfer.patient_id,
         p_to_room_bed_id:transfer.to_room_bed_id,
-        p_reason:transfer.reason.trim(),
+        p_reason:finalReason,
         p_effective_at:new Date(transfer.effective_at).toISOString()
       });
       setBusy(false);
@@ -14698,11 +14701,15 @@ function RoomsBeds({profile}){
 
       showTransfer&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:transferPatient,style:{width:'min(820px,96vw)'}},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Shift Room / Bed'),h('small',null,transfer.patient_id?patientName(transfer.patient_id):'Select an occupied resident and available destination bed')),h('button',{type:'button',className:'close',onClick:()=>setShowTransfer(false)},'×')),
+        h('div',{className:'field',style:{marginBottom:'10px'}},
+          h('label',null,'Search Patient / Resident'),
+          h('input',{type:'search',value:transferSearch,onChange:e=>setTransferSearch(e.target.value),placeholder:'Search by name, patient ID or room / bed…',autoFocus:true})
+        ),
         h('div',{className:'field',style:{marginBottom:'12px'}},
           h('label',null,'Patient / Resident'),
           h('select',{required:true,value:transfer.patient_id,onChange:e=>setTransfer({...transfer,patient_id:e.target.value,to_room_bed_id:''})},
             h('option',{value:''},'Select occupied resident'),
-            occupiedRows.map(r=>{const p=patientFor(r);return p?h('option',{key:p.id,value:p.id},`${formalName(p)} · ${p.patient_id||''} · Room ${r.room_no}-${r.bed_no}`):null})
+            occupiedRows.filter(r=>{const p=patientFor(r);if(!p)return false;const q=String(transferSearch||'').trim().toLowerCase();if(!q)return true;return `${formalName(p)} ${p.patient_id||''} ${r.room_no||''}-${r.bed_no||''}`.toLowerCase().includes(q)}).map(r=>{const p=patientFor(r);return p?h('option',{key:p.id,value:p.id},`${formalName(p)} · ${p.patient_id||''} · Room ${r.room_no}-${r.bed_no}`):null})
           )
         ),
         (()=>{const from=transferFromBed(),to=transferToBed();return h(React.Fragment,null,
@@ -14713,7 +14720,11 @@ function RoomsBeds({profile}){
           h('div',{className:'modal-grid'},
             h('div',{className:'field span-2'},h('label',null,'Shift To — Available Room / Bed'),h('select',{required:true,value:transfer.to_room_bed_id,onChange:e=>setTransfer({...transfer,to_room_bed_id:e.target.value})},h('option',{value:''},'Select available room/bed'),availableRows.map(r=>h('option',{key:r.id,value:r.id},`Room ${r.room_no}-${r.bed_no} · ${r.room_type} · Room ₹${Number(r.room_daily_rate??r.daily_rate??0).toLocaleString('en-IN')} + Nursing ₹${Number(r.nursing_daily_rate||0).toLocaleString('en-IN')}`)))),
             h('div',{className:'field'},h('label',null,'Effective Date & Time'),h('input',{type:'datetime-local',value:transfer.effective_at,onChange:e=>setTransfer({...transfer,effective_at:e.target.value}),max:new Date().toISOString().slice(0,16),required:true})),
-            h('div',{className:'field span-2'},h('label',null,'Reason for Shifting'),h('textarea',{required:true,rows:4,value:transfer.reason,onChange:e=>setTransfer({...transfer,reason:e.target.value}),placeholder:'Clinical need, patient/relative request, maintenance, upgrade/downgrade, gender allocation, etc.'}))
+            h('div',{className:'field span-2'},h('label',null,'Reason for Shifting'),h('select',{required:true,value:transfer.reason_type,onChange:e=>setTransfer({...transfer,reason_type:e.target.value,reason:e.target.value==='Other'?transfer.reason:''})},
+              h('option',{value:''},'Select reason'),
+              ['Patient / Relative Request','Clinical Requirement','Upgrade to Higher Room Category','Downgrade to Lower Room Category','Maintenance / Repair','Infection Control / Isolation','Gender / Privacy Requirement','Operational / Bed Management','Other'].map(reason=>h('option',{key:reason,value:reason},reason))
+            )),
+            transfer.reason_type==='Other'&&h('div',{className:'field span-2'},h('label',null,'Other Reason'),h('textarea',{required:true,rows:3,value:transfer.reason,onChange:e=>setTransfer({...transfer,reason:e.target.value}),placeholder:'Enter the reason for room / bed shifting'}))
           ),
           to&&from&&h('div',{style:{marginTop:'12px',padding:'14px 16px',border:'1px solid #eab6cf',borderRadius:'14px',background:'linear-gradient(135deg,#fff4f8,#fdeaf2)'}},
             h('div',{style:{display:'flex',justifyContent:'space-between',gap:'12px',flexWrap:'wrap',alignItems:'center'}},
