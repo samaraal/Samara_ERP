@@ -1,46 +1,69 @@
-SAMARA CARE ERP – MOBILE PATIENT FILE FIX
-Version: 2.10.13
+SAMARA CARE ERP v2.10.18 — WHATSAPP LOGO HEADER STANDARD
+========================================================
 
-REPLACE THESE 4 FILES IN THE ERP WEBSITE ROOT
+PURPOSE
+Every normal Samara WhatsApp reply should carry a small Samara logo image with the message as its caption.
+Approved Meta templates continue to use their IMAGE header where the template supports IMAGE headers.
+
+REPLACE WEBSITE ROOT FILES
 1. index.html
 2. service-worker.js
 3. bootstrap-error.js
 4. app.js
 
-NO SQL / SUPABASE DATABASE CHANGE IS REQUIRED.
+REDEPLOY EDGE FUNCTIONS
+1. supabase/functions/whatsapp-send/index.ts
+2. supabase/functions/whatsapp-webhook/index.ts
 
-WHAT IS FIXED IN v2.10.13
-• On iPhone/Android, the Patient File now opens ABOVE the sticky Samara header and Module bar.
-• The top of the Patient File can no longer be hidden behind the app header.
-• “Back to Patients”, patient identity/header, and the first tab row remain accessible.
-• The patient tab row is horizontally scrollable and stays available while viewing the file.
-• Internal scroll targets use a safe top margin so sections are not hidden below sticky controls.
-• Bottom safe-area spacing is preserved for iPhone Home Screen/PWA mode.
+NO SQL CHANGE.
 
-DEPLOYMENT
-Upload/replace the four files above in the same website root used for the current ERP.
-The PWA version was increased from 2.10.08 to 2.10.13, so each device can detect the new release independently.
+STANDARD LOGO URL
+https://samaraassistedliving.com/assets/samara-whatsapp-logo.png
 
+WHAT CHANGED
+- ERP direct WhatsApp replies inside the 24-hour service window are now properly supported as IMAGE + caption messages.
+- Automatic replies to General Follow-up buttons (Our Location, Request a Call, Admission Details) now send the Samara logo with the response as caption.
+- ERP template sends continue supplying the Samara logo as IMAGE header by default.
+- Version bumped to 2.10.16 so installed mobile PWAs can receive the update prompt independently.
 
-ADDITIONAL FIXES IN v2.10.13
-- Mobile Patient File now takes over the full screen while open; the underlying sticky Header, Module bar, bottom navigation and Alert Sound control are hidden until the file is closed. This avoids iPhone stacking overlap that hid the first rows.
-- Identity & Contacts now uses a clean three-part label : value grid (for example, Resident ID  :  MOG-...) with separate Address, District / Taluk and PIN rows for easier reading.
-- No SQL or Supabase database change is required.
+META TEMPLATE RULE
+For templates such as General Follow-up, Package Expiry, Emergency, Admission, Payment, etc., the Meta template itself must have Header type = IMAGE. The ERP cannot add an IMAGE header to a Meta template that was approved without one.
 
-ADDITIONAL FIX IN v2.10.13
-- Mobile Patient File header now reserves a full, visible row for the resident photograph and identity before action buttons.
-- The photograph/name block can no longer be squeezed underneath Admission Details / Family Details / Edit Patient buttons.
-- Mobile header actions are placed below the resident identity area in a clean two-column layout.
+IMPORTANT EXCEPTION — DAILY PATIENT REPORT
+samara_daily_patient_report uses Header type = DOCUMENT because the Intelligent Patient Care Report PDF is attached there. WhatsApp templates cannot use IMAGE and DOCUMENT header media at the same time. Keep the Samara logo inside the PDF itself; do not change that template to IMAGE.
+
+OPTIONAL EDGE FUNCTION SECRET
+SAMARA_WHATSAPP_LOGO_URL=https://samaraassistedliving.com/assets/samara-whatsapp-logo.png
+If omitted, the same URL above is used automatically by whatsapp-webhook.
 
 
-ADDITIONAL FIX IN v2.10.13
-- Patient File expanded sections now use the same clean Label : Value layout as Identity & Contacts.
-- Family Portal login and Daily Patient Report WhatsApp details are reformatted for mobile readability.
-- Long values wrap in the value column instead of crowding labels.
-- Action buttons inside expanded Patient File sections use a compact two-column mobile layout.
-- No SQL or Supabase database change is required.
+v2.10.18 COMPACT WHATSAPP LOGO
+--------------------------------
+Upload this additional file to the WEBSITE repository:
+  assets/samara-whatsapp-logo.png
 
-v2.10.13 mobile Family Portal controls:
-- WhatsApp Messages and Emergency are two equal buttons with complete labels.
-- Edit Family Access is a full-width button below them.
-- Enabled/Disabled status and Enable/Disable are separated into clean controls without overlap.
+This is a 1200 x 630 white image with the Samara logo centred at approximately half
+the previous visual size. It is used only for WhatsApp message/image headers.
+The normal ERP/website Samara logo remains unchanged.
+
+
+v2.10.18 SAFE WHATSAPP LOGO DELIVERY
+------------------------------------
+Purpose:
+- Restore APPROVED TEMPLATE messages to the previous proven Samara logo URL:
+  https://samaraassistedliving.com/assets/samara-logo.png
+- Keep the smaller compact logo ONLY for automatic 24-hour replies such as:
+  Our Location / Request a Call / Admission Details
+- No SQL change.
+- No change to inbound message save logic.
+
+Replace/deploy ONLY:
+1) ERP repository:
+   app.js
+2) Supabase Edge Function:
+   supabase/functions/whatsapp-webhook/index.ts
+
+Keep this website asset available:
+   assets/samara-whatsapp-logo.png
+
+Do NOT replace index.html, service-worker.js or bootstrap-error.js for this correction.
