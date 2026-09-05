@@ -1658,3 +1658,38 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
 
 /* Occupied bed package expiry status */
 .package-expiry-expired{color:#c62828!important;font-weight:800!important;}
+
+/* Rooms dashboard summary cards - clickable navigation */
+.room-summary .room-summary-link{
+  appearance:none;
+  width:100%;
+  text-align:left;
+  font:inherit;
+  color:inherit;
+  cursor:pointer;
+  position:relative;
+  transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease, background .16s ease;
+}
+.room-summary .room-summary-link:hover,
+.room-summary .room-summary-link:focus-visible{
+  transform:translateY(-2px);
+  box-shadow:0 10px 24px rgba(169,19,96,.10);
+  border-color:#d98aaf;
+  outline:none;
+}
+.room-summary .room-summary-link.active{
+  border-color:#c21868;
+  box-shadow:0 0 0 2px rgba(194,24,104,.08),0 8px 20px rgba(169,19,96,.08);
+  background:#fff8fb;
+}
+.room-summary .room-summary-link small{
+  display:block;
+  margin-top:12px;
+  color:#a91360;
+  font-weight:700;
+  font-size:12px;
+}
+@media(max-width:640px){
+  .room-summary .room-summary-link{min-height:112px}
+  .room-summary .room-summary-link small{font-size:11px}
+}

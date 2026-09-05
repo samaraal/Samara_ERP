@@ -14315,7 +14315,7 @@ function RoomsBeds({profile}){
       try{
         const requested=sessionStorage.getItem('samara-room-bed-filter')||'';
         sessionStorage.removeItem('samara-room-bed-filter');
-        return nurseView?'available':(requested==='available'?'available':'');
+        return nurseView?'available':(['available','occupied','reserved','maintenance'].includes(requested)?requested:'');
       }catch(_error){return nurseView?'available':''}
     });
 
@@ -14358,7 +14358,11 @@ function RoomsBeds({profile}){
     }
     const availableRows=rows.filter(r=>!patientFor(r)&&r.status==='Available');
     const occupiedRows=rows.filter(r=>patientFor(r)||r.status==='Occupied');
-    const displayedRoomRows=dashboardBedFilter==='available'?availableRows:rows;
+    const displayedRoomRows=dashboardBedFilter==='reserved'
+      ?rows.filter(r=>!patientFor(r)&&r.status==='Reserved')
+      :dashboardBedFilter==='maintenance'
+        ?rows.filter(r=>!patientFor(r)&&r.status==='Maintenance')
+        :dashboardBedFilter==='available'?availableRows:rows;
     const occupied=occupiedRows.length;
     const reserved=rows.filter(r=>r.status==='Reserved').length;
     const maintenance=rows.filter(r=>r.status==='Maintenance').length;
@@ -14496,22 +14500,26 @@ function RoomsBeds({profile}){
         canManage&&h('button',{className:'btn btn-primary',onClick:openNew},'+ Add Room / Bed')
       ),
       !nurseView&&h('div',{className:'grid stats room-summary'},
-        h('div',{className:'card stat'},h('span',null,'Total Beds'),h('strong',null,rows.length)),
-        h('div',{className:'card stat room-stat-occupied'},h('span',null,'Occupied'),h('strong',null,occupied)),
-        h('div',{className:'card stat'},h('span',null,'Available'),h('strong',null,availableRows.length)),
-        h('div',{className:'card stat'},h('span',null,'Reserved'),h('strong',null,reserved)),
-        h('div',{className:'card stat'},h('span',null,'Maintenance'),h('strong',null,maintenance))
+        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter===''?'active':''}`,onClick:()=>setDashboardBedFilter(''),'aria-label':'Show all beds'},h('span',null,'Total Beds'),h('strong',null,rows.length),h('small',null,'View all beds →')),
+        h('button',{type:'button',className:`card stat room-stat-occupied room-summary-link ${dashboardBedFilter==='occupied'?'active':''}`,onClick:()=>setDashboardBedFilter('occupied'),'aria-label':'Show occupied beds'},h('span',null,'Occupied'),h('strong',null,occupied),h('small',null,'View occupied beds →')),
+        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter==='available'?'active':''}`,onClick:()=>setDashboardBedFilter('available'),'aria-label':'Show available beds'},h('span',null,'Available'),h('strong',null,availableRows.length),h('small',null,'View available beds →')),
+        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter==='reserved'?'active':''}`,onClick:()=>setDashboardBedFilter('reserved'),'aria-label':'Show reserved beds'},h('span',null,'Reserved'),h('strong',null,reserved),h('small',null,'View reserved beds →')),
+        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter==='maintenance'?'active':''}`,onClick:()=>setDashboardBedFilter('maintenance'),'aria-label':'Show maintenance beds'},h('span',null,'Maintenance'),h('strong',null,maintenance),h('small',null,'View maintenance beds →'))
       ),
 
-      h('div',{className:`card panel ${dashboardBedFilter==='available'?'bed-availability-panel':''}`},
+      dashboardBedFilter!=='occupied'&&h('div',{className:`card panel ${dashboardBedFilter==='available'?'bed-availability-panel':''}`},
         h('div',{className:'panel-head'},
           h('div',null,
-            h('h3',null,dashboardBedFilter==='available'?'Available Beds Details':'Room, Bed & Tariff Master'),
+            h('h3',null,dashboardBedFilter==='available'?'Available Beds Details':dashboardBedFilter==='reserved'?'Reserved Bed Details':dashboardBedFilter==='maintenance'?'Maintenance Bed Details':'Room, Bed & Tariff Master'),
             h('small',null,dashboardBedFilter==='available'
               ?`${availableRows.length} bed${availableRows.length===1?' is':'s are'} currently available for allotment.`
-              :'Only Admin/Manager may change tariffs, allot rooms or shift patients.')
+              :dashboardBedFilter==='reserved'
+                ?`${reserved} bed${reserved===1?' is':'s are'} currently reserved.`
+                :dashboardBedFilter==='maintenance'
+                  ?`${maintenance} bed${maintenance===1?' is':'s are'} currently under maintenance.`
+                  :'Only Admin/Manager may change tariffs, allot rooms or shift patients.')
           ),
-          dashboardBedFilter==='available'&&!nurseView&&h('button',{className:'btn btn-secondary',onClick:()=>setDashboardBedFilter('')},'Show All Beds')
+          dashboardBedFilter!==''&&!nurseView&&dashboardBedFilter!=='occupied'&&h('button',{className:'btn btn-secondary',onClick:()=>setDashboardBedFilter('')},'Show All Beds')
         ),
         msg&&h('div',{className:'message error'},msg),
         dashboardBedFilter==='available'
@@ -14563,12 +14571,13 @@ function RoomsBeds({profile}){
             ))
       ),
 
-      dashboardBedFilter==='available'&&h('div',{className:'card panel occupied-bed-panel'},
+      (dashboardBedFilter==='available'||dashboardBedFilter==='occupied')&&h('div',{className:'card panel occupied-bed-panel'},
         h('div',{className:'panel-head'},
           h('div',null,
             h('h3',null,'Occupied Bed Details'),
             h('small',null,`${occupiedRows.length} occupied bed${occupiedRows.length===1?'':'s'} · Package expiry is shown for reference. Bed availability is subject to the resident’s confirmed discharge plan.`)
-          )
+          ),
+          dashboardBedFilter==='occupied'&&!nurseView&&h('button',{className:'btn btn-secondary',onClick:()=>setDashboardBedFilter('')},'Show All Beds')
         ),
         occupiedRows.length
           ?h('div',{className:'occupied-bed-compact-list'},
