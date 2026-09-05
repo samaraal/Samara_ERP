@@ -14462,6 +14462,11 @@ function RoomsBeds({profile}){
       setTransfer({patient_id:p.id,to_room_bed_id:'',reason:'',effective_at:new Date().toISOString().slice(0,16)});
       setShowTransfer(true);
     }
+    function openTransferManager(){
+      if(!canManage)return;
+      setTransfer({patient_id:'',to_room_bed_id:'',reason:'',effective_at:new Date().toISOString().slice(0,16)});
+      setShowTransfer(true);
+    }
     function transferFromBed(){
       const p=patients.find(x=>x.id===transfer.patient_id);
       if(!p)return null;
@@ -14476,6 +14481,7 @@ function RoomsBeds({profile}){
     async function transferPatient(e){
       e.preventDefault();
       if(!canManage||busy)return;
+      if(!transfer.patient_id){showToast('error','Select the patient to be shifted.');return}
       if(!transfer.to_room_bed_id){showToast('error','Select the new room and bed.');return}
       if(!transfer.reason.trim()){showToast('error','Reason for room shifting is mandatory.');return}
       setBusy(true);
@@ -14587,7 +14593,10 @@ function RoomsBeds({profile}){
             h('h3',null,'Occupied Bed Details'),
             h('small',null,`${occupiedRows.length} occupied bed${occupiedRows.length===1?'':'s'} · Package expiry is shown for reference. Bed availability is subject to the resident’s confirmed discharge plan.`)
           ),
-          dashboardBedFilter==='occupied'&&!nurseView&&h('button',{className:'btn btn-secondary',onClick:()=>setDashboardBedFilter('')},'Show All Beds')
+          dashboardBedFilter==='occupied'&&!nurseView&&h('div',{className:'employee-actions room-shift-actions'},
+            canManage&&h('button',{type:'button',className:'btn btn-primary',onClick:openTransferManager},'⇄ Shift Room / Bed'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setDashboardBedFilter('')},'Show All Beds')
+          )
         ),
         occupiedRows.length
           ?h('div',{className:'occupied-bed-compact-list'},
@@ -14688,7 +14697,14 @@ function RoomsBeds({profile}){
       )),
 
       showTransfer&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:transferPatient,style:{width:'min(820px,96vw)'}},
-        h('div',{className:'panel-head'},h('div',null,h('h3',null,'Shift Patient to Another Room'),h('small',null,patientName(transfer.patient_id))),h('button',{type:'button',className:'close',onClick:()=>setShowTransfer(false)},'×')),
+        h('div',{className:'panel-head'},h('div',null,h('h3',null,'Shift Room / Bed'),h('small',null,transfer.patient_id?patientName(transfer.patient_id):'Select an occupied resident and available destination bed')),h('button',{type:'button',className:'close',onClick:()=>setShowTransfer(false)},'×')),
+        h('div',{className:'field',style:{marginBottom:'12px'}},
+          h('label',null,'Patient / Resident'),
+          h('select',{required:true,value:transfer.patient_id,onChange:e=>setTransfer({...transfer,patient_id:e.target.value,to_room_bed_id:''})},
+            h('option',{value:''},'Select occupied resident'),
+            occupiedRows.map(r=>{const p=patientFor(r);return p?h('option',{key:p.id,value:p.id},`${formalName(p)} · ${p.patient_id||''} · Room ${r.room_no}-${r.bed_no}`):null})
+          )
+        ),
         (()=>{const from=transferFromBed(),to=transferToBed();return h(React.Fragment,null,
           from&&h('div',{style:{padding:'12px 14px',border:'1px solid #efc7d9',borderRadius:'12px',background:'#fff8fb',marginBottom:'12px'}},
             h('small',{style:{display:'block',color:'#806675',marginBottom:'5px'}},'CURRENT ROOM / BED'),
