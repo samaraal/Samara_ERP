@@ -1650,3 +1650,7 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
 .bed-availability-panel{background:linear-gradient(135deg,#fff8fb 0%,#fdeef5 55%,#fff4f8 100%)!important;border-color:#efbfd3!important;box-shadow:0 10px 26px rgba(184,15,91,.08)!important}
 .bed-availability-panel .available-bed-compact-row{background:rgba(255,250,252,.88)!important;border-color:#efbfd3!important}
 .room-status-available{background:#dff6e8!important;color:#087a38!important;border:1px solid #c8ecd6!important}
+
+/* Bed details heading status colours */
+.bed-availability-panel .panel-head h3 { color: #138a3d !important; }
+.occupied-bed-panel .panel-head h3 { color: #c62828 !important; }
