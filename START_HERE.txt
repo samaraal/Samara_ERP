@@ -1,5 +1,5 @@
 SAMARA CARE ERP – PWA UPDATE + SELF-REPAIR FIX
-Version: 2.10.06
+Version: 2.10.07
 
 REPLACE THESE FILES IN THE ERP WEBSITE ROOT
 1. index.html
@@ -9,7 +9,7 @@ REPLACE THESE FILES IN THE ERP WEBSITE ROOT
 
 No SQL / Supabase database change is required.
 
-WHAT IS ADDED IN v2.10.06
+WHAT IS ADDED IN v2.10.07
 
 1. NEW VERSION AVAILABLE PROMPT
 When a newer Samara Care ERP version is deployed, the running browser/PWA checks the live service-worker version. If the live version is newer, users see:
@@ -54,13 +54,21 @@ Always increase the version number in ALL FOUR startup files together:
   service-worker.js
   bootstrap-error.js
 
-Example: 2.10.06 -> 2.10.06
+Example: 2.10.07 -> 2.10.07
 Do not deploy changed app.js code under the same ERP version number. A version increase is what allows already-installed mobile PWAs to detect and display the Update Now prompt reliably.
 
 
-V2.10.06 ADDITIONS
+V2.10.07 ADDITIONS
 -------------------
 1. Update acknowledgement is device-local. Accepting an ERP update on Windows no longer suppresses the update notice on an iPhone/Home Screen PWA.
 2. Each device acknowledges a release independently using local browser storage.
 3. Mobile WhatsApp Inbox redesigned: when a conversation is open, search/filter controls are hidden, messages receive the available screen space, and Reply/Template are compact bottom actions. Large composers open only when needed.
 4. No SQL or Supabase schema change is required.
+
+V2.10.07 MOBILE WHATSAPP COMPACTION
+----------------------------------
+- Removes the long WhatsApp Inbox explanatory subtitle on mobile.
+- Mobile conversation header now shows only contact name and mobile number.
+- Removes the permanent "Template required" / "Reply window open" header badge on mobile.
+- 24-hour status remains beside the compact Reply / Template actions where it is relevant.
+- Desktop WhatsApp Inbox retains the fuller contextual information.

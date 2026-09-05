@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.06';
+  const APP_VERSION = '2.10.07';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7017,7 +7017,7 @@ Thank you.`;
     }
     const unreadTotal=conversations.reduce((n,c)=>n+c.unread,0);
     return h(React.Fragment,null,
-      h(Section,{title:patientContext?`WhatsApp — ${patientContext.patient_name}`:'WhatsApp Inbox',subtitle:patientContext?'Patient-linked WhatsApp messages only. Other WhatsApp conversations are hidden in this view.':'Website/public enquiries, applicant replies and WhatsApp conversations in one place'},
+      h(Section,{title:patientContext?`WhatsApp — ${patientContext.patient_name}`:'WhatsApp Inbox',subtitle:isMobile?null:(patientContext?'Patient-linked WhatsApp messages only. Other WhatsApp conversations are hidden in this view.':'Website/public enquiries, applicant replies and WhatsApp conversations in one place')},
         patientContext?h('div',{className:'notice',style:{marginBottom:'12px',display:'flex',gap:'10px',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
           h('div',null,h('strong',null,patientContext.patient_name),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},patientContext.patient_code?`· ${patientContext.patient_code}`:''),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},`· +${patientContext.phone}`)),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPatientContext(null);setSelectedPhone('');setQuery('');setShowUnread(false);}},'Show All WhatsApp')
@@ -7054,11 +7054,11 @@ Thank you.`;
                 h('div',{style:{display:'flex',gap:'8px',alignItems:'center',minWidth:0}},
                   isMobile?h('button',{type:'button',className:'wa-mobile-back',onClick:()=>{setMobileComposer('');setSelectedPhone('')},'aria-label':'Back to conversations'},'‹'):null,
                   h('div',{style:{width:'40px',height:'40px',borderRadius:'50%',display:'grid',placeItems:'center',background:'#dfe5e7',color:'#5d1039',fontWeight:'800'}},String(active.name||'?').trim().slice(0,1).toUpperCase()),
-                  h('div',{style:{minWidth:0}},h('div',{style:{fontWeight:'800',color:'#2e252a',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},active.name),h('small',{style:{color:'#6e6268'}},`+${active.phone} · ${active.source}`))
+                  h('div',{style:{minWidth:0}},h('div',{style:{fontWeight:'800',color:'#2e252a',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},active.name),h('small',{style:{color:'#6e6268'}},isMobile?`+${active.phone}`:`+${active.phone} · ${active.source}`))
                 ),
-                h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}},
+                !isMobile?h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}},
                   h('span',{className:`badge ${within24?'success':''}`},within24?'Reply window open':'Template required')
-                )
+                ):null
               ),
               h('div',{className:'wa-chat-scroll'},active.msgs.map(r=>{
                 const outgoing=r.direction!=='inbound';const media=mediaInfo(r);const text=chatText(r);
