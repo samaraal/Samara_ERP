@@ -7235,11 +7235,29 @@ Thank you.`;
       if(!String(reason).trim()){setMsg('Closure remarks are mandatory before closing an application.');return}
       if(!confirm(`Close the application of ${selected?.applicant_name||'this applicant'}?`))return;
       const now=new Date().toISOString();
-      const payload={status:'Closed',hr_remarks:String(reason).trim(),handled_by:profile.id,updated_at:now};
+      const prior=String(edit.hr_remarks||'').trim();
+      const closureNote=`[CLOSED ${formatDateTimeIN(now)} · ${formalName(profile)}] ${String(reason).trim()}`;
+      const payload={status:'Closed',hr_remarks:[prior,closureNote].filter(Boolean).join('\n\n'),handled_by:profile.id,updated_at:now};
       const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);
       if(error){setMsg(error.message||'Unable to close the career application.');return}
       setSelected({...selected,...payload});setEdit({...edit,...payload});
       setMsg('Career application closed successfully.');
+      await load();
+    }
+    async function reopenCareerApplication(){
+      if(!edit||edit.status!=='Closed')return;
+      const reason=prompt('Reason for reopening this closed application:','');
+      if(reason===null)return;
+      if(!String(reason).trim()){setMsg('Reason for reopening is mandatory.');return}
+      if(!confirm(`Reopen the application of ${selected?.applicant_name||'this applicant'}?`))return;
+      const now=new Date().toISOString();
+      const prior=String(edit.hr_remarks||'').trim();
+      const reopenNote=`[REOPENED ${formatDateTimeIN(now)} · ${formalName(profile)}] ${String(reason).trim()}`;
+      const payload={status:'Under Review',hr_remarks:[prior,reopenNote].filter(Boolean).join('\n\n'),handled_by:profile.id,updated_at:now};
+      const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);
+      if(error){setMsg(error.message||'Unable to reopen the career application.');return}
+      setSelected({...selected,...payload});setEdit({...edit,...payload});
+      setMsg('Career application reopened successfully. Editing is enabled again.');
       await load();
     }
     function useDetectedRemarks(){
@@ -7272,6 +7290,7 @@ Thank you.`;
     }
     async function save(){
       if(!edit)return;
+      if(edit.status==='Closed'){setMsg('This application is closed and read-only. Reopen the application before making changes.');return}
       const payload={status:edit.status,hr_remarks:edit.hr_remarks||null,interview_at:edit.interview_at||null,interview_mode:edit.interview_mode||null,interview_venue:edit.interview_venue||null,interview_result:edit.interview_result||null,handled_by:profile.id,updated_at:new Date().toISOString()};
       const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);if(error){setMsg(error.message);return}setMsg('Career application updated successfully.');await load();
     }
@@ -7452,9 +7471,11 @@ Thank you.`;
     }
     const table=h('div',{className:'table-wrap employee-master-table-wrap'},h('table',{className:'table employee-master-table'},h('thead',null,h('tr',null,['Application ID','Applicant','Department','Designation','Mobile','Status','Received','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,rows.map(r=>h('tr',{key:r.id,onClick:()=>open(r),title:'Open complete applicant file',style:{cursor:'pointer'}},h('td',null,r.application_id),h('td',null,h('strong',null,r.applicant_name)),h('td',null,r.department),h('td',null,r.designation),h('td',null,r.mobile),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)),h('td',null,h('button',{type:'button',className:'btn btn-primary',onClick:e=>{e.stopPropagation();open(r)}},'Open File')))),rows.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'No career applications received yet.')):null)));
     const isRectification=edit?.status==='Returned for Rectification';
+    const isClosed=edit?.status==='Closed';
     const modal=selected&&edit?h('div',{className:'modal-backdrop',style:{position:'static',inset:'auto',background:'transparent',padding:0,display:'block',zIndex:'auto'}},h('div',{className:'card modal employee-modal',style:{width:'100%',maxWidth:'none',maxHeight:'none',overflow:'visible',margin:0}},
-      h('div',{className:'panel-head'},h('div',null,h('h3',null,'Applicant File — ',selected.applicant_name),h('small',null,`${selected.application_id} · Application received ${fmt(selected.created_at)} · ${selected.department} · ${selected.designation}`)),h('div',{className:'employee-actions'},edit.status!=='Closed'?h('button',{type:'button',className:'btn btn-secondary',onClick:closeCareerApplication,style:{borderColor:'#b31561',color:'#7d1748'}},'Close Application'):h('span',{className:'badge'},'Closed'),h('button',{type:'button',className:'btn btn-secondary',onClick:backToApplications},'← Back to Applications'))),
+      h('div',{className:'panel-head'},h('div',null,h('h3',null,'Applicant File — ',selected.applicant_name),h('small',null,`${selected.application_id} · Application received ${fmt(selected.created_at)} · ${selected.department} · ${selected.designation}`)),h('div',{className:'employee-actions'},!isClosed?h('button',{type:'button',className:'btn btn-secondary',onClick:closeCareerApplication,style:{borderColor:'#b31561',color:'#7d1748'}},'Close Application'):h(React.Fragment,null,h('span',{className:'badge',style:{background:'#fde5ec',color:'#a20f3d'}},'🔒 CLOSED'),h('button',{type:'button',className:'btn btn-primary',onClick:reopenCareerApplication},'Reopen Application')),h('button',{type:'button',className:'btn btn-secondary',onClick:backToApplications},'← Back to Applications'))),
       msg?h('div',{className:`message ${(msg.includes('✓')||msg.includes('successfully')||msg.includes('accepted by Meta'))?'success':'error'}`,style:{position:'sticky',top:'8px',zIndex:5,boxShadow:'0 5px 14px rgba(75,24,52,.10)'}},h('strong',null,msg),manualFallbackUrl?h('div',{style:{marginTop:'10px'}},h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>window.open(manualFallbackUrl,'_blank','noopener')},'Open Manual WhatsApp Fallback')):null):null,
+      isClosed?h('div',{className:'message',style:{background:'#fff1f4',border:'1px solid #e7a8ba',color:'#8f1238',marginBottom:'12px'}},h('strong',null,'🔒 CLOSED APPLICATION — VIEW ONLY'),h('div',{style:{marginTop:'5px'}},'This application cannot be edited, returned, rescheduled, converted or otherwise changed. Use Reopen Application above and enter a mandatory reason to enable editing again.')):null,
       applicantDataIssues(selected).length?h('div',{className:'message error',style:{borderLeft:'5px solid #c31663'}},
         h('strong',null,'Smart HR Pre-screen — attention required'),
         h('div',{style:{marginTop:'7px'}},'The system automatically detected the following possible discrepancies:'),
@@ -7499,14 +7520,14 @@ Thank you.`;
           selected.identity_path?h('button',{className:'btn btn-secondary',onClick:()=>openDoc(selected.identity_path)},'Open Identity Proof'):null
         )),
         h('div',{className:'span-2',style:{marginTop:'10px',padding:'10px 12px',borderRadius:'10px',background:'#fcecf4',fontWeight:900,color:'#8b174e'}},'5. HR Processing & Interview'),
-        h('div',{className:'field'},h('label',null,'Application Status'),h('select',{value:edit.status||'New',onChange:e=>setEdit({...edit,status:e.target.value})},HR_APPLICATION_STATUSES.map(x=>h('option',{key:x},x)))),
+        h('div',{className:'field'},h('label',null,'Application Status'),h('select',{value:edit.status||'New',disabled:isClosed,onChange:e=>setEdit({...edit,status:e.target.value})},HR_APPLICATION_STATUSES.map(x=>h('option',{key:x},x)))),
         !isRectification?h('div',{className:'field span-2'},
           h('label',null,'Interview Date & Time'),
           h('div',{style:{display:'grid',gridTemplateColumns:'minmax(170px,1fr) minmax(150px,0.7fr) auto auto',gap:'8px',alignItems:'end'}},
-            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'Date'),h('input',{type:'date',value:interviewDate,onChange:e=>setInterviewDate(e.target.value)})),
-            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'Time'),h('select',{value:interviewTime,onChange:e=>setInterviewTime(e.target.value)},interviewTimeOptions.map(x=>h('option',{key:x.value,value:x.value},x.label)))),
-            h('button',{type:'button',className:'btn btn-primary',onClick:setInterviewSchedule},'Set'),
-            h('button',{type:'button',className:'btn btn-secondary',onClick:clearInterviewSchedule},'Clear')
+            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'Date'),h('input',{type:'date',disabled:isClosed,value:interviewDate,onChange:e=>setInterviewDate(e.target.value)})),
+            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'Time'),h('select',{value:interviewTime,disabled:isClosed,onChange:e=>setInterviewTime(e.target.value)},interviewTimeOptions.map(x=>h('option',{key:x.value,value:x.value},x.label)))),
+            h('button',{type:'button',className:'btn btn-primary',disabled:isClosed,onClick:setInterviewSchedule},'Set'),
+            h('button',{type:'button',className:'btn btn-secondary',disabled:isClosed,onClick:clearInterviewSchedule},'Clear')
           ),
           edit.interview_at?h('small',{style:{display:'block',marginTop:'7px',fontWeight:700,color:'#7d1748'}},`Selected: ${fmt(edit.interview_at)}`):null
         ):null,
@@ -7523,8 +7544,8 @@ Thank you.`;
         !isRectification?h('div',{className:'field'},h('label',null,'Interview Mode'),h('select',{value:edit.interview_mode||'',onChange:e=>{const mode=e.target.value;setEdit({...edit,interview_mode:mode,interview_venue:mode==='Phone'?'':edit.interview_venue})}},['','In Person','Phone','Online'].map(x=>h('option',{key:x,value:x},x||'Select mode')))):null,
         !isRectification&&edit.interview_mode!=='Phone'?h('div',{className:'field'},h('label',null,edit.interview_mode==='Online'?'Google Meet Link':'Interview Venue'),h('input',{type:edit.interview_mode==='Online'?'url':'text',placeholder:edit.interview_mode==='Online'?'https://meet.google.com/xxx-xxxx-xxx':'Samara Assisted Living, Mogappair, Chennai',value:edit.interview_venue||'',onChange:e=>setEdit({...edit,interview_venue:e.target.value})}),edit.interview_mode==='Online'?h('small',{style:{display:'block',marginTop:'5px',color:'#806575'}},'Required for Online interview. This link will be included in the WhatsApp message.'):null):null,
         isRectification?h('div',{className:'message',style:{gridColumn:'1 / -1',background:'#fff7fb',border:'1px solid #ead0de',color:'#7d1748'}},h('strong',null,'Rectification only — no interview is scheduled'),h('div',{style:{marginTop:'5px'}},'Enter the discrepancy / correction required in HR Remarks, then click Return for Rectification. The ERP will first use the approved WhatsApp API template; the existing WhatsApp method remains available as fallback.')):null,
-        h('div',{className:'field span-2'},h('label',null,'HR Remarks'),h('textarea',{rows:3,value:edit.hr_remarks||'',onChange:e=>setEdit({...edit,hr_remarks:e.target.value}),placeholder:'Enter discrepancies / clarification required. Mandatory when returning the application for rectification.'}),h('small',{style:{display:'block',marginTop:'6px',color:'#806575'}},'For Return for Rectification, specify exactly what the applicant must correct or clarify.')),
-        !isRectification?h('div',{className:'field span-2'},h('label',null,'Interview Result / Notes'),h('textarea',{rows:3,value:edit.interview_result||'',onChange:e=>setEdit({...edit,interview_result:e.target.value})})):null
+        h('div',{className:'field span-2'},h('label',null,'HR Remarks'),h('textarea',{rows:3,disabled:isClosed,value:edit.hr_remarks||'',onChange:e=>setEdit({...edit,hr_remarks:e.target.value}),placeholder:'Enter discrepancies / clarification required. Mandatory when returning the application for rectification.'}),h('small',{style:{display:'block',marginTop:'6px',color:'#806575'}},'For Return for Rectification, specify exactly what the applicant must correct or clarify.')),
+        !isRectification?h('div',{className:'field span-2'},h('label',null,'Interview Result / Notes'),h('textarea',{rows:3,disabled:isClosed,value:edit.interview_result||'',onChange:e=>setEdit({...edit,interview_result:e.target.value})})):null
       ),
       h('div',{className:'card panel',style:{marginTop:'14px',background:'#fffafd',border:'1px solid #ead0de'}},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'6. WhatsApp Communication History'),h('small',null,'Chat-style chronological log — messages sent by Samara and replies received from the applicant'))),
@@ -7551,7 +7572,7 @@ Thank you.`;
           );
         })):h('p',{className:'empty'},'No WhatsApp communication has been recorded for this applicant yet.')
       ),
-      h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-secondary',disabled:waBusy,onClick:returnForRectification,style:{borderColor:'#b31561',color:'#7d1748'}},waBusy?'Please wait…':'Return & Send WhatsApp API'),!isRectification?h('button',{type:'button',className:'btn btn-whatsapp',disabled:waBusy,onClick:sendInterviewWhatsApp},waBusy?'Sending…':'Send Interview WhatsApp API'):null,!isRectification&&(selected.interview_at&&edit.interview_at&&selected.interview_at!==edit.interview_at)?h('button',{type:'button',className:'btn btn-whatsapp',disabled:waBusy,onClick:sendRescheduleWhatsApp},waBusy?'Sending…':'Send Reschedule WhatsApp API'):null,!isRectification&&['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null),
+      !isClosed?h('div',{className:'employee-actions'},h('button',{className:'btn btn-primary',onClick:save},'Save HR Update'),h('button',{type:'button',className:'btn btn-secondary',disabled:waBusy,onClick:returnForRectification,style:{borderColor:'#b31561',color:'#7d1748'}},waBusy?'Please wait…':'Return & Send WhatsApp API'),!isRectification?h('button',{type:'button',className:'btn btn-whatsapp',disabled:waBusy,onClick:sendInterviewWhatsApp},waBusy?'Sending…':'Send Interview WhatsApp API'):null,!isRectification&&(selected.interview_at&&edit.interview_at&&selected.interview_at!==edit.interview_at)?h('button',{type:'button',className:'btn btn-whatsapp',disabled:waBusy,onClick:sendRescheduleWhatsApp},waBusy?'Sending…':'Send Reschedule WhatsApp API'):null,!isRectification&&['Selected','Shortlisted','Interview Scheduled'].includes(edit.status)?h('button',{className:'btn btn-secondary',onClick:()=>convert(edit)},'Create Employee from Application'):null):h('div',{className:'message',style:{marginTop:'14px',background:'#fff1f4',border:'1px solid #e7a8ba',color:'#8f1238'}},h('strong',null,'🔒 Application closed — all HR editing/actions are locked. Reopen to make further changes.')),
       h('div',{style:{display:'flex',justifyContent:'center',padding:'14px 0 4px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:backToApplications,style:{minWidth:'180px'}},'← Back to Applications'))
     )):null;
     return selected&&edit?modal:h(Section,{title:'Career Applications',subtitle:'Click any applicant row to open the complete applicant file in chronological sections'},table);
