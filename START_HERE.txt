@@ -1,14 +1,36 @@
-SAMARA CARE – UPDATE POPUP LOOP FIX
+SAMARA CARE ERP — MOBILE/PWA STARTUP & AUTO-UPDATE FIX
+Version: 2.10.04
 
-Cause:
-app.js still reported APP_VERSION 2.9.64 while service-worker.js reported 2.9.65.
-Therefore the ERP continuously believed 2.9.65 was a newer version and showed the update popup after every refresh.
+UPLOAD / REPLACE ONLY THESE 4 FILES IN THE WEBSITE ROOT:
+1. index.html
+2. service-worker.js
+3. bootstrap-error.js
+4. app.js
 
-Fix:
-Replace ONLY app.js with the included file.
-No SQL or other file change is required.
+NO SQL / SUPABASE DATABASE CHANGE IS REQUIRED.
 
-After deployment:
-1. Fully close the Samara Care app/browser tab.
-2. Reopen it once.
-3. If the update prompt appears once more, tap OK once. It should not repeat after that.
+WHAT IS FIXED
+- All critical local startup files now use the same release version (2.10.04).
+- New service worker activates immediately and removes older Samara ERP caches.
+- Critical startup/navigation files are network-first to avoid stale installed-app code.
+- A failed optional cache item no longer prevents the whole service-worker update.
+- Mobile startup error panel now has:
+    • Reload Samara Care
+    • Repair App & Reload
+- Repair clears only Samara ERP Cache Storage/service-worker registration and reloads.
+  It does NOT delete Supabase patient, billing or clinical data.
+- Existing in-app version checking continues to detect newer releases.
+
+FIRST USE AFTER DEPLOYMENT
+For a phone that is ALREADY stuck on the old startup-error screen, the old screen cannot
+receive the new Repair button until it has loaded the new files once. Close the installed
+Samara Care app, open the ERP website directly in Chrome/Safari once, then reopen the
+Home Screen app. If the old cached screen still remains, remove the Home Screen icon once
+and add it again. This one-time cleanup should not be needed for future releases.
+
+FUTURE RELEASE RULE
+Whenever app.js/index.html are changed, bump APP_VERSION and keep the same version in:
+- app.js APP_VERSION
+- index.html local ?v= references
+- service-worker.js APP_VERSION and CACHE name
+This prevents mixed-version startup files.
