@@ -14503,7 +14503,7 @@ function RoomsBeds({profile}){
         h('div',{className:'card stat'},h('span',null,'Maintenance'),h('strong',null,maintenance))
       ),
 
-      h('div',{className:'card panel'},
+      h('div',{className:`card panel ${dashboardBedFilter==='available'?'bed-availability-panel':''}`},
         h('div',{className:'panel-head'},
           h('div',null,
             h('h3',null,dashboardBedFilter==='available'?'Available Beds Details':'Room, Bed & Tariff Master'),
