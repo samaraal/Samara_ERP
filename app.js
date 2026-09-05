@@ -1322,7 +1322,7 @@ function initSamaraInaugurationInvitation(){
   const ROLE_NAV={
     Admin:ALL_NAV.filter(item=>!NURSING_ENTRY_NAV.includes(item)),
     Manager:ALL_NAV.filter(item=>!['System Maintenance','Alert Settings','Payments','Final Billing','Refunds',...NURSING_ENTRY_NAV].includes(item)),
-    Nurse:['Clinical Dashboard','Clinical Alerts','Patients','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My Leave & Permission','Leave Approvals','Notifications'],
+    Nurse:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My Leave & Permission','Leave Approvals','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Leave Approvals','Notifications'],
     Accounts:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Final Billing','Discharge Clearance','Refunds','Accounts Reports','Patients','My Leave & Permission','Leave Approvals','Notifications'],
     Kitchen:['Notifications','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission','Leave Approvals']
@@ -1333,6 +1333,7 @@ function initSamaraInaugurationInvitation(){
     'Clinical Dashboard':'Nursing Dashboard',
     'Clinical Escalations':'Clinical Escalations',
     'Patients':'My Patients',
+    'Rooms':'Available Beds',
     'Medicines':'Medication Administration',
     'Charge Approvals':'Bills & Charges',
     'Accounts Dashboard':'Accounts Dashboard',
@@ -1349,7 +1350,7 @@ function initSamaraInaugurationInvitation(){
   const sectionsFor = (allowed,role) => {
     if(CLINICAL_ROLES.includes(role)){
       return [
-        {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My Leave & Permission','Leave Approvals','Notifications'].filter(item=>allowed.includes(item))}
+        {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My Leave & Permission','Leave Approvals','Notifications'].filter(item=>allowed.includes(item))}
       ];
     }
     return NAV_SECTIONS.map(section=>({...section,items:section.items.filter(item=>allowed.includes(item))})).filter(section=>section.items.length);
@@ -14287,6 +14288,7 @@ function CarePackages({profile}){
 
 function RoomsBeds({profile}){
     const canManage=['Admin','Manager'].includes(profile?.role);
+    const nurseView=profile?.role==='Nurse';
     const empty={
       room_no:'100',bed_no:'A',room_type:'Twin Sharing',status:'Available',
       room_daily_rate:'2000',nursing_daily_rate:'800',special_nurse_daily_rate:'0',
@@ -14313,8 +14315,8 @@ function RoomsBeds({profile}){
       try{
         const requested=sessionStorage.getItem('samara-room-bed-filter')||'';
         sessionStorage.removeItem('samara-room-bed-filter');
-        return requested==='available'?'available':'';
-      }catch(_error){return ''}
+        return nurseView?'available':(requested==='available'?'available':'');
+      }catch(_error){return nurseView?'available':''}
     });
 
     async function load(){
@@ -14490,10 +14492,10 @@ function RoomsBeds({profile}){
     return h(React.Fragment,null,
       h('style',null,`.available-bed-compact-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}.available-bed-compact-row{display:flex;flex-direction:column;gap:7px;padding:12px 14px;border:1px solid #cfe9db;border-radius:12px;background:#f3fbf6}.available-bed-compact-main{display:flex;align-items:center;justify-content:space-between;gap:12px}.available-bed-compact-main strong{font-size:15px;color:#382333}.available-bed-compact-main span{font-size:13px;color:#735d69}.available-bed-compact-rates{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:#5d4654}.available-bed-compact-meta{display:flex;align-items:center;justify-content:space-between;gap:10px}.available-bed-compact-meta small{color:#735d69}@media(max-width:640px){.available-bed-compact-list{grid-template-columns:1fr}.available-bed-compact-row{padding:11px 12px}.available-bed-compact-main{align-items:flex-start}.available-bed-compact-rates{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px}}.occupied-bed-panel{margin-top:16px}.occupied-bed-compact-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px}.occupied-bed-compact-row{display:flex;flex-direction:column;gap:8px;padding:13px 14px;border:1px solid #efc7c7;border-radius:12px;background:#fff7f7}.occupied-bed-compact-main{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.occupied-bed-compact-main>div{display:flex;gap:10px;align-items:baseline}.occupied-bed-compact-main strong{font-size:15px;color:#382333}.occupied-bed-compact-main span{font-size:13px;color:#735d69}.occupied-bed-patient{display:flex;align-items:baseline;gap:8px}.occupied-bed-patient strong{font-size:14px;color:#7a1247}.occupied-bed-patient small{color:#735d69}.occupied-bed-meta{display:grid;grid-template-columns:1fr 1fr;gap:10px}.occupied-bed-meta>div{display:flex;flex-direction:column;gap:2px}.occupied-bed-meta span{font-size:12px;color:#735d69}.occupied-bed-meta strong{font-size:13px;color:#382333}@media(max-width:640px){.occupied-bed-compact-list{grid-template-columns:1fr}.occupied-bed-meta{grid-template-columns:1fr}.occupied-bed-compact-main>div{display:block}.occupied-bed-patient{display:block}}`),
       h('div',{className:'rooms-hero'},
-        h('div',null,h('small',null,'ADMIN / MANAGER CONTROL'),h('h3',null,'Rooms Management'),h('p',null,'Room master, tariff fixation, admission allotment and patient room-shifting history.')),
+        h('div',null,h('small',null,nurseView?'NURSING · VIEW ONLY':'ADMIN / MANAGER CONTROL'),h('h3',null,nurseView?'Available Beds':'Rooms Management'),h('p',null,nurseView?'Current available beds for quick reference. No room, tariff, reservation or allotment changes are permitted from the Nurse login.':'Room master, tariff fixation, admission allotment and patient room-shifting history.')),
         canManage&&h('button',{className:'btn btn-primary',onClick:openNew},'+ Add Room / Bed')
       ),
-      h('div',{className:'grid stats room-summary'},
+      !nurseView&&h('div',{className:'grid stats room-summary'},
         h('div',{className:'card stat'},h('span',null,'Total Beds'),h('strong',null,rows.length)),
         h('div',{className:'card stat room-stat-occupied'},h('span',null,'Occupied'),h('strong',null,occupied)),
         h('div',{className:'card stat'},h('span',null,'Available'),h('strong',null,availableRows.length)),
@@ -14509,7 +14511,7 @@ function RoomsBeds({profile}){
               ?`${availableRows.length} bed${availableRows.length===1?' is':'s are'} currently available for allotment.`
               :'Only Admin/Manager may change tariffs, allot rooms or shift patients.')
           ),
-          dashboardBedFilter==='available'&&h('button',{className:'btn btn-secondary',onClick:()=>setDashboardBedFilter('')},'Show All Beds')
+          dashboardBedFilter==='available'&&!nurseView&&h('button',{className:'btn btn-secondary',onClick:()=>setDashboardBedFilter('')},'Show All Beds')
         ),
         msg&&h('div',{className:'message error'},msg),
         dashboardBedFilter==='available'
@@ -14561,7 +14563,7 @@ function RoomsBeds({profile}){
             ))
       ),
 
-      dashboardBedFilter==='available'&&h('div',{className:'card panel occupied-bed-panel'},
+      dashboardBedFilter==='available'&&!nurseView&&h('div',{className:'card panel occupied-bed-panel'},
         h('div',{className:'panel-head'},
           h('div',null,
             h('h3',null,'Occupied Bed Details'),
@@ -14596,7 +14598,7 @@ function RoomsBeds({profile}){
           :h('div',{className:'empty'},'No occupied beds.')
       ),
 
-      h(LogTable,{
+      !nurseView&&h(LogTable,{
         title:`Room Shift History (${history.length})`,
         subtitle:'Previous room, new room, reason, approving user and effective date/time',
         heads:['Patient','Previous Room / Bed','New Room / Bed','Reason','Effective Date & Time','Shifted By'],
