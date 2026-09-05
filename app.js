@@ -14574,8 +14574,11 @@ function RoomsBeds({profile}){
           ?h('div',{className:'occupied-bed-compact-list'},
               occupiedRows.map(row=>{
                 const p=patientFor(row);
-                const expiry=p?.package_end_date?formatDateIN(p.package_end_date):'Not fixed';
-                const packageName=p?.billing_package||'Daily Fare / No Package';
+                const packageExpiry=p?.package_end_date?formatDateIN(p.package_end_date):'Not Applicable';
+                const packageName=p?.billing_package||'Daily Billing / No Package';
+                const expiryDate=p?.package_end_date?new Date(`${p.package_end_date}T23:59:59`):null;
+                const packageExpired=!!(expiryDate&&expiryDate<new Date());
+                const expectedAvailability=expiryDate&&!packageExpired?packageExpiry:'Not Confirmed';
                 return h('div',{className:'occupied-bed-compact-row',key:`occupied-${row.id}`},
                   h('div',{className:'occupied-bed-compact-main'},
                     h('div',null,
@@ -14590,7 +14593,8 @@ function RoomsBeds({profile}){
                   ),
                   h('div',{className:'occupied-bed-meta'},
                     h('div',null,h('span',null,'Package'),h('strong',null,packageName)),
-                    h('div',null,h('span',null,'Expected Availability'),h('strong',null,expiry))
+                    h('div',null,h('span',null,'Package Expiry'),h('strong',null,packageExpiry)),
+                    h('div',null,h('span',null,'Expected Availability'),h('strong',null,expectedAvailability))
                   )
                 );
               })
