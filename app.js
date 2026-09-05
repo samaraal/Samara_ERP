@@ -20211,10 +20211,15 @@ Please access the Samara Family Portal for detailed account information.`;
       );
     return h(React.Fragment,null,
         h('div',{className:'hospital-report-title'},
-          h('strong',null,'SAMARA HEALTH CARE LLP'),
-          h('span',null,'Assisted Living Management System'),
-          h('h1',null,'PATIENT CARE REPORT'),
-          h('small',null,`Generated on · ${formatDateTimeIN(new Date())}`)
+          h('div',{className:'hospital-report-brand'},
+            h('img',{className:'hospital-report-logo',src:BRAND_LOGO_SRC,alt:'Samara Assisted Living'}),
+            h('div',{className:'hospital-report-title-copy'},
+              h('strong',null,'SAMARA HEALTH CARE LLP'),
+              h('span',null,'Assisted Living Management System'),
+              h('h1',null,'PATIENT CARE REPORT'),
+              h('small',null,`Generated on · ${formatDateTimeIN(new Date())}`)
+            )
+          )
         ),
         h('div',{className:'resident-overview-card'},
           h('div',{className:'resident-overview-heading'},'RESIDENT OVERVIEW'),
