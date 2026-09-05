@@ -6504,7 +6504,7 @@ Caring with Compassion. Living with Dignity.`;
 
   function WhatsAppInbox({profile}){
     const Field=({label,required=false,children})=>h('div',{className:'field'},h('label',null,label,required?h('span',{style:{color:'#b42336',marginLeft:'4px'}},'*'):null),children);
-    const [rows,setRows]=React.useState([]),[selectedPhone,setSelectedPhone]=React.useState(''),[query,setQuery]=React.useState(''),[showUnread,setShowUnread]=React.useState(false),[reply,setReply]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState(''),[isMobile,setIsMobile]=React.useState(()=>window.matchMedia('(max-width: 700px)').matches);
+    const [rows,setRows]=React.useState([]),[selectedPhone,setSelectedPhone]=React.useState(''),[query,setQuery]=React.useState(''),[showUnread,setShowUnread]=React.useState(false),[reply,setReply]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState(''),[isMobile,setIsMobile]=React.useState(()=>window.matchMedia('(max-width: 700px)').matches),[patientContext,setPatientContext]=React.useState(null);
     const WA_REOPEN_TEMPLATES=[
       {name:'samara_general_followup',label:'General Follow-up',regarding:'your assisted living enquiry'},
       {name:'samara_admission_followup',label:'Admission / Care Enquiry',regarding:'your family member'},
@@ -6621,8 +6621,15 @@ Samara Assisted Living`;
       try{context=JSON.parse(sessionStorage.getItem('samara_patient_whatsapp_context')||'null')}catch(_error){}
       if(!context)return;
       const phone=normalizeWhatsAppRecipient(context.phone||'');
-      if(!phone||!rows.some(row=>normalizeWhatsAppRecipient(row.recipient_number||'')===phone))return;
-      setSelectedPhone(phone);
+      if(!phone)return;
+      setPatientContext({
+        phone,
+        patient_id:context.patient_id||null,
+        patient_code:context.patient_code||null,
+        patient_name:context.patient_name||'Patient',
+        contact_name:context.contact_name||'Family Member'
+      });
+      setQuery('');setShowUnread(false);setSelectedPhone(phone);
       if(context.open_emergency){
         setEmergencyPatient(context.patient_name||'');
         setEmergencyHospital('');
@@ -6634,8 +6641,21 @@ Samara Assisted Living`;
     },[rows.length]);
     if(!canUse)return h(Section,{title:'WhatsApp Inbox'},h('p',{className:'empty'},'WhatsApp Inbox is available to Admin and Manager.'));
     const phoneOf=r=>normalizeWhatsAppRecipient(r.recipient_number||'');
+    function patientLinkedMessage(row,context){
+      if(!context)return true;
+      if(phoneOf(row)!==context.phone)return false;
+      const payload=row?.message_payload||{};
+      const ids=[payload.patient_id,payload.patient_uuid,payload?.patient?.id,payload?.communication?.patient_id].filter(Boolean).map(String);
+      const codes=[payload.patient_code,payload.patient_ref,payload.resident_id,payload?.patient?.patient_id,payload?.communication?.patient_code].filter(Boolean).map(String);
+      const wantedId=String(context.patient_id||'');
+      const wantedCode=String(context.patient_code||'');
+      if(wantedId&&ids.includes(wantedId))return true;
+      if(wantedCode&&codes.includes(wantedCode))return true;
+      return false;
+    }
+    const visibleRows=patientContext?rows.filter(row=>patientLinkedMessage(row,patientContext)):rows;
     const groups={};
-    rows.forEach(r=>{const phone=phoneOf(r);if(!phone)return;(groups[phone]||(groups[phone]=[])).push(r)});
+    visibleRows.forEach(r=>{const phone=phoneOf(r);if(!phone)return;(groups[phone]||(groups[phone]=[])).push(r)});
     const conversations=Object.entries(groups).map(([phone,msgs])=>{
       const sorted=[...msgs].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
       const last=sorted[sorted.length-1]||{};
@@ -6863,7 +6883,7 @@ Thank you.`;
         const {error}=await client.from('hr_whatsapp_communications').insert({
           career_application_id:active.last.career_application_id||null,application_id:active.last.application_id||null,applicant_name:active.last.applicant_name||active.name||null,recipient_number:active.phone,
           communication_type:'WhatsApp Reply',template_name:null,status:'Accepted',provider_message_id:providerId,error_message:null,sent_by:profile.id,sent_by_name:formalName(profile),direction:'outbound',message_type:'text',
-          message_content:reply.trim(),message_payload:result?.result||null,contact_name:active.name,source_type:active.source,sent_at:now,created_at:now,updated_at:now
+          message_content:reply.trim(),message_payload:{...(result?.result||{}),...(patientContext?{patient_id:patientContext.patient_id,patient_code:patientContext.patient_code,patient_name:patientContext.patient_name}: {})},contact_name:active.name,source_type:patientContext?'Patient / Family':active.source,sent_at:now,created_at:now,updated_at:now
         });
         if(error)throw error;
         setReply('');setMessage('✓ WhatsApp reply accepted by Meta.');await load();
@@ -6883,7 +6903,7 @@ Thank you.`;
         const {error}=await client.from('hr_whatsapp_communications').insert({
           career_application_id:active.last.career_application_id||null,application_id:active.last.application_id||null,applicant_name:active.last.applicant_name||active.name||null,recipient_number:active.phone,
           communication_type:'WhatsApp Re-open Template',template_name:name,status:'Accepted',provider_message_id:providerId,error_message:null,sent_by:profile.id,sent_by_name:formalName(profile),direction:'outbound',message_type:'template',
-          message_content:rendered,message_payload:{provider_result:result?.result||null,body_params:params,button_text:name==='samara_callback_request'?'Please call me':null},contact_name:active.name,source_type:active.source,sent_at:now,created_at:now,updated_at:now
+          message_content:rendered,message_payload:{provider_result:result?.result||null,body_params:params,button_text:name==='samara_callback_request'?'Please call me':null,...(patientContext?{patient_id:patientContext.patient_id,patient_code:patientContext.patient_code,patient_name:patientContext.patient_name}: {})},contact_name:active.name,source_type:patientContext?'Patient / Family':active.source,sent_at:now,created_at:now,updated_at:now
         });
         if(error)throw error;
         
@@ -6892,7 +6912,11 @@ Thank you.`;
     }
     const unreadTotal=conversations.reduce((n,c)=>n+c.unread,0);
     return h(React.Fragment,null,
-      h(Section,{title:'WhatsApp Inbox',subtitle:'Website/public enquiries, applicant replies and WhatsApp conversations in one place'},
+      h(Section,{title:patientContext?`WhatsApp — ${patientContext.patient_name}`:'WhatsApp Inbox',subtitle:patientContext?'Patient-linked WhatsApp messages only. Other WhatsApp conversations are hidden in this view.':'Website/public enquiries, applicant replies and WhatsApp conversations in one place'},
+        patientContext?h('div',{className:'notice',style:{marginBottom:'12px',display:'flex',gap:'10px',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
+          h('div',null,h('strong',null,patientContext.patient_name),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},patientContext.patient_code?`· ${patientContext.patient_code}`:''),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},`· +${patientContext.phone}`)),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPatientContext(null);setSelectedPhone('');setQuery('');setShowUnread(false);}},'Show All WhatsApp')
+        ):null,
         h('div',{className:'wa-inbox-toolbar',style:{display:'flex',gap:'10px',flexWrap:'wrap',alignItems:'center',marginBottom:'14px'}},
           h('input',{value:query,onChange:e=>setQuery(e.target.value),placeholder:'Search name, mobile or message…',style:{flex:'1 1 320px',minWidth:'230px'}}),
           h('button',{type:'button',className:`btn ${showUnread?'btn-primary':'btn-secondary'}`,onClick:()=>{
@@ -11289,7 +11313,7 @@ Please keep these login details confidential.`;
       const access=primaryFamilyContact();
       const phone=normalizeWhatsAppRecipient(access?.mobile||selected?.attendant_phone||selected?.mobile||'');
       if(!phone){showPatientToast('error','Authorised family WhatsApp number is not available.');return}
-      try{sessionStorage.setItem('samara_patient_whatsapp_context',JSON.stringify({phone,contact_name:access?.relative_name||selected?.attendant_name||'Family Member',patient_id:selected?.id||null,patient_name:formalName(selected)||selected?.full_name||'Patient',open_emergency:Boolean(openEmergency)}))}catch(_error){}
+      try{sessionStorage.setItem('samara_patient_whatsapp_context',JSON.stringify({phone,contact_name:access?.relative_name||selected?.attendant_name||'Family Member',patient_id:selected?.id||null,patient_code:selected?.patient_id||null,patient_name:formalName(selected)||selected?.full_name||'Patient',open_emergency:Boolean(openEmergency)}))}catch(_error){}
       setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false);
       onNavigate?.('WhatsApp Inbox');
     }
