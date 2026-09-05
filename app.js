@@ -17985,9 +17985,35 @@ function ShiftHandover({profile,onNavigate}){
 
     function choosePatient(p){setSelectedId(p.id);setQuery(patientLabel(p))}
 
+    function escapeExcel(value){
+      return String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function downloadLedgerExcel(){
+      if(!selected)return;
+      const shiftRows=shifts.map(s=>`<tr><td>${escapeExcel(fmt(s.effective_at))}</td><td>${escapeExcel(`${s.from_room_no||'—'}${s.from_bed_no?`-${s.from_bed_no}`:''} → ${s.to_room_no||'—'}${s.to_bed_no?`-${s.to_bed_no}`:''}`)}</td><td>${escapeExcel(s.reason||'')}</td><td>${escapeExcel(money(s.from_room_daily_rate))}</td><td>${escapeExcel(money(s.to_room_daily_rate))}</td><td>${escapeExcel(money(s.from_nursing_daily_rate))}</td><td>${escapeExcel(money(s.to_nursing_daily_rate))}</td><td>${escapeExcel(s.accounts_synced?'Accounts synchronised':'Accounts sync pending')}</td></tr>`).join('');
+      const ledgerRows=rowsWithBalance.map(row=>`<tr><td>${escapeExcel(fmt(row.transaction_date||row.created_at))}</td><td>${escapeExcel(`${row.transaction_type||'Transaction'} · ${row.category||'General'}`)}</td><td>${escapeExcel(row.description||'')}</td><td>${row._debit||''}</td><td>${row._credit||''}</td><td>${row._balance}</td><td>${escapeExcel(row.source_type||row.payment_mode||'')}</td><td>${escapeExcel(row.payment_reference||row.reference_no||row.source_key||'')}</td></tr>`).join('');
+      const roomText=roomBed?`${roomBed.room_no||'—'}${roomBed.bed_no?`-${roomBed.bed_no}`:''} · ${roomBed.room_type||roomBed.type||'Room'}`:'Not linked';
+      const html=`<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;color:#321523}h1{color:#a20b55}h2{color:#8b174d;margin-top:24px}table{border-collapse:collapse;width:100%;margin:8px 0 18px}th,td{border:1px solid #d9a8bd;padding:7px;text-align:left}th{background:#fbe7f0;color:#6d123c}.money{mso-number-format:"₹\#\,##0.00"}</style></head><body>
+      <h1>Samara Care ERP – Patient Ledger</h1>
+      <table><tr><th>Patient / Resident</th><td>${escapeExcel(formalName(selected)||selected.full_name||'Patient')}</td><th>Patient ID</th><td>${escapeExcel(selected.patient_id||'')}</td></tr><tr><th>Current Room / Bed</th><td>${escapeExcel(roomText)}</td><th>Exported On</th><td>${escapeExcel(new Date().toLocaleString('en-IN'))}</td></tr></table>
+      <h2>Financial Summary</h2><table><tr><th>Total Charges</th><th>Payments / Advances</th><th>Discounts</th><th>Refunds</th><th>Current Payable</th></tr><tr><td>${totals.charges}</td><td>${totals.receipts}</td><td>${totals.discounts}</td><td>${totals.refunds}</td><td>${balance}</td></tr></table>
+      <h2>Current Tariff Verification</h2><table><tr><th>Current Room / Bed</th><th>Room Tariff / day</th><th>Nursing Tariff / day</th><th>Latest Room Charge</th><th>Latest Nursing Charge</th><th>Latest Room Shift / Accounts Sync</th></tr><tr><td>${escapeExcel(roomText)}</td><td>${roomRate}</td><td>${nursingRate}</td><td>${autoRoom?Number(autoRoom.amount||0):''}${roomMatches===true?' (Matches)':roomMatches===false?' (Mismatch)':''}</td><td>${autoNursing?Number(autoNursing.amount||0):''}${nursingMatches===true?' (Matches)':nursingMatches===false?' (Mismatch)':''}</td><td>${escapeExcel(latestShift?`${latestShift.from_room_no||'—'}${latestShift.from_bed_no?`-${latestShift.from_bed_no}`:''} → ${latestShift.to_room_no||'—'}${latestShift.to_bed_no?`-${latestShift.to_bed_no}`:''} · ${latestShift.accounts_synced?'Accounts synchronised':'Accounts sync pending'}`:'No room shift recorded')}</td></tr></table>
+      <h2>Room Shift / Tariff History</h2><table><tr><th>Effective Date / Time</th><th>Room Shift</th><th>Reason</th><th>Old Room Tariff</th><th>New Room Tariff</th><th>Old Nursing Tariff</th><th>New Nursing Tariff</th><th>Accounts Status</th></tr>${shiftRows||'<tr><td colspan="8">No room shift history</td></tr>'}</table>
+      <h2>Complete Patient Ledger</h2><table><tr><th>Date / Time</th><th>Particulars</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th><th>Source</th><th>Reference</th></tr>${ledgerRows||'<tr><td colspan="8">No billing transactions</td></tr>'}</table>
+      </body></html>`;
+      const blob=new Blob(['\ufeff',html],{type:'application/vnd.ms-excel;charset=utf-8;'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;
+      const safeName=String(formalName(selected)||selected.full_name||selected.patient_id||'Patient').replace(/[^a-zA-Z0-9_-]+/g,'_').replace(/^_+|_+$/g,'');
+      a.download=`${safeName||'Patient'}_Ledger_${todayISOIndia?todayISOIndia():new Date().toISOString().slice(0,10)}.xls`;
+      document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    }
+
     return h('div',{className:'stack patient-ledger-page'},
       h('style',null,`
-        .patient-ledger-page .ledger-search-wrap{position:relative;max-width:820px}
+        .patient-ledger-page .ledger-patient-tools{display:grid;grid-template-columns:minmax(280px,420px) minmax(320px,1fr);gap:14px;align-items:end}
+        .patient-ledger-page .ledger-patient-tools .field{margin:0}
+        .patient-ledger-page .ledger-search-wrap{position:relative;max-width:none}
         .patient-ledger-page .ledger-search-results{position:absolute;z-index:40;left:0;right:0;top:calc(100% + 6px);background:#fff;border:1px solid #efbed2;border-radius:14px;box-shadow:0 14px 32px rgba(110,14,62,.18);max-height:340px;overflow:auto}
         .patient-ledger-page .ledger-search-result{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #f6dce7;background:#fff;padding:12px 14px;cursor:pointer;color:#3f2635}
         .patient-ledger-page .ledger-search-result:hover{background:#fff1f7}
@@ -18001,21 +18027,33 @@ function ShiftHandover({profile,onNavigate}){
         .patient-ledger-page th{background:#fff0f6;color:#66103b;text-align:left;padding:10px;border-bottom:1px solid #efc5d5;position:sticky;top:0}.patient-ledger-page td{padding:10px;border-bottom:1px solid #f0e1e7;vertical-align:top}
         .patient-ledger-page .ledger-debit{color:#b91c1c;font-weight:700}.patient-ledger-page .ledger-credit{color:#087c39;font-weight:700}.patient-ledger-page .ledger-balance{font-weight:800;color:#47162f}
         .patient-ledger-page .shift-row{padding:10px 0;border-bottom:1px solid #f0dbe4}.patient-ledger-page .shift-row:last-child{border-bottom:0}
-        @media(max-width:900px){.patient-ledger-page .ledger-kpis,.patient-ledger-page .tariff-check{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media(max-width:900px){.patient-ledger-page .ledger-kpis,.patient-ledger-page .tariff-check{grid-template-columns:repeat(2,minmax(0,1fr))}.patient-ledger-page .ledger-patient-tools{grid-template-columns:1fr}}
       `),
       h('div',{className:'page-hero'},
         h('div',null,h('div',{className:'eyebrow'},'ACCOUNTS / BILLING'),h('h2',null,'Patient Ledger'),h('p',null,'Search any resident and review the complete financial history, running balance, current room tariff and room-shift tariff synchronisation.')),
         h('button',{className:'btn btn-secondary',onClick:()=>onNavigate?.('Payments')},'Open Payments')
       ),
       h('div',{className:'section-card'},
-        h('h3',null,'Search Patient / Resident'),
-        h('div',{className:'ledger-search-wrap'},
-          h('input',{className:'input',value:query,placeholder:'Search by patient name, Patient ID, room / bed or mobile number…',onChange:e=>{setQuery(e.target.value);if(selectedId&&e.target.value!==patientLabel(selected))setSelectedId('')}}),
-          q&&!selectedId&&h('div',{className:'ledger-search-results'},
-            matches.length?matches.map(p=>h('button',{key:p.id,type:'button',className:'ledger-search-result',onClick:()=>choosePatient(p)},
-              h('strong',null,formalName(p)||p.full_name||'Patient'),
-              h('div',{className:'small-note'},`${p.patient_id||'No Patient ID'}${p.room_no?` · Room ${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:''}${p.mobile?` · ${p.mobile}`:''}`)
-            )):h('div',{style:{padding:'14px'},className:'small-note'},'No matching patient found.')
+        h('h3',null,'Select Patient / Resident'),
+        h('div',{className:'ledger-patient-tools'},
+          h('div',{className:'field'},
+            h('label',null,'Active Patients'),
+            h('select',{className:'input',value:selectedId,onChange:e=>{const id=e.target.value;setSelectedId(id);const p=(patients||[]).find(x=>x.id===id);setQuery(p?patientLabel(p):'')}},
+              h('option',{value:''},'Select active patient / resident'),
+              [...(patients||[])].sort((a,b)=>String(formalName(a)||a.full_name||'').localeCompare(String(formalName(b)||b.full_name||''))).map(p=>h('option',{key:p.id,value:p.id},patientLabel(p)))
+            )
+          ),
+          h('div',null,
+            h('label',{style:{display:'block',marginBottom:'6px',fontWeight:700}},'Search'),
+            h('div',{className:'ledger-search-wrap'},
+              h('input',{className:'input',value:query,placeholder:'Search by patient name, Patient ID, room / bed or mobile number…',onChange:e=>{setQuery(e.target.value);if(selectedId&&e.target.value!==patientLabel(selected))setSelectedId('')}}),
+              q&&!selectedId&&h('div',{className:'ledger-search-results'},
+                matches.length?matches.map(p=>h('button',{key:p.id,type:'button',className:'ledger-search-result',onClick:()=>choosePatient(p)},
+                  h('strong',null,formalName(p)||p.full_name||'Patient'),
+                  h('div',{className:'small-note'},`${p.patient_id||'No Patient ID'}${p.room_no?` · Room ${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:''}${p.mobile?` · ${p.mobile}`:''}`)
+                )):h('div',{style:{padding:'14px'},className:'small-note'},'No matching active patient found.')
+              )
+            )
           )
         ),
         selected&&h('div',{className:'small-note',style:{marginTop:'9px'}},`Selected: ${patientLabel(selected)}`)
@@ -18047,7 +18085,13 @@ function ShiftHandover({profile,onNavigate}){
           ))
         ),
         h('div',{className:'section-card'},
-          h('div',{style:{display:'flex',justifyContent:'space-between',gap:'12px',alignItems:'center',flexWrap:'wrap'}},h('div',null,h('h3',{style:{marginBottom:'2px'}},'Complete Patient Ledger'),h('div',{className:'small-note'},`${ledger.length} transaction${ledger.length===1?'':'s'} · newest first`)),h('button',{className:'btn btn-secondary',onClick:()=>loadPatientLedger(selected)},'Refresh')),
+          h('div',{style:{display:'flex',justifyContent:'space-between',gap:'12px',alignItems:'center',flexWrap:'wrap'}},
+            h('div',null,h('h3',{style:{marginBottom:'2px'}},'Complete Patient Ledger'),h('div',{className:'small-note'},`${ledger.length} transaction${ledger.length===1?'':'s'} · newest first`)),
+            h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
+              h('button',{className:'btn btn-secondary',onClick:downloadLedgerExcel,disabled:!selected},'Download Excel'),
+              h('button',{className:'btn btn-secondary',onClick:()=>loadPatientLedger(selected)},'Refresh')
+            )
+          ),
           ledger.length?h('div',{className:'ledger-table-wrap'},h('table',null,
             h('thead',null,h('tr',null,['Date / Time','Particulars','Debit','Credit','Balance','Source / Reference'].map(x=>h('th',{key:x},x)))),
             h('tbody',null,rowsWithBalance.map(row=>h('tr',{key:row.id},
