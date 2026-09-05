@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.08';
+  const APP_VERSION = '2.10.09';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -3756,6 +3756,77 @@ Caring with Compassion. Living with Dignity.`;
         .patient-master-modal .employee-actions{
           flex:0 0 auto!important;
         }
+      }
+
+      /* v2.10.09 — Mobile Patient File must open above the sticky app chrome.
+         The previous modal was rendered underneath the topbar/module selector on iPhone,
+         hiding the Back button, resident header and first tabs. */
+      @media(max-width:760px){
+        .patient-file-backdrop{
+          position:fixed!important;
+          inset:0!important;
+          z-index:180!important;
+          padding:calc(8px + env(safe-area-inset-top)) 8px calc(8px + env(safe-area-inset-bottom))!important;
+          align-items:stretch!important;
+          background:rgba(47,26,40,.28)!important;
+          overflow:hidden!important;
+        }
+        .patient-file-backdrop .patient-master-modal{
+          position:relative!important;
+          width:100%!important;
+          height:100%!important;
+          max-height:none!important;
+          margin:0!important;
+          padding:12px 14px calc(18px + env(safe-area-inset-bottom))!important;
+          overflow-y:auto!important;
+          overflow-x:hidden!important;
+          -webkit-overflow-scrolling:touch!important;
+          overscroll-behavior:contain!important;
+          scroll-padding-top:88px!important;
+          border-radius:20px!important;
+        }
+        .patient-file-backdrop .patient-mobile-back{
+          display:inline-flex!important;
+          align-items:center!important;
+          justify-content:flex-start!important;
+          position:sticky!important;
+          top:0!important;
+          z-index:15!important;
+          width:auto!important;
+          min-height:44px!important;
+          margin:0 0 10px!important;
+          padding:8px 12px!important;
+          border:1px solid #ead0de!important;
+          border-radius:12px!important;
+          background:rgba(255,255,255,.97)!important;
+          color:#761146!important;
+          font-weight:850!important;
+          box-shadow:0 4px 12px rgba(93,16,57,.08)!important;
+          backdrop-filter:blur(10px)!important;
+        }
+        .patient-file-backdrop .patient-master-header{
+          scroll-margin-top:66px!important;
+        }
+        .patient-file-backdrop .patient-tab-bar{
+          position:sticky!important;
+          top:54px!important;
+          z-index:12!important;
+          margin:8px -14px 12px!important;
+          padding:8px 14px!important;
+          overflow-x:auto!important;
+          overflow-y:hidden!important;
+          white-space:nowrap!important;
+          -webkit-overflow-scrolling:touch!important;
+          background:rgba(255,255,255,.97)!important;
+          border-top:1px solid #f3e2e9!important;
+          border-bottom:1px solid #ead0de!important;
+          box-shadow:0 6px 14px rgba(93,16,57,.06)!important;
+          scrollbar-width:none!important;
+        }
+        .patient-file-backdrop .patient-tab-bar::-webkit-scrollbar{display:none!important}
+        .patient-file-backdrop .section-card,
+        .patient-file-backdrop .tabs-grid,
+        .patient-file-backdrop [id]{scroll-margin-top:122px!important}
       }
 
       /* v2.8.25 — Guaranteed save/failure confirmation.
