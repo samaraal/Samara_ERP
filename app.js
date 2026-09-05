@@ -14567,7 +14567,7 @@ function RoomsBeds({profile}){
         h('div',{className:'panel-head'},
           h('div',null,
             h('h3',null,'Occupied Bed Details'),
-            h('small',null,`${occupiedRows.length} occupied bed${occupiedRows.length===1?'':'s'} · Expected availability is based on the resident package expiry date.`)
+            h('small',null,`${occupiedRows.length} occupied bed${occupiedRows.length===1?'':'s'} · Package expiry is shown for reference. Bed availability is subject to the resident’s confirmed discharge plan.`)
           )
         ),
         occupiedRows.length
@@ -14575,9 +14575,13 @@ function RoomsBeds({profile}){
               occupiedRows.map(row=>{
                 const p=patientFor(row);
                 const packageExpiry=p?.package_end_date?formatDateIN(p.package_end_date):'Not Applicable';
-                const packageName=p?.billing_package||'Daily Billing / No Package';
+                const basePackageName=p?.billing_package||'Daily Billing / No Package';
                 const expiryDate=p?.package_end_date?new Date(`${p.package_end_date}T23:59:59`):null;
                 const packageExpired=!!(expiryDate&&expiryDate<new Date());
+                const hasFixedPackage=!!(p?.package_end_date&&basePackageName!=='No Package / Daily Billing'&&basePackageName!=='Daily Billing / No Package');
+                const packageName=packageExpired&&hasFixedPackage
+                  ?`${basePackageName} — Expired / Continuing on Daily Billing`
+                  :basePackageName;
                 const expectedAvailability=expiryDate&&!packageExpired?packageExpiry:'Not Confirmed';
                 return h('div',{className:'occupied-bed-compact-row',key:`occupied-${row.id}`},
                   h('div',{className:'occupied-bed-compact-main'},
@@ -14593,7 +14597,7 @@ function RoomsBeds({profile}){
                   ),
                   h('div',{className:'occupied-bed-meta'},
                     h('div',null,h('span',null,'Package'),h('strong',null,packageName)),
-                    h('div',null,h('span',null,'Package Expiry'),h('strong',null,packageExpiry)),
+                    h('div',null,h('span',null,'Package Expiry'),h('strong',{className:packageExpired&&hasFixedPackage?'package-expiry-expired':''},packageExpired&&hasFixedPackage?`${packageExpiry} (Expired)`:packageExpiry)),
                     h('div',null,h('span',null,'Expected Availability'),h('strong',null,expectedAvailability))
                   )
                 );

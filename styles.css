@@ -1654,3 +1654,7 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
 /* Bed details heading status colours */
 .bed-availability-panel .panel-head h3 { color: #138a3d !important; }
 .occupied-bed-panel .panel-head h3 { color: #c62828 !important; }
+
+
+/* Occupied bed package expiry status */
+.package-expiry-expired{color:#c62828!important;font-weight:800!important;}
