@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.07';
+  const APP_VERSION = '2.10.08';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12467,6 +12467,16 @@ Please keep these login details confidential.`;
       return `${days} day${days===1?'':'s'} remaining`;
     };
     const admissionField=(label,value)=>h('div',{className:'patient-admission-field'},h('span',null,label),h('strong',null,value||'—'));
+    const patientQuickLabels={active:'Active patients',assigned:'Room assigned',awaiting:'Awaiting room','high-risk':'High-risk patients',duplicates:'Possible duplicates'};
+    function openPatientQuickFilter(filter){
+      setPatientSearch('');
+      setDistrictFilter('All');
+      setPatientQuickFilter(filter);
+      window.setTimeout(()=>{
+        const target=document.getElementById('patient-filter-results');
+        if(target) target.scrollIntoView({behavior:'smooth',block:'start'});
+      },80);
+    }
 
     const visibleRows=rows.filter(r=>{
       const q=patientSearch.trim().toLowerCase();
@@ -12485,14 +12495,18 @@ Please keep these login details confidential.`;
     });
     return h(React.Fragment,null,
       h('div',{className:'grid stats patient-master-stats patient-touch-dashboard'},
-        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='active'?'active':''}`,onClick:()=>setPatientQuickFilter('active')},h('span',null,'Active patients'),h('strong',null,activeRows.length)),
-        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='assigned'?'active':''}`,onClick:()=>setPatientQuickFilter('assigned')},h('span',null,'Room assigned'),h('strong',null,activeRows.filter(x=>x.room_no&&x.bed_no).length)),
-        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='awaiting'?'active':''}`,onClick:()=>setPatientQuickFilter('awaiting')},h('span',null,'Awaiting room'),h('strong',null,activeRows.filter(x=>!x.room_no||!x.bed_no).length)),
-        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='high-risk'?'active':''}`,onClick:()=>setPatientQuickFilter('high-risk')},h('span',null,'High-risk patients'),h('strong',null,activeRows.filter(x=>x.fall_risk||x.pressure_sore_risk||x.aspiration_risk||x.wandering_risk||x.infection_risk||x.oxygen_required).length)),
-        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='duplicates'?'active':''}`,onClick:()=>setPatientQuickFilter('duplicates')},h('span',null,'Possible duplicates'),h('strong',null,duplicateRows.length))
+        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='active'?'active':''}`,onClick:()=>openPatientQuickFilter('active')},h('span',null,'Active patients'),h('strong',null,activeRows.length)),
+        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='assigned'?'active':''}`,onClick:()=>openPatientQuickFilter('assigned')},h('span',null,'Room assigned'),h('strong',null,activeRows.filter(x=>x.room_no&&x.bed_no).length)),
+        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='awaiting'?'active':''}`,onClick:()=>openPatientQuickFilter('awaiting')},h('span',null,'Awaiting room'),h('strong',null,activeRows.filter(x=>!x.room_no||!x.bed_no).length)),
+        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='high-risk'?'active':''}`,onClick:()=>openPatientQuickFilter('high-risk')},h('span',null,'High-risk patients'),h('strong',null,activeRows.filter(x=>x.fall_risk||x.pressure_sore_risk||x.aspiration_risk||x.wandering_risk||x.infection_risk||x.oxygen_required).length)),
+        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='duplicates'?'active':''}`,onClick:()=>openPatientQuickFilter('duplicates')},h('span',null,'Possible duplicates'),h('strong',null,duplicateRows.length))
       ),
-      h('div',{className:'card panel'},
+      h('div',{className:'card panel',id:'patient-filter-results',style:{scrollMarginTop:'148px'}},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Patient Master'),h('small',null,'Single source for identity, admission, nursing, medicines, diet, documents, billing and recovery'))),
+        patientQuickFilter!=='all'?h('div',{className:'message info patient-filter-summary',style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px',flexWrap:'wrap',marginBottom:'10px'}},
+          h('strong',null,`Showing: ${patientQuickLabels[patientQuickFilter]||'Selected patients'} (${visibleRows.length})`),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPatientQuickFilter('all')},'Show all')
+        ):null,
         h('div',{className:'form-grid patient-master-filters',style:{marginBottom:'10px'}},
           h('div',{className:'field'},h('label',null,'Search patient / place'),h('input',{
             value:patientSearch,onChange:e=>setPatientSearch(e.target.value),
