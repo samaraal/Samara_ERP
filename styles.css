@@ -209,12 +209,12 @@ button,input,select,textarea{font-size:17px}
 
 
 /* V8.1 — V3-inspired Rooms & Beds operational master */
-.rooms-hero{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:26px 28px;margin-bottom:20px;border-radius:22px;background:linear-gradient(115deg,#07584d,#14a897);color:#fff;box-shadow:0 12px 30px rgba(5,83,72,.18)}
-.rooms-hero small{display:block;font-size:13px;font-weight:900;letter-spacing:.13em;margin-bottom:7px}.rooms-hero h3{margin:0;font-size:31px}.rooms-hero p{margin:7px 0 0;font-size:16px;color:#e8fffa}.rooms-hero .btn{background:#fff;color:#07584d;border-color:#fff}
-.room-summary{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:20px}.room-summary .stat{min-height:145px}.room-stat-occupied strong{color:#07885e}
+.rooms-hero{display:flex;align-items:center;justify-content:space-between;gap:22px;padding:26px 28px;margin-bottom:20px;border-radius:22px;background:linear-gradient(115deg,#fff7fb,#f9dce9);color:#5b173d;border:1px solid #efbfd3;box-shadow:0 10px 26px rgba(184,15,91,.10)}
+.rooms-hero small{display:block;font-size:13px;font-weight:900;letter-spacing:.13em;margin-bottom:7px;color:#a30d52}.rooms-hero h3{margin:0;font-size:31px;color:#6f123f}.rooms-hero p{margin:7px 0 0;font-size:16px;color:#745064}.rooms-hero .btn{background:#b80f5b;color:#fff;border-color:#b80f5b}
+.room-summary{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:20px}.room-summary .stat{min-height:145px}.room-stat-occupied strong{color:#b80f5b}
 .rooms-master-panel{padding:0;overflow:hidden}.rooms-master-panel .panel-head{padding:24px 26px;margin:0;border-bottom:1px solid #dfe9e6}.rooms-master-panel .table-wrap{border:0;border-radius:0}
 .rooms-table{min-width:1120px}.rooms-table th{font-size:14px;text-transform:uppercase;letter-spacing:.06em;background:#f2f8f6}.rooms-table td{vertical-align:middle}
-.room-status{display:inline-flex;align-items:center;justify-content:center;padding:7px 12px;border-radius:999px;font-size:14px;font-weight:900}.room-status-available{background:#dff8e8;color:#087a45}.room-status-occupied{background:#d7f6e5;color:#057544}.room-status-reserved{background:#fff1c9;color:#9a6500}.room-status-maintenance{background:#ffe0de;color:#a62d27}
+.room-status{display:inline-flex;align-items:center;justify-content:center;padding:7px 12px;border-radius:999px;font-size:14px;font-weight:900}.room-status-available{background:#f9dce9;color:#9d0b4d}.room-status-occupied{background:#f4c8da;color:#7a1247}.room-status-reserved{background:#fff0d8;color:#a45b00}.room-status-maintenance{background:#ffe0e6;color:#a62d51}
 .room-patient{display:flex;flex-direction:column;gap:3px}.room-patient strong{font-size:16px}.room-patient small{font-size:13px;color:var(--ui-muted)}.room-patient .special-alert{width:max-content;margin-top:3px}
 .awaiting-room-panel{margin-top:20px}.awaiting-room-item{display:flex;align-items:center;justify-content:space-between;gap:16px}.awaiting-room-item>div{display:flex;flex-direction:column;gap:5px}.room-bed-modal{width:min(900px,96vw)}
 @media(max-width:950px){.room-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.rooms-hero{padding:21px}.rooms-hero h3{font-size:27px}}
@@ -233,8 +233,8 @@ button,input,select,textarea{font-size:17px}
 .room-row-reserved{background:#f2f7ff}
 .room-row-female{background:#fff0f7!important;border-left:5px solid #ec4899}
 .room-row-female .room-patient strong{color:#a50f5d}
-.room-status-available{background:#dff7e8!important;color:#087a3d!important}
-.room-status-occupied{background:#ffe1e1!important;color:#b42318!important}
+.room-status-available{background:#f9dce9!important;color:#9d0b4d!important}
+.room-status-occupied{background:#f4c8da!important;color:#7a1247!important}
 .room-status-reserved{background:#e3eeff!important;color:#175cd3!important}
 .room-status-maintenance{background:#eeeeee!important;color:#555!important}
 .rooms-table tbody tr{transition:background .15s ease}
