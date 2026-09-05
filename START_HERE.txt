@@ -1,36 +1,58 @@
-SAMARA CARE ERP — MOBILE/PWA STARTUP & AUTO-UPDATE FIX
-Version: 2.10.04
+SAMARA CARE ERP – PWA UPDATE + SELF-REPAIR FIX
+Version: 2.10.05
 
-UPLOAD / REPLACE ONLY THESE 4 FILES IN THE WEBSITE ROOT:
+REPLACE THESE FILES IN THE ERP WEBSITE ROOT
 1. index.html
 2. service-worker.js
 3. bootstrap-error.js
 4. app.js
 
-NO SQL / SUPABASE DATABASE CHANGE IS REQUIRED.
+No SQL / Supabase database change is required.
 
-WHAT IS FIXED
-- All critical local startup files now use the same release version (2.10.04).
-- New service worker activates immediately and removes older Samara ERP caches.
-- Critical startup/navigation files are network-first to avoid stale installed-app code.
-- A failed optional cache item no longer prevents the whole service-worker update.
-- Mobile startup error panel now has:
-    • Reload Samara Care
-    • Repair App & Reload
-- Repair clears only Samara ERP Cache Storage/service-worker registration and reloads.
-  It does NOT delete Supabase patient, billing or clinical data.
-- Existing in-app version checking continues to detect newer releases.
+WHAT IS ADDED IN v2.10.05
 
-FIRST USE AFTER DEPLOYMENT
-For a phone that is ALREADY stuck on the old startup-error screen, the old screen cannot
-receive the new Repair button until it has loaded the new files once. Close the installed
-Samara Care app, open the ERP website directly in Chrome/Safari once, then reopen the
-Home Screen app. If the old cached screen still remains, remove the Home Screen icon once
-and add it again. This one-time cleanup should not be needed for future releases.
+1. NEW VERSION AVAILABLE PROMPT
+When a newer Samara Care ERP version is deployed, the running browser/PWA checks the live service-worker version. If the live version is newer, users see:
 
-FUTURE RELEASE RULE
-Whenever app.js/index.html are changed, bump APP_VERSION and keep the same version in:
-- app.js APP_VERSION
-- index.html local ?v= references
-- service-worker.js APP_VERSION and CACHE name
-This prevents mixed-version startup files.
+  New version of Samara Care is available
+  [Update Now]
+
+Tapping Update Now refreshes the installed PWA to the new release.
+
+2. LOGIN PAGE APP HELP
+The login page now contains:
+
+  Having trouble opening Samara Care?
+  [Reload App]   [App Help / Repair]
+
+3. APP HELP AFTER LOGIN
+Mobile Menu contains:
+  App Help / Repair
+  Check for Updates
+
+Desktop sidebar also contains:
+  App Help / Repair
+
+The App Help panel shows the current ERP version and provides:
+  Check for Updates
+  Reload App
+  Repair App
+
+4. STARTUP ERROR RECOVERY
+If the ERP fails during startup, the recovery screen provides:
+  Reload Samara Care
+  Repair App & Reload
+
+5. REPAIR APP SAFETY
+Repair App clears only Samara Care PWA Cache Storage and the service-worker registration, then reloads fresh application files.
+It does NOT delete or modify Supabase patient, clinical, medication, billing, accounts or other database data.
+
+DEPLOYMENT RULE FOR ALL FUTURE RELEASES
+Always increase the version number in ALL FOUR startup files together:
+  index.html
+  app.js
+  service-worker.js
+  bootstrap-error.js
+
+Example: 2.10.05 -> 2.10.06
+Do not deploy changed app.js code under the same ERP version number. A version increase is what allows already-installed mobile PWAs to detect and display the Update Now prompt reliably.

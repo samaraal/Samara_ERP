@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.04';
+  const APP_VERSION = '2.10.05';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -289,6 +289,68 @@ function initSamaraInaugurationInvitation(){
     schemaVersion: APP_SCHEMA_VERSION
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
+
+  // v2.10.05 PWA self-service recovery. Available on the login page and after login.
+  function samaraReloadApp(){
+    const url=new URL(window.location.href);
+    url.searchParams.set('samara_refresh',APP_VERSION);
+    url.searchParams.set('_',Date.now());
+    window.location.replace(url.toString());
+  }
+  async function samaraRepairApp(button){
+    if(!window.confirm('Repair Samara Care app files and reload?\n\nThis clears only the Samara app cache/service worker. Patient, clinical, billing and other Supabase data will not be changed.'))return;
+    if(typeof window.SAMARA_REPAIR_APP==='function')return window.SAMARA_REPAIR_APP(button);
+    try{
+      if(button){button.disabled=true;button.textContent='Repairing…'}
+      if('serviceWorker' in navigator){
+        const regs=await navigator.serviceWorker.getRegistrations();
+        await Promise.allSettled(regs.map(reg=>reg.unregister()));
+      }
+      if('caches' in window){
+        const keys=await caches.keys();
+        await Promise.allSettled(keys.filter(key=>key.startsWith('samara-erp-')).map(key=>caches.delete(key)));
+      }
+      samaraReloadApp();
+    }catch(error){
+      if(button){button.disabled=false;button.textContent='Repair App'}
+      alert(`Repair could not finish automatically. Please close Samara Care and open it again.\n\n${error?.message||error}`);
+    }
+  }
+  async function samaraManualUpdateCheck(button){
+    const original=button?.textContent||'Check for Updates';
+    try{
+      if(button){button.disabled=true;button.textContent='Checking…'}
+      if('serviceWorker' in navigator){
+        try{const reg=await navigator.serviceWorker.getRegistration();await reg?.update()}catch(_error){}
+      }
+      if(typeof window.samaraCheckForUpdate==='function'){
+        const found=await window.samaraCheckForUpdate();
+        if(found)return true;
+      }
+      alert(`Samara Care ERP ${APP_VERSION} is up to date.`);
+      return false;
+    }finally{
+      if(button&&document.body.contains(button)){button.disabled=false;button.textContent=original}
+    }
+  }
+  function samaraOpenAppHelp(){
+    document.getElementById('samara-app-help-overlay')?.remove();
+    const overlay=document.createElement('div');
+    overlay.id='samara-app-help-overlay';
+    Object.assign(overlay.style,{position:'fixed',inset:'0',zIndex:'1000000',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px',background:'rgba(42,13,31,.48)',backdropFilter:'blur(4px)',WebkitBackdropFilter:'blur(4px)'});
+    const card=document.createElement('div');
+    Object.assign(card.style,{width:'min(430px,calc(100vw - 32px))',maxHeight:'90dvh',overflow:'auto',background:'#fff',borderRadius:'22px',padding:'22px',boxShadow:'0 18px 55px rgba(74,0,39,.28)',color:'#351927'});
+    card.innerHTML=`<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px"><div><div style="font-size:12px;font-weight:900;letter-spacing:.13em;color:#087667">APP HELP</div><h2 style="margin:5px 0 3px;font-size:24px;color:#5d1039">Samara Care</h2><div style="font-size:14px;color:#78636f">ERP Version ${APP_VERSION}</div></div><button type="button" id="samara-help-close" aria-label="Close" style="width:42px;height:42px;border:0;border-radius:50%;background:#f8edf2;color:#5d1039;font-size:24px">×</button></div><p style="margin:10px 0 16px;line-height:1.5;color:#5d4b55">Use these options if the app does not refresh correctly after an update.</p><div style="display:grid;gap:10px"><button type="button" id="samara-help-update" style="min-height:50px;border:0;border-radius:13px;background:#087667;color:#fff;font-size:16px;font-weight:800">Check for Updates</button><button type="button" id="samara-help-reload" style="min-height:50px;border:1px solid #d8c3cf;border-radius:13px;background:#fff;color:#7a1247;font-size:16px;font-weight:800">Reload App</button><button type="button" id="samara-help-repair" style="min-height:50px;border:1px solid #e8b6cc;border-radius:13px;background:#fff5f9;color:#a30f5a;font-size:16px;font-weight:800">Repair App</button></div><p style="margin:14px 0 0;font-size:12.5px;line-height:1.45;color:#7c6a74">Repair App resets only Samara's cached application files and service worker. It does not delete Supabase patient, clinical or billing data.</p>`;
+    overlay.appendChild(card);document.body.appendChild(overlay);
+    const close=()=>overlay.remove();
+    overlay.addEventListener('click',e=>{if(e.target===overlay)close()});
+    card.querySelector('#samara-help-close')?.addEventListener('click',close);
+    card.querySelector('#samara-help-update')?.addEventListener('click',e=>samaraManualUpdateCheck(e.currentTarget));
+    card.querySelector('#samara-help-reload')?.addEventListener('click',samaraReloadApp);
+    card.querySelector('#samara-help-repair')?.addEventListener('click',e=>samaraRepairApp(e.currentTarget));
+  }
+  window.SAMARA_OPEN_APP_HELP=samaraOpenAppHelp;
+  window.SAMARA_RELOAD_APP=samaraReloadApp;
 
   // v2.9.47: Mobile/PWA clinical alerts use OS push notifications only.
   // Samara's custom tone + Tamil speech remain desktop/laptop features.
@@ -650,6 +712,15 @@ function initSamaraInaugurationInvitation(){
       .sidebar .nav-submenu button[data-nav='Discharge Clearance']::before,
       .sidebar .nav-submenu button[data-nav='Refunds']::before,
       .sidebar .nav-submenu button[data-nav='Accounts Reports']::before{content:'₹'}
+
+      .login-app-help{margin:15px 0 3px;padding:12px;border:1px solid #ead6df;border-radius:14px;background:#fffafd;text-align:center}
+      .login-app-help>span{display:block;font-size:13px;color:#75616c;margin-bottom:8px}
+      .login-app-help-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+      .login-app-help-actions button{border:0;background:transparent;color:#087667;font-weight:800;font-size:13px;padding:7px 9px;border-radius:9px;cursor:pointer}
+      .login-app-help-actions button:hover,.login-app-help-actions button:focus{background:#eef8f6}
+      .sidebar-footer{display:grid!important;gap:8px!important}
+      .mobile-update-button{width:100%!important;min-height:45px!important;margin-bottom:7px!important;border:1px solid #dfc7d3!important;border-radius:13px!important;background:#fff!important;color:#7a1247!important;font-weight:850!important}
+
       .sidebar .nav-submenu button[data-nav='WhatsApp Inbox']::before{content:'◉'!important;color:#169b67!important}
       .sidebar .nav-submenu button[data-nav='Mail Dashboard']::before{content:'✉'!important;color:#b01264!important}
 
@@ -5141,16 +5212,16 @@ Caring with Compassion. Living with Dignity.`;
             boxShadow:'0 18px 55px rgba(74,0,39,.30)',textAlign:'center',fontFamily:'inherit',color:'#2f1022'
           });
           const title=document.createElement('div');
-          title.textContent='Samara Care update available.';
+          title.textContent='New version of Samara Care is available';
           Object.assign(title.style,{fontSize:'21px',fontWeight:'800',lineHeight:'1.3',marginBottom:'8px'});
           const message=document.createElement('div');
-          message.textContent=`Version ${remoteUpdateVersion} is ready. Tap OK to refresh.`;
+          message.textContent=`Version ${remoteUpdateVersion} is ready. Update now to use the latest Samara Care.`;
           Object.assign(message.style,{fontSize:'17px',lineHeight:'1.45',marginBottom:'20px',color:'#5d4450'});
           const ok=document.createElement('button');
-          ok.type='button'; ok.textContent='OK';
+          ok.type='button'; ok.textContent='Update Now';
           Object.assign(ok.style,{width:'100%',minHeight:'52px',border:'0',borderRadius:'14px',background:'#c2185b',color:'#fff',fontSize:'18px',fontWeight:'800',cursor:'pointer',WebkitTapHighlightColor:'transparent'});
           ok.addEventListener('click',async()=>{
-            ok.disabled=true; ok.textContent='Refreshing…';
+            ok.disabled=true; ok.textContent='Updating…';
             overlay.style.pointerEvents='none'; overlay.style.opacity='0'; setTimeout(()=>overlay.remove(),180);
             try{ const registration=await navigator.serviceWorker.getRegistration(); await registration?.update(); }catch(_error){}
             const url=new URL(window.location.href);
@@ -5584,6 +5655,13 @@ Caring with Compassion. Living with Dignity.`;
           h('div',{className:'field'},h('label',null,'Password'),h('input',{type:'password',value:password,onChange:e=>setPassword(e.target.value),required:true,placeholder:'Enter password'})),
           h('button',{type:'button',className:'login-link-button forgot-password-link',onClick:()=>{setForgot(true);setRecoveryLogin(login);setMessage('')}},'Forgot Password?'),
           h('button',{className:'btn btn-primary full login-v3-button',disabled:busy},busy?'Signing in…':'Sign in'),
+          h('div',{className:'login-app-help'},
+            h('span',null,'Having trouble opening Samara Care?'),
+            h('div',{className:'login-app-help-actions'},
+              h('button',{type:'button',onClick:samaraReloadApp},'Reload App'),
+              h('button',{type:'button',onClick:samaraOpenAppHelp},'App Help / Repair')
+            )
+          ),
           h('div',{className:'login-v3-version'},`Samara Care ERP ${APP_VERSION}`)
         )
       )
@@ -5642,7 +5720,11 @@ Caring with Compassion. Living with Dignity.`;
           },displayNavLabel(item,profile.role))))
         );
       })),
-      h('div',{className:'sidebar-footer'},h('div',{className:'user-chip'},h('strong',null,formalName(profile)),h('small',null,`${profile.login_id} · ${profile.role}`)),h('button',{className:'btn btn-secondary full',onClick:async()=>{await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');await client.auth.signOut()}},'Sign out'))
+      h('div',{className:'sidebar-footer'},
+        h('div',{className:'user-chip'},h('strong',null,formalName(profile)),h('small',null,`${profile.login_id} · ${profile.role}`)),
+        h('button',{type:'button',className:'btn btn-secondary full',onClick:samaraOpenAppHelp},'App Help / Repair'),
+        h('button',{className:'btn btn-secondary full',onClick:async()=>{await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');await client.auth.signOut()}},'Sign out')
+      )
     );
   }
 
@@ -5729,13 +5811,8 @@ Caring with Compassion. Living with Dignity.`;
           section.items.map(item=>h('button',{type:'button',key:item,'data-nav':item,className:page===item?'active':'',onClick:()=>onNavigate(item)},displayNavLabel(item,profile.role)))
         ))),
         h('div',{className:'mobile-drawer-footer'},
-          h('button',{type:'button',className:'mobile-update-button',onClick:async()=>{
-            if(typeof window.samaraCheckForUpdate==='function'){
-              const found=await window.samaraCheckForUpdate();
-              if(found)return;
-            }
-            window.location.reload();
-          }},'↻  Refresh / Check Update'),
+          h('button',{type:'button',className:'mobile-update-button',onClick:samaraOpenAppHelp},'⚙  App Help / Repair'),
+          h('button',{type:'button',className:'mobile-update-button',onClick:e=>samaraManualUpdateCheck(e.currentTarget)},'↻  Check for Updates'),
           h('button',{type:'button',className:'mobile-signout-button',onClick:signOut},'⇥  Sign Out')
         )
       )
