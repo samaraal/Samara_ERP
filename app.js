@@ -14011,10 +14011,10 @@ Doctor / Hospital: ${doctorHospital}`;
               const paid=Number(totals.Payment||0)+Number(totals.Advance||0);
               const outstanding=Math.max(0,Number(totals.Charge||0)-paid-Number(totals.Discount||0)+Number(totals.Refund||0));
               return [
-                ['Total Charges',totals.Charge||0,'red'],
+                ['Total Charges',totals.Charge||0,'blue'],
                 ['Payments / Advance',paid,'green'],
-                ['Discount History',totals.Discount||0,'orange'],
-                ['Current Outstanding',outstanding,'purple']
+                ['Discount History',totals.Discount||0,'pink'],
+                ['Current Outstanding',outstanding,'red']
               ].map(([label,value,tone])=>h('div',{className:`accounts-kpi ${tone}`,key:label},
                 h('span',null,label),
                 h('strong',null,`₹${Number(value||0).toLocaleString('en-IN')}`),
@@ -16688,9 +16688,14 @@ function ShiftHandover({profile,onNavigate}){
       .accounts-kpi.green{--soft:#e8f8ef;border-top:4px solid #12a05c}
       .accounts-kpi.blue{--soft:#eaf3ff;border-top:4px solid #2d7dd2}
       .accounts-kpi.orange{--soft:#fff4df;border-top:4px solid #e99a16}
+      .accounts-kpi.pink{--soft:#fff0f7;border-top:4px solid #e83e8c}
       .accounts-kpi.red{--soft:#ffeded;border-top:4px solid #df493f}
       .accounts-kpi.purple{--soft:#f3ecff;border-top:4px solid #8655cf}
       .accounts-kpi.teal{--soft:#e6f7f5;border-top:4px solid #168f83}
+      .accounts-kpi.blue span,.accounts-kpi.blue strong{color:#123f8c}
+      .accounts-kpi.green span,.accounts-kpi.green strong{color:#087c39}
+      .accounts-kpi.pink span,.accounts-kpi.pink strong{color:#c2185b}
+      .accounts-kpi.red span,.accounts-kpi.red strong{color:#c62828}
       .accounts-dashboard-grid{
         display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,.65fr);
         gap:14px;margin-top:14px
@@ -17588,9 +17593,9 @@ function ShiftHandover({profile,onNavigate}){
       patient&&h(React.Fragment,null,
         h('div',{className:'payment-summary-grid'},
           [
-            ['Gross Charges',totals.Charge,'summary-red'],
+            ['Gross Charges',totals.Charge,'summary-blue'],
             ['Payments / Advance',receipts,'summary-green'],
-            ['Discounts',totals.Discount,'summary-orange'],
+            ['Discounts',totals.Discount,'summary-pink'],
             ['Refunds',totals.Refund,'summary-blue'],
             ['Net Payable',netPayable,netPayable>0?'summary-red':'summary-green'],
             ['Advance Balance',advanceBalance,'summary-blue']
@@ -17724,10 +17729,13 @@ function ShiftHandover({profile,onNavigate}){
         background:#fff0f0;border-color:#f3b2b2;color:#b42318
       }
       .payment-summary-card.summary-green{
-        background:#eaf8ef;border-color:#a8dfbb;color:#7a1247
+        background:#eaf8ef;border-color:#a8dfbb;color:#087c39
       }
       .payment-summary-card.summary-orange{
         background:#fff6e7;border-color:#f4c475;color:#b54708
+      }
+      .payment-summary-card.summary-pink{
+        background:#fff0f7;border-color:#f3a6c9;color:#c2185b
       }
       .payment-summary-card.summary-blue{
         background:#eef5ff;border-color:#adcbf8;color:#175cd3
@@ -18051,9 +18059,17 @@ function ShiftHandover({profile,onNavigate}){
         .patient-ledger-page .ledger-search-results{position:absolute;z-index:40;left:0;right:0;top:calc(100% + 6px);background:#fff;border:1px solid #efbed2;border-radius:14px;box-shadow:0 14px 32px rgba(110,14,62,.18);max-height:340px;overflow:auto}
         .patient-ledger-page .ledger-search-result{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #f6dce7;background:#fff;padding:12px 14px;cursor:pointer;color:#3f2635}
         .patient-ledger-page .ledger-search-result:hover{background:#fff1f7}
+        .finance-blue{--finance-accent:#123f8c;--finance-bg:#eef5ff;--finance-border:#a9c8f7}
+        .finance-green{--finance-accent:#087c39;--finance-bg:#eaf8ef;--finance-border:#a8dfbb}
+        .finance-pink{--finance-accent:#c2185b;--finance-bg:#fff0f7;--finance-border:#f3a6c9}
+        .finance-red{--finance-accent:#c62828;--finance-bg:#fff0f0;--finance-border:#f3b2b2}
         .patient-ledger-page .ledger-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
         .patient-ledger-page .ledger-kpi{background:linear-gradient(145deg,#fff,#fff5f9);border:1px solid #f0c7d7;border-radius:18px;padding:14px 16px}
         .patient-ledger-page .ledger-kpi span{display:block;color:#7a6872;font-size:12px;margin-bottom:5px}.patient-ledger-page .ledger-kpi strong{font-size:24px;color:#56102f}
+        .patient-ledger-page .ledger-kpi.finance-blue{background:linear-gradient(145deg,#f7fbff,#eaf3ff);border-color:#a9c8f7}.patient-ledger-page .ledger-kpi.finance-blue span,.patient-ledger-page .ledger-kpi.finance-blue strong{color:#123f8c}
+        .patient-ledger-page .ledger-kpi.finance-green{background:linear-gradient(145deg,#f7fff9,#e8f8ef);border-color:#a8dfbb}.patient-ledger-page .ledger-kpi.finance-green span,.patient-ledger-page .ledger-kpi.finance-green strong{color:#087c39}
+        .patient-ledger-page .ledger-kpi.finance-pink{background:linear-gradient(145deg,#fff8fb,#fff0f7);border-color:#f3a6c9}.patient-ledger-page .ledger-kpi.finance-pink span,.patient-ledger-page .ledger-kpi.finance-pink strong{color:#c2185b}
+        .patient-ledger-page .ledger-kpi.finance-red{background:linear-gradient(145deg,#fffafa,#fff0f0);border-color:#f3b2b2}.patient-ledger-page .ledger-kpi.finance-red span,.patient-ledger-page .ledger-kpi.finance-red strong{color:#c62828}
         .patient-ledger-page .tariff-check{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px}
         .patient-ledger-page .tariff-cell{background:#fff7fa;border:1px solid #f2cedc;border-radius:12px;padding:11px}
         .patient-ledger-page .tariff-ok{color:#078637;font-weight:800}.patient-ledger-page .tariff-warn{color:#c51f2e;font-weight:800}
@@ -18097,8 +18113,8 @@ function ShiftHandover({profile,onNavigate}){
       loading&&h('div',{className:'section-card'},'Loading Patient Ledger…'),
       selected&&!loading&&h(React.Fragment,null,
         h('div',{className:'ledger-kpis'},
-          [['Total Charges',totals.charges],['Payments / Advances',totals.receipts],['Discounts',totals.discounts],['Current Payable',balance]].map(([label,value])=>
-            h('div',{className:'ledger-kpi',key:label},h('span',null,label),h('strong',null,money(value)))
+          [['Total Charges',totals.charges,'finance-blue'],['Payments / Advances',totals.receipts,'finance-green'],['Discounts',totals.discounts,'finance-pink'],['Current Payable',balance,'finance-red']].map(([label,value,tone])=>
+            h('div',{className:`ledger-kpi ${tone}`,key:label},h('span',null,label),h('strong',null,money(value)))
           )
         ),
         h('div',{className:'section-card'},
@@ -18930,9 +18946,9 @@ Please access the Samara Family Portal for detailed account information.`;
           :'Financial Balance · Account Settled';
 
     const summaryCards=[
-      ['Total Charges',totals.Charge,'summary-red'],
+      ['Total Charges',totals.Charge,'summary-blue'],
       ['Payments / Advance',paidTotal,'summary-green'],
-      ['Discounts',totals.Discount,'summary-orange'],
+      ['Discounts',totals.Discount,'summary-pink'],
       ['Pending Bills',pendingBills,pendingBills>0?'summary-red':'summary-green'],
       [balanceLabel,balanceDisplay,balanceTone,'signed']
     ];
