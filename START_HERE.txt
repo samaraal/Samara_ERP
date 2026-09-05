@@ -1,4 +1,4 @@
-SAMARA CARE ERP v2.10.18 — WHATSAPP LOGO HEADER STANDARD
+SAMARA CARE ERP v2.10.16 — WHATSAPP LOGO HEADER STANDARD
 ========================================================
 
 PURPOSE
@@ -18,7 +18,7 @@ REDEPLOY EDGE FUNCTIONS
 NO SQL CHANGE.
 
 STANDARD LOGO URL
-https://samaraassistedliving.com/assets/samara-whatsapp-logo.png
+https://samaraassistedliving.com/assets/samara-logo.png
 
 WHAT CHANGED
 - ERP direct WhatsApp replies inside the 24-hour service window are now properly supported as IMAGE + caption messages.
@@ -33,37 +33,5 @@ IMPORTANT EXCEPTION — DAILY PATIENT REPORT
 samara_daily_patient_report uses Header type = DOCUMENT because the Intelligent Patient Care Report PDF is attached there. WhatsApp templates cannot use IMAGE and DOCUMENT header media at the same time. Keep the Samara logo inside the PDF itself; do not change that template to IMAGE.
 
 OPTIONAL EDGE FUNCTION SECRET
-SAMARA_WHATSAPP_LOGO_URL=https://samaraassistedliving.com/assets/samara-whatsapp-logo.png
+SAMARA_WHATSAPP_LOGO_URL=https://samaraassistedliving.com/assets/samara-logo.png
 If omitted, the same URL above is used automatically by whatsapp-webhook.
-
-
-v2.10.18 COMPACT WHATSAPP LOGO
---------------------------------
-Upload this additional file to the WEBSITE repository:
-  assets/samara-whatsapp-logo.png
-
-This is a 1200 x 630 white image with the Samara logo centred at approximately half
-the previous visual size. It is used only for WhatsApp message/image headers.
-The normal ERP/website Samara logo remains unchanged.
-
-
-v2.10.18 SAFE WHATSAPP LOGO DELIVERY
-------------------------------------
-Purpose:
-- Restore APPROVED TEMPLATE messages to the previous proven Samara logo URL:
-  https://samaraassistedliving.com/assets/samara-logo.png
-- Keep the smaller compact logo ONLY for automatic 24-hour replies such as:
-  Our Location / Request a Call / Admission Details
-- No SQL change.
-- No change to inbound message save logic.
-
-Replace/deploy ONLY:
-1) ERP repository:
-   app.js
-2) Supabase Edge Function:
-   supabase/functions/whatsapp-webhook/index.ts
-
-Keep this website asset available:
-   assets/samara-whatsapp-logo.png
-
-Do NOT replace index.html, service-worker.js or bootstrap-error.js for this correction.
