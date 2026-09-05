@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.10';
+  const APP_VERSION = '2.10.11';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -3758,7 +3758,7 @@ Caring with Compassion. Living with Dignity.`;
         }
       }
 
-      /* v2.10.10 — Mobile Patient File must open above the sticky app chrome.
+      /* v2.10.11 — Mobile Patient File must open above the sticky app chrome.
          The previous modal was rendered underneath the topbar/module selector on iPhone,
          hiding the Back button, resident header and first tabs. */
       @media(max-width:760px){
@@ -3828,7 +3828,7 @@ Caring with Compassion. Living with Dignity.`;
         .patient-file-backdrop .tabs-grid,
         .patient-file-backdrop [id]{scroll-margin-top:122px!important}
 
-        /* v2.10.10 — When a Patient File is open, give it the whole mobile screen.
+        /* v2.10.11 — When a Patient File is open, give it the whole mobile screen.
            Hiding the underlying sticky app chrome avoids iOS stacking-context overlap. */
         .app:has(.patient-file-backdrop) .topbar,
         .app:has(.patient-file-backdrop) .mobile-menu,
@@ -3895,6 +3895,90 @@ Caring with Compassion. Living with Dignity.`;
         }
         .patient-file-backdrop .patient-overview-field.patient-overview-address .patient-overview-value{
           white-space:normal!important;
+        }
+
+        /* v2.10.11 — Keep the resident photo and identity fully visible above header actions. */
+        .patient-file-backdrop .patient-master-header{
+          display:flex!important;
+          flex-direction:column!important;
+          align-items:stretch!important;
+          gap:12px!important;
+          width:100%!important;
+          overflow:visible!important;
+        }
+        .patient-file-backdrop .patient-head{
+          order:1!important;
+          display:grid!important;
+          grid-template-columns:84px minmax(0,1fr)!important;
+          align-items:center!important;
+          gap:12px!important;
+          width:100%!important;
+          min-height:96px!important;
+          overflow:visible!important;
+        }
+        .patient-file-backdrop .patient-photo,
+        .patient-file-backdrop .patient-photo-placeholder{
+          width:84px!important;
+          height:96px!important;
+          min-width:84px!important;
+          max-width:84px!important;
+          min-height:96px!important;
+          max-height:96px!important;
+          flex:none!important;
+          margin:0!important;
+          position:relative!important;
+          z-index:1!important;
+          object-fit:cover!important;
+          object-position:center!important;
+        }
+        .patient-file-backdrop .patient-head>div:last-child{
+          min-width:0!important;
+          width:100%!important;
+          overflow:visible!important;
+        }
+        .patient-file-backdrop .patient-head h3{
+          display:block!important;
+          margin:0 0 4px!important;
+          font-size:21px!important;
+          line-height:1.18!important;
+          white-space:normal!important;
+          overflow:visible!important;
+        }
+        .patient-file-backdrop .patient-head small{
+          display:block!important;
+          white-space:normal!important;
+          overflow:visible!important;
+        }
+        .patient-file-backdrop .patient-header-badges{
+          display:flex!important;
+          flex-wrap:wrap!important;
+          gap:5px!important;
+          margin-top:6px!important;
+        }
+        .patient-file-backdrop .patient-master-header>.employee-actions{
+          order:2!important;
+          position:static!important;
+          width:100%!important;
+          display:grid!important;
+          grid-template-columns:repeat(2,minmax(0,1fr))!important;
+          gap:8px!important;
+          margin:0!important;
+          padding:0!important;
+          transform:none!important;
+        }
+        .patient-file-backdrop .patient-master-header>.employee-actions .btn{
+          width:100%!important;
+          min-width:0!important;
+          min-height:44px!important;
+          margin:0!important;
+          white-space:normal!important;
+          line-height:1.2!important;
+        }
+        .patient-file-backdrop .patient-master-header>.employee-actions .btn:nth-of-type(3){
+          grid-column:1 / -1!important;
+        }
+        .patient-file-backdrop .patient-master-header>.employee-actions .close{
+          display:none!important;
         }
       }
 
