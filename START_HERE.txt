@@ -1,5 +1,5 @@
 SAMARA CARE ERP – MOBILE PATIENT FILE FIX
-Version: 2.10.11
+Version: 2.10.12
 
 REPLACE THESE 4 FILES IN THE ERP WEBSITE ROOT
 1. index.html
@@ -9,7 +9,7 @@ REPLACE THESE 4 FILES IN THE ERP WEBSITE ROOT
 
 NO SQL / SUPABASE DATABASE CHANGE IS REQUIRED.
 
-WHAT IS FIXED IN v2.10.11
+WHAT IS FIXED IN v2.10.12
 • On iPhone/Android, the Patient File now opens ABOVE the sticky Samara header and Module bar.
 • The top of the Patient File can no longer be hidden behind the app header.
 • “Back to Patients”, patient identity/header, and the first tab row remain accessible.
@@ -19,15 +19,23 @@ WHAT IS FIXED IN v2.10.11
 
 DEPLOYMENT
 Upload/replace the four files above in the same website root used for the current ERP.
-The PWA version was increased from 2.10.08 to 2.10.11, so each device can detect the new release independently.
+The PWA version was increased from 2.10.08 to 2.10.12, so each device can detect the new release independently.
 
 
-ADDITIONAL FIXES IN v2.10.11
+ADDITIONAL FIXES IN v2.10.12
 - Mobile Patient File now takes over the full screen while open; the underlying sticky Header, Module bar, bottom navigation and Alert Sound control are hidden until the file is closed. This avoids iPhone stacking overlap that hid the first rows.
 - Identity & Contacts now uses a clean three-part label : value grid (for example, Resident ID  :  MOG-...) with separate Address, District / Taluk and PIN rows for easier reading.
 - No SQL or Supabase database change is required.
 
-ADDITIONAL FIX IN v2.10.11
+ADDITIONAL FIX IN v2.10.12
 - Mobile Patient File header now reserves a full, visible row for the resident photograph and identity before action buttons.
 - The photograph/name block can no longer be squeezed underneath Admission Details / Family Details / Edit Patient buttons.
 - Mobile header actions are placed below the resident identity area in a clean two-column layout.
+
+
+ADDITIONAL FIX IN v2.10.12
+- Patient File expanded sections now use the same clean Label : Value layout as Identity & Contacts.
+- Family Portal login and Daily Patient Report WhatsApp details are reformatted for mobile readability.
+- Long values wrap in the value column instead of crowding labels.
+- Action buttons inside expanded Patient File sections use a compact two-column mobile layout.
+- No SQL or Supabase database change is required.

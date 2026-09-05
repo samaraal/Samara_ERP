@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.11';
+  const APP_VERSION = '2.10.12';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -3758,7 +3758,7 @@ Caring with Compassion. Living with Dignity.`;
         }
       }
 
-      /* v2.10.11 — Mobile Patient File must open above the sticky app chrome.
+      /* v2.10.12 — Mobile Patient File must open above the sticky app chrome.
          The previous modal was rendered underneath the topbar/module selector on iPhone,
          hiding the Back button, resident header and first tabs. */
       @media(max-width:760px){
@@ -3828,7 +3828,7 @@ Caring with Compassion. Living with Dignity.`;
         .patient-file-backdrop .tabs-grid,
         .patient-file-backdrop [id]{scroll-margin-top:122px!important}
 
-        /* v2.10.11 — When a Patient File is open, give it the whole mobile screen.
+        /* v2.10.12 — When a Patient File is open, give it the whole mobile screen.
            Hiding the underlying sticky app chrome avoids iOS stacking-context overlap. */
         .app:has(.patient-file-backdrop) .topbar,
         .app:has(.patient-file-backdrop) .mobile-menu,
@@ -3897,7 +3897,85 @@ Caring with Compassion. Living with Dignity.`;
           white-space:normal!important;
         }
 
-        /* v2.10.11 — Keep the resident photo and identity fully visible above header actions. */
+
+        /* v2.10.12 — Consistent clean label : value rows in every Patient File expansion. */
+        .patient-file-backdrop .patient-detail-fields{
+          display:grid!important;
+          gap:0!important;
+          width:100%!important;
+          margin-top:8px!important;
+        }
+        .patient-file-backdrop .patient-detail-field{
+          display:grid!important;
+          grid-template-columns:minmax(118px,38%) 14px minmax(0,1fr)!important;
+          column-gap:8px!important;
+          align-items:start!important;
+          padding:9px 0!important;
+          margin:0!important;
+          border-bottom:1px solid #f0e2e8!important;
+          line-height:1.4!important;
+        }
+        .patient-file-backdrop .patient-detail-field:last-child{border-bottom:0!important}
+        .patient-file-backdrop .patient-detail-label{
+          color:#705a66!important;
+          font-weight:750!important;
+          min-width:0!important;
+        }
+        .patient-file-backdrop .patient-detail-colon{
+          color:#705a66!important;
+          text-align:center!important;
+          font-weight:750!important;
+        }
+        .patient-file-backdrop .patient-detail-value{
+          min-width:0!important;
+          color:#34232d!important;
+          font-weight:500!important;
+          overflow-wrap:anywhere!important;
+          word-break:normal!important;
+        }
+        .patient-file-backdrop .patient-detail-secondary .patient-detail-label,
+        .patient-file-backdrop .patient-detail-secondary .patient-detail-colon,
+        .patient-file-backdrop .patient-detail-secondary .patient-detail-value{
+          color:#746a70!important;
+          font-size:.92em!important;
+          font-weight:500!important;
+        }
+        @media(max-width:640px){
+          .patient-file-backdrop .patient-tab-content .section-card{
+            padding:14px 16px!important;
+          }
+          .patient-file-backdrop .patient-tab-content .panel-head{
+            gap:10px!important;
+            align-items:flex-start!important;
+          }
+          .patient-file-backdrop .patient-tab-content .panel-head>.actions{
+            width:100%!important;
+            display:grid!important;
+            grid-template-columns:repeat(2,minmax(0,1fr))!important;
+            gap:8px!important;
+          }
+          .patient-file-backdrop .patient-tab-content .panel-head>.actions .btn{
+            min-width:0!important;
+            width:100%!important;
+            white-space:normal!important;
+          }
+          .patient-file-backdrop .patient-tab-content .section-card>.actions{
+            display:grid!important;
+            grid-template-columns:repeat(2,minmax(0,1fr))!important;
+            gap:8px!important;
+          }
+          .patient-file-backdrop .patient-tab-content .section-card>.actions .btn{
+            width:100%!important;
+            min-width:0!important;
+            white-space:normal!important;
+          }
+          .patient-file-backdrop .timeline-item{
+            min-width:0!important;
+            overflow-wrap:anywhere!important;
+          }
+        }
+
+        /* v2.10.12 — Keep the resident photo and identity fully visible above header actions. */
         .patient-file-backdrop .patient-master-header{
           display:flex!important;
           flex-direction:column!important;
@@ -12691,6 +12769,7 @@ Please keep these login details confidential.`;
       return `${days} day${days===1?'':'s'} remaining`;
     };
     const admissionField=(label,value)=>h('div',{className:'patient-admission-field'},h('span',null,label),h('strong',null,value||'—'));
+    const patientDetailField=(label,value,extraClass='')=>h('div',{className:`patient-detail-field ${extraClass}`.trim()},h('span',{className:'patient-detail-label'},label),h('span',{className:'patient-detail-colon'},':'),h('span',{className:'patient-detail-value'},value==null||value===''?'—':value));
     const patientQuickLabels={active:'Active patients',assigned:'Room assigned',awaiting:'Awaiting room','high-risk':'High-risk patients',duplicates:'Possible duplicates'};
     function openPatientQuickFilter(filter){
       setPatientSearch('');
@@ -12996,7 +13075,14 @@ Please keep these login details confidential.`;
             ),
             (()=>{const pref=details.familyPreference;const reportRows=(details.reportWhatsApp||[]).filter(r=>/intelligent|daily patient|patient care report/i.test(String(r.communication_type||r.template_name||'')));const latestReport=reportRows[0]||null;const dailyEnabled=!!pref?.daily_whatsapp_enabled;return h('div',{className:'section-card',style:{marginTop:'12px',background:'#fff8fc',border:'1px solid #efbfd5'}},
               h('div',{className:'panel-head'},h('div',null,h('h4',{style:{color:'#9f0b55'}},'Daily Patient Report WhatsApp'),h('small',null,'Automatic A4 Intelligent Patient Care Report PDF to the authorised family WhatsApp number.')),h('div',{className:'actions',style:{gap:'8px',alignItems:'center'}},h('span',{className:`pill ${dailyEnabled?'':'warning'}`},dailyEnabled?'Enabled':'Disabled'),h('button',{type:'button',className:dailyEnabled?'btn btn-danger':'btn btn-primary',disabled:dailyReportToggleBusy,onClick:toggleDailyPatientReportWhatsApp},dailyReportToggleBusy?'Updating…':dailyEnabled?'Disable':'Enable'))),
-              pref?h('div',{className:'tabs-grid'},h('div',null,h('p',null,h('strong',null,'Communication Mode: '),pref.delivery_mode||'—'),h('p',null,h('strong',null,'Recipient: '),pref.recipient_name||'—'),h('p',null,h('strong',null,'WhatsApp: '),pref.recipient_mobile||'—')),h('div',null,h('p',null,h('strong',null,'Daily Report Time: '),dailyEnabled?displayDailyReportTime(pref.daily_report_time):'Not scheduled'),h('p',null,h('strong',null,'Last Report: '),pref.last_report_sent_at?fmt(pref.last_report_sent_at):'Not sent yet'),h('p',null,h('strong',null,'Last Status: '),pref.last_report_status||latestReport?.status||'—'))):h('p',{className:'small-note'},'Family communication preference has not yet been configured for this resident.'),
+              pref?h('div',{className:'patient-detail-fields'},
+                patientDetailField('Communication Mode',pref.delivery_mode||'—'),
+                patientDetailField('Recipient',pref.recipient_name||'—'),
+                patientDetailField('WhatsApp',pref.recipient_mobile||'—'),
+                patientDetailField('Daily Report Time',dailyEnabled?displayDailyReportTime(pref.daily_report_time):'Not scheduled'),
+                patientDetailField('Last Report',pref.last_report_sent_at?fmt(pref.last_report_sent_at):'Not sent yet'),
+                patientDetailField('Last Status',pref.last_report_status||latestReport?.status||'—')
+              ):h('p',{className:'small-note'},'Family communication preference has not yet been configured for this resident.'),
               h('div',{className:'actions',style:{marginTop:'10px'}},h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEditPatient(selected)},'Edit Recipient / Time'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate?.('Intelligent Reports')},'Open Intelligent Reports'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate?.('WhatsApp Logs')},'WhatsApp Delivery Logs'))
             )})(),
             (details.familyAccess||[]).length
@@ -13005,9 +13091,15 @@ Please keep these login details confidential.`;
                   h('div',null,h('strong',null,access.relative_name||'Authorised Relative'),h('small',null,`${access.relationship||'Relationship not recorded'}${access.primary_contact?' · Primary contact':''}`)),
                   h('span',{className:`pill ${access.is_active?'':'warning'}`},access.is_active?'Active':'Disabled')
                 ),
-                h('div',{className:'tabs-grid'},
-                  h('div',null,h('p',null,h('strong',null,'Login Resident ID: '),selected?.patient_id||'—'),h('p',null,h('strong',null,'Registered Mobile: '),access.mobile||'—'),h('p',null,h('strong',null,'Email: '),access.email||'Not recorded'),h('p',{className:'small-note'},`Internal Family Ref: ${access.family_user_id||'—'}`)),
-                  h('div',null,h('p',null,h('strong',null,'Last Login: '),access.last_login_at?fmt(access.last_login_at):'Not logged in yet'),h('p',null,h('strong',null,'Access Created: '),access.created_at?fmt(access.created_at):'—'),h('p',null,h('strong',null,'PIN: '),'For security, the existing PIN is not displayed.'))
+                h('div',{className:'patient-detail-fields'},
+                  patientDetailField('Login Resident ID',selected?.patient_id||'—'),
+                  patientDetailField('Registered Mobile',access.mobile||'—'),
+                  patientDetailField('Email',access.email||'Not recorded'),
+                  patientDetailField('Relationship',access.relationship||'Not recorded'),
+                  patientDetailField('Last Login',access.last_login_at?fmt(access.last_login_at):'Not logged in yet'),
+                  patientDetailField('Access Created',access.created_at?fmt(access.created_at):'—'),
+                  patientDetailField('PIN','Existing PIN is hidden for security.'),
+                  patientDetailField('Internal Family Ref',access.family_user_id||'—','patient-detail-secondary')
                 ),
                 access.is_active&&(()=>{const portalWhatsAppSent=familyPortalWhatsAppSent(access);return h('div',{className:'actions',style:{marginTop:'10px'}},
                   h('button',{type:'button',className:'btn btn-secondary',disabled:familyResetBusy===access.id,onClick:()=>resetSelectedFamilyPin(access)},familyResetBusy===access.id?'Resetting…':'Forgot / Reset PIN'),
