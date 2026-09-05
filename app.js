@@ -8907,7 +8907,9 @@ Thank you.`;
     const today=new Date().toISOString().slice(0,10);
     const initial={admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'',address:'',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'',referring_doctor:'',referring_source:'',family_doctor:'',attendant_name:'',attendant_phone:'',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
     const [form,setForm]=React.useState(initial),[meds,setMeds]=React.useState([blankMedicine()]),[care,setCare]=React.useState([blankCare()]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
-    const [familyAccess,setFamilyAccess]=React.useState({enabled:false,relative_name:'',relationship:'',mobile:'',email:'',primary_contact:true});
+    const [familyAccess,setFamilyAccess]=React.useState({delivery_mode:'Family Portal Access',enabled:true,relative_name:'',relationship:'',mobile:'',email:'',primary_contact:true,daily_whatsapp_time:'20:00'});
+    const familyPortalEnabled=['Family Portal Access','Both'].includes(familyAccess.delivery_mode);
+    const dailyWhatsAppEnabled=['Daily WhatsApp Update','Both'].includes(familyAccess.delivery_mode);
     const [familyCredential,setFamilyCredential]=React.useState(null);
     const [photoFiles,setPhotoFiles]=React.useState([]),[idFiles,setIdFiles]=React.useState([]),[dischargeFiles,setDischargeFiles]=React.useState([]),[prescriptionFiles,setPrescriptionFiles]=React.useState([]),[reportFiles,setReportFiles]=React.useState([]),[cameraConfig,setCameraConfig]=React.useState(null),[patientPhotoPreview,setPatientPhotoPreview]=React.useState('');
     const [roomBeds,setRoomBeds]=React.useState([]);
@@ -8975,6 +8977,7 @@ Thank you.`;
             setForm({...initial,...draft.form});
             setMeds(Array.isArray(draft.meds)&&draft.meds.length?draft.meds:[blankMedicine()]);
             setCare(Array.isArray(draft.care)&&draft.care.length?draft.care:[blankCare()]);
+            if(draft.familyAccess)setFamilyAccess(current=>({...current,...draft.familyAccess}));
             setReturningPatient(draft.returningPatient||null);
             setDraftPatientId(draft.patient_id||'');
             setDraftRestored(true);
@@ -9007,6 +9010,7 @@ Thank you.`;
             form,
             meds,
             care,
+            familyAccess,
             returningPatient,
             patient_id:draftPatientId||null,
             saved_at:new Date().toISOString()
@@ -9017,7 +9021,7 @@ Thank you.`;
         }
       },700);
       return()=>clearTimeout(timer);
-    },[form,meds,care,returningPatient,draftPatientId,busy]);
+    },[form,meds,care,familyAccess,returningPatient,draftPatientId,busy]);
 
     function clearAdmissionDraft(){
       try{localStorage.removeItem(ADMISSION_DRAFT_KEY)}catch(_error){}
@@ -9937,7 +9941,7 @@ Thank you.`;
     }
 
     async function saveFamilyPortalAccess(patient){
-      if(!familyAccess.enabled)return null;
+      if(!familyPortalEnabled)return null;
       const mobile=String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10);
       if(!String(familyAccess.relative_name||'').trim())throw new Error('Enter the authorised family member name.');
       if(!String(familyAccess.relationship||'').trim())throw new Error('Enter the relationship to the resident.');
@@ -9957,6 +9961,31 @@ Thank you.`;
       };
       setFamilyCredential(credential);
       return credential;
+    }
+    async function saveFamilyCommunicationPreference(patient){
+      if(!patient?.id)return null;
+      const mobile=String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10);
+      if(!String(familyAccess.relative_name||'').trim())throw new Error('Enter the authorised family member name.');
+      if(!String(familyAccess.relationship||'').trim())throw new Error('Enter the relationship to the resident.');
+      if(mobile.length!==10)throw new Error('Enter a valid 10-digit family WhatsApp number.');
+      if(dailyWhatsAppEnabled&&!String(familyAccess.daily_whatsapp_time||'').trim())throw new Error('Select the daily WhatsApp report time.');
+      const payload={
+        patient_id:patient.id,
+        delivery_mode:familyAccess.delivery_mode,
+        family_portal_enabled:familyPortalEnabled,
+        daily_whatsapp_enabled:dailyWhatsAppEnabled,
+        recipient_name:String(familyAccess.relative_name||'').trim(),
+        relationship:String(familyAccess.relationship||'').trim(),
+        recipient_mobile:mobile,
+        recipient_email:String(familyAccess.email||'').trim()||null,
+        daily_report_time:dailyWhatsAppEnabled?(familyAccess.daily_whatsapp_time||'20:00'):null,
+        timezone:'Asia/Kolkata',
+        is_active:true,
+        updated_at:new Date().toISOString()
+      };
+      const {data,error}=await client.from('patient_family_communication_preferences').upsert(payload,{onConflict:'patient_id'}).select().single();
+      if(error)throw error;
+      return data;
     }
     async function sendAdmissionWhatsAppApi(credential){
       if(!credential)return;
@@ -10149,7 +10178,7 @@ Please keep these login details confidential.`;
           const rawDraft=localStorage.getItem(ADMISSION_DRAFT_KEY);
           const currentDraft=rawDraft?JSON.parse(rawDraft):{};
           localStorage.setItem(ADMISSION_DRAFT_KEY,JSON.stringify({
-            ...currentDraft,form,meds,care,returningPatient,patient_id:patient.id,saved_at:new Date().toISOString()
+            ...currentDraft,form,meds,care,familyAccess,returningPatient,patient_id:patient.id,saved_at:new Date().toISOString()
           }));
         }catch(draftLinkError){
           console.warn('Unable to link Admission draft to created patient:',draftLinkError);
@@ -10178,7 +10207,8 @@ Please keep these login details confidential.`;
         }
       }
       try{
-        if(familyAccess.enabled)await saveFamilyPortalAccess(patient);
+        await saveFamilyCommunicationPreference(patient);
+        if(familyPortalEnabled)await saveFamilyPortalAccess(patient);
         if(photoFiles[0])await uploadPatientFile(patient.id,photoFiles[0],'Patient Photo',true);
         for(const f of idFiles)await uploadPatientFile(patient.id,f,'Identity Proof');
         for(const f of dischargeFiles)await uploadPatientFile(patient.id,f,needsHospital?'Discharge / Transfer Summary':'Medical History');
@@ -10216,7 +10246,9 @@ Please keep these login details confidential.`;
             previous_admission_date:admissionExistingPatient?.admission_date||null,
             billing_option:noPackageSelected?'Daily Billing':'Fixed Care Package',
             package_name:selectedPackage?.package_name||null,
-            package_fee:selectedPackage?selectedPackageFee():null
+            package_fee:selectedPackage?selectedPackageFee():null,
+            family_communication_mode:familyAccess.delivery_mode,
+            daily_whatsapp_time:dailyWhatsAppEnabled?familyAccess.daily_whatsapp_time:null
           }
         });
         await client.from('patients').update({
@@ -10417,16 +10449,20 @@ Please keep these login details confidential.`;
         )
       )),
       h('div',{className:'section-card'},
-        h('div',{className:'section-title'},h('div',null,h('h4',null,'Family Portal Access'),h('small',null,'Optional: create secure access for an authorised relative during admission. Admin/Manager can update or disable it later from Edit Patient.'))),
-        h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!familyAccess.enabled,onChange:e=>setFamilyAccess({...familyAccess,enabled:e.target.checked})}),h('span',null,'Enable Family Portal for this resident')),
-        familyAccess.enabled&&h('div',{className:'form-grid',style:{marginTop:'12px'}},
+        h('div',{className:'section-title'},h('div',null,h('h4',null,'Family Communication Preference'),h('small',null,'Choose how the authorised family member will receive resident updates after admission.'))),
+        h('div',{className:'form-grid'},
+          h('div',{className:'field span-2'},h('label',null,'Communication Option'),h('select',{value:familyAccess.delivery_mode,onChange:e=>{const mode=e.target.value;setFamilyAccess({...familyAccess,delivery_mode:mode,enabled:['Family Portal Access','Both'].includes(mode)})}},
+            ...['Family Portal Access','Daily WhatsApp Update','Both'].map(x=>h('option',{key:x,value:x},x))
+          )),
           h('div',{className:'field'},h('label',null,'Authorised Relative Name'),h('input',{required:true,value:familyAccess.relative_name,onChange:e=>setFamilyAccess({...familyAccess,relative_name:e.target.value})})),
           h('div',{className:'field'},h('label',null,'Relationship'),h('select',{required:true,value:familyAccess.relationship||'',onChange:e=>setFamilyAccess({...familyAccess,relationship:e.target.value})},h('option',{value:''},'Select relationship'),...['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].map(x=>h('option',{key:x,value:x},x)))),
-          h('div',{className:'field'},h('label',null,'Family Mobile Number'),h('input',{required:true,inputMode:'numeric',maxLength:10,value:familyAccess.mobile,onChange:e=>setFamilyAccess({...familyAccess,mobile:e.target.value.replace(/\D/g,'').slice(0,10)})})),
+          h('div',{className:'field'},h('label',null,'Family WhatsApp Number'),h('input',{required:true,inputMode:'numeric',maxLength:10,value:familyAccess.mobile,onChange:e=>setFamilyAccess({...familyAccess,mobile:e.target.value.replace(/\D/g,'').slice(0,10)})})),
           h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:familyAccess.email,onChange:e=>setFamilyAccess({...familyAccess,email:e.target.value})})),
-          h('label',{className:'check-card span-2'},h('input',{type:'checkbox',checked:!!familyAccess.primary_contact,onChange:e=>setFamilyAccess({...familyAccess,primary_contact:e.target.checked})}),h('span',null,'Primary Family Contact'))
+          dailyWhatsAppEnabled&&h('div',{className:'field'},h('label',null,'Daily Intelligent Report Time'),h('input',{type:'time',step:'300',required:true,value:familyAccess.daily_whatsapp_time||'20:00',onChange:e=>setFamilyAccess({...familyAccess,daily_whatsapp_time:e.target.value})})),
+          dailyWhatsAppEnabled&&h('div',{className:'small-note',style:{alignSelf:'end',paddingBottom:'12px'}},'The Intelligent Patient Report will be generated automatically and sent through the approved WhatsApp API template at this time every day (India time).'),
+          familyPortalEnabled&&h('label',{className:'check-card span-2'},h('input',{type:'checkbox',checked:!!familyAccess.primary_contact,onChange:e=>setFamilyAccess({...familyAccess,primary_contact:e.target.checked})}),h('span',null,'Primary Family Contact for Family Portal'))
         ),
-        familyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},
+      familyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},
           h('strong',null,'Family Portal login created'),
           h('div',null,`Resident ID: ${familyCredential.patient_id||'—'} · Temporary PIN: ${familyCredential.pin}`),
           h('div',{className:'employee-actions',style:{marginTop:'8px'}},

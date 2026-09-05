@@ -1,0 +1,48 @@
+SAMARA CARE ERP – A4 INTELLIGENT REPORT + AUTOMATIC DAILY WHATSAPP
+
+FILES TO REPLACE / DEPLOY
+1. app.js
+2. styles.css
+3. Run SQL once: 105_patient_family_daily_whatsapp_reports.sql
+4. Deploy Edge Function: supabase/functions/daily-patient-report/index.ts
+
+ADMISSION WORKFLOW
+Family Communication Preference now offers:
+• Family Portal Access
+• Daily WhatsApp Update
+• Both
+
+For Daily WhatsApp Update / Both, choose the time (default 08:00 PM, India time).
+
+META TEMPLATE REQUIRED
+Create and approve a WhatsApp Utility template named:
+  samara_daily_patient_report
+Language: English
+Header: DOCUMENT
+Body variables (3):
+  {{1}} Authorised family member name
+  {{2}} Resident name
+  {{3}} Report date
+Suggested body:
+Dear {{1}}, the Daily Intelligent Patient Report for {{2}} dated {{3}} is attached. This confidential report is generated from Samara Care ERP records. For urgent clinical concerns, please contact the Samara Care team directly.
+
+EDGE FUNCTION SECRETS
+The daily-patient-report function uses existing:
+• SUPABASE_URL
+• SUPABASE_SERVICE_ROLE_KEY
+• WHATSAPP_ACCESS_TOKEN
+• WHATSAPP_PHONE_NUMBER_ID
+Add one new secret:
+• DAILY_REPORT_CRON_SECRET = a long random private value
+
+SCHEDULING
+Create a Supabase Cron job / scheduled HTTP invocation to POST to:
+  https://askalabwtlrnoodinayq.supabase.co/functions/v1/daily-patient-report
+Run every 5 minutes.
+Header:
+  x-cron-secret: <same DAILY_REPORT_CRON_SECRET>
+
+The function sends each resident only once per India calendar day, at or after the admission-selected time. If a scheduled run is delayed, the next run will send the pending report rather than skipping the day.
+
+A4 PRINTING
+The Intelligent Patient Report print stylesheet is fixed to A4 portrait with 9–10 mm margins and allows the report to flow over additional A4 pages rather than shrinking the entire report into a tiny single page.
