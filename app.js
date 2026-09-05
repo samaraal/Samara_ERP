@@ -1432,7 +1432,7 @@ function initSamaraInaugurationInvitation(){
   const normalizeLogin = value => value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,'');
   const loginEmail = value => `${normalizeLogin(value)}@${cfg.employeeEmailDomain}`;
   const pad2 = value => String(value).padStart(2,'0');
-  const SAMARA_WHATSAPP_LOGO_URL='https://samaraassistedliving.com/assets/samara-whatsapp-logo.png';
+  const SAMARA_WHATSAPP_LOGO_URL='https://samaraassistedliving.com/assets/samara-logo.png';
   const brandWhatsAppText = text => {
     const raw=String(text||'').trim();
     if(raw.includes(SAMARA_WHATSAPP_LOGO_URL))return raw;
