@@ -11205,6 +11205,7 @@ Please keep these login details confidential.`;
     const [familyResetBusy,setFamilyResetBusy]=React.useState(null);
     const [familyResetCredential,setFamilyResetCredential]=React.useState(null);
     const [familyPortalWaBusy,setFamilyPortalWaBusy]=React.useState('');
+    const [dailyReportToggleBusy,setDailyReportToggleBusy]=React.useState(false);
     const [showFamilyDetails,setShowFamilyDetails]=React.useState(false);
     const [momentBusy,setMomentBusy]=React.useState(false);
     const [momentCaption,setMomentCaption]=React.useState('');
@@ -11307,6 +11308,34 @@ Please keep these login details confidential.`;
     function primaryFamilyContact(){
       const list=details?.familyAccess||[];
       return list.find(row=>row.is_active!==false&&row.primary_contact)||list.find(row=>row.is_active!==false)||list[0]||null;
+    }
+
+    async function toggleDailyPatientReportWhatsApp(){
+      if(!selected?.id||dailyReportToggleBusy)return;
+      const pref=details?.familyPreference||null;
+      const currentlyEnabled=!!pref?.daily_whatsapp_enabled;
+      const access=primaryFamilyContact();
+      const recipientName=String(pref?.recipient_name||access?.relative_name||selected?.attendant_name||'').trim();
+      const relationship=String(pref?.relationship||access?.relationship||'').trim()||null;
+      const mobile=String(pref?.recipient_mobile||access?.mobile||selected?.attendant_phone||'').replace(/\D/g,'').slice(-10);
+      const email=String(pref?.recipient_email||access?.email||'').trim()||null;
+      const portalEnabled=pref?!!pref.family_portal_enabled:!!access;
+      if(!currentlyEnabled&&(!recipientName||mobile.length!==10)){
+        showPatientToast('error','Please set the authorised family member and WhatsApp number first.');
+        await openEditPatient(selected);
+        return;
+      }
+      const enable=!currentlyEnabled;
+      const mode=portalEnabled&&enable?'Both':enable?'Daily WhatsApp Update':'Family Portal Access';
+      const payload={patient_id:selected.id,delivery_mode:mode,family_portal_enabled:portalEnabled,daily_whatsapp_enabled:enable,recipient_name:recipientName||'Family Member',relationship,recipient_mobile:mobile||null,recipient_email:email,daily_report_time:enable?String(pref?.daily_report_time||'20:00').slice(0,5):null,timezone:pref?.timezone||'Asia/Kolkata',is_active:portalEnabled||enable,updated_at:new Date().toISOString()};
+      setDailyReportToggleBusy(true);
+      try{
+        const {data,error}=await client.from('patient_family_communication_preferences').upsert(payload,{onConflict:'patient_id'}).select().single();
+        if(error)throw error;
+        setDetails(prev=>prev?{...prev,familyPreference:data}:prev);
+        showPatientToast('success',enable?`Daily Patient Report WhatsApp enabled for ${displayDailyReportTime(payload.daily_report_time)}.`:'Daily Patient Report WhatsApp disabled.');
+      }catch(error){showPatientToast('error',error?.message||'Could not update Daily Patient Report WhatsApp.');}
+      finally{setDailyReportToggleBusy(false)}
     }
 
     function openPatientWhatsApp(openEmergency=false){
@@ -12601,9 +12630,9 @@ Please keep these login details confidential.`;
               )
             ),
             (()=>{const pref=details.familyPreference;const reportRows=(details.reportWhatsApp||[]).filter(r=>/intelligent|daily patient|patient care report/i.test(String(r.communication_type||r.template_name||'')));const latestReport=reportRows[0]||null;const dailyEnabled=!!pref?.daily_whatsapp_enabled;return h('div',{className:'section-card',style:{marginTop:'12px',background:'#fff8fc',border:'1px solid #efbfd5'}},
-              h('div',{className:'panel-head'},h('div',null,h('h4',{style:{color:'#9f0b55'}},'Daily Patient Report WhatsApp'),h('small',null,'Automatic A4 Intelligent Patient Care Report PDF to the authorised family WhatsApp number.')),h('span',{className:`pill ${dailyEnabled?'':'warning'}`},dailyEnabled?'Enabled':'Not Enabled')),
+              h('div',{className:'panel-head'},h('div',null,h('h4',{style:{color:'#9f0b55'}},'Daily Patient Report WhatsApp'),h('small',null,'Automatic A4 Intelligent Patient Care Report PDF to the authorised family WhatsApp number.')),h('div',{className:'actions',style:{gap:'8px',alignItems:'center'}},h('span',{className:`pill ${dailyEnabled?'':'warning'}`},dailyEnabled?'Enabled':'Disabled'),h('button',{type:'button',className:dailyEnabled?'btn btn-danger':'btn btn-primary',disabled:dailyReportToggleBusy,onClick:toggleDailyPatientReportWhatsApp},dailyReportToggleBusy?'Updating…':dailyEnabled?'Disable':'Enable'))),
               pref?h('div',{className:'tabs-grid'},h('div',null,h('p',null,h('strong',null,'Communication Mode: '),pref.delivery_mode||'—'),h('p',null,h('strong',null,'Recipient: '),pref.recipient_name||'—'),h('p',null,h('strong',null,'WhatsApp: '),pref.recipient_mobile||'—')),h('div',null,h('p',null,h('strong',null,'Daily Report Time: '),dailyEnabled?displayDailyReportTime(pref.daily_report_time):'Not scheduled'),h('p',null,h('strong',null,'Last Report: '),pref.last_report_sent_at?fmt(pref.last_report_sent_at):'Not sent yet'),h('p',null,h('strong',null,'Last Status: '),pref.last_report_status||latestReport?.status||'—'))):h('p',{className:'small-note'},'Family communication preference has not yet been configured for this resident.'),
-              h('div',{className:'actions',style:{marginTop:'10px'}},h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEditPatient(selected)},'Edit Communication Preference'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate?.('Intelligent Reports')},'Open Intelligent Reports'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate?.('WhatsApp Logs')},'WhatsApp Delivery Logs'))
+              h('div',{className:'actions',style:{marginTop:'10px'}},h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEditPatient(selected)},'Edit Recipient / Time'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate?.('Intelligent Reports')},'Open Intelligent Reports'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate?.('WhatsApp Logs')},'WhatsApp Delivery Logs'))
             )})(),
             (details.familyAccess||[]).length
               ?h('div',null,(details.familyAccess||[]).map(access=>h('div',{className:'section-card',key:access.id,style:{marginTop:'12px'}},
