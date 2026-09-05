@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.13';
+  const APP_VERSION = '2.10.16';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1432,7 +1432,7 @@ function initSamaraInaugurationInvitation(){
   const normalizeLogin = value => value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,'');
   const loginEmail = value => `${normalizeLogin(value)}@${cfg.employeeEmailDomain}`;
   const pad2 = value => String(value).padStart(2,'0');
-  const SAMARA_WHATSAPP_LOGO_URL='https://app.samaraassistedliving.com/assets/samara-whatsapp-header.jpg?v=20260904';
+  const SAMARA_WHATSAPP_LOGO_URL='https://samaraassistedliving.com/assets/samara-whatsapp-logo.png';
   const brandWhatsAppText = text => {
     const raw=String(text||'').trim();
     if(raw.includes(SAMARA_WHATSAPP_LOGO_URL))return raw;
@@ -3758,7 +3758,7 @@ Caring with Compassion. Living with Dignity.`;
         }
       }
 
-      /* v2.10.13 — Mobile Patient File must open above the sticky app chrome.
+      /* v2.10.16 — Mobile Patient File must open above the sticky app chrome.
          The previous modal was rendered underneath the topbar/module selector on iPhone,
          hiding the Back button, resident header and first tabs. */
       @media(max-width:760px){
@@ -3828,7 +3828,7 @@ Caring with Compassion. Living with Dignity.`;
         .patient-file-backdrop .tabs-grid,
         .patient-file-backdrop [id]{scroll-margin-top:122px!important}
 
-        /* v2.10.13 — When a Patient File is open, give it the whole mobile screen.
+        /* v2.10.16 — When a Patient File is open, give it the whole mobile screen.
            Hiding the underlying sticky app chrome avoids iOS stacking-context overlap. */
         .app:has(.patient-file-backdrop) .topbar,
         .app:has(.patient-file-backdrop) .mobile-menu,
@@ -3898,7 +3898,7 @@ Caring with Compassion. Living with Dignity.`;
         }
 
 
-        /* v2.10.13 — Consistent clean label : value rows in every Patient File expansion. */
+        /* v2.10.16 — Consistent clean label : value rows in every Patient File expansion. */
         .patient-file-backdrop .patient-detail-fields{
           display:grid!important;
           gap:0!important;
@@ -3976,7 +3976,7 @@ Caring with Compassion. Living with Dignity.`;
         }
 
 
-        /* v2.10.13 — Family Portal action buttons remain fully visible on mobile. */
+        /* v2.10.16 — Family Portal action buttons remain fully visible on mobile. */
         @media(max-width:640px){
           .patient-file-backdrop .family-portal-login-head,
           .patient-file-backdrop .daily-report-whatsapp-head{
@@ -4055,7 +4055,7 @@ Caring with Compassion. Living with Dignity.`;
           }
         }
 
-        /* v2.10.13 — Keep the resident photo and identity fully visible above header actions. */
+        /* v2.10.16 — Keep the resident photo and identity fully visible above header actions. */
         .patient-file-backdrop .patient-master-header{
           display:flex!important;
           flex-direction:column!important;
