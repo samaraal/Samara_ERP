@@ -1502,7 +1502,7 @@ function initSamaraInaugurationInvitation(){
     const response=await fetch(`${cfg.supabaseUrl}/functions/v1/whatsapp-send`,{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey},
-      body:JSON.stringify({to:recipient,message_type:'image',image_link:SAMARA_WHATSAPP_LOGO_URL,caption:clean})
+      body:JSON.stringify({to:recipient,message_type:'text',text:clean})
     });
     const result=await response.json().catch(()=>({success:false,error:'Unable to read WhatsApp server response.'}));
     if(!response.ok||result?.success===false){

@@ -1,37 +1,31 @@
-SAMARA CARE ERP v2.10.16 — WHATSAPP LOGO HEADER STANDARD
-========================================================
+SAMARA CARE — WhatsApp SEND + APPROVED TEMPLATE FIX
 
-PURPOSE
-Every normal Samara WhatsApp reply should carry a small Samara logo image with the message as its caption.
-Approved Meta templates continue to use their IMAGE header where the template supports IMAGE headers.
+The current code had two independent sending problems.
 
-REPLACE WEBSITE ROOT FILES
-1. index.html
-2. service-worker.js
-3. bootstrap-error.js
-4. app.js
+1. DIRECT MESSAGE
+The ERP was calling whatsapp-send with message_type='image', but the deployed function handled only text/template. Direct replies can therefore fail even while the 24-hour window is open.
+This package changes the ERP direct reply to a true text message and makes whatsapp-send support text, image and template correctly.
 
-REDEPLOY EDGE FUNCTIONS
-1. supabase/functions/whatsapp-send/index.ts
-2. supabase/functions/whatsapp-webhook/index.ts
+2. GENERAL FOLLOW-UP TEMPLATE
+The approved samara_general_followup shown in Meta contains ONE body variable:
+{{1}} = Customer name
+The older manual Inbox code could still pass a second 'Regarding' variable. The ERP and Edge Function now both enforce the correct one-variable payload.
 
-NO SQL CHANGE.
+3. META DELIVERY STATE
+The function now returns Meta's initial message_status. The webhook records a held state when Meta holds a newly-approved template for assessment. If that happens after an incoming enquiry, it sends a direct acknowledgement immediately because the 24-hour reply window is already open.
 
-STANDARD LOGO URL
-https://samaraassistedliving.com/assets/samara-logo.png
+DEPLOY THESE FILES
 
-WHAT CHANGED
-- ERP direct WhatsApp replies inside the 24-hour service window are now properly supported as IMAGE + caption messages.
-- Automatic replies to General Follow-up buttons (Our Location, Request a Call, Admission Details) now send the Samara logo with the response as caption.
-- ERP template sends continue supplying the Samara logo as IMAGE header by default.
-- Version bumped to 2.10.16 so installed mobile PWAs can receive the update prompt independently.
+ERP:
+- Replace app.js only
 
-META TEMPLATE RULE
-For templates such as General Follow-up, Package Expiry, Emergency, Admission, Payment, etc., the Meta template itself must have Header type = IMAGE. The ERP cannot add an IMAGE header to a Meta template that was approved without one.
+Supabase Edge Functions:
+- whatsapp-send/index.ts
+- whatsapp-webhook/index.ts
 
-IMPORTANT EXCEPTION — DAILY PATIENT REPORT
-samara_daily_patient_report uses Header type = DOCUMENT because the Intelligent Patient Care Report PDF is attached there. WhatsApp templates cannot use IMAGE and DOCUMENT header media at the same time. Keep the Samara logo inside the PDF itself; do not change that template to IMAGE.
+Do NOT replace index.html or service-worker.js.
 
-OPTIONAL EDGE FUNCTION SECRET
-SAMARA_WHATSAPP_LOGO_URL=https://samaraassistedliving.com/assets/samara-logo.png
-If omitted, the same URL above is used automatically by whatsapp-webhook.
+TEST IN THIS ORDER
+1. With 'Reply window open', type 'Test reply from Samara' in Direct message and press Send.
+2. If received, press General Follow-up > Send template.
+3. Then send 'Hi' from the phone and confirm the automatic reply.
