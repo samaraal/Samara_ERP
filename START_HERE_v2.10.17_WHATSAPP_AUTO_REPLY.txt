@@ -1,0 +1,45 @@
+SAMARA CARE ERP v2.10.17 — WEBSITE WHATSAPP AUTO REPLY
+======================================================
+
+WHAT IS FIXED
+1. Approved template "samara_general_followup" now uses the exact approved parameter structure:
+   {{1}} = WhatsApp customer/profile name.
+2. Removed the old extra {{2}} parameter and the old "delay" wording from the ERP preview/manual send.
+3. Incoming WhatsApp from an UNKNOWN/PUBLIC number is saved as "Website / Public" and automatically receives samara_general_followup.
+4. Known HR applicants and active Patient/Family numbers do NOT receive the website-enquiry auto reply.
+5. Duplicate protection:
+   - Meta webhook retry cannot trigger a second reply for the same inbound message.
+   - General auto reply is sent at most once to the same public number in 24 hours.
+6. The approved Samara logo image header is sent with the template.
+
+FILES TO REPLACE / DEPLOY
+A. Website / ERP root:
+   - app.js
+   - index.html
+   - service-worker.js
+
+B. Supabase Edge Function:
+   - supabase/functions/whatsapp-webhook/index.ts
+   Deploy the existing function name: whatsapp-webhook
+
+IMPORTANT
+The webhook Edge Function must already have these Supabase secrets (the current WhatsApp setup normally has them):
+- WHATSAPP_ACCESS_TOKEN
+- WHATSAPP_PHONE_NUMBER_ID
+- WHATSAPP_VERIFY_TOKEN
+- SUPABASE_URL
+- SUPABASE_SERVICE_ROLE_KEY
+
+Optional secrets (defaults are already correct):
+- WHATSAPP_GENERAL_FOLLOWUP_TEMPLATE=samara_general_followup
+- WHATSAPP_GENERAL_FOLLOWUP_LANGUAGE=en
+- WHATSAPP_HEADER_IMAGE_URL=https://samaraassistedliving.com/assets/samara-logo.png
+
+TEST
+1. Deploy whatsapp-webhook.
+2. Replace the 3 ERP root files.
+3. From a mobile number that is NOT an employee applicant and NOT an active patient/family number, open the Samara website WhatsApp link.
+4. Send: Hi
+5. Expected: immediate approved samara_general_followup with Samara logo and the 3 approved buttons.
+6. In ERP > WhatsApp Inbox, both the incoming "Hi" and outgoing "Website Enquiry Auto Reply" should appear.
+7. Send another message from the same number within 24 hours: it will be received in ERP, but the automatic template will not repeat.
