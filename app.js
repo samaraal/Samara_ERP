@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.16';
+  const APP_VERSION = '2.10.17';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5580,9 +5580,8 @@ Caring with Compassion. Living with Dignity.`;
         const showUpdatePrompt=()=>{
           // The acknowledgement is stored on each device/browser separately.
           // This means accepting an update on Windows never suppresses the notice on an iPhone/PWA.
-          const currentBuildNeedsAcknowledgement=remoteUpdateVersion===APP_VERSION&&acknowledgedVersion!==APP_VERSION;
           const trulyNewRemote=isRemoteVersionNewer(remoteUpdateVersion,APP_VERSION);
-          if(updatePromptShown||!remoteUpdateVersion||(!trulyNewRemote&&!currentBuildNeedsAcknowledgement))return;
+          if(updatePromptShown||!remoteUpdateVersion||!trulyNewRemote)return;
           updatePromptShown=true;
 
           const existing=document.getElementById('samara-update-refresh-prompt');
@@ -5657,14 +5656,6 @@ Caring with Compassion. Living with Dignity.`;
           registration.update().catch(()=>{});
           setTimeout(()=>checkRemoteVersion(true),900);
         }).catch(()=>{setTimeout(()=>checkRemoteVersion(true),900)});
-
-        // Also announce the current release once on EACH device. This covers the
-        // common mobile-PWA case where the browser fetched the new app.js before
-        // the old app had a chance to show the update notice.
-        if(acknowledgedVersion!==APP_VERSION){
-          remoteUpdateVersion=APP_VERSION;
-          setTimeout(()=>showUpdatePrompt(),1250);
-        }
 
         const onResume=()=>{if(document.visibilityState==='visible')checkRemoteVersion(true)};
         document.addEventListener('visibilitychange',onResume);
