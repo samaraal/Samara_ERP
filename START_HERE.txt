@@ -1,31 +1,51 @@
-SAMARA CARE — WhatsApp SEND + APPROVED TEMPLATE FIX
+SAMARA CARE — WhatsApp General Follow-up TWO-PARAMETER FIX
 
-The current code had two independent sending problems.
+Meta returned the exact error:
 
-1. DIRECT MESSAGE
-The ERP was calling whatsapp-send with message_type='image', but the deployed function handled only text/template. Direct replies can therefore fail even while the 24-hour window is open.
-This package changes the ERP direct reply to a true text message and makes whatsapp-send support text, image and template correctly.
+#132000
+body: number of localizable_params (1) does not match the expected number of params (2)
 
-2. GENERAL FOLLOW-UP TEMPLATE
-The approved samara_general_followup shown in Meta contains ONE body variable:
+This proves the approved samara_general_followup template has TWO body variables.
+
+Correct mapping:
 {{1}} = Customer name
-The older manual Inbox code could still pass a second 'Regarding' variable. The ERP and Edge Function now both enforce the correct one-variable payload.
+{{2}} = Regarding text
 
-3. META DELIVERY STATE
-The function now returns Meta's initial message_status. The webhook records a held state when Meta holds a newly-approved template for assessment. If that happens after an incoming enquiry, it sends a direct acknowledgement immediately because the 24-hour reply window is already open.
+For automatic website/public enquiries:
+{{2}} = "your assisted living enquiry"
 
-DEPLOY THESE FILES
+WHAT THIS PACKAGE FIXES
 
-ERP:
-- Replace app.js only
+1. app.js
+   Manual "General Follow-up" again sends:
+   [customerName, regarding]
+
+2. whatsapp-send/index.ts
+   Removes the incorrect logic that truncated samara_general_followup
+   to one body parameter.
+
+3. whatsapp-webhook/index.ts
+   Automatic enquiry reply sends:
+   [customerName, "your assisted living enquiry"]
+
+DEPLOYMENT
+
+ERP hosting:
+- Replace app.js only.
 
 Supabase Edge Functions:
-- whatsapp-send/index.ts
-- whatsapp-webhook/index.ts
+- Redeploy whatsapp-send/index.ts
+- Redeploy whatsapp-webhook/index.ts
 
-Do NOT replace index.html or service-worker.js.
+No index.html or service-worker.js change is required.
 
-TEST IN THIS ORDER
-1. With 'Reply window open', type 'Test reply from Samara' in Direct message and press Send.
-2. If received, press General Follow-up > Send template.
-3. Then send 'Hi' from the phone and confirm the automatic reply.
+TEST ORDER
+
+1. Open WhatsApp Inbox.
+2. Select General Follow-up.
+3. Keep Regarding as: your assisted living enquiry
+4. Press Send template.
+5. Confirm it arrives on the phone.
+6. Then send "Hi" from the phone and confirm the automatic General Follow-up arrives.
+
+The previous #132000 parameter mismatch should be eliminated.

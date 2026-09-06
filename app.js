@@ -7227,7 +7227,7 @@ Caring with Compassion. Living with Dignity.`;
         const name=String(r?.template_name||'');
         if(name==='samara_admission_followup')return `Dear ${one},\nGreetings from Samara Assisted Living.\nThank you for contacting us regarding care and admission support for ${two}. Our team will be happy to understand your requirements and assist you further.\nPlease reply to this message to continue the conversation.\n\nThank you,\nSamara Assisted Living`;
         if(name==='samara_callback_request')return `Dear ${one},\nGreetings from Samara Assisted Living.\nWe tried to reach you regarding ${two}. Please reply to this message or let us know a convenient time for our team to contact you.\n\nThank you,\nSamara Assisted Living`;
-        if(name==='samara_general_followup')return `Dear ${one},\nGreetings from Samara Assisted Living.\nWe received your message regarding your assisted living enquiry.\nPlease reply to this message and our team will be happy to assist you.\n\nThank you,\nSamara Assisted Living`;
+        if(name==='samara_general_followup')return `Dear ${one},\nGreetings from Samara Assisted Living.\nWe received your message regarding ${two}.\nPlease reply to this message and our team will be happy to assist you.\n\nThank you,\nSamara Assisted Living`;
       }
       if(/^\[Audio \/ voice message received\]$/i.test(raw))return 'Voice message';
       if(/^\[Image received\]$/i.test(raw))return 'Photo';
@@ -7372,7 +7372,7 @@ Thank you.`;
       const name=templateName.trim();if(!name){setMessage('Enter the exact approved Meta template name.');return}
       const customerName=String(active.name||'').trim()||'Customer';
       const regarding=String(templateRegarding||'').trim()||'your assisted living enquiry';
-      const params=name==='samara_general_followup'?[customerName]:[customerName,regarding];
+      const params=[customerName,regarding];
       setBusy(true);setMessage('Sending approved WhatsApp template…');
       try{
         const result=await sendWhatsAppTemplate({to:active.phone,templateName:name,languageCode:templateLanguage||'en',bodyParams:params});
