@@ -1327,11 +1327,11 @@ function initSamaraInaugurationInvitation(){
 
   const ROLES = ['Admin','Manager','Nurse','Caregiver','Accounts','Kitchen','STD'];
 
-  const HR_DEPARTMENTS = ["Director's Office", "Nursing", "Caregiving", "Medical", "Physiotherapy & Rehabilitation", "Housekeeping", "Food & Kitchen", "Administration", "HR", "Operations", "Accounts & Finance", "Maintenance", "Security", "Transport", "Marketing & Outreach", "Other"];
-  const HR_DESIGNATIONS = {"Director's Office": ["Director", "Secretary to the Director (STD)"], "Nursing": ["Nurse Manager", "Nursing Supervisor", "Staff Nurse", "ANM"], "Caregiving": ["Senior Caregiver", "Caregiver", "Nursing Assistant"], "Medical": ["Duty Medical Officer – Part Time", "Visiting Doctor", "Medical Officer"], "Physiotherapy & Rehabilitation": ["Physiotherapist", "Rehabilitation Assistant"], "Housekeeping": ["Housekeeping Supervisor", "Housekeeping Staff", "Laundry Staff"], "Food & Kitchen": ["Dietician", "Cook", "Kitchen Assistant", "Food Service Assistant"], "Administration": ["Facility Administrator", "Manager", "Receptionist", "Administrative Assistant"], "HR": ["HR Manager", "HR Executive", "HR Assistant"], "Operations": ["Operations Manager", "Operations Executive", "Facility Coordinator"], "Accounts & Finance": ["Accountant", "Accounts Executive", "Accounts Assistant"], "Maintenance": ["Maintenance Supervisor", "Technician", "Electrician / Plumber"], "Security": ["Security Supervisor", "Security Guard"], "Transport": ["Driver", "Transport Coordinator"], "Marketing & Outreach": ["Marketing Executive", "Community Outreach Executive"], "Other": ["General Application", "Volunteer", "Other"]};
+  const HR_DEPARTMENTS = ["Nursing", "Caregiving", "Medical", "Physiotherapy & Rehabilitation", "Housekeeping", "Food & Kitchen", "Administration", "HR", "Operations", "Accounts & Finance", "Maintenance", "Security", "Transport", "Marketing & Outreach", "Other"];
+  const HR_DESIGNATIONS = {"Nursing": ["Nurse Manager", "Nursing Supervisor", "Staff Nurse", "ANM"], "Caregiving": ["Senior Caregiver", "Caregiver", "Nursing Assistant"], "Medical": ["Duty Medical Officer – Part Time", "Visiting Doctor", "Medical Officer"], "Physiotherapy & Rehabilitation": ["Physiotherapist", "Rehabilitation Assistant"], "Housekeeping": ["Housekeeping Supervisor", "Housekeeping Staff", "Laundry Staff"], "Food & Kitchen": ["Dietician", "Cook", "Kitchen Assistant", "Food Service Assistant"], "Administration": ["Facility Administrator", "Manager", "Receptionist", "Administrative Assistant"], "HR": ["HR Manager", "HR Executive", "HR Assistant"], "Operations": ["Operations Manager", "Operations Executive", "Facility Coordinator"], "Accounts & Finance": ["Accountant", "Accounts Executive", "Accounts Assistant"], "Maintenance": ["Maintenance Supervisor", "Technician", "Electrician / Plumber"], "Security": ["Security Supervisor", "Security Guard"], "Transport": ["Driver", "Transport Coordinator"], "Marketing & Outreach": ["Marketing Executive", "Community Outreach Executive"], "Other": ["General Application", "Volunteer", "Other"]};
   const HR_APPLICATION_STATUSES=['New','Under Review','Returned for Rectification','Shortlisted','Interview Scheduled','Selected','Rejected','On Hold','Converted to Employee','Closed'];
   const employeeDepartment=row=>String(row?.department||'').trim()||(
-    row?.role==='STD'?"Director's Office":row?.role==='Nurse'?'Nursing':row?.role==='Caregiver'?'Caregiving':row?.role==='Accounts'?'Accounts & Finance':row?.role==='Kitchen'?'Food & Kitchen':['Admin','Manager'].includes(row?.role)?'Administration':'Other'
+    row?.role==='Nurse'?'Nursing':row?.role==='Caregiver'?'Caregiving':row?.role==='Accounts'?'Accounts & Finance':row?.role==='Kitchen'?'Food & Kitchen':['Admin','Manager'].includes(row?.role)?'Administration':'Other'
   );
   // Samara's present full-access Administrators are management/system users, not HR employees.
   // Keep them available for ERP login and permissions, but exclude them from Employee dashboards/lists.
@@ -7538,18 +7538,16 @@ Thank you.`;
 
 
   function HRDashboard({profile,onNavigate}){
-    const [employees,setEmployees]=React.useState([]),[applications,setApplications]=React.useState([]),[waComms,setWaComms]=React.useState([]),[directorPositions,setDirectorPositions]=React.useState([]),[directorEdit,setDirectorEdit]=React.useState(null),[directorBusy,setDirectorBusy]=React.useState(false),[directorMsg,setDirectorMsg]=React.useState('');
+    const [employees,setEmployees]=React.useState([]),[applications,setApplications]=React.useState([]),[waComms,setWaComms]=React.useState([]);
     async function load(){
-      const [e,a,w,d]=await Promise.all([
-        client.from('profiles').select('id,auth_user_id,full_name,title,login_id,role,department,designation,is_active,active').order('full_name'),
+      const [e,a,w]=await Promise.all([
+        client.from('profiles').select('id,full_name,title,role,department,designation,is_active,active').order('full_name'),
         client.from('career_applications').select('*').order('created_at',{ascending:false}).limit(100),
-        client.from('hr_whatsapp_communications').select('*').order('created_at',{ascending:false}).limit(250),
-        client.from('director_office_positions').select('position_key,position_name,assigned_profile_id,assigned_at').order('sort_order')
+        client.from('hr_whatsapp_communications').select('*').order('created_at',{ascending:false}).limit(250)
       ]);
       if(!e.error)setEmployees(e.data||[]);
       if(!a.error)setApplications(a.data||[]);
       if(!w.error)setWaComms(w.data||[]);
-      if(!d.error)setDirectorPositions(d.data||[]);
     }
     React.useEffect(()=>{load();const ch=client.channel('hr-dashboard-live').on('postgres_changes',{event:'*',schema:'public',table:'career_applications'},load).on('postgres_changes',{event:'*',schema:'public',table:'profiles'},load).on('postgres_changes',{event:'*',schema:'public',table:'hr_whatsapp_communications'},load).subscribe();return()=>client.removeChannel(ch)},[]);
     const active=deduplicateEmployeeProfiles(employees.filter(x=>(x.is_active??x.active)!==false&&!isSamaraAdministratorAccount(x)));
@@ -7561,18 +7559,6 @@ Thank you.`;
     const selectedCount=applications.filter(x=>x.status==='Selected').length;
     const onHold=applications.filter(x=>x.status==='On Hold').length;
     const deptCount=name=>active.filter(x=>employeeDepartment(x)===name).length;
-    const directorHolder=position=>employees.find(x=>x.id===position?.assigned_profile_id)||null;
-    const directorCandidates=key=>employees.filter(x=>(x.is_active??x.active)!==false&&(key==='director'||!isSamaraAdministratorAccount(x))).sort((a,b)=>formalName(a).localeCompare(formalName(b)));
-    async function assignDirectorOfficePosition(positionKey,profileId){
-      if(profile.role!=='Admin')return setDirectorMsg('Only an Administrator can change Director’s Office assignments.');
-      setDirectorBusy(true);setDirectorMsg('');
-      try{
-        const {error}=await client.rpc('assign_director_office_position',{p_position_key:positionKey,p_profile_id:profileId||null});
-        if(error)throw error;
-        setDirectorEdit(null);setDirectorMsg('✓ Director’s Office assignment updated. Login details are preserved.');
-        await load();
-      }catch(error){setDirectorMsg(error.message||String(error))}finally{setDirectorBusy(false)}
-    }
     const nowLocal=new Date();
     const todayStart=new Date(nowLocal.getFullYear(),nowLocal.getMonth(),nowLocal.getDate());
     const tomorrowStart=new Date(nowLocal.getFullYear(),nowLocal.getMonth(),nowLocal.getDate()+1);
@@ -7599,21 +7585,6 @@ Thank you.`;
             h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('Employees')},'Employees'),
             h('button',{type:'button',className:'btn btn-primary',onClick:()=>onNavigate('Career Applications')},'Career Applications')
           )
-        ),
-        h('div',{className:'card panel',style:{marginBottom:'20px',padding:'18px',border:'1px solid #ead0de',background:'linear-gradient(145deg,#fff,#fff8fb)'}},
-          h('div',{className:'panel-head'},h('div',null,h('h3',null,'Director’s Office'),h('small',null,'Position-based assignments — change the person without changing the portal')),profile.role==='Admin'?h('span',{className:'badge'},'Admin controlled'):null),
-          directorMsg?h('div',{className:directorMsg.startsWith('✓')?'message success':'message'},directorMsg):null,
-          h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(250px,1fr))',gap:'12px'}},directorPositions.map(pos=>{const holder=directorHolder(pos);const editing=directorEdit===pos.position_key;return h('div',{key:pos.position_key,style:{border:'1px solid #ecd9e3',borderRadius:'16px',padding:'16px',background:'#fff'}},
-            h('small',{style:{fontWeight:900,color:'#9c185a',textTransform:'uppercase',letterSpacing:'.06em'}},pos.position_key==='std'?'STD':'DIRECTOR'),
-            h('h4',{style:{margin:'6px 0 8px',color:'#4e1432'}},pos.position_name),
-            h('strong',{style:{display:'block',fontSize:'17px',color:'#183d36'}},holder?formalName(holder):'Not assigned'),
-            holder?h('small',{style:{display:'block',marginTop:'4px',color:'#75616d'}},[holder.login_id,holder.department,holder.designation].filter(Boolean).join(' · ')):h('small',{style:{color:'#8a7680'}},'Select the current position holder'),
-            profile.role==='Admin'?h('div',{style:{marginTop:'12px'}},editing?h('div',{style:{display:'grid',gap:'8px'}},
-              h('select',{value:holder?.id||'',disabled:directorBusy,onChange:e=>assignDirectorOfficePosition(pos.position_key,e.target.value)},h('option',{value:''},'Unassigned'),directorCandidates(pos.position_key).map(x=>h('option',{key:x.id,value:x.id},`${formalName(x)}${x.login_id?` · ${x.login_id}`:''}`))),
-              h('button',{type:'button',className:'btn btn-secondary',disabled:directorBusy,onClick:()=>setDirectorEdit(null)},'Cancel')
-            ):h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setDirectorEdit(pos.position_key)},holder?'Change Assignment':'Assign')):null
-          )})),
-          h('p',{className:'small-note',style:{margin:'12px 0 0'}},'STD access is attached to the position, not to a person. When the STD changes, the previous employee’s role/department/designation are restored and the new STD keeps their existing Login ID and password.')
         ),
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(265px,1fr))',gap:'20px',marginBottom:'24px'}},metrics.map(([label,value,page,icon,note,action,accent,iconBg])=>
           h('button',{key:label,type:'button',onClick:()=>onNavigate(page),style:{position:'relative',overflow:'hidden',textAlign:'left',padding:'30px 26px 24px',border:'0',borderRadius:'24px',background:'linear-gradient(145deg,#ffffff 0%,#fffafd 100%)',minHeight:'205px',cursor:'pointer',boxShadow:'0 12px 26px rgba(93,16,57,.10)',outline:'1px solid rgba(234,208,222,.72)'}},
@@ -9106,8 +9077,8 @@ Thank you.`;
 
     const personnelFields=(state,setter,includeLogin=true)=>h(React.Fragment,null,
       selectField('Title / Salutation','title',state,setter,EMPLOYEE_TITLES),field('Employee Name','full_name',state,setter,true),field('Employee ID (auto-generated if blank)','employee_id',state,setter,false),
-      h('div',{className:'field'},h('label',null,'Department'),h('select',{value:state.department||'',required:true,onChange:e=>{const department=e.target.value;const choices=HR_DESIGNATIONS[department]||[];const defaultDesignation=choices[0]||'';const suggestedRole=department==='Nursing'?'Nurse':department==='Caregiving'?'Caregiver':department==='Accounts & Finance'?'Accounts':department==='Food & Kitchen'?'Kitchen':department==="Director's Office"&&defaultDesignation==='Secretary to the Director (STD)'?'STD':state.role;setter({...state,department,designation:defaultDesignation,role:suggestedRole})}},h('option',{value:''},'Select department'),HR_DEPARTMENTS.map(x=>h('option',{key:x,value:x},x)))),
-      h('div',{className:'field'},h('label',null,'Designation'),h('select',{value:state.designation||'',required:true,onChange:e=>{const designation=e.target.value;const role=state.department==="Director's Office"&&designation==='Secretary to the Director (STD)'?'STD':state.role;setter({...state,designation,role})}},h('option',{value:''},'Select designation'),(HR_DESIGNATIONS[state.department]||[]).map(x=>h('option',{key:x,value:x},x)))),
+      h('div',{className:'field'},h('label',null,'Department'),h('select',{value:state.department||'',required:true,onChange:e=>{const department=e.target.value;const choices=HR_DESIGNATIONS[department]||[];const defaultDesignation=choices[0]||'';const suggestedRole=department==='Nursing'?'Nurse':department==='Caregiving'?'Caregiver':department==='Accounts & Finance'?'Accounts':department==='Food & Kitchen'?'Kitchen':state.role;setter({...state,department,designation:defaultDesignation,role:suggestedRole})}},h('option',{value:''},'Select department'),HR_DEPARTMENTS.map(x=>h('option',{key:x,value:x},x)))),
+      h('div',{className:'field'},h('label',null,'Designation'),h('select',{value:state.designation||'',required:true,onChange:e=>setter({...state,designation:e.target.value})},h('option',{value:''},'Select designation'),(HR_DESIGNATIONS[state.department]||[]).map(x=>h('option',{key:x,value:x},x)))),
       selectField('ERP Access Role','role',state,setter,ROLES),
       h('div',{className:'field'},h('label',null,'Reporting Superior'),h('select',{value:state.reporting_superior_id||'',onChange:e=>setter({...state,reporting_superior_id:e.target.value})},h('option',{value:''},'Manager / Admin directly'),rows.filter(r=>r.id!==state.id&&!isSamaraAdministratorAccount(r)&&(r.is_active??r.active)!==false).sort((a,b)=>formalName(a).localeCompare(formalName(b))).map(r=>h('option',{key:r.id,value:r.id},`${formalName(r)} · ${r.designation||r.role}`)))),
       field('Father / Guardian Name','father_guardian_name',state,setter,false),field('Date of Birth','date_of_birth',state,setter,false,'date'),field('Date of Joining','date_of_joining',state,setter,false,'date'),selectField('Blood Group','blood_group',state,setter,BLOOD_GROUPS),
