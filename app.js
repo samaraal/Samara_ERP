@@ -5396,7 +5396,7 @@ Caring with Compassion. Living with Dignity.`;
     const alertEngine=useClinicalAlertEngine(profile,setPage);
     const topClinicalAlert=alertEngine.alerts[0]||null;
     const topClinicalAlertKey=topClinicalAlert?.key||topClinicalAlert?.id||topClinicalAlert?.source_id||'';
-    const clinicalPopupVisible=Boolean(topClinicalAlert)&&!(
+    const clinicalPopupVisible=profile?.role!=='STD'&&Boolean(topClinicalAlert)&&!(
       clinicalPopupSnooze.key===topClinicalAlertKey&&clinicalPopupSnooze.until>Date.now()
     );
     React.useEffect(()=>{
@@ -5789,7 +5789,7 @@ Caring with Compassion. Living with Dignity.`;
           h('button',{type:'button',className:'mobile-home-button','aria-label':'Go to dashboard',title:'Dashboard',onClick:()=>setPage(ROLE_HOME[profile.role]||allowed[0])},'⌂'),
           h('h2',null,displayNavLabel(page,profile.role)),
           h(GlobalSearch,{onNavigate:setPage,profile}),
-          h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
+          profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
           h('span',{className:'badge'},profile.role)
         ),
         h(MobileMenu,{page,setPage,allowed,profile}),
@@ -5893,7 +5893,7 @@ Caring with Compassion. Living with Dignity.`;
             }},'Open to Resolve')
           )
         ),
-        profile&&page!=='HR Dashboard'&&!alertEngine.soundUnlocked&&h('button',{type:'button',className:'sound-unlock-button',onClick:alertEngine.unlockSound},'🔊 Enable Alert Sound'),
+        profile&&profile.role!=='STD'&&page!=='HR Dashboard'&&!alertEngine.soundUnlocked&&h('button',{type:'button',className:'sound-unlock-button',onClick:alertEngine.unlockSound},'🔊 Enable Alert Sound'),
         h(MobileBottomNav,{page,setPage,allowed,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
         mobileDrawerOpen&&h(MobileNavigationDrawer,{profile,allowed,page,onNavigate:(next)=>{setPage(next);setMobileDrawerOpen(false)},onClose:()=>setMobileDrawerOpen(false)})
       )
