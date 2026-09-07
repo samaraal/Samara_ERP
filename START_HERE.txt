@@ -1,63 +1,86 @@
-SAMARA CARE ERP v2.10.31 — DIRECTOR'S OFFICE QUICK TASKS
+SAMARA CARE ERP v2.10.32 — DIRECTOR + STD VOICE ENTRY
 
 NEW
 ---
-A separate SHORT FORM for simple everyday Director's Office tasks.
+Director's Office forms now support voice filling for:
+- Assigned Director
+- STD
 
-Examples:
-- Visit someone
-- Buy / Purchase something
-- Attend a function
+BUTTONS
+-------
+🎤 Speak Tamil
+🎤 Speak English
+■ Stop
+
+HOW IT WORKS
+------------
+Speak naturally in Tamil, English or mixed Tamil-English.
+
+Example:
+"நாளைக்கு மாலை நான்கு மணிக்கு டாக்டர் ரவியை அப்போலோவில் சந்திக்க வேண்டும்."
+
+The ERP converts it to short/simple English and fills suitable fields.
+
+The system can identify:
+- Task
+- Appointment
+- Call / Callback
+- Follow-up
+- Visitor
+- Correspondence
+- Reminder
+
+For Quick Tasks it can identify:
+- Visit
+- Buy / Purchase
+- Attend Function
 - Trip / Travel
-- General task
+- General Task
 
-NEW BUTTON
-----------
-Director's Office -> + Quick Task
-
-The existing + New Item remains unchanged for detailed:
-Appointment / Call / Follow-up / Visitor / Correspondence / Reminder.
-
-QUICK TASK FORM — ONLY ESSENTIALS
----------------------------------
-1. Task type
-   - Visit
-   - Buy / Purchase
-   - Attend Function
-   - Trip / Travel
-   - General Task
-
-2. What to do?
-3. Person / Place (optional)
-4. Date & Time
-5. Priority
-6. Short Note (optional)
-
-Status is automatically Pending for a new task.
-When editing an existing task, Status is available.
-
-The Quick Task form does NOT ask for:
-- Mobile
-- Organisation
-- Follow-up due date
-- Director instruction
-- Needs Director Attention
-
-DASHBOARD
+IMPORTANT
 ---------
-A new Tasks box shows pending/open quick tasks.
-Task records can be filtered separately from appointments, calls, etc.
+VOICE ENTRY DOES NOT AUTO-SAVE.
+
+Workflow:
+Speak -> Recognise -> Translate / interpret -> Fill -> Check -> Save
+
+This is intentional so a speech-recognition error cannot be stored without review.
+
+ACCESS
+------
+Voice buttons are available only to:
+1. the profile assigned as Director in director_office_positions, and
+2. STD.
+
+A different Admin does not get Director voice access merely because the role is Admin.
 
 INSTALL
 -------
-1. Run in Supabase SQL Editor:
-   110_director_office_quick_tasks.sql
+1. If v2.10.31 Quick Tasks SQL was not already run:
+   Run 110_director_office_quick_tasks.sql
 
-2. Replace ERP files:
+2. Supabase Edge Functions:
+   Deploy:
+   supabase/functions/director-office-voice/index.ts
+   Function name: director-office-voice
+
+3. Supabase Edge Function Secrets:
+   Add:
+   OPENAI_API_KEY = <your OpenAI API key>
+
+   Keep JWT verification enabled.
+
+4. ERP:
+   Replace:
    app.js
    index.html
    service-worker.js
 
-3. Refresh once.
+5. Refresh/reopen the mobile app.
 
-NO EDGE FUNCTION CHANGE.
+MICROPHONE
+----------
+The first use will request microphone permission.
+Allow microphone access for Samara Care.
+
+NO NEW SQL IS NEEDED FOR VOICE ITSELF.
