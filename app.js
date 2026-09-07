@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.19';
+  const APP_VERSION = '2.10.20';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1383,6 +1383,7 @@ function initSamaraInaugurationInvitation(){
     { title:'OVERVIEW', items:['Dashboard','Notifications'] },
     { title:'ADMIN', items:['Rooms','Care Packages','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
     { title:'HR', items:['HR Dashboard','Employees','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
+    { title:"DIRECTOR'S OFFICE", items:["Director's Office"] },
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
@@ -1394,14 +1395,14 @@ function initSamaraInaugurationInvitation(){
   const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
   const ROLE_NAV={
     Admin:ALL_NAV.filter(item=>!NURSING_ENTRY_NAV.includes(item)),
-    Manager:ALL_NAV.filter(item=>!['System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds',...NURSING_ENTRY_NAV].includes(item)),
+    Manager:ALL_NAV.filter(item=>!["Director's Office",'System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds',...NURSING_ENTRY_NAV].includes(item)),
     Nurse:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My Leave & Permission','Leave Approvals','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Leave Approvals','Notifications'],
     Accounts:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Leave Approvals','Notifications'],
     Kitchen:['Notifications','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission','Leave Approvals'],
-    STD:['My Leave & Permission']
+    STD:["Director's Office",'My Leave & Permission']
   };
-  const ROLE_HOME={Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet',STD:'My Leave & Permission'};
+  const ROLE_HOME={Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet',STD:"Director's Office"};
   const CLINICAL_ROLES=['Nurse','Caregiver'];
   const ROLE_LABELS={
     'Clinical Dashboard':'Nursing Dashboard',
@@ -1419,7 +1420,8 @@ function initSamaraInaugurationInvitation(){
     'Refunds':'Refunds',
     'Accounts Reports':'Accounts Reports',
     'Mail Dashboard':'Mail',
-    'Notifications':'Alerts'
+    'Notifications':'Alerts',
+    "Director's Office":"Director's Office"
   };
   const displayNavLabel=(item,role)=>CLINICAL_ROLES.includes(role)?(ROLE_LABELS[item]||item):item;
   const sectionsFor = (allowed,role) => {
@@ -5796,6 +5798,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Dashboard'&&h(Dashboard,{profile,onNavigate:setPage,alertEngine}),
           page==='HR Dashboard'&&h(HRDashboard,{profile,onNavigate:setPage}),
           page==='Employees'&&h(Employees,{profile,onNavigate:setPage}),
+          page==="Director's Office"&&h(DirectorOfficeDashboard,{profile}),
           page==='My Leave & Permission'&&h(LeavePermission,{profile,mode:'mine'}),
           page==='Leave Approvals'&&h(LeavePermission,{profile,mode:'approvals'}),
           page==='Career Applications'&&h(CareerApplications,{profile,onNavigate:setPage}),
@@ -8097,6 +8100,234 @@ Thank you.`;
     return h(Section,{title:'Interviews',subtitle:'Scheduled recruitment interviews and candidate status'},
       h('div',{className:'panel-head'},h('div',null),h('button',{className:'btn btn-primary',onClick:()=>onNavigate('Career Applications')},'Manage Applications')),
       h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Applicant','Department / Designation','Interview','Mode','Venue / Link','Status'].map(x=>h('th',{key:x},x)))),h('tbody',null,rows.map(r=>h('tr',{key:r.id},h('td',null,r.applicant_name),h('td',null,`${r.department} · ${r.designation}`),h('td',null,fmt(r.interview_at)),h('td',null,r.interview_mode||'—'),h('td',null,r.interview_venue||'—'),h('td',null,h('span',{className:'badge'},r.status)))),rows.length===0?h('tr',null,h('td',{colSpan:6,className:'empty'},'No interviews scheduled.')):null)))
+    );
+  }
+
+
+  function DirectorOfficeDashboard({profile}){
+    const TYPES=['Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder'];
+    const PRIORITIES=['Normal','Important','Urgent'];
+    const STATUSES=['Pending','In Progress','Completed','Cancelled'];
+    const blank=()=>({
+      item_type:'Follow-up',title:'',contact_name:'',contact_mobile:'',organisation:'',
+      scheduled_at:'',due_date:'',priority:'Normal',status:'Pending',details:'',director_note:''
+    });
+    const [rows,setRows]=React.useState([]);
+    const [loading,setLoading]=React.useState(true);
+    const [message,setMessage]=React.useState('');
+    const [filter,setFilter]=React.useState('Open');
+    const [showForm,setShowForm]=React.useState(false);
+    const [editingId,setEditingId]=React.useState(null);
+    const [form,setForm]=React.useState(blank());
+    const [saving,setSaving]=React.useState(false);
+
+    const canUse=['Admin','STD'].includes(profile?.role);
+
+    function localInputValue(value){
+      if(!value)return '';
+      const d=new Date(value);
+      if(Number.isNaN(d.getTime()))return '';
+      const pad=n=>String(n).padStart(2,'0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    function prettyDateTime(value){
+      if(!value)return '—';
+      const d=new Date(value);
+      if(Number.isNaN(d.getTime()))return value;
+      return d.toLocaleString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
+    }
+    function prettyDate(value){
+      if(!value)return '—';
+      const d=new Date(`${value}T00:00:00`);
+      if(Number.isNaN(d.getTime()))return value;
+      return d.toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'});
+    }
+    function isOpen(r){return !['Completed','Cancelled'].includes(r.status)}
+    function isToday(value){
+      if(!value)return false;
+      const d=new Date(value),n=new Date();
+      return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();
+    }
+
+    async function load(){
+      setLoading(true);setMessage('');
+      const {data,error}=await client.from('director_office_items').select('*').order('created_at',{ascending:false}).limit(500);
+      if(error){
+        setRows([]);
+        setMessage(error.message?.includes('director_office_items')
+          ?'Director’s Office database setup is pending. Please run SQL file 105_director_office_workspace.sql once.'
+          :`Unable to load Director’s Office: ${error.message||error}`);
+      }else setRows(data||[]);
+      setLoading(false);
+    }
+    React.useEffect(()=>{
+      if(!canUse){setLoading(false);return}
+      load();
+      const ch=client.channel('director-office-live')
+        .on('postgres_changes',{event:'*',schema:'public',table:'director_office_items'},load)
+        .subscribe();
+      return()=>client.removeChannel(ch);
+    },[]);
+
+    function openNew(type='Follow-up'){
+      setEditingId(null);setForm({...blank(),item_type:type});setMessage('');setShowForm(true);
+    }
+    function editRow(r){
+      setEditingId(r.id);
+      setForm({
+        item_type:r.item_type||'Follow-up',
+        title:r.title||'',
+        contact_name:r.contact_name||'',
+        contact_mobile:r.contact_mobile||'',
+        organisation:r.organisation||'',
+        scheduled_at:localInputValue(r.scheduled_at),
+        due_date:r.due_date||'',
+        priority:r.priority||'Normal',
+        status:r.status||'Pending',
+        details:r.details||'',
+        director_note:r.director_note||''
+      });
+      setShowForm(true);
+    }
+    async function save(e){
+      e.preventDefault();
+      if(!form.title.trim())return setMessage('Please enter the subject / purpose.');
+      setSaving(true);setMessage('');
+      const payload={
+        item_type:form.item_type,
+        title:form.title.trim(),
+        contact_name:form.contact_name.trim()||null,
+        contact_mobile:form.contact_mobile.trim()||null,
+        organisation:form.organisation.trim()||null,
+        scheduled_at:form.scheduled_at?new Date(form.scheduled_at).toISOString():null,
+        due_date:form.due_date||null,
+        priority:form.priority,
+        status:form.status,
+        details:form.details.trim()||null,
+        director_note:form.director_note.trim()||null,
+        updated_at:new Date().toISOString()
+      };
+      let res;
+      if(editingId)res=await client.from('director_office_items').update(payload).eq('id',editingId);
+      else res=await client.from('director_office_items').insert(payload);
+      if(res.error)setMessage(res.error.message||'Unable to save.');
+      else{
+        setMessage(editingId?'Item updated successfully.':'Item added successfully.');
+        setShowForm(false);setEditingId(null);setForm(blank());await load();
+      }
+      setSaving(false);
+    }
+    async function markComplete(r){
+      const {error}=await client.from('director_office_items').update({status:'Completed',updated_at:new Date().toISOString()}).eq('id',r.id);
+      if(error)setMessage(error.message||'Unable to complete item');else await load();
+    }
+
+    if(!canUse)return h(Section,{title:"Director's Office",subtitle:'Restricted workspace'},h('div',{className:'empty'},'This workspace is available only to the Director / Administrator and Secretary to the Director.'));
+
+    const openRows=rows.filter(isOpen);
+    const todayAppointments=openRows.filter(r=>r.item_type==='Appointment'&&isToday(r.scheduled_at));
+    const calls=openRows.filter(r=>r.item_type==='Call / Callback');
+    const followups=openRows.filter(r=>r.item_type==='Follow-up');
+    const visitors=openRows.filter(r=>r.item_type==='Visitor');
+    const correspondence=openRows.filter(r=>r.item_type==='Correspondence');
+    const reminders=openRows.filter(r=>r.item_type==='Reminder');
+    const urgent=openRows.filter(r=>r.priority==='Urgent');
+
+    const filtered=rows.filter(r=>{
+      if(filter==='Open')return isOpen(r);
+      if(filter==='Completed')return r.status==='Completed';
+      if(filter==='Today')return isToday(r.scheduled_at)||(r.due_date&&r.due_date===todayISOIndia());
+      return r.item_type===filter;
+    });
+
+    const card=(label,value,filterValue,sub)=>h('button',{
+      type:'button',
+      onClick:()=>setFilter(filterValue),
+      style:{textAlign:'left',border:'1px solid #ead7e0',borderRadius:'16px',background:'#fff',padding:'14px 16px',cursor:'pointer',minHeight:'92px'}
+    },
+      h('div',{style:{fontSize:'28px',fontWeight:900,color:'#7f174a'}},value),
+      h('div',{style:{fontWeight:850,color:'#351b29',marginTop:'2px'}},label),
+      h('small',{style:{color:'#846d79'}},sub||'Tap to view')
+    );
+
+    const itemCard=r=>h('div',{key:r.id,style:{border:'1px solid #ead7e0',borderRadius:'15px',background:'#fff',padding:'13px 14px',display:'grid',gap:'8px'}},
+      h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'flex-start',flexWrap:'wrap'}},
+        h('div',null,
+          h('strong',{style:{fontSize:'15px',color:'#351b29'}},r.title),
+          h('div',{style:{fontSize:'12px',color:'#806a76',marginTop:'3px'}},`${r.item_type} · ${r.priority||'Normal'}`)
+        ),
+        h('span',{className:'badge'},r.status||'Pending')
+      ),
+      (r.contact_name||r.organisation||r.contact_mobile)?h('div',{style:{fontSize:'13px',color:'#4e4248'}},
+        [r.contact_name,r.organisation,r.contact_mobile].filter(Boolean).join(' · ')
+      ):null,
+      r.scheduled_at?h('div',{style:{fontSize:'13px'}},h('b',null,'Schedule: '),prettyDateTime(r.scheduled_at)):null,
+      r.due_date?h('div',{style:{fontSize:'13px'}},h('b',null,'Due: '),prettyDate(r.due_date)):null,
+      r.details?h('div',{style:{fontSize:'13px',lineHeight:'1.45',whiteSpace:'pre-wrap'}},r.details):null,
+      r.director_note?h('div',{style:{fontSize:'13px',lineHeight:'1.45',background:'#fff7e6',borderRadius:'10px',padding:'8px 10px'}},h('b',null,'Director note: '),r.director_note):null,
+      h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
+        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>editRow(r)},'Open / Edit'),
+        isOpen(r)?h('button',{type:'button',className:'btn btn-primary',onClick:()=>markComplete(r)},'✓ Complete'):null
+      )
+    );
+
+    const formModal=showForm?h('div',{className:'modal-backdrop'},
+      h('form',{className:'card modal',onSubmit:save,style:{maxWidth:'760px'}},
+        h('div',{className:'panel-head'},
+          h('div',null,h('h3',null,editingId?'Update Director’s Office Item':'New Director’s Office Item'),h('small',null,'Keep only the details needed for Director follow-up')),
+          h('button',{type:'button',className:'close',onClick:()=>setShowForm(false)},'×')
+        ),
+        h('div',{className:'modal-grid'},
+          h('div',{className:'field'},h('label',null,'Type'),h('select',{value:form.item_type,onChange:e=>setForm({...form,item_type:e.target.value})},TYPES.map(x=>h('option',{key:x},x)))),
+          h('div',{className:'field'},h('label',null,'Priority'),h('select',{value:form.priority,onChange:e=>setForm({...form,priority:e.target.value})},PRIORITIES.map(x=>h('option',{key:x},x)))),
+          h('div',{className:'field span-2'},h('label',null,'Subject / Purpose *'),h('input',{required:true,value:form.title,onChange:e=>setForm({...form,title:e.target.value}),placeholder:'Example: Call Dr. ___ regarding referral'})),
+          h('div',{className:'field'},h('label',null,'Person / Visitor'),h('input',{value:form.contact_name,onChange:e=>setForm({...form,contact_name:e.target.value})})),
+          h('div',{className:'field'},h('label',null,'Mobile'),h('input',{value:form.contact_mobile,onChange:e=>setForm({...form,contact_mobile:e.target.value}),inputMode:'tel'})),
+          h('div',{className:'field span-2'},h('label',null,'Organisation'),h('input',{value:form.organisation,onChange:e=>setForm({...form,organisation:e.target.value})})),
+          h('div',{className:'field'},h('label',null,'Appointment / Call Time'),h('input',{type:'datetime-local',value:form.scheduled_at,onChange:e=>setForm({...form,scheduled_at:e.target.value})})),
+          h('div',{className:'field'},h('label',null,'Follow-up / Due Date'),h('input',{type:'date',value:form.due_date,onChange:e=>setForm({...form,due_date:e.target.value})})),
+          h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},STATUSES.map(x=>h('option',{key:x},x)))),
+          h('div',{className:'field span-2'},h('label',null,'Details'),h('textarea',{rows:3,value:form.details,onChange:e=>setForm({...form,details:e.target.value}),placeholder:'Short notes / action required'})),
+          h('div',{className:'field span-2'},h('label',null,'Director Note / Instruction'),h('textarea',{rows:2,value:form.director_note,onChange:e=>setForm({...form,director_note:e.target.value}),placeholder:'Optional instruction or decision'}))
+        ),
+        h('div',{className:'modal-actions'},
+          h('button',{type:'button',className:'btn btn-secondary',disabled:saving,onClick:()=>setShowForm(false)},'Cancel'),
+          h('button',{type:'submit',className:'btn btn-primary',disabled:saving},saving?'Saving…':'Save')
+        )
+      )
+    ):null;
+
+    return h(React.Fragment,null,
+      h(Section,{title:"Director's Office",subtitle:'Compact executive assistance workspace',actions:h('button',{className:'btn btn-primary',onClick:()=>openNew()},'＋ New Item')},
+        message?h('div',{className:'message',style:{marginBottom:'12px'}},message):null,
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(145px,1fr))',gap:'10px'}},
+          card('Appointments Today',todayAppointments.length,'Today','Today’s scheduled appointments'),
+          card('Calls / Callbacks',calls.length,'Call / Callback','Pending calls'),
+          card('Follow-ups',followups.length,'Follow-up','Pending actions'),
+          card('Visitors',visitors.length,'Visitor','Expected / pending'),
+          card('Correspondence',correspondence.length,'Correspondence','Letters & communications'),
+          card('Reminders',reminders.length,'Reminder','Upcoming reminders')
+        ),
+        urgent.length?h('div',{style:{marginTop:'12px',padding:'10px 12px',borderRadius:'12px',background:'#fff3f3',border:'1px solid #efc2c2',fontWeight:800,color:'#8d1b2c'}},`⚠ ${urgent.length} urgent item${urgent.length===1?'':'s'} pending`):null
+      ),
+      h(Section,{title:'Director Follow-up Queue',subtitle:`${filtered.length} item${filtered.length===1?'':'s'} · ${filter}`,actions:
+        h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
+          ...['Open','Today','Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder','Completed'].map(x=>
+            h('button',{type:'button',key:x,className:filter===x?'btn btn-primary':'btn btn-secondary',onClick:()=>setFilter(x)},x)
+          )
+        )
+      },
+        loading?h('div',{className:'empty'},'Loading Director’s Office…'):
+        h('div',{style:{display:'grid',gap:'10px'}},...filtered.map(itemCard),
+          filtered.length===0?h('div',{className:'empty'},'No items in this view.'):null
+        )
+      ),
+      h(Section,{title:'Quick Add',subtitle:'Common Secretary actions'},
+        h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
+          ...TYPES.map(x=>h('button',{type:'button',key:x,className:'btn btn-secondary',onClick:()=>openNew(x)},`＋ ${x}`))
+        )
+      ),
+      formModal
     );
   }
 
