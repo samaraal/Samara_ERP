@@ -1,0 +1,33 @@
+SAMARA ERP v2.10.40 — DIRECTOR'S OFFICE iPHONE LAYOUT FIX
+
+Problem
+-------
+On iPhone the Director's Office dashboard was wider than the screen.
+The Quick Task / New Item area and right-hand dashboard cards could extend
+outside the visible viewport.
+
+Fix
+---
+- Director's Office header now stays within the phone width.
+- Quick Task and New Item buttons resize/wrap safely.
+- Dashboard statistics use two true flexible columns on mobile.
+- Communication cards use one full-width column on mobile.
+- Long text wraps instead of forcing horizontal page width.
+- No change to Voice Entry or OpenAI processing.
+
+INSTALL
+-------
+Replace only:
+1. app.js
+2. index.html
+3. service-worker.js
+
+Version: 2.10.40
+
+NO SQL.
+NO EDGE FUNCTION CHANGE.
+NO API KEY CHANGE.
+
+After upload on iPhone:
+- Close and reopen the Samara PWA.
+- If old layout persists: App Help -> Repair App, then reopen.

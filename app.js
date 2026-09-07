@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.39';
+  const APP_VERSION = '2.10.40';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -9570,13 +9570,114 @@ Thank you.`;
       )
     ):null;
 
-    return h(React.Fragment,null,
+    return h('div',{className:'director-office-page'},
+      h('style',null,`
+        .director-office-page{
+          width:100%;
+          max-width:100%;
+          min-width:0;
+          box-sizing:border-box;
+          overflow-x:hidden;
+        }
+        .director-office-page > .card.panel{
+          width:100%;
+          max-width:100%;
+          min-width:0;
+          box-sizing:border-box;
+        }
+        .director-office-page .director-office-stat-grid,
+        .director-office-page .director-office-comm-grid{
+          width:100%;
+          max-width:100%;
+          min-width:0;
+          box-sizing:border-box;
+        }
+        .director-office-page .director-office-stat-grid > *,
+        .director-office-page .director-office-comm-grid > *{
+          min-width:0;
+          max-width:100%;
+          box-sizing:border-box;
+        }
+
+        @media(max-width:700px){
+          .director-office-page{
+            width:100%!important;
+            max-width:100%!important;
+            min-width:0!important;
+            overflow-x:hidden!important;
+          }
+
+          /* Header: keep title and Quick Task/New Item fully inside iPhone width. */
+          .director-office-page > .card.panel:first-of-type > .panel-head{
+            display:grid!important;
+            grid-template-columns:minmax(0,1fr)!important;
+            gap:12px!important;
+            width:100%!important;
+            max-width:100%!important;
+            min-width:0!important;
+          }
+          .director-office-page > .card.panel:first-of-type > .panel-head > div:first-child{
+            min-width:0!important;
+            max-width:100%!important;
+          }
+          .director-office-page > .card.panel:first-of-type > .panel-head > .actions{
+            width:100%!important;
+            max-width:100%!important;
+            min-width:0!important;
+            margin-top:0!important;
+            display:grid!important;
+            grid-template-columns:repeat(2,minmax(0,1fr))!important;
+            gap:8px!important;
+          }
+          .director-office-page > .card.panel:first-of-type > .panel-head > .actions > .btn{
+            width:100%!important;
+            min-width:0!important;
+            max-width:100%!important;
+            margin:0!important;
+            padding-left:10px!important;
+            padding-right:10px!important;
+            white-space:normal!important;
+          }
+
+          /* Dashboard cards: exactly two compact columns with no horizontal spill. */
+          .director-office-page .director-office-stat-grid{
+            grid-template-columns:repeat(2,minmax(0,1fr))!important;
+            gap:10px!important;
+          }
+          .director-office-page .director-office-comm-grid{
+            grid-template-columns:1fr!important;
+            gap:10px!important;
+          }
+
+          .director-office-page .director-office-stat-grid button,
+          .director-office-page .director-office-comm-grid button{
+            width:100%!important;
+            max-width:100%!important;
+            min-width:0!important;
+            overflow:hidden!important;
+          }
+
+          /* Long labels must wrap inside the card rather than widen the page. */
+          .director-office-page button,
+          .director-office-page h3,
+          .director-office-page small,
+          .director-office-page div{
+            overflow-wrap:anywhere;
+          }
+        }
+
+        @media(max-width:390px){
+          .director-office-page > .card.panel:first-of-type > .panel-head > .actions{
+            grid-template-columns:1fr!important;
+          }
+        }
+      `),
       h(Section,{title:"Director's Office",subtitle:'Compact executive assistance workspace',actions:h('div',{className:'actions'},
         h('button',{className:'btn btn-secondary',onClick:()=>openNew('Task')},'＋ Quick Task'),
         h('button',{className:'btn btn-primary',onClick:()=>openNew()},'＋ New Item')
       )},
         message?h('div',{className:'message',style:{marginBottom:'12px'}},message):null,
-        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(145px,1fr))',gap:'10px'}},
+        h('div',{className:'director-office-stat-grid',style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(145px,1fr))',gap:'10px'}},
           card('Tasks',tasks.length,'Task','Visits, purchases, functions & trips'),
           card('Appointments Today',todayAppointments.length,'Today','Today’s scheduled appointments'),
           card('Calls / Callbacks',calls.length,'Call / Callback','Pending calls'),
@@ -9585,7 +9686,7 @@ Thank you.`;
           card('Correspondence',correspondence.length,'Correspondence','Letters & communications'),
           card('Reminders',reminders.length,'Reminder','Upcoming reminders')
         ),
-        h('div',{style:{marginTop:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:'10px'}},
+        h('div',{className:'director-office-comm-grid',style:{marginTop:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:'10px'}},
           commCard('WhatsApp Enquiries',waUnread,'◉','Attend incoming public enquiries','WhatsApp Inbox'),
           h('button',{type:'button',onClick:()=>openNew('Call / Callback'),style:{
               textAlign:'left',
