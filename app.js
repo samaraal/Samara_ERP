@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.24';
+  const APP_VERSION = '2.10.25';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -20543,8 +20543,20 @@ Please access the Samara Family Portal for detailed account information.`;
     });
     const [form,setForm]=React.useState(fresh());
     const [filter,setFilter]=React.useState({patient_id:'',status:'All',category:'All'});
+    const [quickView,setQuickView]=React.useState('All');
 
     const notify=(type,text)=>{showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);setToast({type,text});setTimeout(()=>setToast(null),4500)};
+    function openChargeView(view){
+      setQuickView(view);
+      if(view==='Pending')setFilter(current=>({...current,status:'Pending'}));
+      else if(view==='Approved')setFilter(current=>({...current,status:'All'}));
+      else if(view==='Today')setFilter(current=>({...current,status:'All'}));
+      else setFilter(current=>({...current,status:'All'}));
+      setTimeout(()=>{
+        const node=document.getElementById('bill-charge-register');
+        if(node)node.scrollIntoView({behavior:'smooth',block:'start'});
+      },60);
+    }
     const pFor=id=>patients.find(p=>p.id===id)||{};
     const pLabel=id=>{const p=pFor(id);return p.id?`${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}-${p.bed_no||'—'}`:'—'};
     const money=v=>v!==null&&v!==undefined&&v!==''?`₹${Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'—';
@@ -20763,32 +20775,67 @@ Please access the Samara Family Portal for detailed account information.`;
     const filtered=rows.filter(r=>
       (!filter.patient_id||r.patient_id===filter.patient_id)&&
       (filter.status==='All'||(r.approval_status||'Pending')===filter.status)&&
-      (filter.category==='All'||r.category===filter.category)
+      (filter.category==='All'||r.category===filter.category)&&
+      (quickView!=='Today'||r.charge_date===todayISOIndia())&&
+      (quickView!=='Approved'||['Approved','Partially Approved'].includes(r.approval_status))
     );
     const pending=rows.filter(r=>(r.approval_status||'Pending')==='Pending').length;
     const approved=rows.filter(r=>['Approved','Partially Approved'].includes(r.approval_status));
+    // IMPORTANT: Approved Value must reflect only the amount actually approved
+    // and posted. Never fall back to requested_amount, because older pending /
+    // legacy records can otherwise inflate the summary.
+    const approvedValue=approved.reduce((sum,row)=>{
+      const value=row.approved_amount!==null&&row.approved_amount!==undefined
+        ?Number(row.approved_amount)
+        :row.final_amount!==null&&row.final_amount!==undefined
+          ?Number(row.final_amount)
+          :0;
+      return sum+(Number.isFinite(value)?value:0);
+    },0);
+
+    const navCard=(label,value,view,subtitle)=>h('button',{
+      type:'button',
+      className:'card stat',
+      onClick:()=>openChargeView(view),
+      title:`Open ${label}`,
+      style:{
+        textAlign:'left',
+        cursor:'pointer',
+        width:'100%',
+        border:'1px solid #e8c3d2',
+        background:quickView===view?'linear-gradient(135deg,#f9dce8,#fff7fa)':'linear-gradient(145deg,#fffafd,#fdf1f6)',
+        boxShadow:quickView===view?'0 8px 20px rgba(166,16,78,.12)':'0 4px 12px rgba(109,24,61,.05)'
+      }
+    },
+      h('span',null,label),
+      h('strong',null,value),
+      h('small',{style:{display:'block',marginTop:'4px',color:'#8b6b79'}},subtitle||'Click to view details')
+    );
 
     const summary=h('div',{className:'grid stats'},
-      h('div',{className:'card stat'},h('span',null,'Today’s Entries'),h('strong',null,rows.filter(r=>r.charge_date===todayISOIndia()).length)),
-      h('div',{className:'card stat'},h('span',null,'Pending Approval'),h('strong',null,pending)),
-      h('div',{className:'card stat'},h('span',null,'Approved'),h('strong',null,approved.length)),
-      h('div',{className:'card stat'},h('span',null,'Approved Value'),h('strong',null,money(approved.reduce((s,r)=>s+Number(r.final_amount||r.requested_amount||0),0))))
+      navCard('Today’s Entries',rows.filter(r=>r.charge_date===todayISOIndia()).length,'Today','Click to show today’s charges'),
+      navCard('Pending Approval',pending,'Pending','Click to show pending approvals'),
+      navCard('Approved',approved.length,'Approved','Click to show approved / partially approved'),
+      navCard('Approved Value',money(approvedValue),'Approved','Actual approved amount only')
     );
 
     const register=h(LogTable,{
       title:`Bill & Charge Requests (${filtered.length})`,
-      heads:['Date','Patient','Category','Service','Provider','Qty','Request Amount','Approved Amount','Decision','Decision By','Decision Time','Remarks','Action'],
+      heads:['Date','Patient','Category','Service','Qty','Decision','Action','Request Amount','Approved Amount','Provider','Decision By','Decision Time','Remarks'],
       rows:filtered.map(r=>[
         formatDateIN(r.charge_date),pLabel(r.patient_id),r.category,r.service_name||r.description,
-        r.service_provider||r.hospital_name||r.laboratory_name||'—',
-        `${r.quantity||1} ${r.unit||''}`,profile?.role==='Nurse'?'Hidden':money(r.requested_amount||r.estimated_amount),profile?.role==='Nurse'?'Hidden':money(r.approved_amount??r.final_amount),
+        `${r.quantity||1} ${r.unit||''}`,
         h('span',{className:'badge'},r.approval_status||'Pending'),
-        r.decision_by_name||'—',r.decision_at?fmt(r.decision_at):'—',r.decision_remarks||'—',
-        h('div',{className:'employee-actions'},
-          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-primary',onClick:()=>decide(r,'Approved')},'Approve'),
-          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-secondary',onClick:()=>decide(r,'Partially Approved')},'Partial'),
-          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-danger',onClick:()=>decide(r,'Rejected')},'Reject')
-        )
+        h('div',{className:'employee-actions',style:{display:'flex',gap:'6px',flexWrap:'wrap',minWidth:canApprove?'235px':'80px'}},
+          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>decide(r,'Approved')},'Approve'),
+          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>decide(r,'Partially Approved')},'Partial'),
+          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-danger',disabled:busy,onClick:()=>decide(r,'Rejected')},'Reject'),
+          !canApprove&&h('span',{style:{color:'#8b7780'}},'—')
+        ),
+        profile?.role==='Nurse'?'Hidden':money(r.requested_amount||r.estimated_amount),
+        profile?.role==='Nurse'?'Hidden':money(r.approved_amount??r.final_amount),
+        r.service_provider||r.hospital_name||r.laboratory_name||'—',
+        r.decision_by_name||'—',r.decision_at?fmt(r.decision_at):'—',r.decision_remarks||r.approval_remarks||'—'
       ])
     });
 
@@ -20927,11 +20974,17 @@ Please access the Samara Family Portal for detailed account information.`;
       h(Section,{title:'Bills & Charges Register',subtitle:'Doctor, nursing, physiotherapy, laboratory, hospital, transport and other expenses'},
         h('div',{className:'clinical-charge-filters'},
           patientSelect(patients,filter.patient_id,v=>setFilter({...filter,patient_id:v})),
-          miniSelect('Status',filter.status,['All','Pending','Approved','Partially Approved','Rejected'],v=>setFilter({...filter,status:v})),
-          miniSelect('Category',filter.category,['All',...Object.keys(categories)],v=>setFilter({...filter,category:v}))
+          miniSelect('Status',filter.status,['All','Pending','Approved','Partially Approved','Rejected'],v=>{setQuickView('All');setFilter({...filter,status:v})}),
+          miniSelect('Category',filter.category,['All',...Object.keys(categories)],v=>{setQuickView('All');setFilter({...filter,category:v})})
         )
       ),
-      register,
+      h('div',{id:'bill-charge-register',style:{scrollMarginTop:'90px'}},
+        quickView!=='All'&&h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',margin:'0 0 10px',padding:'9px 12px',borderRadius:'12px',background:'#f9e7ef',border:'1px solid #e8bfd0'}},
+          h('strong',{style:{color:'#801747'}},`Showing: ${quickView}`),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setQuickView('All');setFilter(current=>({...current,status:'All'}))}},'Show All')
+        ),
+        register
+      ),
       diagTable,
       modal,
       toast&&h('div',{className:`samara-toast ${toast.type}`},

@@ -1,72 +1,74 @@
-SAMARA CARE ERP v2.10.24 — DIRECTOR ↔ STD INTERCONNECT
+SAMARA CARE ERP v2.10.25 — CHARGE APPROVAL + NAVIGATION + APPROVED VALUE FIX
 
-DESIGN
-------
-The Secretary keeps the operational Director's Office workspace.
-The assigned Director keeps the normal Admin dashboard.
+FIXES
+-----
+1. APPROVED VALUE
+The previous dashboard calculation used:
+  final_amount OR requested_amount
 
-Only ONE additional Director's Office box is added to the Director's normal dashboard.
+That could incorrectly count requested amounts from old/legacy rows when no
+actual approved amount existed.
 
-DIRECTOR DASHBOARD BOX
-----------------------
-Shows:
-- Awaiting My Instruction
-- Calls to Return
-- Appointments Today
-- Urgent Follow-ups
+Now Approved Value uses ONLY:
+  approved_amount
+or, for older genuinely approved records:
+  final_amount
 
-Clicking the box opens the SAME Director's Office records used by STD.
+It never falls back to requested_amount.
 
-SHARED WORKFLOW
----------------
-STD:
-1. Receives / records enquiry, call, appointment or correspondence.
-2. Handles routine matters directly.
-3. Ticks "Needs Director Attention" only when the Director must decide or instruct.
+Therefore the box represents the actual amount approved / posted.
 
-Director:
-1. Sees those items in the normal Dashboard box.
-2. Opens Director's Office.
-3. Can View / Add Instruction.
-4. Can mark "Director Responded".
-5. Can mark Complete.
-6. Can also create a New Item when required.
+2. APPROVAL BUTTON VISIBILITY
+For Accounts login, Approve / Partial / Reject are moved near the LEFT side of
+the register, immediately after Decision.
 
-There is one source of truth. Updates by STD and Director are immediately shared.
+Accounts no longer needs to scroll far right across the long table to find the
+Action column.
 
-IMPORTANT
----------
-The Director box is NOT shown merely because someone is an Admin.
-It is shown only to the profile currently assigned as:
-  director_office_positions.position_key = 'director'
+The financial approval rule itself remains unchanged:
+  Accounts only.
 
-Therefore the system remains transferable if the Director changes in future.
+3. DASHBOARD BOXES ARE NAVIGATION BOXES
+All four summary boxes are clickable:
+
+- Today's Entries
+  -> shows today's charge requests
+
+- Pending Approval
+  -> shows Pending requests only
+
+- Approved
+  -> shows Approved + Partially Approved requests
+
+- Approved Value
+  -> opens the same approved-detail view
+
+Clicking a box scrolls directly to the Bill & Charge Requests register.
+
+A "Show All" button clears the quick view.
 
 INSTALL
 -------
-1. Supabase SQL Editor:
-   Run 108_director_office_interconnect.sql ONCE.
+Replace only:
+- app.js
+- index.html
+- service-worker.js
 
-2. ERP hosting:
-   Replace:
-   - app.js
-   - index.html
-   - service-worker.js
+Then Ctrl+F5 once.
 
-3. Ctrl+F5 once.
-
-Do NOT rerun previous SQL files.
-Do NOT change WhatsApp functions.
+NO SQL REQUIRED.
+NO EDGE FUNCTION CHANGES.
+NO BILLING DATABASE LOGIC CHANGES.
 
 TEST
 ----
-A. Login as STD:
-   Create a Follow-up, Call or Appointment.
-   Tick "Needs Director Attention" and Save.
+Accounts login:
+1. Click Pending Approval.
+2. The two pending rows should be shown directly.
+3. Approve / Partial / Reject should be visible beside each pending row.
+4. Approve one test charge.
+5. Approved Value should increase only by the actually approved amount.
 
-B. Login as the assigned Director:
-   The normal Dashboard should show the new Director's Office box and count.
-   Open it, add an instruction, and save.
-
-C. Return to STD:
-   The same instruction should be visible.
+Admin login:
+The navigation boxes work for viewing, but financial decision buttons remain
+Accounts-only as designed.
