@@ -1,41 +1,63 @@
-SAMARA CARE ERP v2.10.30 — CLEAN FULL-SCREEN MOBILE FORMS
+SAMARA CARE ERP v2.10.31 — DIRECTOR'S OFFICE QUICK TASKS
 
-WHAT WAS WRONG
---------------
-On iPhone/mobile, a form could still sit underneath:
-- Samara header / page title
-- Global Search
-- Module selector
-- Enable Alert Sound bar
-- Bottom navigation
+NEW
+---
+A separate SHORT FORM for simple everyday Director's Office tasks.
 
-This reduced the usable form area and could hide the top portion of long forms.
+Examples:
+- Visit someone
+- Buy / Purchase something
+- Attend a function
+- Trip / Travel
+- General task
 
-FIX — APPLIES TO ALL REAL MODALS / ENTRY FORMS
------------------------------------------------
-While any form/modal is open on mobile:
+NEW BUTTON
+----------
+Director's Office -> + Quick Task
 
-1. Samara page header and global search are hidden.
-2. Module selector is hidden.
-3. Enable Alert Sound bar is hidden.
-4. Bottom mobile navigation is hidden.
-5. Clinical alert popup is temporarily hidden (not resolved/cleared).
-6. The form itself becomes a true full-screen layer.
-7. Long forms scroll independently from top to bottom.
-8. Form title / Close button remain sticky at the top while scrolling.
-9. Closing the form automatically restores the normal ERP screen.
+The existing + New Item remains unchanged for detailed:
+Appointment / Call / Follow-up / Visitor / Correspondence / Reminder.
 
-This is a GLOBAL mobile correction, so it applies to Director's Office and
-all other modal/entry forms that use the standard Samara modal structure.
+QUICK TASK FORM — ONLY ESSENTIALS
+---------------------------------
+1. Task type
+   - Visit
+   - Buy / Purchase
+   - Attend Function
+   - Trip / Travel
+   - General Task
+
+2. What to do?
+3. Person / Place (optional)
+4. Date & Time
+5. Priority
+6. Short Note (optional)
+
+Status is automatically Pending for a new task.
+When editing an existing task, Status is available.
+
+The Quick Task form does NOT ask for:
+- Mobile
+- Organisation
+- Follow-up due date
+- Director instruction
+- Needs Director Attention
+
+DASHBOARD
+---------
+A new Tasks box shows pending/open quick tasks.
+Task records can be filtered separately from appointments, calls, etc.
 
 INSTALL
 -------
-Replace only:
-- app.js
-- index.html
-- service-worker.js
+1. Run in Supabase SQL Editor:
+   110_director_office_quick_tasks.sql
 
-Then refresh once (Ctrl+F5 on desktop; close/reopen or reload PWA on mobile).
+2. Replace ERP files:
+   app.js
+   index.html
+   service-worker.js
 
-NO SQL REQUIRED.
-NO EDGE FUNCTION CHANGES.
+3. Refresh once.
+
+NO EDGE FUNCTION CHANGE.

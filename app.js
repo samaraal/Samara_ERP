@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.30';
+  const APP_VERSION = '2.10.31';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -8741,11 +8741,12 @@ Thank you.`;
 
 
   function DirectorOfficeDashboard({profile,onNavigate}){
-    const TYPES=['Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder'];
+    const TYPES=['Task','Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder'];
+    const TASK_KINDS=['Visit','Buy / Purchase','Attend Function','Trip / Travel','General Task'];
     const PRIORITIES=['Normal','Important','Urgent'];
     const STATUSES=['Pending','In Progress','Completed','Cancelled'];
     const blank=()=>({
-      item_type:'Follow-up',title:'',contact_name:'',contact_mobile:'',organisation:'',
+      item_type:'Follow-up',task_kind:'General Task',title:'',contact_name:'',contact_mobile:'',organisation:'',
       scheduled_at:'',due_date:'',priority:'Normal',status:'Pending',details:'',director_note:'',
       needs_director_attention:false,director_responded_at:null
     });
@@ -8849,6 +8850,7 @@ Thank you.`;
       setEditingId(r.id);
       setForm({
         item_type:r.item_type||'Follow-up',
+        task_kind:r.task_kind||'General Task',
         title:r.title||'',
         contact_name:r.contact_name||'',
         contact_mobile:r.contact_mobile||'',
@@ -8870,6 +8872,7 @@ Thank you.`;
       setSaving(true);setMessage('');
       const payload={
         item_type:form.item_type,
+        task_kind:form.item_type==='Task'?(form.task_kind||'General Task'):null,
         title:form.title.trim(),
         contact_name:form.contact_name.trim()||null,
         contact_mobile:form.contact_mobile.trim()||null,
@@ -8919,6 +8922,7 @@ Thank you.`;
     const visitors=openRows.filter(r=>r.item_type==='Visitor');
     const correspondence=openRows.filter(r=>r.item_type==='Correspondence');
     const reminders=openRows.filter(r=>r.item_type==='Reminder');
+    const tasks=openRows.filter(r=>r.item_type==='Task');
     const urgent=openRows.filter(r=>r.priority==='Urgent');
 
     const filtered=rows.filter(r=>{
@@ -8994,7 +8998,7 @@ Thank you.`;
       h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'flex-start',flexWrap:'wrap'}},
         h('div',null,
           h('strong',{style:{fontSize:'15px',color:'#351b29'}},r.title),
-          h('div',{style:{fontSize:'12px',color:'#806a76',marginTop:'3px'}},`${r.item_type} · ${r.priority||'Normal'}`)
+          h('div',{style:{fontSize:'12px',color:'#806a76',marginTop:'3px'}},`${r.item_type==='Task'?(r.task_kind||'Task'):r.item_type} · ${r.priority||'Normal'}`)
         ),
         h('span',{className:'badge'},r.status||'Pending')
       ),
@@ -9016,26 +9020,37 @@ Thank you.`;
     const formModal=showForm?h('div',{className:'modal-backdrop'},
       h('form',{className:'card modal',onSubmit:save,style:{maxWidth:'760px'}},
         h('div',{className:'panel-head'},
-          h('div',null,h('h3',null,editingId?'Update Director’s Office Item':'New Director’s Office Item'),h('small',null,'Keep only the details needed for Director follow-up')),
+          h('div',null,h('h3',null,form.item_type==='Task'?(editingId?'Update Task':'New Quick Task'):(editingId?'Update Director’s Office Item':'New Director’s Office Item')),h('small',null,form.item_type==='Task'?'Short personal task — only the essentials':'Keep only the details needed for Director follow-up')),
           h('button',{type:'button',className:'close',onClick:()=>setShowForm(false)},'×')
         ),
-        h('div',{className:'modal-grid'},
-          h('div',{className:'field'},h('label',null,'Type'),h('select',{value:form.item_type,onChange:e=>setForm({...form,item_type:e.target.value})},TYPES.map(x=>h('option',{key:x},x)))),
-          h('div',{className:'field'},h('label',null,'Priority'),h('select',{value:form.priority,onChange:e=>setForm({...form,priority:e.target.value})},PRIORITIES.map(x=>h('option',{key:x},x)))),
-          h('div',{className:'field span-2'},h('label',null,form.item_type==='Call / Callback'?'Call Subject / Enquiry *':'Subject / Purpose *'),h('input',{required:true,value:form.title,onChange:e=>setForm({...form,title:e.target.value}),placeholder:'Example: Call Dr. ___ regarding referral'})),
-          h('div',{className:'field'},h('label',null,form.item_type==='Call / Callback'?'Caller Name':'Person / Visitor'),h('input',{value:form.contact_name,onChange:e=>setForm({...form,contact_name:e.target.value})})),
-          h('div',{className:'field'},h('label',null,'Mobile'),h('input',{value:form.contact_mobile,onChange:e=>setForm({...form,contact_mobile:e.target.value}),inputMode:'tel'})),
-          h('div',{className:'field span-2'},h('label',null,'Organisation'),h('input',{value:form.organisation,onChange:e=>setForm({...form,organisation:e.target.value})})),
-          h('div',{className:'field'},h('label',null,form.item_type==='Call / Callback'?'Call Date / Time':'Appointment / Call Time'),h('input',{type:'datetime-local',value:form.scheduled_at,onChange:e=>setForm({...form,scheduled_at:e.target.value})})),
-          h('div',{className:'field'},h('label',null,'Follow-up / Due Date'),h('input',{type:'date',value:form.due_date,onChange:e=>setForm({...form,due_date:e.target.value})})),
-          h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},STATUSES.map(x=>h('option',{key:x},x)))),
-          h('div',{className:'field span-2'},h('label',null,'Details'),h('textarea',{rows:3,value:form.details,onChange:e=>setForm({...form,details:e.target.value}),placeholder:'Short notes / action required'})),
-          h('div',{className:'field span-2'},h('label',{style:{display:'flex',alignItems:'center',gap:'9px',fontWeight:900,color:'#7d1547'}},
-            h('input',{type:'checkbox',checked:Boolean(form.needs_director_attention),onChange:e=>setForm({...form,needs_director_attention:e.target.checked,director_responded_at:e.target.checked?form.director_responded_at:null}),style:{width:'18px',height:'18px'}}),
-            'Needs Director Attention'
-          ),h('small',null,'Use only when the Director must decide, instruct or return a call.')),
-          h('div',{className:'field span-2'},h('label',null,isAssignedDirector?'Director Instruction':'Director Note / Instruction'),h('textarea',{rows:2,value:form.director_note,onChange:e=>setForm({...form,director_note:e.target.value}),placeholder:isAssignedDirector?'Enter your instruction / decision':'Optional instruction or decision'}))
-        ),
+        form.item_type==='Task'
+          ?h('div',{className:'modal-grid'},
+            h('div',{className:'field'},h('label',null,'Type'),h('select',{value:form.item_type,onChange:e=>setForm({...form,item_type:e.target.value})},TYPES.map(x=>h('option',{key:x},x)))),
+            h('div',{className:'field'},h('label',null,'Task'),h('select',{value:form.task_kind||'General Task',onChange:e=>setForm({...form,task_kind:e.target.value})},TASK_KINDS.map(x=>h('option',{key:x},x)))),
+            h('div',{className:'field span-2'},h('label',null,'What to do? *'),h('input',{required:true,value:form.title,onChange:e=>setForm({...form,title:e.target.value}),placeholder:form.task_kind==='Visit'?'Example: Visit Dr. Ravi':form.task_kind==='Buy / Purchase'?'Example: Buy office printer':form.task_kind==='Attend Function'?'Example: Attend hospital inauguration':form.task_kind==='Trip / Travel'?'Example: Chennai to Trichy trip':'Enter task'})),
+            h('div',{className:'field span-2'},h('label',null,'Person / Place (optional)'),h('input',{value:form.contact_name,onChange:e=>setForm({...form,contact_name:e.target.value}),placeholder:'Name or place'})),
+            h('div',{className:'field'},h('label',null,'Date & Time'),h('input',{type:'datetime-local',value:form.scheduled_at,onChange:e=>setForm({...form,scheduled_at:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Priority'),h('select',{value:form.priority,onChange:e=>setForm({...form,priority:e.target.value})},PRIORITIES.map(x=>h('option',{key:x},x)))),
+            h('div',{className:'field span-2'},h('label',null,'Short Note (optional)'),h('textarea',{rows:2,value:form.details,onChange:e=>setForm({...form,details:e.target.value}),placeholder:'Anything important to remember'})),
+            editingId?h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},STATUSES.map(x=>h('option',{key:x},x)))):null
+          )
+          :h('div',{className:'modal-grid'},
+            h('div',{className:'field'},h('label',null,'Type'),h('select',{value:form.item_type,onChange:e=>setForm({...form,item_type:e.target.value})},TYPES.map(x=>h('option',{key:x},x)))),
+            h('div',{className:'field'},h('label',null,'Priority'),h('select',{value:form.priority,onChange:e=>setForm({...form,priority:e.target.value})},PRIORITIES.map(x=>h('option',{key:x},x)))),
+            h('div',{className:'field span-2'},h('label',null,form.item_type==='Call / Callback'?'Call Subject / Enquiry *':'Subject / Purpose *'),h('input',{required:true,value:form.title,onChange:e=>setForm({...form,title:e.target.value}),placeholder:'Example: Call Dr. ___ regarding referral'})),
+            h('div',{className:'field'},h('label',null,form.item_type==='Call / Callback'?'Caller Name':'Person / Visitor'),h('input',{value:form.contact_name,onChange:e=>setForm({...form,contact_name:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Mobile'),h('input',{value:form.contact_mobile,onChange:e=>setForm({...form,contact_mobile:e.target.value}),inputMode:'tel'})),
+            h('div',{className:'field span-2'},h('label',null,'Organisation'),h('input',{value:form.organisation,onChange:e=>setForm({...form,organisation:e.target.value})})),
+            h('div',{className:'field'},h('label',null,form.item_type==='Call / Callback'?'Call Date / Time':'Appointment / Call Time'),h('input',{type:'datetime-local',value:form.scheduled_at,onChange:e=>setForm({...form,scheduled_at:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Follow-up / Due Date'),h('input',{type:'date',value:form.due_date,onChange:e=>setForm({...form,due_date:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},STATUSES.map(x=>h('option',{key:x},x)))),
+            h('div',{className:'field span-2'},h('label',null,'Details'),h('textarea',{rows:3,value:form.details,onChange:e=>setForm({...form,details:e.target.value}),placeholder:'Short notes / action required'})),
+            h('div',{className:'field span-2'},h('label',{style:{display:'flex',alignItems:'center',gap:'9px',fontWeight:900,color:'#7d1547'}},
+              h('input',{type:'checkbox',checked:Boolean(form.needs_director_attention),onChange:e=>setForm({...form,needs_director_attention:e.target.checked,director_responded_at:e.target.checked?form.director_responded_at:null}),style:{width:'18px',height:'18px'}}),
+              'Needs Director Attention'
+            ),h('small',null,'Use only when the Director must decide, instruct or return a call.')),
+            h('div',{className:'field span-2'},h('label',null,isAssignedDirector?'Director Instruction':'Director Note / Instruction'),h('textarea',{rows:2,value:form.director_note,onChange:e=>setForm({...form,director_note:e.target.value}),placeholder:isAssignedDirector?'Enter your instruction / decision':'Optional instruction or decision'}))
+          ),
         h('div',{className:'modal-actions'},
           h('button',{type:'button',className:'btn btn-secondary',disabled:saving,onClick:()=>setShowForm(false)},'Cancel'),
           h('button',{type:'submit',className:'btn btn-primary',disabled:saving},saving?'Saving…':'Save')
@@ -9044,9 +9059,13 @@ Thank you.`;
     ):null;
 
     return h(React.Fragment,null,
-      h(Section,{title:"Director's Office",subtitle:'Compact executive assistance workspace',actions:h('button',{className:'btn btn-primary',onClick:()=>openNew()},'＋ New Item')},
+      h(Section,{title:"Director's Office",subtitle:'Compact executive assistance workspace',actions:h('div',{className:'actions'},
+        h('button',{className:'btn btn-secondary',onClick:()=>openNew('Task')},'＋ Quick Task'),
+        h('button',{className:'btn btn-primary',onClick:()=>openNew()},'＋ New Item')
+      )},
         message?h('div',{className:'message',style:{marginBottom:'12px'}},message):null,
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(145px,1fr))',gap:'10px'}},
+          card('Tasks',tasks.length,'Task','Visits, purchases, functions & trips'),
           card('Appointments Today',todayAppointments.length,'Today','Today’s scheduled appointments'),
           card('Calls / Callbacks',calls.length,'Call / Callback','Pending calls'),
           card('Follow-ups',followups.length,'Follow-up','Pending actions'),
@@ -9077,7 +9096,7 @@ Thank you.`;
       ),
       h(Section,{title:'Director Follow-up Queue',subtitle:`${filtered.length} item${filtered.length===1?'':'s'} · ${filter}`,actions:
         h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
-          ...['Open','For Director','Today','Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder','Completed'].map(x=>
+          ...['Open','For Director','Today','Task','Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder','Completed'].map(x=>
             h('button',{type:'button',key:x,className:filter===x?'btn btn-primary':'btn btn-secondary',onClick:()=>setFilter(x)},x)
           )
         )
