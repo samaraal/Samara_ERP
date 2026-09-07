@@ -1,0 +1,59 @@
+SAMARA ERP v2.10.38 — iPHONE + ANDROID VOICE ENTRY
+
+WHAT CHANGED
+------------
+Desktop/Windows:
+- Existing browser SpeechRecognition remains unchanged and fast.
+
+iPhone + Android:
+- Speak Tamil / Speak English now records microphone audio directly.
+- Tap Speak -> talk naturally -> tap Stop.
+- Audio is sent securely to the existing Supabase Edge Function.
+- OpenAI gpt-4o-mini-transcribe converts the recording to text.
+- The same OpenAI v12 task interpreter then fills the Quick Task form.
+- User still reviews and presses Save manually.
+
+WHY
+---
+This avoids depending on mobile Safari/Chrome SpeechRecognition support.
+It provides one consistent mobile voice path for iPhone and Android.
+
+INSTALL
+-------
+A) FRONTEND
+Replace these 3 files in the ERP:
+1. app.js
+2. index.html
+3. service-worker.js
+
+Version: 2.10.38
+
+B) SUPABASE EDGE FUNCTION
+Supabase -> Edge Functions -> director-office-voice -> Code
+Replace the COMPLETE index.ts with:
+supabase/functions/director-office-voice/index.ts
+Then Deploy.
+
+Keep:
+- OPENAI_API_KEY
+- Verify JWT with legacy secret = OFF
+
+NO SQL.
+NO DATABASE CHANGE.
+NO NEW API KEY.
+
+MOBILE TEST
+-----------
+1. Open Director's Office -> + Quick Task.
+2. Tap Speak Tamil.
+3. Allow microphone permission if iPhone/Android asks.
+4. Speak a short instruction.
+5. Tap Stop.
+6. Wait a few seconds for "Understanding your voice..."
+7. Confirm Heard + English fields.
+8. Review and Save.
+
+Important:
+- HTTPS is required for mobile microphone access. app.samaraassistedliving.com already uses HTTPS.
+- On iPhone, if Samara is installed as a PWA and microphone permission was previously denied,
+  enable Microphone access for the site/app and reopen it.

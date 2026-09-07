@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.37';
+  const APP_VERSION = '2.10.38';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -8776,6 +8776,10 @@ Thank you.`;
     const [cancelReason,setCancelReason]=React.useState('');
     const [officeActionBusy,setOfficeActionBusy]=React.useState(false);
     const voiceRecognitionRef=React.useRef(null);
+    const mobileRecorderRef=React.useRef(null);
+    const mobileStreamRef=React.useRef(null);
+    const mobileChunksRef=React.useRef([]);
+    const mobileVoiceLangRef=React.useRef('ta-IN');
 
     const canUse=['Admin','STD'].includes(profile?.role);
     const canVoice=profile?.role==='STD'||isAssignedDirector;
@@ -8809,6 +8813,13 @@ Thank you.`;
     function stopVoiceRecognition(){
       try{voiceRecognitionRef.current?.stop?.()}catch(_){}
       voiceRecognitionRef.current=null;
+      try{
+        if(mobileRecorderRef.current&&mobileRecorderRef.current.state!=='inactive'){
+          mobileRecorderRef.current.stop();
+        }
+      }catch(_){}
+      try{mobileStreamRef.current?.getTracks?.().forEach(track=>track.stop())}catch(_){}
+      mobileStreamRef.current=null;
       setVoiceListening(false);
     }
 
@@ -8909,8 +8920,153 @@ Thank you.`;
       }
     }
 
+    function shouldUseMobileAudioRecorder(){
+      const ua=String(navigator.userAgent||'');
+      const mobileUA=/iPhone|iPad|iPod|Android/i.test(ua);
+      const coarse=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
+      return Boolean(mobileUA||coarse);
+    }
+
+    function bestMobileAudioMime(){
+      const candidates=[
+        'audio/mp4',
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus'
+      ];
+      for(const type of candidates){
+        try{
+          if(window.MediaRecorder&&MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(type))return type;
+        }catch(_){}
+      }
+      return '';
+    }
+
+    async function sendMobileAudioForVoice(blob,lang){
+      setVoiceProcessing(true);
+      setVoiceMessage('Understanding your voice…');
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Your session has expired. Please sign in again.');
+
+        const ext=(blob.type||'').includes('mp4')?'m4a':
+          (blob.type||'').includes('ogg')?'ogg':
+          (blob.type||'').includes('webm')?'webm':'webm';
+
+        const fd=new FormData();
+        fd.append('audio',blob,`samara-voice.${ext}`);
+        fd.append('spoken_language',lang);
+        fd.append('current_form_type',form.item_type||'Follow-up');
+        fd.append('current_task_kind',form.task_kind||'General Task');
+        fd.append('now_iso',new Date().toISOString());
+        fd.append('timezone','Asia/Kolkata');
+
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{
+          method:'POST',
+          headers:{
+            'Authorization':`Bearer ${session.access_token}`,
+            'apikey':cfg.supabasePublishableKey
+          },
+          body:fd
+        });
+
+        const result=await response.json().catch(()=>({error:'Unable to read voice-processing response'}));
+        if(!response.ok||result.error)throw new Error(result.error||'Unable to process mobile voice entry.');
+
+        if(result.transcript)setVoiceTranscript(String(result.transcript));
+        const x=result.fields||{};
+        setForm(current=>({
+          ...current,
+          item_type:x.item_type||'Task',
+          task_kind:x.task_kind||'General Task',
+          title:x.title||'',
+          contact_name:x.contact_name||'',
+          contact_mobile:x.contact_mobile||'',
+          organisation:x.organisation||'',
+          scheduled_at:x.scheduled_at?normalizeVoiceDateTime(x.scheduled_at):'',
+          due_date:x.due_date||'',
+          day_part:(x.day_part&&x.day_part!=='Not Applicable')?x.day_part:'',
+          priority:x.priority||'Normal',
+          status:current.status||'Pending',
+          details:x.details||'',
+          needs_director_attention:typeof x.needs_director_attention==='boolean'?x.needs_director_attention:false
+        }));
+        setVoiceMessage('✓ Voice entry filled in simple English. Please check the fields before Save.');
+      }catch(error){
+        setVoiceMessage(error.message||'Unable to process mobile voice entry.');
+      }finally{
+        setVoiceProcessing(false);
+      }
+    }
+
+    async function startMobileVoiceRecording(lang='ta-IN'){
+      if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){
+        setVoiceMessage('Microphone recording is not available in this mobile browser. Please allow microphone access and try Safari/Chrome.');
+        return;
+      }
+
+      stopVoiceRecognition();
+      setVoiceTranscript('');
+      setVoiceMessage(lang==='ta-IN'?'🎤 தமிழில் பேசுங்கள். முடிந்ததும் Stop அழுத்துங்கள்.':'🎤 Speak naturally. Tap Stop when finished.');
+
+      try{
+        const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+        mobileStreamRef.current=stream;
+        mobileChunksRef.current=[];
+        mobileVoiceLangRef.current=lang;
+
+        const mime=bestMobileAudioMime();
+        const recorder=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);
+        mobileRecorderRef.current=recorder;
+
+        recorder.ondataavailable=e=>{
+          if(e.data&&e.data.size>0)mobileChunksRef.current.push(e.data);
+        };
+
+        recorder.onerror=()=>{
+          try{stream.getTracks().forEach(track=>track.stop())}catch(_){}
+          mobileStreamRef.current=null;
+          mobileRecorderRef.current=null;
+          setVoiceListening(false);
+          setVoiceMessage('Mobile voice recording stopped unexpectedly. Please try again.');
+        };
+
+        recorder.onstop=async()=>{
+          const actualType=recorder.mimeType||mobileChunksRef.current[0]?.type||'audio/webm';
+          const blob=new Blob(mobileChunksRef.current,{type:actualType});
+          mobileChunksRef.current=[];
+          try{stream.getTracks().forEach(track=>track.stop())}catch(_){}
+          mobileStreamRef.current=null;
+          mobileRecorderRef.current=null;
+          setVoiceListening(false);
+
+          if(blob.size<1000){
+            setVoiceMessage('No useful speech was captured. Please try again.');
+            return;
+          }
+          await sendMobileAudioForVoice(blob,mobileVoiceLangRef.current);
+        };
+
+        recorder.start();
+        setVoiceListening(true);
+      }catch(error){
+        setVoiceListening(false);
+        try{mobileStreamRef.current?.getTracks?.().forEach(track=>track.stop())}catch(_){}
+        mobileStreamRef.current=null;
+        mobileRecorderRef.current=null;
+        const msg=String(error?.name||'');
+        setVoiceMessage(msg==='NotAllowedError'
+          ?'Microphone permission is blocked. Please allow microphone access for Samara Care and try again.'
+          :(error.message||'Unable to start mobile microphone.'));
+      }
+    }
+
     function startVoiceEntry(lang='ta-IN'){
       if(!canVoice)return;
+      if(shouldUseMobileAudioRecorder()){
+        startMobileVoiceRecording(lang);
+        return;
+      }
       const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
       if(!SpeechRecognition){
         setVoiceMessage('Voice recognition is not available in this browser. Please try Chrome/Edge or the installed Samara Care app.');
@@ -9286,7 +9442,7 @@ Thank you.`;
           h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
             h('div',null,
               h('strong',{style:{color:'#78103f'}},'🎤 Voice Entry'),
-              h('div',{style:{fontSize:'12px',color:'#765966',marginTop:'2px'}},'Speak naturally. Tamil will be converted to simple English and the form will be filled for you.')
+              h('div',{style:{fontSize:'12px',color:'#765966',marginTop:'2px'}},shouldUseMobileAudioRecorder()?'Tap Speak, talk naturally, then tap Stop. Tamil/English will be converted and the form will be filled.':'Speak naturally. Tamil will be converted to simple English and the form will be filled for you.')
             ),
             voiceListening?h('button',{type:'button',className:'btn btn-danger',onClick:stopVoiceRecognition},'■ Stop'):
             h('div',{className:'actions'},
