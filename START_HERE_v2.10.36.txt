@@ -1,0 +1,19 @@
+SAMARA CARE ERP v2.10.36 — QUICK TASK SAVE FLOW
+
+After Save:
+- Save disables immediately and shows Saving…
+- repeated taps are ignored
+- successful save closes the Quick Task form immediately
+- Director's Office shows:
+  "Task saved successfully. Tap + Quick Task to add another."
+- + Quick Task is ready for the next task
+- if saving fails, the form remains open and Save becomes active again
+
+Replace only:
+app.js
+index.html
+service-worker.js
+
+No SQL.
+No Edge Function change.
+No Gemini secret change.

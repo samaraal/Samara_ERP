@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.35';
+  const APP_VERSION = '2.10.36';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -9035,6 +9035,7 @@ Thank you.`;
     }
     async function save(e){
       e.preventDefault();
+      if(saving)return;
       if(!form.title.trim())return setMessage('Please enter the subject / purpose.');
       setSaving(true);setMessage('');
       let detailsForSave=form.details.trim();
@@ -9068,12 +9069,21 @@ Thank you.`;
       let res;
       if(editingId)res=await client.from('director_office_items').update(payload).eq('id',editingId);
       else res=await client.from('director_office_items').insert(payload);
-      if(res.error)setMessage(res.error.message||'Unable to save.');
-      else{
-        setMessage(editingId?'Item updated successfully.':'Item added successfully.');
-        setShowForm(false);setEditingId(null);setForm(blank());await load();
+      if(res.error){
+        setMessage(res.error.message||'Unable to save.');
+        setSaving(false);
+      }else{
+        const wasEditing=Boolean(editingId);
+        stopVoiceRecognition();
+        setShowForm(false);
+        setEditingId(null);
+        setForm(blank());
+        setSaving(false);
+        setVoiceTranscript('');
+        setVoiceMessage('');
+        setMessage(wasEditing?'Item updated successfully.':'Task saved successfully. Tap + Quick Task to add another.');
+        await load();
       }
-      setSaving(false);
     }
     async function markComplete(r){
       const {error}=await client.from('director_office_items').update({status:'Completed',updated_at:new Date().toISOString()}).eq('id',r.id);
