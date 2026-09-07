@@ -1,19 +1,20 @@
-Samara Care ERP v2.10.54 — Manager Voice Task Fix
+SAMARA ERP v2.10.55 — UPDATE LOOP FIX
 
-Replace ONLY these 3 files in the ERP root:
+REPLACE ONLY:
 1. app.js
 2. index.html
 3. service-worker.js
 
-IMPORTANT CHANGE:
-Tamil/English voice entry is now built DIRECTLY into the existing
-"My To-Do & Follow-up" screen used by every ERP Role = Manager.
-There is no dependency on Nurse Manager designation or on routing to a separate module.
+ROOT CAUSE FIXED:
+- v2.10.54 index.html and service-worker.js reported 2.10.54,
+  but app.js still internally reported APP_VERSION 2.10.52.
+- Therefore the ERP kept detecting 2.10.54 as a "new" version every time.
+- v2.10.55 aligns all three files to the same version.
+- The update prompt is also guarded against reopening for an already acknowledged version.
 
-After upload:
-1. Open app.samaraassistedliving.com
-2. Menu -> App Help / Repair -> Repair App
-3. Reopen. Confirm Version 2.10.54.
-4. Open Work -> My To-Do & Follow-up.
-5. Under Add Personal Item, two buttons should appear:
-   🎤 Speak Tamil   🎤 Speak English
+Manager Tamil/English voice task changes from v2.10.54 are retained.
+
+AFTER UPLOAD:
+- Open ERP once.
+- If the old loop appears one last time, tap Update Now once.
+- The app should then remain on v2.10.55 without repeating the prompt.

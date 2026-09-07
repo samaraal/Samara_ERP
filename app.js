@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.52';
+  const APP_VERSION = '2.10.55';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5721,7 +5721,8 @@ Caring with Compassion. Living with Dignity.`;
           // The acknowledgement is stored on each device/browser separately.
           // This means accepting an update on Windows never suppresses the notice on an iPhone/PWA.
           const trulyNewRemote=isRemoteVersionNewer(remoteUpdateVersion,APP_VERSION);
-          if(updatePromptShown||!remoteUpdateVersion||!trulyNewRemote)return;
+          const alreadyAcknowledged=acknowledgedVersion===remoteUpdateVersion;
+          if(updatePromptShown||!remoteUpdateVersion||!trulyNewRemote||alreadyAcknowledged)return;
           updatePromptShown=true;
 
           const existing=document.getElementById('samara-update-refresh-prompt');
