@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.56';
+  const APP_VERSION = '2.10.57';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5865,12 +5865,13 @@ Caring with Compassion. Living with Dignity.`;
             }catch(error){console.warn('Employee designation enrichment skipped:',error?.message||error)}
           }
 
-          // Login-only compatibility repair: securely locate and link an existing
-          // employee profile when the Authentication account was created separately.
+          // SECURITY v2.10.57:
+          // Do NOT auto-repair or auto-link an authenticated user to another employee
+          // profile during login. Identity must already be explicitly linked by
+          // profiles.id/auth_user_id to the authenticated Supabase user.
+          // Any missing/ambiguous link is fail-closed and requires Administrator repair.
           if(!data){
-            const repaired=await profileTimeout(client.rpc('get_my_employee_profile'),10000,'Employee profile repair');
-            if(repaired.error) console.error(repaired.error);
-            data=repaired.data||null;
+            console.error('SECURITY: No explicit employee profile link for auth user', session.user.id);
           }
         }catch(error){
           console.error('Employee profile startup failed:',error);
@@ -5889,6 +5890,36 @@ Caring with Compassion. Living with Dignity.`;
           await client.auth.signOut();
           return;
         }
+
+        // SECURITY v2.10.57 — fail closed on any identity mismatch.
+        const authenticatedUid=String(session.user?.id||'');
+        const profileId=String(data?.id||'');
+        const linkedAuthId=String(data?.auth_user_id||'');
+        const explicitUidMatch=profileId===authenticatedUid || linkedAuthId===authenticatedUid;
+        const authMetaLogin=normalizeLogin(String(session.user?.user_metadata?.login_id||''));
+        const profileLogin=normalizeLogin(String(data?.login_id||''));
+        const authEmail=String(session.user?.email||'').trim().toLowerCase();
+        const profileAuthEmail=String(data?.auth_email||'').trim().toLowerCase();
+
+        const loginMismatch=Boolean(authMetaLogin && profileLogin && authMetaLogin!==profileLogin);
+        const emailMismatch=Boolean(profileAuthEmail && authEmail && profileAuthEmail!==authEmail);
+
+        if(!explicitUidMatch || loginMismatch || emailMismatch){
+          console.error('SECURITY IDENTITY MISMATCH',{
+            authenticatedUid,
+            authenticatedEmail:authEmail,
+            authMetaLogin,
+            profileId,
+            linkedAuthId,
+            profileLogin,
+            profileAuthEmail
+          });
+          setProfile(null);
+          setAuthMessage('Security check failed: this login does not match the linked employee profile. Access has been blocked. Please contact the Administrator.');
+          await client.auth.signOut().catch(()=>{});
+          return;
+        }
+
         // Recovery for accounts whose Auth password was already changed but whose
         // profile flag remained set because an older deployment/RLS blocked the update.
         const authCompleted = session.user?.user_metadata?.must_change_password === false;
@@ -6158,15 +6189,52 @@ Caring with Compassion. Living with Dignity.`;
         email=String(resolved||'').trim().toLowerCase();
         if(!email){setMessage('Incorrect Login ID or password.');setBusy(false);return}
       }
-      const {error}=await withLoginTimeout(client.auth.signInWithPassword({email,password}),15000,'Sign in');
+      const {data:signInData,error}=await withLoginTimeout(client.auth.signInWithPassword({email,password}),15000,'Sign in');
       if(error){
         try{await securityRequest({action:'login_failure',login_id:normalized})}catch(_error){}
         setMessage(error.message==='Invalid login credentials'?'Incorrect Login ID or password.':error.message);
       }else{
-        // Successful authentication must take the user into the ERP immediately.
-        // Security/audit logging is best-effort and must not block navigation.
+        // SECURITY v2.10.57:
+        // The account returned by Supabase must match the Login ID the user entered.
+        // Never continue into the ERP under another employee identity.
+        const signedUser=signInData?.user||null;
+        const signedUid=String(signedUser?.id||'');
+        const signedMetaLogin=normalizeLogin(String(signedUser?.user_metadata?.login_id||''));
+
+        const {data:linkedProfile,error:linkedProfileError}=await withLoginTimeout(
+          client.from('profiles')
+            .select('id,auth_user_id,login_id,full_name,role,auth_email,is_active,active')
+            .or(`id.eq.${signedUid},auth_user_id.eq.${signedUid}`)
+            .maybeSingle(),
+          10000,
+          'Identity verification'
+        );
+
+        const linkedLogin=normalizeLogin(String(linkedProfile?.login_id||''));
+        const requestedLogin=normalizeLogin(normalized);
+        const uidIsLinked=Boolean(linkedProfile && (String(linkedProfile.id||'')===signedUid || String(linkedProfile.auth_user_id||'')===signedUid));
+        const requestedMatchesProfile=Boolean(linkedLogin && requestedLogin===linkedLogin);
+        const metadataMatches=Boolean(!signedMetaLogin || signedMetaLogin===requestedLogin);
+
+        if(linkedProfileError || !uidIsLinked || !requestedMatchesProfile || !metadataMatches){
+          console.error('SECURITY LOGIN IDENTITY MISMATCH',{
+            requestedLogin,
+            signedUid,
+            signedEmail:signedUser?.email||'',
+            signedMetaLogin,
+            linkedProfile,
+            linkedProfileError
+          });
+          await client.auth.signOut().catch(()=>{});
+          try{await securityRequest({action:'login_failure',login_id:normalized})}catch(_error){}
+          setMessage('Security check failed: the authenticated account does not match this Login ID. Access has been blocked. Please contact the Administrator.');
+          setBusy(false);
+          return;
+        }
+
+        // Successful authentication may proceed only after strict identity verification.
         securityRequest({action:'login_success',login_id:normalized}).catch(()=>{});
-        Promise.resolve(writeAuditEvent('User Login','Authentication',normalized,{login_id:normalized},'Success')).catch(()=>{});
+        Promise.resolve(writeAuditEvent('User Login','Authentication',normalized,{login_id:normalized,auth_user_id:signedUid},'Success')).catch(()=>{});
       }
       }catch(error){
         setMessage(error?.message||'Unable to sign in. Please check the connection and try again.');

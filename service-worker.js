@@ -1,5 +1,5 @@
-const APP_VERSION = '2.10.56';
-const CACHE = 'samara-erp-2.10.56-mobile-manager-voice-fix';
+const APP_VERSION = '2.10.57';
+const CACHE = 'samara-erp-2.10.57-identity-security-fix';
 const SHELL = [
   './',
   './index.html',
