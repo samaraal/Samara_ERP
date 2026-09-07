@@ -1,0 +1,55 @@
+SAMARA ERP v2.10.46 — EMPLOYEE EDIT SAVE FIX
+
+Problem confirmed from Shobana screenshots
+-----------------------------------------
+The Edit Employee form showed:
+  Department = Nursing
+  Designation = Nurse Manager
+  ERP Access Role = Manager
+
+but after Save the Employee Personnel File still showed:
+  Department = Administration
+  Designation = Nursing Supervisor
+  ERP Access Role = Manager
+
+This proves only the ERP role update succeeded.
+The normal public.profiles edit was blocked by RLS and affected zero rows,
+but the frontend did not check that, so it displayed a false success message.
+
+Fix
+---
+1. SQL 115 gives Admin / Manager / HR employee-management accounts explicit
+   permission to update employee profiles through a SECURITY DEFINER helper.
+2. The frontend now uses .select('*') after UPDATE and requires at least one
+   updated row.
+3. It re-reads the employee and verifies Department, Designation and Name
+   before showing "updated successfully".
+4. A failed update now shows an error instead of a false success message.
+
+INSTALL ORDER
+-------------
+1. Supabase SQL Editor:
+   Run 115_employee_profile_edit_permission_fix.sql once.
+
+2. ERP frontend:
+   Replace:
+   - app.js
+   - index.html
+   - service-worker.js
+
+Version: 2.10.46
+
+No Edge Function change for this fix.
+No API key change.
+
+IMPORTANT
+---------
+Keep Shobana as:
+Department: Nursing
+Designation: Nurse Manager
+ERP Access Role: Manager
+
+After v2.10.46, edit/save her employee record once more and then reopen
+Employee Personnel File. It should retain Nursing / Nurse Manager / Manager.
+
+If v2.10.45's Nurse Manager voice Edge Function was already deployed, leave it.

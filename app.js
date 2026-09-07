@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.45';
+  const APP_VERSION = '2.10.46';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -10657,12 +10657,37 @@ Thank you.`;
         delete payload.password;delete payload.id;delete payload.created_at;delete payload.updated_at;delete payload.last_sign_in_at;
         const requestedRole=payload.role;
         delete payload.role;
-        const {error}=await client.from('profiles').update(payload).or(`id.eq.${detailsTarget.id},auth_user_id.eq.${detailsTarget.auth_user_id||detailsTarget.id}`);if(error)throw error;
+        const profileUpdate=await client.from('profiles')
+          .update(payload)
+          .or(`id.eq.${detailsTarget.id},auth_user_id.eq.${detailsTarget.auth_user_id||detailsTarget.id}`)
+          .select('*');
+        if(profileUpdate.error)throw profileUpdate.error;
+        if(!profileUpdate.data?.length)throw new Error('Employee details were not saved. Your account does not currently have permission to update this employee profile.');
+        const updatedProfile=profileUpdate.data[0];
+
         const roleResult=await adminRequest({action:'set_role',user_id:detailsTarget.id,role:requestedRole});
         if(roleResult.role!==requestedRole)throw new Error(`Selected role ${requestedRole} was not saved correctly.`);
+
+        // Verify important edited fields actually persisted before showing success.
+        const {data:verifiedProfile,error:verifyError}=await client.from('profiles')
+          .select('*')
+          .eq('id',updatedProfile.id)
+          .maybeSingle();
+        if(verifyError)throw verifyError;
+        if(!verifiedProfile)throw new Error('Employee update could not be verified.');
+
+        const checks=[
+          ['Department',payload.department,verifiedProfile.department],
+          ['Designation',payload.designation,verifiedProfile.designation],
+          ['Employee Name',payload.full_name,verifiedProfile.full_name]
+        ];
+        const mismatch=checks.find(([,expected,actual])=>String(expected||'').trim()!==String(actual||'').trim());
+        if(mismatch)throw new Error(`${mismatch[0]} was not saved correctly. Please retry.`);
         await uploadEmployeePhoto(detailsTarget.id,photoFiles);
         await uploadEmployeeFiles(detailsTarget.id,[{type:'ID Card',files:idFiles},{type:'Qualification Certificate',files:qualificationFiles},{type:'Experience Certificate',files:experienceFiles},{type:'Other Certificate',files:otherFiles},{type:'Camera Capture',files:cameraFiles}]);
         const successText='Employee information and documents updated successfully.';
+        setDetailsTarget(verifiedProfile);
+        setDetailsForm({...empty,...verifiedProfile,password:''});
         setDetailsMsg(successText);showEmployeeToast('success',successText);setIdFiles([]);setQualificationFiles([]);setExperienceFiles([]);setOtherFiles([]);setCameraFiles([]);setPhotoFiles([]);await load();
         const {data}=await client.from('employee_documents').select('*').eq('employee_id',detailsTarget.id).order('created_at',{ascending:false});setDetailsDocs(data||[]);
         const resolved=await resolveEmployeePhoto(detailsTarget,900);
