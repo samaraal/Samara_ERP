@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.28';
+  const APP_VERSION = '2.10.29';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -4591,8 +4591,13 @@ Caring with Compassion. Living with Dignity.`;
           background:rgba(255,255,255,.985)!important;
           border-top-color:#ebcddd!important;
         }
-        /* Entry forms must never be covered by the mobile navigation. */
+        /* Entry forms must never be covered by mobile app chrome.
+           When a form/modal is open, the Module selector is unnecessary and
+           steals valuable vertical space on phones. Hide it until the form closes. */
         .app:has(.modal-backdrop) .mobile-bottom-nav{
+          display:none!important;
+        }
+        .app:has(.modal-backdrop) .mobile-menu{
           display:none!important;
         }
         .app:has(.modal-backdrop) .content{

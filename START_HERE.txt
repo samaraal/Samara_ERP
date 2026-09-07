@@ -1,57 +1,30 @@
-SAMARA CARE ERP v2.10.28 — MANAGER PERSONAL TO-DO & FOLLOW-UP
+SAMARA CARE ERP v2.10.29 — MOBILE FORM CLEAN SCREEN
 
-PURPOSE
+FIX
+---
+On mobile, the large "Module — Director's Office" selector remained visible
+while an entry form/modal was open. It used valuable vertical screen space and
+made the form look cramped.
+
+NOW
+---
+Whenever ANY modal / entry form is open on mobile:
+- The Module selector is temporarily hidden.
+- The bottom mobile navigation is already hidden as before.
+- The form gets the full usable screen height.
+- When the form is closed, the Module selector returns automatically.
+
+This especially cleans up:
+Director's Office -> New Item / Edit Item
+
+INSTALL
 -------
-A private personal organiser for each Manager.
+Replace only:
+- app.js
+- index.html
+- service-worker.js
 
-PRIVACY
--------
-- Each Manager sees ONLY items created under their own login.
-- Other Managers cannot see them.
-- Admin cannot see them through the ERP or normal authenticated database access.
-- STD, HR, Accounts, Nurse, Caregiver, Kitchen cannot access them.
-- Privacy is enforced by Supabase Row Level Security (RLS), not merely hidden in the UI.
+Then Ctrl+F5 once.
 
-MANAGER DASHBOARD
------------------
-New private navigation box:
-- Due Today
-- Overdue
-- Follow-ups Pending
-- Completed Today
-
-MY TO-DO & FOLLOW-UP
---------------------
-Manager can:
-- Add task / follow-up
-- Category: General, Patient/Relative, Staff, Vendor, Maintenance, Billing, Admission
-- Priority: Low, Normal, High, Urgent
-- Due date & time
-- Follow-up date & time
-- Notes
-- Status: Pending, In Progress, Waiting, Completed
-- Complete
-- Remind Tomorrow
-- Edit
-- Delete
-- Filter Open / Today / Overdue / Follow-up / Completed / All
-
-INSTALL ORDER
--------------
-1. Supabase SQL Editor:
-   Run 109_manager_personal_todo.sql
-
-2. ERP hosting:
-   Replace app.js
-   Replace index.html
-   Replace service-worker.js
-
-3. Ctrl+F5 once.
-
-NO EDGE FUNCTION CHANGE REQUIRED FOR THIS FEATURE.
-
-IMPORTANT
----------
-The supplied admin-users Edge Function is retained in the ZIP because it belongs
-to v2.10.27 My Profile. If you already deployed v2.10.27, you do not need to
-redeploy it for this v2.10.28 Manager To-Do feature.
+NO SQL.
+NO EDGE FUNCTION CHANGES.
