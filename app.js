@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.36';
+  const APP_VERSION = '2.10.37';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -8768,6 +8768,13 @@ Thank you.`;
     const [voiceProcessing,setVoiceProcessing]=React.useState(false);
     const [voiceTranscript,setVoiceTranscript]=React.useState('');
     const [voiceMessage,setVoiceMessage]=React.useState('');
+    const [rescheduleTarget,setRescheduleTarget]=React.useState(null);
+    const [rescheduleDate,setRescheduleDate]=React.useState('');
+    const [rescheduleTime,setRescheduleTime]=React.useState('');
+    const [rescheduleNote,setRescheduleNote]=React.useState('');
+    const [cancelTarget,setCancelTarget]=React.useState(null);
+    const [cancelReason,setCancelReason]=React.useState('');
+    const [officeActionBusy,setOfficeActionBusy]=React.useState(false);
     const voiceRecognitionRef=React.useRef(null);
 
     const canUse=['Admin','STD'].includes(profile?.role);
@@ -9089,6 +9096,69 @@ Thank you.`;
       const {error}=await client.from('director_office_items').update({status:'Completed',updated_at:new Date().toISOString()}).eq('id',r.id);
       if(error)setMessage(error.message||'Unable to complete item');else await load();
     }
+    function openReschedule(r){
+      const local=r.scheduled_at?localInputValue(r.scheduled_at):'';
+      setRescheduleTarget(r);
+      setRescheduleDate(local?local.slice(0,10):(r.due_date||''));
+      setRescheduleTime(local&&local.includes('T')?local.slice(11,16):'');
+      setRescheduleNote('');
+      setMessage('');
+    }
+    async function saveReschedule(e){
+      e.preventDefault();
+      if(officeActionBusy||!rescheduleTarget)return;
+      if(!rescheduleDate)return setMessage('Please select the new date.');
+      setOfficeActionBusy(true);setMessage('');
+      const now=new Date().toISOString();
+      const newScheduledAt=rescheduleTime?new Date(`${rescheduleDate}T${rescheduleTime}`).toISOString():null;
+      const newDueDate=rescheduleTime?null:rescheduleDate;
+      const history=Array.isArray(rescheduleTarget.reschedule_history)?[...rescheduleTarget.reschedule_history]:[];
+      history.push({
+        at:now,
+        by:profile?.id||null,
+        old_scheduled_at:rescheduleTarget.scheduled_at||null,
+        old_due_date:rescheduleTarget.due_date||null,
+        new_scheduled_at:newScheduledAt,
+        new_due_date:newDueDate,
+        note:rescheduleNote.trim()||null
+      });
+      const {error}=await client.from('director_office_items').update({
+        scheduled_at:newScheduledAt,
+        due_date:newDueDate,
+        status:'Pending',
+        rescheduled_at:now,
+        reschedule_note:rescheduleNote.trim()||null,
+        reschedule_history:history,
+        updated_at:now
+      }).eq('id',rescheduleTarget.id);
+      setOfficeActionBusy(false);
+      if(error){setMessage(error.message||'Unable to reschedule item');return;}
+      setRescheduleTarget(null);setRescheduleDate('');setRescheduleTime('');setRescheduleNote('');
+      setMessage('Item rescheduled successfully.');
+      await load();
+    }
+    function openCancelItem(r){
+      setCancelTarget(r);
+      setCancelReason('');
+      setMessage('');
+    }
+    async function saveCancelItem(e){
+      e.preventDefault();
+      if(officeActionBusy||!cancelTarget)return;
+      setOfficeActionBusy(true);setMessage('');
+      const now=new Date().toISOString();
+      const {error}=await client.from('director_office_items').update({
+        status:'Cancelled',
+        cancel_reason:cancelReason.trim()||null,
+        cancelled_at:now,
+        updated_at:now
+      }).eq('id',cancelTarget.id);
+      setOfficeActionBusy(false);
+      if(error){setMessage(error.message||'Unable to cancel item');return;}
+      setCancelTarget(null);setCancelReason('');
+      setMessage('Item cancelled and retained in history.');
+      await load();
+    }
     async function markDirectorResponded(r){
       const {error}=await client.from('director_office_items').update({
         director_responded_at:new Date().toISOString(),
@@ -9114,6 +9184,7 @@ Thank you.`;
       if(filter==='Open')typeOk=isOpen(r);
       else if(filter==='For Director')typeOk=isOpen(r)&&Boolean(r.needs_director_attention)&&!r.director_responded_at;
       else if(filter==='Completed')typeOk=r.status==='Completed';
+      else if(filter==='Cancelled')typeOk=r.status==='Cancelled';
       else if(filter==='Today')typeOk=isToday(r.scheduled_at)||(r.due_date&&r.due_date===todayISOIndia());
       else typeOk=r.item_type===filter;
       if(!typeOk)return false;
@@ -9192,12 +9263,16 @@ Thank you.`;
       r.scheduled_at?h('div',{style:{fontSize:'13px'}},h('b',null,'Schedule: '),prettyDateTime(r.scheduled_at)):null,
       r.due_date?h('div',{style:{fontSize:'13px'}},h('b',null,'Due: '),prettyDate(r.due_date)):null,
       r.details?h('div',{style:{fontSize:'13px',lineHeight:'1.45',whiteSpace:'pre-wrap'}},r.details):null,
+      r.rescheduled_at?h('div',{style:{fontSize:'12px',color:'#6f5360',background:'#fff7e9',borderRadius:'9px',padding:'6px 9px',width:'fit-content'}},`↻ Rescheduled${r.reschedule_note?`: ${r.reschedule_note}`:''}`):null,
+      r.status==='Cancelled'?h('div',{style:{fontSize:'12px',color:'#7b2737',background:'#fff0f1',borderRadius:'9px',padding:'6px 9px',width:'fit-content'}},`Cancelled${r.cancel_reason?`: ${r.cancel_reason}`:''}`):null,
       r.needs_director_attention?h('div',{style:{fontSize:'12px',fontWeight:900,color:r.director_responded_at?'#176a52':'#9a174d',background:r.director_responded_at?'#eaf7f1':'#fde8f0',borderRadius:'999px',padding:'6px 10px',width:'fit-content'}},r.director_responded_at?'✓ Director Responded':'● For Director'):null,
       r.director_note?h('div',{style:{fontSize:'13px',lineHeight:'1.45',background:'#fff7e6',borderRadius:'10px',padding:'8px 10px'}},h('b',null,'Director note: '),r.director_note):null,
       h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>editRow(r)},isAssignedDirector?'View / Add Instruction':'Open / Edit'),
         isAssignedDirector&&r.needs_director_attention&&!r.director_responded_at?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>markDirectorResponded(r)},'✓ Director Responded'):null,
-        isOpen(r)?h('button',{type:'button',className:'btn btn-primary',onClick:()=>markComplete(r)},'✓ Complete'):null
+        isOpen(r)?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openReschedule(r)},'↻ Reschedule'):null,
+        isOpen(r)?h('button',{type:'button',className:'btn btn-primary',onClick:()=>markComplete(r)},'✓ Complete'):null,
+        isOpen(r)?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openCancelItem(r),style:{color:'#92213b'}},'Cancel'):null
       )
     );
 
@@ -9265,6 +9340,39 @@ Thank you.`;
       )
     ):null;
 
+    const rescheduleModal=rescheduleTarget?h('div',{className:'modal-backdrop'},
+      h('form',{className:'card modal',onSubmit:saveReschedule,style:{maxWidth:'520px'}},
+        h('div',{className:'panel-head'},
+          h('div',null,h('h3',null,'Reschedule'),h('small',null,rescheduleTarget.title||'Director’s Office item')),
+          h('button',{type:'button',className:'close',disabled:officeActionBusy,onClick:()=>setRescheduleTarget(null)},'×')
+        ),
+        h('div',{className:'modal-grid'},
+          h('div',{className:'field'},h('label',null,'New Date *'),h('input',{type:'date',required:true,value:rescheduleDate,onChange:e=>setRescheduleDate(e.target.value)})),
+          h('div',{className:'field'},h('label',null,'Time (optional)'),h('input',{type:'time',value:rescheduleTime,onChange:e=>setRescheduleTime(e.target.value)})),
+          h('div',{className:'field span-2'},h('label',null,'Reason / Note (optional)'),h('textarea',{rows:3,value:rescheduleNote,onChange:e=>setRescheduleNote(e.target.value),placeholder:'Example: Director requested a later time'}))
+        ),
+        h('div',{className:'modal-actions'},
+          h('button',{type:'button',className:'btn btn-secondary',disabled:officeActionBusy,onClick:()=>setRescheduleTarget(null)},'Cancel'),
+          h('button',{type:'submit',className:'btn btn-primary',disabled:officeActionBusy},officeActionBusy?'Saving…':'Save New Schedule')
+        )
+      )
+    ):null;
+
+    const cancelModal=cancelTarget?h('div',{className:'modal-backdrop'},
+      h('form',{className:'card modal',onSubmit:saveCancelItem,style:{maxWidth:'520px'}},
+        h('div',{className:'panel-head'},
+          h('div',null,h('h3',null,'Cancel Item'),h('small',null,cancelTarget.title||'Director’s Office item')),
+          h('button',{type:'button',className:'close',disabled:officeActionBusy,onClick:()=>setCancelTarget(null)},'×')
+        ),
+        h('p',{style:{marginTop:'4px'}},'This item will not be deleted. It will be moved to Cancelled history.'),
+        h('div',{className:'field'},h('label',null,'Cancellation Reason (optional)'),h('textarea',{rows:3,value:cancelReason,onChange:e=>setCancelReason(e.target.value),placeholder:'Short reason, if needed'})),
+        h('div',{className:'modal-actions'},
+          h('button',{type:'button',className:'btn btn-secondary',disabled:officeActionBusy,onClick:()=>setCancelTarget(null)},'Keep Item'),
+          h('button',{type:'submit',className:'btn btn-primary',disabled:officeActionBusy},officeActionBusy?'Cancelling…':'Cancel Item')
+        )
+      )
+    ):null;
+
     return h(React.Fragment,null,
       h(Section,{title:"Director's Office",subtitle:'Compact executive assistance workspace',actions:h('div',{className:'actions'},
         h('button',{className:'btn btn-secondary',onClick:()=>openNew('Task')},'＋ Quick Task'),
@@ -9303,7 +9411,7 @@ Thank you.`;
       ),
       h(Section,{title:'Director Follow-up Queue',subtitle:`${filtered.length} item${filtered.length===1?'':'s'} · ${filter}`,actions:
         h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
-          ...['Open','For Director','Today','Task','Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder','Completed'].map(x=>
+          ...['Open','For Director','Today','Task','Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder','Completed','Cancelled'].map(x=>
             h('button',{type:'button',key:x,className:filter===x?'btn btn-primary':'btn btn-secondary',onClick:()=>setFilter(x)},x)
           )
         )
@@ -9324,7 +9432,9 @@ Thank you.`;
           ...TYPES.map(x=>h('button',{type:'button',key:x,className:'btn btn-secondary',onClick:()=>openNew(x)},`＋ ${x}`))
         )
       ),
-      formModal
+      formModal,
+      rescheduleModal,
+      cancelModal
     );
   }
 

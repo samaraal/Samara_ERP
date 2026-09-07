@@ -1,22 +1,39 @@
-SAMARA CARE ERP v2.10.32 — RECOVERY FILES
+SAMARA CARE ERP v2.10.37 — DIRECTOR OFFICE RESCHEDULE + CANCEL
 
-The uploaded source was checked:
-- app.js = v2.10.32
-- index.html references v2.10.32
-- service-worker.js = v2.10.32
-- app.js passes JavaScript syntax check
+WHAT IS NEW
+-----------
+Every open Director's Office item now has:
+- Reschedule
+- Complete
+- Cancel
 
-Replace these three files on the LIVE ERP hosting:
-1. app.js
-2. index.html
-3. service-worker.js
+RESCHEDULE
+----------
+Opens a compact form:
+- New Date (required)
+- Time (optional)
+- Reason / Note (optional)
 
-Make sure they are uploaded to the SAME folder currently serving:
-https://app.samaraassistedliving.com/
+The item remains Pending and its previous/new schedule is retained in
+reschedule_history. Applies to Tasks, Appointments, Calls, Follow-ups,
+Visitors, Correspondence and Reminders.
 
-After upload:
-- close Samara Care completely on iPhone
-- reopen it
-- if needed, use Repair App & Reload once
+CANCEL
+------
+Cancellation does NOT delete the item. Status becomes Cancelled and the
+optional reason + cancellation time are retained. A Cancelled filter has
+been added beside Completed.
 
-No Supabase data is changed by these files.
+INSTALL ORDER
+-------------
+1. Supabase SQL Editor: run 112_director_office_reschedule_cancel.sql once.
+2. Website / ERP hosting: replace ONLY these files:
+   - app.js
+   - index.html
+   - service-worker.js
+3. Reload Samara Care. If an old version remains, use App Help / Repair App.
+
+NO EDGE FUNCTION CHANGE
+-----------------------
+The working OpenRouter/Gemini director-office-voice function is untouched.
+Do not replace or redeploy the voice Edge Function for this update.
