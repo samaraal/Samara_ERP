@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.34';
+  const APP_VERSION = '2.10.35';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -8747,7 +8747,7 @@ Thank you.`;
     const STATUSES=['Pending','In Progress','Completed','Cancelled'];
     const blank=()=>({
       item_type:'Follow-up',task_kind:'General Task',title:'',contact_name:'',contact_mobile:'',organisation:'',
-      scheduled_at:'',due_date:'',priority:'Normal',status:'Pending',details:'',director_note:'',
+      scheduled_at:'',due_date:'',day_part:'',priority:'Normal',status:'Pending',details:'',director_note:'',
       needs_director_attention:false,director_responded_at:null
     });
     const [rows,setRows]=React.useState([]);
@@ -8814,6 +8814,15 @@ Thank you.`;
     }
 
 
+    function inferDayPart(text){
+      const t=String(text||'').toLowerCase();
+      if(/\bmorning\b|காலை/.test(t))return 'Morning';
+      if(/\bafternoon\b|மதியம்|பிற்பகல்/.test(t))return 'Afternoon';
+      if(/\bevening\b|மாலை/.test(t))return 'Evening';
+      if(/\bnight\b|இரவு/.test(t))return 'Night';
+      return '';
+    }
+
     function taskDateValue(){
       if(form.scheduled_at)return String(form.scheduled_at).slice(0,10);
       return form.due_date||'';
@@ -8879,6 +8888,7 @@ Thank you.`;
           organisation:x.organisation||current.organisation||'',
           scheduled_at:x.scheduled_at?normalizeVoiceDateTime(x.scheduled_at):current.scheduled_at,
           due_date:x.due_date||current.due_date||'',
+          day_part:(x.day_part&&x.day_part!=='Not Applicable')?x.day_part:(current.day_part||inferDayPart(x.details||text)||''),
           priority:x.priority||current.priority||'Normal',
           status:current.status||'Pending',
           details:x.details||current.details||'',
@@ -9013,6 +9023,7 @@ Thank you.`;
         organisation:r.organisation||'',
         scheduled_at:localInputValue(r.scheduled_at),
         due_date:r.due_date||'',
+        day_part:inferDayPart(r.details||''),
         priority:r.priority||'Normal',
         status:r.status||'Pending',
         details:r.details||'',
@@ -9026,6 +9037,13 @@ Thank you.`;
       e.preventDefault();
       if(!form.title.trim())return setMessage('Please enter the subject / purpose.');
       setSaving(true);setMessage('');
+      let detailsForSave=form.details.trim();
+      if(form.item_type==='Task'&&form.day_part){
+        const hasDayPart=inferDayPart(detailsForSave);
+        if(!hasDayPart){
+          detailsForSave=detailsForSave?`${detailsForSave} (${form.day_part})`:form.day_part;
+        }
+      }
       const payload={
         item_type:form.item_type,
         task_kind:form.item_type==='Task'?(form.task_kind||'General Task'):null,
@@ -9037,7 +9055,7 @@ Thank you.`;
         due_date:form.due_date||null,
         priority:form.priority,
         status:form.status,
-        details:form.details.trim()||null,
+        details:detailsForSave||null,
         director_note:form.director_note.trim()||null,
         needs_director_attention:Boolean(form.needs_director_attention),
         updated_at:new Date().toISOString()
@@ -9205,6 +9223,10 @@ Thank you.`;
             h('div',{className:'field span-2'},h('label',null,'Person / Place (optional)'),h('input',{value:form.contact_name,onChange:e=>setForm({...form,contact_name:e.target.value}),placeholder:'Name or place'})),
             h('div',{className:'field'},h('label',null,'Date'),h('input',{type:'date',value:taskDateValue(),onChange:e=>setTaskDate(e.target.value)})),
             h('div',{className:'field'},h('label',null,'Time (optional)'),h('input',{type:'time',value:taskTimeValue(),onChange:e=>setTaskTime(e.target.value)})),
+            h('div',{className:'field'},h('label',null,'Day Part (optional)'),h('select',{value:form.day_part||'',onChange:e=>setForm({...form,day_part:e.target.value})},
+              h('option',{value:''},'—'),
+              ['Morning','Afternoon','Evening','Night'].map(x=>h('option',{key:x,value:x},x))
+            )),
             h('div',{className:'field'},h('label',null,'Priority'),h('select',{value:form.priority,onChange:e=>setForm({...form,priority:e.target.value})},PRIORITIES.map(x=>h('option',{key:x},x)))),
             h('div',{className:'field span-2'},h('label',null,'Short Note (optional)'),h('textarea',{rows:2,value:form.details,onChange:e=>setForm({...form,details:e.target.value}),placeholder:'Anything important to remember'})),
             editingId?h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},STATUSES.map(x=>h('option',{key:x},x)))):null

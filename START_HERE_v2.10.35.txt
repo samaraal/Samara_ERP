@@ -1,0 +1,44 @@
+SAMARA CARE ERP v2.10.35 — VOICE DAY PART
+
+NEW
+---
+Quick Task now shows:
+- Date
+- Time (optional)
+- Day Part (optional): Morning / Afternoon / Evening / Night
+
+VOICE EXAMPLES
+--------------
+"நாளைக்கு ஈவினிங் டிவி வாங்கணும்"
+=> Date: tomorrow
+=> Day Part: Evening
+=> Time: blank
+
+"நாளைக்கு மாலை 4 மணிக்கு டாக்டர் ரவியை சந்திக்கணும்"
+=> Date: tomorrow
+=> Time: 16:00
+=> Day Part: Evening
+
+Tamil day-part recognition:
+- Morning: காலை
+- Afternoon: மதியம் / பிற்பகல்
+- Evening: மாலை
+- Night: இரவு
+
+No artificial clock time is invented.
+
+INSTALL
+-------
+A. Replace live ERP files:
+- app.js
+- index.html
+- service-worker.js
+
+B. Supabase -> Edge Functions -> director-office-voice -> Code
+Replace the complete index.ts with:
+supabase/functions/director-office-voice/index.ts
+Then Deploy.
+
+NO SQL.
+NO SECRET CHANGE.
+Keep GEMINI_API_KEY unchanged.
