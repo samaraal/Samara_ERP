@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.33';
+  const APP_VERSION = '2.10.34';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -8813,6 +8813,35 @@ Thank you.`;
       return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
 
+
+    function taskDateValue(){
+      if(form.scheduled_at)return String(form.scheduled_at).slice(0,10);
+      return form.due_date||'';
+    }
+
+    function taskTimeValue(){
+      if(form.scheduled_at&&String(form.scheduled_at).includes('T'))return String(form.scheduled_at).slice(11,16);
+      return '';
+    }
+
+    function setTaskDate(date){
+      const time=taskTimeValue();
+      if(date&&time){
+        setForm(current=>({...current,scheduled_at:`${date}T${time}`,due_date:''}));
+      }else{
+        setForm(current=>({...current,scheduled_at:'',due_date:date||''}));
+      }
+    }
+
+    function setTaskTime(time){
+      const date=taskDateValue();
+      if(date&&time){
+        setForm(current=>({...current,scheduled_at:`${date}T${time}`,due_date:''}));
+      }else if(date){
+        setForm(current=>({...current,scheduled_at:'',due_date:date}));
+      }
+    }
+
     async function interpretVoiceTranscript(transcript,spokenLanguage){
       const text=String(transcript||'').trim();
       if(!text)return;
@@ -9174,7 +9203,8 @@ Thank you.`;
             h('div',{className:'field'},h('label',null,'Task'),h('select',{value:form.task_kind||'General Task',onChange:e=>setForm({...form,task_kind:e.target.value})},TASK_KINDS.map(x=>h('option',{key:x},x)))),
             h('div',{className:'field span-2'},h('label',null,'What to do? *'),h('input',{required:true,value:form.title,onChange:e=>setForm({...form,title:e.target.value}),placeholder:form.task_kind==='Visit'?'Example: Visit Dr. Ravi':form.task_kind==='Buy / Purchase'?'Example: Buy office printer':form.task_kind==='Attend Function'?'Example: Attend hospital inauguration':form.task_kind==='Trip / Travel'?'Example: Chennai to Trichy trip':'Enter task'})),
             h('div',{className:'field span-2'},h('label',null,'Person / Place (optional)'),h('input',{value:form.contact_name,onChange:e=>setForm({...form,contact_name:e.target.value}),placeholder:'Name or place'})),
-            h('div',{className:'field'},h('label',null,'Date & Time'),h('input',{type:'datetime-local',value:form.scheduled_at,onChange:e=>setForm({...form,scheduled_at:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Date'),h('input',{type:'date',value:taskDateValue(),onChange:e=>setTaskDate(e.target.value)})),
+            h('div',{className:'field'},h('label',null,'Time (optional)'),h('input',{type:'time',value:taskTimeValue(),onChange:e=>setTaskTime(e.target.value)})),
             h('div',{className:'field'},h('label',null,'Priority'),h('select',{value:form.priority,onChange:e=>setForm({...form,priority:e.target.value})},PRIORITIES.map(x=>h('option',{key:x},x)))),
             h('div',{className:'field span-2'},h('label',null,'Short Note (optional)'),h('textarea',{rows:2,value:form.details,onChange:e=>setForm({...form,details:e.target.value}),placeholder:'Anything important to remember'})),
             editingId?h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},STATUSES.map(x=>h('option',{key:x},x)))):null

@@ -1,0 +1,66 @@
+SAMARA CARE ERP v2.10.34 — VOICE DATE HANDLING
+
+WHAT IS FIXED
+-------------
+1. Quick Task now has:
+   - Date
+   - Time (optional)
+
+2. Voice instruction with a date but NO time:
+   "நாளைக்கு டிவி வாங்கணும்"
+   -> Date = tomorrow
+   -> Time remains blank
+   No artificial time is invented.
+
+3. Voice instruction with exact time:
+   "நாளைக்கு மாலை 4 மணிக்கு..."
+   -> Date = tomorrow
+   -> Time = 4:00 PM
+
+4. Tamil relative-date vocabulary supported:
+   Tomorrow:
+   - நாளை
+   - நாளைக்கு
+
+   Day after tomorrow:
+   - நாளனக்கி
+   - நாளன்னைக்கு
+   - நாளை மறு நாள்
+   - நாளை மறு தினம்
+   - நாளை மறுநாள்
+
+   Today:
+   - இன்று
+   - இன்னைக்கு
+
+INSTALL
+-------
+A. LIVE ERP
+Replace:
+- app.js
+- index.html
+- service-worker.js
+
+B. SUPABASE EDGE FUNCTION
+Supabase -> Edge Functions -> director-office-voice -> Code
+Replace the complete index.ts with:
+supabase/functions/director-office-voice/index.ts
+Then Deploy.
+
+NO SQL.
+NO SECRET CHANGE.
+Keep GEMINI_API_KEY as already configured.
+
+TEST
+----
+Today is resolved in Asia/Kolkata by the function.
+
+Examples:
+"நாளைக்கு டிவி வாங்கணும்"
+=> tomorrow's date, time blank
+
+"நாளனக்கி திருச்சி போகணும்"
+=> day-after-tomorrow date, time blank
+
+"நாளைக்கு மாலை 4 மணிக்கு டாக்டர் ரவியை சந்திக்கணும்"
+=> tomorrow's date + 4:00 PM
