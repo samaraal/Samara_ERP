@@ -1,21 +1,32 @@
-SAMARA CARE ERP v2.10.29 — MOBILE FORM CLEAN SCREEN
+SAMARA CARE ERP v2.10.30 — CLEAN FULL-SCREEN MOBILE FORMS
 
-FIX
----
-On mobile, the large "Module — Director's Office" selector remained visible
-while an entry form/modal was open. It used valuable vertical screen space and
-made the form look cramped.
+WHAT WAS WRONG
+--------------
+On iPhone/mobile, a form could still sit underneath:
+- Samara header / page title
+- Global Search
+- Module selector
+- Enable Alert Sound bar
+- Bottom navigation
 
-NOW
----
-Whenever ANY modal / entry form is open on mobile:
-- The Module selector is temporarily hidden.
-- The bottom mobile navigation is already hidden as before.
-- The form gets the full usable screen height.
-- When the form is closed, the Module selector returns automatically.
+This reduced the usable form area and could hide the top portion of long forms.
 
-This especially cleans up:
-Director's Office -> New Item / Edit Item
+FIX — APPLIES TO ALL REAL MODALS / ENTRY FORMS
+-----------------------------------------------
+While any form/modal is open on mobile:
+
+1. Samara page header and global search are hidden.
+2. Module selector is hidden.
+3. Enable Alert Sound bar is hidden.
+4. Bottom mobile navigation is hidden.
+5. Clinical alert popup is temporarily hidden (not resolved/cleared).
+6. The form itself becomes a true full-screen layer.
+7. Long forms scroll independently from top to bottom.
+8. Form title / Close button remain sticky at the top while scrolling.
+9. Closing the form automatically restores the normal ERP screen.
+
+This is a GLOBAL mobile correction, so it applies to Director's Office and
+all other modal/entry forms that use the standard Samara modal structure.
 
 INSTALL
 -------
@@ -24,7 +35,7 @@ Replace only:
 - index.html
 - service-worker.js
 
-Then Ctrl+F5 once.
+Then refresh once (Ctrl+F5 on desktop; close/reopen or reload PWA on mobile).
 
-NO SQL.
+NO SQL REQUIRED.
 NO EDGE FUNCTION CHANGES.

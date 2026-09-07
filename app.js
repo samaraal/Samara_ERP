@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.29';
+  const APP_VERSION = '2.10.30';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -4591,15 +4591,67 @@ Caring with Compassion. Living with Dignity.`;
           background:rgba(255,255,255,.985)!important;
           border-top-color:#ebcddd!important;
         }
-        /* Entry forms must never be covered by mobile app chrome.
-           When a form/modal is open, the Module selector is unnecessary and
-           steals valuable vertical space on phones. Hide it until the form closes. */
-        .app:has(.modal-backdrop) .mobile-bottom-nav{
+        /* MOBILE FULL-SCREEN FORM MODE
+           Every real modal / data-entry form gets a clean phone screen.
+           App header, search, Module selector, alert-sound bar and bottom nav
+           are temporarily hidden until the form is closed. */
+        .app:has(.modal-backdrop) .topbar,
+        .app:has(.modal-backdrop) .mobile-menu,
+        .app:has(.modal-backdrop) .mobile-bottom-nav,
+        .app:has(.modal-backdrop) .sound-unlock-button,
+        .app:has(.modal-backdrop) .clinical-alert-popup{
           display:none!important;
         }
-        .app:has(.modal-backdrop) .mobile-menu{
-          display:none!important;
+
+        /* Do not alter the one intentionally-inline pseudo modal. */
+        .modal-backdrop:not([style*="position: static"]){
+          position:fixed!important;
+          inset:0!important;
+          width:100vw!important;
+          height:100dvh!important;
+          max-width:none!important;
+          max-height:none!important;
+          z-index:100000!important;
+          margin:0!important;
+          padding:
+            max(8px,env(safe-area-inset-top))
+            8px
+            max(8px,env(safe-area-inset-bottom))!important;
+          background:#fff8fb!important;
+          overflow-y:auto!important;
+          overflow-x:hidden!important;
+          align-items:flex-start!important;
+          justify-content:center!important;
+          -webkit-overflow-scrolling:touch!important;
         }
+
+        .modal-backdrop:not([style*="position: static"]) > .modal,
+        .modal-backdrop:not([style*="position: static"]) > .modal-card,
+        .modal-backdrop:not([style*="position: static"]) > form.modal,
+        .modal-backdrop:not([style*="position: static"]) > form.card.modal{
+          width:100%!important;
+          max-width:none!important;
+          min-height:calc(100dvh - max(16px,env(safe-area-inset-top)) - max(16px,env(safe-area-inset-bottom)))!important;
+          max-height:none!important;
+          margin:0!important;
+          border-radius:16px!important;
+          overflow:visible!important;
+          box-shadow:none!important;
+        }
+
+        /* Keep the form title and Close button visible while scrolling long forms. */
+        .modal-backdrop:not([style*="position: static"]) .panel-head,
+        .modal-backdrop:not([style*="position: static"]) .modal-head{
+          position:sticky!important;
+          top:0!important;
+          z-index:15!important;
+          margin:-13px -13px 12px!important;
+          padding:13px!important;
+          background:rgba(255,250,253,.98)!important;
+          border-bottom:1px solid #ead1dc!important;
+          backdrop-filter:blur(8px)!important;
+        }
+
         .app:has(.modal-backdrop) .content{
           padding-bottom:calc(20px + env(safe-area-inset-bottom))!important;
         }
