@@ -1,48 +1,76 @@
-SAMARA CARE ERP v2.10.21 — STD ELEGANT COMMUNICATION DASHBOARD
+SAMARA CARE ERP v2.10.22 — STD ENQUIRY DESK
 
-CHANGES
+PURPOSE
 -------
-1. Clinical alerts are now disabled at the SOURCE for STD.
-   The STD clinical engine does not call the clinical-alert RPC, does not start
-   its one-minute timer, removes any existing clinical overlay and cancels any
-   clinical speech. This fixes the large CLINICAL ALERT banner shown in the
-   Director's Office screenshot.
+STD should attend enquiries, not every WhatsApp communication in Samara ERP.
 
-2. Director's Office dashboard improved:
-   - cleaner executive-style communication cards
-   - WhatsApp Enquiries
-   - Feedback
-   - existing Appointments, Calls, Follow-ups, Visitors, Correspondence, Reminders
+WHATSAPP ENQUIRY DESK
+---------------------
+STD now sees only enquiry-type WhatsApp conversations.
+Hidden from STD:
+- HR applicant / employee WhatsApp
+- Patient / family operational WhatsApp
+- Emergency messages
+- Payment / receipt messages
+- Daily patient reports
+- Discharge messages
+- Family Portal operational messages
 
-3. STD access now includes:
-   - Director's Office
-   - WhatsApp Inbox
-   - Feedback
-   - My Leave & Permission
+STD WhatsApp filters:
+- Subject
+- Name / mobile / message search
+- From date
+- To date
+- Unread only
 
-4. STD remains transferable. Nothing is hard-coded to Akshai.
+Automatic subject groups:
+- Admission / Care
+- Callback
+- Location
+- Pricing / Charges
+- Services
+- General Enquiry
+
+CALL ENQUIRIES
+--------------
+Calls are entered manually by STD.
+
+Director's Office > Call Enquiries:
+- Caller Name
+- Mobile
+- Call Subject / Enquiry
+- Organisation
+- Call Date / Time
+- Follow-up / Due Date
+- Details
+- Priority
+- Status
+- Director Note / Instruction
+
+The Director Follow-up Queue can now be filtered by:
+- Subject / name / mobile / notes
+- From date
+- To date
+- Type / status
+
+The Call Enquiries dashboard card can be clicked to immediately enter a new call.
 
 INSTALL
 -------
-A. Supabase SQL Editor:
-   Run 106_std_whatsapp_feedback_access.sql once.
+1. Supabase SQL Editor:
+   Run 107_std_enquiry_whatsapp_rls.sql ONCE.
 
-B. ERP hosting:
+2. ERP hosting:
    Replace:
    - app.js
    - index.html
    - service-worker.js
 
-C. Ctrl+F5 once after upload.
+3. Ctrl+F5 once.
 
-DO NOT rerun SQL 104 or 105.
-DO NOT change WhatsApp Edge Functions.
-DO NOT change the Director/Admin role.
+Do NOT rerun SQL 104/105/106.
+Do NOT change WhatsApp Edge Functions.
 
-TEST
-----
-1. Login as STD and keep the screen open for more than one minute:
-   NO medicine/clinical alert should appear.
-2. Open WhatsApp Enquiries from the Director's Office card.
-3. Open Feedback from the Director's Office card.
-4. Confirm My Leave & Permission still works.
+IMPORTANT
+---------
+STD remains a transferable ROLE. Nothing is hard-coded to Akshai.

@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.21';
+  const APP_VERSION = '2.10.22';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6989,6 +6989,10 @@ Caring with Compassion. Living with Dignity.`;
   function WhatsAppInbox({profile}){
     const Field=({label,required=false,children})=>h('div',{className:'field'},h('label',null,label,required?h('span',{style:{color:'#b42336',marginLeft:'4px'}},'*'):null),children);
     const [rows,setRows]=React.useState([]),[selectedPhone,setSelectedPhone]=React.useState(''),[query,setQuery]=React.useState(''),[showUnread,setShowUnread]=React.useState(false),[reply,setReply]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState(''),[isMobile,setIsMobile]=React.useState(()=>window.matchMedia('(max-width: 700px)').matches),[patientContext,setPatientContext]=React.useState(null),[mobileComposer,setMobileComposer]=React.useState('');
+    const [subjectFilter,setSubjectFilter]=React.useState('All Subjects');
+    const [dateFrom,setDateFrom]=React.useState('');
+    const [dateTo,setDateTo]=React.useState('');
+    const isSTD=String(profile?.role||'')==='STD';
     const WA_REOPEN_TEMPLATES=[
       {name:'samara_general_followup',label:'General Follow-up',regarding:'your assisted living enquiry'},
       {name:'samara_admission_followup',label:'Admission / Care Enquiry',regarding:'your family member'},
@@ -7147,7 +7151,27 @@ Samara Assisted Living`;
       if(wantedCode&&codes.includes(wantedCode))return true;
       return false;
     }
-    const visibleRows=patientContext?rows.filter(row=>patientLinkedMessage(row,patientContext)):rows;
+    function stdAllowedRow(row){
+      if(!isSTD)return true;
+      if(row?.career_application_id||row?.application_id)return false;
+      const template=String(row?.template_name||'').toLowerCase();
+      if(template==='employee_welcome_samara')return false;
+      const source=String(row?.source_type||'').toLowerCase();
+      const comm=String(row?.communication_type||'').toLowerCase();
+      if(/patient|family|emergency|hr applicant|employee/.test(source))return false;
+      if(/payment|receipt|daily report|discharge|employee|emergency|family portal|patient/.test(comm))return false;
+      return true;
+    }
+    function enquirySubject(msgs){
+      const text=(msgs||[]).map(r=>`${r.message_content||''} ${r.communication_type||''} ${r.template_name||''}`).join(' ').toLowerCase();
+      if(/admission|admit|care enquiry|assisted living|tracheost|bed|stay/.test(text))return 'Admission / Care';
+      if(/call back|callback|request a call|please call|call me/.test(text))return 'Callback';
+      if(/location|address|map|where are you|route/.test(text))return 'Location';
+      if(/price|pricing|charge|charges|tariff|cost|fee|fees|package/.test(text))return 'Pricing / Charges';
+      if(/service|facility|nursing|caregiver|physio|physiotherapy/.test(text))return 'Services';
+      return 'General Enquiry';
+    }
+    const visibleRows=(patientContext?rows.filter(row=>patientLinkedMessage(row,patientContext)):rows).filter(stdAllowedRow);
     const groups={};
     visibleRows.forEach(r=>{const phone=phoneOf(r);if(!phone)return;(groups[phone]||(groups[phone]=[])).push(r)});
     const conversations=Object.entries(groups).map(([phone,msgs])=>{
@@ -7157,11 +7181,22 @@ Samara Assisted Living`;
       const unread=sorted.filter(x=>x.direction==='inbound'&&!x.erp_read_at).length;
       const name=last.contact_name||last.applicant_name||inbound?.contact_name||inbound?.applicant_name||phone;
       const source=last.source_type||inbound?.source_type||(last.career_application_id?'HR Applicant':'Website / Public');
-      return {phone,msgs:sorted,last,name,source,unread,lastAt:last.created_at};
-    }).sort((a,b)=>new Date(b.lastAt)-new Date(a.lastAt));
+      const subject=enquirySubject(sorted);
+      return {phone,msgs:sorted,last,name,source,subject,unread,lastAt:last.created_at,hasInbound:Boolean(inbound)};
+    }).filter(c=>!isSTD||c.hasInbound).sort((a,b)=>new Date(b.lastAt)-new Date(a.lastAt));
     const filtered=conversations.filter(c=>{
       if(showUnread&&!c.unread)return false;
-      const hay=`${c.name} ${c.phone} ${c.source} ${c.last.message_content||''}`.toLowerCase();
+      if(isSTD&&subjectFilter!=='All Subjects'&&c.subject!==subjectFilter)return false;
+      const lastDate=new Date(c.lastAt);
+      if(isSTD&&dateFrom){
+        const from=new Date(`${dateFrom}T00:00:00`);
+        if(lastDate<from)return false;
+      }
+      if(isSTD&&dateTo){
+        const to=new Date(`${dateTo}T23:59:59`);
+        if(lastDate>to)return false;
+      }
+      const hay=`${c.name} ${c.phone} ${c.source} ${c.subject} ${c.last.message_content||''}`.toLowerCase();
       return !query||hay.includes(query.toLowerCase());
     });
     const active=conversations.find(c=>c.phone===selectedPhone)||filtered[0]||null;
@@ -7406,22 +7441,25 @@ Thank you.`;
     }
     const unreadTotal=conversations.reduce((n,c)=>n+c.unread,0);
     return h(React.Fragment,null,
-      h(Section,{title:patientContext?`WhatsApp — ${patientContext.patient_name}`:'WhatsApp Inbox',subtitle:isMobile?null:(patientContext?'Patient-linked WhatsApp messages only. Other WhatsApp conversations are hidden in this view.':'Website/public enquiries, applicant replies and WhatsApp conversations in one place')},
+      h(Section,{title:patientContext?`WhatsApp — ${patientContext.patient_name}`:(isSTD?'WhatsApp Enquiry Desk':'WhatsApp Inbox'),subtitle:isMobile?null:(patientContext?'Patient-linked WhatsApp messages only. Other WhatsApp conversations are hidden in this view.':(isSTD?'Incoming public enquiries only. Filter by subject, name/mobile and date.':'Website/public enquiries, applicant replies and WhatsApp conversations in one place'))},
         patientContext?h('div',{className:'notice',style:{marginBottom:'12px',display:'flex',gap:'10px',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
           h('div',null,h('strong',null,patientContext.patient_name),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},patientContext.patient_code?`· ${patientContext.patient_code}`:''),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},`· +${patientContext.phone}`)),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPatientContext(null);setSelectedPhone('');setQuery('');setShowUnread(false);}},'Show All WhatsApp')
         ):null,
-        (!isMobile||!selectedPhone)?h('div',{className:'wa-inbox-toolbar',style:{display:'flex',gap:'10px',flexWrap:'wrap',alignItems:'center',marginBottom:'14px'}},
-          h('input',{value:query,onChange:e=>setQuery(e.target.value),placeholder:'Search name, mobile or message…',style:{flex:'1 1 320px',minWidth:'230px'}}),
+        (!isMobile||!selectedPhone)?h('div',{className:'wa-inbox-toolbar',style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginBottom:'14px'}},
+          h('input',{value:query,onChange:e=>setQuery(e.target.value),placeholder:isSTD?'Search name, mobile, subject or message…':'Search name, mobile or message…',style:{flex:'1 1 280px',minWidth:'220px'}}),
+          isSTD?h('select',{value:subjectFilter,onChange:e=>{setSubjectFilter(e.target.value);setSelectedPhone('')},style:{minWidth:'170px'}},
+            ['All Subjects','Admission / Care','Callback','Location','Pricing / Charges','Services','General Enquiry'].map(x=>h('option',{key:x},x))
+          ):null,
+          isSTD?h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'From',h('input',{type:'date',value:dateFrom,onChange:e=>{setDateFrom(e.target.value);setSelectedPhone('')}})):null,
+          isSTD?h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'To',h('input',{type:'date',value:dateTo,onChange:e=>{setDateTo(e.target.value);setSelectedPhone('')}})):null,
           h('button',{type:'button',className:`btn ${showUnread?'btn-primary':'btn-secondary'}`,onClick:()=>{
             const next=!showUnread;
             setShowUnread(next);
-            // On mobile the chat pane hides the conversation list while a conversation
-            // is selected. Tapping Unread must therefore return to the list first.
             if(isMobile)setSelectedPhone('');
-            // Clear any search that could hide unread conversations.
             if(next)setQuery('');
           }},`Unread ${unreadTotal}`),
+          isSTD?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setQuery('');setSubjectFilter('All Subjects');setDateFrom('');setDateTo('');setShowUnread(false);setSelectedPhone('')}},'Clear Filters'):null,
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>load(true)},'Refresh')
         ):null,
         message&&(!isMobile||!selectedPhone)?h('div',{className:'notice wa-inbox-status',style:{marginBottom:'12px'}},message):null,
@@ -7432,6 +7470,7 @@ Thank you.`;
                 h('div',{style:{width:'42px',height:'42px',borderRadius:'50%',display:'grid',placeItems:'center',background:'#e8edef',color:'#5d1039',fontWeight:'800',flex:'0 0 auto'}},String(c.name||'?').trim().slice(0,1).toUpperCase()),
                 h('div',{style:{minWidth:0,flex:1}},
                   h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'baseline'}},h('strong',{style:{color:'#2e252a',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},c.name),h('small',{style:{color:'#8b7c84',flex:'0 0 auto'}},fmt(c.last.created_at))),
+                  isSTD?h('div',{style:{fontSize:'11px',fontWeight:850,color:'#9b124f',marginTop:'3px'}},c.subject):null,
                   h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center',marginTop:'4px'}},h('span',{style:{fontSize:'13px',color:'#756870',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},chatText(c.last).replace(/\n/g,' ')),c.unread?h('span',{className:'badge success'},c.unread):null)
                 )
               )
@@ -7505,7 +7544,7 @@ Thank you.`;
             ):h('p',{className:'empty',style:{margin:'auto'}},'Select a WhatsApp conversation.')
           )
         ),
-        showEmergency&&active?h('div',{className:'modal show',onClick:e=>{if(e.target===e.currentTarget&&!emergencyBusy)setShowEmergency(false)}},
+        !isSTD&&showEmergency&&active?h('div',{className:'modal show',onClick:e=>{if(e.target===e.currentTarget&&!emergencyBusy)setShowEmergency(false)}},
           h('div',{className:'modal-card',style:{maxWidth:'720px',border:'2px solid #b42336'}},
             h('div',{className:'modal-head'},
               h('div',null,
@@ -8134,6 +8173,9 @@ Thank you.`;
     const [saving,setSaving]=React.useState(false);
     const [waUnread,setWaUnread]=React.useState(0);
     const [feedbackOpen,setFeedbackOpen]=React.useState(0);
+    const [officeQuery,setOfficeQuery]=React.useState('');
+    const [officeFrom,setOfficeFrom]=React.useState('');
+    const [officeTo,setOfficeTo]=React.useState('');
 
     const canUse=['Admin','STD'].includes(profile?.role);
 
@@ -8269,10 +8311,19 @@ Thank you.`;
     const urgent=openRows.filter(r=>r.priority==='Urgent');
 
     const filtered=rows.filter(r=>{
-      if(filter==='Open')return isOpen(r);
-      if(filter==='Completed')return r.status==='Completed';
-      if(filter==='Today')return isToday(r.scheduled_at)||(r.due_date&&r.due_date===todayISOIndia());
-      return r.item_type===filter;
+      let typeOk=false;
+      if(filter==='Open')typeOk=isOpen(r);
+      else if(filter==='Completed')typeOk=r.status==='Completed';
+      else if(filter==='Today')typeOk=isToday(r.scheduled_at)||(r.due_date&&r.due_date===todayISOIndia());
+      else typeOk=r.item_type===filter;
+      if(!typeOk)return false;
+      const hay=`${r.title||''} ${r.contact_name||''} ${r.contact_mobile||''} ${r.organisation||''} ${r.details||''}`.toLowerCase();
+      if(officeQuery&&!hay.includes(officeQuery.toLowerCase()))return false;
+      const dateValue=r.scheduled_at||r.created_at;
+      const d=dateValue?new Date(dateValue):null;
+      if(officeFrom&&d&&d<new Date(`${officeFrom}T00:00:00`))return false;
+      if(officeTo&&d&&d>new Date(`${officeTo}T23:59:59`))return false;
+      return true;
     });
 
     const card=(label,value,filterValue,sub)=>h('button',{
@@ -8333,11 +8384,11 @@ Thank you.`;
         h('div',{className:'modal-grid'},
           h('div',{className:'field'},h('label',null,'Type'),h('select',{value:form.item_type,onChange:e=>setForm({...form,item_type:e.target.value})},TYPES.map(x=>h('option',{key:x},x)))),
           h('div',{className:'field'},h('label',null,'Priority'),h('select',{value:form.priority,onChange:e=>setForm({...form,priority:e.target.value})},PRIORITIES.map(x=>h('option',{key:x},x)))),
-          h('div',{className:'field span-2'},h('label',null,'Subject / Purpose *'),h('input',{required:true,value:form.title,onChange:e=>setForm({...form,title:e.target.value}),placeholder:'Example: Call Dr. ___ regarding referral'})),
-          h('div',{className:'field'},h('label',null,'Person / Visitor'),h('input',{value:form.contact_name,onChange:e=>setForm({...form,contact_name:e.target.value})})),
+          h('div',{className:'field span-2'},h('label',null,form.item_type==='Call / Callback'?'Call Subject / Enquiry *':'Subject / Purpose *'),h('input',{required:true,value:form.title,onChange:e=>setForm({...form,title:e.target.value}),placeholder:'Example: Call Dr. ___ regarding referral'})),
+          h('div',{className:'field'},h('label',null,form.item_type==='Call / Callback'?'Caller Name':'Person / Visitor'),h('input',{value:form.contact_name,onChange:e=>setForm({...form,contact_name:e.target.value})})),
           h('div',{className:'field'},h('label',null,'Mobile'),h('input',{value:form.contact_mobile,onChange:e=>setForm({...form,contact_mobile:e.target.value}),inputMode:'tel'})),
           h('div',{className:'field span-2'},h('label',null,'Organisation'),h('input',{value:form.organisation,onChange:e=>setForm({...form,organisation:e.target.value})})),
-          h('div',{className:'field'},h('label',null,'Appointment / Call Time'),h('input',{type:'datetime-local',value:form.scheduled_at,onChange:e=>setForm({...form,scheduled_at:e.target.value})})),
+          h('div',{className:'field'},h('label',null,form.item_type==='Call / Callback'?'Call Date / Time':'Appointment / Call Time'),h('input',{type:'datetime-local',value:form.scheduled_at,onChange:e=>setForm({...form,scheduled_at:e.target.value})})),
           h('div',{className:'field'},h('label',null,'Follow-up / Due Date'),h('input',{type:'date',value:form.due_date,onChange:e=>setForm({...form,due_date:e.target.value})})),
           h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},STATUSES.map(x=>h('option',{key:x},x)))),
           h('div',{className:'field span-2'},h('label',null,'Details'),h('textarea',{rows:3,value:form.details,onChange:e=>setForm({...form,details:e.target.value}),placeholder:'Short notes / action required'})),
@@ -8361,8 +8412,13 @@ Thank you.`;
           card('Correspondence',correspondence.length,'Correspondence','Letters & communications'),
           card('Reminders',reminders.length,'Reminder','Upcoming reminders')
         ),
-        h('div',{style:{marginTop:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(230px,1fr))',gap:'10px'}},
-          commCard('WhatsApp Enquiries',waUnread,'◉','Open public / enquiry conversations','WhatsApp Inbox'),
+        h('div',{style:{marginTop:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:'10px'}},
+          commCard('WhatsApp Enquiries',waUnread,'◉','Attend incoming public enquiries','WhatsApp Inbox'),
+          h('button',{type:'button',onClick:()=>openNew('Call / Callback'),style:{textAlign:'left',border:'1px solid #ead7e0',borderRadius:'18px',background:'linear-gradient(145deg,#ffffff 0%,#fff7fb 100%)',padding:'16px 17px',cursor:'pointer',minHeight:'102px',boxShadow:'0 7px 20px rgba(125,23,73,.07)'}},
+            h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px'}},h('span',{style:{fontSize:'27px'}},'☎'),h('strong',{style:{fontSize:'29px',fontWeight:950,color:'#9b124f'}},calls.length)),
+            h('div',{style:{fontWeight:900,color:'#351b29',marginTop:'5px',fontSize:'15px'}},'Call Enquiries'),
+            h('small',{style:{color:'#846d79'}},'Enter every phone enquiry manually')
+          ),
           commCard('Feedback',feedbackOpen,'★','Review feedback and responses','Feedback')
         ),
         urgent.length?h('div',{style:{marginTop:'12px',padding:'10px 12px',borderRadius:'12px',background:'#fff3f3',border:'1px solid #efc2c2',fontWeight:800,color:'#8d1b2c'}},`⚠ ${urgent.length} urgent item${urgent.length===1?'':'s'} pending`):null
@@ -8374,6 +8430,12 @@ Thank you.`;
           )
         )
       },
+        h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginBottom:'12px'}},
+          h('input',{value:officeQuery,onChange:e=>setOfficeQuery(e.target.value),placeholder:'Search subject, name, mobile or notes…',style:{flex:'1 1 280px',minWidth:'220px'}}),
+          h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'From',h('input',{type:'date',value:officeFrom,onChange:e=>setOfficeFrom(e.target.value)})),
+          h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'To',h('input',{type:'date',value:officeTo,onChange:e=>setOfficeTo(e.target.value)})),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setOfficeQuery('');setOfficeFrom('');setOfficeTo('')}},'Clear')
+        ),
         loading?h('div',{className:'empty'},'Loading Director’s Office…'):
         h('div',{style:{display:'grid',gap:'10px'}},...filtered.map(itemCard),
           filtered.length===0?h('div',{className:'empty'},'No items in this view.'):null
