@@ -1,86 +1,22 @@
-SAMARA CARE ERP v2.10.32 — DIRECTOR + STD VOICE ENTRY
+SAMARA CARE ERP v2.10.32 — RECOVERY FILES
 
-NEW
----
-Director's Office forms now support voice filling for:
-- Assigned Director
-- STD
+The uploaded source was checked:
+- app.js = v2.10.32
+- index.html references v2.10.32
+- service-worker.js = v2.10.32
+- app.js passes JavaScript syntax check
 
-BUTTONS
--------
-🎤 Speak Tamil
-🎤 Speak English
-■ Stop
+Replace these three files on the LIVE ERP hosting:
+1. app.js
+2. index.html
+3. service-worker.js
 
-HOW IT WORKS
-------------
-Speak naturally in Tamil, English or mixed Tamil-English.
+Make sure they are uploaded to the SAME folder currently serving:
+https://app.samaraassistedliving.com/
 
-Example:
-"நாளைக்கு மாலை நான்கு மணிக்கு டாக்டர் ரவியை அப்போலோவில் சந்திக்க வேண்டும்."
+After upload:
+- close Samara Care completely on iPhone
+- reopen it
+- if needed, use Repair App & Reload once
 
-The ERP converts it to short/simple English and fills suitable fields.
-
-The system can identify:
-- Task
-- Appointment
-- Call / Callback
-- Follow-up
-- Visitor
-- Correspondence
-- Reminder
-
-For Quick Tasks it can identify:
-- Visit
-- Buy / Purchase
-- Attend Function
-- Trip / Travel
-- General Task
-
-IMPORTANT
----------
-VOICE ENTRY DOES NOT AUTO-SAVE.
-
-Workflow:
-Speak -> Recognise -> Translate / interpret -> Fill -> Check -> Save
-
-This is intentional so a speech-recognition error cannot be stored without review.
-
-ACCESS
-------
-Voice buttons are available only to:
-1. the profile assigned as Director in director_office_positions, and
-2. STD.
-
-A different Admin does not get Director voice access merely because the role is Admin.
-
-INSTALL
--------
-1. If v2.10.31 Quick Tasks SQL was not already run:
-   Run 110_director_office_quick_tasks.sql
-
-2. Supabase Edge Functions:
-   Deploy:
-   supabase/functions/director-office-voice/index.ts
-   Function name: director-office-voice
-
-3. Supabase Edge Function Secrets:
-   Add:
-   OPENAI_API_KEY = <your OpenAI API key>
-
-   Keep JWT verification enabled.
-
-4. ERP:
-   Replace:
-   app.js
-   index.html
-   service-worker.js
-
-5. Refresh/reopen the mobile app.
-
-MICROPHONE
-----------
-The first use will request microphone permission.
-Allow microphone access for Samara Care.
-
-NO NEW SQL IS NEEDED FOR VOICE ITSELF.
+No Supabase data is changed by these files.
