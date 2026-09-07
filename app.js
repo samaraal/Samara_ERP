@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.23';
+  const APP_VERSION = '2.10.24';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6846,6 +6846,47 @@ Caring with Compassion. Living with Dignity.`;
 
   function Dashboard({profile,onNavigate,alertEngine}){
     const [stats,setStats]=React.useState({employees:0,patients:0,availableBeds:0,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[],escalations:0,packageExpiry:0});
+    const [directorOfficeSummary,setDirectorOfficeSummary]=React.useState({
+      isDirector:false,
+      awaiting:0,
+      calls:0,
+      appointments:0,
+      urgent:0
+    });
+
+    React.useEffect(()=>{(async()=>{
+      try{
+        const {data:position}=await client.from('director_office_positions')
+          .select('assigned_profile_id')
+          .eq('position_key','director')
+          .maybeSingle();
+        const isDirector=String(position?.assigned_profile_id||'')===String(profile?.id||'');
+        if(isDirector){
+          const {data:officeRows}=await client.from('director_office_items')
+            .select('id,item_type,status,priority,scheduled_at,needs_director_attention,director_responded_at')
+            .limit(1000);
+          const open=(officeRows||[]).filter(r=>!['Completed','Cancelled'].includes(String(r.status||'')));
+          const today=new Date();
+          const sameDay=v=>{
+            if(!v)return false;
+            const d=new Date(v);
+            return d.getFullYear()===today.getFullYear()&&d.getMonth()===today.getMonth()&&d.getDate()===today.getDate();
+          };
+          setDirectorOfficeSummary({
+            isDirector:true,
+            awaiting:open.filter(r=>r.needs_director_attention&&!r.director_responded_at).length,
+            calls:open.filter(r=>r.item_type==='Call / Callback'&&r.needs_director_attention&&!r.director_responded_at).length,
+            appointments:open.filter(r=>r.item_type==='Appointment'&&sameDay(r.scheduled_at)).length,
+            urgent:open.filter(r=>r.priority==='Urgent'&&r.needs_director_attention&&!r.director_responded_at).length
+          });
+        }else{
+          setDirectorOfficeSummary({isDirector:false,awaiting:0,calls:0,appointments:0,urgent:0});
+        }
+      }catch(_){
+        setDirectorOfficeSummary({isDirector:false,awaiting:0,calls:0,appointments:0,urgent:0});
+      }
+    })()},[profile?.id]);
+
     React.useEffect(()=>{(async()=>{
       const today=new Date().toISOString().slice(0,10);
       const [emp,pat,beds,med,care,bill,inc,dis,vis,enq,esc]=await Promise.all([
@@ -6976,6 +7017,38 @@ Caring with Compassion. Living with Dignity.`;
     ];
     return h(React.Fragment,null,
       h('div',{className:'shift-summary'},h('div',null,h('strong',null,currentShift()),h('span',null,'Admin and Manager control dashboard')),h('span',{className:'badge'},formalName(profile))),
+      directorOfficeSummary.isDirector?h('button',{
+        type:'button',
+        onClick:()=>onNavigate("Director's Office"),
+        style:{
+          width:'100%',
+          marginTop:'14px',
+          marginBottom:'14px',
+          textAlign:'left',
+          border:'1px solid #dca8bd',
+          borderLeft:'6px solid #a70f4d',
+          borderRadius:'18px',
+          padding:'16px 18px',
+          cursor:'pointer',
+          background:'linear-gradient(135deg,#fff8fb 0%,#f7dbe7 48%,#efc6d6 100%)',
+          boxShadow:'0 10px 28px rgba(119,18,65,.11)'
+        }
+      },
+        h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},
+          h('div',null,
+            h('div',{style:{fontSize:'12px',fontWeight:900,letterSpacing:'.07em',color:'#9a1850'}},'DIRECTOR’S OFFICE'),
+            h('div',{style:{fontSize:'20px',fontWeight:950,color:'#461427',marginTop:'2px'}},'Items requiring your attention'),
+            h('small',{style:{color:'#735b66'}},'Shared live workspace with Secretary to the Director')
+          ),
+          h('span',{className:'badge'},'Open Director’s Office →')
+        ),
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(145px,1fr))',gap:'8px',marginTop:'13px'}},
+          h('div',{style:{background:'rgba(255,255,255,.62)',border:'1px solid rgba(173,58,106,.18)',borderRadius:'12px',padding:'9px 11px'}},h('strong',{style:{fontSize:'23px',color:'#97144d'}},directorOfficeSummary.awaiting),h('div',{style:{fontSize:'12px',fontWeight:850}},'Awaiting My Instruction')),
+          h('div',{style:{background:'rgba(255,255,255,.62)',border:'1px solid rgba(173,58,106,.18)',borderRadius:'12px',padding:'9px 11px'}},h('strong',{style:{fontSize:'23px',color:'#97144d'}},directorOfficeSummary.calls),h('div',{style:{fontSize:'12px',fontWeight:850}},'Calls to Return')),
+          h('div',{style:{background:'rgba(255,255,255,.62)',border:'1px solid rgba(173,58,106,.18)',borderRadius:'12px',padding:'9px 11px'}},h('strong',{style:{fontSize:'23px',color:'#97144d'}},directorOfficeSummary.appointments),h('div',{style:{fontSize:'12px',fontWeight:850}},'Appointments Today')),
+          h('div',{style:{background:'rgba(255,255,255,.62)',border:'1px solid rgba(173,58,106,.18)',borderRadius:'12px',padding:'9px 11px'}},h('strong',{style:{fontSize:'23px',color:'#97144d'}},directorOfficeSummary.urgent),h('div',{style:{fontSize:'12px',fontWeight:850}},'Urgent Follow-ups'))
+        )
+      ):null,
       h('div',{className:'grid stats dashboard-links'},cards.map(card=>h('button',{type:'button',className:'card stat dashboard-card',key:card.label,onClick:()=>{
         if(card.page==='Patients'){
           try{
@@ -8200,7 +8273,8 @@ Thank you.`;
     const STATUSES=['Pending','In Progress','Completed','Cancelled'];
     const blank=()=>({
       item_type:'Follow-up',title:'',contact_name:'',contact_mobile:'',organisation:'',
-      scheduled_at:'',due_date:'',priority:'Normal',status:'Pending',details:'',director_note:''
+      scheduled_at:'',due_date:'',priority:'Normal',status:'Pending',details:'',director_note:'',
+      needs_director_attention:false,director_responded_at:null
     });
     const [rows,setRows]=React.useState([]);
     const [loading,setLoading]=React.useState(true);
@@ -8215,6 +8289,7 @@ Thank you.`;
     const [officeQuery,setOfficeQuery]=React.useState('');
     const [officeFrom,setOfficeFrom]=React.useState('');
     const [officeTo,setOfficeTo]=React.useState('');
+    const [isAssignedDirector,setIsAssignedDirector]=React.useState(false);
 
     const canUse=['Admin','STD'].includes(profile?.role);
 
@@ -8274,6 +8349,15 @@ Thank you.`;
 
     React.useEffect(()=>{
       if(!canUse){setLoading(false);return}
+      (async()=>{
+        try{
+          const {data}=await client.from('director_office_positions')
+            .select('assigned_profile_id')
+            .eq('position_key','director')
+            .maybeSingle();
+          setIsAssignedDirector(String(data?.assigned_profile_id||'')===String(profile?.id||''));
+        }catch(_){setIsAssignedDirector(false)}
+      })();
       load();loadCommunicationCounts();
       const ch=client.channel('director-office-live')
         .on('postgres_changes',{event:'*',schema:'public',table:'director_office_items'},load)
@@ -8301,7 +8385,9 @@ Thank you.`;
         priority:r.priority||'Normal',
         status:r.status||'Pending',
         details:r.details||'',
-        director_note:r.director_note||''
+        director_note:r.director_note||'',
+        needs_director_attention:Boolean(r.needs_director_attention),
+        director_responded_at:r.director_responded_at||null
       });
       setShowForm(true);
     }
@@ -8321,8 +8407,14 @@ Thank you.`;
         status:form.status,
         details:form.details.trim()||null,
         director_note:form.director_note.trim()||null,
+        needs_director_attention:Boolean(form.needs_director_attention),
         updated_at:new Date().toISOString()
       };
+      if(isAssignedDirector&&form.director_note.trim()&&form.needs_director_attention){
+        payload.director_responded_at=new Date().toISOString();
+      }else if(!form.needs_director_attention){
+        payload.director_responded_at=null;
+      }
       let res;
       if(editingId)res=await client.from('director_office_items').update(payload).eq('id',editingId);
       else res=await client.from('director_office_items').insert(payload);
@@ -8336,6 +8428,13 @@ Thank you.`;
     async function markComplete(r){
       const {error}=await client.from('director_office_items').update({status:'Completed',updated_at:new Date().toISOString()}).eq('id',r.id);
       if(error)setMessage(error.message||'Unable to complete item');else await load();
+    }
+    async function markDirectorResponded(r){
+      const {error}=await client.from('director_office_items').update({
+        director_responded_at:new Date().toISOString(),
+        updated_at:new Date().toISOString()
+      }).eq('id',r.id);
+      if(error)setMessage(error.message||'Unable to update Director response.');else await load();
     }
 
     if(!canUse)return h(Section,{title:"Director's Office",subtitle:'Restricted workspace'},h('div',{className:'empty'},'This workspace is available only to the Director / Administrator and Secretary to the Director.'));
@@ -8352,6 +8451,7 @@ Thank you.`;
     const filtered=rows.filter(r=>{
       let typeOk=false;
       if(filter==='Open')typeOk=isOpen(r);
+      else if(filter==='For Director')typeOk=isOpen(r)&&Boolean(r.needs_director_attention)&&!r.director_responded_at;
       else if(filter==='Completed')typeOk=r.status==='Completed';
       else if(filter==='Today')typeOk=isToday(r.scheduled_at)||(r.due_date&&r.due_date===todayISOIndia());
       else typeOk=r.item_type===filter;
@@ -8431,9 +8531,11 @@ Thank you.`;
       r.scheduled_at?h('div',{style:{fontSize:'13px'}},h('b',null,'Schedule: '),prettyDateTime(r.scheduled_at)):null,
       r.due_date?h('div',{style:{fontSize:'13px'}},h('b',null,'Due: '),prettyDate(r.due_date)):null,
       r.details?h('div',{style:{fontSize:'13px',lineHeight:'1.45',whiteSpace:'pre-wrap'}},r.details):null,
+      r.needs_director_attention?h('div',{style:{fontSize:'12px',fontWeight:900,color:r.director_responded_at?'#176a52':'#9a174d',background:r.director_responded_at?'#eaf7f1':'#fde8f0',borderRadius:'999px',padding:'6px 10px',width:'fit-content'}},r.director_responded_at?'✓ Director Responded':'● For Director'):null,
       r.director_note?h('div',{style:{fontSize:'13px',lineHeight:'1.45',background:'#fff7e6',borderRadius:'10px',padding:'8px 10px'}},h('b',null,'Director note: '),r.director_note):null,
       h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
-        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>editRow(r)},'Open / Edit'),
+        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>editRow(r)},isAssignedDirector?'View / Add Instruction':'Open / Edit'),
+        isAssignedDirector&&r.needs_director_attention&&!r.director_responded_at?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>markDirectorResponded(r)},'✓ Director Responded'):null,
         isOpen(r)?h('button',{type:'button',className:'btn btn-primary',onClick:()=>markComplete(r)},'✓ Complete'):null
       )
     );
@@ -8455,7 +8557,11 @@ Thank you.`;
           h('div',{className:'field'},h('label',null,'Follow-up / Due Date'),h('input',{type:'date',value:form.due_date,onChange:e=>setForm({...form,due_date:e.target.value})})),
           h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},STATUSES.map(x=>h('option',{key:x},x)))),
           h('div',{className:'field span-2'},h('label',null,'Details'),h('textarea',{rows:3,value:form.details,onChange:e=>setForm({...form,details:e.target.value}),placeholder:'Short notes / action required'})),
-          h('div',{className:'field span-2'},h('label',null,'Director Note / Instruction'),h('textarea',{rows:2,value:form.director_note,onChange:e=>setForm({...form,director_note:e.target.value}),placeholder:'Optional instruction or decision'}))
+          h('div',{className:'field span-2'},h('label',{style:{display:'flex',alignItems:'center',gap:'9px',fontWeight:900,color:'#7d1547'}},
+            h('input',{type:'checkbox',checked:Boolean(form.needs_director_attention),onChange:e=>setForm({...form,needs_director_attention:e.target.checked,director_responded_at:e.target.checked?form.director_responded_at:null}),style:{width:'18px',height:'18px'}}),
+            'Needs Director Attention'
+          ),h('small',null,'Use only when the Director must decide, instruct or return a call.')),
+          h('div',{className:'field span-2'},h('label',null,isAssignedDirector?'Director Instruction':'Director Note / Instruction'),h('textarea',{rows:2,value:form.director_note,onChange:e=>setForm({...form,director_note:e.target.value}),placeholder:isAssignedDirector?'Enter your instruction / decision':'Optional instruction or decision'}))
         ),
         h('div',{className:'modal-actions'},
           h('button',{type:'button',className:'btn btn-secondary',disabled:saving,onClick:()=>setShowForm(false)},'Cancel'),
@@ -8498,7 +8604,7 @@ Thank you.`;
       ),
       h(Section,{title:'Director Follow-up Queue',subtitle:`${filtered.length} item${filtered.length===1?'':'s'} · ${filter}`,actions:
         h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
-          ...['Open','Today','Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder','Completed'].map(x=>
+          ...['Open','For Director','Today','Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder','Completed'].map(x=>
             h('button',{type:'button',key:x,className:filter===x?'btn btn-primary':'btn btn-secondary',onClick:()=>setFilter(x)},x)
           )
         )

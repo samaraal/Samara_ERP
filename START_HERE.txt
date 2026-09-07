@@ -1,27 +1,72 @@
-SAMARA CARE ERP v2.10.23 — STD LOGO-THEME DASHBOARD
+SAMARA CARE ERP v2.10.24 — DIRECTOR ↔ STD INTERCONNECT
 
-This is a VISUAL-ONLY update for the Director's Office / STD dashboard.
+DESIGN
+------
+The Secretary keeps the operational Director's Office workspace.
+The assigned Director keeps the normal Admin dashboard.
 
-Changes:
-- Replaces plain white dashboard cards with Samara logo-theme rose / blush / cream gradients.
-- Adds burgundy accent borders.
-- Adds soft depth/shadows without making the screen dark.
-- Communication cards (WhatsApp Enquiries, Call Enquiries, Feedback) are given stronger visual emphasis.
-- Director Follow-up Queue cards use the same Samara theme.
-- Main Director's Office panels now use soft blush backgrounds instead of plain white.
-- Search/date controls and secondary buttons are matched to the logo palette.
-- Mobile layout remains responsive.
+Only ONE additional Director's Office box is added to the Director's normal dashboard.
 
-No database or permission changes.
-No WhatsApp logic changes.
-No Director/STD workflow changes.
+DIRECTOR DASHBOARD BOX
+----------------------
+Shows:
+- Awaiting My Instruction
+- Calls to Return
+- Appointments Today
+- Urgent Follow-ups
 
-DEPLOY:
-Replace only:
-- app.js
-- index.html
-- service-worker.js
+Clicking the box opens the SAME Director's Office records used by STD.
 
-Then Ctrl+F5 once.
+SHARED WORKFLOW
+---------------
+STD:
+1. Receives / records enquiry, call, appointment or correspondence.
+2. Handles routine matters directly.
+3. Ticks "Needs Director Attention" only when the Director must decide or instruct.
 
-DO NOT run any SQL for this update.
+Director:
+1. Sees those items in the normal Dashboard box.
+2. Opens Director's Office.
+3. Can View / Add Instruction.
+4. Can mark "Director Responded".
+5. Can mark Complete.
+6. Can also create a New Item when required.
+
+There is one source of truth. Updates by STD and Director are immediately shared.
+
+IMPORTANT
+---------
+The Director box is NOT shown merely because someone is an Admin.
+It is shown only to the profile currently assigned as:
+  director_office_positions.position_key = 'director'
+
+Therefore the system remains transferable if the Director changes in future.
+
+INSTALL
+-------
+1. Supabase SQL Editor:
+   Run 108_director_office_interconnect.sql ONCE.
+
+2. ERP hosting:
+   Replace:
+   - app.js
+   - index.html
+   - service-worker.js
+
+3. Ctrl+F5 once.
+
+Do NOT rerun previous SQL files.
+Do NOT change WhatsApp functions.
+
+TEST
+----
+A. Login as STD:
+   Create a Follow-up, Call or Appointment.
+   Tick "Needs Director Attention" and Save.
+
+B. Login as the assigned Director:
+   The normal Dashboard should show the new Director's Office box and count.
+   Open it, add an instruction, and save.
+
+C. Return to STD:
+   The same instruction should be visible.
