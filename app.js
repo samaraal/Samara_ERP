@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.38';
+  const APP_VERSION = '2.10.39';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -8764,6 +8764,7 @@ Thank you.`;
     const [officeFrom,setOfficeFrom]=React.useState('');
     const [officeTo,setOfficeTo]=React.useState('');
     const [isAssignedDirector,setIsAssignedDirector]=React.useState(false);
+    const [voiceAuthorized,setVoiceAuthorized]=React.useState(false);
     const [voiceListening,setVoiceListening]=React.useState(false);
     const [voiceProcessing,setVoiceProcessing]=React.useState(false);
     const [voiceTranscript,setVoiceTranscript]=React.useState('');
@@ -8782,7 +8783,7 @@ Thank you.`;
     const mobileVoiceLangRef=React.useRef('ta-IN');
 
     const canUse=['Admin','STD'].includes(profile?.role);
-    const canVoice=profile?.role==='STD'||isAssignedDirector;
+    const canVoice=profile?.role==='STD'||isAssignedDirector||voiceAuthorized;
 
     function localInputValue(value){
       if(!value)return '';
@@ -9147,6 +9148,46 @@ Thank you.`;
         setFeedbackOpen((fbRows||[]).filter(r=>!['Closed','Resolved'].includes(String(r.status||''))).length);
       }catch(_){setFeedbackOpen(0)}
     }
+
+    React.useEffect(()=>{
+      if(!canUse)return;
+      let cancelled=false;
+      (async()=>{
+        try{
+          const {data:{session}}=await client.auth.getSession();
+          if(!session)return;
+          const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{
+            method:'POST',
+            headers:{
+              'Authorization':`Bearer ${session.access_token}`,
+              'apikey':cfg.supabasePublishableKey,
+              'Content-Type':'application/json'
+            },
+            body:JSON.stringify({
+              transcript:'',
+              spoken_language:'ta-IN',
+              current_form_type:'Task',
+              current_task_kind:'General Task',
+              now_iso:new Date().toISOString(),
+              timezone:'Asia/Kolkata'
+            })
+          });
+          const result=await response.json().catch(()=>({}));
+          // The Edge Function authenticates Director/STD before validating transcript.
+          // Authorized users therefore reach "No speech transcript received" (400);
+          // unrelated Admins are rejected earlier with 403.
+          if(!cancelled){
+            setVoiceAuthorized(
+              response.status===400 &&
+              String(result?.error||'').toLowerCase().includes('no speech transcript')
+            );
+          }
+        }catch(_){
+          if(!cancelled)setVoiceAuthorized(false);
+        }
+      })();
+      return()=>{cancelled=true};
+    },[profile?.id,profile?.role]);
 
     React.useEffect(()=>{
       if(!canUse){setLoading(false);return}
