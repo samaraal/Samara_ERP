@@ -1,0 +1,18 @@
+SAMARA ERP v2.10.47 — EMPLOYMENT & SALARY HISTORY
+
+Adds Employment & Salary History to Employee Personnel File.
+
+Actions: Promotion, Transfer, Designation Change, Department Change, Reporting Change,
+Annual Increment, Salary Revision, Confirmation, Demotion, Suspension, Reinstatement.
+
+Salary: current/new salary, salary frequency, annual increment amount and percentage.
+Each action preserves previous department, designation, ERP role and salary.
+
+Promotion/designation and ERP Access Role remain separate.
+
+INSTALL:
+1. Run 116_employee_employment_salary_history.sql once. SQL 115 must already be installed.
+2. Replace app.js, index.html, service-worker.js.
+3. Use App Help -> Repair App if mobile cache persists.
+
+No Edge Function/API key changes.

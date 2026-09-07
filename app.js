@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.46';
+  const APP_VERSION = '2.10.47';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -10240,6 +10240,11 @@ Thank you.`;
     const [repairTarget,setRepairTarget]=React.useState(null),[repairPassword,setRepairPassword]=React.useState(''),[repairBusy,setRepairBusy]=React.useState(false),[repairMsg,setRepairMsg]=React.useState('');
     const [detailsTarget,setDetailsTarget]=React.useState(null),[detailsForm,setDetailsForm]=React.useState(null),[detailsDocs,setDetailsDocs]=React.useState([]),[detailsBusy,setDetailsBusy]=React.useState(false),[detailsMsg,setDetailsMsg]=React.useState('');
     const [detailsEditing,setDetailsEditing]=React.useState(false);
+    const [employmentActions,setEmploymentActions]=React.useState([]);
+    const [showEmploymentAction,setShowEmploymentAction]=React.useState(false);
+    const employmentBlank=()=>({action_type:'Promotion',effective_date:'',new_department:'',new_designation:'',new_reporting_superior:'',new_erp_role:'',new_salary:'',salary_frequency:'Monthly',increment_amount:'',increment_percent:'',order_reference:'',remarks:''});
+    const [employmentAction,setEmploymentAction]=React.useState(employmentBlank());
+    const [employmentSaving,setEmploymentSaving]=React.useState(false);
     const [employeeDepartmentFilter,setEmployeeDepartmentFilter]=React.useState(()=>{
       try{
         const requested=sessionStorage.getItem('samara-employee-list-filter');
@@ -10620,9 +10625,74 @@ Thank you.`;
       setRepairBusy(false);
     }
 
+    async function loadEmploymentActions(employee){
+      if(!employee?.id){setEmploymentActions([]);return;}
+      const {data,error}=await client.from('employee_employment_history').select('*').eq('employee_profile_id',employee.id).order('effective_date',{ascending:false}).order('created_at',{ascending:false});
+      if(error){console.warn('Employment history:',error.message);setEmploymentActions([]);return;}
+      setEmploymentActions(data||[]);
+    }
+    function openEmploymentAction(){
+      const r=detailsTarget;if(!r)return;
+      setEmploymentAction({...employmentBlank(),new_department:r.department||'',new_designation:r.designation||'',new_reporting_superior:r.reporting_superior||'',new_erp_role:r.role||'',new_salary:r.current_salary||''});
+      setShowEmploymentAction(true);
+    }
+    async function saveEmploymentAction(e){
+      e.preventDefault();if(employmentSaving||!detailsTarget)return;
+      if(!employmentAction.effective_date){showEmployeeToast('error','Effective Date is required.');return;}
+      setEmploymentSaving(true);
+      try{
+        const a=employmentAction;
+        const payload={action_type:a.action_type,effective_date:a.effective_date,new_department:a.new_department||null,new_designation:a.new_designation||null,new_reporting_superior:a.new_reporting_superior||null,new_erp_role:a.new_erp_role||null,new_salary:a.new_salary===''?null:Number(a.new_salary),salary_frequency:a.salary_frequency||'Monthly',increment_amount:a.increment_amount===''?null:Number(a.increment_amount),increment_percent:a.increment_percent===''?null:Number(a.increment_percent),order_reference:a.order_reference||null,remarks:a.remarks||null};
+        const {error}=await client.rpc('record_employee_employment_action',{p_employee_id:detailsTarget.id,p_action:payload});if(error)throw error;
+        const {data:fresh,error:freshError}=await client.from('profiles').select('*').eq('id',detailsTarget.id).maybeSingle();if(freshError)throw freshError;
+        if(fresh){setDetailsTarget(fresh);setDetailsForm({...empty,...fresh,password:''});}
+        await loadEmploymentActions(fresh||detailsTarget);setShowEmploymentAction(false);setEmploymentAction(employmentBlank());
+        showEmployeeToast('success',`${payload.action_type} recorded successfully.`);await load();
+      }catch(err){showEmployeeToast('error',err.message||'Unable to record employment action.');}
+      finally{setEmploymentSaving(false);}
+    }
+    function employmentHistorySection(){
+      if(!detailsTarget)return null;
+      return h('section',{className:'employee-info-section'},
+        h('div',{style:{display:'flex',justifyContent:'space-between',gap:10,alignItems:'center',flexWrap:'wrap'}},
+          h('div',null,h('h4',{style:{marginBottom:4}},'Employment & Salary History'),h('div',{className:'muted'},'Promotion, transfer, increment and service changes')),
+          h('button',{type:'button',className:'btn btn-primary',onClick:openEmploymentAction},'+ Employment Action')),
+        h('div',{style:{marginTop:12,display:'grid',gap:10}},
+          employmentActions.length?employmentActions.map(x=>h('div',{key:x.id,style:{border:'1px solid #ecd2df',borderRadius:12,padding:12}},
+            h('div',{style:{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}},h('strong',null,x.action_type),h('span',{className:'muted'},x.effective_date?formatDateIN(x.effective_date):'—')),
+            h('div',{style:{marginTop:5}},`${x.previous_designation||'—'} → ${x.new_designation||'—'}`),
+            x.previous_department!==x.new_department?h('div',{className:'muted'},`${x.previous_department||'—'} → ${x.new_department||'—'}`):null,
+            x.new_salary!=null?h('div',{style:{marginTop:4}},`Salary: ₹${Number(x.new_salary).toLocaleString('en-IN')} ${x.salary_frequency||'Monthly'}`):null,
+            x.order_reference?h('div',{className:'muted'},`Ref: ${x.order_reference}`):null,
+            x.remarks?h('div',{className:'muted'},x.remarks):null
+          )):h('div',{className:'muted'},'No employment actions recorded yet.'))
+      );
+    }
+    function employmentActionModal(){
+      if(!showEmploymentAction||!detailsTarget)return null;
+      return h('div',{className:'modal-backdrop'},h('form',{className:'card modal employee-modal',onSubmit:saveEmploymentAction},
+        h('div',{className:'panel-head'},h('div',null,h('h3',null,'Employment Action'),h('small',null,formalName(detailsTarget))),h('button',{type:'button',className:'close',onClick:()=>setShowEmploymentAction(false)},'×')),
+        h('div',{className:'modal-grid'},
+          h('label',null,'Action Type *',h('select',{value:employmentAction.action_type,onChange:e=>setEmploymentAction(v=>({...v,action_type:e.target.value}))},['Promotion','Transfer','Designation Change','Department Change','Reporting Change','Annual Increment','Salary Revision','Confirmation','Demotion','Suspension','Reinstatement'].map(v=>h('option',{key:v},v)))),
+          h('label',null,'Effective Date *',h('input',{type:'date',required:true,value:employmentAction.effective_date,onChange:e=>setEmploymentAction(v=>({...v,effective_date:e.target.value}))})),
+          h('label',null,'New Department',h('input',{value:employmentAction.new_department,onChange:e=>setEmploymentAction(v=>({...v,new_department:e.target.value}))})),
+          h('label',null,'New Designation',h('input',{value:employmentAction.new_designation,onChange:e=>setEmploymentAction(v=>({...v,new_designation:e.target.value}))})),
+          h('label',null,'Reporting Superior',h('input',{value:employmentAction.new_reporting_superior,onChange:e=>setEmploymentAction(v=>({...v,new_reporting_superior:e.target.value}))})),
+          h('label',null,'ERP Access Role',h('select',{value:employmentAction.new_erp_role,onChange:e=>setEmploymentAction(v=>({...v,new_erp_role:e.target.value}))},['','Admin','Manager','Nurse','Caregiver','Accounts','Kitchen','HR','STD'].map(v=>h('option',{key:v,value:v},v||'No change')))),
+          h('label',null,'New Salary',h('input',{type:'number',min:'0',step:'0.01',value:employmentAction.new_salary,onChange:e=>setEmploymentAction(v=>({...v,new_salary:e.target.value}))})),
+          h('label',null,'Salary Frequency',h('select',{value:employmentAction.salary_frequency,onChange:e=>setEmploymentAction(v=>({...v,salary_frequency:e.target.value}))},['Monthly','Daily','Hourly'].map(v=>h('option',{key:v},v)))),
+          h('label',null,'Increment Amount',h('input',{type:'number',min:'0',step:'0.01',value:employmentAction.increment_amount,onChange:e=>setEmploymentAction(v=>({...v,increment_amount:e.target.value}))})),
+          h('label',null,'Increment %',h('input',{type:'number',min:'0',step:'0.01',value:employmentAction.increment_percent,onChange:e=>setEmploymentAction(v=>({...v,increment_percent:e.target.value}))})),
+          h('label',null,'Order / Reference No.',h('input',{value:employmentAction.order_reference,onChange:e=>setEmploymentAction(v=>({...v,order_reference:e.target.value}))})),
+          h('label',null,'Remarks',h('textarea',{rows:3,value:employmentAction.remarks,onChange:e=>setEmploymentAction(v=>({...v,remarks:e.target.value}))}))
+        ),
+        h('div',{className:'employee-personnel-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowEmploymentAction(false)},'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:employmentSaving},employmentSaving?'Saving…':'Save Employment Action'))
+      ));
+    }
+
     async function openDetails(row){
       setDetailsEditing(false);
-      setDetailsTarget(row);setDetailsForm({...empty,...row,password:''});setDetailsMsg('');setDetailsDocs([]);
+      setDetailsTarget(row);setDetailsForm({...empty,...row,password:''});setDetailsMsg('');setDetailsDocs([]);loadEmploymentActions(row);
       setIdFiles([]);setQualificationFiles([]);setExperienceFiles([]);setOtherFiles([]);setCameraFiles([]);setPhotoFiles([]);
       setPhotoPreview('');
 
@@ -10630,6 +10700,7 @@ Thank you.`;
       if(resolved.profile){
         setDetailsTarget(resolved.profile);
         setDetailsForm({...empty,...resolved.profile,password:''});
+        loadEmploymentActions(resolved.profile);
       }
       if(resolved.url)setPhotoPreview(resolved.url);
 
@@ -11184,6 +11255,7 @@ Thank you.`;
             personnelInfoItem('Date of Joining',r.date_of_joining?formatDateIN(r.date_of_joining):'—')
           )
         ),
+        employmentHistorySection(),
         h('section',{className:'employee-info-section'},h('h4',null,'Personal & Contact'),
           h('div',{className:'employee-info-grid'},
             personnelInfoItem('Father / Guardian',r.father_guardian_name),
@@ -11251,7 +11323,7 @@ Thank you.`;
 
     return h(React.Fragment,null,
       h('div',{className:'card panel'},h('div',{className:'panel-head'},h('div',null,h('h3',null,employeeDepartmentFilter?`${employeeDepartmentFilter==='__ALL__'?'All':employeeDepartmentFilter} Employees`:'Employee Dashboard'),h('small',null,employeeDepartmentFilter?'Tap an employee to open the Personnel File':'Select a department to view active employees')),h('div',{className:'employee-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('HR Dashboard')},'← HR Dashboard'),h('button',{className:'btn btn-primary',onClick:()=>{setShow(true);setMsg('')}},'Create Employee'))),msg&&!show?h('div',{className:'message error'},msg):null,employeeDepartmentFilter?h('button',{type:'button',className:'btn btn-secondary employee-back-departments',onClick:()=>setEmployeeDepartmentFilter('')},'← Departments'):null,departmentDashboard,employeeDepartmentFilter?table:null),
-      createModal,detailsModal,resetModal,repairModal,
+      createModal,detailsModal,employmentActionModal(),resetModal,repairModal,
       cameraConfig?h(CameraCaptureModal,{config:cameraConfig,onClose:()=>setCameraConfig(null)}):null,
       employeeToast&&h('div',{className:`samara-toast ${employeeToast.type}`,role:'status','aria-live':'polite'},
         h('span',{className:'samara-toast-icon','aria-hidden':'true'},employeeToast.type==='success'?'✓':'!'),
