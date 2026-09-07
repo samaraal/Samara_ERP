@@ -1,0 +1,38 @@
+SAMARA ERP v2.10.44 — NURSING MANAGER ROLE FIX
+
+What the screenshot revealed
+----------------------------
+The Nursing Manager login is showing ERP role "Manager".
+v2.10.43 wrongly required:
+ERP Role = Nurse
+AND Designation = Nursing Manager
+
+v2.10.44 fixes this.
+
+New rule
+--------
+If Designation = Nursing Manager, My Quick Tasks + Voice Entry are available
+regardless of whether ERP access role is Nurse or Manager.
+
+This keeps access tied to the actual staff Designation, not the ERP permission role.
+
+INSTALL
+-------
+1. Replace frontend:
+   app.js
+   index.html
+   service-worker.js
+
+2. Replace Supabase Edge Function:
+   director-office-voice/index.ts
+   Deploy.
+
+3. SQL:
+   If 113_nursing_manager_personal_tasks.sql was already run, DO NOT run it again.
+   If it was never run, run it once.
+
+No API key change.
+
+Mobile:
+Close and reopen the Android/iPhone PWA.
+If old version persists: App Help -> Repair App.

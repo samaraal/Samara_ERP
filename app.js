@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.43';
+  const APP_VERSION = '2.10.44';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1410,7 +1410,7 @@ function initSamaraInaugurationInvitation(){
   const ROLE_HOME={Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet',STD:"Director's Office"};
   const isNursingManagerProfile=profile=>{
     const designation=String(profile?.designation||'').trim().toLowerCase();
-    return profile?.role==='Nurse'&&designation==='nursing manager';
+    return designation==='nursing manager';
   };
   const allowedPagesForProfile=profile=>{
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
