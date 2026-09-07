@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.22';
+  const APP_VERSION = '2.10.23';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -3137,7 +3137,46 @@ Caring with Compassion. Living with Dignity.`;
     const dueNowCount=allRows.filter(a=>!a.isOverdue&&!a.isEscalated).length;
     const regularisationCount=allRows.filter(a=>String(a.alert_type||'').toLowerCase()==='regularisation').length;
 
-    return h(React.Fragment,null,
+    return h('div',{className:'director-office-theme'},
+      h('style',null,`
+        .director-office-theme{
+          background:
+            radial-gradient(circle at 88% 4%, rgba(218,61,125,.10), transparent 28%),
+            radial-gradient(circle at 8% 18%, rgba(246,190,214,.17), transparent 24%);
+          border-radius:22px;
+        }
+        .director-office-theme > .card.panel{
+          background:linear-gradient(145deg,#fff8fb 0%,#fdf0f5 52%,#f9e4ed 100%);
+          border:1px solid #ebc2d2;
+          box-shadow:0 10px 28px rgba(112,16,60,.07);
+        }
+        .director-office-theme > .card.panel:first-of-type{
+          background:linear-gradient(135deg,#fff8fb 0%,#fdeaf1 48%,#f6d8e4 100%);
+        }
+        .director-office-theme .panel-head h3{
+          color:#6f103d;
+        }
+        .director-office-theme .btn-secondary{
+          background:#f9e3ec;
+          border-color:#e9bfd0;
+          color:#7d1547;
+        }
+        .director-office-theme .btn-secondary:hover{
+          background:#f4cedd;
+        }
+        .director-office-theme input,
+        .director-office-theme select,
+        .director-office-theme textarea{
+          background:#fffafb;
+          border-color:#dfb8c8;
+        }
+        .director-office-theme .empty{
+          color:#7f6a74;
+        }
+        @media(max-width:700px){
+          .director-office-theme{border-radius:14px}
+        }
+      `),
       h(Section,{title:dashboardFocus?`${dashboardFocus} Actions`:'Clinical Alerts',subtitle:dashboardFocus?`Dashboard view · ${dashboardFocus} actions currently due / pending`:'Nursing action dashboard — escalated items first, then overdue and due items',
         actions:h('div',{className:'employee-actions'},
           dashboardFocus&&h('button',{className:'btn btn-secondary',onClick:()=>setDashboardFocus('')},'Show All Clinical Alerts'),
@@ -8329,7 +8368,17 @@ Thank you.`;
     const card=(label,value,filterValue,sub)=>h('button',{
       type:'button',
       onClick:()=>setFilter(filterValue),
-      style:{textAlign:'left',border:'1px solid #ead7e0',borderRadius:'16px',background:'#fff',padding:'14px 16px',cursor:'pointer',minHeight:'92px'}
+      style:{
+        textAlign:'left',
+        border:'1px solid #e9b6ca',
+        borderRadius:'18px',
+        background:'linear-gradient(145deg,#fff7fa 0%,#fbe4ed 58%,#f7d5e3 100%)',
+        padding:'15px 17px',
+        cursor:'pointer',
+        minHeight:'96px',
+        boxShadow:'0 8px 20px rgba(139,19,76,.09)',
+        borderTop:'3px solid #c2185b'
+      }
     },
       h('div',{style:{fontSize:'28px',fontWeight:900,color:'#7f174a'}},value),
       h('div',{style:{fontWeight:850,color:'#351b29',marginTop:'2px'}},label),
@@ -8340,10 +8389,15 @@ Thank you.`;
       type:'button',
       onClick:()=>onNavigate&&onNavigate(target),
       style:{
-        textAlign:'left',border:'1px solid #ead7e0',borderRadius:'18px',
-        background:'linear-gradient(145deg,#ffffff 0%,#fff7fb 100%)',
-        padding:'16px 17px',cursor:'pointer',minHeight:'102px',
-        boxShadow:'0 7px 20px rgba(125,23,73,.07)'
+        textAlign:'left',
+        border:'1px solid #e5a9c1',
+        borderRadius:'20px',
+        background:'linear-gradient(135deg,#fff4f8 0%,#f8dbe7 55%,#f1c3d5 100%)',
+        padding:'17px 18px',
+        cursor:'pointer',
+        minHeight:'106px',
+        boxShadow:'0 10px 24px rgba(128,18,70,.11)',
+        borderLeft:'5px solid #b40d52'
       }
     },
       h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px'}},
@@ -8354,7 +8408,16 @@ Thank you.`;
       h('small',{style:{color:'#846d79'}},subtitle)
     );
 
-    const itemCard=r=>h('div',{key:r.id,style:{border:'1px solid #ead7e0',borderRadius:'15px',background:'#fff',padding:'13px 14px',display:'grid',gap:'8px'}},
+    const itemCard=r=>h('div',{key:r.id,style:{
+      border:'1px solid #e8bfd0',
+      borderRadius:'16px',
+      background:'linear-gradient(145deg,#fffafd 0%,#fcecf3 100%)',
+      padding:'13px 14px',
+      display:'grid',
+      gap:'8px',
+      boxShadow:'0 5px 15px rgba(122,24,69,.06)',
+      borderLeft:'4px solid #cf2c70'
+    }},
       h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'flex-start',flexWrap:'wrap'}},
         h('div',null,
           h('strong',{style:{fontSize:'15px',color:'#351b29'}},r.title),
@@ -8414,7 +8477,17 @@ Thank you.`;
         ),
         h('div',{style:{marginTop:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:'10px'}},
           commCard('WhatsApp Enquiries',waUnread,'◉','Attend incoming public enquiries','WhatsApp Inbox'),
-          h('button',{type:'button',onClick:()=>openNew('Call / Callback'),style:{textAlign:'left',border:'1px solid #ead7e0',borderRadius:'18px',background:'linear-gradient(145deg,#ffffff 0%,#fff7fb 100%)',padding:'16px 17px',cursor:'pointer',minHeight:'102px',boxShadow:'0 7px 20px rgba(125,23,73,.07)'}},
+          h('button',{type:'button',onClick:()=>openNew('Call / Callback'),style:{
+              textAlign:'left',
+              border:'1px solid #e5a9c1',
+              borderRadius:'20px',
+              background:'linear-gradient(135deg,#fff4f8 0%,#f8dbe7 55%,#f1c3d5 100%)',
+              padding:'17px 18px',
+              cursor:'pointer',
+              minHeight:'106px',
+              boxShadow:'0 10px 24px rgba(128,18,70,.11)',
+              borderLeft:'5px solid #b40d52'
+            }},
             h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px'}},h('span',{style:{fontSize:'27px'}},'☎'),h('strong',{style:{fontSize:'29px',fontWeight:950,color:'#9b124f'}},calls.length)),
             h('div',{style:{fontWeight:900,color:'#351b29',marginTop:'5px',fontSize:'15px'}},'Call Enquiries'),
             h('small',{style:{color:'#846d79'}},'Enter every phone enquiry manually')

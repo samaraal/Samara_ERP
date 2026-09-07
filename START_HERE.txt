@@ -1,76 +1,27 @@
-SAMARA CARE ERP v2.10.22 — STD ENQUIRY DESK
+SAMARA CARE ERP v2.10.23 — STD LOGO-THEME DASHBOARD
 
-PURPOSE
--------
-STD should attend enquiries, not every WhatsApp communication in Samara ERP.
+This is a VISUAL-ONLY update for the Director's Office / STD dashboard.
 
-WHATSAPP ENQUIRY DESK
----------------------
-STD now sees only enquiry-type WhatsApp conversations.
-Hidden from STD:
-- HR applicant / employee WhatsApp
-- Patient / family operational WhatsApp
-- Emergency messages
-- Payment / receipt messages
-- Daily patient reports
-- Discharge messages
-- Family Portal operational messages
+Changes:
+- Replaces plain white dashboard cards with Samara logo-theme rose / blush / cream gradients.
+- Adds burgundy accent borders.
+- Adds soft depth/shadows without making the screen dark.
+- Communication cards (WhatsApp Enquiries, Call Enquiries, Feedback) are given stronger visual emphasis.
+- Director Follow-up Queue cards use the same Samara theme.
+- Main Director's Office panels now use soft blush backgrounds instead of plain white.
+- Search/date controls and secondary buttons are matched to the logo palette.
+- Mobile layout remains responsive.
 
-STD WhatsApp filters:
-- Subject
-- Name / mobile / message search
-- From date
-- To date
-- Unread only
+No database or permission changes.
+No WhatsApp logic changes.
+No Director/STD workflow changes.
 
-Automatic subject groups:
-- Admission / Care
-- Callback
-- Location
-- Pricing / Charges
-- Services
-- General Enquiry
+DEPLOY:
+Replace only:
+- app.js
+- index.html
+- service-worker.js
 
-CALL ENQUIRIES
---------------
-Calls are entered manually by STD.
+Then Ctrl+F5 once.
 
-Director's Office > Call Enquiries:
-- Caller Name
-- Mobile
-- Call Subject / Enquiry
-- Organisation
-- Call Date / Time
-- Follow-up / Due Date
-- Details
-- Priority
-- Status
-- Director Note / Instruction
-
-The Director Follow-up Queue can now be filtered by:
-- Subject / name / mobile / notes
-- From date
-- To date
-- Type / status
-
-The Call Enquiries dashboard card can be clicked to immediately enter a new call.
-
-INSTALL
--------
-1. Supabase SQL Editor:
-   Run 107_std_enquiry_whatsapp_rls.sql ONCE.
-
-2. ERP hosting:
-   Replace:
-   - app.js
-   - index.html
-   - service-worker.js
-
-3. Ctrl+F5 once.
-
-Do NOT rerun SQL 104/105/106.
-Do NOT change WhatsApp Edge Functions.
-
-IMPORTANT
----------
-STD remains a transferable ROLE. Nothing is hard-coded to Akshai.
+DO NOT run any SQL for this update.
