@@ -1,0 +1,17 @@
+SAMARA ERP v2.10.48 — EMPLOYMENT ACTION LAYOUT CLEANUP
+
+Employment Action is now:
+- wider and properly spaced on desktop
+- clean two-column form
+- full-width consistent inputs
+- sticky header and Save/Cancel footer
+- full-screen, single-column form on mobile
+
+Replace only:
+app.js
+index.html
+service-worker.js
+
+No SQL.
+No Edge Function change.
+No API key change.

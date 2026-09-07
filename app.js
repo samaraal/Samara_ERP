@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.47';
+  const APP_VERSION = '2.10.48';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -10234,6 +10234,72 @@ Thank you.`;
     return h(React.Fragment,null,h(Section,{title:'My Leave & Permission',subtitle:'Apply and track your leave, permission and approval status',actions:h('button',{className:'btn btn-primary',onClick:()=>{setForm({...empty});setModalMsg('');setSubmitted(false);setShowForm(true)}},'＋ New Request')},msg?h('div',{className:'message'},msg):null,h('div',{className:'absence-summary'},h('div',null,h('strong',null,pending.length),h('small',null,'Pending')),h('div',null,h('strong',null,visible.filter(r=>r.status==='approved').length),h('small',null,'Approved')),h('div',null,h('strong',null,visible.filter(r=>r.status==='rejected').length),h('small',null,'Rejected'))),h('div',{className:'absence-list'},...visible.map(requestCard)),visible.length===0?h('div',{className:'empty'},'No leave or permission requests submitted yet.'):null),formModal);
   }
 
+
+  function ensureEmploymentActionLayoutStyle(){
+    if(document.getElementById('samara-employment-action-layout'))return;
+    const style=document.createElement('style');
+    style.id='samara-employment-action-layout';
+    style.textContent=`
+      .employment-action-backdrop{padding:24px!important;align-items:center!important;}
+      .employment-action-modal{
+        width:min(920px,calc(100vw - 48px))!important;
+        max-width:920px!important;
+        max-height:calc(100vh - 48px)!important;
+        overflow:auto!important;
+        border-radius:22px!important;
+        padding:0!important;
+      }
+      .employment-action-modal .panel-head{
+        position:sticky!important;top:0!important;z-index:3!important;
+        background:#fffafd!important;padding:20px 22px 14px!important;
+        border-bottom:1px solid #efd7e1!important;
+      }
+      .employment-action-grid{
+        display:grid!important;
+        grid-template-columns:repeat(2,minmax(0,1fr))!important;
+        gap:16px 20px!important;
+        padding:20px 22px!important;
+      }
+      .employment-action-grid>label{
+        display:flex!important;flex-direction:column!important;gap:7px!important;
+        min-width:0!important;font-weight:700!important;color:#432b3a!important;
+      }
+      .employment-action-grid input,
+      .employment-action-grid select,
+      .employment-action-grid textarea{
+        width:100%!important;min-width:0!important;box-sizing:border-box!important;
+        min-height:44px!important;padding:10px 12px!important;
+        border:1px solid #cfded9!important;border-radius:11px!important;
+        font:inherit!important;background:#fff!important;
+      }
+      .employment-action-grid textarea{min-height:88px!important;resize:vertical!important;}
+      .employment-action-actions{
+        position:sticky!important;bottom:0!important;z-index:3!important;
+        display:flex!important;justify-content:flex-end!important;gap:10px!important;
+        padding:14px 22px 18px!important;background:#fffafd!important;
+        border-top:1px solid #efd7e1!important;
+      }
+      .employment-action-actions .btn{min-height:44px!important;padding:10px 18px!important;}
+      @media(max-width:700px){
+        .employment-action-backdrop{padding:0!important;align-items:stretch!important;}
+        .employment-action-modal{
+          width:100%!important;max-width:none!important;height:100dvh!important;
+          max-height:100dvh!important;border-radius:0!important;
+        }
+        .employment-action-grid{
+          grid-template-columns:1fr!important;gap:14px!important;padding:16px!important;
+        }
+        .employment-action-modal .panel-head{padding:16px!important;}
+        .employment-action-actions{
+          padding:12px 16px calc(12px + env(safe-area-inset-bottom))!important;
+        }
+        .employment-action-actions .btn{flex:1 1 0!important;}
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  ensureEmploymentActionLayoutStyle();
+
   function Employees({profile,onNavigate}){
     const [rows,setRows]=React.useState([]),[authMap,setAuthMap]=React.useState({}),[show,setShow]=React.useState(false),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [resetTarget,setResetTarget]=React.useState(null),[newPassword,setNewPassword]=React.useState(''),[confirmPassword,setConfirmPassword]=React.useState(''),[resetBusy,setResetBusy]=React.useState(false),[resetMsg,setResetMsg]=React.useState('');
@@ -10670,9 +10736,9 @@ Thank you.`;
     }
     function employmentActionModal(){
       if(!showEmploymentAction||!detailsTarget)return null;
-      return h('div',{className:'modal-backdrop'},h('form',{className:'card modal employee-modal',onSubmit:saveEmploymentAction},
+      return h('div',{className:'modal-backdrop employment-action-backdrop'},h('form',{className:'card modal employee-modal employment-action-modal',onSubmit:saveEmploymentAction},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Employment Action'),h('small',null,formalName(detailsTarget))),h('button',{type:'button',className:'close',onClick:()=>setShowEmploymentAction(false)},'×')),
-        h('div',{className:'modal-grid'},
+        h('div',{className:'modal-grid employment-action-grid'},
           h('label',null,'Action Type *',h('select',{value:employmentAction.action_type,onChange:e=>setEmploymentAction(v=>({...v,action_type:e.target.value}))},['Promotion','Transfer','Designation Change','Department Change','Reporting Change','Annual Increment','Salary Revision','Confirmation','Demotion','Suspension','Reinstatement'].map(v=>h('option',{key:v},v)))),
           h('label',null,'Effective Date *',h('input',{type:'date',required:true,value:employmentAction.effective_date,onChange:e=>setEmploymentAction(v=>({...v,effective_date:e.target.value}))})),
           h('label',null,'New Department',h('input',{value:employmentAction.new_department,onChange:e=>setEmploymentAction(v=>({...v,new_department:e.target.value}))})),
@@ -10686,7 +10752,7 @@ Thank you.`;
           h('label',null,'Order / Reference No.',h('input',{value:employmentAction.order_reference,onChange:e=>setEmploymentAction(v=>({...v,order_reference:e.target.value}))})),
           h('label',null,'Remarks',h('textarea',{rows:3,value:employmentAction.remarks,onChange:e=>setEmploymentAction(v=>({...v,remarks:e.target.value}))}))
         ),
-        h('div',{className:'employee-personnel-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowEmploymentAction(false)},'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:employmentSaving},employmentSaving?'Saving…':'Save Employment Action'))
+        h('div',{className:'employee-personnel-actions employment-action-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowEmploymentAction(false)},'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:employmentSaving},employmentSaving?'Saving…':'Save Employment Action'))
       ));
     }
 
