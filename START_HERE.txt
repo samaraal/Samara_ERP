@@ -1,51 +1,39 @@
-SAMARA CARE ERP v2.10.25 — CHARGE APPROVAL + NAVIGATION + APPROVED VALUE FIX
+SAMARA CARE ERP v2.10.26 — APPROVED TODAY SUMMARY
 
-FIXES
------
-1. APPROVED VALUE
-The previous dashboard calculation used:
-  final_amount OR requested_amount
+CHANGE
+------
+The old cumulative "Approved" / "Approved Value" cards have been replaced with
+operational daily information:
 
-That could incorrectly count requested amounts from old/legacy rows when no
-actual approved amount existed.
+1. Today's Entries
+   - Number of charge requests raised today.
 
-Now Approved Value uses ONLY:
-  approved_amount
-or, for older genuinely approved records:
-  final_amount
+2. Pending Approval
+   - Current pending charge requests.
 
-It never falls back to requested_amount.
+3. Approved Today
+   - Number of charges actually approved / partially approved today.
 
-Therefore the box represents the actual amount approved / posted.
+4. Approved Value Today
+   - Total actual amount approved today.
 
-2. APPROVAL BUTTON VISIBILITY
-For Accounts login, Approve / Partial / Reject are moved near the LEFT side of
-the register, immediately after Decision.
+DATE LOGIC
+----------
+"Approved Today" uses the actual approval decision timestamp (decision_at).
+For older legacy rows where decision_at is blank, charge_date is used only as a
+fallback.
 
-Accounts no longer needs to scroll far right across the long table to find the
-Action column.
+NAVIGATION
+----------
+All four cards remain clickable.
 
-The financial approval rule itself remains unchanged:
-  Accounts only.
+- Today's Entries -> today's charge requests
+- Pending Approval -> pending only
+- Approved Today -> approvals made today
+- Approved Value Today -> same approval-today detail list
 
-3. DASHBOARD BOXES ARE NAVIGATION BOXES
-All four summary boxes are clickable:
-
-- Today's Entries
-  -> shows today's charge requests
-
-- Pending Approval
-  -> shows Pending requests only
-
-- Approved
-  -> shows Approved + Partially Approved requests
-
-- Approved Value
-  -> opens the same approved-detail view
-
-Clicking a box scrolls directly to the Bill & Charge Requests register.
-
-A "Show All" button clears the quick view.
+The historical approved total is no longer shown on the dashboard. Historical
+records remain available in the full Bills & Charges Register.
 
 INSTALL
 -------
@@ -58,17 +46,3 @@ Then Ctrl+F5 once.
 
 NO SQL REQUIRED.
 NO EDGE FUNCTION CHANGES.
-NO BILLING DATABASE LOGIC CHANGES.
-
-TEST
-----
-Accounts login:
-1. Click Pending Approval.
-2. The two pending rows should be shown directly.
-3. Approve / Partial / Reject should be visible beside each pending row.
-4. Approve one test charge.
-5. Approved Value should increase only by the actually approved amount.
-
-Admin login:
-The navigation boxes work for viewing, but financial decision buttons remain
-Accounts-only as designed.

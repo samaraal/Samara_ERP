@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.25';
+  const APP_VERSION = '2.10.26';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -20550,6 +20550,7 @@ Please access the Samara Family Portal for detailed account information.`;
       setQuickView(view);
       if(view==='Pending')setFilter(current=>({...current,status:'Pending'}));
       else if(view==='Approved')setFilter(current=>({...current,status:'All'}));
+      else if(view==='Approved Today')setFilter(current=>({...current,status:'All'}));
       else if(view==='Today')setFilter(current=>({...current,status:'All'}));
       else setFilter(current=>({...current,status:'All'}));
       setTimeout(()=>{
@@ -20777,14 +20778,30 @@ Please access the Samara Family Portal for detailed account information.`;
       (filter.status==='All'||(r.approval_status||'Pending')===filter.status)&&
       (filter.category==='All'||r.category===filter.category)&&
       (quickView!=='Today'||r.charge_date===todayISOIndia())&&
-      (quickView!=='Approved'||['Approved','Partially Approved'].includes(r.approval_status))
+      (quickView!=='Approved'||['Approved','Partially Approved'].includes(r.approval_status))&&
+      (quickView!=='Approved Today'||isApprovedToday(r))
     );
     const pending=rows.filter(r=>(r.approval_status||'Pending')==='Pending').length;
     const approved=rows.filter(r=>['Approved','Partially Approved'].includes(r.approval_status));
-    // IMPORTANT: Approved Value must reflect only the amount actually approved
-    // and posted. Never fall back to requested_amount, because older pending /
-    // legacy records can otherwise inflate the summary.
-    const approvedValue=approved.reduce((sum,row)=>{
+
+    // Dashboard summary should be operational, not a lifetime cumulative total.
+    // "Approved Today" is based on the actual decision timestamp when available.
+    // For legacy approved rows without decision_at, charge_date is used only as a fallback.
+    const isApprovedToday=row=>{
+      if(!['Approved','Partially Approved'].includes(row.approval_status))return false;
+      if(row.decision_at){
+        const d=new Date(row.decision_at);
+        if(!Number.isNaN(d.getTime())){
+          const now=new Date();
+          return d.getFullYear()===now.getFullYear()&&
+                 d.getMonth()===now.getMonth()&&
+                 d.getDate()===now.getDate();
+        }
+      }
+      return row.charge_date===todayISOIndia();
+    };
+    const approvedToday=rows.filter(isApprovedToday);
+    const approvedTodayValue=approvedToday.reduce((sum,row)=>{
       const value=row.approved_amount!==null&&row.approved_amount!==undefined
         ?Number(row.approved_amount)
         :row.final_amount!==null&&row.final_amount!==undefined
@@ -20815,8 +20832,8 @@ Please access the Samara Family Portal for detailed account information.`;
     const summary=h('div',{className:'grid stats'},
       navCard('Today’s Entries',rows.filter(r=>r.charge_date===todayISOIndia()).length,'Today','Click to show today’s charges'),
       navCard('Pending Approval',pending,'Pending','Click to show pending approvals'),
-      navCard('Approved',approved.length,'Approved','Click to show approved / partially approved'),
-      navCard('Approved Value',money(approvedValue),'Approved','Actual approved amount only')
+      navCard('Approved Today',approvedToday.length,'Approved Today','Click to show approvals made today'),
+      navCard('Approved Value Today',money(approvedTodayValue),'Approved Today','Actual value approved today')
     );
 
     const register=h(LogTable,{
