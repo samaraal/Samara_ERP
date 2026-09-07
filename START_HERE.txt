@@ -1,39 +1,31 @@
-SAMARA CARE ERP v2.10.37 — DIRECTOR OFFICE RESCHEDULE + CANCEL
+SAMARA CARE ERP v2.10.19 — DIRECTOR'S OFFICE / TRANSFERABLE STD
 
-WHAT IS NEW
------------
-Every open Director's Office item now has:
-- Reschedule
-- Complete
-- Cancel
+This revision does NOT hard-code Akshai, Chellaboomi, or any future employee.
 
-RESCHEDULE
-----------
-Opens a compact form:
-- New Date (required)
-- Time (optional)
-- Reason / Note (optional)
+Director's Office now contains two transferable position assignments:
+1. Director
+2. Secretary to the Director (STD)
 
-The item remains Pending and its previous/new schedule is retained in
-reschedule_history. Applies to Tasks, Appointments, Calls, Follow-ups,
-Visitors, Correspondence and Reminders.
+The Director assignment does not change the holder's ERP role.
+The STD assignment preserves the person's existing Login ID/password and automatically:
+- stores their old ERP role, department and designation
+- changes access role to STD
+- moves employment display to Director's Office
+- sets designation to Secretary to the Director (STD)
 
-CANCEL
-------
-Cancellation does NOT delete the item. Status becomes Cancelled and the
-optional reason + cancellation time are retained. A Cancelled filter has
-been added beside Completed.
+When the STD is changed later:
+- the previous STD's old role/department/designation are restored automatically
+- the new holder receives STD access
+- no portal code change is needed
 
-INSTALL ORDER
--------------
-1. Supabase SQL Editor: run 112_director_office_reschedule_cancel.sql once.
-2. Website / ERP hosting: replace ONLY these files:
-   - app.js
-   - index.html
-   - service-worker.js
-3. Reload Samara Care. If an old version remains, use App Help / Repair App.
+DEPLOYMENT
+1. Supabase SQL Editor: run 104_directors_office_position_assignment.sql once.
+2. Supabase Edge Functions > admin-users: replace index.ts and deploy.
+3. Website root: replace app.js, index.html and service-worker.js.
+4. Open ERP > App Help > Repair App once if an old version remains cached.
+5. HR Dashboard > Director's Office:
+   - Assign Director = Chellaboomi
+   - Assign STD = Akshai
 
-NO EDGE FUNCTION CHANGE
------------------------
-The working OpenRouter/Gemini director-office-voice function is untouched.
-Do not replace or redeploy the voice Edge Function for this update.
+Important: selecting Akshai does not create a duplicate employee and does not change her Login ID/password.
+Future STD changes are made only from HR > Director's Office > Change Assignment.
