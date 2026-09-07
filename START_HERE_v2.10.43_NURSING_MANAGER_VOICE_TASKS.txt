@@ -1,0 +1,37 @@
+SAMARA ERP v2.10.43 — NURSING MANAGER VOICE QUICK TASKS
+
+Adds a new private "My Quick Tasks" workspace only when:
+ERP Role = Nurse
+Designation = Nursing Manager
+
+Features:
+- + Quick Task
+- Speak Tamil / Speak English
+- iPhone + Android microphone recording and OpenAI transcription
+- Desktop speech recognition
+- OpenAI task interpretation
+- Date, optional time, day part, priority, person/place, short note
+- Open / Due Today / Overdue / Completed dashboard
+- Edit / Complete / Cancel
+
+The tasks are private to the Nursing Manager's own login and do NOT appear
+in the Director's Office queue.
+
+INSTALL ORDER
+1. Supabase SQL Editor:
+   Run 113_nursing_manager_personal_tasks.sql once.
+
+2. Supabase Edge Functions -> director-office-voice:
+   Replace the COMPLETE index.ts from this ZIP and Deploy.
+   Keep Verify JWT with legacy secret OFF.
+   Keep existing OPENAI_API_KEY.
+
+3. ERP:
+   Replace app.js, index.html, service-worker.js.
+
+Version: 2.10.43
+
+4. Mobile:
+   Close/reopen PWA. If stale, App Help -> Repair App.
+
+No new API key.
