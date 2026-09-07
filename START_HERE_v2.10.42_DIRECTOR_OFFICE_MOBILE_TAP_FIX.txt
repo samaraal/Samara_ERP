@@ -1,0 +1,33 @@
+SAMARA ERP v2.10.42 — DIRECTOR'S OFFICE MOBILE DASHBOARD TAP FIX
+
+Problem
+-------
+On mobile, tapping Director's Office dashboard boxes changed the filter internally,
+but the relevant data was far below the dashboard. It looked as if the tap did nothing.
+
+Fix
+---
+- Tasks / Appointments Today / Calls / Follow-ups / Visitors /
+  Correspondence / Reminders cards now:
+  1. apply the correct queue filter, and
+  2. automatically scroll to the Director Follow-up Queue.
+- Queue filter buttons use the same mobile-friendly behavior.
+- Added mobile touch feedback.
+- Desktop behavior remains normal.
+
+INSTALL
+-------
+Replace only:
+1. app.js
+2. index.html
+3. service-worker.js
+
+Version: 2.10.42
+
+NO SQL.
+NO EDGE FUNCTION CHANGE.
+NO API KEY CHANGE.
+
+After upload on iPhone / Android:
+- close and reopen the PWA;
+- if the old version remains, use App Help -> Repair App.

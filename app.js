@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.41';
+  const APP_VERSION = '2.10.42';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -9478,9 +9478,19 @@ Thank you.`;
       return true;
     });
 
+    function openDirectorQueue(filterValue){
+      setFilter(filterValue);
+      window.setTimeout(()=>{
+        const target=document.getElementById('director-followup-queue-anchor');
+        if(target){
+          target.scrollIntoView({behavior:'smooth',block:'start'});
+        }
+      },80);
+    }
+
     const card=(label,value,filterValue,sub)=>h('button',{
       type:'button',
-      onClick:()=>setFilter(filterValue),
+      onClick:()=>openDirectorQueue(filterValue),
       style:{
         textAlign:'left',
         border:'1px solid #e9b6ca',
@@ -9723,6 +9733,15 @@ Thank you.`;
             white-space:normal!important;
           }
 
+          .director-office-page .director-office-stat-grid > button{
+            touch-action:manipulation!important;
+            -webkit-tap-highlight-color:rgba(159,23,78,.12)!important;
+            position:relative!important;
+          }
+          .director-office-page .director-office-stat-grid > button:active{
+            transform:scale(.985)!important;
+          }
+
           /* Dashboard cards: exactly two compact columns with no horizontal spill. */
           .director-office-page .director-office-stat-grid{
             grid-template-columns:repeat(2,minmax(0,1fr))!important;
@@ -9791,10 +9810,14 @@ Thank you.`;
         ),
         urgent.length?h('div',{style:{marginTop:'12px',padding:'10px 12px',borderRadius:'12px',background:'#fff3f3',border:'1px solid #efc2c2',fontWeight:800,color:'#8d1b2c'}},`⚠ ${urgent.length} urgent item${urgent.length===1?'':'s'} pending`):null
       ),
+      h('div',{
+        id:'director-followup-queue-anchor',
+        style:{height:'1px',scrollMarginTop:'118px'}
+      }),
       h(Section,{title:'Director Follow-up Queue',subtitle:`${filtered.length} item${filtered.length===1?'':'s'} · ${filter}`,actions:
         h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
           ...['Open','For Director','Today','Task','Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder','Completed','Cancelled'].map(x=>
-            h('button',{type:'button',key:x,className:filter===x?'btn btn-primary':'btn btn-secondary',onClick:()=>setFilter(x)},x)
+            h('button',{type:'button',key:x,className:filter===x?'btn btn-primary':'btn btn-secondary',onClick:()=>openDirectorQueue(x)},x)
           )
         )
       },
