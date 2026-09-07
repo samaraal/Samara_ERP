@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.50';
+  const APP_VERSION = '2.10.51';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1385,7 +1385,7 @@ function initSamaraInaugurationInvitation(){
     { title:'HR', items:['HR Dashboard','Employees','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:"DIRECTOR'S OFFICE", items:["Director's Office"] },
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
-    { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
+    { title:'MANAGER', items:['My To-Do & Follow-up','My Quick Tasks','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
@@ -6505,7 +6505,7 @@ Caring with Compassion. Living with Dignity.`;
     }
 
     const patients=choose('Patients');
-    const work=choose('HR Dashboard',['Clinical Dashboard','Admissions','Employees','Billing & Payments']);
+    const work=isNursingManagerProfile(profile)?choose('My Quick Tasks',['HR Dashboard','Clinical Dashboard','Admissions','Employees']):choose('HR Dashboard',['Clinical Dashboard','Admissions','Employees','Billing & Payments']);
     const reports=choose('Reports',['Intelligent Reports','Billing & Payments','Notifications']);
     const items=[
       {page:home,icon:'⌂',label:'Home'},

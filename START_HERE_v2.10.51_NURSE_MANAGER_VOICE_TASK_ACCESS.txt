@@ -1,0 +1,16 @@
+SAMARA CARE ERP v2.10.51
+Nurse Manager Tamil / English Voice Task Access
+
+Replace these files in the ERP web root:
+1. app.js
+2. index.html
+3. service-worker.js
+
+What this fixes:
+- Nurse Manager / Nursing Manager designation now exposes My Quick Tasks in the Manager module menu.
+- My Quick Tasks includes Tamil and English voice entry already present in the ERP.
+- On mobile, the bottom Work button opens My Quick Tasks directly for a Nurse Manager, while ordinary Managers keep the existing Work behaviour.
+- Existing Manager My To-Do & Follow-up remains available.
+
+After upload:
+- Open Samara Care -> App Help / Repair -> Check for Updates, or use Repair App if the old screen is still cached.
