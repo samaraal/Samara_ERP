@@ -1,0 +1,51 @@
+SAMARA ERP v2.10.45 — NURSE MANAGER DESIGNATION FIX
+
+Confirmed employee setup
+------------------------
+Department: Nursing
+Designation: Nurse Manager
+ERP Access Role: Manager
+
+The employee record is correct and does NOT need to be changed.
+
+What v2.10.45 fixes
+-------------------
+The earlier code checked only "Nursing Manager".
+Samara's actual designation is "Nurse Manager".
+
+This release accepts BOTH:
+- Nurse Manager
+- Nursing Manager
+
+The rule is based on Designation, not ERP Access Role.
+So ERP Access Role may remain Manager.
+
+INSTALL ORDER
+-------------
+1. Supabase SQL Editor
+   Run:
+   114_nurse_manager_designation_compatibility.sql
+
+2. Supabase Edge Functions -> director-office-voice
+   Replace the COMPLETE index.ts from this ZIP and Deploy.
+   Keep Verify JWT with legacy secret OFF.
+
+3. ERP frontend
+   Replace:
+   - app.js
+   - index.html
+   - service-worker.js
+
+Version: 2.10.45
+
+No new API key.
+Do not change Shobana's Designation or ERP Access Role.
+
+MOBILE
+------
+Close and reopen the Android PWA.
+If the old version remains:
+App Help -> Repair App -> reopen.
+
+Expected:
+My Quick Tasks should appear for Shobana because her Designation is Nurse Manager.
