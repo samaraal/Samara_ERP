@@ -1,51 +1,31 @@
-SAMARA CARE — WhatsApp General Follow-up TWO-PARAMETER FIX
+SAMARA CARE ERP v2.10.19 — DIRECTOR'S OFFICE / TRANSFERABLE STD
 
-Meta returned the exact error:
+This revision does NOT hard-code Akshai, Chellaboomi, or any future employee.
 
-#132000
-body: number of localizable_params (1) does not match the expected number of params (2)
+Director's Office now contains two transferable position assignments:
+1. Director
+2. Secretary to the Director (STD)
 
-This proves the approved samara_general_followup template has TWO body variables.
+The Director assignment does not change the holder's ERP role.
+The STD assignment preserves the person's existing Login ID/password and automatically:
+- stores their old ERP role, department and designation
+- changes access role to STD
+- moves employment display to Director's Office
+- sets designation to Secretary to the Director (STD)
 
-Correct mapping:
-{{1}} = Customer name
-{{2}} = Regarding text
-
-For automatic website/public enquiries:
-{{2}} = "your assisted living enquiry"
-
-WHAT THIS PACKAGE FIXES
-
-1. app.js
-   Manual "General Follow-up" again sends:
-   [customerName, regarding]
-
-2. whatsapp-send/index.ts
-   Removes the incorrect logic that truncated samara_general_followup
-   to one body parameter.
-
-3. whatsapp-webhook/index.ts
-   Automatic enquiry reply sends:
-   [customerName, "your assisted living enquiry"]
+When the STD is changed later:
+- the previous STD's old role/department/designation are restored automatically
+- the new holder receives STD access
+- no portal code change is needed
 
 DEPLOYMENT
+1. Supabase SQL Editor: run 104_directors_office_position_assignment.sql once.
+2. Supabase Edge Functions > admin-users: replace index.ts and deploy.
+3. Website root: replace app.js, index.html and service-worker.js.
+4. Open ERP > App Help > Repair App once if an old version remains cached.
+5. HR Dashboard > Director's Office:
+   - Assign Director = Chellaboomi
+   - Assign STD = Akshai
 
-ERP hosting:
-- Replace app.js only.
-
-Supabase Edge Functions:
-- Redeploy whatsapp-send/index.ts
-- Redeploy whatsapp-webhook/index.ts
-
-No index.html or service-worker.js change is required.
-
-TEST ORDER
-
-1. Open WhatsApp Inbox.
-2. Select General Follow-up.
-3. Keep Regarding as: your assisted living enquiry
-4. Press Send template.
-5. Confirm it arrives on the phone.
-6. Then send "Hi" from the phone and confirm the automatic General Follow-up arrives.
-
-The previous #132000 parameter mismatch should be eliminated.
+Important: selecting Akshai does not create a duplicate employee and does not change her Login ID/password.
+Future STD changes are made only from HR > Director's Office > Change Assignment.
