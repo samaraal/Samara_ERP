@@ -1,23 +1,32 @@
-SAMARA ERP v2.10.56 — MOBILE MANAGER VOICE FIX
+SAMARA ERP v2.10.58 — AUTH PROFILE LOAD FIX
 
 Replace only:
 1. app.js
 2. index.html
 3. service-worker.js
 
-What is fixed:
-- Android/mobile no longer forces voice through MediaRecorder first.
-- Chrome Android webkitSpeechRecognition is now used first for both Tamil and English.
-- Spoken words appear immediately under "Heard:".
-- English speech is immediately placed into Subject even if structured processing is temporarily unavailable.
-- Tamil transcript is sent to the existing director-office-voice parser for Tamil -> simple English.
-- MediaRecorder remains as fallback only when browser speech recognition is unavailable.
-- Better permission/no-speech/error messages.
-- v2.10.55 update-loop protection is retained.
-- All Manager ERP roles retain the Tamil/English voice buttons.
+ROOT CAUSE ADDRESSED
+The previous frontend still contained an older "richer employee profile" enrichment step.
+After authenticating a user, that step could search other profile rows by full name/mobile/login
+and replace the authenticated profile with another employee row. This is unsafe for authentication.
 
-After upload:
-- Open ERP and confirm Version 2.10.56.
-- If an older cached build remains, use App Help -> Repair App once.
-- Test English first: say "Call Mr Kumar tomorrow at 10 AM".
-- Then Tamil: say "நாளைக்கு காலை பத்து மணிக்கு குமாரை கூப்பிடணும்".
+v2.10.58 removes that behavior completely from login/profile loading.
+
+NEW SECURITY RULE
+- Supabase Auth user UUID must equal public.profiles.id.
+- ERP loads ONLY: profiles.id = authenticated user UUID.
+- No OR matching.
+- No name/mobile/login-based enrichment.
+- No automatic login-time profile repair.
+- Login ID entered must still match that exact profile's login_id.
+- On any failure, the local session state is cleared immediately and the ERP returns to Login
+  instead of remaining forever on "Loading your employee profile...".
+
+The Manager Tamil/English voice functionality is retained.
+
+AFTER UPLOAD
+1. Confirm Version 2.10.58.
+2. Log out.
+3. Login as chellaboomi.
+Expected: Dr ChellaBoomi — Admin.
+It must never load Ramya — Accounts.

@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.57';
+  const APP_VERSION = '2.10.58';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5831,63 +5831,42 @@ Caring with Compassion. Living with Dignity.`;
           return Promise.race([promise,timeout]).finally(()=>clearTimeout(timer));
         };
         try{
+          // SECURITY v2.10.58:
+          // Load ONLY the profile whose primary key is the authenticated Supabase user UUID.
+          // No OR matching, no name/mobile/login enrichment, and no automatic profile repair.
+          // This prevents a valid Auth session from ever being replaced by another employee row.
           const direct=await profileTimeout(
-            client.from('profiles').select('*').or(`id.eq.${session.user.id},auth_user_id.eq.${session.user.id}`).maybeSingle(),
+            client.from('profiles').select('*').eq('id',session.user.id).maybeSingle(),
             10000,
             'Employee profile lookup'
           );
-          if(direct.error) console.error(direct.error);
+          if(direct.error) throw direct.error;
           data=direct.data||null;
 
-          // v2.10.52: a login-only profile can exist separately from the richer
-          // employee row.  When the direct row has no designation, resolve the
-          // best same-person employee profile so designation-based workspaces
-          // (especially Nurse Manager voice tasks) are not lost.
-          if(data && !String(data.designation||'').trim()){
-            try{
-              const filters=[];
-              const safe=value=>String(value||'').trim().replace(/[,()]/g,'');
-              if(data.full_name)filters.push(`full_name.ilike.${safe(data.full_name)}`);
-              if(data.mobile)filters.push(`mobile.eq.${safe(data.mobile)}`);
-              if(data.login_id)filters.push(`login_id.eq.${safe(data.login_id)}`);
-              if(filters.length){
-                const richer=await profileTimeout(
-                  client.from('profiles').select('*').or(filters.join(',')),
-                  7000,
-                  'Employee designation lookup'
-                );
-                if(!richer.error && Array.isArray(richer.data) && richer.data.length){
-                  const candidates=deduplicateEmployeeProfiles([data,...richer.data]);
-                  const best=[...candidates].sort((a,b)=>employeeProfileScore(b)-employeeProfileScore(a))[0];
-                  if(best && employeeProfileScore(best)>employeeProfileScore(data)) data={...data,...best};
-                }
-              }
-            }catch(error){console.warn('Employee designation enrichment skipped:',error?.message||error)}
-          }
-
-          // SECURITY v2.10.57:
-          // Do NOT auto-repair or auto-link an authenticated user to another employee
-          // profile during login. Identity must already be explicitly linked by
-          // profiles.id/auth_user_id to the authenticated Supabase user.
-          // Any missing/ambiguous link is fail-closed and requires Administrator repair.
           if(!data){
-            console.error('SECURITY: No explicit employee profile link for auth user', session.user.id);
+            console.error('SECURITY: No exact profile row for authenticated user',session.user.id);
           }
         }catch(error){
           console.error('Employee profile startup failed:',error);
           setAuthMessage('Unable to load your employee profile. Please sign in again.');
+          setProfile(null);
+          setSession(null);
           await client.auth.signOut().catch(()=>{});
           return;
         }
 
         if(!data){
           setAuthMessage('Your employee profile is not linked to this Login ID. Please contact the Administrator.');
-          await client.auth.signOut();
+          setProfile(null);
+          setSession(null);
+          await client.auth.signOut().catch(()=>{});
           return;
         }
         if(data.is_active===false||data.active===false){
           setAuthMessage('This employee account is inactive. Please contact the Administrator.');
-          await client.auth.signOut();
+          setProfile(null);
+          setSession(null);
+          await client.auth.signOut().catch(()=>{});
           return;
         }
 
@@ -5916,6 +5895,7 @@ Caring with Compassion. Living with Dignity.`;
           });
           setProfile(null);
           setAuthMessage('Security check failed: this login does not match the linked employee profile. Access has been blocked. Please contact the Administrator.');
+          setSession(null);
           await client.auth.signOut().catch(()=>{});
           return;
         }
@@ -6204,7 +6184,7 @@ Caring with Compassion. Living with Dignity.`;
         const {data:linkedProfile,error:linkedProfileError}=await withLoginTimeout(
           client.from('profiles')
             .select('id,auth_user_id,login_id,full_name,role,auth_email,is_active,active')
-            .or(`id.eq.${signedUid},auth_user_id.eq.${signedUid}`)
+            .eq('id',signedUid)
             .maybeSingle(),
           10000,
           'Identity verification'
@@ -6212,7 +6192,7 @@ Caring with Compassion. Living with Dignity.`;
 
         const linkedLogin=normalizeLogin(String(linkedProfile?.login_id||''));
         const requestedLogin=normalizeLogin(normalized);
-        const uidIsLinked=Boolean(linkedProfile && (String(linkedProfile.id||'')===signedUid || String(linkedProfile.auth_user_id||'')===signedUid));
+        const uidIsLinked=Boolean(linkedProfile && String(linkedProfile.id||'')===signedUid);
         const requestedMatchesProfile=Boolean(linkedLogin && requestedLogin===linkedLogin);
         const metadataMatches=Boolean(!signedMetaLogin || signedMetaLogin===requestedLogin);
 
