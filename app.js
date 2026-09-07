@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.19';
+  const APP_VERSION = '2.10.50';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1327,11 +1327,11 @@ function initSamaraInaugurationInvitation(){
 
   const ROLES = ['Admin','Manager','Nurse','Caregiver','Accounts','Kitchen','STD'];
 
-  const HR_DEPARTMENTS = ["Director's Office", "Nursing", "Caregiving", "Medical", "Physiotherapy & Rehabilitation", "Housekeeping", "Food & Kitchen", "Administration", "HR", "Operations", "Accounts & Finance", "Maintenance", "Security", "Transport", "Marketing & Outreach", "Other"];
-  const HR_DESIGNATIONS = {"Director's Office": ["Director", "Secretary to the Director (STD)"], "Nursing": ["Nurse Manager", "Nursing Supervisor", "Staff Nurse", "ANM"], "Caregiving": ["Senior Caregiver", "Caregiver", "Nursing Assistant"], "Medical": ["Duty Medical Officer – Part Time", "Visiting Doctor", "Medical Officer"], "Physiotherapy & Rehabilitation": ["Physiotherapist", "Rehabilitation Assistant"], "Housekeeping": ["Housekeeping Supervisor", "Housekeeping Staff", "Laundry Staff"], "Food & Kitchen": ["Dietician", "Cook", "Kitchen Assistant", "Food Service Assistant"], "Administration": ["Facility Administrator", "Manager", "Receptionist", "Administrative Assistant"], "HR": ["HR Manager", "HR Executive", "HR Assistant"], "Operations": ["Operations Manager", "Operations Executive", "Facility Coordinator"], "Accounts & Finance": ["Accountant", "Accounts Executive", "Accounts Assistant"], "Maintenance": ["Maintenance Supervisor", "Technician", "Electrician / Plumber"], "Security": ["Security Supervisor", "Security Guard"], "Transport": ["Driver", "Transport Coordinator"], "Marketing & Outreach": ["Marketing Executive", "Community Outreach Executive"], "Other": ["General Application", "Volunteer", "Other"]};
+  const HR_DEPARTMENTS = ["Nursing", "Caregiving", "Medical", "Physiotherapy & Rehabilitation", "Housekeeping", "Food & Kitchen", "Administration", "HR", "Operations", "Accounts & Finance", "Maintenance", "Security", "Transport", "Marketing & Outreach", "Other"];
+  const HR_DESIGNATIONS = {"Nursing": ["Nurse Manager", "Nursing Supervisor", "Staff Nurse", "ANM"], "Caregiving": ["Senior Caregiver", "Caregiver", "Nursing Assistant"], "Medical": ["Duty Medical Officer – Part Time", "Visiting Doctor", "Medical Officer"], "Physiotherapy & Rehabilitation": ["Physiotherapist", "Rehabilitation Assistant"], "Housekeeping": ["Housekeeping Supervisor", "Housekeeping Staff", "Laundry Staff"], "Food & Kitchen": ["Dietician", "Cook", "Kitchen Assistant", "Food Service Assistant"], "Administration": ["Facility Administrator", "Manager", "Receptionist", "Administrative Assistant"], "HR": ["HR Manager", "HR Executive", "HR Assistant"], "Operations": ["Operations Manager", "Operations Executive", "Facility Coordinator"], "Accounts & Finance": ["Accountant", "Accounts Executive", "Accounts Assistant"], "Maintenance": ["Maintenance Supervisor", "Technician", "Electrician / Plumber"], "Security": ["Security Supervisor", "Security Guard"], "Transport": ["Driver", "Transport Coordinator"], "Marketing & Outreach": ["Marketing Executive", "Community Outreach Executive"], "Other": ["General Application", "Volunteer", "Other"]};
   const HR_APPLICATION_STATUSES=['New','Under Review','Returned for Rectification','Shortlisted','Interview Scheduled','Selected','Rejected','On Hold','Converted to Employee','Closed'];
   const employeeDepartment=row=>String(row?.department||'').trim()||(
-    row?.role==='STD'?"Director's Office":row?.role==='Nurse'?'Nursing':row?.role==='Caregiver'?'Caregiving':row?.role==='Accounts'?'Accounts & Finance':row?.role==='Kitchen'?'Food & Kitchen':['Admin','Manager'].includes(row?.role)?'Administration':'Other'
+    row?.role==='Nurse'?'Nursing':row?.role==='Caregiver'?'Caregiving':row?.role==='Accounts'?'Accounts & Finance':row?.role==='Kitchen'?'Food & Kitchen':['Admin','Manager'].includes(row?.role)?'Administration':'Other'
   );
   // Samara's present full-access Administrators are management/system users, not HR employees.
   // Keep them available for ERP login and permissions, but exclude them from Employee dashboards/lists.
@@ -1383,25 +1383,40 @@ function initSamaraInaugurationInvitation(){
     { title:'OVERVIEW', items:['Dashboard','Notifications'] },
     { title:'ADMIN', items:['Rooms','Care Packages','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
     { title:'HR', items:['HR Dashboard','Employees','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
+    { title:"DIRECTOR'S OFFICE", items:["Director's Office"] },
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
-    { title:'MANAGER', items:['Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
+    { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
-    { title:'COMMUNICATION', items:['WhatsApp Inbox','WhatsApp Logs','Family Communication','Feedback','Mail Dashboard'] }
+    { title:'COMMUNICATION', items:['WhatsApp Inbox','WhatsApp Logs','Family Communication','Feedback','Mail Dashboard'] },
+    { title:'MY ACCOUNT', items:['My Profile'] }
   ];
   const ALL_NAV = NAV_SECTIONS.flatMap(section=>section.items);
   const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
   const ROLE_NAV={
-    Admin:ALL_NAV.filter(item=>!NURSING_ENTRY_NAV.includes(item)),
-    Manager:ALL_NAV.filter(item=>!['System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds',...NURSING_ENTRY_NAV].includes(item)),
+    Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&!NURSING_ENTRY_NAV.includes(item)),
+    Manager:ALL_NAV.filter(item=>!["Director's Office",'System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds',...NURSING_ENTRY_NAV].includes(item)),
+
     Nurse:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My Leave & Permission','Leave Approvals','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Leave Approvals','Notifications'],
     Accounts:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Leave Approvals','Notifications'],
     Kitchen:['Notifications','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission','Leave Approvals'],
-    STD:['Notifications','My Leave & Permission']
+    STD:["Director's Office",'WhatsApp Inbox','Feedback','My Leave & Permission']
   };
-  const ROLE_HOME={Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet',STD:'Notifications'};
+  Object.keys(ROLE_NAV).forEach(role=>{
+    if(!ROLE_NAV[role].includes('My Profile'))ROLE_NAV[role].push('My Profile');
+  });
+  const ROLE_HOME={Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet',STD:"Director's Office"};
+  const isNursingManagerProfile=profile=>{
+    const designation=String(profile?.designation||'').trim().toLowerCase();
+    return designation==='nurse manager'||designation==='nursing manager';
+  };
+  const allowedPagesForProfile=profile=>{
+    const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
+    if(isNursingManagerProfile(profile)&&!pages.includes('My Quick Tasks'))pages.push('My Quick Tasks');
+    return pages;
+  };
   const CLINICAL_ROLES=['Nurse','Caregiver'];
   const ROLE_LABELS={
     'Clinical Dashboard':'Nursing Dashboard',
@@ -1419,13 +1434,17 @@ function initSamaraInaugurationInvitation(){
     'Refunds':'Refunds',
     'Accounts Reports':'Accounts Reports',
     'Mail Dashboard':'Mail',
-    'Notifications':'Alerts'
+    'Notifications':'Alerts',
+    "Director's Office":"Director's Office",
+    'My Profile':'My Profile',
+    'My To-Do & Follow-up':'My To-Do & Follow-up',
+    'My Quick Tasks':'My Quick Tasks'
   };
   const displayNavLabel=(item,role)=>CLINICAL_ROLES.includes(role)?(ROLE_LABELS[item]||item):item;
   const sectionsFor = (allowed,role) => {
     if(CLINICAL_ROLES.includes(role)){
       return [
-        {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My Leave & Permission','Leave Approvals','Notifications'].filter(item=>allowed.includes(item))}
+        {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My Quick Tasks','My Leave & Permission','Leave Approvals','Notifications'].filter(item=>allowed.includes(item))}
       ];
     }
     return NAV_SECTIONS.map(section=>({...section,items:section.items.filter(item=>allowed.includes(item))})).filter(section=>section.items.length);
@@ -2848,6 +2867,12 @@ Caring with Compassion. Living with Dignity.`;
     }
     async function refresh(){
       if(!profile)return;
+      if(profile?.role==='STD'){
+        setAlerts([]);
+        try{document.querySelectorAll('.samara-clinical-alert-overlay').forEach(node=>node.remove())}catch(_){}
+        try{if(window.speechSynthesis)window.speechSynthesis.cancel()}catch(_){}
+        return;
+      }
       const {data,error}=await client.rpc('get_current_clinical_alerts');
       if(error){console.warn('Alert engine:',error.message);setAlerts([]);return}
 
@@ -3015,6 +3040,12 @@ Caring with Compassion. Living with Dignity.`;
     React.useEffect(()=>{loadSettings()},[]);
     React.useEffect(()=>{
       if(!profile)return;
+      if(profile?.role==='STD'){
+        setAlerts([]);
+        try{document.querySelectorAll('.samara-clinical-alert-overlay').forEach(node=>node.remove())}catch(_){}
+        try{if(window.speechSynthesis)window.speechSynthesis.cancel()}catch(_){}
+        return;
+      }
       refresh();const timer=setInterval(refresh,60000);
       return()=>clearInterval(timer);
     },[profile,settings.repeat_minutes,settings.sound_enabled,settings.voice_enabled,settings.browser_notifications_enabled,soundUnlocked]);
@@ -3123,7 +3154,46 @@ Caring with Compassion. Living with Dignity.`;
     const dueNowCount=allRows.filter(a=>!a.isOverdue&&!a.isEscalated).length;
     const regularisationCount=allRows.filter(a=>String(a.alert_type||'').toLowerCase()==='regularisation').length;
 
-    return h(React.Fragment,null,
+    return h('div',{className:'director-office-theme'},
+      h('style',null,`
+        .director-office-theme{
+          background:
+            radial-gradient(circle at 88% 4%, rgba(218,61,125,.10), transparent 28%),
+            radial-gradient(circle at 8% 18%, rgba(246,190,214,.17), transparent 24%);
+          border-radius:22px;
+        }
+        .director-office-theme > .card.panel{
+          background:linear-gradient(145deg,#fff8fb 0%,#fdf0f5 52%,#f9e4ed 100%);
+          border:1px solid #ebc2d2;
+          box-shadow:0 10px 28px rgba(112,16,60,.07);
+        }
+        .director-office-theme > .card.panel:first-of-type{
+          background:linear-gradient(135deg,#fff8fb 0%,#fdeaf1 48%,#f6d8e4 100%);
+        }
+        .director-office-theme .panel-head h3{
+          color:#6f103d;
+        }
+        .director-office-theme .btn-secondary{
+          background:#f9e3ec;
+          border-color:#e9bfd0;
+          color:#7d1547;
+        }
+        .director-office-theme .btn-secondary:hover{
+          background:#f4cedd;
+        }
+        .director-office-theme input,
+        .director-office-theme select,
+        .director-office-theme textarea{
+          background:#fffafb;
+          border-color:#dfb8c8;
+        }
+        .director-office-theme .empty{
+          color:#7f6a74;
+        }
+        @media(max-width:700px){
+          .director-office-theme{border-radius:14px}
+        }
+      `),
       h(Section,{title:dashboardFocus?`${dashboardFocus} Actions`:'Clinical Alerts',subtitle:dashboardFocus?`Dashboard view · ${dashboardFocus} actions currently due / pending`:'Nursing action dashboard — escalated items first, then overdue and due items',
         actions:h('div',{className:'employee-actions'},
           dashboardFocus&&h('button',{className:'btn btn-secondary',onClick:()=>setDashboardFocus('')},'Show All Clinical Alerts'),
@@ -3147,10 +3217,10 @@ Caring with Compassion. Living with Dignity.`;
           !mobileClinicalDevice&&h('button',{className:'btn btn-primary',onClick:engine.playCurrentLiveEscalation},'▶ Play Current Live Escalation')
         )},
         h('div',{className:'grid stats'},
-          h('div',{className:'card stat clinical-red'},h('span',null,'Escalated'),h('strong',null,escalatedCount),h('small',null,'Requires immediate nursing action')),
-          h('div',{className:'card stat clinical-amber'},h('span',null,'Overdue'),h('strong',null,overdueCount),h('small',null,'Not yet escalated')),
-          h('div',{className:'card stat clinical-blue'},h('span',null,'Due now'),h('strong',null,dueNowCount),h('small',null,'Current actionable items')),
-          h('div',{className:'card stat'},h('span',null,'Regularisation'),h('strong',null,regularisationCount),h('small',null,'One consolidated historical backlog'))
+          h('button',{type:'button',className:'card stat clinical-red',onClick:()=>setFilter('Escalated'),title:'Show escalated alerts'},h('span',null,'Escalated'),h('strong',null,escalatedCount),h('small',null,'Requires immediate nursing action')),
+          h('button',{type:'button',className:'card stat clinical-amber',onClick:()=>setFilter('Overdue'),title:'Show overdue alerts'},h('span',null,'Overdue'),h('strong',null,overdueCount),h('small',null,'Not yet escalated')),
+          h('button',{type:'button',className:'card stat clinical-blue',onClick:()=>setFilter('Due now'),title:'Show due-now alerts'},h('span',null,'Due now'),h('strong',null,dueNowCount),h('small',null,'Current actionable items')),
+          h('button',{type:'button',className:'card stat',onClick:()=>setFilter('All'),title:'Show all alerts including regularisation'},h('span',null,'Regularisation'),h('strong',null,regularisationCount),h('small',null,'One consolidated historical backlog'))
         ),
         h('div',{className:'field',style:{maxWidth:'300px',marginTop:'14px'}},
           h('label',null,'View'),
@@ -3191,6 +3261,7 @@ Caring with Compassion. Living with Dignity.`;
         return value==='open'?'Open':'Open';
       }catch(_error){return 'Open'}
     }),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState('');
+    const [dashboardEscalationFocus,setDashboardEscalationFocus]=React.useState('Open escalations');
     const canView=['Admin','Manager'].includes(profile?.role);
     const targetForType=type=>{
       const t=String(type||'').toLowerCase();
@@ -3228,7 +3299,13 @@ Caring with Compassion. Living with Dignity.`;
     }
     if(!canView)return h(Section,{title:'Clinical Escalations'},h('div',{className:'message error'},'Clinical Escalations are available only to Manager and Administrator.'));
     const unresolved=rows.filter(r=>!r.resolved_at);
-    const visible=rows.filter(r=>filter==='All'||(filter==='Open'?!r.resolved_at:!!r.resolved_at));
+    const visible=(rows.filter(r=>filter==='All'||(filter==='Open'?!r.resolved_at:!!r.resolved_at))).filter(r=>{
+      if(dashboardEscalationFocus==='Critical')return !r.resolved_at&&String(r.priority||'').toLowerCase()==='critical';
+      if(dashboardEscalationFocus==='Medication')return !r.resolved_at&&String(r.alert_type||'').toLowerCase().includes('med');
+      if(dashboardEscalationFocus==='Regularisation')return !r.resolved_at&&String(r.alert_type||'').toLowerCase()==='regularisation';
+      if(dashboardEscalationFocus==='Open escalations')return !r.resolved_at;
+      return true;
+    });
     const critical=unresolved.filter(r=>String(r.priority||'').toLowerCase()==='critical').length;
     const medication=unresolved.filter(r=>String(r.alert_type||'').toLowerCase().includes('med')).length;
     const regularisation=unresolved.filter(r=>String(r.alert_type||'').toLowerCase()==='regularisation').length;
@@ -3236,10 +3313,10 @@ Caring with Compassion. Living with Dignity.`;
       h(Section,{title:'Clinical Escalations',subtitle:'Manager / Administrator oversight of unresolved clinical alerts after escalation threshold',actions:h('button',{className:'btn btn-secondary',disabled:busy,onClick:load},busy?'Refreshing…':'Refresh')},
         message&&h('div',{className:'message error'},message),
         h('div',{className:'grid stats'},
-          h('div',{className:'card stat clinical-red'},h('span',null,'Open escalations'),h('strong',null,unresolved.length),h('small',null,'Requires management oversight')),
-          h('div',{className:'card stat clinical-red'},h('span',null,'Critical'),h('strong',null,critical),h('small',null,'Critical unresolved items')),
-          h('div',{className:'card stat clinical-amber'},h('span',null,'Medication'),h('strong',null,medication),h('small',null,'Medication escalations')),
-          h('div',{className:'card stat clinical-blue'},h('span',null,'Regularisation'),h('strong',null,regularisation),h('small',null,'One-time historical backlog'))
+          h('button',{type:'button',className:'card stat clinical-red',onClick:()=>setDashboardEscalationFocus('Open escalations')},h('span',null,'Open escalations'),h('strong',null,unresolved.length),h('small',null,'Requires management oversight')),
+          h('button',{type:'button',className:'card stat clinical-red',onClick:()=>setDashboardEscalationFocus('Critical')},h('span',null,'Critical'),h('strong',null,critical),h('small',null,'Critical unresolved items')),
+          h('button',{type:'button',className:'card stat clinical-amber',onClick:()=>setDashboardEscalationFocus('Medication')},h('span',null,'Medication'),h('strong',null,medication),h('small',null,'Medication escalations')),
+          h('button',{type:'button',className:'card stat clinical-blue',onClick:()=>setDashboardEscalationFocus('Regularisation')},h('span',null,'Regularisation'),h('strong',null,regularisation),h('small',null,'One-time historical backlog'))
         ),
         h('div',{className:'field',style:{maxWidth:'260px',marginTop:'14px'}},h('label',null,'Status'),h('select',{value:filter,onChange:e=>setFilter(e.target.value)},['Open','Resolved','All'].map(x=>h('option',{key:x,value:x},x))))
       ),
@@ -4531,10 +4608,67 @@ Caring with Compassion. Living with Dignity.`;
           background:rgba(255,255,255,.985)!important;
           border-top-color:#ebcddd!important;
         }
-        /* Entry forms must never be covered by the mobile navigation. */
-        .app:has(.modal-backdrop) .mobile-bottom-nav{
+        /* MOBILE FULL-SCREEN FORM MODE
+           Every real modal / data-entry form gets a clean phone screen.
+           App header, search, Module selector, alert-sound bar and bottom nav
+           are temporarily hidden until the form is closed. */
+        .app:has(.modal-backdrop) .topbar,
+        .app:has(.modal-backdrop) .mobile-menu,
+        .app:has(.modal-backdrop) .mobile-bottom-nav,
+        .app:has(.modal-backdrop) .sound-unlock-button,
+        .app:has(.modal-backdrop) .clinical-alert-popup{
           display:none!important;
         }
+
+        /* Do not alter the one intentionally-inline pseudo modal. */
+        .modal-backdrop:not([style*="position: static"]){
+          position:fixed!important;
+          inset:0!important;
+          width:100vw!important;
+          height:100dvh!important;
+          max-width:none!important;
+          max-height:none!important;
+          z-index:100000!important;
+          margin:0!important;
+          padding:
+            max(8px,env(safe-area-inset-top))
+            8px
+            max(8px,env(safe-area-inset-bottom))!important;
+          background:#fff8fb!important;
+          overflow-y:auto!important;
+          overflow-x:hidden!important;
+          align-items:flex-start!important;
+          justify-content:center!important;
+          -webkit-overflow-scrolling:touch!important;
+        }
+
+        .modal-backdrop:not([style*="position: static"]) > .modal,
+        .modal-backdrop:not([style*="position: static"]) > .modal-card,
+        .modal-backdrop:not([style*="position: static"]) > form.modal,
+        .modal-backdrop:not([style*="position: static"]) > form.card.modal{
+          width:100%!important;
+          max-width:none!important;
+          min-height:calc(100dvh - max(16px,env(safe-area-inset-top)) - max(16px,env(safe-area-inset-bottom)))!important;
+          max-height:none!important;
+          margin:0!important;
+          border-radius:16px!important;
+          overflow:visible!important;
+          box-shadow:none!important;
+        }
+
+        /* Keep the form title and Close button visible while scrolling long forms. */
+        .modal-backdrop:not([style*="position: static"]) .panel-head,
+        .modal-backdrop:not([style*="position: static"]) .modal-head{
+          position:sticky!important;
+          top:0!important;
+          z-index:15!important;
+          margin:-13px -13px 12px!important;
+          padding:13px!important;
+          background:rgba(255,250,253,.98)!important;
+          border-bottom:1px solid #ead1dc!important;
+          backdrop-filter:blur(8px)!important;
+        }
+
         .app:has(.modal-backdrop) .content{
           padding-bottom:calc(20px + env(safe-area-inset-bottom))!important;
         }
@@ -5394,7 +5528,7 @@ Caring with Compassion. Living with Dignity.`;
     const alertEngine=useClinicalAlertEngine(profile,setPage);
     const topClinicalAlert=alertEngine.alerts[0]||null;
     const topClinicalAlertKey=topClinicalAlert?.key||topClinicalAlert?.id||topClinicalAlert?.source_id||'';
-    const clinicalPopupVisible=Boolean(topClinicalAlert)&&!(
+    const clinicalPopupVisible=profile?.role!=='STD'&&Boolean(topClinicalAlert)&&!(
       clinicalPopupSnooze.key===topClinicalAlertKey&&clinicalPopupSnooze.until>Date.now()
     );
     React.useEffect(()=>{
@@ -5732,7 +5866,7 @@ Caring with Compassion. Living with Dignity.`;
         }
         setProfile(data);
 
-        const allowedPages=ROLE_NAV[data.role]||['Dashboard'];
+        const allowedPages=allowedPagesForProfile(data);
         const savedPage=readLastOpenPage();
         const firstWorkspaceLoad=workspaceInitialisedForUserRef.current!==session.user.id;
 
@@ -5772,7 +5906,7 @@ Caring with Compassion. Living with Dignity.`;
     if(!profile) return h('div',{className:'loading'},'Loading your employee profile…');
     if(profile.must_change_password) return h(FirstLoginPasswordChange,{profile,onComplete:()=>setProfile({...profile,must_change_password:false})});
 
-    const allowed = ROLE_NAV[profile.role]||['Dashboard'];
+    const allowed = allowedPagesForProfile(profile);
     if(!allowed.includes(page)) setTimeout(()=>setPage(ROLE_HOME[profile.role]||allowed[0]||'Notifications'),0);
     return h('div',{className:`app mobile-role-${String(profile.role||'user').toLowerCase().replace(/[^a-z0-9]+/g,'-')}`},
       h(GlobalSmartHover),
@@ -5787,7 +5921,7 @@ Caring with Compassion. Living with Dignity.`;
           h('button',{type:'button',className:'mobile-home-button','aria-label':'Go to dashboard',title:'Dashboard',onClick:()=>setPage(ROLE_HOME[profile.role]||allowed[0])},'⌂'),
           h('h2',null,displayNavLabel(page,profile.role)),
           h(GlobalSearch,{onNavigate:setPage,profile}),
-          h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
+          profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
           h('span',{className:'badge'},profile.role)
         ),
         h(MobileMenu,{page,setPage,allowed,profile}),
@@ -5796,6 +5930,9 @@ Caring with Compassion. Living with Dignity.`;
           page==='Dashboard'&&h(Dashboard,{profile,onNavigate:setPage,alertEngine}),
           page==='HR Dashboard'&&h(HRDashboard,{profile,onNavigate:setPage}),
           page==='Employees'&&h(Employees,{profile,onNavigate:setPage}),
+          page==='My Profile'&&h(MyProfile,{profile,onProfileUpdate:setProfile}),
+          page==='My Quick Tasks'&&h(NursingManagerQuickTasks,{profile,onNavigate:setPage}),
+          page==="Director's Office"&&h(DirectorOfficeDashboard,{profile,onNavigate:setPage}),
           page==='My Leave & Permission'&&h(LeavePermission,{profile,mode:'mine'}),
           page==='Leave Approvals'&&h(LeavePermission,{profile,mode:'approvals'}),
           page==='Career Applications'&&h(CareerApplications,{profile,onNavigate:setPage}),
@@ -5804,6 +5941,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Admissions'&&h(Admissions,{profile,onNavigate:setPage}),
           page==='Clinical Dashboard'&&h(ClinicalDashboard,{profile,onNavigate:setPage,alertEngine}),
           page==='Clinical Alerts'&&h(ClinicalAlertsPage,{engine:alertEngine,setPage}),
+          page==='My To-Do & Follow-up'&&h(ManagerPersonalTodo,{profile}),
           page==='Clinical Escalations'&&h(ClinicalEscalationsDashboard,{profile,onNavigate:setPage}),
           page==='Shift Tasks'&&h(ShiftTasks,{profile,onNavigate:setPage}),
           page==='Patients'&&h(Patients,{profile,onNavigate:setPage}),
@@ -5890,7 +6028,7 @@ Caring with Compassion. Living with Dignity.`;
             }},'Open to Resolve')
           )
         ),
-        profile&&page!=='HR Dashboard'&&!alertEngine.soundUnlocked&&h('button',{type:'button',className:'sound-unlock-button',onClick:alertEngine.unlockSound},'🔊 Enable Alert Sound'),
+        profile&&profile.role!=='STD'&&page!=='HR Dashboard'&&!alertEngine.soundUnlocked&&h('button',{type:'button',className:'sound-unlock-button',onClick:alertEngine.unlockSound},'🔊 Enable Alert Sound'),
         h(MobileBottomNav,{page,setPage,allowed,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
         mobileDrawerOpen&&h(MobileNavigationDrawer,{profile,allowed,page,onNavigate:(next)=>{setPage(next);setMobileDrawerOpen(false)},onClose:()=>setMobileDrawerOpen(false)})
       )
@@ -6083,6 +6221,214 @@ Caring with Compassion. Living with Dignity.`;
     ));
   }
 
+
+  function MyProfile({profile,onProfileUpdate}){
+    const [contact,setContact]=React.useState({
+      mobile:profile?.mobile||'',
+      employee_email:profile?.employee_email||'',
+      address:profile?.address||profile?.current_address||'',
+      emergency_contact:profile?.emergency_contact||''
+    });
+    const [username,setUsername]=React.useState(profile?.login_id||'');
+    const [currentPasswordForUsername,setCurrentPasswordForUsername]=React.useState('');
+    const [currentPassword,setCurrentPassword]=React.useState('');
+    const [newPassword,setNewPassword]=React.useState('');
+    const [confirmPassword,setConfirmPassword]=React.useState('');
+    const [busy,setBusy]=React.useState('');
+    const [message,setMessage]=React.useState('');
+
+    React.useEffect(()=>{
+      setContact({
+        mobile:profile?.mobile||'',
+        employee_email:profile?.employee_email||'',
+        address:profile?.address||profile?.current_address||'',
+        emergency_contact:profile?.emergency_contact||''
+      });
+      setUsername(profile?.login_id||'');
+    },[profile?.id,profile?.mobile,profile?.employee_email,profile?.address,profile?.current_address,profile?.emergency_contact,profile?.login_id]);
+
+    async function selfRequest(payload){
+      const {data:{session}}=await client.auth.getSession();
+      if(!session)throw new Error('Your session has expired. Please sign in again.');
+      const response=await fetch(`${cfg.supabaseUrl}/functions/v1/admin-users`,{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'Authorization':`Bearer ${session.access_token}`,
+          'apikey':cfg.supabasePublishableKey
+        },
+        body:JSON.stringify(payload)
+      });
+      const result=await response.json().catch(()=>({error:'Unable to read server response'}));
+      if(!response.ok||result.error)throw new Error(result.error||'Unable to complete the request');
+      return result;
+    }
+
+    function cleanLogin(value){
+      return String(value||'').trim().toLowerCase().replace(/[^a-z0-9._-]/g,'');
+    }
+
+    async function saveContact(e){
+      e.preventDefault();
+      setBusy('contact');setMessage('');
+      try{
+        const result=await selfRequest({
+          action:'self_update_profile',
+          mobile:String(contact.mobile||'').trim(),
+          employee_email:String(contact.employee_email||'').trim().toLowerCase(),
+          address:String(contact.address||'').trim(),
+          emergency_contact:String(contact.emergency_contact||'').trim()
+        });
+        const next=result.profile||{...profile,...contact};
+        onProfileUpdate&&onProfileUpdate(next);
+        setMessage('✓ Personal contact details updated successfully.');
+      }catch(error){setMessage(error.message||'Unable to update your profile.')}
+      setBusy('');
+    }
+
+    async function changeUsername(e){
+      e.preventDefault();
+      const nextLogin=cleanLogin(username);
+      if(nextLogin.length<3){setMessage('Login ID must contain at least 3 characters.');return}
+      if(!currentPasswordForUsername){setMessage('Enter your current password to change the Login ID.');return}
+      setBusy('username');setMessage('');
+      try{
+        const result=await selfRequest({
+          action:'self_change_login_id',
+          new_login_id:nextLogin,
+          current_password:currentPasswordForUsername
+        });
+        setUsername(result.login_id||nextLogin);
+        setCurrentPasswordForUsername('');
+        onProfileUpdate&&onProfileUpdate({...profile,login_id:result.login_id||nextLogin});
+        setMessage(`✓ Login ID changed to "${result.login_id||nextLogin}". Use the new Login ID the next time you sign in.`);
+      }catch(error){setMessage(error.message||'Unable to change Login ID.')}
+      setBusy('');
+    }
+
+    async function changePassword(e){
+      e.preventDefault();
+      if(!currentPassword){setMessage('Enter your current password.');return}
+      if(newPassword.length<8){setMessage('New password must contain at least 8 characters.');return}
+      if(newPassword!==confirmPassword){setMessage('New password and confirmation do not match.');return}
+      if(newPassword===currentPassword){setMessage('Please choose a new password different from the current password.');return}
+      setBusy('password');setMessage('');
+      try{
+        await selfRequest({
+          action:'self_change_password',
+          current_password:currentPassword,
+          new_password:newPassword
+        });
+        setCurrentPassword('');setNewPassword('');setConfirmPassword('');
+        setMessage('✓ Password changed successfully. Your current session remains active.');
+      }catch(error){setMessage(error.message||'Unable to change password.')}
+      setBusy('');
+    }
+
+    const initials=String(formalName(profile)||profile?.full_name||profile?.login_id||'S')
+      .split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]?.toUpperCase()||'').join('');
+
+    const readonly=(label,value)=>h('div',{style:{padding:'11px 12px',border:'1px solid #ead4de',borderRadius:'12px',background:'#fffafd'}},
+      h('small',{style:{display:'block',color:'#816c76',marginBottom:'3px'}},label),
+      h('strong',{style:{color:'#3b2730'}},value||'—')
+    );
+
+    return h('div',{className:'my-profile-page'},
+      h('style',null,`
+        .my-profile-page .profile-hero{
+          background:linear-gradient(135deg,#fff8fb 0%,#f7dbe7 52%,#efc4d5 100%);
+          border:1px solid #e3b6c8;border-radius:20px;padding:18px 20px;
+          box-shadow:0 10px 28px rgba(119,18,65,.09);
+          display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+        }
+        .my-profile-page .profile-avatar{
+          width:66px;height:66px;border-radius:50%;
+          display:grid;place-items:center;
+          background:linear-gradient(145deg,#8e1048,#d1276c);
+          color:white;font-size:24px;font-weight:950;
+          border:4px solid rgba(255,255,255,.8);
+          box-shadow:0 7px 18px rgba(109,15,56,.18);
+        }
+        .my-profile-page .profile-grid{
+          display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;
+        }
+        .my-profile-page .profile-two{
+          display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;
+        }
+        .my-profile-page .profile-card{
+          background:linear-gradient(145deg,#fffafd,#fdf1f6);
+          border:1px solid #e8c3d2;border-radius:18px;padding:16px;
+          box-shadow:0 6px 18px rgba(108,24,60,.06);
+        }
+        .my-profile-page .profile-card h3{margin-top:0;color:#6f103d}
+        .my-profile-page .security-note{
+          padding:9px 11px;border-radius:11px;background:#fff3f7;border:1px solid #efd0dd;
+          color:#76505f;font-size:12px;line-height:1.45;
+        }
+        @media(max-width:700px){
+          .my-profile-page .profile-two{grid-template-columns:1fr}
+          .my-profile-page .profile-hero{padding:15px}
+        }
+      `),
+      h('div',{className:'profile-hero'},
+        h('div',{className:'profile-avatar'},initials||'S'),
+        h('div',{style:{flex:'1 1 260px'}},
+          h('div',{style:{fontSize:'23px',fontWeight:950,color:'#4b1630'}},formalName(profile)||profile?.full_name||'My Profile'),
+          h('div',{style:{marginTop:'4px',color:'#735b66'}},`${profile?.designation||profile?.role||'Staff'} · ${profile?.department||'Samara'}`),
+          h('div',{style:{marginTop:'7px',display:'flex',gap:'7px',flexWrap:'wrap'}},
+            h('span',{className:'badge'},profile?.employee_id||'Employee'),
+            h('span',{className:'badge'},profile?.role||'Staff')
+          )
+        )
+      ),
+
+      message?h('div',{className:`message ${message.startsWith('✓')?'success':'error'}`,style:{marginTop:'14px'}},message):null,
+
+      h(Section,{title:'Employment Profile',subtitle:'Official employment details are maintained by HR and cannot be changed here.'},
+        h('div',{className:'profile-grid'},
+          readonly('Employee ID',profile?.employee_id),
+          readonly('Full Name',formalName(profile)||profile?.full_name),
+          readonly('Department',profile?.department),
+          readonly('Designation',profile?.designation),
+          readonly('ERP Role / Access',profile?.role),
+          readonly('Date of Joining',profile?.date_of_joining?formatDateIN(profile.date_of_joining):'—')
+        )
+      ),
+
+      h('div',{className:'profile-two'},
+        h('form',{className:'profile-card',onSubmit:saveContact},
+          h('h3',null,'Personal Contact Details'),
+          h('p',{className:'small-note'},'You may update your own contact information. Official employment fields remain controlled by HR.'),
+          h('div',{className:'field'},h('label',null,'Mobile'),h('input',{value:contact.mobile,onChange:e=>setContact({...contact,mobile:e.target.value}),inputMode:'tel',placeholder:'Mobile number'})),
+          h('div',{className:'field'},h('label',null,'Email'),h('input',{type:'email',value:contact.employee_email,onChange:e=>setContact({...contact,employee_email:e.target.value}),placeholder:'Personal / work email'})),
+          h('div',{className:'field'},h('label',null,'Address'),h('textarea',{rows:3,value:contact.address,onChange:e=>setContact({...contact,address:e.target.value}),placeholder:'Current contact address'})),
+          h('div',{className:'field'},h('label',null,'Emergency / Guardian Contact'),h('input',{value:contact.emergency_contact,onChange:e=>setContact({...contact,emergency_contact:e.target.value}),inputMode:'tel'})),
+          h('button',{className:'btn btn-primary full',disabled:busy==='contact'},busy==='contact'?'Saving…':'Save My Details')
+        ),
+
+        h('div',{className:'profile-card'},
+          h('h3',null,'Login & Security'),
+          h('div',{className:'security-note'},'Your Login ID and password are private. Changing them does not alter your Employee ID, designation, department or ERP role.'),
+
+          h('form',{onSubmit:changeUsername,style:{marginTop:'14px'}},
+            h('div',{className:'field'},h('label',null,'Login ID / Username'),h('input',{value:username,onChange:e=>setUsername(e.target.value),required:true,autoComplete:'username'})),
+            h('div',{className:'field'},h('label',null,'Current Password'),h('input',{type:'password',value:currentPasswordForUsername,onChange:e=>setCurrentPasswordForUsername(e.target.value),required:true,autoComplete:'current-password',placeholder:'Required to change Login ID'})),
+            h('button',{className:'btn btn-secondary full',disabled:busy==='username'},busy==='username'?'Changing…':'Change Login ID')
+          ),
+
+          h('hr',{style:{border:0,borderTop:'1px solid #ead5df',margin:'18px 0'}}),
+
+          h('form',{onSubmit:changePassword},
+            h('div',{className:'field'},h('label',null,'Current Password'),h('input',{type:'password',value:currentPassword,onChange:e=>setCurrentPassword(e.target.value),required:true,autoComplete:'current-password'})),
+            h('div',{className:'field'},h('label',null,'New Password'),h('input',{type:'password',value:newPassword,onChange:e=>setNewPassword(e.target.value),minLength:8,required:true,autoComplete:'new-password'})),
+            h('div',{className:'field'},h('label',null,'Confirm New Password'),h('input',{type:'password',value:confirmPassword,onChange:e=>setConfirmPassword(e.target.value),minLength:8,required:true,autoComplete:'new-password'})),
+            h('button',{className:'btn btn-primary full',disabled:busy==='password'},busy==='password'?'Changing…':'Change Password')
+          )
+        )
+      )
+    );
+  }
+
   function Sidebar({profile,page,setPage,allowed}){
     const sections=sectionsFor(allowed,profile.role);
     const activeSection=sections.find(section=>section.items.includes(page))?.title||sections[0]?.title||'';
@@ -6113,7 +6459,7 @@ Caring with Compassion. Living with Dignity.`;
         );
       })),
       h('div',{className:'sidebar-footer'},
-        h('div',{className:'user-chip'},h('strong',null,formalName(profile)),h('small',null,`${profile.login_id} · ${profile.role}`)),
+        h('button',{type:'button',className:'user-chip',onClick:()=>setPage('My Profile'),title:'Open My Profile',style:{width:'100%',textAlign:'left',cursor:'pointer'}},h('strong',null,formalName(profile)),h('small',null,`${profile.login_id} · ${profile.role}`)),
         h('button',{type:'button',className:'btn btn-secondary full',onClick:samaraOpenAppHelp},'App Help / Repair'),
         h('button',{className:'btn btn-secondary full',onClick:async()=>{await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');await client.auth.signOut()}},'Sign out')
       )
@@ -6219,6 +6565,7 @@ Caring with Compassion. Living with Dignity.`;
       ['Daily Care','♡','Daily Care','Complete care'],
       ['Shift Tasks','☷','Tasks','Current shift']
     ];
+    if(isNursingManagerProfile(profile))actions.push(['My Quick Tasks','＋','Quick Tasks','Voice / personal']);
     return h('section',{className:'nursing-mobile-quick-actions','aria-label':'Nursing quick actions'},
       actions.map(([target,icon,label,sub])=>h('button',{
         type:'button',
@@ -6790,8 +7137,123 @@ Caring with Compassion. Living with Dignity.`;
     );
   }
 
-  function Dashboard({profile,onNavigate,alertEngine}){
+  
+  function dashboardNavigate(onNavigate,page,focus='',extra={}){
+    try{
+      sessionStorage.setItem('samara-dashboard-intent',JSON.stringify({
+        page:String(page||''),
+        focus:String(focus||''),
+        extra:extra||{},
+        at:Date.now()
+      }));
+    }catch(_error){}
+    if(typeof onNavigate==='function')onNavigate(page);
+  }
+
+  function readDashboardIntent(page){
+    try{
+      const raw=sessionStorage.getItem('samara-dashboard-intent');
+      if(!raw)return null;
+      const data=JSON.parse(raw);
+      if(String(data?.page||'')!==String(page||''))return null;
+      sessionStorage.removeItem('samara-dashboard-intent');
+      return data;
+    }catch(_error){return null}
+  }
+
+
+  function ensureGlobalDashboardNavigationStyle(){
+    if(document.getElementById('samara-global-dashboard-nav-style'))return;
+    const style=document.createElement('style');
+    style.id='samara-global-dashboard-nav-style';
+    style.textContent=`
+      .grid.stats > button.card.stat,
+      .dashboard-card,
+      .accounts-kpi,
+      .accounts-workflow-card{
+        cursor:pointer;
+        -webkit-tap-highlight-color:rgba(169,22,83,.10);
+        touch-action:manipulation;
+      }
+      .grid.stats > button.card.stat:active,
+      .dashboard-card:active,
+      .accounts-kpi:active,
+      .accounts-workflow-card:active{
+        transform:scale(.985);
+      }
+      @media (hover:hover){
+        .grid.stats > button.card.stat:hover,
+        .dashboard-card:hover,
+        .accounts-kpi:hover,
+        .accounts-workflow-card:hover{
+          filter:brightness(.99);
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  ensureGlobalDashboardNavigationStyle();
+
+function Dashboard({profile,onNavigate,alertEngine}){
     const [stats,setStats]=React.useState({employees:0,patients:0,availableBeds:0,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[],escalations:0,packageExpiry:0});
+    const [managerPersonalSummary,setManagerPersonalSummary]=React.useState({today:0,overdue:0,followup:0,completed:0});
+    const [directorOfficeSummary,setDirectorOfficeSummary]=React.useState({
+      isDirector:false,
+      awaiting:0,
+      calls:0,
+      appointments:0,
+      urgent:0
+    });
+
+    React.useEffect(()=>{(async()=>{
+      if(profile?.role!=='Manager'){setManagerPersonalSummary({today:0,overdue:0,followup:0,completed:0});return}
+      try{
+        const {data}=await client.from('manager_personal_tasks').select('status,due_at,follow_up_at,completed_at').limit(1000);
+        const rows=data||[], now=new Date();
+        const day=v=>{if(!v)return '';const d=new Date(v);if(Number.isNaN(d.getTime()))return '';return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+        const today=day(now), open=r=>!['Completed','Cancelled'].includes(String(r.status||''));
+        setManagerPersonalSummary({
+          today:rows.filter(r=>open(r)&&day(r.due_at)===today).length,
+          overdue:rows.filter(r=>open(r)&&r.due_at&&new Date(r.due_at)<now&&day(r.due_at)!==today).length,
+          followup:rows.filter(r=>open(r)&&r.follow_up_at&&new Date(r.follow_up_at)<=now).length,
+          completed:rows.filter(r=>r.status==='Completed'&&day(r.completed_at)===today).length
+        });
+      }catch(_){setManagerPersonalSummary({today:0,overdue:0,followup:0,completed:0})}
+    })()},[profile?.id,profile?.role]);
+
+    React.useEffect(()=>{(async()=>{
+      try{
+        const {data:position}=await client.from('director_office_positions')
+          .select('assigned_profile_id')
+          .eq('position_key','director')
+          .maybeSingle();
+        const isDirector=String(position?.assigned_profile_id||'')===String(profile?.id||'');
+        if(isDirector){
+          const {data:officeRows}=await client.from('director_office_items')
+            .select('id,item_type,status,priority,scheduled_at,needs_director_attention,director_responded_at')
+            .limit(1000);
+          const open=(officeRows||[]).filter(r=>!['Completed','Cancelled'].includes(String(r.status||'')));
+          const today=new Date();
+          const sameDay=v=>{
+            if(!v)return false;
+            const d=new Date(v);
+            return d.getFullYear()===today.getFullYear()&&d.getMonth()===today.getMonth()&&d.getDate()===today.getDate();
+          };
+          setDirectorOfficeSummary({
+            isDirector:true,
+            awaiting:open.filter(r=>r.needs_director_attention&&!r.director_responded_at).length,
+            calls:open.filter(r=>r.item_type==='Call / Callback'&&r.needs_director_attention&&!r.director_responded_at).length,
+            appointments:open.filter(r=>r.item_type==='Appointment'&&sameDay(r.scheduled_at)).length,
+            urgent:open.filter(r=>r.priority==='Urgent'&&r.needs_director_attention&&!r.director_responded_at).length
+          });
+        }else{
+          setDirectorOfficeSummary({isDirector:false,awaiting:0,calls:0,appointments:0,urgent:0});
+        }
+      }catch(_){
+        setDirectorOfficeSummary({isDirector:false,awaiting:0,calls:0,appointments:0,urgent:0});
+      }
+    })()},[profile?.id]);
+
     React.useEffect(()=>{(async()=>{
       const today=new Date().toISOString().slice(0,10);
       const [emp,pat,beds,med,care,bill,inc,dis,vis,enq,esc]=await Promise.all([
@@ -6922,6 +7384,55 @@ Caring with Compassion. Living with Dignity.`;
     ];
     return h(React.Fragment,null,
       h('div',{className:'shift-summary'},h('div',null,h('strong',null,currentShift()),h('span',null,'Admin and Manager control dashboard')),h('span',{className:'badge'},formalName(profile))),
+      profile?.role==='Manager'?h('button',{
+        type:'button',onClick:()=>onNavigate('My To-Do & Follow-up'),
+        style:{width:'100%',marginTop:'14px',marginBottom:'14px',textAlign:'left',border:'1px solid #e2b8c9',borderLeft:'6px solid #9f174e',borderRadius:'18px',padding:'14px 16px',cursor:'pointer',background:'linear-gradient(135deg,#fffafd,#f8e5ed)',boxShadow:'0 8px 22px rgba(119,18,65,.08)'}
+      },
+        h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'center',flexWrap:'wrap'}},
+          h('div',null,h('div',{style:{fontSize:'12px',fontWeight:900,letterSpacing:'.06em',color:'#9a1850'}},'MY PERSONAL WORKSPACE'),
+            h('div',{style:{fontSize:'19px',fontWeight:950,color:'#461427'}},'To-Do & Follow-up'),
+            h('small',{style:{color:'#735b66'}},'Private — visible only to your own login')),
+          h('span',{className:'badge'},'Open My List →')
+        ),
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(135px,1fr))',gap:'8px',marginTop:'11px'}},
+          [['Due Today',managerPersonalSummary.today],['Overdue',managerPersonalSummary.overdue],['Follow-ups',managerPersonalSummary.followup],['Completed Today',managerPersonalSummary.completed]].map(([label,value])=>
+            h('div',{key:label,style:{background:'rgba(255,255,255,.7)',border:'1px solid #ecd0dc',borderRadius:'11px',padding:'8px 10px'}},
+              h('strong',{style:{fontSize:'21px',color:'#97144d'}},value),h('div',{style:{fontSize:'12px',fontWeight:850}},label))
+          )
+        )
+      ):null,
+      directorOfficeSummary.isDirector?h('button',{
+        type:'button',
+        onClick:()=>onNavigate("Director's Office"),
+        style:{
+          width:'100%',
+          marginTop:'14px',
+          marginBottom:'14px',
+          textAlign:'left',
+          border:'1px solid #dca8bd',
+          borderLeft:'6px solid #a70f4d',
+          borderRadius:'18px',
+          padding:'16px 18px',
+          cursor:'pointer',
+          background:'linear-gradient(135deg,#fff8fb 0%,#f7dbe7 48%,#efc6d6 100%)',
+          boxShadow:'0 10px 28px rgba(119,18,65,.11)'
+        }
+      },
+        h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}},
+          h('div',null,
+            h('div',{style:{fontSize:'12px',fontWeight:900,letterSpacing:'.07em',color:'#9a1850'}},'DIRECTOR’S OFFICE'),
+            h('div',{style:{fontSize:'20px',fontWeight:950,color:'#461427',marginTop:'2px'}},'Items requiring your attention'),
+            h('small',{style:{color:'#735b66'}},'Shared live workspace with Secretary to the Director')
+          ),
+          h('span',{className:'badge'},'Open Director’s Office →')
+        ),
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(145px,1fr))',gap:'8px',marginTop:'13px'}},
+          h('div',{style:{background:'rgba(255,255,255,.62)',border:'1px solid rgba(173,58,106,.18)',borderRadius:'12px',padding:'9px 11px'}},h('strong',{style:{fontSize:'23px',color:'#97144d'}},directorOfficeSummary.awaiting),h('div',{style:{fontSize:'12px',fontWeight:850}},'Awaiting My Instruction')),
+          h('div',{style:{background:'rgba(255,255,255,.62)',border:'1px solid rgba(173,58,106,.18)',borderRadius:'12px',padding:'9px 11px'}},h('strong',{style:{fontSize:'23px',color:'#97144d'}},directorOfficeSummary.calls),h('div',{style:{fontSize:'12px',fontWeight:850}},'Calls to Return')),
+          h('div',{style:{background:'rgba(255,255,255,.62)',border:'1px solid rgba(173,58,106,.18)',borderRadius:'12px',padding:'9px 11px'}},h('strong',{style:{fontSize:'23px',color:'#97144d'}},directorOfficeSummary.appointments),h('div',{style:{fontSize:'12px',fontWeight:850}},'Appointments Today')),
+          h('div',{style:{background:'rgba(255,255,255,.62)',border:'1px solid rgba(173,58,106,.18)',borderRadius:'12px',padding:'9px 11px'}},h('strong',{style:{fontSize:'23px',color:'#97144d'}},directorOfficeSummary.urgent),h('div',{style:{fontSize:'12px',fontWeight:850}},'Urgent Follow-ups'))
+        )
+      ):null,
       h('div',{className:'grid stats dashboard-links'},cards.map(card=>h('button',{type:'button',className:'card stat dashboard-card',key:card.label,onClick:()=>{
         if(card.page==='Patients'){
           try{
@@ -6955,25 +7466,194 @@ Caring with Compassion. Living with Dignity.`;
           if(card.visitFilter)sessionStorage.setItem('samara-visit-filter',card.visitFilter);
           if(card.dischargeFilter)sessionStorage.setItem('samara-discharge-filter',card.dischargeFilter);
         }catch(_error){}
-        onNavigate(card.page);
+        dashboardNavigate(onNavigate,card.page,card.label,{source:'Main Dashboard'});
       },title:`Open ${card.page}`},h('span',{className:'dashboard-icon','aria-hidden':'true'},card.icon),h('span',null,card.label),h('strong',null,card.value),h('small',null,card.status||`Open ${card.page} →`)))),
       h('div',{className:'grid two',style:{marginTop:'18px'}},
         h('div',{className:'card panel'},
-          h('div',{className:'panel-head'},h('div',null,h('h3',null,'Latest Admission Enquiries'),h('small',null,'Website and Family Portal submissions')),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('Enquiries')},'Open Enquiries')),
-          (stats.recentEnquiries||[]).length?h('div',{style:{display:'grid',gap:'9px'}},stats.recentEnquiries.map(r=>h('button',{type:'button',key:r.id,onClick:()=>onNavigate('Enquiries'),style:{textAlign:'left',padding:'11px 12px',border:'1px solid #ecd6e2',borderRadius:'12px',background:'#fffafd',cursor:'pointer'}},h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center'}},h('strong',{style:{color:'#5d1039'}},r.patient_name||'Resident'),h('span',{className:'badge'},r.source||'Website')),h('small',{style:{display:'block',marginTop:'4px'}},`${r.family_contact_name||'—'} · ${r.family_contact_phone||'—'}`),h('small',{style:{display:'block',marginTop:'3px',color:'#8a6577'}},`${r.care_type||'Admission enquiry'} · ${r.status||'New'} · ${formatDateTimeIN(r.created_at)}`)))):h('p',{className:'empty'},'No new admission enquiries.' )
+          h('div',{className:'panel-head'},h('div',null,h('h3',null,'Latest Admission Enquiries'),h('small',null,'Website and Family Portal submissions')),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dashboardNavigate(onNavigate,'Enquiries','Latest Admission Enquiries',{source:'Main Dashboard'})},'Open Enquiries')),
+          (stats.recentEnquiries||[]).length?h('div',{style:{display:'grid',gap:'9px'}},stats.recentEnquiries.map(r=>h('button',{type:'button',key:r.id,onClick:()=>dashboardNavigate(onNavigate,'Enquiries','Latest Admission Enquiries',{source:'Main Dashboard'}),style:{textAlign:'left',padding:'11px 12px',border:'1px solid #ecd6e2',borderRadius:'12px',background:'#fffafd',cursor:'pointer'}},h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center'}},h('strong',{style:{color:'#5d1039'}},r.patient_name||'Resident'),h('span',{className:'badge'},r.source||'Website')),h('small',{style:{display:'block',marginTop:'4px'}},`${r.family_contact_name||'—'} · ${r.family_contact_phone||'—'}`),h('small',{style:{display:'block',marginTop:'3px',color:'#8a6577'}},`${r.care_type||'Admission enquiry'} · ${r.status||'New'} · ${formatDateTimeIN(r.created_at)}`)))):h('p',{className:'empty'},'No new admission enquiries.' )
         ),
         h('div',{style:{display:'grid',gap:'12px'}},
-          h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>onNavigate('Shift Tasks')},h('div',{className:'panel-head'},h('h3',null,'Today’s Operational Focus')),h('p',null,'Open medicines, bathing, restroom assistance, feeding, mobility, physiotherapy and special-nurse tasks.'),h('span',{className:'badge'},'Open Shift Tasks →')),
-          h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>onNavigate('Reports')},h('div',{className:'panel-head'},h('h3',null,'Management reports')),h('p',null,'Open occupancy, clinical risks, incidents, billing, collections and outstanding details.'),h('span',{className:'badge'},'Open Reports →'))
+          h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>dashboardNavigate(onNavigate,'Shift Tasks','Today’s Operational Focus',{source:'Main Dashboard'})},h('div',{className:'panel-head'},h('h3',null,'Today’s Operational Focus')),h('p',null,'Open medicines, bathing, restroom assistance, feeding, mobility, physiotherapy and special-nurse tasks.'),h('span',{className:'badge'},'Open Shift Tasks →')),
+          h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>dashboardNavigate(onNavigate,'Reports','Management Reports',{source:'Main Dashboard'})},h('div',{className:'panel-head'},h('h3',null,'Management reports')),h('p',null,'Open occupancy, clinical risks, incidents, billing, collections and outstanding details.'),h('span',{className:'badge'},'Open Reports →'))
         )
       )
     );
   }
 
 
+
+  function ManagerPersonalTodo({profile}){
+    const emptyForm=()=>({subject:'',category:'General',priority:'Normal',due_at:'',follow_up_at:'',notes:'',status:'Pending'});
+    const [rows,setRows]=React.useState([]);
+    const [form,setForm]=React.useState(emptyForm());
+    const [editing,setEditing]=React.useState(null);
+    const [filter,setFilter]=React.useState('Open');
+    const [busy,setBusy]=React.useState(false);
+    const [message,setMessage]=React.useState('');
+
+    const load=React.useCallback(async()=>{
+      const {data,error}=await client.from('manager_personal_tasks')
+        .select('*').order('completed_at',{ascending:false,nullsFirst:false})
+        .order('due_at',{ascending:true,nullsFirst:false}).order('created_at',{ascending:false});
+      if(error){setMessage(error.message);return}
+      setRows(data||[]);
+    },[]);
+    React.useEffect(()=>{load()},[load]);
+
+    const localDay=value=>{
+      if(!value)return '';
+      const d=new Date(value); if(Number.isNaN(d.getTime()))return '';
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    };
+    const today=localDay(new Date());
+    const isOpen=r=>!['Completed','Cancelled'].includes(String(r.status||''));
+    const dueToday=rows.filter(r=>isOpen(r)&&localDay(r.due_at)===today).length;
+    const overdue=rows.filter(r=>isOpen(r)&&r.due_at&&new Date(r.due_at)<new Date()&&localDay(r.due_at)!==today).length;
+    const followup=rows.filter(r=>isOpen(r)&&r.follow_up_at&&new Date(r.follow_up_at)<=new Date()).length;
+    const completedToday=rows.filter(r=>r.status==='Completed'&&localDay(r.completed_at)===today).length;
+
+    const visible=rows.filter(r=>{
+      if(filter==='Open')return isOpen(r);
+      if(filter==='Today')return isOpen(r)&&localDay(r.due_at)===today;
+      if(filter==='Overdue')return isOpen(r)&&r.due_at&&new Date(r.due_at)<new Date()&&localDay(r.due_at)!==today;
+      if(filter==='Follow-up')return isOpen(r)&&r.follow_up_at&&new Date(r.follow_up_at)<=new Date();
+      if(filter==='Completed')return r.status==='Completed';
+      return true;
+    });
+
+    function startEdit(r){
+      const toLocalInput=v=>{
+        if(!v)return '';
+        const d=new Date(v); if(Number.isNaN(d.getTime()))return '';
+        const pad=n=>String(n).padStart(2,'0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      };
+      setEditing(r.id);
+      setForm({
+        subject:r.subject||'',category:r.category||'General',priority:r.priority||'Normal',
+        due_at:toLocalInput(r.due_at),follow_up_at:toLocalInput(r.follow_up_at),
+        notes:r.notes||'',status:r.status||'Pending'
+      });
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+    function cancelEdit(){setEditing(null);setForm(emptyForm());}
+
+    async function save(e){
+      e.preventDefault();
+      if(!form.subject.trim()){setMessage('Please enter the task / follow-up subject.');return}
+      setBusy(true);setMessage('');
+      const payload={
+        subject:form.subject.trim(),category:form.category,priority:form.priority,status:form.status,
+        due_at:form.due_at?new Date(form.due_at).toISOString():null,
+        follow_up_at:form.follow_up_at?new Date(form.follow_up_at).toISOString():null,
+        notes:form.notes.trim()||null,
+        completed_at:form.status==='Completed'?new Date().toISOString():null
+      };
+      const q=editing
+        ?client.from('manager_personal_tasks').update(payload).eq('id',editing)
+        :client.from('manager_personal_tasks').insert(payload);
+      const {error}=await q;
+      setBusy(false);
+      if(error){setMessage(error.message);return}
+      setMessage(editing?'✓ Item updated.':'✓ Added to your personal list.');
+      cancelEdit(); await load();
+    }
+
+    async function quickUpdate(r,patch){
+      setBusy(true);setMessage('');
+      const payload={...patch};
+      if(patch.status==='Completed')payload.completed_at=new Date().toISOString();
+      const {error}=await client.from('manager_personal_tasks').update(payload).eq('id',r.id);
+      setBusy(false);
+      if(error){setMessage(error.message);return}
+      await load();
+    }
+    async function remove(r){
+      if(!confirm(`Delete "${r.subject}" from your personal list?`))return;
+      const {error}=await client.from('manager_personal_tasks').delete().eq('id',r.id);
+      if(error){setMessage(error.message);return}
+      await load();
+    }
+    function remindTomorrow(r){
+      const d=new Date(); d.setDate(d.getDate()+1); d.setHours(9,0,0,0);
+      quickUpdate(r,{follow_up_at:d.toISOString(),status:r.status==='Completed'?'Pending':r.status});
+    }
+
+    const stat=(label,value,key)=>h('button',{type:'button',className:'card stat',onClick:()=>setFilter(key),
+      style:{cursor:'pointer',textAlign:'left',border:filter===key?'2px solid #a91653':undefined}},
+      h('span',null,label),h('strong',null,value),h('small',null,'Open list →'));
+
+    return h('div',{className:'manager-personal-todo'},
+      h('div',{className:'shift-summary'},
+        h('div',null,h('strong',null,'My To-Do & Follow-up'),h('span',null,'Private personal workspace — visible only to you')),
+        h('span',{className:'badge'},formalName(profile))
+      ),
+      h('div',{className:'grid stats',style:{marginTop:'14px'}},
+        stat('Due Today',dueToday,'Today'),
+        stat('Overdue',overdue,'Overdue'),
+        stat('Follow-ups Pending',followup,'Follow-up'),
+        stat('Completed Today',completedToday,'Completed')
+      ),
+      message?h('div',{className:`message ${message.startsWith('✓')?'success':'error'}`,style:{marginTop:'12px'}},message):null,
+      h(Section,{title:editing?'Edit Personal Item':'Add Personal Item',subtitle:'This is your own private Manager list. Admin and other Managers cannot access it.'},
+        h('form',{onSubmit:save},
+          h('div',{className:'grid two'},
+            h('div',{className:'field'},h('label',null,'Subject *'),h('input',{value:form.subject,onChange:e=>setForm({...form,subject:e.target.value}),required:true,placeholder:'What needs to be done / followed up?'})),
+            h('div',{className:'field'},h('label',null,'Category'),h('select',{value:form.category,onChange:e=>setForm({...form,category:e.target.value})},
+              ['General','Patient / Relative','Staff','Vendor','Maintenance','Billing','Admission'].map(x=>h('option',{key:x},x)))),
+            h('div',{className:'field'},h('label',null,'Priority'),h('select',{value:form.priority,onChange:e=>setForm({...form,priority:e.target.value})},
+              ['Low','Normal','High','Urgent'].map(x=>h('option',{key:x},x)))),
+            h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},
+              ['Pending','In Progress','Waiting','Completed'].map(x=>h('option',{key:x},x)))),
+            h('div',{className:'field'},h('label',null,'Due Date & Time'),h('input',{type:'datetime-local',value:form.due_at,onChange:e=>setForm({...form,due_at:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Follow-up Date & Time'),h('input',{type:'datetime-local',value:form.follow_up_at,onChange:e=>setForm({...form,follow_up_at:e.target.value})}))
+          ),
+          h('div',{className:'field'},h('label',null,'Notes'),h('textarea',{rows:3,value:form.notes,onChange:e=>setForm({...form,notes:e.target.value}),placeholder:'Short personal note / next action'})),
+          h('div',{className:'actions'},
+            h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':editing?'Update Item':'Add to My List'),
+            editing&&h('button',{type:'button',className:'btn btn-secondary',onClick:cancelEdit},'Cancel')
+          )
+        )
+      ),
+      h(Section,{title:'My List',subtitle:`${visible.length} item(s) · ${filter}`},
+        h('div',{className:'actions',style:{marginBottom:'10px'}},
+          ['Open','Today','Overdue','Follow-up','Completed','All'].map(x=>h('button',{type:'button',key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>setFilter(x)},x))
+        ),
+        visible.length?h('div',{style:{display:'grid',gap:'10px'}},visible.map(r=>
+          h('div',{key:r.id,className:'card',style:{padding:'13px 14px',borderLeft:`5px solid ${r.priority==='Urgent'?'#a70f4d':r.priority==='High'?'#d26a20':'#d7a8bc'}`}},
+            h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',flexWrap:'wrap'}},
+              h('div',{style:{flex:'1 1 260px'}},
+                h('strong',{style:{fontSize:'16px',color:'#4b1630'}},r.subject),
+                h('div',{style:{marginTop:'5px',display:'flex',gap:'6px',flexWrap:'wrap'}},
+                  h('span',{className:'badge'},r.category||'General'),
+                  h('span',{className:'badge'},r.priority||'Normal'),
+                  h('span',{className:'badge'},r.status||'Pending')
+                ),
+                r.due_at&&h('small',{style:{display:'block',marginTop:'7px'}},`Due: ${formatDateTimeIN(r.due_at)}`),
+                r.follow_up_at&&h('small',{style:{display:'block',marginTop:'3px'}},`Follow-up: ${formatDateTimeIN(r.follow_up_at)}`),
+                r.notes&&h('p',{style:{margin:'7px 0 0',whiteSpace:'pre-wrap'}},r.notes)
+              ),
+              h('div',{className:'actions',style:{alignSelf:'flex-start'}},
+                r.status!=='Completed'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>quickUpdate(r,{status:'Completed'})},'✓ Complete'),
+                r.status!=='Completed'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>remindTomorrow(r)},'Tomorrow'),
+                h('button',{type:'button',className:'btn btn-secondary',onClick:()=>startEdit(r)},'Edit'),
+                h('button',{type:'button',className:'btn btn-danger',onClick:()=>remove(r)},'Delete')
+              )
+            )
+          )
+        )):h('p',{className:'empty'},'No items in this view.')
+      )
+    );
+  }
+
   function WhatsAppInbox({profile}){
     const Field=({label,required=false,children})=>h('div',{className:'field'},h('label',null,label,required?h('span',{style:{color:'#b42336',marginLeft:'4px'}},'*'):null),children);
     const [rows,setRows]=React.useState([]),[selectedPhone,setSelectedPhone]=React.useState(''),[query,setQuery]=React.useState(''),[showUnread,setShowUnread]=React.useState(false),[reply,setReply]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState(''),[isMobile,setIsMobile]=React.useState(()=>window.matchMedia('(max-width: 700px)').matches),[patientContext,setPatientContext]=React.useState(null),[mobileComposer,setMobileComposer]=React.useState('');
+    const [subjectFilter,setSubjectFilter]=React.useState('All Subjects');
+    const [dateFrom,setDateFrom]=React.useState('');
+    const [dateTo,setDateTo]=React.useState('');
+    const isSTD=String(profile?.role||'')==='STD';
     const WA_REOPEN_TEMPLATES=[
       {name:'samara_general_followup',label:'General Follow-up',regarding:'your assisted living enquiry'},
       {name:'samara_admission_followup',label:'Admission / Care Enquiry',regarding:'your family member'},
@@ -7073,7 +7753,7 @@ Please reply to this message and our team will be happy to assist you.
 Thank you,
 Samara Assisted Living`;
     }
-    const canUse=['Admin','Manager','HR'].includes(String(profile?.role||''));
+    const canUse=['Admin','Manager','HR','STD'].includes(String(profile?.role||''));
     async function load(showStatus=false){
       if(!canUse)return;
       if(showStatus)setMessage('Refreshing WhatsApp Inbox…');
@@ -7118,7 +7798,7 @@ Samara Assisted Living`;
       }
       try{sessionStorage.removeItem('samara_patient_whatsapp_context')}catch(_error){}
     },[rows.length]);
-    if(!canUse)return h(Section,{title:'WhatsApp Inbox'},h('p',{className:'empty'},'WhatsApp Inbox is available to Admin and Manager.'));
+    if(!canUse)return h(Section,{title:'WhatsApp Inbox'},h('p',{className:'empty'},'WhatsApp Inbox is available to authorised communication staff.'));
     const phoneOf=r=>normalizeWhatsAppRecipient(r.recipient_number||'');
     function patientLinkedMessage(row,context){
       if(!context)return true;
@@ -7132,7 +7812,27 @@ Samara Assisted Living`;
       if(wantedCode&&codes.includes(wantedCode))return true;
       return false;
     }
-    const visibleRows=patientContext?rows.filter(row=>patientLinkedMessage(row,patientContext)):rows;
+    function stdAllowedRow(row){
+      if(!isSTD)return true;
+      if(row?.career_application_id||row?.application_id)return false;
+      const template=String(row?.template_name||'').toLowerCase();
+      if(template==='employee_welcome_samara')return false;
+      const source=String(row?.source_type||'').toLowerCase();
+      const comm=String(row?.communication_type||'').toLowerCase();
+      if(/patient|family|emergency|hr applicant|employee/.test(source))return false;
+      if(/payment|receipt|daily report|discharge|employee|emergency|family portal|patient/.test(comm))return false;
+      return true;
+    }
+    function enquirySubject(msgs){
+      const text=(msgs||[]).map(r=>`${r.message_content||''} ${r.communication_type||''} ${r.template_name||''}`).join(' ').toLowerCase();
+      if(/admission|admit|care enquiry|assisted living|tracheost|bed|stay/.test(text))return 'Admission / Care';
+      if(/call back|callback|request a call|please call|call me/.test(text))return 'Callback';
+      if(/location|address|map|where are you|route/.test(text))return 'Location';
+      if(/price|pricing|charge|charges|tariff|cost|fee|fees|package/.test(text))return 'Pricing / Charges';
+      if(/service|facility|nursing|caregiver|physio|physiotherapy/.test(text))return 'Services';
+      return 'General Enquiry';
+    }
+    const visibleRows=(patientContext?rows.filter(row=>patientLinkedMessage(row,patientContext)):rows).filter(stdAllowedRow);
     const groups={};
     visibleRows.forEach(r=>{const phone=phoneOf(r);if(!phone)return;(groups[phone]||(groups[phone]=[])).push(r)});
     const conversations=Object.entries(groups).map(([phone,msgs])=>{
@@ -7142,11 +7842,22 @@ Samara Assisted Living`;
       const unread=sorted.filter(x=>x.direction==='inbound'&&!x.erp_read_at).length;
       const name=last.contact_name||last.applicant_name||inbound?.contact_name||inbound?.applicant_name||phone;
       const source=last.source_type||inbound?.source_type||(last.career_application_id?'HR Applicant':'Website / Public');
-      return {phone,msgs:sorted,last,name,source,unread,lastAt:last.created_at};
-    }).sort((a,b)=>new Date(b.lastAt)-new Date(a.lastAt));
+      const subject=enquirySubject(sorted);
+      return {phone,msgs:sorted,last,name,source,subject,unread,lastAt:last.created_at,hasInbound:Boolean(inbound)};
+    }).filter(c=>!isSTD||c.hasInbound).sort((a,b)=>new Date(b.lastAt)-new Date(a.lastAt));
     const filtered=conversations.filter(c=>{
       if(showUnread&&!c.unread)return false;
-      const hay=`${c.name} ${c.phone} ${c.source} ${c.last.message_content||''}`.toLowerCase();
+      if(isSTD&&subjectFilter!=='All Subjects'&&c.subject!==subjectFilter)return false;
+      const lastDate=new Date(c.lastAt);
+      if(isSTD&&dateFrom){
+        const from=new Date(`${dateFrom}T00:00:00`);
+        if(lastDate<from)return false;
+      }
+      if(isSTD&&dateTo){
+        const to=new Date(`${dateTo}T23:59:59`);
+        if(lastDate>to)return false;
+      }
+      const hay=`${c.name} ${c.phone} ${c.source} ${c.subject} ${c.last.message_content||''}`.toLowerCase();
       return !query||hay.includes(query.toLowerCase());
     });
     const active=conversations.find(c=>c.phone===selectedPhone)||filtered[0]||null;
@@ -7391,22 +8102,25 @@ Thank you.`;
     }
     const unreadTotal=conversations.reduce((n,c)=>n+c.unread,0);
     return h(React.Fragment,null,
-      h(Section,{title:patientContext?`WhatsApp — ${patientContext.patient_name}`:'WhatsApp Inbox',subtitle:isMobile?null:(patientContext?'Patient-linked WhatsApp messages only. Other WhatsApp conversations are hidden in this view.':'Website/public enquiries, applicant replies and WhatsApp conversations in one place')},
+      h(Section,{title:patientContext?`WhatsApp — ${patientContext.patient_name}`:(isSTD?'WhatsApp Enquiry Desk':'WhatsApp Inbox'),subtitle:isMobile?null:(patientContext?'Patient-linked WhatsApp messages only. Other WhatsApp conversations are hidden in this view.':(isSTD?'Incoming public enquiries only. Filter by subject, name/mobile and date.':'Website/public enquiries, applicant replies and WhatsApp conversations in one place'))},
         patientContext?h('div',{className:'notice',style:{marginBottom:'12px',display:'flex',gap:'10px',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
           h('div',null,h('strong',null,patientContext.patient_name),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},patientContext.patient_code?`· ${patientContext.patient_code}`:''),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},`· +${patientContext.phone}`)),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPatientContext(null);setSelectedPhone('');setQuery('');setShowUnread(false);}},'Show All WhatsApp')
         ):null,
-        (!isMobile||!selectedPhone)?h('div',{className:'wa-inbox-toolbar',style:{display:'flex',gap:'10px',flexWrap:'wrap',alignItems:'center',marginBottom:'14px'}},
-          h('input',{value:query,onChange:e=>setQuery(e.target.value),placeholder:'Search name, mobile or message…',style:{flex:'1 1 320px',minWidth:'230px'}}),
+        (!isMobile||!selectedPhone)?h('div',{className:'wa-inbox-toolbar',style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginBottom:'14px'}},
+          h('input',{value:query,onChange:e=>setQuery(e.target.value),placeholder:isSTD?'Search name, mobile, subject or message…':'Search name, mobile or message…',style:{flex:'1 1 280px',minWidth:'220px'}}),
+          isSTD?h('select',{value:subjectFilter,onChange:e=>{setSubjectFilter(e.target.value);setSelectedPhone('')},style:{minWidth:'170px'}},
+            ['All Subjects','Admission / Care','Callback','Location','Pricing / Charges','Services','General Enquiry'].map(x=>h('option',{key:x},x))
+          ):null,
+          isSTD?h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'From',h('input',{type:'date',value:dateFrom,onChange:e=>{setDateFrom(e.target.value);setSelectedPhone('')}})):null,
+          isSTD?h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'To',h('input',{type:'date',value:dateTo,onChange:e=>{setDateTo(e.target.value);setSelectedPhone('')}})):null,
           h('button',{type:'button',className:`btn ${showUnread?'btn-primary':'btn-secondary'}`,onClick:()=>{
             const next=!showUnread;
             setShowUnread(next);
-            // On mobile the chat pane hides the conversation list while a conversation
-            // is selected. Tapping Unread must therefore return to the list first.
             if(isMobile)setSelectedPhone('');
-            // Clear any search that could hide unread conversations.
             if(next)setQuery('');
           }},`Unread ${unreadTotal}`),
+          isSTD?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setQuery('');setSubjectFilter('All Subjects');setDateFrom('');setDateTo('');setShowUnread(false);setSelectedPhone('')}},'Clear Filters'):null,
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>load(true)},'Refresh')
         ):null,
         message&&(!isMobile||!selectedPhone)?h('div',{className:'notice wa-inbox-status',style:{marginBottom:'12px'}},message):null,
@@ -7417,6 +8131,7 @@ Thank you.`;
                 h('div',{style:{width:'42px',height:'42px',borderRadius:'50%',display:'grid',placeItems:'center',background:'#e8edef',color:'#5d1039',fontWeight:'800',flex:'0 0 auto'}},String(c.name||'?').trim().slice(0,1).toUpperCase()),
                 h('div',{style:{minWidth:0,flex:1}},
                   h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'baseline'}},h('strong',{style:{color:'#2e252a',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},c.name),h('small',{style:{color:'#8b7c84',flex:'0 0 auto'}},fmt(c.last.created_at))),
+                  isSTD?h('div',{style:{fontSize:'11px',fontWeight:850,color:'#9b124f',marginTop:'3px'}},c.subject):null,
                   h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center',marginTop:'4px'}},h('span',{style:{fontSize:'13px',color:'#756870',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},chatText(c.last).replace(/\n/g,' ')),c.unread?h('span',{className:'badge success'},c.unread):null)
                 )
               )
@@ -7490,7 +8205,7 @@ Thank you.`;
             ):h('p',{className:'empty',style:{margin:'auto'}},'Select a WhatsApp conversation.')
           )
         ),
-        showEmergency&&active?h('div',{className:'modal show',onClick:e=>{if(e.target===e.currentTarget&&!emergencyBusy)setShowEmergency(false)}},
+        !isSTD&&showEmergency&&active?h('div',{className:'modal show',onClick:e=>{if(e.target===e.currentTarget&&!emergencyBusy)setShowEmergency(false)}},
           h('div',{className:'modal-card',style:{maxWidth:'720px',border:'2px solid #b42336'}},
             h('div',{className:'modal-head'},
               h('div',null,
@@ -7538,18 +8253,16 @@ Thank you.`;
 
 
   function HRDashboard({profile,onNavigate}){
-    const [employees,setEmployees]=React.useState([]),[applications,setApplications]=React.useState([]),[waComms,setWaComms]=React.useState([]),[directorPositions,setDirectorPositions]=React.useState([]),[directorEdit,setDirectorEdit]=React.useState(null),[directorBusy,setDirectorBusy]=React.useState(false),[directorMsg,setDirectorMsg]=React.useState('');
+    const [employees,setEmployees]=React.useState([]),[applications,setApplications]=React.useState([]),[waComms,setWaComms]=React.useState([]);
     async function load(){
-      const [e,a,w,d]=await Promise.all([
-        client.from('profiles').select('id,auth_user_id,full_name,title,login_id,role,department,designation,is_active,active').order('full_name'),
+      const [e,a,w]=await Promise.all([
+        client.from('profiles').select('id,full_name,title,role,department,designation,is_active,active').order('full_name'),
         client.from('career_applications').select('*').order('created_at',{ascending:false}).limit(100),
-        client.from('hr_whatsapp_communications').select('*').order('created_at',{ascending:false}).limit(250),
-        client.from('director_office_positions').select('position_key,position_name,assigned_profile_id,assigned_at').order('sort_order')
+        client.from('hr_whatsapp_communications').select('*').order('created_at',{ascending:false}).limit(250)
       ]);
       if(!e.error)setEmployees(e.data||[]);
       if(!a.error)setApplications(a.data||[]);
       if(!w.error)setWaComms(w.data||[]);
-      if(!d.error)setDirectorPositions(d.data||[]);
     }
     React.useEffect(()=>{load();const ch=client.channel('hr-dashboard-live').on('postgres_changes',{event:'*',schema:'public',table:'career_applications'},load).on('postgres_changes',{event:'*',schema:'public',table:'profiles'},load).on('postgres_changes',{event:'*',schema:'public',table:'hr_whatsapp_communications'},load).subscribe();return()=>client.removeChannel(ch)},[]);
     const active=deduplicateEmployeeProfiles(employees.filter(x=>(x.is_active??x.active)!==false&&!isSamaraAdministratorAccount(x)));
@@ -7561,18 +8274,6 @@ Thank you.`;
     const selectedCount=applications.filter(x=>x.status==='Selected').length;
     const onHold=applications.filter(x=>x.status==='On Hold').length;
     const deptCount=name=>active.filter(x=>employeeDepartment(x)===name).length;
-    const directorHolder=position=>employees.find(x=>x.id===position?.assigned_profile_id)||null;
-    const directorCandidates=key=>employees.filter(x=>(x.is_active??x.active)!==false&&(key==='director'||!isSamaraAdministratorAccount(x))).sort((a,b)=>formalName(a).localeCompare(formalName(b)));
-    async function assignDirectorOfficePosition(positionKey,profileId){
-      if(profile.role!=='Admin')return setDirectorMsg('Only an Administrator can change Director’s Office assignments.');
-      setDirectorBusy(true);setDirectorMsg('');
-      try{
-        const {error}=await client.rpc('assign_director_office_position',{p_position_key:positionKey,p_profile_id:profileId||null});
-        if(error)throw error;
-        setDirectorEdit(null);setDirectorMsg('✓ Director’s Office assignment updated. Login details are preserved.');
-        await load();
-      }catch(error){setDirectorMsg(error.message||String(error))}finally{setDirectorBusy(false)}
-    }
     const nowLocal=new Date();
     const todayStart=new Date(nowLocal.getFullYear(),nowLocal.getMonth(),nowLocal.getDate());
     const tomorrowStart=new Date(nowLocal.getFullYear(),nowLocal.getMonth(),nowLocal.getDate()+1);
@@ -7596,27 +8297,12 @@ Thank you.`;
         h('div',{style:{display:'flex',justifyContent:'space-between',gap:'14px',alignItems:'center',flexWrap:'wrap',marginBottom:'16px'}},
           h('div',null,h('strong',{style:{fontSize:'16px',color:'#5d1039'}},'People & Recruitment Overview'),h('div',{style:{fontSize:'13px',color:'#75616d',marginTop:'3px'}},'Live workforce and recruitment position')), 
           h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
-            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('Employees')},'Employees'),
-            h('button',{type:'button',className:'btn btn-primary',onClick:()=>onNavigate('Career Applications')},'Career Applications')
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dashboardNavigate(onNavigate,'Employees','Active Employees',{source:'HR Dashboard'})},'Employees'),
+            h('button',{type:'button',className:'btn btn-primary',onClick:()=>dashboardNavigate(onNavigate,'Career Applications','All Applications',{source:'HR Dashboard'})},'Career Applications')
           )
         ),
-        h('div',{className:'card panel',style:{marginBottom:'20px',padding:'18px',border:'1px solid #ead0de',background:'linear-gradient(145deg,#fff,#fff8fb)'}},
-          h('div',{className:'panel-head'},h('div',null,h('h3',null,'Director’s Office'),h('small',null,'Position-based assignments — change the person without changing the portal')),profile.role==='Admin'?h('span',{className:'badge'},'Admin controlled'):null),
-          directorMsg?h('div',{className:directorMsg.startsWith('✓')?'message success':'message'},directorMsg):null,
-          h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(250px,1fr))',gap:'12px'}},directorPositions.map(pos=>{const holder=directorHolder(pos);const editing=directorEdit===pos.position_key;return h('div',{key:pos.position_key,style:{border:'1px solid #ecd9e3',borderRadius:'16px',padding:'16px',background:'#fff'}},
-            h('small',{style:{fontWeight:900,color:'#9c185a',textTransform:'uppercase',letterSpacing:'.06em'}},pos.position_key==='std'?'STD':'DIRECTOR'),
-            h('h4',{style:{margin:'6px 0 8px',color:'#4e1432'}},pos.position_name),
-            h('strong',{style:{display:'block',fontSize:'17px',color:'#183d36'}},holder?formalName(holder):'Not assigned'),
-            holder?h('small',{style:{display:'block',marginTop:'4px',color:'#75616d'}},[holder.login_id,holder.department,holder.designation].filter(Boolean).join(' · ')):h('small',{style:{color:'#8a7680'}},'Select the current position holder'),
-            profile.role==='Admin'?h('div',{style:{marginTop:'12px'}},editing?h('div',{style:{display:'grid',gap:'8px'}},
-              h('select',{value:holder?.id||'',disabled:directorBusy,onChange:e=>assignDirectorOfficePosition(pos.position_key,e.target.value)},h('option',{value:''},'Unassigned'),directorCandidates(pos.position_key).map(x=>h('option',{key:x.id,value:x.id},`${formalName(x)}${x.login_id?` · ${x.login_id}`:''}`))),
-              h('button',{type:'button',className:'btn btn-secondary',disabled:directorBusy,onClick:()=>setDirectorEdit(null)},'Cancel')
-            ):h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setDirectorEdit(pos.position_key)},holder?'Change Assignment':'Assign')):null
-          )})),
-          h('p',{className:'small-note',style:{margin:'12px 0 0'}},'STD access is attached to the position, not to a person. When the STD changes, the previous employee’s role/department/designation are restored and the new STD keeps their existing Login ID and password.')
-        ),
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(265px,1fr))',gap:'20px',marginBottom:'24px'}},metrics.map(([label,value,page,icon,note,action,accent,iconBg])=>
-          h('button',{key:label,type:'button',onClick:()=>onNavigate(page),style:{position:'relative',overflow:'hidden',textAlign:'left',padding:'30px 26px 24px',border:'0',borderRadius:'24px',background:'linear-gradient(145deg,#ffffff 0%,#fffafd 100%)',minHeight:'205px',cursor:'pointer',boxShadow:'0 12px 26px rgba(93,16,57,.10)',outline:'1px solid rgba(234,208,222,.72)'}},
+          h('button',{key:label,type:'button',onClick:()=>dashboardNavigate(onNavigate,page,label,{source:'HR Dashboard'}),style:{position:'relative',overflow:'hidden',textAlign:'left',padding:'30px 26px 24px',border:'0',borderRadius:'24px',background:'linear-gradient(145deg,#ffffff 0%,#fffafd 100%)',minHeight:'205px',cursor:'pointer',boxShadow:'0 12px 26px rgba(93,16,57,.10)',outline:'1px solid rgba(234,208,222,.72)'}},
             h('span',{style:{position:'absolute',left:0,right:0,top:0,height:'7px',background:`linear-gradient(90deg,#7a1247 0%,${accent} 68%,#f6b72d 100%)`}}),
             h('span',{style:{position:'absolute',right:'0',top:'0',width:'96px',height:'96px',borderRadius:'0 24px 0 38px',display:'grid',placeItems:'center',background:iconBg,color:accent,fontSize:'30px',fontWeight:900}},icon),
             h('span',{style:{display:'block',maxWidth:'72%',fontSize:'16px',fontWeight:800,color:'#53716a',marginTop:'18px'}},label),
@@ -7627,7 +8313,7 @@ Thank you.`;
         )),
         h('div',{style:{display:'grid',gridTemplateColumns:'minmax(0,1.45fr) minmax(330px,.8fr)',gap:'16px',alignItems:'start'}},
           h('div',{className:'card panel',style:{overflow:'hidden'}},
-            h('div',{className:'panel-head'},h('div',null,h('h3',null,'Recent Career Applications'),h('small',null,'Newest applications received from the public Careers page')),h('button',{className:'btn btn-secondary',onClick:()=>onNavigate('Career Applications')},'View All')),
+            h('div',{className:'panel-head'},h('div',null,h('h3',null,'Recent Career Applications'),h('small',null,'Newest applications received from the public Careers page')),h('button',{className:'btn btn-secondary',onClick:()=>dashboardNavigate(onNavigate,'Career Applications','All Applications',{source:'HR Dashboard'})},'View All')),
             h('div',{className:'table-wrap'},h('table',{className:'table'},
               h('thead',null,h('tr',null,['Applicant','Department','Designation','Status','Received'].map(x=>h('th',{key:x},x)))),
               h('tbody',null,
@@ -7655,7 +8341,7 @@ Thank you.`;
         h('div',{className:'card panel',style:{marginTop:'16px'}},
           h('div',{className:'panel-head'},h('div',null,h('h3',null,'Workforce Snapshot'),h('small',null,'Active employees by key department'))),
           h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:'10px'}},
-            ['Nursing','Caregiving','Administration','Housekeeping','HR','Operations','Accounts & Finance','Food & Kitchen'].map(name=>h('button',{type:'button',key:name,onClick:()=>onNavigate('Employees'),style:{padding:'12px',border:'1px solid #efd7e2',borderRadius:'12px',background:'#fffafd',textAlign:'left',cursor:'pointer'}},h('span',{style:{display:'block',fontSize:'12px',color:'#806575'}},name),h('strong',{style:{display:'block',fontSize:'20px',marginTop:'4px',color:'#6d123f'}},deptCount(name))))
+            ['Nursing','Caregiving','Administration','Housekeeping','HR','Operations','Accounts & Finance','Food & Kitchen'].map(name=>h('button',{type:'button',key:name,onClick:()=>dashboardNavigate(onNavigate,'Employees','Active Employees',{source:'HR Dashboard'}),style:{padding:'12px',border:'1px solid #efd7e2',borderRadius:'12px',background:'#fffafd',textAlign:'left',cursor:'pointer'}},h('span',{style:{display:'block',fontSize:'12px',color:'#806575'}},name),h('strong',{style:{display:'block',fontSize:'20px',marginTop:'4px',color:'#6d123f'}},deptCount(name))))
           )
         )
       )
@@ -7664,6 +8350,10 @@ Thank you.`;
 
   function CareerApplications({profile,onNavigate}){
     const [rows,setRows]=React.useState([]),[selected,setSelected]=React.useState(null),[edit,setEdit]=React.useState(null),[msg,setMsg]=React.useState('');
+    const [dashboardCareerFocus,setDashboardCareerFocus]=React.useState(()=>{
+      const intent=readDashboardIntent('Career Applications');
+      return String(intent?.focus||'');
+    });
     const [waHistory,setWaHistory]=React.useState([]),[manualFallbackUrl,setManualFallbackUrl]=React.useState(''),[waBusy,setWaBusy]=React.useState(false);
     const [interviewDate,setInterviewDate]=React.useState(''),[interviewTime,setInterviewTime]=React.useState('10:00');
     const [rescheduleDate,setRescheduleDate]=React.useState(''),[rescheduleTime,setRescheduleTime]=React.useState('10:00');
@@ -8009,7 +8699,23 @@ Thank you.`;
       localStorage.setItem('samara_hr_employee_seed',JSON.stringify(seed));
       onNavigate('Employees');
     }
-    const table=h('div',{className:'table-wrap employee-master-table-wrap'},h('table',{className:'table employee-master-table'},h('thead',null,h('tr',null,['Application ID','Applicant','Department','Designation','Mobile','Status','Received','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,rows.map(r=>h('tr',{key:r.id,onClick:()=>open(r),title:'Open complete applicant file',style:{cursor:'pointer'}},h('td',null,r.application_id),h('td',null,h('strong',null,r.applicant_name)),h('td',null,r.department),h('td',null,r.designation),h('td',null,r.mobile),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)),h('td',null,h('button',{type:'button',className:'btn btn-primary',onClick:e=>{e.stopPropagation();open(r)}},'Open File')))),rows.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'No career applications received yet.')):null)));
+    const dashboardCareerRows=rows.filter(r=>{
+      if(!dashboardCareerFocus||dashboardCareerFocus==='All Applications'||dashboardCareerFocus==='WhatsApp Communications')return true;
+      if(dashboardCareerFocus==='New Applications')return r.status==='New';
+      if(dashboardCareerFocus==='Shortlisted')return r.status==='Shortlisted';
+      if(dashboardCareerFocus==='Interviews')return r.status==='Interview Scheduled';
+      if(dashboardCareerFocus==='Selected')return r.status==='Selected';
+      if(dashboardCareerFocus==='On Hold')return r.status==='On Hold';
+      return true;
+    });
+    const table=h('div',null,
+      dashboardCareerFocus&&dashboardCareerFocus!=='All Applications'
+        ?h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px',marginBottom:'10px',flexWrap:'wrap'}},
+            h('span',{className:'badge'},`Dashboard view: ${dashboardCareerFocus}`),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setDashboardCareerFocus('')},'Show All')
+          )
+        :null,
+      h('div',{className:'table-wrap employee-master-table-wrap'},h('table',{className:'table employee-master-table'},h('thead',null,h('tr',null,['Application ID','Applicant','Department','Designation','Mobile','Status','Received','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,dashboardCareerRows.map(r=>h('tr',{key:r.id,onClick:()=>open(r),title:'Open complete applicant file',style:{cursor:'pointer'}},h('td',null,r.application_id),h('td',null,h('strong',null,r.applicant_name)),h('td',null,r.department),h('td',null,r.designation),h('td',null,r.mobile),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)),h('td',null,h('button',{type:'button',className:'btn btn-primary',onClick:e=>{e.stopPropagation();open(r)}},'Open File')))),dashboardCareerRows.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'No career applications in this dashboard view.')):null))));
     const isRectification=edit?.status==='Returned for Rectification';
     const isClosed=edit?.status==='Closed';
     const modal=selected&&edit?h('div',{className:'modal-backdrop',style:{position:'static',inset:'auto',background:'transparent',padding:0,display:'block',zIndex:'auto'}},h('div',{className:'card modal employee-modal',style:{width:'100%',maxWidth:'none',maxHeight:'none',overflow:'visible',margin:0}},
@@ -8129,6 +8835,1300 @@ Thank you.`;
     );
   }
 
+
+
+  function NursingManagerQuickTasks({profile,onNavigate}){
+    const TASK_KINDS=['Visit','Buy / Purchase','Attend Function','Trip / Travel','General Task'];
+    const PRIORITIES=['Normal','Important','Urgent'];
+    const blank=()=>({task_kind:'General Task',title:'',contact_name:'',scheduled_at:'',due_date:'',day_part:'',priority:'Normal',details:'',status:'Pending'});
+    const [rows,setRows]=React.useState([]);
+    const [loading,setLoading]=React.useState(true);
+    const [message,setMessage]=React.useState('');
+    const [filter,setFilter]=React.useState('Open');
+    const [showForm,setShowForm]=React.useState(false);
+    const [editingId,setEditingId]=React.useState(null);
+    const [form,setForm]=React.useState(blank());
+    const [saving,setSaving]=React.useState(false);
+    const [voiceListening,setVoiceListening]=React.useState(false);
+    const [voiceProcessing,setVoiceProcessing]=React.useState(false);
+    const [voiceTranscript,setVoiceTranscript]=React.useState('');
+    const [voiceMessage,setVoiceMessage]=React.useState('');
+    const voiceRecognitionRef=React.useRef(null);
+    const mobileRecorderRef=React.useRef(null);
+    const mobileStreamRef=React.useRef(null);
+    const mobileChunksRef=React.useRef([]);
+    const mobileVoiceLangRef=React.useRef('ta-IN');
+
+    const allowed=isNursingManagerProfile(profile);
+    const pad=n=>String(n).padStart(2,'0');
+    const localDate=v=>{
+      if(!v)return '';
+      const d=new Date(v); if(Number.isNaN(d.getTime()))return '';
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    };
+    const localInput=v=>{
+      if(!v)return '';
+      const d=new Date(v); if(Number.isNaN(d.getTime()))return '';
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    const pretty=v=>{
+      if(!v)return '—';
+      const d=new Date(v); if(Number.isNaN(d.getTime()))return v;
+      return d.toLocaleString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
+    };
+    const prettyDate=v=>{
+      if(!v)return '—';
+      const d=new Date(`${v}T00:00:00`);
+      return Number.isNaN(d.getTime())?v:d.toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'});
+    };
+    const isOpen=r=>!['Completed','Cancelled'].includes(String(r.status||''));
+    const today=localDate(new Date());
+
+    async function load(){
+      if(!allowed){setLoading(false);return}
+      setLoading(true);setMessage('');
+      const {data,error}=await client.from('nursing_manager_tasks').select('*').order('created_at',{ascending:false}).limit(500);
+      if(error)setMessage(error.message||'Unable to load quick tasks.');
+      setRows(data||[]);
+      setLoading(false);
+    }
+    React.useEffect(()=>{load()},[profile?.id,profile?.designation]);
+
+    const openRows=rows.filter(isOpen);
+    const todayRows=openRows.filter(r=>localDate(r.scheduled_at||r.due_date)===today);
+    const overdueRows=openRows.filter(r=>{
+      const value=r.scheduled_at||(r.due_date?`${r.due_date}T23:59:59`:null);
+      return value&&new Date(value)<new Date()&&localDate(value)!==today;
+    });
+    const completedRows=rows.filter(r=>r.status==='Completed');
+    const visible=rows.filter(r=>{
+      if(filter==='Open')return isOpen(r);
+      if(filter==='Today')return todayRows.some(x=>x.id===r.id);
+      if(filter==='Overdue')return overdueRows.some(x=>x.id===r.id);
+      if(filter==='Completed')return r.status==='Completed';
+      if(filter==='Cancelled')return r.status==='Cancelled';
+      return true;
+    });
+
+    function stopVoice(){
+      try{voiceRecognitionRef.current?.stop?.()}catch(_){}
+      voiceRecognitionRef.current=null;
+      try{if(mobileRecorderRef.current&&mobileRecorderRef.current.state!=='inactive')mobileRecorderRef.current.stop()}catch(_){}
+      try{mobileStreamRef.current?.getTracks?.().forEach(t=>t.stop())}catch(_){}
+      mobileStreamRef.current=null;
+      setVoiceListening(false);
+    }
+    function useMobileRecorder(){
+      const ua=String(navigator.userAgent||'');
+      const mobileUA=/iPhone|iPad|iPod|Android/i.test(ua);
+      const coarse=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
+      return Boolean(mobileUA||coarse);
+    }
+    function bestMime(){
+      const options=['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus'];
+      for(const x of options){try{if(window.MediaRecorder&&MediaRecorder.isTypeSupported?.(x))return x}catch(_){}}
+      return '';
+    }
+    function mapVoice(result){
+      const x=result?.fields||{};
+      setForm(current=>({
+        ...current,
+        task_kind:x.task_kind&&x.task_kind!=='Not Applicable'?x.task_kind:'General Task',
+        title:x.title||'',
+        contact_name:x.contact_name||'',
+        scheduled_at:x.scheduled_at?String(x.scheduled_at).slice(0,16):'',
+        due_date:x.due_date||'',
+        day_part:x.day_part&&x.day_part!=='Not Applicable'?x.day_part:'',
+        priority:x.priority||'Normal',
+        details:x.details||''
+      }));
+      if(result?.transcript)setVoiceTranscript(String(result.transcript));
+      setVoiceMessage('✓ Voice entry filled in simple English. Please check before Save.');
+    }
+    async function sendTranscript(transcript,lang){
+      setVoiceProcessing(true);setVoiceMessage('Understanding your task…');
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Please sign in again.');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{
+          method:'POST',
+          headers:{'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey,'Content-Type':'application/json'},
+          body:JSON.stringify({transcript,spoken_language:lang,current_form_type:'Task',current_task_kind:form.task_kind||'General Task',now_iso:new Date().toISOString(),timezone:'Asia/Kolkata'})
+        });
+        const result=await response.json().catch(()=>({error:'Unable to read voice response'}));
+        if(!response.ok||result.error)throw new Error(result.error||'Unable to understand task.');
+        mapVoice(result);
+      }catch(error){setVoiceMessage(error.message||'Unable to understand task.')}
+      finally{setVoiceProcessing(false)}
+    }
+    async function sendAudio(blob,lang){
+      setVoiceProcessing(true);setVoiceMessage('Understanding your voice…');
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Please sign in again.');
+        const ext=(blob.type||'').includes('mp4')?'m4a':(blob.type||'').includes('ogg')?'ogg':'webm';
+        const fd=new FormData();
+        fd.append('audio',blob,`nursing-manager-voice.${ext}`);
+        fd.append('spoken_language',lang);
+        fd.append('current_form_type','Task');
+        fd.append('current_task_kind',form.task_kind||'General Task');
+        fd.append('now_iso',new Date().toISOString());
+        fd.append('timezone','Asia/Kolkata');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{
+          method:'POST',
+          headers:{'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey},
+          body:fd
+        });
+        const result=await response.json().catch(()=>({error:'Unable to read voice response'}));
+        if(!response.ok||result.error)throw new Error(result.error||'Unable to process voice task.');
+        mapVoice(result);
+      }catch(error){setVoiceMessage(error.message||'Unable to process voice task.')}
+      finally{setVoiceProcessing(false)}
+    }
+    async function startMobile(lang){
+      if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){
+        setVoiceMessage('Microphone recording is not available. Please use current Safari/Chrome and allow microphone access.');
+        return;
+      }
+      stopVoice();setVoiceTranscript('');setVoiceMessage('🎤 Speak naturally. Tap Stop when finished.');
+      try{
+        const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+        mobileStreamRef.current=stream;mobileChunksRef.current=[];mobileVoiceLangRef.current=lang;
+        const mime=bestMime();
+        const rec=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);
+        mobileRecorderRef.current=rec;
+        rec.ondataavailable=e=>{if(e.data?.size)mobileChunksRef.current.push(e.data)};
+        rec.onstop=async()=>{
+          const type=rec.mimeType||mobileChunksRef.current[0]?.type||'audio/webm';
+          const blob=new Blob(mobileChunksRef.current,{type});
+          mobileChunksRef.current=[];
+          try{stream.getTracks().forEach(t=>t.stop())}catch(_){}
+          mobileStreamRef.current=null;mobileRecorderRef.current=null;setVoiceListening(false);
+          if(blob.size<1000)return setVoiceMessage('No useful speech was captured. Please try again.');
+          await sendAudio(blob,mobileVoiceLangRef.current);
+        };
+        rec.start();setVoiceListening(true);
+      }catch(error){
+        setVoiceListening(false);
+        setVoiceMessage(error?.name==='NotAllowedError'?'Microphone permission is blocked. Please allow microphone access for Samara Care.':(error.message||'Unable to start microphone.'));
+      }
+    }
+    function startVoice(lang='ta-IN'){
+      if(useMobileRecorder())return startMobile(lang);
+      const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+      if(!SpeechRecognition)return setVoiceMessage('Voice recognition is not available in this browser.');
+      stopVoice();setVoiceTranscript('');setVoiceMessage('🎤 Speak naturally…');
+      try{
+        const rec=new SpeechRecognition();voiceRecognitionRef.current=rec;
+        rec.lang=lang;rec.interimResults=true;rec.continuous=false;rec.maxAlternatives=1;
+        let finalText='';
+        rec.onstart=()=>setVoiceListening(true);
+        rec.onresult=e=>{
+          let interim='';
+          for(let i=e.resultIndex;i<e.results.length;i++){
+            const t=e.results[i][0]?.transcript||'';
+            if(e.results[i].isFinal)finalText+=`${t} `;else interim+=t;
+          }
+          setVoiceTranscript((finalText||interim).trim());
+        };
+        rec.onerror=e=>{setVoiceListening(false);setVoiceMessage(`Voice recognition stopped${e?.error?`: ${e.error}`:''}. Please try again.`)};
+        rec.onend=()=>{setVoiceListening(false);const spoken=finalText.trim();if(spoken)sendTranscript(spoken,lang);else setVoiceMessage('No speech was captured. Please try again.')};
+        rec.start();
+      }catch(error){setVoiceListening(false);setVoiceMessage(error.message||'Unable to start microphone.')}
+    }
+
+    function openNew(){stopVoice();setEditingId(null);setForm(blank());setVoiceTranscript('');setVoiceMessage('');setMessage('');setShowForm(true)}
+    function openEdit(r){
+      stopVoice();setEditingId(r.id);setMessage('');
+      setForm({task_kind:r.task_kind||'General Task',title:r.title||'',contact_name:r.contact_name||'',scheduled_at:localInput(r.scheduled_at),due_date:r.due_date||'',day_part:r.day_part||'',priority:r.priority||'Normal',details:r.details||'',status:r.status||'Pending'});
+      setVoiceTranscript('');setVoiceMessage('');setShowForm(true);
+    }
+    function dateValue(){return form.scheduled_at?form.scheduled_at.slice(0,10):(form.due_date||'')}
+    function timeValue(){return form.scheduled_at?.includes('T')?form.scheduled_at.slice(11,16):''}
+    function setTaskDate(date){const time=timeValue();setForm(current=>({...current,scheduled_at:date&&time?`${date}T${time}`:'',due_date:date&&!time?date:''}))}
+    function setTaskTime(time){const date=dateValue();setForm(current=>({...current,scheduled_at:date&&time?`${date}T${time}`:'',due_date:date&&!time?date:''}))}
+    async function save(e){
+      e.preventDefault();if(saving)return;
+      if(!form.title.trim())return setMessage('Please enter What to do.');
+      setSaving(true);setMessage('');
+      const payload={owner_profile_id:profile.id,task_kind:form.task_kind||'General Task',title:form.title.trim(),contact_name:form.contact_name.trim()||null,scheduled_at:form.scheduled_at?new Date(form.scheduled_at).toISOString():null,due_date:form.scheduled_at?null:(form.due_date||null),day_part:form.day_part||null,priority:form.priority||'Normal',details:form.details.trim()||null,status:form.status||'Pending',updated_at:new Date().toISOString()};
+      const res=editingId?await client.from('nursing_manager_tasks').update(payload).eq('id',editingId):await client.from('nursing_manager_tasks').insert(payload);
+      setSaving(false);
+      if(res.error)return setMessage(res.error.message||'Unable to save task.');
+      const wasEditing=Boolean(editingId);
+      stopVoice();setShowForm(false);setEditingId(null);setForm(blank());setVoiceTranscript('');setVoiceMessage('');
+      setMessage(wasEditing?'✓ Task updated.':'✓ Quick task saved.');
+      await load();
+    }
+    async function updateStatus(r,status){
+      const {error}=await client.from('nursing_manager_tasks').update({status,updated_at:new Date().toISOString(),completed_at:status==='Completed'?new Date().toISOString():null}).eq('id',r.id);
+      if(error)return setMessage(error.message||'Unable to update task.');
+      await load();
+    }
+
+    if(!allowed)return h(Section,{title:'My Quick Tasks'},h('div',{className:'empty'},'Available only to the Nursing Manager.'));
+    if(loading)return h('div',{className:'loading'},'Loading Nursing Manager quick tasks…');
+
+    const stat=(label,value,key)=>h('button',{type:'button',className:'card stat',onClick:()=>setFilter(key),style:{cursor:'pointer',textAlign:'left',border:filter===key?'2px solid #a91653':undefined}},h('span',null,label),h('strong',null,value),h('small',null,'Open list →'));
+
+    const modal=showForm?h('div',{className:'modal-backdrop'},h('form',{className:'modal-card',onSubmit:save},
+      h('div',{className:'panel-head'},h('div',null,h('h3',null,editingId?'Update Quick Task':'New Quick Task'),h('small',null,'Nursing Manager personal task — only the essentials')),h('button',{type:'button',className:'close',onClick:()=>{stopVoice();setShowForm(false)}},'×')),
+      h('div',{style:{margin:'0 0 14px',padding:'12px',border:'1px solid #e7bfd0',borderRadius:'15px',background:'linear-gradient(135deg,#fffafd,#f9e6ee)'}},
+        h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
+          h('div',null,h('strong',{style:{color:'#78103f'}},'🎤 Voice Entry'),h('div',{style:{fontSize:'12px',color:'#765966',marginTop:'2px'}},useMobileRecorder()?'Tap Speak, talk naturally, then tap Stop. Tamil/English will be converted and the form will be filled.':'Speak naturally. Tamil will be converted to simple English and the form will be filled for you.')),
+          voiceListening?h('button',{type:'button',className:'btn btn-danger',onClick:stopVoice},'■ Stop'):h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-primary',disabled:voiceProcessing,onClick:()=>startVoice('ta-IN')},voiceProcessing?'Processing…':'🎤 Speak Tamil'),h('button',{type:'button',className:'btn btn-secondary',disabled:voiceProcessing,onClick:()=>startVoice('en-IN')},'🎤 Speak English'))
+        ),
+        voiceTranscript?h('div',{style:{marginTop:'9px',padding:'8px 10px',borderRadius:'10px',background:'#fff',fontSize:'13px'}},h('small',{style:{display:'block',color:'#8b6b78'}},'Heard'),h('div',{style:{fontWeight:700}},voiceTranscript)):null,
+        voiceMessage?h('div',{style:{marginTop:'8px',fontSize:'12px',fontWeight:800,color:voiceMessage.startsWith('✓')?'#17653c':'#7c2448'}},voiceMessage):null
+      ),
+      h('div',{className:'modal-grid'},
+        h('div',{className:'field'},h('label',null,'Task'),h('select',{value:form.task_kind,onChange:e=>setForm({...form,task_kind:e.target.value})},TASK_KINDS.map(x=>h('option',{key:x},x)))),
+        h('div',{className:'field'},h('label',null,'Priority'),h('select',{value:form.priority,onChange:e=>setForm({...form,priority:e.target.value})},PRIORITIES.map(x=>h('option',{key:x},x)))),
+        h('div',{className:'field span-2'},h('label',null,'What to do? *'),h('input',{required:true,value:form.title,onChange:e=>setForm({...form,title:e.target.value}),placeholder:'Enter task'})),
+        h('div',{className:'field span-2'},h('label',null,'Person / Place (optional)'),h('input',{value:form.contact_name,onChange:e=>setForm({...form,contact_name:e.target.value}),placeholder:'Name or place'})),
+        h('div',{className:'field'},h('label',null,'Date'),h('input',{type:'date',value:dateValue(),onChange:e=>setTaskDate(e.target.value)})),
+        h('div',{className:'field'},h('label',null,'Time (optional)'),h('input',{type:'time',value:timeValue(),onChange:e=>setTaskTime(e.target.value)})),
+        h('div',{className:'field'},h('label',null,'Day Part (optional)'),h('select',{value:form.day_part,onChange:e=>setForm({...form,day_part:e.target.value})},h('option',{value:''},'—'),['Morning','Afternoon','Evening','Night'].map(x=>h('option',{key:x},x)))),
+        editingId?h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},['Pending','In Progress','Completed','Cancelled'].map(x=>h('option',{key:x},x)))):null,
+        h('div',{className:'field span-2'},h('label',null,'Short Note (optional)'),h('textarea',{rows:2,value:form.details,onChange:e=>setForm({...form,details:e.target.value}),placeholder:'Anything important to remember'}))
+      ),
+      message?h('div',{className:'message',style:{marginTop:'8px'}},message):null,
+      h('div',{className:'actions',style:{marginTop:'12px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{stopVoice();setShowForm(false)}},'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:saving},saving?'Saving…':'Save'))
+    )):null;
+
+    return h('div',{className:'nursing-manager-quick-tasks'},
+      h('div',{className:'shift-summary'},h('div',null,h('strong',null,'My Quick Tasks'),h('span',null,'Nursing Manager personal task list with Tamil / English voice entry')),h('button',{type:'button',className:'btn btn-primary',onClick:openNew},'＋ Quick Task')),
+      h('div',{className:'grid stats',style:{marginTop:'14px'}},stat('Open',openRows.length,'Open'),stat('Due Today',todayRows.length,'Today'),stat('Overdue',overdueRows.length,'Overdue'),stat('Completed',completedRows.length,'Completed')),
+      message&&!showForm?h('div',{className:`message ${message.startsWith('✓')?'success':'error'}`,style:{marginTop:'12px'}},message):null,
+      h(Section,{title:`Tasks (${visible.length})`,subtitle:'Only your own Nursing Manager tasks are shown.'},
+        visible.length?h('div',{className:'compact-list'},visible.map(r=>h('div',{className:'compact-row',key:r.id,style:{alignItems:'flex-start'}},
+          h('div',{style:{minWidth:0,flex:1}},h('strong',null,r.title),h('small',null,`${r.task_kind||'General Task'} · ${r.priority||'Normal'} · ${r.status||'Pending'}`),r.contact_name?h('small',null,r.contact_name):null,h('small',null,r.scheduled_at?pretty(r.scheduled_at):(r.due_date?prettyDate(r.due_date):'No date')),r.details?h('small',null,r.details):null),
+          h('div',{className:'actions',style:{flexWrap:'wrap'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(r)},'Edit'),isOpen(r)&&h('button',{type:'button',className:'btn btn-primary',onClick:()=>updateStatus(r,'Completed')},'✓ Complete'),isOpen(r)&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>updateStatus(r,'Cancelled')},'Cancel'))
+        ))):h('div',{className:'empty'},'No tasks in this view.')
+      ),
+      modal
+    );
+  }
+
+  function DirectorOfficeDashboard({profile,onNavigate}){
+    const TYPES=['Task','Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder'];
+    const TASK_KINDS=['Visit','Buy / Purchase','Attend Function','Trip / Travel','General Task'];
+    const PRIORITIES=['Normal','Important','Urgent'];
+    const STATUSES=['Pending','In Progress','Completed','Cancelled'];
+    const blank=()=>({
+      item_type:'Follow-up',task_kind:'General Task',title:'',contact_name:'',contact_mobile:'',organisation:'',
+      scheduled_at:'',due_date:'',day_part:'',priority:'Normal',status:'Pending',details:'',director_note:'',
+      needs_director_attention:false,director_responded_at:null
+    });
+    const [rows,setRows]=React.useState([]);
+    const [loading,setLoading]=React.useState(true);
+    const [message,setMessage]=React.useState('');
+    const [filter,setFilter]=React.useState('Open');
+    const [showForm,setShowForm]=React.useState(false);
+    const [editingId,setEditingId]=React.useState(null);
+    const [form,setForm]=React.useState(blank());
+    const [saving,setSaving]=React.useState(false);
+    const [waUnread,setWaUnread]=React.useState(0);
+    const [feedbackOpen,setFeedbackOpen]=React.useState(0);
+    const [officeQuery,setOfficeQuery]=React.useState('');
+    const [officeFrom,setOfficeFrom]=React.useState('');
+    const [officeTo,setOfficeTo]=React.useState('');
+    const [isAssignedDirector,setIsAssignedDirector]=React.useState(false);
+    const [voiceAuthorized,setVoiceAuthorized]=React.useState(false);
+    const [voiceListening,setVoiceListening]=React.useState(false);
+    const [voiceProcessing,setVoiceProcessing]=React.useState(false);
+    const [voiceTranscript,setVoiceTranscript]=React.useState('');
+    const [voiceMessage,setVoiceMessage]=React.useState('');
+    const [rescheduleTarget,setRescheduleTarget]=React.useState(null);
+    const [rescheduleDate,setRescheduleDate]=React.useState('');
+    const [rescheduleTime,setRescheduleTime]=React.useState('');
+    const [rescheduleNote,setRescheduleNote]=React.useState('');
+    const [cancelTarget,setCancelTarget]=React.useState(null);
+    const [cancelReason,setCancelReason]=React.useState('');
+    const [officeActionBusy,setOfficeActionBusy]=React.useState(false);
+    const voiceRecognitionRef=React.useRef(null);
+    const mobileRecorderRef=React.useRef(null);
+    const mobileStreamRef=React.useRef(null);
+    const mobileChunksRef=React.useRef([]);
+    const mobileVoiceLangRef=React.useRef('ta-IN');
+
+    const canUse=['Admin','STD'].includes(profile?.role);
+    const canVoice=profile?.role==='STD'||isAssignedDirector||voiceAuthorized;
+
+    function localInputValue(value){
+      if(!value)return '';
+      const d=new Date(value);
+      if(Number.isNaN(d.getTime()))return '';
+      const pad=n=>String(n).padStart(2,'0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    function prettyDateTime(value){
+      if(!value)return '—';
+      const d=new Date(value);
+      if(Number.isNaN(d.getTime()))return value;
+      return d.toLocaleString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
+    }
+    function prettyDate(value){
+      if(!value)return '—';
+      const d=new Date(`${value}T00:00:00`);
+      if(Number.isNaN(d.getTime()))return value;
+      return d.toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'});
+    }
+    function isOpen(r){return !['Completed','Cancelled'].includes(r.status)}
+    function isToday(value){
+      if(!value)return false;
+      const d=new Date(value),n=new Date();
+      return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();
+    }
+
+    function stopVoiceRecognition(){
+      try{voiceRecognitionRef.current?.stop?.()}catch(_){}
+      voiceRecognitionRef.current=null;
+      try{
+        if(mobileRecorderRef.current&&mobileRecorderRef.current.state!=='inactive'){
+          mobileRecorderRef.current.stop();
+        }
+      }catch(_){}
+      try{mobileStreamRef.current?.getTracks?.().forEach(track=>track.stop())}catch(_){}
+      mobileStreamRef.current=null;
+      setVoiceListening(false);
+    }
+
+    function normalizeVoiceDateTime(value){
+      if(!value)return '';
+      const d=new Date(String(value));
+      if(Number.isNaN(d.getTime()))return String(value).slice(0,16);
+      const pad=n=>String(n).padStart(2,'0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+
+    function inferDayPart(text){
+      const t=String(text||'').toLowerCase();
+      if(/\bmorning\b|காலை/.test(t))return 'Morning';
+      if(/\bafternoon\b|மதியம்|பிற்பகல்/.test(t))return 'Afternoon';
+      if(/\bevening\b|மாலை/.test(t))return 'Evening';
+      if(/\bnight\b|இரவு/.test(t))return 'Night';
+      return '';
+    }
+
+    function taskDateValue(){
+      if(form.scheduled_at)return String(form.scheduled_at).slice(0,10);
+      return form.due_date||'';
+    }
+
+    function taskTimeValue(){
+      if(form.scheduled_at&&String(form.scheduled_at).includes('T'))return String(form.scheduled_at).slice(11,16);
+      return '';
+    }
+
+    function setTaskDate(date){
+      const time=taskTimeValue();
+      if(date&&time){
+        setForm(current=>({...current,scheduled_at:`${date}T${time}`,due_date:''}));
+      }else{
+        setForm(current=>({...current,scheduled_at:'',due_date:date||''}));
+      }
+    }
+
+    function setTaskTime(time){
+      const date=taskDateValue();
+      if(date&&time){
+        setForm(current=>({...current,scheduled_at:`${date}T${time}`,due_date:''}));
+      }else if(date){
+        setForm(current=>({...current,scheduled_at:'',due_date:date}));
+      }
+    }
+
+    async function interpretVoiceTranscript(transcript,spokenLanguage){
+      const text=String(transcript||'').trim();
+      if(!text)return;
+      setVoiceProcessing(true);
+      setVoiceMessage(spokenLanguage==='ta-IN'?'தமிழ் உரையை எளிய ஆங்கிலமாக மாற்றுகிறோம்…':'Converting speech into the form…');
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Your session has expired. Please sign in again.');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{
+          method:'POST',
+          headers:{
+            'Content-Type':'application/json',
+            'Authorization':`Bearer ${session.access_token}`,
+            'apikey':cfg.supabasePublishableKey
+          },
+          body:JSON.stringify({
+            transcript:text,
+            spoken_language:spokenLanguage,
+            current_form_type:form.item_type||'Follow-up',
+            current_task_kind:form.task_kind||'General Task',
+            now_iso:new Date().toISOString(),
+            timezone:'Asia/Kolkata'
+          })
+        });
+        const result=await response.json().catch(()=>({error:'Unable to read voice-processing response'}));
+        if(!response.ok||result.error)throw new Error(result.error||'Unable to process voice entry.');
+        const x=result.fields||{};
+        setForm(current=>({
+          ...current,
+          item_type:x.item_type||current.item_type||'Task',
+          task_kind:x.task_kind||current.task_kind||'General Task',
+          title:x.title||current.title||'',
+          contact_name:x.contact_name||current.contact_name||'',
+          contact_mobile:x.contact_mobile||current.contact_mobile||'',
+          organisation:x.organisation||current.organisation||'',
+          scheduled_at:x.scheduled_at?normalizeVoiceDateTime(x.scheduled_at):current.scheduled_at,
+          due_date:x.due_date||current.due_date||'',
+          day_part:(x.day_part&&x.day_part!=='Not Applicable')?x.day_part:(current.day_part||inferDayPart(x.details||text)||''),
+          priority:x.priority||current.priority||'Normal',
+          status:current.status||'Pending',
+          details:x.details||current.details||'',
+          needs_director_attention:typeof x.needs_director_attention==='boolean'?x.needs_director_attention:current.needs_director_attention
+        }));
+        setVoiceMessage('✓ Voice entry filled in simple English. Please check the fields before Save.');
+      }catch(error){
+        setVoiceMessage(error.message||'Unable to process voice entry.');
+      }finally{
+        setVoiceProcessing(false);
+      }
+    }
+
+    function shouldUseMobileAudioRecorder(){
+      const ua=String(navigator.userAgent||'');
+      const mobileUA=/iPhone|iPad|iPod|Android/i.test(ua);
+      const coarse=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
+      return Boolean(mobileUA||coarse);
+    }
+
+    function bestMobileAudioMime(){
+      const candidates=[
+        'audio/mp4',
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus'
+      ];
+      for(const type of candidates){
+        try{
+          if(window.MediaRecorder&&MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(type))return type;
+        }catch(_){}
+      }
+      return '';
+    }
+
+    async function sendMobileAudioForVoice(blob,lang){
+      setVoiceProcessing(true);
+      setVoiceMessage('Understanding your voice…');
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Your session has expired. Please sign in again.');
+
+        const ext=(blob.type||'').includes('mp4')?'m4a':
+          (blob.type||'').includes('ogg')?'ogg':
+          (blob.type||'').includes('webm')?'webm':'webm';
+
+        const fd=new FormData();
+        fd.append('audio',blob,`samara-voice.${ext}`);
+        fd.append('spoken_language',lang);
+        fd.append('current_form_type',form.item_type||'Follow-up');
+        fd.append('current_task_kind',form.task_kind||'General Task');
+        fd.append('now_iso',new Date().toISOString());
+        fd.append('timezone','Asia/Kolkata');
+
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{
+          method:'POST',
+          headers:{
+            'Authorization':`Bearer ${session.access_token}`,
+            'apikey':cfg.supabasePublishableKey
+          },
+          body:fd
+        });
+
+        const result=await response.json().catch(()=>({error:'Unable to read voice-processing response'}));
+        if(!response.ok||result.error)throw new Error(result.error||'Unable to process mobile voice entry.');
+
+        if(result.transcript)setVoiceTranscript(String(result.transcript));
+        const x=result.fields||{};
+        setForm(current=>({
+          ...current,
+          item_type:x.item_type||'Task',
+          task_kind:x.task_kind||'General Task',
+          title:x.title||'',
+          contact_name:x.contact_name||'',
+          contact_mobile:x.contact_mobile||'',
+          organisation:x.organisation||'',
+          scheduled_at:x.scheduled_at?normalizeVoiceDateTime(x.scheduled_at):'',
+          due_date:x.due_date||'',
+          day_part:(x.day_part&&x.day_part!=='Not Applicable')?x.day_part:'',
+          priority:x.priority||'Normal',
+          status:current.status||'Pending',
+          details:x.details||'',
+          needs_director_attention:typeof x.needs_director_attention==='boolean'?x.needs_director_attention:false
+        }));
+        setVoiceMessage('✓ Voice entry filled in simple English. Please check the fields before Save.');
+      }catch(error){
+        setVoiceMessage(error.message||'Unable to process mobile voice entry.');
+      }finally{
+        setVoiceProcessing(false);
+      }
+    }
+
+    async function startMobileVoiceRecording(lang='ta-IN'){
+      if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){
+        setVoiceMessage('Microphone recording is not available in this mobile browser. Please allow microphone access and try Safari/Chrome.');
+        return;
+      }
+
+      stopVoiceRecognition();
+      setVoiceTranscript('');
+      setVoiceMessage(lang==='ta-IN'?'🎤 தமிழில் பேசுங்கள். முடிந்ததும் Stop அழுத்துங்கள்.':'🎤 Speak naturally. Tap Stop when finished.');
+
+      try{
+        const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+        mobileStreamRef.current=stream;
+        mobileChunksRef.current=[];
+        mobileVoiceLangRef.current=lang;
+
+        const mime=bestMobileAudioMime();
+        const recorder=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);
+        mobileRecorderRef.current=recorder;
+
+        recorder.ondataavailable=e=>{
+          if(e.data&&e.data.size>0)mobileChunksRef.current.push(e.data);
+        };
+
+        recorder.onerror=()=>{
+          try{stream.getTracks().forEach(track=>track.stop())}catch(_){}
+          mobileStreamRef.current=null;
+          mobileRecorderRef.current=null;
+          setVoiceListening(false);
+          setVoiceMessage('Mobile voice recording stopped unexpectedly. Please try again.');
+        };
+
+        recorder.onstop=async()=>{
+          const actualType=recorder.mimeType||mobileChunksRef.current[0]?.type||'audio/webm';
+          const blob=new Blob(mobileChunksRef.current,{type:actualType});
+          mobileChunksRef.current=[];
+          try{stream.getTracks().forEach(track=>track.stop())}catch(_){}
+          mobileStreamRef.current=null;
+          mobileRecorderRef.current=null;
+          setVoiceListening(false);
+
+          if(blob.size<1000){
+            setVoiceMessage('No useful speech was captured. Please try again.');
+            return;
+          }
+          await sendMobileAudioForVoice(blob,mobileVoiceLangRef.current);
+        };
+
+        recorder.start();
+        setVoiceListening(true);
+      }catch(error){
+        setVoiceListening(false);
+        try{mobileStreamRef.current?.getTracks?.().forEach(track=>track.stop())}catch(_){}
+        mobileStreamRef.current=null;
+        mobileRecorderRef.current=null;
+        const msg=String(error?.name||'');
+        setVoiceMessage(msg==='NotAllowedError'
+          ?'Microphone permission is blocked. Please allow microphone access for Samara Care and try again.'
+          :(error.message||'Unable to start mobile microphone.'));
+      }
+    }
+
+    function startVoiceEntry(lang='ta-IN'){
+      if(!canVoice)return;
+      if(shouldUseMobileAudioRecorder()){
+        startMobileVoiceRecording(lang);
+        return;
+      }
+      const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+      if(!SpeechRecognition){
+        setVoiceMessage('Voice recognition is not available in this browser. Please try Chrome/Edge or the installed Samara Care app.');
+        return;
+      }
+      stopVoiceRecognition();
+      setVoiceTranscript('');
+      setVoiceMessage(lang==='ta-IN'?'🎤 தமிழில் இயல்பாக பேசுங்கள்…':'🎤 Speak naturally in English…');
+      try{
+        const recognition=new SpeechRecognition();
+        recognition.lang=lang;
+        recognition.interimResults=true;
+        recognition.continuous=false;
+        recognition.maxAlternatives=1;
+        voiceRecognitionRef.current=recognition;
+        let finalText='';
+        recognition.onstart=()=>setVoiceListening(true);
+        recognition.onresult=event=>{
+          let interim='';
+          for(let i=event.resultIndex;i<event.results.length;i++){
+            const t=event.results[i][0]?.transcript||'';
+            if(event.results[i].isFinal)finalText+=`${t} `;
+            else interim+=t;
+          }
+          setVoiceTranscript((finalText||interim).trim());
+        };
+        recognition.onerror=event=>{
+          setVoiceListening(false);
+          voiceRecognitionRef.current=null;
+          const code=String(event?.error||'');
+          setVoiceMessage(code==='not-allowed'
+            ?'Microphone permission is blocked. Please allow microphone access for Samara Care and try again.'
+            :`Voice recognition stopped${code?`: ${code}`:''}. Please try again.`);
+        };
+        recognition.onend=()=>{
+          setVoiceListening(false);
+          voiceRecognitionRef.current=null;
+          const spoken=String(finalText||'').trim();
+          if(spoken){
+            setVoiceTranscript(spoken);
+            interpretVoiceTranscript(spoken,lang);
+          }else{
+            setVoiceMessage(current=>current.startsWith('🎤')?'No speech was captured. Please try again.':current);
+          }
+        };
+        recognition.start();
+      }catch(error){
+        setVoiceListening(false);
+        voiceRecognitionRef.current=null;
+        setVoiceMessage(error.message||'Unable to start microphone.');
+      }
+    }
+
+    async function load(){
+      setLoading(true);setMessage('');
+      const {data,error}=await client.from('director_office_items').select('*').order('created_at',{ascending:false}).limit(500);
+      if(error){
+        setRows([]);
+        setMessage(error.message?.includes('director_office_items')
+          ?'Director’s Office database setup is pending. Please run SQL file 105_director_office_workspace.sql once.'
+          :`Unable to load Director’s Office: ${error.message||error}`);
+      }else setRows(data||[]);
+      setLoading(false);
+    }
+    async function loadCommunicationCounts(){
+      try{
+        const {data:waRows}=await client.from('hr_whatsapp_communications')
+          .select('id,direction,read_at,created_at')
+          .eq('direction','inbound')
+          .order('created_at',{ascending:false})
+          .limit(500);
+        setWaUnread((waRows||[]).filter(r=>!r.read_at).length);
+      }catch(_){setWaUnread(0)}
+      try{
+        const {data:fbRows}=await client.from('feedback')
+          .select('id,status')
+          .limit(500);
+        setFeedbackOpen((fbRows||[]).filter(r=>!['Closed','Resolved'].includes(String(r.status||''))).length);
+      }catch(_){setFeedbackOpen(0)}
+    }
+
+    React.useEffect(()=>{
+      if(!canUse)return;
+      let cancelled=false;
+      (async()=>{
+        try{
+          const {data:{session}}=await client.auth.getSession();
+          if(!session)return;
+          const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{
+            method:'POST',
+            headers:{
+              'Authorization':`Bearer ${session.access_token}`,
+              'apikey':cfg.supabasePublishableKey,
+              'Content-Type':'application/json'
+            },
+            body:JSON.stringify({
+              transcript:'',
+              spoken_language:'ta-IN',
+              current_form_type:'Task',
+              current_task_kind:'General Task',
+              now_iso:new Date().toISOString(),
+              timezone:'Asia/Kolkata'
+            })
+          });
+          const result=await response.json().catch(()=>({}));
+          // The Edge Function authenticates Director/STD before validating transcript.
+          // Authorized users therefore reach "No speech transcript received" (400);
+          // unrelated Admins are rejected earlier with 403.
+          if(!cancelled){
+            setVoiceAuthorized(
+              response.status===400 &&
+              String(result?.error||'').toLowerCase().includes('no speech transcript')
+            );
+          }
+        }catch(_){
+          if(!cancelled)setVoiceAuthorized(false);
+        }
+      })();
+      return()=>{cancelled=true};
+    },[profile?.id,profile?.role]);
+
+    React.useEffect(()=>{
+      if(!canUse){setLoading(false);return}
+      (async()=>{
+        try{
+          const {data}=await client.from('director_office_positions')
+            .select('assigned_profile_id')
+            .eq('position_key','director')
+            .maybeSingle();
+          setIsAssignedDirector(String(data?.assigned_profile_id||'')===String(profile?.id||''));
+        }catch(_){setIsAssignedDirector(false)}
+      })();
+      load();loadCommunicationCounts();
+      const ch=client.channel('director-office-live')
+        .on('postgres_changes',{event:'*',schema:'public',table:'director_office_items'},load)
+        .subscribe();
+      const comm=client.channel('director-office-communications-live')
+        .on('postgres_changes',{event:'*',schema:'public',table:'hr_whatsapp_communications'},loadCommunicationCounts)
+        .on('postgres_changes',{event:'*',schema:'public',table:'feedback'},loadCommunicationCounts)
+        .subscribe();
+      return()=>{client.removeChannel(ch);client.removeChannel(comm)};
+    },[]);
+
+    function openNew(type='Follow-up'){
+      stopVoiceRecognition();setVoiceTranscript('');setVoiceMessage('');
+      setEditingId(null);setForm({...blank(),item_type:type});setMessage('');setShowForm(true);
+    }
+    function editRow(r){
+      stopVoiceRecognition();setVoiceTranscript('');setVoiceMessage('');
+      setEditingId(r.id);
+      setForm({
+        item_type:r.item_type||'Follow-up',
+        task_kind:r.task_kind||'General Task',
+        title:r.title||'',
+        contact_name:r.contact_name||'',
+        contact_mobile:r.contact_mobile||'',
+        organisation:r.organisation||'',
+        scheduled_at:localInputValue(r.scheduled_at),
+        due_date:r.due_date||'',
+        day_part:inferDayPart(r.details||''),
+        priority:r.priority||'Normal',
+        status:r.status||'Pending',
+        details:r.details||'',
+        director_note:r.director_note||'',
+        needs_director_attention:Boolean(r.needs_director_attention),
+        director_responded_at:r.director_responded_at||null
+      });
+      setShowForm(true);
+    }
+    async function save(e){
+      e.preventDefault();
+      if(saving)return;
+      if(!form.title.trim())return setMessage('Please enter the subject / purpose.');
+      setSaving(true);setMessage('');
+      let detailsForSave=form.details.trim();
+      if(form.item_type==='Task'&&form.day_part){
+        const hasDayPart=inferDayPart(detailsForSave);
+        if(!hasDayPart){
+          detailsForSave=detailsForSave?`${detailsForSave} (${form.day_part})`:form.day_part;
+        }
+      }
+      const payload={
+        item_type:form.item_type,
+        task_kind:form.item_type==='Task'?(form.task_kind||'General Task'):null,
+        title:form.title.trim(),
+        contact_name:form.contact_name.trim()||null,
+        contact_mobile:form.contact_mobile.trim()||null,
+        organisation:form.organisation.trim()||null,
+        scheduled_at:form.scheduled_at?new Date(form.scheduled_at).toISOString():null,
+        due_date:form.due_date||null,
+        priority:form.priority,
+        status:form.status,
+        details:detailsForSave||null,
+        director_note:form.director_note.trim()||null,
+        needs_director_attention:Boolean(form.needs_director_attention),
+        updated_at:new Date().toISOString()
+      };
+      if(isAssignedDirector&&form.director_note.trim()&&form.needs_director_attention){
+        payload.director_responded_at=new Date().toISOString();
+      }else if(!form.needs_director_attention){
+        payload.director_responded_at=null;
+      }
+      let res;
+      if(editingId)res=await client.from('director_office_items').update(payload).eq('id',editingId);
+      else res=await client.from('director_office_items').insert(payload);
+      if(res.error){
+        setMessage(res.error.message||'Unable to save.');
+        setSaving(false);
+      }else{
+        const wasEditing=Boolean(editingId);
+        stopVoiceRecognition();
+        setShowForm(false);
+        setEditingId(null);
+        setForm(blank());
+        setSaving(false);
+        setVoiceTranscript('');
+        setVoiceMessage('');
+        setMessage(wasEditing?'Item updated successfully.':'Task saved successfully. Tap + Quick Task to add another.');
+        await load();
+      }
+    }
+    async function markComplete(r){
+      const {error}=await client.from('director_office_items').update({status:'Completed',updated_at:new Date().toISOString()}).eq('id',r.id);
+      if(error)setMessage(error.message||'Unable to complete item');else await load();
+    }
+    function openReschedule(r){
+      const local=r.scheduled_at?localInputValue(r.scheduled_at):'';
+      setRescheduleTarget(r);
+      setRescheduleDate(local?local.slice(0,10):(r.due_date||''));
+      setRescheduleTime(local&&local.includes('T')?local.slice(11,16):'');
+      setRescheduleNote('');
+      setMessage('');
+    }
+    async function saveReschedule(e){
+      e.preventDefault();
+      if(officeActionBusy||!rescheduleTarget)return;
+      if(!rescheduleDate)return setMessage('Please select the new date.');
+      setOfficeActionBusy(true);setMessage('');
+      const now=new Date().toISOString();
+      const newScheduledAt=rescheduleTime?new Date(`${rescheduleDate}T${rescheduleTime}`).toISOString():null;
+      const newDueDate=rescheduleTime?null:rescheduleDate;
+      const history=Array.isArray(rescheduleTarget.reschedule_history)?[...rescheduleTarget.reschedule_history]:[];
+      history.push({
+        at:now,
+        by:profile?.id||null,
+        old_scheduled_at:rescheduleTarget.scheduled_at||null,
+        old_due_date:rescheduleTarget.due_date||null,
+        new_scheduled_at:newScheduledAt,
+        new_due_date:newDueDate,
+        note:rescheduleNote.trim()||null
+      });
+      const {error}=await client.from('director_office_items').update({
+        scheduled_at:newScheduledAt,
+        due_date:newDueDate,
+        status:'Pending',
+        rescheduled_at:now,
+        reschedule_note:rescheduleNote.trim()||null,
+        reschedule_history:history,
+        updated_at:now
+      }).eq('id',rescheduleTarget.id);
+      setOfficeActionBusy(false);
+      if(error){setMessage(error.message||'Unable to reschedule item');return;}
+      setRescheduleTarget(null);setRescheduleDate('');setRescheduleTime('');setRescheduleNote('');
+      setMessage('Item rescheduled successfully.');
+      await load();
+    }
+    function openCancelItem(r){
+      setCancelTarget(r);
+      setCancelReason('');
+      setMessage('');
+    }
+    async function saveCancelItem(e){
+      e.preventDefault();
+      if(officeActionBusy||!cancelTarget)return;
+      setOfficeActionBusy(true);setMessage('');
+      const now=new Date().toISOString();
+      const {error}=await client.from('director_office_items').update({
+        status:'Cancelled',
+        cancel_reason:cancelReason.trim()||null,
+        cancelled_at:now,
+        updated_at:now
+      }).eq('id',cancelTarget.id);
+      setOfficeActionBusy(false);
+      if(error){setMessage(error.message||'Unable to cancel item');return;}
+      setCancelTarget(null);setCancelReason('');
+      setMessage('Item cancelled and retained in history.');
+      await load();
+    }
+    async function markDirectorResponded(r){
+      const {error}=await client.from('director_office_items').update({
+        director_responded_at:new Date().toISOString(),
+        updated_at:new Date().toISOString()
+      }).eq('id',r.id);
+      if(error)setMessage(error.message||'Unable to update Director response.');else await load();
+    }
+
+    if(!canUse)return h(Section,{title:"Director's Office",subtitle:'Restricted workspace'},h('div',{className:'empty'},'This workspace is available only to the Director / Administrator and Secretary to the Director.'));
+
+    const openRows=rows.filter(isOpen);
+    const todayAppointments=openRows.filter(r=>r.item_type==='Appointment'&&isToday(r.scheduled_at));
+    const calls=openRows.filter(r=>r.item_type==='Call / Callback');
+    const followups=openRows.filter(r=>r.item_type==='Follow-up');
+    const visitors=openRows.filter(r=>r.item_type==='Visitor');
+    const correspondence=openRows.filter(r=>r.item_type==='Correspondence');
+    const reminders=openRows.filter(r=>r.item_type==='Reminder');
+    const tasks=openRows.filter(r=>r.item_type==='Task');
+    const urgent=openRows.filter(r=>r.priority==='Urgent');
+
+    const filtered=rows.filter(r=>{
+      let typeOk=false;
+      if(filter==='Open')typeOk=isOpen(r);
+      else if(filter==='For Director')typeOk=isOpen(r)&&Boolean(r.needs_director_attention)&&!r.director_responded_at;
+      else if(filter==='Completed')typeOk=r.status==='Completed';
+      else if(filter==='Cancelled')typeOk=r.status==='Cancelled';
+      else if(filter==='Today')typeOk=isToday(r.scheduled_at)||(r.due_date&&r.due_date===todayISOIndia());
+      else typeOk=r.item_type===filter;
+      if(!typeOk)return false;
+      const hay=`${r.title||''} ${r.contact_name||''} ${r.contact_mobile||''} ${r.organisation||''} ${r.details||''}`.toLowerCase();
+      if(officeQuery&&!hay.includes(officeQuery.toLowerCase()))return false;
+      const dateValue=r.scheduled_at||r.created_at;
+      const d=dateValue?new Date(dateValue):null;
+      if(officeFrom&&d&&d<new Date(`${officeFrom}T00:00:00`))return false;
+      if(officeTo&&d&&d>new Date(`${officeTo}T23:59:59`))return false;
+      return true;
+    });
+
+    function openDirectorQueue(filterValue){
+      setFilter(filterValue);
+      window.setTimeout(()=>{
+        const target=document.getElementById('director-followup-queue-anchor');
+        if(target){
+          target.scrollIntoView({behavior:'smooth',block:'start'});
+        }
+      },80);
+    }
+
+    const card=(label,value,filterValue,sub)=>h('button',{
+      type:'button',
+      onClick:()=>openDirectorQueue(filterValue),
+      style:{
+        textAlign:'left',
+        border:'1px solid #e9b6ca',
+        borderRadius:'18px',
+        background:'linear-gradient(145deg,#fff7fa 0%,#fbe4ed 58%,#f7d5e3 100%)',
+        padding:'15px 17px',
+        cursor:'pointer',
+        minHeight:'96px',
+        boxShadow:'0 8px 20px rgba(139,19,76,.09)',
+        borderTop:'3px solid #c2185b'
+      }
+    },
+      h('div',{style:{fontSize:'28px',fontWeight:900,color:'#7f174a'}},value),
+      h('div',{style:{fontWeight:850,color:'#351b29',marginTop:'2px'}},label),
+      h('small',{style:{color:'#846d79'}},sub||'Tap to view')
+    );
+
+    const commCard=(label,value,icon,subtitle,target)=>h('button',{
+      type:'button',
+      onClick:()=>dashboardNavigate(onNavigate,target,label,{source:"Director's Office"}),
+      style:{
+        textAlign:'left',
+        border:'1px solid #e5a9c1',
+        borderRadius:'20px',
+        background:'linear-gradient(135deg,#fff4f8 0%,#f8dbe7 55%,#f1c3d5 100%)',
+        padding:'17px 18px',
+        cursor:'pointer',
+        minHeight:'106px',
+        boxShadow:'0 10px 24px rgba(128,18,70,.11)',
+        borderLeft:'5px solid #b40d52'
+      }
+    },
+      h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px'}},
+        h('span',{style:{fontSize:'27px'}},icon),
+        h('strong',{style:{fontSize:'29px',fontWeight:950,color:'#9b124f'}},value)
+      ),
+      h('div',{style:{fontWeight:900,color:'#351b29',marginTop:'5px',fontSize:'15px'}},label),
+      h('small',{style:{color:'#846d79'}},subtitle)
+    );
+
+    const itemCard=r=>h('div',{key:r.id,style:{
+      border:'1px solid #e8bfd0',
+      borderRadius:'16px',
+      background:'linear-gradient(145deg,#fffafd 0%,#fcecf3 100%)',
+      padding:'13px 14px',
+      display:'grid',
+      gap:'8px',
+      boxShadow:'0 5px 15px rgba(122,24,69,.06)',
+      borderLeft:'4px solid #cf2c70'
+    }},
+      h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'flex-start',flexWrap:'wrap'}},
+        h('div',null,
+          h('strong',{style:{fontSize:'15px',color:'#351b29'}},r.title),
+          h('div',{style:{fontSize:'12px',color:'#806a76',marginTop:'3px'}},`${r.item_type==='Task'?(r.task_kind||'Task'):r.item_type} · ${r.priority||'Normal'}`)
+        ),
+        h('span',{className:'badge'},r.status||'Pending')
+      ),
+      (r.contact_name||r.organisation||r.contact_mobile)?h('div',{style:{fontSize:'13px',color:'#4e4248'}},
+        [r.contact_name,r.organisation,r.contact_mobile].filter(Boolean).join(' · ')
+      ):null,
+      r.scheduled_at?h('div',{style:{fontSize:'13px'}},h('b',null,'Schedule: '),prettyDateTime(r.scheduled_at)):null,
+      r.due_date?h('div',{style:{fontSize:'13px'}},h('b',null,'Due: '),prettyDate(r.due_date)):null,
+      r.details?h('div',{style:{fontSize:'13px',lineHeight:'1.45',whiteSpace:'pre-wrap'}},r.details):null,
+      r.rescheduled_at?h('div',{style:{fontSize:'12px',color:'#6f5360',background:'#fff7e9',borderRadius:'9px',padding:'6px 9px',width:'fit-content'}},`↻ Rescheduled${r.reschedule_note?`: ${r.reschedule_note}`:''}`):null,
+      r.status==='Cancelled'?h('div',{style:{fontSize:'12px',color:'#7b2737',background:'#fff0f1',borderRadius:'9px',padding:'6px 9px',width:'fit-content'}},`Cancelled${r.cancel_reason?`: ${r.cancel_reason}`:''}`):null,
+      r.needs_director_attention?h('div',{style:{fontSize:'12px',fontWeight:900,color:r.director_responded_at?'#176a52':'#9a174d',background:r.director_responded_at?'#eaf7f1':'#fde8f0',borderRadius:'999px',padding:'6px 10px',width:'fit-content'}},r.director_responded_at?'✓ Director Responded':'● For Director'):null,
+      r.director_note?h('div',{style:{fontSize:'13px',lineHeight:'1.45',background:'#fff7e6',borderRadius:'10px',padding:'8px 10px'}},h('b',null,'Director note: '),r.director_note):null,
+      h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
+        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>editRow(r)},isAssignedDirector?'View / Add Instruction':'Open / Edit'),
+        isAssignedDirector&&r.needs_director_attention&&!r.director_responded_at?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>markDirectorResponded(r)},'✓ Director Responded'):null,
+        isOpen(r)?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openReschedule(r)},'↻ Reschedule'):null,
+        isOpen(r)?h('button',{type:'button',className:'btn btn-primary',onClick:()=>markComplete(r)},'✓ Complete'):null,
+        isOpen(r)?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openCancelItem(r),style:{color:'#92213b'}},'Cancel'):null
+      )
+    );
+
+    const formModal=showForm?h('div',{className:'modal-backdrop'},
+      h('form',{className:'card modal',onSubmit:save,style:{maxWidth:'760px'}},
+        h('div',{className:'panel-head'},
+          h('div',null,h('h3',null,form.item_type==='Task'?(editingId?'Update Task':'New Quick Task'):(editingId?'Update Director’s Office Item':'New Director’s Office Item')),h('small',null,form.item_type==='Task'?'Short personal task — only the essentials':'Keep only the details needed for Director follow-up')),
+          h('button',{type:'button',className:'close',onClick:()=>{stopVoiceRecognition();setShowForm(false)}},'×')
+        ),
+        canVoice?h('div',{style:{margin:'0 0 14px',padding:'12px',border:'1px solid #e7bfd0',borderRadius:'15px',background:'linear-gradient(135deg,#fffafd,#f9e6ee)'}},
+          h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
+            h('div',null,
+              h('strong',{style:{color:'#78103f'}},'🎤 Voice Entry'),
+              h('div',{style:{fontSize:'12px',color:'#765966',marginTop:'2px'}},shouldUseMobileAudioRecorder()?'Tap Speak, talk naturally, then tap Stop. Tamil/English will be converted and the form will be filled.':'Speak naturally. Tamil will be converted to simple English and the form will be filled for you.')
+            ),
+            voiceListening?h('button',{type:'button',className:'btn btn-danger',onClick:stopVoiceRecognition},'■ Stop'):
+            h('div',{className:'actions'},
+              h('button',{type:'button',className:'btn btn-primary',disabled:voiceProcessing,onClick:()=>startVoiceEntry('ta-IN')},voiceProcessing?'Processing…':'🎤 Speak Tamil'),
+              h('button',{type:'button',className:'btn btn-secondary',disabled:voiceProcessing,onClick:()=>startVoiceEntry('en-IN')},'🎤 Speak English')
+            )
+          ),
+          voiceTranscript?h('div',{style:{marginTop:'9px',padding:'8px 10px',borderRadius:'10px',background:'#fff',fontSize:'13px'}},
+            h('small',{style:{display:'block',color:'#8b6b78',marginBottom:'3px'}},'Heard'),
+            h('div',{style:{fontWeight:700}},voiceTranscript)
+          ):null,
+          voiceMessage?h('div',{style:{marginTop:'8px',fontSize:'12px',fontWeight:800,color:voiceMessage.startsWith('✓')?'#17653c':'#7c2448'}},voiceMessage):null
+        ):null,
+        form.item_type==='Task'
+          ?h('div',{className:'modal-grid'},
+            h('div',{className:'field'},h('label',null,'Type'),h('select',{value:form.item_type,onChange:e=>setForm({...form,item_type:e.target.value})},TYPES.map(x=>h('option',{key:x},x)))),
+            h('div',{className:'field'},h('label',null,'Task'),h('select',{value:form.task_kind||'General Task',onChange:e=>setForm({...form,task_kind:e.target.value})},TASK_KINDS.map(x=>h('option',{key:x},x)))),
+            h('div',{className:'field span-2'},h('label',null,'What to do? *'),h('input',{required:true,value:form.title,onChange:e=>setForm({...form,title:e.target.value}),placeholder:form.task_kind==='Visit'?'Example: Visit Dr. Ravi':form.task_kind==='Buy / Purchase'?'Example: Buy office printer':form.task_kind==='Attend Function'?'Example: Attend hospital inauguration':form.task_kind==='Trip / Travel'?'Example: Chennai to Trichy trip':'Enter task'})),
+            h('div',{className:'field span-2'},h('label',null,'Person / Place (optional)'),h('input',{value:form.contact_name,onChange:e=>setForm({...form,contact_name:e.target.value}),placeholder:'Name or place'})),
+            h('div',{className:'field'},h('label',null,'Date'),h('input',{type:'date',value:taskDateValue(),onChange:e=>setTaskDate(e.target.value)})),
+            h('div',{className:'field'},h('label',null,'Time (optional)'),h('input',{type:'time',value:taskTimeValue(),onChange:e=>setTaskTime(e.target.value)})),
+            h('div',{className:'field'},h('label',null,'Day Part (optional)'),h('select',{value:form.day_part||'',onChange:e=>setForm({...form,day_part:e.target.value})},
+              h('option',{value:''},'—'),
+              ['Morning','Afternoon','Evening','Night'].map(x=>h('option',{key:x,value:x},x))
+            )),
+            h('div',{className:'field'},h('label',null,'Priority'),h('select',{value:form.priority,onChange:e=>setForm({...form,priority:e.target.value})},PRIORITIES.map(x=>h('option',{key:x},x)))),
+            h('div',{className:'field span-2'},h('label',null,'Short Note (optional)'),h('textarea',{rows:2,value:form.details,onChange:e=>setForm({...form,details:e.target.value}),placeholder:'Anything important to remember'})),
+            editingId?h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},STATUSES.map(x=>h('option',{key:x},x)))):null
+          )
+          :h('div',{className:'modal-grid'},
+            h('div',{className:'field'},h('label',null,'Type'),h('select',{value:form.item_type,onChange:e=>setForm({...form,item_type:e.target.value})},TYPES.map(x=>h('option',{key:x},x)))),
+            h('div',{className:'field'},h('label',null,'Priority'),h('select',{value:form.priority,onChange:e=>setForm({...form,priority:e.target.value})},PRIORITIES.map(x=>h('option',{key:x},x)))),
+            h('div',{className:'field span-2'},h('label',null,form.item_type==='Call / Callback'?'Call Subject / Enquiry *':'Subject / Purpose *'),h('input',{required:true,value:form.title,onChange:e=>setForm({...form,title:e.target.value}),placeholder:'Example: Call Dr. ___ regarding referral'})),
+            h('div',{className:'field'},h('label',null,form.item_type==='Call / Callback'?'Caller Name':'Person / Visitor'),h('input',{value:form.contact_name,onChange:e=>setForm({...form,contact_name:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Mobile'),h('input',{value:form.contact_mobile,onChange:e=>setForm({...form,contact_mobile:e.target.value}),inputMode:'tel'})),
+            h('div',{className:'field span-2'},h('label',null,'Organisation'),h('input',{value:form.organisation,onChange:e=>setForm({...form,organisation:e.target.value})})),
+            h('div',{className:'field'},h('label',null,form.item_type==='Call / Callback'?'Call Date / Time':'Appointment / Call Time'),h('input',{type:'datetime-local',value:form.scheduled_at,onChange:e=>setForm({...form,scheduled_at:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Follow-up / Due Date'),h('input',{type:'date',value:form.due_date,onChange:e=>setForm({...form,due_date:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},STATUSES.map(x=>h('option',{key:x},x)))),
+            h('div',{className:'field span-2'},h('label',null,'Details'),h('textarea',{rows:3,value:form.details,onChange:e=>setForm({...form,details:e.target.value}),placeholder:'Short notes / action required'})),
+            h('div',{className:'field span-2'},h('label',{style:{display:'flex',alignItems:'center',gap:'9px',fontWeight:900,color:'#7d1547'}},
+              h('input',{type:'checkbox',checked:Boolean(form.needs_director_attention),onChange:e=>setForm({...form,needs_director_attention:e.target.checked,director_responded_at:e.target.checked?form.director_responded_at:null}),style:{width:'18px',height:'18px'}}),
+              'Needs Director Attention'
+            ),h('small',null,'Use only when the Director must decide, instruct or return a call.')),
+            h('div',{className:'field span-2'},h('label',null,isAssignedDirector?'Director Instruction':'Director Note / Instruction'),h('textarea',{rows:2,value:form.director_note,onChange:e=>setForm({...form,director_note:e.target.value}),placeholder:isAssignedDirector?'Enter your instruction / decision':'Optional instruction or decision'}))
+          ),
+        h('div',{className:'modal-actions'},
+          h('button',{type:'button',className:'btn btn-secondary',disabled:saving,onClick:()=>{stopVoiceRecognition();setShowForm(false)}},'Cancel'),
+          h('button',{type:'submit',className:'btn btn-primary',disabled:saving},saving?'Saving…':'Save')
+        )
+      )
+    ):null;
+
+    const rescheduleModal=rescheduleTarget?h('div',{className:'modal-backdrop'},
+      h('form',{className:'card modal',onSubmit:saveReschedule,style:{maxWidth:'520px'}},
+        h('div',{className:'panel-head'},
+          h('div',null,h('h3',null,'Reschedule'),h('small',null,rescheduleTarget.title||'Director’s Office item')),
+          h('button',{type:'button',className:'close',disabled:officeActionBusy,onClick:()=>setRescheduleTarget(null)},'×')
+        ),
+        h('div',{className:'modal-grid'},
+          h('div',{className:'field'},h('label',null,'New Date *'),h('input',{type:'date',required:true,value:rescheduleDate,onChange:e=>setRescheduleDate(e.target.value)})),
+          h('div',{className:'field'},h('label',null,'Time (optional)'),h('input',{type:'time',value:rescheduleTime,onChange:e=>setRescheduleTime(e.target.value)})),
+          h('div',{className:'field span-2'},h('label',null,'Reason / Note (optional)'),h('textarea',{rows:3,value:rescheduleNote,onChange:e=>setRescheduleNote(e.target.value),placeholder:'Example: Director requested a later time'}))
+        ),
+        h('div',{className:'modal-actions'},
+          h('button',{type:'button',className:'btn btn-secondary',disabled:officeActionBusy,onClick:()=>setRescheduleTarget(null)},'Cancel'),
+          h('button',{type:'submit',className:'btn btn-primary',disabled:officeActionBusy},officeActionBusy?'Saving…':'Save New Schedule')
+        )
+      )
+    ):null;
+
+    const cancelModal=cancelTarget?h('div',{className:'modal-backdrop'},
+      h('form',{className:'card modal',onSubmit:saveCancelItem,style:{maxWidth:'520px'}},
+        h('div',{className:'panel-head'},
+          h('div',null,h('h3',null,'Cancel Item'),h('small',null,cancelTarget.title||'Director’s Office item')),
+          h('button',{type:'button',className:'close',disabled:officeActionBusy,onClick:()=>setCancelTarget(null)},'×')
+        ),
+        h('p',{style:{marginTop:'4px'}},'This item will not be deleted. It will be moved to Cancelled history.'),
+        h('div',{className:'field'},h('label',null,'Cancellation Reason (optional)'),h('textarea',{rows:3,value:cancelReason,onChange:e=>setCancelReason(e.target.value),placeholder:'Short reason, if needed'})),
+        h('div',{className:'modal-actions'},
+          h('button',{type:'button',className:'btn btn-secondary',disabled:officeActionBusy,onClick:()=>setCancelTarget(null)},'Keep Item'),
+          h('button',{type:'submit',className:'btn btn-primary',disabled:officeActionBusy},officeActionBusy?'Cancelling…':'Cancel Item')
+        )
+      )
+    ):null;
+
+    return h('div',{className:'director-office-page'},
+      h('style',null,`
+        .director-office-page{
+          width:100%;
+          max-width:100%;
+          min-width:0;
+          box-sizing:border-box;
+          overflow-x:hidden;
+        }
+        .director-office-page > .card.panel{
+          width:100%;
+          max-width:100%;
+          min-width:0;
+          box-sizing:border-box;
+        }
+        .director-office-page .director-office-stat-grid,
+        .director-office-page .director-office-comm-grid{
+          width:100%;
+          max-width:100%;
+          min-width:0;
+          box-sizing:border-box;
+        }
+        .director-office-page .director-office-stat-grid > *,
+        .director-office-page .director-office-comm-grid > *{
+          min-width:0;
+          max-width:100%;
+          box-sizing:border-box;
+        }
+
+        @media(max-width:700px){
+          .director-office-page{
+            width:100%!important;
+            max-width:100%!important;
+            min-width:0!important;
+            overflow-x:hidden!important;
+          }
+
+          /* Header: keep title and Quick Task/New Item fully inside iPhone width. */
+          .director-office-page > .card.panel:first-of-type > .panel-head{
+            display:grid!important;
+            grid-template-columns:minmax(0,1fr)!important;
+            gap:12px!important;
+            width:100%!important;
+            max-width:100%!important;
+            min-width:0!important;
+          }
+          .director-office-page > .card.panel:first-of-type > .panel-head > div:first-child{
+            min-width:0!important;
+            max-width:100%!important;
+          }
+          .director-office-page > .card.panel:first-of-type > .panel-head > .actions{
+            width:100%!important;
+            max-width:100%!important;
+            min-width:0!important;
+            margin-top:0!important;
+            display:grid!important;
+            grid-template-columns:repeat(2,minmax(0,1fr))!important;
+            gap:8px!important;
+          }
+          .director-office-page > .card.panel:first-of-type > .panel-head > .actions > .btn{
+            width:100%!important;
+            min-width:0!important;
+            max-width:100%!important;
+            margin:0!important;
+            padding-left:10px!important;
+            padding-right:10px!important;
+            white-space:normal!important;
+          }
+
+          .director-office-page .director-office-stat-grid > button{
+            touch-action:manipulation!important;
+            -webkit-tap-highlight-color:rgba(159,23,78,.12)!important;
+            position:relative!important;
+          }
+          .director-office-page .director-office-stat-grid > button:active{
+            transform:scale(.985)!important;
+          }
+
+          /* Dashboard cards: exactly two compact columns with no horizontal spill. */
+          .director-office-page .director-office-stat-grid{
+            grid-template-columns:repeat(2,minmax(0,1fr))!important;
+            gap:10px!important;
+          }
+          .director-office-page .director-office-comm-grid{
+            grid-template-columns:1fr!important;
+            gap:10px!important;
+          }
+
+          .director-office-page .director-office-stat-grid button,
+          .director-office-page .director-office-comm-grid button{
+            width:100%!important;
+            max-width:100%!important;
+            min-width:0!important;
+            overflow:hidden!important;
+          }
+
+          /* Long labels must wrap inside the card rather than widen the page. */
+          .director-office-page button,
+          .director-office-page h3,
+          .director-office-page small,
+          .director-office-page div{
+            overflow-wrap:anywhere;
+          }
+        }
+
+        @media(max-width:390px){
+          .director-office-page > .card.panel:first-of-type > .panel-head > .actions{
+            grid-template-columns:1fr!important;
+          }
+        }
+      `),
+      h(Section,{title:"Director's Office",subtitle:'Compact executive assistance workspace',actions:h('div',{className:'actions'},
+        h('button',{className:'btn btn-secondary',onClick:()=>openNew('Task')},'＋ Quick Task'),
+        h('button',{className:'btn btn-primary',onClick:()=>openNew()},'＋ New Item')
+      )},
+        message?h('div',{className:'message',style:{marginBottom:'12px'}},message):null,
+        h('div',{className:'director-office-stat-grid',style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(145px,1fr))',gap:'10px'}},
+          card('Tasks',tasks.length,'Task','Visits, purchases, functions & trips'),
+          card('Appointments Today',todayAppointments.length,'Today','Today’s scheduled appointments'),
+          card('Calls / Callbacks',calls.length,'Call / Callback','Pending calls'),
+          card('Follow-ups',followups.length,'Follow-up','Pending actions'),
+          card('Visitors',visitors.length,'Visitor','Expected / pending'),
+          card('Correspondence',correspondence.length,'Correspondence','Letters & communications'),
+          card('Reminders',reminders.length,'Reminder','Upcoming reminders')
+        ),
+        h('div',{className:'director-office-comm-grid',style:{marginTop:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:'10px'}},
+          commCard('WhatsApp Enquiries',waUnread,'◉','Attend incoming public enquiries','WhatsApp Inbox'),
+          h('button',{type:'button',onClick:()=>openNew('Call / Callback'),style:{
+              textAlign:'left',
+              border:'1px solid #e5a9c1',
+              borderRadius:'20px',
+              background:'linear-gradient(135deg,#fff4f8 0%,#f8dbe7 55%,#f1c3d5 100%)',
+              padding:'17px 18px',
+              cursor:'pointer',
+              minHeight:'106px',
+              boxShadow:'0 10px 24px rgba(128,18,70,.11)',
+              borderLeft:'5px solid #b40d52'
+            }},
+            h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px'}},h('span',{style:{fontSize:'27px'}},'☎'),h('strong',{style:{fontSize:'29px',fontWeight:950,color:'#9b124f'}},calls.length)),
+            h('div',{style:{fontWeight:900,color:'#351b29',marginTop:'5px',fontSize:'15px'}},'Call Enquiries'),
+            h('small',{style:{color:'#846d79'}},'Enter every phone enquiry manually')
+          ),
+          commCard('Feedback',feedbackOpen,'★','Review feedback and responses','Feedback')
+        ),
+        urgent.length?h('div',{style:{marginTop:'12px',padding:'10px 12px',borderRadius:'12px',background:'#fff3f3',border:'1px solid #efc2c2',fontWeight:800,color:'#8d1b2c'}},`⚠ ${urgent.length} urgent item${urgent.length===1?'':'s'} pending`):null
+      ),
+      h('div',{
+        id:'director-followup-queue-anchor',
+        style:{height:'1px',scrollMarginTop:'118px'}
+      }),
+      h(Section,{title:'Director Follow-up Queue',subtitle:`${filtered.length} item${filtered.length===1?'':'s'} · ${filter}`,actions:
+        h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
+          ...['Open','For Director','Today','Task','Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder','Completed','Cancelled'].map(x=>
+            h('button',{type:'button',key:x,className:filter===x?'btn btn-primary':'btn btn-secondary',onClick:()=>openDirectorQueue(x)},x)
+          )
+        )
+      },
+        h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginBottom:'12px'}},
+          h('input',{value:officeQuery,onChange:e=>setOfficeQuery(e.target.value),placeholder:'Search subject, name, mobile or notes…',style:{flex:'1 1 280px',minWidth:'220px'}}),
+          h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'From',h('input',{type:'date',value:officeFrom,onChange:e=>setOfficeFrom(e.target.value)})),
+          h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'To',h('input',{type:'date',value:officeTo,onChange:e=>setOfficeTo(e.target.value)})),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setOfficeQuery('');setOfficeFrom('');setOfficeTo('')}},'Clear')
+        ),
+        loading?h('div',{className:'empty'},'Loading Director’s Office…'):
+        h('div',{style:{display:'grid',gap:'10px'}},...filtered.map(itemCard),
+          filtered.length===0?h('div',{className:'empty'},'No items in this view.'):null
+        )
+      ),
+      h(Section,{title:'Quick Add',subtitle:'Common Secretary actions'},
+        h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
+          ...TYPES.map(x=>h('button',{type:'button',key:x,className:'btn btn-secondary',onClick:()=>openNew(x)},`＋ ${x}`))
+        )
+      ),
+      formModal,
+      rescheduleModal,
+      cancelModal
+    );
+  }
+
   function LeavePermission({profile,mode='mine'}){
     const isApprovals=mode==='approvals';
     const [rows,setRows]=React.useState([]),[profiles,setProfiles]=React.useState([]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
@@ -8234,17 +10234,120 @@ Thank you.`;
     return h(React.Fragment,null,h(Section,{title:'My Leave & Permission',subtitle:'Apply and track your leave, permission and approval status',actions:h('button',{className:'btn btn-primary',onClick:()=>{setForm({...empty});setModalMsg('');setSubmitted(false);setShowForm(true)}},'＋ New Request')},msg?h('div',{className:'message'},msg):null,h('div',{className:'absence-summary'},h('div',null,h('strong',null,pending.length),h('small',null,'Pending')),h('div',null,h('strong',null,visible.filter(r=>r.status==='approved').length),h('small',null,'Approved')),h('div',null,h('strong',null,visible.filter(r=>r.status==='rejected').length),h('small',null,'Rejected'))),h('div',{className:'absence-list'},...visible.map(requestCard)),visible.length===0?h('div',{className:'empty'},'No leave or permission requests submitted yet.'):null),formModal);
   }
 
+
+  function ensureEmploymentActionLayoutStyle(){
+    if(document.getElementById('samara-employment-action-layout'))return;
+    const style=document.createElement('style');
+    style.id='samara-employment-action-layout';
+    style.textContent=`
+      .employment-action-backdrop{padding:24px!important;align-items:center!important;}
+      .employment-action-modal{
+        width:min(920px,calc(100vw - 48px))!important;
+        max-width:920px!important;
+        max-height:calc(100vh - 48px)!important;
+        overflow:auto!important;
+        border-radius:22px!important;
+        padding:0!important;
+      }
+      .employment-action-modal .panel-head{
+        position:sticky!important;top:0!important;z-index:3!important;
+        background:#fffafd!important;padding:20px 22px 14px!important;
+        border-bottom:1px solid #efd7e1!important;
+      }
+      .employment-action-grid{
+        display:grid!important;
+        grid-template-columns:repeat(2,minmax(0,1fr))!important;
+        gap:16px 20px!important;
+        padding:20px 22px!important;
+      }
+      .employment-action-grid>label{
+        display:flex!important;flex-direction:column!important;gap:7px!important;
+        min-width:0!important;font-weight:700!important;color:#432b3a!important;
+      }
+      .employment-action-grid input,
+      .employment-action-grid select,
+      .employment-action-grid textarea{
+        width:100%!important;min-width:0!important;box-sizing:border-box!important;
+        min-height:44px!important;padding:10px 12px!important;
+        border:1px solid #cfded9!important;border-radius:11px!important;
+        font:inherit!important;background:#fff!important;
+      }
+      .employment-action-grid textarea{min-height:88px!important;resize:vertical!important;}
+      .employment-action-actions{
+        position:sticky!important;bottom:0!important;z-index:3!important;
+        display:flex!important;justify-content:flex-end!important;gap:10px!important;
+        padding:14px 22px 18px!important;background:#fffafd!important;
+        border-top:1px solid #efd7e1!important;
+      }
+      .employment-action-actions .btn{min-height:44px!important;padding:10px 18px!important;}
+      @media(max-width:700px){
+        .employment-action-backdrop{padding:0!important;align-items:stretch!important;}
+        .employment-action-modal{
+          width:100%!important;max-width:none!important;height:100dvh!important;
+          max-height:100dvh!important;border-radius:0!important;
+        }
+        .employment-action-grid{
+          grid-template-columns:1fr!important;gap:14px!important;padding:16px!important;
+        }
+        .employment-action-modal .panel-head{padding:16px!important;}
+        .employment-action-actions{
+          padding:12px 16px calc(12px + env(safe-area-inset-bottom))!important;
+        }
+        .employment-action-actions .btn{flex:1 1 0!important;}
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  ensureEmploymentActionLayoutStyle();
+
+  function ensureEmploymentSalaryHistoryStyle(){
+    if(document.getElementById('samara-employment-salary-history-style'))return;
+    const style=document.createElement('style');
+    style.id='samara-employment-salary-history-style';
+    style.textContent=`
+      .employment-salary-history-section{
+        margin-top:14px!important;
+        margin-bottom:14px!important;
+        padding:16px!important;
+        border-radius:16px!important;
+      }
+      .employment-salary-history-section .employee-info-grid{
+        margin-top:14px!important;
+      }
+      @media(max-width:700px){
+        .employment-salary-history-section{
+          padding:14px!important;
+        }
+        .employment-salary-history-section .btn{
+          width:100%!important;
+          margin-top:8px!important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  ensureEmploymentSalaryHistoryStyle();
+
   function Employees({profile,onNavigate}){
     const [rows,setRows]=React.useState([]),[authMap,setAuthMap]=React.useState({}),[show,setShow]=React.useState(false),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [resetTarget,setResetTarget]=React.useState(null),[newPassword,setNewPassword]=React.useState(''),[confirmPassword,setConfirmPassword]=React.useState(''),[resetBusy,setResetBusy]=React.useState(false),[resetMsg,setResetMsg]=React.useState('');
     const [repairTarget,setRepairTarget]=React.useState(null),[repairPassword,setRepairPassword]=React.useState(''),[repairBusy,setRepairBusy]=React.useState(false),[repairMsg,setRepairMsg]=React.useState('');
     const [detailsTarget,setDetailsTarget]=React.useState(null),[detailsForm,setDetailsForm]=React.useState(null),[detailsDocs,setDetailsDocs]=React.useState([]),[detailsBusy,setDetailsBusy]=React.useState(false),[detailsMsg,setDetailsMsg]=React.useState('');
     const [detailsEditing,setDetailsEditing]=React.useState(false);
+    const [employmentActions,setEmploymentActions]=React.useState([]);
+    const [showEmploymentAction,setShowEmploymentAction]=React.useState(false);
+    const employmentBlank=()=>({action_type:'Promotion',effective_date:'',new_department:'',new_designation:'',new_reporting_superior:'',new_erp_role:'',new_salary:'',salary_frequency:'Monthly',increment_amount:'',increment_percent:'',order_reference:'',remarks:''});
+    const [employmentAction,setEmploymentAction]=React.useState(employmentBlank());
+    const [employmentSaving,setEmploymentSaving]=React.useState(false);
     const [employeeDepartmentFilter,setEmployeeDepartmentFilter]=React.useState(()=>{
       try{
         const requested=sessionStorage.getItem('samara-employee-list-filter');
         sessionStorage.removeItem('samara-employee-list-filter');
-        return requested==='__ALL__'?'__ALL__':'';
+        if(requested==='__ALL__')return '__ALL__';
+        const intent=readDashboardIntent('Employees');
+        if(intent?.focus==='Nursing')return 'Nursing';
+        if(intent?.focus==='Caregiving')return 'Caregiving';
+        return '';
       }catch(_error){return ''}
     });
     const [idFiles,setIdFiles]=React.useState([]),[qualificationFiles,setQualificationFiles]=React.useState([]),[experienceFiles,setExperienceFiles]=React.useState([]),[otherFiles,setOtherFiles]=React.useState([]),[cameraFiles,setCameraFiles]=React.useState([]),[photoFiles,setPhotoFiles]=React.useState([]),[photoPreview,setPhotoPreview]=React.useState(''),[welcomeEmployee,setWelcomeEmployee]=React.useState(null);
@@ -8276,7 +10379,7 @@ Thank you.`;
       mobile:'',emergency_contact:'',role:'Caregiver',login_id:'',employee_email:'',password:'',
       father_guardian_name:'',address:'',date_of_birth:'',date_of_joining:'',blood_group:'',
       id_card_type:'Aadhaar',id_card_number:'',qualification:'',previous_workplace:'',
-      reference_type:'Direct',reference_name:'',reference_contact:'',
+      reference_type:'Direct',reference_name:'',reference_contact:'',current_salary:'',salary_frequency:'Monthly',
       current_address:'',current_state:'Tamil Nadu',current_district:'',current_taluk:'',
       current_village_town:'',current_locality_area:'',current_street_name:'',current_house_no:'',
       current_apartment_name:'',current_flat_no:'',current_landmark:'',current_pincode:'',
@@ -8530,6 +10633,8 @@ Thank you.`;
           permanent_flat_no:employeeForm.permanent_flat_no||null,
           permanent_landmark:employeeForm.permanent_landmark||null,
           permanent_pincode:employeeForm.permanent_pincode||null,
+          current_salary:employeeForm.current_salary===''||employeeForm.current_salary==null?null:Number(employeeForm.current_salary),
+          salary_frequency:employeeForm.salary_frequency||'Monthly',
           updated_at:new Date().toISOString()
         };
         const {error:departmentError}=await client.from('profiles')
@@ -8616,9 +10721,96 @@ Thank you.`;
       setRepairBusy(false);
     }
 
+    async function loadEmploymentActions(employee){
+      if(!employee?.id){setEmploymentActions([]);return;}
+      const {data,error}=await client.from('employee_employment_history').select('*').eq('employee_profile_id',employee.id).order('effective_date',{ascending:false}).order('created_at',{ascending:false});
+      if(error){console.warn('Employment history:',error.message);setEmploymentActions([]);return;}
+      setEmploymentActions(data||[]);
+    }
+    function openEmploymentAction(){
+      const r=detailsTarget;if(!r)return;
+      setEmploymentAction({...employmentBlank(),new_department:r.department||'',new_designation:r.designation||'',new_reporting_superior:r.reporting_superior||'',new_erp_role:r.role||'',new_salary:r.current_salary||''});
+      setShowEmploymentAction(true);
+    }
+    async function saveEmploymentAction(e){
+      e.preventDefault();if(employmentSaving||!detailsTarget)return;
+      if(!employmentAction.effective_date){showEmployeeToast('error','Effective Date is required.');return;}
+      setEmploymentSaving(true);
+      try{
+        const a=employmentAction;
+        const payload={action_type:a.action_type,effective_date:a.effective_date,new_department:a.new_department||null,new_designation:a.new_designation||null,new_reporting_superior:a.new_reporting_superior||null,new_erp_role:a.new_erp_role||null,new_salary:a.new_salary===''?null:Number(a.new_salary),salary_frequency:a.salary_frequency||'Monthly',increment_amount:a.increment_amount===''?null:Number(a.increment_amount),increment_percent:a.increment_percent===''?null:Number(a.increment_percent),order_reference:a.order_reference||null,remarks:a.remarks||null};
+        const {error}=await client.rpc('record_employee_employment_action',{p_employee_id:detailsTarget.id,p_action:payload});if(error)throw error;
+        const {data:fresh,error:freshError}=await client.from('profiles').select('*').eq('id',detailsTarget.id).maybeSingle();if(freshError)throw freshError;
+        if(fresh){setDetailsTarget(fresh);setDetailsForm({...empty,...fresh,password:''});}
+        await loadEmploymentActions(fresh||detailsTarget);setShowEmploymentAction(false);setEmploymentAction(employmentBlank());
+        showEmployeeToast('success',`${payload.action_type} recorded successfully.`);await load();
+      }catch(err){showEmployeeToast('error',err.message||'Unable to record employment action.');}
+      finally{setEmploymentSaving(false);}
+    }
+    function employmentHistorySection(){
+      if(!detailsTarget)return null;
+      const r=detailsTarget;
+      const money=v=>v==null||v===''?'—':`₹${Number(v).toLocaleString('en-IN')}`;
+      const chronological=[...employmentActions].sort((a,b)=>String(a.effective_date||'').localeCompare(String(b.effective_date||'')));
+      const opening=chronological.find(x=>x.action_type==='Opening Salary')||chronological.find(x=>x.new_salary!=null);
+      const increments=chronological.filter(x=>['Annual Increment','Salary Revision','Promotion'].includes(x.action_type)&&x.new_salary!=null);
+      const lastIncrement=increments.length?increments[increments.length-1]:null;
+      let nextDue='—';
+      if(lastIncrement?.effective_date){
+        const d=new Date(`${lastIncrement.effective_date}T00:00:00`);
+        if(!Number.isNaN(d.getTime())){d.setFullYear(d.getFullYear()+1);nextDue=formatDateIN(d);}
+      }else if(r.date_of_joining){
+        const d=new Date(`${r.date_of_joining}T00:00:00`);
+        if(!Number.isNaN(d.getTime())){d.setFullYear(d.getFullYear()+1);nextDue=formatDateIN(d);}
+      }
+      return h('section',{className:'employee-info-section employment-salary-history-section',style:{border:'1px solid #e8c6d5',background:'#fffafd'}},
+        h('div',{style:{display:'flex',justifyContent:'space-between',gap:10,alignItems:'center',flexWrap:'wrap'}},
+          h('div',null,h('h4',{style:{marginBottom:4,color:'#7c1745'}},'Employment & Salary History'),h('div',{className:'muted'},'Starting salary, current salary, promotion, transfer and increments')),
+          h('button',{type:'button',className:'btn btn-primary',onClick:openEmploymentAction},'+ Employment Action')),
+        h('div',{className:'employee-info-grid',style:{marginTop:14}},
+          personnelInfoItem('Starting Salary',opening?.new_salary!=null?`${money(opening.new_salary)} ${opening.salary_frequency||r.salary_frequency||'Monthly'}`:'Not set'),
+          personnelInfoItem('Starting / Effective Date',opening?.effective_date?formatDateIN(opening.effective_date):(r.date_of_joining?formatDateIN(r.date_of_joining):'—')),
+          personnelInfoItem('Current Salary',r.current_salary!=null?`${money(r.current_salary)} ${r.salary_frequency||'Monthly'}`:'Not set'),
+          personnelInfoItem('Last Increment',lastIncrement?(lastIncrement.increment_amount!=null?money(lastIncrement.increment_amount):(lastIncrement.increment_percent!=null?`${lastIncrement.increment_percent}%`:money(lastIncrement.new_salary))):'—'),
+          personnelInfoItem('Last Increment Date',lastIncrement?.effective_date?formatDateIN(lastIncrement.effective_date):'—'),
+          personnelInfoItem('Next Increment Due',nextDue)
+        ),
+        h('div',{style:{marginTop:14,display:'grid',gap:10}},
+          employmentActions.length?employmentActions.map(x=>h('div',{key:x.id,style:{border:'1px solid #ecd2df',borderRadius:12,padding:12}},
+            h('div',{style:{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}},h('strong',null,x.action_type),h('span',{className:'muted'},x.effective_date?formatDateIN(x.effective_date):'—')),
+            x.action_type==='Opening Salary'?h('div',{style:{marginTop:5}},`Starting Salary: ${money(x.new_salary)} ${x.salary_frequency||'Monthly'}`):h('div',{style:{marginTop:5}},`${x.previous_designation||'—'} → ${x.new_designation||'—'}`),
+            x.action_type!=='Opening Salary'&&x.previous_department!==x.new_department?h('div',{className:'muted'},`${x.previous_department||'—'} → ${x.new_department||'—'}`):null,
+            x.action_type!=='Opening Salary'&&x.new_salary!=null?h('div',{style:{marginTop:4}},`Salary: ${money(x.new_salary)} ${x.salary_frequency||'Monthly'}`):null,
+            x.order_reference?h('div',{className:'muted'},`Ref: ${x.order_reference}`):null,
+            x.remarks?h('div',{className:'muted'},x.remarks):null
+          )):h('div',{className:'muted'},r.current_salary!=null?'Starting salary will appear in history after this update is saved.':'No salary or employment actions recorded yet.'))
+      );
+    }
+    function employmentActionModal(){
+      if(!showEmploymentAction||!detailsTarget)return null;
+      return h('div',{className:'modal-backdrop employment-action-backdrop'},h('form',{className:'card modal employee-modal employment-action-modal',onSubmit:saveEmploymentAction},
+        h('div',{className:'panel-head'},h('div',null,h('h3',null,'Employment Action'),h('small',null,formalName(detailsTarget))),h('button',{type:'button',className:'close',onClick:()=>setShowEmploymentAction(false)},'×')),
+        h('div',{className:'modal-grid employment-action-grid'},
+          h('label',null,'Action Type *',h('select',{value:employmentAction.action_type,onChange:e=>setEmploymentAction(v=>({...v,action_type:e.target.value}))},['Promotion','Transfer','Designation Change','Department Change','Reporting Change','Annual Increment','Salary Revision','Confirmation','Demotion','Suspension','Reinstatement'].map(v=>h('option',{key:v},v)))),
+          h('label',null,'Effective Date *',h('input',{type:'date',required:true,value:employmentAction.effective_date,onChange:e=>setEmploymentAction(v=>({...v,effective_date:e.target.value}))})),
+          h('label',null,'New Department',h('input',{value:employmentAction.new_department,onChange:e=>setEmploymentAction(v=>({...v,new_department:e.target.value}))})),
+          h('label',null,'New Designation',h('input',{value:employmentAction.new_designation,onChange:e=>setEmploymentAction(v=>({...v,new_designation:e.target.value}))})),
+          h('label',null,'Reporting Superior',h('input',{value:employmentAction.new_reporting_superior,onChange:e=>setEmploymentAction(v=>({...v,new_reporting_superior:e.target.value}))})),
+          h('label',null,'ERP Access Role',h('select',{value:employmentAction.new_erp_role,onChange:e=>setEmploymentAction(v=>({...v,new_erp_role:e.target.value}))},['','Admin','Manager','Nurse','Caregiver','Accounts','Kitchen','HR','STD'].map(v=>h('option',{key:v,value:v},v||'No change')))),
+          h('label',null,'New Salary',h('input',{type:'number',min:'0',step:'0.01',value:employmentAction.new_salary,onChange:e=>setEmploymentAction(v=>({...v,new_salary:e.target.value}))})),
+          h('label',null,'Salary Frequency',h('select',{value:employmentAction.salary_frequency,onChange:e=>setEmploymentAction(v=>({...v,salary_frequency:e.target.value}))},['Monthly','Daily','Hourly'].map(v=>h('option',{key:v},v)))),
+          h('label',null,'Increment Amount',h('input',{type:'number',min:'0',step:'0.01',value:employmentAction.increment_amount,onChange:e=>setEmploymentAction(v=>({...v,increment_amount:e.target.value}))})),
+          h('label',null,'Increment %',h('input',{type:'number',min:'0',step:'0.01',value:employmentAction.increment_percent,onChange:e=>setEmploymentAction(v=>({...v,increment_percent:e.target.value}))})),
+          h('label',null,'Order / Reference No.',h('input',{value:employmentAction.order_reference,onChange:e=>setEmploymentAction(v=>({...v,order_reference:e.target.value}))})),
+          h('label',null,'Remarks',h('textarea',{rows:3,value:employmentAction.remarks,onChange:e=>setEmploymentAction(v=>({...v,remarks:e.target.value}))}))
+        ),
+        h('div',{className:'employee-personnel-actions employment-action-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowEmploymentAction(false)},'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:employmentSaving},employmentSaving?'Saving…':'Save Employment Action'))
+      ));
+    }
+
     async function openDetails(row){
       setDetailsEditing(false);
-      setDetailsTarget(row);setDetailsForm({...empty,...row,password:''});setDetailsMsg('');setDetailsDocs([]);
+      setDetailsTarget(row);setDetailsForm({...empty,...row,password:''});setDetailsMsg('');setDetailsDocs([]);loadEmploymentActions(row);
       setIdFiles([]);setQualificationFiles([]);setExperienceFiles([]);setOtherFiles([]);setCameraFiles([]);setPhotoFiles([]);
       setPhotoPreview('');
 
@@ -8626,6 +10818,7 @@ Thank you.`;
       if(resolved.profile){
         setDetailsTarget(resolved.profile);
         setDetailsForm({...empty,...resolved.profile,password:''});
+        loadEmploymentActions(resolved.profile);
       }
       if(resolved.url)setPhotoPreview(resolved.url);
 
@@ -8653,12 +10846,37 @@ Thank you.`;
         delete payload.password;delete payload.id;delete payload.created_at;delete payload.updated_at;delete payload.last_sign_in_at;
         const requestedRole=payload.role;
         delete payload.role;
-        const {error}=await client.from('profiles').update(payload).or(`id.eq.${detailsTarget.id},auth_user_id.eq.${detailsTarget.auth_user_id||detailsTarget.id}`);if(error)throw error;
+        const profileUpdate=await client.from('profiles')
+          .update(payload)
+          .or(`id.eq.${detailsTarget.id},auth_user_id.eq.${detailsTarget.auth_user_id||detailsTarget.id}`)
+          .select('*');
+        if(profileUpdate.error)throw profileUpdate.error;
+        if(!profileUpdate.data?.length)throw new Error('Employee details were not saved. Your account does not currently have permission to update this employee profile.');
+        const updatedProfile=profileUpdate.data[0];
+
         const roleResult=await adminRequest({action:'set_role',user_id:detailsTarget.id,role:requestedRole});
         if(roleResult.role!==requestedRole)throw new Error(`Selected role ${requestedRole} was not saved correctly.`);
+
+        // Verify important edited fields actually persisted before showing success.
+        const {data:verifiedProfile,error:verifyError}=await client.from('profiles')
+          .select('*')
+          .eq('id',updatedProfile.id)
+          .maybeSingle();
+        if(verifyError)throw verifyError;
+        if(!verifiedProfile)throw new Error('Employee update could not be verified.');
+
+        const checks=[
+          ['Department',payload.department,verifiedProfile.department],
+          ['Designation',payload.designation,verifiedProfile.designation],
+          ['Employee Name',payload.full_name,verifiedProfile.full_name]
+        ];
+        const mismatch=checks.find(([,expected,actual])=>String(expected||'').trim()!==String(actual||'').trim());
+        if(mismatch)throw new Error(`${mismatch[0]} was not saved correctly. Please retry.`);
         await uploadEmployeePhoto(detailsTarget.id,photoFiles);
         await uploadEmployeeFiles(detailsTarget.id,[{type:'ID Card',files:idFiles},{type:'Qualification Certificate',files:qualificationFiles},{type:'Experience Certificate',files:experienceFiles},{type:'Other Certificate',files:otherFiles},{type:'Camera Capture',files:cameraFiles}]);
         const successText='Employee information and documents updated successfully.';
+        setDetailsTarget(verifiedProfile);
+        setDetailsForm({...empty,...verifiedProfile,password:''});
         setDetailsMsg(successText);showEmployeeToast('success',successText);setIdFiles([]);setQualificationFiles([]);setExperienceFiles([]);setOtherFiles([]);setCameraFiles([]);setPhotoFiles([]);await load();
         const {data}=await client.from('employee_documents').select('*').eq('employee_id',detailsTarget.id).order('created_at',{ascending:false});setDetailsDocs(data||[]);
         const resolved=await resolveEmployeePhoto(detailsTarget,900);
@@ -9106,11 +11324,13 @@ Thank you.`;
 
     const personnelFields=(state,setter,includeLogin=true)=>h(React.Fragment,null,
       selectField('Title / Salutation','title',state,setter,EMPLOYEE_TITLES),field('Employee Name','full_name',state,setter,true),field('Employee ID (auto-generated if blank)','employee_id',state,setter,false),
-      h('div',{className:'field'},h('label',null,'Department'),h('select',{value:state.department||'',required:true,onChange:e=>{const department=e.target.value;const choices=HR_DESIGNATIONS[department]||[];const defaultDesignation=choices[0]||'';const suggestedRole=department==='Nursing'?'Nurse':department==='Caregiving'?'Caregiver':department==='Accounts & Finance'?'Accounts':department==='Food & Kitchen'?'Kitchen':department==="Director's Office"&&defaultDesignation==='Secretary to the Director (STD)'?'STD':state.role;setter({...state,department,designation:defaultDesignation,role:suggestedRole})}},h('option',{value:''},'Select department'),HR_DEPARTMENTS.map(x=>h('option',{key:x,value:x},x)))),
-      h('div',{className:'field'},h('label',null,'Designation'),h('select',{value:state.designation||'',required:true,onChange:e=>{const designation=e.target.value;const role=state.department==="Director's Office"&&designation==='Secretary to the Director (STD)'?'STD':state.role;setter({...state,designation,role})}},h('option',{value:''},'Select designation'),(HR_DESIGNATIONS[state.department]||[]).map(x=>h('option',{key:x,value:x},x)))),
+      h('div',{className:'field'},h('label',null,'Department'),h('select',{value:state.department||'',required:true,onChange:e=>{const department=e.target.value;const choices=HR_DESIGNATIONS[department]||[];const defaultDesignation=choices[0]||'';const suggestedRole=department==='Nursing'?'Nurse':department==='Caregiving'?'Caregiver':department==='Accounts & Finance'?'Accounts':department==='Food & Kitchen'?'Kitchen':state.role;setter({...state,department,designation:defaultDesignation,role:suggestedRole})}},h('option',{value:''},'Select department'),HR_DEPARTMENTS.map(x=>h('option',{key:x,value:x},x)))),
+      h('div',{className:'field'},h('label',null,'Designation'),h('select',{value:state.designation||'',required:true,onChange:e=>setter({...state,designation:e.target.value})},h('option',{value:''},'Select designation'),(HR_DESIGNATIONS[state.department]||[]).map(x=>h('option',{key:x,value:x},x)))),
       selectField('ERP Access Role','role',state,setter,ROLES),
       h('div',{className:'field'},h('label',null,'Reporting Superior'),h('select',{value:state.reporting_superior_id||'',onChange:e=>setter({...state,reporting_superior_id:e.target.value})},h('option',{value:''},'Manager / Admin directly'),rows.filter(r=>r.id!==state.id&&!isSamaraAdministratorAccount(r)&&(r.is_active??r.active)!==false).sort((a,b)=>formalName(a).localeCompare(formalName(b))).map(r=>h('option',{key:r.id,value:r.id},`${formalName(r)} · ${r.designation||r.role}`)))),
-      field('Father / Guardian Name','father_guardian_name',state,setter,false),field('Date of Birth','date_of_birth',state,setter,false,'date'),field('Date of Joining','date_of_joining',state,setter,false,'date'),selectField('Blood Group','blood_group',state,setter,BLOOD_GROUPS),
+      field('Father / Guardian Name','father_guardian_name',state,setter,false),field('Date of Birth','date_of_birth',state,setter,false,'date'),field('Date of Joining','date_of_joining',state,setter,false,'date'),
+      field('Starting / Current Salary','current_salary',state,setter,false,'number'),selectField('Salary Frequency','salary_frequency',state,setter,['Monthly','Daily','Hourly']),
+      selectField('Blood Group','blood_group',state,setter,BLOOD_GROUPS),
       field('Mobile Number','mobile',state,setter,false),field('Emergency Contact','emergency_contact',state,setter,false),field('Employee Email','employee_email',state,setter,false,'email'),
       field('ID Card Type','id_card_type',state,setter,false),field('ID Card Number','id_card_number',state,setter,false),field('Qualification','qualification',state,setter,false),field('Previous Working Place','previous_workplace',state,setter,false),
       selectField('Joining Source','reference_type',state,setter,['Direct','Reference']),field('Reference Name','reference_name',state,setter,false),field('Reference Contact','reference_contact',state,setter,false),
@@ -9152,9 +11372,11 @@ Thank you.`;
             personnelInfoItem('Designation',r.designation),
             personnelInfoItem('ERP Access Role',r.role),
             personnelInfoItem('Reporting Superior',formalName(rows.find(x=>x.id===r.reporting_superior_id))||'Manager / Admin directly'),
-            personnelInfoItem('Date of Joining',r.date_of_joining?formatDateIN(r.date_of_joining):'—')
+            personnelInfoItem('Date of Joining',r.date_of_joining?formatDateIN(r.date_of_joining):'—'),
+            personnelInfoItem('Current Salary',r.current_salary!=null?`₹${Number(r.current_salary).toLocaleString('en-IN')} ${r.salary_frequency||'Monthly'}`:'Not set')
           )
         ),
+        employmentHistorySection(),
         h('section',{className:'employee-info-section'},h('h4',null,'Personal & Contact'),
           h('div',{className:'employee-info-grid'},
             personnelInfoItem('Father / Guardian',r.father_guardian_name),
@@ -9222,7 +11444,7 @@ Thank you.`;
 
     return h(React.Fragment,null,
       h('div',{className:'card panel'},h('div',{className:'panel-head'},h('div',null,h('h3',null,employeeDepartmentFilter?`${employeeDepartmentFilter==='__ALL__'?'All':employeeDepartmentFilter} Employees`:'Employee Dashboard'),h('small',null,employeeDepartmentFilter?'Tap an employee to open the Personnel File':'Select a department to view active employees')),h('div',{className:'employee-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('HR Dashboard')},'← HR Dashboard'),h('button',{className:'btn btn-primary',onClick:()=>{setShow(true);setMsg('')}},'Create Employee'))),msg&&!show?h('div',{className:'message error'},msg):null,employeeDepartmentFilter?h('button',{type:'button',className:'btn btn-secondary employee-back-departments',onClick:()=>setEmployeeDepartmentFilter('')},'← Departments'):null,departmentDashboard,employeeDepartmentFilter?table:null),
-      createModal,detailsModal,resetModal,repairModal,
+      createModal,detailsModal,employmentActionModal(),resetModal,repairModal,
       cameraConfig?h(CameraCaptureModal,{config:cameraConfig,onClose:()=>setCameraConfig(null)}):null,
       employeeToast&&h('div',{className:`samara-toast ${employeeToast.type}`,role:'status','aria-live':'polite'},
         h('span',{className:'samara-toast-icon','aria-hidden':'true'},employeeToast.type==='success'?'✓':'!'),
@@ -15644,8 +17866,8 @@ function RoomsBeds({profile}){
             return h('div',{className:`clinical-work-row ${x.minutesOverdue>=15?'urgent':''}`,key:'m'+i},h('span',null,'💊'),h('div',null,h('strong',null,patientName(x.order)),h('small',null,`${room}${room?' · ':''}${x.order.medicine_name||x.order.medicine||'Medicine'} ${x.order.strength||x.order.dose||''} · Due ${medicationTimeLabel(x.time)}${x.minutesOverdue>0?` · ${x.minutesOverdue} min overdue`:''}`)),h('b',null,level));
           }),
           vitalsPending.slice(0,4).map(p=>h('div',{className:'clinical-work-row',key:p.id},h('span',null,'🩺'),h('div',null,h('strong',null,formalName(p)),h('small',null,`${p.patient_id||''} · Room ${p.room_no||'—'}-${p.bed_no||'—'} · Vitals not entered today`)),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>onNavigate('Vital Signs')},'Enter'))),
-          currentShiftCarePending.slice(0,5).map((x,i)=>h('div',{className:'clinical-work-row',key:`care-${x.id}-${x.taskShift}-${i}`},h('span',null,'✅'),h('div',null,h('strong',null,patientName(x)),h('small',null,`${x.care_type||x.activity||'Care task'} · ${x.taskShift}`)),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>onNavigate('Shift Tasks')},'Open'))),
-          upcomingShiftCarePending.length>0&&h('div',{className:'clinical-work-row upcoming-summary'},h('span',null,'🕒'),h('div',null,h('strong',null,`${upcomingShiftCarePending.length} care task(s) scheduled for next shift`),h('small',null,'Shown as a compact summary; they become actionable when the next shift starts.')),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>onNavigate('Shift Tasks')},'Review')),
+          currentShiftCarePending.slice(0,5).map((x,i)=>h('div',{className:'clinical-work-row',key:`care-${x.id}-${x.taskShift}-${i}`},h('span',null,'✅'),h('div',null,h('strong',null,patientName(x)),h('small',null,`${x.care_type||x.activity||'Care task'} · ${x.taskShift}`)),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>dashboardNavigate(onNavigate,'Shift Tasks','Today’s Operational Focus',{source:'Main Dashboard'})},'Open'))),
+          upcomingShiftCarePending.length>0&&h('div',{className:'clinical-work-row upcoming-summary'},h('span',null,'🕒'),h('div',null,h('strong',null,`${upcomingShiftCarePending.length} care task(s) scheduled for next shift`),h('small',null,'Shown as a compact summary; they become actionable when the next shift starts.')),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>dashboardNavigate(onNavigate,'Shift Tasks','Today’s Operational Focus',{source:'Main Dashboard'})},'Review')),
           dischargeReady.slice(0,3).map(row=>h('div',{className:'clinical-work-row urgent',key:`discharge-${row.id}`},
             h('span',null,'🚪'),
             h('div',null,
@@ -17603,6 +19825,7 @@ function ShiftHandover({profile,onNavigate}){
     const [loading,setLoading]=React.useState(true);
     const [busy,setBusy]=React.useState('');
     const [message,setMessage]=React.useState('');
+    const [packageFocus,setPackageFocus]=React.useState('All');
 
     const today=todayISOIndia();
     const dateOnly=value=>String(value||'').slice(0,10);
@@ -17730,6 +19953,14 @@ function ShiftHandover({profile,onNavigate}){
 
     const sorted=[...rows].sort((a,b)=>String(a.package_end_date||'').localeCompare(String(b.package_end_date||'')));
     const attention=sorted.filter(row=>dateDiff(row.package_end_date,today)<=3);
+    const packageVisible=sorted.filter(row=>{
+      const diff=dateDiff(row.package_end_date,today);
+      if(packageFocus==='Expired')return diff<0;
+      if(packageFocus==='Expires Today')return diff===0;
+      if(packageFocus==='Next 3 Days')return diff>0&&diff<=3;
+      if(packageFocus==='Attention Required')return diff<=3;
+      return true;
+    });
     const expired=sorted.filter(row=>dateDiff(row.package_end_date,today)<0).length;
     const todayCount=sorted.filter(row=>dateDiff(row.package_end_date,today)===0).length;
     const soon=sorted.filter(row=>{const d=dateDiff(row.package_end_date,today);return d>0&&d<=3}).length;
@@ -17752,16 +19983,23 @@ function ShiftHandover({profile,onNavigate}){
           ['Expires Today',todayCount,'orange','Family reminder due'],
           ['Next 3 Days',soon,'blue','Upcoming package expiry'],
           ['Attention Required',attention.length,'purple','Expired or expiring soon']
-        ].map(([label,value,tone,note])=>h('div',{className:`accounts-kpi ${tone}`,key:label},h('span',null,label),h('strong',null,value),h('small',null,note)))
+        ].map(([label,value,tone,note])=>h('button',{
+          type:'button',
+          className:`accounts-kpi ${tone}`,
+          key:label,
+          onClick:()=>setPackageFocus(current=>current===label?'All':label),
+          title:`Show ${label} residents`,
+          style:{textAlign:'left',cursor:'pointer',border:packageFocus===label?'2px solid #9f174e':undefined}
+        },h('span',null,label),h('strong',null,value),h('small',null,note)))
       ),
       message&&h('div',{className:message.startsWith('✓')?'message success':'message error'},message),
-      h(Section,{title:loading?'Loading package residents…':`Package Residents (${sorted.length})`,subtitle:'Renewal starts from the day after the current package expiry; daily fare is the automatic fallback.'},
-        sorted.length?h('div',{className:'table-wrap'},
+      h(Section,{title:loading?'Loading package residents…':`Package Residents (${packageVisible.length})`,subtitle:packageFocus==='All'?'Renewal starts from the day after the current package expiry; daily fare is the automatic fallback.':`Dashboard filter: ${packageFocus}`},
+        packageVisible.length?h('div',{className:'table-wrap'},
           h('table',{className:'table'},
             h('thead',null,h('tr',null,
               ['Resident','Room','Current Package','Expiry','Status','Family Contact','Family Request','Renewal Options','Action'].map(x=>h('th',{key:x},x))
             )),
-            h('tbody',null,sorted.map(row=>{
+            h('tbody',null,packageVisible.map(row=>{
               const status=statusOf(row);
               const opts=renewalOptions(row);
               return h('tr',{key:row.id},
@@ -17910,15 +20148,15 @@ function ShiftHandover({profile,onNavigate}){
           )
         ),
         h('div',{className:'accounts-actions'},
-          h('button',{className:'btn btn-secondary',onClick:()=>onNavigate?.('Payments')},'＋ New Payment'),
-          h('button',{className:'btn btn-secondary',onClick:()=>onNavigate?.('Accounts Reports')},'▥ Reports'),
+          h('button',{className:'btn btn-secondary',onClick:()=>dashboardNavigate(onNavigate,'Payments','New Payment',{source:'Accounts Dashboard'})},'＋ New Payment'),
+          h('button',{className:'btn btn-secondary',onClick:()=>dashboardNavigate(onNavigate,'Accounts Reports','Accounts Reports',{source:'Accounts Dashboard'})},'▥ Reports'),
           h('button',{className:'btn btn-secondary',onClick:load},state.loading?'Loading…':'↻ Refresh')
         )
       ),
 
       h('div',{className:'accounts-kpi-grid'},
         kpis.map(([label,value,page,tone,note,isCount])=>h('button',{
-          type:'button',className:`accounts-kpi ${tone}`,key:label,onClick:()=>onNavigate?.(page)
+          type:'button',className:`accounts-kpi ${tone}`,key:label,onClick:()=>dashboardNavigate(onNavigate,page,label,{source:'Accounts Dashboard'})
         },
           h('span',null,label),
           h('strong',null,isCount?Number(value||0):money(value)),
@@ -17972,7 +20210,7 @@ function ShiftHandover({profile,onNavigate}){
             type:'button',
             className:`accounts-workflow-card ${tone}`,
             key:title,
-            onClick:()=>onNavigate?.(title)
+            onClick:()=>dashboardNavigate(onNavigate,title,title,{source:'Accounts Dashboard'})
           },
             h('div',{className:'accounts-workflow-top'},
               h('span',{className:'accounts-workflow-icon'},icon),
@@ -20043,8 +22281,21 @@ Please access the Samara Family Portal for detailed account information.`;
     });
     const [form,setForm]=React.useState(fresh());
     const [filter,setFilter]=React.useState({patient_id:'',status:'All',category:'All'});
+    const [quickView,setQuickView]=React.useState('All');
 
     const notify=(type,text)=>{showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);setToast({type,text});setTimeout(()=>setToast(null),4500)};
+    function openChargeView(view){
+      setQuickView(view);
+      if(view==='Pending')setFilter(current=>({...current,status:'Pending'}));
+      else if(view==='Approved')setFilter(current=>({...current,status:'All'}));
+      else if(view==='Approved Today')setFilter(current=>({...current,status:'All'}));
+      else if(view==='Today')setFilter(current=>({...current,status:'All'}));
+      else setFilter(current=>({...current,status:'All'}));
+      setTimeout(()=>{
+        const node=document.getElementById('bill-charge-register');
+        if(node)node.scrollIntoView({behavior:'smooth',block:'start'});
+      },60);
+    }
     const pFor=id=>patients.find(p=>p.id===id)||{};
     const pLabel=id=>{const p=pFor(id);return p.id?`${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}-${p.bed_no||'—'}`:'—'};
     const money=v=>v!==null&&v!==undefined&&v!==''?`₹${Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'—';
@@ -20263,32 +22514,83 @@ Please access the Samara Family Portal for detailed account information.`;
     const filtered=rows.filter(r=>
       (!filter.patient_id||r.patient_id===filter.patient_id)&&
       (filter.status==='All'||(r.approval_status||'Pending')===filter.status)&&
-      (filter.category==='All'||r.category===filter.category)
+      (filter.category==='All'||r.category===filter.category)&&
+      (quickView!=='Today'||r.charge_date===todayISOIndia())&&
+      (quickView!=='Approved'||['Approved','Partially Approved'].includes(r.approval_status))&&
+      (quickView!=='Approved Today'||isApprovedToday(r))
     );
     const pending=rows.filter(r=>(r.approval_status||'Pending')==='Pending').length;
     const approved=rows.filter(r=>['Approved','Partially Approved'].includes(r.approval_status));
 
+    // Dashboard summary should be operational, not a lifetime cumulative total.
+    // "Approved Today" is based on the actual decision timestamp when available.
+    // For legacy approved rows without decision_at, charge_date is used only as a fallback.
+    const isApprovedToday=row=>{
+      if(!['Approved','Partially Approved'].includes(row.approval_status))return false;
+      if(row.decision_at){
+        const d=new Date(row.decision_at);
+        if(!Number.isNaN(d.getTime())){
+          const now=new Date();
+          return d.getFullYear()===now.getFullYear()&&
+                 d.getMonth()===now.getMonth()&&
+                 d.getDate()===now.getDate();
+        }
+      }
+      return row.charge_date===todayISOIndia();
+    };
+    const approvedToday=rows.filter(isApprovedToday);
+    const approvedTodayValue=approvedToday.reduce((sum,row)=>{
+      const value=row.approved_amount!==null&&row.approved_amount!==undefined
+        ?Number(row.approved_amount)
+        :row.final_amount!==null&&row.final_amount!==undefined
+          ?Number(row.final_amount)
+          :0;
+      return sum+(Number.isFinite(value)?value:0);
+    },0);
+
+    const navCard=(label,value,view,subtitle)=>h('button',{
+      type:'button',
+      className:'card stat',
+      onClick:()=>openChargeView(view),
+      title:`Open ${label}`,
+      style:{
+        textAlign:'left',
+        cursor:'pointer',
+        width:'100%',
+        border:'1px solid #e8c3d2',
+        background:quickView===view?'linear-gradient(135deg,#f9dce8,#fff7fa)':'linear-gradient(145deg,#fffafd,#fdf1f6)',
+        boxShadow:quickView===view?'0 8px 20px rgba(166,16,78,.12)':'0 4px 12px rgba(109,24,61,.05)'
+      }
+    },
+      h('span',null,label),
+      h('strong',null,value),
+      h('small',{style:{display:'block',marginTop:'4px',color:'#8b6b79'}},subtitle||'Click to view details')
+    );
+
     const summary=h('div',{className:'grid stats'},
-      h('div',{className:'card stat'},h('span',null,'Today’s Entries'),h('strong',null,rows.filter(r=>r.charge_date===todayISOIndia()).length)),
-      h('div',{className:'card stat'},h('span',null,'Pending Approval'),h('strong',null,pending)),
-      h('div',{className:'card stat'},h('span',null,'Approved'),h('strong',null,approved.length)),
-      h('div',{className:'card stat'},h('span',null,'Approved Value'),h('strong',null,money(approved.reduce((s,r)=>s+Number(r.final_amount||r.requested_amount||0),0))))
+      navCard('Today’s Entries',rows.filter(r=>r.charge_date===todayISOIndia()).length,'Today','Click to show today’s charges'),
+      navCard('Pending Approval',pending,'Pending','Click to show pending approvals'),
+      navCard('Approved Today',approvedToday.length,'Approved Today','Click to show approvals made today'),
+      navCard('Approved Value Today',money(approvedTodayValue),'Approved Today','Actual value approved today')
     );
 
     const register=h(LogTable,{
       title:`Bill & Charge Requests (${filtered.length})`,
-      heads:['Date','Patient','Category','Service','Provider','Qty','Request Amount','Approved Amount','Decision','Decision By','Decision Time','Remarks','Action'],
+      heads:['Date','Patient','Category','Service','Qty','Decision','Action','Request Amount','Approved Amount','Provider','Decision By','Decision Time','Remarks'],
       rows:filtered.map(r=>[
         formatDateIN(r.charge_date),pLabel(r.patient_id),r.category,r.service_name||r.description,
-        r.service_provider||r.hospital_name||r.laboratory_name||'—',
-        `${r.quantity||1} ${r.unit||''}`,profile?.role==='Nurse'?'Hidden':money(r.requested_amount||r.estimated_amount),profile?.role==='Nurse'?'Hidden':money(r.approved_amount??r.final_amount),
+        `${r.quantity||1} ${r.unit||''}`,
         h('span',{className:'badge'},r.approval_status||'Pending'),
-        r.decision_by_name||'—',r.decision_at?fmt(r.decision_at):'—',r.decision_remarks||'—',
-        h('div',{className:'employee-actions'},
-          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-primary',onClick:()=>decide(r,'Approved')},'Approve'),
-          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-secondary',onClick:()=>decide(r,'Partially Approved')},'Partial'),
-          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-danger',onClick:()=>decide(r,'Rejected')},'Reject')
-        )
+        h('div',{className:'employee-actions',style:{display:'flex',gap:'6px',flexWrap:'wrap',minWidth:canApprove?'235px':'80px'}},
+          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>decide(r,'Approved')},'Approve'),
+          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>decide(r,'Partially Approved')},'Partial'),
+          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-danger',disabled:busy,onClick:()=>decide(r,'Rejected')},'Reject'),
+          !canApprove&&h('span',{style:{color:'#8b7780'}},'—')
+        ),
+        profile?.role==='Nurse'?'Hidden':money(r.requested_amount||r.estimated_amount),
+        profile?.role==='Nurse'?'Hidden':money(r.approved_amount??r.final_amount),
+        r.service_provider||r.hospital_name||r.laboratory_name||'—',
+        r.decision_by_name||'—',r.decision_at?fmt(r.decision_at):'—',r.decision_remarks||r.approval_remarks||'—'
       ])
     });
 
@@ -20427,11 +22729,17 @@ Please access the Samara Family Portal for detailed account information.`;
       h(Section,{title:'Bills & Charges Register',subtitle:'Doctor, nursing, physiotherapy, laboratory, hospital, transport and other expenses'},
         h('div',{className:'clinical-charge-filters'},
           patientSelect(patients,filter.patient_id,v=>setFilter({...filter,patient_id:v})),
-          miniSelect('Status',filter.status,['All','Pending','Approved','Partially Approved','Rejected'],v=>setFilter({...filter,status:v})),
-          miniSelect('Category',filter.category,['All',...Object.keys(categories)],v=>setFilter({...filter,category:v}))
+          miniSelect('Status',filter.status,['All','Pending','Approved','Partially Approved','Rejected'],v=>{setQuickView('All');setFilter({...filter,status:v})}),
+          miniSelect('Category',filter.category,['All',...Object.keys(categories)],v=>{setQuickView('All');setFilter({...filter,category:v})})
         )
       ),
-      register,
+      h('div',{id:'bill-charge-register',style:{scrollMarginTop:'90px'}},
+        quickView!=='All'&&h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',margin:'0 0 10px',padding:'9px 12px',borderRadius:'12px',background:'#f9e7ef',border:'1px solid #e8bfd0'}},
+          h('strong',{style:{color:'#801747'}},`Showing: ${quickView}`),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setQuickView('All');setFilter(current=>({...current,status:'All'}))}},'Show All')
+        ),
+        register
+      ),
       diagTable,
       modal,
       toast&&h('div',{className:`samara-toast ${toast.type}`},

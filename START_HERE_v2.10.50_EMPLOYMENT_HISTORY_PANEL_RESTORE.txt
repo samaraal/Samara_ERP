@@ -1,0 +1,28 @@
+SAMARA ERP v2.10.50 — EMPLOYMENT & SALARY PANEL RESTORE
+
+The screenshot showed Employment & Access followed immediately by Personal & Contact.
+That means the browser/PWA was not displaying the newer Employment & Salary History UI.
+
+v2.10.50:
+- forces a fresh frontend version/cache
+- keeps Employment & Salary History permanently visible in Employee Personnel File
+- clearly shows + Employment Action
+- keeps Starting Salary / Current Salary summary from v2.10.49
+
+INSTALL:
+Replace only:
+1. app.js
+2. index.html
+3. service-worker.js
+
+No SQL is needed for this UI restore.
+Keep the already-run 117B salary SQL fix.
+
+After upload:
+- close and reopen the ERP/PWA
+- if old UI remains, App Help -> Repair App once
+
+Expected order inside Personnel File:
+1. Employment & Access
+2. Employment & Salary History
+3. Personal & Contact
