@@ -1,31 +1,48 @@
-SAMARA CARE ERP v2.10.19 — DIRECTOR'S OFFICE / TRANSFERABLE STD
+SAMARA CARE ERP v2.10.21 — STD ELEGANT COMMUNICATION DASHBOARD
 
-This revision does NOT hard-code Akshai, Chellaboomi, or any future employee.
+CHANGES
+-------
+1. Clinical alerts are now disabled at the SOURCE for STD.
+   The STD clinical engine does not call the clinical-alert RPC, does not start
+   its one-minute timer, removes any existing clinical overlay and cancels any
+   clinical speech. This fixes the large CLINICAL ALERT banner shown in the
+   Director's Office screenshot.
 
-Director's Office now contains two transferable position assignments:
-1. Director
-2. Secretary to the Director (STD)
+2. Director's Office dashboard improved:
+   - cleaner executive-style communication cards
+   - WhatsApp Enquiries
+   - Feedback
+   - existing Appointments, Calls, Follow-ups, Visitors, Correspondence, Reminders
 
-The Director assignment does not change the holder's ERP role.
-The STD assignment preserves the person's existing Login ID/password and automatically:
-- stores their old ERP role, department and designation
-- changes access role to STD
-- moves employment display to Director's Office
-- sets designation to Secretary to the Director (STD)
+3. STD access now includes:
+   - Director's Office
+   - WhatsApp Inbox
+   - Feedback
+   - My Leave & Permission
 
-When the STD is changed later:
-- the previous STD's old role/department/designation are restored automatically
-- the new holder receives STD access
-- no portal code change is needed
+4. STD remains transferable. Nothing is hard-coded to Akshai.
 
-DEPLOYMENT
-1. Supabase SQL Editor: run 104_directors_office_position_assignment.sql once.
-2. Supabase Edge Functions > admin-users: replace index.ts and deploy.
-3. Website root: replace app.js, index.html and service-worker.js.
-4. Open ERP > App Help > Repair App once if an old version remains cached.
-5. HR Dashboard > Director's Office:
-   - Assign Director = Chellaboomi
-   - Assign STD = Akshai
+INSTALL
+-------
+A. Supabase SQL Editor:
+   Run 106_std_whatsapp_feedback_access.sql once.
 
-Important: selecting Akshai does not create a duplicate employee and does not change her Login ID/password.
-Future STD changes are made only from HR > Director's Office > Change Assignment.
+B. ERP hosting:
+   Replace:
+   - app.js
+   - index.html
+   - service-worker.js
+
+C. Ctrl+F5 once after upload.
+
+DO NOT rerun SQL 104 or 105.
+DO NOT change WhatsApp Edge Functions.
+DO NOT change the Director/Admin role.
+
+TEST
+----
+1. Login as STD and keep the screen open for more than one minute:
+   NO medicine/clinical alert should appear.
+2. Open WhatsApp Enquiries from the Director's Office card.
+3. Open Feedback from the Director's Office card.
+4. Confirm My Leave & Permission still works.

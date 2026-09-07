@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.20';
+  const APP_VERSION = '2.10.21';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1400,7 +1400,7 @@ function initSamaraInaugurationInvitation(){
     Caregiver:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Leave Approvals','Notifications'],
     Accounts:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Leave Approvals','Notifications'],
     Kitchen:['Notifications','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission','Leave Approvals'],
-    STD:["Director's Office",'My Leave & Permission']
+    STD:["Director's Office",'WhatsApp Inbox','Feedback','My Leave & Permission']
   };
   const ROLE_HOME={Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet',STD:"Director's Office"};
   const CLINICAL_ROLES=['Nurse','Caregiver'];
@@ -2850,6 +2850,12 @@ Caring with Compassion. Living with Dignity.`;
     }
     async function refresh(){
       if(!profile)return;
+      if(profile?.role==='STD'){
+        setAlerts([]);
+        try{document.querySelectorAll('.samara-clinical-alert-overlay').forEach(node=>node.remove())}catch(_){}
+        try{if(window.speechSynthesis)window.speechSynthesis.cancel()}catch(_){}
+        return;
+      }
       const {data,error}=await client.rpc('get_current_clinical_alerts');
       if(error){console.warn('Alert engine:',error.message);setAlerts([]);return}
 
@@ -3017,6 +3023,12 @@ Caring with Compassion. Living with Dignity.`;
     React.useEffect(()=>{loadSettings()},[]);
     React.useEffect(()=>{
       if(!profile)return;
+      if(profile?.role==='STD'){
+        setAlerts([]);
+        try{document.querySelectorAll('.samara-clinical-alert-overlay').forEach(node=>node.remove())}catch(_){}
+        try{if(window.speechSynthesis)window.speechSynthesis.cancel()}catch(_){}
+        return;
+      }
       refresh();const timer=setInterval(refresh,60000);
       return()=>clearInterval(timer);
     },[profile,settings.repeat_minutes,settings.sound_enabled,settings.voice_enabled,settings.browser_notifications_enabled,soundUnlocked]);
@@ -5798,7 +5810,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Dashboard'&&h(Dashboard,{profile,onNavigate:setPage,alertEngine}),
           page==='HR Dashboard'&&h(HRDashboard,{profile,onNavigate:setPage}),
           page==='Employees'&&h(Employees,{profile,onNavigate:setPage}),
-          page==="Director's Office"&&h(DirectorOfficeDashboard,{profile}),
+          page==="Director's Office"&&h(DirectorOfficeDashboard,{profile,onNavigate:setPage}),
           page==='My Leave & Permission'&&h(LeavePermission,{profile,mode:'mine'}),
           page==='Leave Approvals'&&h(LeavePermission,{profile,mode:'approvals'}),
           page==='Career Applications'&&h(CareerApplications,{profile,onNavigate:setPage}),
@@ -7076,7 +7088,7 @@ Please reply to this message and our team will be happy to assist you.
 Thank you,
 Samara Assisted Living`;
     }
-    const canUse=['Admin','Manager','HR'].includes(String(profile?.role||''));
+    const canUse=['Admin','Manager','HR','STD'].includes(String(profile?.role||''));
     async function load(showStatus=false){
       if(!canUse)return;
       if(showStatus)setMessage('Refreshing WhatsApp Inbox…');
@@ -7121,7 +7133,7 @@ Samara Assisted Living`;
       }
       try{sessionStorage.removeItem('samara_patient_whatsapp_context')}catch(_error){}
     },[rows.length]);
-    if(!canUse)return h(Section,{title:'WhatsApp Inbox'},h('p',{className:'empty'},'WhatsApp Inbox is available to Admin and Manager.'));
+    if(!canUse)return h(Section,{title:'WhatsApp Inbox'},h('p',{className:'empty'},'WhatsApp Inbox is available to authorised communication staff.'));
     const phoneOf=r=>normalizeWhatsAppRecipient(r.recipient_number||'');
     function patientLinkedMessage(row,context){
       if(!context)return true;
@@ -8104,7 +8116,7 @@ Thank you.`;
   }
 
 
-  function DirectorOfficeDashboard({profile}){
+  function DirectorOfficeDashboard({profile,onNavigate}){
     const TYPES=['Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder'];
     const PRIORITIES=['Normal','Important','Urgent'];
     const STATUSES=['Pending','In Progress','Completed','Cancelled'];
@@ -8120,6 +8132,8 @@ Thank you.`;
     const [editingId,setEditingId]=React.useState(null);
     const [form,setForm]=React.useState(blank());
     const [saving,setSaving]=React.useState(false);
+    const [waUnread,setWaUnread]=React.useState(0);
+    const [feedbackOpen,setFeedbackOpen]=React.useState(0);
 
     const canUse=['Admin','STD'].includes(profile?.role);
 
@@ -8160,13 +8174,34 @@ Thank you.`;
       }else setRows(data||[]);
       setLoading(false);
     }
+    async function loadCommunicationCounts(){
+      try{
+        const {data:waRows}=await client.from('hr_whatsapp_communications')
+          .select('id,direction,read_at,created_at')
+          .eq('direction','inbound')
+          .order('created_at',{ascending:false})
+          .limit(500);
+        setWaUnread((waRows||[]).filter(r=>!r.read_at).length);
+      }catch(_){setWaUnread(0)}
+      try{
+        const {data:fbRows}=await client.from('feedback')
+          .select('id,status')
+          .limit(500);
+        setFeedbackOpen((fbRows||[]).filter(r=>!['Closed','Resolved'].includes(String(r.status||''))).length);
+      }catch(_){setFeedbackOpen(0)}
+    }
+
     React.useEffect(()=>{
       if(!canUse){setLoading(false);return}
-      load();
+      load();loadCommunicationCounts();
       const ch=client.channel('director-office-live')
         .on('postgres_changes',{event:'*',schema:'public',table:'director_office_items'},load)
         .subscribe();
-      return()=>client.removeChannel(ch);
+      const comm=client.channel('director-office-communications-live')
+        .on('postgres_changes',{event:'*',schema:'public',table:'hr_whatsapp_communications'},loadCommunicationCounts)
+        .on('postgres_changes',{event:'*',schema:'public',table:'feedback'},loadCommunicationCounts)
+        .subscribe();
+      return()=>{client.removeChannel(ch);client.removeChannel(comm)};
     },[]);
 
     function openNew(type='Follow-up'){
@@ -8250,6 +8285,24 @@ Thank you.`;
       h('small',{style:{color:'#846d79'}},sub||'Tap to view')
     );
 
+    const commCard=(label,value,icon,subtitle,target)=>h('button',{
+      type:'button',
+      onClick:()=>onNavigate&&onNavigate(target),
+      style:{
+        textAlign:'left',border:'1px solid #ead7e0',borderRadius:'18px',
+        background:'linear-gradient(145deg,#ffffff 0%,#fff7fb 100%)',
+        padding:'16px 17px',cursor:'pointer',minHeight:'102px',
+        boxShadow:'0 7px 20px rgba(125,23,73,.07)'
+      }
+    },
+      h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px'}},
+        h('span',{style:{fontSize:'27px'}},icon),
+        h('strong',{style:{fontSize:'29px',fontWeight:950,color:'#9b124f'}},value)
+      ),
+      h('div',{style:{fontWeight:900,color:'#351b29',marginTop:'5px',fontSize:'15px'}},label),
+      h('small',{style:{color:'#846d79'}},subtitle)
+    );
+
     const itemCard=r=>h('div',{key:r.id,style:{border:'1px solid #ead7e0',borderRadius:'15px',background:'#fff',padding:'13px 14px',display:'grid',gap:'8px'}},
       h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'flex-start',flexWrap:'wrap'}},
         h('div',null,
@@ -8307,6 +8360,10 @@ Thank you.`;
           card('Visitors',visitors.length,'Visitor','Expected / pending'),
           card('Correspondence',correspondence.length,'Correspondence','Letters & communications'),
           card('Reminders',reminders.length,'Reminder','Upcoming reminders')
+        ),
+        h('div',{style:{marginTop:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(230px,1fr))',gap:'10px'}},
+          commCard('WhatsApp Enquiries',waUnread,'◉','Open public / enquiry conversations','WhatsApp Inbox'),
+          commCard('Feedback',feedbackOpen,'★','Review feedback and responses','Feedback')
         ),
         urgent.length?h('div',{style:{marginTop:'12px',padding:'10px 12px',borderRadius:'12px',background:'#fff3f3',border:'1px solid #efc2c2',fontWeight:800,color:'#8d1b2c'}},`⚠ ${urgent.length} urgent item${urgent.length===1?'':'s'} pending`):null
       ),
