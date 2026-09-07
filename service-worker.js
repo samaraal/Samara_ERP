@@ -1,5 +1,5 @@
-const APP_VERSION = '2.10.53';
-const CACHE = 'samara-erp-2.10.53-pwa-recovery';
+const APP_VERSION = '2.10.54';
+const CACHE = 'samara-erp-2.10.54-manager-voice-todo';
 const SHELL = [
   './',
   './index.html',

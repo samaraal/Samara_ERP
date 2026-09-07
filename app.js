@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.53';
+  const APP_VERSION = '2.10.52';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1385,7 +1385,7 @@ function initSamaraInaugurationInvitation(){
     { title:'HR', items:['HR Dashboard','Employees','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:"DIRECTOR'S OFFICE", items:["Director's Office"] },
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
-    { title:'MANAGER', items:['My Quick Tasks','My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
+    { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
@@ -1395,7 +1395,7 @@ function initSamaraInaugurationInvitation(){
   const ALL_NAV = NAV_SECTIONS.flatMap(section=>section.items);
   const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
   const ROLE_NAV={
-    Admin:ALL_NAV.filter(item=>!['My To-Do & Follow-up','My Quick Tasks'].includes(item)&&!NURSING_ENTRY_NAV.includes(item)),
+    Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&!NURSING_ENTRY_NAV.includes(item)),
     Manager:ALL_NAV.filter(item=>!["Director's Office",'System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds',...NURSING_ENTRY_NAV].includes(item)),
 
     Nurse:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My Leave & Permission','Leave Approvals','Notifications'],
@@ -1409,8 +1409,13 @@ function initSamaraInaugurationInvitation(){
   });
   const ROLE_HOME={Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet',STD:"Director's Office"};
   const isNursingManagerProfile=profile=>{
-    const designation=String(profile?.designation||'').trim().toLowerCase();
-    return designation==='nurse manager'||designation==='nursing manager';
+    const clean=value=>String(value||'').trim().toLowerCase().replace(/[._-]+/g,' ').replace(/\s+/g,' ');
+    const designation=clean(profile?.designation||profile?.employee_designation||profile?.job_title||profile?.position);
+    if(designation==='nurse manager'||designation==='nursing manager')return true;
+    // Legacy/login-only profiles can temporarily miss the designation field.
+    // Only use the department+role fallback when no designation-like value exists.
+    const department=clean(profile?.department);
+    return !designation && department==='nursing' && clean(profile?.role)==='manager';
   };
   const allowedPagesForProfile=profile=>{
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
@@ -5833,6 +5838,32 @@ Caring with Compassion. Living with Dignity.`;
           if(direct.error) console.error(direct.error);
           data=direct.data||null;
 
+          // v2.10.52: a login-only profile can exist separately from the richer
+          // employee row.  When the direct row has no designation, resolve the
+          // best same-person employee profile so designation-based workspaces
+          // (especially Nurse Manager voice tasks) are not lost.
+          if(data && !String(data.designation||'').trim()){
+            try{
+              const filters=[];
+              const safe=value=>String(value||'').trim().replace(/[,()]/g,'');
+              if(data.full_name)filters.push(`full_name.ilike.${safe(data.full_name)}`);
+              if(data.mobile)filters.push(`mobile.eq.${safe(data.mobile)}`);
+              if(data.login_id)filters.push(`login_id.eq.${safe(data.login_id)}`);
+              if(filters.length){
+                const richer=await profileTimeout(
+                  client.from('profiles').select('*').or(filters.join(',')),
+                  7000,
+                  'Employee designation lookup'
+                );
+                if(!richer.error && Array.isArray(richer.data) && richer.data.length){
+                  const candidates=deduplicateEmployeeProfiles([data,...richer.data]);
+                  const best=[...candidates].sort((a,b)=>employeeProfileScore(b)-employeeProfileScore(a))[0];
+                  if(best && employeeProfileScore(best)>employeeProfileScore(data)) data={...data,...best};
+                }
+              }
+            }catch(error){console.warn('Employee designation enrichment skipped:',error?.message||error)}
+          }
+
           // Login-only compatibility repair: securely locate and link an existing
           // employee profile when the Authentication account was created separately.
           if(!data){
@@ -6505,7 +6536,7 @@ Caring with Compassion. Living with Dignity.`;
     }
 
     const patients=choose('Patients');
-    const work=profile?.role==='Manager'?choose('My Quick Tasks',['My To-Do & Follow-up','HR Dashboard']):choose('HR Dashboard',['Clinical Dashboard','Admissions','Employees','Billing & Payments']);
+    const work=profile?.role==='Manager'?choose('My To-Do & Follow-up',['HR Dashboard']):choose('HR Dashboard',['Clinical Dashboard','Admissions','Employees','Billing & Payments']);
     const reports=choose('Reports',['Intelligent Reports','Billing & Payments','Notifications']);
     const items=[
       {page:home,icon:'⌂',label:'Home'},
@@ -7385,14 +7416,14 @@ function Dashboard({profile,onNavigate,alertEngine}){
     return h(React.Fragment,null,
       h('div',{className:'shift-summary'},h('div',null,h('strong',null,currentShift()),h('span',null,'Admin and Manager control dashboard')),h('span',{className:'badge'},formalName(profile))),
       profile?.role==='Manager'?h('button',{
-        type:'button',onClick:()=>onNavigate('My Quick Tasks'),
+        type:'button',onClick:()=>onNavigate('My To-Do & Follow-up'),
         style:{width:'100%',marginTop:'14px',marginBottom:'14px',textAlign:'left',border:'1px solid #e2b8c9',borderLeft:'6px solid #9f174e',borderRadius:'18px',padding:'14px 16px',cursor:'pointer',background:'linear-gradient(135deg,#fffafd,#f8e5ed)',boxShadow:'0 8px 22px rgba(119,18,65,.08)'}
       },
         h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'center',flexWrap:'wrap'}},
           h('div',null,h('div',{style:{fontSize:'12px',fontWeight:900,letterSpacing:'.06em',color:'#9a1850'}},'MY PERSONAL WORKSPACE'),
-            h('div',{style:{fontSize:'19px',fontWeight:950,color:'#461427'}},'Quick Tasks — Tamil / English Voice'),
-            h('small',{style:{color:'#735b66'}},'Private — speak or type your own task')),
-          h('span',{className:'badge'},'Open Quick Tasks →')
+            h('div',{style:{fontSize:'19px',fontWeight:950,color:'#461427'}},'To-Do & Follow-up'),
+            h('small',{style:{color:'#735b66'}},'Private — visible only to your own login')),
+          h('span',{className:'badge'},'Open My List →')
         ),
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(135px,1fr))',gap:'8px',marginTop:'11px'}},
           [['Due Today',managerPersonalSummary.today],['Overdue',managerPersonalSummary.overdue],['Follow-ups',managerPersonalSummary.followup],['Completed Today',managerPersonalSummary.completed]].map(([label,value])=>
@@ -7491,6 +7522,15 @@ function Dashboard({profile,onNavigate,alertEngine}){
     const [filter,setFilter]=React.useState('Open');
     const [busy,setBusy]=React.useState(false);
     const [message,setMessage]=React.useState('');
+    const [voiceListening,setVoiceListening]=React.useState(false);
+    const [voiceProcessing,setVoiceProcessing]=React.useState(false);
+    const [voiceTranscript,setVoiceTranscript]=React.useState('');
+    const [voiceMessage,setVoiceMessage]=React.useState('');
+    const voiceRecognitionRef=React.useRef(null);
+    const mobileRecorderRef=React.useRef(null);
+    const mobileStreamRef=React.useRef(null);
+    const mobileChunksRef=React.useRef([]);
+    const mobileVoiceLangRef=React.useRef('ta-IN');
 
     const load=React.useCallback(async()=>{
       const {data,error}=await client.from('manager_personal_tasks')
@@ -7521,6 +7561,136 @@ function Dashboard({profile,onNavigate,alertEngine}){
       if(filter==='Completed')return r.status==='Completed';
       return true;
     });
+
+    function stopManagerVoice(){
+      try{voiceRecognitionRef.current?.stop?.()}catch(_){}
+      voiceRecognitionRef.current=null;
+      try{if(mobileRecorderRef.current&&mobileRecorderRef.current.state!=='inactive')mobileRecorderRef.current.stop()}catch(_){}
+      try{mobileStreamRef.current?.getTracks?.().forEach(t=>t.stop())}catch(_){}
+      mobileStreamRef.current=null;
+      setVoiceListening(false);
+    }
+    function managerUseMobileRecorder(){
+      const ua=String(navigator.userAgent||'');
+      const mobileUA=/iPhone|iPad|iPod|Android/i.test(ua);
+      const coarse=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
+      return Boolean(mobileUA||coarse);
+    }
+    function managerBestMime(){
+      const options=['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus'];
+      for(const x of options){try{if(window.MediaRecorder&&MediaRecorder.isTypeSupported?.(x))return x}catch(_){}}
+      return '';
+    }
+    function mapManagerVoice(result){
+      const x=result?.fields||{};
+      const kind=String(x.task_kind||'').toLowerCase();
+      const category=kind.includes('purchase')||kind.includes('buy')?'Vendor':kind.includes('visit')?'Patient / Relative':kind.includes('travel')?'General':form.category;
+      let due='';
+      if(x.scheduled_at)due=String(x.scheduled_at).slice(0,16);
+      else if(x.due_date)due=`${x.due_date}T09:00`;
+      const details=[x.contact_name?`Person / Place: ${x.contact_name}`:'',x.details||''].filter(Boolean).join('\n');
+      setForm(current=>({
+        ...current,
+        subject:x.title||current.subject,
+        category:category||current.category,
+        priority:x.priority==='Urgent'?'Urgent':x.priority==='Important'?'High':(x.priority||current.priority),
+        due_at:due||current.due_at,
+        notes:details||current.notes
+      }));
+      if(result?.transcript)setVoiceTranscript(String(result.transcript));
+      setVoiceMessage('✓ Voice task filled in simple English. Please check and tap Add to My List.');
+    }
+    async function managerSendTranscript(transcript,lang){
+      setVoiceProcessing(true);setVoiceMessage('Understanding your task…');
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Please sign in again.');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{
+          method:'POST',
+          headers:{'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey,'Content-Type':'application/json'},
+          body:JSON.stringify({transcript,spoken_language:lang,current_form_type:'Task',current_task_kind:'General Task',now_iso:new Date().toISOString(),timezone:'Asia/Kolkata'})
+        });
+        const result=await response.json().catch(()=>({error:'Unable to read voice response'}));
+        if(!response.ok||result.error)throw new Error(result.error||'Unable to understand task.');
+        mapManagerVoice(result);
+      }catch(error){setVoiceMessage(error.message||'Unable to understand task.')}
+      finally{setVoiceProcessing(false)}
+    }
+    async function managerSendAudio(blob,lang){
+      setVoiceProcessing(true);setVoiceMessage('Understanding your voice…');
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Please sign in again.');
+        const ext=(blob.type||'').includes('mp4')?'m4a':(blob.type||'').includes('ogg')?'ogg':'webm';
+        const fd=new FormData();
+        fd.append('audio',blob,`manager-task-voice.${ext}`);
+        fd.append('spoken_language',lang);
+        fd.append('current_form_type','Task');
+        fd.append('current_task_kind','General Task');
+        fd.append('now_iso',new Date().toISOString());
+        fd.append('timezone','Asia/Kolkata');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{
+          method:'POST',
+          headers:{'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey},
+          body:fd
+        });
+        const result=await response.json().catch(()=>({error:'Unable to read voice response'}));
+        if(!response.ok||result.error)throw new Error(result.error||'Unable to process voice task.');
+        mapManagerVoice(result);
+      }catch(error){setVoiceMessage(error.message||'Unable to process voice task.')}
+      finally{setVoiceProcessing(false)}
+    }
+    async function startManagerMobileVoice(lang){
+      if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){
+        setVoiceMessage('Microphone recording is not available. Please use current Chrome/Safari and allow microphone access.');
+        return;
+      }
+      stopManagerVoice();setVoiceTranscript('');setVoiceMessage('🎤 Speak naturally. Tap Stop when finished.');
+      try{
+        const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+        mobileStreamRef.current=stream;mobileChunksRef.current=[];mobileVoiceLangRef.current=lang;
+        const mime=managerBestMime();
+        const rec=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);
+        mobileRecorderRef.current=rec;
+        rec.ondataavailable=e=>{if(e.data?.size)mobileChunksRef.current.push(e.data)};
+        rec.onstop=async()=>{
+          const type=rec.mimeType||mobileChunksRef.current[0]?.type||'audio/webm';
+          const blob=new Blob(mobileChunksRef.current,{type});
+          mobileChunksRef.current=[];
+          try{stream.getTracks().forEach(t=>t.stop())}catch(_){}
+          mobileStreamRef.current=null;mobileRecorderRef.current=null;setVoiceListening(false);
+          if(blob.size<1000)return setVoiceMessage('No useful speech was captured. Please try again.');
+          await managerSendAudio(blob,mobileVoiceLangRef.current);
+        };
+        rec.start();setVoiceListening(true);
+      }catch(error){
+        setVoiceListening(false);
+        setVoiceMessage(error?.name==='NotAllowedError'?'Microphone permission is blocked. Please allow microphone access for Samara Care.':(error.message||'Unable to start microphone.'));
+      }
+    }
+    function startManagerVoice(lang='ta-IN'){
+      if(managerUseMobileRecorder())return startManagerMobileVoice(lang);
+      const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+      if(!SpeechRecognition)return setVoiceMessage('Voice recognition is not available in this browser.');
+      stopManagerVoice();setVoiceTranscript('');setVoiceMessage('🎤 Speak naturally…');
+      try{
+        const rec=new SpeechRecognition();voiceRecognitionRef.current=rec;
+        rec.lang=lang;rec.interimResults=true;rec.continuous=false;rec.maxAlternatives=1;
+        let finalText='';
+        rec.onstart=()=>setVoiceListening(true);
+        rec.onresult=e=>{
+          let interim='';
+          for(let i=e.resultIndex;i<e.results.length;i++){
+            const t=e.results[i][0]?.transcript||'';
+            if(e.results[i].isFinal)finalText+=`${t} `;else interim+=t;
+          }
+          setVoiceTranscript((finalText||interim).trim());
+        };
+        rec.onerror=e=>{setVoiceListening(false);setVoiceMessage(`Voice recognition stopped${e?.error?`: ${e.error}`:''}. Please try again.`)};
+        rec.onend=()=>{setVoiceListening(false);const spoken=finalText.trim();if(spoken)managerSendTranscript(spoken,lang);else setVoiceMessage('No speech was captured. Please try again.')};
+        rec.start();
+      }catch(error){setVoiceListening(false);setVoiceMessage(error.message||'Unable to start microphone.')}
+    }
 
     function startEdit(r){
       const toLocalInput=v=>{
@@ -7597,6 +7767,17 @@ function Dashboard({profile,onNavigate,alertEngine}){
       ),
       message?h('div',{className:`message ${message.startsWith('✓')?'success':'error'}`,style:{marginTop:'12px'}},message):null,
       h(Section,{title:editing?'Edit Personal Item':'Add Personal Item',subtitle:'This is your own private Manager list. Admin and other Managers cannot access it.'},
+        h('div',{style:{margin:'0 0 14px',padding:'13px',border:'1px solid #e7bfd0',borderRadius:'15px',background:'linear-gradient(135deg,#fffafd,#f9e6ee)'}},
+          h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
+            h('div',null,h('strong',{style:{color:'#78103f'}},'🎤 Tamil / English Voice Task'),h('div',{style:{fontSize:'12px',color:'#765966',marginTop:'2px'}},'Speak naturally. The task will be converted into simple English and filled below.')),
+            voiceListening?h('button',{type:'button',className:'btn btn-danger',onClick:stopManagerVoice},'■ Stop'):h('div',{className:'actions'},
+              h('button',{type:'button',className:'btn btn-primary',disabled:voiceProcessing,onClick:()=>startManagerVoice('ta-IN')},voiceProcessing?'Processing…':'🎤 Speak Tamil'),
+              h('button',{type:'button',className:'btn btn-secondary',disabled:voiceProcessing,onClick:()=>startManagerVoice('en-IN')},'🎤 Speak English')
+            )
+          ),
+          voiceTranscript&&h('div',{style:{marginTop:'9px',fontSize:'13px'}},h('strong',null,'Heard: '),voiceTranscript),
+          voiceMessage&&h('div',{style:{marginTop:'7px',fontSize:'13px',fontWeight:700,color:voiceMessage.startsWith('✓')?'#08783d':'#7a3150'}},voiceMessage)
+        ),
         h('form',{onSubmit:save},
           h('div',{className:'grid two'},
             h('div',{className:'field'},h('label',null,'Subject *'),h('input',{value:form.subject,onChange:e=>setForm({...form,subject:e.target.value}),required:true,placeholder:'What needs to be done / followed up?'})),
@@ -8859,7 +9040,7 @@ Thank you.`;
     const mobileChunksRef=React.useRef([]);
     const mobileVoiceLangRef=React.useRef('ta-IN');
 
-    const allowed=profile?.role==='Manager'||isNursingManagerProfile(profile);
+    const allowed=isNursingManagerProfile(profile);
     const pad=n=>String(n).padStart(2,'0');
     const localDate=v=>{
       if(!v)return '';
@@ -9066,13 +9247,13 @@ Thank you.`;
       await load();
     }
 
-    if(!allowed)return h(Section,{title:'My Quick Tasks'},h('div',{className:'empty'},'Available to Manager ERP users.'));
-    if(loading)return h('div',{className:'loading'},'Loading Manager quick tasks…');
+    if(!allowed)return h(Section,{title:'My Quick Tasks'},h('div',{className:'empty'},'Available only to the Nursing Manager.'));
+    if(loading)return h('div',{className:'loading'},'Loading Nursing Manager quick tasks…');
 
     const stat=(label,value,key)=>h('button',{type:'button',className:'card stat',onClick:()=>setFilter(key),style:{cursor:'pointer',textAlign:'left',border:filter===key?'2px solid #a91653':undefined}},h('span',null,label),h('strong',null,value),h('small',null,'Open list →'));
 
     const modal=showForm?h('div',{className:'modal-backdrop'},h('form',{className:'modal-card',onSubmit:save},
-      h('div',{className:'panel-head'},h('div',null,h('h3',null,editingId?'Update Quick Task':'New Quick Task'),h('small',null,'Manager personal task — Tamil / English voice or typing')),h('button',{type:'button',className:'close',onClick:()=>{stopVoice();setShowForm(false)}},'×')),
+      h('div',{className:'panel-head'},h('div',null,h('h3',null,editingId?'Update Quick Task':'New Quick Task'),h('small',null,'Nursing Manager personal task — only the essentials')),h('button',{type:'button',className:'close',onClick:()=>{stopVoice();setShowForm(false)}},'×')),
       h('div',{style:{margin:'0 0 14px',padding:'12px',border:'1px solid #e7bfd0',borderRadius:'15px',background:'linear-gradient(135deg,#fffafd,#f9e6ee)'}},
         h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
           h('div',null,h('strong',{style:{color:'#78103f'}},'🎤 Voice Entry'),h('div',{style:{fontSize:'12px',color:'#765966',marginTop:'2px'}},useMobileRecorder()?'Tap Speak, talk naturally, then tap Stop. Tamil/English will be converted and the form will be filled.':'Speak naturally. Tamil will be converted to simple English and the form will be filled for you.')),
@@ -9097,7 +9278,7 @@ Thank you.`;
     )):null;
 
     return h('div',{className:'nursing-manager-quick-tasks'},
-      h('div',{className:'shift-summary'},h('div',null,h('strong',null,'My Quick Tasks'),h('span',null,'Manager personal task list with Tamil / English voice entry')),h('button',{type:'button',className:'btn btn-primary',onClick:openNew},'＋ Quick Task')),
+      h('div',{className:'shift-summary'},h('div',null,h('strong',null,'My Quick Tasks'),h('span',null,'Nursing Manager personal task list with Tamil / English voice entry')),h('button',{type:'button',className:'btn btn-primary',onClick:openNew},'＋ Quick Task')),
       h('div',{className:'grid stats',style:{marginTop:'14px'}},stat('Open',openRows.length,'Open'),stat('Due Today',todayRows.length,'Today'),stat('Overdue',overdueRows.length,'Overdue'),stat('Completed',completedRows.length,'Completed')),
       message&&!showForm?h('div',{className:`message ${message.startsWith('✓')?'success':'error'}`,style:{marginTop:'12px'}},message):null,
       h(Section,{title:`Tasks (${visible.length})`,subtitle:'Only your own Nursing Manager tasks are shown.'},
