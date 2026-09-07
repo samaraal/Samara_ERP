@@ -1,31 +1,20 @@
-SAMARA CARE ERP v2.10.19 — DIRECTOR'S OFFICE / TRANSFERABLE STD
+Samara Care ERP v2.10.53 – Manager Voice Tasks
 
-This revision does NOT hard-code Akshai, Chellaboomi, or any future employee.
+Replace only these files in the ERP root:
+1. app.js
+2. index.html
+3. service-worker.js
 
-Director's Office now contains two transferable position assignments:
-1. Director
-2. Secretary to the Director (STD)
+What changed:
+- Every ERP user whose ERP Role is Manager receives My Quick Tasks.
+- No designation detection is required.
+- Mobile bottom Work button opens My Quick Tasks for Managers.
+- My Quick Tasks includes Speak Tamil and Speak English voice task entry.
+- The existing My To-Do & Follow-up remains separately available from the Manager module.
+- Admin and other roles are not given this Manager-only private task workspace by this change.
 
-The Director assignment does not change the holder's ERP role.
-The STD assignment preserves the person's existing Login ID/password and automatically:
-- stores their old ERP role, department and designation
-- changes access role to STD
-- moves employment display to Director's Office
-- sets designation to Secretary to the Director (STD)
-
-When the STD is changed later:
-- the previous STD's old role/department/designation are restored automatically
-- the new holder receives STD access
-- no portal code change is needed
-
-DEPLOYMENT
-1. Supabase SQL Editor: run 104_directors_office_position_assignment.sql once.
-2. Supabase Edge Functions > admin-users: replace index.ts and deploy.
-3. Website root: replace app.js, index.html and service-worker.js.
-4. Open ERP > App Help > Repair App once if an old version remains cached.
-5. HR Dashboard > Director's Office:
-   - Assign Director = Chellaboomi
-   - Assign STD = Akshai
-
-Important: selecting Akshai does not create a duplicate employee and does not change her Login ID/password.
-Future STD changes are made only from HR > Director's Office > Change Assignment.
+After upload:
+- Open ERP on the phone.
+- Menu -> App Help / Repair -> Check for Updates.
+- Confirm version 2.10.53.
+- If old UI remains, use Repair App once and reopen ERP.
