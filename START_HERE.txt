@@ -1,74 +1,57 @@
-SAMARA CARE ERP v2.10.27 — MY PROFILE FOR ALL STAFF
+SAMARA CARE ERP v2.10.28 — MANAGER PERSONAL TO-DO & FOLLOW-UP
 
-NEW
----
-Every logged-in employee now has:
-  MY ACCOUNT -> My Profile
-
-The user card at the bottom of the left sidebar is also clickable and opens
-My Profile directly.
-
-MY PROFILE
-----------
-Official HR-controlled details (read-only):
-- Employee ID
-- Full Name
-- Department
-- Designation
-- ERP Role / Access
-- Date of Joining
-
-Employee-editable contact details:
-- Mobile
-- Email
-- Address
-- Emergency / Guardian Contact
-
-LOGIN & SECURITY
-----------------
-Every active employee can:
-- Change Login ID / Username
-- Change Password
-
-SECURITY RULES
---------------
-1. Login ID change requires CURRENT PASSWORD.
-2. Login ID is checked for uniqueness.
-3. Allowed Login ID characters:
-   letters, numbers, dot, underscore, hyphen
-4. Password change requires CURRENT PASSWORD.
-5. New password minimum: 8 characters.
-6. New password must differ from the current password.
-7. Changing Login ID does NOT change Employee ID, designation, department or role.
-8. Staff cannot edit their own employment status or ERP access.
-9. Changes are logged in password_security_events.
-
-TRANSFERABLE ROLES
-------------------
-This works automatically for Admin, Manager, Nurse, Caregiver, Accounts,
-Kitchen and STD, including future employees assigned to those roles.
-
-INSTALL
+PURPOSE
 -------
-A. Supabase -> Edge Functions -> admin-users
-   Replace/deploy:
-   supabase/functions/admin-users/index.ts
+A private personal organiser for each Manager.
 
-B. ERP hosting
-   Replace:
-   app.js
-   index.html
-   service-worker.js
+PRIVACY
+-------
+- Each Manager sees ONLY items created under their own login.
+- Other Managers cannot see them.
+- Admin cannot see them through the ERP or normal authenticated database access.
+- STD, HR, Accounts, Nurse, Caregiver, Kitchen cannot access them.
+- Privacy is enforced by Supabase Row Level Security (RLS), not merely hidden in the UI.
 
-C. Ctrl+F5 once after upload.
+MANAGER DASHBOARD
+-----------------
+New private navigation box:
+- Due Today
+- Overdue
+- Follow-ups Pending
+- Completed Today
 
-NO SQL REQUIRED.
+MY TO-DO & FOLLOW-UP
+--------------------
+Manager can:
+- Add task / follow-up
+- Category: General, Patient/Relative, Staff, Vendor, Maintenance, Billing, Admission
+- Priority: Low, Normal, High, Urgent
+- Due date & time
+- Follow-up date & time
+- Notes
+- Status: Pending, In Progress, Waiting, Completed
+- Complete
+- Remind Tomorrow
+- Edit
+- Delete
+- Filter Open / Today / Overdue / Follow-up / Completed / All
 
-TEST
-----
-1. Login as any staff member.
-2. Click the name/profile card at bottom-left.
-3. Edit mobile/email/address and Save.
-4. Change Login ID using the current password.
-5. Sign out and confirm the NEW Login ID works.
-6. Login again and change password using the current password.
+INSTALL ORDER
+-------------
+1. Supabase SQL Editor:
+   Run 109_manager_personal_todo.sql
+
+2. ERP hosting:
+   Replace app.js
+   Replace index.html
+   Replace service-worker.js
+
+3. Ctrl+F5 once.
+
+NO EDGE FUNCTION CHANGE REQUIRED FOR THIS FEATURE.
+
+IMPORTANT
+---------
+The supplied admin-users Edge Function is retained in the ZIP because it belongs
+to v2.10.27 My Profile. If you already deployed v2.10.27, you do not need to
+redeploy it for this v2.10.28 Manager To-Do feature.

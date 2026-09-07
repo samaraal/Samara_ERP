@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.27';
+  const APP_VERSION = '2.10.28';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1385,7 +1385,7 @@ function initSamaraInaugurationInvitation(){
     { title:'HR', items:['HR Dashboard','Employees','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:"DIRECTOR'S OFFICE", items:["Director's Office"] },
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
-    { title:'MANAGER', items:['Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
+    { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
@@ -1395,8 +1395,9 @@ function initSamaraInaugurationInvitation(){
   const ALL_NAV = NAV_SECTIONS.flatMap(section=>section.items);
   const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
   const ROLE_NAV={
-    Admin:ALL_NAV.filter(item=>!NURSING_ENTRY_NAV.includes(item)),
+    Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&!NURSING_ENTRY_NAV.includes(item)),
     Manager:ALL_NAV.filter(item=>!["Director's Office",'System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds',...NURSING_ENTRY_NAV].includes(item)),
+
     Nurse:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My Leave & Permission','Leave Approvals','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Leave Approvals','Notifications'],
     Accounts:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Leave Approvals','Notifications'],
@@ -1426,7 +1427,8 @@ function initSamaraInaugurationInvitation(){
     'Mail Dashboard':'Mail',
     'Notifications':'Alerts',
     "Director's Office":"Director's Office",
-    'My Profile':'My Profile'
+    'My Profile':'My Profile',
+    'My To-Do & Follow-up':'My To-Do & Follow-up'
   };
   const displayNavLabel=(item,role)=>CLINICAL_ROLES.includes(role)?(ROLE_LABELS[item]||item):item;
   const sectionsFor = (allowed,role) => {
@@ -5864,6 +5866,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Admissions'&&h(Admissions,{profile,onNavigate:setPage}),
           page==='Clinical Dashboard'&&h(ClinicalDashboard,{profile,onNavigate:setPage,alertEngine}),
           page==='Clinical Alerts'&&h(ClinicalAlertsPage,{engine:alertEngine,setPage}),
+          page==='My To-Do & Follow-up'&&h(ManagerPersonalTodo,{profile}),
           page==='Clinical Escalations'&&h(ClinicalEscalationsDashboard,{profile,onNavigate:setPage}),
           page==='Shift Tasks'&&h(ShiftTasks,{profile,onNavigate:setPage}),
           page==='Patients'&&h(Patients,{profile,onNavigate:setPage}),
@@ -7060,6 +7063,7 @@ Caring with Compassion. Living with Dignity.`;
 
   function Dashboard({profile,onNavigate,alertEngine}){
     const [stats,setStats]=React.useState({employees:0,patients:0,availableBeds:0,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[],escalations:0,packageExpiry:0});
+    const [managerPersonalSummary,setManagerPersonalSummary]=React.useState({today:0,overdue:0,followup:0,completed:0});
     const [directorOfficeSummary,setDirectorOfficeSummary]=React.useState({
       isDirector:false,
       awaiting:0,
@@ -7067,6 +7071,22 @@ Caring with Compassion. Living with Dignity.`;
       appointments:0,
       urgent:0
     });
+
+    React.useEffect(()=>{(async()=>{
+      if(profile?.role!=='Manager'){setManagerPersonalSummary({today:0,overdue:0,followup:0,completed:0});return}
+      try{
+        const {data}=await client.from('manager_personal_tasks').select('status,due_at,follow_up_at,completed_at').limit(1000);
+        const rows=data||[], now=new Date();
+        const day=v=>{if(!v)return '';const d=new Date(v);if(Number.isNaN(d.getTime()))return '';return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+        const today=day(now), open=r=>!['Completed','Cancelled'].includes(String(r.status||''));
+        setManagerPersonalSummary({
+          today:rows.filter(r=>open(r)&&day(r.due_at)===today).length,
+          overdue:rows.filter(r=>open(r)&&r.due_at&&new Date(r.due_at)<now&&day(r.due_at)!==today).length,
+          followup:rows.filter(r=>open(r)&&r.follow_up_at&&new Date(r.follow_up_at)<=now).length,
+          completed:rows.filter(r=>r.status==='Completed'&&day(r.completed_at)===today).length
+        });
+      }catch(_){setManagerPersonalSummary({today:0,overdue:0,followup:0,completed:0})}
+    })()},[profile?.id,profile?.role]);
 
     React.useEffect(()=>{(async()=>{
       try{
@@ -7231,6 +7251,23 @@ Caring with Compassion. Living with Dignity.`;
     ];
     return h(React.Fragment,null,
       h('div',{className:'shift-summary'},h('div',null,h('strong',null,currentShift()),h('span',null,'Admin and Manager control dashboard')),h('span',{className:'badge'},formalName(profile))),
+      profile?.role==='Manager'?h('button',{
+        type:'button',onClick:()=>onNavigate('My To-Do & Follow-up'),
+        style:{width:'100%',marginTop:'14px',marginBottom:'14px',textAlign:'left',border:'1px solid #e2b8c9',borderLeft:'6px solid #9f174e',borderRadius:'18px',padding:'14px 16px',cursor:'pointer',background:'linear-gradient(135deg,#fffafd,#f8e5ed)',boxShadow:'0 8px 22px rgba(119,18,65,.08)'}
+      },
+        h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'center',flexWrap:'wrap'}},
+          h('div',null,h('div',{style:{fontSize:'12px',fontWeight:900,letterSpacing:'.06em',color:'#9a1850'}},'MY PERSONAL WORKSPACE'),
+            h('div',{style:{fontSize:'19px',fontWeight:950,color:'#461427'}},'To-Do & Follow-up'),
+            h('small',{style:{color:'#735b66'}},'Private — visible only to your own login')),
+          h('span',{className:'badge'},'Open My List →')
+        ),
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(135px,1fr))',gap:'8px',marginTop:'11px'}},
+          [['Due Today',managerPersonalSummary.today],['Overdue',managerPersonalSummary.overdue],['Follow-ups',managerPersonalSummary.followup],['Completed Today',managerPersonalSummary.completed]].map(([label,value])=>
+            h('div',{key:label,style:{background:'rgba(255,255,255,.7)',border:'1px solid #ecd0dc',borderRadius:'11px',padding:'8px 10px'}},
+              h('strong',{style:{fontSize:'21px',color:'#97144d'}},value),h('div',{style:{fontSize:'12px',fontWeight:850}},label))
+          )
+        )
+      ):null,
       directorOfficeSummary.isDirector?h('button',{
         type:'button',
         onClick:()=>onNavigate("Director's Office"),
@@ -7311,6 +7348,171 @@ Caring with Compassion. Living with Dignity.`;
     );
   }
 
+
+
+  function ManagerPersonalTodo({profile}){
+    const emptyForm=()=>({subject:'',category:'General',priority:'Normal',due_at:'',follow_up_at:'',notes:'',status:'Pending'});
+    const [rows,setRows]=React.useState([]);
+    const [form,setForm]=React.useState(emptyForm());
+    const [editing,setEditing]=React.useState(null);
+    const [filter,setFilter]=React.useState('Open');
+    const [busy,setBusy]=React.useState(false);
+    const [message,setMessage]=React.useState('');
+
+    const load=React.useCallback(async()=>{
+      const {data,error}=await client.from('manager_personal_tasks')
+        .select('*').order('completed_at',{ascending:false,nullsFirst:false})
+        .order('due_at',{ascending:true,nullsFirst:false}).order('created_at',{ascending:false});
+      if(error){setMessage(error.message);return}
+      setRows(data||[]);
+    },[]);
+    React.useEffect(()=>{load()},[load]);
+
+    const localDay=value=>{
+      if(!value)return '';
+      const d=new Date(value); if(Number.isNaN(d.getTime()))return '';
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    };
+    const today=localDay(new Date());
+    const isOpen=r=>!['Completed','Cancelled'].includes(String(r.status||''));
+    const dueToday=rows.filter(r=>isOpen(r)&&localDay(r.due_at)===today).length;
+    const overdue=rows.filter(r=>isOpen(r)&&r.due_at&&new Date(r.due_at)<new Date()&&localDay(r.due_at)!==today).length;
+    const followup=rows.filter(r=>isOpen(r)&&r.follow_up_at&&new Date(r.follow_up_at)<=new Date()).length;
+    const completedToday=rows.filter(r=>r.status==='Completed'&&localDay(r.completed_at)===today).length;
+
+    const visible=rows.filter(r=>{
+      if(filter==='Open')return isOpen(r);
+      if(filter==='Today')return isOpen(r)&&localDay(r.due_at)===today;
+      if(filter==='Overdue')return isOpen(r)&&r.due_at&&new Date(r.due_at)<new Date()&&localDay(r.due_at)!==today;
+      if(filter==='Follow-up')return isOpen(r)&&r.follow_up_at&&new Date(r.follow_up_at)<=new Date();
+      if(filter==='Completed')return r.status==='Completed';
+      return true;
+    });
+
+    function startEdit(r){
+      const toLocalInput=v=>{
+        if(!v)return '';
+        const d=new Date(v); if(Number.isNaN(d.getTime()))return '';
+        const pad=n=>String(n).padStart(2,'0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      };
+      setEditing(r.id);
+      setForm({
+        subject:r.subject||'',category:r.category||'General',priority:r.priority||'Normal',
+        due_at:toLocalInput(r.due_at),follow_up_at:toLocalInput(r.follow_up_at),
+        notes:r.notes||'',status:r.status||'Pending'
+      });
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+    function cancelEdit(){setEditing(null);setForm(emptyForm());}
+
+    async function save(e){
+      e.preventDefault();
+      if(!form.subject.trim()){setMessage('Please enter the task / follow-up subject.');return}
+      setBusy(true);setMessage('');
+      const payload={
+        subject:form.subject.trim(),category:form.category,priority:form.priority,status:form.status,
+        due_at:form.due_at?new Date(form.due_at).toISOString():null,
+        follow_up_at:form.follow_up_at?new Date(form.follow_up_at).toISOString():null,
+        notes:form.notes.trim()||null,
+        completed_at:form.status==='Completed'?new Date().toISOString():null
+      };
+      const q=editing
+        ?client.from('manager_personal_tasks').update(payload).eq('id',editing)
+        :client.from('manager_personal_tasks').insert(payload);
+      const {error}=await q;
+      setBusy(false);
+      if(error){setMessage(error.message);return}
+      setMessage(editing?'✓ Item updated.':'✓ Added to your personal list.');
+      cancelEdit(); await load();
+    }
+
+    async function quickUpdate(r,patch){
+      setBusy(true);setMessage('');
+      const payload={...patch};
+      if(patch.status==='Completed')payload.completed_at=new Date().toISOString();
+      const {error}=await client.from('manager_personal_tasks').update(payload).eq('id',r.id);
+      setBusy(false);
+      if(error){setMessage(error.message);return}
+      await load();
+    }
+    async function remove(r){
+      if(!confirm(`Delete "${r.subject}" from your personal list?`))return;
+      const {error}=await client.from('manager_personal_tasks').delete().eq('id',r.id);
+      if(error){setMessage(error.message);return}
+      await load();
+    }
+    function remindTomorrow(r){
+      const d=new Date(); d.setDate(d.getDate()+1); d.setHours(9,0,0,0);
+      quickUpdate(r,{follow_up_at:d.toISOString(),status:r.status==='Completed'?'Pending':r.status});
+    }
+
+    const stat=(label,value,key)=>h('button',{type:'button',className:'card stat',onClick:()=>setFilter(key),
+      style:{cursor:'pointer',textAlign:'left',border:filter===key?'2px solid #a91653':undefined}},
+      h('span',null,label),h('strong',null,value),h('small',null,'Open list →'));
+
+    return h('div',{className:'manager-personal-todo'},
+      h('div',{className:'shift-summary'},
+        h('div',null,h('strong',null,'My To-Do & Follow-up'),h('span',null,'Private personal workspace — visible only to you')),
+        h('span',{className:'badge'},formalName(profile))
+      ),
+      h('div',{className:'grid stats',style:{marginTop:'14px'}},
+        stat('Due Today',dueToday,'Today'),
+        stat('Overdue',overdue,'Overdue'),
+        stat('Follow-ups Pending',followup,'Follow-up'),
+        stat('Completed Today',completedToday,'Completed')
+      ),
+      message?h('div',{className:`message ${message.startsWith('✓')?'success':'error'}`,style:{marginTop:'12px'}},message):null,
+      h(Section,{title:editing?'Edit Personal Item':'Add Personal Item',subtitle:'This is your own private Manager list. Admin and other Managers cannot access it.'},
+        h('form',{onSubmit:save},
+          h('div',{className:'grid two'},
+            h('div',{className:'field'},h('label',null,'Subject *'),h('input',{value:form.subject,onChange:e=>setForm({...form,subject:e.target.value}),required:true,placeholder:'What needs to be done / followed up?'})),
+            h('div',{className:'field'},h('label',null,'Category'),h('select',{value:form.category,onChange:e=>setForm({...form,category:e.target.value})},
+              ['General','Patient / Relative','Staff','Vendor','Maintenance','Billing','Admission'].map(x=>h('option',{key:x},x)))),
+            h('div',{className:'field'},h('label',null,'Priority'),h('select',{value:form.priority,onChange:e=>setForm({...form,priority:e.target.value})},
+              ['Low','Normal','High','Urgent'].map(x=>h('option',{key:x},x)))),
+            h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},
+              ['Pending','In Progress','Waiting','Completed'].map(x=>h('option',{key:x},x)))),
+            h('div',{className:'field'},h('label',null,'Due Date & Time'),h('input',{type:'datetime-local',value:form.due_at,onChange:e=>setForm({...form,due_at:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Follow-up Date & Time'),h('input',{type:'datetime-local',value:form.follow_up_at,onChange:e=>setForm({...form,follow_up_at:e.target.value})}))
+          ),
+          h('div',{className:'field'},h('label',null,'Notes'),h('textarea',{rows:3,value:form.notes,onChange:e=>setForm({...form,notes:e.target.value}),placeholder:'Short personal note / next action'})),
+          h('div',{className:'actions'},
+            h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':editing?'Update Item':'Add to My List'),
+            editing&&h('button',{type:'button',className:'btn btn-secondary',onClick:cancelEdit},'Cancel')
+          )
+        )
+      ),
+      h(Section,{title:'My List',subtitle:`${visible.length} item(s) · ${filter}`},
+        h('div',{className:'actions',style:{marginBottom:'10px'}},
+          ['Open','Today','Overdue','Follow-up','Completed','All'].map(x=>h('button',{type:'button',key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>setFilter(x)},x))
+        ),
+        visible.length?h('div',{style:{display:'grid',gap:'10px'}},visible.map(r=>
+          h('div',{key:r.id,className:'card',style:{padding:'13px 14px',borderLeft:`5px solid ${r.priority==='Urgent'?'#a70f4d':r.priority==='High'?'#d26a20':'#d7a8bc'}`}},
+            h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',flexWrap:'wrap'}},
+              h('div',{style:{flex:'1 1 260px'}},
+                h('strong',{style:{fontSize:'16px',color:'#4b1630'}},r.subject),
+                h('div',{style:{marginTop:'5px',display:'flex',gap:'6px',flexWrap:'wrap'}},
+                  h('span',{className:'badge'},r.category||'General'),
+                  h('span',{className:'badge'},r.priority||'Normal'),
+                  h('span',{className:'badge'},r.status||'Pending')
+                ),
+                r.due_at&&h('small',{style:{display:'block',marginTop:'7px'}},`Due: ${formatDateTimeIN(r.due_at)}`),
+                r.follow_up_at&&h('small',{style:{display:'block',marginTop:'3px'}},`Follow-up: ${formatDateTimeIN(r.follow_up_at)}`),
+                r.notes&&h('p',{style:{margin:'7px 0 0',whiteSpace:'pre-wrap'}},r.notes)
+              ),
+              h('div',{className:'actions',style:{alignSelf:'flex-start'}},
+                r.status!=='Completed'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>quickUpdate(r,{status:'Completed'})},'✓ Complete'),
+                r.status!=='Completed'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>remindTomorrow(r)},'Tomorrow'),
+                h('button',{type:'button',className:'btn btn-secondary',onClick:()=>startEdit(r)},'Edit'),
+                h('button',{type:'button',className:'btn btn-danger',onClick:()=>remove(r)},'Delete')
+              )
+            )
+          )
+        )):h('p',{className:'empty'},'No items in this view.')
+      )
+    );
+  }
 
   function WhatsAppInbox({profile}){
     const Field=({label,required=false,children})=>h('div',{className:'field'},h('label',null,label,required?h('span',{style:{color:'#b42336',marginLeft:'4px'}},'*'):null),children);
