@@ -1,48 +1,74 @@
-SAMARA CARE ERP v2.10.26 — APPROVED TODAY SUMMARY
+SAMARA CARE ERP v2.10.27 — MY PROFILE FOR ALL STAFF
 
-CHANGE
-------
-The old cumulative "Approved" / "Approved Value" cards have been replaced with
-operational daily information:
+NEW
+---
+Every logged-in employee now has:
+  MY ACCOUNT -> My Profile
 
-1. Today's Entries
-   - Number of charge requests raised today.
+The user card at the bottom of the left sidebar is also clickable and opens
+My Profile directly.
 
-2. Pending Approval
-   - Current pending charge requests.
-
-3. Approved Today
-   - Number of charges actually approved / partially approved today.
-
-4. Approved Value Today
-   - Total actual amount approved today.
-
-DATE LOGIC
+MY PROFILE
 ----------
-"Approved Today" uses the actual approval decision timestamp (decision_at).
-For older legacy rows where decision_at is blank, charge_date is used only as a
-fallback.
+Official HR-controlled details (read-only):
+- Employee ID
+- Full Name
+- Department
+- Designation
+- ERP Role / Access
+- Date of Joining
 
-NAVIGATION
-----------
-All four cards remain clickable.
+Employee-editable contact details:
+- Mobile
+- Email
+- Address
+- Emergency / Guardian Contact
 
-- Today's Entries -> today's charge requests
-- Pending Approval -> pending only
-- Approved Today -> approvals made today
-- Approved Value Today -> same approval-today detail list
+LOGIN & SECURITY
+----------------
+Every active employee can:
+- Change Login ID / Username
+- Change Password
 
-The historical approved total is no longer shown on the dashboard. Historical
-records remain available in the full Bills & Charges Register.
+SECURITY RULES
+--------------
+1. Login ID change requires CURRENT PASSWORD.
+2. Login ID is checked for uniqueness.
+3. Allowed Login ID characters:
+   letters, numbers, dot, underscore, hyphen
+4. Password change requires CURRENT PASSWORD.
+5. New password minimum: 8 characters.
+6. New password must differ from the current password.
+7. Changing Login ID does NOT change Employee ID, designation, department or role.
+8. Staff cannot edit their own employment status or ERP access.
+9. Changes are logged in password_security_events.
+
+TRANSFERABLE ROLES
+------------------
+This works automatically for Admin, Manager, Nurse, Caregiver, Accounts,
+Kitchen and STD, including future employees assigned to those roles.
 
 INSTALL
 -------
-Replace only:
-- app.js
-- index.html
-- service-worker.js
+A. Supabase -> Edge Functions -> admin-users
+   Replace/deploy:
+   supabase/functions/admin-users/index.ts
 
-Then Ctrl+F5 once.
+B. ERP hosting
+   Replace:
+   app.js
+   index.html
+   service-worker.js
+
+C. Ctrl+F5 once after upload.
 
 NO SQL REQUIRED.
-NO EDGE FUNCTION CHANGES.
+
+TEST
+----
+1. Login as any staff member.
+2. Click the name/profile card at bottom-left.
+3. Edit mobile/email/address and Save.
+4. Change Login ID using the current password.
+5. Sign out and confirm the NEW Login ID works.
+6. Login again and change password using the current password.
