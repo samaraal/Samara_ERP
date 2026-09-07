@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.40';
+  const APP_VERSION = '2.10.41';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -3207,10 +3207,10 @@ Caring with Compassion. Living with Dignity.`;
           !mobileClinicalDevice&&h('button',{className:'btn btn-primary',onClick:engine.playCurrentLiveEscalation},'▶ Play Current Live Escalation')
         )},
         h('div',{className:'grid stats'},
-          h('div',{className:'card stat clinical-red'},h('span',null,'Escalated'),h('strong',null,escalatedCount),h('small',null,'Requires immediate nursing action')),
-          h('div',{className:'card stat clinical-amber'},h('span',null,'Overdue'),h('strong',null,overdueCount),h('small',null,'Not yet escalated')),
-          h('div',{className:'card stat clinical-blue'},h('span',null,'Due now'),h('strong',null,dueNowCount),h('small',null,'Current actionable items')),
-          h('div',{className:'card stat'},h('span',null,'Regularisation'),h('strong',null,regularisationCount),h('small',null,'One consolidated historical backlog'))
+          h('button',{type:'button',className:'card stat clinical-red',onClick:()=>setFilter('Escalated'),title:'Show escalated alerts'},h('span',null,'Escalated'),h('strong',null,escalatedCount),h('small',null,'Requires immediate nursing action')),
+          h('button',{type:'button',className:'card stat clinical-amber',onClick:()=>setFilter('Overdue'),title:'Show overdue alerts'},h('span',null,'Overdue'),h('strong',null,overdueCount),h('small',null,'Not yet escalated')),
+          h('button',{type:'button',className:'card stat clinical-blue',onClick:()=>setFilter('Due now'),title:'Show due-now alerts'},h('span',null,'Due now'),h('strong',null,dueNowCount),h('small',null,'Current actionable items')),
+          h('button',{type:'button',className:'card stat',onClick:()=>setFilter('All'),title:'Show all alerts including regularisation'},h('span',null,'Regularisation'),h('strong',null,regularisationCount),h('small',null,'One consolidated historical backlog'))
         ),
         h('div',{className:'field',style:{maxWidth:'300px',marginTop:'14px'}},
           h('label',null,'View'),
@@ -3251,6 +3251,7 @@ Caring with Compassion. Living with Dignity.`;
         return value==='open'?'Open':'Open';
       }catch(_error){return 'Open'}
     }),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState('');
+    const [dashboardEscalationFocus,setDashboardEscalationFocus]=React.useState('Open escalations');
     const canView=['Admin','Manager'].includes(profile?.role);
     const targetForType=type=>{
       const t=String(type||'').toLowerCase();
@@ -3288,7 +3289,13 @@ Caring with Compassion. Living with Dignity.`;
     }
     if(!canView)return h(Section,{title:'Clinical Escalations'},h('div',{className:'message error'},'Clinical Escalations are available only to Manager and Administrator.'));
     const unresolved=rows.filter(r=>!r.resolved_at);
-    const visible=rows.filter(r=>filter==='All'||(filter==='Open'?!r.resolved_at:!!r.resolved_at));
+    const visible=(rows.filter(r=>filter==='All'||(filter==='Open'?!r.resolved_at:!!r.resolved_at))).filter(r=>{
+      if(dashboardEscalationFocus==='Critical')return !r.resolved_at&&String(r.priority||'').toLowerCase()==='critical';
+      if(dashboardEscalationFocus==='Medication')return !r.resolved_at&&String(r.alert_type||'').toLowerCase().includes('med');
+      if(dashboardEscalationFocus==='Regularisation')return !r.resolved_at&&String(r.alert_type||'').toLowerCase()==='regularisation';
+      if(dashboardEscalationFocus==='Open escalations')return !r.resolved_at;
+      return true;
+    });
     const critical=unresolved.filter(r=>String(r.priority||'').toLowerCase()==='critical').length;
     const medication=unresolved.filter(r=>String(r.alert_type||'').toLowerCase().includes('med')).length;
     const regularisation=unresolved.filter(r=>String(r.alert_type||'').toLowerCase()==='regularisation').length;
@@ -3296,10 +3303,10 @@ Caring with Compassion. Living with Dignity.`;
       h(Section,{title:'Clinical Escalations',subtitle:'Manager / Administrator oversight of unresolved clinical alerts after escalation threshold',actions:h('button',{className:'btn btn-secondary',disabled:busy,onClick:load},busy?'Refreshing…':'Refresh')},
         message&&h('div',{className:'message error'},message),
         h('div',{className:'grid stats'},
-          h('div',{className:'card stat clinical-red'},h('span',null,'Open escalations'),h('strong',null,unresolved.length),h('small',null,'Requires management oversight')),
-          h('div',{className:'card stat clinical-red'},h('span',null,'Critical'),h('strong',null,critical),h('small',null,'Critical unresolved items')),
-          h('div',{className:'card stat clinical-amber'},h('span',null,'Medication'),h('strong',null,medication),h('small',null,'Medication escalations')),
-          h('div',{className:'card stat clinical-blue'},h('span',null,'Regularisation'),h('strong',null,regularisation),h('small',null,'One-time historical backlog'))
+          h('button',{type:'button',className:'card stat clinical-red',onClick:()=>setDashboardEscalationFocus('Open escalations')},h('span',null,'Open escalations'),h('strong',null,unresolved.length),h('small',null,'Requires management oversight')),
+          h('button',{type:'button',className:'card stat clinical-red',onClick:()=>setDashboardEscalationFocus('Critical')},h('span',null,'Critical'),h('strong',null,critical),h('small',null,'Critical unresolved items')),
+          h('button',{type:'button',className:'card stat clinical-amber',onClick:()=>setDashboardEscalationFocus('Medication')},h('span',null,'Medication'),h('strong',null,medication),h('small',null,'Medication escalations')),
+          h('button',{type:'button',className:'card stat clinical-blue',onClick:()=>setDashboardEscalationFocus('Regularisation')},h('span',null,'Regularisation'),h('strong',null,regularisation),h('small',null,'One-time historical backlog'))
         ),
         h('div',{className:'field',style:{maxWidth:'260px',marginTop:'14px'}},h('label',null,'Status'),h('select',{value:filter,onChange:e=>setFilter(e.target.value)},['Open','Resolved','All'].map(x=>h('option',{key:x,value:x},x))))
       ),
@@ -7118,7 +7125,64 @@ Caring with Compassion. Living with Dignity.`;
     );
   }
 
-  function Dashboard({profile,onNavigate,alertEngine}){
+  
+  function dashboardNavigate(onNavigate,page,focus='',extra={}){
+    try{
+      sessionStorage.setItem('samara-dashboard-intent',JSON.stringify({
+        page:String(page||''),
+        focus:String(focus||''),
+        extra:extra||{},
+        at:Date.now()
+      }));
+    }catch(_error){}
+    if(typeof onNavigate==='function')onNavigate(page);
+  }
+
+  function readDashboardIntent(page){
+    try{
+      const raw=sessionStorage.getItem('samara-dashboard-intent');
+      if(!raw)return null;
+      const data=JSON.parse(raw);
+      if(String(data?.page||'')!==String(page||''))return null;
+      sessionStorage.removeItem('samara-dashboard-intent');
+      return data;
+    }catch(_error){return null}
+  }
+
+
+  function ensureGlobalDashboardNavigationStyle(){
+    if(document.getElementById('samara-global-dashboard-nav-style'))return;
+    const style=document.createElement('style');
+    style.id='samara-global-dashboard-nav-style';
+    style.textContent=`
+      .grid.stats > button.card.stat,
+      .dashboard-card,
+      .accounts-kpi,
+      .accounts-workflow-card{
+        cursor:pointer;
+        -webkit-tap-highlight-color:rgba(169,22,83,.10);
+        touch-action:manipulation;
+      }
+      .grid.stats > button.card.stat:active,
+      .dashboard-card:active,
+      .accounts-kpi:active,
+      .accounts-workflow-card:active{
+        transform:scale(.985);
+      }
+      @media (hover:hover){
+        .grid.stats > button.card.stat:hover,
+        .dashboard-card:hover,
+        .accounts-kpi:hover,
+        .accounts-workflow-card:hover{
+          filter:brightness(.99);
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  ensureGlobalDashboardNavigationStyle();
+
+function Dashboard({profile,onNavigate,alertEngine}){
     const [stats,setStats]=React.useState({employees:0,patients:0,availableBeds:0,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[],escalations:0,packageExpiry:0});
     const [managerPersonalSummary,setManagerPersonalSummary]=React.useState({today:0,overdue:0,followup:0,completed:0});
     const [directorOfficeSummary,setDirectorOfficeSummary]=React.useState({
@@ -7390,16 +7454,16 @@ Caring with Compassion. Living with Dignity.`;
           if(card.visitFilter)sessionStorage.setItem('samara-visit-filter',card.visitFilter);
           if(card.dischargeFilter)sessionStorage.setItem('samara-discharge-filter',card.dischargeFilter);
         }catch(_error){}
-        onNavigate(card.page);
+        dashboardNavigate(onNavigate,card.page,card.label,{source:'Main Dashboard'});
       },title:`Open ${card.page}`},h('span',{className:'dashboard-icon','aria-hidden':'true'},card.icon),h('span',null,card.label),h('strong',null,card.value),h('small',null,card.status||`Open ${card.page} →`)))),
       h('div',{className:'grid two',style:{marginTop:'18px'}},
         h('div',{className:'card panel'},
-          h('div',{className:'panel-head'},h('div',null,h('h3',null,'Latest Admission Enquiries'),h('small',null,'Website and Family Portal submissions')),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('Enquiries')},'Open Enquiries')),
-          (stats.recentEnquiries||[]).length?h('div',{style:{display:'grid',gap:'9px'}},stats.recentEnquiries.map(r=>h('button',{type:'button',key:r.id,onClick:()=>onNavigate('Enquiries'),style:{textAlign:'left',padding:'11px 12px',border:'1px solid #ecd6e2',borderRadius:'12px',background:'#fffafd',cursor:'pointer'}},h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center'}},h('strong',{style:{color:'#5d1039'}},r.patient_name||'Resident'),h('span',{className:'badge'},r.source||'Website')),h('small',{style:{display:'block',marginTop:'4px'}},`${r.family_contact_name||'—'} · ${r.family_contact_phone||'—'}`),h('small',{style:{display:'block',marginTop:'3px',color:'#8a6577'}},`${r.care_type||'Admission enquiry'} · ${r.status||'New'} · ${formatDateTimeIN(r.created_at)}`)))):h('p',{className:'empty'},'No new admission enquiries.' )
+          h('div',{className:'panel-head'},h('div',null,h('h3',null,'Latest Admission Enquiries'),h('small',null,'Website and Family Portal submissions')),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dashboardNavigate(onNavigate,'Enquiries','Latest Admission Enquiries',{source:'Main Dashboard'})},'Open Enquiries')),
+          (stats.recentEnquiries||[]).length?h('div',{style:{display:'grid',gap:'9px'}},stats.recentEnquiries.map(r=>h('button',{type:'button',key:r.id,onClick:()=>dashboardNavigate(onNavigate,'Enquiries','Latest Admission Enquiries',{source:'Main Dashboard'}),style:{textAlign:'left',padding:'11px 12px',border:'1px solid #ecd6e2',borderRadius:'12px',background:'#fffafd',cursor:'pointer'}},h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center'}},h('strong',{style:{color:'#5d1039'}},r.patient_name||'Resident'),h('span',{className:'badge'},r.source||'Website')),h('small',{style:{display:'block',marginTop:'4px'}},`${r.family_contact_name||'—'} · ${r.family_contact_phone||'—'}`),h('small',{style:{display:'block',marginTop:'3px',color:'#8a6577'}},`${r.care_type||'Admission enquiry'} · ${r.status||'New'} · ${formatDateTimeIN(r.created_at)}`)))):h('p',{className:'empty'},'No new admission enquiries.' )
         ),
         h('div',{style:{display:'grid',gap:'12px'}},
-          h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>onNavigate('Shift Tasks')},h('div',{className:'panel-head'},h('h3',null,'Today’s Operational Focus')),h('p',null,'Open medicines, bathing, restroom assistance, feeding, mobility, physiotherapy and special-nurse tasks.'),h('span',{className:'badge'},'Open Shift Tasks →')),
-          h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>onNavigate('Reports')},h('div',{className:'panel-head'},h('h3',null,'Management reports')),h('p',null,'Open occupancy, clinical risks, incidents, billing, collections and outstanding details.'),h('span',{className:'badge'},'Open Reports →'))
+          h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>dashboardNavigate(onNavigate,'Shift Tasks','Today’s Operational Focus',{source:'Main Dashboard'})},h('div',{className:'panel-head'},h('h3',null,'Today’s Operational Focus')),h('p',null,'Open medicines, bathing, restroom assistance, feeding, mobility, physiotherapy and special-nurse tasks.'),h('span',{className:'badge'},'Open Shift Tasks →')),
+          h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>dashboardNavigate(onNavigate,'Reports','Management Reports',{source:'Main Dashboard'})},h('div',{className:'panel-head'},h('h3',null,'Management reports')),h('p',null,'Open occupancy, clinical risks, incidents, billing, collections and outstanding details.'),h('span',{className:'badge'},'Open Reports →'))
         )
       )
     );
@@ -8221,12 +8285,12 @@ Thank you.`;
         h('div',{style:{display:'flex',justifyContent:'space-between',gap:'14px',alignItems:'center',flexWrap:'wrap',marginBottom:'16px'}},
           h('div',null,h('strong',{style:{fontSize:'16px',color:'#5d1039'}},'People & Recruitment Overview'),h('div',{style:{fontSize:'13px',color:'#75616d',marginTop:'3px'}},'Live workforce and recruitment position')), 
           h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
-            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('Employees')},'Employees'),
-            h('button',{type:'button',className:'btn btn-primary',onClick:()=>onNavigate('Career Applications')},'Career Applications')
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dashboardNavigate(onNavigate,'Employees','Active Employees',{source:'HR Dashboard'})},'Employees'),
+            h('button',{type:'button',className:'btn btn-primary',onClick:()=>dashboardNavigate(onNavigate,'Career Applications','All Applications',{source:'HR Dashboard'})},'Career Applications')
           )
         ),
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(265px,1fr))',gap:'20px',marginBottom:'24px'}},metrics.map(([label,value,page,icon,note,action,accent,iconBg])=>
-          h('button',{key:label,type:'button',onClick:()=>onNavigate(page),style:{position:'relative',overflow:'hidden',textAlign:'left',padding:'30px 26px 24px',border:'0',borderRadius:'24px',background:'linear-gradient(145deg,#ffffff 0%,#fffafd 100%)',minHeight:'205px',cursor:'pointer',boxShadow:'0 12px 26px rgba(93,16,57,.10)',outline:'1px solid rgba(234,208,222,.72)'}},
+          h('button',{key:label,type:'button',onClick:()=>dashboardNavigate(onNavigate,page,label,{source:'HR Dashboard'}),style:{position:'relative',overflow:'hidden',textAlign:'left',padding:'30px 26px 24px',border:'0',borderRadius:'24px',background:'linear-gradient(145deg,#ffffff 0%,#fffafd 100%)',minHeight:'205px',cursor:'pointer',boxShadow:'0 12px 26px rgba(93,16,57,.10)',outline:'1px solid rgba(234,208,222,.72)'}},
             h('span',{style:{position:'absolute',left:0,right:0,top:0,height:'7px',background:`linear-gradient(90deg,#7a1247 0%,${accent} 68%,#f6b72d 100%)`}}),
             h('span',{style:{position:'absolute',right:'0',top:'0',width:'96px',height:'96px',borderRadius:'0 24px 0 38px',display:'grid',placeItems:'center',background:iconBg,color:accent,fontSize:'30px',fontWeight:900}},icon),
             h('span',{style:{display:'block',maxWidth:'72%',fontSize:'16px',fontWeight:800,color:'#53716a',marginTop:'18px'}},label),
@@ -8237,7 +8301,7 @@ Thank you.`;
         )),
         h('div',{style:{display:'grid',gridTemplateColumns:'minmax(0,1.45fr) minmax(330px,.8fr)',gap:'16px',alignItems:'start'}},
           h('div',{className:'card panel',style:{overflow:'hidden'}},
-            h('div',{className:'panel-head'},h('div',null,h('h3',null,'Recent Career Applications'),h('small',null,'Newest applications received from the public Careers page')),h('button',{className:'btn btn-secondary',onClick:()=>onNavigate('Career Applications')},'View All')),
+            h('div',{className:'panel-head'},h('div',null,h('h3',null,'Recent Career Applications'),h('small',null,'Newest applications received from the public Careers page')),h('button',{className:'btn btn-secondary',onClick:()=>dashboardNavigate(onNavigate,'Career Applications','All Applications',{source:'HR Dashboard'})},'View All')),
             h('div',{className:'table-wrap'},h('table',{className:'table'},
               h('thead',null,h('tr',null,['Applicant','Department','Designation','Status','Received'].map(x=>h('th',{key:x},x)))),
               h('tbody',null,
@@ -8265,7 +8329,7 @@ Thank you.`;
         h('div',{className:'card panel',style:{marginTop:'16px'}},
           h('div',{className:'panel-head'},h('div',null,h('h3',null,'Workforce Snapshot'),h('small',null,'Active employees by key department'))),
           h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:'10px'}},
-            ['Nursing','Caregiving','Administration','Housekeeping','HR','Operations','Accounts & Finance','Food & Kitchen'].map(name=>h('button',{type:'button',key:name,onClick:()=>onNavigate('Employees'),style:{padding:'12px',border:'1px solid #efd7e2',borderRadius:'12px',background:'#fffafd',textAlign:'left',cursor:'pointer'}},h('span',{style:{display:'block',fontSize:'12px',color:'#806575'}},name),h('strong',{style:{display:'block',fontSize:'20px',marginTop:'4px',color:'#6d123f'}},deptCount(name))))
+            ['Nursing','Caregiving','Administration','Housekeeping','HR','Operations','Accounts & Finance','Food & Kitchen'].map(name=>h('button',{type:'button',key:name,onClick:()=>dashboardNavigate(onNavigate,'Employees','Active Employees',{source:'HR Dashboard'}),style:{padding:'12px',border:'1px solid #efd7e2',borderRadius:'12px',background:'#fffafd',textAlign:'left',cursor:'pointer'}},h('span',{style:{display:'block',fontSize:'12px',color:'#806575'}},name),h('strong',{style:{display:'block',fontSize:'20px',marginTop:'4px',color:'#6d123f'}},deptCount(name))))
           )
         )
       )
@@ -8274,6 +8338,10 @@ Thank you.`;
 
   function CareerApplications({profile,onNavigate}){
     const [rows,setRows]=React.useState([]),[selected,setSelected]=React.useState(null),[edit,setEdit]=React.useState(null),[msg,setMsg]=React.useState('');
+    const [dashboardCareerFocus,setDashboardCareerFocus]=React.useState(()=>{
+      const intent=readDashboardIntent('Career Applications');
+      return String(intent?.focus||'');
+    });
     const [waHistory,setWaHistory]=React.useState([]),[manualFallbackUrl,setManualFallbackUrl]=React.useState(''),[waBusy,setWaBusy]=React.useState(false);
     const [interviewDate,setInterviewDate]=React.useState(''),[interviewTime,setInterviewTime]=React.useState('10:00');
     const [rescheduleDate,setRescheduleDate]=React.useState(''),[rescheduleTime,setRescheduleTime]=React.useState('10:00');
@@ -8619,7 +8687,23 @@ Thank you.`;
       localStorage.setItem('samara_hr_employee_seed',JSON.stringify(seed));
       onNavigate('Employees');
     }
-    const table=h('div',{className:'table-wrap employee-master-table-wrap'},h('table',{className:'table employee-master-table'},h('thead',null,h('tr',null,['Application ID','Applicant','Department','Designation','Mobile','Status','Received','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,rows.map(r=>h('tr',{key:r.id,onClick:()=>open(r),title:'Open complete applicant file',style:{cursor:'pointer'}},h('td',null,r.application_id),h('td',null,h('strong',null,r.applicant_name)),h('td',null,r.department),h('td',null,r.designation),h('td',null,r.mobile),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)),h('td',null,h('button',{type:'button',className:'btn btn-primary',onClick:e=>{e.stopPropagation();open(r)}},'Open File')))),rows.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'No career applications received yet.')):null)));
+    const dashboardCareerRows=rows.filter(r=>{
+      if(!dashboardCareerFocus||dashboardCareerFocus==='All Applications'||dashboardCareerFocus==='WhatsApp Communications')return true;
+      if(dashboardCareerFocus==='New Applications')return r.status==='New';
+      if(dashboardCareerFocus==='Shortlisted')return r.status==='Shortlisted';
+      if(dashboardCareerFocus==='Interviews')return r.status==='Interview Scheduled';
+      if(dashboardCareerFocus==='Selected')return r.status==='Selected';
+      if(dashboardCareerFocus==='On Hold')return r.status==='On Hold';
+      return true;
+    });
+    const table=h('div',null,
+      dashboardCareerFocus&&dashboardCareerFocus!=='All Applications'
+        ?h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px',marginBottom:'10px',flexWrap:'wrap'}},
+            h('span',{className:'badge'},`Dashboard view: ${dashboardCareerFocus}`),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setDashboardCareerFocus('')},'Show All')
+          )
+        :null,
+      h('div',{className:'table-wrap employee-master-table-wrap'},h('table',{className:'table employee-master-table'},h('thead',null,h('tr',null,['Application ID','Applicant','Department','Designation','Mobile','Status','Received','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,dashboardCareerRows.map(r=>h('tr',{key:r.id,onClick:()=>open(r),title:'Open complete applicant file',style:{cursor:'pointer'}},h('td',null,r.application_id),h('td',null,h('strong',null,r.applicant_name)),h('td',null,r.department),h('td',null,r.designation),h('td',null,r.mobile),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)),h('td',null,h('button',{type:'button',className:'btn btn-primary',onClick:e=>{e.stopPropagation();open(r)}},'Open File')))),dashboardCareerRows.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'No career applications in this dashboard view.')):null))));
     const isRectification=edit?.status==='Returned for Rectification';
     const isClosed=edit?.status==='Closed';
     const modal=selected&&edit?h('div',{className:'modal-backdrop',style:{position:'static',inset:'auto',background:'transparent',padding:0,display:'block',zIndex:'auto'}},h('div',{className:'card modal employee-modal',style:{width:'100%',maxWidth:'none',maxHeight:'none',overflow:'visible',margin:0}},
@@ -9416,7 +9500,7 @@ Thank you.`;
 
     const commCard=(label,value,icon,subtitle,target)=>h('button',{
       type:'button',
-      onClick:()=>onNavigate&&onNavigate(target),
+      onClick:()=>dashboardNavigate(onNavigate,target,label,{source:"Director's Office"}),
       style:{
         textAlign:'left',
         border:'1px solid #e5a9c1',
@@ -9851,7 +9935,11 @@ Thank you.`;
       try{
         const requested=sessionStorage.getItem('samara-employee-list-filter');
         sessionStorage.removeItem('samara-employee-list-filter');
-        return requested==='__ALL__'?'__ALL__':'';
+        if(requested==='__ALL__')return '__ALL__';
+        const intent=readDashboardIntent('Employees');
+        if(intent?.focus==='Nursing')return 'Nursing';
+        if(intent?.focus==='Caregiving')return 'Caregiving';
+        return '';
       }catch(_error){return ''}
     });
     const [idFiles,setIdFiles]=React.useState([]),[qualificationFiles,setQualificationFiles]=React.useState([]),[experienceFiles,setExperienceFiles]=React.useState([]),[otherFiles,setOtherFiles]=React.useState([]),[cameraFiles,setCameraFiles]=React.useState([]),[photoFiles,setPhotoFiles]=React.useState([]),[photoPreview,setPhotoPreview]=React.useState(''),[welcomeEmployee,setWelcomeEmployee]=React.useState(null);
@@ -17251,8 +17339,8 @@ function RoomsBeds({profile}){
             return h('div',{className:`clinical-work-row ${x.minutesOverdue>=15?'urgent':''}`,key:'m'+i},h('span',null,'💊'),h('div',null,h('strong',null,patientName(x.order)),h('small',null,`${room}${room?' · ':''}${x.order.medicine_name||x.order.medicine||'Medicine'} ${x.order.strength||x.order.dose||''} · Due ${medicationTimeLabel(x.time)}${x.minutesOverdue>0?` · ${x.minutesOverdue} min overdue`:''}`)),h('b',null,level));
           }),
           vitalsPending.slice(0,4).map(p=>h('div',{className:'clinical-work-row',key:p.id},h('span',null,'🩺'),h('div',null,h('strong',null,formalName(p)),h('small',null,`${p.patient_id||''} · Room ${p.room_no||'—'}-${p.bed_no||'—'} · Vitals not entered today`)),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>onNavigate('Vital Signs')},'Enter'))),
-          currentShiftCarePending.slice(0,5).map((x,i)=>h('div',{className:'clinical-work-row',key:`care-${x.id}-${x.taskShift}-${i}`},h('span',null,'✅'),h('div',null,h('strong',null,patientName(x)),h('small',null,`${x.care_type||x.activity||'Care task'} · ${x.taskShift}`)),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>onNavigate('Shift Tasks')},'Open'))),
-          upcomingShiftCarePending.length>0&&h('div',{className:'clinical-work-row upcoming-summary'},h('span',null,'🕒'),h('div',null,h('strong',null,`${upcomingShiftCarePending.length} care task(s) scheduled for next shift`),h('small',null,'Shown as a compact summary; they become actionable when the next shift starts.')),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>onNavigate('Shift Tasks')},'Review')),
+          currentShiftCarePending.slice(0,5).map((x,i)=>h('div',{className:'clinical-work-row',key:`care-${x.id}-${x.taskShift}-${i}`},h('span',null,'✅'),h('div',null,h('strong',null,patientName(x)),h('small',null,`${x.care_type||x.activity||'Care task'} · ${x.taskShift}`)),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>dashboardNavigate(onNavigate,'Shift Tasks','Today’s Operational Focus',{source:'Main Dashboard'})},'Open'))),
+          upcomingShiftCarePending.length>0&&h('div',{className:'clinical-work-row upcoming-summary'},h('span',null,'🕒'),h('div',null,h('strong',null,`${upcomingShiftCarePending.length} care task(s) scheduled for next shift`),h('small',null,'Shown as a compact summary; they become actionable when the next shift starts.')),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>dashboardNavigate(onNavigate,'Shift Tasks','Today’s Operational Focus',{source:'Main Dashboard'})},'Review')),
           dischargeReady.slice(0,3).map(row=>h('div',{className:'clinical-work-row urgent',key:`discharge-${row.id}`},
             h('span',null,'🚪'),
             h('div',null,
@@ -19210,6 +19298,7 @@ function ShiftHandover({profile,onNavigate}){
     const [loading,setLoading]=React.useState(true);
     const [busy,setBusy]=React.useState('');
     const [message,setMessage]=React.useState('');
+    const [packageFocus,setPackageFocus]=React.useState('All');
 
     const today=todayISOIndia();
     const dateOnly=value=>String(value||'').slice(0,10);
@@ -19337,6 +19426,14 @@ function ShiftHandover({profile,onNavigate}){
 
     const sorted=[...rows].sort((a,b)=>String(a.package_end_date||'').localeCompare(String(b.package_end_date||'')));
     const attention=sorted.filter(row=>dateDiff(row.package_end_date,today)<=3);
+    const packageVisible=sorted.filter(row=>{
+      const diff=dateDiff(row.package_end_date,today);
+      if(packageFocus==='Expired')return diff<0;
+      if(packageFocus==='Expires Today')return diff===0;
+      if(packageFocus==='Next 3 Days')return diff>0&&diff<=3;
+      if(packageFocus==='Attention Required')return diff<=3;
+      return true;
+    });
     const expired=sorted.filter(row=>dateDiff(row.package_end_date,today)<0).length;
     const todayCount=sorted.filter(row=>dateDiff(row.package_end_date,today)===0).length;
     const soon=sorted.filter(row=>{const d=dateDiff(row.package_end_date,today);return d>0&&d<=3}).length;
@@ -19359,16 +19456,23 @@ function ShiftHandover({profile,onNavigate}){
           ['Expires Today',todayCount,'orange','Family reminder due'],
           ['Next 3 Days',soon,'blue','Upcoming package expiry'],
           ['Attention Required',attention.length,'purple','Expired or expiring soon']
-        ].map(([label,value,tone,note])=>h('div',{className:`accounts-kpi ${tone}`,key:label},h('span',null,label),h('strong',null,value),h('small',null,note)))
+        ].map(([label,value,tone,note])=>h('button',{
+          type:'button',
+          className:`accounts-kpi ${tone}`,
+          key:label,
+          onClick:()=>setPackageFocus(current=>current===label?'All':label),
+          title:`Show ${label} residents`,
+          style:{textAlign:'left',cursor:'pointer',border:packageFocus===label?'2px solid #9f174e':undefined}
+        },h('span',null,label),h('strong',null,value),h('small',null,note)))
       ),
       message&&h('div',{className:message.startsWith('✓')?'message success':'message error'},message),
-      h(Section,{title:loading?'Loading package residents…':`Package Residents (${sorted.length})`,subtitle:'Renewal starts from the day after the current package expiry; daily fare is the automatic fallback.'},
-        sorted.length?h('div',{className:'table-wrap'},
+      h(Section,{title:loading?'Loading package residents…':`Package Residents (${packageVisible.length})`,subtitle:packageFocus==='All'?'Renewal starts from the day after the current package expiry; daily fare is the automatic fallback.':`Dashboard filter: ${packageFocus}`},
+        packageVisible.length?h('div',{className:'table-wrap'},
           h('table',{className:'table'},
             h('thead',null,h('tr',null,
               ['Resident','Room','Current Package','Expiry','Status','Family Contact','Family Request','Renewal Options','Action'].map(x=>h('th',{key:x},x))
             )),
-            h('tbody',null,sorted.map(row=>{
+            h('tbody',null,packageVisible.map(row=>{
               const status=statusOf(row);
               const opts=renewalOptions(row);
               return h('tr',{key:row.id},
@@ -19517,15 +19621,15 @@ function ShiftHandover({profile,onNavigate}){
           )
         ),
         h('div',{className:'accounts-actions'},
-          h('button',{className:'btn btn-secondary',onClick:()=>onNavigate?.('Payments')},'＋ New Payment'),
-          h('button',{className:'btn btn-secondary',onClick:()=>onNavigate?.('Accounts Reports')},'▥ Reports'),
+          h('button',{className:'btn btn-secondary',onClick:()=>dashboardNavigate(onNavigate,'Payments','New Payment',{source:'Accounts Dashboard'})},'＋ New Payment'),
+          h('button',{className:'btn btn-secondary',onClick:()=>dashboardNavigate(onNavigate,'Accounts Reports','Accounts Reports',{source:'Accounts Dashboard'})},'▥ Reports'),
           h('button',{className:'btn btn-secondary',onClick:load},state.loading?'Loading…':'↻ Refresh')
         )
       ),
 
       h('div',{className:'accounts-kpi-grid'},
         kpis.map(([label,value,page,tone,note,isCount])=>h('button',{
-          type:'button',className:`accounts-kpi ${tone}`,key:label,onClick:()=>onNavigate?.(page)
+          type:'button',className:`accounts-kpi ${tone}`,key:label,onClick:()=>dashboardNavigate(onNavigate,page,label,{source:'Accounts Dashboard'})
         },
           h('span',null,label),
           h('strong',null,isCount?Number(value||0):money(value)),
@@ -19579,7 +19683,7 @@ function ShiftHandover({profile,onNavigate}){
             type:'button',
             className:`accounts-workflow-card ${tone}`,
             key:title,
-            onClick:()=>onNavigate?.(title)
+            onClick:()=>dashboardNavigate(onNavigate,title,title,{source:'Accounts Dashboard'})
           },
             h('div',{className:'accounts-workflow-top'},
               h('span',{className:'accounts-workflow-icon'},icon),

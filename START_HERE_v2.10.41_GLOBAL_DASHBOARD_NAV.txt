@@ -1,0 +1,63 @@
+SAMARA ERP v2.10.41 — GLOBAL DASHBOARD TAP-THROUGH
+
+Goal
+----
+Dashboard boxes throughout the ERP should not be decorative.
+Tapping a dashboard box must open or filter the relevant underlying data.
+
+Applied in this release
+-----------------------
+1. Main Admin / Manager Dashboard
+   - Existing Patient / Employee / Rooms / Clinical / Payments etc. filters retained.
+   - Common dashboard navigation intent added.
+
+2. Director's Office
+   - Task / Appointment / Call / Follow-up / Visitor / Correspondence / Reminder cards continue to filter the Director Follow-up Queue.
+   - WhatsApp / Feedback cards use the common navigation standard.
+
+3. HR Dashboard
+   - Employee / Nursing / Caregiving cards open Employees.
+   - Recruitment cards open Career Applications.
+   - New / Shortlisted / Interview Scheduled / Selected / On Hold dashboard cards now open the corresponding filtered application list.
+
+4. Package Expiry Dashboard
+   - Expired / Expires Today / Next 3 Days / Attention Required cards are now tappable and filter the resident table.
+
+5. Accounts Dashboard
+   - KPI and workflow cards use the common dashboard navigation standard.
+
+6. Clinical Alerts
+   - Escalated / Overdue / Due Now cards now filter the active alert list.
+
+7. Clinical Escalations
+   - Open / Critical / Medication / Regularisation cards now filter the escalation register.
+
+8. Existing working dashboard touch filters
+   - Patients, Rooms & Beds, Shift Tasks, Manager Personal To-Do and Clinical Charges are preserved.
+
+Global standard
+---------------
+A reusable dashboardNavigate() / readDashboardIntent() convention has been added.
+Future ERP dashboard cards can use the same rule instead of being built as static boxes.
+
+Mobile
+------
+Dashboard cards have touch feedback and are treated as tappable controls on iPhone and Android.
+
+INSTALL
+-------
+Replace only:
+1. app.js
+2. index.html
+3. service-worker.js
+
+Version: 2.10.41
+
+NO SQL.
+NO EDGE FUNCTION CHANGE.
+NO API KEY CHANGE.
+
+After upload
+------------
+Desktop: hard refresh once if required.
+iPhone / Android PWA: close and reopen. If an old version remains, use App Help -> Repair App.
