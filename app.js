@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.55';
+  const APP_VERSION = '2.10.56';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7614,7 +7614,15 @@ function Dashboard({profile,onNavigate,alertEngine}){
         const result=await response.json().catch(()=>({error:'Unable to read voice response'}));
         if(!response.ok||result.error)throw new Error(result.error||'Unable to understand task.');
         mapManagerVoice(result);
-      }catch(error){setVoiceMessage(error.message||'Unable to understand task.')}
+      }catch(error){
+        const msg=error.message||'Unable to understand task.';
+        if(String(lang||'').toLowerCase().startsWith('en')&&transcript){
+          setForm(current=>({...current,subject:current.subject||String(transcript).trim()}));
+          setVoiceMessage(`✓ Speech captured. Structured processing was unavailable, so the English text has been entered directly. ${msg}`);
+        }else{
+          setVoiceMessage(`Speech captured, but Tamil-to-English processing could not complete: ${msg}`);
+        }
+      }
       finally{setVoiceProcessing(false)}
     }
     async function managerSendAudio(blob,lang){
@@ -7670,27 +7678,96 @@ function Dashboard({profile,onNavigate,alertEngine}){
       }
     }
     function startManagerVoice(lang='ta-IN'){
-      if(managerUseMobileRecorder())return startManagerMobileVoice(lang);
       const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-      if(!SpeechRecognition)return setVoiceMessage('Voice recognition is not available in this browser.');
-      stopManagerVoice();setVoiceTranscript('');setVoiceMessage('🎤 Speak naturally…');
+
+      // v2.10.56: Prefer browser speech recognition on Android/Chrome too.
+      // Earlier code forced every mobile device through MediaRecorder + Edge Function audio upload.
+      // That path can record successfully but still produce no transcript/entry if the remote
+      // audio endpoint is unavailable or rejects the uploaded codec. Chrome Android already
+      // exposes webkitSpeechRecognition, so use it first and fall back to MediaRecorder only
+      // when speech recognition is genuinely unavailable.
+      if(!SpeechRecognition){
+        return startManagerMobileVoice(lang);
+      }
+
+      stopManagerVoice();
+      setVoiceTranscript('');
+      setVoiceMessage(lang==='ta-IN'
+        ?'🎤 Listening in Tamil… Speak naturally and pause when finished.'
+        :'🎤 Listening in English… Speak naturally and pause when finished.');
+
       try{
-        const rec=new SpeechRecognition();voiceRecognitionRef.current=rec;
-        rec.lang=lang;rec.interimResults=true;rec.continuous=false;rec.maxAlternatives=1;
+        const rec=new SpeechRecognition();
+        voiceRecognitionRef.current=rec;
+        rec.lang=lang;
+        rec.interimResults=true;
+        rec.continuous=false;
+        rec.maxAlternatives=1;
+
         let finalText='';
+        let latestText='';
+        let sent=false;
+
+        const finishWithText=()=>{
+          if(sent)return;
+          sent=true;
+          setVoiceListening(false);
+          const spoken=(finalText||latestText||'').trim();
+          if(!spoken){
+            setVoiceMessage('No speech was captured. Please tap the microphone and try again.');
+            return;
+          }
+
+          setVoiceTranscript(spoken);
+
+          // English gets an immediate local entry so the form never appears to do nothing
+          // while the structured parser is being contacted.
+          if(String(lang).toLowerCase().startsWith('en')){
+            setForm(current=>({
+              ...current,
+              subject:current.subject||spoken
+            }));
+          }
+
+          managerSendTranscript(spoken,lang);
+        };
+
         rec.onstart=()=>setVoiceListening(true);
         rec.onresult=e=>{
           let interim='';
           for(let i=e.resultIndex;i<e.results.length;i++){
             const t=e.results[i][0]?.transcript||'';
-            if(e.results[i].isFinal)finalText+=`${t} `;else interim+=t;
+            if(e.results[i].isFinal)finalText+=`${t} `;
+            else interim+=t;
           }
-          setVoiceTranscript((finalText||interim).trim());
+          latestText=(finalText||interim).trim();
+          setVoiceTranscript(latestText);
         };
-        rec.onerror=e=>{setVoiceListening(false);setVoiceMessage(`Voice recognition stopped${e?.error?`: ${e.error}`:''}. Please try again.`)};
-        rec.onend=()=>{setVoiceListening(false);const spoken=finalText.trim();if(spoken)managerSendTranscript(spoken,lang);else setVoiceMessage('No speech was captured. Please try again.')};
+        rec.onerror=e=>{
+          setVoiceListening(false);
+          if(e?.error==='no-speech'){
+            setVoiceMessage('No speech was heard. Please tap the microphone and speak again.');
+            return;
+          }
+          if(e?.error==='not-allowed'||e?.error==='service-not-allowed'){
+            setVoiceMessage('Microphone / speech permission is blocked. Please allow microphone access for Samara Care in Chrome.');
+            return;
+          }
+          // If browser recognition fails before any transcript, fall back to recorder.
+          if(!latestText&&!finalText){
+            setVoiceMessage('Browser voice recognition was unavailable. Opening recorder fallback…');
+            setTimeout(()=>startManagerMobileVoice(lang),150);
+            return;
+          }
+          setVoiceMessage(`Voice recognition stopped${e?.error?`: ${e.error}`:''}. Please try again.`);
+        };
+        rec.onend=finishWithText;
         rec.start();
-      }catch(error){setVoiceListening(false);setVoiceMessage(error.message||'Unable to start microphone.')}
+      }catch(error){
+        setVoiceListening(false);
+        setVoiceMessage('Opening microphone recorder fallback…');
+        setTimeout(()=>startManagerMobileVoice(lang),150);
+      }
     }
 
     function startEdit(r){

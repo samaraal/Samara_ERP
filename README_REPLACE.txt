@@ -1,20 +1,23 @@
-SAMARA ERP v2.10.55 — UPDATE LOOP FIX
+SAMARA ERP v2.10.56 — MOBILE MANAGER VOICE FIX
 
-REPLACE ONLY:
+Replace only:
 1. app.js
 2. index.html
 3. service-worker.js
 
-ROOT CAUSE FIXED:
-- v2.10.54 index.html and service-worker.js reported 2.10.54,
-  but app.js still internally reported APP_VERSION 2.10.52.
-- Therefore the ERP kept detecting 2.10.54 as a "new" version every time.
-- v2.10.55 aligns all three files to the same version.
-- The update prompt is also guarded against reopening for an already acknowledged version.
+What is fixed:
+- Android/mobile no longer forces voice through MediaRecorder first.
+- Chrome Android webkitSpeechRecognition is now used first for both Tamil and English.
+- Spoken words appear immediately under "Heard:".
+- English speech is immediately placed into Subject even if structured processing is temporarily unavailable.
+- Tamil transcript is sent to the existing director-office-voice parser for Tamil -> simple English.
+- MediaRecorder remains as fallback only when browser speech recognition is unavailable.
+- Better permission/no-speech/error messages.
+- v2.10.55 update-loop protection is retained.
+- All Manager ERP roles retain the Tamil/English voice buttons.
 
-Manager Tamil/English voice task changes from v2.10.54 are retained.
-
-AFTER UPLOAD:
-- Open ERP once.
-- If the old loop appears one last time, tap Update Now once.
-- The app should then remain on v2.10.55 without repeating the prompt.
+After upload:
+- Open ERP and confirm Version 2.10.56.
+- If an older cached build remains, use App Help -> Repair App once.
+- Test English first: say "Call Mr Kumar tomorrow at 10 AM".
+- Then Tamil: say "நாளைக்கு காலை பத்து மணிக்கு குமாரை கூப்பிடணும்".
