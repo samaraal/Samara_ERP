@@ -1,0 +1,34 @@
+SAMARA CARE ERP v2.10.33 — QUICK TASK CRASH FIX
+
+ISSUE
+-----
+Tapping "+ Quick Task" caused the app error screen.
+
+ROOT CAUSE FOUND
+----------------
+The new Director/STD voice helper functions had been inserted inside
+Clinical Escalations instead of Director's Office.
+
+When Quick Task opened, Director's Office called stopVoiceRecognition(),
+but that function was outside its scope.
+
+FIX
+---
+- Voice helper functions moved into DirectorOfficeDashboard.
+- Quick Task opens normally.
+- Tamil / English voice entry remains available to assigned Director + STD.
+- JavaScript syntax check passed.
+
+INSTALL
+-------
+Replace only:
+1. app.js
+2. index.html
+3. service-worker.js
+
+Then close and reopen Samara Care.
+Use Repair App & Reload once only if the previous cached build remains.
+
+NO NEW SQL.
+NO NEW EDGE FUNCTION.
+Keep OPENAI_API_KEY and director-office-voice as already configured.

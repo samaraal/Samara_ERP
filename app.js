@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.32';
+  const APP_VERSION = '2.10.33';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -3261,125 +3261,6 @@ Caring with Compassion. Living with Dignity.`;
       if(t.includes('regular'))return 'Clinical Alerts';
       return 'Clinical Alerts';
     };
-    function stopVoiceRecognition(){
-      try{voiceRecognitionRef.current?.stop?.()}catch(_){}
-      voiceRecognitionRef.current=null;
-      setVoiceListening(false);
-    }
-
-    function normalizeVoiceDateTime(value){
-      if(!value)return '';
-      const d=new Date(String(value));
-      if(Number.isNaN(d.getTime()))return String(value).slice(0,16);
-      const pad=n=>String(n).padStart(2,'0');
-      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    }
-
-    async function interpretVoiceTranscript(transcript,spokenLanguage){
-      const text=String(transcript||'').trim();
-      if(!text)return;
-      setVoiceProcessing(true);
-      setVoiceMessage(spokenLanguage==='ta-IN'?'தமிழ் உரையை எளிய ஆங்கிலமாக மாற்றுகிறோம்…':'Converting speech into the form…');
-      try{
-        const {data:{session}}=await client.auth.getSession();
-        if(!session)throw new Error('Your session has expired. Please sign in again.');
-        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{
-          method:'POST',
-          headers:{
-            'Content-Type':'application/json',
-            'Authorization':`Bearer ${session.access_token}`,
-            'apikey':cfg.supabasePublishableKey
-          },
-          body:JSON.stringify({
-            transcript:text,
-            spoken_language:spokenLanguage,
-            current_form_type:form.item_type||'Follow-up',
-            current_task_kind:form.task_kind||'General Task',
-            now_iso:new Date().toISOString(),
-            timezone:'Asia/Kolkata'
-          })
-        });
-        const result=await response.json().catch(()=>({error:'Unable to read voice-processing response'}));
-        if(!response.ok||result.error)throw new Error(result.error||'Unable to process voice entry.');
-        const x=result.fields||{};
-        setForm(current=>({
-          ...current,
-          item_type:x.item_type||current.item_type||'Task',
-          task_kind:x.task_kind||current.task_kind||'General Task',
-          title:x.title||current.title||'',
-          contact_name:x.contact_name||current.contact_name||'',
-          contact_mobile:x.contact_mobile||current.contact_mobile||'',
-          organisation:x.organisation||current.organisation||'',
-          scheduled_at:x.scheduled_at?normalizeVoiceDateTime(x.scheduled_at):current.scheduled_at,
-          due_date:x.due_date||current.due_date||'',
-          priority:x.priority||current.priority||'Normal',
-          status:current.status||'Pending',
-          details:x.details||current.details||'',
-          needs_director_attention:typeof x.needs_director_attention==='boolean'?x.needs_director_attention:current.needs_director_attention
-        }));
-        setVoiceMessage('✓ Voice entry filled in simple English. Please check the fields before Save.');
-      }catch(error){
-        setVoiceMessage(error.message||'Unable to process voice entry.');
-      }finally{
-        setVoiceProcessing(false);
-      }
-    }
-
-    function startVoiceEntry(lang='ta-IN'){
-      if(!canVoice)return;
-      const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-      if(!SpeechRecognition){
-        setVoiceMessage('Voice recognition is not available in this browser. Please try Chrome/Edge or the installed Samara Care app.');
-        return;
-      }
-      stopVoiceRecognition();
-      setVoiceTranscript('');
-      setVoiceMessage(lang==='ta-IN'?'🎤 தமிழில் இயல்பாக பேசுங்கள்…':'🎤 Speak naturally in English…');
-      try{
-        const recognition=new SpeechRecognition();
-        recognition.lang=lang;
-        recognition.interimResults=true;
-        recognition.continuous=false;
-        recognition.maxAlternatives=1;
-        voiceRecognitionRef.current=recognition;
-        let finalText='';
-        recognition.onstart=()=>setVoiceListening(true);
-        recognition.onresult=event=>{
-          let interim='';
-          for(let i=event.resultIndex;i<event.results.length;i++){
-            const t=event.results[i][0]?.transcript||'';
-            if(event.results[i].isFinal)finalText+=`${t} `;
-            else interim+=t;
-          }
-          setVoiceTranscript((finalText||interim).trim());
-        };
-        recognition.onerror=event=>{
-          setVoiceListening(false);
-          voiceRecognitionRef.current=null;
-          const code=String(event?.error||'');
-          setVoiceMessage(code==='not-allowed'
-            ?'Microphone permission is blocked. Please allow microphone access for Samara Care and try again.'
-            :`Voice recognition stopped${code?`: ${code}`:''}. Please try again.`);
-        };
-        recognition.onend=()=>{
-          setVoiceListening(false);
-          voiceRecognitionRef.current=null;
-          const spoken=String(finalText||'').trim();
-          if(spoken){
-            setVoiceTranscript(spoken);
-            interpretVoiceTranscript(spoken,lang);
-          }else{
-            setVoiceMessage(current=>current.startsWith('🎤')?'No speech was captured. Please try again.':current);
-          }
-        };
-        recognition.start();
-      }catch(error){
-        setVoiceListening(false);
-        voiceRecognitionRef.current=null;
-        setVoiceMessage(error.message||'Unable to start microphone.');
-      }
-    }
-
     async function load(){
       if(!canView)return;
       setBusy(true);setMessage('');
@@ -8916,6 +8797,125 @@ Thank you.`;
       if(!value)return false;
       const d=new Date(value),n=new Date();
       return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();
+    }
+
+    function stopVoiceRecognition(){
+      try{voiceRecognitionRef.current?.stop?.()}catch(_){}
+      voiceRecognitionRef.current=null;
+      setVoiceListening(false);
+    }
+
+    function normalizeVoiceDateTime(value){
+      if(!value)return '';
+      const d=new Date(String(value));
+      if(Number.isNaN(d.getTime()))return String(value).slice(0,16);
+      const pad=n=>String(n).padStart(2,'0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    async function interpretVoiceTranscript(transcript,spokenLanguage){
+      const text=String(transcript||'').trim();
+      if(!text)return;
+      setVoiceProcessing(true);
+      setVoiceMessage(spokenLanguage==='ta-IN'?'தமிழ் உரையை எளிய ஆங்கிலமாக மாற்றுகிறோம்…':'Converting speech into the form…');
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Your session has expired. Please sign in again.');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{
+          method:'POST',
+          headers:{
+            'Content-Type':'application/json',
+            'Authorization':`Bearer ${session.access_token}`,
+            'apikey':cfg.supabasePublishableKey
+          },
+          body:JSON.stringify({
+            transcript:text,
+            spoken_language:spokenLanguage,
+            current_form_type:form.item_type||'Follow-up',
+            current_task_kind:form.task_kind||'General Task',
+            now_iso:new Date().toISOString(),
+            timezone:'Asia/Kolkata'
+          })
+        });
+        const result=await response.json().catch(()=>({error:'Unable to read voice-processing response'}));
+        if(!response.ok||result.error)throw new Error(result.error||'Unable to process voice entry.');
+        const x=result.fields||{};
+        setForm(current=>({
+          ...current,
+          item_type:x.item_type||current.item_type||'Task',
+          task_kind:x.task_kind||current.task_kind||'General Task',
+          title:x.title||current.title||'',
+          contact_name:x.contact_name||current.contact_name||'',
+          contact_mobile:x.contact_mobile||current.contact_mobile||'',
+          organisation:x.organisation||current.organisation||'',
+          scheduled_at:x.scheduled_at?normalizeVoiceDateTime(x.scheduled_at):current.scheduled_at,
+          due_date:x.due_date||current.due_date||'',
+          priority:x.priority||current.priority||'Normal',
+          status:current.status||'Pending',
+          details:x.details||current.details||'',
+          needs_director_attention:typeof x.needs_director_attention==='boolean'?x.needs_director_attention:current.needs_director_attention
+        }));
+        setVoiceMessage('✓ Voice entry filled in simple English. Please check the fields before Save.');
+      }catch(error){
+        setVoiceMessage(error.message||'Unable to process voice entry.');
+      }finally{
+        setVoiceProcessing(false);
+      }
+    }
+
+    function startVoiceEntry(lang='ta-IN'){
+      if(!canVoice)return;
+      const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+      if(!SpeechRecognition){
+        setVoiceMessage('Voice recognition is not available in this browser. Please try Chrome/Edge or the installed Samara Care app.');
+        return;
+      }
+      stopVoiceRecognition();
+      setVoiceTranscript('');
+      setVoiceMessage(lang==='ta-IN'?'🎤 தமிழில் இயல்பாக பேசுங்கள்…':'🎤 Speak naturally in English…');
+      try{
+        const recognition=new SpeechRecognition();
+        recognition.lang=lang;
+        recognition.interimResults=true;
+        recognition.continuous=false;
+        recognition.maxAlternatives=1;
+        voiceRecognitionRef.current=recognition;
+        let finalText='';
+        recognition.onstart=()=>setVoiceListening(true);
+        recognition.onresult=event=>{
+          let interim='';
+          for(let i=event.resultIndex;i<event.results.length;i++){
+            const t=event.results[i][0]?.transcript||'';
+            if(event.results[i].isFinal)finalText+=`${t} `;
+            else interim+=t;
+          }
+          setVoiceTranscript((finalText||interim).trim());
+        };
+        recognition.onerror=event=>{
+          setVoiceListening(false);
+          voiceRecognitionRef.current=null;
+          const code=String(event?.error||'');
+          setVoiceMessage(code==='not-allowed'
+            ?'Microphone permission is blocked. Please allow microphone access for Samara Care and try again.'
+            :`Voice recognition stopped${code?`: ${code}`:''}. Please try again.`);
+        };
+        recognition.onend=()=>{
+          setVoiceListening(false);
+          voiceRecognitionRef.current=null;
+          const spoken=String(finalText||'').trim();
+          if(spoken){
+            setVoiceTranscript(spoken);
+            interpretVoiceTranscript(spoken,lang);
+          }else{
+            setVoiceMessage(current=>current.startsWith('🎤')?'No speech was captured. Please try again.':current);
+          }
+        };
+        recognition.start();
+      }catch(error){
+        setVoiceListening(false);
+        voiceRecognitionRef.current=null;
+        setVoiceMessage(error.message||'Unable to start microphone.');
+      }
     }
 
     async function load(){
