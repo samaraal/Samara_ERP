@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.51';
+  const APP_VERSION = '2.10.52';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1385,7 +1385,7 @@ function initSamaraInaugurationInvitation(){
     { title:'HR', items:['HR Dashboard','Employees','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:"DIRECTOR'S OFFICE", items:["Director's Office"] },
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
-    { title:'MANAGER', items:['My To-Do & Follow-up','My Quick Tasks','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
+    { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
@@ -1409,8 +1409,13 @@ function initSamaraInaugurationInvitation(){
   });
   const ROLE_HOME={Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet',STD:"Director's Office"};
   const isNursingManagerProfile=profile=>{
-    const designation=String(profile?.designation||'').trim().toLowerCase();
-    return designation==='nurse manager'||designation==='nursing manager';
+    const clean=value=>String(value||'').trim().toLowerCase().replace(/[._-]+/g,' ').replace(/\s+/g,' ');
+    const designation=clean(profile?.designation||profile?.employee_designation||profile?.job_title||profile?.position);
+    if(designation==='nurse manager'||designation==='nursing manager')return true;
+    // Legacy/login-only profiles can temporarily miss the designation field.
+    // Only use the department+role fallback when no designation-like value exists.
+    const department=clean(profile?.department);
+    return !designation && department==='nursing' && clean(profile?.role)==='manager';
   };
   const allowedPagesForProfile=profile=>{
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
@@ -5833,6 +5838,32 @@ Caring with Compassion. Living with Dignity.`;
           if(direct.error) console.error(direct.error);
           data=direct.data||null;
 
+          // v2.10.52: a login-only profile can exist separately from the richer
+          // employee row.  When the direct row has no designation, resolve the
+          // best same-person employee profile so designation-based workspaces
+          // (especially Nurse Manager voice tasks) are not lost.
+          if(data && !String(data.designation||'').trim()){
+            try{
+              const filters=[];
+              const safe=value=>String(value||'').trim().replace(/[,()]/g,'');
+              if(data.full_name)filters.push(`full_name.ilike.${safe(data.full_name)}`);
+              if(data.mobile)filters.push(`mobile.eq.${safe(data.mobile)}`);
+              if(data.login_id)filters.push(`login_id.eq.${safe(data.login_id)}`);
+              if(filters.length){
+                const richer=await profileTimeout(
+                  client.from('profiles').select('*').or(filters.join(',')),
+                  7000,
+                  'Employee designation lookup'
+                );
+                if(!richer.error && Array.isArray(richer.data) && richer.data.length){
+                  const candidates=deduplicateEmployeeProfiles([data,...richer.data]);
+                  const best=[...candidates].sort((a,b)=>employeeProfileScore(b)-employeeProfileScore(a))[0];
+                  if(best && employeeProfileScore(best)>employeeProfileScore(data)) data={...data,...best};
+                }
+              }
+            }catch(error){console.warn('Employee designation enrichment skipped:',error?.message||error)}
+          }
+
           // Login-only compatibility repair: securely locate and link an existing
           // employee profile when the Authentication account was created separately.
           if(!data){
@@ -6505,7 +6536,9 @@ Caring with Compassion. Living with Dignity.`;
     }
 
     const patients=choose('Patients');
-    const work=isNursingManagerProfile(profile)?choose('My Quick Tasks',['HR Dashboard','Clinical Dashboard','Admissions','Employees']):choose('HR Dashboard',['Clinical Dashboard','Admissions','Employees','Billing & Payments']);
+    const work=isNursingManagerProfile(profile)
+      ?choose('My Quick Tasks',['HR Dashboard','Clinical Dashboard','Admissions','Employees'])
+      :choose('HR Dashboard',['Clinical Dashboard','Admissions','Employees','Billing & Payments']);
     const reports=choose('Reports',['Intelligent Reports','Billing & Payments','Notifications']);
     const items=[
       {page:home,icon:'⌂',label:'Home'},

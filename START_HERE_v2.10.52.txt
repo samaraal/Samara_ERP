@@ -1,0 +1,37 @@
+SAMARA CARE ERP v2.10.52 — NURSE MANAGER VOICE TASK ROUTING FIX
+
+ISSUE CONFIRMED FROM SHOBANA SCREEN
+- Login shows ERP Access Role = Manager.
+- Mobile Work was still opening My To-Do & Follow-up / normal Manager workspace.
+- My Quick Tasks did not appear because the loaded login profile can be a login-only profile without Designation, even when the Employee record has Designation = Nurse Manager.
+
+WHAT IS FIXED
+1. Nurse Manager detection accepts:
+   - Nurse Manager
+   - Nursing Manager
+   - designation-compatible legacy fields
+   - legacy fallback: Department = Nursing + ERP Role = Manager, only when designation is missing.
+2. At login, if the direct profile has no designation, ERP now looks for the richer matching employee profile and uses its designation.
+3. For a recognised Nurse Manager, the MOBILE "Work" button now opens "My Quick Tasks" directly.
+4. My Quick Tasks remains available in the Module/Menu list.
+5. Speak Tamil and Speak English voice entry are unchanged and retained.
+6. Ordinary Managers continue to use My To-Do & Follow-up.
+
+REPLACE ONLY
+- app.js
+- index.html
+- service-worker.js
+
+NO SQL CHANGE IS REQUIRED FOR THIS ROUTING FIX.
+If the nursing_manager_tasks table / voice backend was already installed earlier, do not rerun it.
+
+AFTER UPLOAD ON PHONE
+1. Open Samara Care ERP.
+2. Menu -> App Help / Repair -> Check for Updates.
+3. Confirm Version 2.10.52.
+4. If an older screen remains, use Repair App once and reopen.
+
+EXPECTED RESULT FOR SHOBANA
+- Module list includes My Quick Tasks.
+- Bottom Work button opens My Quick Tasks.
+- + Quick Task opens Tamil / English voice entry.
