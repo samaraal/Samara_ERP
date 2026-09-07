@@ -1,0 +1,58 @@
+SAMARA CARE ERP v2.10.59 — AUTOMATIC ADMISSION WHATSAPP
+=========================================================
+
+PURPOSE
+-------
+Restores the intended Go-Live workflow for the first family communication.
+
+NEW BEHAVIOUR
+-------------
+1. After a successful patient admission is saved and the clinical/billing setup is completed,
+   the ERP automatically sends the approved Meta template:
+      samara_patient_admission
+   to the authorised family WhatsApp number.
+
+2. The automatic send is protected against duplicate sending:
+   - it first checks the Admission WhatsApp audit/history for the patient;
+   - re-opening or resuming an admission will not intentionally create a second automatic message.
+
+3. Failure to send WhatsApp DOES NOT cancel or damage the admission.
+   The admission remains saved and the ERP tells the user to use the manual resend option.
+
+4. The Family Portal access message remains a separate action.
+   This patch does NOT automatically expose or send the temporary PIN.
+
+5. Patient > Family Portal now includes:
+      Send Admission WhatsApp
+   and, once detected as sent:
+      Resend Admission WhatsApp
+   This is useful for Mrs. Ambika, whose admission was created before this patch.
+
+6. Existing manual/API recovery controls are retained.
+
+FILES TO REPLACE
+----------------
+Replace ONLY these live ERP files:
+- app.js
+- index.html
+- service-worker.js
+
+NO SQL REQUIRED.
+NO EDGE FUNCTION REDEPLOYMENT REQUIRED for this patch.
+
+DEPLOYMENT
+----------
+1. Upload/replace the three files above in the ERP website repository/root.
+2. Wait for deployment to complete.
+3. In the ERP, use App Help > Repair App (or hard refresh Ctrl+Shift+R) once.
+4. Confirm the login/footer/app help shows version 2.10.59.
+
+FIRST REAL PATIENT ALREADY CREATED (MRS. AMBIKA)
+-------------------------------------------------
+Because Mrs. Ambika was admitted before v2.10.59, the patch will NOT send a message merely
+because the page is refreshed. This is intentional duplicate protection.
+
+To send her first Admission WhatsApp after deploying:
+Patient > Mrs. Ambika > Family Portal > Send Admission WhatsApp
+
+For all NEW admissions after v2.10.59, the Admission WhatsApp is automatic.

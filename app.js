@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.58';
+  const APP_VERSION = '2.10.59';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -11980,6 +11980,7 @@ Thank you.`;
     const familyPortalEnabled=['Family Portal Access','Both'].includes(familyAccess.delivery_mode);
     const dailyWhatsAppEnabled=['Daily WhatsApp Update','Both'].includes(familyAccess.delivery_mode);
     const [familyCredential,setFamilyCredential]=React.useState(null);
+    const [admissionWhatsAppStatus,setAdmissionWhatsAppStatus]=React.useState('');
     const [photoFiles,setPhotoFiles]=React.useState([]),[idFiles,setIdFiles]=React.useState([]),[dischargeFiles,setDischargeFiles]=React.useState([]),[prescriptionFiles,setPrescriptionFiles]=React.useState([]),[reportFiles,setReportFiles]=React.useState([]),[cameraConfig,setCameraConfig]=React.useState(null),[patientPhotoPreview,setPatientPhotoPreview]=React.useState('');
     const [roomBeds,setRoomBeds]=React.useState([]);
     const [consentRecord,setConsentRecord]=React.useState(null);
@@ -13025,6 +13026,7 @@ Thank you.`;
         pin,
         mobile,
         patient_id:patient.patient_id||patient.patient_code||'',
+        patient_db_id:patient.id||null,
         patient_name:formalName(patient)||patient.full_name||form.full_name||'',
         relative_name:String(familyAccess.relative_name||'').trim(),
         admission_date:patient.admission_date||form.admission_date||'',
@@ -13058,8 +13060,54 @@ Thank you.`;
       if(error)throw error;
       return data;
     }
-    async function sendAdmissionWhatsAppApi(credential){
-      if(!credential)return;
+    function admissionWhatsAppCredential(patient,portalCredential=null){
+      return {
+        ...(portalCredential||{}),
+        patient_db_id:patient?.id||portalCredential?.patient_db_id||null,
+        patient_id:patient?.patient_id||patient?.patient_code||portalCredential?.patient_id||'',
+        patient_name:formalName(patient)||patient?.full_name||portalCredential?.patient_name||form.full_name||'',
+        relative_name:portalCredential?.relative_name||String(familyAccess.relative_name||'').trim(),
+        mobile:portalCredential?.mobile||String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10),
+        admission_date:patient?.admission_date||portalCredential?.admission_date||form.admission_date||'',
+        room_bed:portalCredential?.room_bed||[patient?.room_no||form.room_no,patient?.bed_no||form.bed_no].filter(Boolean).join(' / ')
+      };
+    }
+
+    async function admissionWhatsAppAlreadySent(patient,credential){
+      if(!patient?.id)return false;
+      try{
+        const {data:auditRows,error:auditError}=await client.from('audit_log')
+          .select('id')
+          .eq('entity','patients')
+          .eq('entity_id',patient.id)
+          .eq('action','AUTO_ADMISSION_WHATSAPP_SENT')
+          .limit(1);
+        if(!auditError&&(auditRows||[]).length)return true;
+
+        const recipient=normalizeWhatsAppRecipient(credential?.mobile||'');
+        if(!recipient)return false;
+        const {data:rows,error}=await client.from('hr_whatsapp_communications')
+          .select('id,recipient_number,status,message_payload')
+          .eq('template_name','samara_patient_admission')
+          .eq('recipient_number',recipient)
+          .order('created_at',{ascending:false})
+          .limit(100);
+        if(error)return false;
+        return (rows||[]).some(row=>{
+          const payload=row?.message_payload||{};
+          const linked=[payload.patient_db_id,payload.patient_id,payload.patient_code].filter(Boolean).map(String);
+          const matches=!linked.length||linked.includes(String(patient.id))||linked.includes(String(patient.patient_id||patient.patient_code||''));
+          const accepted=!row?.status||['accepted','sent','delivered','read'].includes(String(row.status).toLowerCase());
+          return matches&&accepted;
+        });
+      }catch(error){
+        console.warn('Could not verify previous Admission WhatsApp:',error);
+        return false;
+      }
+    }
+
+    async function sendAdmissionWhatsAppApi(credential,{automatic=false,patient=null,resend=false}={}){
+      if(!credential)return null;
       try{
         const recipient=credential.relative_name||'Family Member';
         const patientName=credential.patient_name||form.full_name||'Patient';
@@ -13076,18 +13124,51 @@ Thank you.`;
             credential.room_bed||[form.room_no,form.bed_no].filter(Boolean).join(' / ')||'—'
           ],
           communicationLog:{
-            communication_type:'Patient Admission Notification',
+            communication_type:`Patient Admission Notification${resend?' · Resent':''}`,
             message_content:`Dear ${recipient},\n\n${patientName} was admitted to Samara Assisted Living on ${admissionDate}.\nResident ID: ${credential.patient_id||'—'}\nRoom / Bed: ${credential.room_bed||'—'}`,
             contact_name:recipient,
             source_type:'Patient / Family · Admission',
             sent_by:profile?.id||null,
             sent_by_name:formalName(profile)||'Samara Admission',
-            message_payload:{patient_id:credential.patient_id||null,patient_name:patientName,admission_date:admissionDate}
+            message_payload:{patient_db_id:credential.patient_db_id||patient?.id||null,patient_id:credential.patient_id||null,patient_code:credential.patient_id||null,patient_name:patientName,admission_date:admissionDate,resend:Boolean(resend),automatic:Boolean(automatic)}
           }
         });
-        setMsg(result?.history_logged===true?'Patient admission WhatsApp was accepted by Meta and recorded in WhatsApp Inbox. Delivery status will follow.':'Patient admission WhatsApp was accepted by Meta, but Inbox logging failed. Please check the Edge Function deployment.');
+
+        if(patient?.id&&result?.provider_message_id){
+          await client.from('audit_log').insert({
+            user_id:profile?.id||null,
+            action:automatic?'AUTO_ADMISSION_WHATSAPP_SENT':'ADMISSION_WHATSAPP_SENT',
+            entity:'patients',
+            entity_id:patient.id,
+            details:{patient_id:patient.patient_id||patient.patient_code||null,recipient:normalizeWhatsAppRecipient(credential.mobile),provider_message_id:result.provider_message_id,resend:Boolean(resend),automatic:Boolean(automatic)}
+          }).then(({error})=>{if(error)console.warn('Admission WhatsApp audit logging failed:',error)});
+        }
+
+        if(!automatic){
+          setMsg(result?.history_logged===true?'Patient admission WhatsApp was accepted by Meta and recorded in WhatsApp Inbox. Delivery status will follow.':'Patient admission WhatsApp was accepted by Meta. Delivery status will follow.');
+        }
+        return result;
       }catch(apiError){
-        setMsg(`Patient admission WhatsApp API failed: ${apiError.message||apiError}. No manual WhatsApp window was opened automatically.`);
+        if(!automatic)setMsg(`Patient admission WhatsApp API failed: ${apiError.message||apiError}. No manual WhatsApp window was opened automatically.`);
+        throw apiError;
+      }
+    }
+
+    async function autoSendAdmissionWhatsAppOnce(patient,credential){
+      if(!patient?.id||!credential?.mobile)return {status:'skipped'};
+      setAdmissionWhatsAppStatus('sending');
+      try{
+        if(await admissionWhatsAppAlreadySent(patient,credential)){
+          setAdmissionWhatsAppStatus('already-sent');
+          return {status:'already-sent'};
+        }
+        const result=await sendAdmissionWhatsAppApi(credential,{automatic:true,patient});
+        setAdmissionWhatsAppStatus('sent');
+        return {status:'sent',result};
+      }catch(error){
+        console.error('Automatic Admission WhatsApp failed:',error);
+        setAdmissionWhatsAppStatus('failed');
+        return {status:'failed',error};
       }
     }
 
@@ -13279,7 +13360,8 @@ Please keep these login details confidential.`;
       }
       try{
         await saveFamilyCommunicationPreference(patient);
-        if(familyPortalEnabled)await saveFamilyPortalAccess(patient);
+        const portalCredential=familyPortalEnabled?await saveFamilyPortalAccess(patient):null;
+        const admissionCredential=admissionWhatsAppCredential(patient,portalCredential);
         if(photoFiles[0])await uploadPatientFile(patient.id,photoFiles[0],'Patient Photo',true);
         for(const f of idFiles)await uploadPatientFile(patient.id,f,'Identity Proof');
         for(const f of dischargeFiles)await uploadPatientFile(patient.id,f,needsHospital?'Discharge / Transfer Summary':'Medical History');
@@ -13326,6 +13408,7 @@ Please keep these login details confidential.`;
           admission_consent_status:'Awaiting Signed Consent',
           admission_consent_generated_at:new Date().toISOString()
         }).eq('id',patient.id);
+        const admissionWhatsAppResult=await autoSendAdmissionWhatsAppOnce(patient,admissionCredential);
         setConsentRecord({
           patient,
           form:{...form},
@@ -13354,7 +13437,14 @@ Please keep these login details confidential.`;
           resumedExistingAdmission:!!admissionExistingPatient&&!returningPatient
         });
         setSignedConsentFiles([]);
-        setMsg('Admission data saved. Print the generated consent, obtain signatures and upload the signed form to complete admission formalities.');
+        const admissionWhatsAppNote=admissionWhatsAppResult?.status==='sent'
+          ?` Admission WhatsApp was sent automatically to ${admissionCredential.relative_name||'the authorised family member'}.`
+          :admissionWhatsAppResult?.status==='already-sent'
+            ?' Admission WhatsApp had already been sent, so no duplicate was generated.'
+            :admissionWhatsAppResult?.status==='failed'
+              ?' Admission was saved, but the automatic Admission WhatsApp failed; use the Resend button from the patient Family Portal tab.'
+              :'';
+        setMsg(`Admission data saved.${admissionWhatsAppNote} Print the generated consent, obtain signatures and upload the signed form to complete admission formalities.`);
       }catch(err){setMsg(`${admissionExistingPatient?'Existing patient admission resumed':'Patient created'}, but document or care setup failed: ${err.message}`)}
       setBusy(false);
     }
@@ -13537,7 +13627,7 @@ Please keep these login details confidential.`;
           h('strong',null,'Family Portal login created'),
           h('div',null,`Resident ID: ${familyCredential.patient_id||'—'} · Temporary PIN: ${familyCredential.pin}`),
           h('div',{className:'employee-actions',style:{marginTop:'8px'}},
-            h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>sendAdmissionWhatsAppApi(familyCredential)},'Send Admission WhatsApp API'),
+            h('button',{type:'button',className:admissionWhatsAppStatus==='sent'||admissionWhatsAppStatus==='already-sent'?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:admissionWhatsAppStatus==='sending',onClick:()=>sendAdmissionWhatsAppApi(familyCredential,{patient:consentRecord?.patient||null,resend:admissionWhatsAppStatus==='sent'||admissionWhatsAppStatus==='already-sent'})},admissionWhatsAppStatus==='sending'?'Sending Admission WhatsApp…':admissionWhatsAppStatus==='sent'||admissionWhatsAppStatus==='already-sent'?'Resend Admission WhatsApp':'Send Admission WhatsApp API'),
             h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>sendFamilyPortalAccessWhatsAppApi(familyCredential)},'Send Family Portal Access API'),
             h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${familyCredential.mobile}?text=${encodeURIComponent(brandWhatsAppText(`Welcome to Samara Assisted Living Family Portal.\nResident ID: ${familyCredential.patient_id||''}\nTemporary PIN: ${familyCredential.pin}\nPortal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send Login PIN (Existing Method)')
           )
@@ -14325,7 +14415,7 @@ Please keep these login details confidential.`;
         client.from('incidents').select('*').eq('patient_id',p.id).order('incident_at',{ascending:false}).limit(100),
         canEdit?client.from('family_portal_access').select('id,family_user_id,relative_name,relationship,mobile,email,primary_contact,is_active,last_login_at,created_at,updated_at').eq('patient_id',p.id).order('primary_contact',{ascending:false}).order('created_at',{ascending:true}):Promise.resolve({data:[]}),
         client.from('patient_daily_moments').select('*').eq('patient_id',p.id).gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}),
-        canEdit?client.from('hr_whatsapp_communications').select('id,recipient_number,template_name,status,provider_message_id,message_payload,created_at').eq('template_name','samara_family_portal_access').order('created_at',{ascending:false}).limit(500):Promise.resolve({data:[]}),
+        canEdit?client.from('hr_whatsapp_communications').select('id,recipient_number,template_name,status,provider_message_id,message_payload,created_at').in('template_name',['samara_family_portal_access','samara_patient_admission']).order('created_at',{ascending:false}).limit(500):Promise.resolve({data:[]}),
         canEdit?client.from('patient_family_communication_preferences').select('*').eq('patient_id',p.id).maybeSingle():Promise.resolve({data:null}),
         canEdit?client.from('patient_communications').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}).limit(50):Promise.resolve({data:[]}),
         resolvePatientPhoto(p)
@@ -14338,10 +14428,23 @@ Please keep these login details confidential.`;
       setPhotoUrl(url);
     }
 
+    function admissionWhatsAppSent(access){
+      const recipient=normalizeWhatsAppRecipient(access?.mobile||'');
+      if(!recipient)return false;
+      return (details?.familyWhatsApp||[]).some(row=>{
+        if(row?.template_name!=='samara_patient_admission')return false;
+        if(normalizeWhatsAppRecipient(row.recipient_number)!==recipient)return false;
+        const payload=row.message_payload||{};
+        const linked=[payload.patient_db_id,payload.patient_id,payload.patient_code].filter(Boolean).map(String);
+        return !linked.length||linked.includes(String(selected?.id||''))||linked.includes(String(selected?.patient_id||''));
+      });
+    }
+
     function familyPortalWhatsAppSent(access){
       const recipient=normalizeWhatsAppRecipient(access?.mobile||'');
       if(!recipient)return false;
       return (details?.familyWhatsApp||[]).some(row=>{
+        if(row?.template_name!=='samara_family_portal_access')return false;
         if(normalizeWhatsAppRecipient(row.recipient_number)!==recipient)return false;
         const payload=row.message_payload||{};
         const linked=[payload.patient_id,payload.patient_code].filter(Boolean).map(String);
@@ -14393,6 +14496,47 @@ Please keep these login details confidential.`;
 
     function familyCorrespondenceAddress(){
       return selected?.attendant_address||selected?.family_address||selected?.relative_address||patientAddress(selected)||selected?.address||'Not recorded';
+    }
+
+    async function sendPatientAdmissionWhatsApp(access,{resend=false}={}){
+      if(!access?.id||familyPortalWaBusy)return;
+      setFamilyPortalWaBusy(access.id);
+      try{
+        const recipient=access.relative_name||'Family Member';
+        const patientName=formalName(selected)||selected?.full_name||'Patient';
+        const admissionDate=formatDateIN(selected?.admission_date);
+        const credential={
+          patient_db_id:selected?.id||null,
+          patient_id:selected?.patient_id||selected?.patient_code||'',
+          patient_name:patientName,
+          relative_name:recipient,
+          mobile:access.mobile,
+          admission_date:selected?.admission_date||'',
+          room_bed:[selected?.room_no,selected?.bed_no].filter(Boolean).join(' / ')
+        };
+        const result=await sendWhatsAppTemplate({
+          to:access.mobile,
+          templateName:'samara_patient_admission',
+          languageCode:'en',
+          bodyParams:[recipient,patientName,admissionDate,credential.patient_id||'—',credential.room_bed||'—'],
+          communicationLog:{
+            communication_type:`Patient Admission Notification${resend?' · Resent':''}`,
+            message_content:`Dear ${recipient},\n\n${patientName} was admitted to Samara Assisted Living on ${admissionDate}.\nResident ID: ${credential.patient_id||'—'}\nRoom / Bed: ${credential.room_bed||'—'}`,
+            contact_name:recipient,
+            source_type:'Patient / Family · Admission',
+            sent_by:profile?.id||null,
+            sent_by_name:formalName(profile)||'Samara Management',
+            message_payload:{patient_db_id:selected?.id||null,patient_id:selected?.patient_id||null,patient_code:selected?.patient_id||null,patient_name:patientName,admission_date:admissionDate,resend:Boolean(resend),automatic:false}
+          }
+        });
+        if(result?.history_logged===true)setDetails(current=>current?{...current,familyWhatsApp:[{id:`accepted-${result.provider_message_id}`,recipient_number:normalizeWhatsAppRecipient(access.mobile),template_name:'samara_patient_admission',status:'Accepted',provider_message_id:result.provider_message_id,message_payload:{patient_db_id:selected?.id||null,patient_id:selected?.patient_id||null,patient_code:selected?.patient_id||null,resend:Boolean(resend)},created_at:new Date().toISOString()},...(current.familyWhatsApp||[])]}:current);
+        await client.from('audit_log').insert({user_id:profile?.id||null,action:'ADMISSION_WHATSAPP_SENT',entity:'patients',entity_id:selected?.id||null,details:{patient_id:selected?.patient_id||null,recipient:normalizeWhatsAppRecipient(access.mobile),provider_message_id:result?.provider_message_id||null,resend:Boolean(resend)}}).then(({error})=>{if(error)console.warn('Admission WhatsApp audit logging failed:',error)});
+        showPatientToast('success',resend?'Admission WhatsApp resent.':'Admission WhatsApp accepted by Meta.');
+      }catch(error){
+        showPatientToast('error',`Admission WhatsApp API failed: ${error.message||error}.`);
+      }finally{
+        setFamilyPortalWaBusy('');
+      }
     }
 
     async function sendPatientPortalWhatsApp(access,{resend=false}={}){
@@ -15731,7 +15875,8 @@ Please keep these login details confidential.`;
                   patientDetailField('PIN','Existing PIN is hidden for security.'),
                   patientDetailField('Internal Family Ref',access.family_user_id||'—','patient-detail-secondary')
                 ),
-                access.is_active&&(()=>{const portalWhatsAppSent=familyPortalWhatsAppSent(access);return h('div',{className:'actions',style:{marginTop:'10px'}},
+                access.is_active&&(()=>{const portalWhatsAppSent=familyPortalWhatsAppSent(access);const admissionSent=admissionWhatsAppSent(access);return h('div',{className:'actions',style:{marginTop:'10px'}},
+                  h('button',{type:'button',className:admissionSent?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:familyPortalWaBusy===access.id,onClick:()=>sendPatientAdmissionWhatsApp(access,{resend:admissionSent})},familyPortalWaBusy===access.id?'Sending…':admissionSent?'Resend Admission WhatsApp':'Send Admission WhatsApp'),
                   h('button',{type:'button',className:'btn btn-secondary',disabled:familyResetBusy===access.id,onClick:()=>resetSelectedFamilyPin(access)},familyResetBusy===access.id?'Resetting…':'Forgot / Reset PIN'),
                   h('button',{type:'button',className:portalWhatsAppSent?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:portalWhatsAppSent||familyPortalWaBusy===access.id,onClick:()=>sendPatientPortalWhatsApp(access)},familyPortalWaBusy===access.id?'Sending…':portalWhatsAppSent?'Portal Access WhatsApp Sent ✓':'Send Portal Access WhatsApp API'),
                   portalWhatsAppSent?h('button',{type:'button',className:'btn btn-secondary',disabled:familyPortalWaBusy===access.id,onClick:()=>sendPatientPortalWhatsApp(access,{resend:true})},familyPortalWaBusy===access.id?'Resending…':'Resend Portal Access WhatsApp'):null,
