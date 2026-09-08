@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.76';
+  const APP_VERSION = '2.10.77';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -10636,7 +10636,7 @@ Thank you.`;
         urgent.length?h('div',{style:{marginTop:'12px',padding:'10px 12px',borderRadius:'12px',background:'#fff3f3',border:'1px solid #efc2c2',fontWeight:800,color:'#8d1b2c'}},`⚠ ${urgent.length} urgent item${urgent.length===1?'':'s'} pending`):null
       ),
 
-      /* v2.10.76 — prominent Director's Office item-count summary, desktop + mobile */
+      /* v2.10.77 — prominent Director's Office item-count summary with mobile layout fix */
       h('style',null,`
         .director-items-summary{
           display:inline-flex;align-items:center;gap:6px;margin-top:4px;
@@ -10647,7 +10647,43 @@ Thank you.`;
           letter-spacing:.1px;box-shadow:0 3px 10px rgba(171,0,75,.10)
         }
         @media(max-width:760px){
-          .director-items-summary{font-size:17px;padding:6px 11px;margin-top:6px}
+          /* Mobile: keep the section title and item-count summary readable and horizontal. */
+          .director-office-page .card.panel > .panel-head{
+            display:block!important;
+            width:100%!important;
+            min-width:0!important;
+          }
+          .director-office-page .card.panel > .panel-head > div:first-child{
+            width:100%!important;
+            min-width:0!important;
+            max-width:100%!important;
+          }
+          .director-office-page .card.panel > .panel-head > div:first-child h3{
+            white-space:normal!important;
+            overflow-wrap:normal!important;
+            word-break:normal!important;
+            font-size:22px!important;
+            line-height:1.18!important;
+          }
+          .director-items-summary{
+            display:inline-flex!important;
+            width:auto!important;
+            max-width:100%!important;
+            white-space:nowrap!important;
+            overflow-wrap:normal!important;
+            word-break:normal!important;
+            font-size:17px!important;
+            line-height:1.1!important;
+            padding:7px 13px!important;
+            margin-top:7px!important;
+          }
+          /* The filter button group moves below, so it cannot squeeze the count into a vertical strip. */
+          .director-office-page .card.panel > .panel-head > div:nth-child(2){
+            width:100%!important;
+            max-width:100%!important;
+            min-width:0!important;
+            margin-top:12px!important;
+          }
         }
       `),
       h(Section,{title:'Calendar',subtitle:'Choose a date to see its tasks, appointments, calls and follow-ups'},renderDirectorCalendar()),
