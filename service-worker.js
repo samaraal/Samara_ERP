@@ -1,5 +1,5 @@
-const APP_VERSION = '2.10.65';
-const CACHE = 'samara-erp-2.10.65-mobile-patient-tabs-button-style';
+const APP_VERSION = '2.10.66';
+const CACHE = 'samara-erp-2.10.66-admission-details-display-fix';
 const SHELL = [
   './',
   './index.html',

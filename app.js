@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.65';
+  const APP_VERSION = '2.10.66';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -16290,7 +16290,7 @@ Please keep these login details confidential.`;
             ))
           ),
           tab==='Admission Details'&&h('div',{className:'tabs-grid patient-admission-details'},
-            h('style',null,`.patient-admission-details{align-items:start;gap:16px}.patient-admission-details .section-card{padding:18px 20px}.patient-admission-details .section-card h4{margin:0 0 10px;font-size:18px}.patient-admission-details .patient-admission-field{display:flex!important;align-items:flex-start!important;gap:18px!important;padding:10px 0!important;border-bottom:1px solid #f1dde7;line-height:1.45}.patient-admission-details .patient-admission-field:last-child{border-bottom:0}.patient-admission-details .patient-admission-field>span{display:block!important;flex:0 0 190px!important;min-width:190px!important;color:#735d69;font-size:14px;font-weight:500}.patient-admission-details .patient-admission-field>strong{display:block!important;flex:1 1 auto!important;min-width:0!important;color:#382333;font-size:14px;font-weight:700;line-height:1.45;word-break:normal;overflow-wrap:anywhere}@media(max-width:760px){.patient-admission-details .section-card{padding:15px}.patient-admission-details .patient-admission-field{display:block!important;padding:9px 0!important}.patient-admission-details .patient-admission-field>span{min-width:0!important;margin-bottom:3px;font-size:13px}.patient-admission-details .patient-admission-field>strong{font-size:14px}}
+            h('style',null,`.patient-admission-details{align-items:start;gap:16px}.patient-admission-details .section-card{padding:18px 20px}.patient-admission-details .section-card h4{margin:0 0 10px;font-size:18px;color:#b20f5b!important;font-weight:800}.patient-admission-details .patient-admission-field{display:flex!important;align-items:flex-start!important;gap:18px!important;padding:10px 0!important;border-bottom:1px solid #f1dde7;line-height:1.45}.patient-admission-details .patient-admission-field:last-child{border-bottom:0}.patient-admission-details .patient-admission-field>span{display:block!important;flex:0 0 190px!important;min-width:190px!important;color:#735d69;font-size:14px;font-weight:500}.patient-admission-details .patient-admission-field>strong{display:block!important;flex:1 1 auto!important;min-width:0!important;color:#382333;font-size:14px;font-weight:700;line-height:1.45;word-break:normal;overflow-wrap:anywhere}@media(max-width:760px){.patient-admission-details .section-card{padding:15px}.patient-admission-details .patient-admission-field{display:block!important;padding:9px 0!important}.patient-admission-details .patient-admission-field>span{min-width:0!important;margin-bottom:3px;font-size:13px}.patient-admission-details .patient-admission-field>strong{font-size:14px}}
 `),
             h('div',{className:'section-card'},
               h('h4',null,'Admission'),
@@ -16304,7 +16304,7 @@ Please keep these login details confidential.`;
             ),
             h('div',{className:'section-card'},
               h('h4',null,'Package & Billing'),
-              admissionField('Billing Basis',selected.billing_package||selected.package_id?'Package':'Daily Fare'),
+              admissionField('Billing Basis',(selected.package_id||(selected.billing_package&&selected.billing_package!=='No Package / Daily Billing'))?'Package':'Daily Basis'),
               admissionField('Current Package',selected.billing_package||'No Package / Daily Billing'),
               admissionField('Package Start Date',admissionDateLabel(selected.package_start_date)),
               admissionField('Package Expiry Date',admissionDateLabel(selected.package_end_date)),
@@ -16331,7 +16331,7 @@ Please keep these login details confidential.`;
               admissionField('Emergency Contact',selected.emergency_contact_name||selected.emergency_contact),
               admissionField('Emergency Mobile',selected.emergency_contact_phone||selected.emergency_phone),
               admissionField('Special Nurse',selected.special_nurse_required?(selected.special_nurse_name||'Required'):'Not required'),
-              admissionField('Special Nurse Shift',selected.special_nurse_shift||selected.special_nurse_required_shift),
+              selected.special_nurse_required?admissionField('Special Nurse Shift',selected.special_nurse_shift||selected.special_nurse_required_shift||'Not specified'):null,
               admissionField('Special Instructions',selected.special_instructions||'None'),
               admissionField('Precautions',selected.special_precautions||selected.precautions||'None')
             )
