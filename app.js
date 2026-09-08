@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.63';
+  const APP_VERSION = '2.10.64';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -15879,6 +15879,86 @@ Please keep these login details confidential.`;
   word-break:normal!important;
 }
 
+
+/* v2.10.64 — Patient File Billing readability. Scoped only to Billing tab. */
+.patient-file-backdrop .patient-billing-tab{
+  width:100%!important;
+  min-width:0!important;
+}
+.patient-file-backdrop .patient-billing-summary{
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:12px!important;
+  width:100%!important;
+  margin:4px 0 12px!important;
+}
+.patient-file-backdrop .patient-billing-stat{
+  min-width:0!important;
+  padding:16px!important;
+  border:1px solid #efcddd!important;
+  border-radius:18px!important;
+  background:#fffafd!important;
+}
+.patient-file-backdrop .patient-billing-stat span{
+  display:block!important;
+  margin-bottom:5px!important;
+  color:#6d7a78!important;
+  font-size:13px!important;
+}
+.patient-file-backdrop .patient-billing-stat strong{
+  display:block!important;
+  color:#382333!important;
+  font-size:25px!important;
+  line-height:1.15!important;
+  white-space:nowrap!important;
+}
+.patient-file-backdrop .patient-billing-ledger{
+  padding:18px 20px!important;
+}
+.patient-file-backdrop .patient-billing-row{
+  display:block!important;
+  width:100%!important;
+  padding:13px 0!important;
+  border-bottom:1px solid #f0e0e8!important;
+}
+.patient-file-backdrop .patient-billing-row:last-child{
+  border-bottom:0!important;
+}
+.patient-file-backdrop .patient-billing-row-main{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  gap:14px!important;
+  align-items:start!important;
+}
+.patient-file-backdrop .patient-billing-row-main>strong:first-child{
+  min-width:0!important;
+  color:#3b2934!important;
+  font-size:14px!important;
+  line-height:1.4!important;
+  overflow-wrap:anywhere!important;
+}
+.patient-file-backdrop .patient-billing-amount{
+  color:#7d0f49!important;
+  font-size:15px!important;
+  white-space:nowrap!important;
+}
+.patient-file-backdrop .patient-billing-row-meta{
+  display:grid!important;
+  grid-template-columns:165px minmax(0,1fr)!important;
+  gap:12px!important;
+  margin-top:5px!important;
+  color:#6f5d67!important;
+  font-size:13px!important;
+  line-height:1.45!important;
+}
+.patient-file-backdrop .patient-billing-date{
+  white-space:nowrap!important;
+}
+.patient-file-backdrop .patient-billing-description{
+  min-width:0!important;
+  overflow-wrap:anywhere!important;
+}
+
 @media(max-width:760px){
   html:has(.patient-file-backdrop),body:has(.patient-file-backdrop){
     width:100%!important;
@@ -16080,6 +16160,48 @@ Please keep these login details confidential.`;
   .patient-file-backdrop .patient-overview-address{
     grid-column:auto!important;
   }
+  .patient-file-backdrop .patient-billing-summary{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:8px!important;
+    margin:2px 0 10px!important;
+  }
+  .patient-file-backdrop .patient-billing-stat{
+    padding:12px 11px!important;
+    border-radius:14px!important;
+  }
+  .patient-file-backdrop .patient-billing-stat span{
+    font-size:12px!important;
+    margin-bottom:4px!important;
+  }
+  .patient-file-backdrop .patient-billing-stat strong{
+    font-size:20px!important;
+  }
+  .patient-file-backdrop .patient-billing-ledger{
+    padding:13px!important;
+  }
+  .patient-file-backdrop .patient-billing-row{
+    padding:11px 0!important;
+  }
+  .patient-file-backdrop .patient-billing-row-main{
+    grid-template-columns:minmax(0,1fr) auto!important;
+    gap:8px!important;
+  }
+  .patient-file-backdrop .patient-billing-row-main>strong:first-child{
+    font-size:13px!important;
+  }
+  .patient-file-backdrop .patient-billing-amount{
+    font-size:14px!important;
+  }
+  .patient-file-backdrop .patient-billing-row-meta{
+    grid-template-columns:1fr!important;
+    gap:2px!important;
+    margin-top:5px!important;
+    font-size:12.5px!important;
+  }
+  .patient-file-backdrop .patient-billing-date{
+    color:#856c79!important;
+    white-space:normal!important;
+  }
 }
 `),
         h('button',{type:'button',className:'patient-mobile-back',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('')}},'← Back to Patients'),
@@ -16214,7 +16336,22 @@ Please keep these login details confidential.`;
                 :sectionEmpty('No Daily Moments uploaded for this resident yet.')
             )
           ),
-          !clinicalView&&tab==='Billing'&&(()=>{const b=billingSummary(details.billing),due=b.charges-b.payments-b.discounts+b.refunds;return h('div',null,h('div',{className:'grid stats'},[['Charges',b.charges],['Payments',b.payments],['Discounts',b.discounts],['Outstanding',due]].map(([k,v])=>h('div',{className:'card stat',key:k},h('span',null,k),h('strong',null,`₹${v.toLocaleString('en-IN')}`)))),h('div',{className:'section-card'},h('h4',null,'Patient Ledger'),details.billing.length?details.billing.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${x.transaction_type} · ${x.category} · ₹${Number(x.amount||0).toLocaleString('en-IN')}`),h('span',null,`${fmt(x.transaction_date)} · ${x.description||''}`))):sectionEmpty('No billing transactions.')))} )(),
+          !clinicalView&&tab==='Billing'&&(()=>{const b=billingSummary(details.billing),due=b.charges-b.payments-b.discounts+b.refunds;return h('div',{className:'patient-billing-tab'},
+            h('div',{className:'patient-billing-summary'},[['Charges',b.charges],['Payments',b.payments],['Discounts',b.discounts],['Outstanding',due]].map(([k,v])=>h('div',{className:'patient-billing-stat',key:k},h('span',null,k),h('strong',null,`₹${v.toLocaleString('en-IN')}`)))),
+            h('div',{className:'section-card patient-billing-ledger'},
+              h('h4',null,'Patient Ledger'),
+              details.billing.length?details.billing.map(x=>h('div',{className:'patient-billing-row',key:x.id},
+                h('div',{className:'patient-billing-row-main'},
+                  h('strong',null,`${x.transaction_type||'Transaction'} · ${x.category||'General'}`),
+                  h('strong',{className:'patient-billing-amount'},`₹${Number(x.amount||0).toLocaleString('en-IN')}`)
+                ),
+                h('div',{className:'patient-billing-row-meta'},
+                  h('span',{className:'patient-billing-date'},fmt(x.transaction_date)),
+                  h('span',{className:'patient-billing-description'},x.description||'No description')
+                )
+              )):sectionEmpty('No billing transactions.')
+            )
+          )})(),
           tab==='Timeline'&&h('div',{className:'section-card'},h('h4',null,'Recovery & Incident Timeline'),[...details.recovery.map(x=>({id:`r-${x.id}`,date:x.event_at,title:x.event_type,note:x.note,type:'Recovery'})),...details.incidents.map(x=>({id:`i-${x.id}`,date:x.incident_at,title:x.incident_type,note:`${x.severity||''} · ${x.description||''} · ${x.status||''}`,type:'Incident'}))].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${fmt(x.date)} · ${x.type}: ${x.title}`),h('span',null,x.note||'—'))),details.recovery.length+details.incidents.length===0&&sectionEmpty('No recovery or incident events.')),
           canEdit&&tab==='Family Portal'&&h('div',{className:'section-card'},
             h('div',{className:'panel-head family-portal-login-head'},

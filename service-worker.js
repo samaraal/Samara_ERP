@@ -1,5 +1,5 @@
-const APP_VERSION = '2.10.63';
-const CACHE = 'samara-erp-2.10.63-patient-file-layout-fix';
+const APP_VERSION = '2.10.64';
+const CACHE = 'samara-erp-2.10.64-patient-billing-layout-fix';
 const SHELL = [
   './',
   './index.html',
