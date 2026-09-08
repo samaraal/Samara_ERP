@@ -1,5 +1,5 @@
-const APP_VERSION = '2.10.66';
-const CACHE = 'samara-erp-2.10.66-admission-details-display-fix';
+const APP_VERSION = '2.10.67';
+const CACHE = 'samara-erp-2.10.67-patient-heading-daily-basis-fix';
 const SHELL = [
   './',
   './index.html',

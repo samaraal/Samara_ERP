@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.66';
+  const APP_VERSION = '2.10.67';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -15764,8 +15764,8 @@ Please keep these login details confidential.`;
         )
       ),
       selected&&details&&h('div',{className:'modal-backdrop patient-file-backdrop'},h('div',{className:'card modal patient-master-modal'},
-        h('style',{id:'samara-patient-file-layout-v21063'},`
-/* v2.10.63 — Patient File layout restoration. Scoped only to Patient File. */
+        h('style',{id:'samara-patient-file-layout-v21067'},`
+/* v2.10.67 — Patient File layout and section-heading restoration. Scoped only to Patient File. */
 .patient-file-backdrop{
   box-sizing:border-box!important;
   overflow:hidden!important;
@@ -15829,6 +15829,8 @@ Please keep these login details confidential.`;
 }
 .patient-file-backdrop .section-card h4{
   margin:0 0 10px!important;
+  color:#b20f5b!important;
+  font-weight:800!important;
 }
 .patient-file-backdrop .patient-overview-fields,
 .patient-file-backdrop .patient-detail-fields{
@@ -16304,7 +16306,7 @@ Please keep these login details confidential.`;
             ),
             h('div',{className:'section-card'},
               h('h4',null,'Package & Billing'),
-              admissionField('Billing Basis',(selected.package_id||(selected.billing_package&&selected.billing_package!=='No Package / Daily Billing'))?'Package':'Daily Basis'),
+              admissionField('Billing Basis',((String(selected.billing_basis||'').toLowerCase().includes('daily'))||(String(selected.billing_package||'').toLowerCase().includes('no package'))||(String(selected.billing_package||'').toLowerCase().includes('daily billing'))||(!selected.billing_package&&!selected.package_id))?'Daily Basis':'Package'),
               admissionField('Current Package',selected.billing_package||'No Package / Daily Billing'),
               admissionField('Package Start Date',admissionDateLabel(selected.package_start_date)),
               admissionField('Package Expiry Date',admissionDateLabel(selected.package_end_date)),
