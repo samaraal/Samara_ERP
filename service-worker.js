@@ -1,5 +1,5 @@
-const APP_VERSION = '2.10.79';
-const CACHE = 'samara-erp-2.10.79-director-refresh-fix';
+const APP_VERSION = '2.10.80';
+const CACHE = 'samara-erp-2.10.80-strict-dd-mm-yyyy-colon';
 const SHELL = [
   './',
   './index.html',

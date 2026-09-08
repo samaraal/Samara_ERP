@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.79';
+  const APP_VERSION = '2.10.80';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1543,12 +1543,12 @@ function initSamaraInaugurationInvitation(){
     if(!value)return '—';
     const raw=String(value).trim();
     const dateOnly=raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if(dateOnly)return `${dateOnly[3]}-${dateOnly[2]}-${dateOnly[1]}`;
+    if(dateOnly)return `${dateOnly[3]}:${dateOnly[2]}:${dateOnly[1]}`;
     const date=new Date(value);
     if(Number.isNaN(date.getTime()))return raw;
     const parts=new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'2-digit',year:'numeric'}).formatToParts(date);
     const get=type=>parts.find(part=>part.type===type)?.value||'';
-    return `${get('day')}-${get('month')}-${get('year')}`;
+    return `${get('day')}:${get('month')}:${get('year')}`;
   };
   const formatTimeIN = value => {
     if(!value)return '—';
@@ -9212,12 +9212,12 @@ Thank you.`;
     const pretty=v=>{
       if(!v)return '—';
       const d=new Date(v); if(Number.isNaN(d.getTime()))return v;
-      return d.toLocaleString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
+      return formatDateTimeIN(d);
     };
     const prettyDate=v=>{
       if(!v)return '—';
       const d=new Date(`${v}T00:00:00`);
-      return Number.isNaN(d.getTime())?v:d.toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'});
+      return Number.isNaN(d.getTime())?v:formatDateIN(d);
     };
     const isOpen=r=>!['Completed','Cancelled'].includes(String(r.status||''));
     const today=localDate(new Date());
@@ -9510,13 +9510,13 @@ Thank you.`;
       if(!value)return '—';
       const d=new Date(value);
       if(Number.isNaN(d.getTime()))return value;
-      return d.toLocaleString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
+      return formatDateTimeIN(d);
     }
     function prettyDate(value){
       if(!value)return '—';
       const d=new Date(`${value}T00:00:00`);
       if(Number.isNaN(d.getTime()))return value;
-      return d.toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'});
+      return formatDateIN(d);
     }
     function isOpen(r){return !['Completed','Cancelled'].includes(r.status)}
     function isToday(value){
