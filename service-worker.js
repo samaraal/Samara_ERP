@@ -1,5 +1,5 @@
-const APP_VERSION = '2.10.64';
-const CACHE = 'samara-erp-2.10.64-patient-billing-layout-fix';
+const APP_VERSION = '2.10.65';
+const CACHE = 'samara-erp-2.10.65-mobile-patient-tabs-button-style';
 const SHELL = [
   './',
   './index.html',

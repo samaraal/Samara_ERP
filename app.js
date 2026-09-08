@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.64';
+  const APP_VERSION = '2.10.65';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -16115,12 +16115,55 @@ Please keep these login details confidential.`;
   .patient-file-backdrop .patient-tab-bar button{
     width:100%!important;
     min-width:0!important;
-    min-height:43px!important;
-    padding:8px 5px!important;
+    min-height:48px!important;
+    padding:9px 7px!important;
     font-size:13px!important;
     line-height:1.15!important;
     white-space:normal!important;
     overflow:hidden!important;
+    border:1.5px solid #b8d8cf!important;
+    border-radius:13px!important;
+    background:linear-gradient(180deg,#fbfffd 0%,#e6f3ef 100%)!important;
+    color:#075f50!important;
+    font-weight:800!important;
+    box-shadow:0 2px 0 #b7d1c9,0 4px 10px rgba(8,86,70,.10)!important;
+    text-shadow:0 1px 0 rgba(255,255,255,.75)!important;
+    transition:transform .12s ease,box-shadow .12s ease,background .12s ease!important;
+  }
+  .patient-file-backdrop .patient-tab-bar .patient-tab:active,
+  .patient-file-backdrop .patient-tab-bar button:active{
+    transform:translateY(1px)!important;
+    box-shadow:0 1px 0 #b7d1c9,0 2px 5px rgba(8,86,70,.10)!important;
+  }
+  .patient-file-backdrop .patient-tab-bar .patient-tab.active,
+  .patient-file-backdrop .patient-tab-bar button.active{
+    border-color:#08765f!important;
+    background:linear-gradient(180deg,#11866d 0%,#08715d 100%)!important;
+    color:#fff!important;
+    box-shadow:0 2px 0 #075a4a,0 5px 12px rgba(8,91,73,.20)!important;
+    text-shadow:none!important;
+  }
+  .patient-file-backdrop .patient-tab-bar .tab-count{
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    min-width:22px!important;
+    height:22px!important;
+    margin-left:6px!important;
+    padding:0 6px!important;
+    border-radius:999px!important;
+    background:rgba(255,255,255,.72)!important;
+    border:1px solid rgba(7,95,80,.12)!important;
+    color:#075f50!important;
+    font-size:12px!important;
+    font-weight:850!important;
+    vertical-align:middle!important;
+  }
+  .patient-file-backdrop .patient-tab-bar .patient-tab.active .tab-count,
+  .patient-file-backdrop .patient-tab-bar button.active .tab-count{
+    background:rgba(255,255,255,.20)!important;
+    border-color:rgba(255,255,255,.18)!important;
+    color:#fff!important;
   }
   .patient-file-backdrop .patient-tab-content{
     width:100%!important;
