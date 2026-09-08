@@ -8118,6 +8118,48 @@ Thank you,
 Samara Assisted Living`;
     }
     const canUse=['Admin','Manager','HR','STD'].includes(String(profile?.role||''));
+    async function repairLegacyInterviewHistory(rawRows){
+      // v2.10.83: Older Edge-function logs sometimes stored only the generic text
+      // "WhatsApp API" before the HR applicant history was linked. Do NOT resend.
+      // Repair only very high-confidence rows: outbound + generic + exact applicant
+      // phone + Interview Scheduled + application updated within 20 minutes of log.
+      const generic=(rawRows||[]).filter(r=>{
+        const raw=String(r?.message_content||r?.communication_type||'').trim().toLowerCase();
+        return r?.direction==='outbound' && !r?.template_name && (raw==='whatsapp api'||raw==='whatsapp message');
+      });
+      if(!generic.length)return rawRows||[];
+      try{
+        const {data:apps,error}=await client.from('career_applications')
+          .select('id,application_id,applicant_name,mobile,whatsapp,designation,status,interview_at,interview_mode,interview_venue,updated_at');
+        if(error||!apps?.length)return rawRows||[];
+        const byPhone={};
+        apps.forEach(a=>{const ph=normalizeWhatsAppRecipient(a.whatsapp||a.mobile||'');if(ph)(byPhone[ph]||(byPhone[ph]=[])).push(a)});
+        const repaired=[...(rawRows||[])];
+        for(const r of generic){
+          const ph=normalizeWhatsAppRecipient(r.recipient_number||'');
+          const candidates=(byPhone[ph]||[]).filter(a=>String(a.status||'')==='Interview Scheduled'&&a.interview_at);
+          if(!candidates.length)continue;
+          const rt=new Date(r.created_at||r.sent_at||0).getTime();
+          const close=candidates.map(a=>({a,delta:Math.abs(rt-new Date(a.updated_at||0).getTime())})).filter(x=>x.delta<=20*60*1000).sort((x,y)=>x.delta-y.delta);
+          if(close.length!==1)continue;
+          const a=close[0].a;
+          const when=new Date(a.interview_at);
+          const date=`${String(when.getDate()).padStart(2,'0')}:${String(when.getMonth()+1).padStart(2,'0')}:${when.getFullYear()}`;
+          const time=when.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+          const mode=String(a.interview_mode||'In Person').trim()||'In Person';
+          const venue=String(a.interview_venue||'').trim();
+          const detail=mode==='Online'?(venue?`Online interview link: ${venue}`:'Online interview link will be shared by HR.'):(venue?`Interview Venue: ${venue}`:'Interview Venue: Samara Assisted Living, Mogappair, Chennai');
+          const name=String(a.applicant_name||'Applicant').trim()||'Applicant';
+          const designation=String(a.designation||'the applied position').trim()||'the applied position';
+          const message=`Dear ${name},\n\nThank you for your interest in joining Samara Assisted Living.\n\nWe are pleased to invite you for an interview for the position of ${designation}.\n\nInterview Date: ${date}\nInterview Time: ${time}\nInterview Mode: ${mode}\n\n${detail}\n\nKindly be available about 10 minutes before the scheduled time.\n\nWe look forward to meeting you.\n\nRegards,\nDr. Chella Boomi\nDirector\nSamara Health Care LLP\nContact: 9976735577`;
+          const patch={career_application_id:a.id,application_id:a.application_id||null,applicant_name:name,contact_name:name,source_type:'HR Applicant',communication_type:'Interview Scheduled',template_name:'samara_interview_scheduled',message_type:'template',message_content:message,message_payload:{body_params:[name,designation,date,time,mode,detail],legacy_repaired:true},updated_at:new Date().toISOString()};
+          const {error:updateError}=await client.from('hr_whatsapp_communications').update(patch).eq('id',r.id);
+          if(updateError){console.warn('Legacy interview WhatsApp history repair skipped',updateError);continue}
+          const idx=repaired.findIndex(x=>x.id===r.id);if(idx>=0)repaired[idx]={...repaired[idx],...patch};
+        }
+        return repaired;
+      }catch(error){console.warn('Legacy interview WhatsApp repair failed safely',error);return rawRows||[]}
+    }
     async function load(showStatus=false){
       if(!canUse)return;
       if(showStatus)setMessage('Refreshing WhatsApp Inbox…');
@@ -8127,8 +8169,9 @@ Samara Assisted Living`;
         // WhatsApp messages could never appear even after pressing Refresh.
         const {data,error}=await client.from('hr_whatsapp_communications').select('*').order('created_at',{ascending:false}).limit(1000);
         if(error)throw error;
+        const repaired=await repairLegacyInterviewHistory(data||[]);
         // Keep the local array chronological for conversation rendering.
-        setRows((data||[]).slice().reverse());
+        setRows(repaired.slice().reverse());
         if(showStatus)setMessage(`✓ WhatsApp Inbox refreshed at ${new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}.`);
       }catch(error){
         setMessage(`Unable to refresh WhatsApp Inbox: ${error?.message||error}`);

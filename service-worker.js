@@ -1,5 +1,5 @@
-const APP_VERSION = '2.10.82';
-const CACHE = 'samara-erp-2.10.82-whatsapp-history-preserve';
+const APP_VERSION = '2.10.83';
+const CACHE = 'samara-erp-2.10.83-whatsapp-history-legacy-repair';
 const SHELL = [
   './',
   './index.html',
