@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.68';
+  const APP_VERSION = '2.10.70';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -23280,7 +23280,7 @@ Please access the Samara Family Portal for detailed account information.`;
     const [tariffBusy,setTariffBusy]=React.useState(false);
     const defaultCategories={
       'Doctor Services':['General Physician Visit','Emergency Doctor Visit','Specialist Consultation','Teleconsultation','Home Visit','Follow-up Consultation'],
-      'Nursing Procedures':['Dressing','Injection','IV Cannulation','IV Fluid Administration','Blood Transfusion Assistance','Catheterization','Ryle’s Tube Feeding','Nebulization','Oxygen Therapy','Suctioning','ECG','Blood Sample Collection','Wound Care','Pressure Sore Care','Other Nursing Procedure'],
+      'Nursing Procedures':['Blood Glucose Monitoring','Blood Sample Collection','Blood Transfusion Assistance','Bladder Wash','Catheterization','Urinary Catheterization / Change','Dressing','Dressing - Minor','Dressing - Major','Wound / Pressure Sore Dressing','ECG','Enema','Injection','Injection - IM / IV / SC','IV Cannulation','IV Fluid Administration','Nebulization','Oxygen Therapy','Pressure Sore Care','Ryle’s Tube Feeding','Ryle’s / NG Tube Insertion','Ryle’s / NG Tube Change','Stoma Care','Suctioning','Tracheostomy Suctioning','Tracheostomy Dressing / Care','Wound Care','Other Nursing Procedure'],
       'Physiotherapy':['Regular Physiotherapy Session','Additional Physiotherapy Session','Walking Training','Gait Training','Balance Training','Respiratory Physiotherapy','Electrotherapy','Home Exercise Training','Mobility Assessment','Wheelchair Training','Other Physiotherapy Service'],
       'Laboratory Services':['Blood Sample Collection','Urine Sample Collection','Stool Sample Collection','Sputum Sample Collection','Swab Collection','Complete Blood Count (CBC)','Blood Sugar','HbA1c','Renal Function Test (RFT)','Liver Function Test (LFT)','Lipid Profile','Thyroid Profile','Electrolytes','Coagulation Profile','Urine Routine','Urine Culture','Blood Culture','COVID / Influenza Test','Other Laboratory Test'],
       'Diagnostic / Imaging':['X-Ray','Ultrasound','CT Scan','MRI','ECG','Echo','Doppler','Endoscopy','Colonoscopy','Other Imaging'],
@@ -24868,3 +24868,5 @@ function AuditTrail(){
 })();
 
 /* v2.10.68 — Auth stability: token refresh no longer revalidates/signs out active users; inactivity tracking expanded. */
+
+/* v2.10.70 — Nursing Procedures chargeable-item list expanded; Blood Glucose Monitoring added. Dedicated Procedures dashboard screen removed in favour of existing Raise Bill / Charge Request workflow. */
