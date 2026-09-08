@@ -8119,58 +8119,88 @@ Samara Assisted Living`;
     }
     const canUse=['Admin','Manager','HR','STD'].includes(String(profile?.role||''));
     async function repairLegacyInterviewHistory(rawRows){
-      // v2.10.83: Older Edge-function logs sometimes stored only the generic text
-      // "WhatsApp API" before the HR applicant history was linked. Do NOT resend.
-      // Repair only very high-confidence rows: outbound + generic + exact applicant
-      // phone + Interview Scheduled + application updated within 20 minutes of log.
-      const generic=(rawRows||[]).filter(r=>{
-        const raw=String(r?.message_content||r?.communication_type||'').trim().toLowerCase();
-        return r?.direction==='outbound' && !r?.template_name && (raw==='whatsapp api'||raw==='whatsapp message');
-      });
-      if(!generic.length)return rawRows||[];
+      // v2.10.84: Repair legacy generic outbound WhatsApp rows for HR interviews.
+      // IMPORTANT: the Inbox rendering must NOT depend on a database UPDATE succeeding.
+      // Some deployed policies allow the row to be read but not rewritten. Therefore we
+      // first enrich the row locally for immediate display, then only make a best-effort
+      // database update so future sessions can benefit too.
+      const rows=[...(rawRows||[])];
+      const genericRow=r=>{
+        if(String(r?.direction||'outbound').toLowerCase()==='inbound')return false;
+        const content=String(r?.message_content||'').trim().toLowerCase();
+        const comm=String(r?.communication_type||'').trim().toLowerCase();
+        const template=String(r?.template_name||'').trim();
+        return !template && (!content||content==='whatsapp api'||content==='whatsapp message'||comm==='whatsapp api'||comm==='whatsapp message');
+      };
+      const generic=rows.filter(genericRow);
+      if(!generic.length)return rows;
       try{
         const {data:apps,error}=await client.from('career_applications')
-          .select('id,application_id,applicant_name,mobile,whatsapp,designation,status,interview_at,interview_mode,interview_venue,updated_at');
-        if(error||!apps?.length)return rawRows||[];
+          .select('id,application_id,title,applicant_name,mobile,whatsapp,designation,status,interview_at,interview_mode,interview_venue,updated_at,created_at');
+        if(error||!apps?.length)return rows;
         const byPhone={};
-        apps.forEach(a=>{const ph=normalizeWhatsAppRecipient(a.whatsapp||a.mobile||'');if(ph)(byPhone[ph]||(byPhone[ph]=[])).push(a)});
-        const repaired=[...(rawRows||[])];
+        apps.forEach(a=>{
+          const ph=normalizeWhatsAppRecipient(a.whatsapp||a.mobile||'');
+          if(ph)(byPhone[ph]||(byPhone[ph]=[])).push(a);
+        });
         for(const r of generic){
           const ph=normalizeWhatsAppRecipient(r.recipient_number||'');
-          const candidates=(byPhone[ph]||[]).filter(a=>String(a.status||'')==='Interview Scheduled'&&a.interview_at);
+          const candidates=(byPhone[ph]||[]).filter(a=>a.interview_at);
           if(!candidates.length)continue;
-          const rt=new Date(r.created_at||r.sent_at||0).getTime();
-          const close=candidates.map(a=>({a,delta:Math.abs(rt-new Date(a.updated_at||0).getTime())})).filter(x=>x.delta<=20*60*1000).sort((x,y)=>x.delta-y.delta);
-          if(close.length!==1)continue;
-          const a=close[0].a;
+          const rt=new Date(r.sent_at||r.created_at||0).getTime();
+          const ranked=candidates.map(a=>{
+            const ut=new Date(a.updated_at||a.created_at||0).getTime();
+            return {a,delta:Number.isFinite(rt)&&Number.isFinite(ut)?Math.abs(rt-ut):Number.MAX_SAFE_INTEGER};
+          }).sort((x,y)=>x.delta-y.delta);
+          // High-confidence rule: exact applicant phone and either a Career Application
+          // currently marked Interview Scheduled, or its update is within 6 hours of the
+          // generic WhatsApp row. This is deliberately wider than v2.10.83 because HR may
+          // save/refresh the application again after the message was accepted by Meta.
+          const best=ranked[0];
+          if(!best)continue;
+          const status=String(best.a.status||'').toLowerCase();
+          if(status!=='interview scheduled' && best.delta>6*60*60*1000)continue;
+          const a=best.a;
           const when=new Date(a.interview_at);
-          const date=`${String(when.getDate()).padStart(2,'0')}:${String(when.getMonth()+1).padStart(2,'0')}:${when.getFullYear()}`;
-          const time=when.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+          if(Number.isNaN(when.getTime()))continue;
+          const date=formatDateIN(when);
+          const time=formatTimeIN(when);
           const mode=String(a.interview_mode||'In Person').trim()||'In Person';
           const venue=String(a.interview_venue||'').trim();
-          const detail=mode==='Online'?(venue?`Online interview link: ${venue}`:'Online interview link will be shared by HR.'):(venue?`Interview Venue: ${venue}`:'Interview Venue: Samara Assisted Living, Mogappair, Chennai');
-          const name=String(a.applicant_name||'Applicant').trim()||'Applicant';
-          const designation=String(a.designation||'the applied position').trim()||'the applied position';
+          let detail='';
+          if(mode==='Online')detail=venue?`Online interview link: ${venue}`:'Online interview link will be shared by HR.';
+          else if(mode==='Phone')detail='HR will contact you on your registered mobile number at the scheduled time.';
+          else detail=`Venue: ${venue||'Samara Assisted Living, Mogappair, Chennai – 37'}. Please bring your relevant certificates and identification documents.`;
+          const name=[a.title,a.applicant_name].filter(Boolean).join(' ').trim()||'Candidate';
+          const designation=String(a.designation||'applied position').trim()||'applied position';
           const message=`Dear ${name},\n\nThank you for your interest in joining Samara Assisted Living.\n\nWe are pleased to invite you for an interview for the position of ${designation}.\n\nInterview Date: ${date}\nInterview Time: ${time}\nInterview Mode: ${mode}\n\n${detail}\n\nKindly be available about 10 minutes before the scheduled time.\n\nWe look forward to meeting you.\n\nRegards,\nDr. Chella Boomi\nDirector\nSamara Health Care LLP\nContact: 9976735577`;
-          const patch={career_application_id:a.id,application_id:a.application_id||null,applicant_name:name,contact_name:name,source_type:'HR Applicant',communication_type:'Interview Scheduled',template_name:'samara_interview_scheduled',message_type:'template',message_content:message,message_payload:{body_params:[name,designation,date,time,mode,detail],legacy_repaired:true},updated_at:new Date().toISOString()};
-          const {error:updateError}=await client.from('hr_whatsapp_communications').update(patch).eq('id',r.id);
-          if(updateError){console.warn('Legacy interview WhatsApp history repair skipped',updateError);continue}
-          const idx=repaired.findIndex(x=>x.id===r.id);if(idx>=0)repaired[idx]={...repaired[idx],...patch};
+          const patch={
+            career_application_id:a.id,application_id:a.application_id||null,
+            applicant_name:name,contact_name:name,source_type:'HR Applicant',
+            communication_type:'Interview Scheduled',template_name:'samara_interview_scheduled',
+            message_type:'template',message_content:message,
+            message_payload:{body_params:[name,designation,date,time,mode,detail],legacy_repaired:true,display_repaired:true},
+            updated_at:new Date().toISOString()
+          };
+          // Always repair the in-memory row first. This immediately fixes Inbox rendering
+          // even where Supabase RLS prevents rewriting the historical generic record.
+          const idx=rows.findIndex(x=>x.id===r.id);
+          if(idx>=0)rows[idx]={...rows[idx],...patch};
+          // Best-effort persistence only; failure must never undo the local repair.
+          client.from('hr_whatsapp_communications').update(patch).eq('id',r.id)
+            .then(({error:updateError})=>{if(updateError)console.warn('Historical WhatsApp row displayed correctly but could not be rewritten',updateError)})
+            .catch(error=>console.warn('Historical WhatsApp persistence skipped safely',error));
         }
-        return repaired;
-      }catch(error){console.warn('Legacy interview WhatsApp repair failed safely',error);return rawRows||[]}
+        return rows;
+      }catch(error){console.warn('Legacy interview WhatsApp display repair failed safely',error);return rows}
     }
     async function load(showStatus=false){
       if(!canUse)return;
       if(showStatus)setMessage('Refreshing WhatsApp Inbox…');
       try{
-        // Fetch the NEWEST 1000 rows. The previous ascending+limit query returned
-        // the oldest 1000 records, so once the table grew past 1000 rows new
-        // WhatsApp messages could never appear even after pressing Refresh.
         const {data,error}=await client.from('hr_whatsapp_communications').select('*').order('created_at',{ascending:false}).limit(1000);
         if(error)throw error;
         const repaired=await repairLegacyInterviewHistory(data||[]);
-        // Keep the local array chronological for conversation rendering.
         setRows(repaired.slice().reverse());
         if(showStatus)setMessage(`✓ WhatsApp Inbox refreshed at ${new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}.`);
       }catch(error){

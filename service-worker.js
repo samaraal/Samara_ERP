@@ -1,5 +1,5 @@
-const APP_VERSION = '2.10.83';
-const CACHE = 'samara-erp-2.10.83-whatsapp-history-legacy-repair';
+const APP_VERSION = '2.10.84';
+const CACHE = 'samara-erp-2.10.84-whatsapp-inbox-local-repair';
 const SHELL = [
   './',
   './index.html',
