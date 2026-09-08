@@ -1,0 +1,18 @@
+SAMARA CARE ERP v2.11.15 — UPDATE POPUP FIX
+
+ROOT CAUSE FOUND:
+The update checker reads the remote version from the service-worker cache name using:
+  samara-erp-X.Y.Z
+The v2.11.15 service worker still had the old cache name:
+  samara-erp-2.10.84-whatsapp-inbox-local-repair
+Therefore a live v2.11.14 client did not detect v2.11.15 as newer.
+
+WHAT TO DO:
+1. Replace ONLY service-worker.js in the ERP root with this file.
+2. Commit/deploy normally.
+3. Do NOT use Repair App on existing devices.
+4. Existing v2.11.14 devices should detect remote v2.11.15 and show:
+   New version of Samara Care is available -> Update Now
+5. App Help -> Check for Updates can also be used to test immediately after deployment.
+
+No SQL is required for this updater correction.

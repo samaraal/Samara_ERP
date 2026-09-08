@@ -1,5 +1,5 @@
 const APP_VERSION = '2.11.15';
-const CACHE = 'samara-erp-2.10.84-whatsapp-inbox-local-repair';
+const CACHE = 'samara-erp-2.11.15-stores';
 const SHELL = [
   './',
   './index.html',
