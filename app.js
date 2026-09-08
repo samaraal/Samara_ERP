@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.75';
+  const APP_VERSION = '2.10.76';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -10635,12 +10635,27 @@ Thank you.`;
         ),
         urgent.length?h('div',{style:{marginTop:'12px',padding:'10px 12px',borderRadius:'12px',background:'#fff3f3',border:'1px solid #efc2c2',fontWeight:800,color:'#8d1b2c'}},`⚠ ${urgent.length} urgent item${urgent.length===1?'':'s'} pending`):null
       ),
+
+      /* v2.10.76 — prominent Director's Office item-count summary, desktop + mobile */
+      h('style',null,`
+        .director-items-summary{
+          display:inline-flex;align-items:center;gap:6px;margin-top:4px;
+          padding:5px 11px;border-radius:999px;
+          background:linear-gradient(135deg,#fff0f6,#ffe0ec);
+          border:1px solid #e8a7c2;color:#a8004b;
+          font-size:18px;font-weight:950;line-height:1.15;
+          letter-spacing:.1px;box-shadow:0 3px 10px rgba(171,0,75,.10)
+        }
+        @media(max-width:760px){
+          .director-items-summary{font-size:17px;padding:6px 11px;margin-top:6px}
+        }
+      `),
       h(Section,{title:'Calendar',subtitle:'Choose a date to see its tasks, appointments, calls and follow-ups'},renderDirectorCalendar()),
       h('div',{
         id:'director-followup-queue-anchor',
         style:{height:'1px',scrollMarginTop:'118px'}
       }),
-      h(Section,{title:selectedOfficeDate===todayKey?"Today's Items":officePrettySelectedDate(selectedOfficeDate),subtitle:`${filtered.length} item${filtered.length===1?'':'s'} · ${filter}`,actions:
+      h(Section,{title:selectedOfficeDate===todayKey?"Today's Items":officePrettySelectedDate(selectedOfficeDate),subtitle:h('span',{className:'director-items-summary'},`${filtered.length} item${filtered.length===1?'':'s'} · ${filter}`),actions:
         h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
           ...['All','Open','For Director','Today','Task','Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder','Completed','Cancelled'].map(x=>
             h('button',{type:'button',key:x,className:filter===x?'btn btn-primary':'btn btn-secondary',onClick:()=>openDirectorQueue(x)},x)
@@ -25074,3 +25089,4 @@ function AuditTrail(){
 /* v2.10.70 — Nursing Procedures chargeable-item list expanded; Blood Glucose Monitoring added. Dedicated Procedures dashboard screen removed in favour of existing Raise Bill / Charge Request workflow. */
 
 /* v2.10.75 — Director's Office items use dynamic serial-number badges after date/search/status filters. */
+/* v2.10.76 — Director's Office item count/status summary enlarged and highlighted on desktop and mobile. */
