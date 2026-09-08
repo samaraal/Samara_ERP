@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.62';
+  const APP_VERSION = '2.10.63';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -15764,6 +15764,324 @@ Please keep these login details confidential.`;
         )
       ),
       selected&&details&&h('div',{className:'modal-backdrop patient-file-backdrop'},h('div',{className:'card modal patient-master-modal'},
+        h('style',{id:'samara-patient-file-layout-v21063'},`
+/* v2.10.63 — Patient File layout restoration. Scoped only to Patient File. */
+.patient-file-backdrop{
+  box-sizing:border-box!important;
+  overflow:hidden!important;
+}
+.patient-file-backdrop .patient-master-modal{
+  box-sizing:border-box!important;
+  width:min(1180px,calc(100% - 28px))!important;
+  max-width:1180px!important;
+  min-width:0!important;
+  overflow-x:hidden!important;
+}
+.patient-file-backdrop .patient-master-modal,
+.patient-file-backdrop .patient-master-modal > *,
+.patient-file-backdrop .patient-tab-content,
+.patient-file-backdrop .tabs-grid,
+.patient-file-backdrop .section-card{
+  min-width:0!important;
+  box-sizing:border-box!important;
+}
+.patient-file-backdrop .patient-master-header{
+  width:100%!important;
+  min-width:0!important;
+}
+.patient-file-backdrop .patient-master-header>.employee-actions{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  justify-content:flex-end!important;
+  gap:8px!important;
+  min-width:0!important;
+}
+.patient-file-backdrop .patient-tab-bar{
+  display:grid!important;
+  grid-template-columns:repeat(auto-fit,minmax(132px,1fr))!important;
+  gap:8px!important;
+  width:100%!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  padding:10px 0 12px!important;
+}
+.patient-file-backdrop .patient-tab-bar .patient-tab,
+.patient-file-backdrop .patient-tab-bar button{
+  width:100%!important;
+  min-width:0!important;
+  min-height:44px!important;
+  padding:9px 10px!important;
+  white-space:normal!important;
+  line-height:1.2!important;
+  text-align:center!important;
+}
+.patient-file-backdrop .tabs-grid{
+  grid-template-columns:1fr!important;
+  gap:12px!important;
+  width:100%!important;
+}
+.patient-file-backdrop .section-card{
+  width:100%!important;
+  max-width:100%!important;
+  padding:18px 20px!important;
+  margin:10px 0!important;
+  line-height:1.5!important;
+}
+.patient-file-backdrop .section-card h4{
+  margin:0 0 10px!important;
+}
+.patient-file-backdrop .patient-overview-fields,
+.patient-file-backdrop .patient-detail-fields{
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  gap:0!important;
+  width:100%!important;
+}
+.patient-file-backdrop .patient-overview-field,
+.patient-file-backdrop .patient-detail-field,
+.patient-file-backdrop .patient-admission-field{
+  display:grid!important;
+  grid-template-columns:190px minmax(0,1fr)!important;
+  gap:18px!important;
+  align-items:start!important;
+  width:100%!important;
+  min-width:0!important;
+  padding:9px 0!important;
+  margin:0!important;
+  border-bottom:1px solid #f1dde7!important;
+  line-height:1.45!important;
+}
+.patient-file-backdrop .patient-overview-field:last-child,
+.patient-file-backdrop .patient-detail-field:last-child,
+.patient-file-backdrop .patient-admission-field:last-child{
+  border-bottom:0!important;
+}
+.patient-file-backdrop .patient-overview-colon,
+.patient-file-backdrop .patient-detail-colon{
+  display:none!important;
+}
+.patient-file-backdrop .patient-overview-label,
+.patient-file-backdrop .patient-detail-label,
+.patient-file-backdrop .patient-admission-field>span{
+  min-width:0!important;
+  color:#735d69!important;
+  font-size:14px!important;
+  font-weight:600!important;
+}
+.patient-file-backdrop .patient-overview-value,
+.patient-file-backdrop .patient-detail-value,
+.patient-file-backdrop .patient-admission-field>strong{
+  min-width:0!important;
+  color:#382333!important;
+  font-size:14px!important;
+  font-weight:700!important;
+  overflow-wrap:anywhere!important;
+  word-break:normal!important;
+}
+
+@media(max-width:760px){
+  html:has(.patient-file-backdrop),body:has(.patient-file-backdrop){
+    width:100%!important;
+    max-width:100%!important;
+    overflow:hidden!important;
+  }
+  .patient-file-backdrop{
+    position:fixed!important;
+    inset:0!important;
+    width:100%!important;
+    max-width:100%!important;
+    height:100dvh!important;
+    padding:0!important;
+    margin:0!important;
+    background:#f8f4f6!important;
+    overflow:hidden!important;
+  }
+  .patient-file-backdrop .patient-master-modal{
+    position:absolute!important;
+    inset:0!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    height:100dvh!important;
+    max-height:100dvh!important;
+    margin:0!important;
+    padding:calc(6px + env(safe-area-inset-top)) 10px calc(18px + env(safe-area-inset-bottom))!important;
+    border:0!important;
+    border-radius:0!important;
+    transform:none!important;
+    overflow-y:auto!important;
+    overflow-x:hidden!important;
+    overscroll-behavior:contain!important;
+    -webkit-overflow-scrolling:touch!important;
+  }
+  .patient-file-backdrop .patient-master-modal > *{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+  }
+  .patient-file-backdrop .patient-mobile-back{
+    display:flex!important;
+    position:static!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-height:46px!important;
+    margin:0 0 8px!important;
+    padding:9px 10px!important;
+    border:1px solid #ead0de!important;
+    border-radius:11px!important;
+    background:#fff!important;
+    color:#761146!important;
+    font-size:15px!important;
+    font-weight:850!important;
+    box-shadow:none!important;
+  }
+  .patient-file-backdrop .patient-master-header{
+    position:static!important;
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:stretch!important;
+    gap:9px!important;
+    width:100%!important;
+    max-width:100%!important;
+    padding:4px 0 8px!important;
+    margin:0!important;
+    overflow:hidden!important;
+  }
+  .patient-file-backdrop .patient-head{
+    display:grid!important;
+    grid-template-columns:62px minmax(0,1fr)!important;
+    gap:10px!important;
+    align-items:center!important;
+    width:100%!important;
+    min-width:0!important;
+    min-height:72px!important;
+    padding:0!important;
+  }
+  .patient-file-backdrop .patient-photo,
+  .patient-file-backdrop .patient-photo-placeholder{
+    width:62px!important;
+    height:70px!important;
+    min-width:62px!important;
+    max-width:62px!important;
+    min-height:70px!important;
+    max-height:70px!important;
+    border-radius:12px!important;
+  }
+  .patient-file-backdrop .patient-head>div:last-child{
+    width:100%!important;
+    min-width:0!important;
+    overflow:hidden!important;
+  }
+  .patient-file-backdrop .patient-head h3{
+    margin:0 0 3px!important;
+    font-size:20px!important;
+    line-height:1.15!important;
+    white-space:normal!important;
+    overflow-wrap:anywhere!important;
+  }
+  .patient-file-backdrop .patient-head small{
+    display:block!important;
+    font-size:12px!important;
+    line-height:1.3!important;
+    white-space:normal!important;
+    overflow-wrap:anywhere!important;
+  }
+  .patient-file-backdrop .patient-header-badges{
+    display:flex!important;
+    flex-wrap:wrap!important;
+    gap:5px!important;
+    overflow:visible!important;
+  }
+  .patient-file-backdrop .patient-master-header>.employee-actions{
+    position:static!important;
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:7px!important;
+    width:100%!important;
+    max-width:100%!important;
+    margin:0!important;
+  }
+  .patient-file-backdrop .patient-master-header>.employee-actions .btn{
+    width:100%!important;
+    min-width:0!important;
+    min-height:42px!important;
+    padding:8px 6px!important;
+    font-size:13px!important;
+    line-height:1.15!important;
+    white-space:normal!important;
+  }
+  .patient-file-backdrop .patient-master-header>.employee-actions .btn:nth-of-type(3){
+    grid-column:1 / -1!important;
+  }
+  .patient-file-backdrop .patient-master-header>.employee-actions .close{
+    display:none!important;
+  }
+  .patient-file-backdrop .patient-tab-bar{
+    position:static!important;
+    top:auto!important;
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:7px!important;
+    width:100%!important;
+    max-width:100%!important;
+    margin:4px 0 10px!important;
+    padding:8px 0 10px!important;
+    overflow:visible!important;
+    box-shadow:none!important;
+    border-top:1px solid #f1dde7!important;
+    border-bottom:1px solid #f1dde7!important;
+  }
+  .patient-file-backdrop .patient-tab-bar .patient-tab,
+  .patient-file-backdrop .patient-tab-bar button{
+    width:100%!important;
+    min-width:0!important;
+    min-height:43px!important;
+    padding:8px 5px!important;
+    font-size:13px!important;
+    line-height:1.15!important;
+    white-space:normal!important;
+    overflow:hidden!important;
+  }
+  .patient-file-backdrop .patient-tab-content{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    padding-top:4px!important;
+    overflow-x:hidden!important;
+  }
+  .patient-file-backdrop .section-card{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    padding:14px 13px!important;
+    margin:8px 0!important;
+    overflow:hidden!important;
+  }
+  .patient-file-backdrop .patient-overview-field,
+  .patient-file-backdrop .patient-detail-field,
+  .patient-file-backdrop .patient-admission-field{
+    grid-template-columns:minmax(105px,39%) minmax(0,1fr)!important;
+    gap:10px!important;
+    padding:8px 0!important;
+  }
+  .patient-file-backdrop .patient-overview-label,
+  .patient-file-backdrop .patient-detail-label,
+  .patient-file-backdrop .patient-admission-field>span{
+    font-size:12.5px!important;
+    line-height:1.35!important;
+  }
+  .patient-file-backdrop .patient-overview-value,
+  .patient-file-backdrop .patient-detail-value,
+  .patient-file-backdrop .patient-admission-field>strong{
+    font-size:13.5px!important;
+    line-height:1.4!important;
+    text-align:left!important;
+  }
+  .patient-file-backdrop .patient-overview-address{
+    grid-column:auto!important;
+  }
+}
+`),
         h('button',{type:'button',className:'patient-mobile-back',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('')}},'← Back to Patients'),
         h('div',{className:'panel-head patient-master-header'},h('div',{className:'patient-head',style:{display:'flex',alignItems:'center',gap:'14px',minWidth:0,flex:'1 1 auto'}},photoUrl?h('img',{src:photoUrl,className:'patient-photo',alt:`${formalName(selected)} photo`,style:{width:'92px',height:'108px',maxWidth:'92px',minWidth:'92px',maxHeight:'108px',objectFit:'cover',objectPosition:'center',borderRadius:'16px',border:'1px solid #ead0de',background:'#fff',display:'block',flex:'0 0 92px'}}):h('div',{className:'patient-photo patient-photo-placeholder',style:{width:'92px',height:'108px',maxWidth:'92px',minWidth:'92px',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'16px',flex:'0 0 92px'}},'SC'),h('div',{style:{minWidth:0,flex:'1 1 auto'}},h('h3',null,formalName(selected)),h('small',null,`${selected.patient_id||'—'} · ${selected.admission_type||''} · ${selected.patient_category||''}`),h('div',{className:'patient-header-badges'},h('span',{className:'badge'},selected.is_active===false?'Inactive':'Active'),selected.room_no&&selected.bed_no?h('span',{className:'pill'},`Room ${selected.room_no} · Bed ${selected.bed_no}`):h('span',{className:'pill warning'},'Room not assigned'),selected.special_nurse_required?h('span',{className:'pill warning'},`Special nurse: ${selected.special_nurse_name||'Required'}`):null))),h('div',{className:'employee-actions'},
           h('button',{className:'btn btn-secondary',onClick:()=>setTab('Admission Details')},'Admission Details'),
@@ -15788,40 +16106,27 @@ Please keep these login details confidential.`;
                 h('div',{className:'patient-overview-field'},h('span',{className:'patient-overview-label'},'Attendant'),h('span',{className:'patient-overview-colon'},':'),h('span',{className:'patient-overview-value'},`${selected.attendant_name||'—'}${selected.attendant_phone?` · ${selected.attendant_phone}`:''}`))
               )
             ),
-            h('div',{className:'section-card'},h('h4',null,'Admission & Medical Overview'),h('p',null,`Admission: ${selected.admission_type||'—'} · ${selected.admission_date||'—'}`),h('p',null,`Hospital / Source: ${selected.hospital_name||selected.referring_source||'—'}`),h('p',null,selected.diagnosis||'Diagnosis not recorded'),h('p',null,`Allergies: ${selected.allergies||'None recorded'}`),h('p',null,selected.special_instructions||'No special instructions')),
-            h('div',{className:'section-card'},h('h4',null,'Care Plan Summary'),h('p',null,`${details.meds.length} active medicine order(s)`),h('p',null,`${details.care.length} master care task(s)`),h('p',null,`${details.physio.length} physiotherapy order(s)`),h('p',null,`Diet: ${selected.diet_plan||'Not recorded'}`)),
-            h('div',{className:'section-card'},h('h4',null,'Risk & Safety'),h('p',null,[selected.fall_risk&&'Fall risk',selected.pressure_sore_risk&&'Pressure sore risk',selected.aspiration_risk&&'Aspiration risk',selected.wandering_risk&&'Wandering risk',selected.oxygen_required&&'Oxygen required',selected.dressing_required&&'Dressing required'].filter(Boolean).join(', ')||'No active risk flags'),h('p',null,`Open incidents: ${details.incidents.filter(x=>x.status==='Open').length}`))
+            h('div',{className:'section-card'},h('h4',null,'Admission & Medical Overview'),h('div',{className:'patient-detail-fields'},
+              patientDetailField('Admission',`${selected.admission_type||'—'} · ${selected.admission_date||'—'}`),
+              patientDetailField('Hospital / Source',selected.hospital_name||selected.referring_source||'—'),
+              patientDetailField('Diagnosis',selected.diagnosis||'Diagnosis not recorded'),
+              patientDetailField('Allergies',selected.allergies||'None recorded'),
+              patientDetailField('Special Instructions',selected.special_instructions||'No special instructions')
+            )),
+            h('div',{className:'section-card'},h('h4',null,'Care Plan Summary'),h('div',{className:'patient-detail-fields'},
+              patientDetailField('Medicine Orders',`${details.meds.length} active order(s)`),
+              patientDetailField('Master Care Tasks',`${details.care.length} task(s)`),
+              patientDetailField('Physiotherapy',`${details.physio.length} order(s)`),
+              patientDetailField('Diet',selected.diet_plan||'Not recorded')
+            )),
+            h('div',{className:'section-card'},h('h4',null,'Risk & Safety'),h('div',{className:'patient-detail-fields'},
+              patientDetailField('Active Risk Flags',[selected.fall_risk&&'Fall risk',selected.pressure_sore_risk&&'Pressure sore risk',selected.aspiration_risk&&'Aspiration risk',selected.wandering_risk&&'Wandering risk',selected.oxygen_required&&'Oxygen required',selected.dressing_required&&'Dressing required'].filter(Boolean).join(', ')||'No active risk flags'),
+              patientDetailField('Open Incidents',details.incidents.filter(x=>x.status==='Open').length)
+            ))
           ),
           tab==='Admission Details'&&h('div',{className:'tabs-grid patient-admission-details'},
             h('style',null,`.patient-admission-details{align-items:start;gap:16px}.patient-admission-details .section-card{padding:18px 20px}.patient-admission-details .section-card h4{margin:0 0 10px;font-size:18px}.patient-admission-details .patient-admission-field{display:flex!important;align-items:flex-start!important;gap:18px!important;padding:10px 0!important;border-bottom:1px solid #f1dde7;line-height:1.45}.patient-admission-details .patient-admission-field:last-child{border-bottom:0}.patient-admission-details .patient-admission-field>span{display:block!important;flex:0 0 190px!important;min-width:190px!important;color:#735d69;font-size:14px;font-weight:500}.patient-admission-details .patient-admission-field>strong{display:block!important;flex:1 1 auto!important;min-width:0!important;color:#382333;font-size:14px;font-weight:700;line-height:1.45;word-break:normal;overflow-wrap:anywhere}@media(max-width:760px){.patient-admission-details .section-card{padding:15px}.patient-admission-details .patient-admission-field{display:block!important;padding:9px 0!important}.patient-admission-details .patient-admission-field>span{min-width:0!important;margin-bottom:3px;font-size:13px}.patient-admission-details .patient-admission-field>strong{font-size:14px}}
-/* v2.10.62 — Patient File navigation and readability restoration */
-.patient-file-backdrop .patient-master-modal{width:min(1160px,calc(100vw - 28px))!important;max-width:1160px!important;overflow-x:hidden!important}
-.patient-file-backdrop .patient-tab-bar{display:flex!important;flex-wrap:wrap!important;gap:8px!important;white-space:normal!important;overflow:visible!important;padding:10px 0 12px!important}
-.patient-file-backdrop .patient-tab-bar .btn,.patient-file-backdrop .patient-tab-bar button{flex:0 0 auto!important;min-height:44px!important;padding:9px 16px!important;white-space:nowrap!important}
-.patient-file-backdrop .patient-tab-content{min-width:0!important;width:100%!important}
-.patient-file-backdrop .tabs-grid{grid-template-columns:1fr!important;gap:14px!important}
-.patient-file-backdrop .section-card{line-height:1.55!important}
-.patient-file-backdrop .section-card p{margin:8px 0!important;line-height:1.55!important}
-.patient-file-backdrop .patient-overview-fields{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;column-gap:28px!important}
-.patient-file-backdrop .patient-overview-field{display:grid!important;grid-template-columns:150px 12px minmax(0,1fr)!important;gap:7px!important;padding:8px 0!important;border-bottom:1px solid #f2e4ea!important;line-height:1.45!important}
-.patient-file-backdrop .patient-overview-address{grid-column:1/-1!important}
-.patient-admission-details{grid-template-columns:1fr!important;width:100%!important}
-.patient-admission-details .section-card{width:100%!important}
-@media(max-width:760px){
- .patient-file-backdrop{padding:0!important;inset:0!important;background:#fff!important}
- .patient-file-backdrop .patient-master-modal{box-sizing:border-box!important;width:100vw!important;max-width:100vw!important;height:100dvh!important;max-height:100dvh!important;border-radius:0!important;margin:0!important;padding:calc(8px + env(safe-area-inset-top)) 12px calc(18px + env(safe-area-inset-bottom))!important}
- .patient-file-backdrop .patient-mobile-back{width:100%!important;box-sizing:border-box!important}
- .patient-file-backdrop .patient-master-header{width:100%!important;min-width:0!important}
- .patient-file-backdrop .patient-head{grid-template-columns:70px minmax(0,1fr)!important;min-width:0!important}
- .patient-file-backdrop .patient-photo,.patient-file-backdrop .patient-photo-placeholder{width:70px!important;height:80px!important;min-width:70px!important;max-width:70px!important;min-height:80px!important;max-height:80px!important}
- .patient-file-backdrop .patient-master-header>.employee-actions{grid-template-columns:repeat(2,minmax(0,1fr))!important;width:100%!important}
- .patient-file-backdrop .patient-tab-bar{position:static!important;margin:8px 0 12px!important;padding:8px 0!important;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important;width:100%!important;overflow:visible!important}
- .patient-file-backdrop .patient-tab-bar .btn,.patient-file-backdrop .patient-tab-bar button{width:100%!important;min-width:0!important;min-height:44px!important;padding:8px 6px!important;white-space:normal!important;font-size:13px!important;line-height:1.2!important}
- .patient-file-backdrop .patient-overview-fields{grid-template-columns:1fr!important}
- .patient-file-backdrop .patient-overview-address{grid-column:auto!important}
- .patient-file-backdrop .patient-overview-field{grid-template-columns:minmax(100px,38%) 10px minmax(0,1fr)!important;gap:6px!important;padding:9px 0!important}
- .patient-file-backdrop .patient-tab-content,.patient-file-backdrop .section-card{width:100%!important;max-width:100%!important;box-sizing:border-box!important;min-width:0!important}
-}`),
+`),
             h('div',{className:'section-card'},
               h('h4',null,'Admission'),
               admissionField('Resident ID',selected.patient_id||selected.patient_code),

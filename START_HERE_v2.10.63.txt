@@ -1,0 +1,18 @@
+Samara Care ERP v2.10.63 — Patient File Layout Fix
+
+Replace only:
+1. app.js
+2. index.html
+3. service-worker.js
+
+Then use App Help -> Repair App once on desktop and mobile.
+
+This patch is scoped only to the Patient File modal. It does not change Dashboard, Admissions form, Accounts, HR, WhatsApp Edge Functions, or database schema.
+
+Fixes:
+- Patient File mobile no longer extends beyond the phone screen.
+- Header actions are fully visible.
+- Patient tab navigation uses a clean grid; 2 columns on mobile.
+- Overview and Admission Details use consistent label/value rows.
+- Desktop text spacing is less congested.
+- Prior automatic Admission + Family Portal WhatsApp workflow remains intact from v2.10.62.
