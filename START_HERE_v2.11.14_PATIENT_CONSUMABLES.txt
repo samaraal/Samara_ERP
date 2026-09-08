@@ -1,0 +1,31 @@
+SAMARA CARE ERP v2.11.14 — PATIENT CONSUMABLES INDENT WORKFLOW
+
+FILES TO REPLACE / RUN
+1. Replace app.js
+2. Replace service-worker.js
+3. Replace index.html
+4. Run 90_patient_consumables_indent_workflow.sql ONCE in Supabase SQL Editor.
+
+WORKFLOW
+Nurse -> Initiates patient-wise indent
+Nurse Manager -> Approves / Partially Approves / Rejects
+Nurse Manager -> Hands Over actual quantity
+Nurse -> Confirms actual quantity Received
+
+CONTROLS
+- Indent can only be raised against an active patient in the ERP UI.
+- Nurse Manager responsibility is designation-based, not person-based.
+- Only Nurse Manager can approve and hand over.
+- Only Nurse can confirm receipt.
+- Direct stage updates are blocked; controlled database functions perform each transition.
+- Requested, approved, handed-over and received quantities are separately preserved.
+- On final Received confirmation, ONLY the actual received quantity is automatically forwarded to the existing Consumables charge-approval workflow as Pending. No amount is auto-posted; Accounts verifies/approves the charge using the existing process.
+- Full names and date/time are stored for each stage.
+
+MENU
+Nursing -> Patient Consumables
+Nurse Manager also receives access to Patient Consumables regardless of whether the ERP access role is Nurse or Manager, provided designation is Nurse Manager / Nursing Manager.
+Admin has read/oversight access through the normal navigation.
+
+IMPORTANT
+Run the SQL before testing the new page. If the SQL is not installed, the page will show a clear setup warning and existing ERP modules remain unaffected.

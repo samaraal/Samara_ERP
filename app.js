@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.80';
+  const APP_VERSION = '2.11.14';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1386,7 +1386,7 @@ function initSamaraInaugurationInvitation(){
     { title:"DIRECTOR'S OFFICE", items:["Director's Office"] },
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
-    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
+    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Patient Consumables','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
     { title:'COMMUNICATION', items:['WhatsApp Inbox','WhatsApp Logs','Family Communication','Feedback','Mail Dashboard'] },
@@ -1398,7 +1398,7 @@ function initSamaraInaugurationInvitation(){
     Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&!NURSING_ENTRY_NAV.includes(item)),
     Manager:ALL_NAV.filter(item=>!["Director's Office",'System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds',...NURSING_ENTRY_NAV].includes(item)),
 
-    Nurse:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My Leave & Permission','Leave Approvals','Notifications'],
+    Nurse:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My Leave & Permission','Leave Approvals','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Leave Approvals','Notifications'],
     Accounts:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Leave Approvals','Notifications'],
     Kitchen:['Notifications','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission','Leave Approvals'],
@@ -1419,7 +1419,7 @@ function initSamaraInaugurationInvitation(){
   };
   const allowedPagesForProfile=profile=>{
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
-    if(isNursingManagerProfile(profile)&&!pages.includes('My Quick Tasks'))pages.push('My Quick Tasks');
+    if(isNursingManagerProfile(profile)){ if(!pages.includes('My Quick Tasks'))pages.push('My Quick Tasks'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); }
     return pages;
   };
   const CLINICAL_ROLES=['Nurse','Caregiver'];
@@ -6053,6 +6053,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Daily Care'&&h(DailyCare,{profile,onNavigate:setPage}),
           page==='Vital Signs'&&h(VitalSigns,{profile,onNavigate:setPage}),
           page==='Medicines'&&h(Medicines,{profile,onNavigate:setPage}),
+          page==='Patient Consumables'&&h(PatientConsumables,{profile}),
           page==='Food & Diet'&&h(FoodDiet,{profile}),
           page==='Physiotherapy'&&h(Physiotherapy,{profile,onNavigate:setPage}),
           page==='Special Nurse'&&h(SpecialNurseManagement,{profile}),
@@ -23650,6 +23651,110 @@ Please access the Samara Family Portal for detailed account information.`;
         h('span',{className:'samara-toast-icon'},toast.type==='success'?'✓':'!'),
         h('div',null,h('strong',null,toast.title),h('span',null,toast.text)),
         h('button',{onClick:()=>setToast(null)},'×')
+      )
+    );
+  }
+
+
+  function PatientConsumables({profile}){
+    const [patients,setPatients]=React.useState([]);
+    const [rows,setRows]=React.useState([]);
+    const [busy,setBusy]=React.useState(false);
+    const [filter,setFilter]=React.useState('Open');
+    const [form,setForm]=React.useState({patient_id:'',item_name:'',requested_qty:'1',unit:'Nos',request_remarks:''});
+    const nurseManager=isNursingManagerProfile(profile);
+    const nurse=profile?.role==='Nurse';
+    const itemOptions=['Adult Diapers','Gloves','Syringes','Dressing Materials','PPE','Feeding Tubes','Catheters','Oxygen Consumables','Underpads','Cotton / Gauze','Other Consumables'];
+    const units=['Nos','Pairs','Packs','Boxes','Pieces','Rolls','Sets','Bottles'];
+    const actorName=formalName(profile)||profile?.full_name||profile?.login_id||profile?.role||'Staff';
+    const patientLabel=id=>{const p=patients.find(x=>x.id===id);return p?[formalName(p),p.patient_id&&`(${p.patient_id})`,p.room_no&&`Room ${p.room_no}${p.bed_no?`/${p.bed_no}`:''}`].filter(Boolean).join(' · '):'—'};
+    const stageStyle=status=>({display:'inline-block',padding:'5px 9px',borderRadius:'999px',fontWeight:800,fontSize:'12px',background:status==='Received'?'#e7f6ef':status==='Rejected'?'#fdebec':status==='Handed Over'?'#eaf2ff':'#fff4dc',color:'#5d3146'});
+    async function load(){
+      const [pRes,iRes]=await Promise.all([
+        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').eq('is_active',true).order('full_name'),
+        client.from('patient_consumable_indents').select('*').order('created_at',{ascending:false}).limit(500)
+      ]);
+      if(pRes.error)console.warn(pRes.error); else setPatients(pRes.data||[]);
+      if(iRes.error){console.warn(iRes.error);notify('error','Consumables workflow database is not installed yet. Please run 90_patient_consumables_indent_workflow.sql once in Supabase.')} else setRows(iRes.data||[]);
+    }
+    React.useEffect(()=>{load()},[]);
+    async function initiate(e){
+      e.preventDefault(); if(!nurse||busy)return;
+      if(!form.patient_id||!form.item_name||Number(form.requested_qty)<=0){notify('error','Select patient, consumable and valid quantity.');return}
+      setBusy(true);
+      const result=await client.from('patient_consumable_indents').insert({
+        patient_id:form.patient_id,item_name:form.item_name,requested_qty:Number(form.requested_qty),unit:form.unit||'Nos',request_remarks:form.request_remarks||null,
+        initiated_by:profile.id,initiated_by_name:actorName,status:'Initiated'
+      });
+      setBusy(false);
+      if(result.error)notify('error',result.error.message); else {notify('success','Patient consumable indent initiated and sent to Nurse Manager.');setForm({...form,item_name:'',requested_qty:'1',request_remarks:''});await load()}
+    }
+    async function approve(row,reject=false){
+      if(!nurseManager||busy)return;
+      let qty=0,remarks='';
+      if(!reject){const input=prompt(`Requested: ${row.requested_qty} ${row.unit}. Enter quantity to approve:`,String(row.requested_qty));if(input===null)return;qty=Number(input);if(!qty||qty<=0||qty>Number(row.requested_qty)){notify('error','Enter a valid quantity not exceeding the requested quantity.');return}}
+      remarks=prompt(reject?'Reason for rejection:':'Approval remarks (optional):',reject?'Not approved':'')||'';
+      setBusy(true);const res=await client.rpc('approve_patient_consumable_indent',{p_indent_id:row.id,p_approved_qty:qty,p_decision:reject?'Rejected':'Approved',p_remarks:remarks||null});setBusy(false);
+      if(res.error)notify('error',res.error.message);else{notify('success',reject?'Indent rejected.':'Indent approved.');await load()}
+    }
+    async function handover(row){
+      if(!nurseManager||busy)return;
+      const input=prompt(`Approved: ${row.approved_qty} ${row.unit}. Enter actual quantity handed over:`,String(row.approved_qty||''));if(input===null)return;
+      const qty=Number(input);if(!qty||qty<=0||qty>Number(row.approved_qty||0)){notify('error','Enter a valid quantity not exceeding the approved quantity.');return}
+      const remarks=prompt('Handover remarks (optional):','')||'';
+      setBusy(true);const res=await client.rpc('handover_patient_consumable_indent',{p_indent_id:row.id,p_handed_over_qty:qty,p_remarks:remarks||null});setBusy(false);
+      if(res.error)notify('error',res.error.message);else{notify('success','Consumables marked as handed over. Awaiting Nurse receipt.');await load()}
+    }
+    async function receive(row){
+      if(!nurse||busy)return;
+      const input=prompt(`Handed over: ${row.handed_over_qty} ${row.unit}. Confirm actual quantity received:`,String(row.handed_over_qty||''));if(input===null)return;
+      const qty=Number(input);if(!qty||qty<=0||qty>Number(row.handed_over_qty||0)){notify('error','Enter a valid quantity not exceeding the handed-over quantity.');return}
+      const remarks=prompt('Receipt remarks (optional):','')||'';
+      setBusy(true);const res=await client.rpc('receive_patient_consumable_indent',{p_indent_id:row.id,p_received_qty:qty,p_remarks:remarks||null});setBusy(false);
+      if(res.error)notify('error',res.error.message);else{notify('success','Consumables received. Indent completed.');await load()}
+    }
+    const openStatuses=['Initiated','Approved','Partially Approved','Handed Over'];
+    const visible=rows.filter(r=>filter==='All'||(filter==='Open'?openStatuses.includes(r.status):r.status===filter));
+    const counts={initiated:rows.filter(r=>r.status==='Initiated').length,handover:rows.filter(r=>['Approved','Partially Approved'].includes(r.status)).length,receipt:rows.filter(r=>r.status==='Handed Over').length};
+    return h('div',null,
+      h(Section,{title:'Patient Consumables',subtitle:'Patient-wise indent workflow: Nurse initiates → Nurse Manager approves → Nurse Manager hands over → Nurse receives.'},
+        h('div',{className:'grid stats'},
+          h('div',{className:'card stat'},h('span',null,'Awaiting Approval'),h('strong',null,counts.initiated)),
+          h('div',{className:'card stat'},h('span',null,'Awaiting Handover'),h('strong',null,counts.handover)),
+          h('div',{className:'card stat'},h('span',null,'Awaiting Receipt'),h('strong',null,counts.receipt))
+        )
+      ),
+      nurse&&h(Section,{title:'New Patient Indent',subtitle:'Initiate consumables only for a currently admitted patient.'},
+        h('form',{onSubmit:initiate},
+          h('div',{className:'grid two'},
+            h('div',{className:'field'},h('label',null,'Patient *'),h('select',{value:form.patient_id,onChange:e=>setForm({...form,patient_id:e.target.value}),required:true},h('option',{value:''},'Select active patient'),patients.map(p=>h('option',{key:p.id,value:p.id},patientLabel(p.id))))),
+            h('div',{className:'field'},h('label',null,'Consumable *'),h('select',{value:form.item_name,onChange:e=>setForm({...form,item_name:e.target.value}),required:true},h('option',{value:''},'Select consumable'),itemOptions.map(x=>h('option',{key:x,value:x},x)))),
+            h('div',{className:'field'},h('label',null,'Quantity *'),h('input',{type:'number',min:'0.01',step:'0.01',value:form.requested_qty,onChange:e=>setForm({...form,requested_qty:e.target.value}),required:true})),
+            h('div',{className:'field'},h('label',null,'Unit'),h('select',{value:form.unit,onChange:e=>setForm({...form,unit:e.target.value})},units.map(x=>h('option',{key:x,value:x},x))))
+          ),
+          h('div',{className:'field'},h('label',null,'Reason / Remarks'),h('textarea',{rows:2,value:form.request_remarks,onChange:e=>setForm({...form,request_remarks:e.target.value}),placeholder:'Optional clinical/use note'})),
+          h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Initiate Indent')
+        )
+      ),
+      h(Section,{title:'Consumables Indent Register',actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},['Open','Initiated','Handed Over','Received','Rejected','All'].map(x=>h('button',{type:'button',key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>setFilter(x)},x)))},
+        h('div',{className:'table-wrap'},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['Indent','Patient','Item','Requested','Approved','Handed Over','Received','Status','Initiated By / Time','Approval / Handover','Receipt','Action'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,visible.length?visible.map(r=>h('tr',{key:r.id},
+            h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),h('td',null,patientLabel(r.patient_id)),h('td',null,h('strong',null,r.item_name),r.request_remarks&&h('small',{style:{display:'block'}},r.request_remarks)),
+            h('td',null,`${r.requested_qty} ${r.unit}`),h('td',null,r.approved_qty!=null?`${r.approved_qty} ${r.unit}`:'—'),h('td',null,r.handed_over_qty!=null?`${r.handed_over_qty} ${r.unit}`:'—'),h('td',null,r.received_qty!=null?`${r.received_qty} ${r.unit}`:'—'),
+            h('td',null,h('span',{style:stageStyle(r.status)},r.status)),
+            h('td',null,h('strong',null,r.initiated_by_name||'—'),h('small',{style:{display:'block'}},r.initiated_at?fmt(new Date(r.initiated_at)):'—')),
+            h('td',null,r.approved_by_name&&h('div',null,h('strong',null,`Approved: ${r.approved_by_name}`),h('small',{style:{display:'block'}},r.approved_at?fmt(new Date(r.approved_at)):'')),r.handed_over_by_name&&h('div',{style:{marginTop:'5px'}},h('strong',null,`Handed over: ${r.handed_over_by_name}`),h('small',{style:{display:'block'}},r.handed_over_at?fmt(new Date(r.handed_over_at)):''))),
+            h('td',null,r.received_by_name?h('div',null,h('strong',null,r.received_by_name),h('small',{style:{display:'block'}},r.received_at?fmt(new Date(r.received_at)):'')):'—'),
+            h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
+              nurseManager&&r.status==='Initiated'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>approve(r,false)},'Approve'),
+              nurseManager&&r.status==='Initiated'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>approve(r,true)},'Reject'),
+              nurseManager&&['Approved','Partially Approved'].includes(r.status)&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>handover(r)},'Hand Over'),
+              nurse&&r.status==='Handed Over'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>receive(r)},'Received'),
+              !((nurseManager&&['Initiated','Approved','Partially Approved'].includes(r.status))||(nurse&&r.status==='Handed Over'))&&h('span',null,'—')
+            ))
+          )):h('tr',null,h('td',{colSpan:12,style:{textAlign:'center',padding:'24px'}},'No consumable indents in this view.')))
+        ))
       )
     );
   }
