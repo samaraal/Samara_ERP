@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.67';
+  const APP_VERSION = '2.10.68';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5932,16 +5932,45 @@ Caring with Compassion. Living with Dignity.`;
           .then(({error})=>{if(error)console.warn('Automatic daily billing unavailable:',error.message)})
           .catch(error=>console.warn('Automatic daily billing unavailable:',error));
       })();
-    },[session]);
+    // Keep profile validation bound to the authenticated USER, not the rotating
+    // access-token/session object. Supabase periodically emits TOKEN_REFRESHED
+    // with a new session object; re-running a network profile lookup on every
+    // token refresh could sign an actively working user out on a transient
+    // connection delay. A different login still changes user.id and therefore
+    // re-runs the exact UUID-linked security validation above.
+    },[session?.user?.id]);
 
     React.useEffect(()=>{
       if(!session||recoveryMode)return;
       let timer;
-      const reset=()=>{clearTimeout(timer);timer=setTimeout(async()=>{await client.auth.signOut();setAuthMessage('You were signed out after 30 minutes of inactivity for security.');},30*60*1000)};
-      const events=['click','keydown','touchstart','mousemove'];
-      events.forEach(name=>window.addEventListener(name,reset,{passive:true}));reset();
-      return()=>{clearTimeout(timer);events.forEach(name=>window.removeEventListener(name,reset))};
-    },[session,recoveryMode]);
+      let signingOut=false;
+      const INACTIVITY_MS=30*60*1000;
+      const reset=()=>{
+        if(signingOut)return;
+        clearTimeout(timer);
+        timer=setTimeout(async()=>{
+          if(document.visibilityState==='hidden'){
+            // Backgrounded mobile/PWA pages can have timers clamped. Give the
+            // user a fresh inactivity window when the app becomes visible again.
+            reset();
+            return;
+          }
+          signingOut=true;
+          await client.auth.signOut().catch(()=>{});
+          setAuthMessage('You were signed out after 30 minutes of inactivity for security.');
+        },INACTIVITY_MS);
+      };
+      const events=['click','keydown','touchstart','pointerdown','input','change','scroll','wheel'];
+      events.forEach(name=>window.addEventListener(name,reset,{passive:true,capture:true}));
+      const onVisibility=()=>{if(document.visibilityState==='visible')reset()};
+      document.addEventListener('visibilitychange',onVisibility);
+      reset();
+      return()=>{
+        clearTimeout(timer);
+        events.forEach(name=>window.removeEventListener(name,reset,true));
+        document.removeEventListener('visibilitychange',onVisibility);
+      };
+    },[session?.user?.id,recoveryMode]);
 
     if(loading) return h('div',{className:'loading'},'Loading Samara Care…');
     if(recoveryMode&&session) return h(RecoveryPasswordChange,{onComplete:async()=>{setRecoveryMode(false);await client.auth.signOut();setAuthMessage('Password changed successfully. Please sign in with your new password.')}});
@@ -24837,3 +24866,5 @@ function AuditTrail(){
     document.head.appendChild(s);
   }
 })();
+
+/* v2.10.68 — Auth stability: token refresh no longer revalidates/signs out active users; inactivity tracking expanded. */
