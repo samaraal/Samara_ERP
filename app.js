@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.71';
+  const APP_VERSION = '2.10.72';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7597,7 +7597,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
     const [rows,setRows]=React.useState([]);
     const [form,setForm]=React.useState(emptyForm());
     const [editing,setEditing]=React.useState(null);
-    const [filter,setFilter]=React.useState('All');
+    const [filter,setFilter]=React.useState('Open');
     const [busy,setBusy]=React.useState(false);
     const [message,setMessage]=React.useState('');
     const [voiceListening,setVoiceListening]=React.useState(false);
@@ -9231,11 +9231,875 @@ Thank you.`;
     React.useEffect(()=>{load()},[profile?.id,profile?.designation]);
 
     const openRows=rows.filter(isOpen);
+    const todayRows=openRows.filter(r=>localDate(r.scheduled_at||r.due_date)===today);
+    const overdueRows=openRows.filter(r=>{
+      const value=r.scheduled_at||(r.due_date?`${r.due_date}T23:59:59`:null);
+      return value&&new Date(value)<new Date()&&localDate(value)!==today;
+    });
+    const completedRows=rows.filter(r=>r.status==='Completed');
+    const visible=rows.filter(r=>{
+      if(filter==='Open')return isOpen(r);
+      if(filter==='Today')return todayRows.some(x=>x.id===r.id);
+      if(filter==='Overdue')return overdueRows.some(x=>x.id===r.id);
+      if(filter==='Completed')return r.status==='Completed';
+      if(filter==='Cancelled')return r.status==='Cancelled';
+      return true;
+    });
+
+    function stopVoice(){
+      try{voiceRecognitionRef.current?.stop?.()}catch(_){}
+      voiceRecognitionRef.current=null;
+      try{if(mobileRecorderRef.current&&mobileRecorderRef.current.state!=='inactive')mobileRecorderRef.current.stop()}catch(_){}
+      try{mobileStreamRef.current?.getTracks?.().forEach(t=>t.stop())}catch(_){}
+      mobileStreamRef.current=null;
+      setVoiceListening(false);
+    }
+    function useMobileRecorder(){
+      const ua=String(navigator.userAgent||'');
+      const mobileUA=/iPhone|iPad|iPod|Android/i.test(ua);
+      const coarse=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
+      return Boolean(mobileUA||coarse);
+    }
+    function bestMime(){
+      const options=['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus'];
+      for(const x of options){try{if(window.MediaRecorder&&MediaRecorder.isTypeSupported?.(x))return x}catch(_){}}
+      return '';
+    }
+    function mapVoice(result){
+      const x=result?.fields||{};
+      setForm(current=>({
+        ...current,
+        task_kind:x.task_kind&&x.task_kind!=='Not Applicable'?x.task_kind:'General Task',
+        title:x.title||'',
+        contact_name:x.contact_name||'',
+        scheduled_at:x.scheduled_at?String(x.scheduled_at).slice(0,16):'',
+        due_date:x.due_date||'',
+        day_part:x.day_part&&x.day_part!=='Not Applicable'?x.day_part:'',
+        priority:x.priority||'Normal',
+        details:x.details||''
+      }));
+      if(result?.transcript)setVoiceTranscript(String(result.transcript));
+      setVoiceMessage('✓ Voice entry filled in simple English. Please check before Save.');
+    }
+    async function sendTranscript(transcript,lang){
+      setVoiceProcessing(true);setVoiceMessage('Understanding your task…');
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Please sign in again.');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{
+          method:'POST',
+          headers:{'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey,'Content-Type':'application/json'},
+          body:JSON.stringify({transcript,spoken_language:lang,current_form_type:'Task',current_task_kind:form.task_kind||'General Task',now_iso:new Date().toISOString(),timezone:'Asia/Kolkata'})
+        });
+        const result=await response.json().catch(()=>({error:'Unable to read voice response'}));
+        if(!response.ok||result.error)throw new Error(result.error||'Unable to understand task.');
+        mapVoice(result);
+      }catch(error){setVoiceMessage(error.message||'Unable to understand task.')}
+      finally{setVoiceProcessing(false)}
+    }
+    async function sendAudio(blob,lang){
+      setVoiceProcessing(true);setVoiceMessage('Understanding your voice…');
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Please sign in again.');
+        const ext=(blob.type||'').includes('mp4')?'m4a':(blob.type||'').includes('ogg')?'ogg':'webm';
+        const fd=new FormData();
+        fd.append('audio',blob,`nursing-manager-voice.${ext}`);
+        fd.append('spoken_language',lang);
+        fd.append('current_form_type','Task');
+        fd.append('current_task_kind',form.task_kind||'General Task');
+        fd.append('now_iso',new Date().toISOString());
+        fd.append('timezone','Asia/Kolkata');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{
+          method:'POST',
+          headers:{'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey},
+          body:fd
+        });
+        const result=await response.json().catch(()=>({error:'Unable to read voice response'}));
+        if(!response.ok||result.error)throw new Error(result.error||'Unable to process voice task.');
+        mapVoice(result);
+      }catch(error){setVoiceMessage(error.message||'Unable to process voice task.')}
+      finally{setVoiceProcessing(false)}
+    }
+    async function startMobile(lang){
+      if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){
+        setVoiceMessage('Microphone recording is not available. Please use current Safari/Chrome and allow microphone access.');
+        return;
+      }
+      stopVoice();setVoiceTranscript('');setVoiceMessage('🎤 Speak naturally. Tap Stop when finished.');
+      try{
+        const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+        mobileStreamRef.current=stream;mobileChunksRef.current=[];mobileVoiceLangRef.current=lang;
+        const mime=bestMime();
+        const rec=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);
+        mobileRecorderRef.current=rec;
+        rec.ondataavailable=e=>{if(e.data?.size)mobileChunksRef.current.push(e.data)};
+        rec.onstop=async()=>{
+          const type=rec.mimeType||mobileChunksRef.current[0]?.type||'audio/webm';
+          const blob=new Blob(mobileChunksRef.current,{type});
+          mobileChunksRef.current=[];
+          try{stream.getTracks().forEach(t=>t.stop())}catch(_){}
+          mobileStreamRef.current=null;mobileRecorderRef.current=null;setVoiceListening(false);
+          if(blob.size<1000)return setVoiceMessage('No useful speech was captured. Please try again.');
+          await sendAudio(blob,mobileVoiceLangRef.current);
+        };
+        rec.start();setVoiceListening(true);
+      }catch(error){
+        setVoiceListening(false);
+        setVoiceMessage(error?.name==='NotAllowedError'?'Microphone permission is blocked. Please allow microphone access for Samara Care.':(error.message||'Unable to start microphone.'));
+      }
+    }
+    function startVoice(lang='ta-IN'){
+      if(useMobileRecorder())return startMobile(lang);
+      const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+      if(!SpeechRecognition)return setVoiceMessage('Voice recognition is not available in this browser.');
+      stopVoice();setVoiceTranscript('');setVoiceMessage('🎤 Speak naturally…');
+      try{
+        const rec=new SpeechRecognition();voiceRecognitionRef.current=rec;
+        rec.lang=lang;rec.interimResults=true;rec.continuous=false;rec.maxAlternatives=1;
+        let finalText='';
+        rec.onstart=()=>setVoiceListening(true);
+        rec.onresult=e=>{
+          let interim='';
+          for(let i=e.resultIndex;i<e.results.length;i++){
+            const t=e.results[i][0]?.transcript||'';
+            if(e.results[i].isFinal)finalText+=`${t} `;else interim+=t;
+          }
+          setVoiceTranscript((finalText||interim).trim());
+        };
+        rec.onerror=e=>{setVoiceListening(false);setVoiceMessage(`Voice recognition stopped${e?.error?`: ${e.error}`:''}. Please try again.`)};
+        rec.onend=()=>{setVoiceListening(false);const spoken=finalText.trim();if(spoken)sendTranscript(spoken,lang);else setVoiceMessage('No speech was captured. Please try again.')};
+        rec.start();
+      }catch(error){setVoiceListening(false);setVoiceMessage(error.message||'Unable to start microphone.')}
+    }
+
+    function openNew(){stopVoice();setEditingId(null);setForm(blank());setVoiceTranscript('');setVoiceMessage('');setMessage('');setShowForm(true)}
+    function openEdit(r){
+      stopVoice();setEditingId(r.id);setMessage('');
+      setForm({task_kind:r.task_kind||'General Task',title:r.title||'',contact_name:r.contact_name||'',scheduled_at:localInput(r.scheduled_at),due_date:r.due_date||'',day_part:r.day_part||'',priority:r.priority||'Normal',details:r.details||'',status:r.status||'Pending'});
+      setVoiceTranscript('');setVoiceMessage('');setShowForm(true);
+    }
+    function dateValue(){return form.scheduled_at?form.scheduled_at.slice(0,10):(form.due_date||'')}
+    function timeValue(){return form.scheduled_at?.includes('T')?form.scheduled_at.slice(11,16):''}
+    function setTaskDate(date){const time=timeValue();setForm(current=>({...current,scheduled_at:date&&time?`${date}T${time}`:'',due_date:date&&!time?date:''}))}
+    function setTaskTime(time){const date=dateValue();setForm(current=>({...current,scheduled_at:date&&time?`${date}T${time}`:'',due_date:date&&!time?date:''}))}
+    async function save(e){
+      e.preventDefault();if(saving)return;
+      if(!form.title.trim())return setMessage('Please enter What to do.');
+      setSaving(true);setMessage('');
+      const payload={owner_profile_id:profile.id,task_kind:form.task_kind||'General Task',title:form.title.trim(),contact_name:form.contact_name.trim()||null,scheduled_at:form.scheduled_at?new Date(form.scheduled_at).toISOString():null,due_date:form.scheduled_at?null:(form.due_date||null),day_part:form.day_part||null,priority:form.priority||'Normal',details:form.details.trim()||null,status:form.status||'Pending',updated_at:new Date().toISOString()};
+      const res=editingId?await client.from('nursing_manager_tasks').update(payload).eq('id',editingId):await client.from('nursing_manager_tasks').insert(payload);
+      setSaving(false);
+      if(res.error)return setMessage(res.error.message||'Unable to save task.');
+      const wasEditing=Boolean(editingId);
+      stopVoice();setShowForm(false);setEditingId(null);setForm(blank());setVoiceTranscript('');setVoiceMessage('');
+      setMessage(wasEditing?'✓ Task updated.':'✓ Quick task saved.');
+      await load();
+    }
+    async function updateStatus(r,status){
+      const {error}=await client.from('nursing_manager_tasks').update({status,updated_at:new Date().toISOString(),completed_at:status==='Completed'?new Date().toISOString():null}).eq('id',r.id);
+      if(error)return setMessage(error.message||'Unable to update task.');
+      await load();
+    }
+
+    if(!allowed)return h(Section,{title:'My Quick Tasks'},h('div',{className:'empty'},'Available only to the Nursing Manager.'));
+    if(loading)return h('div',{className:'loading'},'Loading Nursing Manager quick tasks…');
+
+    const stat=(label,value,key)=>h('button',{type:'button',className:'card stat',onClick:()=>setFilter(key),style:{cursor:'pointer',textAlign:'left',border:filter===key?'2px solid #a91653':undefined}},h('span',null,label),h('strong',null,value),h('small',null,'Open list →'));
+
+    const modal=showForm?h('div',{className:'modal-backdrop'},h('form',{className:'modal-card',onSubmit:save},
+      h('div',{className:'panel-head'},h('div',null,h('h3',null,editingId?'Update Quick Task':'New Quick Task'),h('small',null,'Nursing Manager personal task — only the essentials')),h('button',{type:'button',className:'close',onClick:()=>{stopVoice();setShowForm(false)}},'×')),
+      h('div',{style:{margin:'0 0 14px',padding:'12px',border:'1px solid #e7bfd0',borderRadius:'15px',background:'linear-gradient(135deg,#fffafd,#f9e6ee)'}},
+        h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
+          h('div',null,h('strong',{style:{color:'#78103f'}},'🎤 Voice Entry'),h('div',{style:{fontSize:'12px',color:'#765966',marginTop:'2px'}},useMobileRecorder()?'Tap Speak, talk naturally, then tap Stop. Tamil/English will be converted and the form will be filled.':'Speak naturally. Tamil will be converted to simple English and the form will be filled for you.')),
+          voiceListening?h('button',{type:'button',className:'btn btn-danger',onClick:stopVoice},'■ Stop'):h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-primary',disabled:voiceProcessing,onClick:()=>startVoice('ta-IN')},voiceProcessing?'Processing…':'🎤 Speak Tamil'),h('button',{type:'button',className:'btn btn-secondary',disabled:voiceProcessing,onClick:()=>startVoice('en-IN')},'🎤 Speak English'))
+        ),
+        voiceTranscript?h('div',{style:{marginTop:'9px',padding:'8px 10px',borderRadius:'10px',background:'#fff',fontSize:'13px'}},h('small',{style:{display:'block',color:'#8b6b78'}},'Heard'),h('div',{style:{fontWeight:700}},voiceTranscript)):null,
+        voiceMessage?h('div',{style:{marginTop:'8px',fontSize:'12px',fontWeight:800,color:voiceMessage.startsWith('✓')?'#17653c':'#7c2448'}},voiceMessage):null
+      ),
+      h('div',{className:'modal-grid'},
+        h('div',{className:'field'},h('label',null,'Task'),h('select',{value:form.task_kind,onChange:e=>setForm({...form,task_kind:e.target.value})},TASK_KINDS.map(x=>h('option',{key:x},x)))),
+        h('div',{className:'field'},h('label',null,'Priority'),h('select',{value:form.priority,onChange:e=>setForm({...form,priority:e.target.value})},PRIORITIES.map(x=>h('option',{key:x},x)))),
+        h('div',{className:'field span-2'},h('label',null,'What to do? *'),h('input',{required:true,value:form.title,onChange:e=>setForm({...form,title:e.target.value}),placeholder:'Enter task'})),
+        h('div',{className:'field span-2'},h('label',null,'Person / Place (optional)'),h('input',{value:form.contact_name,onChange:e=>setForm({...form,contact_name:e.target.value}),placeholder:'Name or place'})),
+        h('div',{className:'field'},h('label',null,'Date'),h('input',{type:'date',value:dateValue(),onChange:e=>setTaskDate(e.target.value)})),
+        h('div',{className:'field'},h('label',null,'Time (optional)'),h('input',{type:'time',value:timeValue(),onChange:e=>setTaskTime(e.target.value)})),
+        h('div',{className:'field'},h('label',null,'Day Part (optional)'),h('select',{value:form.day_part,onChange:e=>setForm({...form,day_part:e.target.value})},h('option',{value:''},'—'),['Morning','Afternoon','Evening','Night'].map(x=>h('option',{key:x},x)))),
+        editingId?h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},['Pending','In Progress','Completed','Cancelled'].map(x=>h('option',{key:x},x)))):null,
+        h('div',{className:'field span-2'},h('label',null,'Short Note (optional)'),h('textarea',{rows:2,value:form.details,onChange:e=>setForm({...form,details:e.target.value}),placeholder:'Anything important to remember'}))
+      ),
+      message?h('div',{className:'message',style:{marginTop:'8px'}},message):null,
+      h('div',{className:'actions',style:{marginTop:'12px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{stopVoice();setShowForm(false)}},'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:saving},saving?'Saving…':'Save'))
+    )):null;
+
+    return h('div',{className:'nursing-manager-quick-tasks'},
+      h('div',{className:'shift-summary'},h('div',null,h('strong',null,'My Quick Tasks'),h('span',null,'Nursing Manager personal task list with Tamil / English voice entry')),h('button',{type:'button',className:'btn btn-primary',onClick:openNew},'＋ Quick Task')),
+      h('div',{className:'grid stats',style:{marginTop:'14px'}},stat('Open',openRows.length,'Open'),stat('Due Today',todayRows.length,'Today'),stat('Overdue',overdueRows.length,'Overdue'),stat('Completed',completedRows.length,'Completed')),
+      message&&!showForm?h('div',{className:`message ${message.startsWith('✓')?'success':'error'}`,style:{marginTop:'12px'}},message):null,
+      h(Section,{title:`Tasks (${visible.length})`,subtitle:'Only your own Nursing Manager tasks are shown.'},
+        visible.length?h('div',{className:'compact-list'},visible.map(r=>h('div',{className:'compact-row',key:r.id,style:{alignItems:'flex-start'}},
+          h('div',{style:{minWidth:0,flex:1}},h('strong',null,r.title),h('small',null,`${r.task_kind||'General Task'} · ${r.priority||'Normal'} · ${r.status||'Pending'}`),r.contact_name?h('small',null,r.contact_name):null,h('small',null,r.scheduled_at?pretty(r.scheduled_at):(r.due_date?prettyDate(r.due_date):'No date')),r.details?h('small',null,r.details):null),
+          h('div',{className:'actions',style:{flexWrap:'wrap'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(r)},'Edit'),isOpen(r)&&h('button',{type:'button',className:'btn btn-primary',onClick:()=>updateStatus(r,'Completed')},'✓ Complete'),isOpen(r)&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>updateStatus(r,'Cancelled')},'Cancel'))
+        ))):h('div',{className:'empty'},'No tasks in this view.')
+      ),
+      modal
+    );
+  }
+
+  function DirectorOfficeDashboard({profile,onNavigate}){
+    const TYPES=['Task','Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder'];
+    const TASK_KINDS=['Visit','Buy / Purchase','Attend Function','Trip / Travel','General Task'];
+    const PRIORITIES=['Normal','Important','Urgent'];
+    const STATUSES=['Pending','In Progress','Completed','Cancelled'];
+    const blank=()=>({
+      item_type:'Follow-up',task_kind:'General Task',title:'',contact_name:'',contact_mobile:'',organisation:'',
+      scheduled_at:'',due_date:'',day_part:'',priority:'Normal',status:'Pending',details:'',director_note:'',
+      needs_director_attention:false,director_responded_at:null
+    });
+    const [rows,setRows]=React.useState([]);
+    const [loading,setLoading]=React.useState(true);
+    const [message,setMessage]=React.useState('');
+    const [filter,setFilter]=React.useState('Open');
+    const [showForm,setShowForm]=React.useState(false);
+    const [editingId,setEditingId]=React.useState(null);
+    const [form,setForm]=React.useState(blank());
+    const [saving,setSaving]=React.useState(false);
+    const [waUnread,setWaUnread]=React.useState(0);
+    const [feedbackOpen,setFeedbackOpen]=React.useState(0);
+    const [officeQuery,setOfficeQuery]=React.useState('');
+    const [officeFrom,setOfficeFrom]=React.useState('');
+    const [officeTo,setOfficeTo]=React.useState('');
+    const [selectedOfficeDate,setSelectedOfficeDate]=React.useState(()=>todayISOIndia());
+    const [calendarMonth,setCalendarMonth]=React.useState(()=>{
+      const t=new Date(); return new Date(t.getFullYear(),t.getMonth(),1);
+    });
+    const [isAssignedDirector,setIsAssignedDirector]=React.useState(false);
+    const [voiceAuthorized,setVoiceAuthorized]=React.useState(false);
+    const [voiceListening,setVoiceListening]=React.useState(false);
+    const [voiceProcessing,setVoiceProcessing]=React.useState(false);
+    const [voiceTranscript,setVoiceTranscript]=React.useState('');
+    const [voiceMessage,setVoiceMessage]=React.useState('');
+    const [rescheduleTarget,setRescheduleTarget]=React.useState(null);
+    const [rescheduleDate,setRescheduleDate]=React.useState('');
+    const [rescheduleTime,setRescheduleTime]=React.useState('');
+    const [rescheduleNote,setRescheduleNote]=React.useState('');
+    const [cancelTarget,setCancelTarget]=React.useState(null);
+    const [cancelReason,setCancelReason]=React.useState('');
+    const [officeActionBusy,setOfficeActionBusy]=React.useState(false);
+    const voiceRecognitionRef=React.useRef(null);
+    const mobileRecorderRef=React.useRef(null);
+    const mobileStreamRef=React.useRef(null);
+    const mobileChunksRef=React.useRef([]);
+    const mobileVoiceLangRef=React.useRef('ta-IN');
+
+    const canUse=['Admin','STD'].includes(profile?.role);
+    const canVoice=profile?.role==='STD'||isAssignedDirector||voiceAuthorized;
+
+    function localInputValue(value){
+      if(!value)return '';
+      const d=new Date(value);
+      if(Number.isNaN(d.getTime()))return '';
+      const pad=n=>String(n).padStart(2,'0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    function prettyDateTime(value){
+      if(!value)return '—';
+      const d=new Date(value);
+      if(Number.isNaN(d.getTime()))return value;
+      return d.toLocaleString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
+    }
+    function prettyDate(value){
+      if(!value)return '—';
+      const d=new Date(`${value}T00:00:00`);
+      if(Number.isNaN(d.getTime()))return value;
+      return d.toLocaleDateString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric'});
+    }
+    function isOpen(r){return !['Completed','Cancelled'].includes(r.status)}
+    function isToday(value){
+      if(!value)return false;
+      const d=new Date(value),n=new Date();
+      return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();
+    }
+
+    function officeDateKey(r){
+      if(r?.scheduled_at){
+        const d=new Date(r.scheduled_at);
+        if(!Number.isNaN(d.getTime())){
+          const pad=n=>String(n).padStart(2,'0');
+          return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+        }
+      }
+      if(r?.due_date)return String(r.due_date).slice(0,10);
+      return '';
+    }
+    function officePrettySelectedDate(value){
+      if(!value)return '';
+      const d=new Date(`${value}T00:00:00`);
+      if(Number.isNaN(d.getTime()))return value;
+      return d.toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+    }
+
+    function stopVoiceRecognition(){
+      try{voiceRecognitionRef.current?.stop?.()}catch(_){}
+      voiceRecognitionRef.current=null;
+      try{
+        if(mobileRecorderRef.current&&mobileRecorderRef.current.state!=='inactive'){
+          mobileRecorderRef.current.stop();
+        }
+      }catch(_){}
+      try{mobileStreamRef.current?.getTracks?.().forEach(track=>track.stop())}catch(_){}
+      mobileStreamRef.current=null;
+      setVoiceListening(false);
+    }
+
+    function normalizeVoiceDateTime(value){
+      if(!value)return '';
+      const d=new Date(String(value));
+      if(Number.isNaN(d.getTime()))return String(value).slice(0,16);
+      const pad=n=>String(n).padStart(2,'0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+
+    function inferDayPart(text){
+      const t=String(text||'').toLowerCase();
+      if(/\bmorning\b|காலை/.test(t))return 'Morning';
+      if(/\bafternoon\b|மதியம்|பிற்பகல்/.test(t))return 'Afternoon';
+      if(/\bevening\b|மாலை/.test(t))return 'Evening';
+      if(/\bnight\b|இரவு/.test(t))return 'Night';
+      return '';
+    }
+
+    function taskDateValue(){
+      if(form.scheduled_at)return String(form.scheduled_at).slice(0,10);
+      return form.due_date||'';
+    }
+
+    function taskTimeValue(){
+      if(form.scheduled_at&&String(form.scheduled_at).includes('T'))return String(form.scheduled_at).slice(11,16);
+      return '';
+    }
+
+    function setTaskDate(date){
+      const time=taskTimeValue();
+      if(date&&time){
+        setForm(current=>({...current,scheduled_at:`${date}T${time}`,due_date:''}));
+      }else{
+        setForm(current=>({...current,scheduled_at:'',due_date:date||''}));
+      }
+    }
+
+    function setTaskTime(time){
+      const date=taskDateValue();
+      if(date&&time){
+        setForm(current=>({...current,scheduled_at:`${date}T${time}`,due_date:''}));
+      }else if(date){
+        setForm(current=>({...current,scheduled_at:'',due_date:date}));
+      }
+    }
+
+    async function interpretVoiceTranscript(transcript,spokenLanguage){
+      const text=String(transcript||'').trim();
+      if(!text)return;
+      setVoiceProcessing(true);
+      setVoiceMessage(spokenLanguage==='ta-IN'?'தமிழ் உரையை எளிய ஆங்கிலமாக மாற்றுகிறோம்…':'Converting speech into the form…');
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Your session has expired. Please sign in again.');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{
+          method:'POST',
+          headers:{
+            'Content-Type':'application/json',
+            'Authorization':`Bearer ${session.access_token}`,
+            'apikey':cfg.supabasePublishableKey
+          },
+          body:JSON.stringify({
+            transcript:text,
+            spoken_language:spokenLanguage,
+            current_form_type:form.item_type||'Follow-up',
+            current_task_kind:form.task_kind||'General Task',
+            now_iso:new Date().toISOString(),
+            timezone:'Asia/Kolkata'
+          })
+        });
+        const result=await response.json().catch(()=>({error:'Unable to read voice-processing response'}));
+        if(!response.ok||result.error)throw new Error(result.error||'Unable to process voice entry.');
+        const x=result.fields||{};
+        setForm(current=>({
+          ...current,
+          item_type:x.item_type||current.item_type||'Task',
+          task_kind:x.task_kind||current.task_kind||'General Task',
+          title:x.title||current.title||'',
+          contact_name:x.contact_name||current.contact_name||'',
+          contact_mobile:x.contact_mobile||current.contact_mobile||'',
+          organisation:x.organisation||current.organisation||'',
+          scheduled_at:x.scheduled_at?normalizeVoiceDateTime(x.scheduled_at):current.scheduled_at,
+          due_date:x.due_date||current.due_date||'',
+          day_part:(x.day_part&&x.day_part!=='Not Applicable')?x.day_part:(current.day_part||inferDayPart(x.details||text)||''),
+          priority:x.priority||current.priority||'Normal',
+          status:current.status||'Pending',
+          details:x.details||current.details||'',
+          needs_director_attention:typeof x.needs_director_attention==='boolean'?x.needs_director_attention:current.needs_director_attention
+        }));
+        setVoiceMessage('✓ Voice entry filled in simple English. Please check the fields before Save.');
+      }catch(error){
+        setVoiceMessage(error.message||'Unable to process voice entry.');
+      }finally{
+        setVoiceProcessing(false);
+      }
+    }
+
+    function shouldUseMobileAudioRecorder(){
+      const ua=String(navigator.userAgent||'');
+      const mobileUA=/iPhone|iPad|iPod|Android/i.test(ua);
+      const coarse=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
+      return Boolean(mobileUA||coarse);
+    }
+
+    function bestMobileAudioMime(){
+      const candidates=[
+        'audio/mp4',
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus'
+      ];
+      for(const type of candidates){
+        try{
+          if(window.MediaRecorder&&MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(type))return type;
+        }catch(_){}
+      }
+      return '';
+    }
+
+    async function sendMobileAudioForVoice(blob,lang){
+      setVoiceProcessing(true);
+      setVoiceMessage('Understanding your voice…');
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Your session has expired. Please sign in again.');
+
+        const ext=(blob.type||'').includes('mp4')?'m4a':
+          (blob.type||'').includes('ogg')?'ogg':
+          (blob.type||'').includes('webm')?'webm':'webm';
+
+        const fd=new FormData();
+        fd.append('audio',blob,`samara-voice.${ext}`);
+        fd.append('spoken_language',lang);
+        fd.append('current_form_type',form.item_type||'Follow-up');
+        fd.append('current_task_kind',form.task_kind||'General Task');
+        fd.append('now_iso',new Date().toISOString());
+        fd.append('timezone','Asia/Kolkata');
+
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{
+          method:'POST',
+          headers:{
+            'Authorization':`Bearer ${session.access_token}`,
+            'apikey':cfg.supabasePublishableKey
+          },
+          body:fd
+        });
+
+        const result=await response.json().catch(()=>({error:'Unable to read voice-processing response'}));
+        if(!response.ok||result.error)throw new Error(result.error||'Unable to process mobile voice entry.');
+
+        if(result.transcript)setVoiceTranscript(String(result.transcript));
+        const x=result.fields||{};
+        setForm(current=>({
+          ...current,
+          item_type:x.item_type||'Task',
+          task_kind:x.task_kind||'General Task',
+          title:x.title||'',
+          contact_name:x.contact_name||'',
+          contact_mobile:x.contact_mobile||'',
+          organisation:x.organisation||'',
+          scheduled_at:x.scheduled_at?normalizeVoiceDateTime(x.scheduled_at):'',
+          due_date:x.due_date||'',
+          day_part:(x.day_part&&x.day_part!=='Not Applicable')?x.day_part:'',
+          priority:x.priority||'Normal',
+          status:current.status||'Pending',
+          details:x.details||'',
+          needs_director_attention:typeof x.needs_director_attention==='boolean'?x.needs_director_attention:false
+        }));
+        setVoiceMessage('✓ Voice entry filled in simple English. Please check the fields before Save.');
+      }catch(error){
+        setVoiceMessage(error.message||'Unable to process mobile voice entry.');
+      }finally{
+        setVoiceProcessing(false);
+      }
+    }
+
+    async function startMobileVoiceRecording(lang='ta-IN'){
+      if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){
+        setVoiceMessage('Microphone recording is not available in this mobile browser. Please allow microphone access and try Safari/Chrome.');
+        return;
+      }
+
+      stopVoiceRecognition();
+      setVoiceTranscript('');
+      setVoiceMessage(lang==='ta-IN'?'🎤 தமிழில் பேசுங்கள். முடிந்ததும் Stop அழுத்துங்கள்.':'🎤 Speak naturally. Tap Stop when finished.');
+
+      try{
+        const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+        mobileStreamRef.current=stream;
+        mobileChunksRef.current=[];
+        mobileVoiceLangRef.current=lang;
+
+        const mime=bestMobileAudioMime();
+        const recorder=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);
+        mobileRecorderRef.current=recorder;
+
+        recorder.ondataavailable=e=>{
+          if(e.data&&e.data.size>0)mobileChunksRef.current.push(e.data);
+        };
+
+        recorder.onerror=()=>{
+          try{stream.getTracks().forEach(track=>track.stop())}catch(_){}
+          mobileStreamRef.current=null;
+          mobileRecorderRef.current=null;
+          setVoiceListening(false);
+          setVoiceMessage('Mobile voice recording stopped unexpectedly. Please try again.');
+        };
+
+        recorder.onstop=async()=>{
+          const actualType=recorder.mimeType||mobileChunksRef.current[0]?.type||'audio/webm';
+          const blob=new Blob(mobileChunksRef.current,{type:actualType});
+          mobileChunksRef.current=[];
+          try{stream.getTracks().forEach(track=>track.stop())}catch(_){}
+          mobileStreamRef.current=null;
+          mobileRecorderRef.current=null;
+          setVoiceListening(false);
+
+          if(blob.size<1000){
+            setVoiceMessage('No useful speech was captured. Please try again.');
+            return;
+          }
+          await sendMobileAudioForVoice(blob,mobileVoiceLangRef.current);
+        };
+
+        recorder.start();
+        setVoiceListening(true);
+      }catch(error){
+        setVoiceListening(false);
+        try{mobileStreamRef.current?.getTracks?.().forEach(track=>track.stop())}catch(_){}
+        mobileStreamRef.current=null;
+        mobileRecorderRef.current=null;
+        const msg=String(error?.name||'');
+        setVoiceMessage(msg==='NotAllowedError'
+          ?'Microphone permission is blocked. Please allow microphone access for Samara Care and try again.'
+          :(error.message||'Unable to start mobile microphone.'));
+      }
+    }
+
+    function startVoiceEntry(lang='ta-IN'){
+      if(!canVoice)return;
+      if(shouldUseMobileAudioRecorder()){
+        startMobileVoiceRecording(lang);
+        return;
+      }
+      const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+      if(!SpeechRecognition){
+        setVoiceMessage('Voice recognition is not available in this browser. Please try Chrome/Edge or the installed Samara Care app.');
+        return;
+      }
+      stopVoiceRecognition();
+      setVoiceTranscript('');
+      setVoiceMessage(lang==='ta-IN'?'🎤 தமிழில் இயல்பாக பேசுங்கள்…':'🎤 Speak naturally in English…');
+      try{
+        const recognition=new SpeechRecognition();
+        recognition.lang=lang;
+        recognition.interimResults=true;
+        recognition.continuous=false;
+        recognition.maxAlternatives=1;
+        voiceRecognitionRef.current=recognition;
+        let finalText='';
+        recognition.onstart=()=>setVoiceListening(true);
+        recognition.onresult=event=>{
+          let interim='';
+          for(let i=event.resultIndex;i<event.results.length;i++){
+            const t=event.results[i][0]?.transcript||'';
+            if(event.results[i].isFinal)finalText+=`${t} `;
+            else interim+=t;
+          }
+          setVoiceTranscript((finalText||interim).trim());
+        };
+        recognition.onerror=event=>{
+          setVoiceListening(false);
+          voiceRecognitionRef.current=null;
+          const code=String(event?.error||'');
+          setVoiceMessage(code==='not-allowed'
+            ?'Microphone permission is blocked. Please allow microphone access for Samara Care and try again.'
+            :`Voice recognition stopped${code?`: ${code}`:''}. Please try again.`);
+        };
+        recognition.onend=()=>{
+          setVoiceListening(false);
+          voiceRecognitionRef.current=null;
+          const spoken=String(finalText||'').trim();
+          if(spoken){
+            setVoiceTranscript(spoken);
+            interpretVoiceTranscript(spoken,lang);
+          }else{
+            setVoiceMessage(current=>current.startsWith('🎤')?'No speech was captured. Please try again.':current);
+          }
+        };
+        recognition.start();
+      }catch(error){
+        setVoiceListening(false);
+        voiceRecognitionRef.current=null;
+        setVoiceMessage(error.message||'Unable to start microphone.');
+      }
+    }
+
+    async function load(){
+      setLoading(true);setMessage('');
+      const {data,error}=await client.from('director_office_items').select('*').order('created_at',{ascending:false}).limit(500);
+      if(error){
+        setRows([]);
+        setMessage(error.message?.includes('director_office_items')
+          ?'Director’s Office database setup is pending. Please run SQL file 105_director_office_workspace.sql once.'
+          :`Unable to load Director’s Office: ${error.message||error}`);
+      }else setRows(data||[]);
+      setLoading(false);
+    }
+    async function loadCommunicationCounts(){
+      try{
+        const {data:waRows}=await client.from('hr_whatsapp_communications')
+          .select('id,direction,read_at,created_at')
+          .eq('direction','inbound')
+          .order('created_at',{ascending:false})
+          .limit(500);
+        setWaUnread((waRows||[]).filter(r=>!r.read_at).length);
+      }catch(_){setWaUnread(0)}
+      try{
+        const {data:fbRows}=await client.from('feedback')
+          .select('id,status')
+          .limit(500);
+        setFeedbackOpen((fbRows||[]).filter(r=>!['Closed','Resolved'].includes(String(r.status||''))).length);
+      }catch(_){setFeedbackOpen(0)}
+    }
+
+    React.useEffect(()=>{
+      if(!canUse)return;
+      let cancelled=false;
+      (async()=>{
+        try{
+          const {data:{session}}=await client.auth.getSession();
+          if(!session)return;
+          const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{
+            method:'POST',
+            headers:{
+              'Authorization':`Bearer ${session.access_token}`,
+              'apikey':cfg.supabasePublishableKey,
+              'Content-Type':'application/json'
+            },
+            body:JSON.stringify({
+              transcript:'',
+              spoken_language:'ta-IN',
+              current_form_type:'Task',
+              current_task_kind:'General Task',
+              now_iso:new Date().toISOString(),
+              timezone:'Asia/Kolkata'
+            })
+          });
+          const result=await response.json().catch(()=>({}));
+          // The Edge Function authenticates Director/STD before validating transcript.
+          // Authorized users therefore reach "No speech transcript received" (400);
+          // unrelated Admins are rejected earlier with 403.
+          if(!cancelled){
+            setVoiceAuthorized(
+              response.status===400 &&
+              String(result?.error||'').toLowerCase().includes('no speech transcript')
+            );
+          }
+        }catch(_){
+          if(!cancelled)setVoiceAuthorized(false);
+        }
+      })();
+      return()=>{cancelled=true};
+    },[profile?.id,profile?.role]);
+
+    React.useEffect(()=>{
+      if(!canUse){setLoading(false);return}
+      (async()=>{
+        try{
+          const {data}=await client.from('director_office_positions')
+            .select('assigned_profile_id')
+            .eq('position_key','director')
+            .maybeSingle();
+          setIsAssignedDirector(String(data?.assigned_profile_id||'')===String(profile?.id||''));
+        }catch(_){setIsAssignedDirector(false)}
+      })();
+      load();loadCommunicationCounts();
+      const ch=client.channel('director-office-live')
+        .on('postgres_changes',{event:'*',schema:'public',table:'director_office_items'},load)
+        .subscribe();
+      const comm=client.channel('director-office-communications-live')
+        .on('postgres_changes',{event:'*',schema:'public',table:'hr_whatsapp_communications'},loadCommunicationCounts)
+        .on('postgres_changes',{event:'*',schema:'public',table:'feedback'},loadCommunicationCounts)
+        .subscribe();
+      return()=>{client.removeChannel(ch);client.removeChannel(comm)};
+    },[]);
+
+    function openNew(type='Follow-up'){
+      stopVoiceRecognition();setVoiceTranscript('');setVoiceMessage('');
+      setEditingId(null);setForm({...blank(),item_type:type});setMessage('');setShowForm(true);
+    }
+    function editRow(r){
+      stopVoiceRecognition();setVoiceTranscript('');setVoiceMessage('');
+      setEditingId(r.id);
+      setForm({
+        item_type:r.item_type||'Follow-up',
+        task_kind:r.task_kind||'General Task',
+        title:r.title||'',
+        contact_name:r.contact_name||'',
+        contact_mobile:r.contact_mobile||'',
+        organisation:r.organisation||'',
+        scheduled_at:localInputValue(r.scheduled_at),
+        due_date:r.due_date||'',
+        day_part:inferDayPart(r.details||''),
+        priority:r.priority||'Normal',
+        status:r.status||'Pending',
+        details:r.details||'',
+        director_note:r.director_note||'',
+        needs_director_attention:Boolean(r.needs_director_attention),
+        director_responded_at:r.director_responded_at||null
+      });
+      setShowForm(true);
+    }
+    async function save(e){
+      e.preventDefault();
+      if(saving)return;
+      if(!form.title.trim())return setMessage('Please enter the subject / purpose.');
+      setSaving(true);setMessage('');
+      let detailsForSave=form.details.trim();
+      if(form.item_type==='Task'&&form.day_part){
+        const hasDayPart=inferDayPart(detailsForSave);
+        if(!hasDayPart){
+          detailsForSave=detailsForSave?`${detailsForSave} (${form.day_part})`:form.day_part;
+        }
+      }
+      const payload={
+        item_type:form.item_type,
+        task_kind:form.item_type==='Task'?(form.task_kind||'General Task'):null,
+        title:form.title.trim(),
+        contact_name:form.contact_name.trim()||null,
+        contact_mobile:form.contact_mobile.trim()||null,
+        organisation:form.organisation.trim()||null,
+        scheduled_at:form.scheduled_at?new Date(form.scheduled_at).toISOString():null,
+        due_date:form.due_date||null,
+        priority:form.priority,
+        status:form.status,
+        details:detailsForSave||null,
+        director_note:form.director_note.trim()||null,
+        needs_director_attention:Boolean(form.needs_director_attention),
+        updated_at:new Date().toISOString()
+      };
+      if(isAssignedDirector&&form.director_note.trim()&&form.needs_director_attention){
+        payload.director_responded_at=new Date().toISOString();
+      }else if(!form.needs_director_attention){
+        payload.director_responded_at=null;
+      }
+      let res;
+      if(editingId)res=await client.from('director_office_items').update(payload).eq('id',editingId);
+      else res=await client.from('director_office_items').insert(payload);
+      if(res.error){
+        setMessage(res.error.message||'Unable to save.');
+        setSaving(false);
+      }else{
+        const wasEditing=Boolean(editingId);
+        stopVoiceRecognition();
+        setShowForm(false);
+        setEditingId(null);
+        setForm(blank());
+        setSaving(false);
+        setVoiceTranscript('');
+        setVoiceMessage('');
+        setMessage(wasEditing?'Item updated successfully.':'Task saved successfully. Tap + Quick Task to add another.');
+        await load();
+      }
+    }
+    async function markComplete(r){
+      const {error}=await client.from('director_office_items').update({status:'Completed',updated_at:new Date().toISOString()}).eq('id',r.id);
+      if(error)setMessage(error.message||'Unable to complete item');else await load();
+    }
+    function openReschedule(r){
+      const local=r.scheduled_at?localInputValue(r.scheduled_at):'';
+      setRescheduleTarget(r);
+      setRescheduleDate(local?local.slice(0,10):(r.due_date||''));
+      setRescheduleTime(local&&local.includes('T')?local.slice(11,16):'');
+      setRescheduleNote('');
+      setMessage('');
+    }
+    async function saveReschedule(e){
+      e.preventDefault();
+      if(officeActionBusy||!rescheduleTarget)return;
+      if(!rescheduleDate)return setMessage('Please select the new date.');
+      setOfficeActionBusy(true);setMessage('');
+      const now=new Date().toISOString();
+      const newScheduledAt=rescheduleTime?new Date(`${rescheduleDate}T${rescheduleTime}`).toISOString():null;
+      const newDueDate=rescheduleTime?null:rescheduleDate;
+      const history=Array.isArray(rescheduleTarget.reschedule_history)?[...rescheduleTarget.reschedule_history]:[];
+      history.push({
+        at:now,
+        by:profile?.id||null,
+        old_scheduled_at:rescheduleTarget.scheduled_at||null,
+        old_due_date:rescheduleTarget.due_date||null,
+        new_scheduled_at:newScheduledAt,
+        new_due_date:newDueDate,
+        note:rescheduleNote.trim()||null
+      });
+      const {error}=await client.from('director_office_items').update({
+        scheduled_at:newScheduledAt,
+        due_date:newDueDate,
+        status:'Pending',
+        rescheduled_at:now,
+        reschedule_note:rescheduleNote.trim()||null,
+        reschedule_history:history,
+        updated_at:now
+      }).eq('id',rescheduleTarget.id);
+      setOfficeActionBusy(false);
+      if(error){setMessage(error.message||'Unable to reschedule item');return;}
+      setRescheduleTarget(null);setRescheduleDate('');setRescheduleTime('');setRescheduleNote('');
+      setMessage('Item rescheduled successfully.');
+      await load();
+    }
+    function openCancelItem(r){
+      setCancelTarget(r);
+      setCancelReason('');
+      setMessage('');
+    }
+    async function saveCancelItem(e){
+      e.preventDefault();
+      if(officeActionBusy||!cancelTarget)return;
+      setOfficeActionBusy(true);setMessage('');
+      const now=new Date().toISOString();
+      const {error}=await client.from('director_office_items').update({
+        status:'Cancelled',
+        cancel_reason:cancelReason.trim()||null,
+        cancelled_at:now,
+        updated_at:now
+      }).eq('id',cancelTarget.id);
+      setOfficeActionBusy(false);
+      if(error){setMessage(error.message||'Unable to cancel item');return;}
+      setCancelTarget(null);setCancelReason('');
+      setMessage('Item cancelled and retained in history.');
+      await load();
+    }
+    async function markDirectorResponded(r){
+      const {error}=await client.from('director_office_items').update({
+        director_responded_at:new Date().toISOString(),
+        updated_at:new Date().toISOString()
+      }).eq('id',r.id);
+      if(error)setMessage(error.message||'Unable to update Director response.');else await load();
+    }
+
+    if(!canUse)return h(Section,{title:"Director's Office",subtitle:'Restricted workspace'},h('div',{className:'empty'},'This workspace is available only to the Director / Administrator and Secretary to the Director.'));
+
+    const openRows=rows.filter(isOpen);
     const todayKey=todayISOIndia();
     const todayItems=rows
-      .filter(r=>itemDateKey(r)===todayKey&&r.status!=='Cancelled')
+      .filter(r=>officeDateKey(r)===todayKey&&r.status!=='Cancelled')
       .sort((a,b)=>String(a.scheduled_at||a.due_date||'').localeCompare(String(b.scheduled_at||b.due_date||'')));
-    const todayAppointments=openRows.filter(r=>r.item_type==='Appointment'&&itemDateKey(r)===todayKey);
+    const todayAppointments=openRows.filter(r=>r.item_type==='Appointment'&&officeDateKey(r)===todayKey);
     const calls=openRows.filter(r=>r.item_type==='Call / Callback');
     const followups=openRows.filter(r=>r.item_type==='Follow-up');
     const visitors=openRows.filter(r=>r.item_type==='Visitor');
@@ -9245,20 +10109,20 @@ Thank you.`;
     const urgent=openRows.filter(r=>r.priority==='Urgent');
 
     const calendarCounts=rows.reduce((acc,r)=>{
-      const key=itemDateKey(r);
+      const key=officeDateKey(r);
       if(key&&r.status!=='Cancelled')acc[key]=(acc[key]||0)+1;
       return acc;
     },{});
 
     const filtered=rows.filter(r=>{
-      if(itemDateKey(r)!==selectedOfficeDate)return false;
+      if(officeDateKey(r)!==selectedOfficeDate)return false;
       let typeOk=false;
       if(filter==='All')typeOk=r.status!=='Cancelled';
       else if(filter==='Open')typeOk=isOpen(r);
       else if(filter==='For Director')typeOk=isOpen(r)&&Boolean(r.needs_director_attention)&&!r.director_responded_at;
       else if(filter==='Completed')typeOk=r.status==='Completed';
       else if(filter==='Cancelled')typeOk=r.status==='Cancelled';
-      else if(filter==='Today')typeOk=itemDateKey(r)===todayKey;
+      else if(filter==='Today')typeOk=selectedOfficeDate===todayKey&&r.status!=='Cancelled';
       else typeOk=r.item_type===filter;
       if(!typeOk)return false;
       const hay=`${r.title||''} ${r.contact_name||''} ${r.contact_mobile||''} ${r.organisation||''} ${r.details||''}`.toLowerCase();
@@ -9268,56 +10132,55 @@ Thank you.`;
 
     function selectOfficeDate(dateKey){
       setSelectedOfficeDate(dateKey);
-      setFilter('All');
-      window.setTimeout(()=>{
-        document.getElementById('director-date-items-anchor')?.scrollIntoView?.({behavior:'smooth',block:'start'});
-      },60);
+      setFilter('Open');
+      const d=new Date(`${dateKey}T00:00:00`);
+      if(!Number.isNaN(d.getTime()))setCalendarMonth(new Date(d.getFullYear(),d.getMonth(),1));
     }
 
-    function officeCalendar(){
-      const [year,month]=officeCalendarMonth.split('-').map(Number);
-      const first=new Date(year,month-1,1);
-      const days=new Date(year,month,0).getDate();
-      const blanks=first.getDay();
-      const pad=n=>String(n).padStart(2,'0');
+    function renderDirectorCalendar(){
+      const year=calendarMonth.getFullYear();
+      const month=calendarMonth.getMonth();
+      const first=new Date(year,month,1);
+      const daysInMonth=new Date(year,month+1,0).getDate();
+      const mondayOffset=(first.getDay()+6)%7;
       const cells=[];
-      for(let i=0;i<blanks;i++)cells.push(h('div',{key:`blank-${i}`,className:'director-cal-day blank'}));
-      for(let day=1;day<=days;day++){
-        const key=`${year}-${pad(month)}-${pad(day)}`;
-        const count=calendarCounts[key]||0;
-        const selected=key===selectedOfficeDate;
-        const today=key===todayKey;
-        cells.push(h('button',{
-          key,type:'button',
-          className:`director-cal-day${selected?' selected':''}${today?' today':''}`,
-          onClick:()=>selectOfficeDate(key),
-          'aria-label':`${calendarLabel(key)}${count?`, ${count} item${count===1?'':'s'}`:''}`
-        },
-          h('span',{className:'director-cal-number'},day),
-          count?h('span',{className:'director-cal-count'},count):null
-        ));
-      }
+      for(let i=0;i<mondayOffset;i++)cells.push(null);
+      for(let day=1;day<=daysInMonth;day++)cells.push(day);
+      while(cells.length%7)cells.push(null);
+      const pad=n=>String(n).padStart(2,'0');
+      const monthLabel=calendarMonth.toLocaleDateString('en-IN',{month:'long',year:'numeric'});
       return h('div',{className:'director-calendar'},
-        h('div',{className:'director-cal-head'},
-          h('button',{type:'button',className:'btn btn-secondary director-cal-nav',onClick:()=>moveOfficeMonth(-1),'aria-label':'Previous month'},'‹'),
-          h('div',{className:'director-cal-month'},officeMonthLabel(officeCalendarMonth)),
-          h('button',{type:'button',className:'btn btn-secondary director-cal-nav',onClick:()=>moveOfficeMonth(1),'aria-label':'Next month'},'›'),
-          h('button',{type:'button',className:'btn btn-secondary director-cal-today',onClick:()=>{setOfficeCalendarMonth(todayKey.slice(0,7));selectOfficeDate(todayKey)}},'Today')
+        h('div',{className:'director-calendar-head'},
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCalendarMonth(new Date(year,month-1,1))},'‹'),
+          h('strong',null,monthLabel),
+          h('div',{style:{display:'flex',gap:'6px'}},
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>selectOfficeDate(todayKey)},'Today'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCalendarMonth(new Date(year,month+1,1))},'›')
+          )
         ),
-        h('div',{className:'director-cal-week'},...['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>h('div',{key:x},x))),
-        h('div',{className:'director-cal-grid'},...cells)
+        h('div',{className:'director-calendar-week'},...['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>h('div',{key:d},d))),
+        h('div',{className:'director-calendar-grid'},...cells.map((day,idx)=>{
+          if(!day)return h('div',{key:`blank-${idx}`,className:'director-calendar-cell blank'});
+          const key=`${year}-${pad(month+1)}-${pad(day)}`;
+          const count=calendarCounts[key]||0;
+          const selected=key===selectedOfficeDate;
+          const today=key===todayKey;
+          return h('button',{type:'button',key,className:`director-calendar-cell${selected?' selected':''}${today?' today':''}`,onClick:()=>selectOfficeDate(key)},
+            h('span',{className:'day-number'},day),
+            count?h('span',{className:'day-count'},count):null
+          );
+        }))
       );
     }
 
     function openDirectorQueue(filterValue){
+      if(filterValue==='Today')selectOfficeDate(todayKey);
       setFilter(filterValue);
-      if(filterValue==='Today'){
-        setSelectedOfficeDate(todayKey);
-        setOfficeCalendarMonth(todayKey.slice(0,7));
-      }
       window.setTimeout(()=>{
-        const target=document.getElementById('director-date-items-anchor')||document.getElementById('director-followup-queue-anchor');
-        if(target)target.scrollIntoView({behavior:'smooth',block:'start'});
+        const target=document.getElementById('director-followup-queue-anchor');
+        if(target){
+          target.scrollIntoView({behavior:'smooth',block:'start'});
+        }
       },80);
     }
 
@@ -9526,22 +10389,30 @@ Thank you.`;
           box-sizing:border-box;
         }
 
-        .director-today-agenda{display:grid;gap:10px}
-        .director-calendar{border:1px solid #edc7d7;border-radius:18px;background:#fffafd;padding:14px;box-shadow:0 6px 18px rgba(128,18,70,.05)}
-        .director-cal-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:8px;align-items:center;margin-bottom:12px}
-        .director-cal-month{text-align:center;font-size:18px;font-weight:950;color:#8f174d}
-        .director-cal-nav{min-width:42px;padding:8px 12px;font-size:22px;line-height:1}
-        .director-cal-today{white-space:nowrap}
-        .director-cal-week,.director-cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
-        .director-cal-week{margin-bottom:6px;color:#8a7180;font-size:11px;font-weight:900;text-align:center;text-transform:uppercase;letter-spacing:.03em}
-        .director-cal-day{position:relative;min-height:66px;border:1px solid #efd9e2;border-radius:12px;background:#fff;color:#39242f;cursor:pointer;padding:8px;display:flex;align-items:flex-start;justify-content:flex-start;transition:.16s ease}
-        .director-cal-day:hover{border-color:#d96d99;background:#fff4f8;transform:translateY(-1px)}
-        .director-cal-day.blank{border-color:transparent;background:transparent;cursor:default}
-        .director-cal-day.today{box-shadow:inset 0 0 0 2px #e39ab7}
-        .director-cal-day.selected{background:linear-gradient(145deg,#a90d51,#d82b75);border-color:#a90d51;color:#fff;box-shadow:0 7px 16px rgba(147,17,76,.2)}
-        .director-cal-number{font-weight:900;font-size:14px}
-        .director-cal-count{position:absolute;right:7px;bottom:7px;min-width:22px;height:22px;padding:0 6px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;background:#f4dbe5;color:#8c174c;font-size:11px;font-weight:950}
-        .director-cal-day.selected .director-cal-count{background:#fff;color:#9b124f}
+        .director-calendar{margin:14px 0 18px;padding:14px;border:1px solid #edc4d4;border-radius:18px;background:#fffafd;box-shadow:0 6px 18px rgba(125,20,70,.06)}
+        .director-calendar-head{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;margin-bottom:10px}
+        .director-calendar-head>strong{text-align:center;color:#8f174d;font-size:18px}
+        .director-calendar-week,.director-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+        .director-calendar-week>div{text-align:center;font-size:11px;font-weight:900;color:#836875;padding:4px 0}
+        .director-calendar-cell{position:relative;min-height:64px;border:1px solid #ecd2dc;background:#fff;border-radius:12px;padding:7px;cursor:pointer;text-align:left;color:#3d2633}
+        .director-calendar-cell.blank{border-color:transparent;background:transparent;cursor:default}
+        .director-calendar-cell.today{box-shadow:inset 0 0 0 2px #d14a82}
+        .director-calendar-cell.selected{background:linear-gradient(145deg,#a90f56,#d82f76);color:#fff;border-color:#a90f56}
+        .director-calendar-cell .day-number{font-weight:900;font-size:14px}
+        .director-calendar-cell .day-count{position:absolute;right:6px;bottom:6px;min-width:22px;height:22px;border-radius:999px;background:#f3dbe5;color:#8d154a;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:900}
+        .director-calendar-cell.selected .day-count{background:#fff;color:#a30f54}
+        .director-today-list{display:grid;gap:8px;margin-top:10px}
+        @media(max-width:700px){
+          .director-calendar{padding:10px;margin-top:10px}
+          .director-calendar-head{grid-template-columns:auto 1fr auto;gap:6px}
+          .director-calendar-head .btn{padding:8px 9px;min-width:auto}
+          .director-calendar-head>strong{font-size:15px}
+          .director-calendar-week,.director-calendar-grid{gap:4px}
+          .director-calendar-week>div{font-size:9px}
+          .director-calendar-cell{min-height:48px;border-radius:9px;padding:5px}
+          .director-calendar-cell .day-number{font-size:12px}
+          .director-calendar-cell .day-count{right:4px;bottom:4px;min-width:18px;height:18px;font-size:9px}
+        }
 
         @media(max-width:700px){
           .director-office-page{
@@ -9619,16 +10490,6 @@ Thank you.`;
           }
         }
 
-          .director-calendar{padding:10px;border-radius:15px}
-          .director-cal-head{grid-template-columns:auto minmax(0,1fr) auto;gap:6px}
-          .director-cal-today{grid-column:1 / -1;width:100%;margin-top:2px}
-          .director-cal-month{font-size:16px}
-          .director-cal-week,.director-cal-grid{gap:4px}
-          .director-cal-week{font-size:9px}
-          .director-cal-day{min-height:48px;border-radius:10px;padding:6px}
-          .director-cal-number{font-size:13px}
-          .director-cal-count{right:4px;bottom:4px;min-width:18px;height:18px;padding:0 4px;font-size:9px}
-
         @media(max-width:390px){
           .director-office-page > .card.panel:first-of-type > .panel-head > .actions{
             grid-template-columns:1fr!important;
@@ -9670,31 +10531,30 @@ Thank you.`;
         ),
         urgent.length?h('div',{style:{marginTop:'12px',padding:'10px 12px',borderRadius:'12px',background:'#fff3f3',border:'1px solid #efc2c2',fontWeight:800,color:'#8d1b2c'}},`⚠ ${urgent.length} urgent item${urgent.length===1?'':'s'} pending`):null
       ),
-      h('div',{id:'director-followup-queue-anchor',style:{height:'1px',scrollMarginTop:'118px'}}),
-      h(Section,{title:'Today',subtitle:`${todayItems.length} item${todayItems.length===1?'':'s'} · ${calendarLabel(todayKey)}`},
+      h(Section,{title:'Today',subtitle:`${todayItems.length} item${todayItems.length===1?'':'s'} for today`},
         loading?h('div',{className:'empty'},'Loading today’s items…'):
-        h('div',{className:'director-today-agenda'},...todayItems.map(itemCard),
-          todayItems.length===0?h('div',{className:'empty'},'No Director’s Office items scheduled for today.'):null
-        )
+        todayItems.length?h('div',{className:'director-today-list'},...todayItems.map(itemCard)):
+        h('div',{className:'empty'},'No Director’s Office items scheduled for today.')
       ),
-      h(Section,{title:'Calendar',subtitle:'Tap any date to view that day’s tasks, appointments, calls and follow-ups'},
-        officeCalendar()
-      ),
-      h('div',{id:'director-date-items-anchor',style:{height:'1px',scrollMarginTop:'118px'}}),
-      h(Section,{title:calendarLabel(selectedOfficeDate),subtitle:`${filtered.length} item${filtered.length===1?'':'s'} · ${filter==='All'?'All items':filter}`,actions:
+      h(Section,{title:'Calendar',subtitle:'Tap any date to view its tasks, appointments and follow-ups'},renderDirectorCalendar()),
+      h('div',{
+        id:'director-followup-queue-anchor',
+        style:{height:'1px',scrollMarginTop:'118px'}
+      }),
+      h(Section,{title:officePrettySelectedDate(selectedOfficeDate),subtitle:`${filtered.length} item${filtered.length===1?'':'s'} · ${filter}`,actions:
         h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
-          ...['All','Open','For Director','Task','Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder','Completed','Cancelled'].map(x=>
-            h('button',{type:'button',key:x,className:filter===x?'btn btn-primary':'btn btn-secondary',onClick:()=>setFilter(x)},x)
+          ...['All','Open','For Director','Today','Task','Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder','Completed','Cancelled'].map(x=>
+            h('button',{type:'button',key:x,className:filter===x?'btn btn-primary':'btn btn-secondary',onClick:()=>openDirectorQueue(x)},x)
           )
         )
       },
         h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginBottom:'12px'}},
-          h('input',{value:officeQuery,onChange:e=>setOfficeQuery(e.target.value),placeholder:'Search this date…',style:{flex:'1 1 280px',minWidth:'220px'}}),
+          h('input',{value:officeQuery,onChange:e=>setOfficeQuery(e.target.value),placeholder:'Search subject, name, mobile or notes…',style:{flex:'1 1 280px',minWidth:'220px'}}),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setOfficeQuery('')},'Clear')
         ),
         loading?h('div',{className:'empty'},'Loading Director’s Office…'):
         h('div',{style:{display:'grid',gap:'10px'}},...filtered.map(itemCard),
-          filtered.length===0?h('div',{className:'empty'},'No items for this date and filter.'):null
+          filtered.length===0?h('div',{className:'empty'},'No items in this view.'):null
         )
       ),
       h(Section,{title:'Quick Add',subtitle:'Common Secretary actions'},
@@ -24112,4 +24972,6 @@ function AuditTrail(){
 
 /* v2.10.68 — Auth stability: token refresh no longer revalidates/signs out active users; inactivity tracking expanded. */
 
-/* v2.10.71 — Nursing Procedures chargeable-item list expanded; Blood Glucose Monitoring added. Dedicated Procedures dashboard screen removed in favour of existing Raise Bill / Charge Request workflow. */
+/* v2.10.70 — Nursing Procedures chargeable-item list expanded; Blood Glucose Monitoring added. Dedicated Procedures dashboard screen removed in favour of existing Raise Bill / Charge Request workflow. */
+
+/* v2.10.72 — Director's Office date-first calendar: Today first, monthly calendar navigation, per-date queue; startup regression fixed by preserving DirectorOfficeDashboard component. */
