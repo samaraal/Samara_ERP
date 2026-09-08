@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.78';
+  const APP_VERSION = '2.10.79';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -9488,6 +9488,8 @@ Thank you.`;
     const [cancelTarget,setCancelTarget]=React.useState(null);
     const [cancelReason,setCancelReason]=React.useState('');
     const [officeActionBusy,setOfficeActionBusy]=React.useState(false);
+    const [manualRefreshing,setManualRefreshing]=React.useState(false);
+    const [lastOfficeRefresh,setLastOfficeRefresh]=React.useState(null);
     const voiceRecognitionRef=React.useRef(null);
     const mobileRecorderRef=React.useRef(null);
     const mobileStreamRef=React.useRef(null);
@@ -10650,7 +10652,7 @@ Thank you.`;
         urgent.length?h('div',{style:{marginTop:'12px',padding:'10px 12px',borderRadius:'12px',background:'#fff3f3',border:'1px solid #efc2c2',fontWeight:800,color:'#8d1b2c'}},`⚠ ${urgent.length} urgent item${urgent.length===1?'':'s'} pending`):null
       ),
 
-      /* v2.10.78 — prominent Director's Office item-count summary with mobile layout fix */
+      /* v2.10.79 — Director's Office refresh state startup fix */
       h('style',null,`
         .director-items-summary{
           display:inline-flex;align-items:center;gap:6px;margin-top:4px;
