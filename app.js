@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.72';
+  const APP_VERSION = '2.10.73';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -10169,7 +10169,12 @@ Thank you.`;
             h('span',{className:'day-number'},day),
             count?h('span',{className:'day-count'},count):null
           );
-        }))
+        })),
+        h('div',{className:'director-selected-date-strip'},
+          h('span',null,selectedOfficeDate===todayKey?'Selected: Today':'Selected date'),
+          h('strong',null,officePrettySelectedDate(selectedOfficeDate)),
+          h('span',null,`${calendarCounts[selectedOfficeDate]||0} item${(calendarCounts[selectedOfficeDate]||0)===1?'':'s'}`)
+        )
       );
     }
 
@@ -10389,29 +10394,37 @@ Thank you.`;
           box-sizing:border-box;
         }
 
-        .director-calendar{margin:14px 0 18px;padding:14px;border:1px solid #edc4d4;border-radius:18px;background:#fffafd;box-shadow:0 6px 18px rgba(125,20,70,.06)}
-        .director-calendar-head{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;margin-bottom:10px}
-        .director-calendar-head>strong{text-align:center;color:#8f174d;font-size:18px}
-        .director-calendar-week,.director-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
-        .director-calendar-week>div{text-align:center;font-size:11px;font-weight:900;color:#836875;padding:4px 0}
-        .director-calendar-cell{position:relative;min-height:64px;border:1px solid #ecd2dc;background:#fff;border-radius:12px;padding:7px;cursor:pointer;text-align:left;color:#3d2633}
-        .director-calendar-cell.blank{border-color:transparent;background:transparent;cursor:default}
-        .director-calendar-cell.today{box-shadow:inset 0 0 0 2px #d14a82}
-        .director-calendar-cell.selected{background:linear-gradient(145deg,#a90f56,#d82f76);color:#fff;border-color:#a90f56}
-        .director-calendar-cell .day-number{font-weight:900;font-size:14px}
-        .director-calendar-cell .day-count{position:absolute;right:6px;bottom:6px;min-width:22px;height:22px;border-radius:999px;background:#f3dbe5;color:#8d154a;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:900}
-        .director-calendar-cell.selected .day-count{background:#fff;color:#a30f54}
+        .director-calendar{margin:4px 0 2px;padding:18px;border:1px solid rgba(173,35,91,.18);border-radius:24px;background:linear-gradient(180deg,#fff 0%,#fff8fb 100%);box-shadow:0 12px 30px rgba(119,21,64,.08)}
+        .director-calendar-head{display:grid;grid-template-columns:48px 1fr auto;align-items:center;gap:10px;margin-bottom:14px;padding:4px}
+        .director-calendar-head>strong{text-align:center;color:#8f174d;font-size:20px;letter-spacing:.1px}
+        .director-calendar-head .btn{border-radius:14px;min-height:44px;box-shadow:none}
+        .director-calendar-week,.director-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px}
+        .director-calendar-week>div{text-align:center;font-size:11px;font-weight:900;color:#8d6d7b;padding:5px 0 6px;text-transform:uppercase;letter-spacing:.45px}
+        .director-calendar-cell{position:relative;min-height:62px;border:1px solid #efd7e1;background:rgba(255,255,255,.96);border-radius:15px;padding:9px;cursor:pointer;text-align:left;color:#3d2633;transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease;box-shadow:0 2px 8px rgba(86,36,58,.035)}
+        .director-calendar-cell:hover{border-color:#db9ab5;box-shadow:0 7px 16px rgba(123,25,69,.08);transform:translateY(-1px)}
+        .director-calendar-cell.blank{border-color:transparent;background:transparent;cursor:default;box-shadow:none}
+        .director-calendar-cell.blank:hover{transform:none}
+        .director-calendar-cell.today{border-color:#d04a80;box-shadow:inset 0 0 0 1px #d04a80,0 3px 10px rgba(184,28,91,.08)}
+        .director-calendar-cell.today:not(.selected)::after{content:'Today';position:absolute;left:8px;bottom:7px;font-size:8px;font-weight:900;color:#a61252;letter-spacing:.15px}
+        .director-calendar-cell.selected{background:linear-gradient(145deg,#a80e53 0%,#d82f76 100%);color:#fff;border-color:#a80e53;box-shadow:0 9px 18px rgba(161,15,80,.22);transform:translateY(-1px)}
+        .director-calendar-cell .day-number{font-weight:950;font-size:14px}
+        .director-calendar-cell .day-count{position:absolute;right:7px;bottom:7px;min-width:23px;height:23px;padding:0 5px;border-radius:999px;background:#f7dfe9;color:#92164c;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:950;border:1px solid rgba(169,27,88,.08)}
+        .director-calendar-cell.selected .day-count{background:#fff;color:#a30f54;border-color:#fff}
+        .director-selected-date-strip{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:10px 12px;border-radius:14px;background:#fff3f8;border:1px solid #f0d1de;color:#6d314b}
+        .director-selected-date-strip strong{color:#98164e}
         .director-today-list{display:grid;gap:8px;margin-top:10px}
         @media(max-width:700px){
-          .director-calendar{padding:10px;margin-top:10px}
-          .director-calendar-head{grid-template-columns:auto 1fr auto;gap:6px}
-          .director-calendar-head .btn{padding:8px 9px;min-width:auto}
-          .director-calendar-head>strong{font-size:15px}
+          .director-calendar{padding:12px 10px 13px;margin:2px 0 0;border-radius:20px}
+          .director-calendar-head{grid-template-columns:42px minmax(0,1fr) auto;gap:6px;margin-bottom:10px;padding:0}
+          .director-calendar-head .btn{padding:8px 9px;min-width:auto;min-height:40px;border-radius:12px}
+          .director-calendar-head>strong{font-size:16px;white-space:nowrap}
           .director-calendar-week,.director-calendar-grid{gap:4px}
-          .director-calendar-week>div{font-size:9px}
-          .director-calendar-cell{min-height:48px;border-radius:9px;padding:5px}
+          .director-calendar-week>div{font-size:8px;padding:4px 0;letter-spacing:.2px}
+          .director-calendar-cell{min-height:46px;border-radius:11px;padding:6px}
           .director-calendar-cell .day-number{font-size:12px}
-          .director-calendar-cell .day-count{right:4px;bottom:4px;min-width:18px;height:18px;font-size:9px}
+          .director-calendar-cell .day-count{right:4px;bottom:4px;min-width:18px;height:18px;padding:0 3px;font-size:8px}
+          .director-calendar-cell.today:not(.selected)::after{display:none}
+          .director-selected-date-strip{font-size:12px;padding:8px 10px;border-radius:12px}
         }
 
         @media(max-width:700px){
@@ -10531,17 +10544,12 @@ Thank you.`;
         ),
         urgent.length?h('div',{style:{marginTop:'12px',padding:'10px 12px',borderRadius:'12px',background:'#fff3f3',border:'1px solid #efc2c2',fontWeight:800,color:'#8d1b2c'}},`⚠ ${urgent.length} urgent item${urgent.length===1?'':'s'} pending`):null
       ),
-      h(Section,{title:'Today',subtitle:`${todayItems.length} item${todayItems.length===1?'':'s'} for today`},
-        loading?h('div',{className:'empty'},'Loading today’s items…'):
-        todayItems.length?h('div',{className:'director-today-list'},...todayItems.map(itemCard)):
-        h('div',{className:'empty'},'No Director’s Office items scheduled for today.')
-      ),
-      h(Section,{title:'Calendar',subtitle:'Tap any date to view its tasks, appointments and follow-ups'},renderDirectorCalendar()),
+      h(Section,{title:'Calendar',subtitle:'Choose a date to see its tasks, appointments, calls and follow-ups'},renderDirectorCalendar()),
       h('div',{
         id:'director-followup-queue-anchor',
         style:{height:'1px',scrollMarginTop:'118px'}
       }),
-      h(Section,{title:officePrettySelectedDate(selectedOfficeDate),subtitle:`${filtered.length} item${filtered.length===1?'':'s'} · ${filter}`,actions:
+      h(Section,{title:selectedOfficeDate===todayKey?"Today's Items":officePrettySelectedDate(selectedOfficeDate),subtitle:`${filtered.length} item${filtered.length===1?'':'s'} · ${filter}`,actions:
         h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
           ...['All','Open','For Director','Today','Task','Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder','Completed','Cancelled'].map(x=>
             h('button',{type:'button',key:x,className:filter===x?'btn btn-primary':'btn btn-secondary',onClick:()=>openDirectorQueue(x)},x)
@@ -24974,4 +24982,4 @@ function AuditTrail(){
 
 /* v2.10.70 — Nursing Procedures chargeable-item list expanded; Blood Glucose Monitoring added. Dedicated Procedures dashboard screen removed in favour of existing Raise Bill / Charge Request workflow. */
 
-/* v2.10.72 — Director's Office date-first calendar: Today first, monthly calendar navigation, per-date queue; startup regression fixed by preserving DirectorOfficeDashboard component. */
+/* v2.10.73 — Director's Office calendar refinement: dashboard first, elegant compact calendar second, selected date / Today's Items directly below. */
