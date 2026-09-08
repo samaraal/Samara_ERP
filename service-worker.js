@@ -1,5 +1,5 @@
-const APP_VERSION = '2.10.70';
-const CACHE = 'samara-erp-2.10.70-auth-session-stability';
+const APP_VERSION = '2.10.71';
+const CACHE = 'samara-erp-2.10.71-director-calendar';
 const SHELL = [
   './',
   './index.html',
