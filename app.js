@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.74';
+  const APP_VERSION = '2.10.75';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -10286,7 +10286,7 @@ Thank you.`;
       h('small',{style:{color:'#846d79'}},subtitle)
     );
 
-    const itemCard=r=>h('div',{key:r.id,style:{
+    const itemCard=(r,index)=>h('div',{key:r.id,style:{
       border:'1px solid #e8bfd0',
       borderRadius:'16px',
       background:'linear-gradient(145deg,#fffafd 0%,#fcecf3 100%)',
@@ -10297,9 +10297,12 @@ Thank you.`;
       borderLeft:'4px solid #cf2c70'
     }},
       h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'flex-start',flexWrap:'wrap'}},
-        h('div',null,
-          h('strong',{style:{fontSize:'15px',color:'#351b29'}},r.title),
+        h('div',{style:{display:'flex',alignItems:'flex-start',gap:'10px',minWidth:0,flex:'1 1 auto'}},
+          h('span',{className:'director-item-serial','aria-label':`Item ${index+1}`},String(index+1)),
+          h('div',{style:{minWidth:0}},
+            h('strong',{style:{fontSize:'15px',color:'#351b29'}},r.title),
           h('div',{style:{fontSize:'12px',color:'#806a76',marginTop:'3px'}},`${r.item_type==='Task'?(r.task_kind||'Task'):r.item_type} · ${r.priority||'Normal'}`)
+          )
         ),
         h('span',{className:'badge'},r.status||'Pending')
       ),
@@ -10434,6 +10437,25 @@ Thank you.`;
           min-width:0;
           box-sizing:border-box;
         }
+        .director-item-serial{
+          flex:0 0 auto;
+          width:30px;
+          height:30px;
+          border-radius:10px;
+          display:inline-grid;
+          place-items:center;
+          background:linear-gradient(145deg,#a70d52 0%,#df2a73 100%);
+          color:#fff;
+          font-size:13px;
+          font-weight:950;
+          line-height:1;
+          box-shadow:0 5px 12px rgba(161,15,80,.18);
+          margin-top:-1px;
+        }
+        @media(max-width:700px){
+          .director-item-serial{width:28px;height:28px;border-radius:9px;font-size:12px}
+        }
+
         .director-office-page .director-office-stat-grid,
         .director-office-page .director-office-comm-grid{
           width:100%;
@@ -10630,7 +10652,7 @@ Thank you.`;
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setOfficeQuery('')},'Clear')
         ),
         loading?h('div',{className:'empty'},'Loading Director’s Office…'):
-        h('div',{style:{display:'grid',gap:'10px'}},...filtered.map(itemCard),
+        h('div',{style:{display:'grid',gap:'10px'}},...filtered.map((r,index)=>itemCard(r,index)),
           filtered.length===0?h('div',{className:'empty'},'No items in this view.'):null
         )
       ),
@@ -25051,4 +25073,4 @@ function AuditTrail(){
 
 /* v2.10.70 — Nursing Procedures chargeable-item list expanded; Blood Glucose Monitoring added. Dedicated Procedures dashboard screen removed in favour of existing Raise Bill / Charge Request workflow. */
 
-/* v2.10.74 — Director's Office calendar refinement: dashboard first, elegant compact calendar second, selected date / Today's Items directly below. */
+/* v2.10.75 — Director's Office items use dynamic serial-number badges after date/search/status filters. */

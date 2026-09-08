@@ -1,5 +1,5 @@
-const APP_VERSION = '2.10.74';
-const CACHE = 'samara-erp-2.10.74-director-calendar';
+const APP_VERSION = '2.10.75';
+const CACHE = 'samara-erp-2.10.75-director-serials';
 const SHELL = [
   './',
   './index.html',
