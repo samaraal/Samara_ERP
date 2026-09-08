@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.77';
+  const APP_VERSION = '2.10.78';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5522,6 +5522,8 @@ Caring with Compassion. Living with Dignity.`;
     const [session,setSession]=React.useState(null);
     const [profile,setProfile]=React.useState(null);
     const [loading,setLoading]=React.useState(true);
+    const [manualRefreshing,setManualRefreshing]=React.useState(false);
+    const [lastOfficeRefresh,setLastOfficeRefresh]=React.useState(null);
     const [page,setPage]=React.useState(readLastOpenPage);
     const previousPageRef=React.useRef(readLastOpenPage());
     const currentPageRef=React.useRef(readLastOpenPage());
@@ -9857,8 +9859,20 @@ Thank you.`;
         setMessage(error.message?.includes('director_office_items')
           ?'Director’s Office database setup is pending. Please run SQL file 105_director_office_workspace.sql once.'
           :`Unable to load Director’s Office: ${error.message||error}`);
-      }else setRows(data||[]);
+      }else{
+        setRows(data||[]);
+        setLastOfficeRefresh(new Date());
+      }
       setLoading(false);
+    }
+    async function refreshDirectorOffice(){
+      if(manualRefreshing)return;
+      setManualRefreshing(true);
+      try{
+        await Promise.all([load(),loadCommunicationCounts()]);
+      }finally{
+        setManualRefreshing(false);
+      }
     }
     async function loadCommunicationCounts(){
       try{
@@ -10636,7 +10650,7 @@ Thank you.`;
         urgent.length?h('div',{style:{marginTop:'12px',padding:'10px 12px',borderRadius:'12px',background:'#fff3f3',border:'1px solid #efc2c2',fontWeight:800,color:'#8d1b2c'}},`⚠ ${urgent.length} urgent item${urgent.length===1?'':'s'} pending`):null
       ),
 
-      /* v2.10.77 — prominent Director's Office item-count summary with mobile layout fix */
+      /* v2.10.78 — prominent Director's Office item-count summary with mobile layout fix */
       h('style',null,`
         .director-items-summary{
           display:inline-flex;align-items:center;gap:6px;margin-top:4px;
@@ -10677,6 +10691,15 @@ Thank you.`;
             padding:7px 13px!important;
             margin-top:7px!important;
           }
+          .director-office-refresh{
+            min-width:118px!important;
+            min-height:44px!important;
+            font-weight:800!important;
+            box-shadow:0 5px 14px rgba(184,0,88,.20)!important;
+          }
+          @media(max-width:640px){
+            .director-office-refresh{width:100%!important;min-height:50px!important;font-size:16px!important;}
+          }
           /* The filter button group moves below, so it cannot squeeze the count into a vertical strip. */
           .director-office-page .card.panel > .panel-head > div:nth-child(2){
             width:100%!important;
@@ -10686,7 +10709,7 @@ Thank you.`;
           }
         }
       `),
-      h(Section,{title:'Calendar',subtitle:'Choose a date to see its tasks, appointments, calls and follow-ups'},renderDirectorCalendar()),
+      h(Section,{title:'Calendar',subtitle:h('span',null,'Choose a date to see its tasks, appointments, calls and follow-ups',lastOfficeRefresh?h('span',{style:{marginLeft:'10px',fontSize:'12px',fontWeight:'700',color:'#7a6871'}},`Updated ${lastOfficeRefresh.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true})}`):null),actions:h('button',{type:'button',className:'btn btn-primary director-office-refresh',disabled:manualRefreshing||loading,onClick:refreshDirectorOffice,title:'Refresh Director’s Office entries now'},manualRefreshing?'↻ Refreshing…':'↻ Refresh')},renderDirectorCalendar()),
       h('div',{
         id:'director-followup-queue-anchor',
         style:{height:'1px',scrollMarginTop:'118px'}
