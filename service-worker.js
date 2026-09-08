@@ -1,5 +1,5 @@
-const APP_VERSION = '2.10.80';
-const CACHE = 'samara-erp-2.10.80-strict-dd-mm-yyyy-colon';
+const APP_VERSION = '2.10.81';
+const CACHE = 'samara-erp-2.10.81-strict-mobile-date-controls';
 const SHELL = [
   './',
   './index.html',

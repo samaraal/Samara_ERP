@@ -1550,6 +1550,32 @@ function initSamaraInaugurationInvitation(){
     const get=type=>parts.find(part=>part.type===type)?.value||'';
     return `${get('day')}:${get('month')}:${get('year')}`;
   };
+  // Strict ERP date controls: the visible value is always DD:MM:YYYY.
+  // A transparent native picker is retained only for calendar selection; its locale-specific
+  // MM/DD/YYYY rendering is never shown to the user. Database values remain YYYY-MM-DD.
+  const StrictDateInput = props => {
+    const {value,onChange,style,...nativeProps}=props||{};
+    return h('div',{style:{position:'relative',width:'100%'}},
+      h('input',{type:'text',readOnly:true,value:value?formatDateIN(value):'',placeholder:'DD:MM:YYYY',style:{...(style||{}),width:'100%',paddingRight:'48px',cursor:'pointer'}}),
+      h('span',{'aria-hidden':'true',style:{position:'absolute',right:'15px',top:'50%',transform:'translateY(-50%)',pointerEvents:'none',fontSize:'18px'}},'▾'),
+      h('input',{...nativeProps,type:'date',value:value||'',onChange,tabIndex:-1,'aria-label':nativeProps['aria-label']||'Choose date',style:{position:'absolute',inset:0,width:'100%',height:'100%',opacity:0,cursor:'pointer'}})
+    );
+  };
+  const StrictDateTimeInput = props => {
+    const {value,onChange,style,...nativeProps}=props||{};
+    let shown='';
+    if(value){
+      const m=String(value).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+      if(m){const hr=Number(m[4]);shown=`${m[3]}:${m[2]}:${m[1]} ${String(hr%12||12).padStart(2,'0')}:${m[5]} ${hr>=12?'PM':'AM'}`;}
+      else shown=String(value);
+    }
+    return h('div',{style:{position:'relative',width:'100%'}},
+      h('input',{type:'text',readOnly:true,value:shown,placeholder:'DD:MM:YYYY HH:MM AM/PM',style:{...(style||{}),width:'100%',paddingRight:'48px',cursor:'pointer'}}),
+      h('span',{'aria-hidden':'true',style:{position:'absolute',right:'15px',top:'50%',transform:'translateY(-50%)',pointerEvents:'none',fontSize:'18px'}},'▾'),
+      h('input',{...nativeProps,type:'datetime-local',value:value||'',onChange,tabIndex:-1,'aria-label':nativeProps['aria-label']||'Choose date and time',style:{position:'absolute',inset:0,width:'100%',height:'100%',opacity:0,cursor:'pointer'}})
+    );
+  };
+
   const formatTimeIN = value => {
     if(!value)return '—';
     const date=value instanceof Date?value:new Date(value);
@@ -7944,8 +7970,8 @@ function Dashboard({profile,onNavigate,alertEngine}){
               ['Low','Normal','High','Urgent'].map(x=>h('option',{key:x},x)))),
             h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},
               ['Pending','In Progress','Waiting','Completed'].map(x=>h('option',{key:x},x)))),
-            h('div',{className:'field'},h('label',null,'Due Date & Time'),h('input',{type:'datetime-local',value:form.due_at,onChange:e=>setForm({...form,due_at:e.target.value})})),
-            h('div',{className:'field'},h('label',null,'Follow-up Date & Time'),h('input',{type:'datetime-local',value:form.follow_up_at,onChange:e=>setForm({...form,follow_up_at:e.target.value})}))
+            h('div',{className:'field'},h('label',null,'Due Date & Time'),h(StrictDateTimeInput,{value:form.due_at,onChange:e=>setForm({...form,due_at:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Follow-up Date & Time'),h(StrictDateTimeInput,{value:form.follow_up_at,onChange:e=>setForm({...form,follow_up_at:e.target.value})}))
           ),
           h('div',{className:'field'},h('label',null,'Notes'),h('textarea',{rows:3,value:form.notes,onChange:e=>setForm({...form,notes:e.target.value}),placeholder:'Short personal note / next action'})),
           h('div',{className:'actions'},
@@ -8450,8 +8476,8 @@ Thank you.`;
           isSTD?h('select',{value:subjectFilter,onChange:e=>{setSubjectFilter(e.target.value);setSelectedPhone('')},style:{minWidth:'170px'}},
             ['All Subjects','Admission / Care','Callback','Location','Pricing / Charges','Services','General Enquiry'].map(x=>h('option',{key:x},x))
           ):null,
-          isSTD?h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'From',h('input',{type:'date',value:dateFrom,onChange:e=>{setDateFrom(e.target.value);setSelectedPhone('')}})):null,
-          isSTD?h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'To',h('input',{type:'date',value:dateTo,onChange:e=>{setDateTo(e.target.value);setSelectedPhone('')}})):null,
+          isSTD?h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'From',h(StrictDateInput,{value:dateFrom,onChange:e=>{setDateFrom(e.target.value);setSelectedPhone('')}})):null,
+          isSTD?h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'To',h(StrictDateInput,{value:dateTo,onChange:e=>{setDateTo(e.target.value);setSelectedPhone('')}})):null,
           h('button',{type:'button',className:`btn ${showUnread?'btn-primary':'btn-secondary'}`,onClick:()=>{
             const next=!showUnread;
             setShowUnread(next);
@@ -8569,7 +8595,7 @@ Thank you.`;
                 h('input',{value:emergencyHospital,onChange:e=>setEmergencyHospital(e.target.value),placeholder:'Hospital being shifted to'})
               ):null,
               h(Field,{label:'Emergency / Contact Time',required:true},
-                h('input',{type:'datetime-local',value:emergencyTime,onChange:e=>setEmergencyTime(e.target.value)})
+                h(StrictDateTimeInput,{value:emergencyTime,onChange:e=>setEmergencyTime(e.target.value)})
               ),
               h(Field,{label:'Contact Attempts / Remarks',required:true},
                 h('textarea',{value:emergencyAttempt,onChange:e=>setEmergencyAttempt(e.target.value),rows:3,placeholder:'Example: Called twice at 11:40 PM and 11:43 PM; no response.'})
@@ -9108,7 +9134,7 @@ Thank you.`;
         !isRectification?h('div',{className:'field span-2'},
           h('label',null,'Interview Date & Time'),
           h('div',{style:{display:'grid',gridTemplateColumns:'minmax(170px,1fr) minmax(150px,0.7fr) auto auto',gap:'8px',alignItems:'end'}},
-            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'Date'),h('input',{type:'date',disabled:isClosed,value:interviewDate,onChange:e=>setInterviewDate(e.target.value)})),
+            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'Date'),h(StrictDateInput,{disabled:isClosed,value:interviewDate,onChange:e=>setInterviewDate(e.target.value)})),
             h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'Time'),h('select',{value:interviewTime,disabled:isClosed,onChange:e=>setInterviewTime(e.target.value)},interviewTimeOptions.map(x=>h('option',{key:x.value,value:x.value},x.label)))),
             h('button',{type:'button',className:'btn btn-primary',disabled:isClosed,onClick:setInterviewSchedule},'Set'),
             h('button',{type:'button',className:'btn btn-secondary',disabled:isClosed,onClick:clearInterviewSchedule},'Clear')
@@ -9119,7 +9145,7 @@ Thank you.`;
           h('label',{style:{fontWeight:800,color:'#7d1748'}},'Reschedule Interview'),
           selected.interview_at?h('small',{style:{display:'block',marginBottom:'8px',color:'#806575'}},`Current schedule: ${fmt(selected.interview_at)}`):null,
           h('div',{style:{display:'grid',gridTemplateColumns:'minmax(170px,1fr) minmax(150px,0.7fr) auto',gap:'8px',alignItems:'end'}},
-            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'New Date'),h('input',{type:'date',value:rescheduleDate,onChange:e=>setRescheduleDate(e.target.value)})),
+            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'New Date'),h(StrictDateInput,{value:rescheduleDate,onChange:e=>setRescheduleDate(e.target.value)})),
             h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'New Time'),h('select',{value:rescheduleTime,onChange:e=>setRescheduleTime(e.target.value)},interviewTimeOptions.map(x=>h('option',{key:x.value,value:x.value},x.label)))),
             h('button',{type:'button',className:'btn btn-secondary',onClick:setRescheduledInterview},'Reschedule')
           ),
@@ -9424,7 +9450,7 @@ Thank you.`;
         h('div',{className:'field'},h('label',null,'Priority'),h('select',{value:form.priority,onChange:e=>setForm({...form,priority:e.target.value})},PRIORITIES.map(x=>h('option',{key:x},x)))),
         h('div',{className:'field span-2'},h('label',null,'What to do? *'),h('input',{required:true,value:form.title,onChange:e=>setForm({...form,title:e.target.value}),placeholder:'Enter task'})),
         h('div',{className:'field span-2'},h('label',null,'Person / Place (optional)'),h('input',{value:form.contact_name,onChange:e=>setForm({...form,contact_name:e.target.value}),placeholder:'Name or place'})),
-        h('div',{className:'field'},h('label',null,'Date'),h('input',{type:'date',value:dateValue(),onChange:e=>setTaskDate(e.target.value)})),
+        h('div',{className:'field'},h('label',null,'Date'),h(StrictDateInput,{value:dateValue(),onChange:e=>setTaskDate(e.target.value)})),
         h('div',{className:'field'},h('label',null,'Time (optional)'),h('input',{type:'time',value:timeValue(),onChange:e=>setTaskTime(e.target.value)})),
         h('div',{className:'field'},h('label',null,'Day Part (optional)'),h('select',{value:form.day_part,onChange:e=>setForm({...form,day_part:e.target.value})},h('option',{value:''},'—'),['Morning','Afternoon','Evening','Night'].map(x=>h('option',{key:x},x)))),
         editingId?h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},['Pending','In Progress','Completed','Cancelled'].map(x=>h('option',{key:x},x)))):null,
@@ -10371,7 +10397,7 @@ Thank you.`;
             h('div',{className:'field'},h('label',null,'Task'),h('select',{value:form.task_kind||'General Task',onChange:e=>setForm({...form,task_kind:e.target.value})},TASK_KINDS.map(x=>h('option',{key:x},x)))),
             h('div',{className:'field span-2'},h('label',null,'What to do? *'),h('input',{required:true,value:form.title,onChange:e=>setForm({...form,title:e.target.value}),placeholder:form.task_kind==='Visit'?'Example: Visit Dr. Ravi':form.task_kind==='Buy / Purchase'?'Example: Buy office printer':form.task_kind==='Attend Function'?'Example: Attend hospital inauguration':form.task_kind==='Trip / Travel'?'Example: Chennai to Trichy trip':'Enter task'})),
             h('div',{className:'field span-2'},h('label',null,'Person / Place (optional)'),h('input',{value:form.contact_name,onChange:e=>setForm({...form,contact_name:e.target.value}),placeholder:'Name or place'})),
-            h('div',{className:'field'},h('label',null,'Date'),h('input',{type:'date',value:taskDateValue(),onChange:e=>setTaskDate(e.target.value)})),
+            h('div',{className:'field'},h('label',null,'Date'),h(StrictDateInput,{value:taskDateValue(),onChange:e=>setTaskDate(e.target.value)})),
             h('div',{className:'field'},h('label',null,'Time (optional)'),h('input',{type:'time',value:taskTimeValue(),onChange:e=>setTaskTime(e.target.value)})),
             h('div',{className:'field'},h('label',null,'Day Part (optional)'),h('select',{value:form.day_part||'',onChange:e=>setForm({...form,day_part:e.target.value})},
               h('option',{value:''},'—'),
@@ -10388,8 +10414,8 @@ Thank you.`;
             h('div',{className:'field'},h('label',null,form.item_type==='Call / Callback'?'Caller Name':'Person / Visitor'),h('input',{value:form.contact_name,onChange:e=>setForm({...form,contact_name:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Mobile'),h('input',{value:form.contact_mobile,onChange:e=>setForm({...form,contact_mobile:e.target.value}),inputMode:'tel'})),
             h('div',{className:'field span-2'},h('label',null,'Organisation'),h('input',{value:form.organisation,onChange:e=>setForm({...form,organisation:e.target.value})})),
-            h('div',{className:'field'},h('label',null,form.item_type==='Call / Callback'?'Call Date / Time':'Appointment / Call Time'),h('input',{type:'datetime-local',value:form.scheduled_at,onChange:e=>setForm({...form,scheduled_at:e.target.value})})),
-            h('div',{className:'field'},h('label',null,'Follow-up / Due Date'),h('input',{type:'date',value:form.due_date,onChange:e=>setForm({...form,due_date:e.target.value})})),
+            h('div',{className:'field'},h('label',null,form.item_type==='Call / Callback'?'Call Date / Time':'Appointment / Call Time'),h(StrictDateTimeInput,{value:form.scheduled_at,onChange:e=>setForm({...form,scheduled_at:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Follow-up / Due Date'),h(StrictDateInput,{value:form.due_date,onChange:e=>setForm({...form,due_date:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},STATUSES.map(x=>h('option',{key:x},x)))),
             h('div',{className:'field span-2'},h('label',null,'Details'),h('textarea',{rows:3,value:form.details,onChange:e=>setForm({...form,details:e.target.value}),placeholder:'Short notes / action required'})),
             h('div',{className:'field span-2'},h('label',{style:{display:'flex',alignItems:'center',gap:'9px',fontWeight:900,color:'#7d1547'}},
@@ -10412,7 +10438,7 @@ Thank you.`;
           h('button',{type:'button',className:'close',disabled:officeActionBusy,onClick:()=>setRescheduleTarget(null)},'×')
         ),
         h('div',{className:'modal-grid'},
-          h('div',{className:'field'},h('label',null,'New Date *'),h('input',{type:'date',required:true,value:rescheduleDate,onChange:e=>setRescheduleDate(e.target.value)})),
+          h('div',{className:'field'},h('label',null,'New Date *'),h(StrictDateInput,{required:true,value:rescheduleDate,onChange:e=>setRescheduleDate(e.target.value)})),
           h('div',{className:'field'},h('label',null,'Time (optional)'),h('input',{type:'time',value:rescheduleTime,onChange:e=>setRescheduleTime(e.target.value)})),
           h('div',{className:'field span-2'},h('label',null,'Reason / Note (optional)'),h('textarea',{rows:3,value:rescheduleNote,onChange:e=>setRescheduleNote(e.target.value),placeholder:'Example: Director requested a later time'}))
         ),
@@ -11406,7 +11432,7 @@ Thank you.`;
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Employment Action'),h('small',null,formalName(detailsTarget))),h('button',{type:'button',className:'close',onClick:()=>setShowEmploymentAction(false)},'×')),
         h('div',{className:'modal-grid employment-action-grid'},
           h('label',null,'Action Type *',h('select',{value:employmentAction.action_type,onChange:e=>setEmploymentAction(v=>({...v,action_type:e.target.value}))},['Promotion','Transfer','Designation Change','Department Change','Reporting Change','Annual Increment','Salary Revision','Confirmation','Demotion','Suspension','Reinstatement'].map(v=>h('option',{key:v},v)))),
-          h('label',null,'Effective Date *',h('input',{type:'date',required:true,value:employmentAction.effective_date,onChange:e=>setEmploymentAction(v=>({...v,effective_date:e.target.value}))})),
+          h('label',null,'Effective Date *',h(StrictDateInput,{required:true,value:employmentAction.effective_date,onChange:e=>setEmploymentAction(v=>({...v,effective_date:e.target.value}))})),
           h('label',null,'New Department',h('input',{value:employmentAction.new_department,onChange:e=>setEmploymentAction(v=>({...v,new_department:e.target.value}))})),
           h('label',null,'New Designation',h('input',{value:employmentAction.new_designation,onChange:e=>setEmploymentAction(v=>({...v,new_designation:e.target.value}))})),
           h('label',null,'Reporting Superior',h('input',{value:employmentAction.new_reporting_superior,onChange:e=>setEmploymentAction(v=>({...v,new_reporting_superior:e.target.value}))})),
@@ -16868,8 +16894,8 @@ Please keep these login details confidential.`;
               h('div',{className:'field'},h('label',null,'Frequency'),h('select',{value:editPhysio.frequency,onChange:e=>setEditPhysio({...editPhysio,frequency:e.target.value})},['Once daily','Twice daily','Three times daily','Alternate days','Weekly','As advised'].map(x=>h('option',{key:x,value:x},x)))),
               h('div',{className:'field'},h('label',null,'Preferred Time'),h('input',{type:'time',value:editPhysio.preferred_time,onChange:e=>setEditPhysio({...editPhysio,preferred_time:e.target.value})})),
               h('div',{className:'field'},h('label',null,'Advised By'),h('input',{value:editPhysio.advised_by,onChange:e=>setEditPhysio({...editPhysio,advised_by:e.target.value}),placeholder:'Doctor / Physiotherapist'})),
-              h('div',{className:'field'},h('label',null,'Start Date'),h('input',{type:'date',max:todayISOIndia(),value:editPhysio.start_date,onChange:e=>setEditPhysio({...editPhysio,start_date:e.target.value})})),
-              h('div',{className:'field'},h('label',null,'End Date (optional)'),h('input',{type:'date',min:editPhysio.start_date||undefined,value:editPhysio.end_date,onChange:e=>setEditPhysio({...editPhysio,end_date:e.target.value})})),
+              h('div',{className:'field'},h('label',null,'Start Date'),h(StrictDateInput,{max:todayISOIndia(),value:editPhysio.start_date,onChange:e=>setEditPhysio({...editPhysio,start_date:e.target.value})})),
+              h('div',{className:'field'},h('label',null,'End Date (optional)'),h(StrictDateInput,{min:editPhysio.start_date||undefined,value:editPhysio.end_date,onChange:e=>setEditPhysio({...editPhysio,end_date:e.target.value})})),
               h('div',{className:'field span-2'},h('label',null,'Precautions / Restrictions'),h('textarea',{rows:3,value:editPhysio.precautions,onChange:e=>setEditPhysio({...editPhysio,precautions:e.target.value}),placeholder:'Weight-bearing restriction, fall precaution, pain limit, oxygen support, etc.'}))
             )
             :h('p',{className:'small-note'},editPhysio.id?'This plan will be marked inactive when the Patient File is saved.':'Enable “Physiotherapy required” to enter the treatment plan.')
@@ -18930,7 +18956,7 @@ function RoomsBeds({profile}){
             miniInput('Reserved For — Contact Number',form.reserved_for_contact,v=>setForm({...form,reserved_for_contact:v}),true),
             miniInput('Reserved By — Name',form.reserved_by_name,v=>setForm({...form,reserved_by_name:v}),true),
             miniInput('Reserved By — Contact Number',form.reserved_by_contact,v=>setForm({...form,reserved_by_contact:v})),
-            h('div',{className:'field'},h('label',null,'Expected Date of Admission'),h('input',{type:'date',value:form.expected_admission_date,onChange:e=>setForm({...form,expected_admission_date:e.target.value}),min:todayISOIndia(),required:true})),
+            h('div',{className:'field'},h('label',null,'Expected Date of Admission'),h(StrictDateInput,{value:form.expected_admission_date,onChange:e=>setForm({...form,expected_admission_date:e.target.value}),min:todayISOIndia(),required:true})),
             h('div',{className:'field span-2'},h('label',null,'Reservation Notes'),h('textarea',{rows:3,value:form.reservation_notes,onChange:e=>setForm({...form,reservation_notes:e.target.value}),placeholder:'Source of request, advance received, special requirements, follow-up instructions, etc.'}))
           ),
           h('div',{className:'field span-2'},h('label',null,'Notes'),h('textarea',{rows:3,value:form.notes,onChange:e=>setForm({...form,notes:e.target.value})}))
@@ -18971,7 +18997,7 @@ function RoomsBeds({profile}){
             h('div',{style:{marginTop:'5px',fontSize:'13px'}},`Room ${roomTariffMoney(from.room_daily_rate??from.daily_rate)}/day · Nursing ${roomTariffMoney(from.nursing_daily_rate)}/day${Number(from.special_nurse_daily_rate||0)>0?` · Special Nurse ${roomTariffMoney(from.special_nurse_daily_rate)}/day`:''}`)),
           h('div',{className:'modal-grid'},
             h('div',{className:'field span-2'},h('label',null,'Shift To — Available Room / Bed'),h('select',{required:true,value:transfer.to_room_bed_id,onChange:e=>setTransfer({...transfer,to_room_bed_id:e.target.value})},h('option',{value:''},'Select available room/bed'),availableRows.map(r=>h('option',{key:r.id,value:r.id},`Room ${r.room_no}-${r.bed_no} · ${r.room_type} · Room ₹${Number(r.room_daily_rate??r.daily_rate??0).toLocaleString('en-IN')} + Nursing ₹${Number(r.nursing_daily_rate||0).toLocaleString('en-IN')}`)))),
-            h('div',{className:'field'},h('label',null,'Effective Date & Time'),h('input',{type:'datetime-local',value:transfer.effective_at,onChange:e=>setTransfer({...transfer,effective_at:e.target.value}),max:new Date().toISOString().slice(0,16),required:true})),
+            h('div',{className:'field'},h('label',null,'Effective Date & Time'),h(StrictDateTimeInput,{value:transfer.effective_at,onChange:e=>setTransfer({...transfer,effective_at:e.target.value}),max:new Date().toISOString().slice(0,16),required:true})),
             h('div',{className:'field span-2'},h('label',null,'Reason for Shifting'),h('textarea',{required:true,rows:4,value:transfer.reason,onChange:e=>setTransfer({...transfer,reason:e.target.value}),placeholder:'Clinical need, patient/relative request, maintenance, upgrade/downgrade, gender allocation, etc.'}))
           ),
           to&&from&&h('div',{style:{marginTop:'12px',padding:'14px 16px',border:'1px solid #eab6cf',borderRadius:'14px',background:'linear-gradient(135deg,#fff4f8,#fdeaf2)'}},
@@ -19743,7 +19769,7 @@ function RoomsBeds({profile}){
             h('div',{className:'field'},h('label',null,'Frequency'),h('input',{value:marTarget.frequency||'—',readOnly:true})),
             h('div',{className:'field'},h('label',null,'Scheduled Time'),h('select',{value:marForm.scheduled_time,onChange:e=>setMarForm({...marForm,scheduled_time:e.target.value})},(targetTimes.length?targetTimes:[marForm.scheduled_time]).filter(Boolean).map(time=>h('option',{key:time,value:time},medicationTimeLabel(time))))),
             h('div',{className:'field'},h('label',null,'Status'),h('select',{value:marForm.status,onChange:e=>setMarForm({...marForm,status:e.target.value})},['Given','Delayed','Refused','Missed'].map(status=>h('option',{key:status,value:status},status)))),
-            h('div',{className:'field span-2'},h('label',null,'Actual Administration Time'),h('input',{type:'datetime-local',value:marForm.administered_at,onChange:e=>setMarForm({...marForm,administered_at:e.target.value}),required:true}),h('small',null,'The system records the MAR entry time automatically and staff cannot edit it.')),
+            h('div',{className:'field span-2'},h('label',null,'Actual Administration Time'),h(StrictDateTimeInput,{value:marForm.administered_at,onChange:e=>setMarForm({...marForm,administered_at:e.target.value}),required:true}),h('small',null,'The system records the MAR entry time automatically and staff cannot edit it.')),
             currentIsLateEntry&&h('div',{className:'message warning span-2'},`Late entry detected: this record is being entered approximately ${currentEntryDelay} minutes after the stated administration time. Justification is compulsory.`),
             currentIsLateEntry&&h('div',{className:'field'},h('label',null,'Late Entry Reason'),h('select',{value:marForm.late_entry_reason,onChange:e=>setMarForm({...marForm,late_entry_reason:e.target.value}),required:true},h('option',{value:''},'Select reason'),lateEntryReasons.map(reason=>h('option',{key:reason,value:reason},reason)))),
             currentIsLateEntry&&h('div',{className:'field'},h('label',null,'Entry Delay'),h('input',{value:`${currentEntryDelay} minutes`,readOnly:true})),
@@ -19981,8 +20007,8 @@ function RoomsBeds({profile}){
       h(Section,{title:'Medication Safety Centre',subtitle:'AI-assisted detection, investigation, corrective action and management closure'},
         state.message&&h('div',{className:'message error'},state.message),
         h('div',{className:'modal-grid'},
-          h('div',{className:'field'},h('label',null,'From date'),h('input',{type:'date',value:fromDate,onChange:e=>setFromDate(e.target.value)})),
-          h('div',{className:'field'},h('label',null,'To date'),h('input',{type:'date',value:toDate,onChange:e=>setToDate(e.target.value)})),
+          h('div',{className:'field'},h('label',null,'From date'),h(StrictDateInput,{value:fromDate,onChange:e=>setFromDate(e.target.value)})),
+          h('div',{className:'field'},h('label',null,'To date'),h(StrictDateInput,{value:toDate,onChange:e=>setToDate(e.target.value)})),
           h('div',{className:'field'},h('label',null,'Patient'),h('select',{value:patientFilter,onChange:e=>setPatientFilter(e.target.value)},h('option',{value:''},'All patients'),state.patients.map(p=>h('option',{key:p.id,value:p.id},formalName(p)||p.full_name)))),
           h('div',{className:'field'},h('label',null,'Error type'),h('select',{value:typeFilter,onChange:e=>setTypeFilter(e.target.value)},h('option',{value:'All'},'All error types'),ERROR_TYPES.map(t=>h('option',{key:t,value:t},t)))),
           h('div',{className:'field'},h('label',null,'Workflow status'),h('select',{value:statusFilter,onChange:e=>setStatusFilter(e.target.value)},['All','Detected',...WORKFLOW,'Reviewed'].map(t=>h('option',{key:t,value:t},t)))),
@@ -20002,7 +20028,7 @@ function RoomsBeds({profile}){
             h('div',{className:'field'},h('label',null,'Prescription / Medicine'),h('select',{value:form.order_id,onChange:e=>setForm({...form,order_id:e.target.value})},h('option',{value:''},'Not linked / other'),state.orders.filter(o=>!form.patient_id||o.patient_id===form.patient_id).map(o=>h('option',{key:o.id,value:o.id},medicineName(o.id))))),
             h('div',{className:'field'},h('label',null,'Error type'),h('select',{value:form.error_type,onChange:e=>setForm({...form,error_type:e.target.value})},ERROR_TYPES.map(t=>h('option',{key:t,value:t},t)))),
             h('div',{className:'field'},h('label',null,'Severity'),h('select',{value:form.severity,onChange:e=>setForm({...form,severity:e.target.value})},SEVERITIES.map(t=>h('option',{key:t,value:t},t)))),
-            h('div',{className:'field'},h('label',null,'Occurred at'),h('input',{type:'datetime-local',value:form.occurred_at,onChange:e=>setForm({...form,occurred_at:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Occurred at'),h(StrictDateTimeInput,{value:form.occurred_at,onChange:e=>setForm({...form,occurred_at:e.target.value})})),
             h('div',{className:'field span-2'},h('label',null,'Description'),h('textarea',{required:true,rows:3,value:form.description,onChange:e=>setForm({...form,description:e.target.value})})),
             h('div',{className:'field span-2'},h('label',null,'Immediate action taken'),h('textarea',{rows:2,value:form.immediate_action,onChange:e=>setForm({...form,immediate_action:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Resident effect'),h('input',{value:form.patient_effect,onChange:e=>setForm({...form,patient_effect:e.target.value})})),
@@ -20554,8 +20580,8 @@ function RoomsBeds({profile}){
             h('div',{className:'field'},h('label',null,'End Time'),h('input',{type:'time',value:form.end_time,onChange:e=>setForm({...form,end_time:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Shift'),h('select',{value:form.shift,onChange:e=>setForm({...form,shift:e.target.value})},['Day Shift','Night Shift','Both Shifts','Custom Hours'].map(x=>h('option',{key:x,value:x},x)))),
             h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},['Active','On Duty','Off Duty','Leave','Completed','Cancelled'].map(x=>h('option',{key:x,value:x},x)))),
-            h('div',{className:'field'},h('label',null,'Start Date'),h('input',{type:'date',max:todayISOIndia(),value:form.start_date,onChange:e=>setForm({...form,start_date:e.target.value})})),
-            h('div',{className:'field'},h('label',null,'End Date'),h('input',{type:'date',min:form.start_date||undefined,value:form.end_date,onChange:e=>setForm({...form,end_date:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Start Date'),h(StrictDateInput,{max:todayISOIndia(),value:form.start_date,onChange:e=>setForm({...form,start_date:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'End Date'),h(StrictDateInput,{min:form.start_date||undefined,value:form.end_date,onChange:e=>setForm({...form,end_date:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Duration'),h('select',{value:form.duration_type,onChange:e=>setForm({...form,duration_type:e.target.value})},['Single Shift','1 Day','3 Days','5 Days','7 Days','15 Days','1 Month','Until further order','Custom'].map(x=>h('option',{key:x,value:x},x)))),
             h('div',{className:'field'},h('label',null,'Custom Duration / Details'),h('input',{value:form.duration_value,onChange:e=>setForm({...form,duration_value:e.target.value}),placeholder:'Example: 6 weeks / 12-hour duty'})),
             h('div',{className:'field'},h('label',null,'Emergency Contact'),h('input',{value:form.emergency_contact,onChange:e=>setForm({...form,emergency_contact:e.target.value}),placeholder:'Contact number'})),
@@ -24644,7 +24670,7 @@ Please access the Samara Family Portal for detailed account information.`;
     return h(React.Fragment,null,
       h(Section,{title:'Intelligent Reports',subtitle:'Human-readable patient progress and complete day-wise operational reports'},
         h('form',{className:'intelligent-report-controls intelligent-report-controls-v3',onSubmit:e=>e.preventDefault()},
-          h('div',{className:'field report-date-field'},h('label',null,'Report Date'),h('input',{type:'date',value:reportDate,max:todayISOIndia(),onChange:e=>{const next=e.target.value;if(isFutureDateIndia(next)){const today=todayISOIndia();setReportDate(today);setReport(null);setMessage(`Future report dates are not permitted. Report Date has been reset to today (${formatDateIN(today)}).`);return}setReportDate(next);setReport(null);setMessage('')},required:true})),
+          h('div',{className:'field report-date-field'},h('label',null,'Report Date'),h(StrictDateInput,{value:reportDate,max:todayISOIndia(),onChange:e=>{const next=e.target.value;if(isFutureDateIndia(next)){const today=todayISOIndia();setReportDate(today);setReport(null);setMessage(`Future report dates are not permitted. Report Date has been reset to today (${formatDateIN(today)}).`);return}setReportDate(next);setReport(null);setMessage('')},required:true})),
           h('div',{className:'field report-patient-field'},h('label',null,'Patient'),h('select',{value:patientId,onChange:e=>{setPatientId(e.target.value);setReport(null);setMessage('')}},h('option',{value:''},'Select patient'),patients.map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)} · ${p.patient_id||'NO-ID'}${p.room_no?` · ${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:''}`)))),
           h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:e=>generate(e,'Resident-wise')},busy&&mode==='Resident-wise'?'Generating…':'Generate Patient Report'),
           h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:e=>generate(e,'Day-wise')},busy&&mode==='Day-wise'?'Generating…':'Generate Daily Operations Report')
@@ -25078,8 +25104,8 @@ function AuditTrail(){
       h(Section,{title:'Audit Trail',subtitle:'Admin-only record of system activity, clinical entries and data changes'},
         message&&h('div',{className:'message error'},message),
         h('div',{className:'modal-grid'},
-          h('div',{className:'field'},h('label',null,'From date'),h('input',{type:'date',value:fromDate,max:todayISOIndia(),onChange:e=>setFromDate(e.target.value)})),
-          h('div',{className:'field'},h('label',null,'To date'),h('input',{type:'date',value:toDate,max:todayISOIndia(),onChange:e=>setToDate(e.target.value)})),
+          h('div',{className:'field'},h('label',null,'From date'),h(StrictDateInput,{value:fromDate,max:todayISOIndia(),onChange:e=>setFromDate(e.target.value)})),
+          h('div',{className:'field'},h('label',null,'To date'),h(StrictDateInput,{value:toDate,max:todayISOIndia(),onChange:e=>setToDate(e.target.value)})),
           h('div',{className:'field'},h('label',null,'Module'),h('select',{value:entityFilter,onChange:e=>setEntityFilter(e.target.value)},h('option',{value:'All'},'All modules'),entities.map(x=>h('option',{key:x,value:x},x)))),
           h('div',{className:'field'},h('label',null,'User'),h('select',{value:userFilter,onChange:e=>setUserFilter(e.target.value)},h('option',{value:'All'},'All users'),users.map(id=>h('option',{key:id,value:id},userName({user_id:id}))))),
           h('div',{className:'field'},h('label',null,'Result'),h('select',{value:resultFilter,onChange:e=>setResultFilter(e.target.value)},['All','Success','Failed'].map(x=>h('option',{key:x,value:x},x)))),
