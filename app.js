@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.14';
+  const APP_VERSION = '2.11.15';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1386,7 +1386,7 @@ function initSamaraInaugurationInvitation(){
     { title:"DIRECTOR'S OFFICE", items:["Director's Office"] },
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
-    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Patient Consumables','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
+    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Patient Consumables','Stores','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
     { title:'COMMUNICATION', items:['WhatsApp Inbox','WhatsApp Logs','Family Communication','Feedback','Mail Dashboard'] },
@@ -1419,7 +1419,7 @@ function initSamaraInaugurationInvitation(){
   };
   const allowedPagesForProfile=profile=>{
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
-    if(isNursingManagerProfile(profile)){ if(!pages.includes('My Quick Tasks'))pages.push('My Quick Tasks'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); }
+    if(isNursingManagerProfile(profile)){ if(!pages.includes('My Quick Tasks'))pages.push('My Quick Tasks'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); }
     return pages;
   };
   const CLINICAL_ROLES=['Nurse','Caregiver'];
@@ -6054,6 +6054,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Vital Signs'&&h(VitalSigns,{profile,onNavigate:setPage}),
           page==='Medicines'&&h(Medicines,{profile,onNavigate:setPage}),
           page==='Patient Consumables'&&h(PatientConsumables,{profile}),
+          page==='Stores'&&h(ConsumablesStores,{profile}),
           page==='Food & Diet'&&h(FoodDiet,{profile}),
           page==='Physiotherapy'&&h(Physiotherapy,{profile,onNavigate:setPage}),
           page==='Special Nurse'&&h(SpecialNurseManagement,{profile}),
@@ -23656,104 +23657,196 @@ Please access the Samara Family Portal for detailed account information.`;
   }
 
 
-  function PatientConsumables({profile}){
-    const [patients,setPatients]=React.useState([]);
-    const [rows,setRows]=React.useState([]);
+  function ConsumablesStores({profile}){
+    const controller=isNursingManagerProfile(profile);
+    const oversight=['Admin','Manager'].includes(profile?.role);
+    const [stock,setStock]=React.useState([]),[receipts,setReceipts]=React.useState([]),[ledger,setLedger]=React.useState([]),[patients,setPatients]=React.useState([]);
     const [busy,setBusy]=React.useState(false);
-    const [filter,setFilter]=React.useState('Open');
-    const [form,setForm]=React.useState({patient_id:'',item_name:'',requested_qty:'1',unit:'Nos',request_remarks:''});
-    const nurseManager=isNursingManagerProfile(profile);
-    const nurse=profile?.role==='Nurse';
-    const itemOptions=['Adult Diapers','Gloves','Syringes','Dressing Materials','PPE','Feeding Tubes','Catheters','Oxygen Consumables','Underpads','Cotton / Gauze','Other Consumables'];
+    const [form,setForm]=React.useState({item_id:'',new_item_name:'',unit:'Nos',vendor_name:'',invoice_no:'',invoice_date:'',received_date:todayISOIndia(),quantity:'1',batch_no:'',expiry_date:'',unit_cost:'',remarks:''});
     const units=['Nos','Pairs','Packs','Boxes','Pieces','Rolls','Sets','Bottles'];
-    const actorName=formalName(profile)||profile?.full_name||profile?.login_id||profile?.role||'Staff';
-    const patientLabel=id=>{const p=patients.find(x=>x.id===id);return p?[formalName(p),p.patient_id&&`(${p.patient_id})`,p.room_no&&`Room ${p.room_no}${p.bed_no?`/${p.bed_no}`:''}`].filter(Boolean).join(' · '):'—'};
-    const stageStyle=status=>({display:'inline-block',padding:'5px 9px',borderRadius:'999px',fontWeight:800,fontSize:'12px',background:status==='Received'?'#e7f6ef':status==='Rejected'?'#fdebec':status==='Handed Over'?'#eaf2ff':'#fff4dc',color:'#5d3146'});
+    const actor=formalName(profile)||profile?.full_name||profile?.login_id||profile?.role||'Staff';
+    const notifyStore=(type,text)=>showSamaraActionToast(type,type==='success'?'Stores updated':'Stores action failed',text);
+    const itemById=id=>stock.find(x=>x.item_id===id);
+    const patientName=id=>{const p=patients.find(x=>x.id===id);return p?(formalName(p)||p.full_name||p.patient_id||'Patient'):'—'};
     async function load(){
-      const [pRes,iRes]=await Promise.all([
-        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').eq('is_active',true).order('full_name'),
-        client.from('patient_consumable_indents').select('*').order('created_at',{ascending:false}).limit(500)
+      const [sRes,rRes,lRes,pRes]=await Promise.all([
+        client.from('consumable_store_stock').select('*').order('item_name'),
+        client.from('consumable_store_receipts').select('*').order('received_at',{ascending:false}).limit(150),
+        client.from('consumable_store_ledger').select('*').order('movement_at',{ascending:false}).limit(300),
+        client.from('patients').select('id,title,full_name,patient_id').order('full_name').limit(1000)
       ]);
-      if(pRes.error)console.warn(pRes.error); else setPatients(pRes.data||[]);
-      if(iRes.error){console.warn(iRes.error);notify('error','Consumables workflow database is not installed yet. Please run 90_patient_consumables_indent_workflow.sql once in Supabase.')} else setRows(iRes.data||[]);
+      if(sRes.error){console.warn(sRes.error);notifyStore('error','Stores database is not installed yet. Please run 91_consumables_store_inventory.sql once in Supabase.')} else setStock(sRes.data||[]);
+      if(!rRes.error)setReceipts(rRes.data||[]);
+      if(!lRes.error)setLedger(lRes.data||[]);
+      if(!pRes.error)setPatients(pRes.data||[]);
     }
     React.useEffect(()=>{load()},[]);
-    async function initiate(e){
-      e.preventDefault(); if(!nurse||busy)return;
-      if(!form.patient_id||!form.item_name||Number(form.requested_qty)<=0){notify('error','Select patient, consumable and valid quantity.');return}
+    function selectItem(id){const row=itemById(id);setForm(f=>({...f,item_id:id,new_item_name:'',unit:row?.unit||f.unit}))}
+    async function receiveStock(e){
+      e.preventDefault();if(!controller||busy)return;
+      if(!form.item_id&&!String(form.new_item_name||'').trim()){notifyStore('error','Select an item or enter a new item name.');return}
+      if(!String(form.vendor_name||'').trim()||Number(form.quantity)<=0){notifyStore('error','Vendor and valid received quantity are required.');return}
       setBusy(true);
-      const result=await client.from('patient_consumable_indents').insert({
-        patient_id:form.patient_id,item_name:form.item_name,requested_qty:Number(form.requested_qty),unit:form.unit||'Nos',request_remarks:form.request_remarks||null,
-        initiated_by:profile.id,initiated_by_name:actorName,status:'Initiated'
+      const res=await client.rpc('receive_consumable_store_stock',{
+        p_item_id:form.item_id||null,p_item_name:String(form.new_item_name||'').trim()||null,p_unit:form.unit||'Nos',p_vendor_name:String(form.vendor_name||'').trim(),
+        p_invoice_no:String(form.invoice_no||'').trim()||null,p_invoice_date:form.invoice_date||null,p_received_date:form.received_date||todayISOIndia(),p_quantity:Number(form.quantity),
+        p_batch_no:String(form.batch_no||'').trim()||null,p_expiry_date:form.expiry_date||null,p_unit_cost:String(form.unit_cost).trim()===''?null:Number(form.unit_cost),p_remarks:String(form.remarks||'').trim()||null
       });
       setBusy(false);
-      if(result.error)notify('error',result.error.message); else {notify('success','Patient consumable indent initiated and sent to Nurse Manager.');setForm({...form,item_name:'',requested_qty:'1',request_remarks:''});await load()}
+      if(res.error)notifyStore('error',res.error.message);else{notifyStore('success',`Stock received from ${form.vendor_name}.`);setForm(f=>({...f,item_id:'',new_item_name:'',vendor_name:'',invoice_no:'',invoice_date:'',received_date:todayISOIndia(),quantity:'1',batch_no:'',expiry_date:'',unit_cost:'',remarks:''}));await load()}
+    }
+    async function setReorder(row){
+      if(!controller||busy)return;const input=prompt(`Minimum / reorder level for ${row.item_name}:`,String(row.reorder_level||0));if(input===null)return;
+      const level=Number(input);if(!Number.isFinite(level)||level<0){notifyStore('error','Enter zero or a valid positive reorder level.');return}
+      setBusy(true);const res=await client.rpc('update_consumable_reorder_level',{p_item_id:row.item_id,p_reorder_level:level});setBusy(false);
+      if(res.error)notifyStore('error',res.error.message);else{notifyStore('success','Reorder level updated.');await load()}
+    }
+    async function reconcile(row){
+      if(!controller||busy)return;const input=prompt(`ERP balance: ${row.balance_qty} ${row.unit}. Enter PHYSICAL stock counted:`,String(row.balance_qty));if(input===null)return;
+      const qty=Number(input);if(!Number.isFinite(qty)||qty<0){notifyStore('error','Enter a valid physical stock quantity.');return}
+      if(qty===Number(row.balance_qty)){notifyStore('success','Physical stock already tallies with ERP balance.');return}
+      const reason=prompt('Reason for stock difference / reconciliation:','Physical stock verification');if(!String(reason||'').trim())return;
+      setBusy(true);const res=await client.rpc('reconcile_consumable_store_stock',{p_item_id:row.item_id,p_physical_qty:qty,p_reason:String(reason).trim()});setBusy(false);
+      if(res.error)notifyStore('error',res.error.message);else{notifyStore('success','Physical stock reconciled with a permanent ledger entry.');await load()}
+    }
+    const low=stock.filter(x=>Number(x.balance_qty)>0&&Number(x.reorder_level)>0&&Number(x.balance_qty)<=Number(x.reorder_level));
+    const out=stock.filter(x=>Number(x.balance_qty)<=0);
+    const inStock=stock.filter(x=>Number(x.balance_qty)>0).length;
+    const stockStatus=row=>Number(row.balance_qty)<=0?'OUT OF STOCK':(Number(row.reorder_level)>0&&Number(row.balance_qty)<=Number(row.reorder_level)?'LOW STOCK':'IN STOCK');
+    const statusStyle=row=>({fontWeight:900,fontSize:'12px',padding:'5px 8px',borderRadius:'999px',display:'inline-block',background:Number(row.balance_qty)<=0?'#fdebec':(Number(row.reorder_level)>0&&Number(row.balance_qty)<=Number(row.reorder_level)?'#fff4dc':'#e7f6ef'),color:'#5d3146'});
+    if(!controller&&!oversight)return h(Section,{title:'Stores'},h('p',null,'Stores access is assigned to the Nurse Manager.'));
+    return h('div',null,
+      h(Section,{title:'Consumables Stores',subtitle:'Vendor receipts, stock issues and balances. Stores responsibility is presently assigned to the Nurse Manager.'},
+        h('div',{className:'grid stats'},
+          h('div',{className:'card stat'},h('span',null,'Items in Stock'),h('strong',null,inStock)),
+          h('div',{className:'card stat'},h('span',null,'Low Stock'),h('strong',null,low.length)),
+          h('div',{className:'card stat'},h('span',null,'Out of Stock'),h('strong',null,out.length)),
+          h('div',{className:'card stat'},h('span',null,'Store Items'),h('strong',null,stock.length))
+        )
+      ),
+      controller&&h(Section,{title:'Receive from Vendor',subtitle:'Every consumable received from a vendor must first be entered here before it can be handed over against a patient indent.'},
+        h('form',{onSubmit:receiveStock},
+          h('div',{className:'grid two'},
+            h('div',{className:'field'},h('label',null,'Store Item'),h('select',{value:form.item_id,onChange:e=>selectItem(e.target.value)},h('option',{value:''},'Select existing item'),stock.map(x=>h('option',{key:x.item_id,value:x.item_id},`${x.item_name} · Balance ${x.balance_qty} ${x.unit}`)))),
+            h('div',{className:'field'},h('label',null,'New Item (only if not listed)'),h('input',{value:form.new_item_name,onChange:e=>setForm({...form,new_item_name:e.target.value,item_id:''}),placeholder:'New consumable name'})),
+            h('div',{className:'field'},h('label',null,'Unit'),h('select',{value:form.unit,onChange:e=>setForm({...form,unit:e.target.value}),disabled:Boolean(form.item_id)},units.map(x=>h('option',{key:x,value:x},x)))),
+            h('div',{className:'field'},h('label',null,'Quantity Received *'),h('input',{type:'number',min:'0.01',step:'0.01',value:form.quantity,onChange:e=>setForm({...form,quantity:e.target.value}),required:true})),
+            h('div',{className:'field'},h('label',null,'Vendor *'),h('input',{value:form.vendor_name,onChange:e=>setForm({...form,vendor_name:e.target.value}),required:true,placeholder:'Vendor / Supplier name'})),
+            h('div',{className:'field'},h('label',null,'Invoice / Bill No.'),h('input',{value:form.invoice_no,onChange:e=>setForm({...form,invoice_no:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Invoice Date'),h(StrictDateInput,{value:form.invoice_date,onChange:e=>setForm({...form,invoice_date:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Received Date *'),h(StrictDateInput,{value:form.received_date,onChange:e=>setForm({...form,received_date:e.target.value}),required:true})),
+            h('div',{className:'field'},h('label',null,'Batch / Lot No.'),h('input',{value:form.batch_no,onChange:e=>setForm({...form,batch_no:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Expiry Date'),h(StrictDateInput,{value:form.expiry_date,onChange:e=>setForm({...form,expiry_date:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Unit Cost (optional)'),h('input',{type:'number',min:'0',step:'0.01',value:form.unit_cost,onChange:e=>setForm({...form,unit_cost:e.target.value}),placeholder:'₹'})),
+            h('div',{className:'field'},h('label',null,'Received By'),h('input',{value:actor,readOnly:true}))
+          ),
+          h('div',{className:'field'},h('label',null,'Remarks'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value})})),
+          h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Receive into Stores')
+        )
+      ),
+      h(Section,{title:'Current Store Stock',subtitle:'ERP balance = all Stock In − all Stock Out. Physical reconciliation creates a permanent adjustment entry; it never silently changes the balance.'},
+        h('div',{className:'table-wrap'},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['Item','Unit','Total In','Total Out','Balance','Reorder Level','Status','Action'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,stock.length?stock.map(r=>h('tr',{key:r.item_id},
+            h('td',null,h('strong',null,r.item_name)),h('td',null,r.unit),h('td',null,r.total_in),h('td',null,r.total_out),h('td',null,h('strong',null,r.balance_qty)),h('td',null,r.reorder_level),h('td',null,h('span',{style:statusStyle(r)},stockStatus(r))),
+            h('td',null,controller?h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally')):'View only')
+          )):h('tr',null,h('td',{colSpan:8,style:{textAlign:'center',padding:'24px'}},'No store items found.'))
+        ))
+      ),
+      h(Section,{title:'Vendor Receipt Register'},
+        h('div',{className:'table-wrap'},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['Receipt','Date','Item','Qty','Vendor','Invoice','Batch / Expiry','Received By'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,receipts.length?receipts.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('td',null,formatDateIN(r.received_date)),h('td',null,item?.item_name||'—'),h('td',null,`${r.quantity} ${r.unit}`),h('td',null,r.vendor_name),h('td',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—'),h('td',null,[r.batch_no,r.expiry_date&&`Exp ${formatDateIN(r.expiry_date)}`].filter(Boolean).join(' · ')||'—'),h('td',null,r.received_by_name||'—'))}):h('tr',null,h('td',{colSpan:8,style:{textAlign:'center',padding:'24px'}},'No vendor receipts recorded.')))
+        ))
+      ),
+      h(Section,{title:'Stores Stock Ledger',subtitle:'Every vendor receipt, patient issue, return and physical adjustment is retained here.'},
+        h('div',{className:'table-wrap'},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['Movement','Date / Time','Item','Type','Stock In','Stock Out','Balance After','Patient / Reference','By'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,ledger.length?ledger.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('td',null,formatDateTimeIN(r.movement_at)),h('td',null,item?.item_name||'—'),h('td',null,r.movement_type),h('td',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—'),h('td',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—'),h('td',null,h('strong',null,r.balance_after)),h('td',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—'),h('td',null,r.actor_name||'—'))}):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},'No stock movements recorded.')))
+        ))
+      )
+    ));
+  }
+
+  function PatientConsumables({profile}){
+    const [patients,setPatients]=React.useState([]),[rows,setRows]=React.useState([]),[stock,setStock]=React.useState([]);
+    const [busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('Open');
+    const [form,setForm]=React.useState({patient_id:'',store_item_id:'',item_name:'',requested_qty:'1',unit:'Nos',request_remarks:''});
+    const nurseManager=isNursingManagerProfile(profile),nurse=profile?.role==='Nurse';
+    const fallbackItems=['Adult Diapers','Gloves','Syringes','Dressing Materials','PPE','Feeding Tubes','Catheters','Oxygen Consumables','Underpads','Cotton / Gauze','Other Consumables'];
+    const actorName=formalName(profile)||profile?.full_name||profile?.login_id||profile?.role||'Staff';
+    const patientLabel=id=>{const p=patients.find(x=>x.id===id);return p?[formalName(p),p.patient_id&&`(${p.patient_id})`,p.room_no&&`Room ${p.room_no}${p.bed_no?`/${p.bed_no}`:''}`].filter(Boolean).join(' · '):'—'};
+    const stockFor=r=>stock.find(x=>x.item_id===r.store_item_id)||stock.find(x=>String(x.item_name).toLowerCase()===String(r.item_name).toLowerCase());
+    const stageStyle=status=>({display:'inline-block',padding:'5px 9px',borderRadius:'999px',fontWeight:800,fontSize:'12px',background:status==='Received'?'#e7f6ef':status==='Rejected'||status==='Receipt Discrepancy'?'#fdebec':status==='Handed Over'?'#eaf2ff':'#fff4dc',color:'#5d3146'});
+    async function load(){
+      const [pRes,iRes,sRes]=await Promise.all([
+        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').eq('is_active',true).order('full_name'),
+        client.from('patient_consumable_indents').select('*').order('created_at',{ascending:false}).limit(500),
+        client.from('consumable_store_stock').select('*').eq('active',true).order('item_name')
+      ]);
+      if(!pRes.error)setPatients(pRes.data||[]);
+      if(iRes.error){console.warn(iRes.error);notify('error','Consumables workflow database is not installed yet.')} else setRows(iRes.data||[]);
+      if(sRes.error)console.warn(sRes.error);else setStock(sRes.data||[]);
+    }
+    React.useEffect(()=>{load()},[]);
+    function chooseItem(id){const st=stock.find(x=>x.item_id===id);setForm(f=>({...f,store_item_id:id,item_name:st?.item_name||'',unit:st?.unit||'Nos'}))}
+    async function initiate(e){
+      e.preventDefault();if(!nurse||busy)return;
+      if(!form.patient_id||!form.item_name||Number(form.requested_qty)<=0){notify('error','Select patient, consumable and valid quantity.');return}
+      setBusy(true);const result=await client.from('patient_consumable_indents').insert({patient_id:form.patient_id,store_item_id:form.store_item_id||null,item_name:form.item_name,requested_qty:Number(form.requested_qty),unit:form.unit||'Nos',request_remarks:form.request_remarks||null,initiated_by:profile.id,initiated_by_name:actorName,status:'Initiated'});setBusy(false);
+      if(result.error)notify('error',result.error.message);else{notify('success','Patient consumable indent initiated and sent to Nurse Manager.');setForm(f=>({...f,store_item_id:'',item_name:'',requested_qty:'1',unit:'Nos',request_remarks:''}));await load()}
     }
     async function approve(row,reject=false){
-      if(!nurseManager||busy)return;
-      let qty=0,remarks='';
-      if(!reject){const input=prompt(`Requested: ${row.requested_qty} ${row.unit}. Enter quantity to approve:`,String(row.requested_qty));if(input===null)return;qty=Number(input);if(!qty||qty<=0||qty>Number(row.requested_qty)){notify('error','Enter a valid quantity not exceeding the requested quantity.');return}}
+      if(!nurseManager||busy)return;let qty=0,remarks='';const st=stockFor(row);
+      if(!reject){const input=prompt(`Requested: ${row.requested_qty} ${row.unit}. Current Stores balance: ${st?.balance_qty??'—'} ${st?.unit||row.unit}. Enter quantity to approve:`,String(row.requested_qty));if(input===null)return;qty=Number(input);if(!qty||qty<=0||qty>Number(row.requested_qty)){notify('error','Enter a valid quantity not exceeding the requested quantity.');return}}
       remarks=prompt(reject?'Reason for rejection:':'Approval remarks (optional):',reject?'Not approved':'')||'';
       setBusy(true);const res=await client.rpc('approve_patient_consumable_indent',{p_indent_id:row.id,p_approved_qty:qty,p_decision:reject?'Rejected':'Approved',p_remarks:remarks||null});setBusy(false);
       if(res.error)notify('error',res.error.message);else{notify('success',reject?'Indent rejected.':'Indent approved.');await load()}
     }
     async function handover(row){
-      if(!nurseManager||busy)return;
-      const input=prompt(`Approved: ${row.approved_qty} ${row.unit}. Enter actual quantity handed over:`,String(row.approved_qty||''));if(input===null)return;
+      if(!nurseManager||busy)return;const st=stockFor(row);const input=prompt(`Approved: ${row.approved_qty} ${row.unit}. Stores available: ${st?.balance_qty??'—'} ${st?.unit||row.unit}. Enter actual quantity handed over:`,String(row.approved_qty||''));if(input===null)return;
       const qty=Number(input);if(!qty||qty<=0||qty>Number(row.approved_qty||0)){notify('error','Enter a valid quantity not exceeding the approved quantity.');return}
-      const remarks=prompt('Handover remarks (optional):','')||'';
-      setBusy(true);const res=await client.rpc('handover_patient_consumable_indent',{p_indent_id:row.id,p_handed_over_qty:qty,p_remarks:remarks||null});setBusy(false);
-      if(res.error)notify('error',res.error.message);else{notify('success','Consumables marked as handed over. Awaiting Nurse receipt.');await load()}
+      const remarks=prompt('Handover remarks (optional):','')||'';setBusy(true);const res=await client.rpc('handover_patient_consumable_indent',{p_indent_id:row.id,p_handed_over_qty:qty,p_remarks:remarks||null});setBusy(false);
+      if(res.error)notify('error',res.error.message);else{notify('success','Handed over and deducted from Stores. Awaiting Nurse receipt.');await load()}
     }
     async function receive(row){
-      if(!nurse||busy)return;
-      const input=prompt(`Handed over: ${row.handed_over_qty} ${row.unit}. Confirm actual quantity received:`,String(row.handed_over_qty||''));if(input===null)return;
+      if(!nurse||busy)return;const input=prompt(`Handed over: ${row.handed_over_qty} ${row.unit}. Confirm actual quantity physically received:`,String(row.handed_over_qty||''));if(input===null)return;
       const qty=Number(input);if(!qty||qty<=0||qty>Number(row.handed_over_qty||0)){notify('error','Enter a valid quantity not exceeding the handed-over quantity.');return}
-      const remarks=prompt('Receipt remarks (optional):','')||'';
+      const remarks=prompt(qty<Number(row.handed_over_qty||0)?'Quantity differs from handover. Please state the discrepancy:':'Receipt remarks (optional):','')||'';
       setBusy(true);const res=await client.rpc('receive_patient_consumable_indent',{p_indent_id:row.id,p_received_qty:qty,p_remarks:remarks||null});setBusy(false);
-      if(res.error)notify('error',res.error.message);else{notify('success','Consumables received. Indent completed.');await load()}
+      if(res.error)notify('error',res.error.message);else{notify('success',qty<Number(row.handed_over_qty||0)?'Receipt recorded with discrepancy. Nurse Manager must reconcile the difference.':'Consumables received. Indent completed.');await load()}
     }
-    const openStatuses=['Initiated','Approved','Partially Approved','Handed Over'];
+    async function resolveDiscrepancy(row){
+      if(!nurseManager||busy)return;const diff=Number(row.handed_over_qty||0)-Number(row.received_qty||0);const remarks=prompt(`Discrepancy: ${diff} ${row.unit}. Confirm this balance has been physically returned to Stores and enter remarks:`,`Returned ${diff} ${row.unit} to Stores`);if(!String(remarks||'').trim())return;
+      setBusy(true);const res=await client.rpc('resolve_patient_consumable_discrepancy',{p_indent_id:row.id,p_remarks:String(remarks).trim()});setBusy(false);
+      if(res.error)notify('error',res.error.message);else{notify('success','Discrepancy returned to Stores and reconciled.');await load()}
+    }
+    const openStatuses=['Initiated','Approved','Partially Approved','Handed Over','Receipt Discrepancy'];
     const visible=rows.filter(r=>filter==='All'||(filter==='Open'?openStatuses.includes(r.status):r.status===filter));
-    const counts={initiated:rows.filter(r=>r.status==='Initiated').length,handover:rows.filter(r=>['Approved','Partially Approved'].includes(r.status)).length,receipt:rows.filter(r=>r.status==='Handed Over').length};
+    const counts={initiated:rows.filter(r=>r.status==='Initiated').length,handover:rows.filter(r=>['Approved','Partially Approved'].includes(r.status)).length,receipt:rows.filter(r=>r.status==='Handed Over').length,discrepancy:rows.filter(r=>r.status==='Receipt Discrepancy').length};
+    const options=stock.length?stock:fallbackItems.map((item_name,i)=>({item_id:`fallback-${i}`,item_name,unit:'Nos',balance_qty:'—'}));
     return h('div',null,
-      h(Section,{title:'Patient Consumables',subtitle:'Patient-wise indent workflow: Nurse initiates → Nurse Manager approves → Nurse Manager hands over → Nurse receives.'},
-        h('div',{className:'grid stats'},
-          h('div',{className:'card stat'},h('span',null,'Awaiting Approval'),h('strong',null,counts.initiated)),
-          h('div',{className:'card stat'},h('span',null,'Awaiting Handover'),h('strong',null,counts.handover)),
-          h('div',{className:'card stat'},h('span',null,'Awaiting Receipt'),h('strong',null,counts.receipt))
-        )
+      h(Section,{title:'Patient Consumables',subtitle:'Nurse initiates for a patient → Nurse Manager approves → Stores handover → Nurse confirms actual receipt.'},
+        h('div',{className:'grid stats'},h('div',{className:'card stat'},h('span',null,'Awaiting Approval'),h('strong',null,counts.initiated)),h('div',{className:'card stat'},h('span',null,'Awaiting Handover'),h('strong',null,counts.handover)),h('div',{className:'card stat'},h('span',null,'Awaiting Receipt'),h('strong',null,counts.receipt)),h('div',{className:'card stat'},h('span',null,'Discrepancies'),h('strong',null,counts.discrepancy)))
       ),
-      nurse&&h(Section,{title:'New Patient Indent',subtitle:'Initiate consumables only for a currently admitted patient.'},
-        h('form',{onSubmit:initiate},
-          h('div',{className:'grid two'},
-            h('div',{className:'field'},h('label',null,'Patient *'),h('select',{value:form.patient_id,onChange:e=>setForm({...form,patient_id:e.target.value}),required:true},h('option',{value:''},'Select active patient'),patients.map(p=>h('option',{key:p.id,value:p.id},patientLabel(p.id))))),
-            h('div',{className:'field'},h('label',null,'Consumable *'),h('select',{value:form.item_name,onChange:e=>setForm({...form,item_name:e.target.value}),required:true},h('option',{value:''},'Select consumable'),itemOptions.map(x=>h('option',{key:x,value:x},x)))),
-            h('div',{className:'field'},h('label',null,'Quantity *'),h('input',{type:'number',min:'0.01',step:'0.01',value:form.requested_qty,onChange:e=>setForm({...form,requested_qty:e.target.value}),required:true})),
-            h('div',{className:'field'},h('label',null,'Unit'),h('select',{value:form.unit,onChange:e=>setForm({...form,unit:e.target.value})},units.map(x=>h('option',{key:x,value:x},x))))
-          ),
-          h('div',{className:'field'},h('label',null,'Reason / Remarks'),h('textarea',{rows:2,value:form.request_remarks,onChange:e=>setForm({...form,request_remarks:e.target.value}),placeholder:'Optional clinical/use note'})),
-          h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Initiate Indent')
-        )
+      nurse&&h(Section,{title:'New Patient Indent',subtitle:'Select an active patient and an item from the Stores master. Available balance is shown for visibility.'},
+        h('form',{onSubmit:initiate},h('div',{className:'grid two'},
+          h('div',{className:'field'},h('label',null,'Patient *'),h('select',{value:form.patient_id,onChange:e=>setForm({...form,patient_id:e.target.value}),required:true},h('option',{value:''},'Select active patient'),patients.map(p=>h('option',{key:p.id,value:p.id},patientLabel(p.id))))),
+          h('div',{className:'field'},h('label',null,'Consumable *'),h('select',{value:form.store_item_id,onChange:e=>chooseItem(e.target.value),required:stock.length>0},h('option',{value:''},'Select consumable'),options.map(x=>h('option',{key:x.item_id,value:x.item_id},`${x.item_name}${stock.length?` · Store balance ${x.balance_qty} ${x.unit}`:''}`)))),
+          h('div',{className:'field'},h('label',null,'Quantity *'),h('input',{type:'number',min:'0.01',step:'0.01',value:form.requested_qty,onChange:e=>setForm({...form,requested_qty:e.target.value}),required:true})),
+          h('div',{className:'field'},h('label',null,'Unit'),h('input',{value:form.unit,readOnly:true}))
+        ),h('div',{className:'field'},h('label',null,'Reason / Remarks'),h('textarea',{rows:2,value:form.request_remarks,onChange:e=>setForm({...form,request_remarks:e.target.value}),placeholder:'Optional clinical/use note'})),h('button',{className:'btn btn-primary',disabled:busy||!form.item_name},busy?'Saving…':'Initiate Indent'))
       ),
-      h(Section,{title:'Consumables Indent Register',actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},['Open','Initiated','Handed Over','Received','Rejected','All'].map(x=>h('button',{type:'button',key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>setFilter(x)},x)))},
-        h('div',{className:'table-wrap'},h('table',{className:'table'},
-          h('thead',null,h('tr',null,['Indent','Patient','Item','Requested','Approved','Handed Over','Received','Status','Initiated By / Time','Approval / Handover','Receipt','Action'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,visible.length?visible.map(r=>h('tr',{key:r.id},
-            h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),h('td',null,patientLabel(r.patient_id)),h('td',null,h('strong',null,r.item_name),r.request_remarks&&h('small',{style:{display:'block'}},r.request_remarks)),
-            h('td',null,`${r.requested_qty} ${r.unit}`),h('td',null,r.approved_qty!=null?`${r.approved_qty} ${r.unit}`:'—'),h('td',null,r.handed_over_qty!=null?`${r.handed_over_qty} ${r.unit}`:'—'),h('td',null,r.received_qty!=null?`${r.received_qty} ${r.unit}`:'—'),
-            h('td',null,h('span',{style:stageStyle(r.status)},r.status)),
-            h('td',null,h('strong',null,r.initiated_by_name||'—'),h('small',{style:{display:'block'}},r.initiated_at?fmt(new Date(r.initiated_at)):'—')),
-            h('td',null,r.approved_by_name&&h('div',null,h('strong',null,`Approved: ${r.approved_by_name}`),h('small',{style:{display:'block'}},r.approved_at?fmt(new Date(r.approved_at)):'')),r.handed_over_by_name&&h('div',{style:{marginTop:'5px'}},h('strong',null,`Handed over: ${r.handed_over_by_name}`),h('small',{style:{display:'block'}},r.handed_over_at?fmt(new Date(r.handed_over_at)):''))),
-            h('td',null,r.received_by_name?h('div',null,h('strong',null,r.received_by_name),h('small',{style:{display:'block'}},r.received_at?fmt(new Date(r.received_at)):'')):'—'),
-            h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
-              nurseManager&&r.status==='Initiated'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>approve(r,false)},'Approve'),
-              nurseManager&&r.status==='Initiated'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>approve(r,true)},'Reject'),
-              nurseManager&&['Approved','Partially Approved'].includes(r.status)&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>handover(r)},'Hand Over'),
-              nurse&&r.status==='Handed Over'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>receive(r)},'Received'),
-              !((nurseManager&&['Initiated','Approved','Partially Approved'].includes(r.status))||(nurse&&r.status==='Handed Over'))&&h('span',null,'—')
-            ))
-          )):h('tr',null,h('td',{colSpan:12,style:{textAlign:'center',padding:'24px'}},'No consumable indents in this view.')))
+      h(Section,{title:'Consumables Indent Register',actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},['Open','Initiated','Handed Over','Receipt Discrepancy','Received','Rejected','All'].map(x=>h('button',{type:'button',key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>setFilter(x)},x)))},
+        h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Indent','Patient','Item / Store Balance','Requested','Approved','Handed Over','Received','Status','Initiated By / Time','Approval / Handover','Receipt','Action'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,visible.length?visible.map(r=>{const st=stockFor(r);return h('tr',{key:r.id},
+            h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),h('td',null,patientLabel(r.patient_id)),h('td',null,h('strong',null,r.item_name),h('small',{style:{display:'block'}},`Store: ${st?.balance_qty??'—'} ${st?.unit||r.unit}`),r.request_remarks&&h('small',{style:{display:'block'}},r.request_remarks)),
+            h('td',null,`${r.requested_qty} ${r.unit}`),h('td',null,r.approved_qty!=null?`${r.approved_qty} ${r.unit}`:'—'),h('td',null,r.handed_over_qty!=null?`${r.handed_over_qty} ${r.unit}`:'—'),h('td',null,r.received_qty!=null?`${r.received_qty} ${r.unit}`:'—'),h('td',null,h('span',{style:stageStyle(r.status)},r.status)),
+            h('td',null,h('strong',null,r.initiated_by_name||'—'),h('small',{style:{display:'block'}},r.initiated_at?formatDateTimeIN(r.initiated_at):'—')),
+            h('td',null,r.approved_by_name&&h('div',null,h('strong',null,`Approved: ${r.approved_by_name}`),h('small',{style:{display:'block'}},r.approved_at?formatDateTimeIN(r.approved_at):'')),r.handed_over_by_name&&h('div',{style:{marginTop:'5px'}},h('strong',null,`Handed over: ${r.handed_over_by_name}`),h('small',{style:{display:'block'}},r.handed_over_at?formatDateTimeIN(r.handed_over_at):''))),
+            h('td',null,r.received_by_name?h('div',null,h('strong',null,r.received_by_name),h('small',{style:{display:'block'}},r.received_at?formatDateTimeIN(r.received_at):''),r.receipt_remarks&&h('small',{style:{display:'block'}},r.receipt_remarks)):'—'),
+            h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},nurseManager&&r.status==='Initiated'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>approve(r,false)},'Approve'),nurseManager&&r.status==='Initiated'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>approve(r,true)},'Reject'),nurseManager&&['Approved','Partially Approved'].includes(r.status)&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>handover(r)},'Hand Over'),nurse&&r.status==='Handed Over'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>receive(r)},'Received'),nurseManager&&r.status==='Receipt Discrepancy'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>resolveDiscrepancy(r)},'Return & Reconcile'),!((nurseManager&&['Initiated','Approved','Partially Approved','Receipt Discrepancy'].includes(r.status))||(nurse&&r.status==='Handed Over'))&&h('span',null,'—')))
+          )}):h('tr',null,h('td',{colSpan:12,style:{textAlign:'center',padding:'24px'}},'No consumable indents in this view.')))
         ))
       )
     );

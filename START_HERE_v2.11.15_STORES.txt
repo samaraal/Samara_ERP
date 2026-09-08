@@ -1,0 +1,54 @@
+SAMARA ERP v2.11.15 — CONSUMABLES STORES
+==========================================
+
+This is an incremental update over v2.11.14 Patient Consumables.
+
+INSTALLATION ORDER
+------------------
+1. Supabase → SQL Editor
+2. Open: 91_consumables_store_inventory.sql
+3. Click RUN once.
+   Expected final result:
+      consumables_stores_ready
+      true
+
+   You do NOT need to save the SQL snippet after running it.
+
+4. Replace ONLY these ERP files:
+   - index.html
+   - app.js
+   - service-worker.js
+
+5. Open Samara ERP → App Help → Repair App (or Reload App) once.
+6. Confirm the splash/app version shows 2.11.15.
+
+WHAT IS ADDED
+-------------
+- Nursing → Stores module.
+- Stores responsibility: Nurse Manager (designation based, not employee-name based).
+- Vendor receipts with supplier, invoice, received date, quantity, batch, expiry, cost and remarks.
+- Item-wise current stock and complete Stores ledger.
+- ERP formula: total Stock In - total Stock Out = current balance.
+- Patient indent remains Nurse → Nurse Manager approval → Nurse Manager handover → Nurse receipt.
+- Stock is deducted ONLY at physical Hand Over.
+- Patient charge uses ONLY the quantity actually confirmed Received by the Nurse.
+- Short receipt creates a visible Receipt Discrepancy.
+- Nurse Manager can return/reconcile the difference to Stores.
+- Physical Tally action creates a permanent Adjustment In/Out ledger entry; balance is never silently overwritten.
+- Minimum/reorder levels with Low Stock / Out of Stock indicators.
+
+FIRST TEST
+----------
+A. Nurse Manager → Stores → receive 20 Adult Diapers from a test/vendor entry.
+B. Nurse → Patient Consumables → raise indent for an active patient, qty 5.
+C. Nurse Manager → approve 5 → hand over 5.
+   Store balance should immediately become 15.
+D. Nurse → confirm Received 5.
+   Indent should become Received/complete and patient charge request should use qty 5.
+
+DISCREPANCY TEST
+----------------
+If 5 are handed over but the Nurse confirms only 4 received:
+- Indent becomes Receipt Discrepancy.
+- Nurse Manager uses Return & Reconcile for the 1-item difference.
+- The 1 item returns to Stores and the ledger/balance tallies.
