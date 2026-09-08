@@ -1,4 +1,4 @@
-const APP_VERSION = '2.10.59';
+const APP_VERSION = '2.10.62';
 const CACHE = 'samara-erp-2.10.59-auth-profile-load-fix';
 const SHELL = [
   './',

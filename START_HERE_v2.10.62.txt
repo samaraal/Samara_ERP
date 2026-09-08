@@ -1,0 +1,17 @@
+SAMARA CARE ERP v2.10.62
+
+Purpose
+1. New admission automatically sends the Admission WhatsApp once.
+2. When Family Portal access is enabled, Portal Access WhatsApp also sends automatically once.
+3. Duplicate protection prevents normal re-save/refresh from generating repeat messages.
+4. Patient File mobile layout restored to full-screen responsive layout.
+5. Patient File navigation buttons wrap cleanly on Windows and form a two-column mobile grid.
+6. Overview and Admission Details text spacing/readability restored.
+
+Replace only:
+- app.js
+- index.html
+- service-worker.js
+
+After upload: App Help > Repair App once, then confirm version 2.10.62.
+No SQL or Edge Function change is included in this UI/workflow patch.

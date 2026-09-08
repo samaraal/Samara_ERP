@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.10.59';
+  const APP_VERSION = '2.10.62';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -13172,7 +13172,42 @@ Thank you.`;
       }
     }
 
-    async function sendFamilyPortalAccessWhatsAppApi(credential){
+    async function familyPortalWhatsAppAlreadySent(patient,credential){
+      try{
+        const recipient=normalizeWhatsAppRecipient(credential?.mobile||'');
+        if(!recipient)return false;
+        const {data:rows,error}=await client.from('hr_whatsapp_communications')
+          .select('id,recipient_number,status,message_payload')
+          .eq('template_name','samara_family_portal_access')
+          .eq('recipient_number',recipient)
+          .order('created_at',{ascending:false})
+          .limit(100);
+        if(error)return false;
+        return (rows||[]).some(row=>{
+          const payload=row?.message_payload||{};
+          const samePatient=String(payload.patient_id||payload.patient_db_id||payload.patient_code||'')===String(patient?.id||'')
+            ||String(payload.patient_code||payload.patient_id||'')===String(patient?.patient_id||'');
+          return samePatient&&!['Failed','failed'].includes(String(row.status||''));
+        });
+      }catch(error){
+        console.warn('Unable to check existing Family Portal WhatsApp:',error);
+        return false;
+      }
+    }
+
+    async function autoSendFamilyPortalWhatsAppOnce(patient,credential){
+      if(!patient?.id||!credential?.mobile)return {status:'skipped'};
+      try{
+        if(await familyPortalWhatsAppAlreadySent(patient,credential))return {status:'already-sent'};
+        const result=await sendFamilyPortalAccessWhatsAppApi(credential,{automatic:true});
+        return {status:'sent',result};
+      }catch(error){
+        console.error('Automatic Family Portal WhatsApp failed:',error);
+        return {status:'failed',error};
+      }
+    }
+
+    async function sendFamilyPortalAccessWhatsAppApi(credential,{automatic=false}={}){
       if(!credential)return;
       // Keep the seven variables deliberately concise. The approved Meta template
       // already contains substantial fixed text; long clinical diagnosis strings can
@@ -13206,7 +13241,8 @@ Thank you.`;
             message_payload:{patient_id:credential.patient_id||null,patient_name:patientName,portal:'https://family.samaraassistedliving.com'}
           }
         });
-        setMsg(result?.history_logged===true?'Family Portal WhatsApp was accepted by Meta and recorded in WhatsApp Inbox. Delivery status will follow. The temporary PIN can be sent separately.':'Family Portal WhatsApp was accepted by Meta, but Inbox logging failed. Please check the Edge Function deployment.');
+        if(!automatic)setMsg(result?.history_logged===true?'Family Portal WhatsApp submitted successfully and recorded in WhatsApp Inbox. Delivery status will update automatically.':'Family Portal WhatsApp was submitted, but Inbox logging failed. Please check the Edge Function deployment.');
+        return result;
       }catch(apiError){
         const text=`Dear ${credential.relative_name||'Family Member'},
 
@@ -13217,7 +13253,8 @@ Temporary PIN: ${credential.pin||'—'}
 Portal: https://family.samaraassistedliving.com
 
 Please keep these login details confidential.`;
-        setMsg(`Family Portal WhatsApp API failed: ${apiError.message||apiError}. Use the Existing Method / Send Login PIN button only if you want to send manually.`);
+        if(!automatic)setMsg(`Family Portal WhatsApp API failed: ${apiError.message||apiError}. Use the Existing Method / Send Login PIN button only if you want to send manually.`);
+        throw apiError;
       }
     }
 
@@ -13409,6 +13446,7 @@ Please keep these login details confidential.`;
           admission_consent_generated_at:new Date().toISOString()
         }).eq('id',patient.id);
         const admissionWhatsAppResult=await autoSendAdmissionWhatsAppOnce(patient,admissionCredential);
+        const familyPortalWhatsAppResult=portalCredential?await autoSendFamilyPortalWhatsAppOnce(patient,portalCredential):{status:'skipped'};
         setConsentRecord({
           patient,
           form:{...form},
@@ -13444,7 +13482,14 @@ Please keep these login details confidential.`;
             :admissionWhatsAppResult?.status==='failed'
               ?' Admission was saved, but the automatic Admission WhatsApp failed; use the Resend button from the patient Family Portal tab.'
               :'';
-        setMsg(`Admission data saved.${admissionWhatsAppNote} Print the generated consent, obtain signatures and upload the signed form to complete admission formalities.`);
+        const familyPortalWhatsAppNote=familyPortalWhatsAppResult?.status==='sent'
+          ?' Family Portal access details were also sent automatically.'
+          :familyPortalWhatsAppResult?.status==='already-sent'
+            ?' Family Portal access WhatsApp had already been sent, so no duplicate was generated.'
+            :familyPortalWhatsAppResult?.status==='failed'
+              ?' Family Portal access was created, but its automatic WhatsApp failed; use Resend Portal Access from the Family Portal tab.'
+              :'';
+        setMsg(`Admission data saved.${admissionWhatsAppNote}${familyPortalWhatsAppNote} Print the generated consent, obtain signatures and upload the signed form to complete admission formalities.`);
       }catch(err){setMsg(`${admissionExistingPatient?'Existing patient admission resumed':'Patient created'}, but document or care setup failed: ${err.message}`)}
       setBusy(false);
     }
@@ -15748,7 +15793,35 @@ Please keep these login details confidential.`;
             h('div',{className:'section-card'},h('h4',null,'Risk & Safety'),h('p',null,[selected.fall_risk&&'Fall risk',selected.pressure_sore_risk&&'Pressure sore risk',selected.aspiration_risk&&'Aspiration risk',selected.wandering_risk&&'Wandering risk',selected.oxygen_required&&'Oxygen required',selected.dressing_required&&'Dressing required'].filter(Boolean).join(', ')||'No active risk flags'),h('p',null,`Open incidents: ${details.incidents.filter(x=>x.status==='Open').length}`))
           ),
           tab==='Admission Details'&&h('div',{className:'tabs-grid patient-admission-details'},
-            h('style',null,`.patient-admission-details{align-items:start;gap:16px}.patient-admission-details .section-card{padding:18px 20px}.patient-admission-details .section-card h4{margin:0 0 10px;font-size:18px}.patient-admission-details .patient-admission-field{display:flex!important;align-items:flex-start!important;gap:18px!important;padding:10px 0!important;border-bottom:1px solid #f1dde7;line-height:1.45}.patient-admission-details .patient-admission-field:last-child{border-bottom:0}.patient-admission-details .patient-admission-field>span{display:block!important;flex:0 0 190px!important;min-width:190px!important;color:#735d69;font-size:14px;font-weight:500}.patient-admission-details .patient-admission-field>strong{display:block!important;flex:1 1 auto!important;min-width:0!important;color:#382333;font-size:14px;font-weight:700;line-height:1.45;word-break:normal;overflow-wrap:anywhere}@media(max-width:760px){.patient-admission-details .section-card{padding:15px}.patient-admission-details .patient-admission-field{display:block!important;padding:9px 0!important}.patient-admission-details .patient-admission-field>span{min-width:0!important;margin-bottom:3px;font-size:13px}.patient-admission-details .patient-admission-field>strong{font-size:14px}}`),
+            h('style',null,`.patient-admission-details{align-items:start;gap:16px}.patient-admission-details .section-card{padding:18px 20px}.patient-admission-details .section-card h4{margin:0 0 10px;font-size:18px}.patient-admission-details .patient-admission-field{display:flex!important;align-items:flex-start!important;gap:18px!important;padding:10px 0!important;border-bottom:1px solid #f1dde7;line-height:1.45}.patient-admission-details .patient-admission-field:last-child{border-bottom:0}.patient-admission-details .patient-admission-field>span{display:block!important;flex:0 0 190px!important;min-width:190px!important;color:#735d69;font-size:14px;font-weight:500}.patient-admission-details .patient-admission-field>strong{display:block!important;flex:1 1 auto!important;min-width:0!important;color:#382333;font-size:14px;font-weight:700;line-height:1.45;word-break:normal;overflow-wrap:anywhere}@media(max-width:760px){.patient-admission-details .section-card{padding:15px}.patient-admission-details .patient-admission-field{display:block!important;padding:9px 0!important}.patient-admission-details .patient-admission-field>span{min-width:0!important;margin-bottom:3px;font-size:13px}.patient-admission-details .patient-admission-field>strong{font-size:14px}}
+/* v2.10.62 — Patient File navigation and readability restoration */
+.patient-file-backdrop .patient-master-modal{width:min(1160px,calc(100vw - 28px))!important;max-width:1160px!important;overflow-x:hidden!important}
+.patient-file-backdrop .patient-tab-bar{display:flex!important;flex-wrap:wrap!important;gap:8px!important;white-space:normal!important;overflow:visible!important;padding:10px 0 12px!important}
+.patient-file-backdrop .patient-tab-bar .btn,.patient-file-backdrop .patient-tab-bar button{flex:0 0 auto!important;min-height:44px!important;padding:9px 16px!important;white-space:nowrap!important}
+.patient-file-backdrop .patient-tab-content{min-width:0!important;width:100%!important}
+.patient-file-backdrop .tabs-grid{grid-template-columns:1fr!important;gap:14px!important}
+.patient-file-backdrop .section-card{line-height:1.55!important}
+.patient-file-backdrop .section-card p{margin:8px 0!important;line-height:1.55!important}
+.patient-file-backdrop .patient-overview-fields{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;column-gap:28px!important}
+.patient-file-backdrop .patient-overview-field{display:grid!important;grid-template-columns:150px 12px minmax(0,1fr)!important;gap:7px!important;padding:8px 0!important;border-bottom:1px solid #f2e4ea!important;line-height:1.45!important}
+.patient-file-backdrop .patient-overview-address{grid-column:1/-1!important}
+.patient-admission-details{grid-template-columns:1fr!important;width:100%!important}
+.patient-admission-details .section-card{width:100%!important}
+@media(max-width:760px){
+ .patient-file-backdrop{padding:0!important;inset:0!important;background:#fff!important}
+ .patient-file-backdrop .patient-master-modal{box-sizing:border-box!important;width:100vw!important;max-width:100vw!important;height:100dvh!important;max-height:100dvh!important;border-radius:0!important;margin:0!important;padding:calc(8px + env(safe-area-inset-top)) 12px calc(18px + env(safe-area-inset-bottom))!important}
+ .patient-file-backdrop .patient-mobile-back{width:100%!important;box-sizing:border-box!important}
+ .patient-file-backdrop .patient-master-header{width:100%!important;min-width:0!important}
+ .patient-file-backdrop .patient-head{grid-template-columns:70px minmax(0,1fr)!important;min-width:0!important}
+ .patient-file-backdrop .patient-photo,.patient-file-backdrop .patient-photo-placeholder{width:70px!important;height:80px!important;min-width:70px!important;max-width:70px!important;min-height:80px!important;max-height:80px!important}
+ .patient-file-backdrop .patient-master-header>.employee-actions{grid-template-columns:repeat(2,minmax(0,1fr))!important;width:100%!important}
+ .patient-file-backdrop .patient-tab-bar{position:static!important;margin:8px 0 12px!important;padding:8px 0!important;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important;width:100%!important;overflow:visible!important}
+ .patient-file-backdrop .patient-tab-bar .btn,.patient-file-backdrop .patient-tab-bar button{width:100%!important;min-width:0!important;min-height:44px!important;padding:8px 6px!important;white-space:normal!important;font-size:13px!important;line-height:1.2!important}
+ .patient-file-backdrop .patient-overview-fields{grid-template-columns:1fr!important}
+ .patient-file-backdrop .patient-overview-address{grid-column:auto!important}
+ .patient-file-backdrop .patient-overview-field{grid-template-columns:minmax(100px,38%) 10px minmax(0,1fr)!important;gap:6px!important;padding:9px 0!important}
+ .patient-file-backdrop .patient-tab-content,.patient-file-backdrop .section-card{width:100%!important;max-width:100%!important;box-sizing:border-box!important;min-width:0!important}
+}`),
             h('div',{className:'section-card'},
               h('h4',null,'Admission'),
               admissionField('Resident ID',selected.patient_id||selected.patient_code),
