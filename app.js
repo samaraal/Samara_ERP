@@ -8735,9 +8735,50 @@ Thank you.`;
     async function recordHrWhatsApp(row,{communicationType,templateName,status='Accepted',providerMessageId=null,errorMessage=null,messageContent='',messageType='template',direction='outbound',messagePayload=null}){
       if(!row?.id)return;
       const nowIso=new Date().toISOString();
-      const payload={career_application_id:row.id,application_id:row.application_id||null,applicant_name:row.applicant_name||null,recipient_number:normalizeWhatsAppRecipient(row.whatsapp||row.mobile||''),communication_type:communicationType,template_name:templateName||null,status,provider_message_id:providerMessageId||null,error_message:errorMessage||null,sent_by:profile.id,sent_by_name:formalName(profile),direction,message_type:messageType,message_content:String(messageContent||''),message_payload:messagePayload||null,sent_at:direction==='outbound'?nowIso:null,received_at:direction==='inbound'?nowIso:null,updated_at:nowIso};
-      const {error}=await client.from('hr_whatsapp_communications').insert(payload);
-      if(error){console.warn('Unable to save WhatsApp communication history',error);return {ok:false,error}}
+      const providerId=providerMessageId||null;
+      const basePayload={career_application_id:row.id,application_id:row.application_id||null,applicant_name:row.applicant_name||null,recipient_number:normalizeWhatsAppRecipient(row.whatsapp||row.mobile||''),communication_type:communicationType,template_name:templateName||null,status,provider_message_id:providerId,error_message:errorMessage||null,sent_by:profile.id,sent_by_name:formalName(profile),direction,message_type:messageType,message_content:String(messageContent||''),message_payload:messagePayload||null,sent_at:direction==='outbound'?nowIso:null,received_at:direction==='inbound'?nowIso:null,updated_at:nowIso};
+
+      // Meta provider_message_id is globally unique. A webhook/general inbox logger may
+      // create the row milliseconds before the HR workflow finishes. In that case we
+      // must enrich the SAME row with the complete applicant/template message rather
+      // than inserting a second row (which violates the unique index) or leaving the
+      // Inbox with only the generic text "WhatsApp API".
+      async function enrichExisting(existing){
+        if(!existing?.id)return {ok:false};
+        const existingStatus=String(existing.status||'').toLowerCase();
+        const preserveDeliveryStatus=['delivered','read'].includes(existingStatus);
+        const patch={...basePayload,status:preserveDeliveryStatus?existing.status:status,updated_at:nowIso};
+        delete patch.provider_message_id; // never change the provider identity of an existing row
+        if(existing.sent_at)delete patch.sent_at;
+        if(existing.received_at)delete patch.received_at;
+        const {error:updateError}=await client.from('hr_whatsapp_communications').update(patch).eq('id',existing.id);
+        if(updateError){console.warn('Unable to enrich existing WhatsApp communication history',updateError);return {ok:false,error:updateError}}
+        await loadWhatsAppHistory(row.id);
+        return {ok:true,reused:true};
+      }
+
+      if(providerId){
+        const {data:existing,error:lookupError}=await client.from('hr_whatsapp_communications')
+          .select('id,status,sent_at,received_at')
+          .eq('provider_message_id',providerId)
+          .maybeSingle();
+        if(lookupError){console.warn('Unable to check existing WhatsApp provider message',lookupError)}
+        if(existing?.id)return enrichExisting(existing);
+      }
+
+      const {error}=await client.from('hr_whatsapp_communications').insert(basePayload);
+      if(error){
+        // Protect against the small race where another logger inserts the same Meta ID
+        // after our lookup but before this insert. Re-query and enrich instead.
+        if(providerId&&(error.code==='23505'||String(error.message||'').toLowerCase().includes('duplicate key'))){
+          const {data:existing}=await client.from('hr_whatsapp_communications')
+            .select('id,status,sent_at,received_at')
+            .eq('provider_message_id',providerId)
+            .maybeSingle();
+          if(existing?.id)return enrichExisting(existing);
+        }
+        console.warn('Unable to save WhatsApp communication history',error);return {ok:false,error};
+      }
       await loadWhatsAppHistory(row.id);
       return {ok:true};
     }
