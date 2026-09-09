@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.15';
+  const APP_VERSION = '2.11.16';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6180,6 +6180,7 @@ Caring with Compassion. Living with Dignity.`;
   function Login({externalMessage,onClearMessage}){
     const [login,setLogin]=React.useState('');
     const [password,setPassword]=React.useState('');
+    const [showPassword,setShowPassword]=React.useState(false);
     const [busy,setBusy]=React.useState(false);
     const [message,setMessage]=React.useState(externalMessage||'');
     const [forgot,setForgot]=React.useState(false);
@@ -6321,7 +6322,7 @@ Caring with Compassion. Living with Dignity.`;
           h('p',{className:'login-v3-subtitle'},'Sign in with your employee Login ID.'),
           message&&h('div',{className:'message error'},message),
           h('div',{className:'field'},h('label',null,'Login ID'),h('input',{value:login,onChange:e=>setLogin(e.target.value),required:true,autoCapitalize:'none',placeholder:'Enter login ID'})),
-          h('div',{className:'field'},h('label',null,'Password'),h('input',{type:'password',value:password,onChange:e=>setPassword(e.target.value),required:true,placeholder:'Enter password'})),
+          h('div',{className:'field'},h('label',null,'Password'),h('div',{style:{position:'relative'}},h('input',{type:showPassword?'text':'password',value:password,onChange:e=>setPassword(e.target.value),required:true,placeholder:'Enter password',autoComplete:'current-password',style:{paddingRight:'52px'}}),h('button',{type:'button','aria-label':showPassword?'Hide password':'Show password',title:showPassword?'Hide password':'Show password',onClick:()=>setShowPassword(v=>!v),style:{position:'absolute',right:'8px',top:'50%',transform:'translateY(-50%)',width:'38px',height:'38px',border:'0',background:'transparent',fontSize:'20px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#7a1247',padding:0}},showPassword?'🙈':'👁'))),
           h('button',{type:'button',className:'login-link-button forgot-password-link',onClick:()=>{setForgot(true);setRecoveryLogin(login);setMessage('')}},'Forgot Password?'),
           h('button',{className:'btn btn-primary full login-v3-button',disabled:busy},busy?'Signing in…':'Sign in'),
           h('div',{className:'login-app-help'},

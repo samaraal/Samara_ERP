@@ -1,20 +1,14 @@
-Samara Care ERP v2.10.53 – Manager Voice Tasks
+Samara Care ERP v2.11.16 — Login Password Eye Button
 
 Replace only these files in the ERP root:
 1. app.js
 2. index.html
 3. service-worker.js
 
-What changed:
-- Every ERP user whose ERP Role is Manager receives My Quick Tasks.
-- No designation detection is required.
-- Mobile bottom Work button opens My Quick Tasks for Managers.
-- My Quick Tasks includes Speak Tamil and Speak English voice task entry.
-- The existing My To-Do & Follow-up remains separately available from the Manager module.
-- Admin and other roles are not given this Manager-only private task workspace by this change.
+Change made:
+- Added eye/show-password button to the ERP login Password field.
+- Clicking the eye toggles between hidden and visible password text.
+- No Supabase SQL change.
+- No database, nursing, billing, WhatsApp, Stores, Director Office or other ERP workflow changes.
 
-After upload:
-- Open ERP on the phone.
-- Menu -> App Help / Repair -> Check for Updates.
-- Confirm version 2.10.53.
-- If old UI remains, use Repair App once and reopen ERP.
+After upload, refresh the ERP. The app version should show 2.11.16 and the normal update mechanism can detect the new build.
