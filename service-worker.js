@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.16';
-const CACHE = 'samara-erp-2.11.16-login-eye';
+const APP_VERSION = '2.11.17';
+const CACHE = 'samara-erp-2.11.17-patient-history-spacing';
 const SHELL = [
   './',
   './index.html',
