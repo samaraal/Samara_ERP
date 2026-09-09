@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.19';
+  const APP_VERSION = '2.11.20';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2253,6 +2253,11 @@ Caring with Compassion. Living with Dignity.`;
     const lastPlayed=React.useRef({});
     const lastPopup=React.useRef({});
     const audioContext=React.useRef(null);
+    // v2.11.20: keep Web Speech utterances strongly referenced. Some Chrome/Edge
+    // builds can garbage-collect a locally scoped SpeechSynthesisUtterance before
+    // playback starts when the alert queue is otherwise idle.
+    const speechKeepAlive=React.useRef([]);
+    const speechPrimed=React.useRef(false);
 
     function playClinicalTone(priority='Routine',force=false){
       if(isMobileClinicalDevice())return;
@@ -2285,15 +2290,39 @@ Caring with Compassion. Living with Dignity.`;
         }
       }catch(error){console.warn('Clinical alert sound unavailable',error)}
     }
+    function primeSpeechSynthesisFromGesture(){
+      const synth=window.speechSynthesis;
+      if(!synth||typeof window.SpeechSynthesisUtterance!=='function')return false;
+      try{synth.resume?.()}catch(_){}
+      // Do not cancel here. Chrome can enter a silent state when cancel() and speak()
+      // are issued back-to-back on an otherwise idle speech engine.
+      try{synth.getVoices?.()}catch(_){}
+      if(speechPrimed.current)return true;
+      const u=new SpeechSynthesisUtterance('Samara voice enabled');
+      u.lang='en-IN';
+      u.rate=1;
+      u.pitch=1;
+      u.volume=.18;
+      speechKeepAlive.current.push(u);
+      const release=()=>{
+        speechKeepAlive.current=speechKeepAlive.current.filter(x=>x!==u);
+        speechPrimed.current=true;
+      };
+      u.onend=release;
+      u.onerror=release;
+      synth.speak(u);
+      return true;
+    }
     async function unlockSound(){
       if(isMobileClinicalDevice())return false;
       try{
+        // Prime Web Speech immediately while this function is still executing from
+        // the user's Enable Sound click. This is intentionally before any await.
+        primeSpeechSynthesisFromGesture();
         const Ctx=window.AudioContext||window.webkitAudioContext;
-        const ctx=audioContext.current||(audioContext.current=new Ctx());
-        if(ctx.state==='suspended')await ctx.resume();
-        // v2.9.45: one Nurse action unlocks both tone + automatic clinical voice
-        // for the current browser session. Browser autoplay still requires this
-        // explicit user gesture once per page/device session.
+        const ctx=audioContext.current||(Ctx?new Ctx():null);
+        if(ctx&&ctx.state==='suspended')await ctx.resume();
+        // One Nurse action unlocks tone + automatic clinical voice for this session.
         setSettings(s=>({...s,sound_enabled:true,voice_enabled:true}));
         setSoundUnlocked(true);
         playClinicalTone('Routine',true);
@@ -2603,15 +2632,12 @@ Caring with Compassion. Living with Dignity.`;
     }
     function speakUtteranceSequence(segments,voices){
       const synth=window.speechSynthesis;
-      if(!synth||!segments.length)return false;
+      if(!synth||!segments.length||typeof window.SpeechSynthesisUtterance!=='function')return false;
       try{synth.resume?.()}catch(_){}
       const requestedLang=String(segments[0]?.lang||'ta-IN');
       const singleVoice=bestSingleClinicalVoice(voices,requestedLang);
       const speechLang=String(singleVoice?.lang||requestedLang||'ta-IN');
 
-      // v2.9.45: expand [[LETTER:...]] markers into protected sub-segments.
-      // A/R/B etc. are spoken alone, slightly slower/louder, and followed by
-      // a deliberate pause so Chrome cannot fade or swallow the sound.
       const expanded=[];
       for(const seg of segments){
         const raw=String(seg?.text||'');
@@ -2620,13 +2646,7 @@ Caring with Compassion. Living with Dignity.`;
         while((m=rx.exec(raw))){
           const before=raw.slice(last,m.index).trim();
           if(before)expanded.push({...seg,text:before});
-          expanded.push({
-            ...seg,
-            text:String(m[1]||'').trim(),
-            __singleLetter:true,
-            rate:.62,
-            pause:500
-          });
+          expanded.push({...seg,text:String(m[1]||'').trim(),__singleLetter:true,rate:.62,pause:500});
           last=rx.lastIndex;
         }
         const tail=raw.slice(last).trim();
@@ -2642,37 +2662,22 @@ Caring with Compassion. Living with Dignity.`;
         if(singleVoice){
           const voiceLang=String(singleVoice.lang||'').toLowerCase();
           const segLang=String(seg.lang||'').toLowerCase();
-          // Bind a voice only when it matches the segment language family.
-          // Otherwise let Chrome select its own compatible voice for that language.
           if(!segLang||voiceLang.split('-')[0]===segLang.split('-')[0])u.voice=singleVoice;
         }
+        if(seg.__singleLetter){u.rate=.62;u.pitch=1.08;u.volume=1.0;}
+        else{u.rate=Math.min(.88,Math.max(.80,Number(seg.rate||.84)));u.pitch=.92;u.volume=.90;}
 
-        if(seg.__singleLetter){
-          // Deliberately stronger than normal speech.
-          // SpeechSynthesis volume 1.0 is the browser maximum.
-          // Slower delivery + a slightly stronger pitch makes the isolated
-          // letter perceptually louder and clearer without affecting the
-          // rest of the clinical message.
-          u.rate=.62;
-          u.pitch=1.08;
-          u.volume=1.0;
-        }else{
-          // Existing softer/smoother clinical voice.
-          u.rate=Math.min(.88,Math.max(.80,Number(seg.rate||.84)));
-          u.pitch=.92;
-          u.volume=.90;
-        }
-
-        u.onend=()=>window.setTimeout(next,seg.pause??220);
-        u.onerror=()=>window.setTimeout(next,180);
+        // Strong reference is essential on some Chromium/Windows builds when the
+        // app has no active alerts (the condition seen after dummy-data cleanup).
+        speechKeepAlive.current.push(u);
+        const release=()=>{speechKeepAlive.current=speechKeepAlive.current.filter(x=>x!==u);};
+        u.onend=()=>{release();window.setTimeout(next,seg.pause??220);};
+        u.onerror=(event)=>{release();console.warn('Clinical speech utterance error:',event?.error||event);window.setTimeout(next,180);};
+        try{synth.resume?.()}catch(_){}
         synth.speak(u);
       };
 
-      console.info('Samara clinical voice',{
-        singleVoice:singleVoice?.name||'device default',
-        language:speechLang,
-        segments:expanded.length
-      });
+      console.info('Samara clinical voice',{singleVoice:singleVoice?.name||'device default',language:speechLang,segments:expanded.length});
       next();
       return true;
     }
@@ -2756,25 +2761,33 @@ Caring with Compassion. Living with Dignity.`;
     async function playClinicalVoiceNow(a){
       const synth=window.speechSynthesis;
       if(!synth)return false;
-      try{synth.cancel();synth.resume?.()}catch(_){}
+      try{synth.resume?.()}catch(_){}
       const voices=await waitForSpeechVoices(3500);
       try{synth.resume?.()}catch(_){}
       const segments=hasTamilSpeechVoice(voices)?humanisedClinicalVoiceSegments(a):englishClinicalVoiceSegments(a);
       return speakUtteranceSequence(segments,voices);
     }
-    // v2.11.19: Voice-test buttons must start speech while the browser still
+    // v2.11.20: Voice-test buttons must start speech while the browser still
     // considers the click a live user gesture. Do not await voiceschanged here:
     // Chrome/Edge can otherwise silently block speech after the async delay.
     // If the voice list has not loaded yet, speak the English fallback immediately
     // with the device default voice; later automatic alerts may still use Tamil.
     function playClinicalVoiceFromUserGesture(a){
       const synth=window.speechSynthesis;
-      if(!synth)return false;
-      try{synth.cancel();synth.resume?.()}catch(_){}
+      if(!synth||typeof window.SpeechSynthesisUtterance!=='function'){
+        alert('Voice playback is not available in this browser. Please use Chrome or Edge on Windows.');
+        return false;
+      }
+      try{synth.resume?.()}catch(_){}
+      // No cancel() here: back-to-back cancel/speak is the root of a Chromium
+      // silent-playback failure on an idle speech engine. The test buttons are
+      // independent of patients, alerts and Supabase rows.
       let voices=[];
       try{voices=synth.getVoices?.()||[]}catch(_){}
       const segments=hasTamilSpeechVoice(voices)?humanisedClinicalVoiceSegments(a):englishClinicalVoiceSegments(a);
-      return speakUtteranceSequence(segments,voices);
+      const ok=speakUtteranceSequence(segments,voices);
+      if(!ok)console.warn('Clinical voice did not start. speechSynthesis state:',{speaking:synth.speaking,pending:synth.pending,paused:synth.paused,voices:voices.length});
+      return ok;
     }
     async function speakLocalClinicalVoice(a){
       return await playClinicalVoiceNow(a);
@@ -2923,6 +2936,9 @@ Caring with Compassion. Living with Dignity.`;
     }
 
     async function testSampleEscalationVoice(){
+      // Start speech-engine interaction before any await so the user's click remains
+      // the active gesture. AudioContext unlocking is secondary to voice playback.
+      primeSpeechSynthesisFromGesture();
       try{
         const Ctx=window.AudioContext||window.webkitAudioContext;
         if(Ctx){
