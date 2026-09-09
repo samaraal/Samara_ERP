@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.18';
-const CACHE = 'samara-erp-2.11.18-clinical-voice-fix';
+const APP_VERSION = '2.11.19';
+const CACHE = 'samara-erp-2.11.19-clinical-voice-click-fix';
 const SHELL = [
   './',
   './index.html',

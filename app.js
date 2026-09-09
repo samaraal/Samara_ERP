@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.18';
+  const APP_VERSION = '2.11.19';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2762,6 +2762,20 @@ Caring with Compassion. Living with Dignity.`;
       const segments=hasTamilSpeechVoice(voices)?humanisedClinicalVoiceSegments(a):englishClinicalVoiceSegments(a);
       return speakUtteranceSequence(segments,voices);
     }
+    // v2.11.19: Voice-test buttons must start speech while the browser still
+    // considers the click a live user gesture. Do not await voiceschanged here:
+    // Chrome/Edge can otherwise silently block speech after the async delay.
+    // If the voice list has not loaded yet, speak the English fallback immediately
+    // with the device default voice; later automatic alerts may still use Tamil.
+    function playClinicalVoiceFromUserGesture(a){
+      const synth=window.speechSynthesis;
+      if(!synth)return false;
+      try{synth.cancel();synth.resume?.()}catch(_){}
+      let voices=[];
+      try{voices=synth.getVoices?.()||[]}catch(_){}
+      const segments=hasTamilSpeechVoice(voices)?humanisedClinicalVoiceSegments(a):englishClinicalVoiceSegments(a);
+      return speakUtteranceSequence(segments,voices);
+    }
     async function speakLocalClinicalVoice(a){
       return await playClinicalVoiceNow(a);
     }
@@ -2862,21 +2876,21 @@ Caring with Compassion. Living with Dignity.`;
     async function testVitalsVoice(){
       const sample={title:'Vitals Due',patient_name:'Radhakrishnan',room_label:'101',description:'Vitals pending',overdue_minutes:0};
       try{
-        await playClinicalVoiceNow(sample);
+        playClinicalVoiceFromUserGesture(sample);
       }catch(error){console.warn('Vitals voice playback unavailable:',error)}
     }
 
     async function testDailyCareVoice(){
       const sample={title:'Daily Care Due',patient_name:'Radhakrishnan',room_label:'101',description:'Daily care pending',overdue_minutes:0};
       try{
-        await playClinicalVoiceNow(sample);
+        playClinicalVoiceFromUserGesture(sample);
       }catch(error){console.warn('Daily care voice playback unavailable:',error)}
     }
 
     async function testClinicalTaskVoice(){
       const sample={title:'Clinical Task Due',patient_name:'Radhakrishnan',room_label:'101',description:'Clinical task pending',overdue_minutes:0};
       try{
-        await playClinicalVoiceNow(sample);
+        playClinicalVoiceFromUserGesture(sample);
       }catch(error){console.warn('Clinical task voice playback unavailable:',error)}
     }
 
@@ -2902,7 +2916,7 @@ Caring with Compassion. Living with Dignity.`;
       }
 
       try{
-        await playClinicalVoiceNow(live);
+        playClinicalVoiceFromUserGesture(live);
       }catch(error){
         console.warn('Live escalation voice playback unavailable:',error);
       }
@@ -2927,7 +2941,7 @@ Caring with Compassion. Living with Dignity.`;
         overdue_minutes:95
       };
       try{
-        await playClinicalVoiceNow(sample);
+        playClinicalVoiceFromUserGesture(sample);
       }catch(error){
         console.warn('Escalation voice playback unavailable:',error);
       }
