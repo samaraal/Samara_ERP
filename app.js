@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.20';
+  const APP_VERSION = '2.11.21';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2862,6 +2862,94 @@ Caring with Compassion. Living with Dignity.`;
         return false;
       }
     }
+    async function runAudioDiagnostics(){
+      // v2.11.21: standalone audio diagnostics. This deliberately bypasses
+      // clinical alerts, Supabase, patient data and the Tamil voice formatter.
+      const report={
+        time:new Date().toLocaleString(),
+        secureContext:window.isSecureContext===true,
+        audioContextSupport:!!(window.AudioContext||window.webkitAudioContext),
+        audioContextState:'not tested',
+        beep:'not tested',
+        speechSynthesis:!!window.speechSynthesis,
+        utteranceSupport:typeof window.SpeechSynthesisUtterance==='function',
+        voices:0,
+        tamilVoices:0,
+        englishIndiaVoices:0,
+        speech:'not tested',
+        speechError:''
+      };
+      // Plain WebAudio beep, with no Samara clinical tone helper involved.
+      try{
+        const Ctx=window.AudioContext||window.webkitAudioContext;
+        if(!Ctx)throw new Error('AudioContext is not supported');
+        const ctx=audioContext.current||(audioContext.current=new Ctx());
+        if(ctx.state==='suspended')await ctx.resume();
+        report.audioContextState=ctx.state;
+        const osc=ctx.createOscillator();
+        const gain=ctx.createGain();
+        osc.type='sine'; osc.frequency.value=660;
+        gain.gain.setValueAtTime(.0001,ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(.28,ctx.currentTime+.03);
+        gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.42);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(); osc.stop(ctx.currentTime+.45);
+        report.beep='started';
+      }catch(error){
+        report.audioContextState=report.audioContextState==='not tested'?'failed':report.audioContextState;
+        report.beep='failed: '+(error?.message||String(error));
+      }
+
+      // Plain English Web Speech test. No Tamil, no patient, no clinical formatter.
+      try{
+        const synth=window.speechSynthesis;
+        if(!synth||typeof window.SpeechSynthesisUtterance!=='function')throw new Error('Speech synthesis is not supported');
+        try{synth.resume?.()}catch(_){}
+        let voices=[]; try{voices=synth.getVoices?.()||[]}catch(_){}
+        report.voices=voices.length;
+        report.tamilVoices=voices.filter(v=>String(v.lang||'').toLowerCase().startsWith('ta')).length;
+        report.englishIndiaVoices=voices.filter(v=>String(v.lang||'').toLowerCase().startsWith('en-in')).length;
+        const u=new SpeechSynthesisUtterance('Samara audio diagnostic. English voice test.');
+        u.lang='en-US'; u.rate=.92; u.pitch=1; u.volume=1;
+        const english=voices.find(v=>String(v.lang||'').toLowerCase().startsWith('en-us'))||voices.find(v=>String(v.lang||'').toLowerCase().startsWith('en'))||voices[0];
+        if(english)u.voice=english;
+        speechKeepAlive.current.push(u);
+        const release=()=>{speechKeepAlive.current=speechKeepAlive.current.filter(x=>x!==u)};
+        u.onstart=()=>{report.speech='started'};
+        u.onend=()=>{report.speech='completed';release()};
+        u.onerror=(event)=>{report.speech='failed';report.speechError=String(event?.error||'unknown speech error');release()};
+        synth.speak(u);
+        if(report.speech==='not tested')report.speech='queued';
+      }catch(error){report.speech='failed';report.speechError=error?.message||String(error)}
+
+      window.setTimeout(()=>{
+        try{
+          const synth=window.speechSynthesis;
+          const lines=[
+            'SAMARA AUDIO DIAGNOSTICS',
+            '',
+            `Secure site: ${report.secureContext?'YES':'NO'}`,
+            `AudioContext supported: ${report.audioContextSupport?'YES':'NO'}`,
+            `AudioContext state: ${report.audioContextState}`,
+            `Simple beep: ${report.beep}`,
+            '',
+            `Speech synthesis supported: ${report.speechSynthesis&&report.utteranceSupport?'YES':'NO'}`,
+            `Voices detected: ${report.voices}`,
+            `Tamil voices: ${report.tamilVoices}`,
+            `English India voices: ${report.englishIndiaVoices}`,
+            `Simple English speech: ${report.speech}`,
+            report.speechError?`Speech error: ${report.speechError}`:'',
+            '',
+            `Browser speech state: speaking=${!!synth?.speaking}, pending=${!!synth?.pending}, paused=${!!synth?.paused}`,
+            '',
+            'Please take a screenshot of this report and send it to ChatGPT.'
+          ].filter(x=>x!==''||true);
+          alert(lines.join('\n'));
+        }catch(error){alert('Audio diagnostics completed, but the report could not be displayed: '+(error?.message||error))}
+      },2200);
+      return report;
+    }
+
     async function testClinicalAlert(){
       // Local, non-clinical test only: no patient/task/escalation row is written.
       try{
@@ -3160,7 +3248,7 @@ Caring with Compassion. Living with Dignity.`;
       },{onConflict:'alert_key'});
       if(error)throw error;await refresh();
     }
-    return {alerts,settings,setSettings,soundUnlocked,unlockSound,toggleSound,requestNotifications,testClinicalAlert,testVitalsVoice,testDailyCareVoice,testClinicalTaskVoice,testSampleEscalationVoice,playCurrentLiveEscalation,refresh,acknowledge,setPage};
+    return {alerts,settings,setSettings,soundUnlocked,unlockSound,toggleSound,requestNotifications,runAudioDiagnostics,testClinicalAlert,testVitalsVoice,testDailyCareVoice,testClinicalTaskVoice,testSampleEscalationVoice,playCurrentLiveEscalation,refresh,acknowledge,setPage};
   }
 
   function ClinicalAlertsPage({engine,setPage}){
@@ -3312,6 +3400,7 @@ Caring with Compassion. Living with Dignity.`;
         },engine.soundUnlocked?'✓ Sound Enabled':'Enable Sound'),
           h('button',{className:'btn btn-secondary',onClick:engine.requestNotifications},mobileClinicalDevice?'Enable Mobile Notifications':'Enable Browser Alerts'),
           h('button',{className:'btn btn-primary',onClick:engine.testClinicalAlert},'🔔 Test Alert'),
+          !mobileClinicalDevice&&h('button',{className:'btn btn-secondary',onClick:engine.runAudioDiagnostics},'🔊 Audio Diagnostics'),
           !mobileClinicalDevice&&h('button',{className:'btn btn-secondary',onClick:engine.testVitalsVoice},'▶ Test Vitals Voice'),
           !mobileClinicalDevice&&h('button',{className:'btn btn-secondary',onClick:engine.testDailyCareVoice},'▶ Test Daily Care Voice'),
           !mobileClinicalDevice&&h('button',{className:'btn btn-secondary',onClick:engine.testClinicalTaskVoice},'▶ Test Clinical Task Voice'),
