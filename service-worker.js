@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.21';
-const CACHE = 'samara-erp-2.11.21-audio-diagnostics';
+const APP_VERSION = '2.11.22';
+const CACHE = 'samara-erp-2.11.22-whatsapp-logs-date-fix';
 const SHELL = [
   './',
   './index.html',

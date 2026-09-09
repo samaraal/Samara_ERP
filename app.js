@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.21';
+  const APP_VERSION = '2.11.22';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -24606,7 +24606,7 @@ Please access the Samara Family Portal for detailed account information.`;
       h(Section,{title:'Message History',subtitle:`Showing ${filtered.length} of ${rows.length} messages`},
         h(LogTable,{title:'',heads:['Patient','Communication','Recipient','Report Date','Status','Accepted / Sent','Delivered','Read','Meta Message ID','Error'],rows:filtered.map(r=>{
           const p=patientMap[r.patient_id]; const st=displayStatus(r); const tone=st.toLowerCase()==='failed'?'#b91c1c':st.toLowerCase()==='delivered'?'#15803d':st.toLowerCase()==='read'?'#a20b55':'#1d4ed8';
-          return [formalName(p)||'—',r.communication_type||'—',`${r.recipient_name||'—'}${r.recipient_number?` · ${r.recipient_number}`:''}`,r.report_date?formatDateOnly(r.report_date):'—',h('strong',{style:{color:tone}},st),r.sent_at?fmt(r.sent_at):(r.created_at?fmt(r.created_at):'—'),r.delivered_at?fmt(r.delivered_at):'—',r.read_at?fmt(r.read_at):'—',r.provider_message_id||'—',r.error_message||'—'];
+          return [formalName(p)||'—',r.communication_type||'—',`${r.recipient_name||'—'}${r.recipient_number?` · ${r.recipient_number}`:''}`,r.report_date?formatDateIN(r.report_date):'—',h('strong',{style:{color:tone}},st),r.sent_at?fmt(r.sent_at):(r.created_at?fmt(r.created_at):'—'),r.delivered_at?fmt(r.delivered_at):'—',r.read_at?fmt(r.read_at):'—',r.provider_message_id||'—',r.error_message||'—'];
         })})
       )
     );
