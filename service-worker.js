@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.17';
-const CACHE = 'samara-erp-2.11.17-patient-history-spacing';
+const APP_VERSION = '2.11.18';
+const CACHE = 'samara-erp-2.11.18-clinical-voice-fix';
 const SHELL = [
   './',
   './index.html',

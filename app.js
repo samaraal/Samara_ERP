@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.17';
+  const APP_VERSION = '2.11.18';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2374,24 +2374,48 @@ Caring with Compassion. Living with Dignity.`;
       if(/en-us|en-gb|en-au/.test(lang))score-=200;
       return score;
     }
-    function bestSingleClinicalVoice(voices){
-      const india=(voices||[]).filter(v=>{
-        const lang=String(v.lang||'').toLowerCase();
-        return lang.startsWith('ta')||lang==='en-in'||lang.startsWith('en-in');
-      });
-      return india.sort((a,b)=>singleVoiceScore(b)-singleVoiceScore(a))[0]||null;
+    function bestSingleClinicalVoice(voices,preferredLang='ta-IN'){
+      const list=[...(voices||[])];
+      if(!list.length)return null;
+      const pref=String(preferredLang||'ta-IN').toLowerCase();
+      const ranked=list.map(v=>{
+        const lang=String(v?.lang||'').toLowerCase();
+        let score=singleVoiceScore(v);
+        if(pref.startsWith('ta')&&lang.startsWith('ta'))score+=400;
+        else if(pref.startsWith('en')&&lang.startsWith('en'))score+=250;
+        if(v?.default)score+=8;
+        return {v,score};
+      }).sort((a,b)=>b.score-a.score);
+      return ranked[0]?.v||list[0]||null;
     }
-    function waitForSpeechVoices(){
+    function hasTamilSpeechVoice(voices){
+      return (voices||[]).some(v=>String(v?.lang||'').toLowerCase().startsWith('ta'));
+    }
+    async function waitForSpeechVoices(maxWaitMs=3500){
       const synth=window.speechSynthesis;
-      if(!synth)return Promise.resolve([]);
-      const ready=synth.getVoices?.()||[];
-      if(ready.length)return Promise.resolve(ready);
-      return new Promise(resolve=>{
-        let done=false;
-        const finish=()=>{if(done)return;done=true;resolve(synth.getVoices?.()||[])};
-        const old=synth.onvoiceschanged;
-        synth.onvoiceschanged=()=>{try{if(typeof old==='function')old()}catch(_){}finish()};
-        window.setTimeout(finish,700);
+      if(!synth)return [];
+      try{synth.resume?.()}catch(_){}
+      let ready=synth.getVoices?.()||[];
+      if(ready.length)return ready;
+
+      const started=Date.now();
+      return await new Promise(resolve=>{
+        let finished=false;
+        let timer=null;
+        const finish=()=>{
+          if(finished)return;
+          const list=synth.getVoices?.()||[];
+          if(list.length||Date.now()-started>=maxWaitMs){
+            finished=true;
+            if(timer)window.clearInterval(timer);
+            try{synth.removeEventListener?.('voiceschanged',onChanged)}catch(_){}
+            resolve(list);
+          }
+        };
+        const onChanged=()=>finish();
+        try{synth.addEventListener?.('voiceschanged',onChanged,{once:false})}catch(_){}
+        timer=window.setInterval(finish,200);
+        window.setTimeout(finish,maxWaitMs);
       });
     }
     const TAMIL_DIGITS={
@@ -2579,10 +2603,11 @@ Caring with Compassion. Living with Dignity.`;
     }
     function speakUtteranceSequence(segments,voices){
       const synth=window.speechSynthesis;
-      if(!synth||!segments.length)return;
-      const singleVoice=bestSingleClinicalVoice(voices);
-      const voiceLang=String(singleVoice?.lang||'ta-IN').toLowerCase();
-      const speechLang=voiceLang.startsWith('ta')?'ta-IN':'en-IN';
+      if(!synth||!segments.length)return false;
+      try{synth.resume?.()}catch(_){}
+      const requestedLang=String(segments[0]?.lang||'ta-IN');
+      const singleVoice=bestSingleClinicalVoice(voices,requestedLang);
+      const speechLang=String(singleVoice?.lang||requestedLang||'ta-IN');
 
       // v2.9.45: expand [[LETTER:...]] markers into protected sub-segments.
       // A/R/B etc. are spoken alone, slightly slower/louder, and followed by
@@ -2613,8 +2638,14 @@ Caring with Compassion. Living with Dignity.`;
         if(index>=expanded.length)return;
         const seg=expanded[index++];
         const u=new SpeechSynthesisUtterance(seg.text);
-        u.lang=speechLang;
-        if(singleVoice)u.voice=singleVoice;
+        u.lang=String(seg.lang||speechLang||'ta-IN');
+        if(singleVoice){
+          const voiceLang=String(singleVoice.lang||'').toLowerCase();
+          const segLang=String(seg.lang||'').toLowerCase();
+          // Bind a voice only when it matches the segment language family.
+          // Otherwise let Chrome select its own compatible voice for that language.
+          if(!segLang||voiceLang.split('-')[0]===segLang.split('-')[0])u.voice=singleVoice;
+        }
 
         if(seg.__singleLetter){
           // Deliberately stronger than normal speech.
@@ -2643,6 +2674,7 @@ Caring with Compassion. Living with Dignity.`;
         segments:expanded.length
       });
       next();
+      return true;
     }
     function signedInStaffForSpeech(){
       const value=String(
@@ -2707,12 +2739,31 @@ Caring with Compassion. Living with Dignity.`;
       }
       return [{text:`${staffPrefix} கிளினிக்கல் டாஸ்க் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
     }
+    function englishClinicalVoiceSegments(a){
+      const d=clinicalVoiceData(a);
+      const patient=String(d.patient||'patient').trim()||'patient';
+      const room=String(d.room||'').trim();
+      const roomText=room?` Room ${room}.`:'';
+      if(d.isMedication){
+        const titleMedicine=String(d.title||'').replace(/^\s*(?:Medicine|Medication)\s+Due\s*:\s*/i,'').trim();
+        const medicine=[titleMedicine,String(d.details||'').trim()].filter(Boolean).join(' ')||'medicine';
+        const overdue=d.overdue>0?` It is ${englishOverdueLabel(d.overdue)}.`:'';
+        return [{text:`Samara urgent request. Patient ${patient}.${roomText} Medication ${medicine} is due.${overdue} Please attend immediately and record after giving the medicine. Thank you.`,lang:'en-IN',rate:.84,pause:0}];
+      }
+      const label=d.isVitals?'Vitals':d.isCare?'Daily care':d.isPhysio?'Physiotherapy':'Clinical task';
+      return [{text:`Dear staff. ${label} is pending for ${patient}.${roomText} Thank you.`,lang:'en-IN',rate:.84,pause:0}];
+    }
+    async function playClinicalVoiceNow(a){
+      const synth=window.speechSynthesis;
+      if(!synth)return false;
+      try{synth.cancel();synth.resume?.()}catch(_){}
+      const voices=await waitForSpeechVoices(3500);
+      try{synth.resume?.()}catch(_){}
+      const segments=hasTamilSpeechVoice(voices)?humanisedClinicalVoiceSegments(a):englishClinicalVoiceSegments(a);
+      return speakUtteranceSequence(segments,voices);
+    }
     async function speakLocalClinicalVoice(a){
-      if(!window.speechSynthesis)return false;
-      const voices=await waitForSpeechVoices();
-      window.speechSynthesis.cancel();
-      speakUtteranceSequence(humanisedClinicalVoiceSegments(a),voices);
-      return true;
+      return await playClinicalVoiceNow(a);
     }
     function speak(a){
       if(isMobileClinicalDevice())return;
@@ -2811,27 +2862,21 @@ Caring with Compassion. Living with Dignity.`;
     async function testVitalsVoice(){
       const sample={title:'Vitals Due',patient_name:'Radhakrishnan',room_label:'101',description:'Vitals pending',overdue_minutes:0};
       try{
-        const voices=await waitForSpeechVoices();
-        window.speechSynthesis?.cancel();
-        speakUtteranceSequence(humanisedClinicalVoiceSegments(sample),voices);
+        await playClinicalVoiceNow(sample);
       }catch(error){console.warn('Vitals voice playback unavailable:',error)}
     }
 
     async function testDailyCareVoice(){
       const sample={title:'Daily Care Due',patient_name:'Radhakrishnan',room_label:'101',description:'Daily care pending',overdue_minutes:0};
       try{
-        const voices=await waitForSpeechVoices();
-        window.speechSynthesis?.cancel();
-        speakUtteranceSequence(humanisedClinicalVoiceSegments(sample),voices);
+        await playClinicalVoiceNow(sample);
       }catch(error){console.warn('Daily care voice playback unavailable:',error)}
     }
 
     async function testClinicalTaskVoice(){
       const sample={title:'Clinical Task Due',patient_name:'Radhakrishnan',room_label:'101',description:'Clinical task pending',overdue_minutes:0};
       try{
-        const voices=await waitForSpeechVoices();
-        window.speechSynthesis?.cancel();
-        speakUtteranceSequence(humanisedClinicalVoiceSegments(sample),voices);
+        await playClinicalVoiceNow(sample);
       }catch(error){console.warn('Clinical task voice playback unavailable:',error)}
     }
 
@@ -2857,9 +2902,7 @@ Caring with Compassion. Living with Dignity.`;
       }
 
       try{
-        const voices=await waitForSpeechVoices();
-        window.speechSynthesis?.cancel();
-        speakUtteranceSequence(humanisedClinicalVoiceSegments(live),voices);
+        await playClinicalVoiceNow(live);
       }catch(error){
         console.warn('Live escalation voice playback unavailable:',error);
       }
@@ -2884,9 +2927,7 @@ Caring with Compassion. Living with Dignity.`;
         overdue_minutes:95
       };
       try{
-        const voices=await waitForSpeechVoices();
-        window.speechSynthesis?.cancel();
-        speakUtteranceSequence(humanisedClinicalVoiceSegments(sample),voices);
+        await playClinicalVoiceNow(sample);
       }catch(error){
         console.warn('Escalation voice playback unavailable:',error);
       }
