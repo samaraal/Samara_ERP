@@ -219,6 +219,11 @@ function initSamaraInaugurationInvitation(){
         gap:12px 14px;
       }
       @media(max-width:760px){
+  .patient-file-backdrop .patient-medication-tab{gap:9px!important;}
+  .patient-file-backdrop .patient-medication-tab .section-card{padding:12px!important;}
+  .patient-file-backdrop .patient-medication-tab .section-card h4{font-size:16px!important;margin-bottom:7px!important;}
+  .patient-file-backdrop .patient-med-table{font-size:12px!important;}
+  .patient-file-backdrop .patient-med-table th,.patient-file-backdrop .patient-med-table td{padding:8px!important;}
         .employee-address-heading{display:grid;grid-template-columns:1fr}
         .employee-address-same{width:100%;border-radius:13px;white-space:normal}
         .employee-address-grid{grid-template-columns:1fr}
@@ -233,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.34';
+  const APP_VERSION = '2.11.35';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -291,6 +296,7 @@ function initSamaraInaugurationInvitation(){
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
 
 
+  // v2.11.35: Patient File Medicines simplified into compact tables for current prescription, modification history, doctor review and today's MAR.
   // v2.11.34: Patient File Medicines now shows full prescription/version/review history and today's MAR only.
   // v2.11.27: nurses/caregivers use priority cards on mobile and the full medication register on desktop.
   // v2.11.26: medication doctor-review revisions preserve prescription history and effective-time MAR safety.
@@ -16844,6 +16850,18 @@ Please keep these login details confidential.`;
   overflow-wrap:anywhere!important;
 }
 .patient-file-backdrop .patient-medication-tab{display:grid!important;gap:12px!important;}
+.patient-file-backdrop .patient-med-table-wrap{width:100%!important;overflow-x:auto!important;border:1px solid #ead8e1!important;border-radius:12px!important;background:#fff!important;}
+.patient-file-backdrop .patient-med-table{width:100%!important;border-collapse:collapse!important;min-width:780px!important;font-size:13px!important;}
+.patient-file-backdrop .patient-med-table th{padding:9px 10px!important;text-align:left!important;background:#f9edf3!important;color:#781143!important;font-size:12px!important;white-space:nowrap!important;border-bottom:1px solid #e8cfdb!important;}
+.patient-file-backdrop .patient-med-table td{padding:9px 10px!important;vertical-align:top!important;border-bottom:1px solid #f0e3e9!important;line-height:1.35!important;}
+.patient-file-backdrop .patient-med-table tbody tr:last-child td{border-bottom:0!important;}
+.patient-file-backdrop .patient-med-table small{display:block!important;margin-top:2px!important;color:#7b6872!important;font-size:11px!important;}
+.patient-file-backdrop .patient-med-change-lines{display:grid!important;gap:4px!important;min-width:210px!important;}
+.patient-file-backdrop .patient-med-change-lines>div{padding-bottom:4px!important;border-bottom:1px dotted #ead8e1!important;}
+.patient-file-backdrop .patient-med-change-lines>div:last-child{padding-bottom:0!important;border-bottom:0!important;}
+.patient-file-backdrop .patient-med-review-table{min-width:900px!important;}
+.patient-file-backdrop .patient-med-history-table{min-width:980px!important;}
+.patient-file-backdrop .patient-med-mar-table{min-width:620px!important;}
 .patient-file-backdrop .patient-med-row-head{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:12px!important;flex-wrap:wrap!important;}
 .patient-file-backdrop .patient-med-row-head small{display:block!important;margin-top:3px!important;color:#78636f!important;}
 .patient-file-backdrop .patient-med-history-list,.patient-file-backdrop .patient-med-review-list{display:grid!important;gap:10px!important;}
@@ -17242,63 +17260,75 @@ Please keep these login details confidential.`;
           tab==='Medicines'&&h('div',{className:'patient-medication-tab'},
             h('div',{className:'section-card'},
               h('h4',null,'Current Prescription'),
-              details.meds.length?details.meds.map(m=>h('div',{className:'timeline-item patient-med-current',key:m.id},
-                h('div',{className:'patient-med-row-head'},h('strong',null,[m.medicine_name,m.strength||m.dose].filter(Boolean).join(' ')),h('span',{className:'badge'},`V${m.version_no||1}`)),
-                h('div',{className:'time-list'},(Array.isArray(m.scheduled_times)?m.scheduled_times:String(m.scheduled_times||'').split(',')).filter(Boolean).map(t=>h('span',{className:'time-chip',key:t},medicationTimeLabel(t)))),
-                h('div',{className:'small-note'},[m.frequency,m.route,m.food_instruction,m.duration,m.special_instruction||m.special_instructions].filter(Boolean).join(' · '))
+              details.meds.length?h('div',{className:'patient-med-table-wrap'},h('table',{className:'patient-med-table'},
+                h('thead',null,h('tr',null,['Medicine','Dose / Strength','Frequency','Route','Time','Food / Instruction'].map(x=>h('th',{key:x},x)))),
+                h('tbody',null,details.meds.map(m=>h('tr',{key:m.id},
+                  h('td',null,h('strong',null,m.medicine_name||'Medicine'),h('small',null,`V${m.version_no||1}`)),
+                  h('td',null,m.strength||m.dose||'—'),
+                  h('td',null,m.frequency||'—'),
+                  h('td',null,m.route||'—'),
+                  h('td',null,(Array.isArray(m.scheduled_times)?m.scheduled_times:String(m.scheduled_times||'').split(',')).filter(Boolean).map(medicationTimeLabel).join(', ')||'—'),
+                  h('td',null,[m.food_instruction,m.special_instruction||m.special_instructions].filter(Boolean).join(' · ')||'—')
+                )))
               )):sectionEmpty('No active medicine orders.')
             ),
             h('div',{className:'section-card'},
-              h('h4',null,'Prescription & Modification History'),
-              h('p',{className:'small-note'},'Original prescriptions, additions, modifications and stopped medicines are retained below with effective date/time and doctor details.'),
-              (details.medHistory||[]).length?h('div',{className:'patient-med-history-list'},[...(details.medHistory||[])].sort((a,b)=>String(a.effective_from||a.created_at||'').localeCompare(String(b.effective_from||b.created_at||''))).map(order=>{
-                const version=Number(order.version_no||1);
-                const rawAction=String(order.change_action||'').trim();
-                const action=/add/i.test(rawAction)?`Added Medication${rawAction?` · ${rawAction}`:''}`:(version===1?`Original Medication${rawAction?` · ${rawAction}`:''}`:(rawAction||'Modified Medication'));
-                const stopped=order.stopped_at?`Stopped ${fmt(order.stopped_at)}`:(order.is_active===false?(order.status||'Stopped'):(order.status||'Active'));
-                return h('div',{className:'patient-med-history-card',key:`history-${order.id}`},
-                  h('div',{className:'patient-med-row-head'},
-                    h('div',null,h('strong',null,[order.medicine_name,order.strength||order.dose].filter(Boolean).join(' ')),h('small',null,`${action} · Version ${version}`)),
-                    h('span',{className:`badge ${order.is_active===false?'off':''}`},stopped)
-                  ),
-                  h('div',{className:'patient-med-history-grid'},
-                    h('div',null,h('span',null,'Frequency / Route'),h('strong',null,[order.frequency,order.route].filter(Boolean).join(' · ')||'—')),
-                    h('div',null,h('span',null,'Times'),h('strong',null,(Array.isArray(order.scheduled_times)?order.scheduled_times:String(order.scheduled_times||'').split(',')).filter(Boolean).map(medicationTimeLabel).join(', ')||'—')),
-                    h('div',null,h('span',null,'Effective From'),h('strong',null,order.effective_from?fmt(order.effective_from):(order.start_date?formatDateIN(order.start_date):fmt(order.created_at)))),
-                    h('div',null,h('span',null,'Stopped At'),h('strong',null,order.stopped_at?fmt(order.stopped_at):'—')),
-                    h('div',null,h('span',null,'Doctor'),h('strong',null,order.prescribed_by_doctor||'—')),
-                    h('div',null,h('span',null,'Instruction'),h('strong',null,[order.food_instruction,order.special_instruction||order.special_instructions].filter(Boolean).join(' · ')||'—'))
-                  )
-                );
-              })):sectionEmpty('No prescription history available.')
+              h('h4',null,'Prescription / Modification History'),
+              h('p',{className:'small-note'},'Original prescription and every later addition, modification or stoppage are shown in one chronological table.'),
+              (details.medHistory||[]).length?h('div',{className:'patient-med-table-wrap'},h('table',{className:'patient-med-table patient-med-history-table'},
+                h('thead',null,h('tr',null,['Date & Time','Action','Medicine','Dose','Frequency / Route','Time','Doctor','Status'].map(x=>h('th',{key:x},x)))),
+                h('tbody',null,[...(details.medHistory||[])].sort((a,b)=>String(a.effective_from||a.created_at||'').localeCompare(String(b.effective_from||b.created_at||''))).map(order=>{
+                  const version=Number(order.version_no||1);
+                  const rawAction=String(order.change_action||'').trim();
+                  const action=/add/i.test(rawAction)?'Added':(version===1?'Original':(rawAction||'Modified'));
+                  const status=order.stopped_at?`Stopped ${fmt(order.stopped_at)}`:(order.is_active===false?(order.status||'Stopped'):(order.status||'Active'));
+                  return h('tr',{key:`history-${order.id}`},
+                    h('td',null,order.effective_from?fmt(order.effective_from):(order.start_date?formatDateIN(order.start_date):fmt(order.created_at))),
+                    h('td',null,h('span',{className:`review-action ${String(action).toLowerCase()}`},action),h('small',null,`V${version}`)),
+                    h('td',null,h('strong',null,order.medicine_name||'Medicine')),
+                    h('td',null,order.strength||order.dose||'—'),
+                    h('td',null,[order.frequency,order.route].filter(Boolean).join(' · ')||'—'),
+                    h('td',null,(Array.isArray(order.scheduled_times)?order.scheduled_times:String(order.scheduled_times||'').split(',')).filter(Boolean).map(medicationTimeLabel).join(', ')||'—'),
+                    h('td',null,order.prescribed_by_doctor||'—'),
+                    h('td',null,status)
+                  );
+                }))
+              )):sectionEmpty('No prescription history available.')
             ),
             h('div',{className:'section-card'},
-              h('h4',null,'Doctor Review / Medication Change Record'),
+              h('h4',null,'Doctor Review / Change Record'),
               details.medicationReviewError?h('div',{className:'message warning'},'Medication review history could not be loaded. The medication review database upgrade may need verification.'):null,
-              (details.medicationReviews||[]).length?h('div',{className:'patient-med-review-list'},(details.medicationReviews||[]).map(review=>{
-                const items=(details.medicationReviewItems||[]).filter(item=>item.review_id===review.id);
-                return h('div',{className:'patient-med-review-card',key:`review-${review.id}`},
-                  h('div',{className:'patient-med-row-head'},h('div',null,h('strong',null,review.doctor_name||'Doctor review'),h('small',null,`${fmt(review.reviewed_at)} · Effective ${fmt(review.effective_from)} · ${review.order_mode||review.review_type||'Review'}`)),h('span',{className:'badge'},review.verbal_confirmation_status||'Recorded')),
-                  review.clinical_notes?h('p',{className:'patient-med-review-note'},review.clinical_notes):null,
-                  items.length?h('div',{className:'patient-med-review-items'},items.map(item=>h('div',{className:'patient-med-review-item',key:item.id},
-                    h('span',{className:`review-action ${String(item.action||'').toLowerCase()}`},item.action||'Change'),
-                    h('strong',null,[item.medicine_name,item.strength||item.dose].filter(Boolean).join(' ')||'Medicine'),
-                    h('small',null,[item.frequency,item.route,(Array.isArray(item.scheduled_times)?item.scheduled_times:String(item.scheduled_times||'').split(',')).filter(Boolean).map(medicationTimeLabel).join(', '),item.change_note].filter(Boolean).join(' · '))
-                  ))):h('small',null,'Medication changes recorded in prescription version history above.')
-                );
-              })):sectionEmpty('No doctor medication review has been recorded yet.')
+              (details.medicationReviews||[]).length?h('div',{className:'patient-med-table-wrap'},h('table',{className:'patient-med-table patient-med-review-table'},
+                h('thead',null,h('tr',null,['Reviewed','Doctor','Effective From','Order Type','Medication Changes','Clinical Note'].map(x=>h('th',{key:x},x)))),
+                h('tbody',null,(details.medicationReviews||[]).map(review=>{
+                  const items=(details.medicationReviewItems||[]).filter(item=>item.review_id===review.id);
+                  return h('tr',{key:`review-${review.id}`},
+                    h('td',null,fmt(review.reviewed_at)),
+                    h('td',null,h('strong',null,review.doctor_name||'—')),
+                    h('td',null,fmt(review.effective_from)),
+                    h('td',null,review.order_mode||review.review_type||'Review'),
+                    h('td',null,items.length?h('div',{className:'patient-med-change-lines'},items.map(item=>h('div',{key:item.id},h('b',null,`${item.action||'Change'}: `),[item.medicine_name,item.strength||item.dose,item.frequency,item.route,(Array.isArray(item.scheduled_times)?item.scheduled_times:String(item.scheduled_times||'').split(',')).filter(Boolean).map(medicationTimeLabel).join(', ')].filter(Boolean).join(' · ')))):'—'),
+                    h('td',null,review.clinical_notes||'—')
+                  );
+                }))
+              )):sectionEmpty('No doctor medication review has been recorded yet.')
             ),
             h('div',{className:'section-card'},
               h('h4',null,"Today's Medication Administration"),
-              h('p',{className:'small-note'},'Only the current day’s MAR is shown in the Patient File. Older administration records remain available in Medication Administration.'),
-              details.mar.length?details.mar.map(x=>{
-                const order=(details.medHistory||[]).find(m=>m.id===x.order_id)||{};
-                return h('div',{className:'timeline-item',key:x.id},
-                  h('div',{className:'patient-med-row-head'},h('strong',null,`${medicationTimeLabel(x.scheduled_time)} · ${x.status}`),h('span',{className:'small-note'},x.administered_at?`Given/recorded ${fmt(x.administered_at)}`:'Not administered')),
-                  h('div',null,[order.medicine_name,order.strength||order.dose].filter(Boolean).join(' ')||'Medicine'),
-                  h('span',null,x.remarks||'—')
-                );
-              }):sectionEmpty('No medication administration recorded today.')
+              h('p',{className:'small-note'},'Only today’s MAR is shown here.'),
+              details.mar.length?h('div',{className:'patient-med-table-wrap'},h('table',{className:'patient-med-table patient-med-mar-table'},
+                h('thead',null,h('tr',null,['Scheduled','Medicine','Status','Recorded Time','Remarks'].map(x=>h('th',{key:x},x)))),
+                h('tbody',null,details.mar.map(x=>{
+                  const order=(details.medHistory||[]).find(m=>m.id===x.order_id)||{};
+                  return h('tr',{key:x.id},
+                    h('td',null,medicationTimeLabel(x.scheduled_time)),
+                    h('td',null,[order.medicine_name,order.strength||order.dose].filter(Boolean).join(' ')||'Medicine'),
+                    h('td',null,h('strong',null,x.status||'—')),
+                    h('td',null,x.administered_at?fmt(x.administered_at):'—'),
+                    h('td',null,x.remarks||'—')
+                  );
+                }))
+              )):sectionEmpty('No medication administration recorded today.')
             )
           ),
           tab==='Nursing'&&h('div',{className:'section-card'},h('h4',null,'Master Care Plan'),details.care.length?details.care.map(c=>h('div',{className:'timeline-item',key:c.id},h('strong',null,c.care_type),h('span',null,`${c.shift} · ${c.frequency} · ${c.instruction||''}`))):sectionEmpty('No care orders.'),h('h4',{style:{marginTop:'18px'}},'Recent Care Records'),details.careLogs.length?details.careLogs.slice(0,30).map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.care_date)} · ${x.shift} · ${x.status}`),h('span',{className:'patient-file-detail'},` · ${x.remarks||'—'}`))):sectionEmpty('No care records.')),

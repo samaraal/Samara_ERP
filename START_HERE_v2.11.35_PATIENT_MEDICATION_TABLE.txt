@@ -1,0 +1,18 @@
+Samara Care ERP v2.11.35 — Patient Medication Table View
+
+Change made:
+- Patient File > Medicines is simplified for quick clinical review.
+- Current Prescription shown as a compact table.
+- Prescription / Modification History shown chronologically in one table with date/time, action, medicine, dose, frequency/route, time, doctor and status.
+- Doctor Review / Change Record shown as a compact table with review/effective time, doctor, order type, medication changes and clinical note.
+- Today's Medication Administration only is shown in the Patient File.
+- Older MAR remains in the main Medication Administration module.
+- Mobile view remains usable through horizontal table scrolling.
+
+Replace these files:
+1. app.js
+2. index.html
+3. config.js
+4. service-worker.js
+
+No SQL change required.

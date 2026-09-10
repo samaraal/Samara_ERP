@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.34';
-const CACHE = 'samara-erp-2.11.34-vapid-reregister';
+const APP_VERSION = '2.11.35';
+const CACHE = 'samara-erp-2.11.35-vapid-reregister';
 const SHELL = [
   './',
   './index.html',
