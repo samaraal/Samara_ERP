@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.26';
+  const APP_VERSION = '2.11.27';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -245,7 +245,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '10-Sep-2026 Medication Doctor Review';
+  const APP_BUILD_DATE = '10-Sep-2026 Medication Desktop Nurse Fix';
   const APP_SCHEMA_VERSION = '27';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -291,6 +291,7 @@ function initSamaraInaugurationInvitation(){
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
 
 
+  // v2.11.27: nurses/caregivers use priority cards on mobile and the full medication register on desktop.
   // v2.11.26: medication doctor-review revisions preserve prescription history and effective-time MAR safety.
   // v2.11.25: keep a bottom Close action available for long ERP pop-up windows.
   // A single body-level helper avoids changing the internal structure of every modal.
@@ -19855,6 +19856,16 @@ function RoomsBeds({profile}){
     const today=todayISOIndia();
     const [state,setState]=React.useState({loading:true,orders:[],mar:[],patients:[],reviews:[],reviewItems:[],error:'',reviewSetupError:''});
     const isFrontlineClinical=['Nurse','Caregiver'].includes(profile?.role);
+    const [compactMedicationView,setCompactMedicationView]=React.useState(()=>{
+      try{return window.matchMedia('(max-width:700px)').matches;}catch(_error){return (window.innerWidth||1024)<=700;}
+    });
+    React.useEffect(()=>{
+      let media;try{media=window.matchMedia('(max-width:700px)');}catch(_error){return;}
+      const sync=event=>setCompactMedicationView(Boolean(event.matches));
+      if(media.addEventListener)media.addEventListener('change',sync);else media.addListener?.(sync);
+      return()=>{if(media.removeEventListener)media.removeEventListener('change',sync);else media.removeListener?.(sync);};
+    },[]);
+    const useFrontlinePriority=isFrontlineClinical&&compactMedicationView;
     const [tab,setTab]=React.useState(()=>isFrontlineClinical?'Today’s MAR':'Active Prescriptions');
     const [patientFilter,setPatientFilter]=React.useState('');
     const [marTarget,setMarTarget]=React.useState(null);
@@ -20310,13 +20321,13 @@ function RoomsBeds({profile}){
       h(Section,{title:'Medication Administration & Prescription Register',subtitle:'Unified prescription history and MAR status from the patient record'},
         state.error&&h('div',{className:'message error'},`Unable to load part of the medication register: ${state.error}`),
         state.reviewSetupError&&h('div',{className:'message error'},'Medication Review database upgrade is not yet installed. Run MEDICATION_REVIEW_MIGRATION_v2.11.26.sql in Supabase SQL Editor before using Doctor Review / Modify.'),
-        !isFrontlineClinical&&h('div',{className:'panel-head'},
+        !useFrontlinePriority&&h('div',{className:'panel-head'},
           h('div',{className:'field',style:{minWidth:'260px',marginBottom:0}},h('label',null,'Patient filter'),h('select',{value:patientFilter,onChange:e=>setPatientFilter(e.target.value)},h('option',{value:''},'All patients'),state.patients.filter(p=>p.is_active!==false).map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)||p.full_name} · ${p.patient_id||'No ID'}`)))),
           h('div',{className:'actions'},canReviseMedication&&h('button',{type:'button',className:'btn btn-primary',disabled:Boolean(state.reviewSetupError),onClick:()=>openMedicationReview(patientFilter)},'Doctor Review / Modify'),h('button',{type:'button',className:'btn btn-secondary',onClick:load},state.loading?'Loading…':'Refresh'))
         ),
-        !isFrontlineClinical&&h('div',{className:'time-chip-list',style:{marginTop:'16px'}},tabs.map(([name,count])=>h('button',{type:'button',key:name,className:`btn ${tab===name?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(name)},`${name} (${count})`)))
+        !useFrontlinePriority&&h('div',{className:'time-chip-list',style:{marginTop:'16px'}},tabs.map(([name,count])=>h('button',{type:'button',key:name,className:`btn ${tab===name?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(name)},`${name} (${count})`)))
       ),
-      state.loading?h('div',{className:'card panel loading'},'Loading medication register…'):(isFrontlineClinical?nurseMedicationCards:table),
+      state.loading?h('div',{className:'card panel loading'},'Loading medication register…'):(useFrontlinePriority?nurseMedicationCards:table),
       reviewOpen&&h('div',{className:'modal-backdrop medication-review-backdrop',onClick:e=>{if(e.target===e.currentTarget&&!reviewBusy)setReviewOpen(false)}},
         h('form',{className:'card modal medication-review-modal',onSubmit:saveMedicationReview},
           h('div',{className:'panel-head'},h('div',null,h('h3',null,'Doctor Review / Modify Medication'),h('small',null,'Only medication-review fields are shown. Previous prescriptions and MAR entries are never overwritten.')),h('button',{type:'button',className:'close',disabled:reviewBusy,onClick:()=>setReviewOpen(false)},'×')),
