@@ -1,4 +1,4 @@
-Samara Care ERP v2.11.30 — Mobile Notification Enable/Disable Status
+Samara Care ERP v2.11.31 — Mobile Push Status + Bell Navigation
 
 Replace ONLY:
 - app.js
@@ -6,12 +6,15 @@ Replace ONLY:
 - index.html
 - service-worker.js
 
-Changes:
-- Clinical Alerts now shows the actual mobile push registration state.
-- GREEN + tick: ✓ Mobile Notifications Enabled
-- RED + cross: ✕ Mobile Notifications Disabled
-- Tapping the green enabled button disables this device and deactivates its push_subscriptions row.
-- Tapping the red disabled button registers/re-registers this device for locked-screen push alerts.
-- Status is checked from the browser's actual PushManager subscription, not merely from a global setting.
+Corrections:
+1. The actual Clinical Alerts mobile notification button is now state-aware:
+   - GREEN + ✓ Mobile Notifications Enabled
+   - RED + ✕ Mobile Notifications Disabled
+   - Tapping green disables this phone and deactivates its push subscription.
+   - Tapping red enables/re-registers this phone.
 
-No medication, vitals, nursing-care timing/escalation logic, billing, HR, or other ERP workflow changed.
+2. Top-right bell:
+   - Tapping the bell now opens Clinical Alerts directly filtered to Escalated items when escalations exist.
+   - If there are no escalations, it opens all unresolved Clinical Alerts.
+
+No medication, vitals, nursing care, escalation timing, billing, HR, or other ERP workflow changed.
