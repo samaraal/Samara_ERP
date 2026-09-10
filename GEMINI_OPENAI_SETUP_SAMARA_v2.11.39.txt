@@ -1,0 +1,48 @@
+SAMARA CARE ERP v2.11.39
+GEMINI PRIMARY VOICE + OPENAI AUTOMATIC FALLBACK
+
+WHAT THIS VERSION DOES
+----------------------
+1. Gemini 2.5 Flash receives the complete Tamil or English recording first.
+2. Gemini converts colloquial/local Tamil into clear, simple English.
+3. If Gemini is unavailable, over quota, or times out, OpenAI runs automatically.
+4. The user can edit the converted text before selecting Use This Text.
+5. Record Again, Try Gemini Again and Try OpenAI Instead remain available.
+
+A. ERP FILES TO REPLACE
+-----------------------
+- app.js
+- styles.css
+- index.html
+- config.js
+- service-worker.js
+
+B. SUPABASE EDGE FUNCTION
+-------------------------
+Supabase Dashboard -> Edge Functions -> director-office-voice -> Code
+
+Replace the complete index.ts with:
+supabase/functions/director-office-voice/index.ts
+
+Then click Deploy.
+
+C. REQUIRED SUPABASE SECRETS
+----------------------------
+Keep these existing secrets:
+- GEMINI_API_KEY     (the key belonging to the newly paid Gemini project)
+- OPENAI_API_KEY     (fallback only)
+
+No Google Cloud service-account credentials are required for this version.
+GEMINI_VOICE_MODEL is optional; when absent, gemini-2.5-flash is used.
+
+D. AFTER UPLOADING ERP FILES
+----------------------------
+Open Samara ERP and select Update Now.
+If an older version remains cached, use App Help / Repair -> Repair App once.
+
+E. TEST
+------
+Test one multi-sentence local Tamil nursing handover.
+The review window should show editable simple English before it is entered.
+
+No SQL change is required.

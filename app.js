@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.38';
+  const APP_VERSION = '2.11.39';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '10-Sep-2026 Google Voice with OpenAI Fallback';
+  const APP_BUILD_DATE = '10-Sep-2026 Gemini Voice with OpenAI Fallback';
   const APP_SCHEMA_VERSION = '34';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -298,7 +298,7 @@ function initSamaraInaugurationInvitation(){
 
   // v2.11.36: Global Tamil / English voice input added to frontline nursing narrative fields (handover, remarks, notes, instructions, observations and similar manual entries).
   // v2.11.37: Nursing voice records until Stop and requires editable review before insertion.
-  // v2.11.38: Google Chirp 2 primary nursing voice with automatic/manual OpenAI fallback.
+  // v2.11.39: Gemini primary voice conversion with automatic/manual OpenAI fallback.
   // v2.11.35: Patient File Medicines simplified into compact tables for current prescription, modification history, doctor review and today's MAR.
   // v2.11.34: Patient File Medicines now shows full prescription/version/review history and today's MAR only.
   // v2.11.27: nurses/caregivers use priority cards on mobile and the full medication register on desktop.
@@ -6006,7 +6006,7 @@ Caring with Compassion. Living with Dignity.`;
     async function sendAudio(blob,lang,providerPreference='auto'){
       if(!blob)return setMessage('The previous recording is not available. Please record again.');
       audioBlobRef.current=blob;
-      setProcessing(true);setMessage(providerPreference==='openai'?'Trying OpenAI…':providerPreference==='google'?'Trying Google Chirp 2…':'Trying Google first; OpenAI will be used automatically if needed…');
+      setProcessing(true);setMessage(providerPreference==='openai'?'Trying OpenAI…':providerPreference==='gemini'?'Trying Gemini again…':'Trying Gemini first; OpenAI will be used automatically if needed…');
       try{
         const {data:{session}}=await client.auth.getSession();if(!session)throw new Error('Please sign in again.');
         const ext=(blob.type||'').includes('mp4')?'m4a':(blob.type||'').includes('ogg')?'ogg':'webm';
@@ -6059,7 +6059,7 @@ Caring with Compassion. Living with Dignity.`;
         transcript&&h('div',{className:'samara-voice-transcript'},h('small',null,'Heard'),h('div',null,transcript)),
         reviewText&&h('div',{className:'samara-voice-review'},h('label',null,'Review and edit before using'),h('textarea',{rows:5,value:reviewText,onChange:e=>setReviewText(e.target.value),autoFocus:true})),
         reviewText&&audioBlobRef.current?h('div',{className:'samara-voice-provider-actions'},
-          h('button',{type:'button',className:'btn btn-secondary',disabled:processing,onClick:()=>sendAudio(audioBlobRef.current,langRef.current,'google')},processing?'Processing…':'Try Google Again'),
+          h('button',{type:'button',className:'btn btn-secondary',disabled:processing,onClick:()=>sendAudio(audioBlobRef.current,langRef.current,'gemini')},processing?'Processing…':'Try Gemini Again'),
           h('button',{type:'button',className:'btn btn-secondary',disabled:processing,onClick:()=>sendAudio(audioBlobRef.current,langRef.current,'openai')},processing?'Processing…':'Try OpenAI Instead')
         ):null,
         message&&h('div',{className:'samara-voice-message'},message),
