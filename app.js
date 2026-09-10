@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.45';
+  const APP_VERSION = '2.11.46';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '10-Sep-2026 Handover Tasks in Priority Worklist';
+  const APP_BUILD_DATE = '10-Sep-2026 General Handover Worklist';
   const APP_SCHEMA_VERSION = '34';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -6068,6 +6068,77 @@ Caring with Compassion. Living with Dignity.`;
     );
   }
 
+  function GeneralHandoverWorklist({profile}){
+    const [rows,setRows]=React.useState([]);
+    const [loading,setLoading]=React.useState(true);
+    const [message,setMessage]=React.useState('');
+    const [busyId,setBusyId]=React.useState('');
+    const priorityRank={Critical:0,Important:1,Routine:2};
+
+    async function load(){
+      const {data,error}=await client.from('general_handover_tasks')
+        .select('*')
+        .in('status',['Pending','In Progress'])
+        .order('created_at',{ascending:false})
+        .limit(100);
+      if(error){
+        console.warn('General handover worklist could not be loaded:',error.message);
+        setRows([]);setMessage('General handover worklist is unavailable. Please install the accompanying SQL once.');setLoading(false);return;
+      }
+      const sorted=[...(data||[])].sort((a,b)=>(priorityRank[a.priority]??3)-(priorityRank[b.priority]??3)||new Date(a.created_at||0)-new Date(b.created_at||0));
+      setRows(sorted);setMessage('');setLoading(false);
+    }
+
+    React.useEffect(()=>{
+      load();
+      const ch=client.channel(`general-handover-${profile?.id||'user'}`)
+        .on('postgres_changes',{event:'*',schema:'public',table:'general_handover_tasks'},load)
+        .subscribe();
+      return()=>client.removeChannel(ch);
+    },[profile?.id]);
+
+    async function setStatus(row,status){
+      if(busyId)return;
+      setBusyId(row.id);setMessage('');
+      const updates={status,updated_at:new Date().toISOString()};
+      if(status==='Completed'){updates.completed_by=profile.id;updates.completed_at=new Date().toISOString()}
+      const {error}=await client.from('general_handover_tasks').update(updates).eq('id',row.id);
+      if(error)setMessage(error.message||'Unable to update the general task.');
+      else{
+        writeAuditEvent(`General Handover Task ${status}`,'General Handover',row.id,{department:row.department,task_text:row.task_text,status},'Success');
+        await load();
+      }
+      setBusyId('');
+    }
+
+    return h(Section,{title:`General Priority Worklist${rows.length?` (${rows.length})`:''}`,subtitle:'Housekeeping, Maintenance and Operations tasks from Shift Handover'},
+      h('div',{className:'general-handover-toolbar'},
+        h('span',null,'Visible to all authorised role players'),
+        h('button',{type:'button',className:'btn btn-secondary',onClick:load,disabled:loading},loading?'Loading…':'Refresh')
+      ),
+      message&&h('div',{className:'message error'},message),
+      !loading&&!message&&!rows.length?h('div',{className:'clinical-empty'},'No open general handover tasks.'):
+      h('div',{className:'general-handover-list'},rows.map((row,index)=>
+        h('div',{className:`general-handover-row priority-${String(row.priority||'Routine').toLowerCase()}`,key:row.id},
+          h('span',{className:'general-handover-number'},index+1),
+          h('div',{className:'general-handover-detail'},
+            h('div',{className:'general-handover-meta'},
+              h('strong',null,row.department||'Operations'),
+              h('span',{className:'general-handover-priority'},row.priority||'Routine'),
+              h('span',{className:'general-handover-status'},row.status||'Pending')
+            ),
+            h('p',null,row.task_text),
+            h('small',null,`${row.shift||'Shift'} · ${fmt(row.created_at)}`)
+          ),
+          h('div',{className:'general-handover-actions'},
+            row.status==='Pending'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busyId===row.id,onClick:()=>setStatus(row,'In Progress')},'Start'),
+            h('button',{type:'button',className:'btn btn-primary',disabled:busyId===row.id,onClick:()=>setStatus(row,'Completed')},busyId===row.id?'Saving…':'Complete')
+          )
+        )
+      ))
+    );
+  }
+
   function App(){
     React.useEffect(()=>{ensureCleanWorkspaceLayout();ensureCompactDataEntryStyle();ensureSmartHoverStyles()},[]);
     const LAST_OPEN_PAGE_KEY='samara_last_open_page_v1';
@@ -6618,6 +6689,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Notifications'&&h(Notifications,{profile}),
           page==='Audit Trail'&&h(AuditTrail),
           page==='Alert Settings'&&h(AlertSettings,{profile,engine:alertEngine}),
+          ['Dashboard','HR Dashboard','Clinical Dashboard','Accounts Dashboard',"Director's Office",'Food & Diet'].includes(page)&&h(GeneralHandoverWorklist,{profile}),
           page==='System Maintenance'&&h(SystemMaintenance,{profile})
         ),
         clinicalPopupVisible&&topClinicalAlert&&h('div',{className:`clinical-alert-popup ${String(topClinicalAlert.priority||'Routine').toLowerCase()}`},
@@ -21697,6 +21769,8 @@ function ShiftHandover({profile,onNavigate}){
       special_instructions:'',
       priority:'Routine'
     });
+    const [generalForm,setGeneralForm]=React.useState({department:'Housekeeping',task_text:'',priority:'Routine'});
+    const [generalSaving,setGeneralSaving]=React.useState(false);
 
     async function load(){
       const {data,error}=await client.from('shift_handovers')
@@ -21760,6 +21834,34 @@ function ShiftHandover({profile,onNavigate}){
       finishSuccessfulAction({returnPage,onNavigate,delay:700});
     }
 
+    async function saveGeneral(e){
+      e.preventDefault();
+      if(generalSaving)return;
+      const taskText=String(generalForm.task_text||'').trim();
+      if(!taskText){showToast('error','Enter the general handover task.');return}
+      setGeneralSaving(true);
+      const payload={
+        department:generalForm.department,
+        task_text:taskText,
+        priority:generalForm.priority,
+        status:'Pending',
+        shift:currentShift(),
+        handover_date:todayISOIndia(),
+        submitted_by:profile.id
+      };
+      const {data,error}=await client.from('general_handover_tasks').insert(payload).select('id').single();
+      if(error){
+        console.error('General handover task save failed:',error);
+        showToast('error',error.message||'General handover task could not be saved.');
+        setGeneralSaving(false);
+        return;
+      }
+      showToast('success','General handover task submitted to all dashboards.');
+      setGeneralForm(current=>({...current,task_text:'',priority:'Routine'}));
+      writeAuditEvent('General Handover Task Submitted','Shift Handover',data?.id||'',payload,'Success');
+      setGeneralSaving(false);
+    }
+
     return h(React.Fragment,null,
       h(Section,{title:'Shift Handover',subtitle:'Patient-specific status, pending work and priority instructions'},
         h('form',{className:'form-stack',onSubmit:save},
@@ -21773,6 +21875,17 @@ function ShiftHandover({profile,onNavigate}){
             miniSelect('Priority',form.priority,['Routine','Important','Critical'],v=>setForm({...form,priority:v})),
             h('button',{className:'btn btn-primary',disabled:saving},saving?'Submitting…':'Submit handover')
           )
+        )
+      ),
+      h(Section,{title:'General Handover',subtitle:'Non-clinical tasks for Housekeeping, Maintenance and Operations'},
+        h('form',{className:'form-stack',onSubmit:saveGeneral},
+          h('div',{className:'grid two'},
+            miniSelect('Department',generalForm.department,['Housekeeping','Maintenance','Operations'],v=>setGeneralForm({...generalForm,department:v})),
+            miniSelect('Priority',generalForm.priority,['Routine','Important','Critical'],v=>setGeneralForm({...generalForm,priority:v}))
+          ),
+          textareaSimple('General task / instruction',generalForm.task_text,v=>setGeneralForm({...generalForm,task_text:v})),
+          h('div',{className:'notice info'},'This task is not linked to a patient. It will be prioritised and displayed on every role dashboard until completed.'),
+          h('button',{className:'btn btn-primary',disabled:generalSaving},generalSaving?'Submitting…':'Submit general handover task')
         )
       ),
       h(LogTable,{

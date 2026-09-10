@@ -1,0 +1,54 @@
+SAMARA CARE ERP v2.11.46 — GENERAL HANDOVER WORKLIST
+
+NEW FEATURE
+-----------
+Shift Handover now contains a separate General Handover section for tasks that
+are not patient-specific.
+
+Departments:
+- Housekeeping
+- Maintenance
+- Operations
+
+Each general task records the department, task/instruction, priority, shift,
+date/time, status and responsible action history. Tamil/English Voice Input is
+available in the General task / instruction field for Nurses and Caregivers.
+
+PRIORITY AND DASHBOARDS
+-----------------------
+Open tasks are automatically sorted:
+1. Critical
+2. Important
+3. Routine
+
+The General Priority Worklist appears on the home dashboards of authorised
+role players, including Management, Nursing, Accounts, HR/Director's Office
+and Kitchen/Food & Diet.
+
+Any authorised role player can select Start or Complete. The action is saved
+with the acting employee and timestamp and is also sent to the audit trail.
+
+INSTALLATION ORDER
+------------------
+1. Supabase -> SQL Editor -> New Query.
+2. Run 97_general_handover_tasks.sql once.
+3. Save the SQL snippet with the same name.
+4. Replace these ERP files:
+   - app.js
+   - styles.css
+   - index.html
+   - config.js
+   - service-worker.js
+5. Open the ERP and select Update Now.
+
+No Edge Function change is required.
+
+TEST
+----
+1. Sign in as Nurse and open Shift Handover.
+2. Under General Handover select Maintenance.
+3. Enter "Water leakage in first-floor bathroom" and select Important.
+4. Submit.
+5. Open the Nursing Dashboard and another role dashboard.
+6. Confirm the item appears under General Priority Worklist.
+7. Select Start, then Complete; it should disappear from all open worklists.
