@@ -2867,12 +2867,25 @@ Caring with Compassion. Living with Dignity.`;
         }
         const registration=await navigator.serviceWorker.ready;
         let subscription=await registration.pushManager.getSubscription();
-        if(!subscription){
-          subscription=await registration.pushManager.subscribe({
-            userVisibleOnly:true,
-            applicationServerKey:base64UrlToUint8Array(vapidPublicKey)
-          });
+
+        // v2.11.28: Re-register explicitly when the user enables mobile alerts.
+        // This safely replaces subscriptions created with an older VAPID key.
+        if(subscription){
+          try{
+            const oldEndpoint=subscription.endpoint;
+            await client.from('push_subscriptions')
+              .update({is_active:false,updated_at:new Date().toISOString()})
+              .eq('endpoint',oldEndpoint);
+          }catch(_){}
+          try{ await subscription.unsubscribe(); }catch(_){}
+          subscription=null;
         }
+
+        subscription=await registration.pushManager.subscribe({
+          userVisibleOnly:true,
+          applicationServerKey:base64UrlToUint8Array(vapidPublicKey)
+        });
+
         const json=subscription.toJSON();
         const {data:{user}}=await client.auth.getUser();
         if(!user?.id)throw new Error('Please sign in again before enabling mobile notifications.');

@@ -1,14 +1,22 @@
-SAMARA CARE ERP v2.9.86
+Samara Care ERP v2.11.28 — VAPID Re-registration
 
-WhatsApp Inbox wording improvement.
+Replace ONLY these four files in the ERP web root:
+1. app.js
+2. config.js
+3. index.html
+4. service-worker.js
 
-OLD:
-24-hour window closed · send an approved template
+What changed:
+- New VAPID public key placed in config.js.
+- Version bumped to 2.11.28 so the PWA/service worker receives the change.
+- When a mobile user taps Enable Browser Alerts, any old VAPID subscription
+  is deactivated/unsubscribed and a fresh subscription is created with the new key.
+- No medication, vitals, nursing care, billing, HR, or other ERP workflow was changed.
 
-NEW:
-Free-text reply unavailable · customer has not messaged within 24 hours. Use an approved WhatsApp template.
-
-INSTALL:
-Replace app.js and hard refresh with Ctrl + Shift + R.
-
-No SQL or Edge Function changes are required.
+After deployment on Boomi's phone:
+1. Open Samara Care once and accept/update to v2.11.28.
+2. Sign in as Boomi R.
+3. Clinical Alerts -> Enable Browser Alerts.
+4. Allow notifications.
+5. Confirm the success notification.
+6. Then lock the phone and test clinical-push-dispatch.

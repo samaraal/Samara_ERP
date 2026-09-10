@@ -3,7 +3,7 @@ window.SAMARA_CONFIG = Object.freeze({
   basePath: '/Samara_AL_ERP_V7/',
   supabaseUrl: 'https://askalabwtlrnoodinayq.supabase.co',
   supabasePublishableKey: 'sb_publishable_MPf0spA1IsJWWR5-ltVAyA_Z_gctBr-',
-  vapidPublicKey: 'BGsvbue6ByQGUDHol9YPvyPOxizAMP2sXRCfTjCJhhQbN1ZgU_6EPVJC6SywxEBRI1SKzzGOMnXxO5Vnzgd7748',
+  vapidPublicKey: 'BHCJuMZrGvMTqrZ6GACACyVMpokgjAL-9NA8EnHqy_zWawfbnd8-m-5o3BvZ-ra-YNQHVkX6-zKg-CQQbDvcjkk',
   employeeEmailDomain: 'users.samaracare.local',
-  version: '2.10.03'
+  version: '2.11.28'
 });
