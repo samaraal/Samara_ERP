@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.36';
+  const APP_VERSION = '2.11.37';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '10-Sep-2026 Patient Medication History';
+  const APP_BUILD_DATE = '10-Sep-2026 Multi-sentence Editable Nursing Voice';
   const APP_SCHEMA_VERSION = '34';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -297,6 +297,7 @@ function initSamaraInaugurationInvitation(){
 
 
   // v2.11.36: Global Tamil / English voice input added to frontline nursing narrative fields (handover, remarks, notes, instructions, observations and similar manual entries).
+  // v2.11.37: Nursing voice records until Stop and requires editable review before insertion.
   // v2.11.35: Patient File Medicines simplified into compact tables for current prescription, modification history, doctor review and today's MAR.
   // v2.11.34: Patient File Medicines now shows full prescription/version/review history and today's MAR only.
   // v2.11.27: nurses/caregivers use priority cards on mobile and the full medication register on desktop.
@@ -5905,6 +5906,7 @@ Caring with Compassion. Living with Dignity.`;
     const [processing,setProcessing]=React.useState(false);
     const [message,setMessage]=React.useState('');
     const [transcript,setTranscript]=React.useState('');
+    const [reviewText,setReviewText]=React.useState('');
     const recognitionRef=React.useRef(null);
     const recorderRef=React.useRef(null);
     const streamRef=React.useRef(null);
@@ -5930,7 +5932,7 @@ Caring with Compassion. Living with Dignity.`;
         const btn=document.createElement('button');
         btn.type='button';btn.className='samara-global-voice-btn';btn.innerHTML='🎤 Voice';
         btn.title='Tamil / English voice input';btn.setAttribute('aria-label','Tamil or English voice input');
-        btn.addEventListener('click',ev=>{ev.preventDefault();ev.stopPropagation();setTarget(el);setTranscript('');setMessage('');setOpen(true)});
+        btn.addEventListener('click',ev=>{ev.preventDefault();ev.stopPropagation();setTarget(el);setTranscript('');setReviewText('');setMessage('');setOpen(true)});
         el.insertAdjacentElement('afterend',btn);
       });
     }
@@ -5962,7 +5964,18 @@ Caring with Compassion. Living with Dignity.`;
       const clean=String(text||'').trim();if(!clean||!target)return;
       const old=String(target.value||'').trim();
       nativeSet(target,old?`${old}${/[.!?]$/.test(old)?' ':' — '}${clean}`:clean);
-      setMessage('✓ Entered. Please check before saving.');
+    }
+    function stageText(text){
+      const clean=String(text||'').trim();
+      if(!clean){setMessage('No usable text was returned. Please record again.');return}
+      setReviewText(clean);
+      setMessage('Review and edit the text below. It has not yet been entered into the form.');
+    }
+    function useReviewedText(){
+      const clean=String(reviewText||'').trim();
+      if(!clean){setMessage('Please enter or record the text before using it.');return}
+      appendText(clean);
+      stop();setOpen(false);setTarget(null);setTranscript('');setReviewText('');setMessage('');
     }
     function resultText(result,fallback=''){
       const f=result?.fields||{};
@@ -5974,14 +5987,14 @@ Caring with Compassion. Living with Dignity.`;
     async function sendTranscript(spoken,lang){
       setProcessing(true);
       try{
-        if(String(lang).toLowerCase().startsWith('en')){appendText(spoken);return}
+        if(String(lang).toLowerCase().startsWith('en')){stageText(spoken);return}
         setMessage('Converting Tamil speech to simple English…');
         const {data:{session}}=await client.auth.getSession();if(!session)throw new Error('Please sign in again.');
         const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{method:'POST',headers:{'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify({transcript:spoken,spoken_language:lang,current_form_type:'Nursing Note',current_task_kind:'Clinical Note',now_iso:new Date().toISOString(),timezone:'Asia/Kolkata'})});
         const result=await response.json().catch(()=>({error:'Unable to read voice response'}));
         if(!response.ok||result.error)throw new Error(result.error||'Unable to convert Tamil speech.');
         const text=resultText(result,'');if(!text)throw new Error('No English text was returned.');
-        appendText(text);
+        stageText(text);
       }catch(error){setMessage(`Tamil speech was captured, but English conversion could not complete. ${error.message||''}`)}
       finally{setProcessing(false)}
     }
@@ -5997,7 +6010,7 @@ Caring with Compassion. Living with Dignity.`;
         const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{method:'POST',headers:{'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey},body:fd});
         const result=await response.json().catch(()=>({error:'Unable to read voice response'}));if(!response.ok||result.error)throw new Error(result.error||'Unable to process voice.');
         if(result?.transcript)setTranscript(String(result.transcript));
-        const text=resultText(result,result?.transcript||'');if(!text)throw new Error('No text was returned.');appendText(text);
+        const text=resultText(result,result?.transcript||'');if(!text)throw new Error('No text was returned.');stageText(text);
       }catch(error){setMessage(error.message||'Unable to process voice.')}finally{setProcessing(false)}
     }
     async function startRecorder(lang){
@@ -6012,10 +6025,14 @@ Caring with Compassion. Living with Dignity.`;
     }
     function start(lang){
       if(listening||processing)return;
+      setTranscript('');setReviewText('');setMessage('');
+      // MediaRecorder remains active across sentences and natural pauses until
+      // the nurse presses Stop. SpeechRecognition is retained only as fallback.
+      if(navigator.mediaDevices?.getUserMedia&&window.MediaRecorder)return startRecorder(lang);
       const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
       if(!SR)return startRecorder(lang);
       try{
-        const rec=new SR();recognitionRef.current=rec;rec.lang=lang;rec.interimResults=true;rec.continuous=false;rec.maxAlternatives=1;let finalText='';let latest='';let handled=false;
+        const rec=new SR();recognitionRef.current=rec;rec.lang=lang;rec.interimResults=true;rec.continuous=true;rec.maxAlternatives=1;let finalText='';let latest='';let handled=false;
         rec.onstart=()=>{setListening(true);setMessage(lang==='ta-IN'?'🎤 Listening in Tamil…':'🎤 Listening in English…')};
         rec.onresult=e=>{let interim='';for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0]?.transcript||'';if(e.results[i].isFinal)finalText+=`${t} `;else interim+=t}latest=(finalText||interim).trim();setTranscript(latest)};
         const finish=()=>{if(handled)return;handled=true;setListening(false);const spoken=(finalText||latest).trim();if(spoken)sendTranscript(spoken,lang);else setMessage('No speech was captured. Please try again.')};
@@ -6023,15 +6040,21 @@ Caring with Compassion. Living with Dignity.`;
         rec.onend=finish;rec.start();
       }catch(_){startRecorder(lang)}
     }
-    function close(){stop();setOpen(false);setTarget(null);setTranscript('');setMessage('')}
+    function close(){stop();setOpen(false);setTarget(null);setTranscript('');setReviewText('');setMessage('')}
     if(!enabled||!open)return null;
     return h('div',{className:'samara-voice-modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)close()}},
       h('div',{className:'samara-voice-modal'},
         h('div',{className:'samara-voice-modal-head'},h('div',null,h('strong',null,'🎤 Voice Input'),h('small',null,'Speak naturally. Tamil is converted to simple English.')),h('button',{type:'button',className:'close',onClick:close},'×')),
-        listening?h('button',{type:'button',className:'btn btn-danger samara-voice-stop',onClick:stop},'■ Stop'):h('div',{className:'samara-voice-actions'},h('button',{type:'button',className:'btn btn-primary',disabled:processing,onClick:()=>start('ta-IN')},processing?'Processing…':'🎤 Speak Tamil'),h('button',{type:'button',className:'btn btn-secondary',disabled:processing,onClick:()=>start('en-IN')},'🎤 Speak English')),
+        listening?h('button',{type:'button',className:'btn btn-danger samara-voice-stop',onClick:stop},'■ Stop Recording'):
+          reviewText?h('div',{className:'samara-voice-review-actions'},
+            h('button',{type:'button',className:'btn btn-primary',onClick:useReviewedText},'✓ Use This Text'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setTranscript('');setReviewText('');setMessage('')}},'🎤 Record Again'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:close},'Cancel')
+          ):h('div',{className:'samara-voice-actions'},h('button',{type:'button',className:'btn btn-primary',disabled:processing,onClick:()=>start('ta-IN')},processing?'Processing…':'🎤 Speak Tamil'),h('button',{type:'button',className:'btn btn-secondary',disabled:processing,onClick:()=>start('en-IN')},'🎤 Speak English')),
         transcript&&h('div',{className:'samara-voice-transcript'},h('small',null,'Heard'),h('div',null,transcript)),
+        reviewText&&h('div',{className:'samara-voice-review'},h('label',null,'Review and edit before using'),h('textarea',{rows:5,value:reviewText,onChange:e=>setReviewText(e.target.value),autoFocus:true})),
         message&&h('div',{className:'samara-voice-message'},message),
-        h('div',{className:'samara-voice-note'},'Voice text is entered into the selected field only. Nurse should review it before Save / Submit.')
+        h('div',{className:'samara-voice-note'},reviewText?'Correct any word, then tap Use This Text. Save / Submit remains a separate action.':'Recording continues across sentences and pauses until Stop Recording is pressed.')
       )
     );
   }
