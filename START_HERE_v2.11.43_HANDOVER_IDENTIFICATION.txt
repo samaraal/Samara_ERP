@@ -1,0 +1,22 @@
+SAMARA CARE ERP v2.11.43 — HANDOVER IDENTIFICATION
+
+The Latest Shift Handover cards on the Nursing Dashboard now show:
+- Serial number: 1, 2, 3, etc.
+- Patient name
+- Room number
+- Bed number
+- Shift and priority
+
+This allows staff to distinguish patients who have the same name.
+
+INSTALL
+-------
+Replace:
+- app.js
+- index.html
+- config.js
+- service-worker.js
+
+Then use Update Now. If required, use App Help / Repair -> Repair App once.
+
+No SQL or Edge Function change is required.

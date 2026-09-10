@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.42';
-const CACHE = 'samara-erp-2.11.42-dashboard-handovers';
+const APP_VERSION = '2.11.43';
+const CACHE = 'samara-erp-2.11.43-numbered-room-bed-handovers';
 const SHELL = [
   './',
   './index.html',

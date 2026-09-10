@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.42';
+  const APP_VERSION = '2.11.43';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '10-Sep-2026 Nursing Dashboard Handover Visibility';
+  const APP_BUILD_DATE = '10-Sep-2026 Numbered Handovers with Room and Bed';
   const APP_SCHEMA_VERSION = '34';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -20094,13 +20094,13 @@ function RoomsBeds({profile}){
           )),
           !medDueTasks.length&&!vitalsPending.length&&!currentShiftCarePending.length&&!dischargeReady.length&&h('div',{className:'clinical-empty'},'No urgent clinical tasks are pending in the current shift.')),
         h('section',{className:'card clinical-panel'},h('div',{className:'clinical-panel-head'},h('div',null,h('h3',null,'Latest Shift Handover'),h('small',null,'Important information from the previous shift'))),
-          state.handovers.length?state.handovers.slice(0,5).map(x=>h('div',{className:`handover-card ${String(x.priority||'').toLowerCase()}`,key:x.id},
-            h('div',null,h('strong',null,`${patientName(x)} · ${x.shift||'Shift'} · ${x.priority||'Routine'}`),h('small',null,fmt(x.created_at))),
+          state.handovers.length?state.handovers.slice(0,5).map((x,index)=>{const linked=state.patients.find(p=>p.id===x.patient_id);const roomBed=linked?`Room ${linked.room_no||'—'} · Bed ${linked.bed_no||'—'}`:'Room / Bed —';return h('div',{className:`handover-card ${String(x.priority||'').toLowerCase()}`,key:x.id},
+            h('div',null,h('strong',null,`${index+1}. ${patientName(x)} · ${roomBed} · ${x.shift||'Shift'} · ${x.priority||'Routine'}`),h('small',null,fmt(x.created_at))),
             h('p',null,x.patient_summary||x.summary||'No patient summary.'),
             x.pending_tasks&&h('p',null,h('b',null,'Pending tasks: '),x.pending_tasks),
             x.special_instructions&&h('p',null,h('b',null,'Special instructions: '),x.special_instructions),
             h('small',null,'Submitted handover')
-          )):h('div',{className:'clinical-empty'},'No shift handover has been submitted yet.'))
+          )}):h('div',{className:'clinical-empty'},'No shift handover has been submitted yet.'))
       )
     );
   }
