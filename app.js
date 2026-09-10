@@ -2844,32 +2844,56 @@ Caring with Compassion. Living with Dignity.`;
       },2300);
     }
     async function requestNotifications(){
-      if(!('Notification' in window)){
-        alert('Notifications are not supported by this browser.');
-        return false;
-      }
-      const permission=await Notification.requestPermission();
-      if(permission!=='granted')return false;
-      setSettings(s=>({...s,browser_notifications_enabled:true}));
-
-      // Desktop/laptop may use ordinary browser notifications. Mobile/PWA is
-      // additionally registered for true background Web Push notifications.
-      if(!isMobileClinicalDevice())return true;
       try{
-        if(!('serviceWorker' in navigator)||!('PushManager' in window)){
-          alert('Background push is not supported on this mobile browser. On iPhone/iPad, install Samara Care to the Home Screen and enable notifications there.');
+        if(!('Notification' in window)){
+          alert('Notifications are not supported in this browser. On iPhone, open Samara Care from the Home Screen app.');
           return false;
         }
+
+        // v2.11.29: always give visible feedback. iOS returns "denied" silently
+        // after the user has blocked notifications, which previously made the
+        // button appear to do nothing.
+        let permission=Notification.permission;
+        if(permission==='denied'){
+          alert('Notifications are currently blocked for Samara Care. On iPhone open Settings > Notifications > Samara Care and turn Allow Notifications ON, then return here and tap Enable Mobile Notifications again.');
+          return false;
+        }
+        if(permission!=='granted'){
+          permission=await Notification.requestPermission();
+        }
+        if(permission!=='granted'){
+          alert('Mobile notifications were not enabled. Please allow notifications for Samara Care and try again.');
+          return false;
+        }
+
+        setSettings(s=>({...s,browser_notifications_enabled:true}));
+
+        // Desktop/laptop may use ordinary browser notifications. Mobile/PWA is
+        // additionally registered for true background Web Push notifications.
+        if(!isMobileClinicalDevice()){
+          alert('Browser notifications are enabled on this device.');
+          return true;
+        }
+
+        if(!('serviceWorker' in navigator)||!('PushManager' in window)){
+          alert('Background push is not supported here. On iPhone/iPad, use the Samara Care Home Screen app and ensure iOS 16.4 or later.');
+          return false;
+        }
+
         const vapidPublicKey=String(window.SAMARA_CONFIG?.vapidPublicKey||'').trim();
         if(!vapidPublicKey){
           alert('Samara mobile push is awaiting server configuration. Please contact the Administrator.');
           return false;
         }
-        const registration=await navigator.serviceWorker.ready;
+
+        const registration=await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise((_,reject)=>setTimeout(()=>reject(new Error('Service worker is not ready. Please use Menu > App Help > Repair App, reopen Samara Care, and try again.')),8000))
+        ]);
+
         let subscription=await registration.pushManager.getSubscription();
 
-        // v2.11.28: Re-register explicitly when the user enables mobile alerts.
-        // This safely replaces subscriptions created with an older VAPID key.
+        // Replace a subscription that was created with the previous VAPID key.
         if(subscription){
           try{
             const oldEndpoint=subscription.endpoint;
@@ -2889,6 +2913,7 @@ Caring with Compassion. Living with Dignity.`;
         const json=subscription.toJSON();
         const {data:{user}}=await client.auth.getUser();
         if(!user?.id)throw new Error('Please sign in again before enabling mobile notifications.');
+
         const {error}=await client.from('push_subscriptions').upsert({
           user_id:user.id,
           profile_id:profile?.id||user.id,
@@ -2902,11 +2927,16 @@ Caring with Compassion. Living with Dignity.`;
           updated_at:new Date().toISOString()
         },{onConflict:'endpoint'});
         if(error)throw error;
-        await showSystemNotification('Samara Mobile Notifications Enabled',{
-          body:'Clinical alerts can now reach this device even when Samara Care is closed.',
-          icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',tag:'samara-push-enabled',
-          data:{url:'./?push_page=Clinical%20Alerts'}
-        });
+
+        try{
+          await showSystemNotification('Samara Mobile Notifications Enabled',{
+            body:'Clinical alerts can now reach this device even when Samara Care is closed.',
+            icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',tag:'samara-push-enabled',
+            data:{url:'./?push_page=Clinical%20Alerts'}
+          });
+        }catch(_){}
+
+        alert('Mobile notifications enabled successfully. This phone is now registered for locked-screen clinical escalation alerts.');
         return true;
       }catch(error){
         console.warn('Mobile push registration:',error);

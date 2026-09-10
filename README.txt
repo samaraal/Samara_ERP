@@ -1,22 +1,24 @@
-Samara Care ERP v2.11.28 — VAPID Re-registration
+Samara Care ERP v2.11.29 — Mobile Notification Button Fix
 
-Replace ONLY these four files in the ERP web root:
-1. app.js
-2. config.js
-3. index.html
-4. service-worker.js
+Replace ONLY:
+- app.js
+- config.js
+- index.html
+- service-worker.js
 
-What changed:
-- New VAPID public key placed in config.js.
-- Version bumped to 2.11.28 so the PWA/service worker receives the change.
-- When a mobile user taps Enable Browser Alerts, any old VAPID subscription
-  is deactivated/unsubscribed and a fresh subscription is created with the new key.
-- No medication, vitals, nursing care, billing, HR, or other ERP workflow was changed.
+Fix:
+- Enable Mobile Notifications now always gives visible feedback.
+- Explicit iPhone guidance when notification permission is blocked.
+- 8-second service-worker readiness timeout instead of appearing to hang.
+- Re-registers the mobile push subscription using the new VAPID public key.
+- Shows a clear success message after the device is saved.
 
-After deployment on Boomi's phone:
-1. Open Samara Care once and accept/update to v2.11.28.
-2. Sign in as Boomi R.
-3. Clinical Alerts -> Enable Browser Alerts.
-4. Allow notifications.
-5. Confirm the success notification.
-6. Then lock the phone and test clinical-push-dispatch.
+No clinical scheduling, medication, vitals, nursing care, billing or HR logic changed.
+
+After upload:
+1. Update/repair Samara Care to v2.11.29.
+2. Login as Boomi R.
+3. Clinical Alerts -> Enable Mobile Notifications.
+4. If iPhone says notifications are blocked, enable:
+   Settings -> Notifications -> Samara Care -> Allow Notifications.
+5. Tap Enable Mobile Notifications again.
