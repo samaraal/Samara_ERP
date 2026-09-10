@@ -1,0 +1,43 @@
+SAMARA CARE ERP v2.11.44 — LOGO THEME AND PRIORITY WORKLIST GUIDE
+
+COLOR THEME
+-----------
+The Nursing Dashboard now follows the Samara logo palette:
+- Samara magenta and deep pink
+- Soft pink card backgrounds
+- Orange accent for Important / attention items
+- Red retained for Critical clinical items
+
+HOW THE PRIORITY WORKLIST IS CREATED
+------------------------------------
+The Priority Worklist is automatic. Nurses do not type a separate worklist.
+
+1. MEDICINES
+An active medication becomes visible when its scheduled time is reached and no
+administration status has been recorded. It progresses through Due Now,
+Overdue, Escalation Due and Critical according to the configured time limits.
+
+2. VITAL SIGNS
+Every active patient appears until at least one Vital Signs record is entered
+for that patient today.
+
+3. CURRENT-SHIFT CARE
+Care activities in the patient's Master Care Plan appear when assigned to the
+current Day or Night shift. They disappear when completed through Daily Care.
+
+4. DISCHARGE
+A discharge appears for final nursing action after Accounts clearance.
+
+SIMPLE TEST
+-----------
+Select an active patient whose Master Care Plan contains an activity assigned
+to the current shift. Do not complete it in Daily Care. Open Nursing Dashboard
+and press Refresh. The patient and care activity will appear in Priority
+Worklist. Complete it through Shift Tasks / Daily Care and it will disappear.
+
+INSTALL
+-------
+Replace app.js, styles.css, index.html, config.js and service-worker.js.
+Then use Update Now.
+
+No SQL or Edge Function change is required.
