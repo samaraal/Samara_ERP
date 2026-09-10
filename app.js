@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.44';
+  const APP_VERSION = '2.11.45';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '10-Sep-2026 Samara Logo Dashboard Theme';
+  const APP_BUILD_DATE = '10-Sep-2026 Handover Tasks in Priority Worklist';
   const APP_SCHEMA_VERSION = '34';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -19936,7 +19936,7 @@ function RoomsBeds({profile}){
         client.from('incidents').select('*,patients(full_name,title,patient_id,room_no,bed_no)').eq('status','Open').order('incident_at',{ascending:false}),
         // Load handovers without an embedded profile relationship. A missing or
         // renamed FK must never hide valid clinical handover submissions.
-        client.from('shift_handovers').select('*').order('created_at',{ascending:false}).limit(20),
+        client.from('shift_handovers').select('*').order('created_at',{ascending:false}).limit(100),
         client.from('patient_discharges')
           .select('*')
           .order('created_at',{ascending:false})
@@ -20020,6 +20020,11 @@ function RoomsBeds({profile}){
     const physioDoneIds=new Set(state.physioSessions.map(x=>x.order_id));
     const physioPending=state.physioOrders.filter(x=>!physioDoneIds.has(x.id));
     const patientName=row=>{const embedded=row?.patients||row;const linked=state.patients.find(p=>p.id===row?.patient_id);return formalName(embedded)||embedded?.full_name||formalName(linked)||linked?.full_name||'Patient';};
+    // Only the newest handover for each active patient contributes pending work.
+    // A later handover with no pending task therefore clears the older item.
+    const latestHandoverByPatient=new Map();
+    state.handovers.forEach(row=>{if(row.patient_id&&!latestHandoverByPatient.has(row.patient_id))latestHandoverByPatient.set(row.patient_id,row)});
+    const handoverPending=[...latestHandoverByPatient.values()].filter(row=>String(row.pending_tasks||'').trim());
     const currentShiftCarePending=carePending.filter(x=>!x.isUpcoming);
     const upcomingShiftCarePending=carePending.filter(x=>x.isUpcoming);
     const activeDischarges=state.discharges.filter(row=>{
@@ -20084,6 +20089,11 @@ function RoomsBeds({profile}){
           vitalsPending.slice(0,4).map(p=>h('div',{className:'clinical-work-row',key:p.id},h('span',null,'🩺'),h('div',null,h('strong',null,formalName(p)),h('small',null,`${p.patient_id||''} · Room ${p.room_no||'—'}-${p.bed_no||'—'} · Vitals not entered today`)),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>onNavigate('Vital Signs')},'Enter'))),
           currentShiftCarePending.slice(0,5).map((x,i)=>h('div',{className:'clinical-work-row',key:`care-${x.id}-${x.taskShift}-${i}`},h('span',null,'✅'),h('div',null,h('strong',null,patientName(x)),h('small',null,`${x.care_type||x.activity||'Care task'} · ${x.taskShift}`)),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>dashboardNavigate(onNavigate,'Shift Tasks','Today’s Operational Focus',{source:'Main Dashboard'})},'Open'))),
           upcomingShiftCarePending.length>0&&h('div',{className:'clinical-work-row upcoming-summary'},h('span',null,'🕒'),h('div',null,h('strong',null,`${upcomingShiftCarePending.length} care task(s) scheduled for next shift`),h('small',null,'Shown as a compact summary; they become actionable when the next shift starts.')),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>dashboardNavigate(onNavigate,'Shift Tasks','Today’s Operational Focus',{source:'Main Dashboard'})},'Review')),
+          handoverPending.slice(0,8).map((row,index)=>{const linked=state.patients.find(p=>p.id===row.patient_id);const roomBed=linked?`Room ${linked.room_no||'—'} · Bed ${linked.bed_no||'—'}`:'Room / Bed —';return h('div',{className:`clinical-work-row ${String(row.priority||'').toLowerCase()==='critical'?'urgent':''}`,key:`handover-pending-${row.id||index}`},
+            h('span',null,'⇄'),
+            h('div',null,h('strong',null,`${patientName(row)} · ${roomBed}`),h('small',null,`${row.priority||'Routine'} · Handover pending: ${row.pending_tasks}${row.special_instructions?` · Instruction: ${row.special_instructions}`:''}`)),
+            !oversightOnly?h('button',{className:'mini-link',onClick:()=>onNavigate('Shift Handover')},'Open'):h('b',null,row.priority||'Routine')
+          )}),
           dischargeReady.slice(0,3).map(row=>h('div',{className:'clinical-work-row urgent',key:`discharge-${row.id}`},
             h('span',null,'🚪'),
             h('div',null,
@@ -20092,7 +20102,7 @@ function RoomsBeds({profile}){
             ),
             h('button',{className:'mini-link',onClick:()=>onNavigate('Discharge')},'Open')
           )),
-          !medDueTasks.length&&!vitalsPending.length&&!currentShiftCarePending.length&&!dischargeReady.length&&h('div',{className:'clinical-empty'},'No urgent clinical tasks are pending in the current shift.')),
+          !medDueTasks.length&&!vitalsPending.length&&!currentShiftCarePending.length&&!handoverPending.length&&!dischargeReady.length&&h('div',{className:'clinical-empty'},'No urgent clinical tasks are pending in the current shift.')),
         h('section',{className:'card clinical-panel'},h('div',{className:'clinical-panel-head'},h('div',null,h('h3',null,'Latest Shift Handover'),h('small',null,'Important information from the previous shift'))),
           state.handovers.length?state.handovers.slice(0,5).map((x,index)=>{const linked=state.patients.find(p=>p.id===x.patient_id);const roomBed=linked?`Room ${linked.room_no||'—'} · Bed ${linked.bed_no||'—'}`:'Room / Bed —';return h('div',{className:`handover-card ${String(x.priority||'').toLowerCase()}`,key:x.id},
             h('div',null,h('strong',null,`${index+1}. ${patientName(x)} · ${roomBed} · ${x.shift||'Shift'} · ${x.priority||'Routine'}`),h('small',null,fmt(x.created_at))),

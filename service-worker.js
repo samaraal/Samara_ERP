@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.44';
-const CACHE = 'samara-erp-2.11.44-samara-logo-dashboard-theme';
+const APP_VERSION = '2.11.45';
+const CACHE = 'samara-erp-2.11.45-handover-priority-worklist';
 const SHELL = [
   './',
   './index.html',

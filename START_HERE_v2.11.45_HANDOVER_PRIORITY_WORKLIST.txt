@@ -1,0 +1,29 @@
+SAMARA CARE ERP v2.11.45 — HANDOVER TASKS IN PRIORITY WORKLIST
+
+FIX
+---
+Pending tasks entered in Shift Handover now appear automatically in the Nursing
+Dashboard Priority Worklist.
+
+Each item shows:
+- Patient name
+- Room and bed
+- Handover priority
+- Pending task
+- Special instruction, where entered
+- Open button
+
+DUPLICATE / CLEARING LOGIC
+--------------------------
+Only the latest handover for each patient contributes to the Priority Worklist.
+Older submissions for the same patient are not repeated.
+
+When the next handover for that patient is submitted with no Pending Tasks, the
+older handover task is treated as cleared and disappears from the worklist.
+
+INSTALL
+-------
+Replace app.js, index.html, config.js and service-worker.js.
+Then use Update Now.
+
+No SQL, styles.css or Edge Function change is required.
