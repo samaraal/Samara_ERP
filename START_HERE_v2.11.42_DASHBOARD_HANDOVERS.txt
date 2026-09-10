@@ -1,0 +1,23 @@
+SAMARA CARE ERP v2.11.42 — DASHBOARD SHIFT HANDOVERS
+
+FIX
+---
+- Existing shift handover submissions now load on the Nursing Dashboard.
+- The dashboard no longer depends on a fragile embedded profile relationship.
+- Each card shows the patient, shift, priority, summary, pending tasks and
+  special instructions.
+- Up to five latest handovers are shown.
+- The dashboard refreshes automatically when a handover is added or changed.
+
+INSTALL
+-------
+Replace:
+- app.js
+- index.html
+- config.js
+- service-worker.js
+
+Then use Update Now. If the old dashboard remains, use
+App Help / Repair -> Repair App once.
+
+No SQL or Edge Function change is required.

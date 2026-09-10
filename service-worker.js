@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.41';
-const CACHE = 'samara-erp-2.11.41-mobile-voice-review-action';
+const APP_VERSION = '2.11.42';
+const CACHE = 'samara-erp-2.11.42-dashboard-handovers';
 const SHELL = [
   './',
   './index.html',

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.41';
+  const APP_VERSION = '2.11.42';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '10-Sep-2026 Mobile Voice Review Action Fix';
+  const APP_BUILD_DATE = '10-Sep-2026 Nursing Dashboard Handover Visibility';
   const APP_SCHEMA_VERSION = '34';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -19934,7 +19934,9 @@ function RoomsBeds({profile}){
         client.from('physiotherapy_plans').select('*,patients(full_name,title,patient_id,room_no,bed_no)').eq('is_active',true),
         client.from('physiotherapy_sessions').select('*').eq('session_date',today),
         client.from('incidents').select('*,patients(full_name,title,patient_id,room_no,bed_no)').eq('status','Open').order('incident_at',{ascending:false}),
-        client.from('shift_handovers').select('*,profiles!shift_handovers_submitted_by_fkey(full_name,title)').order('created_at',{ascending:false}).limit(5),
+        // Load handovers without an embedded profile relationship. A missing or
+        // renamed FK must never hide valid clinical handover submissions.
+        client.from('shift_handovers').select('*').order('created_at',{ascending:false}).limit(20),
         client.from('patient_discharges')
           .select('*')
           .order('created_at',{ascending:false})
@@ -19962,7 +19964,7 @@ function RoomsBeds({profile}){
       });
       setState({loading:false,patients:data[0],medOrders:validMedicationOrders,medLogs:data[2],careOrders:data[3],careLogs:data[4],vitals:data[5],physioOrders:data[6],physioSessions:data[7],incidents:data[8],handovers:data[9],discharges:data[10]});
     }
-    React.useEffect(()=>{load();const ch=client.channel('clinical-dashboard-live').on('postgres_changes',{event:'*',schema:'public',table:'vital_signs'},load).on('postgres_changes',{event:'*',schema:'public',table:'medication_administrations'},load).on('postgres_changes',{event:'*',schema:'public',table:'care_logs'},load).on('postgres_changes',{event:'*',schema:'public',table:'incidents'},load).on('postgres_changes',{event:'*',schema:'public',table:'patient_discharges'},load).subscribe();return()=>client.removeChannel(ch)},[]);
+    React.useEffect(()=>{load();const ch=client.channel('clinical-dashboard-live').on('postgres_changes',{event:'*',schema:'public',table:'vital_signs'},load).on('postgres_changes',{event:'*',schema:'public',table:'medication_administrations'},load).on('postgres_changes',{event:'*',schema:'public',table:'care_logs'},load).on('postgres_changes',{event:'*',schema:'public',table:'incidents'},load).on('postgres_changes',{event:'*',schema:'public',table:'patient_discharges'},load).on('postgres_changes',{event:'*',schema:'public',table:'shift_handovers'},load).subscribe();return()=>client.removeChannel(ch)},[]);
     const terminalMedicationStatuses=new Set(['given','refused','withheld','unavailable','missed']);
     const medTasks=[];
     state.medOrders.forEach(order=>parseClinicalTimes(order.scheduled_times).forEach(time=>{
@@ -20092,7 +20094,13 @@ function RoomsBeds({profile}){
           )),
           !medDueTasks.length&&!vitalsPending.length&&!currentShiftCarePending.length&&!dischargeReady.length&&h('div',{className:'clinical-empty'},'No urgent clinical tasks are pending in the current shift.')),
         h('section',{className:'card clinical-panel'},h('div',{className:'clinical-panel-head'},h('div',null,h('h3',null,'Latest Shift Handover'),h('small',null,'Important information from the previous shift'))),
-          state.handovers.length?state.handovers.slice(0,3).map(x=>h('div',{className:`handover-card ${String(x.priority||'').toLowerCase()}`,key:x.id},h('div',null,h('strong',null,`${x.shift} · ${x.priority}`),h('small',null,fmt(x.created_at))),h('p',null,x.patient_summary||'No patient summary.'),x.pending_tasks&&h('p',null,h('b',null,'Pending: '),x.pending_tasks),h('small',null,`Submitted by ${formalName(x.profiles||{})||x.profiles?.full_name||'Staff'}`))):h('div',{className:'clinical-empty'},'No shift handover has been submitted yet.'))
+          state.handovers.length?state.handovers.slice(0,5).map(x=>h('div',{className:`handover-card ${String(x.priority||'').toLowerCase()}`,key:x.id},
+            h('div',null,h('strong',null,`${patientName(x)} · ${x.shift||'Shift'} · ${x.priority||'Routine'}`),h('small',null,fmt(x.created_at))),
+            h('p',null,x.patient_summary||x.summary||'No patient summary.'),
+            x.pending_tasks&&h('p',null,h('b',null,'Pending tasks: '),x.pending_tasks),
+            x.special_instructions&&h('p',null,h('b',null,'Special instructions: '),x.special_instructions),
+            h('small',null,'Submitted handover')
+          )):h('div',{className:'clinical-empty'},'No shift handover has been submitted yet.'))
       )
     );
   }
