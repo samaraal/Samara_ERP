@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.37';
-const CACHE = 'samara-erp-2.11.37-editable-multisentence-voice';
+const APP_VERSION = '2.11.38';
+const CACHE = 'samara-erp-2.11.38-google-openai-voice-fallback';
 const SHELL = [
   './',
   './index.html',

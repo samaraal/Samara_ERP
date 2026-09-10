@@ -1,0 +1,48 @@
+SAMARA CARE ERP v2.11.38
+GOOGLE CHIRP 2 PRIMARY VOICE + OPENAI FALLBACK
+
+ONE-TIME GOOGLE CLOUD SETUP
+
+1. Open Google Cloud Console and create/select the project intended for Samara Care.
+2. Enable billing for that project.
+3. Enable “Cloud Speech-to-Text API”.
+4. Create a service account dedicated to Samara voice conversion.
+5. Grant only the “Cloud Speech Client” role (roles/speech.client).
+6. Create and download one JSON key for that service account. Keep it private.
+
+SUPABASE EDGE FUNCTION SECRETS
+
+Open Supabase Dashboard → Edge Functions → Secrets and add:
+
+GOOGLE_CLOUD_PROJECT_ID = project_id from the downloaded JSON
+GOOGLE_CLOUD_CLIENT_EMAIL = client_email from the downloaded JSON
+GOOGLE_CLOUD_PRIVATE_KEY = private_key from the downloaded JSON
+GOOGLE_SPEECH_LOCATION = us-central1
+
+Keep the existing OPENAI_API_KEY unchanged. It is the automatic fallback.
+
+DEPLOYMENT
+
+1. Replace the existing director-office-voice Edge Function index.ts with:
+   supabase/functions/director-office-voice/index.ts
+2. Deploy the Edge Function.
+3. Replace the five ERP files in the website root:
+   app.js
+   styles.css
+   index.html
+   config.js
+   service-worker.js
+4. Open Samara Care and select Update Now.
+
+SAFETY
+
+Never place the Google JSON key, private key or OpenAI API key inside app.js,
+GitHub or any public folder. They must remain only in Supabase Edge Function Secrets.
+
+BEHAVIOUR
+
+- Automatic: Google Chirp 2 is tried first; OpenAI is used automatically if Google fails.
+- Manual comparison: the review popup provides “Try Google Again” and
+  “Try OpenAI Instead” using the same recording.
+- The nurse can edit the result before pressing “Use This Text”.
+- Save / Submit remains a separate clinical action.
