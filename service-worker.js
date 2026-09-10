@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.23';
-const CACHE = 'samara-erp-2.11.23-modal-quick-edit';
+const APP_VERSION = '2.11.24';
+const CACHE = 'samara-erp-2.11.24-modal-quick-edit-safe';
 const SHELL = [
   './',
   './index.html',

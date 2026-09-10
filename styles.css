@@ -1736,7 +1736,7 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
 }
 
 
-/* v2.11.23 — long popup usability + focused Daily Patient Report editor */
+/* v2.11.24 — long popup usability + focused Daily Patient Report editor */
 .modal-bottom-actions{
   position:sticky;
   bottom:-30px;

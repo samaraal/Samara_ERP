@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.23';
+  const APP_VERSION = '2.11.24';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -309,7 +309,8 @@ function initSamaraInaugurationInvitation(){
       const modal=modals[modals.length-1];
       const close=modal?.querySelector('.close');
       const hasBottomActions=!!modal?.querySelector('.modal-bottom-actions');
-      button.hidden=!modal||!close||hasBottomActions;
+      const shouldHide=!modal||!close||hasBottomActions;
+      if(button.hidden!==shouldHide) button.hidden=shouldHide;
     };
     button.addEventListener('click',()=>{
       const modals=[...document.querySelectorAll('.modal-backdrop .modal')].filter(visible);
@@ -317,7 +318,9 @@ function initSamaraInaugurationInvitation(){
       modal?.querySelector('.close')?.click();
       setTimeout(refresh,0);
     });
-    new MutationObserver(refresh).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style','hidden']});
+    // React mounts/unmounts pop-ups in the DOM. Watching child-list changes is enough
+    // and, importantly, avoids an observer feedback loop on the helper's own hidden attribute.
+    new MutationObserver(refresh).observe(document.body,{childList:true,subtree:true});
     window.addEventListener('resize',refresh,{passive:true});
     refresh();
   }
