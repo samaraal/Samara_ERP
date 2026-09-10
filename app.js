@@ -2289,6 +2289,7 @@ Caring with Compassion. Living with Dignity.`;
       manager_escalation_minutes:30,medication_error_minutes:60,is_active:true
     });
     const [soundUnlocked,setSoundUnlocked]=React.useState(false);
+    const [pushEnabled,setPushEnabled]=React.useState(false);
     const lastPlayed=React.useRef({});
     const lastPopup=React.useRef({});
     const audioContext=React.useRef(null);
@@ -2843,6 +2844,59 @@ Caring with Compassion. Living with Dignity.`;
         try{await speakLocalClinicalVoice(a)}catch(error){console.warn('Clinical voice unavailable:',error)}
       },2300);
     }
+    async function refreshPushEnabled(){
+      try{
+        if(!('Notification' in window)){setPushEnabled(false);return false;}
+        if(!isMobileClinicalDevice()){
+          const enabled=Notification.permission==='granted'&&!!settings.browser_notifications_enabled;
+          setPushEnabled(enabled);return enabled;
+        }
+        if(!('serviceWorker' in navigator)||!('PushManager' in window)){setPushEnabled(false);return false;}
+        const registration=await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise((_,reject)=>setTimeout(()=>reject(new Error('Service worker timeout')),5000))
+        ]);
+        const subscription=await registration.pushManager.getSubscription();
+        const enabled=!!subscription && Notification.permission==='granted';
+        setPushEnabled(enabled);return enabled;
+      }catch(_){setPushEnabled(false);return false;}
+    }
+
+    React.useEffect(()=>{refreshPushEnabled();},[profile?.id]);
+
+    async function disableNotifications(){
+      try{
+        if(!isMobileClinicalDevice()){
+          setSettings(s=>({...s,browser_notifications_enabled:false}));
+          setPushEnabled(false);
+          alert('Browser notifications disabled in Samara Care.');
+          return true;
+        }
+        if(!('serviceWorker' in navigator)||!('PushManager' in window)){setPushEnabled(false);return false;}
+        const registration=await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise((_,reject)=>setTimeout(()=>reject(new Error('Service worker is not ready.')),8000))
+        ]);
+        const subscription=await registration.pushManager.getSubscription();
+        if(subscription){
+          try{
+            await client.from('push_subscriptions')
+              .update({is_active:false,updated_at:new Date().toISOString()})
+              .eq('endpoint',subscription.endpoint);
+          }catch(error){console.warn('Unable to deactivate push subscription row:',error);}
+          try{await subscription.unsubscribe()}catch(error){console.warn('Unable to unsubscribe browser push:',error);}
+        }
+        setSettings(s=>({...s,browser_notifications_enabled:false}));
+        setPushEnabled(false);
+        alert('Mobile notifications disabled. This phone will no longer receive locked-screen clinical escalation alerts until enabled again.');
+        return true;
+      }catch(error){
+        console.warn('Disable mobile notifications:',error);
+        alert(`Unable to disable mobile notifications. ${error?.message||error}`);
+        return false;
+      }
+    }
+
     async function requestNotifications(){
       try{
         if(!('Notification' in window)){
@@ -2871,6 +2925,7 @@ Caring with Compassion. Living with Dignity.`;
         // Desktop/laptop may use ordinary browser notifications. Mobile/PWA is
         // additionally registered for true background Web Push notifications.
         if(!isMobileClinicalDevice()){
+          setPushEnabled(true);
           alert('Browser notifications are enabled on this device.');
           return true;
         }
@@ -2936,6 +2991,7 @@ Caring with Compassion. Living with Dignity.`;
           });
         }catch(_){}
 
+        setPushEnabled(true);
         alert('Mobile notifications enabled successfully. This phone is now registered for locked-screen clinical escalation alerts.');
         return true;
       }catch(error){
@@ -3330,12 +3386,18 @@ Caring with Compassion. Living with Dignity.`;
       },{onConflict:'alert_key'});
       if(error)throw error;await refresh();
     }
-    return {alerts,settings,setSettings,soundUnlocked,unlockSound,toggleSound,requestNotifications,runAudioDiagnostics,testClinicalAlert,testVitalsVoice,testDailyCareVoice,testClinicalTaskVoice,testSampleEscalationVoice,playCurrentLiveEscalation,refresh,acknowledge,setPage};
+    return {alerts,settings,setSettings,soundUnlocked,pushEnabled,unlockSound,toggleSound,requestNotifications,disableNotifications,refreshPushEnabled,runAudioDiagnostics,testClinicalAlert,testVitalsVoice,testDailyCareVoice,testClinicalTaskVoice,testSampleEscalationVoice,playCurrentLiveEscalation,refresh,acknowledge,setPage};
   }
 
   function ClinicalAlertsPage({engine,setPage}){
     const mobileClinicalDevice=isMobileClinicalDevice();
-    const [filter,setFilter]=React.useState('All');
+    const [filter,setFilter]=React.useState(()=>{
+      try{
+        const requested=sessionStorage.getItem('samaraClinicalAlertFilter');
+        if(requested)sessionStorage.removeItem('samaraClinicalAlertFilter');
+        return requested||'All';
+      }catch(_){return 'All'}
+    });
     const [dashboardFocus,setDashboardFocus]=React.useState(()=>{
       try{
         const value=sessionStorage.getItem('samara-clinical-alert-focus')||'';
@@ -3480,7 +3542,21 @@ Caring with Compassion. Living with Dignity.`;
           onClick:engine.toggleSound,
           title:engine.soundUnlocked?'Click to disable alert sound and automatic voice':'Click to enable alert sound and automatic voice'
         },engine.soundUnlocked?'✓ Sound Enabled':'Enable Sound'),
-          h('button',{className:'btn btn-secondary',onClick:engine.requestNotifications},mobileClinicalDevice?'Enable Mobile Notifications':'Enable Browser Alerts'),
+          h('button',{
+            className:'btn btn-secondary',
+            style:{
+              background:engine.pushEnabled?'#dff3e4':'#fde2e2',
+              color:engine.pushEnabled?'#176b35':'#9b1c1c',
+              border:engine.pushEnabled?'2px solid #8fc69d':'2px solid #e9a5a5',
+              fontWeight:'800'
+            },
+            onClick:engine.pushEnabled?engine.disableNotifications:engine.requestNotifications,
+            title:engine.pushEnabled
+              ?'Notifications are ON. Tap to disable this phone.'
+              :'Notifications are OFF. Tap to enable this phone.'
+          },engine.pushEnabled
+              ?(mobileClinicalDevice?'✓ Mobile Notifications Enabled':'✓ Browser Alerts Enabled')
+              :(mobileClinicalDevice?'✕ Mobile Notifications Disabled':'✕ Browser Alerts Disabled')),
           h('button',{className:'btn btn-primary',onClick:engine.testClinicalAlert},'🔔 Test Alert'),
           !mobileClinicalDevice&&h('button',{className:'btn btn-secondary',onClick:engine.runAudioDiagnostics},'🔊 Audio Diagnostics'),
           !mobileClinicalDevice&&h('button',{className:'btn btn-secondary',onClick:engine.testVitalsVoice},'▶ Test Vitals Voice'),
@@ -5743,9 +5819,13 @@ Caring with Compassion. Living with Dignity.`;
     if(!rows.length)return null;
     const escalationMinutes=Number(engine?.settings?.manager_escalation_minutes||30);
     const escalated=rows.filter(a=>Number(a.overdue_minutes||0)>=escalationMinutes).length;
-    const openFull=()=>{setPreview(false);onOpen('Clinical Alerts')};
+    const openFull=()=>{
+      setPreview(false);
+      try{sessionStorage.setItem('samaraClinicalAlertFilter',escalated>0?'Escalated':'All')}catch(_){}
+      onOpen('Clinical Alerts');
+    };
     return h('div',{className:'topbar-alert-centre',onMouseEnter:()=>setPreview(true),onMouseLeave:()=>setPreview(false)},
-      h('button',{type:'button',className:'topbar-clinical-alert-badge',onClick:openFull,'aria-label':`${rows.length} unresolved clinical alerts. Hover for summary; click for full information.`,'aria-expanded':preview?'true':'false'},`🔔 ${rows.length}`),
+      h('button',{type:'button',className:'topbar-clinical-alert-badge',onClick:openFull,'aria-label':`${rows.length} unresolved clinical alerts. Tap to open escalated alerts.`,'aria-expanded':preview?'true':'false'},`🔔 ${rows.length}`),
       preview&&h('div',{className:'topbar-alert-preview',onClick:e=>e.stopPropagation()},
         h('div',{className:'topbar-alert-preview-head'},
           h('div',null,h('strong',null,'Clinical Alerts'),h('small',null,escalated?`${escalated} escalated · ${rows.length} total unresolved`:`${rows.length} unresolved · none escalated yet`)),
