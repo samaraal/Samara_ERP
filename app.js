@@ -3542,21 +3542,52 @@ Caring with Compassion. Living with Dignity.`;
           onClick:engine.toggleSound,
           title:engine.soundUnlocked?'Click to disable alert sound and automatic voice':'Click to enable alert sound and automatic voice'
         },engine.soundUnlocked?'✓ Sound Enabled':'Enable Sound'),
-          h('button',{
-            className:'btn btn-secondary',
+          h('div',{
             style:{
-              background:engine.pushEnabled?'#dff3e4':'#fde2e2',
-              color:engine.pushEnabled?'#176b35':'#9b1c1c',
-              border:engine.pushEnabled?'2px solid #8fc69d':'2px solid #e9a5a5',
-              fontWeight:'800'
-            },
-            onClick:engine.pushEnabled?engine.disableNotifications:engine.requestNotifications,
-            title:engine.pushEnabled
-              ?'Notifications are ON. Tap to disable this phone.'
-              :'Notifications are OFF. Tap to enable this phone.'
-          },engine.pushEnabled
-              ?(mobileClinicalDevice?'✓ Mobile Notifications Enabled':'✓ Browser Alerts Enabled')
-              :(mobileClinicalDevice?'✕ Mobile Notifications Disabled':'✕ Browser Alerts Disabled')),
+              display:'grid',
+              gridTemplateColumns:'1fr',
+              gap:'8px',
+              width:'100%'
+            }
+          },
+            h('button',{
+              className:'btn',
+              style:{
+                width:'100%',
+                background:'#dff3e4',
+                color:'#176b35',
+                border:'2px solid #8fc69d',
+                fontWeight:'800',
+                opacity:engine.pushEnabled?1:0.92
+              },
+              disabled:engine.pushEnabled,
+              onClick:engine.requestNotifications,
+              title:engine.pushEnabled
+                ?'Mobile notifications are enabled on this phone.'
+                :'Tap to enable mobile notifications on this phone.'
+            },engine.pushEnabled
+                ?(mobileClinicalDevice?'✓ Mobile Notifications Enabled':'✓ Browser Alerts Enabled')
+                :(mobileClinicalDevice?'Enable Mobile Notifications':'Enable Browser Alerts')),
+
+            h('button',{
+              className:'btn',
+              style:{
+                width:'100%',
+                background:'#fde2e2',
+                color:'#9b1c1c',
+                border:'2px solid #e9a5a5',
+                fontWeight:'800',
+                opacity:engine.pushEnabled?1:0.92
+              },
+              disabled:!engine.pushEnabled,
+              onClick:engine.disableNotifications,
+              title:engine.pushEnabled
+                ?'Tap to disable mobile notifications on this phone.'
+                :'Mobile notifications are disabled on this phone.'
+            },engine.pushEnabled
+                ?(mobileClinicalDevice?'Disable Mobile Notifications':'Disable Browser Alerts')
+                :(mobileClinicalDevice?'✕ Mobile Notifications Disabled':'✕ Browser Alerts Disabled'))
+          ),
           h('button',{className:'btn btn-primary',onClick:engine.testClinicalAlert},'🔔 Test Alert'),
           !mobileClinicalDevice&&h('button',{className:'btn btn-secondary',onClick:engine.runAudioDiagnostics},'🔊 Audio Diagnostics'),
           !mobileClinicalDevice&&h('button',{className:'btn btn-secondary',onClick:engine.testVitalsVoice},'▶ Test Vitals Voice'),
