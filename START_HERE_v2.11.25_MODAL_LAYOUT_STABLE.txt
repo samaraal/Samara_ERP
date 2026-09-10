@@ -1,0 +1,9 @@
+Samara Care ERP v2.11.25
+
+Fixes:
+- Removes the scrollbar/reflow jump seen in the Edit Daily Patient Report popup.
+- Keeps the compact Recipient / Time editor.
+- Keeps bottom Close/Save actions without sticky negative-margin overflow.
+- Keeps the safe global bottom Close helper for long popups.
+
+Replace the files in this ZIP in the ERP root. No SQL is required.

@@ -1736,33 +1736,66 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
 }
 
 
-/* v2.11.24 — long popup usability + focused Daily Patient Report editor */
+/* v2.11.25 — stable bottom actions + focused Daily Patient Report editor.
+   Bottom actions are deliberately non-sticky so they cannot enlarge a modal's
+   scroll area or create horizontal/vertical scrollbar reflow. */
 .modal-bottom-actions{
-  position:sticky;
-  bottom:-30px;
-  z-index:24;
+  position:static!important;
   display:flex;
   justify-content:flex-end;
   gap:10px;
   flex-wrap:wrap;
-  margin:18px -30px -30px;
-  padding:12px 30px max(12px,env(safe-area-inset-bottom));
-  background:rgba(255,250,253,.98);
+  width:100%;
+  max-width:100%;
+  box-sizing:border-box;
+  margin:18px 0 0!important;
+  padding:12px 0 0!important;
+  background:#fffafd;
   border-top:1px solid #ead7e1;
-  box-shadow:0 -8px 22px rgba(83,29,58,.08);
-  backdrop-filter:blur(8px);
+  box-shadow:none!important;
+  backdrop-filter:none!important;
 }
 .modal-bottom-actions .btn{min-width:150px}
-.patient-file-bottom-actions{margin-top:20px}
-.daily-report-quick-modal{width:min(720px,94vw)!important;max-height:88vh!important}
-.daily-report-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px}
-.daily-report-quick-modal .panel-head{position:sticky;top:-30px;z-index:25;background:#fffafd;padding:8px 0 12px;border-bottom:1px solid #ecdbe4}
+.patient-file-bottom-actions{margin-top:20px!important}
+
+/* Compact editor: no inherited full-form sizing and never any sideways scroll. */
+.daily-report-quick-modal{
+  width:min(720px,calc(100vw - 32px))!important;
+  max-width:720px!important;
+  max-height:calc(100dvh - 48px)!important;
+  min-width:0!important;
+  box-sizing:border-box!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+}
+.daily-report-quick-modal > *{min-width:0!important;box-sizing:border-box!important}
+.daily-report-quick-grid{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:14px 18px!important;
+  width:100%!important;
+  min-width:0!important;
+}
+.daily-report-quick-grid .field,
+.daily-report-quick-grid input{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
+.daily-report-quick-modal .panel-head{
+  position:static!important;
+  background:#fffafd;
+  padding:0 0 12px!important;
+  border-bottom:1px solid #ecdbe4;
+}
+.daily-report-quick-modal .modal-bottom-actions{
+  margin:16px 0 0!important;
+  padding:12px 0 0!important;
+}
 @media(max-width:760px){
-  .modal-bottom-actions{bottom:-14px;margin:16px -14px -14px;padding:10px 14px calc(10px + env(safe-area-inset-bottom))}
+  .modal-bottom-actions{padding:10px 0 0!important}
   .modal-bottom-actions .btn{flex:1 1 140px;min-width:0}
-  .daily-report-quick-modal{width:100vw!important;max-height:100dvh!important}
+  .daily-report-quick-modal{
+    width:calc(100vw - 20px)!important;
+    max-width:calc(100vw - 20px)!important;
+    max-height:calc(100dvh - 20px)!important;
+  }
   .daily-report-quick-grid{grid-template-columns:1fr!important}
-  .daily-report-quick-modal .panel-head{top:-14px}
 }
 
 .samara-global-modal-close{
@@ -1775,4 +1808,4 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
   box-shadow:0 10px 28px rgba(67,26,49,.22)!important;
 }
 .samara-global-modal-close[hidden]{display:none!important}
-@media(max-width:760px){.samara-global-modal-close{right:14px!important;bottom:calc(14px + env(safe-area-inset-bottom))!important;min-width:108px!important}}
+@media(max-width:760px){.samara-global-modal-close{right:14px!important;bottom:calc(14px + env(safe-area-inset-bottom))!important;min-width:108px!important}}}

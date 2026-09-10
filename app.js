@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.24';
+  const APP_VERSION = '2.11.25';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -291,7 +291,7 @@ function initSamaraInaugurationInvitation(){
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
 
 
-  // v2.11.23: keep a bottom Close action available for long ERP pop-up windows.
+  // v2.11.25: keep a bottom Close action available for long ERP pop-up windows.
   // A single body-level helper avoids changing the internal structure of every modal.
   function installGlobalModalBottomClose(){
     if(document.getElementById('samara-global-modal-close'))return;
