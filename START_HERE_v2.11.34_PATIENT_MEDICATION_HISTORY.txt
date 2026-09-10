@@ -1,0 +1,25 @@
+Samara Care ERP v2.11.34 — Patient File Medication History
+
+REPLACE ONLY THESE FILES
+1. app.js
+2. index.html
+3. config.js
+4. service-worker.js
+
+WHAT CHANGED
+- Patient File → Medicines now shows the CURRENT PRESCRIPTION separately.
+- Full PRESCRIPTION & MODIFICATION HISTORY is shown below it.
+- Original medication, added medication, modified versions and stopped medicines remain visible.
+- Each prescription history row shows Version, Frequency/Route, Times, Effective From, Stopped At, Doctor and Instructions.
+- Doctor Review / Medication Change Record is now shown inside the Patient File, including review date/time, effective date/time, doctor, order mode, clinical note and individual change items.
+- Medication Administration inside Patient File is intentionally limited to TODAY ONLY.
+- Older MAR remains available in the main Medication Administration register.
+- No prescription or MAR data is deleted or overwritten by this UI change.
+
+DATABASE
+- No new SQL is required for this update if the Medication Review migration used for v2.11.26 is already installed.
+- If Doctor Review history cannot load, verify that medication_reviews and medication_review_items from the existing medication-review migration are present and accessible.
+
+AFTER UPLOAD
+- Open Samara Care ERP and use “Update Now”.
+- If an older version remains cached, use App Help / Repair → Repair App once.
