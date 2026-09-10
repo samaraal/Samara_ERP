@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.39';
-const CACHE = 'samara-erp-2.11.39-gemini-openai-voice-fallback';
+const APP_VERSION = '2.11.40';
+const CACHE = 'samara-erp-2.11.40-patient-locked-handover';
 const SHELL = [
   './',
   './index.html',

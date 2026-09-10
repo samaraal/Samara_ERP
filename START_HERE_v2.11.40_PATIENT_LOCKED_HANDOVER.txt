@@ -1,0 +1,30 @@
+SAMARA CARE ERP v2.11.40 — PATIENT-LOCKED SHIFT HANDOVER
+
+CORRECTION
+----------
+The nurse cannot enter any shift handover comment before selecting a patient.
+
+Until a patient is selected, the page shows only the Patient selector and the
+instruction: "Select a patient first to enter the shift handover details."
+
+After selecting a patient, the following controls appear:
+- Outgoing shift
+- Patient summary and Voice button
+- Pending tasks and Voice button
+- Special instructions and Voice button
+- Priority
+- Submit handover
+
+The existing Save validation remains as a second safeguard.
+
+INSTALL
+-------
+Replace these ERP files:
+- app.js
+- index.html
+- config.js
+- service-worker.js
+
+Then use Update Now. If required, use App Help / Repair -> Repair App once.
+
+No SQL or Edge Function change is required for this correction.

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.39';
+  const APP_VERSION = '2.11.40';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '10-Sep-2026 Gemini Voice with OpenAI Fallback';
+  const APP_BUILD_DATE = '10-Sep-2026 Patient-locked Shift Handover';
   const APP_SCHEMA_VERSION = '34';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -21746,12 +21746,15 @@ function ShiftHandover({profile,onNavigate}){
       h(Section,{title:'Shift Handover',subtitle:'Patient-specific status, pending work and priority instructions'},
         h('form',{className:'form-stack',onSubmit:save},
           patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v})),
-          miniSelect('Outgoing shift',form.shift,['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)'],v=>setForm({...form,shift:v})),
-          textareaSimple('Patient summary',form.patient_summary,v=>setForm({...form,patient_summary:v})),
-          textareaSimple('Pending tasks',form.pending_tasks,v=>setForm({...form,pending_tasks:v})),
-          textareaSimple('Special instructions',form.special_instructions,v=>setForm({...form,special_instructions:v})),
-          miniSelect('Priority',form.priority,['Routine','Important','Critical'],v=>setForm({...form,priority:v})),
-          h('button',{className:'btn btn-primary',disabled:saving},saving?'Submitting…':'Submit handover')
+          !form.patient_id?h('div',{className:'notice info',role:'status'},'Select a patient first to enter the shift handover details.'):
+          h(React.Fragment,null,
+            miniSelect('Outgoing shift',form.shift,['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)'],v=>setForm({...form,shift:v})),
+            textareaSimple('Patient summary',form.patient_summary,v=>setForm({...form,patient_summary:v})),
+            textareaSimple('Pending tasks',form.pending_tasks,v=>setForm({...form,pending_tasks:v})),
+            textareaSimple('Special instructions',form.special_instructions,v=>setForm({...form,special_instructions:v})),
+            miniSelect('Priority',form.priority,['Routine','Important','Critical'],v=>setForm({...form,priority:v})),
+            h('button',{className:'btn btn-primary',disabled:saving},saving?'Submitting…':'Submit handover')
+          )
         )
       ),
       h(LogTable,{
