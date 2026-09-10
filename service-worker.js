@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.25';
-const CACHE = 'samara-erp-2.11.25-modal-layout-stable';
+const APP_VERSION = '2.11.26';
+const CACHE = 'samara-erp-2.11.26-medication-review';
 const SHELL = [
   './',
   './index.html',

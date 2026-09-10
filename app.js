@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.25';
+  const APP_VERSION = '2.11.26';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -245,8 +245,8 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '15-Aug-2026 Hybrid Neural Tamil Clinical Voice';
-  const APP_SCHEMA_VERSION = '26';
+  const APP_BUILD_DATE = '10-Sep-2026 Medication Doctor Review';
+  const APP_SCHEMA_VERSION = '27';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
   const RESIDENT_PROFESSIONS=[
@@ -291,6 +291,7 @@ function initSamaraInaugurationInvitation(){
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
 
 
+  // v2.11.26: medication doctor-review revisions preserve prescription history and effective-time MAR safety.
   // v2.11.25: keep a bottom Close action available for long ERP pop-up windows.
   // A single body-level helper avoids changing the internal structure of every modal.
   function installGlobalModalBottomClose(){
@@ -12484,6 +12485,22 @@ Thank you.`;
     if(Number.isNaN(hour))return String(value||'');
     return `${hour===0?12:hour>12?hour-12:hour}:${normalized.slice(3,5)||'00'} ${hour<12?'AM':'PM'}`;
   }
+  function medicationOrderDoseEligible(order,dateISO,time){
+    if(!order||!dateISO||!time)return false;
+    const normalized=normalizeMedicationTime(time);
+    const due=new Date(`${dateISO}T${normalized}:00`);
+    if(Number.isNaN(due.getTime()))return false;
+    if(order.start_date&&String(order.start_date).slice(0,10)>dateISO)return false;
+    if(order.end_date&&String(order.end_date).slice(0,10)<dateISO)return false;
+    const effective=order.effective_from?new Date(order.effective_from):null;
+    if(effective&&!Number.isNaN(effective.getTime())&&due.getTime()<effective.getTime())return false;
+    const stopped=order.stopped_at?new Date(order.stopped_at):null;
+    if(stopped&&!Number.isNaN(stopped.getTime())&&due.getTime()>=stopped.getTime())return false;
+    if(order.is_active===false&&!stopped)return false;
+    const status=String(order.status||'').trim().toLowerCase();
+    if(['completed','discontinued','stopped','inactive'].includes(status)&&!stopped)return false;
+    return true;
+  }
   function MedicationTimeSelector({label,value,onChange,required=false}){
     const selected=String(value||'').split(',').map(normalizeMedicationTime).filter(Boolean);
     const [open,setOpen]=React.useState(false);
@@ -14063,7 +14080,7 @@ Please keep these login details confidential.`;
           if(packageChargeError)throw packageChargeError;
         }
         if(effectiveMeds.length){
-          const medRows=effectiveMeds.map(m=>{const start=m.start_date||new Date().toISOString().slice(0,10);const durationDays=m.duration==='Custom'?Number(m.custom_duration_days||0):({'Single Dose':0,'1 Day':1,'3 Days':3,'5 Days':5,'7 Days':7,'10 Days':10,'14 Days':14,'21 Days':21,'30 Days':30}[m.duration]??null);let endDate=null;if(durationDays!==null){const d=new Date(`${start}T00:00:00`);d.setDate(d.getDate()+Math.max(durationDays-1,0));endDate=d.toISOString().slice(0,10)}return {patient_id:patient.id,prescribed_by_doctor:m.prescribed_by_doctor,medicine_name:m.medicine_name,strength:m.strength,dose:m.strength,route:m.route,food_instruction:m.food_instruction,special_instruction:m.special_instruction,scheduled_times:m.times.split(',').map(x=>x.trim()).filter(Boolean),frequency:m.frequency,duration:m.duration,duration_days:m.duration==='Custom'?Number(m.custom_duration_days||0):durationDays,start_date:start,end_date:endDate,entered_by:user.id,verified_by:user.id}});
+          const medRows=effectiveMeds.map(m=>{const start=m.start_date||new Date().toISOString().slice(0,10);const durationDays=m.duration==='Custom'?Number(m.custom_duration_days||0):({'Single Dose':0,'1 Day':1,'3 Days':3,'5 Days':5,'7 Days':7,'10 Days':10,'14 Days':14,'21 Days':21,'30 Days':30}[m.duration]??null);let endDate=null;if(durationDays!==null){const d=new Date(`${start}T00:00:00`);d.setDate(d.getDate()+Math.max(durationDays-1,0));endDate=d.toISOString().slice(0,10)}return {patient_id:patient.id,prescribed_by_doctor:m.prescribed_by_doctor,medicine_name:m.medicine_name,strength:m.strength,dose:m.strength,route:m.route,food_instruction:m.food_instruction,special_instruction:m.special_instruction,scheduled_times:m.times.split(',').map(x=>x.trim()).filter(Boolean),frequency:m.frequency,duration:m.duration,duration_days:m.duration==='Custom'?Number(m.custom_duration_days||0):durationDays,start_date:start,end_date:endDate,is_active:true,version_no:1,change_action:'Admission Prescription',status:'Active',entered_by:user.id,verified_by:user.id}});
           const {error:medicationInsertError}=await client.from('medication_orders').insert(medRows);
           if(medicationInsertError)throw medicationInsertError;
         }
@@ -14727,6 +14744,7 @@ Please keep these login details confidential.`;
     const medTasks=[];
     meds.forEach(order=>(order.scheduled_times||[]).forEach(raw=>{
       const time=String(raw).slice(0,5);
+      if(!medicationOrderDoseEligible(order,today,time))return;
       if(shiftForTime(time)!==shift)return;
       medTasks.push({
         type:'Medicine',
@@ -15599,13 +15617,9 @@ Please keep these login details confidential.`;
       }catch(uploadError){const text=`Patient details saved, but media upload failed: ${uploadError.message}`;setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
       try{
         const {data:{user}}=await client.auth.getUser();
-        const {error:archiveMedicationError}=await client.from('medication_orders')
-          .update({is_active:false,updated_at:new Date().toISOString()})
-          .eq('patient_id',editTarget.id)
-          .eq('is_active',true);
-        if(archiveMedicationError)throw archiveMedicationError;
-        const medicationRows=editMeds.filter(m=>m.medicine_name).map(m=>{const start=m.start_date||new Date().toISOString().slice(0,10);const days=m.duration==='Custom'?Number(m.custom_duration_days||0):({'Single Dose':0,'1 Day':1,'3 Days':3,'5 Days':5,'7 Days':7,'10 Days':10,'14 Days':14,'21 Days':21,'30 Days':30}[m.duration]??null);let endDate=null;if(days!==null){const d=new Date(`${start}T00:00:00`);d.setDate(d.getDate()+Math.max(days-1,0));endDate=d.toISOString().slice(0,10)}return {patient_id:editTarget.id,medicine_name:m.medicine_name,strength:m.strength,dose:m.strength,route:m.route,food_instruction:m.food_instruction,special_instruction:m.special_instruction,scheduled_times:String(m.times||'').split(',').map(x=>x.trim()).filter(Boolean),frequency:m.frequency,duration:m.duration,duration_days:m.duration==='Custom'?Number(m.custom_duration_days||0):days,start_date:start,end_date:endDate,is_active:true,entered_by:user?.id||null,verified_by:user?.id||null}});
-        if(medicationRows.length){const {error:me}=await client.from('medication_orders').insert(medicationRows);if(me)throw me}
+        // Medication orders are intentionally NOT edited from the general Patient Edit form.
+        // Prescription changes must go through Medicines → Doctor Review / Modify so the old
+        // prescription, MAR, effective time, doctor instruction and audit history are preserved.
         await client.from('care_orders').delete().eq('patient_id',editTarget.id);
         const careRows=editCare.filter(c=>c.care_type).map(c=>({patient_id:editTarget.id,care_type:c.care_type,shift:c.shift,frequency:c.frequency,instruction:c.instruction||null,entered_by:user?.id||null}));
         if(careRows.length){const {error:ce}=await client.from('care_orders').insert(careRows);if(ce)throw ce}
@@ -17267,8 +17281,17 @@ Please keep these login details confidential.`;
             h('div',{className:'field span-2'},h('label',null,'Email (optional)'),h('input',{type:'email',value:editDailyWhatsApp.email||'',onChange:e=>setEditDailyWhatsApp({...editDailyWhatsApp,email:e.target.value})}))
           )
         ),
-        h('div',{className:'section-card'},h('div',{className:'section-title'},h('div',null,h('h4',null,'3. Current and Upcoming Medicines'),h('small',null,'Only active medicines that are current or scheduled for the future are displayed. Expired and replaced prescriptions remain preserved in history.')),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setEditMeds([...editMeds,blankMedicine()])},'Add medicine')),
-          editMeds.length?editMeds.map((m,i)=>h('div',{className:'repeat-row medicine-order-row',key:m.id||i},miniInput('Medicine',m.medicine_name,v=>updateEditMed(i,'medicine_name',v),true),miniInput('Strength',m.strength,v=>updateEditMed(i,'strength',v),true),miniSelect('Frequency',m.frequency,['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'],v=>setEditMeds(editMeds.map((row,n)=>n===i?{...row,frequency:v,times:(MEDICATION_FREQUENCY_TIMES[v]||String(row.times||'').split(',').map(normalizeMedicationTime).filter(Boolean)).join(', ')}:row))),miniSelect('Route',m.route,['Oral','IV','IM'],v=>updateEditMed(i,'route',v)),h(MedicationTimeSelector,{label:'Time',value:m.times,onChange:v=>updateEditMed(i,'times',v),required:true}),miniSelect('Food',m.food_instruction,['Before food','After food','With food','No restriction'],v=>updateEditMed(i,'food_instruction',v)),miniSelect('Duration',m.duration,['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','30 Days','Until Doctor Review','Long Term','Custom'],v=>updateEditMed(i,'duration',v)),m.duration==='Custom'&&miniInput('Custom days',m.custom_duration_days,v=>updateEditMed(i,'custom_duration_days',v),true,'number'),miniInput('Start date',m.start_date,v=>updateEditMed(i,'start_date',v),true,'date'),miniInput('Special instruction',m.special_instruction,v=>updateEditMed(i,'special_instruction',v)),h('button',{type:'button',className:'icon-btn',onClick:()=>setEditMeds(editMeds.filter((_,n)=>n!==i))},'Remove'))):h('p',{className:'small-note'},'No current or upcoming medicine is recorded. Use Add medicine to create one.')),
+        h('div',{className:'section-card medication-history-lock'},
+          h('div',{className:'section-title'},
+            h('div',null,h('h4',null,'3. Current Medication — History Protected'),h('small',null,'Medication is not changed from Edit Patient. Use Doctor Review / Modify so every previous order and MAR entry remains intact.')),
+            h('button',{type:'button',className:'btn btn-primary',onClick:()=>{saveTaskNavigationContext({page:'Medicines',patient_id:editTarget.id,return_page:'Patients',doctor_review:true});setEditTarget(null);onNavigate?.('Medicines')}},'Doctor Review / Modify')
+          ),
+          editMeds.length?h('div',{className:'medication-current-readonly'},editMeds.map((m,i)=>h('div',{className:'medication-current-row',key:m.id||i},
+            h('strong',null,[m.medicine_name,m.strength].filter(Boolean).join(' ')||'Medicine'),
+            h('span',null,[m.frequency,m.route,String(m.times||'').split(',').map(x=>medicationTimeLabel(x.trim())).join(', '),m.food_instruction].filter(Boolean).join(' · '))
+          ))):h('p',{className:'small-note'},'No current or upcoming medication is recorded.'),
+          h('div',{className:'message',style:{marginTop:'10px'}},'Safety rule: modifying or stopping a medicine creates a new prescription version with doctor details and an effective date/time. The previous order is never overwritten.')
+        ),
         h('div',{className:'section-card'},h('h4',null,'4. Master care plan'),h('div',{className:'check-grid'},['Bathing assistance','Restroom/toileting assistance','Oral hygiene','Dressing assistance','Feeding assistance','Walking/mobility assistance','Diaper change','Position change / bedsore prevention','Fluid intake monitoring','Sleep assistance'].map(name=>h('label',{className:'check-card',key:name},h('input',{type:'checkbox',checked:editCare.some(x=>x.care_type===name),onChange:e=>e.target.checked?setEditCare([...editCare,{...blankCare(),care_type:name}]):setEditCare(editCare.filter(x=>x.care_type!==name))}),h('span',null,name)))),editCare.map((c,i)=>h('div',{className:'repeat-row care',key:c.id||c.care_type+i},miniInput('Care task',c.care_type,v=>updateEditCare(i,'care_type',v),true),miniSelect('Shift',c.shift,['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Both shifts'],v=>updateEditCare(i,'shift',v)),miniSelect('Frequency',c.frequency,['Daily','Each shift','Twice daily','As required'],v=>updateEditCare(i,'frequency',v)),miniInput('Instruction',c.instruction,v=>updateEditCare(i,'instruction',v)),h('button',{type:'button',className:'icon-btn',onClick:()=>setEditCare(editCare.filter((_,n)=>n!==i))},'Remove'))),h('div',{className:'form-grid'},selectField('Diet plan','diet_plan',editForm,setEditForm,['Normal diet','Soft diet','Liquid diet','Diabetic diet','Low-salt diet','Renal diet','High-protein diet','Tube feeding','Custom diet']),textareaField('Feeding instructions','feeding_instruction',editForm,setEditForm,'span-2'))),
         h('div',{className:'section-card'},h('h4',null,'5. Risks and special nurse'),h('div',{className:'check-grid'},[['fall_risk','Fall risk'],['pressure_sore_risk','Pressure sore risk'],['aspiration_risk','Aspiration risk'],['wandering_risk','Wandering / confusion risk'],['infection_risk','Infection-control precautions'],['seizure_history','Seizure history']].map(([key,label])=>h('label',{className:'check-card',key},h('input',{type:'checkbox',checked:!!editForm[key],onChange:e=>setEditForm({...editForm,[key]:e.target.checked})}),h('span',null,label)))),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!editForm.special_nurse_required,onChange:e=>setEditForm({...editForm,special_nurse_required:e.target.checked})}),h('span',null,'Special nurse required')),editForm.special_nurse_required&&h('div',{className:'form-grid'},field('Special nurse name','special_nurse_name',editForm,setEditForm,false),selectField('Special nurse shift','special_nurse_shift',editForm,setEditForm,['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Both shifts']))),
 
@@ -19491,6 +19514,7 @@ function RoomsBeds({profile}){
     const terminalMedicationStatuses=new Set(['given','refused','withheld','unavailable','missed']);
     const medTasks=[];
     state.medOrders.forEach(order=>parseClinicalTimes(order.scheduled_times).forEach(time=>{
+      if(!medicationOrderDoseEligible(order,today,time))return;
       // Admission-day protection: a scheduled dose that fell before the resident
       // was actually admitted is not due, missed, overdue or a medication error.
       if(doseWasBeforeAdmissionToday(order.patient_id,time))return;
@@ -19829,7 +19853,7 @@ function RoomsBeds({profile}){
 
   function Medicines({profile,onNavigate}){
     const today=todayISOIndia();
-    const [state,setState]=React.useState({loading:true,orders:[],mar:[],patients:[],error:''});
+    const [state,setState]=React.useState({loading:true,orders:[],mar:[],patients:[],reviews:[],reviewItems:[],error:'',reviewSetupError:''});
     const isFrontlineClinical=['Nurse','Caregiver'].includes(profile?.role);
     const [tab,setTab]=React.useState(()=>isFrontlineClinical?'Today’s MAR':'Active Prescriptions');
     const [patientFilter,setPatientFilter]=React.useState('');
@@ -19840,6 +19864,16 @@ function RoomsBeds({profile}){
     const [showShiftMedication,setShowShiftMedication]=React.useState(false);
     const [returnPage,setReturnPage]=React.useState('');
     const taskNavigationHandled=React.useRef(false);
+    const canReviseMedication=['Admin','Manager','Nurse'].includes(profile?.role);
+    const [reviewOpen,setReviewOpen]=React.useState(false);
+    const [reviewBusy,setReviewBusy]=React.useState(false);
+    const [reviewMessage,setReviewMessage]=React.useState('');
+    const [reviewFile,setReviewFile]=React.useState(null);
+    const [reviewForm,setReviewForm]=React.useState({patient_id:'',reviewed_at:'',doctor_name:'',doctor_contact:'',review_type:'Routine Doctor Review',order_mode:'Written Prescription',effective_from:'',clinical_notes:'',received_by_name:'',confirmation_due_at:'',changes:[]});
+    const medicationDurations=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','30 Days','Until Doctor Review','Long Term','Custom'];
+    const medicationFrequencies=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'];
+    const medicationRoutes=['Oral','IV','IM','SC','Sublingual','Inhalation','Topical','Eye','Ear','Other'];
+    const medicationFood=['Before food','After food','With food','No restriction'];
 
     function localDateTimeValue(date=new Date()){
       const pad=n=>String(n).padStart(2,'0');
@@ -19856,7 +19890,100 @@ function RoomsBeds({profile}){
       const status=String(order.status||'').trim().toLowerCase();
       if(['completed','discontinued','stopped','inactive'].includes(status))return false;
       const end=order.end_date||'';
-      return !end||end>=today;
+      if(end&&end<today)return false;
+      const now=Date.now();
+      const effective=order.effective_from?new Date(order.effective_from):null;
+      if(effective&&!Number.isNaN(effective.getTime())&&effective.getTime()>now)return false;
+      const stopped=order.stopped_at?new Date(order.stopped_at):null;
+      if(stopped&&!Number.isNaN(stopped.getTime())&&stopped.getTime()<=now)return false;
+      return true;
+    }
+    function blankReviewMedicine(action='Add'){
+      return {client_id:`new-${Date.now()}-${Math.random()}`,action,original_order_id:null,medicine_name:'',strength:'',frequency:'Once Daily (OD)',route:'Oral',times:'08:00',food_instruction:'After food',duration:'Long Term',custom_duration_days:'',special_instruction:'',change_note:''};
+    }
+    function orderToReviewChange(order){
+      return {client_id:order.id,action:'Continue',original_order_id:order.id,medicine_name:order.medicine_name||'',strength:order.strength||order.dose||'',frequency:order.frequency||'Once Daily (OD)',route:order.route||'Oral',times:parseTimes(order.scheduled_times).join(', '),food_instruction:order.food_instruction||'After food',duration:order.duration||'Long Term',custom_duration_days:order.duration_days||'',special_instruction:order.special_instruction||order.special_instructions||'',change_note:''};
+    }
+    function initializeReviewPatient(patientId){
+      const p=state.patients.find(row=>row.id===patientId)||{};
+      const current=state.orders.filter(o=>o.patient_id===patientId&&orderActive(o)).map(orderToReviewChange);
+      const nowValue=localDateTimeValue();
+      setReviewForm(currentForm=>({...currentForm,patient_id:patientId,reviewed_at:nowValue,effective_from:nowValue,doctor_name:p.treating_doctor||p.referring_doctor||'',doctor_contact:p.doctor_phone||'',changes:current}));
+    }
+    function openMedicationReview(patientId=''){
+      if(!canReviseMedication)return;
+      const nowValue=localDateTimeValue();
+      setReviewMessage('');setReviewFile(null);
+      setReviewForm({patient_id:patientId,reviewed_at:nowValue,doctor_name:'',doctor_contact:'',review_type:'Routine Doctor Review',order_mode:'Written Prescription',effective_from:nowValue,clinical_notes:'',received_by_name:'',confirmation_due_at:'',changes:[]});
+      setReviewOpen(true);
+      if(patientId)setTimeout(()=>initializeReviewPatient(patientId),0);
+    }
+    function updateReviewChange(index,patch){setReviewForm(current=>({...current,changes:current.changes.map((row,i)=>i===index?{...row,...patch}:row)}));}
+    function durationEndDate(change,effectiveAt){
+      const start=String(effectiveAt||'').slice(0,10)||today;
+      const days=change.duration==='Custom'?Number(change.custom_duration_days||0):({'Single Dose':0,'1 Day':1,'3 Days':3,'5 Days':5,'7 Days':7,'10 Days':10,'14 Days':14,'21 Days':21,'30 Days':30}[change.duration]??null);
+      if(days===null)return null;
+      const d=new Date(`${start}T00:00:00`);d.setDate(d.getDate()+Math.max(days-1,0));return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+    async function uploadReviewPrescription(patientId){
+      if(!reviewFile)return {path:null,name:null};
+      const safe=String(reviewFile.name||'prescription').replace(/[^a-zA-Z0-9._-]/g,'_');
+      const token=(globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(16).slice(2)}`);
+      const path=`${patientId}/medication-reviews/${token}/${safe}`;
+      const uploaded=await client.storage.from('patient-documents').upload(path,reviewFile,{contentType:reviewFile.type||undefined});
+      if(uploaded.error)throw uploaded.error;
+      return {path,name:reviewFile.name};
+    }
+    async function saveMedicationReview(e){
+      e.preventDefault();setReviewMessage('');
+      if(!reviewForm.patient_id)return setReviewMessage('Select the patient.');
+      if(!String(reviewForm.doctor_name||'').trim())return setReviewMessage('Doctor name is required.');
+      const reviewedAt=new Date(reviewForm.reviewed_at),effectiveAt=new Date(reviewForm.effective_from),now=new Date();
+      if(Number.isNaN(reviewedAt.getTime())||Number.isNaN(effectiveAt.getTime()))return setReviewMessage('Enter valid review and effective date/time.');
+      if(reviewedAt.getTime()>now.getTime()+60000||effectiveAt.getTime()>now.getTime()+60000)return setReviewMessage('Future review/effective date and time are not permitted.');
+      if(reviewForm.order_mode==='Written Prescription'&&!reviewFile)return setReviewMessage('Upload the doctor’s written prescription / order before applying the medication change.');
+      if(reviewForm.order_mode!=='Written Prescription'){
+        if(!String(reviewForm.received_by_name||'').trim())return setReviewMessage('Enter the staff member who received the verbal / telephone order.');
+        if(!reviewForm.confirmation_due_at)return setReviewMessage('Enter when written confirmation is due for the verbal / telephone order.');
+      }
+      const changed=reviewForm.changes.filter(row=>row.action!=='Continue');
+      if(!changed.length)return setReviewMessage('No medication change is selected. Choose Modify, Stop, or Add New Medicine.');
+      for(const row of reviewForm.changes){
+        if(!['Modify','Add'].includes(row.action))continue;
+        if(!String(row.medicine_name||'').trim()||!String(row.strength||'').trim()||!row.frequency||!row.route||!parseTimes(row.times).length)return setReviewMessage('Complete Medicine, Strength, Frequency, Route and Time for every modified/new medicine.');
+        if(row.duration==='Custom'&&Number(row.custom_duration_days||0)<=0)return setReviewMessage('Enter valid custom duration days.');
+      }
+      setReviewBusy(true);let uploaded=null;
+      try{
+        uploaded=await uploadReviewPrescription(reviewForm.patient_id);
+        const {data:{user}}=await client.auth.getUser();
+        const changes=reviewForm.changes.map(row=>({
+          action:row.action,original_order_id:row.original_order_id||null,medicine_name:row.medicine_name,strength:row.strength,dose:row.strength,frequency:row.frequency,route:row.route,
+          scheduled_times:parseTimes(row.times),food_instruction:row.food_instruction||null,duration:row.duration||'Long Term',duration_days:row.duration==='Custom'?Number(row.custom_duration_days||0):null,
+          start_date:String(reviewForm.effective_from).slice(0,10),end_date:durationEndDate(row,reviewForm.effective_from),special_instruction:row.special_instruction||null,change_note:row.change_note||null
+        }));
+        const reviewPayload={patient_id:reviewForm.patient_id,reviewed_at:reviewedAt.toISOString(),doctor_name:String(reviewForm.doctor_name).trim(),doctor_contact:String(reviewForm.doctor_contact||'').trim()||null,review_type:reviewForm.review_type,order_mode:reviewForm.order_mode,effective_from:effectiveAt.toISOString(),clinical_notes:String(reviewForm.clinical_notes||'').trim()||null,prescription_storage_path:uploaded.path,prescription_document_name:uploaded.name,received_by_name:reviewForm.order_mode==='Written Prescription'?null:String(reviewForm.received_by_name||'').trim(),verbal_confirmation_status:reviewForm.order_mode==='Written Prescription'?'Not Required':'Pending',verbal_confirmation_due_at:reviewForm.order_mode==='Written Prescription'?null:new Date(reviewForm.confirmation_due_at).toISOString()};
+        const rpc=await client.rpc('apply_medication_review',{p_review:reviewPayload,p_changes:changes,p_user_id:user?.id||profile?.auth_user_id||profile?.id});
+        if(rpc.error)throw rpc.error;
+        if(uploaded.path){
+          const doc=await client.from('patient_documents').insert({patient_id:reviewForm.patient_id,document_type:'Medication Review Prescription',document_name:uploaded.name||'Doctor prescription',storage_path:uploaded.path,mime_type:reviewFile?.type||null,file_size:reviewFile?.size||null,remarks:`Doctor medication review · ${reviewForm.doctor_name} · effective ${reviewForm.effective_from}`,uploaded_by:user?.id||profile?.id,is_verified:true});
+          if(doc.error)console.warn('Medication review document index failed:',doc.error.message);
+        }
+        await client.from('audit_log').insert({user_id:user?.id||profile?.id,action:'MEDICATION_REVIEW_APPLIED',entity:'patients',entity_id:reviewForm.patient_id,details:{doctor:reviewForm.doctor_name,order_mode:reviewForm.order_mode,effective_from:effectiveAt.toISOString(),changed_items:changed.length}});
+        showSamaraActionToast('success','Medication review applied','Current medication has been updated without overwriting the previous prescription or MAR history.');
+        setReviewOpen(false);setReviewFile(null);setTab('Prescription History');await load();
+      }catch(error){
+        if(uploaded?.path)try{await client.storage.from('patient-documents').remove([uploaded.path]);}catch(_error){}
+        const text=error?.message||'Unable to apply medication review.';setReviewMessage(text);showSamaraActionToast('error','Medication review failed',text);
+      }finally{setReviewBusy(false);}
+    }
+    async function confirmVerbalReview(review){
+      const note=prompt('Written confirmation received. Enter confirmation note / prescription reference:')||'';
+      if(!note.trim())return;
+      const {data:{user}}=await client.auth.getUser();
+      const {error}=await client.from('medication_reviews').update({verbal_confirmation_status:'Confirmed',verbal_confirmed_at:new Date().toISOString(),verbal_confirmed_by:user?.id||profile?.id,verbal_confirmation_note:note.trim()}).eq('id',review.id);
+      if(error)return showSamaraActionToast('error','Confirmation failed',error.message);
+      showSamaraActionToast('success','Order confirmed','Written confirmation has been recorded.');load();
     }
     function patientFor(order){return state.patients.find(p=>p.id===order.patient_id)||{};}
     function admissionBoundaryForPatient(patient){
@@ -19982,19 +20109,24 @@ function RoomsBeds({profile}){
 
     async function load(){
       setState(current=>({...current,loading:true,error:''}));
-      const [ordersResult,marResult,patientsResult]=await Promise.all([
+      const [ordersResult,marResult,patientsResult,reviewsResult,reviewItemsResult]=await Promise.all([
         client.from('medication_orders').select('*').order('created_at',{ascending:false}),
         client.from('medication_administrations').select('*').order('scheduled_date',{ascending:false}).order('scheduled_time',{ascending:false}).limit(1000),
-        client.from('patients').select('*').order('full_name')
+        client.from('patients').select('*').order('full_name'),
+        client.from('medication_reviews').select('*').order('reviewed_at',{ascending:false}).limit(500),
+        client.from('medication_review_items').select('*').order('created_at',{ascending:false}).limit(2000)
       ]);
       const errors=[ordersResult.error,marResult.error,patientsResult.error].filter(Boolean);
-      setState({loading:false,orders:ordersResult.data||[],mar:marResult.data||[],patients:patientsResult.data||[],error:errors.map(e=>e.message).join(' | ')});
+      const reviewSetupError=[reviewsResult.error,reviewItemsResult.error].filter(Boolean).map(e=>e.message).join(' | ');
+      setState({loading:false,orders:ordersResult.data||[],mar:marResult.data||[],patients:patientsResult.data||[],reviews:reviewsResult.data||[],reviewItems:reviewItemsResult.data||[],error:errors.map(e=>e.message).join(' | '),reviewSetupError});
     }
     React.useEffect(()=>{
       load();
       const ch=client.channel('medicines-register-live')
         .on('postgres_changes',{event:'*',schema:'public',table:'medication_orders'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'medication_administrations'},load)
+        .on('postgres_changes',{event:'*',schema:'public',table:'medication_reviews'},load)
+        .on('postgres_changes',{event:'*',schema:'public',table:'medication_review_items'},load)
         .subscribe();
       return()=>client.removeChannel(ch);
     },[]);
@@ -20006,6 +20138,12 @@ function RoomsBeds({profile}){
       taskNavigationHandled.current=true;
       setReturnPage(context.return_page||'');
       setPatientFilter(context.patient_id||'');
+      if(context.doctor_review){
+        setTab('Prescription History');
+        openMedicationReview(context.patient_id||'');
+        clearTaskNavigationContext();
+        return;
+      }
       setTab('Today’s MAR');
       const target=state.orders.find(order=>order.id===context.order_id)
         ||state.orders.find(order=>order.patient_id===context.patient_id);
@@ -20018,7 +20156,8 @@ function RoomsBeds({profile}){
 
     const activeOrders=state.orders.filter(orderActive);
     const todayRows=[];
-    activeOrders.forEach(order=>parseTimes(order.scheduled_times).forEach(time=>{
+    state.orders.forEach(order=>parseTimes(order.scheduled_times).forEach(time=>{
+      if(!medicationOrderDoseEligible(order,today,time))return;
       if(doseWasBeforeAdmission(order,time))return;
       todayRows.push({order,time,log:doseStatus(order,time)});
     }));
@@ -20029,7 +20168,8 @@ function RoomsBeds({profile}){
     const completedOrders=state.orders.filter(o=>String(o.status||'').toLowerCase()==='completed'||(o.end_date&&o.end_date<today&&o.is_active!==false));
     const discontinuedOrders=state.orders.filter(o=>o.is_active===false||['discontinued','stopped','inactive'].includes(String(o.status||'').toLowerCase()));
     const filtered=rows=>patientFilter?rows.filter(item=>(item.order||item).patient_id===patientFilter):rows;
-    const tabs=[['Active Prescriptions',activeOrders.length],['Today’s MAR',todayRows.length],['Missed Medicines',missedRows.length],['Completed Medicines',completedOrders.length],['Discontinued Medicines',discontinuedOrders.length]];
+    const historyCount=state.orders.length;
+    const tabs=[['Active Prescriptions',activeOrders.length],['Today’s MAR',todayRows.length],['Missed Medicines',missedRows.length],['Prescription History',historyCount],['Completed Medicines',completedOrders.length],['Discontinued Medicines',discontinuedOrders.length]];
 
     function scheduledDoseDate(time){
       const raw=String(time||'').slice(0,8);
@@ -20090,6 +20230,7 @@ function RoomsBeds({profile}){
         h('div',null,h('h2',null,'Medicines Due Now'),h('small',null,'Only doses within 30 minutes before or after the scheduled time are shown here.')),
         h('div',{className:'actions'},
           h('button',{type:'button',className:showShiftMedication?'btn btn-primary':'btn btn-secondary',onClick:()=>setShowShiftMedication(value=>!value)},showShiftMedication?'Hide Shift Medication':`Medication for This Shift (${nurseShiftUpcoming.length})`),
+          canReviseMedication&&h('button',{type:'button',className:'btn btn-primary',disabled:Boolean(state.reviewSetupError),onClick:()=>openMedicationReview(patientFilter)},'Doctor Review / Modify'),
           h('button',{type:'button',className:'btn btn-secondary nurse-refresh',onClick:load},state.loading?'…':'Refresh')
         )
       ),
@@ -20137,6 +20278,30 @@ function RoomsBeds({profile}){
     if(tab==='Completed Medicines')table=h(LogTable,{className:'medication-log-table',title:'Completed Medicine Courses',subtitle:'Prescription courses completed by status or end date',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR','Action'],rows:prescriptionRows(completedOrders)});
     if(tab==='Discontinued Medicines')table=h(LogTable,{className:'medication-log-table',title:'Discontinued Medicines',subtitle:'Stopped or inactive prescriptions retained for history',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR'],rows:prescriptionRows(discontinuedOrders).map(row=>row.slice(0,-1))});
 
+    if(tab==='Prescription History'){
+      const historyOrders=filtered(state.orders).sort((a,b)=>String(b.effective_from||b.created_at||'').localeCompare(String(a.effective_from||a.created_at||'')));
+      const reviewRows=(patientFilter?state.reviews.filter(r=>r.patient_id===patientFilter):state.reviews);
+      table=h('div',{className:'medication-history-workspace'},
+        h(LogTable,{className:'medication-log-table',title:'Prescription Version History',subtitle:'Every medication order is retained. Modified or stopped orders are never overwritten.',heads:['Patient','Version','Medicine / Strength','Frequency / Route','Times','Effective From','Stopped At','Doctor','Origin / Status'],rows:historyOrders.map(order=>[
+          patientLabel(order),`V${order.version_no||1}`,medicineLabel(order),[order.frequency,order.route].filter(Boolean).join(' · ')||'—',parseTimes(order.scheduled_times).map(medicationTimeLabel).join(', ')||'—',order.effective_from?fmt(order.effective_from):(order.start_date?formatDateIN(order.start_date):fmt(order.created_at)),order.stopped_at?fmt(order.stopped_at):'—',order.prescribed_by_doctor||'—',[order.change_action,order.is_active===false?(order.status||'Stopped'):(order.status||'Active')].filter(Boolean).join(' · ')
+        ])}),
+        h('div',{className:'section-card medication-review-history'},
+          h('div',{className:'panel-head'},h('div',null,h('h3',null,'Doctor Review / Prescription Revision History'),h('small',null,'Review source, effective time, prescription proof and verbal-order confirmation are permanently retained.')),canReviseMedication&&h('button',{type:'button',className:'btn btn-primary',onClick:()=>openMedicationReview(patientFilter)},'Doctor Review / Modify')),
+          reviewRows.length?h('div',{className:'medication-review-list'},reviewRows.map(review=>{
+            const p=state.patients.find(x=>x.id===review.patient_id)||{};
+            const items=state.reviewItems.filter(x=>x.review_id===review.id);
+            const pending=review.order_mode!=='Written Prescription'&&review.verbal_confirmation_status!=='Confirmed';
+            return h('div',{className:'medication-review-card',key:review.id},
+              h('div',{className:'medication-review-head'},h('div',null,h('strong',null,`${formalName(p)||p.full_name||'Patient'} · ${review.doctor_name}`),h('small',null,`${fmt(review.reviewed_at)} · Effective ${fmt(review.effective_from)} · ${review.order_mode}`)),h('span',{className:`badge ${pending?'off':''}`},pending?'Confirmation Pending':'Confirmed / Written')),
+              review.clinical_notes&&h('p',null,review.clinical_notes),
+              h('div',{className:'medication-review-items'},items.map(item=>h('span',{className:`review-action ${String(item.action||'').toLowerCase()}`,key:item.id},`${item.action}: ${item.medicine_name||'Medicine'}${item.strength?` ${item.strength}`:''}`))),
+              pending&&canReviseMedication&&h('div',{className:'actions'},h('small',null,review.verbal_confirmation_due_at?`Written confirmation due: ${fmt(review.verbal_confirmation_due_at)}`:'Written confirmation pending'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>confirmVerbalReview(review)},'Mark Written Confirmation Received'))
+            );
+          })):h('p',{className:'small-note'},'No doctor medication review has been recorded yet.')
+        )
+      );
+    }
+
     const targetTimes=marTarget?parseTimes(marTarget.scheduled_times):[];
     const currentEntryDelay=marForm.administered_at?Math.max(0,Math.round((Date.now()-new Date(marForm.administered_at).getTime())/60000)):0;
     const currentIsLateEntry=currentEntryDelay>30;
@@ -20144,13 +20309,55 @@ function RoomsBeds({profile}){
     return h(React.Fragment,null,
       h(Section,{title:'Medication Administration & Prescription Register',subtitle:'Unified prescription history and MAR status from the patient record'},
         state.error&&h('div',{className:'message error'},`Unable to load part of the medication register: ${state.error}`),
+        state.reviewSetupError&&h('div',{className:'message error'},'Medication Review database upgrade is not yet installed. Run MEDICATION_REVIEW_MIGRATION_v2.11.26.sql in Supabase SQL Editor before using Doctor Review / Modify.'),
         !isFrontlineClinical&&h('div',{className:'panel-head'},
           h('div',{className:'field',style:{minWidth:'260px',marginBottom:0}},h('label',null,'Patient filter'),h('select',{value:patientFilter,onChange:e=>setPatientFilter(e.target.value)},h('option',{value:''},'All patients'),state.patients.filter(p=>p.is_active!==false).map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)||p.full_name} · ${p.patient_id||'No ID'}`)))),
-          h('button',{type:'button',className:'btn btn-secondary',onClick:load},state.loading?'Loading…':'Refresh')
+          h('div',{className:'actions'},canReviseMedication&&h('button',{type:'button',className:'btn btn-primary',disabled:Boolean(state.reviewSetupError),onClick:()=>openMedicationReview(patientFilter)},'Doctor Review / Modify'),h('button',{type:'button',className:'btn btn-secondary',onClick:load},state.loading?'Loading…':'Refresh'))
         ),
         !isFrontlineClinical&&h('div',{className:'time-chip-list',style:{marginTop:'16px'}},tabs.map(([name,count])=>h('button',{type:'button',key:name,className:`btn ${tab===name?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(name)},`${name} (${count})`)))
       ),
       state.loading?h('div',{className:'card panel loading'},'Loading medication register…'):(isFrontlineClinical?nurseMedicationCards:table),
+      reviewOpen&&h('div',{className:'modal-backdrop medication-review-backdrop',onClick:e=>{if(e.target===e.currentTarget&&!reviewBusy)setReviewOpen(false)}},
+        h('form',{className:'card modal medication-review-modal',onSubmit:saveMedicationReview},
+          h('div',{className:'panel-head'},h('div',null,h('h3',null,'Doctor Review / Modify Medication'),h('small',null,'Only medication-review fields are shown. Previous prescriptions and MAR entries are never overwritten.')),h('button',{type:'button',className:'close',disabled:reviewBusy,onClick:()=>setReviewOpen(false)},'×')),
+          reviewMessage&&h('div',{className:'message error'},reviewMessage),
+          h('div',{className:'message',style:{marginBottom:'12px'}},'Effective-time safety: doses scheduled before the new order takes effect remain under the previous prescription. Doses at or after the effective time follow the revised prescription.'),
+          h('div',{className:'modal-grid'},
+            h('div',{className:'field span-2'},h('label',null,'Patient'),h('select',{required:true,value:reviewForm.patient_id,onChange:e=>initializeReviewPatient(e.target.value)},h('option',{value:''},'Select patient'),state.patients.filter(p=>p.is_active!==false).map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)||p.full_name} · ${p.patient_id||'No ID'} · Room ${p.room_no||'—'}`)))),
+            h('div',{className:'field'},h('label',null,'Doctor Review Date & Time'),h('input',{type:'datetime-local',required:true,max:localDateTimeValue(),value:reviewForm.reviewed_at,onChange:e=>setReviewForm({...reviewForm,reviewed_at:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Effective From Date & Time'),h('input',{type:'datetime-local',required:true,max:localDateTimeValue(),value:reviewForm.effective_from,onChange:e=>setReviewForm({...reviewForm,effective_from:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Doctor Name'),h('input',{required:true,value:reviewForm.doctor_name,onChange:e=>setReviewForm({...reviewForm,doctor_name:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Doctor Contact'),h('input',{value:reviewForm.doctor_contact,onChange:e=>setReviewForm({...reviewForm,doctor_contact:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Review Type'),h('select',{value:reviewForm.review_type,onChange:e=>setReviewForm({...reviewForm,review_type:e.target.value})},['Routine Doctor Review','Specialist Review','Hospital Review / Discharge Advice','Emergency Review','Other'].map(x=>h('option',{key:x,value:x},x)))),
+            h('div',{className:'field'},h('label',null,'Order Source'),h('select',{value:reviewForm.order_mode,onChange:e=>setReviewForm({...reviewForm,order_mode:e.target.value})},['Written Prescription','Telephone Order','Verbal Order'].map(x=>h('option',{key:x,value:x},x)))),
+            reviewForm.order_mode==='Written Prescription'?h('div',{className:'field span-2'},h('label',null,'Upload Doctor Prescription / Order (mandatory)'),h('input',{type:'file',accept:'image/*,.pdf',required:true,onChange:e=>setReviewFile(e.target.files?.[0]||null)}),reviewFile&&h('small',null,reviewFile.name)):h(React.Fragment,null,
+              h('div',{className:'field'},h('label',null,'Order Received By'),h('input',{required:true,value:reviewForm.received_by_name,onChange:e=>setReviewForm({...reviewForm,received_by_name:e.target.value}),placeholder:'Staff name / designation'})),
+              h('div',{className:'field'},h('label',null,'Written Confirmation Due'),h('input',{type:'datetime-local',required:true,value:reviewForm.confirmation_due_at,onChange:e=>setReviewForm({...reviewForm,confirmation_due_at:e.target.value})}))
+            ),
+            h('div',{className:'field span-2'},h('label',null,'Doctor Review / Clinical Notes'),h('textarea',{rows:3,value:reviewForm.clinical_notes,onChange:e=>setReviewForm({...reviewForm,clinical_notes:e.target.value}),placeholder:'Reason for review, diagnosis update, relevant advice or monitoring instructions'}))
+          ),
+          reviewForm.patient_id&&h('div',{className:'medication-review-change-list'},
+            h('div',{className:'section-title'},h('div',null,h('h4',null,'Medication Changes'),h('small',null,'For each existing medicine select Continue, Modify or Stop. Add new medicines separately.')),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setReviewForm(current=>({...current,changes:[...current.changes,blankReviewMedicine('Add')]}))},'Add New Medicine')),
+            reviewForm.changes.length?reviewForm.changes.map((row,index)=>h('div',{className:`medication-review-change ${String(row.action).toLowerCase()}`,key:row.client_id||index},
+              h('div',{className:'medication-review-change-head'},h('strong',null,row.original_order_id?`${row.medicine_name||'Medicine'} ${row.strength||''}`:'New Medicine'),h('select',{value:row.action,onChange:e=>updateReviewChange(index,{action:e.target.value})},row.original_order_id?['Continue','Modify','Stop'].map(x=>h('option',{key:x,value:x},x)):h('option',{value:'Add'},'Add New'))),
+              ['Continue','Stop'].includes(row.action)?h('div',{className:'medication-review-readonly'},h('span',null,`${row.frequency} · ${row.route} · ${parseTimes(row.times).map(medicationTimeLabel).join(', ')}`),row.special_instruction&&h('small',null,row.special_instruction)):h('div',{className:'medication-review-fields'},
+                miniInput('Medicine',row.medicine_name,v=>updateReviewChange(index,{medicine_name:v}),true),
+                miniInput('Strength',row.strength,v=>updateReviewChange(index,{strength:v}),true),
+                miniSelect('Frequency',row.frequency,medicationFrequencies,v=>updateReviewChange(index,{frequency:v,times:(MEDICATION_FREQUENCY_TIMES[v]||parseTimes(row.times)).join(', ') })),
+                miniSelect('Route',row.route,medicationRoutes,v=>updateReviewChange(index,{route:v})),
+                h(MedicationTimeSelector,{label:'Time',value:row.times,onChange:v=>updateReviewChange(index,{times:v}),required:true}),
+                miniSelect('Food',row.food_instruction,medicationFood,v=>updateReviewChange(index,{food_instruction:v})),
+                miniSelect('Duration',row.duration,medicationDurations,v=>updateReviewChange(index,{duration:v})),
+                row.duration==='Custom'&&miniInput('Custom days',row.custom_duration_days,v=>updateReviewChange(index,{custom_duration_days:v}),true,'number'),
+                miniInput('Special instruction',row.special_instruction,v=>updateReviewChange(index,{special_instruction:v}))
+              ),
+              row.action!=='Continue'&&h('div',{className:'field',style:{marginTop:'8px'}},h('label',null,'Change / Stop Note'),h('input',{value:row.change_note||'',onChange:e=>updateReviewChange(index,{change_note:e.target.value}),placeholder:'Optional medicine-specific reason / instruction'})),
+              !row.original_order_id&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setReviewForm(current=>({...current,changes:current.changes.filter((_,i)=>i!==index)}))},'Remove New Medicine')
+            )):h('p',{className:'small-note'},'No active medicines. Use Add New Medicine if the doctor has prescribed treatment.')
+          ),
+          h('div',{className:'modal-actions medication-review-actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:reviewBusy,onClick:()=>setReviewOpen(false)},'Close'),h('button',{className:'btn btn-primary',disabled:reviewBusy||!reviewForm.patient_id},reviewBusy?'Applying Review…':'Apply Doctor Review & Update Medication'))
+        )
+      ),
       marTarget&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)closeMar()}},
         h('form',{className:'card modal',onSubmit:saveMar},
           h('div',{className:'panel-head'},h('div',null,h('h3',null,'Medication Administration'),h('small',null,'Record each dose without overwriting prescription history')),h('button',{type:'button',className:'close',onClick:closeMar},'×')),

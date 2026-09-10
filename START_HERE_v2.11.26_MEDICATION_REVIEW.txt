@@ -1,0 +1,31 @@
+Samara Care ERP v2.11.26 — Medication Doctor Review / Prescription Revision
+
+IMPORTANT DEPLOYMENT ORDER
+1. In Supabase SQL Editor, open MEDICATION_REVIEW_MIGRATION_v2.11.26.sql.
+2. Click Run once. Save the SQL snippet (Save or Ctrl+S) if you want to retain it in Supabase.
+3. Upload/replace these ERP files:
+   - app.js
+   - styles.css
+   - index.html
+   - service-worker.js
+4. Open Samara Care and use Update Now. If the old build remains cached, use App Help → Repair App once.
+
+WHAT THIS VERSION ADDS
+- Doctor Review / Modify Medication focused popup (not the full Patient Edit page).
+- Existing medicines: Continue / Modify / Stop.
+- Add New Medicine after doctor review.
+- Doctor name, review time, effective date/time, review type and doctor contact.
+- Written prescription upload is mandatory for Written Prescription orders.
+- Telephone / Verbal Order records received-by details and written-confirmation due time.
+- Written-confirmation status can later be marked Confirmed in Prescription History.
+- Every change creates a medication review audit record and per-medicine review item.
+- Modified medication creates a NEW prescription version; the old order is stopped, never overwritten.
+- MAR history remains attached to the prescription version under which the dose was due/administered.
+- Effective-time logic prevents doses after a Stop/Modify time from becoming due under the old order.
+- Same-day doses before the change time remain visible under the old prescription.
+- General Edit Patient no longer rewrites medication orders; it links staff to Doctor Review / Modify.
+- Prescription History shows versions, effective/stopped times, doctor and origin/status.
+- Admission medication becomes Version 1 / Admission Prescription for new admissions.
+- Nurse/Caregiver administration workflow remains primary and compact.
+
+NO EXISTING MAR OR PRESCRIPTION HISTORY IS DELETED BY THE MIGRATION.
