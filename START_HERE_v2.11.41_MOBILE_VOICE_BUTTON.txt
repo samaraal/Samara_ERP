@@ -1,0 +1,22 @@
+SAMARA CARE ERP v2.11.41 — MOBILE VOICE REVIEW BUTTON
+
+FIX
+---
+- The mobile Voice Input window now opens from the visible top of the screen.
+- "Use This Text" remains clearly visible as the first primary action.
+- The window scrolls internally on smaller mobile screens.
+- Automatic text-box focus no longer pushes the action buttons above the screen.
+- Record Again, Cancel, Try Gemini Again and Try OpenAI Instead remain available.
+
+INSTALL
+-------
+Replace:
+- app.js
+- styles.css
+- index.html
+- config.js
+- service-worker.js
+
+Then use Update Now. If the old layout remains, use App Help / Repair -> Repair App once.
+
+No SQL or Edge Function change is required.

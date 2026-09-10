@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.40';
+  const APP_VERSION = '2.11.41';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '10-Sep-2026 Patient-locked Shift Handover';
+  const APP_BUILD_DATE = '10-Sep-2026 Mobile Voice Review Action Fix';
   const APP_SCHEMA_VERSION = '34';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -6057,7 +6057,7 @@ Caring with Compassion. Living with Dignity.`;
             h('button',{type:'button',className:'btn btn-secondary',onClick:close},'Cancel')
           ):h('div',{className:'samara-voice-actions'},h('button',{type:'button',className:'btn btn-primary',disabled:processing,onClick:()=>start('ta-IN')},processing?'Processing…':'🎤 Speak Tamil'),h('button',{type:'button',className:'btn btn-secondary',disabled:processing,onClick:()=>start('en-IN')},'🎤 Speak English')),
         transcript&&h('div',{className:'samara-voice-transcript'},h('small',null,'Heard'),h('div',null,transcript)),
-        reviewText&&h('div',{className:'samara-voice-review'},h('label',null,'Review and edit before using'),h('textarea',{rows:5,value:reviewText,onChange:e=>setReviewText(e.target.value),autoFocus:true})),
+        reviewText&&h('div',{className:'samara-voice-review'},h('label',null,'Review and edit before using'),h('textarea',{rows:5,value:reviewText,onChange:e=>setReviewText(e.target.value)})),
         reviewText&&audioBlobRef.current?h('div',{className:'samara-voice-provider-actions'},
           h('button',{type:'button',className:'btn btn-secondary',disabled:processing,onClick:()=>sendAudio(audioBlobRef.current,langRef.current,'gemini')},processing?'Processing…':'Try Gemini Again'),
           h('button',{type:'button',className:'btn btn-secondary',disabled:processing,onClick:()=>sendAudio(audioBlobRef.current,langRef.current,'openai')},processing?'Processing…':'Try OpenAI Instead')

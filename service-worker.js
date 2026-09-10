@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.40';
-const CACHE = 'samara-erp-2.11.40-patient-locked-handover';
+const APP_VERSION = '2.11.41';
+const CACHE = 'samara-erp-2.11.41-mobile-voice-review-action';
 const SHELL = [
   './',
   './index.html',
