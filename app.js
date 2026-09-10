@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.35';
+  const APP_VERSION = '2.11.36';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -296,6 +296,7 @@ function initSamaraInaugurationInvitation(){
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
 
 
+  // v2.11.36: Global Tamil / English voice input added to frontline nursing narrative fields (handover, remarks, notes, instructions, observations and similar manual entries).
   // v2.11.35: Patient File Medicines simplified into compact tables for current prescription, modification history, doctor review and today's MAR.
   // v2.11.34: Patient File Medicines now shows full prescription/version/review history and today's MAR only.
   // v2.11.27: nurses/caregivers use priority cards on mobile and the full medication register on desktop.
@@ -5893,6 +5894,148 @@ Caring with Compassion. Living with Dignity.`;
     `;document.head.appendChild(style);
   }
 
+
+  // v2.11.36: Global Tamil / English voice input for frontline nursing narrative fields.
+  // Adds a compact Voice button beside free-text nursing fields without changing existing forms.
+  function GlobalNursingVoiceInput({profile}){
+    const enabled=['Nurse','Caregiver'].includes(profile?.role);
+    const [target,setTarget]=React.useState(null);
+    const [open,setOpen]=React.useState(false);
+    const [listening,setListening]=React.useState(false);
+    const [processing,setProcessing]=React.useState(false);
+    const [message,setMessage]=React.useState('');
+    const [transcript,setTranscript]=React.useState('');
+    const recognitionRef=React.useRef(null);
+    const recorderRef=React.useRef(null);
+    const streamRef=React.useRef(null);
+    const chunksRef=React.useRef([]);
+    const langRef=React.useRef('ta-IN');
+
+    function eligible(el){
+      if(!enabled||!el||el.disabled||el.readOnly)return false;
+      if(el.dataset?.samaraVoice==='off')return false;
+      const type=String(el.getAttribute('type')||'text').toLowerCase();
+      if(el.tagName==='INPUT'&&!['text','search'].includes(type))return false;
+      const bits=[el.name,el.id,el.placeholder,el.getAttribute('aria-label'),el.closest('label')?.innerText,el.parentElement?.querySelector(':scope > label')?.innerText].filter(Boolean).join(' ').toLowerCase();
+      if(/search|username|login|password|email|mobile|phone|contact no|patient id|employee id|mr no|room no|bed no|reference no|payment reference/.test(bits))return false;
+      if(el.tagName==='TEXTAREA')return true;
+      return /remark|note|instruction|summary|handover|hand over|observation|reason|description|detail|advice|complaint|finding|action taken|follow.?up|precaution|restriction|incident|diet|care plan|special|comment|clinical|doctor|procedure|diagnosis|allerg|referred|request|transport|belonging|condition|status note/.test(bits);
+    }
+
+    function addButtons(){
+      if(!enabled)return;
+      document.querySelectorAll('textarea,input[type="text"],input:not([type])').forEach(el=>{
+        if(!eligible(el)||el.dataset.samaraVoiceReady==='1')return;
+        el.dataset.samaraVoiceReady='1';
+        const btn=document.createElement('button');
+        btn.type='button';btn.className='samara-global-voice-btn';btn.innerHTML='🎤 Voice';
+        btn.title='Tamil / English voice input';btn.setAttribute('aria-label','Tamil or English voice input');
+        btn.addEventListener('click',ev=>{ev.preventDefault();ev.stopPropagation();setTarget(el);setTranscript('');setMessage('');setOpen(true)});
+        el.insertAdjacentElement('afterend',btn);
+      });
+    }
+
+    React.useEffect(()=>{
+      if(!enabled)return;
+      addButtons();
+      const ob=new MutationObserver(()=>window.setTimeout(addButtons,40));
+      ob.observe(document.body,{childList:true,subtree:true});
+      return()=>{ob.disconnect();document.querySelectorAll('.samara-global-voice-btn').forEach(x=>x.remove());document.querySelectorAll('[data-samara-voice-ready="1"]').forEach(x=>delete x.dataset.samaraVoiceReady)};
+    },[enabled]);
+
+    function stop(){
+      try{recognitionRef.current?.stop?.()}catch(_){} recognitionRef.current=null;
+      try{if(recorderRef.current&&recorderRef.current.state!=='inactive')recorderRef.current.stop()}catch(_){}
+      try{streamRef.current?.getTracks?.().forEach(t=>t.stop())}catch(_){}
+      streamRef.current=null;setListening(false);
+    }
+    function nativeSet(el,value){
+      if(!el)return;
+      const proto=el.tagName==='TEXTAREA'?window.HTMLTextAreaElement.prototype:window.HTMLInputElement.prototype;
+      const setter=Object.getOwnPropertyDescriptor(proto,'value')?.set;
+      if(setter)setter.call(el,value);else el.value=value;
+      el.dispatchEvent(new Event('input',{bubbles:true}));
+      el.dispatchEvent(new Event('change',{bubbles:true}));
+      try{el.focus();el.setSelectionRange(value.length,value.length)}catch(_){}
+    }
+    function appendText(text){
+      const clean=String(text||'').trim();if(!clean||!target)return;
+      const old=String(target.value||'').trim();
+      nativeSet(target,old?`${old}${/[.!?]$/.test(old)?' ':' — '}${clean}`:clean);
+      setMessage('✓ Entered. Please check before saving.');
+    }
+    function resultText(result,fallback=''){
+      const f=result?.fields||{};
+      const details=String(f.details||f.notes||f.description||'').trim();
+      const title=String(f.title||f.subject||'').trim();
+      if(details&&title&&!details.toLowerCase().startsWith(title.toLowerCase()))return `${title}. ${details}`;
+      return details||title||String(result?.translated_text||result?.translation||fallback||'').trim();
+    }
+    async function sendTranscript(spoken,lang){
+      setProcessing(true);
+      try{
+        if(String(lang).toLowerCase().startsWith('en')){appendText(spoken);return}
+        setMessage('Converting Tamil speech to simple English…');
+        const {data:{session}}=await client.auth.getSession();if(!session)throw new Error('Please sign in again.');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{method:'POST',headers:{'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify({transcript:spoken,spoken_language:lang,current_form_type:'Nursing Note',current_task_kind:'Clinical Note',now_iso:new Date().toISOString(),timezone:'Asia/Kolkata'})});
+        const result=await response.json().catch(()=>({error:'Unable to read voice response'}));
+        if(!response.ok||result.error)throw new Error(result.error||'Unable to convert Tamil speech.');
+        const text=resultText(result,'');if(!text)throw new Error('No English text was returned.');
+        appendText(text);
+      }catch(error){setMessage(`Tamil speech was captured, but English conversion could not complete. ${error.message||''}`)}
+      finally{setProcessing(false)}
+    }
+    function bestMime(){
+      for(const x of ['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus']){try{if(window.MediaRecorder&&MediaRecorder.isTypeSupported?.(x))return x}catch(_){}}return '';
+    }
+    async function sendAudio(blob,lang){
+      setProcessing(true);setMessage('Understanding your voice…');
+      try{
+        const {data:{session}}=await client.auth.getSession();if(!session)throw new Error('Please sign in again.');
+        const ext=(blob.type||'').includes('mp4')?'m4a':(blob.type||'').includes('ogg')?'ogg':'webm';
+        const fd=new FormData();fd.append('audio',blob,`nursing-voice.${ext}`);fd.append('spoken_language',lang);fd.append('current_form_type','Nursing Note');fd.append('current_task_kind','Clinical Note');fd.append('now_iso',new Date().toISOString());fd.append('timezone','Asia/Kolkata');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{method:'POST',headers:{'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey},body:fd});
+        const result=await response.json().catch(()=>({error:'Unable to read voice response'}));if(!response.ok||result.error)throw new Error(result.error||'Unable to process voice.');
+        if(result?.transcript)setTranscript(String(result.transcript));
+        const text=resultText(result,result?.transcript||'');if(!text)throw new Error('No text was returned.');appendText(text);
+      }catch(error){setMessage(error.message||'Unable to process voice.')}finally{setProcessing(false)}
+    }
+    async function startRecorder(lang){
+      if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){setMessage('Microphone recording is not available in this browser.');return}
+      try{
+        const stream=await navigator.mediaDevices.getUserMedia({audio:true});streamRef.current=stream;chunksRef.current=[];langRef.current=lang;
+        const mime=bestMime();const rec=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);recorderRef.current=rec;
+        rec.ondataavailable=e=>{if(e.data?.size)chunksRef.current.push(e.data)};
+        rec.onstop=async()=>{const blob=new Blob(chunksRef.current,{type:rec.mimeType||chunksRef.current[0]?.type||'audio/webm'});chunksRef.current=[];try{stream.getTracks().forEach(t=>t.stop())}catch(_){}streamRef.current=null;recorderRef.current=null;setListening(false);if(blob.size<1000)return setMessage('No useful speech was captured. Please try again.');await sendAudio(blob,langRef.current)};
+        rec.start();setListening(true);setMessage(lang==='ta-IN'?'🎤 Listening in Tamil… Tap Stop when finished.':'🎤 Listening in English… Tap Stop when finished.');
+      }catch(error){setListening(false);setMessage(error?.name==='NotAllowedError'?'Microphone permission is blocked. Please allow microphone access for Samara Care.':(error.message||'Unable to start microphone.'))}
+    }
+    function start(lang){
+      if(listening||processing)return;
+      const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+      if(!SR)return startRecorder(lang);
+      try{
+        const rec=new SR();recognitionRef.current=rec;rec.lang=lang;rec.interimResults=true;rec.continuous=false;rec.maxAlternatives=1;let finalText='';let latest='';let handled=false;
+        rec.onstart=()=>{setListening(true);setMessage(lang==='ta-IN'?'🎤 Listening in Tamil…':'🎤 Listening in English…')};
+        rec.onresult=e=>{let interim='';for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0]?.transcript||'';if(e.results[i].isFinal)finalText+=`${t} `;else interim+=t}latest=(finalText||interim).trim();setTranscript(latest)};
+        const finish=()=>{if(handled)return;handled=true;setListening(false);const spoken=(finalText||latest).trim();if(spoken)sendTranscript(spoken,lang);else setMessage('No speech was captured. Please try again.')};
+        rec.onerror=e=>{setListening(false);if((e?.error==='not-allowed'||e?.error==='service-not-allowed')){handled=true;setMessage('Microphone / speech permission is blocked. Please allow microphone access.')}else if(!latest&&!finalText){handled=true;startRecorder(lang)}};
+        rec.onend=finish;rec.start();
+      }catch(_){startRecorder(lang)}
+    }
+    function close(){stop();setOpen(false);setTarget(null);setTranscript('');setMessage('')}
+    if(!enabled||!open)return null;
+    return h('div',{className:'samara-voice-modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)close()}},
+      h('div',{className:'samara-voice-modal'},
+        h('div',{className:'samara-voice-modal-head'},h('div',null,h('strong',null,'🎤 Voice Input'),h('small',null,'Speak naturally. Tamil is converted to simple English.')),h('button',{type:'button',className:'close',onClick:close},'×')),
+        listening?h('button',{type:'button',className:'btn btn-danger samara-voice-stop',onClick:stop},'■ Stop'):h('div',{className:'samara-voice-actions'},h('button',{type:'button',className:'btn btn-primary',disabled:processing,onClick:()=>start('ta-IN')},processing?'Processing…':'🎤 Speak Tamil'),h('button',{type:'button',className:'btn btn-secondary',disabled:processing,onClick:()=>start('en-IN')},'🎤 Speak English')),
+        transcript&&h('div',{className:'samara-voice-transcript'},h('small',null,'Heard'),h('div',null,transcript)),
+        message&&h('div',{className:'samara-voice-message'},message),
+        h('div',{className:'samara-voice-note'},'Voice text is entered into the selected field only. Nurse should review it before Save / Submit.')
+      )
+    );
+  }
+
   function App(){
     React.useEffect(()=>{ensureCleanWorkspaceLayout();ensureCompactDataEntryStyle();ensureSmartHoverStyles()},[]);
     const LAST_OPEN_PAGE_KEY='samara_last_open_page_v1';
@@ -6371,6 +6514,7 @@ Caring with Compassion. Living with Dignity.`;
     return h('div',{className:`app mobile-role-${String(profile.role||'user').toLowerCase().replace(/[^a-z0-9]+/g,'-')}`},
       h(GlobalSmartHover),
       h(GlobalFormRequirementManager,{page,profile}),
+      h(GlobalNursingVoiceInput,{profile}),
       h(Sidebar,{profile,page,setPage,allowed}),
       h('main',{className:'main'},
         h('header',{className:'topbar'},

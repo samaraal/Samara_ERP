@@ -1,0 +1,21 @@
+SAMARA CARE ERP v2.11.36 — GLOBAL NURSING VOICE INPUT
+
+Purpose
+- Adds compact Voice input beside free-text fields used by Nurse / Caregiver roles.
+- Applies globally to narrative nursing entries such as Shift Handover, Remarks, Notes, Instructions, Observations, Reasons, Incident details and similar manual text fields.
+- Tamil speech is sent through the existing Samara voice-processing function and converted to simple English before insertion.
+- English speech is inserted directly.
+- Existing typed text is preserved; dictated text is appended.
+- Nurse must review dictated text before Save / Submit.
+- Structured fields such as patient ID, phone, email, room/bed numbers, login fields and search are intentionally excluded.
+
+No SQL change is required.
+
+Replace these files:
+1. app.js
+2. styles.css
+3. index.html
+4. config.js
+5. service-worker.js
+
+Then use Update Now. If an older build remains cached, use App Help / Repair -> Repair App once.
