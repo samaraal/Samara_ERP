@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.22';
-const CACHE = 'samara-erp-2.11.22-whatsapp-logs-date-fix';
+const APP_VERSION = '2.11.23';
+const CACHE = 'samara-erp-2.11.23-modal-quick-edit';
 const SHELL = [
   './',
   './index.html',

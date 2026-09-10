@@ -1,0 +1,22 @@
+Samara Care ERP v2.11.23
+
+Changes
+1. Long Patient File popup now has a bottom Close Patient File button.
+2. Full Edit Patient popup now has a sticky bottom action bar with Close and Save.
+3. Edit Recipient / Time no longer opens the full patient edit page. It opens a compact editor with only:
+   - Authorised Recipient Name
+   - Relationship
+   - WhatsApp Number
+   - Daily Report Time
+4. Compact editor has Close and Save Recipient / Time buttons at the bottom.
+5. Bottom action bars are mobile friendly and remain available while scrolling.
+6. Other ERP pop-up windows that already have a top X/Close now also get a floating bottom Close button automatically, so users do not have to scroll back to the top.
+
+Replace these files in the ERP root:
+- app.js
+- styles.css
+- index.html
+- service-worker.js
+- bootstrap-error.js
+
+No SQL change is required.

@@ -233,7 +233,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.22';
+  const APP_VERSION = '2.11.23';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -289,6 +289,40 @@ function initSamaraInaugurationInvitation(){
     schemaVersion: APP_SCHEMA_VERSION
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
+
+
+  // v2.11.23: keep a bottom Close action available for long ERP pop-up windows.
+  // A single body-level helper avoids changing the internal structure of every modal.
+  function installGlobalModalBottomClose(){
+    if(document.getElementById('samara-global-modal-close'))return;
+    const button=document.createElement('button');
+    button.id='samara-global-modal-close';
+    button.type='button';
+    button.className='btn btn-secondary samara-global-modal-close';
+    button.textContent='Close';
+    button.setAttribute('aria-label','Close current pop-up window');
+    button.hidden=true;
+    document.body.appendChild(button);
+    const visible=el=>!!(el&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden');
+    const refresh=()=>{
+      const modals=[...document.querySelectorAll('.modal-backdrop .modal')].filter(visible);
+      const modal=modals[modals.length-1];
+      const close=modal?.querySelector('.close');
+      const hasBottomActions=!!modal?.querySelector('.modal-bottom-actions');
+      button.hidden=!modal||!close||hasBottomActions;
+    };
+    button.addEventListener('click',()=>{
+      const modals=[...document.querySelectorAll('.modal-backdrop .modal')].filter(visible);
+      const modal=modals[modals.length-1];
+      modal?.querySelector('.close')?.click();
+      setTimeout(refresh,0);
+    });
+    new MutationObserver(refresh).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style','hidden']});
+    window.addEventListener('resize',refresh,{passive:true});
+    refresh();
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installGlobalModalBottomClose,{once:true});
+  else installGlobalModalBottomClose();
 
   // v2.10.05 PWA self-service recovery. Available on the login page and after login.
   function samaraReloadApp(){
@@ -14995,6 +15029,9 @@ Please keep these login details confidential.`;
     const [familyResetCredential,setFamilyResetCredential]=React.useState(null);
     const [familyPortalWaBusy,setFamilyPortalWaBusy]=React.useState('');
     const [dailyReportToggleBusy,setDailyReportToggleBusy]=React.useState(false);
+    const [dailyQuickEdit,setDailyQuickEdit]=React.useState(null);
+    const [dailyQuickEditBusy,setDailyQuickEditBusy]=React.useState(false);
+    const [dailyQuickEditMsg,setDailyQuickEditMsg]=React.useState('');
     const [showFamilyDetails,setShowFamilyDetails]=React.useState(false);
     const [momentBusy,setMomentBusy]=React.useState(false);
     const [momentCaption,setMomentCaption]=React.useState('');
@@ -15477,6 +15514,57 @@ Please keep these login details confidential.`;
       }catch(error){
         showPatientToast('error',`Unable to reset Family Portal PIN: ${error.message||error}`);
       }finally{setFamilyResetBusy(null)}
+    }
+
+    function openDailyReportQuickEdit(row){
+      const pref=details?.familyPreference||{};
+      const family=primaryFamilyContact?.()||null;
+      setDailyQuickEditMsg('');
+      setDailyQuickEdit({
+        patient_id:row?.id||selected?.id||'',
+        recipient_name:pref.recipient_name||family?.relative_name||row?.attendant_name||'',
+        relationship:pref.relationship||family?.relationship||'',
+        mobile:String(pref.recipient_mobile||family?.mobile||row?.attendant_phone||'').replace(/\D/g,'').slice(-10),
+        daily_report_time:String(pref.daily_report_time||'20:00').slice(0,5)
+      });
+    }
+
+    async function saveDailyReportQuickEdit(e){
+      e.preventDefault();
+      if(!selected?.id||!dailyQuickEdit)return;
+      const recipientName=String(dailyQuickEdit.recipient_name||'').trim();
+      const mobile=String(dailyQuickEdit.mobile||'').replace(/\D/g,'').slice(-10);
+      const time=String(dailyQuickEdit.daily_report_time||'').trim();
+      if(!recipientName){setDailyQuickEditMsg('Enter the authorised recipient name.');return;}
+      if(mobile.length!==10){setDailyQuickEditMsg('Enter a valid 10-digit WhatsApp number.');return;}
+      if(!time){setDailyQuickEditMsg('Select the daily report time.');return;}
+      setDailyQuickEditBusy(true);setDailyQuickEditMsg('');
+      try{
+        const pref=details?.familyPreference||{};
+        const portalEnabled=!!pref.family_portal_enabled;
+        const dailyEnabled=pref.daily_whatsapp_enabled!==false;
+        const payload={
+          patient_id:selected.id,
+          delivery_mode:portalEnabled&&dailyEnabled?'Both':dailyEnabled?'Daily WhatsApp Update':'Family Portal Access',
+          family_portal_enabled:portalEnabled,
+          daily_whatsapp_enabled:dailyEnabled,
+          recipient_name:recipientName,
+          relationship:String(dailyQuickEdit.relationship||'').trim()||null,
+          recipient_mobile:mobile,
+          recipient_email:pref.recipient_email||null,
+          daily_report_time:dailyEnabled?time:null,
+          timezone:pref.timezone||'Asia/Kolkata',
+          is_active:portalEnabled||dailyEnabled,
+          updated_at:new Date().toISOString()
+        };
+        const {data,error}=await client.from('patient_family_communication_preferences').upsert(payload,{onConflict:'patient_id'}).select().single();
+        if(error)throw error;
+        setDetails(prev=>prev?{...prev,familyPreference:{...(prev.familyPreference||{}),...data}}:prev);
+        setDailyQuickEdit(null);
+        showPatientToast('success','Daily Patient Report recipient and time updated successfully.');
+      }catch(error){
+        setDailyQuickEditMsg(error?.message||'Could not update Daily Patient Report settings.');
+      }finally{setDailyQuickEditBusy(false);}
     }
 
     async function savePatientEdit(e){
@@ -17027,7 +17115,7 @@ Please keep these login details confidential.`;
                 patientDetailField('Last Report',pref.last_report_sent_at?fmt(pref.last_report_sent_at):'Not sent yet'),
                 patientDetailField('Last Status',pref.last_report_status||latestReport?.status||'—')
               ):h('p',{className:'small-note'},'Family communication preference has not yet been configured for this resident.'),
-              h('div',{className:'actions',style:{marginTop:'10px'}},h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEditPatient(selected)},'Edit Recipient / Time'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate?.('Intelligent Reports')},'Open Intelligent Reports'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate?.('WhatsApp Logs')},'WhatsApp Delivery Logs'))
+              h('div',{className:'actions',style:{marginTop:'10px'}},h('button',{type:'button',className:'btn btn-primary',onClick:()=>openDailyReportQuickEdit(selected)},'Edit Recipient / Time'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate?.('Intelligent Reports')},'Open Intelligent Reports'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate?.('WhatsApp Logs')},'WhatsApp Delivery Logs'))
             )})(),
             (details.familyAccess||[]).length
               ?h('div',null,(details.familyAccess||[]).map(access=>h('div',{className:'section-card',key:access.id,style:{marginTop:'12px'}},
@@ -17060,6 +17148,9 @@ Please keep these login details confidential.`;
               h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${familyResetCredential.mobile}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal login\nResident ID: ${selected?.patient_id||''}\nTemporary PIN: ${familyResetCredential.pin}\nPortal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send New PIN by WhatsApp')
             )
           )
+        ),
+        h('div',{className:'modal-bottom-actions patient-file-bottom-actions'},
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false)}},'Close Patient File')
         )
       )),
       showFamilyDetails&&selected&&details&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setShowFamilyDetails(false)}},h('div',{className:'card modal',style:{maxWidth:'680px'}},
@@ -17077,6 +17168,25 @@ Please keep these login details confidential.`;
           )
         )})()
       )),
+      dailyQuickEdit&&selected&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget&&!dailyQuickEditBusy)setDailyQuickEdit(null)}},
+        h('form',{className:'card modal daily-report-quick-modal',onSubmit:saveDailyReportQuickEdit},
+          h('div',{className:'panel-head'},
+            h('div',null,h('h3',null,'Edit Daily Patient Report'),h('small',null,`${formalName(selected)||selected.full_name||'Resident'} · Recipient and delivery time only`)),
+            h('button',{type:'button',className:'close',disabled:dailyQuickEditBusy,onClick:()=>setDailyQuickEdit(null)},'×')
+          ),
+          dailyQuickEditMsg&&h('div',{className:'message error'},dailyQuickEditMsg),
+          h('div',{className:'form-grid daily-report-quick-grid'},
+            h('div',{className:'field'},h('label',null,'Authorised Recipient Name'),h('input',{required:true,value:dailyQuickEdit.recipient_name||'',onChange:e=>setDailyQuickEdit({...dailyQuickEdit,recipient_name:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Relationship'),h('input',{value:dailyQuickEdit.relationship||'',onChange:e=>setDailyQuickEdit({...dailyQuickEdit,relationship:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'WhatsApp Number'),h('input',{required:true,inputMode:'numeric',maxLength:10,value:dailyQuickEdit.mobile||'',onChange:e=>setDailyQuickEdit({...dailyQuickEdit,mobile:e.target.value.replace(/\D/g,'').slice(0,10)})})),
+            h('div',{className:'field'},h('label',null,'Daily Report Time'),h('input',{type:'time',step:'300',required:true,value:dailyQuickEdit.daily_report_time||'20:00',onChange:e=>setDailyQuickEdit({...dailyQuickEdit,daily_report_time:e.target.value})}))
+          ),
+          h('div',{className:'modal-bottom-actions'},
+            h('button',{type:'button',className:'btn btn-secondary',disabled:dailyQuickEditBusy,onClick:()=>setDailyQuickEdit(null)},'Close'),
+            h('button',{type:'submit',className:'btn btn-primary',disabled:dailyQuickEditBusy},dailyQuickEditBusy?'Saving…':'Save Recipient / Time')
+          )
+        )
+      ),
       canEdit&&editTarget&&editForm&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal patient-edit-modal',onSubmit:savePatientEdit},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Edit Patient Information'),h('small',null,`${editTarget.patient_id||'—'} · Correct duplicate or wrongly entered details`)),h('button',{type:'button',className:'close',onClick:()=>{setEditTarget(null);setEditForm(null)}},'×')),
         editMsg&&h('div',{className:`message ${editMsg.includes('successfully')?'success':'error'}`},editMsg),
@@ -17184,7 +17294,10 @@ Please keep these login details confidential.`;
           h('h4',{style:{marginTop:'18px'}},'Uploaded Documents'),
           editDocs.length?h('div',{className:'uploaded-documents-list'},editDocs.map(doc=>h('div',{className:'timeline-item',key:doc.id},h('div',null,h('strong',null,doc.document_type||'Document'),h('span',null,doc.document_name||'File')),h('div',{className:'employee-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openDoc(doc)},'Open'),h('button',{type:'button',className:'btn btn-danger',onClick:()=>deleteEditDocument(doc)},'Delete'))))):h('p',{className:'small-note'},'No documents uploaded yet.')
         ),
-        h('button',{className:'btn btn-primary full',disabled:editBusy},editBusy?'Saving changes…':'Save Patient Information & Documents')
+        h('div',{className:'modal-bottom-actions'},
+          h('button',{type:'button',className:'btn btn-secondary',disabled:editBusy,onClick:()=>{setEditTarget(null);setEditForm(null)}},'Close'),
+          h('button',{type:'submit',className:'btn btn-primary',disabled:editBusy},editBusy?'Saving changes…':'Save Patient Information & Documents')
+        )
       )),
       editCameraConfig?h(CameraCaptureModal,{config:editCameraConfig,onClose:()=>setEditCameraConfig(null)}):null,
       patientToast&&h('div',{className:`samara-toast ${patientToast.type}`,role:'status','aria-live':'polite'},
