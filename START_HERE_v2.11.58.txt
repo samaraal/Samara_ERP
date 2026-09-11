@@ -1,0 +1,49 @@
+SAMARA CARE ERP v2.11.58 - GLOBAL LABEL : DETAILS ALIGNMENT
+============================================================
+
+Purpose
+-------
+The shared ERP presentation rule for label/value information is now:
+
+  Label              : Details
+
+The colon occupies a consistent vertical position in every row. Long details
+wrap only inside the Details column.
+
+Applied across reusable ERP information layouts
+------------------------------------------------
+- Patient File overview and detail rows
+- Intelligent Report resident overview
+- Intelligent Report clinical summary cards
+- Next 24 Hours / Handover Plan
+- Employee information and employment details
+- Room reservation details
+- Feedback review details
+- Screen, print/download PDF and automatic WhatsApp PDF variants
+
+Forms, normal paragraphs, buttons and data tables are intentionally excluded,
+because they are not label/value detail rows.
+
+Deployment
+----------
+1. Replace these ERP website files:
+
+   app.js
+   styles.css
+   config.js
+   index.html
+   service-worker.js
+
+2. Deploy:
+
+   supabase/functions/daily-patient-report/index.ts
+
+   Command:
+   supabase functions deploy daily-patient-report
+
+3. Select Update Now, or use App Help / Repair.
+4. Confirm ERP version 2.11.58.
+5. Generate a fresh report. New files end with global_aligned_v8.pdf.
+
+No SQL is required for this presentation update.
+
