@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.59';
-const CACHE = 'samara-erp-2.11.59-readable-summary-cards';
+const APP_VERSION = '2.11.60';
+const CACHE = 'samara-erp-2.11.60-care-package-alignment';
 const SHELL = [
   './',
   './index.html',

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.59';
+  const APP_VERSION = '2.11.60';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -19449,6 +19449,8 @@ function CarePackages({profile}){
     h('div',{className:'message error'},'Administrator access is required.'));
 
   const money=value=>`₹${Number(value||0).toLocaleString('en-IN')}`;
+  const packageDetail=(label,value,wide=false)=>h('div',{className:`care-package-detail${wide?' wide':''}`},
+    h('span',{className:'care-package-label'},label),h('span',{className:'care-package-colon'},':'),h('strong',{className:'care-package-value'},value||'—'));
   function openNew(){setForm(blank);setShow(true);setMessage('')}
   function openEdit(row){setForm({...blank,...row});setShow(true);setMessage('')}
 
@@ -19494,17 +19496,17 @@ function CarePackages({profile}){
         h('p',null,'Create fixed-duration packages with separate fees for Private, Twin Sharing and General accommodation.')),
       h('div',{className:'accounts-actions'},h('button',{className:'btn btn-primary',onClick:openNew},'+ Create Package'))),
     message&&h('div',{className:message.includes('successfully')?'message success':'message error'},message),
-    h('div',{className:'accounts-workflow-grid'},rows.map(row=>h('div',{className:'accounts-workflow-card reports',key:row.id},
-      h('div',{className:'accounts-workflow-top'},h('span',{className:'accounts-workflow-icon'},'📦'),
-        h('span',{className:'accounts-workflow-value'},row.is_active?'Active':'Inactive')),
-      h('div',{className:'accounts-workflow-body'},h('strong',null,row.package_name),
-        h('small',null,`${row.duration_value} ${row.duration_unit}`),
-        h('small',null,row.included_services||'No inclusions entered')),
-      h('div',{style:{width:'100%',display:'grid',gap:'6px',marginTop:'12px'}},
-        h('div',{className:'accounts-status-item'},h('span',null,'Private / Single'),h('strong',null,money(row.private_fee))),
-        h('div',{className:'accounts-status-item'},h('span',null,'Twin Sharing'),h('strong',null,money(row.twin_fee))),
-        h('div',{className:'accounts-status-item'},h('span',null,'General'),h('strong',null,money(row.general_fee)))),
-      h('div',{className:'actions',style:{width:'100%'}},
+    h('div',{className:'care-package-grid'},rows.map(row=>h('div',{className:`care-package-card ${row.is_active?'active':'inactive'}`,key:row.id},
+      h('div',{className:'care-package-card-head'},h('span',{className:'care-package-icon'},'📦'),
+        h('span',{className:`care-package-status ${row.is_active?'active':'inactive'}`},row.is_active?'Active':'Inactive')),
+      h('div',{className:'care-package-details'},
+        packageDetail('Package',row.package_name),
+        packageDetail('Duration',`${row.duration_value} ${row.duration_unit}`),
+        packageDetail('Includes',String(row.included_services||'No inclusions entered').split(/\n+/).filter(Boolean).join(' · '),true),
+        packageDetail('Private / Single',money(row.private_fee)),
+        packageDetail('Twin Sharing',money(row.twin_fee)),
+        packageDetail('General',money(row.general_fee))),
+      h('div',{className:'actions care-package-actions'},
         h('button',{className:'btn btn-secondary',onClick:()=>openEdit(row)},'Edit'),
         h('button',{className:row.is_active?'btn btn-danger':'btn btn-primary',onClick:()=>toggle(row)},row.is_active?'Deactivate':'Activate'))))),
     show&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:save,style:{width:'min(900px,96vw)'}},

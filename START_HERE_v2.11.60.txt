@@ -1,0 +1,36 @@
+SAMARA CARE ERP v2.11.60 - CARE PACKAGES MOBILE ALIGNMENT
+==========================================================
+
+Correction
+----------
+Care Packages previously used an isolated legacy card layout. On mobile, the
+package name, duration, inclusions and fees ran together without spacing.
+
+Every package now uses separate aligned rows:
+
+  Package          : Package name
+  Duration         : Duration
+  Includes         : Included services
+  Private / Single : Fee
+  Twin Sharing     : Fee
+  General          : Fee
+
+All colons are vertically aligned. Long package names and inclusions wrap only
+inside the Details column. Tariffs use larger Samara-magenta text, and the Edit
+and Activate/Deactivate buttons remain full-width touch targets on mobile.
+
+Deployment
+----------
+Replace these files:
+
+  app.js
+  styles.css
+  config.js
+  index.html
+  service-worker.js
+
+Then select Update Now, or use App Help / Repair, and confirm ERP version
+2.11.60.
+
+No SQL migration and no Edge Function deployment are required.
+
