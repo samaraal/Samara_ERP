@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.60';
+  const APP_VERSION = '2.11.62';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,8 +250,8 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '10-Sep-2026 General Handover Worklist';
-  const APP_SCHEMA_VERSION = '36';
+  const APP_BUILD_DATE = '11-Sep-2026 Room Types, Spaces and Movable Pop-ups';
+  const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
   const RESIDENT_PROFESSIONS=[
@@ -338,6 +338,68 @@ function initSamaraInaugurationInvitation(){
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installGlobalModalBottomClose,{once:true});
   else installGlobalModalBottomClose();
+
+  // v2.11.61: every desktop ERP pop-up can be moved by dragging its header.
+  // Event delegation covers existing and future React-rendered pop-ups without
+  // adding drag code to each individual form.
+  function installGlobalDraggablePopups(){
+    if(document.documentElement.dataset.samaraPopupDrag==='ready')return;
+    document.documentElement.dataset.samaraPopupDrag='ready';
+    const backdropSelector='.modal-backdrop,.samara-voice-modal-backdrop';
+    const headerSelector='.panel-head,.modal-head,.patient-master-header,.samara-voice-modal-head';
+    const interactiveSelector='button,input,select,textarea,a,label,[contenteditable="true"],[role="button"]';
+
+    document.addEventListener('pointerdown',event=>{
+      if(event.button!==0||window.matchMedia('(max-width: 760px)').matches)return;
+      if(!(event.target instanceof Element)||event.target.closest(interactiveSelector))return;
+      const backdrop=event.target.closest(backdropSelector);
+      if(!backdrop)return;
+
+      let popup=event.target;
+      while(popup.parentElement&&popup.parentElement!==backdrop)popup=popup.parentElement;
+      if(popup.parentElement!==backdrop||popup.style.position==='static')return;
+
+      const rect=popup.getBoundingClientRect();
+      const namedHeader=event.target.closest(headerSelector);
+      const isHeaderDrag=!!(namedHeader&&popup.contains(namedHeader));
+      // A few specialised pop-ups use their own header class. Their uncluttered
+      // top title band is also a safe drag handle.
+      if(!isHeaderDrag&&event.clientY>rect.top+96)return;
+      const dragHandle=isHeaderDrag?namedHeader:popup;
+      const startX=event.clientX;
+      const startY=event.clientY;
+      const oldX=Number(popup.dataset.samaraDragX||0);
+      const oldY=Number(popup.dataset.samaraDragY||0);
+      const minDx=24-rect.left;
+      const maxDx=window.innerWidth-24-rect.right;
+      const minDy=12-rect.top;
+      const maxDy=window.innerHeight-48-rect.top;
+      popup.classList.add('samara-draggable-popup','samara-popup-dragging');
+      dragHandle.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+
+      const move=moveEvent=>{
+        const dx=Math.max(minDx,Math.min(maxDx,moveEvent.clientX-startX));
+        const dy=Math.max(minDy,Math.min(maxDy,moveEvent.clientY-startY));
+        const nextX=oldX+dx;
+        const nextY=oldY+dy;
+        popup.dataset.samaraDragX=String(nextX);
+        popup.dataset.samaraDragY=String(nextY);
+        popup.style.translate=`${nextX}px ${nextY}px`;
+      };
+      const stop=()=>{
+        popup.classList.remove('samara-popup-dragging');
+        window.removeEventListener('pointermove',move);
+        window.removeEventListener('pointerup',stop);
+        window.removeEventListener('pointercancel',stop);
+      };
+      window.addEventListener('pointermove',move,{passive:true});
+      window.addEventListener('pointerup',stop,{once:true});
+      window.addEventListener('pointercancel',stop,{once:true});
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installGlobalDraggablePopups,{once:true});
+  else installGlobalDraggablePopups();
 
   // v2.10.05 PWA self-service recovery. Available on the login page and after login.
   function samaraReloadApp(){
@@ -19599,6 +19661,7 @@ function RoomsBeds({profile}){
       const p=patients.find(x=>x.id===id);
       return p?`${formalName(p)} · ${p.patient_id||'—'}`:'Former / discharged patient';
     }
+    const patientUseRows=rows.filter(r=>!['Samara Office','Samara Store'].includes(r.status));
     const availableRows=rows.filter(r=>!patientFor(r)&&r.status==='Available');
     const occupiedRows=rows.filter(r=>patientFor(r)||r.status==='Occupied');
     const displayedRoomRows=dashboardBedFilter==='reserved'
@@ -19628,7 +19691,7 @@ function RoomsBeds({profile}){
     function openEdit(row){
       setEditing(row);
       setForm({
-        room_no:row.room_no||'',bed_no:row.bed_no||'',room_type:row.room_type||'Twin Sharing',
+        room_no:row.room_no||'',bed_no:row.bed_no||'',room_type:['Private / Single','Private','Single'].includes(row.room_type)?'Single / Private':row.room_type||'Twin Sharing',
         status:patientFor(row)?'Occupied':row.status||'Available',
         room_daily_rate:String(row.room_daily_rate??row.daily_rate??''),
         nursing_daily_rate:String(row.nursing_daily_rate??''),
@@ -19759,7 +19822,7 @@ function RoomsBeds({profile}){
         canManage&&h('button',{className:'btn btn-primary',onClick:openNew},'+ Add Room / Bed')
       ),
       !nurseView&&h('div',{className:'grid stats room-summary'},
-        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter===''?'active':''}`,onClick:()=>setDashboardBedFilter(''),'aria-label':'Show all beds'},h('span',null,'Total Beds'),h('strong',null,rows.length),h('small',null,'View all beds →')),
+        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter===''?'active':''}`,onClick:()=>setDashboardBedFilter(''),'aria-label':'Show all rooms and spaces'},h('span',null,'Total Beds'),h('strong',null,patientUseRows.length),h('small',null,'View all rooms / spaces →')),
         h('button',{type:'button',className:`card stat room-stat-occupied room-summary-link ${dashboardBedFilter==='occupied'?'active':''}`,onClick:()=>setDashboardBedFilter('occupied'),'aria-label':'Show occupied beds'},h('span',null,'Occupied'),h('strong',null,occupied),h('small',null,'View occupied beds →')),
         h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter==='available'?'active':''}`,onClick:()=>setDashboardBedFilter('available'),'aria-label':'Show available beds'},h('span',null,'Available'),h('strong',null,availableRows.length),h('small',null,'View available beds →')),
         h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter==='reserved'?'active':''}`,onClick:()=>setDashboardBedFilter('reserved'),'aria-label':'Show reserved beds'},h('span',null,'Reserved'),h('strong',null,reserved),h('small',null,'View reserved beds →')),
@@ -19902,13 +19965,13 @@ function RoomsBeds({profile}){
             maxLength:30
           })),
           h('div',{className:'field'},h('label',null,'Bed Code'),h('select',{value:form.bed_no,onChange:e=>setForm({...form,bed_no:e.target.value}),required:true},BED_CODE_OPTIONS.map(n=>h('option',{key:n,value:n},n)))),
-          h('div',{className:'field'},h('label',null,'Room Type'),h('select',{value:form.room_type,onChange:e=>changeRoomType(e.target.value)},['Private / Single','Deluxe','Twin Sharing','Triple Sharing','General','Isolation','Rehabilitation'].map(x=>h('option',{key:x,value:x},x)))),
+          h('div',{className:'field'},h('label',null,'Room Type'),h('select',{value:form.room_type,onChange:e=>changeRoomType(e.target.value)},['Single / Private','Twin Sharing','Triple Sharing'].map(x=>h('option',{key:x,value:x},x)))),
           miniInput('Room Rent per Day',form.room_daily_rate,v=>setForm({...form,room_daily_rate:v}),true,'number'),
           miniInput('Nursing Charge per Day',form.nursing_daily_rate,v=>setForm({...form,nursing_daily_rate:v}),true,'number'),
           miniInput('Special Nurse Charge per Day',form.special_nurse_daily_rate,v=>setForm({...form,special_nurse_daily_rate:v}),false,'number'),
           miniInput('Floor',form.floor,v=>setForm({...form,floor:v})),
           miniInput('Wing',form.wing,v=>setForm({...form,wing:v})),
-          h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value}),disabled:editing&&!!patientFor(editing)},['Available','Reserved','Maintenance','Occupied'].map(x=>h('option',{key:x,value:x},x)))),
+          h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value}),disabled:editing&&!!patientFor(editing)},['Available','Reserved','Maintenance','Occupied','Samara Office','Samara Store'].map(x=>h('option',{key:x,value:x},x)))),
           form.status==='Reserved'&&h(React.Fragment,null,
             miniInput('Reserved For — Name',form.reserved_for_name,v=>setForm({...form,reserved_for_name:v}),true),
             miniInput('Reserved For — Contact Number',form.reserved_for_contact,v=>setForm({...form,reserved_for_contact:v}),true),

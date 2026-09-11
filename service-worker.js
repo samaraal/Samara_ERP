@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.60';
-const CACHE = 'samara-erp-2.11.60-care-package-alignment';
+const APP_VERSION = '2.11.62';
+const CACHE = 'samara-erp-2.11.62-room-types-spaces-draggable-popups';
 const SHELL = [
   './',
   './index.html',

@@ -1868,3 +1868,25 @@ button,.btn,a,select,input,textarea{-webkit-tap-highlight-color:transparent}
 .samara-voice-review{display:grid;gap:6px;margin-top:12px}.samara-voice-review label{color:#64133d;font-size:13px;font-weight:900}.samara-voice-review textarea{width:100%;min-height:112px;box-sizing:border-box;padding:11px 12px;border:2px solid #dba9c1;border-radius:12px;background:#fff;color:#35222d;font:inherit;font-size:14px;line-height:1.45;resize:vertical}.samara-voice-review textarea:focus{outline:0;border-color:#a80d55;box-shadow:0 0 0 3px rgba(168,13,85,.11)}.samara-voice-review-actions{display:grid;grid-template-columns:1.25fr 1fr .7fr;gap:8px;margin-top:2px}
 .samara-voice-provider-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}.samara-voice-provider-actions .btn{font-size:12px;min-height:40px}
 @media(max-width:760px){.samara-global-voice-btn{min-height:36px;padding:8px 11px;margin-left:4px;font-size:13px}.samara-voice-modal-backdrop{align-items:flex-start;padding:10px;overflow-y:auto}.samara-voice-modal{border-radius:18px 18px 12px 12px;padding:15px;max-height:calc(100dvh - 20px);overflow-y:auto;overscroll-behavior:contain}.samara-voice-actions,.samara-voice-review-actions,.samara-voice-provider-actions{grid-template-columns:1fr}.samara-voice-review-actions{position:sticky;top:-1px;z-index:2;padding:4px 0 8px;background:#fff}.samara-voice-actions .btn,.samara-voice-review-actions .btn,.samara-voice-provider-actions .btn,.samara-voice-stop{min-height:48px;font-size:15px}}
+
+/* v2.11.61 — one consistent desktop drag handle for all ERP pop-up windows */
+@media(min-width:761px){
+  .modal-backdrop:not([style*="position: static"]) .panel-head,
+  .modal-backdrop:not([style*="position: static"]) .modal-head,
+  .modal-backdrop:not([style*="position: static"]) .patient-master-header,
+  .samara-voice-modal-backdrop .samara-voice-modal-head{
+    cursor:grab;
+    user-select:none;
+    touch-action:none;
+  }
+  .samara-draggable-popup{will-change:translate}
+  .samara-popup-dragging,
+  .samara-popup-dragging .panel-head,
+  .samara-popup-dragging .modal-head,
+  .samara-popup-dragging .patient-master-header,
+  .samara-popup-dragging .samara-voice-modal-head{cursor:grabbing!important}
+  .modal-backdrop .panel-head button,
+  .modal-backdrop .modal-head button,
+  .modal-backdrop .patient-master-header button,
+  .samara-voice-modal-head button{cursor:pointer}
+}

@@ -1,0 +1,25 @@
+SAMARA CARE ERP v2.11.62 — REQUIRED FILES ONLY
+================================================
+
+ROOM TYPES
+----------
+The Room Type dropdown now contains only:
+1. Single / Private
+2. Twin Sharing
+3. Triple Sharing
+
+ROOM/SPACE STATUS
+-----------------
+The Status dropdown includes Samara Office and Samara Store.
+
+POP-UP WINDOWS
+--------------
+Desktop ERP pop-ups can be moved by dragging an empty portion of the title/header.
+
+DEPLOYMENT
+----------
+1. Run supabase/sql/58_room_space_status_options.sql in Supabase SQL Editor.
+2. Replace app.js, styles.css, config.js, index.html and service-worker.js.
+3. Open App Help and select Repair App once.
+
+No Edge Function deployment is required.
