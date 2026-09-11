@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.49';
-const CACHE = 'samara-erp-2.11.49-stores-delegation-modify-cancel';
+const APP_VERSION = '2.11.50';
+const CACHE = 'samara-erp-2.11.50-whatsapp-composer-clear';
 const SHELL = [
   './',
   './index.html',

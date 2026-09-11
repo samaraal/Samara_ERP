@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.49';
+  const APP_VERSION = '2.11.50';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -8627,6 +8627,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
   function WhatsAppInbox({profile}){
     const Field=({label,required=false,children})=>h('div',{className:'field'},h('label',null,label,required?h('span',{style:{color:'#b42336',marginLeft:'4px'}},'*'):null),children);
     const [rows,setRows]=React.useState([]),[selectedPhone,setSelectedPhone]=React.useState(''),[query,setQuery]=React.useState(''),[showUnread,setShowUnread]=React.useState(false),[reply,setReply]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState(''),[isMobile,setIsMobile]=React.useState(()=>window.matchMedia('(max-width: 700px)').matches),[patientContext,setPatientContext]=React.useState(null),[mobileComposer,setMobileComposer]=React.useState('');
+    const replyEditorRef=React.useRef(null);
     const [subjectFilter,setSubjectFilter]=React.useState('All Subjects');
     const [dateFrom,setDateFrom]=React.useState('');
     const [dateTo,setDateTo]=React.useState('');
@@ -9115,19 +9116,30 @@ Thank you.`;
     async function sendReply(){
       if(!active||!reply.trim()||busy)return;
       if(!within24){setMessage('The 24-hour customer service window has closed. Send an approved WhatsApp template first.');return}
+      const sentText=reply.trim();
+      let acceptedByWhatsApp=false;
       setBusy(true);setMessage('Sending WhatsApp reply…');
       try{
-        const result=await sendWhatsAppText({to:active.phone,text:reply});
+        const result=await sendWhatsAppText({to:active.phone,text:sentText});
+        acceptedByWhatsApp=true;
+        // Clear immediately after provider acceptance. Database refresh/logging must
+        // never leave an already-sent message in the composer for accidental resending.
+        setReply('');
+        if(replyEditorRef.current)replyEditorRef.current.value='';
+        if(isMobile)setMobileComposer('');
         const providerId=result?.result?.messages?.[0]?.id||null;
         const now=new Date().toISOString();
         const {error}=await client.from('hr_whatsapp_communications').insert({
           career_application_id:active.last.career_application_id||null,application_id:active.last.application_id||null,applicant_name:active.last.applicant_name||active.name||null,recipient_number:active.phone,
           communication_type:'WhatsApp Reply',template_name:null,status:'Accepted',provider_message_id:providerId,error_message:null,sent_by:profile.id,sent_by_name:formalName(profile),direction:'outbound',message_type:'text',
-          message_content:reply.trim(),message_payload:{...(result?.result||{}),...(patientContext?{patient_id:patientContext.patient_id,patient_code:patientContext.patient_code,patient_name:patientContext.patient_name}: {})},contact_name:active.name,source_type:patientContext?'Patient / Family':active.source,sent_at:now,created_at:now,updated_at:now
+          message_content:sentText,message_payload:{...(result?.result||{}),...(patientContext?{patient_id:patientContext.patient_id,patient_code:patientContext.patient_code,patient_name:patientContext.patient_name}: {})},contact_name:active.name,source_type:patientContext?'Patient / Family':active.source,sent_at:now,created_at:now,updated_at:now
         });
         if(error)throw error;
-        setReply('');setMessage('✓ WhatsApp reply accepted by Meta.');await load();
-      }catch(error){setMessage(`WhatsApp reply failed: ${error.message||error}`)}finally{setBusy(false)}
+        setMessage('✓ WhatsApp reply accepted by Meta. Message box cleared.');await load();
+      }catch(error){
+        if(acceptedByWhatsApp)setMessage(`✓ WhatsApp accepted the message, but ERP history refresh failed: ${error.message||error}. The edit box was cleared to prevent duplicate sending.`);
+        else setMessage(`WhatsApp reply failed: ${error.message||error}`);
+      }finally{setBusy(false)}
     }
     async function sendReopenTemplate(){
       if(!active||busy)return;
@@ -9238,7 +9250,7 @@ Thank you.`;
                 isMobile?h('div',{className:'wa-mobile-composer-title'},h('span',null,'Direct WhatsApp reply'),h('button',{type:'button',className:'wa-mobile-composer-close',onClick:()=>setMobileComposer(''),'aria-label':'Close reply'},'×')):
                   h('div',{style:{fontWeight:'800',color:within24?'#087f5b':'#5d1039',marginBottom:'7px'}},within24?'Direct message · reply window open':'Direct message locked · family member has not replied within the last 24 hours'),
                 h('div',{style:{display:'flex',gap:'10px',alignItems:'stretch'}},
-                  h('textarea',{value:reply,onChange:e=>setReply(e.target.value),placeholder:within24?'Type a direct message':'Direct messaging becomes available after the family member replies',disabled:busy||!within24,rows:2,style:{flex:'1 1 auto',minWidth:0,resize:'none',borderRadius:'10px',background:'#fff',margin:0}}),
+                  h('textarea',{ref:replyEditorRef,value:reply,onChange:e=>setReply(e.target.value),placeholder:within24?'Type a direct message':'Direct messaging becomes available after the family member replies',disabled:busy||!within24,rows:2,style:{flex:'1 1 auto',minWidth:0,resize:'none',borderRadius:'10px',background:'#fff',margin:0}}),
                   h('button',{type:'button',className:'btn btn-primary',disabled:busy||!within24||!reply.trim(),onClick:sendReply,style:{minWidth:isMobile?'86px':'110px'}},busy?'Sending…':'Send')
                 )
               ):null,

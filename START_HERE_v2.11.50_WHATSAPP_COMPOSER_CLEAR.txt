@@ -1,0 +1,14 @@
+SAMARA CARE ERP v2.11.50 — WHATSAPP COMPOSER CLEAR
+===================================================
+
+Replace only:
+- app.js
+- index.html
+- config.js
+- service-worker.js
+
+Then ERP → App Help / Repair → Repair App once.
+
+After WhatsApp confirms that a direct message was accepted, the edit box is
+cleared immediately on desktop and mobile. If sending is rejected, the typed
+message remains available for correction and retry. No SQL is required.
