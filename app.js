@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.53';
+  const APP_VERSION = '2.11.56';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -251,7 +251,7 @@ function initSamaraInaugurationInvitation(){
   }
 
   const APP_BUILD_DATE = '10-Sep-2026 General Handover Worklist';
-  const APP_SCHEMA_VERSION = '34';
+  const APP_SCHEMA_VERSION = '36';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
   const RESIDENT_PROFESSIONS=[
@@ -21253,18 +21253,18 @@ function RoomsBeds({profile}){
   function FoodDiet({profile}){
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
-    const currentTime=()=>new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());
-    const blank=()=>({patient_id:'',meal_date:todayISOIndia(),meal_type:'Breakfast / Tiffin',menu:'Idli with sambar and chutney',custom_menu:'',served_time:currentTime(),consumption_status:'Consumed fully',beverage_type:'None',beverage_time:'',remarks:''});
+    const [saving,setSaving]=React.useState(false);
+    const blank=()=>({patient_id:'',meal_date:todayISOIndia(),meal_type:'Tiffin',menu:'Idli with sambar and chutney',custom_menu:'',served_time:'',consumption_status:'Consumed fully',beverage_type:'None',beverage_time:'',remarks:''});
     const [form,setForm]=React.useState(blank);
     const menus={
-      'Breakfast / Tiffin':['Idli with sambar and chutney','Dosa with sambar and chutney','Ven pongal with sambar','Vegetable upma with chutney','Idiyappam with vegetable kurma','Appam with vegetable stew','Poori with potato masala','Chapati with vegetable kurma','Ragi dosa with chutney','Rice kanji / soft diet','Other / Custom'],
+      'Tiffin':['Idli with sambar and chutney','Dosa with sambar and chutney','Ven pongal with sambar','Vegetable upma with chutney','Idiyappam with vegetable kurma','Appam with vegetable stew','Poori with potato masala','Chapati with vegetable kurma','Ragi dosa with chutney','Rice kanji / soft diet','Other / Custom'],
       'Lunch':['Rice, sambar, poriyal, rasam and curd','Rice, kuzhambu, poriyal, rasam and curd','Vegetable biryani with raita','Lemon rice with curd','Tamarind rice with curd','Curd rice with vegetable','Sambar rice with vegetable','Chapati with vegetable kurma','Millet meal - diabetic diet','Soft rice / mashed diet','Other / Custom'],
-      'Evening Snack':['Sundal','Boiled groundnut','Vegetable soup','Ragi malt','Biscuits','Fruit bowl','Bread toast','Other / Custom'],
       'Dinner':['Idli with sambar and chutney','Dosa with sambar and chutney','Chapati with vegetable kurma','Idiyappam with vegetable kurma','Appam with vegetable stew','Ven pongal with sambar','Vegetable upma with chutney','Rice and rasam','Rice kanji / soft diet','Millet dosa with chutney','Other / Custom'],
-      'Tube Feed':['Prescribed tube feed','Blended prescribed feed','Other / Custom'],
-      'Other':['Other / Custom']
     };
     const beverageOptions=['None','Tea','Coffee','Milk','Buttermilk','Fresh juice','Tender coconut water','Health drink','Cool drink','Soup','Other'];
+    const canonicalMealType=value=>{const v=String(value||'').toLowerCase();if(v.includes('lunch'))return 'Lunch';if(v.includes('dinner'))return 'Dinner';if(v.includes('breakfast')||v.includes('tiff'))return 'Tiffin';return null};
+    const validMealTime=(meal,time)=>{const minutes=Number(String(time).slice(0,2))*60+Number(String(time).slice(3,5));return meal==='Tiffin'?minutes>=300&&minutes<660:meal==='Lunch'?minutes>=660&&minutes<960:minutes>=960&&minutes<=1439};
+    const mealTimeGuide=meal=>meal==='Tiffin'?'05:00 AM to 10:59 AM':meal==='Lunch'?'11:00 AM to 03:59 PM':'04:00 PM to 11:59 PM';
     async function load(){const {data}=await client.from('meal_records').select('*,patients(full_name,room_no,bed_no)').order('served_at',{ascending:false}).limit(100);setRows(data||[])}
     React.useEffect(()=>{load()},[]);
     async function save(e){
@@ -21272,11 +21272,23 @@ function RoomsBeds({profile}){
       if(!form.patient_id)return alert('Select a patient before entering food or beverage details.');
       const menu=form.menu==='Other / Custom'?form.custom_menu.trim():form.menu;
       if(!menu)return alert('Select the menu, or enter the custom menu.');
+      if(!form.served_time)return alert('Enter the actual meal consumption time. The current time is not filled automatically.');
+      if(!validMealTime(form.meal_type,form.served_time))return alert(`${form.meal_type} must be recorded between ${mealTimeGuide(form.meal_type)}. Please select the correct meal and actual consumption time.`);
       if(form.beverage_type!=='None'&&!form.beverage_time)return alert('Enter the beverage consumption time.');
+      if(saving)return;
+      setSaving(true);
+      const {data:existing,error:checkError}=await client.from('meal_records').select('id,meal_type').eq('patient_id',form.patient_id).eq('meal_date',form.meal_date);
+      if(checkError){setSaving(false);return alert(checkError.message)}
+      if((existing||[]).some(row=>canonicalMealType(row.meal_type)===form.meal_type)){setSaving(false);return alert(`${form.meal_type} has already been recorded for this patient on ${formatDateIN(form.meal_date)}. Only one Tiffin, one Lunch and one Dinner entry is allowed per patient per day.`)}
       const servedAt=`${form.meal_date}T${form.served_time||'12:00'}:00+05:30`;
       const payload={patient_id:form.patient_id,meal_date:form.meal_date,meal_type:form.meal_type,menu,consumption_status:form.consumption_status,remarks:form.remarks,served_at:servedAt,recorded_by:profile.id,beverage_type:form.beverage_type==='None'?null:form.beverage_type,beverage_time:form.beverage_type==='None'?null:form.beverage_time};
       const {error}=await client.from('meal_records').insert(payload);
-      if(error)return alert(error.message);
+      setSaving(false);
+      if(error){
+        if(error.code==='23505'||/meal_records_patient_date_type_unique/i.test(error.message||''))return alert(`${form.meal_type} has already been recorded for this patient on ${formatDateIN(form.meal_date)}. Duplicate meal entries are not allowed.`);
+        if(error.code==='23514'||/meal_records_valid_consumption_time/i.test(error.message||''))return alert(`${form.meal_type} must be recorded between ${mealTimeGuide(form.meal_type)}.`);
+        return alert(error.message);
+      }
       const retainedPatient=form.patient_id;
       setForm({...blank(),patient_id:retainedPatient});
       load();
@@ -21287,15 +21299,16 @@ function RoomsBeds({profile}){
         h('form',{className:'modal-grid food-beverage-entry',onSubmit:save},
           patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v})),
           h('div',{className:'field'},h('label',null,'Entry Date'),h(StrictDateInput,{value:form.meal_date,max:todayISOIndia(),required:true,onChange:e=>setForm({...form,meal_date:e.target.value})})),
-          miniSelect('Meal',form.meal_type,['Breakfast / Tiffin','Lunch','Evening Snack','Dinner','Tube Feed','Other'],v=>setForm({...form,meal_type:v,menu:(menus[v]||menus.Other)[0],custom_menu:''})),
+          miniSelect('Meal',form.meal_type,['Tiffin','Lunch','Dinner'],v=>setForm({...form,meal_type:v,menu:menus[v][0],custom_menu:''})),
+          h('div',{className:'field-help'},'Only one Tiffin, one Lunch and one Dinner entry is permitted for each patient on each date.'),
           miniSelect('South Indian Menu',form.menu,menuOptions,v=>setForm({...form,menu:v})),
           form.menu==='Other / Custom'&&miniInput('Custom menu / feed',form.custom_menu,v=>setForm({...form,custom_menu:v}),true),
-          miniInput('Meal consumption time',form.served_time,v=>setForm({...form,served_time:v}),true,'time'),
+          miniInput(`Actual consumption time (${mealTimeGuide(form.meal_type)})`,form.served_time,v=>setForm({...form,served_time:v}),true,'time'),
           miniSelect('Food consumed',form.consumption_status,['Consumed fully','Consumed mostly','Consumed partially','Tasted only','Refused','Vomited','Tube feed completed'],v=>setForm({...form,consumption_status:v})),
           miniSelect('Beverage',form.beverage_type,beverageOptions,v=>setForm({...form,beverage_type:v,beverage_time:v==='None'?'':form.beverage_time})),
           form.beverage_type!=='None'&&miniInput('Beverage consumption time',form.beverage_time,v=>setForm({...form,beverage_time:v}),true,'time'),
           miniInput('Remarks',form.remarks,v=>setForm({...form,remarks:v})),
-          h('button',{className:'btn btn-primary'},'Save Food & Beverage Entry')
+          h('button',{className:'btn btn-primary',disabled:saving},saving?'Saving…':'Save Food & Beverage Entry')
         )
       ),
       h(LogTable,{title:'Recent Food & Beverage Records',heads:['Patient / Room','Meal','Menu','Food Intake','Meal Time','Beverage','Beverage Time'],rows:rows.map(r=>[`${r.patients?.full_name||'—'} · ${r.patients?.room_no||'—'}-${r.patients?.bed_no||'—'}`,r.meal_type,r.menu,r.consumption_status,fmt(r.served_at),r.beverage_type||'—',r.beverage_time?String(r.beverage_time).slice(0,5):'—'])})
@@ -26206,7 +26219,7 @@ Please access the Samara Family Portal for detailed account information.`;
           h('div',null,h('span',null,'Prepared by'),h('strong',null,formalName(profile))),
           h('div',null,h('span',null,'Generated on'),h('strong',null,formatDateTimeIN(new Date())))
         ),
-        h('p',{className:'family-portal-report-note'},'For full details, log in to the Samara Family Portal with the provided login details.'),
+        h('p',{className:'family-portal-report-note'},'For full details, log in to the Samara Family Portal with the provided login details: ',h('a',{href:'https://family.samaraassistedliving.com/',target:'_blank',rel:'noopener noreferrer'},'https://family.samaraassistedliving.com/')),
         h('div',{className:'report-page-break'}),
         h('div',{className:'clinical-annexure'},
           h('div',{className:'annexure-title'},h('div',null,h('h2',null,'DETAILED CLINICAL ANNEXURE'),h('p',null,`${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}${p.bed_no?`-${p.bed_no}`:''} · ${formatDateIN(report.date||reportDate)}`)),h('span',null,'PAGE 2 OF 2')),
@@ -26228,7 +26241,7 @@ Please access the Samara Family Portal for detailed account information.`;
           ),
           h('div',{className:'annexure-section next-plan'},h('h3',null,'NEXT 24 HOURS / HANDOVER PLAN'),nextPlan.length?h('ul',null,nextPlan.map((item,i)=>h('li',{key:i},item))):h('p',null,'Continue prescribed treatment, routine nursing care and observation. No separate patient-specific handover instruction was recorded.')),
           h('p',{className:'annexure-disclaimer'},'This annexure is automatically compiled from ERP entries and does not replace medical advice.'),
-          h('p',{className:'family-portal-report-note'},'For full details, log in to the Samara Family Portal with the provided login details.')
+          h('p',{className:'family-portal-report-note'},'For full details, log in to the Samara Family Portal with the provided login details: ',h('a',{href:'https://family.samaraassistedliving.com/',target:'_blank',rel:'noopener noreferrer'},'https://family.samaraassistedliving.com/'))
         )
       );
     };

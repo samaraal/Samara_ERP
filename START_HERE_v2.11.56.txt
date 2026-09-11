@@ -1,0 +1,45 @@
+SAMARA CARE ERP v2.11.56 - MEAL DUPLICATE AND TIME CONTROL
+================================================================
+
+The screenshot shows ERP version 2.11.53. The corrected rules will become
+active only after the website files and SQL below are deployed.
+
+Corrections
+-----------
+1. Consumption time starts blank and must be entered deliberately.
+2. Permitted local consumption times:
+   - Tiffin:  05:00 AM to 10:59 AM
+   - Lunch:   11:00 AM to 03:59 PM
+   - Dinner:  04:00 PM to 11:59 PM
+3. Only one Tiffin, one Lunch and one Dinner is permitted for each patient/date.
+4. The Save button locks while saving to prevent repeated-click duplicates.
+5. Older labels such as Breakfast / Tiffin are recognised by duplicate checks.
+6. Historical records are reclassified by their actual consumption time; for
+   example, an old Breakfast entry at 05:50 PM becomes Dinner.
+
+Deployment order
+----------------
+1. In Supabase SQL Editor, run and save:
+
+   supabase/sql/57_meal_duplicate_and_time_enforcement.sql
+
+   This script is self-contained. Script 56 is not required if it was missed.
+
+2. Replace these four website files:
+
+   app.js
+   config.js
+   index.html
+   service-worker.js
+
+3. In the ERP, select Update Now. If necessary, use App Help / Repair.
+
+4. Confirm the displayed version is 2.11.56 before testing.
+
+Testing
+-------
+- Consumption time must initially be blank.
+- Tiffin at 05:50 PM must be rejected.
+- A second Tiffin for the same patient/date must be rejected.
+- Lunch and Dinner for that patient/date must remain available.
+
