@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.48';
-const CACHE = 'samara-erp-2.11.48-independent-stores-std-delegation';
+const APP_VERSION = '2.11.49';
+const CACHE = 'samara-erp-2.11.49-stores-delegation-modify-cancel';
 const SHELL = [
   './',
   './index.html',

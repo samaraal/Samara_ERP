@@ -1,0 +1,15 @@
+SAMARA CARE ERP v2.11.49 — STORES DELEGATION CONTROL
+=====================================================
+
+1. Run 92_stores_position_and_std_delegation.sql again in Supabase.
+   It is additive and retains the existing assignment and Stores data.
+2. Replace app.js, index.html, config.js and service-worker.js.
+3. ERP → App Help / Repair → Repair App once.
+
+CONTROL
+- Only Admin/Director can assign Stores responsibility temporarily to STD.
+- Nurse Manager cannot create, modify or cancel the assignment.
+- The unused generic Manager role has no assignment authority.
+- Admin/Director can use Modify Assignment to change From, Until or Reason.
+- Admin/Director can use Cancel Delegation to return responsibility immediately to Nurse Manager.
+- Modification and cancellation details are retained in the database change history.
