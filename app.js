@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.58';
+  const APP_VERSION = '2.11.59';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -26194,7 +26194,7 @@ Please access the Samara Family Portal for detailed account information.`;
         ),
         h('div',{className:'clinical-summary-card'},
           h('h3',null,'CLINICAL CARE SUMMARY'),
-          narrative().map((line,i)=>h('p',{key:i},line))
+          narrative().map((line,i)=>{const split=String(line||'').indexOf(':');return h('p',{key:i},split>0?h(React.Fragment,null,h('b',{className:'clinical-summary-label'},String(line).slice(0,split)),h('b',{className:'clinical-summary-colon'},':'),` ${String(line).slice(split+1).trim()}`):line)})
         ),
         h('div',{className:'clinical-report-grid'},
           box('VITAL SIGNS SUMMARY','♥',vitals,lastVital?`Latest available observation: ${fmt(lastVital.recorded_at||lastVital.created_at)}`:'No vital observations were recorded for the selected period.'),

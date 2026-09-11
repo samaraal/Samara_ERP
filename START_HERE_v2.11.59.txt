@@ -1,0 +1,42 @@
+SAMARA CARE ERP v2.11.59 - REPORT READABILITY AND CLIPPING FIX
+================================================================
+
+Corrections
+-----------
+1. Clinical Care Summary labels are bold Samara magenta:
+   - Admission Summary
+   - Care and Treatment Provided
+   - Current Clinical Status
+   - Family Communication
+   - Plan and Recommendation
+
+2. Resident Overview label columns are wider.
+3. All Resident Overview colons remain vertically aligned.
+4. Emergency Contact, Admission Type and Duration of Stay no longer overlap.
+5. Clinical cards have additional vertical space.
+6. The fifth Vital Signs row (Blood Sugar) remains fully visible above the
+   Latest Observation note.
+7. The same summary emphasis is applied to the on-screen/print report and the
+   generated/WhatsApp PDF.
+
+Deployment
+----------
+1. Replace:
+   app.js
+   styles.css
+   config.js
+   index.html
+   service-worker.js
+
+2. Deploy:
+   supabase/functions/daily-patient-report/index.ts
+
+   Command:
+   supabase functions deploy daily-patient-report
+
+3. Select Update Now, or use App Help / Repair.
+4. Confirm ERP version 2.11.59.
+5. Generate a fresh report. Its filename ends with readable_v9.pdf.
+
+Previously generated PDFs remain unchanged. No SQL is required.
+

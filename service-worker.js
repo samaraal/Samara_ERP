@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.58';
-const CACHE = 'samara-erp-2.11.58-global-label-value-alignment';
+const APP_VERSION = '2.11.59';
+const CACHE = 'samara-erp-2.11.59-readable-summary-cards';
 const SHELL = [
   './',
   './index.html',
