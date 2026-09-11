@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.56';
-const CACHE = 'samara-erp-2.11.56-meal-time-validation';
+const APP_VERSION = '2.11.57';
+const CACHE = 'samara-erp-2.11.57-aligned-handover-plan';
 const SHELL = [
   './',
   './index.html',

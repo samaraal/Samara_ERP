@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.56';
+  const APP_VERSION = '2.11.57';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -26156,7 +26156,7 @@ Please access the Samara Family Portal for detailed account information.`;
       );
       const medicationRows=[...(d.mar||[])].sort((a,b)=>String(a.scheduled_time||a.scheduled_at||'').localeCompare(String(b.scheduled_time||b.scheduled_at||''))).map(row=>{const order=orderMap[row.order_id||row.medication_order_id]||{};return [row.scheduled_time||String(row.scheduled_at||'').slice(11,16)||'—',row.administered_at?fmt(row.administered_at):'—',row.medicine_name||order.medicine_name||'Medicine',row.dose||row.strength||order.dose||order.strength||'—',row.route||order.route||'—',row.status||'Recorded',row.remarks||row.exception_reason||staffName(row.administered_by)]});
       const careRows=[...(d.care||[])].sort((a,b)=>new Date(a.completed_at||a.created_at)-new Date(b.completed_at||b.created_at)).map(row=>{const order=careOrderMap[row.care_order_id]||{};return [order.care_type||order.task_name||row.care_type||'Care activity',row.shift||order.shift||'—',row.status||'Recorded',fmt(row.completed_at||row.created_at),row.remarks||'—',staffName(row.completed_by)]});
-      const nextPlan=[latestHandover?.pending_tasks&&`Pending tasks: ${latestHandover.pending_tasks}`,latestHandover?.special_instructions&&`Special instructions: ${latestHandover.special_instructions}`,latestHandover?.patient_summary&&`Patient summary: ${latestHandover.patient_summary}`,(d.medicationOrders||[]).filter(x=>x.is_active!==false&&!x.stopped_at).length&&`Continue ${(d.medicationOrders||[]).filter(x=>x.is_active!==false&&!x.stopped_at).length} active prescription item(s) at the ordered times.`,(d.careOrders||[]).length&&`Continue ${(d.careOrders||[]).length} active care-plan item(s).`].filter(Boolean);
+      const nextPlan=[latestHandover?.pending_tasks&&['Pending tasks',latestHandover.pending_tasks],latestHandover?.special_instructions&&['Special instructions',latestHandover.special_instructions],latestHandover?.patient_summary&&['Patient summary',latestHandover.patient_summary],(d.medicationOrders||[]).filter(x=>x.is_active!==false&&!x.stopped_at).length&&['Medication plan',`Continue ${(d.medicationOrders||[]).filter(x=>x.is_active!==false&&!x.stopped_at).length} active prescription item(s) at the ordered times.`],(d.careOrders||[]).length&&['Care plan',`Continue ${(d.careOrders||[]).length} active care-plan item(s).`]].filter(Boolean);
     return h(React.Fragment,null,
         h('div',{className:'hospital-report-title'},
           h('div',{className:'hospital-report-brand'},
@@ -26239,7 +26239,7 @@ Please access the Samara Family Portal for detailed account information.`;
             h('div',{className:'annexure-section'},h('h3',null,'FOOD / FLUID INTAKE'),detailTable(['Meal','Menu','Food Intake','Meal Time','Beverage','Beverage Time'],(d.meals||[]).map(row=>[row.meal_type||'Meal',row.menu||'—',row.consumption_status||'Recorded',fmt(row.served_at),row.beverage_type||'—',row.beverage_time?String(row.beverage_time).slice(0,5):'—']))),
             h('div',{className:'annexure-section'},h('h3',null,'PHYSIOTHERAPY / INCIDENTS'),detailTable(['Type','Status','Notes / Action'],[...(d.physioSessions||[]).map(row=>['Physiotherapy',row.status||'Recorded',row.notes||'—']),...(d.incidents||[]).map(row=>[row.incident_type||row.type||'Incident',`${row.severity||'—'} · ${row.status||'—'}`,row.description||row.immediate_action||'—'])]))
           ),
-          h('div',{className:'annexure-section next-plan'},h('h3',null,'NEXT 24 HOURS / HANDOVER PLAN'),nextPlan.length?h('ul',null,nextPlan.map((item,i)=>h('li',{key:i},item))):h('p',null,'Continue prescribed treatment, routine nursing care and observation. No separate patient-specific handover instruction was recorded.')),
+          h('div',{className:'annexure-section next-plan'},h('h3',null,'NEXT 24 HOURS / HANDOVER PLAN'),nextPlan.length?h('div',{className:'next-plan-list'},nextPlan.map(([label,value],i)=>h('div',{className:'next-plan-row',key:i},h('span',{className:'next-plan-bullet'},'•'),h('b',null,label),h('span',{className:'next-plan-colon'},':'),h('span',null,value)))):h('div',{className:'next-plan-row'},h('span',{className:'next-plan-bullet'},'•'),h('b',null,'Plan'),h('span',{className:'next-plan-colon'},':'),h('span',null,'Continue prescribed treatment, routine nursing care and observation. No separate patient-specific handover instruction was recorded.'))),
           h('p',{className:'annexure-disclaimer'},'This annexure is automatically compiled from ERP entries and does not replace medical advice.'),
           h('p',{className:'family-portal-report-note'},'For full details, log in to the Samara Family Portal with the provided login details: ',h('a',{href:'https://family.samaraassistedliving.com/',target:'_blank',rel:'noopener noreferrer'},'https://family.samaraassistedliving.com/'))
         )
