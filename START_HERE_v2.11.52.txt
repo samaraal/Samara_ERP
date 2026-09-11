@@ -1,0 +1,41 @@
+SAMARA CARE ERP 2.11.52 — DETAILED TWO-PAGE INTELLIGENT REPORT
+
+WHAT THIS UPDATE FIXES
+
+1. The report displayed on screen is now the detailed two-page report.
+2. Open / Save PDF prints the same two-page report shown on screen.
+3. The automatic WhatsApp report uses the matching detailed two-page layout.
+4. Clinical activity counts and details are restricted to the selected report date.
+5. Page 2 contains vital trends, medicine administration, daily care, food/fluid intake,
+   physiotherapy/incidents, and the next-24-hours handover plan.
+6. Both pages include the Family Portal guidance sentence.
+7. The approved Meta template remains exactly: amara_daily_patient_report
+
+ERP FILES TO REPLACE
+
+- app.js
+- styles.css
+- index.html
+- config.js
+- service-worker.js
+
+SUPABASE EDGE FUNCTION TO DEPLOY
+
+- supabase/functions/daily-patient-report/index.ts
+
+Deploy the daily-patient-report Edge Function after replacing the file.
+No SQL migration is required for this update.
+
+AFTER UPDATING
+
+1. Open the ERP.
+2. Confirm the displayed version is 2.11.52.
+3. If an older version is still displayed, choose App Help / Repair, then Repair App.
+4. Generate a patient report and confirm that Page 2 — Detailed Clinical Annexure appears.
+5. Test Open / Save PDF.
+6. Test one WhatsApp report and review WhatsApp Delivery Logs.
+
+IMPORTANT
+
+The Meta-approved template name intentionally starts with “amara”, not “samara”.
+Do not add an initial “s” unless Meta approves a newly named template.

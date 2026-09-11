@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.51';
+  const APP_VERSION = '2.11.52';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -25813,9 +25813,9 @@ Please access the Samara Family Portal for detailed account information.`;
       setBusy(true);
       try{
         const results=await Promise.all([
-          client.from('patients').select('*'),client.from('vital_signs').select('*'),client.from('care_logs').select('*'),client.from('care_orders').select('*'),client.from('medication_orders').select('*'),client.from('medication_administrations').select('*'),client.from('meal_records').select('*'),client.from('physiotherapy_plans').select('*'),client.from('physiotherapy_sessions').select('*'),client.from('incidents').select('*'),client.from('billing_transactions').select('*'),client.from('recovery_events').select('*'),client.from('shift_handovers').select('*'),client.from('patient_documents').select('*'),client.from('profiles').select('*'),client.from('audit_log').select('*')
+          client.from('patients').select('*'),client.from('vital_signs').select('*'),client.from('care_logs').select('*'),client.from('care_orders').select('*'),client.from('medication_orders').select('*'),client.from('medication_administrations').select('*'),client.from('meal_records').select('*'),client.from('physiotherapy_plans').select('*'),client.from('physiotherapy_sessions').select('*'),client.from('incidents').select('*'),client.from('billing_transactions').select('*'),client.from('recovery_events').select('*'),client.from('shift_handovers').select('*'),client.from('patient_documents').select('*'),client.from('profiles').select('*'),client.from('audit_log').select('*'),client.from('medication_reviews').select('*'),client.from('medication_review_items').select('*')
         ]);
-        const [pats,vitals,care,careOrders,orders,mar,meals,physioOrders,physioSessions,incidents,billing,recovery,handovers,documents,staff,audit]=results.map(safeRows);
+        const [pats,vitals,care,careOrders,orders,mar,meals,physioOrders,physioSessions,incidents,billing,recovery,handovers,documents,staff,audit,medicationReviews,medicationReviewItems]=results.map(safeRows);
         const selectedPatient=pats.find(p=>p.id===patientId)||patients.find(p=>p.id===patientId)||null;
         if(activeMode==='Resident-wise'&&selectedPatient&&isFutureDateIndia(selectedPatient.admission_date)){
           throw new Error(`The Patient File contains a future Admission Date (${formatDateIN(selectedPatient.admission_date)}). Please correct it in Patient Edit before generating or sharing the report.`);
@@ -25824,7 +25824,7 @@ Please access the Samara Family Portal for detailed account information.`;
           vitals:byDay(vitals,reportDate,['recorded_at','created_at']),care:byDay(care,reportDate,['completed_at','created_at','care_date']),careOrders:careOrders.filter(x=>x.is_active!==false),mar:byDay(mar,reportDate,['administered_at','created_at','scheduled_date']),meals:byDay(meals,reportDate,['served_at','created_at','meal_date']),physioSessions:byDay(physioSessions,reportDate,['session_at','created_at','session_date']),incidents:byDay(incidents,reportDate,['incident_at','created_at']),billing:byDay(billing,reportDate,['transaction_date','created_at']),recovery:byDay(recovery,reportDate,['event_at','created_at']),handovers:byDay(handovers,reportDate,['created_at','handover_date']),documents:byDay(documents,reportDate,['created_at','report_date']),audit:byDay(audit,reportDate,['created_at'])
         };
         const data=activeMode==='Resident-wise'?{
-          patients:selectedPatient?[selectedPatient]:[],vitals:byPatient(vitals,patientId),care:byPatient(care,patientId),careOrders:byPatient(careOrders,patientId),medicationOrders:byPatient(orders,patientId),mar:byPatient(mar,patientId),meals:byPatient(meals,patientId),physioOrders:byPatient(physioOrders,patientId),physioSessions:byPatient(physioSessions,patientId),incidents:byPatient(incidents,patientId),billing:byPatient(billing,patientId),recovery:byPatient(recovery,patientId),handovers:handovers.filter(r=>text(r.patient_summary).toLowerCase().includes(text(formalName(selectedPatient)).toLowerCase())),documents:byPatient(documents,patientId)
+          patients:selectedPatient?[selectedPatient]:[],vitals:byDay(byPatient(vitals,patientId),reportDate,['recorded_at','created_at']),care:byDay(byPatient(care,patientId),reportDate,['completed_at','created_at','care_date']),careOrders:byPatient(careOrders,patientId).filter(x=>x.is_active!==false),medicationOrders:byPatient(orders,patientId),mar:byDay(byPatient(mar,patientId),reportDate,['administered_at','created_at','scheduled_date']),meals:byDay(byPatient(meals,patientId),reportDate,['served_at','created_at','meal_date']),physioOrders:byPatient(physioOrders,patientId).filter(x=>x.is_active!==false),physioSessions:byDay(byPatient(physioSessions,patientId),reportDate,['session_at','created_at','session_date']),incidents:byDay(byPatient(incidents,patientId),reportDate,['incident_at','created_at']),billing:byPatient(billing,patientId),recovery:byDay(byPatient(recovery,patientId),reportDate,['event_at','created_at']),handovers:byDay(byPatient(handovers,patientId),reportDate,['created_at','handover_date']),documents:byPatient(documents,patientId),medicationReviews:byDay(byPatient(medicationReviews,patientId),reportDate,['reviewed_at','created_at']),medicationReviewItems:medicationReviewItems.filter(item=>medicationReviews.some(review=>review.patient_id===patientId&&review.id===item.review_id))
         }:{...dayData,patients:pats.filter(p=>p.is_active!==false&&dateOnly(p.admission_date)<=reportDate),newAdmissions:pats.filter(p=>dateOnly(p.admission_date)===reportDate)};
         const charges=data.billing.filter(x=>x.transaction_type==='Charge').reduce((a,x)=>a+Number(x.amount||0),0);
         const payments=data.billing.filter(x=>x.transaction_type==='Payment').reduce((a,x)=>a+Number(x.amount||0),0);
@@ -26066,6 +26066,36 @@ Please access the Samara Family Portal for detailed account information.`;
         h('div',{className:'clinical-box-rows'},rows.map(([label,value])=>h('div',{className:'clinical-box-row',key:label},h('span',null,label),h('strong',null,value)))),
         note?h('div',{className:'clinical-box-note'},note):null
       );
+      const staffName=id=>formalName(report.staffMap?.[id]||{})||report.staffMap?.[id]?.full_name||'Not recorded';
+      const orderMap=Object.fromEntries((d.medicationOrders||[]).map(x=>[x.id,x]));
+      const careOrderMap=Object.fromEntries((d.careOrders||[]).map(x=>[x.id,x]));
+      const sortedVitals=[...(d.vitals||[])].sort((a,b)=>new Date(b.recorded_at||b.created_at)-new Date(a.recorded_at||a.created_at));
+      const previousVital=sortedVitals[1]||null;
+      const trend=(current,previous)=>current==null||previous==null?'Not enough data':Number(current)>Number(previous)?'Increased':Number(current)<Number(previous)?'Decreased':'Stable';
+      const vitalAssessment=row=>reportVitalAlert(row)==='critical'?'Critical':reportVitalAlert(row)==='warning'?'Review':'Within range';
+      const latestReview=[...(d.medicationReviews||[])].sort((a,b)=>new Date(b.reviewed_at||b.created_at)-new Date(a.reviewed_at||a.created_at))[0]||null;
+      const reviewChanges=latestReview?(d.medicationReviewItems||[]).filter(x=>x.review_id===latestReview.id):[];
+      const latestHandover=[...(d.handovers||[])].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0]||null;
+      const wellbeingSource=[...(d.care||[]).map(x=>x.remarks),latestHandover?.patient_summary,latestHandover?.special_instructions].filter(Boolean).join(' ');
+      const wellbeing=[
+        ['Appetite',(d.meals||[]).map(x=>x.consumption_status).filter(Boolean).join(', ')||'Not separately recorded'],
+        ['Mobility',/mobil|walk|ambulat|turn|position/i.test(wellbeingSource)?'Documented':'Not separately recorded'],
+        ['Pain',/pain/i.test(wellbeingSource)?'Mentioned in nursing record':'Not separately recorded'],
+        ['Sleep',/sleep/i.test(wellbeingSource)?'Documented':'Not separately recorded'],
+        ['Consciousness / Orientation',/orient|conscious|alert/i.test(wellbeingSource)?'Documented':'Not separately recorded'],
+        ['Oxygen Support',p.oxygen_required?'Required':'Not recorded as required']
+      ];
+      const detailTable=(heads,rows,empty='No records available for the selected report date.')=>h('div',{className:'report-detail-table-wrap'},
+        h('table',{className:'report-detail-table'},
+          h('thead',null,h('tr',null,heads.map(head=>h('th',{key:head},head)))),
+          h('tbody',null,rows.length
+            ?rows.map((row,i)=>h('tr',{key:i},row.map((value,j)=>h('td',{key:j,'data-label':heads[j]},value??'—'))))
+            :h('tr',null,h('td',{colSpan:heads.length,className:'empty'},empty)))
+        )
+      );
+      const medicationRows=[...(d.mar||[])].sort((a,b)=>String(a.scheduled_time||a.scheduled_at||'').localeCompare(String(b.scheduled_time||b.scheduled_at||''))).map(row=>{const order=orderMap[row.order_id||row.medication_order_id]||{};return [row.scheduled_time||String(row.scheduled_at||'').slice(11,16)||'—',row.administered_at?fmt(row.administered_at):'—',row.medicine_name||order.medicine_name||'Medicine',row.dose||row.strength||order.dose||order.strength||'—',row.route||order.route||'—',row.status||'Recorded',row.remarks||row.exception_reason||staffName(row.administered_by)]});
+      const careRows=[...(d.care||[])].sort((a,b)=>new Date(a.completed_at||a.created_at)-new Date(b.completed_at||b.created_at)).map(row=>{const order=careOrderMap[row.care_order_id]||{};return [order.care_type||order.task_name||row.care_type||'Care activity',row.shift||order.shift||'—',row.status||'Recorded',fmt(row.completed_at||row.created_at),row.remarks||'—',staffName(row.completed_by)]});
+      const nextPlan=[latestHandover?.pending_tasks&&`Pending tasks: ${latestHandover.pending_tasks}`,latestHandover?.special_instructions&&`Special instructions: ${latestHandover.special_instructions}`,latestHandover?.patient_summary&&`Patient summary: ${latestHandover.patient_summary}`,(d.medicationOrders||[]).filter(x=>x.is_active!==false&&!x.stopped_at).length&&`Continue ${(d.medicationOrders||[]).filter(x=>x.is_active!==false&&!x.stopped_at).length} active prescription item(s) at the ordered times.`,(d.careOrders||[]).length&&`Continue ${(d.careOrders||[]).length} active care-plan item(s).`].filter(Boolean);
     return h(React.Fragment,null,
         h('div',{className:'hospital-report-title'},
           h('div',{className:'hospital-report-brand'},
@@ -26127,6 +26157,30 @@ Please access the Samara Family Portal for detailed account information.`;
           h('div',null,h('strong',null,'Samara Health Care LLP'),h('span',null,'Assisted Living Management System'),h('em',null,'Caring with Compassion. Living with Dignity.')),
           h('div',null,h('span',null,'Prepared by'),h('strong',null,formalName(profile))),
           h('div',null,h('span',null,'Generated on'),h('strong',null,formatDateTimeIN(new Date())))
+        ),
+        h('p',{className:'family-portal-report-note'},'For full details, log in to the Samara Family Portal with the provided login details.'),
+        h('div',{className:'report-page-break'}),
+        h('div',{className:'clinical-annexure'},
+          h('div',{className:'annexure-title'},h('div',null,h('h2',null,'DETAILED CLINICAL ANNEXURE'),h('p',null,`${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}${p.bed_no?`-${p.bed_no}`:''} · ${formatDateIN(report.date||reportDate)}`)),h('span',null,'PAGE 2 OF 2')),
+          h('div',{className:'annexure-section'},h('h3',null,'TODAY AT A GLANCE AND CHANGES'),
+            h('div',{className:'wellbeing-grid'},wellbeing.map(([label,value])=>h('div',{key:label},h('span',null,label),h('strong',null,value)))),
+            h('div',{className:'change-summary'},
+              h('p',null,lastVital&&previousVital?`Vital trend: BP ${vitalMeasurement(lastVital,'systolic')??'—'}/${vitalMeasurement(lastVital,'diastolic')??'—'}; pulse ${trend(vitalMeasurement(lastVital,'pulse'),vitalMeasurement(previousVital,'pulse')).toLowerCase()}; SpO₂ ${trend(vitalMeasurement(lastVital,'spo2'),vitalMeasurement(previousVital,'spo2')).toLowerCase()}.`:lastVital?'Only one vital observation is available for comparison.':'No vital observation is available.'),
+              h('p',null,`Medication outcome: ${given} given; ${late} late; ${omitted} missed, omitted or refused.`),
+              h('p',null,latestReview?`Doctor review: ${latestReview.doctor_name||'Doctor'} · ${latestReview.clinical_notes||latestReview.review_type||'Review recorded'}${reviewChanges.length?` · Changes: ${reviewChanges.map(x=>`${x.action||'Change'} ${x.medicine_name||'medicine'} ${x.strength||x.dose||''}`.trim()).join('; ')}`:''}`:'No new doctor-review entry for the report date.'),
+              h('p',{className:incidentCount?'attention':''},incidentCount?`${incidentCount} incident(s) were recorded and require review.`:'No incident was recorded for the report date.')
+            )
+          ),
+          h('div',{className:'annexure-section'},h('h3',null,'VITAL-SIGN TREND'),detailTable(['Date / Time','Blood Pressure','Pulse','SpO₂','Temperature','Respiratory Rate','Blood Sugar','Assessment'],sortedVitals.map(row=>[fmt(row.recorded_at||row.created_at),`${vitalMeasurement(row,'systolic')??'—'}/${vitalMeasurement(row,'diastolic')??'—'}`,vitalMeasurement(row,'pulse')??'—',vitalMeasurement(row,'spo2')!=null?`${vitalMeasurement(row,'spo2')}%`:'—',vitalMeasurement(row,'temperature')??'—',vitalMeasurement(row,'respiration')??'—',vitalMeasurement(row,'blood_sugar')!=null?`${row.blood_sugar_type||'RBS'} ${vitalMeasurement(row,'blood_sugar')}`:'Not taken',vitalAssessment(row)]))),
+          h('div',{className:'annexure-section'},h('h3',null,'MEDICATION ADMINISTRATION DETAILS'),detailTable(['Scheduled','Actual','Medicine','Dose','Route','Status','Remarks / Recorded By'],medicationRows)),
+          h('div',{className:'annexure-section'},h('h3',null,'DAILY CARE AND NURSING DETAILS'),detailTable(['Care Activity','Shift','Status','Completed At','Remarks','Recorded By'],careRows)),
+          h('div',{className:'annexure-two-column'},
+            h('div',{className:'annexure-section'},h('h3',null,'FOOD / FLUID INTAKE'),detailTable(['Meal','Menu','Intake','Remarks'],(d.meals||[]).map(row=>[row.meal_type||'Meal',row.menu||'—',row.consumption_status||'Recorded',row.remarks||'—']))),
+            h('div',{className:'annexure-section'},h('h3',null,'PHYSIOTHERAPY / INCIDENTS'),detailTable(['Type','Status','Notes / Action'],[...(d.physioSessions||[]).map(row=>['Physiotherapy',row.status||'Recorded',row.notes||'—']),...(d.incidents||[]).map(row=>[row.incident_type||row.type||'Incident',`${row.severity||'—'} · ${row.status||'—'}`,row.description||row.immediate_action||'—'])]))
+          ),
+          h('div',{className:'annexure-section next-plan'},h('h3',null,'NEXT 24 HOURS / HANDOVER PLAN'),nextPlan.length?h('ul',null,nextPlan.map((item,i)=>h('li',{key:i},item))):h('p',null,'Continue prescribed treatment, routine nursing care and observation. No separate patient-specific handover instruction was recorded.')),
+          h('p',{className:'annexure-disclaimer'},'This annexure is automatically compiled from ERP entries and does not replace medical advice.'),
+          h('p',{className:'family-portal-report-note'},'For full details, log in to the Samara Family Portal with the provided login details.')
         )
       );
     };
