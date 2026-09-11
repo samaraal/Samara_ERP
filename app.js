@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.52';
+  const APP_VERSION = '2.11.53';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1479,6 +1479,7 @@ function initSamaraInaugurationInvitation(){
     'Patients':'My Patients',
     'Rooms':'Available Beds',
     'Medicines':'Medication Administration',
+    'Food & Diet':'Food & Beverages',
     'Charge Approvals':'Bills & Charges',
     'Accounts Dashboard':'Accounts Dashboard',
     'Package Expiry Dashboard':'Package Expiry Dashboard',
@@ -4807,7 +4808,7 @@ Caring with Compassion. Living with Dignity.`;
         /* Bedside quick actions: always visible, large thumb-friendly controls. */
         .nursing-mobile-quick-actions{
           display:grid!important;
-          grid-template-columns:repeat(4,minmax(0,1fr))!important;
+          grid-template-columns:repeat(3,minmax(0,1fr))!important;
           gap:7px!important;
           padding:9px 10px!important;
           position:sticky!important;
@@ -5147,7 +5148,7 @@ Caring with Compassion. Living with Dignity.`;
     ['Medicines','Route'],['Medicines','Time'],['Medicines','Food'],['Medicines','Status'],
     ['Medicines','Actual Administration Time'],['Medicines','Remarks'],
 
-    ['Food & Diet','Patient'],['Food & Diet','Meal'],['Food & Diet','Diet type'],['Food & Diet','Status'],
+    ['Food & Diet','Patient'],['Food & Diet','Meal'],['Food & Diet','Diet type'],['Food & Diet','Menu'],['Food & Diet','Food consumption'],['Food & Diet','Meal time'],['Food & Diet','Beverage'],['Food & Diet','Beverage time'],['Food & Diet','Status'],
     ['Physiotherapy','Patient'],['Physiotherapy','Therapy type'],['Physiotherapy','Frequency'],
     ['Physiotherapy','Time'],['Physiotherapy','Status'],
 
@@ -7313,6 +7314,7 @@ Caring with Compassion. Living with Dignity.`;
       ['Medicines','◐','Medication','Give / record'],
       ['Vital Signs','∿','Vitals','Enter observations'],
       ['Daily Care','♡','Daily Care','Complete care'],
+      ['Food & Diet','♨','Food & Beverages','Record intake'],
       ['Shift Tasks','☷','Tasks','Current shift']
     ];
     if(isNursingManagerProfile(profile))actions.push(['My Quick Tasks','＋','Quick Tasks','Voice / personal']);
@@ -17596,7 +17598,7 @@ Please keep these login details confidential.`;
           tab==='Nursing'&&h('div',{className:'section-card'},h('h4',null,'Master Care Plan'),details.care.length?details.care.map(c=>h('div',{className:'timeline-item',key:c.id},h('strong',null,c.care_type),h('span',null,`${c.shift} · ${c.frequency} · ${c.instruction||''}`))):sectionEmpty('No care orders.'),h('h4',{style:{marginTop:'18px'}},'Recent Care Records'),details.careLogs.length?details.careLogs.slice(0,30).map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.care_date)} · ${x.shift} · ${x.status}`),h('span',{className:'patient-file-detail'},` · ${x.remarks||'—'}`))):sectionEmpty('No care records.')),
           tab==='Vitals'&&h('div',{className:'section-card'},h('h4',null,'Vital Signs History'),details.vitals.length?details.vitals.map(v=>h('div',{className:'timeline-item',key:v.id},h('strong',null,`${fmt(v.recorded_at)} · BP ${v.systolic||'—'}/${v.diastolic||'—'}`),h('span',{className:'patient-file-detail'},` · Pulse ${v.pulse||'—'} · SpO₂ ${v.spo2||'—'} · Temp ${v.temperature||'—'} · Sugar ${v.blood_sugar_type||'Not Taken'} ${v.blood_sugar||'—'} · ${v.alert_level||'Normal'}`))):sectionEmpty('No vital signs recorded.')),
           tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${x.preferred_time||'—'} · ${x.precautions||''}`))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'))):sectionEmpty('No physiotherapy sessions.')),
-          tab==='Diet'&&h('div',{className:'section-card'},h('h4',null,`Diet Plan: ${selected.diet_plan||'Not recorded'}`),h('p',null,selected.feeding_instruction||'No special feeding instruction.'),h('h4',{style:{marginTop:'18px'}},'Meal Records'),details.meals.length?details.meals.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${x.meal_date||''} · ${x.meal_type} · ${x.consumption_status}`),h('span',{className:'patient-file-detail'},` · ${x.menu||'—'}${x.remarks?` · ${x.remarks}`:''}`))):sectionEmpty('No meal records.')),
+          tab==='Diet'&&h('div',{className:'section-card'},h('h4',null,`Diet Plan: ${selected.diet_plan||'Not recorded'}`),h('p',null,selected.feeding_instruction||'No special feeding instruction.'),h('h4',{style:{marginTop:'18px'}},'Food & Beverage Records'),details.meals.length?details.meals.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${x.meal_date||''} · ${x.meal_type} · ${x.consumption_status}`),h('span',{className:'patient-file-detail'},` · ${x.menu||'—'}${x.beverage_type?` · Beverage: ${x.beverage_type}${x.beverage_time?` at ${String(x.beverage_time).slice(0,5)}`:''}`:''}${x.remarks?` · ${x.remarks}`:''}`))):sectionEmpty('No food or beverage records.')),
           tab==='Daily Moments'&&h('div',{className:'daily-moments-wrap'},
             momentRecording&&h('div',{className:'daily-moment-recorder'},h('div',{className:'daily-moment-recorder-box'},h('video',{autoPlay:true,muted:true,playsInline:true,ref:el=>{if(el&&momentStreamRef.current&&el.srcObject!==momentStreamRef.current)el.srcObject=momentStreamRef.current}}),h('strong',null,`Recording ${momentRecordSeconds}/10 sec`),h('div',{className:'record-progress'},h('span',{style:{width:`${Math.min(100,momentRecordSeconds*10)}%`}})),h('button',{type:'button',className:'btn btn-danger',onClick:stopDailyMomentRecording},'Stop now'))),
             h('div',{className:'section-card daily-moment-upload'},
@@ -21249,9 +21251,55 @@ function RoomsBeds({profile}){
     );
   }
   function FoodDiet({profile}){
-    const [patients]=usePatients(),[rows,setRows]=React.useState([]),[form,setForm]=React.useState({patient_id:'',meal_type:'Breakfast',menu:'',consumption_status:'Consumed fully',remarks:''});async function load(){const {data}=await client.from('meal_records').select('*,patients(full_name,room_no,bed_no)').order('served_at',{ascending:false}).limit(100);setRows(data||[])}React.useEffect(()=>{load()},[]);
-    async function save(e){e.preventDefault();const {error}=await client.from('meal_records').insert({...form,meal_date:new Date().toISOString().slice(0,10),served_at:new Date().toISOString(),recorded_by:profile.id});if(error)return alert(error.message);setForm({...form,menu:'',remarks:''});load()}
-    return h(React.Fragment,null,h(Section,{title:'Food & Diet',subtitle:'Meal service, intake and feeding assistance'},h('form',{className:'modal-grid',onSubmit:save},patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v})),miniSelect('Meal',form.meal_type,['Breakfast','Lunch','Evening snack','Dinner','Tube feed','Other'],v=>setForm({...form,meal_type:v})),miniInput('Menu / feed',form.menu,v=>setForm({...form,menu:v}),true),miniSelect('Consumption',form.consumption_status,['Consumed fully','Consumed partially','Refused','Vomited','Tube feed completed'],v=>setForm({...form,consumption_status:v})),miniInput('Remarks',form.remarks,v=>setForm({...form,remarks:v})),h('button',{className:'btn btn-primary'},'Save meal record'))),h(LogTable,{title:'Recent Meal Records',heads:['Patient','Meal','Menu','Consumption','Time'],rows:rows.map(r=>[r.patients?.full_name,r.meal_type,r.menu,r.consumption_status,fmt(r.served_at)])}))
+    const [patients]=usePatients();
+    const [rows,setRows]=React.useState([]);
+    const currentTime=()=>new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());
+    const blank=()=>({patient_id:'',meal_date:todayISOIndia(),meal_type:'Breakfast / Tiffin',menu:'Idli with sambar and chutney',custom_menu:'',served_time:currentTime(),consumption_status:'Consumed fully',beverage_type:'None',beverage_time:'',remarks:''});
+    const [form,setForm]=React.useState(blank);
+    const menus={
+      'Breakfast / Tiffin':['Idli with sambar and chutney','Dosa with sambar and chutney','Ven pongal with sambar','Vegetable upma with chutney','Idiyappam with vegetable kurma','Appam with vegetable stew','Poori with potato masala','Chapati with vegetable kurma','Ragi dosa with chutney','Rice kanji / soft diet','Other / Custom'],
+      'Lunch':['Rice, sambar, poriyal, rasam and curd','Rice, kuzhambu, poriyal, rasam and curd','Vegetable biryani with raita','Lemon rice with curd','Tamarind rice with curd','Curd rice with vegetable','Sambar rice with vegetable','Chapati with vegetable kurma','Millet meal - diabetic diet','Soft rice / mashed diet','Other / Custom'],
+      'Evening Snack':['Sundal','Boiled groundnut','Vegetable soup','Ragi malt','Biscuits','Fruit bowl','Bread toast','Other / Custom'],
+      'Dinner':['Idli with sambar and chutney','Dosa with sambar and chutney','Chapati with vegetable kurma','Idiyappam with vegetable kurma','Appam with vegetable stew','Ven pongal with sambar','Vegetable upma with chutney','Rice and rasam','Rice kanji / soft diet','Millet dosa with chutney','Other / Custom'],
+      'Tube Feed':['Prescribed tube feed','Blended prescribed feed','Other / Custom'],
+      'Other':['Other / Custom']
+    };
+    const beverageOptions=['None','Tea','Coffee','Milk','Buttermilk','Fresh juice','Tender coconut water','Health drink','Cool drink','Soup','Other'];
+    async function load(){const {data}=await client.from('meal_records').select('*,patients(full_name,room_no,bed_no)').order('served_at',{ascending:false}).limit(100);setRows(data||[])}
+    React.useEffect(()=>{load()},[]);
+    async function save(e){
+      e.preventDefault();
+      if(!form.patient_id)return alert('Select a patient before entering food or beverage details.');
+      const menu=form.menu==='Other / Custom'?form.custom_menu.trim():form.menu;
+      if(!menu)return alert('Select the menu, or enter the custom menu.');
+      if(form.beverage_type!=='None'&&!form.beverage_time)return alert('Enter the beverage consumption time.');
+      const servedAt=`${form.meal_date}T${form.served_time||'12:00'}:00+05:30`;
+      const payload={patient_id:form.patient_id,meal_date:form.meal_date,meal_type:form.meal_type,menu,consumption_status:form.consumption_status,remarks:form.remarks,served_at:servedAt,recorded_by:profile.id,beverage_type:form.beverage_type==='None'?null:form.beverage_type,beverage_time:form.beverage_type==='None'?null:form.beverage_time};
+      const {error}=await client.from('meal_records').insert(payload);
+      if(error)return alert(error.message);
+      const retainedPatient=form.patient_id;
+      setForm({...blank(),patient_id:retainedPatient});
+      load();
+    }
+    const menuOptions=menus[form.meal_type]||menus.Other;
+    return h(React.Fragment,null,
+      h(Section,{title:'Food, Diet & Beverages',subtitle:'Nursing entry for patient-wise meals, intake and beverages'},
+        h('form',{className:'modal-grid food-beverage-entry',onSubmit:save},
+          patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v})),
+          h('div',{className:'field'},h('label',null,'Entry Date'),h(StrictDateInput,{value:form.meal_date,max:todayISOIndia(),required:true,onChange:e=>setForm({...form,meal_date:e.target.value})})),
+          miniSelect('Meal',form.meal_type,['Breakfast / Tiffin','Lunch','Evening Snack','Dinner','Tube Feed','Other'],v=>setForm({...form,meal_type:v,menu:(menus[v]||menus.Other)[0],custom_menu:''})),
+          miniSelect('South Indian Menu',form.menu,menuOptions,v=>setForm({...form,menu:v})),
+          form.menu==='Other / Custom'&&miniInput('Custom menu / feed',form.custom_menu,v=>setForm({...form,custom_menu:v}),true),
+          miniInput('Meal consumption time',form.served_time,v=>setForm({...form,served_time:v}),true,'time'),
+          miniSelect('Food consumed',form.consumption_status,['Consumed fully','Consumed mostly','Consumed partially','Tasted only','Refused','Vomited','Tube feed completed'],v=>setForm({...form,consumption_status:v})),
+          miniSelect('Beverage',form.beverage_type,beverageOptions,v=>setForm({...form,beverage_type:v,beverage_time:v==='None'?'':form.beverage_time})),
+          form.beverage_type!=='None'&&miniInput('Beverage consumption time',form.beverage_time,v=>setForm({...form,beverage_time:v}),true,'time'),
+          miniInput('Remarks',form.remarks,v=>setForm({...form,remarks:v})),
+          h('button',{className:'btn btn-primary'},'Save Food & Beverage Entry')
+        )
+      ),
+      h(LogTable,{title:'Recent Food & Beverage Records',heads:['Patient / Room','Meal','Menu','Food Intake','Meal Time','Beverage','Beverage Time'],rows:rows.map(r=>[`${r.patients?.full_name||'—'} · ${r.patients?.room_no||'—'}-${r.patients?.bed_no||'—'}`,r.meal_type,r.menu,r.consumption_status,fmt(r.served_at),r.beverage_type||'—',r.beverage_time?String(r.beverage_time).slice(0,5):'—'])})
+    );
   }
 
   function Physiotherapy({profile,onNavigate}){
@@ -26078,7 +26126,7 @@ Please access the Samara Family Portal for detailed account information.`;
       const latestHandover=[...(d.handovers||[])].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0]||null;
       const wellbeingSource=[...(d.care||[]).map(x=>x.remarks),latestHandover?.patient_summary,latestHandover?.special_instructions].filter(Boolean).join(' ');
       const wellbeing=[
-        ['Appetite',(d.meals||[]).map(x=>x.consumption_status).filter(Boolean).join(', ')||'Not separately recorded'],
+        ['Food Intake',(d.meals||[]).map(x=>`${x.meal_type||'Meal'}: ${x.consumption_status||'Recorded'}`).filter(Boolean).join(' · ')||'Not separately recorded'],
         ['Mobility',/mobil|walk|ambulat|turn|position/i.test(wellbeingSource)?'Documented':'Not separately recorded'],
         ['Pain',/pain/i.test(wellbeingSource)?'Mentioned in nursing record':'Not separately recorded'],
         ['Sleep',/sleep/i.test(wellbeingSource)?'Documented':'Not separately recorded'],
@@ -26175,7 +26223,7 @@ Please access the Samara Family Portal for detailed account information.`;
           h('div',{className:'annexure-section'},h('h3',null,'MEDICATION ADMINISTRATION DETAILS'),detailTable(['Scheduled','Actual','Medicine','Dose','Route','Status','Remarks / Recorded By'],medicationRows)),
           h('div',{className:'annexure-section'},h('h3',null,'DAILY CARE AND NURSING DETAILS'),detailTable(['Care Activity','Shift','Status','Completed At','Remarks','Recorded By'],careRows)),
           h('div',{className:'annexure-two-column'},
-            h('div',{className:'annexure-section'},h('h3',null,'FOOD / FLUID INTAKE'),detailTable(['Meal','Menu','Intake','Remarks'],(d.meals||[]).map(row=>[row.meal_type||'Meal',row.menu||'—',row.consumption_status||'Recorded',row.remarks||'—']))),
+            h('div',{className:'annexure-section'},h('h3',null,'FOOD / FLUID INTAKE'),detailTable(['Meal','Menu','Food Intake','Meal Time','Beverage','Beverage Time'],(d.meals||[]).map(row=>[row.meal_type||'Meal',row.menu||'—',row.consumption_status||'Recorded',fmt(row.served_at),row.beverage_type||'—',row.beverage_time?String(row.beverage_time).slice(0,5):'—']))),
             h('div',{className:'annexure-section'},h('h3',null,'PHYSIOTHERAPY / INCIDENTS'),detailTable(['Type','Status','Notes / Action'],[...(d.physioSessions||[]).map(row=>['Physiotherapy',row.status||'Recorded',row.notes||'—']),...(d.incidents||[]).map(row=>[row.incident_type||row.type||'Incident',`${row.severity||'—'} · ${row.status||'—'}`,row.description||row.immediate_action||'—'])]))
           ),
           h('div',{className:'annexure-section next-plan'},h('h3',null,'NEXT 24 HOURS / HANDOVER PLAN'),nextPlan.length?h('ul',null,nextPlan.map((item,i)=>h('li',{key:i},item))):h('p',null,'Continue prescribed treatment, routine nursing care and observation. No separate patient-specific handover instruction was recorded.')),

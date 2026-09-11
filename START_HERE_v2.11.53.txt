@@ -1,0 +1,58 @@
+SAMARA CARE ERP 2.11.53 - FOOD, BEVERAGES AND REPORT LAYOUT
+
+IMPORTANT: FOLLOW THIS ORDER
+
+STEP 1 - RUN THE SQL FIRST
+
+Open Supabase > SQL Editor and run:
+
+97_food_beverage_nursing_entry.sql
+
+The result must show these two columns:
+
+- beverage_time
+- beverage_type
+
+Remember to click Save or press Ctrl+S if you want to retain the SQL snippet.
+
+STEP 2 - REPLACE THE ERP FILES
+
+- app.js
+- styles.css
+- index.html
+- config.js
+- service-worker.js
+
+STEP 3 - DEPLOY THE REPORT EDGE FUNCTION
+
+Replace and deploy:
+
+supabase/functions/daily-patient-report/index.ts
+
+STEP 4 - REFRESH THE INSTALLED APP
+
+Confirm that the ERP displays version 2.11.53. If an older version remains,
+select App Help / Repair > Repair App.
+
+WHAT HAS BEEN ADDED
+
+1. Food & Beverages is available with the Nursing quick-entry options.
+2. Separate South Indian menu lists are provided for Breakfast / Tiffin,
+   Lunch, Evening Snack and Dinner.
+3. Other / Custom remains available for meals not listed in the dropdown.
+4. Food intake status and meal consumption time are recorded separately.
+5. Beverage dropdown includes tea, coffee, milk, buttermilk, fresh juice,
+   tender coconut water, health drink, cool drink and soup.
+6. Beverage consumption time is mandatory whenever a beverage is selected.
+7. Patient Diet history displays both meal and beverage details.
+8. The Intelligent Patient Report displays meal-specific intake, beverage and time.
+9. The congested Today at a Glance paragraph is replaced by six elegant summary cards.
+10. WhatsApp and manually generated reports continue to use the same report engine.
+
+META TEMPLATE
+
+The approved Meta template remains exactly:
+
+amara_daily_patient_report
+
+Do not add an initial 's' unless Meta approves a newly named template.
