@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.50';
+  const APP_VERSION = '2.11.51';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -25841,14 +25841,20 @@ Please access the Samara Family Portal for detailed account information.`;
       setBusy(false);
     }
 
-    function printReport(){
-      const previous=document.title;
-      const stamp=new Date().toLocaleString('en-GB',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).replace(/[\/:,]/g,'-').replace(/\s+/g,'_');
-      const base=report?.mode==='Resident-wise'?(formalName(report.patient)||'Patient'):'Samara_Daily_Report';
-      document.title=`${base} - Report as on ${stamp}`;
-      window.addEventListener('afterprint',()=>{document.title=previous},{once:true});
-      window.print();
-      setTimeout(()=>{document.title=previous},1500);
+    async function printReport(){
+      if(report?.mode!=='Resident-wise')return window.print();
+      const p=selectedPatient();if(!p)return alert('Generate a patient report first.');
+      const preview=window.open('about:blank','_blank');
+      setBusy(true);
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/daily-patient-report`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey},body:JSON.stringify({mode:'generate_only',patient_id:p.id,report_date:report?.date||reportDate})});
+        const result=await response.json().catch(()=>({ok:false,error:'Unable to read report server response.'}));
+        if(!response.ok||result?.ok===false||!result?.report_url)throw new Error(result?.error||`Report generation failed (${response.status})`);
+        if(preview)preview.location.href=result.report_url;else window.open(result.report_url,'_blank','noopener');
+      }catch(error){if(preview)preview.close();alert(`Intelligent Report PDF could not be generated: ${error.message||error}`)}
+      finally{setBusy(false)}
     }
     function section(title,items,renderer){return h('div',{className:'intelligent-report-section'},h('h3',null,title),items.length?h('div',{className:'intelligent-report-list'},items.map((x,i)=>h('div',{className:'intelligent-report-item',key:i},renderer(x)))):h('p',{className:'small-note'},'No records for this report.'));}
     function narrative(){
@@ -26135,7 +26141,7 @@ Please access the Samara Family Portal for detailed account information.`;
         ),message&&h('div',{className:'message error'},message)
       ),
       report&&h('div',{className:'card panel intelligent-report printable-report hospital-report'},
-        h('div',{className:'panel-head no-print'},h('div',null,h('h2',null,report.mode==='Resident-wise'?`Patient Care Report – ${formalName(report.patient)||''}`:`Daily Facility Report – ${formatDateIN(report.date)}`),h('small',null,`Prepared by ${formalName(profile)} on ${formatDateTimeIN(new Date())}`)),h('div',{className:'actions'},report.mode==='Resident-wise'&&['Admin','Manager'].includes(profile.role)&&h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>setShareOpen(true)},'WhatsApp'),h('button',{className:'btn btn-secondary',onClick:printReport},'Print / Save PDF'))),
+        h('div',{className:'panel-head no-print'},h('div',null,h('h2',null,report.mode==='Resident-wise'?`Patient Care Report – ${formalName(report.patient)||''}`:`Daily Facility Report – ${formatDateIN(report.date)}`),h('small',null,`Prepared by ${formalName(profile)} on ${formatDateTimeIN(new Date())}`)),h('div',{className:'actions'},report.mode==='Resident-wise'&&['Admin','Manager'].includes(profile.role)&&h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>setShareOpen(true)},'WhatsApp'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:printReport},busy?'Generating PDF…':'Open / Save PDF'))),
         report.mode==='Resident-wise'?patientReportBody():h(React.Fragment,null,
           h('div',{className:'intelligent-summary human-report'},h('h3',null,'Executive Daily Summary'),narrative().map((p,i)=>h('p',{key:i},p))),
           section('Resident-wise Daily Status',report.data.patients,p=>h(React.Fragment,null,h('strong',null,`${p.patient_id||'NO-ID'} · ${formalName(p)}`),h('span',null,dailyPatientNarrative(p,report.data)))),

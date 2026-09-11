@@ -1,0 +1,27 @@
+SAMARA CARE ERP v2.11.51 — ONE INTELLIGENT REPORT GENERATOR
+============================================================
+
+PURPOSE
+The manually opened/saved Intelligent Patient Report and the automatic Daily
+WhatsApp report now use the same server-side A4 PDF generator. WhatsApp no
+longer prepares a separate shortened report.
+
+INSTALL
+1. Replace app.js, index.html, config.js and service-worker.js.
+2. Supabase Dashboard → Edge Functions → daily-patient-report.
+3. Replace its index.ts with supabase/functions/daily-patient-report/index.ts
+   from this package and Deploy.
+4. Keep Verify JWT with legacy secret OFF. The function authenticates manual
+   ERP requests and separately checks DAILY_REPORT_CRON_SECRET for scheduled runs.
+5. ERP → App Help / Repair → Repair App once.
+
+NO SQL IS REQUIRED.
+
+TEST
+1. Manager/Admin → Intelligent Reports → select Ms. Dharani and the date.
+2. Generate Patient Report → Open / Save PDF.
+3. Use WhatsApp → Send Full Report PDF WhatsApp API.
+4. Confirm both files have the same report structure and content.
+5. Allow the next scheduled report and confirm WhatsApp receives the same format.
+
+The existing Meta template remains samara_daily_patient_report with DOCUMENT header.

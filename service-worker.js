@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.50';
-const CACHE = 'samara-erp-2.11.50-whatsapp-composer-clear';
+const APP_VERSION = '2.11.51';
+const CACHE = 'samara-erp-2.11.51-unified-intelligent-report';
 const SHELL = [
   './',
   './index.html',
