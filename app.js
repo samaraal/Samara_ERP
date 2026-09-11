@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.47';
+  const APP_VERSION = '2.11.48';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1435,7 +1435,8 @@ function initSamaraInaugurationInvitation(){
     { title:"DIRECTOR'S OFFICE", items:["Director's Office"] },
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
-    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Patient Consumables','Stores','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
+    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
+    { title:'STORES', items:['Patient Consumables','Stores'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
     { title:'COMMUNICATION', items:['WhatsApp Inbox','WhatsApp Logs','Family Communication','Feedback','Mail Dashboard'] },
@@ -1451,7 +1452,7 @@ function initSamaraInaugurationInvitation(){
     Caregiver:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Leave Approvals','Notifications'],
     Accounts:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Leave Approvals','Notifications'],
     Kitchen:['Notifications','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission','Leave Approvals'],
-    STD:["Director's Office",'WhatsApp Inbox','Feedback','My Leave & Permission']
+    STD:["Director's Office",'Patient Consumables','Stores','WhatsApp Inbox','Feedback','My Leave & Permission']
   };
   Object.keys(ROLE_NAV).forEach(role=>{
     if(!ROLE_NAV[role].includes('My Profile'))ROLE_NAV[role].push('My Profile');
@@ -1498,7 +1499,8 @@ function initSamaraInaugurationInvitation(){
   const sectionsFor = (allowed,role) => {
     if(CLINICAL_ROLES.includes(role)){
       return [
-        {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Patient Consumables','Stores','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My Quick Tasks','My Leave & Permission','Leave Approvals','Notifications'].filter(item=>allowed.includes(item))}
+        {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My Quick Tasks','My Leave & Permission','Leave Approvals','Notifications'].filter(item=>allowed.includes(item))},
+        {title:'STORES',items:['Patient Consumables','Stores'].filter(item=>allowed.includes(item))}
       ];
     }
     return NAV_SECTIONS.map(section=>({...section,items:section.items.filter(item=>allowed.includes(item))})).filter(section=>section.items.length);
@@ -24736,9 +24738,52 @@ Please access the Samara Family Portal for detailed account information.`;
     );
   }
 
+  function useStoreAuthority(profile){
+    const [assignments,setAssignments]=React.useState([]),[ready,setReady]=React.useState(false);
+    const reload=React.useCallback(async()=>{
+      const res=await client.from('store_incharge_assignments').select('*').order('created_at',{ascending:false}).limit(100);
+      if(!res.error)setAssignments(res.data||[]);else if(res.error.code!=='42P01')console.warn(res.error);
+      setReady(true);
+    },[]);
+    React.useEffect(()=>{reload()},[reload]);
+    const now=Date.now();
+    const active=assignments.find(x=>x.status==='Active'&&new Date(x.effective_from).getTime()<=now&&new Date(x.effective_until).getTime()>=now)||null;
+    const delegated=Boolean(active);
+    const isSTD=profile?.role==='STD';
+    const controller=(isNursingManagerProfile(profile)&&!delegated)||(isSTD&&delegated);
+    return {assignments,active,delegated,controller,ready,reload};
+  }
+
+  function StoreInchargeAssignment({profile,authority}){
+    const canAssign=['Admin','Manager'].includes(profile?.role);
+    const [busy,setBusy]=React.useState(false);
+    const defaultUntil=()=>{const d=new Date(Date.now()+12*60*60*1000);return d.toISOString().slice(0,16)};
+    const [form,setForm]=React.useState({effective_from:new Date().toISOString().slice(0,16),effective_until:defaultUntil(),reason:''});
+    async function assign(e){e.preventDefault();if(!canAssign||busy)return;
+      if(!form.reason.trim()){showSamaraActionToast('error','Reason required','Enter the reason for temporary Stores delegation.');return}
+      setBusy(true);const res=await client.rpc('assign_stores_to_std',{p_effective_from:new Date(form.effective_from).toISOString(),p_effective_until:new Date(form.effective_until).toISOString(),p_reason:form.reason.trim()});setBusy(false);
+      if(res.error)showSamaraActionToast('error','Assignment failed',res.error.message);else{showSamaraActionToast('success','Stores responsibility assigned','STD will act as Store In-charge for the selected period.');setForm({effective_from:new Date().toISOString().slice(0,16),effective_until:defaultUntil(),reason:''});authority.reload()}
+    }
+    async function endNow(){if(!canAssign||busy||!authority.active)return;setBusy(true);const res=await client.rpc('end_stores_std_assignment',{p_assignment_id:authority.active.id,p_reason:'Ended manually by management'});setBusy(false);if(res.error)showSamaraActionToast('error','Unable to end assignment',res.error.message);else{showSamaraActionToast('success','Stores responsibility restored','Responsibility has returned to the Nurse Manager.');authority.reload()}}
+    return h(Section,{title:'Stores In-charge Assignment',subtitle:'Primary responsibility: Nurse Manager. During absence, Management may temporarily delegate the Stores position to the STD.'},
+      h('div',{className:'card',style:{padding:'14px',marginBottom:'14px',borderLeft:`5px solid ${authority.active?'#f28c28':'#b30b5d'}`}},
+        h('strong',null,authority.active?'Current In-charge: STD (Temporary)':'Current In-charge: Nurse Manager'),
+        authority.active&&h('div',{style:{marginTop:'6px'}},`${formatDateTimeIN(authority.active.effective_from)} to ${formatDateTimeIN(authority.active.effective_until)} · ${authority.active.reason}`),
+        canAssign&&authority.active&&h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'10px'},disabled:busy,onClick:endNow},'Return Responsibility Now')
+      ),
+      canAssign&&!authority.active&&h('form',{onSubmit:assign},h('div',{className:'grid two'},
+        h('div',{className:'field'},h('label',null,'Effective From *'),h('input',{type:'datetime-local',value:form.effective_from,onChange:e=>setForm({...form,effective_from:e.target.value}),required:true})),
+        h('div',{className:'field'},h('label',null,'Effective Until *'),h('input',{type:'datetime-local',value:form.effective_until,onChange:e=>setForm({...form,effective_until:e.target.value}),required:true})),
+        h('div',{className:'field'},h('label',null,'Reason for Delegation *'),h('textarea',{rows:2,value:form.reason,onChange:e=>setForm({...form,reason:e.target.value}),required:true,placeholder:'Example: Nurse Manager on leave'}))
+      ),h('button',{className:'btn btn-primary',disabled:busy},busy?'Assigning…':'Assign Stores to STD')),
+      h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Period','Assigned Position','Reason','Assigned By','Status'].map(x=>h('th',{key:x},x)))),h('tbody',null,
+        authority.assignments.length?authority.assignments.map(r=>{const displayStatus=r.status==='Active'&&new Date(r.effective_until).getTime()<Date.now()?'Expired':r.status;return h('tr',{key:r.id},h('td',null,`${formatDateTimeIN(r.effective_from)} — ${formatDateTimeIN(r.effective_until)}`),h('td',null,'STD'),h('td',null,r.reason),h('td',null,r.assigned_by_name||'—'),h('td',null,displayStatus))}):h('tr',null,h('td',{colSpan:5,style:{textAlign:'center'}},'No temporary assignment history.')))))
+    );
+  }
 
   function ConsumablesStores({profile}){
-    const controller=isNursingManagerProfile(profile);
+    const authority=useStoreAuthority(profile);
+    const controller=authority.controller;
     const oversight=['Admin','Manager'].includes(profile?.role);
     const [stock,setStock]=React.useState([]),[receipts,setReceipts]=React.useState([]),[ledger,setLedger]=React.useState([]),[patients,setPatients]=React.useState([]);
     const [busy,setBusy]=React.useState(false);
@@ -24794,9 +24839,10 @@ Please access the Samara Family Portal for detailed account information.`;
     const inStock=stock.filter(x=>Number(x.balance_qty)>0).length;
     const stockStatus=row=>Number(row.balance_qty)<=0?'OUT OF STOCK':(Number(row.reorder_level)>0&&Number(row.balance_qty)<=Number(row.reorder_level)?'LOW STOCK':'IN STOCK');
     const statusStyle=row=>({fontWeight:900,fontSize:'12px',padding:'5px 8px',borderRadius:'999px',display:'inline-block',background:Number(row.balance_qty)<=0?'#fdebec':(Number(row.reorder_level)>0&&Number(row.balance_qty)<=Number(row.reorder_level)?'#fff4dc':'#e7f6ef'),color:'#5d3146'});
-    if(!controller&&!oversight)return h(Section,{title:'Stores'},h('p',null,'Stores access is assigned to the Nurse Manager.'));
+    if(!controller&&!oversight)return h('div',null,h(StoreInchargeAssignment,{profile,authority}),h(Section,{title:'Stores'},h('p',null,authority.active?'Stores is presently assigned to the STD.':'Stores access is assigned to the Nurse Manager.')));
     return h('div',null,
-      h(Section,{title:'Consumables Stores',subtitle:'Vendor receipts, stock issues and balances. Stores responsibility is presently assigned to the Nurse Manager.'},
+      h(StoreInchargeAssignment,{profile,authority}),
+      h(Section,{title:'Consumables Stores',subtitle:`Vendor receipts, stock issues and balances. Current Store In-charge: ${authority.active?'STD (temporary assignment)':'Nurse Manager'}.`},
         h('div',{className:'grid stats'},
           h('div',{className:'card stat'},h('span',null,'Items in Stock'),h('strong',null,inStock)),
           h('div',{className:'card stat'},h('span',null,'Low Stock'),h('strong',null,low.length)),
@@ -24849,10 +24895,11 @@ Please access the Samara Family Portal for detailed account information.`;
   }
 
   function PatientConsumables({profile}){
+    const authority=useStoreAuthority(profile);
     const [patients,setPatients]=React.useState([]),[rows,setRows]=React.useState([]),[stock,setStock]=React.useState([]);
     const [busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('Open');
     const [form,setForm]=React.useState({patient_id:'',store_item_id:'',item_name:'',requested_qty:'1',unit:'Nos',request_remarks:''});
-    const nurseManager=isNursingManagerProfile(profile),nurse=profile?.role==='Nurse';
+    const storeController=authority.controller,nurse=profile?.role==='Nurse'&&!isNursingManagerProfile(profile);
     const fallbackItems=['Adult Diapers','Gloves','Syringes','Dressing Materials','PPE','Feeding Tubes','Catheters','Oxygen Consumables','Underpads','Cotton / Gauze','Other Consumables'];
     const actorName=formalName(profile)||profile?.full_name||profile?.login_id||profile?.role||'Staff';
     const patientLabel=id=>{const p=patients.find(x=>x.id===id);return p?[formalName(p),p.patient_id&&`(${p.patient_id})`,p.room_no&&`Room ${p.room_no}${p.bed_no?`/${p.bed_no}`:''}`].filter(Boolean).join(' · '):'—'};
@@ -24877,16 +24924,16 @@ Please access the Samara Family Portal for detailed account information.`;
       if(result.error)notify('error',result.error.message);else{notify('success','Patient consumable indent initiated and sent to Nurse Manager.');setForm(f=>({...f,store_item_id:'',item_name:'',requested_qty:'1',unit:'Nos',request_remarks:''}));await load()}
     }
     async function approve(row,reject=false){
-      if(!nurseManager||busy)return;let qty=0,remarks='';const st=stockFor(row);
+      if(!storeController||busy)return;let qty=0,remarks='';const st=stockFor(row);
       if(!reject){const input=prompt(`Requested: ${row.requested_qty} ${row.unit}. Current Stores balance: ${st?.balance_qty??'—'} ${st?.unit||row.unit}. Enter quantity to approve:`,String(row.requested_qty));if(input===null)return;qty=Number(input);if(!qty||qty<=0||qty>Number(row.requested_qty)){notify('error','Enter a valid quantity not exceeding the requested quantity.');return}}
       remarks=prompt(reject?'Reason for rejection:':'Approval remarks (optional):',reject?'Not approved':'')||'';
-      setBusy(true);const res=await client.rpc('approve_patient_consumable_indent',{p_indent_id:row.id,p_approved_qty:qty,p_decision:reject?'Rejected':'Approved',p_remarks:remarks||null});setBusy(false);
+      setBusy(true);const res=await client.rpc('approve_patient_consumable_indent_v2',{p_indent_id:row.id,p_approved_qty:qty,p_decision:reject?'Rejected':'Approved',p_remarks:remarks||null});setBusy(false);
       if(res.error)notify('error',res.error.message);else{notify('success',reject?'Indent rejected.':'Indent approved.');await load()}
     }
     async function handover(row){
-      if(!nurseManager||busy)return;const st=stockFor(row);const input=prompt(`Approved: ${row.approved_qty} ${row.unit}. Stores available: ${st?.balance_qty??'—'} ${st?.unit||row.unit}. Enter actual quantity handed over:`,String(row.approved_qty||''));if(input===null)return;
+      if(!storeController||busy)return;const st=stockFor(row);const input=prompt(`Approved: ${row.approved_qty} ${row.unit}. Stores available: ${st?.balance_qty??'—'} ${st?.unit||row.unit}. Enter actual quantity handed over:`,String(row.approved_qty||''));if(input===null)return;
       const qty=Number(input);if(!qty||qty<=0||qty>Number(row.approved_qty||0)){notify('error','Enter a valid quantity not exceeding the approved quantity.');return}
-      const remarks=prompt('Handover remarks (optional):','')||'';setBusy(true);const res=await client.rpc('handover_patient_consumable_indent',{p_indent_id:row.id,p_handed_over_qty:qty,p_remarks:remarks||null});setBusy(false);
+      const remarks=prompt('Handover remarks (optional):','')||'';setBusy(true);const res=await client.rpc('handover_patient_consumable_indent_v2',{p_indent_id:row.id,p_handed_over_qty:qty,p_remarks:remarks||null});setBusy(false);
       if(res.error)notify('error',res.error.message);else{notify('success','Handed over and deducted from Stores. Awaiting Nurse receipt.');await load()}
     }
     async function receive(row){
@@ -24897,7 +24944,7 @@ Please access the Samara Family Portal for detailed account information.`;
       if(res.error)notify('error',res.error.message);else{notify('success',qty<Number(row.handed_over_qty||0)?'Receipt recorded with discrepancy. Nurse Manager must reconcile the difference.':'Consumables received. Indent completed.');await load()}
     }
     async function resolveDiscrepancy(row){
-      if(!nurseManager||busy)return;const diff=Number(row.handed_over_qty||0)-Number(row.received_qty||0);const remarks=prompt(`Discrepancy: ${diff} ${row.unit}. Confirm this balance has been physically returned to Stores and enter remarks:`,`Returned ${diff} ${row.unit} to Stores`);if(!String(remarks||'').trim())return;
+      if(!storeController||busy)return;const diff=Number(row.handed_over_qty||0)-Number(row.received_qty||0);const remarks=prompt(`Discrepancy: ${diff} ${row.unit}. Confirm this balance has been physically returned to Stores and enter remarks:`,`Returned ${diff} ${row.unit} to Stores`);if(!String(remarks||'').trim())return;
       setBusy(true);const res=await client.rpc('resolve_patient_consumable_discrepancy',{p_indent_id:row.id,p_remarks:String(remarks).trim()});setBusy(false);
       if(res.error)notify('error',res.error.message);else{notify('success','Discrepancy returned to Stores and reconciled.');await load()}
     }
@@ -24906,7 +24953,7 @@ Please access the Samara Family Portal for detailed account information.`;
     const counts={initiated:rows.filter(r=>r.status==='Initiated').length,handover:rows.filter(r=>['Approved','Partially Approved'].includes(r.status)).length,receipt:rows.filter(r=>r.status==='Handed Over').length,discrepancy:rows.filter(r=>r.status==='Receipt Discrepancy').length};
     const options=stock.length?stock:fallbackItems.map((item_name,i)=>({item_id:`fallback-${i}`,item_name,unit:'Nos',balance_qty:'—'}));
     return h('div',null,
-      h(Section,{title:'Patient Consumables',subtitle:'Nurse initiates for a patient → Nurse Manager approves → Stores handover → Nurse confirms actual receipt.'},
+      h(Section,{title:'Patient Consumables',subtitle:'Nurse initiates for a patient → Store In-charge approves and hands over → Nurse confirms actual receipt.'},
         h('div',{className:'grid stats'},h('div',{className:'card stat'},h('span',null,'Awaiting Approval'),h('strong',null,counts.initiated)),h('div',{className:'card stat'},h('span',null,'Awaiting Handover'),h('strong',null,counts.handover)),h('div',{className:'card stat'},h('span',null,'Awaiting Receipt'),h('strong',null,counts.receipt)),h('div',{className:'card stat'},h('span',null,'Discrepancies'),h('strong',null,counts.discrepancy)))
       ),
       nurse&&h(Section,{title:'New Patient Indent',subtitle:'Select an active patient and an item from the Stores master. Available balance is shown for visibility.'},
@@ -24925,7 +24972,7 @@ Please access the Samara Family Portal for detailed account information.`;
             h('td',null,h('strong',null,r.initiated_by_name||'—'),h('small',{style:{display:'block'}},r.initiated_at?formatDateTimeIN(r.initiated_at):'—')),
             h('td',null,r.approved_by_name&&h('div',null,h('strong',null,`Approved: ${r.approved_by_name}`),h('small',{style:{display:'block'}},r.approved_at?formatDateTimeIN(r.approved_at):'')),r.handed_over_by_name&&h('div',{style:{marginTop:'5px'}},h('strong',null,`Handed over: ${r.handed_over_by_name}`),h('small',{style:{display:'block'}},r.handed_over_at?formatDateTimeIN(r.handed_over_at):''))),
             h('td',null,r.received_by_name?h('div',null,h('strong',null,r.received_by_name),h('small',{style:{display:'block'}},r.received_at?formatDateTimeIN(r.received_at):''),r.receipt_remarks&&h('small',{style:{display:'block'}},r.receipt_remarks)):'—'),
-            h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},nurseManager&&r.status==='Initiated'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>approve(r,false)},'Approve'),nurseManager&&r.status==='Initiated'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>approve(r,true)},'Reject'),nurseManager&&['Approved','Partially Approved'].includes(r.status)&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>handover(r)},'Hand Over'),nurse&&r.status==='Handed Over'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>receive(r)},'Received'),nurseManager&&r.status==='Receipt Discrepancy'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>resolveDiscrepancy(r)},'Return & Reconcile'),!((nurseManager&&['Initiated','Approved','Partially Approved','Receipt Discrepancy'].includes(r.status))||(nurse&&r.status==='Handed Over'))&&h('span',null,'—')))
+            h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},storeController&&r.status==='Initiated'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>approve(r,false)},'Approve'),storeController&&r.status==='Initiated'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>approve(r,true)},'Reject'),storeController&&['Approved','Partially Approved'].includes(r.status)&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>handover(r)},'Hand Over'),nurse&&r.status==='Handed Over'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>receive(r)},'Received'),storeController&&r.status==='Receipt Discrepancy'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>resolveDiscrepancy(r)},'Return & Reconcile'),!((storeController&&['Initiated','Approved','Partially Approved','Receipt Discrepancy'].includes(r.status))||(nurse&&r.status==='Handed Over'))&&h('span',null,'—')))
           )}):h('tr',null,h('td',{colSpan:12,style:{textAlign:'center',padding:'24px'}},'No consumable indents in this view.')))
         ))
       )

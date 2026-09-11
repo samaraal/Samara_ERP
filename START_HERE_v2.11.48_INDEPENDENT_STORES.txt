@@ -1,0 +1,22 @@
+SAMARA CARE ERP v2.11.48 — INDEPENDENT STORES
+================================================
+
+INSTALL
+1. Supabase → SQL Editor.
+2. Open 92_stores_position_and_std_delegation.sql and click RUN once.
+   Expected final result: stores_position_and_std_delegation_ready = true.
+3. Replace index.html, app.js, config.js and service-worker.js.
+4. ERP → App Help / Repair → Repair App once.
+
+WHAT CHANGED
+- STORES is now an independent main header, separate from Nursing.
+- Nurse Manager is the primary Store In-charge.
+- Admin/Manager may temporarily assign the Stores position to the STD.
+- Assignment requires From, Until and Reason, and retains full history.
+- Only one temporary assignment can be active.
+- At expiry or manual return, authority automatically returns to Nurse Manager.
+- The actual employee is retained against every approval and handover.
+- Nurses continue to raise patient indents and confirm receipt.
+
+ASSIGNMENT PATH
+Admin/Manager → STORES → Stores → Stores In-charge Assignment.
