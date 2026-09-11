@@ -1,0 +1,28 @@
+SAMARA CARE ERP v2.11.47 — STORES RESTORED
+================================================
+
+1. Supabase → SQL Editor.
+2. Open and RUN 90_patient_consumables_indent_workflow.sql once.
+3. Open and RUN 91_consumables_store_inventory.sql once.
+   Saving the SQL snippets is optional; RUN is the required action.
+4. Replace index.html, app.js, config.js and service-worker.js.
+5. Open ERP → App Help / Repair → Repair App once.
+
+RESTORED
+- Nurse: Nursing Workspace → Patient Consumables → patient-wise indent and receipt.
+- Nurse Manager: Nursing Workspace → Patient Consumables → approval/handover/discrepancy.
+- Nurse Manager: Nursing Workspace → Stores → vendor receipt, stock, minimum level,
+  physical tally, vendor register and item-wise ledger.
+- Admin/Manager: Stores oversight view.
+- Stock reduces only at physical handover.
+- Only Nurse-confirmed received quantity is forwarded to Accounts as a pending charge.
+
+SQL COMPATIBILITY NOTE
+- The scripts safely replace older Stores workflow functions whose return types differ.
+- Only function definitions are replaced. Existing stock, receipts, ledger and indent data are retained.
+
+FIRST TEST
+1. Nurse Manager receives 20 Adult Diapers in Stores.
+2. Nurse raises a patient indent for 5.
+3. Nurse Manager approves and hands over 5; balance becomes 15.
+4. Nurse confirms receipt of 5; Accounts receives a pending Consumables charge.

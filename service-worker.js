@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.46';
-const CACHE = 'samara-erp-2.11.46-general-handover-worklist';
+const APP_VERSION = '2.11.47';
+const CACHE = 'samara-erp-2.11.47-stores-restored';
 const SHELL = [
   './',
   './index.html',
