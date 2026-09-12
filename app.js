@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.90';
+  const APP_VERSION = '2.11.91';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6289,7 +6289,9 @@ Caring with Compassion. Living with Dignity.`;
       if(tamil){setOpen(true);return}
       setLoading(true);setError('');
       try{
-        const hash=await sourceHash(source);
+        // Include the translation-style version so older machine-Tamil cache entries
+        // are bypassed automatically after a practical-language prompt update.
+        const hash=await sourceHash(`practical-tamil-v2|${source}`);
         const {data:cached}=await client.from('staff_tamil_translations').select('tamil_text').eq('source_hash',hash).maybeSingle();
         if(cached?.tamil_text){setTamil(cached.tamil_text);setOpen(true);return}
         const {data:{session}}=await client.auth.getSession();if(!session)throw new Error('Please sign in again.');
