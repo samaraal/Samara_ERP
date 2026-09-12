@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.86';
-const CACHE = 'samara-erp-2.11.86-full-nurse-voice-translation';
+const APP_VERSION = '2.11.87';
+const CACHE = 'samara-erp-2.11.87-multisentence-nurse-voice';
 const SHELL = [
   './',
   './index.html',

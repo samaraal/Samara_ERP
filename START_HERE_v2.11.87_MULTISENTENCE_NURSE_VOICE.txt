@@ -1,0 +1,18 @@
+SAMARA CARE ERP v2.11.87 — MULTI-SENTENCE NURSE VOICE
+
+REPLACE ONLY
+- app.js
+- index.html
+- service-worker.js
+
+NO SQL CHANGE IS REQUIRED.
+
+CORRECTION
+- Voice recording continues through sentences and natural pauses.
+- The nurse must tap Stop Recording after completing the full message.
+- The complete recording is then transcribed and translated together.
+- The full translated meaning is entered in What to do.
+
+AFTER UPLOAD
+Open ERP -> App Help / Repair -> Check for Updates.
+Confirm version 2.11.87.

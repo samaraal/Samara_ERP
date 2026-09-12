@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.86';
+  const APP_VERSION = '2.11.87';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -10506,10 +10506,12 @@ Thank you.`;
     }
     function startVoice(lang){
       stop();setHeard('');
-      const mobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||window.matchMedia?.('(pointer:coarse)').matches;
-      if(mobile&&navigator.mediaDevices?.getUserMedia&&window.MediaRecorder)return startRecording(lang);
+      // Always prefer MediaRecorder when available. Unlike browser speech recognition,
+      // it does not stop at the first sentence or a natural pause; recording continues
+      // until the nurse explicitly taps Stop Recording.
+      if(navigator.mediaDevices?.getUserMedia&&window.MediaRecorder)return startRecording(lang);
       const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SpeechRecognition)return setMessage('Voice recognition is unavailable in this browser.');
-      const rec=new SpeechRecognition();recognitionRef.current=rec;rec.lang=lang;rec.interimResults=true;let finalText='';rec.onstart=()=>{setListening(true);setMessage('🎤 Speak naturally…')};rec.onresult=e=>{let interim='';for(let i=e.resultIndex;i<e.results.length;i++){const text=e.results[i][0]?.transcript||'';if(e.results[i].isFinal)finalText+=`${text} `;else interim+=text}setHeard((finalText||interim).trim())};rec.onerror=e=>setMessage(`Voice stopped${e.error?`: ${e.error}`:''}. Please try again.`);rec.onend=()=>{setListening(false);recognitionRef.current=null;const text=finalText.trim();if(text)applyVoice(text,lang);else setMessage('No speech was captured. Please try again.')};rec.start();
+      const rec=new SpeechRecognition();recognitionRef.current=rec;rec.lang=lang;rec.interimResults=true;rec.continuous=true;let finalText='';rec.onstart=()=>{setListening(true);setMessage('🎤 Speak naturally. Tap Stop when finished.')};rec.onresult=e=>{let interim='';for(let i=e.resultIndex;i<e.results.length;i++){const text=e.results[i][0]?.transcript||'';if(e.results[i].isFinal)finalText+=`${text} `;else interim+=text}setHeard(`${finalText}${interim}`.trim())};rec.onerror=e=>setMessage(`Voice stopped${e.error?`: ${e.error}`:''}. Please try again.`);rec.onend=()=>{setListening(false);recognitionRef.current=null;const text=finalText.trim();if(text)applyVoice(text,lang);else setMessage('No speech was captured. Please try again.')};rec.start();
     }
     async function save(e){
       e.preventDefault();if(!title.trim()||!taskDate)return setMessage('Please enter the to-do and date.');setBusy(true);
