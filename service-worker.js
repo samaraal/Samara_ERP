@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.77';
-const CACHE = 'samara-erp-2.11.77-nursing-manager-restricted-workspace';
+const APP_VERSION = '2.11.78';
+const CACHE = 'samara-erp-2.11.78-global-navigable-surfaces';
 const SHELL = [
   './',
   './index.html',

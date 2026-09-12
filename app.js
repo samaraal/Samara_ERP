@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.77';
+  const APP_VERSION = '2.11.78';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5936,6 +5936,40 @@ Caring with Compassion. Living with Dignity.`;
     return null;
   }
 
+  function GlobalNavigableSurfaces(){
+    React.useEffect(()=>{
+      if(document.getElementById('samara-global-navigation-style'))return;
+      const style=document.createElement('style');style.id='samara-global-navigation-style';style.textContent=`
+        tr.samara-row-navigable,.card.samara-card-navigable{cursor:pointer!important;touch-action:manipulation}
+        tr.samara-row-navigable:hover,.card.samara-card-navigable:hover{background:#fff7fb!important}
+        tr.samara-row-navigable:active,.card.samara-card-navigable:active{background:#fdeaf3!important}
+      `;document.head.appendChild(style);
+      const interactive='button,a,input,select,textarea,label,[role="button"],[contenteditable="true"]';
+      const actionsIn=container=>[...container.querySelectorAll('button:not([disabled]),a[href]')].filter(node=>node.offsetParent!==null);
+      const enhance=()=>{
+        document.querySelectorAll('table tbody tr').forEach(row=>{
+          if(row.matches('[role="button"]'))return;
+          if(actionsIn(row).length===1)row.classList.add('samara-row-navigable');else row.classList.remove('samara-row-navigable');
+        });
+        document.querySelectorAll('.card:not(button):not(a)').forEach(card=>{
+          if(card.closest('.modal,.modal-backdrop,form')||card.querySelector('input,select,textarea'))return;
+          if(actionsIn(card).length===1)card.classList.add('samara-card-navigable');else card.classList.remove('samara-card-navigable');
+        });
+      };
+      const activate=e=>{
+        if(e.target.closest(interactive))return;
+        const row=e.target.closest('tr.samara-row-navigable');
+        const card=!row&&e.target.closest('.card.samara-card-navigable');
+        const target=row||card;if(!target)return;
+        const action=actionsIn(target)[0];if(action){e.preventDefault();action.click()}
+      };
+      const observer=new MutationObserver(()=>window.requestAnimationFrame(enhance));observer.observe(document.body,{childList:true,subtree:true});
+      document.addEventListener('click',activate);enhance();
+      return()=>{observer.disconnect();document.removeEventListener('click',activate)};
+    },[]);
+    return null;
+  }
+
   function ClinicalAlertBell({engine,onOpen}){
     const [preview,setPreview]=React.useState(false);
     const rows=(engine?.alerts||[]).slice().sort((a,b)=>{
@@ -6783,6 +6817,7 @@ Caring with Compassion. Living with Dignity.`;
     if(!allowed.includes(page)) setTimeout(()=>setPage(homePageForProfile(profile)||allowed[0]||'Notifications'),0);
     return h('div',{className:`app mobile-role-${String(profile.role||'user').toLowerCase().replace(/[^a-z0-9]+/g,'-')}`},
       h(GlobalSmartHover),
+      h(GlobalNavigableSurfaces),
       h(GlobalFormRequirementManager,{page,profile}),
       h(GlobalNursingVoiceInput,{profile}),
       h(Sidebar,{profile,page,setPage,allowed}),
@@ -19833,6 +19868,10 @@ function RoomsBeds({profile}){
         return nurseView?'available':(['available','occupied','reserved','maintenance'].includes(requested)?requested:'');
       }catch(_error){return nurseView?'available':''}
     });
+    function showRoomFilter(filter){
+      setDashboardBedFilter(filter);
+      window.requestAnimationFrame(()=>window.requestAnimationFrame(()=>document.getElementById('room-filter-results')?.scrollIntoView({behavior:'smooth',block:'start'})));
+    }
 
     async function load(){
       setLoading(true);setMsg('');
@@ -20032,14 +20071,14 @@ function RoomsBeds({profile}){
         canManage&&h('button',{className:'btn btn-primary',onClick:openNew},'+ Add Room / Bed')
       ),
       !nurseView&&h('div',{className:'grid stats room-summary'},
-        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter===''?'active':''}`,onClick:()=>setDashboardBedFilter(''),'aria-label':'Show all rooms and spaces'},h('span',null,'Total Beds'),h('strong',null,patientUseRows.length),h('small',null,'View all rooms / spaces →')),
-        h('button',{type:'button',className:`card stat room-stat-occupied room-summary-link ${dashboardBedFilter==='occupied'?'active':''}`,onClick:()=>setDashboardBedFilter('occupied'),'aria-label':'Show occupied beds'},h('span',null,'Occupied'),h('strong',null,occupied),h('small',null,'View occupied beds →')),
-        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter==='available'?'active':''}`,onClick:()=>setDashboardBedFilter('available'),'aria-label':'Show available beds'},h('span',null,'Available'),h('strong',null,availableRows.length),h('small',null,'View available beds →')),
-        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter==='reserved'?'active':''}`,onClick:()=>setDashboardBedFilter('reserved'),'aria-label':'Show reserved beds'},h('span',null,'Reserved'),h('strong',null,reserved),h('small',null,'View reserved beds →')),
-        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter==='maintenance'?'active':''}`,onClick:()=>setDashboardBedFilter('maintenance'),'aria-label':'Show maintenance beds'},h('span',null,'Maintenance'),h('strong',null,maintenance),h('small',null,'View maintenance beds →'))
+        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter===''?'active':''}`,onClick:()=>showRoomFilter(''),'aria-label':'Show all rooms and spaces'},h('span',null,'Total Beds'),h('strong',null,patientUseRows.length),h('small',null,'View all rooms / spaces →')),
+        h('button',{type:'button',className:`card stat room-stat-occupied room-summary-link ${dashboardBedFilter==='occupied'?'active':''}`,onClick:()=>showRoomFilter('occupied'),'aria-label':'Show occupied beds'},h('span',null,'Occupied'),h('strong',null,occupied),h('small',null,'View occupied beds →')),
+        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter==='available'?'active':''}`,onClick:()=>showRoomFilter('available'),'aria-label':'Show available beds'},h('span',null,'Available'),h('strong',null,availableRows.length),h('small',null,'View available beds →')),
+        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter==='reserved'?'active':''}`,onClick:()=>showRoomFilter('reserved'),'aria-label':'Show reserved beds'},h('span',null,'Reserved'),h('strong',null,reserved),h('small',null,'View reserved beds →')),
+        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter==='maintenance'?'active':''}`,onClick:()=>showRoomFilter('maintenance'),'aria-label':'Show maintenance beds'},h('span',null,'Maintenance'),h('strong',null,maintenance),h('small',null,'View maintenance beds →'))
       ),
 
-      dashboardBedFilter!=='occupied'&&h('div',{className:`card panel ${dashboardBedFilter==='available'?'bed-availability-panel':''}`},
+      dashboardBedFilter!=='occupied'&&h('div',{id:'room-filter-results',className:`card panel ${dashboardBedFilter==='available'?'bed-availability-panel':''}`},
         h('div',{className:'panel-head'},
           h('div',null,
             h('h3',null,dashboardBedFilter==='available'?'Available Beds Details':dashboardBedFilter==='reserved'?'Reserved Bed Details':dashboardBedFilter==='maintenance'?'Maintenance Bed Details':'Room, Bed & Tariff Master'),
@@ -20103,7 +20142,7 @@ function RoomsBeds({profile}){
             ))
       ),
 
-      (dashboardBedFilter==='available'||dashboardBedFilter==='occupied')&&h('div',{className:'card panel occupied-bed-panel'},
+      (dashboardBedFilter==='available'||dashboardBedFilter==='occupied')&&h('div',{id:dashboardBedFilter==='occupied'?'room-filter-results':undefined,className:'card panel occupied-bed-panel'},
         h('div',{className:'panel-head'},
           h('div',null,
             h('h3',null,'Occupied Bed Details'),
