@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.75';
+  const APP_VERSION = '2.11.76';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5990,6 +5990,47 @@ Caring with Compassion. Living with Dignity.`;
     );
   }
 
+  function StoreIndentAlerts({profile,onNavigate}){
+    const [pending,setPending]=React.useState([]),[latest,setLatest]=React.useState(null);
+    const initialised=React.useRef(false);
+    const enabled=profile?.role==='Manager'&&(isNursingManagerProfile(profile)||employeeDepartment(profile)==='Nursing');
+    async function load(){
+      if(!enabled)return;
+      const {data,error}=await client.from('patient_consumable_indents').select('*').eq('status','Initiated').order('created_at',{ascending:false}).limit(100);
+      if(!error)setPending(data||[]);
+    }
+    React.useEffect(()=>{
+      if(!enabled)return;
+      load().finally(()=>{initialised.current=true});
+      const channel=client.channel(`store-indent-alert-${profile?.id||'manager'}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'patient_consumable_indents'},payload=>{
+        const row=payload.new||{};if(row.status!=='Initiated')return;
+        setLatest(row);load();
+        try{playClinicalTone('Urgent',false)}catch(_error){}
+        try{
+          if(window.Notification&&Notification.permission==='granted'){
+            const notice=new Notification('New Pharmacy & Stores Indent',{body:`${row.item_name||'Consumable'} · Quantity ${row.requested_qty||'—'} ${row.unit||''}`,tag:`store-indent-${row.id||Date.now()}`});
+            notice.onclick=()=>{window.focus();onNavigate('Patient Consumables');notice.close()};
+          }
+        }catch(_error){}
+      }).on('postgres_changes',{event:'UPDATE',schema:'public',table:'patient_consumable_indents'},load).subscribe();
+      return()=>client.removeChannel(channel);
+    },[enabled,profile?.id]);
+    React.useEffect(()=>{
+      if(document.getElementById('store-indent-alert-style'))return;
+      const style=document.createElement('style');style.id='store-indent-alert-style';style.textContent=`
+        .store-indent-alert-badge{border:0;border-radius:999px;background:#a80d4f;color:#fff;padding:9px 12px;font-weight:900;cursor:pointer;white-space:nowrap;touch-action:manipulation}
+        .store-indent-popup{position:fixed;right:20px;bottom:90px;z-index:10120;width:min(390px,calc(100vw - 28px));padding:16px;border:2px solid #d11b69;border-radius:18px;background:#fff;box-shadow:0 18px 55px rgba(83,16,51,.28)}
+        .store-indent-popup h4{margin:0 0 7px;color:#9d0a50}.store-indent-popup p{margin:5px 0;color:#4e3542}.store-indent-popup-actions{display:flex;gap:9px;margin-top:12px}.store-indent-popup-actions .btn{flex:1}
+        @media(max-width:760px){.store-indent-alert-badge{position:absolute;right:142px;top:14px;padding:8px 10px;font-size:13px}.store-indent-popup{right:14px;bottom:92px}}
+      `;document.head.appendChild(style);
+    },[]);
+    if(!enabled)return null;
+    return h(React.Fragment,null,
+      h('button',{type:'button',className:'store-indent-alert-badge','aria-label':`${pending.length} Pharmacy and Stores indents awaiting approval`,onClick:()=>onNavigate('Patient Consumables')},`📦 ${pending.length}`),
+      latest?h('div',{className:'store-indent-popup',role:'alert','aria-live':'assertive'},h('h4',null,'New Pharmacy & Stores Indent'),h('p',null,h('strong',null,latest.item_name||'Consumable request')),h('p',null,`Requested quantity: ${latest.requested_qty||'—'} ${latest.unit||''}`),h('div',{className:'store-indent-popup-actions'},h('button',{type:'button',className:'btn btn-primary',onClick:()=>{setLatest(null);onNavigate('Patient Consumables')}},'View Request'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setLatest(null)},'Close'))):null
+    );
+  }
+
   function ensureSmartHoverStyles(){
     if(document.getElementById('samara-smart-hover-styles'))return;
     const style=document.createElement('style');style.id='samara-smart-hover-styles';
@@ -6735,6 +6776,7 @@ Caring with Compassion. Living with Dignity.`;
           h('button',{type:'button',className:'mobile-home-button','aria-label':'Go to dashboard',title:'Dashboard',onClick:()=>setPage(ROLE_HOME[profile.role]||allowed[0])},'⌂'),
           h('h2',null,displayNavLabel(page,profile.role)),
           h(GlobalSearch,{onNavigate:setPage,profile}),
+          h(StoreIndentAlerts,{profile,onNavigate:setPage}),
           profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
           h('span',{className:'badge'},profile.role)
         ),

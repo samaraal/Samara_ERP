@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.75';
-const CACHE = 'samara-erp-2.11.75-notifications-and-login-credit';
+const APP_VERSION = '2.11.76';
+const CACHE = 'samara-erp-2.11.76-live-store-indent-alerts';
 const SHELL = [
   './',
   './index.html',
