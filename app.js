@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.62';
+  const APP_VERSION = '2.11.63';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -8984,10 +8984,15 @@ Samara Assisted Living`;
     },[selectedPhone,rows.length]);
     const latestInbound=active?[...active.msgs].reverse().find(x=>x.direction==='inbound'):null;
     const within24=latestInbound&&(Date.now()-new Date(latestInbound.received_at||latestInbound.created_at).getTime())<24*60*60*1000;
-    function mediaInfo(r){
-      if(r?.direction!=='inbound')return null;
-      const type=String(r?.message_type||'').toLowerCase();
-      const payload=r?.message_payload||{};
+	    function mediaInfo(r){
+	      const type=String(r?.message_type||'').toLowerCase();
+	      const payload=r?.message_payload||{};
+	      const reportPath=String(payload?.report_storage_path||'').trim();
+	      const dailyReportTemplate=String(r?.template_name||'').toLowerCase()==='amara_daily_patient_report';
+	      if(r?.direction!=='inbound'){
+	        if(!dailyReportTemplate||!reportPath)return null;
+	        return {id:'',type:'document',filename:payload?.report_file_name||`${payload?.patient_name||'Patient'} - Intelligent Patient Report - ${payload?.report_date||''}.pdf`,mime:'application/pdf',storedPath:reportPath,storedBucket:payload?.report_storage_bucket||'patient-reports'};
+	      }
       const block=payload?.[type]||{};
       const archived=payload?._samara_media||{};
       const id=String(block?.id||'').trim();
@@ -17724,14 +17729,14 @@ Please keep these login details confidential.`;
                 h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Family Access')
               )
             ),
-            (()=>{const pref=details.familyPreference;const reportRows=(details.reportWhatsApp||[]).filter(r=>/intelligent|daily patient|patient care report/i.test(String(r.communication_type||r.template_name||'')));const latestReport=reportRows[0]||null;const dailyEnabled=!!pref?.daily_whatsapp_enabled;return h('div',{className:'section-card',style:{marginTop:'12px',background:'#fff8fc',border:'1px solid #efbfd5'}},
+	            (()=>{const pref=details.familyPreference;const reportRows=(details.reportWhatsApp||[]).filter(r=>/intelligent|daily patient|patient care report/i.test(String(r.communication_type||r.template_name||''))).sort((a,b)=>new Date(b.sent_at||b.created_at||0)-new Date(a.sent_at||a.created_at||0));const latestReport=reportRows[0]||null;const latestReportAt=[pref?.last_report_sent_at,latestReport?.sent_at,latestReport?.created_at].filter(Boolean).sort((a,b)=>new Date(b)-new Date(a))[0]||null;const dailyEnabled=!!pref?.daily_whatsapp_enabled;return h('div',{className:'section-card',style:{marginTop:'12px',background:'#fff8fc',border:'1px solid #efbfd5'}},
               h('div',{className:'panel-head daily-report-whatsapp-head'},h('div',null,h('h4',{style:{color:'#9f0b55'}},'Daily Patient Report WhatsApp'),h('small',null,'Automatic A4 Intelligent Patient Care Report PDF to the authorised family WhatsApp number.')),h('div',{className:'actions daily-report-whatsapp-actions',style:{gap:'8px',alignItems:'center'}},h('span',{className:`pill ${dailyEnabled?'':'warning'}`},dailyEnabled?'Enabled':'Disabled'),h('button',{type:'button',className:dailyEnabled?'btn btn-danger':'btn btn-primary',disabled:dailyReportToggleBusy,onClick:toggleDailyPatientReportWhatsApp},dailyReportToggleBusy?'Updating…':dailyEnabled?'Disable':'Enable'))),
               pref?h('div',{className:'patient-detail-fields'},
                 patientDetailField('Communication Mode',pref.delivery_mode||'—'),
                 patientDetailField('Recipient',pref.recipient_name||'—'),
                 patientDetailField('WhatsApp',pref.recipient_mobile||'—'),
                 patientDetailField('Daily Report Time',dailyEnabled?displayDailyReportTime(pref.daily_report_time):'Not scheduled'),
-                patientDetailField('Last Report',pref.last_report_sent_at?fmt(pref.last_report_sent_at):'Not sent yet'),
+	                patientDetailField('Last Report',latestReportAt?fmt(latestReportAt):'Not sent yet'),
                 patientDetailField('Last Status',pref.last_report_status||latestReport?.status||'—')
               ):h('p',{className:'small-note'},'Family communication preference has not yet been configured for this resident.'),
               h('div',{className:'actions',style:{marginTop:'10px'}},h('button',{type:'button',className:'btn btn-primary',onClick:()=>openDailyReportQuickEdit(selected)},'Edit Recipient / Time'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate?.('Intelligent Reports')},'Open Intelligent Reports'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate?.('WhatsApp Logs')},'WhatsApp Delivery Logs'))

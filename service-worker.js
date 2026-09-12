@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.62';
-const CACHE = 'samara-erp-2.11.62-room-types-spaces-draggable-popups';
+const APP_VERSION = '2.11.63';
+const CACHE = 'samara-erp-2.11.63-daily-report-date-pdf-inbox';
 const SHELL = [
   './',
   './index.html',
