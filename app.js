@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.81';
+  const APP_VERSION = '2.11.82';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7107,20 +7107,20 @@ Caring with Compassion. Living with Dignity.`;
     return h('div',{className:'login-shell login-v3-shell'},
       h('style',null,`
         @media(max-width:760px){
-          .login-v3-shell{padding:0!important;min-height:100dvh!important;background:#fff!important}
-          .login-v3-frame{min-height:100dvh!important;display:flex!important;flex-direction:column!important;border:0!important;box-shadow:none!important}
-          .login-v3-hero{flex:0 0 auto!important;min-height:0!important;padding:8px 22px 17px!important;justify-content:flex-start!important;align-items:center!important;text-align:center!important;background:linear-gradient(180deg,#fff 0%,#fff7fb 30%,#ed83b4 68%,#a91460 100%)!important}
+          .login-v3-shell{padding:0!important;min-height:100dvh!important;background:radial-gradient(circle at 88% 5%,rgba(255,193,72,.22),transparent 22%),linear-gradient(180deg,#fff9fc 0%,#f9cade 27%,#e45b9a 58%,#b31564 80%,#750b43 100%)!important}
+          .login-v3-frame{min-height:100dvh!important;display:flex!important;flex-direction:column!important;border:0!important;box-shadow:none!important;background:transparent!important}
+          .login-v3-hero{flex:0 0 auto!important;min-height:0!important;padding:8px 22px 17px!important;justify-content:flex-start!important;align-items:center!important;text-align:center!important;background:transparent!important}
           .login-v3-hero::before,.login-v3-hero::after{display:block!important}
           .login-v3-hero .login-main-brand-logo{width:min(350px,78vw)!important;height:135px!important;max-height:135px!important;margin:0 auto 0!important;object-fit:contain!important}
           .login-v3-hero .login-v3-kicker{margin:0 0 3px!important;font-size:11px!important;line-height:1.15!important;letter-spacing:.12em!important}
           .login-v3-hero h1{font-size:27px!important;line-height:1.05!important;margin:0!important}
-          .login-v3-form{flex:1 1 auto!important;padding:16px 24px 10px!important;justify-content:flex-start!important}
+          .login-v3-form{flex:0 0 auto!important;margin:0 14px 9px!important;padding:17px 20px 12px!important;justify-content:flex-start!important;border:1px solid rgba(255,255,255,.68)!important;border-radius:24px!important;background:linear-gradient(145deg,rgba(255,255,255,.91),rgba(255,239,247,.84))!important;box-shadow:0 18px 42px rgba(91,8,50,.22)!important;backdrop-filter:blur(12px)!important;-webkit-backdrop-filter:blur(12px)!important}
           .login-v3-form .login-v3-kicker{font-size:11px!important;margin-bottom:4px!important}.login-v3-form h2{font-size:27px!important;margin:0 0 3px!important}.login-v3-subtitle{font-size:15px!important;margin:0 0 12px!important}
           .login-v3-form .field{gap:5px!important;margin-bottom:10px!important}.login-v3-form .field label{font-size:15px!important}.login-v3-form .field input{min-height:48px!important;padding:10px 13px!important;font-size:16px!important}
           .forgot-password-link{margin:-2px 0 8px!important}.login-v3-button{min-height:49px!important;margin:0!important}
           .login-app-help{margin:10px 0 0!important;padding:9px 10px!important}.login-app-help>span{font-size:13px!important}.login-app-help-actions{gap:6px!important;margin-top:5px!important}.login-app-help-actions button{min-height:38px!important;font-size:13px!important}
           .login-v3-version{margin-top:8px!important;font-size:12px!important}
-          .login-v3-frame>a[href^="tel:"]{margin:2px 0 8px!important;font-size:14px!important}
+          .login-v3-frame>a[href^="tel:"]{margin:auto 0 10px!important;font-size:14px!important;color:#fff!important;text-shadow:0 2px 7px rgba(58,3,31,.42)!important}
         }
       `),
       h('div',{className:'login-v3-frame'},
