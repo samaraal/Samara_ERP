@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.68';
-const CACHE = 'samara-erp-2.11.68-pharmacy-and-stores';
+const APP_VERSION = '2.11.69';
+const CACHE = 'samara-erp-2.11.69-hr-department-access-control';
 const SHELL = [
   './',
   './index.html',

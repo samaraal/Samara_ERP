@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.68';
+  const APP_VERSION = '2.11.69';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1508,12 +1508,12 @@ function initSamaraInaugurationInvitation(){
   const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
   const ROLE_NAV={
     Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&!NURSING_ENTRY_NAV.includes(item)),
-    Manager:ALL_NAV.filter(item=>!["Director's Office",'System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds',...NURSING_ENTRY_NAV].includes(item)),
+    Manager:ALL_NAV.filter(item=>!["Director's Office",'System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
 
-    Nurse:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My Leave & Permission','Leave Approvals','Notifications'],
-    Caregiver:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Leave Approvals','Notifications'],
-    Accounts:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Leave Approvals','Notifications'],
-    Kitchen:['Notifications','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission','Leave Approvals'],
+    Nurse:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My Leave & Permission','Notifications'],
+    Caregiver:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
+    Accounts:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
+    Kitchen:['Notifications','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission'],
     STD:["Director's Office",'Patient Consumables','Stores','WhatsApp Inbox','Feedback','My Leave & Permission']
   };
   Object.keys(ROLE_NAV).forEach(role=>{
@@ -1531,7 +1531,8 @@ function initSamaraInaugurationInvitation(){
   };
   const allowedPagesForProfile=profile=>{
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
-    if(isNursingManagerProfile(profile)){ if(!pages.includes('My Quick Tasks'))pages.push('My Quick Tasks'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); }
+    if(profile?.role==='Manager'&&employeeDepartment(profile)&&!pages.includes('Employees'))pages.push('Employees');
+    if(isNursingManagerProfile(profile)){ if(!pages.includes('My Quick Tasks'))pages.push('My Quick Tasks'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Employees'))pages.push('Employees'); }
     return pages;
   };
   const CLINICAL_ROLES=['Nurse','Caregiver'];
@@ -11777,6 +11778,9 @@ Thank you.`;
   ensureEmploymentSalaryHistoryStyle();
 
   function Employees({profile,onNavigate}){
+    const fullHRAccess=profile?.role==='Admin';
+    const departmentViewOnly=!fullHRAccess&&(profile?.role==='Manager'||isNursingManagerProfile(profile));
+    const permittedDepartment=departmentViewOnly?(employeeDepartment(profile)||'Nursing'):'';
     const [rows,setRows]=React.useState([]),[authMap,setAuthMap]=React.useState({}),[show,setShow]=React.useState(false),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [resetTarget,setResetTarget]=React.useState(null),[newPassword,setNewPassword]=React.useState(''),[confirmPassword,setConfirmPassword]=React.useState(''),[resetBusy,setResetBusy]=React.useState(false),[resetMsg,setResetMsg]=React.useState('');
     const [repairTarget,setRepairTarget]=React.useState(null),[repairPassword,setRepairPassword]=React.useState(''),[repairBusy,setRepairBusy]=React.useState(false),[repairMsg,setRepairMsg]=React.useState('');
@@ -11791,6 +11795,7 @@ Thank you.`;
       try{
         const requested=sessionStorage.getItem('samara-employee-list-filter');
         sessionStorage.removeItem('samara-employee-list-filter');
+        if(departmentViewOnly)return permittedDepartment;
         if(requested==='__ALL__')return '__ALL__';
         const intent=readDashboardIntent('Employees');
         if(intent?.focus==='Nursing')return 'Nursing';
@@ -11844,6 +11849,7 @@ Thank you.`;
         if(!raw)return;
         const seed=JSON.parse(raw);
         if(!seed?.full_name)return;
+        if(!fullHRAccess)return;
         setForm(current=>({...current,...seed,password:'',login_id:''}));
         setSourceCareerId(seed.career_application_id||'');
         setShow(true);
@@ -11866,13 +11872,16 @@ Thank you.`;
     }
 
     async function load(){
+      const profileQuery=client.from('profiles').select('*').order('created_at',{ascending:false});
+      if(departmentViewOnly)profileQuery.eq('department',permittedDepartment);
       const [{data,error},{data:welcomeLogs}]=await Promise.all([
-        client.from('profiles').select('*').order('created_at',{ascending:false}),
-        client.from('hr_whatsapp_communications').select('recipient_number').eq('template_name','employee_welcome_samara').order('created_at',{ascending:false}).limit(1000)
+        profileQuery,
+        fullHRAccess?client.from('hr_whatsapp_communications').select('recipient_number').eq('template_name','employee_welcome_samara').order('created_at',{ascending:false}).limit(1000):Promise.resolve({data:[]})
       ]);
       if(error){setMsg(error.message||'Unable to load employees');return}
       setRows(data||[]);
       setWelcomeSentNumbers(new Set((welcomeLogs||[]).map(row=>normalizeWhatsAppRecipient(row.recipient_number||'')).filter(Boolean)));
+      if(!fullHRAccess){setAuthMap({});return}
       try{
         const result=await adminRequest({action:'auth_status'});
         const map={};(result.users||[]).forEach(u=>{map[u.id]=u});setAuthMap(map);
@@ -12214,7 +12223,7 @@ Thank you.`;
       return h('section',{className:'employee-info-section employment-salary-history-section',style:{border:'1px solid #e8c6d5',background:'#fffafd'}},
         h('div',{style:{display:'flex',justifyContent:'space-between',gap:10,alignItems:'center',flexWrap:'wrap'}},
           h('div',null,h('h4',{style:{marginBottom:4,color:'#7c1745'}},'Employment & Salary History'),h('div',{className:'muted'},'Starting salary, current salary, promotion, transfer and increments')),
-          h('button',{type:'button',className:'btn btn-primary',onClick:openEmploymentAction},'+ Employment Action')),
+	          fullHRAccess?h('button',{type:'button',className:'btn btn-primary',onClick:openEmploymentAction},'+ Employment Action'):h('span',{className:'badge'},'View only')),
         h('div',{className:'employee-info-grid',style:{marginTop:14}},
           personnelInfoItem('Starting Salary',opening?.new_salary!=null?`${money(opening.new_salary)} ${opening.salary_frequency||r.salary_frequency||'Monthly'}`:'Not set'),
           personnelInfoItem('Starting / Effective Date',opening?.effective_date?formatDateIN(opening.effective_date):(r.date_of_joining?formatDateIN(r.date_of_joining):'—')),
@@ -12564,7 +12573,7 @@ Thank you.`;
         h('td',{'data-label':'Employee'},formalName(r)),h('td',{'data-label':'Employee ID'},r.employee_id||'—'),h('td',{'data-label':'Login ID'},r.login_id),h('td',{'data-label':'Department'},`${employeeDepartment(r)}${r.designation?` · ${r.designation}`:''}`),h('td',{'data-label':'Access'},r.role),
         h('td',{'data-label':'Status'},h('span',{className:`badge ${enabled?'':'off'}`},enabled?'Active':'Disabled')),
         h('td',{'data-label':'Authentication'},h('span',{className:`badge auth-status ${status.className}`},status.text)),h('td',{'data-label':'Last sign-in'},fmt(auth?.last_sign_in_at||r.last_sign_in_at)),
-        h('td',{'data-label':'Actions'},h('div',{className:'employee-actions',onClick:e=>e.stopPropagation(),onKeyDown:e=>e.stopPropagation()},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Personnel File'),h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Documents'),h('button',{className:'btn btn-secondary',onClick:()=>printIdCard(r)},'Print ID Card'),r.mobile?h('button',{type:'button',className:employeeWelcomeSent(r)?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:welcomeBusy===String(r.id)||employeeWelcomeSent(r),onClick:()=>sendEmployeeWelcomeApi(r)},welcomeBusy===String(r.id)?'Sending…':employeeWelcomeSent(r)?'WhatsApp Welcome Sent ✓':'WhatsApp Welcome API'):null,employeeWelcomeSent(r)?h('button',{type:'button',className:'btn btn-secondary',disabled:welcomeBusy===String(r.id),onClick:()=>sendEmployeeWelcomeApi(r,{resend:true})},welcomeBusy===String(r.id)?'Resending…':'Resend Welcome'):null,h('button',{className:enabled?'btn btn-danger':'btn btn-secondary',disabled:managerBlocked,onClick:()=>toggle(r)},enabled?'Disable':'Enable'),auth?h('button',{className:'btn btn-primary',disabled:managerBlocked,onClick:()=>openReset(r)},'Reset Password'):h('button',{className:'btn btn-warning',disabled:managerBlocked,onClick:()=>openRepair(r)},'Repair Account')))
+        h('td',{'data-label':'Actions'},fullHRAccess?h('div',{className:'employee-actions',onClick:e=>e.stopPropagation(),onKeyDown:e=>e.stopPropagation()},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Personnel File'),h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Documents'),h('button',{className:'btn btn-secondary',onClick:()=>printIdCard(r)},'Print ID Card'),r.mobile?h('button',{type:'button',className:employeeWelcomeSent(r)?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:welcomeBusy===String(r.id)||employeeWelcomeSent(r),onClick:()=>sendEmployeeWelcomeApi(r)},welcomeBusy===String(r.id)?'Sending…':employeeWelcomeSent(r)?'WhatsApp Welcome Sent ✓':'WhatsApp Welcome API'):null,employeeWelcomeSent(r)?h('button',{type:'button',className:'btn btn-secondary',disabled:welcomeBusy===String(r.id),onClick:()=>sendEmployeeWelcomeApi(r,{resend:true})},welcomeBusy===String(r.id)?'Resending…':'Resend Welcome'):null,h('button',{className:enabled?'btn btn-danger':'btn btn-secondary',disabled:managerBlocked,onClick:()=>toggle(r)},enabled?'Disable':'Enable'),auth?h('button',{className:'btn btn-primary',disabled:managerBlocked,onClick:()=>openReset(r)},'Reset Password'):h('button',{className:'btn btn-warning',disabled:managerBlocked,onClick:()=>openRepair(r)},'Repair Account')):h('div',{className:'employee-actions',onClick:e=>e.stopPropagation()},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'View Personnel File')))
       )}),effectiveRows.length===0?h('tr',null,h('td',{colSpan:9,className:'empty'},'No active employees found in this selection.')):null))
     );
 
@@ -12883,7 +12892,7 @@ Thank you.`;
             h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setDetailsEditing(false);setDetailsForm({...empty,...detailsTarget,password:''});setDetailsMsg('');setPhotoFiles([])}},'Cancel Edit'),
             h('button',{type:'submit',className:'btn btn-primary',disabled:detailsBusy},detailsBusy?'Saving…':'Save')
           )
-          :h('button',{type:'button',className:'btn btn-primary',onClick:()=>setDetailsEditing(true)},'Edit Employee'),
+          :fullHRAccess?h('button',{type:'button',className:'btn btn-primary',onClick:()=>setDetailsEditing(true)},'Edit Employee'):null,
         h('button',{type:'button',className:'btn btn-secondary',onClick:closePersonnel},'Close')
       )
     )):null;
@@ -12891,8 +12900,8 @@ Thank you.`;
     const repairModal=repairTarget?h('div',{className:'modal-backdrop'},h('form',{className:'card modal reset-password-modal',onSubmit:repairAccount},h('div',{className:'panel-head'},h('div',null,h('h3',null,'Repair Employee Account'),h('small',null,`${repairTarget.full_name} · ${repairTarget.login_id}`)),h('button',{type:'button',className:'close',onClick:()=>setRepairTarget(null)},'×')),repairMsg&&h('div',{className:`message ${repairMsg.startsWith('Authentication account repaired')?'success':'error'}`},repairMsg),h('p',null,'This employee has a profile but no matching Supabase Authentication account. Enter a temporary password to rebuild the login account.'),h('div',{className:'field'},h('label',null,'Temporary password'),h('input',{type:'password',value:repairPassword,onChange:e=>setRepairPassword(e.target.value),minLength:8,required:true,autoComplete:'new-password'})),h('button',{className:'btn btn-warning full',disabled:repairBusy},repairBusy?'Repairing…':'Repair Account & Enable Login'))):null;
 
     return h(React.Fragment,null,
-      h('div',{className:'card panel'},h('div',{className:'panel-head'},h('div',null,h('h3',null,employeeDepartmentFilter?`${employeeDepartmentFilter==='__ALL__'?'All':employeeDepartmentFilter} Employees`:'Employee Dashboard'),h('small',null,employeeDepartmentFilter?'Tap an employee to open the Personnel File':'Select a department to view active employees')),h('div',{className:'employee-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('HR Dashboard')},'← HR Dashboard'),h('button',{className:'btn btn-primary',onClick:()=>{setShow(true);setMsg('')}},'Create Employee'))),msg&&!show?h('div',{className:'message error'},msg):null,employeeDepartmentFilter?h('button',{type:'button',className:'btn btn-secondary employee-back-departments',onClick:()=>setEmployeeDepartmentFilter('')},'← Departments'):null,departmentDashboard,employeeDepartmentFilter?table:null),
-      createModal,detailsModal,employmentActionModal(),resetModal,repairModal,
+      h('div',{className:'card panel'},h('div',{className:'panel-head'},h('div',null,h('h3',null,departmentViewOnly?`${permittedDepartment} Employees — View Only`:employeeDepartmentFilter?`${employeeDepartmentFilter==='__ALL__'?'All':employeeDepartmentFilter} Employees`:'Employee Dashboard'),h('small',null,departmentViewOnly?'Department-level viewing only. HR actions are restricted to Admin/Directors.':employeeDepartmentFilter?'Tap an employee to open the Personnel File':'Select a department to view active employees')),fullHRAccess?h('div',{className:'employee-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('HR Dashboard')},'← HR Dashboard'),h('button',{className:'btn btn-primary',onClick:()=>{setShow(true);setMsg('')}},'Create Employee')):h('span',{className:'badge'},'VIEW ONLY')),msg&&!show?h('div',{className:'message error'},msg):null,!departmentViewOnly&&employeeDepartmentFilter?h('button',{type:'button',className:'btn btn-secondary employee-back-departments',onClick:()=>setEmployeeDepartmentFilter('')},'← Departments'):null,!departmentViewOnly&&departmentDashboard,employeeDepartmentFilter?table:null),
+      fullHRAccess?createModal:null,detailsModal,fullHRAccess?employmentActionModal():null,fullHRAccess?resetModal:null,fullHRAccess?repairModal:null,
       cameraConfig?h(CameraCaptureModal,{config:cameraConfig,onClose:()=>setCameraConfig(null)}):null,
       employeeToast&&h('div',{className:`samara-toast ${employeeToast.type}`,role:'status','aria-live':'polite'},
         h('span',{className:'samara-toast-icon','aria-hidden':'true'},employeeToast.type==='success'?'✓':'!'),
