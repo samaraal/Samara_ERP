@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.91';
-const CACHE = 'samara-erp-2.11.91-practical-nursing-tamil';
+const APP_VERSION = '2.11.92';
+const CACHE = 'samara-erp-2.11.92-login-account-audit';
 const SHELL = [
   './',
   './index.html',

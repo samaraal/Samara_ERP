@@ -1,0 +1,28 @@
+SAMARA CARE ERP 2.11.92 — LOGIN ACCOUNT SECURITY REGISTER
+
+FILES TO DEPLOY
+1. app.js
+2. styles.css
+3. index.html
+4. service-worker.js
+
+No SQL migration or Edge Function redeployment is required.
+
+WHAT CHANGED
+- Admin users now see an "Unlinked / Legacy Login Accounts" register on HR > Employees.
+- It exposes profiles hidden by duplicate matching and incomplete legacy employee profiles.
+- Active and disabled exception accounts remain visible for audit.
+- "Disable Login" uses the existing secure admin action: it blocks Supabase Authentication sign-in and marks the profile inactive without deleting its history.
+- A confirmation is required before disabling or enabling an exception account.
+
+HOW TO DISABLE THE OLD SHOBANA LOGIN
+1. Deploy the four files above.
+2. Refresh the ERP and confirm the footer/version shows 2.11.92.
+3. Sign in as an Admin.
+4. Open HR > Employees.
+5. Scroll to "Unlinked / Legacy Login Accounts".
+6. Find login ID "shobana" (employee ID 001).
+7. Click "Disable Login" and confirm.
+8. Verify Profile = Disabled and Authentication = Blocked.
+
+Keep "sobana" / EMP-00001 active; that is the valid Nursing employee record.
