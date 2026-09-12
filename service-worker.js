@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.63';
-const CACHE = 'samara-erp-2.11.63-daily-report-date-pdf-inbox';
+const APP_VERSION = '2.11.64';
+const CACHE = 'samara-erp-2.11.64-report-sections-vertical';
 const SHELL = [
   './',
   './index.html',

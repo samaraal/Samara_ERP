@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.63';
+  const APP_VERSION = '2.11.64';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -26305,7 +26305,7 @@ Please access the Samara Family Portal for detailed account information.`;
           h('div',{className:'annexure-section'},h('h3',null,'VITAL-SIGN TREND'),detailTable(['Date / Time','Blood Pressure','Pulse','SpO₂','Temperature','Respiratory Rate','Blood Sugar','Assessment'],sortedVitals.map(row=>[fmt(row.recorded_at||row.created_at),`${vitalMeasurement(row,'systolic')??'—'}/${vitalMeasurement(row,'diastolic')??'—'}`,vitalMeasurement(row,'pulse')??'—',vitalMeasurement(row,'spo2')!=null?`${vitalMeasurement(row,'spo2')}%`:'—',vitalMeasurement(row,'temperature')??'—',vitalMeasurement(row,'respiration')??'—',vitalMeasurement(row,'blood_sugar')!=null?`${row.blood_sugar_type||'RBS'} ${vitalMeasurement(row,'blood_sugar')}`:'Not taken',vitalAssessment(row)]))),
           h('div',{className:'annexure-section'},h('h3',null,'MEDICATION ADMINISTRATION DETAILS'),detailTable(['Scheduled','Actual','Medicine','Dose','Route','Status','Remarks / Recorded By'],medicationRows)),
           h('div',{className:'annexure-section'},h('h3',null,'DAILY CARE AND NURSING DETAILS'),detailTable(['Care Activity','Shift','Status','Completed At','Remarks','Recorded By'],careRows)),
-          h('div',{className:'annexure-two-column'},
+          h('div',{className:'annexure-two-column',style:{gridTemplateColumns:'1fr'}},
             h('div',{className:'annexure-section'},h('h3',null,'FOOD / FLUID INTAKE'),detailTable(['Meal','Menu','Food Intake','Meal Time','Beverage','Beverage Time'],(d.meals||[]).map(row=>[row.meal_type||'Meal',row.menu||'—',row.consumption_status||'Recorded',fmt(row.served_at),row.beverage_type||'—',row.beverage_time?String(row.beverage_time).slice(0,5):'—']))),
             h('div',{className:'annexure-section'},h('h3',null,'PHYSIOTHERAPY / INCIDENTS'),detailTable(['Type','Status','Notes / Action'],[...(d.physioSessions||[]).map(row=>['Physiotherapy',row.status||'Recorded',row.notes||'—']),...(d.incidents||[]).map(row=>[row.incident_type||row.type||'Incident',`${row.severity||'—'} · ${row.status||'—'}`,row.description||row.immediate_action||'—'])]))
           ),
