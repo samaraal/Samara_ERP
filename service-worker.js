@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.65';
-const CACHE = 'samara-erp-2.11.65-stores-indent-notification-fix';
+const APP_VERSION = '2.11.66';
+const CACHE = 'samara-erp-2.11.66-consumables-receipt-refresh-navigation';
 const SHELL = [
   './',
   './index.html',
