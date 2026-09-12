@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.78';
-const CACHE = 'samara-erp-2.11.78-global-navigable-surfaces';
+const APP_VERSION = '2.11.80';
+const CACHE = 'samara-erp-2.11.80-compact-login-larger-mobile-menu';
 const SHELL = [
   './',
   './index.html',

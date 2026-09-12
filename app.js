@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.78';
+  const APP_VERSION = '2.11.80';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7105,17 +7105,29 @@ Caring with Compassion. Living with Dignity.`;
       setRecoveryBusy(false);
     }
     return h('div',{className:'login-shell login-v3-shell'},
+      h('style',null,`
+        @media(max-width:760px){
+          .login-v3-shell{padding:0!important;min-height:100dvh!important;background:#fff!important}
+          .login-v3-frame{min-height:100dvh!important;display:flex!important;flex-direction:column!important;border:0!important;box-shadow:none!important}
+          .login-v3-hero{flex:0 0 auto!important;min-height:0!important;padding:10px 22px 12px!important;justify-content:flex-start!important;align-items:center!important;text-align:center!important;background:linear-gradient(180deg,#fff 0%,#fff3f8 62%,#f5c7da 100%)!important}
+          .login-v3-hero::before,.login-v3-hero::after{display:none!important}
+          .login-v3-hero .login-main-brand-logo{width:min(205px,65vw)!important;height:82px!important;max-height:82px!important;margin:0 auto 2px!important;object-fit:contain!important}
+          .login-v3-hero .login-v3-kicker{margin:0 0 3px!important;font-size:11px!important;line-height:1.15!important;letter-spacing:.12em!important}
+          .login-v3-hero h1{font-size:27px!important;line-height:1.05!important;margin:0!important}
+          .login-v3-form{flex:1 1 auto!important;padding:16px 24px 10px!important;justify-content:flex-start!important}
+          .login-v3-form .login-v3-kicker{font-size:11px!important;margin-bottom:4px!important}.login-v3-form h2{font-size:27px!important;margin:0 0 3px!important}.login-v3-subtitle{font-size:15px!important;margin:0 0 12px!important}
+          .login-v3-form .field{gap:5px!important;margin-bottom:10px!important}.login-v3-form .field label{font-size:15px!important}.login-v3-form .field input{min-height:48px!important;padding:10px 13px!important;font-size:16px!important}
+          .forgot-password-link{margin:-2px 0 8px!important}.login-v3-button{min-height:49px!important;margin:0!important}
+          .login-app-help{margin:10px 0 0!important;padding:9px 10px!important}.login-app-help>span{font-size:13px!important}.login-app-help-actions{gap:6px!important;margin-top:5px!important}.login-app-help-actions button{min-height:38px!important;font-size:13px!important}
+          .login-v3-version{margin-top:8px!important;font-size:12px!important}
+          .login-v3-frame>a[href^="tel:"]{margin:2px 0 8px!important;font-size:14px!important}
+        }
+      `),
       h('div',{className:'login-v3-frame'},
         h('section',{className:'login-v3-hero'},
           h(BrandLogo,{className:'login-main-brand-logo'}),
           h('div',{className:'login-v3-kicker'},'SECURE ASSISTED LIVING MANAGEMENT'),
-          h('h1',null,'Samara Care ERP'),
-          h('p',{className:'login-v3-description'},'Resident care, clinical operations, billing and documents in one secure workspace.'),
-          h('div',{className:'login-v3-features'},
-            h('div',null,h('span',null,'✓'),'Live multi-user updates'),
-            h('div',null,h('span',null,'✓'),'Mobile, tablet and desktop'),
-            h('div',null,h('span',null,'✓'),'Secure Supabase cloud data')
-          )
+          h('h1',null,'Samara Care ERP')
         ),
         forgot?h('form',{className:'login-v3-form',onSubmit:requestRecovery},
           h('div',{className:'login-v3-kicker login-v3-kicker-dark'},'PASSWORD RECOVERY'),
@@ -7430,7 +7442,7 @@ Caring with Compassion. Living with Dignity.`;
 
 
   function MobileBottomNav({page,setPage,allowed,profile,onOpenMenu}){
-    const home=ROLE_HOME[profile.role]||allowed[0]||'Dashboard';
+    const home=homePageForProfile(profile)||allowed[0]||'Dashboard';
     const choose=(preferred,fallbacks=[])=>[preferred,...fallbacks].find(item=>allowed.includes(item));
 
     if(CLINICAL_ROLES.includes(profile.role)){
@@ -7475,7 +7487,12 @@ Caring with Compassion. Living with Dignity.`;
 
   function MobileNavigationDrawer({profile,allowed,page,onNavigate,onClose}){
     const sections=sectionsFor(allowed,profile.role);
-    const home=ROLE_HOME[profile.role]||allowed[0]||'Dashboard';
+    const home=homePageForProfile(profile)||allowed[0]||'Dashboard';
+    const activeSection=sections.find(section=>section.items.includes(page))?.title||sections[0]?.title||'';
+    const [openSection,setOpenSection]=React.useState(activeSection);
+    React.useEffect(()=>{const next=sections.find(section=>section.items.includes(page))?.title;if(next)setOpenSection(next)},[page]);
+    const sectionIcon=title=>/OVERVIEW/.test(title)?'⌂':/HR/.test(title)?'♙':/ADMISSION/.test(title)?'♥':/ROOM/.test(title)?'▦':/PHARMACY|STORE/.test(title)?'♨':/FOOD/.test(title)?'₹':/CLINICAL/.test(title)?'✚':'⚙';
+    const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Stores'?'▥':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My Quick Tasks'?'✓':'›';
     React.useEffect(()=>{
       const onKey=e=>{if(e.key==='Escape')onClose()};
       document.addEventListener('keydown',onKey);
@@ -7489,17 +7506,34 @@ Caring with Compassion. Living with Dignity.`;
       await client.auth.signOut();
     }
     return h('div',{className:'mobile-drawer-layer',role:'presentation',onClick:e=>{if(e.target===e.currentTarget)onClose()}},
-      h('aside',{className:'mobile-nav-drawer',role:'dialog','aria-modal':'true','aria-label':'Samara Care mobile menu'},
+      h('aside',{className:'mobile-nav-drawer elegant-mobile-drawer',role:'dialog','aria-modal':'true','aria-label':'Samara Care mobile menu'},
+        h('style',null,`
+          .elegant-mobile-drawer{background:linear-gradient(180deg,#fffafc 0%,#f9d5e5 48%,#d52b78 100%)!important;border-radius:24px 0 0 24px!important;overflow:hidden!important}
+          .elegant-mobile-drawer .mobile-drawer-head{padding:17px 16px 14px!important;background:linear-gradient(135deg,#fff 0%,#fff0f6 100%)!important;border-bottom:1px solid #ecc5d6!important}
+          .elegant-mobile-drawer .mobile-drawer-brand img{width:132px!important;height:54px!important;object-fit:contain!important}
+          .elegant-mobile-drawer .mobile-drawer-brand strong{font-size:18px!important;color:#46182f!important}.elegant-mobile-drawer .mobile-drawer-brand small{font-size:13px!important;color:#9a1b5a!important;font-weight:800!important}
+          .elegant-mobile-drawer .mobile-drawer-close{background:#f6dce8!important;color:#8d114b!important;box-shadow:0 5px 14px rgba(111,16,61,.12)!important}
+          .elegant-mobile-drawer .mobile-drawer-user{margin:12px 14px!important;padding:13px 14px!important;border-radius:15px!important;background:linear-gradient(135deg,#9e0d52,#d12674)!important;color:#fff!important;box-shadow:0 8px 20px rgba(123,13,64,.22)!important}
+          .elegant-mobile-drawer .mobile-drawer-user strong{font-size:18px!important}.elegant-mobile-drawer .mobile-drawer-user span{font-size:13px!important;background:rgba(255,255,255,.2)!important;color:#fff!important}.elegant-mobile-drawer .mobile-drawer-user small{display:block;font-size:14px!important;opacity:.9;margin-top:3px}
+          .elegant-mobile-drawer .mobile-drawer-home{width:calc(100% - 28px)!important;min-height:50px!important;border:1px solid #e8bfd1!important;border-radius:14px!important;background:#fff7fb!important;color:#74103f!important;font-size:17px!important;font-weight:900!important;text-align:left!important;padding:0 15px!important;box-shadow:0 5px 15px rgba(91,25,56,.08)!important}
+          .elegant-mobile-drawer .mobile-drawer-home.active{background:#7f0b43!important;color:#fff!important}
+          .elegant-mobile-drawer .mobile-drawer-scroll{padding:4px 12px 14px!important}.elegant-mobile-drawer .mobile-drawer-group{margin:8px 0!important;border:1px solid rgba(188,58,116,.22)!important;border-radius:16px!important;background:rgba(255,255,255,.78)!important;overflow:hidden!important;box-shadow:0 5px 14px rgba(92,21,54,.07)!important}
+          .elegant-mobile-drawer .mobile-drawer-group-head{width:100%!important;min-height:52px!important;margin:0!important;padding:11px 13px!important;border:0!important;border-radius:0!important;background:transparent!important;color:#59142f!important;display:grid!important;grid-template-columns:32px 1fr 26px!important;align-items:center!important;gap:7px!important;text-align:left!important;font-size:16px!important;font-weight:950!important;letter-spacing:.025em!important}
+          .elegant-mobile-drawer .mobile-drawer-group.expanded .mobile-drawer-group-head{background:linear-gradient(90deg,#fff0f6,#f5cadd)!important;color:#970c50!important}.mobile-drawer-group-icon{width:30px;height:30px;border-radius:9px;background:#f6dce8;display:grid;place-items:center;color:#9b0c51;font-size:16px}.mobile-drawer-group-chevron{text-align:center;font-size:20px}
+          .elegant-mobile-drawer .mobile-drawer-items{padding:5px 8px 9px!important;border-top:1px solid #efd4e0!important}.elegant-mobile-drawer .mobile-drawer-items button{width:100%!important;min-height:47px!important;margin:2px 0!important;padding:9px 10px!important;border:0!important;border-radius:11px!important;background:transparent!important;color:#4f3542!important;display:grid!important;grid-template-columns:30px 1fr 18px!important;align-items:center!important;gap:7px!important;text-align:left!important;font-size:17px!important}
+          .elegant-mobile-drawer .mobile-drawer-items button.active{background:linear-gradient(100deg,#9b0c50,#d62b78)!important;color:#fff!important;font-weight:900!important;box-shadow:0 5px 13px rgba(139,11,70,.2)!important}.mobile-drawer-item-icon{width:28px;height:28px;border-radius:8px;background:#f8e5ee;display:grid;place-items:center;color:#a00e55;font-weight:900}.mobile-drawer-items button.active .mobile-drawer-item-icon{background:rgba(255,255,255,.2);color:#fff}.mobile-drawer-item-arrow{text-align:right;font-weight:900}
+          .elegant-mobile-drawer .mobile-drawer-footer{background:rgba(120,5,62,.94)!important;border:0!important;padding:10px 14px calc(10px + env(safe-area-inset-bottom))!important;display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important}.elegant-mobile-drawer .mobile-drawer-footer button{min-height:46px!important;border-radius:12px!important;border:1px solid rgba(255,255,255,.35)!important;background:rgba(255,255,255,.12)!important;color:#fff!important;font-size:15px!important;font-weight:850!important}.elegant-mobile-drawer .mobile-signout-button{grid-column:1/-1!important;background:#fff!important;color:#8b0b49!important}
+        `),
         h('div',{className:'mobile-drawer-head'},
           h('div',{className:'mobile-drawer-brand'},h(BrandLogo,{className:'mobile-header-brand-logo'}),h('div',null,h('strong',null,'Samara Care ERP'),h('small',null,`Version ${APP_VERSION}`))),
           h('button',{type:'button',className:'mobile-drawer-close',onClick:onClose,'aria-label':'Close menu'},'×')
         ),
-        h('div',{className:'mobile-drawer-user'},h('strong',null,formalName(profile)),h('span',{className:'badge'},profile.role)),
-        h('button',{type:'button',className:`mobile-drawer-home ${page===home?'active':''}`,onClick:()=>onNavigate(home)},CLINICAL_ROLES.includes(profile.role)?'⌂  Nursing Home':'⌂  Dashboard'),
-        h('div',{className:'mobile-drawer-scroll'},sections.map(section=>h('section',{className:'mobile-drawer-section',key:section.title},
-          h('h4',null,section.title),
-          section.items.map(item=>h('button',{type:'button',key:item,'data-nav':item,className:page===item?'active':'',onClick:()=>onNavigate(item)},displayNavLabel(item,profile.role)))
-        ))),
+        h('div',{className:'mobile-drawer-user'},h('div',null,h('strong',null,formalName(profile)),h('small',null,`${profile.login_id||''} · ${profile.designation||profile.role}`)),h('span',{className:'badge'},profile.role)),
+        h('button',{type:'button',className:`mobile-drawer-home ${page===home?'active':''}`,onClick:()=>onNavigate(home)},(CLINICAL_ROLES.includes(profile.role)||isNursingManagerProfile(profile))?'⌂  Nursing Dashboard':'⌂  Dashboard'),
+        h('div',{className:'mobile-drawer-scroll'},sections.map(section=>{const expanded=openSection===section.title;return h('section',{className:`mobile-drawer-group ${expanded?'expanded':''}`,key:section.title},
+          h('button',{type:'button',className:'mobile-drawer-group-head',onClick:()=>setOpenSection(current=>current===section.title?'':section.title),'aria-expanded':expanded},h('span',{className:'mobile-drawer-group-icon'},sectionIcon(section.title)),h('span',null,section.title),h('span',{className:'mobile-drawer-group-chevron'},expanded?'−':'+')),
+          expanded?h('div',{className:'mobile-drawer-items'},section.items.map(item=>h('button',{type:'button',key:item,'data-nav':item,className:page===item?'active':'',onClick:()=>onNavigate(item)},h('span',{className:'mobile-drawer-item-icon'},itemIcon(item)),h('span',null,displayNavLabel(item,profile.role)),h('span',{className:'mobile-drawer-item-arrow'},'›')))):null
+        )})),
         h('div',{className:'mobile-drawer-footer'},
           h('button',{type:'button',className:'mobile-update-button',onClick:samaraOpenAppHelp},'⚙  App Help / Repair'),
           h('button',{type:'button',className:'mobile-update-button',onClick:e=>samaraManualUpdateCheck(e.currentTarget)},'↻  Check for Updates'),
