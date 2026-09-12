@@ -1,0 +1,17 @@
+SAMARA CARE ERP v2.11.86 — FULL NURSE VOICE TRANSLATION
+
+REPLACE ONLY
+- app.js
+- index.html
+- service-worker.js
+
+NO SQL CHANGE IS REQUIRED.
+
+CORRECTION
+The Nurse Personal To-Do now uses the complete translated content returned by
+the voice service. It no longer saves only the shortened Director's Office-style
+task heading. Names, places, instructions and other spoken details are retained.
+
+AFTER UPLOAD
+Open ERP -> App Help / Repair -> Check for Updates.
+Confirm version 2.11.86.

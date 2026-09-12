@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.85';
+  const APP_VERSION = '2.11.86';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -10485,7 +10485,13 @@ Thank you.`;
         else{headers['Content-Type']='application/json';body=JSON.stringify({transcript,spoken_language:lang,current_form_type:'Task',current_task_kind:'General Task',now_iso:new Date().toISOString(),timezone:'Asia/Kolkata'})}
         const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{method:'POST',headers,body});
         const result=await response.json().catch(()=>({error:'Unable to read voice response'}));if(!response.ok||result.error)throw new Error(result.error||'Unable to understand voice.');
-        const fields=result.fields||{};setHeard(result.transcript||transcript||'');setTitle(fields.title||result.transcript||transcript||'');
+        const fields=result.fields||{};
+        const faithfulTranslation=String(fields.details||'').trim();
+        const shortTitle=String(fields.title||'').trim();
+        setHeard(result.transcript||transcript||'');
+        // Director's Office keeps `title` short. The nurse to-do has one text field,
+        // so use the complete translated details and preserve the full spoken meaning.
+        setTitle(faithfulTranslation||shortTitle||result.transcript||transcript||'');
         const voiceDate=fields.scheduled_at?String(fields.scheduled_at).slice(0,10):fields.due_date;if(voiceDate)setTaskDate(voiceDate);
         if(fields.scheduled_at&&String(fields.scheduled_at).includes('T'))setTaskTime(String(fields.scheduled_at).slice(11,16));
         setMessage('✓ Captured. Please check and tap Save.');
