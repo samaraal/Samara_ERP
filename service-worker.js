@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.66';
-const CACHE = 'samara-erp-2.11.66-consumables-receipt-refresh-navigation';
+const APP_VERSION = '2.11.67';
+const CACHE = 'samara-erp-2.11.67-consumables-status-navigation';
 const SHELL = [
   './',
   './index.html',

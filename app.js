@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.66';
+  const APP_VERSION = '2.11.67';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -25056,6 +25056,10 @@ Please access the Samara Family Portal for detailed account information.`;
     const patientLabel=id=>{const p=patients.find(x=>x.id===id);return p?[formalName(p),p.patient_id&&`(${p.patient_id})`,p.room_no&&`Room ${p.room_no}${p.bed_no?`/${p.bed_no}`:''}`].filter(Boolean).join(' · '):'—'};
     const stockFor=r=>stock.find(x=>x.item_id===r.store_item_id)||stock.find(x=>String(x.item_name).toLowerCase()===String(r.item_name).toLowerCase());
     const stageStyle=status=>({display:'inline-block',padding:'5px 9px',borderRadius:'999px',fontWeight:800,fontSize:'12px',background:status==='Received'?'#e7f6ef':status==='Rejected'||status==='Receipt Discrepancy'?'#fdebec':status==='Handed Over'?'#eaf2ff':'#fff4dc',color:'#5d3146'});
+    function navigateIndentFilter(target){
+      setFilter(target);
+      setTimeout(()=>document.getElementById('consumables-indent-register')?.scrollIntoView({behavior:'smooth',block:'start'}),40);
+    }
     async function load(){
       const [pRes,iRes,sRes]=await Promise.all([
         client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').eq('is_active',true).order('full_name'),
@@ -25113,7 +25117,7 @@ Please access the Samara Family Portal for detailed account information.`;
     return h('div',null,
       h(Section,{title:'Patient Consumables',subtitle:'Nurse initiates for a patient → Store In-charge approves and hands over → Nurse confirms actual receipt.'},
         h('div',{className:'grid stats'},
-          [['Awaiting Approval',counts.initiated,'Initiated'],['Awaiting Handover',counts.handover,'Awaiting Handover'],['Awaiting Receipt',counts.receipt,'Handed Over'],['Discrepancies',counts.discrepancy,'Receipt Discrepancy']].map(([label,count,target])=>h('button',{key:label,type:'button',className:'card stat',onClick:()=>setFilter(target),style:{width:'100%',textAlign:'left',cursor:'pointer',border:filter===target?'2px solid #b30b5d':'1px solid #ead2dd',fontFamily:'inherit'}},h('span',null,label),h('strong',null,count),h('small',{style:{display:'block',marginTop:'7px',color:'#9b1456',fontWeight:800}},'Tap to view →')))
+          [['Awaiting Approval',counts.initiated,'Initiated'],['Awaiting Handover',counts.handover,'Awaiting Handover'],['Awaiting Receipt',counts.receipt,'Handed Over'],['Discrepancies',counts.discrepancy,'Receipt Discrepancy']].map(([label,count,target])=>h('button',{key:label,type:'button',className:'card stat',onClick:()=>navigateIndentFilter(target),style:{width:'100%',textAlign:'left',cursor:'pointer',border:filter===target?'2px solid #b30b5d':'1px solid #ead2dd',fontFamily:'inherit'}},h('span',null,label),h('strong',null,count),h('small',{style:{display:'block',marginTop:'7px',color:'#9b1456',fontWeight:800}},'Tap to view →')))
         )
       ),
       nurse&&h(Section,{title:'New Patient Indent',subtitle:'Select an active patient and an item from the Stores master. Available balance is shown for visibility.'},
@@ -25124,7 +25128,7 @@ Please access the Samara Family Portal for detailed account information.`;
           h('div',{className:'field'},h('label',null,'Unit'),h('input',{value:form.unit,readOnly:true}))
         ),h('div',{className:'field'},h('label',null,'Reason / Remarks'),h('textarea',{rows:2,value:form.request_remarks,onChange:e=>setForm({...form,request_remarks:e.target.value}),placeholder:'Optional clinical/use note'})),h('button',{className:'btn btn-primary',disabled:busy||!form.item_name},busy?'Saving…':'Initiate Indent'))
       ),
-      h(Section,{title:'Consumables Indent Register',actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:refreshIndents},busy?'Refreshing…':'↻ Refresh'),['Open','Initiated','Awaiting Handover','Handed Over','Receipt Discrepancy','Received','Rejected','All'].map(x=>h('button',{type:'button',key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>setFilter(x)},x)))},
+      h('div',{id:'consumables-indent-register',style:{scrollMarginTop:'90px'}},h(Section,{title:'Consumables Indent Register',actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:refreshIndents},busy?'Refreshing…':'↻ Refresh'),['Open','Initiated','Awaiting Handover','Handed Over','Receipt Discrepancy','Received','Rejected','All'].map(x=>h('button',{type:'button',key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>navigateIndentFilter(x),'aria-pressed':filter===x},x)))},
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Indent','Patient','Item / Store Balance','Requested','Approved','Handed Over','Received','Status','Initiated By / Time','Approval / Handover','Receipt','Action'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,visible.length?visible.map(r=>{const st=stockFor(r);return h('tr',{key:r.id},
             h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),h('td',null,patientLabel(r.patient_id)),h('td',null,h('strong',null,r.item_name),h('small',{style:{display:'block'}},`Store: ${st?.balance_qty??'—'} ${st?.unit||r.unit}`),r.request_remarks&&h('small',{style:{display:'block'}},r.request_remarks)),
@@ -25135,7 +25139,7 @@ Please access the Samara Family Portal for detailed account information.`;
             h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},storeController&&r.status==='Initiated'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>approve(r,false)},'Approve'),storeController&&r.status==='Initiated'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>approve(r,true)},'Reject'),storeController&&['Approved','Partially Approved'].includes(r.status)&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>handover(r)},'Hand Over'),nurse&&r.status==='Handed Over'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>receive(r)},'Received'),storeController&&r.status==='Receipt Discrepancy'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>resolveDiscrepancy(r)},'Return & Reconcile'),!((storeController&&['Initiated','Approved','Partially Approved','Receipt Discrepancy'].includes(r.status))||(nurse&&r.status==='Handed Over'))&&h('span',null,'—')))
           )}):h('tr',null,h('td',{colSpan:12,style:{textAlign:'center',padding:'24px'}},'No consumable indents in this view.')))
         ))
-      )
+      ))
     );
   }
 
