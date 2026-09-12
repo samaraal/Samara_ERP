@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.73';
+  const APP_VERSION = '2.11.74';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12639,7 +12639,7 @@ Thank you.`;
         h('tbody',null,
           effectiveRows.map((r,index)=>{
             const place=employeePlaceDistrict(r);
-            return h('tr',{key:r.id,className:'employee-row-touch',role:'button',tabIndex:0,title:'Tap anywhere to view Personal Details',onClick:()=>openDetails(r),onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetails(r)}}},
+            return h('tr',{key:r.id,className:'nursing-employee-row-touch',role:'button',tabIndex:0,title:'Tap anywhere to view Personal Details',style:{cursor:'pointer',touchAction:'manipulation'},onClick:()=>openDetails(r),onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetails(r)}}},
               h('td',{'data-label':'S.No.'},index+1),
               h('td',{'data-label':'Employee Name'},h('strong',null,formalName(r))),
               h('td',{'data-label':'Employee ID'},r.employee_id||'—'),
