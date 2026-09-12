@@ -1,0 +1,19 @@
+SAMARA CARE ERP v2.11.88 — HANDOVER VOICE WORKFLOW FOR NURSE TO-DO
+
+REPLACE ONLY
+- app.js
+- index.html
+- service-worker.js
+
+NO SQL CHANGE IS REQUIRED.
+
+CORRECTION
+- Removed the separate To-Do voice-processing route that produced the JSON error.
+- Nurse To-Do now uses the same Voice button and proven workflow as Nurse Handover.
+- Record until Stop, review/edit the complete English translation, then tap
+  "Use This Text" to insert it into What to do.
+- Nurse Manager access is also supported by the same workflow.
+
+AFTER UPLOAD
+Open ERP -> App Help / Repair -> Check for Updates.
+Confirm version 2.11.88.

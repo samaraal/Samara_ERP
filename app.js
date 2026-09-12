@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.87';
+  const APP_VERSION = '2.11.88';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6103,7 +6103,7 @@ Caring with Compassion. Living with Dignity.`;
   // v2.11.36: Global Tamil / English voice input for frontline nursing narrative fields.
   // Adds a compact Voice button beside free-text nursing fields without changing existing forms.
   function GlobalNursingVoiceInput({profile}){
-    const enabled=['Nurse','Caregiver'].includes(profile?.role);
+    const enabled=['Nurse','Caregiver'].includes(profile?.role)||isNursingManagerProfile(profile);
     const [target,setTarget]=React.useState(null);
     const [open,setOpen]=React.useState(false);
     const [listening,setListening]=React.useState(false);
@@ -10530,7 +10530,21 @@ Thank you.`;
       h(Section,{title:'Calendar',subtitle:'Tap a date to view its list'},calendar()),
       message&&!show?h('div',{className:`message ${message.startsWith('✓')?'success':'error'}`},message):null,
       h(Section,{title:`To-Do — ${formatDateIN(new Date(`${selected}T00:00:00`))}`,subtitle:`${dayRows.length} item${dayRows.length===1?'':'s'} for this day`},dayRows.length?h('div',{className:'nurse-todo-list'},dayRows.map((r,i)=>h('div',{className:`nurse-todo-row ${r.status==='Completed'?'completed':''}`,key:r.id},h('span',{className:'nurse-todo-number'},`${i+1}.`),h('button',{type:'button',className:'nurse-todo-check',onClick:()=>complete(r),'aria-label':r.status==='Completed'?'Mark pending':'Mark completed'},r.status==='Completed'?'✓':'○'),h('div',{className:'nurse-todo-copy'},h('strong',null,r.title),h('small',null,r.scheduled_at?new Date(r.scheduled_at).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:true}):'Any time')),h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(r)},'Edit'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>remove(r)},'Delete'))))):h('div',{className:'empty'},'No to-do items for this day.'),h('button',{type:'button',className:'btn btn-primary nurse-todo-add-bottom',onClick:openNew},'＋ Add To-Do')),
-      show?h('div',{className:'modal-backdrop'},h('form',{className:'modal-card nurse-todo-modal',onSubmit:save},h('div',{className:'panel-head'},h('div',null,h('h3',null,editing?'Update To-Do':'New To-Do'),h('small',null,'Speak Tamil or English, or type')),h('button',{type:'button',className:'close',onClick:()=>{stop();setShow(false)}},'×')),h('div',{className:'nurse-todo-voice'},listening?h('button',{type:'button',className:'btn btn-danger',onClick:stop},'■ Stop Recording'):h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>startVoice('ta-IN')},'🎤 Speak Tamil'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>startVoice('en-IN')},'🎤 Speak English')),heard?h('div',{className:'nurse-todo-heard'},h('small',null,'Heard'),h('strong',null,heard)):null),h('div',{className:'modal-grid'},h('div',{className:'field span-2'},h('label',null,'What to do? *'),h('input',{required:true,value:title,onChange:e=>setTitle(e.target.value),placeholder:'Your reminder'})),h('div',{className:'field'},h('label',null,'Date'),h(StrictDateInput,{value:taskDate,onChange:e=>setTaskDate(e.target.value)})),h('div',{className:'field'},h('label',null,'Time (optional)'),h('input',{type:'time',value:taskTime,onChange:e=>setTaskTime(e.target.value)}))),message?h('div',{className:'message'},message):null,h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{stop();setShow(false)}},'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save')))):null
+      show?h('div',{className:'modal-backdrop'},
+        h('form',{className:'modal-card nurse-todo-modal',onSubmit:save},
+          h('div',{className:'panel-head'},
+            h('div',null,h('h3',null,editing?'Update To-Do':'New To-Do'),h('small',null,'Use the Voice button exactly as in Nurse Handover, or type')),
+            h('button',{type:'button',className:'close',onClick:()=>setShow(false)},'×')
+          ),
+          h('div',{className:'modal-grid'},
+            h('div',{className:'field span-2'},h('label',null,'What to do? *'),h('textarea',{required:true,rows:4,value:title,onChange:e=>setTitle(e.target.value),placeholder:'Personal reminder / note'})),
+            h('div',{className:'field'},h('label',null,'Date'),h(StrictDateInput,{value:taskDate,onChange:e=>setTaskDate(e.target.value)})),
+            h('div',{className:'field'},h('label',null,'Time (optional)'),h('input',{type:'time',value:taskTime,onChange:e=>setTaskTime(e.target.value)}))
+          ),
+          message?h('div',{className:'message'},message):null,
+          h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShow(false)},'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save'))
+        )
+      ):null
     );
   }
 
