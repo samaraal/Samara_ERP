@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.71';
+  const APP_VERSION = '2.11.72';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12572,6 +12572,25 @@ Thank you.`;
       r.current_district,r.permanent_district,r.current_taluk,r.permanent_taluk,
       r.previous_workplace
     ].filter(Boolean).join(' ').toLowerCase();
+    function employeeFullAddress(row,prefix='current'){
+      const fields=['flat_no','apartment_name','house_no','street_name','locality_area','village_town','landmark','taluk','district','state','pincode'];
+      const parts=fields.map(key=>String(row?.[`${prefix}_${key}`]||'').trim()).filter(Boolean);
+      const meaningful=parts.filter(value=>value.toLowerCase()!=='tamil nadu');
+      const summary=String(row?.[`${prefix}_address`]||'').trim();
+      const legacy=prefix==='current'?String(row?.address||'').trim():'';
+      if(meaningful.length)return parts.join(', ');
+      if(summary&&summary.toLowerCase()!=='tamil nadu')return summary;
+      if(legacy&&legacy.toLowerCase()!=='tamil nadu')return legacy;
+      return '';
+    }
+    function employeePlaceDistrict(row){
+      const direct=[row?.current_village_town||row?.permanent_village_town||row?.current_locality_area||row?.permanent_locality_area,row?.current_district||row?.permanent_district].filter(Boolean).join(' · ');
+      if(direct)return direct;
+      const address=employeeFullAddress(row,'current')||employeeFullAddress(row,'permanent');
+      if(!address)return 'Address not entered';
+      const parts=address.split(',').map(value=>value.trim()).filter(Boolean).filter(value=>!/^tamil nadu$/i.test(value)&&!/^[0-9]{6}$/.test(value));
+      return parts.slice(-2).join(' · ')||address;
+    }
     const searchedEmployeeRows=normalizedEmployeeSearch.length>=3
       ? departmentRows.filter(r=>employeeSearchText(r).includes(normalizedEmployeeSearch))
       : departmentRows;
@@ -12619,14 +12638,14 @@ Thank you.`;
         h('thead',null,h('tr',null,['S.No.','Employee Name','Employee ID','Mobile Number','Designation','Place / District','Action'].map(label=>h('th',{key:label},label)))),
         h('tbody',null,
           effectiveRows.map((r,index)=>{
-            const place=[r.current_village_town||r.permanent_village_town||r.current_locality_area||r.permanent_locality_area,r.current_district||r.permanent_district].filter(Boolean).join(' · ');
+            const place=employeePlaceDistrict(r);
             return h('tr',{key:r.id},
               h('td',{'data-label':'S.No.'},index+1),
               h('td',{'data-label':'Employee Name'},h('strong',null,formalName(r))),
               h('td',{'data-label':'Employee ID'},r.employee_id||'—'),
               h('td',{'data-label':'Mobile Number',style:{whiteSpace:'nowrap'}},r.mobile||'—'),
               h('td',{'data-label':'Designation'},r.designation||'—'),
-              h('td',{'data-label':'Place / District'},place||'—'),
+              h('td',{'data-label':'Place / District'},place),
               h('td',{'data-label':'Action'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openDetails(r)},'Personal Details'))
             );
           }),
@@ -12914,8 +12933,8 @@ Thank you.`;
         ),
         h('section',{className:'employee-info-section'},h('h4',null,'Address'),
           h('div',{className:'employee-info-grid'},
-            personnelInfoItem('Current Residential Address',r.current_address||r.address,true),
-            personnelInfoItem('Permanent Residential Address',r.permanent_same_as_current?(r.current_address||r.address):r.permanent_address,true)
+            personnelInfoItem('Current Residential Address',employeeFullAddress(r,'current')||'Address not entered',true),
+            personnelInfoItem('Permanent Residential Address',r.permanent_same_as_current?(employeeFullAddress(r,'current')||'Address not entered'):(employeeFullAddress(r,'permanent')||'Address not entered'),true)
           )
         )
       );
