@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.70';
-const CACHE = 'samara-erp-2.11.70-nursing-hr-dashboard-search';
+const APP_VERSION = '2.11.71';
+const CACHE = 'samara-erp-2.11.71-nursing-dashboard-table-navigation';
 const SHELL = [
   './',
   './index.html',

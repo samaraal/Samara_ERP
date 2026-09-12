@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.70';
+  const APP_VERSION = '2.11.71';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -11787,6 +11787,7 @@ Thank you.`;
     const [detailsTarget,setDetailsTarget]=React.useState(null),[detailsForm,setDetailsForm]=React.useState(null),[detailsDocs,setDetailsDocs]=React.useState([]),[detailsBusy,setDetailsBusy]=React.useState(false),[detailsMsg,setDetailsMsg]=React.useState('');
     const [detailsEditing,setDetailsEditing]=React.useState(false);
     const [employeeSearch,setEmployeeSearch]=React.useState('');
+    const [nursingDashboardFilter,setNursingDashboardFilter]=React.useState('all');
     const [employmentActions,setEmploymentActions]=React.useState([]);
     const [showEmploymentAction,setShowEmploymentAction]=React.useState(false);
     const employmentBlank=()=>({action_type:'Promotion',effective_date:'',new_department:'',new_designation:'',new_reporting_superior:'',new_erp_role:'',new_salary:'',salary_frequency:'Monthly',increment_amount:'',increment_percent:'',order_reference:'',remarks:''});
@@ -12571,9 +12572,18 @@ Thank you.`;
       r.current_district,r.permanent_district,r.current_taluk,r.permanent_taluk,
       r.previous_workplace
     ].filter(Boolean).join(' ').toLowerCase();
-    const effectiveRows=normalizedEmployeeSearch.length>=3
+    const searchedEmployeeRows=normalizedEmployeeSearch.length>=3
       ? departmentRows.filter(r=>employeeSearchText(r).includes(normalizedEmployeeSearch))
       : departmentRows;
+    const effectiveRows=departmentViewOnly&&nursingDashboardFilter!=='all'
+      ? searchedEmployeeRows.filter(r=>{
+          const designation=String(r.designation||'').toLowerCase();
+          if(nursingDashboardFilter==='managers')return designation.includes('nurse manager');
+          if(nursingDashboardFilter==='supervisors')return designation.includes('supervisor');
+          if(nursingDashboardFilter==='staff-nurses')return designation.includes('staff nurse');
+          return true;
+        })
+      : searchedEmployeeRows;
     const shortEmployeeSearch=normalizedEmployeeSearch.length>0&&normalizedEmployeeSearch.length<3;
     const departmentDashboard=!employeeDepartmentFilter?h('div',{className:'employee-department-dashboard'},
       h('button',{type:'button',className:'employee-dept-card employee-dept-all',onClick:()=>setEmployeeDepartmentFilter('__ALL__')},h('strong',null,'All Employees'),h('span',null,activeEmployeeRows.length)),
@@ -12592,11 +12602,11 @@ Thank you.`;
 
     const nursingStats=departmentViewOnly?h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:'12px',margin:'16px 0'}},
       [
-        ['Nursing Employees',activeEmployeeRows.length],
-        ['Nurse Managers',activeEmployeeRows.filter(r=>/nurse manager/i.test(String(r.designation||''))).length],
-        ['Supervisors',activeEmployeeRows.filter(r=>/supervisor/i.test(String(r.designation||''))).length],
-        ['Staff Nurses',activeEmployeeRows.filter(r=>/staff nurse/i.test(String(r.designation||''))).length]
-      ].map(([label,value])=>h('div',{key:label,className:'card',style:{padding:'16px',border:'1px solid #ead0de'}},h('small',null,label),h('div',{style:{fontSize:'28px',fontWeight:'800',color:'#990653',marginTop:'5px'}},value)))
+        ['all','Nursing Employees',activeEmployeeRows.length],
+        ['managers','Nurse Managers',activeEmployeeRows.filter(r=>/nurse manager/i.test(String(r.designation||''))).length],
+        ['supervisors','Supervisors',activeEmployeeRows.filter(r=>/supervisor/i.test(String(r.designation||''))).length],
+        ['staff-nurses','Staff Nurses',activeEmployeeRows.filter(r=>/staff nurse/i.test(String(r.designation||''))).length]
+      ].map(([key,label,value])=>h('button',{type:'button',key,className:'card',onClick:()=>setNursingDashboardFilter(key),style:{padding:'16px',border:nursingDashboardFilter===key?'2px solid #b0065b':'1px solid #ead0de',background:nursingDashboardFilter===key?'#fff0f7':'#fff',textAlign:'left',cursor:'pointer'}},h('small',null,label),h('div',{style:{fontSize:'28px',fontWeight:'800',color:'#990653',marginTop:'5px'}},value)))
     ):null;
     const nursingCards=departmentViewOnly?h(React.Fragment,null,
       nursingStats,
@@ -12605,24 +12615,24 @@ Thank you.`;
         h('input',{type:'search',value:employeeSearch,placeholder:'Enter any 3 letters/digits: name, mobile, designation, place or district',onChange:e=>setEmployeeSearch(e.target.value)}),
         h('small',{className:shortEmployeeSearch?'message error':'small-note'},shortEmployeeSearch?'Please enter at least 3 letters or digits.':'Search also includes Employee ID, address and previous workplace.')
       ),
-      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:'14px'}},
-        effectiveRows.map(r=>{
-          const place=[r.current_village_town||r.permanent_village_town||r.current_locality_area||r.permanent_locality_area,r.current_district||r.permanent_district].filter(Boolean).join(' · ');
-          return h('article',{key:r.id,className:'card employee-row-touch',role:'button',tabIndex:0,style:{padding:'18px',border:'1px solid #ead0de'},onClick:()=>openDetails(r),onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetails(r)}}},
-            h('div',{style:{display:'flex',justifyContent:'space-between',gap:'12px',alignItems:'flex-start'}},
-              h('div',null,h('h4',{style:{margin:'0 0 5px'}},formalName(r)),h('small',null,[r.employee_id,r.designation].filter(Boolean).join(' · '))),
-              h('span',{className:'badge'},'Active')
-            ),
-            h('div',{className:'employee-info-grid',style:{marginTop:'14px'}},
-              h('div',{className:'employee-info-item'},h('small',null,'Mobile'),h('strong',null,r.mobile||'—')),
-              h('div',{className:'employee-info-item'},h('small',null,'Date of Joining'),h('strong',null,r.date_of_joining?formatDateIN(r.date_of_joining):'—')),
-              h('div',{className:'employee-info-item wide'},h('small',null,'Place / District'),h('strong',null,place||'—'))
-            ),
-            h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'14px'},onClick:e=>{e.stopPropagation();openDetails(r)}},'View Personnel File')
-          );
-        }),
-        effectiveRows.length===0?h('div',{className:'empty',style:{gridColumn:'1 / -1',padding:'24px'}},normalizedEmployeeSearch.length>=3?'No nursing employee matches this search.':'No active nursing employees found.'):null
-      )
+      h('div',{className:'table-wrap'},h('table',{className:'table'},
+        h('thead',null,h('tr',null,['S.No.','Employee Name','Employee ID','Mobile Number','Designation','Place / District','Action'].map(label=>h('th',{key:label},label)))),
+        h('tbody',null,
+          effectiveRows.map((r,index)=>{
+            const place=[r.current_village_town||r.permanent_village_town||r.current_locality_area||r.permanent_locality_area,r.current_district||r.permanent_district].filter(Boolean).join(' · ');
+            return h('tr',{key:r.id},
+              h('td',{'data-label':'S.No.'},index+1),
+              h('td',{'data-label':'Employee Name'},h('strong',null,formalName(r))),
+              h('td',{'data-label':'Employee ID'},r.employee_id||'—'),
+              h('td',{'data-label':'Mobile Number',style:{whiteSpace:'nowrap'}},r.mobile||'—'),
+              h('td',{'data-label':'Designation'},r.designation||'—'),
+              h('td',{'data-label':'Place / District'},place||'—'),
+              h('td',{'data-label':'Action'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openDetails(r)},'Personal Details'))
+            );
+          }),
+          effectiveRows.length===0?h('tr',null,h('td',{colSpan:7,className:'empty'},normalizedEmployeeSearch.length>=3?'No nursing employee matches this search.':'No employees are available in this dashboard category.')):null
+        )
+      ))
     ):null;
 
 
