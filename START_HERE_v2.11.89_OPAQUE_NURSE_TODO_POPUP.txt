@@ -1,0 +1,19 @@
+SAMARA CARE ERP v2.11.89 — OPAQUE NURSE TO-DO POP-UP
+
+REPLACE ONLY
+- app.js
+- styles.css
+- index.html
+- service-worker.js
+
+NO SQL CHANGE IS REQUIRED.
+
+CORRECTION
+- New To-Do window is now fully opaque.
+- Solid white form body with light Samara-pink header.
+- Darker blurred background overlay keeps the calendar from showing through.
+- Existing Nurse Handover voice workflow remains unchanged.
+
+AFTER UPLOAD
+Open ERP -> App Help / Repair -> Check for Updates.
+Confirm version 2.11.89.

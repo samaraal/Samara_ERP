@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.88';
-const CACHE = 'samara-erp-2.11.88-handover-voice-for-todo';
+const APP_VERSION = '2.11.89';
+const CACHE = 'samara-erp-2.11.89-opaque-nurse-todo-modal';
 const SHELL = [
   './',
   './index.html',
