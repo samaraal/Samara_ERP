@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.72';
+  const APP_VERSION = '2.11.73';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12639,14 +12639,14 @@ Thank you.`;
         h('tbody',null,
           effectiveRows.map((r,index)=>{
             const place=employeePlaceDistrict(r);
-            return h('tr',{key:r.id},
+            return h('tr',{key:r.id,className:'employee-row-touch',role:'button',tabIndex:0,title:'Tap anywhere to view Personal Details',onClick:()=>openDetails(r),onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetails(r)}}},
               h('td',{'data-label':'S.No.'},index+1),
               h('td',{'data-label':'Employee Name'},h('strong',null,formalName(r))),
               h('td',{'data-label':'Employee ID'},r.employee_id||'—'),
               h('td',{'data-label':'Mobile Number',style:{whiteSpace:'nowrap'}},r.mobile||'—'),
               h('td',{'data-label':'Designation'},r.designation||'—'),
               h('td',{'data-label':'Place / District'},place),
-              h('td',{'data-label':'Action'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openDetails(r)},'Personal Details'))
+              h('td',{'data-label':'Action'},h('button',{type:'button',className:'btn btn-secondary',onClick:e=>{e.stopPropagation();openDetails(r)}},'Personal Details'))
             );
           }),
           effectiveRows.length===0?h('tr',null,h('td',{colSpan:7,className:'empty'},normalizedEmployeeSearch.length>=3?'No nursing employee matches this search.':'No employees are available in this dashboard category.')):null

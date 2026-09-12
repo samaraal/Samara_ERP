@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.72';
-const CACHE = 'samara-erp-2.11.72-employee-address-display-fallback';
+const APP_VERSION = '2.11.73';
+const CACHE = 'samara-erp-2.11.73-employee-row-navigation';
 const SHELL = [
   './',
   './index.html',
