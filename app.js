@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.84';
+  const APP_VERSION = '2.11.85';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1512,7 +1512,7 @@ function initSamaraInaugurationInvitation(){
     Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&!NURSING_ENTRY_NAV.includes(item)),
     Manager:ALL_NAV.filter(item=>!["Director's Office",'System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
 
-    Nurse:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My Leave & Permission','Notifications'],
+    Nurse:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
     Accounts:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
     Kitchen:['Notifications','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission'],
@@ -1535,13 +1535,13 @@ function initSamaraInaugurationInvitation(){
   const allowedPagesForProfile=profile=>{
     if(isNursingManagerProfile(profile))return [
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','My Leave & Permission',
-      'Enquiries','Admissions','Patients','Discharge','Documents','My Quick Tasks','Clinical Alerts',
+      'Enquiries','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts',
       'Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
       'Patient Consumables','Stores','Food & Diet','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
     if(profile?.role==='Manager'&&employeeDepartment(profile)&&!pages.includes('Employees'))pages.push('Employees');
-    if(isNursingManagerProfile(profile)){ if(!pages.includes('My Quick Tasks'))pages.push('My Quick Tasks'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Employees'))pages.push('Employees'); }
+    if(isNursingManagerProfile(profile)){ if(!pages.includes('My To-Do List'))pages.push('My To-Do List'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Employees'))pages.push('Employees'); }
     return pages;
   };
   const CLINICAL_ROLES=['Nurse','Caregiver'];
@@ -1566,19 +1566,19 @@ function initSamaraInaugurationInvitation(){
     "Director's Office":"Director's Office",
     'My Profile':'My Profile',
     'My To-Do & Follow-up':'My To-Do & Follow-up',
-    'My Quick Tasks':'My Quick Tasks'
+    'My To-Do List':'My To-Do List'
   };
   const displayNavLabel=(item,role)=>CLINICAL_ROLES.includes(role)?(ROLE_LABELS[item]||item):item;
   const sectionsFor = (allowed,role) => {
     if(CLINICAL_ROLES.includes(role)){
       return [
-        {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My Quick Tasks','My Leave & Permission','Leave Approvals','Notifications'].filter(item=>allowed.includes(item))},
+        {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My To-Do List','My Leave & Permission','Leave Approvals','Notifications'].filter(item=>allowed.includes(item))},
         {title:'PHARMACY & STORES',items:['Patient Consumables','Stores'].filter(item=>allowed.includes(item))}
       ];
     }
-    if(role==='Manager'&&allowed.includes('My Quick Tasks')&&allowed.includes('Employees')&&!allowed.includes('Accounts Dashboard')){
+    if(role==='Manager'&&allowed.includes('My To-Do List')&&allowed.includes('Employees')&&!allowed.includes('Accounts Dashboard')){
       return [
-        {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','My Quick Tasks'].filter(item=>allowed.includes(item))},
+        {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','My To-Do List'].filter(item=>allowed.includes(item))},
         {title:'NURSING HR',items:['Employees','My Leave & Permission'].filter(item=>allowed.includes(item))},
         {title:'ADMISSION',items:['Enquiries','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},
         {title:'ROOMS & PACKAGES',items:['Rooms','Care Packages'].filter(item=>allowed.includes(item))},
@@ -6843,7 +6843,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='HR Dashboard'&&h(HRDashboard,{profile,onNavigate:setPage}),
           page==='Employees'&&h(Employees,{profile,onNavigate:setPage}),
           page==='My Profile'&&h(MyProfile,{profile,onProfileUpdate:setProfile}),
-          page==='My Quick Tasks'&&h(NursingManagerQuickTasks,{profile,onNavigate:setPage}),
+          page==='My To-Do List'&&h(NursePersonalTodoList,{profile}),
           page==="Director's Office"&&h(DirectorOfficeDashboard,{profile,onNavigate:setPage}),
           page==='My Leave & Permission'&&h(LeavePermission,{profile,mode:'mine'}),
           page==='Leave Approvals'&&h(LeavePermission,{profile,mode:'approvals'}),
@@ -7493,7 +7493,7 @@ Caring with Compassion. Living with Dignity.`;
     const [openSection,setOpenSection]=React.useState(activeSection);
     React.useEffect(()=>{const next=sections.find(section=>section.items.includes(page))?.title;if(next)setOpenSection(next)},[page]);
     const sectionIcon=title=>/OVERVIEW/.test(title)?'⌂':/HR/.test(title)?'♙':/ADMISSION/.test(title)?'♥':/ROOM/.test(title)?'▦':/PHARMACY|STORE/.test(title)?'♨':/FOOD/.test(title)?'₹':/CLINICAL/.test(title)?'✚':'⚙';
-    const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Stores'?'▥':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My Quick Tasks'?'✓':'›';
+    const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Stores'?'▥':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My To-Do List'?'✓':'›';
     React.useEffect(()=>{
       const onKey=e=>{if(e.key==='Escape')onClose()};
       document.addEventListener('keydown',onKey);
@@ -7545,7 +7545,7 @@ Caring with Compassion. Living with Dignity.`;
   }
 
   function NursingMobileQuickActions({profile,page,onNavigate}){
-    if(!CLINICAL_ROLES.includes(profile?.role))return null;
+    if(!CLINICAL_ROLES.includes(profile?.role)&&!isNursingManagerProfile(profile))return null;
     const actions=[
       ['Medicines','◐','Medication','Give / record'],
       ['Vital Signs','∿','Vitals','Enter observations'],
@@ -7553,7 +7553,7 @@ Caring with Compassion. Living with Dignity.`;
       ['Food & Diet','♨','Food & Beverages','Record intake'],
       ['Shift Tasks','☷','Tasks','Current shift']
     ];
-    if(isNursingManagerProfile(profile))actions.push(['My Quick Tasks','＋','Quick Tasks','Voice / personal']);
+    if(profile?.role==='Nurse'||isNursingManagerProfile(profile))actions.push(['My To-Do List','＋','To-Do','Voice / personal']);
     return h('section',{className:'nursing-mobile-quick-actions','aria-label':'Nursing quick actions'},
       actions.map(([target,icon,label,sub])=>h('button',{
         type:'button',
@@ -10453,6 +10453,76 @@ Thank you.`;
         ))):h('div',{className:'empty'},'No tasks in this view.')
       ),
       modal
+    );
+  }
+
+  function NursePersonalTodoList({profile}){
+    const pad=n=>String(n).padStart(2,'0');
+    const dateKey=value=>{if(!value)return '';const d=new Date(value);return Number.isNaN(d.getTime())?'':`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`};
+    const today=dateKey(new Date());
+    const [rows,setRows]=React.useState([]),[selected,setSelected]=React.useState(today),[month,setMonth]=React.useState(()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1)});
+    const [show,setShow]=React.useState(false),[editing,setEditing]=React.useState(null),[title,setTitle]=React.useState(''),[taskDate,setTaskDate]=React.useState(today),[taskTime,setTaskTime]=React.useState('');
+    const [busy,setBusy]=React.useState(false),[message,setMessage]=React.useState(''),[listening,setListening]=React.useState(false),[heard,setHeard]=React.useState('');
+    const recognitionRef=React.useRef(null),recorderRef=React.useRef(null),streamRef=React.useRef(null),chunksRef=React.useRef([]),langRef=React.useRef('ta-IN');
+    const allowed=profile?.role==='Nurse'||isNursingManagerProfile(profile);
+
+    async function load(){
+      if(!allowed)return;
+      const {data,error}=await client.from('nurse_personal_todos').select('*').order('scheduled_at',{ascending:true}).order('created_at',{ascending:true});
+      if(error)setMessage(error.message?.includes('nurse_personal_todos')?'Database setup is pending. Run 109_nurse_personal_todo.sql once.':(error.message||'Unable to load to-do list.'));
+      else{setRows(data||[]);setMessage('')}
+    }
+    React.useEffect(()=>{load();if(!allowed)return;const ch=client.channel(`nurse-personal-todos-${profile.id}`).on('postgres_changes',{event:'*',schema:'public',table:'nurse_personal_todos'},load).subscribe();return()=>client.removeChannel(ch)},[profile?.id]);
+    function stop(){try{recognitionRef.current?.stop?.()}catch(_){}try{if(recorderRef.current?.state!=='inactive')recorderRef.current.stop()}catch(_){}setListening(false)}
+    function openNew(){stop();setEditing(null);setTitle('');setTaskDate(selected);setTaskTime('');setHeard('');setMessage('');setShow(true)}
+    function openEdit(r){stop();setEditing(r);setTitle(r.title||'');setTaskDate(dateKey(r.scheduled_at||r.due_date)||selected);setTaskTime(r.scheduled_at?new Date(r.scheduled_at).toLocaleTimeString('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit'}):'');setHeard('');setShow(true)}
+    async function applyVoice(transcript,lang,audio){
+      setBusy(true);setMessage('Understanding your voice…');
+      try{
+        const {data:{session}}=await client.auth.getSession();if(!session)throw new Error('Please sign in again.');
+        let body,headers={'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey};
+        if(audio){body=new FormData();body.append('audio',audio,`nurse-todo.${audio.type.includes('mp4')?'m4a':'webm'}`);body.append('spoken_language',lang);body.append('current_form_type','Task');body.append('current_task_kind','General Task');body.append('now_iso',new Date().toISOString());body.append('timezone','Asia/Kolkata')}
+        else{headers['Content-Type']='application/json';body=JSON.stringify({transcript,spoken_language:lang,current_form_type:'Task',current_task_kind:'General Task',now_iso:new Date().toISOString(),timezone:'Asia/Kolkata'})}
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{method:'POST',headers,body});
+        const result=await response.json().catch(()=>({error:'Unable to read voice response'}));if(!response.ok||result.error)throw new Error(result.error||'Unable to understand voice.');
+        const fields=result.fields||{};setHeard(result.transcript||transcript||'');setTitle(fields.title||result.transcript||transcript||'');
+        const voiceDate=fields.scheduled_at?String(fields.scheduled_at).slice(0,10):fields.due_date;if(voiceDate)setTaskDate(voiceDate);
+        if(fields.scheduled_at&&String(fields.scheduled_at).includes('T'))setTaskTime(String(fields.scheduled_at).slice(11,16));
+        setMessage('✓ Captured. Please check and tap Save.');
+      }catch(error){setMessage(error.message||'Unable to process voice.')}finally{setBusy(false)}
+    }
+    async function startRecording(lang){
+      try{
+        const stream=await navigator.mediaDevices.getUserMedia({audio:true});streamRef.current=stream;chunksRef.current=[];langRef.current=lang;
+        const options=['audio/mp4','audio/webm;codecs=opus','audio/webm'].find(x=>MediaRecorder.isTypeSupported?.(x));const rec=options?new MediaRecorder(stream,{mimeType:options}):new MediaRecorder(stream);recorderRef.current=rec;
+        rec.ondataavailable=e=>{if(e.data?.size)chunksRef.current.push(e.data)};rec.onstop=()=>{const blob=new Blob(chunksRef.current,{type:rec.mimeType||'audio/webm'});stream.getTracks().forEach(t=>t.stop());streamRef.current=null;recorderRef.current=null;setListening(false);if(blob.size>1000)applyVoice('',langRef.current,blob);else setMessage('No speech was captured. Please try again.')};rec.start();setListening(true);setMessage('🎤 Speak naturally, then tap Stop.');
+      }catch(error){setMessage(error?.name==='NotAllowedError'?'Please allow microphone access.':(error.message||'Unable to start microphone.'))}
+    }
+    function startVoice(lang){
+      stop();setHeard('');
+      const mobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)||window.matchMedia?.('(pointer:coarse)').matches;
+      if(mobile&&navigator.mediaDevices?.getUserMedia&&window.MediaRecorder)return startRecording(lang);
+      const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SpeechRecognition)return setMessage('Voice recognition is unavailable in this browser.');
+      const rec=new SpeechRecognition();recognitionRef.current=rec;rec.lang=lang;rec.interimResults=true;let finalText='';rec.onstart=()=>{setListening(true);setMessage('🎤 Speak naturally…')};rec.onresult=e=>{let interim='';for(let i=e.resultIndex;i<e.results.length;i++){const text=e.results[i][0]?.transcript||'';if(e.results[i].isFinal)finalText+=`${text} `;else interim+=text}setHeard((finalText||interim).trim())};rec.onerror=e=>setMessage(`Voice stopped${e.error?`: ${e.error}`:''}. Please try again.`);rec.onend=()=>{setListening(false);recognitionRef.current=null;const text=finalText.trim();if(text)applyVoice(text,lang);else setMessage('No speech was captured. Please try again.')};rec.start();
+    }
+    async function save(e){
+      e.preventDefault();if(!title.trim()||!taskDate)return setMessage('Please enter the to-do and date.');setBusy(true);
+      const {data:{session}}=await client.auth.getSession();const scheduled=taskTime?new Date(`${taskDate}T${taskTime}:00+05:30`).toISOString():null;
+      const payload={owner_auth_id:session?.user?.id,owner_profile_id:profile.id,title:title.trim(),due_date:taskTime?null:taskDate,scheduled_at:scheduled,updated_at:new Date().toISOString()};
+      const result=editing?await client.from('nurse_personal_todos').update(payload).eq('id',editing.id):await client.from('nurse_personal_todos').insert({...payload,status:'Pending'});setBusy(false);
+      if(result.error)return setMessage(result.error.message||'Unable to save.');setSelected(taskDate);setShow(false);setMessage('✓ To-do saved.');await load();
+    }
+    async function complete(r){const {error}=await client.from('nurse_personal_todos').update({status:r.status==='Completed'?'Pending':'Completed',completed_at:r.status==='Completed'?null:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',r.id);if(error)setMessage(error.message);else load()}
+    async function remove(r){if(!window.confirm('Delete this personal to-do?'))return;const {error}=await client.from('nurse_personal_todos').delete().eq('id',r.id);if(error)setMessage(error.message);else load()}
+    function calendar(){const y=month.getFullYear(),m=month.getMonth(),lead=new Date(y,m,1).getDay(),days=new Date(y,m+1,0).getDate(),counts={};rows.forEach(r=>{const key=dateKey(r.scheduled_at||r.due_date);if(key)counts[key]=(counts[key]||0)+1});const cells=[...Array(lead).fill(null),...Array.from({length:days},(_,i)=>i+1)];return h('div',{className:'nurse-todo-calendar'},h('div',{className:'nurse-todo-calendar-head'},h('button',{type:'button',onClick:()=>setMonth(new Date(y,m-1,1))},'‹'),h('strong',null,month.toLocaleDateString('en-IN',{month:'long',year:'numeric'})),h('button',{type:'button',onClick:()=>setMonth(new Date(y,m+1,1))},'›')),h('div',{className:'nurse-todo-week'},['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>h('span',{key:x},x))),h('div',{className:'nurse-todo-days'},cells.map((day,i)=>{if(!day)return h('span',{key:`blank-${i}`});const key=`${y}-${pad(m+1)}-${pad(day)}`;return h('button',{type:'button',key,className:`${key===selected?'selected ':''}${key===today?'today':''}`,onClick:()=>setSelected(key)},h('span',null,day),counts[key]?h('small',null,counts[key]):null)})))}
+    if(!allowed)return h(Section,{title:'My To-Do List'},h('div',{className:'empty'},'Available only to nurses.'));
+    const dayRows=rows.filter(r=>dateKey(r.scheduled_at||r.due_date)===selected);
+    return h('div',{className:'nurse-personal-todos'},
+      h('div',{className:'shift-summary'},h('div',null,h('strong',null,'My To-Do List'),h('span',null,'Your private personal reminders')),h('button',{type:'button',className:'btn btn-primary',onClick:openNew},'＋ Add To-Do')),
+      h(Section,{title:'Calendar',subtitle:'Tap a date to view its list'},calendar()),
+      message&&!show?h('div',{className:`message ${message.startsWith('✓')?'success':'error'}`},message):null,
+      h(Section,{title:`To-Do — ${formatDateIN(new Date(`${selected}T00:00:00`))}`,subtitle:`${dayRows.length} item${dayRows.length===1?'':'s'} for this day`},dayRows.length?h('div',{className:'nurse-todo-list'},dayRows.map((r,i)=>h('div',{className:`nurse-todo-row ${r.status==='Completed'?'completed':''}`,key:r.id},h('span',{className:'nurse-todo-number'},`${i+1}.`),h('button',{type:'button',className:'nurse-todo-check',onClick:()=>complete(r),'aria-label':r.status==='Completed'?'Mark pending':'Mark completed'},r.status==='Completed'?'✓':'○'),h('div',{className:'nurse-todo-copy'},h('strong',null,r.title),h('small',null,r.scheduled_at?new Date(r.scheduled_at).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:true}):'Any time')),h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(r)},'Edit'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>remove(r)},'Delete'))))):h('div',{className:'empty'},'No to-do items for this day.'),h('button',{type:'button',className:'btn btn-primary nurse-todo-add-bottom',onClick:openNew},'＋ Add To-Do')),
+      show?h('div',{className:'modal-backdrop'},h('form',{className:'modal-card nurse-todo-modal',onSubmit:save},h('div',{className:'panel-head'},h('div',null,h('h3',null,editing?'Update To-Do':'New To-Do'),h('small',null,'Speak Tamil or English, or type')),h('button',{type:'button',className:'close',onClick:()=>{stop();setShow(false)}},'×')),h('div',{className:'nurse-todo-voice'},listening?h('button',{type:'button',className:'btn btn-danger',onClick:stop},'■ Stop Recording'):h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>startVoice('ta-IN')},'🎤 Speak Tamil'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>startVoice('en-IN')},'🎤 Speak English')),heard?h('div',{className:'nurse-todo-heard'},h('small',null,'Heard'),h('strong',null,heard)):null),h('div',{className:'modal-grid'},h('div',{className:'field span-2'},h('label',null,'What to do? *'),h('input',{required:true,value:title,onChange:e=>setTitle(e.target.value),placeholder:'Your reminder'})),h('div',{className:'field'},h('label',null,'Date'),h(StrictDateInput,{value:taskDate,onChange:e=>setTaskDate(e.target.value)})),h('div',{className:'field'},h('label',null,'Time (optional)'),h('input',{type:'time',value:taskTime,onChange:e=>setTaskTime(e.target.value)}))),message?h('div',{className:'message'},message):null,h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{stop();setShow(false)}},'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save')))):null
     );
   }
 

@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.84';
-const CACHE = 'samara-erp-2.11.84-centered-desktop-login-title';
+const APP_VERSION = '2.11.85';
+const CACHE = 'samara-erp-2.11.85-nurse-personal-todo';
 const SHELL = [
   './',
   './index.html',

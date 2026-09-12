@@ -1,0 +1,26 @@
+SAMARA CARE ERP v2.11.85 — NURSE PERSONAL TO-DO LIST
+
+RUN ONCE IN SUPABASE SQL EDITOR
+1. Open 109_nurse_personal_todo.sql.
+2. Copy the complete contents into a new SQL query.
+3. Click Run.
+4. Save the SQL query using Ctrl+S and name it: 109 Nurse Personal To-Do.
+
+THEN REPLACE ON GITHUB
+- app.js
+- styles.css
+- index.html
+- service-worker.js
+
+WHAT NURSES WILL SEE
+- Menu / mobile quick actions: My To-Do List.
+- Elegant monthly calendar.
+- Speak Tamil or Speak English.
+- One simple reminder, date and optional time; no category.
+- Each selected day's entries automatically numbered 1, 2, 3...
+- Complete, reopen, edit or delete an item.
+- Every nurse sees only their own private personal list.
+
+AFTER UPLOAD
+Open ERP -> App Help / Repair -> Check for Updates.
+Confirm version 2.11.85.
