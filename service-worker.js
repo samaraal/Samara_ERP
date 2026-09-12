@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.69';
-const CACHE = 'samara-erp-2.11.69-hr-department-access-control';
+const APP_VERSION = '2.11.70';
+const CACHE = 'samara-erp-2.11.70-nursing-hr-dashboard-search';
 const SHELL = [
   './',
   './index.html',
