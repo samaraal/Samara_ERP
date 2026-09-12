@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.64';
+  const APP_VERSION = '2.11.65';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -25052,6 +25052,7 @@ Please access the Samara Family Portal for detailed account information.`;
     const storeController=authority.controller,nurse=profile?.role==='Nurse'&&!isNursingManagerProfile(profile);
     const fallbackItems=['Adult Diapers','Gloves','Syringes','Dressing Materials','PPE','Feeding Tubes','Catheters','Oxygen Consumables','Underpads','Cotton / Gauze','Other Consumables'];
     const actorName=formalName(profile)||profile?.full_name||profile?.login_id||profile?.role||'Staff';
+    const notify=(type,text)=>showSamaraActionToast(type,type==='success'?'Consumables updated':'Consumables action failed',text);
     const patientLabel=id=>{const p=patients.find(x=>x.id===id);return p?[formalName(p),p.patient_id&&`(${p.patient_id})`,p.room_no&&`Room ${p.room_no}${p.bed_no?`/${p.bed_no}`:''}`].filter(Boolean).join(' · '):'—'};
     const stockFor=r=>stock.find(x=>x.item_id===r.store_item_id)||stock.find(x=>String(x.item_name).toLowerCase()===String(r.item_name).toLowerCase());
     const stageStyle=status=>({display:'inline-block',padding:'5px 9px',borderRadius:'999px',fontWeight:800,fontSize:'12px',background:status==='Received'?'#e7f6ef':status==='Rejected'||status==='Receipt Discrepancy'?'#fdebec':status==='Handed Over'?'#eaf2ff':'#fff4dc',color:'#5d3146'});

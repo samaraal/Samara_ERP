@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.64';
-const CACHE = 'samara-erp-2.11.64-report-sections-vertical';
+const APP_VERSION = '2.11.65';
+const CACHE = 'samara-erp-2.11.65-stores-indent-notification-fix';
 const SHELL = [
   './',
   './index.html',
