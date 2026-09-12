@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.82';
-const CACHE = 'samara-erp-2.11.82-full-magenta-gradient-login';
+const APP_VERSION = '2.11.83';
+const CACHE = 'samara-erp-2.11.83-compact-samara-erp-login';
 const SHELL = [
   './',
   './index.html',
