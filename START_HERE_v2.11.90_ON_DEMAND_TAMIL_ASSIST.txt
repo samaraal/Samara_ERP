@@ -1,0 +1,43 @@
+SAMARA CARE ERP v2.11.90 — OPTIONAL TAMIL UNDERSTANDING AID
+
+1. RUN ONCE IN SUPABASE SQL EDITOR
+- Open 110_staff_tamil_translation.sql.
+- Copy the complete contents and click Run.
+- Press Ctrl+S and save it as: 110 Staff Tamil Translation.
+
+2. CREATE / DEPLOY EDGE FUNCTION
+- Supabase -> Edge Functions -> Create a new function.
+- Function name: staff-translate-tamil
+- Copy the complete code from:
+  supabase/functions/staff-translate-tamil/index.ts
+- Deploy the function.
+- Existing GEMINI_API_KEY and OPENAI_API_KEY secrets are reused. No new key is required.
+
+3. REPLACE ON GITHUB
+- app.js
+- styles.css
+- index.html
+- service-worker.js
+
+HOW IT WORKS
+- English remains the official clinical record.
+- Staff tap "தமிழில் பார்க்க" only when Tamil assistance is required.
+- Gemini translates first; OpenAI is the automatic fallback.
+- The Tamil translation is cached and reused instead of repeatedly spending AI quota.
+- Staff can tap "தமிழில் கேட்க" to hear it or "தமிழை மறைக்க" to close it.
+- Medicine names, doses, routes, measurements, dates and times are instructed to remain unchanged.
+
+INITIAL COVERAGE
+- Latest Shift Handover on the Nursing Dashboard.
+- Handover pending alerts.
+- Recent Handover patient summary and pending tasks.
+- General Handover priority worklist.
+- Patient special instructions and precautions.
+- Care-plan instructions and nursing remarks.
+- Incident description, immediate action and follow-up/closure instruction.
+- Medication special instructions.
+- Physiotherapy precautions and notes.
+
+AFTER UPLOAD
+Open ERP -> App Help / Repair -> Check for Updates.
+Confirm version 2.11.90.

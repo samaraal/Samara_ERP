@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.89';
-const CACHE = 'samara-erp-2.11.89-opaque-nurse-todo-modal';
+const APP_VERSION = '2.11.90';
+const CACHE = 'samara-erp-2.11.90-on-demand-tamil-assist';
 const SHELL = [
   './',
   './index.html',

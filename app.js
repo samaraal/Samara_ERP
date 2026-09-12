@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.89';
+  const APP_VERSION = '2.11.90';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6271,6 +6271,54 @@ Caring with Compassion. Living with Dignity.`;
     );
   }
 
+  function TamilAssist({text,context='Clinical Instruction'}){
+    const source=String(text||'').trim();
+    const [tamil,setTamil]=React.useState('');
+    const [open,setOpen]=React.useState(false);
+    const [loading,setLoading]=React.useState(false);
+    const [error,setError]=React.useState('');
+
+    React.useEffect(()=>{setTamil('');setOpen(false);setError('')},[source]);
+    async function sourceHash(value){
+      const bytes=new TextEncoder().encode(value);
+      const digest=await crypto.subtle.digest('SHA-256',bytes);
+      return [...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');
+    }
+    async function translate(){
+      if(!source||loading)return;
+      if(tamil){setOpen(true);return}
+      setLoading(true);setError('');
+      try{
+        const hash=await sourceHash(source);
+        const {data:cached}=await client.from('staff_tamil_translations').select('tamil_text').eq('source_hash',hash).maybeSingle();
+        if(cached?.tamil_text){setTamil(cached.tamil_text);setOpen(true);return}
+        const {data:{session}}=await client.auth.getSession();if(!session)throw new Error('Please sign in again.');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/staff-translate-tamil`,{method:'POST',headers:{'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify({text:source,context})});
+        const raw=await response.text();let result={};try{result=JSON.parse(raw)}catch(_){throw new Error('Translation service returned an unreadable response.')}
+        if(!response.ok||result.error)throw new Error(result.error||'Tamil translation could not be completed.');
+        const translated=String(result.tamil_text||'').trim();if(!translated)throw new Error('No Tamil translation was returned.');
+        setTamil(translated);setOpen(true);
+        await client.from('staff_tamil_translations').upsert({source_hash:hash,source_text:source,tamil_text:translated,clinical_context:context,created_by:session.user.id},{onConflict:'source_hash'});
+      }catch(err){setError(err.message||'Unable to translate now.')}finally{setLoading(false)}
+    }
+    function speak(){
+      if(!tamil||!window.speechSynthesis)return setError('Tamil audio is not available on this device.');
+      window.speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(tamil);utterance.lang='ta-IN';utterance.rate=.9;
+      const voices=window.speechSynthesis.getVoices?.()||[];const voice=voices.find(v=>String(v.lang||'').toLowerCase().startsWith('ta'));if(voice)utterance.voice=voice;
+      window.speechSynthesis.speak(utterance);
+    }
+    if(!source||source==='—')return null;
+    return h('div',{className:'staff-tamil-assist'},
+      !open?h('button',{type:'button',className:'staff-tamil-button',disabled:loading,onClick:translate},loading?'மொழிபெயர்க்கிறது…':'தமிழில் பார்க்க'):null,
+      open?h('div',{className:'staff-tamil-panel'},
+        h('div',{className:'staff-tamil-head'},h('strong',null,'தமிழ் மொழிபெயர்ப்பு'),h('div',{className:'actions'},h('button',{type:'button',onClick:speak},'🔊 தமிழில் கேட்க'),h('button',{type:'button',onClick:()=>{window.speechSynthesis?.cancel?.();setOpen(false)}},'தமிழை மறைக்க'))),
+        h('p',{lang:'ta'},tamil),
+        h('small',null,'புரிதலுக்காக மட்டும். மேலே உள்ள ஆங்கிலப் பதிவே அதிகாரப்பூர்வ மருத்துவப் பதிவு.')
+      ):null,
+      error?h('div',{className:'staff-tamil-error'},error,h('button',{type:'button',onClick:translate},'Try again')):null
+    );
+  }
+
   function GeneralHandoverWorklist({profile}){
     const [rows,setRows]=React.useState([]);
     const [loading,setLoading]=React.useState(true);
@@ -6331,6 +6379,7 @@ Caring with Compassion. Living with Dignity.`;
               h('span',{className:'general-handover-status'},row.status||'Pending')
             ),
             h('p',null,row.task_text),
+            h(TamilAssist,{text:row.task_text,context:'General Handover'}),
             h('small',null,`${row.shift||'Shift'} · ${fmt(row.created_at)}`)
           ),
           h('div',{className:'general-handover-actions'},
@@ -17936,7 +17985,8 @@ Please keep these login details confidential.`;
               admissionField('Special Nurse',selected.special_nurse_required?(selected.special_nurse_name||'Required'):'Not required'),
               selected.special_nurse_required?admissionField('Special Nurse Shift',selected.special_nurse_shift||selected.special_nurse_required_shift||'Not specified'):null,
               admissionField('Special Instructions',selected.special_instructions||'None'),
-              admissionField('Precautions',selected.special_precautions||selected.precautions||'None')
+              admissionField('Precautions',selected.special_precautions||selected.precautions||'None'),
+              h(TamilAssist,{text:[selected.special_instructions,selected.special_precautions||selected.precautions].filter(Boolean).join('\n'),context:'Patient Special Instructions and Precautions'})
             )
           ),
           tab==='Documents'&&h('div',{className:'section-card'},h('div',{className:'panel-head'},h('h4',null,'Patient Documents'),canEdit?h('button',{className:'btn btn-secondary',onClick:()=>printPatientIdCard(selected)},'Print Resident ID Card'):null),details.docs.length?details.docs.map(d=>h('div',{className:'timeline-item',key:d.id},h('strong',null,d.document_type||'Document'),h('span',null,d.document_name||d.file_name||'File'),h('button',{className:'btn btn-secondary',onClick:()=>openDoc(d)},'Open'))):sectionEmpty('No documents uploaded.')),
@@ -18014,9 +18064,9 @@ Please keep these login details confidential.`;
               )):sectionEmpty('No medication administration recorded today.')
             )
           ),
-          tab==='Nursing'&&h('div',{className:'section-card'},h('h4',null,'Master Care Plan'),details.care.length?details.care.map(c=>h('div',{className:'timeline-item',key:c.id},h('strong',null,c.care_type),h('span',null,`${c.shift} · ${c.frequency} · ${c.instruction||''}`))):sectionEmpty('No care orders.'),h('h4',{style:{marginTop:'18px'}},'Recent Care Records'),details.careLogs.length?details.careLogs.slice(0,30).map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.care_date)} · ${x.shift} · ${x.status}`),h('span',{className:'patient-file-detail'},` · ${x.remarks||'—'}`))):sectionEmpty('No care records.')),
+          tab==='Nursing'&&h('div',{className:'section-card'},h('h4',null,'Master Care Plan'),details.care.length?details.care.map(c=>h('div',{className:'timeline-item',key:c.id},h('strong',null,c.care_type),h('span',null,`${c.shift} · ${c.frequency} · ${c.instruction||''}`),h(TamilAssist,{text:c.instruction,context:'Care Plan Instruction'}))):sectionEmpty('No care orders.'),h('h4',{style:{marginTop:'18px'}},'Recent Care Records'),details.careLogs.length?details.careLogs.slice(0,30).map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.care_date)} · ${x.shift} · ${x.status}`),h('span',{className:'patient-file-detail'},` · ${x.remarks||'—'}`),h(TamilAssist,{text:x.remarks,context:'Nursing Care Remark'}))):sectionEmpty('No care records.')),
           tab==='Vitals'&&h('div',{className:'section-card'},h('h4',null,'Vital Signs History'),details.vitals.length?details.vitals.map(v=>h('div',{className:'timeline-item',key:v.id},h('strong',null,`${fmt(v.recorded_at)} · BP ${v.systolic||'—'}/${v.diastolic||'—'}`),h('span',{className:'patient-file-detail'},` · Pulse ${v.pulse||'—'} · SpO₂ ${v.spo2||'—'} · Temp ${v.temperature||'—'} · Sugar ${v.blood_sugar_type||'Not Taken'} ${v.blood_sugar||'—'} · ${v.alert_level||'Normal'}`))):sectionEmpty('No vital signs recorded.')),
-          tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${x.preferred_time||'—'} · ${x.precautions||''}`))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'))):sectionEmpty('No physiotherapy sessions.')),
+          tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${x.preferred_time||'—'} · ${x.precautions||''}`),h(TamilAssist,{text:x.precautions,context:'Physiotherapy Precaution'}))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'),h(TamilAssist,{text:x.notes,context:'Physiotherapy Note'}))):sectionEmpty('No physiotherapy sessions.')),
           tab==='Diet'&&h('div',{className:'section-card'},h('h4',null,`Diet Plan: ${selected.diet_plan||'Not recorded'}`),h('p',null,selected.feeding_instruction||'No special feeding instruction.'),h('h4',{style:{marginTop:'18px'}},'Food & Beverage Records'),details.meals.length?details.meals.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${x.meal_date||''} · ${x.meal_type} · ${x.consumption_status}`),h('span',{className:'patient-file-detail'},` · ${x.menu||'—'}${x.beverage_type?` · Beverage: ${x.beverage_type}${x.beverage_time?` at ${String(x.beverage_time).slice(0,5)}`:''}`:''}${x.remarks?` · ${x.remarks}`:''}`))):sectionEmpty('No food or beverage records.')),
           tab==='Daily Moments'&&h('div',{className:'daily-moments-wrap'},
             momentRecording&&h('div',{className:'daily-moment-recorder'},h('div',{className:'daily-moment-recorder-box'},h('video',{autoPlay:true,muted:true,playsInline:true,ref:el=>{if(el&&momentStreamRef.current&&el.srcObject!==momentStreamRef.current)el.srcObject=momentStreamRef.current}}),h('strong',null,`Recording ${momentRecordSeconds}/10 sec`),h('div',{className:'record-progress'},h('span',{style:{width:`${Math.min(100,momentRecordSeconds*10)}%`}})),h('button',{type:'button',className:'btn btn-danger',onClick:stopDailyMomentRecording},'Stop now'))),
@@ -20620,7 +20670,7 @@ function RoomsBeds({profile}){
           upcomingShiftCarePending.length>0&&h('div',{className:'clinical-work-row upcoming-summary'},h('span',null,'🕒'),h('div',null,h('strong',null,`${upcomingShiftCarePending.length} care task(s) scheduled for next shift`),h('small',null,'Shown as a compact summary; they become actionable when the next shift starts.')),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>dashboardNavigate(onNavigate,'Shift Tasks','Today’s Operational Focus',{source:'Main Dashboard'})},'Review')),
           handoverPending.slice(0,8).map((row,index)=>{const linked=state.patients.find(p=>p.id===row.patient_id);const roomBed=linked?`Room ${linked.room_no||'—'} · Bed ${linked.bed_no||'—'}`:'Room / Bed —';return h('div',{className:`clinical-work-row ${String(row.priority||'').toLowerCase()==='critical'?'urgent':''}`,key:`handover-pending-${row.id||index}`},
             h('span',null,'⇄'),
-            h('div',null,h('strong',null,`${patientName(row)} · ${roomBed}`),h('small',null,`${row.priority||'Routine'} · Handover pending: ${row.pending_tasks}${row.special_instructions?` · Instruction: ${row.special_instructions}`:''}`)),
+            h('div',null,h('strong',null,`${patientName(row)} · ${roomBed}`),h('small',null,`${row.priority||'Routine'} · Handover pending: ${row.pending_tasks}${row.special_instructions?` · Instruction: ${row.special_instructions}`:''}`),h(TamilAssist,{text:[`Handover pending: ${row.pending_tasks}`,row.special_instructions&&`Instruction: ${row.special_instructions}`].filter(Boolean).join('\n'),context:'Clinical Handover Alert'})),
             !oversightOnly?h('button',{className:'mini-link',onClick:()=>onNavigate('Shift Handover')},'Open'):h('b',null,row.priority||'Routine')
           )}),
           dischargeReady.slice(0,3).map(row=>h('div',{className:'clinical-work-row urgent',key:`discharge-${row.id}`},
@@ -20638,6 +20688,7 @@ function RoomsBeds({profile}){
             h('p',null,x.patient_summary||x.summary||'No patient summary.'),
             x.pending_tasks&&h('p',null,h('b',null,'Pending tasks: '),x.pending_tasks),
             x.special_instructions&&h('p',null,h('b',null,'Special instructions: '),x.special_instructions),
+            h(TamilAssist,{text:[x.patient_summary||x.summary,x.pending_tasks&&`Pending tasks: ${x.pending_tasks}`,x.special_instructions&&`Special instructions: ${x.special_instructions}`].filter(Boolean).join('\n'),context:'Patient Shift Handover'}),
             h('small',null,'Submitted handover')
           )}):h('div',{className:'clinical-empty'},'No shift handover has been submitted yet.'))
       )
@@ -21202,7 +21253,7 @@ function RoomsBeds({profile}){
       const eligibleTimes=parseTimes(order.scheduled_times).filter(time=>!doseWasBeforeAdmission(order,time));
       const allTodayDone=eligibleTimes.length>0&&!pendingTime;
       return [
-        patientLabel(order),medicineLabel(order),order.route||'—',order.frequency||'—',order.duration||'—',parseTimes(order.scheduled_times).map(medicationTimeLabel).join(', ')||'—',order.food_instruction||'—',order.special_instruction||order.special_instructions||'—',latestMar(order)?.status||'No MAR yet',
+        patientLabel(order),medicineLabel(order),order.route||'—',order.frequency||'—',order.duration||'—',parseTimes(order.scheduled_times).map(medicationTimeLabel).join(', ')||'—',order.food_instruction||'—',h('div',null,order.special_instruction||order.special_instructions||'—',h(TamilAssist,{text:order.special_instruction||order.special_instructions,context:'Medication Special Instruction'})),latestMar(order)?.status||'No MAR yet',
         h('button',{type:'button',className:`btn ${allTodayDone?'btn-secondary clinical-action-done':'btn-primary'}`,disabled:allTodayDone,onClick:()=>openMar(order,pendingTime)},allTodayDone?'Done Today ✓':'Administer')
       ];
     });
@@ -22411,7 +22462,10 @@ function ShiftHandover({profile,onNavigate}){
           formatDateIN(r.handover_date),
           r.patients?.full_name||'—',
           r.patients?`${r.patients.room_no||'—'}-${r.patients.bed_no||'—'}`:'—',
-          r.shift,r.priority,r.patient_summary||r.summary||'—',r.pending_tasks,r.profiles?.full_name||'—'
+          r.shift,r.priority,
+          h('div',null,r.patient_summary||r.summary||'—',h(TamilAssist,{text:r.patient_summary||r.summary,context:'Handover Patient Summary'})),
+          h('div',null,r.pending_tasks||'—',h(TamilAssist,{text:r.pending_tasks,context:'Handover Pending Tasks'})),
+          r.profiles?.full_name||'—'
         ])
       }),
       toast&&h('div',{className:`samara-toast ${toast.type}`},
@@ -22579,10 +22633,10 @@ function ShiftHandover({profile,onNavigate}){
       r.patients?`${r.patients.room_no||'—'}-${r.patients.bed_no||'—'}`:'—',
       r.incident_type,
       r.severity,
-      r.description,
-      r.immediate_action,
+      h('div',null,r.description,h(TamilAssist,{text:r.description,context:'Incident Description'})),
+      h('div',null,r.immediate_action,h(TamilAssist,{text:r.immediate_action,context:'Incident Immediate Action'})),
       h('span',{className:`badge incident-status-${String(r.status||'Open').toLowerCase().replace(/\s+/g,'-')}`},r.status||'Open'),
-      r.closure_note||'—',
+      h('div',null,r.closure_note||'—',h(TamilAssist,{text:r.closure_note,context:'Incident Follow-up Instruction'})),
       r.profiles?.full_name||'—',
       fmt(r.incident_at),
       canManage
