@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.80';
+  const APP_VERSION = '2.11.81';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7109,9 +7109,9 @@ Caring with Compassion. Living with Dignity.`;
         @media(max-width:760px){
           .login-v3-shell{padding:0!important;min-height:100dvh!important;background:#fff!important}
           .login-v3-frame{min-height:100dvh!important;display:flex!important;flex-direction:column!important;border:0!important;box-shadow:none!important}
-          .login-v3-hero{flex:0 0 auto!important;min-height:0!important;padding:10px 22px 12px!important;justify-content:flex-start!important;align-items:center!important;text-align:center!important;background:linear-gradient(180deg,#fff 0%,#fff3f8 62%,#f5c7da 100%)!important}
-          .login-v3-hero::before,.login-v3-hero::after{display:none!important}
-          .login-v3-hero .login-main-brand-logo{width:min(205px,65vw)!important;height:82px!important;max-height:82px!important;margin:0 auto 2px!important;object-fit:contain!important}
+          .login-v3-hero{flex:0 0 auto!important;min-height:0!important;padding:8px 22px 17px!important;justify-content:flex-start!important;align-items:center!important;text-align:center!important;background:linear-gradient(180deg,#fff 0%,#fff7fb 30%,#ed83b4 68%,#a91460 100%)!important}
+          .login-v3-hero::before,.login-v3-hero::after{display:block!important}
+          .login-v3-hero .login-main-brand-logo{width:min(350px,78vw)!important;height:135px!important;max-height:135px!important;margin:0 auto 0!important;object-fit:contain!important}
           .login-v3-hero .login-v3-kicker{margin:0 0 3px!important;font-size:11px!important;line-height:1.15!important;letter-spacing:.12em!important}
           .login-v3-hero h1{font-size:27px!important;line-height:1.05!important;margin:0!important}
           .login-v3-form{flex:1 1 auto!important;padding:16px 24px 10px!important;justify-content:flex-start!important}
