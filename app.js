@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.83';
+  const APP_VERSION = '2.11.84';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -724,6 +724,8 @@ function initSamaraInaugurationInvitation(){
       .login-v3-hero h1{
         color:#7a1247!important;
         text-shadow:none!important;
+        width:100%!important;
+        text-align:center!important;
       }
       .login-v3-hero .login-v3-description{
         color:#4b293d!important;
