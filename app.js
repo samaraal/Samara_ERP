@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.74';
+  const APP_VERSION = '2.11.75';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5949,6 +5949,47 @@ Caring with Compassion. Living with Dignity.`;
     );
   }
 
+  function Notifications({profile,onNavigate,engine}){
+    const [storeRequests,setStoreRequests]=React.useState([]),[patientsById,setPatientsById]=React.useState({}),[loading,setLoading]=React.useState(false),[message,setMessage]=React.useState('');
+    const nursingManager=profile?.role==='Manager'&&(isNursingManagerProfile(profile)||employeeDepartment(profile)==='Nursing');
+    async function loadNotifications(){
+      setLoading(true);setMessage('');
+      try{
+        const [indentResult,patientResult]=await Promise.all([
+          nursingManager?client.from('patient_consumable_indents').select('*').in('status',['Initiated','Approved','Partially Approved','Handed Over','Receipt Discrepancy']).order('created_at',{ascending:false}).limit(200):Promise.resolve({data:[],error:null}),
+          nursingManager?client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no').limit(500):Promise.resolve({data:[],error:null})
+        ]);
+        if(indentResult.error)throw indentResult.error;
+        const map={};(patientResult.data||[]).forEach(p=>{map[p.id]=p});
+        setPatientsById(map);setStoreRequests(indentResult.data||[]);
+        if(typeof engine?.refresh==='function')await engine.refresh();
+      }catch(error){setMessage(error.message||'Unable to refresh notifications.');}
+      finally{setLoading(false);}
+    }
+    React.useEffect(()=>{
+      loadNotifications();
+      const channel=nursingManager?client.channel('nursing-notifications-live').on('postgres_changes',{event:'*',schema:'public',table:'patient_consumable_indents'},loadNotifications).subscribe():null;
+      return()=>{if(channel)client.removeChannel(channel)};
+    },[profile?.id,nursingManager]);
+    const overdueClinical=(engine?.alerts||[]).filter(a=>{
+      if(Number(a.overdue_minutes||0)<30)return false;
+      return /medic|medicine|care/.test(`${a.alert_type||''} ${a.title||''} ${a.description||''}`.toLowerCase());
+    }).sort((a,b)=>Number(b.overdue_minutes||0)-Number(a.overdue_minutes||0));
+    const medicineAlerts=overdueClinical.filter(a=>/medic|medicine/.test(`${a.alert_type||''} ${a.title||''}`.toLowerCase()));
+    const careAlerts=overdueClinical.filter(a=>!medicineAlerts.includes(a));
+    const awaitingApproval=storeRequests.filter(r=>r.status==='Initiated'),awaitingHandover=storeRequests.filter(r=>['Approved','Partially Approved'].includes(r.status)),discrepancies=storeRequests.filter(r=>r.status==='Receipt Discrepancy');
+    const navigate=page=>{if(typeof onNavigate==='function')onNavigate(page)};
+    const metric=(label,value,page,tone)=>h('button',{type:'button',className:'card',onClick:()=>navigate(page),style:{padding:'17px',textAlign:'left',cursor:'pointer',border:`1px solid ${tone||'#ead0de'}`,background:'#fff'}},h('small',null,label),h('strong',{style:{display:'block',fontSize:'28px',color:'#a40855',marginTop:'6px'}},value),h('span',{style:{fontSize:'12px',color:'#725d68'}},'Tap to open'));
+    const patientName=row=>{const p=patientsById[row.patient_id];return p?[p.title,p.full_name].filter(Boolean).join(' '):(row.patient_name||'Patient')};
+    return h('div',{className:'card panel'},
+      h('div',{className:'panel-head'},h('div',null,h('h3',null,'Notifications'),h('small',null,nursingManager?'Pharmacy & Stores requests and 30-minute nursing escalations.':'Clinical items requiring attention.')),h('button',{type:'button',className:'btn btn-primary',disabled:loading,onClick:loadNotifications},loading?'Refreshing…':'↻ Refresh')),
+      message?h('div',{className:'message error'},message):null,
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(165px,1fr))',gap:'12px',marginBottom:'18px'}},nursingManager?metric('Store Requests',awaitingApproval.length,'Patient Consumables'):null,nursingManager?metric('Awaiting Handover',awaitingHandover.length,'Patient Consumables'):null,metric('Medication > 30 min',medicineAlerts.length,'Clinical Escalations','#efb6b6'),metric('Care > 30 min',careAlerts.length,'Clinical Escalations','#efcf9c'),nursingManager?metric('Store Discrepancies',discrepancies.length,'Patient Consumables','#efb6b6'):null),
+      nursingManager?h('section',{style:{marginBottom:'20px'}},h('h4',null,'Pharmacy & Stores Requests'),h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Item','Quantity','Status','Requested'].map(x=>h('th',{key:x},x)))),h('tbody',null,storeRequests.map(r=>h('tr',{key:r.id,role:'button',tabIndex:0,onClick:()=>navigate('Patient Consumables'),style:{cursor:'pointer',touchAction:'manipulation'}},h('td',null,patientName(r)),h('td',null,r.item_name||'Consumable'),h('td',null,`${r.requested_qty||'—'} ${r.unit||''}`),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)))),storeRequests.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No open Pharmacy & Stores requests.')):null)))):null,
+      h('section',null,h('h4',null,'Medication & Care Escalations — Over 30 Minutes'),h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Room','Type','Details','Overdue'].map(x=>h('th',{key:x},x)))),h('tbody',null,overdueClinical.map(a=>h('tr',{key:a.key||`${a.alert_type}-${a.source_id}`,role:'button',tabIndex:0,onClick:()=>navigate('Clinical Escalations'),style:{cursor:'pointer',touchAction:'manipulation'}},h('td',null,a.patient_name||'Patient'),h('td',null,a.room_label||'—'),h('td',null,/medic|medicine/.test(`${a.alert_type||''} ${a.title||''}`.toLowerCase())?'Medication':'Care'),h('td',null,a.description||a.title||'Pending clinical action'),h('td',null,englishOverdueLabel(a.overdue_minutes)))),overdueClinical.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No medication or care escalation is currently overdue by 30 minutes.')):null))))
+    );
+  }
+
   function ensureSmartHoverStyles(){
     if(document.getElementById('samara-smart-hover-styles'))return;
     const style=document.createElement('style');style.id='samara-smart-hover-styles';
@@ -6752,7 +6793,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Reports'&&h(Reports,{profile,onNavigate:setPage}),
           page==='Intelligent Reports'&&h(IntelligentReports,{profile}),
           page==='Medication Errors'&&h(MedicationErrors,{profile,onNavigate:setPage}),
-          page==='Notifications'&&h(Notifications,{profile}),
+          page==='Notifications'&&h(Notifications,{profile,onNavigate:setPage,engine:alertEngine}),
           page==='Audit Trail'&&h(AuditTrail),
           page==='Alert Settings'&&h(AlertSettings,{profile,engine:alertEngine}),
           ['Dashboard','HR Dashboard','Clinical Dashboard','Accounts Dashboard',"Director's Office",'Food & Diet'].includes(page)&&h(GeneralHandoverWorklist,{profile}),
@@ -7007,7 +7048,8 @@ Caring with Compassion. Living with Dignity.`;
             )
           ),
           h('div',{className:'login-v3-version'},`Samara Care ERP ${APP_VERSION}`)
-        )
+        ),
+        h('a',{href:'tel:+919176735577',style:{display:'block',gridColumn:'1 / -1',marginTop:'14px',textAlign:'center',color:'#7a1247',fontWeight:'800',textDecoration:'none'}},'Developed by Boomi R - 9176735577')
       )
     );
   }

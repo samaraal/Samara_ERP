@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.74';
-const CACHE = 'samara-erp-2.11.74-mobile-nursing-row-navigation';
+const APP_VERSION = '2.11.75';
+const CACHE = 'samara-erp-2.11.75-notifications-and-login-credit';
 const SHELL = [
   './',
   './index.html',
