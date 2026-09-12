@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.76';
+  const APP_VERSION = '2.11.77';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1529,7 +1529,14 @@ function initSamaraInaugurationInvitation(){
     const department=clean(profile?.department);
     return !designation && department==='nursing' && clean(profile?.role)==='manager';
   };
+  const homePageForProfile=profile=>isNursingManagerProfile(profile)?'Clinical Dashboard':(ROLE_HOME[profile?.role]||'Dashboard');
   const allowedPagesForProfile=profile=>{
+    if(isNursingManagerProfile(profile))return [
+      'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','My Leave & Permission',
+      'Enquiries','Admissions','Patients','Discharge','Documents','My Quick Tasks','Clinical Alerts',
+      'Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
+      'Patient Consumables','Stores','Food & Diet','My Profile'
+    ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
     if(profile?.role==='Manager'&&employeeDepartment(profile)&&!pages.includes('Employees'))pages.push('Employees');
     if(isNursingManagerProfile(profile)){ if(!pages.includes('My Quick Tasks'))pages.push('My Quick Tasks'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Employees'))pages.push('Employees'); }
@@ -1566,6 +1573,18 @@ function initSamaraInaugurationInvitation(){
         {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My Quick Tasks','My Leave & Permission','Leave Approvals','Notifications'].filter(item=>allowed.includes(item))},
         {title:'PHARMACY & STORES',items:['Patient Consumables','Stores'].filter(item=>allowed.includes(item))}
       ];
+    }
+    if(role==='Manager'&&allowed.includes('My Quick Tasks')&&allowed.includes('Employees')&&!allowed.includes('Accounts Dashboard')){
+      return [
+        {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','My Quick Tasks'].filter(item=>allowed.includes(item))},
+        {title:'NURSING HR',items:['Employees','My Leave & Permission'].filter(item=>allowed.includes(item))},
+        {title:'ADMISSION',items:['Enquiries','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},
+        {title:'ROOMS & PACKAGES',items:['Rooms','Care Packages'].filter(item=>allowed.includes(item))},
+        {title:'PHARMACY & STORES',items:['Patient Consumables','Stores'].filter(item=>allowed.includes(item))},
+        {title:'FOOD & DIET',items:['Food & Diet'].filter(item=>allowed.includes(item))},
+        {title:'CLINICAL REVIEW',items:['Reports','Intelligent Reports','Medication Errors','Recovery Timeline'].filter(item=>allowed.includes(item))},
+        {title:'MY ACCOUNT',items:['My Profile'].filter(item=>allowed.includes(item))}
+      ].filter(section=>section.items.length);
     }
     return NAV_SECTIONS.map(section=>({...section,items:section.items.filter(item=>allowed.includes(item))})).filter(section=>section.items.length);
   };
@@ -6701,11 +6720,11 @@ Caring with Compassion. Living with Dignity.`;
           try{pushPage=new URLSearchParams(window.location.search).get('push_page')||''}catch(_){}
           const pageToRestore=(pushPage&&allowedPages.includes(pushPage))
             ?pushPage
-            :(allowedPages.includes(savedPage)?savedPage:(ROLE_HOME[data.role]||allowedPages[0]||'Notifications'));
+            :(allowedPages.includes(savedPage)?savedPage:(homePageForProfile(data)||allowedPages[0]||'Notifications'));
           setPage(pageToRestore);
           if(pushPage){try{history.replaceState(null,'',window.location.pathname+window.location.hash)}catch(_){}}
         }else if(!allowedPages.includes(currentPageRef.current)){
-          setPage(ROLE_HOME[data.role]||allowedPages[0]||'Notifications');
+          setPage(homePageForProfile(data)||allowedPages[0]||'Notifications');
         }
 
         client.from('profiles').update({last_sign_in_at:new Date().toISOString()}).eq('id',data.id).then(()=>{});
@@ -6761,7 +6780,7 @@ Caring with Compassion. Living with Dignity.`;
     if(profile.must_change_password) return h(FirstLoginPasswordChange,{profile,onComplete:()=>setProfile({...profile,must_change_password:false})});
 
     const allowed = allowedPagesForProfile(profile);
-    if(!allowed.includes(page)) setTimeout(()=>setPage(ROLE_HOME[profile.role]||allowed[0]||'Notifications'),0);
+    if(!allowed.includes(page)) setTimeout(()=>setPage(homePageForProfile(profile)||allowed[0]||'Notifications'),0);
     return h('div',{className:`app mobile-role-${String(profile.role||'user').toLowerCase().replace(/[^a-z0-9]+/g,'-')}`},
       h(GlobalSmartHover),
       h(GlobalFormRequirementManager,{page,profile}),
@@ -6773,7 +6792,7 @@ Caring with Compassion. Living with Dignity.`;
             h(BrandLogo,{className:'mobile-header-brand-logo'}),
             h('strong',null,'Samara Care ERP')
           ),
-          h('button',{type:'button',className:'mobile-home-button','aria-label':'Go to dashboard',title:'Dashboard',onClick:()=>setPage(ROLE_HOME[profile.role]||allowed[0])},'⌂'),
+          h('button',{type:'button',className:'mobile-home-button','aria-label':'Go to dashboard',title:'Dashboard',onClick:()=>setPage(homePageForProfile(profile)||allowed[0])},'⌂'),
           h('h2',null,displayNavLabel(page,profile.role)),
           h(GlobalSearch,{onNavigate:setPage,profile}),
           h(StoreIndentAlerts,{profile,onNavigate:setPage}),
@@ -15695,6 +15714,7 @@ Please keep these login details confidential.`;
     const patientAddress=(source={})=>composePatientAddressGlobal(source);
     const canEdit=['Admin','Manager'].includes(profile?.role);
     const clinicalView=CLINICAL_ROLES.includes(profile?.role);
+    const nursingManagerView=isNursingManagerProfile(profile);
     const [rows,setRows]=React.useState([]),[selected,setSelected]=React.useState(null),[details,setDetails]=React.useState(null),[photoUrl,setPhotoUrl]=React.useState(''),[tab,setTab]=React.useState('Overview');
     const [patientSearch,setPatientSearch]=React.useState('');
     const [districtFilter,setDistrictFilter]=React.useState('All');
@@ -16961,7 +16981,7 @@ Please keep these login details confidential.`;
 
     function duplicateCount(row){return Math.max(0,duplicateMatches(row).length-1)}
     function billingSummary(list){return (list||[]).reduce((a,x)=>{const n=Number(x.amount||0);if(x.transaction_type==='Charge')a.charges+=n;else if(x.transaction_type==='Payment')a.payments+=n;else if(x.transaction_type==='Discount')a.discounts+=n;else if(x.transaction_type==='Refund')a.refunds+=n;return a},{charges:0,payments:0,discounts:0,refunds:0})}
-    function tabButton(name,count){return h('button',{type:'button',className:`patient-tab ${tab===name?'active':''}`,onClick:()=>setTab(name)},name,count!=null?h('span',{className:'tab-count'},count):null)}
+    function tabButton(name,count,label=name){return h('button',{type:'button',className:`patient-tab ${tab===name?'active':''}`,onClick:()=>setTab(name)},label,count!=null?h('span',{className:'tab-count'},count):null)}
     function sectionEmpty(text){return h('p',{className:'small-note'},text)}
     const duplicateRows=rows.filter(r=>duplicateCount(r)>0);
     const activeRows=rows.filter(r=>r.is_active!==false);
@@ -17673,7 +17693,7 @@ Please keep these login details confidential.`;
           h('button',{className:'btn btn-secondary',onClick:()=>setTab('Admission Details')},'Admission Details'),
           canEdit?h('button',{className:'btn btn-secondary',onClick:()=>setShowFamilyDetails(true)},'Family Details'):null,
           canEdit?h('button',{className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Patient'):h('span',{className:'pill'},'View only'),h('button',{className:'close',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false)}},'×'))),
-        h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Admission Details'),tabButton('Documents',details.docs.length),tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),tabButton('Daily Moments',(details.dailyMoments||[]).length),!clinicalView?tabButton('Billing',details.billing.length):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
+        h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Admission Details'),tabButton('Documents',details.docs.length),tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),tabButton('Daily Moments',(details.dailyMoments||[]).length),!clinicalView?tabButton('Billing',details.billing.length,nursingManagerView?'Pending Dues':'Billing'):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
         h('div',{className:'patient-tab-content'},
           tab==='Overview'&&h('div',{className:'tabs-grid'},
             h('div',{className:'section-card'},
@@ -17873,10 +17893,23 @@ Please keep these login details confidential.`;
                 :sectionEmpty('No Daily Moments uploaded for this resident yet.')
             )
           ),
-          !clinicalView&&tab==='Billing'&&(()=>{const b=billingSummary(details.billing),due=b.charges-b.payments-b.discounts+b.refunds;return h('div',{className:'patient-billing-tab'},
+          !clinicalView&&tab==='Billing'&&(()=>{const b=billingSummary(details.billing),due=b.charges-b.payments-b.discounts+b.refunds;const bed=roomBeds.find(row=>String(row.id)===String(selected.room_bed_id||'')||(String(row.room_no)===String(selected.room_no||'')&&String(row.bed_no)===String(selected.bed_no||'')));const dailyBasis=/daily|no package/i.test(String(selected.billing_basis||selected.billing_package||''))||(!selected.billing_package&&!selected.package_id);const packageEnd=selected.package_end_date||selected.package_expiry_date||'';const packageExpired=packageEnd&&new Date(`${String(packageEnd).slice(0,10)}T23:59:59`).getTime()<Date.now();return h('div',{className:'patient-billing-tab'},
+            nursingManagerView?h('div',{className:'section-card'},
+              h('div',{className:'panel-head'},h('div',null,h('h4',null,'Patient Pending Dues — View Only'),h('small',null,'Care package, accommodation tariff and current outstanding balance.')),h('span',{className:'badge'},'NO PAYMENT ACTIONS')),
+              h('div',{className:'patient-detail-fields'},
+                patientDetailField('Patient',formalName(selected)),
+                patientDetailField('Resident ID',selected.patient_id||selected.patient_code),
+                patientDetailField('Room / Bed',[selected.room_no,selected.bed_no].filter(Boolean).join(' / ')),
+                patientDetailField('Billing Basis',dailyBasis?'Daily Basis':'Care Package'),
+                patientDetailField('Current Package',selected.billing_package||'No Package / Daily Billing'),
+                patientDetailField('Package Validity',packageEnd?`${formatDateIN(packageEnd)} · ${packageExpired?'Expired':'Active'}`:(dailyBasis?'Daily billing continues':'Expiry date not entered')),
+                patientDetailField('Room Tariff',bed?.room_daily_rate!=null?`₹${Number(bed.room_daily_rate).toLocaleString('en-IN')} per day`:'Not available'),
+                patientDetailField('Nursing Tariff',bed?.nursing_daily_rate!=null?`₹${Number(bed.nursing_daily_rate).toLocaleString('en-IN')} per day`:'Not available')
+              )
+            ):null,
             h('div',{className:'patient-billing-summary'},[['Charges',b.charges],['Payments',b.payments],['Discounts',b.discounts],['Outstanding',due]].map(([k,v])=>h('div',{className:'patient-billing-stat',key:k},h('span',null,k),h('strong',null,`₹${v.toLocaleString('en-IN')}`)))),
             h('div',{className:'section-card patient-billing-ledger'},
-              h('h4',null,'Patient Ledger'),
+              h('h4',null,nursingManagerView?'Recent Account Entries — View Only':'Patient Ledger'),
               details.billing.length?details.billing.map(x=>h('div',{className:'patient-billing-row',key:x.id},
                 h('div',{className:'patient-billing-row-main'},
                   h('strong',null,`${x.transaction_type||'Transaction'} · ${x.category||'General'}`),
@@ -19668,6 +19701,8 @@ Doctor / Hospital: ${doctorHospital}`;
 
 
 function CarePackages({profile}){
+  const nursingManagerView=isNursingManagerProfile(profile);
+  const canManage=profile?.role==='Admin';
   const blank={id:null,package_name:'',duration_value:15,duration_unit:'Days',
     included_services:'Room accommodation\nRoutine nursing care\nDaily care assistance\nMedication administration\nFood and diet support',
     private_fee:'',twin_fee:'',general_fee:'',is_active:true};
@@ -19682,7 +19717,7 @@ function CarePackages({profile}){
   }
   React.useEffect(()=>{load()},[]);
 
-  if(profile?.role!=='Admin')return h(Section,{title:'Care Packages'},
+  if(!canManage&&!nursingManagerView)return h(Section,{title:'Care Packages'},
     h('div',{className:'message error'},'Administrator access is required.'));
 
   const money=value=>`₹${Number(value||0).toLocaleString('en-IN')}`;
@@ -19729,9 +19764,9 @@ function CarePackages({profile}){
 
   return h(React.Fragment,null,
     h('div',{className:'accounts-hero'},
-      h('div',null,h('small',null,'ADMINISTRATOR CONTROL'),h('h3',null,'Assisted Living Care Packages'),
-        h('p',null,'Create fixed-duration packages with separate fees for Private, Twin Sharing and General accommodation.')),
-      h('div',{className:'accounts-actions'},h('button',{className:'btn btn-primary',onClick:openNew},'+ Create Package'))),
+      h('div',null,h('small',null,nursingManagerView?'NURSING MANAGER · VIEW ONLY':'ADMINISTRATOR CONTROL'),h('h3',null,'Assisted Living Care Packages'),
+        h('p',null,nursingManagerView?'View package duration, inclusions and accommodation tariffs.':'Create fixed-duration packages with separate fees for Private, Twin Sharing and Triple Sharing accommodation.')),
+      canManage?h('div',{className:'accounts-actions'},h('button',{className:'btn btn-primary',onClick:openNew},'+ Create Package')):h('span',{className:'badge'},'VIEW ONLY')),
     message&&h('div',{className:message.includes('successfully')?'message success':'message error'},message),
     h('div',{className:'care-package-grid'},rows.map(row=>h('div',{className:`care-package-card ${row.is_active?'active':'inactive'}`,key:row.id},
       h('div',{className:'care-package-card-head'},h('span',{className:'care-package-icon'},'📦'),
@@ -19742,11 +19777,11 @@ function CarePackages({profile}){
         packageDetail('Includes',String(row.included_services||'No inclusions entered').split(/\n+/).filter(Boolean).join(' · '),true),
         packageDetail('Private / Single',money(row.private_fee)),
         packageDetail('Twin Sharing',money(row.twin_fee)),
-        packageDetail('General',money(row.general_fee))),
-      h('div',{className:'actions care-package-actions'},
+        packageDetail('Triple Sharing',money(row.general_fee))),
+      canManage?h('div',{className:'actions care-package-actions'},
         h('button',{className:'btn btn-secondary',onClick:()=>openEdit(row)},'Edit'),
-        h('button',{className:row.is_active?'btn btn-danger':'btn btn-primary',onClick:()=>toggle(row)},row.is_active?'Deactivate':'Activate'))))),
-    show&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:save,style:{width:'min(900px,96vw)'}},
+        h('button',{className:row.is_active?'btn btn-danger':'btn btn-primary',onClick:()=>toggle(row)},row.is_active?'Deactivate':'Activate')):null))),
+    canManage&&show&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:save,style:{width:'min(900px,96vw)'}},
       h('div',{className:'panel-head'},h('div',null,h('h3',null,form.id?'Edit Care Package':'Create Care Package'),
         h('small',null,'The fixed fee includes accommodation for the selected room type during the package period.')),
         h('button',{type:'button',className:'close',onClick:()=>setShow(false)},'×')),
@@ -19767,7 +19802,7 @@ function CarePackages({profile}){
 }
 
 function RoomsBeds({profile}){
-    const canManage=['Admin','Manager'].includes(profile?.role);
+    const canManage=profile?.role==='Admin'||(profile?.role==='Manager'&&!isNursingManagerProfile(profile));
     const nurseView=profile?.role==='Nurse';
     const empty={
       room_no:'100',bed_no:'A',room_type:'Twin Sharing',status:'Available',

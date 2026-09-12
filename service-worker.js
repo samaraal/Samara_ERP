@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.76';
-const CACHE = 'samara-erp-2.11.76-live-store-indent-alerts';
+const APP_VERSION = '2.11.77';
+const CACHE = 'samara-erp-2.11.77-nursing-manager-restricted-workspace';
 const SHELL = [
   './',
   './index.html',
