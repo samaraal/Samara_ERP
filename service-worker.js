@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.67';
-const CACHE = 'samara-erp-2.11.67-consumables-status-navigation';
+const APP_VERSION = '2.11.68';
+const CACHE = 'samara-erp-2.11.68-pharmacy-and-stores';
 const SHELL = [
   './',
   './index.html',

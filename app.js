@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.67';
+  const APP_VERSION = '2.11.68';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1498,7 +1498,7 @@ function initSamaraInaugurationInvitation(){
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
-    { title:'STORES', items:['Patient Consumables','Stores'] },
+    { title:'PHARMACY & STORES', items:['Patient Consumables','Stores'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
     { title:'COMMUNICATION', items:['WhatsApp Inbox','WhatsApp Logs','Family Communication','Feedback','Mail Dashboard'] },
@@ -1563,7 +1563,7 @@ function initSamaraInaugurationInvitation(){
     if(CLINICAL_ROLES.includes(role)){
       return [
         {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My Quick Tasks','My Leave & Permission','Leave Approvals','Notifications'].filter(item=>allowed.includes(item))},
-        {title:'STORES',items:['Patient Consumables','Stores'].filter(item=>allowed.includes(item))}
+        {title:'PHARMACY & STORES',items:['Patient Consumables','Stores'].filter(item=>allowed.includes(item))}
       ];
     }
     return NAV_SECTIONS.map(section=>({...section,items:section.items.filter(item=>allowed.includes(item))})).filter(section=>section.items.length);
@@ -24897,6 +24897,8 @@ Please access the Samara Family Portal for detailed account information.`;
     return {assignments,active,delegated,controller,ready,reload};
   }
 
+  const displayStoreItemName=value=>String(value||'').trim().toLowerCase()==='examination'?'Examination Gloves':String(value||'').trim();
+
   function StoreInchargeAssignment({profile,authority}){
     const canAssign=profile?.role==='Admin';
     const [busy,setBusy]=React.useState(false),[editing,setEditing]=React.useState(false);
@@ -24937,8 +24939,10 @@ Please access the Samara Family Portal for detailed account information.`;
     const oversight=['Admin','Manager'].includes(profile?.role);
     const [stock,setStock]=React.useState([]),[receipts,setReceipts]=React.useState([]),[ledger,setLedger]=React.useState([]),[patients,setPatients]=React.useState([]);
     const [busy,setBusy]=React.useState(false);
-    const [form,setForm]=React.useState({item_id:'',new_item_name:'',unit:'Nos',vendor_name:'',invoice_no:'',invoice_date:'',received_date:todayISOIndia(),quantity:'1',batch_no:'',expiry_date:'',unit_cost:'',remarks:''});
+    const [form,setForm]=React.useState({item_category:'Stores / Consumables',catalog_item:'',item_id:'',new_item_name:'',unit:'Nos',vendor_name:'',invoice_no:'',invoice_date:'',received_date:todayISOIndia(),quantity:'1',batch_no:'',expiry_date:'',unit_cost:'',remarks:'',generic_name:'',brand_name:'',strength:'',dosage_form:'Tablet',manufacturer:'',pack_size:''});
     const units=['Nos','Pairs','Packs','Boxes','Pieces','Rolls','Sets','Bottles'];
+    const storesCatalog=['Adult Diapers','Underpads','Examination Gloves','Sterile Gloves','Surgical Masks','N95 Masks','PPE Kits','Cotton','Gauze','Cotton Rolls','Gauze Rolls','Adhesive Plaster','Micropore Tape','Dressing Pads','Bandages','Crepe Bandages','Syringes','Needles','IV Cannulas','IV Sets','Three-Way Cannulas','Urine Bags','Urinary Catheters','Ryle’s / NG Tubes','Feeding Tubes','Feeding Syringes','Suction Catheters','Tracheostomy Tubes','Tracheostomy Masks','Oxygen Masks','Nasal Cannulas','Nebulizer Masks','Disposable Aprons','Hand Sanitizer','Disinfectant Solution','Bed Linens','Patient Gowns','Tissue Paper','Wet Wipes','Garbage Bags','Biomedical Waste Bags','Cleaning Materials','Other Consumables'];
+    const pharmacyCatalog=['Tablets','Capsules','Syrups','Oral Drops','Injections','IV Fluids','Antibiotics','Analgesics / Pain Medicines','Antipyretics / Fever Medicines','Antacids','Antiemetics','Antihypertensives','Antidiabetic Medicines','Insulin','Anticoagulants','Respiratory Medicines','Nebulization Medicines','Antiseptic Solutions','Ointments','Creams','Eye Drops','Ear Drops','Nasal Drops / Sprays','Laxatives','Nutritional Supplements','Electrolyte Preparations','Emergency Medicines','Other Pharmacy Items'];
     const actor=formalName(profile)||profile?.full_name||profile?.login_id||profile?.role||'Staff';
     const notifyStore=(type,text)=>showSamaraActionToast(type,type==='success'?'Stores updated':'Stores action failed',text);
     const itemById=id=>stock.find(x=>x.item_id===id);
@@ -24956,7 +24960,8 @@ Please access the Samara Family Portal for detailed account information.`;
       if(!pRes.error)setPatients(pRes.data||[]);
     }
     React.useEffect(()=>{load()},[]);
-    function selectItem(id){const row=itemById(id);setForm(f=>({...f,item_id:id,new_item_name:'',unit:row?.unit||f.unit}))}
+    function selectItem(id){const row=itemById(id);setForm(f=>({...f,item_id:id,catalog_item:'',new_item_name:'',unit:row?.unit||f.unit}))}
+    function selectCatalogItem(name){setForm(f=>({...f,catalog_item:name,item_id:'',new_item_name:name,unit:f.item_category==='Pharmacy'?'Packs':f.unit}))}
     async function receiveStock(e){
       e.preventDefault();if(!controller||busy)return;
       if(!form.item_id&&!String(form.new_item_name||'').trim()){notifyStore('error','Select an item or enter a new item name.');return}
@@ -24965,10 +24970,10 @@ Please access the Samara Family Portal for detailed account information.`;
       const res=await client.rpc('receive_consumable_store_stock',{
         p_item_id:form.item_id||null,p_item_name:String(form.new_item_name||'').trim()||null,p_unit:form.unit||'Nos',p_vendor_name:String(form.vendor_name||'').trim(),
         p_invoice_no:String(form.invoice_no||'').trim()||null,p_invoice_date:form.invoice_date||null,p_received_date:form.received_date||todayISOIndia(),p_quantity:Number(form.quantity),
-        p_batch_no:String(form.batch_no||'').trim()||null,p_expiry_date:form.expiry_date||null,p_unit_cost:String(form.unit_cost).trim()===''?null:Number(form.unit_cost),p_remarks:String(form.remarks||'').trim()||null
+        p_batch_no:String(form.batch_no||'').trim()||null,p_expiry_date:form.expiry_date||null,p_unit_cost:String(form.unit_cost).trim()===''?null:Number(form.unit_cost),p_remarks:[form.item_category==='Pharmacy'?'Category: Pharmacy':'Category: Stores / Consumables',form.generic_name&&`Generic: ${form.generic_name}`,form.brand_name&&`Brand: ${form.brand_name}`,form.strength&&`Strength: ${form.strength}`,form.dosage_form&&form.item_category==='Pharmacy'&&`Dosage form: ${form.dosage_form}`,form.manufacturer&&`Manufacturer: ${form.manufacturer}`,form.pack_size&&`Pack size: ${form.pack_size}`,String(form.remarks||'').trim()].filter(Boolean).join(' | ')||null
       });
       setBusy(false);
-      if(res.error)notifyStore('error',res.error.message);else{notifyStore('success',`Stock received from ${form.vendor_name}.`);setForm(f=>({...f,item_id:'',new_item_name:'',vendor_name:'',invoice_no:'',invoice_date:'',received_date:todayISOIndia(),quantity:'1',batch_no:'',expiry_date:'',unit_cost:'',remarks:''}));await load()}
+      if(res.error)notifyStore('error',res.error.message);else{notifyStore('success',`${form.item_category} item received from ${form.vendor_name}.`);setForm(f=>({...f,catalog_item:'',item_id:'',new_item_name:'',vendor_name:'',invoice_no:'',invoice_date:'',received_date:todayISOIndia(),quantity:'1',batch_no:'',expiry_date:'',unit_cost:'',remarks:'',generic_name:'',brand_name:'',strength:'',manufacturer:'',pack_size:''}));await load()}
     }
     async function setReorder(row){
       if(!controller||busy)return;const input=prompt(`Minimum / reorder level for ${row.item_name}:`,String(row.reorder_level||0));if(input===null)return;
@@ -24989,10 +24994,10 @@ Please access the Samara Family Portal for detailed account information.`;
     const inStock=stock.filter(x=>Number(x.balance_qty)>0).length;
     const stockStatus=row=>Number(row.balance_qty)<=0?'OUT OF STOCK':(Number(row.reorder_level)>0&&Number(row.balance_qty)<=Number(row.reorder_level)?'LOW STOCK':'IN STOCK');
     const statusStyle=row=>({fontWeight:900,fontSize:'12px',padding:'5px 8px',borderRadius:'999px',display:'inline-block',background:Number(row.balance_qty)<=0?'#fdebec':(Number(row.reorder_level)>0&&Number(row.balance_qty)<=Number(row.reorder_level)?'#fff4dc':'#e7f6ef'),color:'#5d3146'});
-    if(!controller&&!oversight)return h('div',null,h(StoreInchargeAssignment,{profile,authority}),h(Section,{title:'Stores'},h('p',null,authority.active?'Stores is presently assigned to the STD.':'Stores access is assigned to the Nurse Manager.')));
+    if(!controller&&!oversight)return h('div',null,h(StoreInchargeAssignment,{profile,authority}),h(Section,{title:'Pharmacy & Stores'},h('p',null,authority.active?'Pharmacy & Stores is presently assigned to the STD.':'Pharmacy & Stores access is assigned to the Nurse Manager.')));
     return h('div',null,
       h(StoreInchargeAssignment,{profile,authority}),
-      h(Section,{title:'Consumables Stores',subtitle:`Vendor receipts, stock issues and balances. Current Store In-charge: ${authority.active?'STD (temporary assignment)':'Nurse Manager'}.`},
+      h(Section,{title:'Pharmacy & Stores',subtitle:`Medicines, consumables, vendor receipts, stock issues and balances. Current In-charge: ${authority.active?'STD (temporary assignment)':'Nurse Manager'}.`},
         h('div',{className:'grid stats'},
           h('div',{className:'card stat'},h('span',null,'Items in Stock'),h('strong',null,inStock)),
           h('div',{className:'card stat'},h('span',null,'Low Stock'),h('strong',null,low.length)),
@@ -25000,11 +25005,13 @@ Please access the Samara Family Portal for detailed account information.`;
           h('div',{className:'card stat'},h('span',null,'Store Items'),h('strong',null,stock.length))
         )
       ),
-      controller&&h(Section,{title:'Receive from Vendor',subtitle:'Every consumable received from a vendor must first be entered here before it can be handed over against a patient indent.'},
+      controller&&h(Section,{title:'Receive from Vendor',subtitle:'Every pharmacy or Stores item received from a vendor must first be entered here before issue.'},
         h('form',{onSubmit:receiveStock},
           h('div',{className:'grid two'},
-            h('div',{className:'field'},h('label',null,'Store Item'),h('select',{value:form.item_id,onChange:e=>selectItem(e.target.value)},h('option',{value:''},'Select existing item'),stock.map(x=>h('option',{key:x.item_id,value:x.item_id},`${x.item_name} · Balance ${x.balance_qty} ${x.unit}`)))),
-            h('div',{className:'field'},h('label',null,'New Item (only if not listed)'),h('input',{value:form.new_item_name,onChange:e=>setForm({...form,new_item_name:e.target.value,item_id:''}),placeholder:'New consumable name'})),
+            h('div',{className:'field'},h('label',null,'Section *'),h('select',{value:form.item_category,onChange:e=>setForm({...form,item_category:e.target.value,catalog_item:'',item_id:'',new_item_name:'',unit:e.target.value==='Pharmacy'?'Packs':'Nos'})},['Stores / Consumables','Pharmacy'].map(x=>h('option',{key:x,value:x},x)))),
+            h('div',{className:'field'},h('label',null,'Standard Item List'),h('select',{value:form.catalog_item,onChange:e=>selectCatalogItem(e.target.value)},h('option',{value:''},'Select from standard list'),(form.item_category==='Pharmacy'?pharmacyCatalog:storesCatalog).map(x=>h('option',{key:x,value:x},x)))),
+            h('div',{className:'field'},h('label',null,'Existing Inventory Item'),h('select',{value:form.item_id,onChange:e=>selectItem(e.target.value)},h('option',{value:''},'Select existing item'),stock.map(x=>h('option',{key:x.item_id,value:x.item_id},`${displayStoreItemName(x.item_name)} · Balance ${x.balance_qty} ${x.unit}`)))),
+            h('div',{className:'field'},h('label',null,'Add Item Manually'),h('input',{value:form.new_item_name,onChange:e=>setForm({...form,new_item_name:e.target.value,catalog_item:'',item_id:''}),placeholder:form.item_category==='Pharmacy'?'Enter medicine / pharmacy item':'Enter Stores item'})),
             h('div',{className:'field'},h('label',null,'Unit'),h('select',{value:form.unit,onChange:e=>setForm({...form,unit:e.target.value}),disabled:Boolean(form.item_id)},units.map(x=>h('option',{key:x,value:x},x)))),
             h('div',{className:'field'},h('label',null,'Quantity Received *'),h('input',{type:'number',min:'0.01',step:'0.01',value:form.quantity,onChange:e=>setForm({...form,quantity:e.target.value}),required:true})),
             h('div',{className:'field'},h('label',null,'Vendor *'),h('input',{value:form.vendor_name,onChange:e=>setForm({...form,vendor_name:e.target.value}),required:true,placeholder:'Vendor / Supplier name'})),
@@ -25016,15 +25023,23 @@ Please access the Samara Family Portal for detailed account information.`;
             h('div',{className:'field'},h('label',null,'Unit Cost (optional)'),h('input',{type:'number',min:'0',step:'0.01',value:form.unit_cost,onChange:e=>setForm({...form,unit_cost:e.target.value}),placeholder:'₹'})),
             h('div',{className:'field'},h('label',null,'Received By'),h('input',{value:actor,readOnly:true}))
           ),
+          form.item_category==='Pharmacy'&&h('div',{className:'grid two'},
+            h('div',{className:'field'},h('label',null,'Generic Name'),h('input',{value:form.generic_name,onChange:e=>setForm({...form,generic_name:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Brand Name'),h('input',{value:form.brand_name,onChange:e=>setForm({...form,brand_name:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Strength'),h('input',{value:form.strength,onChange:e=>setForm({...form,strength:e.target.value}),placeholder:'Example: 500 mg'})),
+            h('div',{className:'field'},h('label',null,'Dosage Form'),h('select',{value:form.dosage_form,onChange:e=>setForm({...form,dosage_form:e.target.value})},['Tablet','Capsule','Syrup','Drops','Injection','IV Fluid','Ointment','Cream','Inhalation','Other'].map(x=>h('option',{key:x,value:x},x)))),
+            h('div',{className:'field'},h('label',null,'Manufacturer'),h('input',{value:form.manufacturer,onChange:e=>setForm({...form,manufacturer:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Pack Size'),h('input',{value:form.pack_size,onChange:e=>setForm({...form,pack_size:e.target.value}),placeholder:'Example: 10 tablets'}))
+          ),
           h('div',{className:'field'},h('label',null,'Remarks'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value})})),
           h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Receive into Stores')
         )
       ),
-      h(Section,{title:'Current Store Stock',subtitle:'ERP balance = all Stock In − all Stock Out. Physical reconciliation creates a permanent adjustment entry; it never silently changes the balance.'},
+      h(Section,{title:'Current Pharmacy & Stores Stock',subtitle:'ERP balance = all Stock In − all Stock Out. Physical reconciliation creates a permanent adjustment entry; it never silently changes the balance.'},
         h('div',{className:'table-wrap'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Item','Unit','Total In','Total Out','Balance','Reorder Level','Status','Action'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,stock.length?stock.map(r=>h('tr',{key:r.item_id},
-            h('td',null,h('strong',null,r.item_name)),h('td',null,r.unit),h('td',null,r.total_in),h('td',null,r.total_out),h('td',null,h('strong',null,r.balance_qty)),h('td',null,r.reorder_level),h('td',null,h('span',{style:statusStyle(r)},stockStatus(r))),
+            h('td',null,h('strong',null,displayStoreItemName(r.item_name))),h('td',null,r.unit),h('td',null,r.total_in),h('td',null,r.total_out),h('td',null,h('strong',null,r.balance_qty)),h('td',null,r.reorder_level),h('td',null,h('span',{style:statusStyle(r)},stockStatus(r))),
             h('td',null,controller?h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally')):'View only')
           )):h('tr',null,h('td',{colSpan:8,style:{textAlign:'center',padding:'24px'}},'No store items found.'))
         ))
@@ -25035,7 +25050,7 @@ Please access the Samara Family Portal for detailed account information.`;
           h('tbody',null,receipts.length?receipts.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('td',null,formatDateIN(r.received_date)),h('td',null,item?.item_name||'—'),h('td',null,`${r.quantity} ${r.unit}`),h('td',null,r.vendor_name),h('td',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—'),h('td',null,[r.batch_no,r.expiry_date&&`Exp ${formatDateIN(r.expiry_date)}`].filter(Boolean).join(' · ')||'—'),h('td',null,r.received_by_name||'—'))}):h('tr',null,h('td',{colSpan:8,style:{textAlign:'center',padding:'24px'}},'No vendor receipts recorded.')))
         ))
       ),
-      h(Section,{title:'Stores Stock Ledger',subtitle:'Every vendor receipt, patient issue, return and physical adjustment is retained here.'},
+      h(Section,{title:'Pharmacy & Stores Stock Ledger',subtitle:'Every vendor receipt, patient issue, return and physical adjustment is retained here.'},
         h('div',{className:'table-wrap'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Movement','Date / Time','Item','Type','Stock In','Stock Out','Balance After','Patient / Reference','By'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,ledger.length?ledger.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('td',null,formatDateTimeIN(r.movement_at)),h('td',null,item?.item_name||'—'),h('td',null,r.movement_type),h('td',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—'),h('td',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—'),h('td',null,h('strong',null,r.balance_after)),h('td',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—'),h('td',null,r.actor_name||'—'))}):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},'No stock movements recorded.')))
@@ -25050,7 +25065,7 @@ Please access the Samara Family Portal for detailed account information.`;
     const [busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('Open');
     const [form,setForm]=React.useState({patient_id:'',store_item_id:'',item_name:'',requested_qty:'1',unit:'Nos',request_remarks:''});
     const storeController=authority.controller,nurse=profile?.role==='Nurse'&&!isNursingManagerProfile(profile);
-    const fallbackItems=['Adult Diapers','Gloves','Syringes','Dressing Materials','PPE','Feeding Tubes','Catheters','Oxygen Consumables','Underpads','Cotton / Gauze','Other Consumables'];
+    const fallbackItems=['Adult Diapers','Examination Gloves','Sterile Gloves','Syringes','Dressing Materials','PPE','Feeding Tubes','Catheters','Oxygen Consumables','Underpads','Cotton / Gauze','Other Consumables'];
     const actorName=formalName(profile)||profile?.full_name||profile?.login_id||profile?.role||'Staff';
     const notify=(type,text)=>showSamaraActionToast(type,type==='success'?'Consumables updated':'Consumables action failed',text);
     const patientLabel=id=>{const p=patients.find(x=>x.id===id);return p?[formalName(p),p.patient_id&&`(${p.patient_id})`,p.room_no&&`Room ${p.room_no}${p.bed_no?`/${p.bed_no}`:''}`].filter(Boolean).join(' · '):'—'};
@@ -25078,7 +25093,7 @@ Please access the Samara Family Portal for detailed account information.`;
       notify('success','Patient Consumables refreshed.');
     }
     React.useEffect(()=>{load()},[]);
-    function chooseItem(id){const st=stock.find(x=>x.item_id===id);setForm(f=>({...f,store_item_id:id,item_name:st?.item_name||'',unit:st?.unit||'Nos'}))}
+    function chooseItem(id){const st=stock.find(x=>x.item_id===id);setForm(f=>({...f,store_item_id:id,item_name:displayStoreItemName(st?.item_name)||'',unit:st?.unit||'Nos'}))}
     async function initiate(e){
       e.preventDefault();if(!nurse||busy)return;
       if(!form.patient_id||!form.item_name||Number(form.requested_qty)<=0){notify('error','Select patient, consumable and valid quantity.');return}
