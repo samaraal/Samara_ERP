@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.17';
+  const APP_VERSION = '2.12.18';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1588,14 +1588,15 @@ function initSamaraInaugurationInvitation(){
     if(CLINICAL_ROLES.includes(role)){
       return [
         {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My To-Do List','Notifications'].filter(item=>allowed.includes(item))},
-        {title:'HR',items:['Duty Assignment','My Leave & Permission','Leave Approvals'].filter(item=>allowed.includes(item))},
+        {title:'MY DUTIES & LEAVE',items:['Duty Assignment','My Leave & Permission','Leave Approvals'].filter(item=>allowed.includes(item))},
         {title:'PHARMACY & STORES',items:['Patient Consumables','Stores','Stores In-charge Assignment'].filter(item=>allowed.includes(item))}
       ];
     }
     if(role==='Manager'&&allowed.includes('My To-Do List')&&allowed.includes('Employees')&&!allowed.includes('Accounts Dashboard')){
       return [
         {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','Duty Assignment','My To-Do List'].filter(item=>allowed.includes(item))},
-        {title:'NURSING HR',items:['Employees','Duty Assignment','My Leave & Permission'].filter(item=>allowed.includes(item))},
+        {title:'MY DUTIES & LEAVE',items:['Duty Assignment','My Leave & Permission'].filter(item=>allowed.includes(item))},
+        {title:'NURSING STAFF',items:['Employees'].filter(item=>allowed.includes(item))},
         {title:'ADMISSION',items:['Enquiries','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},
         {title:'ROOMS & PACKAGES',items:['Rooms','Care Packages'].filter(item=>allowed.includes(item))},
         {title:'PHARMACY & STORES',items:['Patient Consumables','Stores','Stores In-charge Assignment'].filter(item=>allowed.includes(item))},
@@ -22729,7 +22730,7 @@ function DutyAssignment({profile}){
     },[]);
     const staffScope=React.useMemo(()=>{
       if(fullDutyControl)return staff;
-      if(nursingManager)return staff.filter(isNursingTeamMember);
+      if(nursingManager)return staff.filter(s=>s.id===profile.id||isNursingTeamMember(s));
       return staff;
     },[staff,fullDutyControl,nursingManager,isNursingTeamMember]);
     const staffScopeIds=React.useMemo(()=>new Set(staffScope.map(s=>s.id)),[staffScope]);
