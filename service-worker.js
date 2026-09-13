@@ -1,5 +1,5 @@
-const APP_VERSION = '2.12.10';
-const CACHE = 'samara-erp-2.12.10-duty-all-staff';
+const APP_VERSION = '2.12.21';
+const CACHE = 'samara-erp-2.12.21-duty-buttons';
 const SHELL = [
   './',
   './index.html',

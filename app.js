@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.20';
+  const APP_VERSION = '2.12.21';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -321,7 +321,7 @@ function initSamaraInaugurationInvitation(){
       const modal=modals[modals.length-1];
       const close=modal?.querySelector('.close');
       const hasBottomActions=!!modal?.querySelector('.modal-bottom-actions');
-      const shouldHide=!modal||!close||hasBottomActions;
+      const shouldHide=!modal||!close||hasBottomActions||modal.classList.contains('duty-assignment-modal');
       if(button.hidden!==shouldHide) button.hidden=shouldHide;
     };
     button.addEventListener('click',()=>{
@@ -22861,7 +22861,7 @@ function DutyAssignment({profile}){
       }),
       !loading&&!message&&!rows.length&&h('div',{className:'card panel'},h('p',{className:'small-note'},canManage?'No duty has been assigned for this period yet.':'No duty has been assigned to you for this period.')),
       showForm&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setShowForm(false)}},
-        h('form',{className:'card modal',style:{width:'min(760px,96vw)',maxHeight:'92vh',overflow:'auto'},onSubmit:save},
+        h('form',{className:'card modal duty-assignment-modal',style:{width:'min(760px,96vw)',maxHeight:'92vh',overflow:'auto'},onSubmit:save},
           h('div',{className:'panel-head'},
             h('div',null,h('h3',null,editing?'Edit Duty Assignment':'Assign Duty'),h('small',null,'Shift, task and patient / ward duty for a nursing staff member')),
             h('button',{type:'button',className:'close',onClick:()=>setShowForm(false)},'×')
@@ -22877,7 +22877,7 @@ function DutyAssignment({profile}){
             h('div',{className:'field span-2'},h('label',null,'Task Details / Instructions'),h('textarea',{rows:3,value:form.duty_task,onChange:e=>setForm({...form,duty_task:e.target.value}),placeholder:'Specific duty instructions for this assignment'})),
             h('div',{className:'field span-2'},h('label',null,'Remarks (optional)'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value})}))
           ),
-          h('div',{className:'actions',style:{display:'flex',gap:'10px',flexWrap:'wrap',justifyContent:'flex-end'}},h('button',{type:'button',className:'btn btn-secondary',style:{flex:'1 1 130px'},onClick:()=>setShowForm(false)},'Cancel'),h('button',{className:'btn btn-primary',style:{flex:'1 1 180px'},disabled:busy},busy?'Saving…':editing?'Update Assignment':'Save Assignment'))
+          h('div',{className:'actions',style:{display:'flex',gap:'8px',flexWrap:'nowrap',justifyContent:'stretch',width:'100%'}},h('button',{type:'button',className:'btn btn-secondary',style:{flex:'1 1 0',minWidth:0},onClick:()=>setShowForm(false)},'Cancel'),h('button',{className:'btn btn-primary',style:{flex:'1 1 0',minWidth:0},disabled:busy},busy?'Saving…':editing?'Update Assignment':'Save Assignment'),h('button',{type:'button',className:'btn btn-secondary',style:{flex:'1 1 0',minWidth:0},onClick:()=>setShowForm(false)},'Close'))
         )
       ),
       toast&&h('div',{className:`samara-toast ${toast.type}`,role:'status','aria-live':'polite'},
