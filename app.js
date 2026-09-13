@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.15';
+  const APP_VERSION = '2.12.17';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22740,7 +22740,7 @@ function DutyAssignment({profile}){
 
     const visibleAssignments=React.useMemo(()=>{
       let rows=assignments.filter(r=>r.duty_date>=rangeStart&&r.duty_date<=rangeEnd);
-      if(canManage)rows=rows.filter(r=>fullDutyControl||staffScopeIds.has(r.employee_id));
+      if(canManage)rows=rows.filter(r=>fullDutyControl||staffScopeIds.has(r.employee_id)||r.employee_id===profile.id);
       else rows=rows.filter(r=>r.employee_id===profile.id);
       return [...rows].sort((a,b)=>a.duty_date===b.duty_date
         ?(formalName(staffFor(a.employee_id))||'').localeCompare(formalName(staffFor(b.employee_id))||'')
@@ -22811,7 +22811,7 @@ function DutyAssignment({profile}){
     const rows=visibleAssignments.map(row=>{
       const emp=staffFor(row.employee_id);
       const isOwner=row.employee_id===profile.id;
-      const statusOptions=canManage?STATUS_ALL:STATUS_STAFF;
+      const statusOptions=canManage?STATUS_ALL:['Acknowledged'];
       return [
         canManage?`${formalName(emp)||'Staff'}${emp.role?` · ${emp.role}`:''}`:formalName(emp)||'You',
         formatDateIN(row.duty_date),
@@ -22822,7 +22822,8 @@ function DutyAssignment({profile}){
         h('span',{className:`badge ${row.status==='Completed'?'':row.status==='Cancelled'?'off':''}`},row.status||'Assigned'),
         h('div',{className:'employee-actions'},
           canModify&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(row)},'Edit'),
-          (canManage||isOwner)&&h('select',{value:row.status||'Assigned',onChange:e=>updateStatus(row,e.target.value)},statusOptions.map(x=>h('option',{key:x,value:x},x))),
+          canManage&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(row)},'Modify'),
+          isOwner&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>updateStatus(row,'Acknowledged')},'Acknowledged'),
           isOwner&&!row.modification_request&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>requestModification(row)},'Request Modification'),
           canManage&&row.modification_request&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>reviewRequest(row,'Modified')},'Modify / Approve'),
           canManage&&row.modification_request&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>reviewRequest(row,'Original Retained')},'Retain Original')
@@ -22871,7 +22872,7 @@ function DutyAssignment({profile}){
             h('div',{className:'field span-2'},h('label',null,'Task Details / Instructions'),h('textarea',{rows:3,value:form.duty_task,onChange:e=>setForm({...form,duty_task:e.target.value}),placeholder:'Specific duty instructions for this assignment'})),
             h('div',{className:'field span-2'},h('label',null,'Remarks (optional)'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value})}))
           ),
-          h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowForm(false)},'Cancel'),h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':editing?'Update Assignment':'Save Assignment'))
+          h('div',{className:'actions',style:{display:'flex',gap:'10px',flexWrap:'wrap',justifyContent:'flex-end'}},h('button',{type:'button',className:'btn btn-secondary',style:{flex:'1 1 130px'},onClick:()=>setShowForm(false)},'Cancel'),h('button',{className:'btn btn-primary',style:{flex:'1 1 180px'},disabled:busy},busy?'Saving…':editing?'Update Assignment':'Save Assignment'))
         )
       ),
       toast&&h('div',{className:`samara-toast ${toast.type}`,role:'status','aria-live':'polite'},
