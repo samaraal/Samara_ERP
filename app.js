@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.12';
+  const APP_VERSION = '2.12.13';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22745,6 +22745,7 @@ function DutyAssignment({profile}){
       if(!canManage)return;
       if(!form.employee_id){showToast('error','Please select the staff member to assign.');return}
       if(!form.duty_date){showToast('error','Please select the duty date.');return}
+      if(!editing&&form.duty_date<todayISOIndia()){showToast('error','Duty can be assigned only from today onward.');return}
       setBusy(true);
       const {data:{user}}=await client.auth.getUser();
       const payload={
@@ -22839,7 +22840,7 @@ function DutyAssignment({profile}){
           ),
           h('div',{className:'modal-grid'},
             h('div',{className:'field'},h('label',null,'Staff Member'),h('select',{required:true,value:form.employee_id,onChange:e=>setForm({...form,employee_id:e.target.value})},h('option',{value:''},'Select employee'),staffScope.map(s=>h('option',{key:s.id,value:s.id},`${formalName(s)}${s.employee_id?` · ${s.employee_id}`:''}${s.role?` · ${s.role}`:''}`)))),
-            h('div',{className:'field'},h('label',null,'Duty Date'),h(StrictDateInput,{value:form.duty_date,onChange:e=>setForm({...form,duty_date:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Duty Date'),h(StrictDateInput,{value:form.duty_date,min:todayISOIndia(),onChange:e=>setForm({...form,duty_date:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Shift'),h('select',{value:form.shift,onChange:e=>setForm({...form,shift:e.target.value})},SHIFT_OPTIONS.map(x=>h('option',{key:x,value:x},x)))),
             h('div',{className:'field'},h('label',null,'Duty Type'),h('select',{value:form.duty_type,onChange:e=>setForm({...form,duty_type:e.target.value})},DUTY_TYPE_OPTIONS.map(x=>h('option',{key:x,value:x},x)))),
             h('div',{className:'field'},h('label',null,'Assigned Patient (optional)'),h('select',{value:form.patient_id,onChange:e=>setForm({...form,patient_id:e.target.value})},h('option',{value:''},'Not patient-specific'),patients.filter(p=>p.is_active!==false).map(p=>h('option',{key:p.id,value:p.id},patientLabel(p.id))))),
