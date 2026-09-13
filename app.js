@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.97';
+  const APP_VERSION = '2.11.98';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '13-Sep-2026 Global Compact Mobile Tables';
+  const APP_BUILD_DATE = '13-Sep-2026 Stores Mobile Stock Cards';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -25695,7 +25695,21 @@ Please access the Samara Family Portal for detailed account information.`;
         )
       ),
       h(Section,{title:'Current Pharmacy & Stores Stock',subtitle:'ERP balance = all Stock In − all Stock Out. Physical reconciliation creates a permanent adjustment entry; it never silently changes the balance.'},
-        h('div',{className:'table-wrap'},h('table',{className:'table'},
+        h('div',{className:'stores-stock-mobile'},stock.length?stock.map(r=>h('article',{className:'stores-stock-card',key:`mobile-${r.item_id}`},
+          h('div',{className:'stores-stock-card-head'},h('strong',null,displayStoreItemName(r.item_name)),h('span',{style:statusStyle(r)},stockStatus(r))),
+          h('div',{className:'stores-stock-card-values'},
+            h('span',null,h('small',null,'Unit'),h('b',null,r.unit)),
+            h('span',null,h('small',null,'Total In'),h('b',null,r.total_in)),
+            h('span',null,h('small',null,'Total Out'),h('b',null,r.total_out)),
+            h('span',null,h('small',null,'Balance'),h('b',null,r.balance_qty)),
+            h('span',null,h('small',null,'Minimum'),h('b',null,r.reorder_level))
+          ),
+          controller?h('div',{className:'stores-stock-card-actions'},
+            h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),
+            h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally')
+          ):h('small',{className:'stores-view-only'},'View only')
+        )):h('div',{className:'stores-stock-empty'},'No store items found.')),
+        h('div',{className:'table-wrap stores-stock-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Item','Unit','Total In','Total Out','Balance','Reorder Level','Status','Action'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,stock.length?stock.map(r=>h('tr',{key:r.item_id},
             h('td',null,h('strong',null,displayStoreItemName(r.item_name))),h('td',null,r.unit),h('td',null,r.total_in),h('td',null,r.total_out),h('td',null,h('strong',null,r.balance_qty)),h('td',null,r.reorder_level),h('td',null,h('span',{style:statusStyle(r)},stockStatus(r))),

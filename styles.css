@@ -34,6 +34,24 @@
   .mobile-menu option,.mobile-menu optgroup{background:#fff;color:#17312b}
 }
 
+/* v2.11.98 — dedicated compact Pharmacy & Stores stock cards */
+.stores-stock-mobile{display:none}
+@media(max-width:760px){
+  .stores-stock-desktop{display:none!important}
+  .stores-stock-mobile{display:grid;gap:10px;width:100%;min-width:0}
+  .stores-stock-card{display:grid;gap:9px;width:100%;min-width:0;padding:12px;border:1px solid #ead2dd;border-radius:14px;background:#fff;box-shadow:0 3px 10px rgba(83,25,54,.06)}
+  .stores-stock-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;min-width:0}
+  .stores-stock-card-head>strong{min-width:0;color:#4a2638;font-size:15px;line-height:1.3;overflow-wrap:anywhere}
+  .stores-stock-card-head>span{flex:0 0 auto!important;font-size:10px!important;padding:4px 7px!important}
+  .stores-stock-card-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding-top:8px;border-top:1px solid #f0dce5}
+  .stores-stock-card-values>span{display:grid;gap:2px;min-width:0}
+  .stores-stock-card-values small{color:#856b78;font-size:10px;font-weight:800;text-transform:uppercase}
+  .stores-stock-card-values b{color:#412c36;font-size:13px;line-height:1.2}
+  .stores-stock-card-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-top:2px}
+  .stores-stock-card-actions .btn{width:100%;min-width:0;min-height:40px;padding:8px 6px;font-size:12px;white-space:normal}
+  .stores-view-only,.stores-stock-empty{color:#806b77;font-weight:700}
+}
+
 /* V5.2 accordion sidebar */
 .nav-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding-right:4px;scrollbar-width:thin;scrollbar-color:#3b786a transparent}
 .nav-scroll::-webkit-scrollbar{width:7px}.nav-scroll::-webkit-scrollbar-thumb{background:#3b786a;border-radius:999px}.nav-scroll::-webkit-scrollbar-track{background:transparent}
