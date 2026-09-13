@@ -1,5 +1,5 @@
-const APP_VERSION = '2.12.03';
-const CACHE = 'samara-erp-2.12.03-system-maintenance';
+const APP_VERSION = '2.12.04';
+const CACHE = 'samara-erp-2.12.04-hr-whatsapp-count';
 const SHELL = [
   './',
   './index.html',

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.03';
+  const APP_VERSION = '2.12.04';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '13-Sep-2026 System Maintenance Page Restored';
+  const APP_BUILD_DATE = '13-Sep-2026 Accurate HR WhatsApp Dashboard Count';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -9730,8 +9730,13 @@ Thank you.`;
     const nowLocal=new Date();
     const todayStart=new Date(nowLocal.getFullYear(),nowLocal.getMonth(),nowLocal.getDate());
     const tomorrowStart=new Date(nowLocal.getFullYear(),nowLocal.getMonth(),nowLocal.getDate()+1);
-    const waToday=waComms.filter(x=>{const d=new Date(x.created_at||0);return d>=todayStart&&d<tomorrowStart});
-    const waAcceptedToday=waToday.filter(x=>['Accepted','Sent','Delivered','Read'].includes(String(x.status||''))).length;
+    const isApplicantWhatsApp=x=>Boolean(x.career_application_id)||/career|applicant|application|interview/i.test(`${x.communication_type||''} ${x.template_name||''} ${x.source_type||''}`);
+    const waTodayRaw=waComms.filter(x=>{
+      if(!isApplicantWhatsApp(x))return false;
+      const d=new Date(x.sent_at||x.created_at||0);
+      return d>=todayStart&&d<tomorrowStart;
+    });
+    const waToday=[...new Map(waTodayRaw.map(x=>[x.provider_message_id||x.id,x])).values()];
     const waFailedToday=waToday.filter(x=>String(x.status||'').toLowerCase().includes('fail')).length;
     const metrics=[
       ['Active Employees',active.length,'Employees','♙','Currently employed','Open Employees →','#a91360','#f8e6ef'],
@@ -9740,7 +9745,7 @@ Thank you.`;
       ['New Applications',newApps,'Career Applications','＋','Awaiting HR review','Open Applications →','#e23e80','#fde8f1'],
       ['Shortlisted',shortlisted,'Career Applications','✓','Candidates shortlisted','Review Shortlist →','#2aa97b','#e8f7f1'],
       ['Interviews',interviewCount,'Interviews','◷','Interview scheduled','Open Interviews →','#f08a4b','#fff0e8'],
-      ['WhatsApp Communications',waToday.length,'Career Applications','◉',`${waAcceptedToday} accepted today${waFailedToday?` · ${waFailedToday} failed`:''}`,'Open Applicant History →','#169b67','#e6f7ef'],
+      ['Applicant WhatsApp',waToday.length,'Career Applications','◉',`${waToday.length} applicant message${waToday.length===1?'':'s'} logged today${waFailedToday?` · ${waFailedToday} failed`:''}`,'Open Applicant History →','#169b67','#e6f7ef'],
       ['Selected',selectedCount,'Career Applications','★','Candidates selected','View Selected →','#7c62d7','#f0ecfb'],
       ['On Hold',onHold,'Career Applications','Ⅱ','Applications on hold','Review On Hold →','#7a1247','#f4e9ef']
     ];
@@ -10194,7 +10199,7 @@ Thank you.`;
       onNavigate('Employees');
     }
     const dashboardCareerRows=rows.filter(r=>{
-      if(!dashboardCareerFocus||dashboardCareerFocus==='All Applications'||dashboardCareerFocus==='WhatsApp Communications')return true;
+      if(!dashboardCareerFocus||dashboardCareerFocus==='All Applications'||dashboardCareerFocus==='WhatsApp Communications'||dashboardCareerFocus==='Applicant WhatsApp')return true;
       if(dashboardCareerFocus==='New Applications')return r.status==='New';
       if(dashboardCareerFocus==='Shortlisted')return r.status==='Shortlisted';
       if(dashboardCareerFocus==='Interviews')return r.status==='Interview Scheduled';
