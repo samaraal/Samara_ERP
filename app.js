@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.00';
+  const APP_VERSION = '2.12.01';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '13-Sep-2026 Mobile Ledger Startup Fix';
+  const APP_BUILD_DATE = '13-Sep-2026 Unified Magenta Mobile Menu';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -6941,7 +6941,7 @@ Caring with Compassion. Living with Dignity.`;
           profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
           h('span',{className:'badge'},profile.role)
         ),
-        h(MobileMenu,{page,setPage,allowed,profile}),
+        h(MobileMenu,{page,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
         h(NursingMobileQuickActions,{profile,page,onNavigate:setPage}),
         h('section',{className:'content'},
           page==='Dashboard'&&h(Dashboard,{profile,onNavigate:setPage,alertEngine}),
@@ -7536,12 +7536,12 @@ Caring with Compassion. Living with Dignity.`;
     );
   }
 
-  function MobileMenu({page,setPage,allowed,profile}){
-    const sections=sectionsFor(allowed,profile.role);
+  function MobileMenu({page,profile,onOpenMenu}){
     return h('div',{className:'mobile-menu'},
       h('label',null,'Module'),
-      h('select',{value:page,onChange:e=>setPage(e.target.value)},
-        sections.map(section=>h('optgroup',{label:section.title,key:section.title},section.items.map(item=>h('option',{value:item,key:item},displayNavLabel(item,profile.role)))))
+      h('button',{type:'button',className:'mobile-module-menu-button',onClick:onOpenMenu,'aria-label':`Open module menu. Current module: ${displayNavLabel(page,profile.role)}`,'aria-haspopup':'dialog'},
+        h('span',null,displayNavLabel(page,profile.role)),
+        h('span',{className:'mobile-module-menu-icon','aria-hidden':'true'},'☰')
       )
     );
   }

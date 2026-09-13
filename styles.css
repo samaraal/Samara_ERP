@@ -37,6 +37,9 @@
 /* v2.11.98 — dedicated compact Pharmacy & Stores stock cards */
 .stores-stock-mobile{display:none}
 .ledger-reference-compact{display:none}
+.mobile-module-menu-button{min-width:0;flex:1;min-height:50px;padding:10px 14px;border:1px solid rgba(255,255,255,.34);border-radius:14px;background:linear-gradient(110deg,rgba(255,255,255,.12),rgba(255,255,255,.2));color:#fff;font:inherit;font-size:17px;font-weight:850;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+.mobile-module-menu-button:active{background:rgba(255,255,255,.26)}
+.mobile-module-menu-icon{flex:0 0 auto;width:32px;height:32px;border-radius:9px;background:rgba(255,255,255,.16);display:grid;place-items:center;font-size:17px}
 @media(max-width:760px){
   .stores-stock-desktop{display:none!important}
   .stores-stock-mobile{display:grid;gap:10px;width:100%;min-width:0}

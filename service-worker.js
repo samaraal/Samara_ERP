@@ -1,5 +1,5 @@
-const APP_VERSION = '2.12.00';
-const CACHE = 'samara-erp-2.12.00-mobile-ledger-startup-fix';
+const APP_VERSION = '2.12.01';
+const CACHE = 'samara-erp-2.12.01-unified-mobile-menu';
 const SHELL = [
   './',
   './index.html',
