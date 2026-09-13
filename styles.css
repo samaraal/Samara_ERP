@@ -314,6 +314,22 @@ body{font-size:17px;line-height:1.42}
 .room-summary .room-stat-maintenance span,.room-summary .room-stat-maintenance strong,.room-summary .room-stat-maintenance small{color:#8a5900!important}
 .room-summary .room-summary-link.active{border-width:2px!important;box-shadow:0 0 0 3px rgba(70,46,61,.10),0 9px 22px rgba(70,46,61,.10)!important}
 
+/* v2.11.96 — dedicated room reservation workflow */
+.btn-reserve-room{background:linear-gradient(135deg,#5940aa,#785bd1)!important;color:#fff!important;border:0!important}
+.available-bed-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.available-bed-actions .btn{min-height:34px;padding:6px 12px;font-size:12px;border-radius:9px}
+.room-status-due{background:#fff0c7!important;color:#855300!important;border:1px solid #e7bd51}
+.room-status-overdue{background:#ffe0e0!important;color:#b42318!important;border:1px solid #eb9292;animation:reservationPulse 1.8s ease-in-out infinite}
+@keyframes reservationPulse{50%{box-shadow:0 0 0 4px rgba(180,35,24,.10)}}
+.reservation-dashboard-alert{display:inline-block!important;padding:5px 8px;border-radius:8px;background:#b42318;color:#fff!important}
+.dashboard-card-reservation-overdue{background:linear-gradient(135deg,#fff3f3,#ffdede)!important;border:2px solid #df6262!important;box-shadow:0 8px 22px rgba(180,35,24,.14)!important}.dashboard-card-reservation-overdue>span,.dashboard-card-reservation-overdue>strong,.dashboard-card-reservation-overdue>small{color:#b42318!important}
+.room-reservation-modal{width:min(760px,96vw)!important}
+.reservation-timing-banner{margin:0 0 14px;padding:11px 14px;border-radius:11px;font-weight:900;text-align:center}
+.reservation-timing-banner.reserved{background:#eee9ff;color:#5940aa}.reservation-timing-banner.due{background:#fff0c7;color:#855300}.reservation-timing-banner.overdue{background:#ffe0e0;color:#b42318}
+.reservation-workflow-actions{display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:9px;margin-top:16px;padding-top:14px;border-top:1px solid #ead5df}
+.reservation-workflow-actions.edit{grid-template-columns:1fr 1.4fr}
+@media(max-width:760px){.available-bed-actions{width:100%;justify-content:space-between}.available-bed-actions .btn{min-width:100px}.reservation-workflow-actions,.reservation-workflow-actions.edit{grid-template-columns:1fr}.reservation-workflow-actions .btn{width:100%;min-height:46px}.room-reservation-modal{width:100%!important}}
+
 .first-login-card{max-width:620px}.first-login-card h1{font-size:30px;line-height:1.2}.first-login-card p{font-size:17px;line-height:1.55}
 
 /* ERP 1.0.2 global search */

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.95';
+  const APP_VERSION = '2.11.96';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '13-Sep-2026 Colour-coded Rooms Dashboard';
+  const APP_BUILD_DATE = '13-Sep-2026 Dedicated Room Reservation Workflow';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -6919,7 +6919,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Shift Tasks'&&h(ShiftTasks,{profile,onNavigate:setPage}),
           page==='Patients'&&h(Patients,{profile,onNavigate:setPage}),
           page==='Discharge'&&h(DischargeManagement,{profile}),
-          page==='Rooms'&&h(RoomsBeds,{profile}),
+          page==='Rooms'&&h(RoomsBeds,{profile,onNavigate:setPage}),
           page==='Care Packages'&&h(CarePackages,{profile}),
           page==='Charge Master'&&h(ChargeMasterPage,{profile}),
           page==='Form Field Settings'&&h(FormFieldSettings,{profile}),
@@ -8244,7 +8244,7 @@ Caring with Compassion. Living with Dignity.`;
   ensureGlobalDashboardNavigationStyle();
 
 function Dashboard({profile,onNavigate,alertEngine}){
-    const [stats,setStats]=React.useState({employees:0,patients:0,availableBeds:0,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[],escalations:0,packageExpiry:0});
+    const [stats,setStats]=React.useState({employees:0,patients:0,availableBeds:0,reservationOverdue:0,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[],escalations:0,packageExpiry:0});
     const [managerPersonalSummary,setManagerPersonalSummary]=React.useState({today:0,overdue:0,followup:0,completed:0});
     const [directorOfficeSummary,setDirectorOfficeSummary]=React.useState({
       isDirector:false,
@@ -8344,6 +8344,11 @@ function Dashboard({profile,onNavigate,alertEngine}){
       const availableBeds=roomBedRows.filter(bed=>
         !dashboardPatientForBed(bed)&&String(bed.status||'Available')==='Available'
       ).length;
+      const reservationOverdue=roomBedRows.filter(bed=>{
+        if(String(bed.status||'').trim().toLowerCase()!=='reserved'||!bed.expected_admission_date)return false;
+        const expected=new Date(`${bed.expected_admission_date}T${String(bed.expected_admission_time||'17:00').slice(0,5)}:00`);
+        return !Number.isNaN(expected.getTime())&&expected.getTime()<Date.now();
+      }).length;
 
       const todayDate=new Date(`${today}T00:00:00`);
       const soonDate=new Date(todayDate);soonDate.setDate(soonDate.getDate()+2);
@@ -8390,6 +8395,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
         employees:activeEmployeeCount,
         patients:patients.length,
         availableBeds,
+        reservationOverdue,
         meds:med.count||0,
         care:care.count||0,
         outstanding,
@@ -8419,6 +8425,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
     const cards=[
       {label:'Current patients',value:stats.patients,page:'Patients',icon:'👥',patientFilter:'active'},
       {label:'Available beds',value:stats.availableBeds,page:'Rooms',icon:'🛏️',roomBedFilter:'available',status:stats.availableBeds?`${stats.availableBeds} currently available bed${stats.availableBeds===1?'':'s'}`:'No beds currently available'},
+      {label:'Reservation Overdue',value:stats.reservationOverdue,page:'Rooms',icon:'⏰',roomBedFilter:'reserved',status:stats.reservationOverdue?`${stats.reservationOverdue} reservation${stats.reservationOverdue===1?'':'s'} awaiting action`:'No overdue reservations'},
       {label:'High-risk patients',value:stats.risks,page:'Patients',icon:'⚠️',patientFilter:'high-risk'},
       {label:'Active employees',value:stats.employees,page:'Employees',icon:'🧑‍⚕️',employeeFilter:'__ALL__'},
       {label:'Medicine Actions Today',value:medicineActionsToday,page:'Clinical Alerts',icon:'💊',clinicalFocus:'Medication',status:medicineActionsToday?`${medicineActionsToday} pending / due medication action${medicineActionsToday===1?'':'s'}`:'No medication actions due'},
@@ -8482,7 +8489,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
           h('div',{style:{background:'rgba(255,255,255,.62)',border:'1px solid rgba(173,58,106,.18)',borderRadius:'12px',padding:'9px 11px'}},h('strong',{style:{fontSize:'23px',color:'#97144d'}},directorOfficeSummary.urgent),h('div',{style:{fontSize:'12px',fontWeight:850}},'Urgent Follow-ups'))
         )
       ):null,
-      h('div',{className:'grid stats dashboard-links'},cards.map(card=>h('button',{type:'button',className:'card stat dashboard-card',key:card.label,onClick:()=>{
+      h('div',{className:'grid stats dashboard-links'},cards.map(card=>h('button',{type:'button',className:`card stat dashboard-card ${card.label==='Reservation Overdue'&&Number(card.value)>0?'dashboard-card-reservation-overdue':''}`,key:card.label,onClick:()=>{
         if(card.page==='Patients'){
           try{
             if(card.patientFilter)sessionStorage.setItem('samara-patient-list-filter',card.patientFilter);
@@ -13592,6 +13599,7 @@ Thank you.`;
     const [admissionWhatsAppStatus,setAdmissionWhatsAppStatus]=React.useState('');
     const [photoFiles,setPhotoFiles]=React.useState([]),[idFiles,setIdFiles]=React.useState([]),[dischargeFiles,setDischargeFiles]=React.useState([]),[prescriptionFiles,setPrescriptionFiles]=React.useState([]),[reportFiles,setReportFiles]=React.useState([]),[cameraConfig,setCameraConfig]=React.useState(null),[patientPhotoPreview,setPatientPhotoPreview]=React.useState('');
     const [roomBeds,setRoomBeds]=React.useState([]);
+    const [reservedAdmissionBedId,setReservedAdmissionBedId]=React.useState('');
     const [consentRecord,setConsentRecord]=React.useState(null);
     const [signedConsentFiles,setSignedConsentFiles]=React.useState([]);
     const [consentBusy,setConsentBusy]=React.useState(false);
@@ -13670,6 +13678,22 @@ Thank you.`;
       }finally{
         setTimeout(()=>{draftReadyRef.current=true},0);
       }
+    },[]);
+
+    React.useEffect(()=>{
+      try{
+        const raw=sessionStorage.getItem('samara-reserved-room-admission');
+        if(!raw)return;
+        const reservation=JSON.parse(raw);
+        sessionStorage.removeItem('samara-reserved-room-admission');
+        setReservedAdmissionBedId(String(reservation.room_bed_id||''));
+        setForm(current=>({...current,
+          room_no:reservation.room_no||'',bed_no:reservation.bed_no||'',
+          full_name:current.full_name||reservation.reserved_for_name||'',
+          mobile:current.mobile||reservation.reserved_for_contact||''
+        }));
+        setMsg(`Reserved Room ${reservation.room_no}-${reservation.bed_no} selected. Complete the admission details.`);
+      }catch(error){console.warn('Unable to open reserved bed in Admission:',error)}
     },[]);
 
     React.useEffect(()=>{
@@ -14884,6 +14908,7 @@ Please keep these login details confidential.`;
         String(r.bed_no||r.bed_code||'').toUpperCase()===String(form.bed_no||'').toUpperCase()
       );
       const selectedBedIsCurrentPatient=bedBelongsToCurrentPatient(selectedBed);
+      const selectedBedIsReservedForThisAdmission=Boolean(selectedBed&&reservedAdmissionBedId&&String(selectedBed.id)===String(reservedAdmissionBedId));
       const selectedBedOccupiedByOther=Boolean(
         selectedBed&&(selectedBed.occupant_id||selectedBed.patient_id)&&!selectedBedIsCurrentPatient
       );
@@ -14893,7 +14918,7 @@ Please keep these login details confidential.`;
         !selectedBed||
         !isPatientBed(selectedBed)||
         selectedBedOccupiedByOther||
-        (!selectedBedIsCurrentPatient&&selectedBedStatus!=='Available')
+        (!selectedBedIsCurrentPatient&&!selectedBedIsReservedForThisAdmission&&selectedBedStatus!=='Available')
       ){
         setMsg(
           selectedBedOccupiedByOther
@@ -14935,7 +14960,7 @@ Please keep these login details confidential.`;
           const {error:roomAssignError}=await client.rpc('assign_patient_room',{
             p_patient_id:admissionExistingPatient.id,
             p_room_bed_id:selectedBed.id,
-            p_reason:'Re-admission room allotment'
+            p_reason:selectedBedIsReservedForThisAdmission?'Reserved room admission':'Re-admission room allotment'
           });
           if(roomAssignError){setMsg(roomAssignError.message||'Unable to allot the selected room for re-admission.');setBusy(false);return}
         }
@@ -14986,7 +15011,7 @@ Please keep these login details confidential.`;
           const {error:roomAssignError}=await client.rpc('assign_patient_room',{
             p_patient_id:patient.id,
             p_room_bed_id:selectedBed.id,
-            p_reason:'Initial admission room allotment'
+            p_reason:selectedBedIsReservedForThisAdmission?'Reserved room admission':'Initial admission room allotment'
           });
           if(roomAssignError){
             await client.from('patients').delete().eq('id',patient.id);
@@ -20066,7 +20091,7 @@ function CarePackages({profile}){
   );
 }
 
-function RoomsBeds({profile}){
+function RoomsBeds({profile,onNavigate}){
     const canManage=profile?.role==='Admin'||(profile?.role==='Manager'&&!isNursingManagerProfile(profile));
     const nurseView=profile?.role==='Nurse';
     const empty={
@@ -20074,7 +20099,7 @@ function RoomsBeds({profile}){
       room_daily_rate:'2000',nursing_daily_rate:'800',special_nurse_daily_rate:'0',
       floor:'',wing:'',notes:'',
       reserved_for_name:'',reserved_for_contact:'',reserved_by_name:'',reserved_by_contact:'',
-      expected_admission_date:'',reservation_notes:''
+      expected_admission_date:'',expected_admission_time:'17:00',reservation_notes:''
     };
     const [rows,setRows]=React.useState([]);
     const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
@@ -20085,6 +20110,11 @@ function RoomsBeds({profile}){
     const [showTransfer,setShowTransfer]=React.useState(false);
     const [showReservation,setShowReservation]=React.useState(false);
     const [reservationRow,setReservationRow]=React.useState(null);
+    const [reservationMode,setReservationMode]=React.useState('view');
+    const [reservationDraft,setReservationDraft]=React.useState({reserved_for_name:'',reserved_for_contact:'',reserved_by_name:'',reserved_by_contact:'',expected_admission_date:'',expected_admission_time:'17:00',reservation_notes:''});
+    const [reservationBusy,setReservationBusy]=React.useState(false);
+    const [reservationMsg,setReservationMsg]=React.useState('');
+    const [reservationClock,setReservationClock]=React.useState(Date.now());
     const [form,setForm]=React.useState(empty);
     const [transfer,setTransfer]=React.useState({patient_id:'',to_room_bed_id:'',reason:'',effective_at:new Date().toISOString().slice(0,16)});
     const [editing,setEditing]=React.useState(null);
@@ -20125,6 +20155,7 @@ function RoomsBeds({profile}){
         .subscribe();
       return()=>client.removeChannel(ch);
     },[]);
+    React.useEffect(()=>{const timer=setInterval(()=>setReservationClock(Date.now()),60000);return()=>clearInterval(timer)},[]);
 
     function showToast(type,text){
       showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
@@ -20150,7 +20181,9 @@ function RoomsBeds({profile}){
         ?patientUseRows.filter(r=>!patientFor(r)&&String(r.status||'').trim().toLowerCase()==='maintenance')
         :dashboardBedFilter==='available'?availableRows:patientUseRows;
     const occupied=occupiedRows.length;
-    const reserved=patientUseRows.filter(r=>String(r.status||'').trim().toLowerCase()==='reserved').length;
+    const reservedRows=patientUseRows.filter(r=>String(r.status||'').trim().toLowerCase()==='reserved');
+    const reserved=reservedRows.length;
+    const overdueReservations=reservedRows.filter(r=>reservationTiming(r).className==='overdue').length;
     const maintenance=patientUseRows.filter(r=>String(r.status||'').trim().toLowerCase()==='maintenance').length;
 
     function defaultTariff(type){
@@ -20181,7 +20214,7 @@ function RoomsBeds({profile}){
         reserved_for_contact:row.reserved_for_contact||'',
         reserved_by_name:row.reserved_by_name||formalName(profile)||profile?.full_name||'',
         reserved_by_contact:row.reserved_by_contact||profile?.mobile||profile?.phone||profile?.contact_number||'',
-        expected_admission_date:row.expected_admission_date||'',
+        expected_admission_date:row.expected_admission_date||'',expected_admission_time:String(row.expected_admission_time||'17:00').slice(0,5),
         reservation_notes:row.reservation_notes||''
       });
       setShow(true);
@@ -20190,9 +20223,50 @@ function RoomsBeds({profile}){
       const tariff=defaultTariff(value);
       setForm(current=>({...current,room_type:value,room_daily_rate:tariff.room,nursing_daily_rate:tariff.nursing}));
     }
+    function reservationValues(row={}){return {
+      reserved_for_name:row.reserved_for_name||'',reserved_for_contact:row.reserved_for_contact||'',
+      reserved_by_name:row.reserved_by_name||formalName(profile)||profile?.full_name||'',reserved_by_contact:row.reserved_by_contact||profile?.mobile||profile?.phone||'',
+      expected_admission_date:row.expected_admission_date||todayISOIndia(),expected_admission_time:String(row.expected_admission_time||'17:00').slice(0,5),reservation_notes:row.reservation_notes||''
+    }}
+    function openReserve(row){setReservationRow(row);setReservationDraft(reservationValues(row));setReservationMode('create');setReservationMsg('');setShowReservation(true)}
     function openReservationView(row){
       setReservationRow(row);
+      setReservationDraft(reservationValues(row));setReservationMode('view');setReservationMsg('');
       setShowReservation(true);
+    }
+    function reservationTiming(row){
+      if(!row?.expected_admission_date)return {label:'Expected time not entered',className:'reserved'};
+      const expected=new Date(`${row.expected_admission_date}T${String(row.expected_admission_time||'17:00').slice(0,5)}:00`);
+      const difference=expected.getTime()-reservationClock;
+      if(difference<0)return {label:'Reservation Overdue',className:'overdue'};
+      if(difference<=60*60*1000)return {label:'Arrival Due',className:'due'};
+      return {label:'Reserved',className:'reserved'};
+    }
+    async function saveReservation(event){
+      event.preventDefault();if(!reservationRow||reservationBusy)return;
+      if(!reservationDraft.reserved_for_name.trim()||!reservationDraft.reserved_for_contact.trim()||!reservationDraft.expected_admission_date||!reservationDraft.expected_admission_time){setReservationMsg('Name, contact number, expected date and expected time are required.');return}
+      const expectedArrival=new Date(`${reservationDraft.expected_admission_date}T${reservationDraft.expected_admission_time}:00`);
+      if(Number.isNaN(expectedArrival.getTime())||expectedArrival.getTime()<=Date.now()){setReservationMsg('Expected arrival date and time must be in the future.');return}
+      setReservationBusy(true);setReservationMsg('');
+      const payload={...reservationDraft,status:'Reserved',reserved_at:reservationRow.reserved_at||new Date().toISOString(),updated_at:new Date().toISOString()};
+      const {error}=await client.from('room_beds').update(payload).eq('id',reservationRow.id);
+      setReservationBusy(false);
+      if(error){setReservationMsg(error.message||'Unable to reserve room.');return}
+      await writeAuditEvent(reservationMode==='extend'?'Room Reservation Extended':'Room Reserved','Rooms',reservationRow.id,{room_no:reservationRow.room_no,bed_no:reservationRow.bed_no,...payload},'Success');
+      setShowReservation(false);setReservationRow(null);showToast('success',reservationMode==='extend'?'Reservation extended successfully.':'Room reserved successfully.');await load();
+    }
+    async function releaseReservation(){
+      if(!reservationRow||reservationBusy||!confirm(`Cancel reservation and release Room ${reservationRow.room_no}-${reservationRow.bed_no} as Available?`))return;
+      setReservationBusy(true);
+      const auditDetails={room_no:reservationRow.room_no,bed_no:reservationRow.bed_no,reserved_for_name:reservationRow.reserved_for_name,expected_admission_date:reservationRow.expected_admission_date,expected_admission_time:reservationRow.expected_admission_time};
+      const {error}=await client.from('room_beds').update({status:'Available',reserved_for_name:null,reserved_for_contact:null,reserved_by_name:null,reserved_by_contact:null,expected_admission_date:null,expected_admission_time:null,reservation_notes:null,reserved_at:null,updated_at:new Date().toISOString()}).eq('id',reservationRow.id);
+      setReservationBusy(false);if(error){setReservationMsg(error.message||'Unable to release bed.');return}
+      await writeAuditEvent('Room Reservation Cancelled / Bed Released','Rooms',reservationRow.id,auditDetails,'Success');setShowReservation(false);setReservationRow(null);showToast('success','Reservation cancelled and bed released as Available.');await load();
+    }
+    function markReservedBedForAdmission(){
+      if(!reservationRow)return;
+      sessionStorage.setItem('samara-reserved-room-admission',JSON.stringify({room_bed_id:reservationRow.id,room_no:reservationRow.room_no,bed_no:reservationRow.bed_no,reserved_for_name:reservationRow.reserved_for_name,reserved_for_contact:reservationRow.reserved_for_contact}));
+      writeAuditEvent('Reserved Bed Sent to Admission','Rooms',reservationRow.id,{room_no:reservationRow.room_no,bed_no:reservationRow.bed_no},'Success');setShowReservation(false);setReservationRow(null);onNavigate?.('Admissions');
     }
 
     async function saveRoom(e){
@@ -20215,6 +20289,7 @@ function RoomsBeds({profile}){
           reserved_by_name:form.status==='Reserved'?String(form.reserved_by_name||'').trim():null,
           reserved_by_contact:form.status==='Reserved'?String(form.reserved_by_contact||'').trim():null,
           expected_admission_date:form.status==='Reserved'?(form.expected_admission_date||null):null,
+          expected_admission_time:form.status==='Reserved'?(form.expected_admission_time||null):null,
           reservation_notes:form.status==='Reserved'?String(form.reservation_notes||'').trim()||null:null,
           reserved_at:form.status==='Reserved'?(editing?.reserved_at||new Date().toISOString()):null,
           updated_at:new Date().toISOString()
@@ -20232,6 +20307,7 @@ function RoomsBeds({profile}){
           if(!payload.reserved_for_contact)throw new Error('Reserved person contact number is required.');
           if(!payload.reserved_by_name)throw new Error('Reserved by name is required.');
           if(!payload.expected_admission_date)throw new Error('Expected admission date is required.');
+          if(!payload.expected_admission_time)throw new Error('Expected admission time is required.');
         }
         let result;
         if(editing?.id)result=await client.from('room_beds').update(payload).eq('id',editing.id);
@@ -20305,7 +20381,7 @@ function RoomsBeds({profile}){
         h('button',{type:'button',className:`card stat room-stat-total room-summary-link ${dashboardBedFilter===''?'active':''}`,onClick:()=>showRoomFilter(''),'aria-label':'Show all patient beds'},h('span',null,'Total Patient Beds'),h('strong',null,patientUseRows.length),h('small',null,'Office and Store excluded →')),
         h('button',{type:'button',className:`card stat room-stat-occupied room-summary-link ${dashboardBedFilter==='occupied'?'active':''}`,onClick:()=>showRoomFilter('occupied'),'aria-label':'Show occupied beds'},h('span',null,'Occupied'),h('strong',null,occupied),h('small',null,'View occupied beds →')),
         h('button',{type:'button',className:`card stat room-stat-available room-summary-link ${dashboardBedFilter==='available'?'active':''}`,onClick:()=>showRoomFilter('available'),'aria-label':'Show available beds'},h('span',null,'Available'),h('strong',null,availableRows.length),h('small',null,'View available beds →')),
-        h('button',{type:'button',className:`card stat room-stat-reserved room-summary-link ${dashboardBedFilter==='reserved'?'active':''}`,onClick:()=>showRoomFilter('reserved'),'aria-label':'Show reserved beds'},h('span',null,'Reserved'),h('strong',null,reserved),h('small',null,'View reserved beds →')),
+        h('button',{type:'button',className:`card stat room-stat-reserved room-summary-link ${dashboardBedFilter==='reserved'?'active':''}`,onClick:()=>showRoomFilter('reserved'),'aria-label':'Show reserved beds'},h('span',null,'Reserved'),h('strong',null,reserved),h('small',{className:overdueReservations?'reservation-dashboard-alert':''},overdueReservations?`${overdueReservations} overdue — action required →`:'View reserved beds →')),
         h('button',{type:'button',className:`card stat room-stat-maintenance room-summary-link ${dashboardBedFilter==='maintenance'?'active':''}`,onClick:()=>showRoomFilter('maintenance'),'aria-label':'Show maintenance beds'},h('span',null,'Maintenance'),h('strong',null,maintenance),h('small',null,'View maintenance beds →'))
       ),
 
@@ -20339,7 +20415,7 @@ function RoomsBeds({profile}){
                     ),
                     h('div',{className:'available-bed-compact-meta'},
                       [row.floor,row.wing].filter(Boolean).length?h('small',null,[row.floor,row.wing].filter(Boolean).join(' / ')):null,
-                      h('span',{className:'room-status room-status-available'},'Available')
+                      h('div',{className:'available-bed-actions'},h('span',{className:'room-status room-status-available'},'Available'),canManage&&h('button',{type:'button',className:'btn btn-reserve-room',onClick:()=>openReserve(row)},'Reserve'))
                     )
                   ))
                 :h('div',{className:'empty'},'No beds currently available.')
@@ -20348,20 +20424,21 @@ function RoomsBeds({profile}){
               h('thead',null,h('tr',null,['Room','Bed','Type','Floor / Wing','Room Rent / Day','Nursing / Day','Special Nurse / Day','Status','Patient','Action'].map(x=>h('th',{key:x},x)))),
               h('tbody',null,
                 displayedRoomRows.map(row=>{
-                  const p=patientFor(row),status=p?'Occupied':row.status;
+                  const p=patientFor(row),status=p?'Occupied':row.status,timing=status==='Reserved'?reservationTiming(row):null;
                   return h('tr',{key:row.id},
                     h('td',null,h('strong',null,row.room_no)),h('td',null,row.bed_no),h('td',null,row.room_type||'—'),
                     h('td',null,[row.floor,row.wing].filter(Boolean).join(' / ')||'—'),
                     h('td',null,`₹${Number(row.room_daily_rate??row.daily_rate??0).toLocaleString('en-IN')}`),
                     h('td',null,`₹${Number(row.nursing_daily_rate||0).toLocaleString('en-IN')}`),
                     h('td',null,`₹${Number(row.special_nurse_daily_rate||0).toLocaleString('en-IN')}`),
-                    h('td',null,h('span',{className:`room-status room-status-${String(status).toLowerCase()}`},status)),
+                    h('td',null,h('span',{className:`room-status room-status-${timing?.className||String(status).toLowerCase()}`},timing?.label||status)),
                     h('td',null,
                       p?h('div',null,h('strong',null,formalName(p)),h('small',null,p.patient_id||'—')):
                       status==='Reserved'?h('div',null,h('strong',null,row.reserved_for_name||'Reservation details pending'),h('small',null,row.expected_admission_date?`Expected: ${formatDateIN(row.expected_admission_date)}`:'Expected date not entered')):'—'
                     ),
                     h('td',null,canManage?h('div',{className:'employee-actions'},
                       status==='Reserved'&&h('button',{className:'btn btn-secondary',onClick:()=>openReservationView(row)},'View'),
+                      status==='Available'&&h('button',{className:'btn btn-reserve-room',onClick:()=>openReserve(row)},'Reserve'),
                       h('button',{className:'btn btn-secondary',onClick:()=>openEdit(row)},'Edit / Tariff'),
                       p&&h('button',{className:'btn btn-primary',onClick:()=>openTransfer(row)},'Shift Room'),
                       h('button',{className:'btn btn-danger',disabled:!!p,onClick:()=>removeRoom(row)},'Delete')
@@ -20375,11 +20452,11 @@ function RoomsBeds({profile}){
 
       !['available','occupied'].includes(dashboardBedFilter)&&h('div',{className:'rooms-mobile-list'},
         displayedRoomRows.length?displayedRoomRows.map(row=>{
-          const p=patientFor(row),status=p?'Occupied':row.status;
+          const p=patientFor(row),status=p?'Occupied':row.status,timing=status==='Reserved'?reservationTiming(row):null;
           return h('article',{className:'room-mobile-card',key:`mobile-room-${row.id}`},
             h('div',{className:'room-mobile-card-head'},
               h('div',null,h('strong',null,`Room ${row.room_no}-${row.bed_no}`),h('span',null,row.room_type||'Room')),
-              h('span',{className:`room-status room-status-${String(status).toLowerCase()}`},status)
+              h('span',{className:`room-status room-status-${timing?.className||String(status).toLowerCase()}`},timing?.label||status)
             ),
             h('div',{className:'room-mobile-card-details'},
               h('span',null,h('small',null,'Floor / Wing'),h('strong',null,[row.floor,row.wing].filter(Boolean).join(' / ')||'—')),
@@ -20388,6 +20465,7 @@ function RoomsBeds({profile}){
             ),
             canManage?h('div',{className:'room-mobile-actions'},
               h('button',{className:'btn btn-primary',onClick:()=>openEdit(row)},'Edit / Tariff'),
+              status==='Available'&&h('button',{className:'btn btn-reserve-room',onClick:()=>openReserve(row)},'Reserve'),
               status==='Reserved'&&h('button',{className:'btn btn-secondary',onClick:()=>openReservationView(row)},'View Reservation'),
               p&&h('button',{className:'btn btn-secondary',onClick:()=>openTransfer(row)},'Shift Room'),
               !p&&h('button',{className:'btn btn-danger',onClick:()=>removeRoom(row)},'Delete')
@@ -20497,6 +20575,7 @@ function RoomsBeds({profile}){
             miniInput('Reserved By — Name',form.reserved_by_name,v=>setForm({...form,reserved_by_name:v}),true),
             miniInput('Reserved By — Contact Number',form.reserved_by_contact,v=>setForm({...form,reserved_by_contact:v})),
             h('div',{className:'field'},h('label',null,'Expected Date of Admission'),h(StrictDateInput,{value:form.expected_admission_date,onChange:e=>setForm({...form,expected_admission_date:e.target.value}),min:todayISOIndia(),required:true})),
+            h('div',{className:'field'},h('label',null,'Expected Time of Admission'),h('input',{type:'time',value:form.expected_admission_time||'17:00',onChange:e=>setForm({...form,expected_admission_time:e.target.value}),required:true})),
             h('div',{className:'field span-2'},h('label',null,'Reservation Notes'),h('textarea',{rows:3,value:form.reservation_notes,onChange:e=>setForm({...form,reservation_notes:e.target.value}),placeholder:'Source of request, advance received, special requirements, follow-up instructions, etc.'}))
           ),
           h('div',{className:'field span-2'},h('label',null,'Notes'),h('textarea',{rows:3,value:form.notes,onChange:e=>setForm({...form,notes:e.target.value})}))
@@ -20504,21 +20583,39 @@ function RoomsBeds({profile}){
         h('button',{className:'btn btn-primary full',disabled:busy},busy?'Saving…':'Save Room & Tariff')
       )),
 
-      showReservation&&reservationRow&&h('div',{className:'modal-backdrop'},h('div',{className:'card modal'},
+      showReservation&&reservationRow&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal room-reservation-modal',onSubmit:saveReservation},
         h('div',{className:'panel-head'},
-          h('div',null,h('h3',null,`Reserved Room ${reservationRow.room_no}-${reservationRow.bed_no}`),h('small',null,reservationRow.room_type||'Room reservation details')),
+          h('div',null,h('h3',null,`${reservationMode==='create'?'Reserve':reservationMode==='extend'?'Extend Reservation —':'Reserved Room'} ${reservationRow.room_no}-${reservationRow.bed_no}`),h('small',null,reservationRow.room_type||'Room reservation details')),
           h('button',{type:'button',className:'close',onClick:()=>{setShowReservation(false);setReservationRow(null)}},'×')
         ),
-        h('div',{className:'modal-grid reservation-details-grid'},
-          h('div',{className:'reservation-detail'},h('span',null,'Reserved For'),h('strong',null,reservationRow.reserved_for_name||'—')),
-          h('div',{className:'reservation-detail'},h('span',null,'Contact Number'),h('strong',null,reservationRow.reserved_for_contact||'—')),
-          h('div',{className:'reservation-detail'},h('span',null,'Reserved By'),h('strong',null,reservationRow.reserved_by_name||'—')),
-          h('div',{className:'reservation-detail'},h('span',null,'Reserved By Contact'),h('strong',null,reservationRow.reserved_by_contact||'—')),
-          h('div',{className:'reservation-detail'},h('span',null,'Expected Admission Date'),h('strong',null,reservationRow.expected_admission_date?formatDateIN(reservationRow.expected_admission_date):'—')),
-          h('div',{className:'reservation-detail'},h('span',null,'Reserved On'),h('strong',null,reservationRow.reserved_at?fmt(reservationRow.reserved_at):'—')),
-          h('div',{className:'reservation-detail span-2'},h('span',null,'Reservation Notes'),h('strong',null,reservationRow.reservation_notes||'—'))
-        ),
-        h('button',{type:'button',className:'btn btn-secondary full',onClick:()=>{setShowReservation(false);setReservationRow(null)}},'Close')
+        reservationMsg&&h('div',{className:'message error'},reservationMsg),
+        reservationMode==='view'?h(React.Fragment,null,
+          h('div',{className:`reservation-timing-banner ${reservationTiming(reservationRow).className}`},reservationTiming(reservationRow).label),
+          h('div',{className:'modal-grid reservation-details-grid'},
+            h('div',{className:'reservation-detail'},h('span',null,'Reserved For'),h('strong',null,reservationRow.reserved_for_name||'—')),
+            h('div',{className:'reservation-detail'},h('span',null,'Contact Number'),h('strong',null,reservationRow.reserved_for_contact||'—')),
+            h('div',{className:'reservation-detail'},h('span',null,'Reserved By'),h('strong',null,reservationRow.reserved_by_name||'—')),
+            h('div',{className:'reservation-detail'},h('span',null,'Expected Arrival'),h('strong',null,`${reservationRow.expected_admission_date?formatDateIN(reservationRow.expected_admission_date):'—'} · ${medicationTimeLabel(reservationRow.expected_admission_time||'17:00')}`)),
+            h('div',{className:'reservation-detail'},h('span',null,'Reserved On'),h('strong',null,reservationRow.reserved_at?fmt(reservationRow.reserved_at):'—')),
+            h('div',{className:'reservation-detail span-2'},h('span',null,'Reservation Notes'),h('strong',null,reservationRow.reservation_notes||'—'))
+          ),
+          h('div',{className:'reservation-workflow-actions'},
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setReservationMode('extend')},'Extend Reservation'),
+            h('button',{type:'button',className:'btn btn-primary',onClick:markReservedBedForAdmission},'Mark Admitted'),
+            h('button',{type:'button',className:'btn btn-danger',disabled:reservationBusy,onClick:releaseReservation},reservationBusy?'Releasing…':'Cancel & Release Bed')
+          )
+        ):h(React.Fragment,null,
+          h('div',{className:'modal-grid'},
+            miniInput('Reserved For — Name',reservationDraft.reserved_for_name,v=>setReservationDraft({...reservationDraft,reserved_for_name:v}),true),
+            miniInput('Contact Number',reservationDraft.reserved_for_contact,v=>setReservationDraft({...reservationDraft,reserved_for_contact:v}),true),
+            miniInput('Reserved By',reservationDraft.reserved_by_name,v=>setReservationDraft({...reservationDraft,reserved_by_name:v}),true),
+            miniInput('Reserved By Contact',reservationDraft.reserved_by_contact,v=>setReservationDraft({...reservationDraft,reserved_by_contact:v})),
+            h('div',{className:'field'},h('label',null,'Expected Arrival Date'),h(StrictDateInput,{value:reservationDraft.expected_admission_date,onChange:e=>setReservationDraft({...reservationDraft,expected_admission_date:e.target.value}),min:todayISOIndia(),required:true})),
+            h('div',{className:'field'},h('label',null,'Expected Arrival Time'),h('input',{type:'time',value:reservationDraft.expected_admission_time,onChange:e=>setReservationDraft({...reservationDraft,expected_admission_time:e.target.value}),required:true})),
+            h('div',{className:'field span-2'},h('label',null,'Reservation Notes'),h('textarea',{rows:3,value:reservationDraft.reservation_notes,onChange:e=>setReservationDraft({...reservationDraft,reservation_notes:e.target.value})}))
+          ),
+          h('div',{className:'reservation-workflow-actions edit'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>reservationMode==='extend'?setReservationMode('view'):(setShowReservation(false),setReservationRow(null))},'Cancel'),h('button',{className:'btn btn-reserve-room',disabled:reservationBusy},reservationBusy?'Saving…':reservationMode==='extend'?'Save Extension':'Confirm Reservation'))
+        )
       )),
 
       showTransfer&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:transferPatient,style:{width:'min(820px,96vw)'}},

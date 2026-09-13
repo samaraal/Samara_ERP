@@ -1,0 +1,26 @@
+SAMARA CARE ERP 2.11.96 — DEDICATED ROOM RESERVATION WORKFLOW
+
+DEPLOYMENT ORDER
+1. In Supabase SQL Editor, run 117_room_reservation_expected_time.sql and confirm Success.
+2. Replace app.js, styles.css, index.html and service-worker.js.
+3. Refresh/repair the ERP and confirm version 2.11.96.
+
+WHAT IS NEW
+- Every Available bed has a dedicated Reserve button on desktop and mobile.
+- The reservation form captures resident name, contact, reserved by, expected arrival date, expected arrival time and notes.
+- One hour before expected arrival, the reservation shows Arrival Due.
+- After the expected time, it shows Reservation Overdue.
+- Overdue reservations appear as a red action card on the Admin/Manager dashboard.
+- Reserved Rooms provides three actions:
+  1. Extend Reservation
+  2. Mark Admitted
+  3. Cancel & Release Bed
+- Mark Admitted opens Admission with the resident name, contact and reserved bed prefilled.
+- The reserved bed remains protected until admission is completed.
+- Cancel & Release Bed always asks for confirmation and returns the bed to Available.
+- Reservation, extension, admission handoff and cancellation actions are written to the Audit Trail.
+
+IMPORTANT
+- Run the SQL file before replacing the ERP files.
+- A reservation is never released automatically.
+- Existing patient-bed exclusions, compact mobile Rooms and colour-coded dashboard boxes remain included.

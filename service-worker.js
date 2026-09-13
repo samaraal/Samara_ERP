@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.95';
-const CACHE = 'samara-erp-2.11.95-room-dashboard-colours';
+const APP_VERSION = '2.11.96';
+const CACHE = 'samara-erp-2.11.96-room-reservation-workflow';
 const SHELL = [
   './',
   './index.html',
