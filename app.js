@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.13';
+  const APP_VERSION = '2.12.14';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1587,14 +1587,15 @@ function initSamaraInaugurationInvitation(){
   const sectionsFor = (allowed,role) => {
     if(CLINICAL_ROLES.includes(role)){
       return [
-        {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My To-Do List','My Leave & Permission','Leave Approvals','Notifications'].filter(item=>allowed.includes(item))},
+        {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My To-Do List','Notifications'].filter(item=>allowed.includes(item))},
+        {title:'HR',items:['Duty Assignment','My Leave & Permission','Leave Approvals'].filter(item=>allowed.includes(item))},
         {title:'PHARMACY & STORES',items:['Patient Consumables','Stores','Stores In-charge Assignment'].filter(item=>allowed.includes(item))}
       ];
     }
     if(role==='Manager'&&allowed.includes('My To-Do List')&&allowed.includes('Employees')&&!allowed.includes('Accounts Dashboard')){
       return [
         {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','Duty Assignment','My To-Do List'].filter(item=>allowed.includes(item))},
-        {title:'NURSING HR',items:['Employees','My Leave & Permission'].filter(item=>allowed.includes(item))},
+        {title:'NURSING HR',items:['Employees','Duty Assignment','My Leave & Permission'].filter(item=>allowed.includes(item))},
         {title:'ADMISSION',items:['Enquiries','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},
         {title:'ROOMS & PACKAGES',items:['Rooms','Care Packages'].filter(item=>allowed.includes(item))},
         {title:'PHARMACY & STORES',items:['Patient Consumables','Stores','Stores In-charge Assignment'].filter(item=>allowed.includes(item))},
@@ -22525,6 +22526,23 @@ function RoomsBeds({profile,onNavigate}){
       showToast('success',`Assignment status changed to ${status}.`);
       await load();
     }
+    async function requestModification(row){
+      if(row.employee_id!==profile.id)return;
+      const reason=prompt('Reason for requesting duty modification:','');
+      if(!reason||!reason.trim())return;
+      const {error}=await client.from('duty_assignments').update({staff_response:'Modification Requested',modification_request:reason.trim(),modification_requested_at:new Date().toISOString(),modification_requested_by:profile.id,updated_at:new Date().toISOString()}).eq('id',row.id);
+      if(error){showToast('error',error.message||'Unable to request modification.');return}
+      showToast('success','Modification request sent','The reviewer will decide whether to modify or retain the assignment.');await load();
+    }
+    async function reviewRequest(row,decision){
+      if(!canManage||!row.modification_request)return;
+      const remarks=prompt(`${decision==='Modified'?'Enter the revised duty details or approval note:':'Enter review remarks:'}`,row.modification_request||'');
+      if(remarks===null)return;
+      const {data:{user}}=await client.auth.getUser();
+      const {error}=await client.from('duty_assignments').update({review_status:decision,review_remarks:remarks.trim()||null,reviewed_at:new Date().toISOString(),reviewed_by:user?.id||profile.id,reviewed_by_name:formalName(profile)||profile.full_name||'Reviewer',staff_response:decision==='Modified'?'Modified':'Original Retained',updated_at:new Date().toISOString()}).eq('id',row.id);
+      if(error){showToast('error',error.message||'Unable to review request.');return}
+      showToast('success',`Request reviewed: ${decision}`);await load();
+    }
 
     const rows=assignments.map(row=>[
       patientLabel(row.patient_id),
@@ -22803,7 +22821,10 @@ function DutyAssignment({profile}){
         h('span',{className:`badge ${row.status==='Completed'?'':row.status==='Cancelled'?'off':''}`},row.status||'Assigned'),
         h('div',{className:'employee-actions'},
           canModify&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(row)},'Edit'),
-          (canManage||isOwner)&&h('select',{value:row.status||'Assigned',onChange:e=>updateStatus(row,e.target.value)},statusOptions.map(x=>h('option',{key:x,value:x},x)))
+          (canManage||isOwner)&&h('select',{value:row.status||'Assigned',onChange:e=>updateStatus(row,e.target.value)},statusOptions.map(x=>h('option',{key:x,value:x},x))),
+          isOwner&&!row.modification_request&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>requestModification(row)},'Request Modification'),
+          canManage&&row.modification_request&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>reviewRequest(row,'Modified')},'Modify / Approve'),
+          canManage&&row.modification_request&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>reviewRequest(row,'Original Retained')},'Retain Original')
         )
       ];
     });
