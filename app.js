@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.92';
+  const APP_VERSION = '2.11.93';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '11-Sep-2026 Room Types, Spaces and Movable Pop-ups';
+  const APP_BUILD_DATE = '13-Sep-2026 Patient Bed Count Correction';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -1446,6 +1446,16 @@ function initSamaraInaugurationInvitation(){
   const employeeDepartment=row=>String(row?.department||'').trim()||(
     row?.role==='Nurse'?'Nursing':row?.role==='Caregiver'?'Caregiving':row?.role==='Accounts'?'Accounts & Finance':row?.role==='Kitchen'?'Food & Kitchen':['Admin','Manager'].includes(row?.role)?'Administration':'Other'
   );
+  // Office and store are operational spaces recorded in room_beds for room-master
+  // convenience. They must never enter patient bed capacity or availability figures.
+  const isOperationalRoomSpace=row=>{
+    const clean=value=>String(value||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+    return [row?.status,row?.room_type,row?.room_no,row?.bed_no].some(value=>{
+      const normalized=clean(value);
+      return normalized==='samaraoffice'||normalized==='samarastore';
+    });
+  };
+  const isPatientBed=row=>!isOperationalRoomSpace(row);
   // Samara's present full-access Administrators are management/system users, not HR employees.
   // Keep them available for ERP login and permissions, but exclude them from Employee dashboards/lists.
   const isSamaraAdministratorAccount=row=>{
@@ -8323,7 +8333,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
       const activeEmployeeCount=dashboardEmployeeRows.length;
 
       // Use the SAME availability rule as Rooms & Beds so both screens always agree.
-      const roomBedRows=beds.data||[];
+      const roomBedRows=(beds.data||[]).filter(isPatientBed);
       const dashboardPatientForBed=bed=>
         patients.find(p=>String(p.id||'')===String(bed.patient_id||''))||
         patients.find(p=>
@@ -14881,6 +14891,7 @@ Please keep these login details confidential.`;
 
       if(
         !selectedBed||
+        !isPatientBed(selectedBed)||
         selectedBedOccupiedByOther||
         (!selectedBedIsCurrentPatient&&selectedBedStatus!=='Available')
       ){
@@ -18408,7 +18419,7 @@ Please keep these login details confidential.`;
   function patientSelect(rows,value,onChange,label='Patient'){return h('div',{className:'field'},h('label',null,label),h('select',{value,onChange:e=>onChange(e.target.value),required:true},h('option',{value:''},'Select patient'),rows.map(p=>h('option',{key:p.id,value:p.id},`${p.patient_id||'NO-ID'} · ${formalName(p)} · ${p.room_no&&p.bed_no?`Room ${p.room_no}-${p.bed_no}`:'Room unassigned'}`))))}
   function roomBedSelect(rows,roomNo,bedNo,onChange,required=false,currentPatientId=''){
     const value=roomNo&&bedNo?`${roomNo}|||${bedNo}`:'';
-    const sorted=[...(rows||[])].sort((a,b)=>
+    const sorted=[...(rows||[])].filter(isPatientBed).sort((a,b)=>
       String(a.room_no||'').localeCompare(String(b.room_no||''),undefined,{numeric:true})
       ||String(a.bed_no||'').localeCompare(String(b.bed_no||''),undefined,{numeric:true})
     );
@@ -20129,17 +20140,18 @@ function RoomsBeds({profile}){
       const p=patients.find(x=>x.id===id);
       return p?`${formalName(p)} · ${p.patient_id||'—'}`:'Former / discharged patient';
     }
-    const patientUseRows=rows.filter(r=>!['Samara Office','Samara Store'].includes(r.status));
-    const availableRows=rows.filter(r=>!patientFor(r)&&r.status==='Available');
-    const occupiedRows=rows.filter(r=>patientFor(r)||r.status==='Occupied');
+    const patientUseRows=rows.filter(isPatientBed);
+    const operationalSpaceRows=rows.filter(isOperationalRoomSpace);
+    const availableRows=patientUseRows.filter(r=>!patientFor(r)&&String(r.status||'').trim().toLowerCase()==='available');
+    const occupiedRows=patientUseRows.filter(r=>patientFor(r)||String(r.status||'').trim().toLowerCase()==='occupied');
     const displayedRoomRows=dashboardBedFilter==='reserved'
-      ?rows.filter(r=>!patientFor(r)&&r.status==='Reserved')
+      ?patientUseRows.filter(r=>!patientFor(r)&&String(r.status||'').trim().toLowerCase()==='reserved')
       :dashboardBedFilter==='maintenance'
-        ?rows.filter(r=>!patientFor(r)&&r.status==='Maintenance')
-        :dashboardBedFilter==='available'?availableRows:rows;
+        ?patientUseRows.filter(r=>!patientFor(r)&&String(r.status||'').trim().toLowerCase()==='maintenance')
+        :dashboardBedFilter==='available'?availableRows:patientUseRows;
     const occupied=occupiedRows.length;
-    const reserved=rows.filter(r=>r.status==='Reserved').length;
-    const maintenance=rows.filter(r=>r.status==='Maintenance').length;
+    const reserved=patientUseRows.filter(r=>String(r.status||'').trim().toLowerCase()==='reserved').length;
+    const maintenance=patientUseRows.filter(r=>String(r.status||'').trim().toLowerCase()==='maintenance').length;
 
     function defaultTariff(type){
       const value=String(type||'').toLowerCase();
@@ -20290,7 +20302,7 @@ function RoomsBeds({profile}){
         canManage&&h('button',{className:'btn btn-primary',onClick:openNew},'+ Add Room / Bed')
       ),
       !nurseView&&h('div',{className:'grid stats room-summary'},
-        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter===''?'active':''}`,onClick:()=>showRoomFilter(''),'aria-label':'Show all rooms and spaces'},h('span',null,'Total Beds'),h('strong',null,patientUseRows.length),h('small',null,'View all rooms / spaces →')),
+        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter===''?'active':''}`,onClick:()=>showRoomFilter(''),'aria-label':'Show all patient beds'},h('span',null,'Total Patient Beds'),h('strong',null,patientUseRows.length),h('small',null,'Office and Store excluded →')),
         h('button',{type:'button',className:`card stat room-stat-occupied room-summary-link ${dashboardBedFilter==='occupied'?'active':''}`,onClick:()=>showRoomFilter('occupied'),'aria-label':'Show occupied beds'},h('span',null,'Occupied'),h('strong',null,occupied),h('small',null,'View occupied beds →')),
         h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter==='available'?'active':''}`,onClick:()=>showRoomFilter('available'),'aria-label':'Show available beds'},h('span',null,'Available'),h('strong',null,availableRows.length),h('small',null,'View available beds →')),
         h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter==='reserved'?'active':''}`,onClick:()=>showRoomFilter('reserved'),'aria-label':'Show reserved beds'},h('span',null,'Reserved'),h('strong',null,reserved),h('small',null,'View reserved beds →')),
@@ -20356,9 +20368,25 @@ function RoomsBeds({profile}){
                     ):status==='Reserved'?h('button',{className:'btn btn-secondary',onClick:()=>openReservationView(row)},'View'):h('span',{className:'small-note'},'View only'))
                   )
                 }),
-                rows.length===0&&h('tr',null,h('td',{colSpan:10,className:'empty'},'No rooms configured.'))
+                displayedRoomRows.length===0&&h('tr',null,h('td',{colSpan:10,className:'empty'},'No patient beds configured in this selection.'))
               )
             ))
+      ),
+
+      !nurseView&&dashboardBedFilter===''&&operationalSpaceRows.length>0&&h('div',{className:'card panel operational-spaces-panel'},
+        h('div',{className:'panel-head'},h('div',null,
+          h('h3',null,'Operational Spaces'),
+          h('small',null,'Samara Office and Samara Store are maintained separately and excluded from every patient-bed total.')
+        )),
+        h('div',{className:'table-wrap'},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['Space','Reference','Status','Action'].map(label=>h('th',{key:label},label)))),
+          h('tbody',null,operationalSpaceRows.map(row=>h('tr',{key:`space-${row.id}`},
+            h('td',null,h('strong',null,row.status||row.room_type||row.room_no||'Operational Space')),
+            h('td',null,[row.room_no,row.bed_no].filter(Boolean).join(' / ')||'—'),
+            h('td',null,h('span',{className:'badge'},'Not a Patient Bed')),
+            h('td',null,canManage?h('button',{className:'btn btn-secondary',onClick:()=>openEdit(row)},'Edit'):h('span',{className:'small-note'},'View only'))
+          )))
+        ))
       ),
 
       (dashboardBedFilter==='available'||dashboardBedFilter==='occupied')&&h('div',{id:dashboardBedFilter==='occupied'?'room-filter-results':undefined,className:'card panel occupied-bed-panel'},

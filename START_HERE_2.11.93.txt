@@ -1,0 +1,18 @@
+SAMARA CARE ERP 2.11.93 — PATIENT BED COUNT CORRECTION
+
+Replace only these files:
+1. app.js
+2. index.html
+3. service-worker.js
+
+No SQL or Edge Function deployment is required.
+
+Correction applied globally:
+- Samara Office and Samara Store are classified as operational spaces.
+- They are excluded from Total Patient Beds, Available, Occupied, Reserved and Maintenance bed figures.
+- They are excluded from the main patient-bed list.
+- They are excluded from Admission and Room Shift room/bed selections.
+- Admin/Manager can still view and edit them separately under Operational Spaces.
+- The main Dashboard Available Beds card now uses the same patient-bed rule as Rooms Management.
+
+After deployment, refresh the ERP and confirm version 2.11.93.
