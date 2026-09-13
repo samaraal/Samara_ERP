@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.10';
+  const APP_VERSION = '2.12.11';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1504,7 +1504,7 @@ function initSamaraInaugurationInvitation(){
   const BED_CODE_OPTIONS = ['A','B','C','D'];
   const NAV_SECTIONS = [
     { title:'OVERVIEW', items:['Dashboard','Notifications'] },
-    { title:'ADMIN', items:['Rooms','Care Packages','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
+    { title:'ADMIN', items:['Rooms','Care Packages','Shift Management','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
     { title:'HR', items:['HR Dashboard','Employees','Duty Assignment','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:"DIRECTOR'S OFFICE", items:["Director's Office"] },
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
@@ -7000,6 +7000,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Patients'&&h(Patients,{profile,onNavigate:setPage}),
           page==='Discharge'&&h(DischargeManagement,{profile}),
           page==='Rooms'&&h(RoomsBeds,{profile,onNavigate:setPage}),
+          page==='Shift Management'&&h(ShiftManagement,{profile}),
           page==='Care Packages'&&h(CarePackages,{profile}),
           page==='Charge Master'&&h(ChargeMasterPage,{profile}),
           page==='Form Field Settings'&&h(FormFieldSettings,{profile}),
@@ -22600,6 +22601,22 @@ function RoomsBeds({profile,onNavigate}){
     );
   }
 
+function ShiftManagement({profile}){
+    const key='samara_shift_configuration_v1';
+    const defaults={effective_from:todayISOIndia(),nursing_pattern:'2-shift',general_start:'09:00',general_end:'18:00'};
+    const [form,setForm]=React.useState(()=>{try{return {...defaults,...JSON.parse(localStorage.getItem(key)||'{}')}}catch(_){return defaults}});
+    const [saved,setSaved]=React.useState(false);
+    const save=e=>{e.preventDefault();localStorage.setItem(key,JSON.stringify(form));setSaved(true);setTimeout(()=>setSaved(false),3000)};
+    if(profile?.role!=='Admin'&&!(profile?.role==='Manager'&&!isNursingManagerProfile(profile)))return h(Section,{title:'Shift Management'},h('div',{className:'message error'},'Administrator or Director access is required.'));
+    return h(Section,{title:'Shift Management',subtitle:'Configure shifts for new duty assignments. Previous records remain unchanged.'},
+      h('form',{onSubmit:save},h('div',{className:'grid two'},
+        h('div',{className:'field'},h('label',null,'Effective From'),h(StrictDateInput,{value:form.effective_from,onChange:e=>setForm({...form,effective_from:e.target.value}),required:true})),
+        h('div',{className:'field'},h('label',null,'Nursing Shift Pattern'),h('select',{value:form.nursing_pattern,onChange:e=>setForm({...form,nursing_pattern:e.target.value})},h('option',{value:'2-shift'},'2 shifts: 7 AM–7 PM / 7 PM–7 AM'),h('option',{value:'3-shift'},'3 shifts: 7 AM–2 PM / 1 PM–7 PM / 7 PM–7 AM'))),
+        h('div',{className:'field'},h('label',null,'General Shift Start'),h('input',{type:'time',value:form.general_start,onChange:e=>setForm({...form,general_start:e.target.value})})),
+        h('div',{className:'field'},h('label',null,'General Shift End'),h('input',{type:'time',value:form.general_end,onChange:e=>setForm({...form,general_end:e.target.value})}))
+      ),h('div',{className:'actions'},h('button',{className:'btn btn-primary'},'Save Shift Settings')),saved&&h('div',{className:'message success'},'Shift settings saved for new assignments from the effective date.')));
+  }
+
 function DutyAssignment({profile}){
     // Admin/Director management accounts can assign and modify duty for every
     // employee.  A Nurse Manager can assign duty only to her Nursing and
@@ -22608,7 +22625,7 @@ function DutyAssignment({profile}){
     const fullDutyControl=profile?.role==='Admin'||(profile?.role==='Manager'&&!nursingManager);
     const canManage=fullDutyControl||nursingManager;
     const canModify=fullDutyControl;
-    const SHIFT_OPTIONS=['Full Day','Day Shift','Night Shift','First Half','Second Half'];
+    const SHIFT_OPTIONS=['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Morning Shift (7 AM–2 PM)','Evening Shift (1 PM–7 PM)','General Shift (9 AM–6 PM)'];
     const DUTY_TYPE_OPTIONS=['Medication Rounds','Vitals Check','Wound Dressing','Mobility Assistance','Feeding Assistance','Bathing / Hygiene Care','Patient Escort','Documentation / Charting','Ward Round','General Duty','Other'];
     const STATUS_ALL=['Assigned','Acknowledged','In Progress','Completed','Cancelled'];
     const STATUS_STAFF=['Assigned','Acknowledged','In Progress','Completed'];
