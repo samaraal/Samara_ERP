@@ -1,5 +1,5 @@
-const APP_VERSION = '2.12.22';
-const CACHE = 'samara-erp-2.12.22-clinical-push';
+const APP_VERSION = '2.12.23';
+const CACHE = 'samara-erp-2.12.23-clinical-push';
 const SHELL = [
   './',
   './index.html',
@@ -58,13 +58,50 @@ self.addEventListener('message', event => {
   }
 });
 
+// Background retries are expected from the dispatcher, but they must not
+// buzz the same phone every minute. IndexedDB keeps this throttle across
+// service-worker restarts and browser reloads.
+const PUSH_REPEAT_MS = 15 * 60 * 1000;
+function pushThrottleKey(payload) {
+  return String(payload.alert_key || payload.tag || `${payload.title || ''}|${payload.body || ''}`)
+    .trim().toLowerCase().slice(0, 500) || 'samara-clinical-alert';
+}
+async function mayShowPush(payload) {
+  if (!self.indexedDB) return true;
+  try {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('samara-clinical-push', 1);
+      request.onupgradeneeded = () => request.result.createObjectStore('throttle');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const key = pushThrottleKey(payload);
+    const last = await new Promise((resolve, reject) => {
+      const request = db.transaction('throttle', 'readonly').objectStore('throttle').get(key);
+      request.onsuccess = () => resolve(Number(request.result || 0));
+      request.onerror = () => reject(request.error);
+    });
+    const now = Date.now();
+    if (now - last < PUSH_REPEAT_MS) { db.close(); return false; }
+    await new Promise((resolve, reject) => {
+      const request = db.transaction('throttle', 'readwrite').objectStore('throttle').put(now, key);
+      request.onsuccess = resolve;
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+    return true;
+  } catch (_) { return true; }
+}
+
 // True background push. This executes even when the ERP window is closed.
 self.addEventListener('push', event => {
   let payload = {};
   try { payload = event.data ? event.data.json() : {}; }
   catch (_) { payload = { body: event.data?.text?.() || 'Clinical attention required.' }; }
-  const title = payload.title || 'SAMARA · CLINICAL ALERT';
-  const options = {
+  event.waitUntil((async () => {
+    if (!(await mayShowPush(payload))) return;
+    const title = payload.title || 'SAMARA · CLINICAL ALERT';
+    const options = {
     body: payload.body || 'Clinical attention required.',
     icon: payload.icon || './icons/icon-192.png',
     badge: payload.badge || './icons/icon-192.png',
@@ -76,8 +113,9 @@ self.addEventListener('push', event => {
     requireInteraction: Boolean(payload.requireInteraction),
     data: { url: payload.url || './?push_page=Clinical%20Alerts', alert_key: payload.alert_key || '', event_kind: payload.event_kind || 'alert' },
     vibrate: payload.event_kind === 'escalation' ? [220,100,220,100,220] : [160,80,160]
-  };
-  event.waitUntil(self.registration.showNotification(title, options));
+    };
+    await self.registration.showNotification(title, options);
+  })());
 });
 
 self.addEventListener('notificationclick', event => {
