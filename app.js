@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.06';
+  const APP_VERSION = '2.12.07';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22600,7 +22600,13 @@ function RoomsBeds({profile,onNavigate}){
   }
 
 function DutyAssignment({profile}){
-    const canManage=['Admin','Manager'].includes(profile?.role);
+    // Admin/Director management accounts can assign and modify duty for every
+    // employee.  A Nurse Manager can assign duty only to her Nursing and
+    // Caregiving team; assignment edits remain reserved for Admin/Director.
+    const nursingManager=isNursingManagerProfile(profile);
+    const fullDutyControl=profile?.role==='Admin'||(profile?.role==='Manager'&&!nursingManager);
+    const canManage=fullDutyControl||nursingManager;
+    const canModify=fullDutyControl;
     const SHIFT_OPTIONS=['Full Day','Day Shift','Night Shift','First Half','Second Half'];
     const DUTY_TYPE_OPTIONS=['Medication Rounds','Vitals Check','Wound Dressing','Mobility Assistance','Feeding Assistance','Bathing / Hygiene Care','Patient Escort','Documentation / Charting','Ward Round','General Duty','Other'];
     const STATUS_ALL=['Assigned','Acknowledged','In Progress','Completed','Cancelled'];
@@ -22659,7 +22665,7 @@ function DutyAssignment({profile}){
       ]);
       if(a.error){setMessage(a.error.message||'Unable to load duty assignments.');setAssignments([])}
       else setAssignments(a.data||[]);
-      if(!e.error)setStaff((e.data||[]).filter(x=>x.is_active!==false&&(CLINICAL_ROLES.includes(x.role)||String(x.department||'').trim().toLowerCase()==='nursing')));
+      if(!e.error)setStaff((e.data||[]).filter(x=>x.is_active!==false));
       if(!p.error)setPatients(p.data||[]);
       setLoading(false);
     }
@@ -22672,10 +22678,18 @@ function DutyAssignment({profile}){
       return()=>client.removeChannel(channel);
     },[]);
 
-    // Nursing staff scope: everyone in the Nursing department, plus anyone
-    // with role Nurse or Caregiver clinic-wide — the same list applies for
-    // the Nursing Manager and for Admin/Manager oversight.
-    const staffScope=staff;
+    const isNursingTeamMember=React.useCallback(row=>{
+      const role=String(row?.role||'').trim().toLowerCase();
+      const dept=employeeDepartment(row).toLowerCase();
+      const designation=String(row?.designation||'').trim().toLowerCase();
+      if(designation==='nurse manager'||designation==='nursing manager')return false;
+      return role==='nurse'||role==='caregiver'||dept==='nursing'||dept==='caregiving'||designation.includes('nursing supervisor');
+    },[]);
+    const staffScope=React.useMemo(()=>{
+      if(fullDutyControl)return staff;
+      if(nursingManager)return staff.filter(isNursingTeamMember);
+      return staff;
+    },[staff,fullDutyControl,nursingManager,isNursingTeamMember]);
     const staffScopeIds=React.useMemo(()=>new Set(staffScope.map(s=>s.id)),[staffScope]);
 
     const staffFor=id=>staff.find(s=>s.id===id||s.auth_user_id===id)||{};
@@ -22684,12 +22698,12 @@ function DutyAssignment({profile}){
 
     const visibleAssignments=React.useMemo(()=>{
       let rows=assignments.filter(r=>r.duty_date>=rangeStart&&r.duty_date<=rangeEnd);
-      if(canManage)rows=rows.filter(r=>staffScopeIds.has(r.employee_id));
+      if(canManage)rows=rows.filter(r=>fullDutyControl||staffScopeIds.has(r.employee_id));
       else rows=rows.filter(r=>r.employee_id===profile.id);
       return [...rows].sort((a,b)=>a.duty_date===b.duty_date
         ?(formalName(staffFor(a.employee_id))||'').localeCompare(formalName(staffFor(b.employee_id))||'')
         :a.duty_date.localeCompare(b.duty_date));
-    },[assignments,rangeStart,rangeEnd,canManage,staffScopeIds,profile]);
+    },[assignments,rangeStart,rangeEnd,canManage,fullDutyControl,staffScopeIds,profile]);
 
     function openCreate(){
       setEditing(null);
@@ -22764,7 +22778,7 @@ function DutyAssignment({profile}){
         row.duty_task||row.remarks||'—',
         h('span',{className:`badge ${row.status==='Completed'?'':row.status==='Cancelled'?'off':''}`},row.status||'Assigned'),
         h('div',{className:'employee-actions'},
-          canManage&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(row)},'Edit'),
+          canModify&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(row)},'Edit'),
           (canManage||isOwner)&&h('select',{value:row.status||'Assigned',onChange:e=>updateStatus(row,e.target.value)},statusOptions.map(x=>h('option',{key:x,value:x},x)))
         )
       ];
@@ -22773,7 +22787,7 @@ function DutyAssignment({profile}){
     return h(React.Fragment,null,
       h(Section,{
         title:'Duty Assignment',
-        subtitle:canManage?'Assign shift, task and patient / ward duty to nursing staff':'Your nursing duty schedule',
+        subtitle:canManage?(fullDutyControl?'Assign and modify duty for all employees':'Assign duty for your Nursing and Caregiving team'):'Your nursing duty schedule',
         actions:h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>jumpWeek(-1)},'‹ Prev Week'),
           h(StrictDateInput,{value:rangeStart,onChange:e=>setRangeStart(e.target.value)}),
@@ -22785,11 +22799,11 @@ function DutyAssignment({profile}){
         )
       },
         message&&h('div',{className:'message error'},message),
-        canManage&&h('p',{className:'small-note'},'Showing all Nursing department staff, and any Nurse / Caregiver clinic-wide.')
+        canManage&&h('p',{className:'small-note'},fullDutyControl?'Showing all active employees.':'Showing only Nursing, Caregiving and Nursing Supervisor employees under your responsibility.')
       ),
       h(LogTable,{
         title:`Duty Schedule — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)} (${rows.length})`,
-        subtitle:canManage?'Nursing duty schedule for the selected week':'Your nursing duty schedule for the selected week',
+        subtitle:canManage?(fullDutyControl?'All employee duty schedule for the selected week':'Your team duty schedule for the selected week'):'Your nursing duty schedule for the selected week',
         heads:['Staff','Date','Shift','Duty Type','Patient / Ward / Room','Task / Remarks','Status','Action'],
         rows
       }),
@@ -22801,7 +22815,7 @@ function DutyAssignment({profile}){
             h('button',{type:'button',className:'close',onClick:()=>setShowForm(false)},'×')
           ),
           h('div',{className:'modal-grid'},
-            h('div',{className:'field'},h('label',null,'Staff Member'),h('select',{required:true,value:form.employee_id,onChange:e=>setForm({...form,employee_id:e.target.value})},h('option',{value:''},'Select Nurse or Caregiver'),staffScope.map(s=>h('option',{key:s.id,value:s.id},`${formalName(s)}${s.employee_id?` · ${s.employee_id}`:''} · ${s.role}`)))),
+            h('div',{className:'field'},h('label',null,'Staff Member'),h('select',{required:true,value:form.employee_id,onChange:e=>setForm({...form,employee_id:e.target.value})},h('option',{value:''},'Select employee'),staffScope.map(s=>h('option',{key:s.id,value:s.id},`${formalName(s)}${s.employee_id?` · ${s.employee_id}`:''}${s.role?` · ${s.role}`:''}`)))),
             h('div',{className:'field'},h('label',null,'Duty Date'),h(StrictDateInput,{value:form.duty_date,onChange:e=>setForm({...form,duty_date:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Shift'),h('select',{value:form.shift,onChange:e=>setForm({...form,shift:e.target.value})},SHIFT_OPTIONS.map(x=>h('option',{key:x,value:x},x)))),
             h('div',{className:'field'},h('label',null,'Duty Type'),h('select',{value:form.duty_type,onChange:e=>setForm({...form,duty_type:e.target.value})},DUTY_TYPE_OPTIONS.map(x=>h('option',{key:x,value:x},x)))),
