@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.04';
+  const APP_VERSION = '2.12.05';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12069,7 +12069,11 @@ Thank you.`;
           h('div',null,h('small',null,'Reason'),h('strong',null,r.reason||'—')),
           r.handover_remarks?h('div',null,h('small',null,'Handover'),h('strong',null,r.handover_remarks)):null,
           r.superior_remarks?h('div',null,h('small',null,'Superior Remarks'),h('strong',null,r.superior_remarks)):null,
-          r.management_remarks?h('div',null,h('small',null,'Management Remarks'),h('strong',null,r.management_remarks)):null
+          r.management_remarks?h('div',null,h('small',null,'Management Remarks'),h('strong',null,r.management_remarks)):null,
+          !['pending_superior','pending_management'].includes(r.status)?h(React.Fragment,null,
+            h('div',null,h('small',null,'Decision By'),h('strong',null,r.decision_by_name?`${r.decision_by_name}${r.decision_by_role?` (${r.decision_by_role})`:''}`:'—')),
+            h('div',null,h('small',null,'Decision Date / Time'),h('strong',null,r.decision_at?fmt(r.decision_at):'—'))
+          ):null
         ),
         h('div',{className:'absence-actions'},
           !isApprovals&&['pending_superior','pending_management'].includes(r.status)?h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'cancel')},'Cancel Request'):null,
