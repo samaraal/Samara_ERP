@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.18';
+  const APP_VERSION = '2.12.19';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1510,7 +1510,7 @@ function initSamaraInaugurationInvitation(){
   const NAV_SECTIONS = [
     { title:'OVERVIEW', items:['Dashboard','Notifications'] },
     { title:'ADMIN', items:['Rooms','Care Packages','Shift Management','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
-    { title:'HR', items:['HR Dashboard','Employees','Duty Assignment','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
+    { title:'HR', items:['HR Dashboard','Employees','Duty Assignment','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:"DIRECTOR'S OFFICE", items:["Director's Office"] },
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
@@ -1549,10 +1549,10 @@ function initSamaraInaugurationInvitation(){
   const homePageForProfile=profile=>isNursingManagerProfile(profile)?'Clinical Dashboard':(ROLE_HOME[profile?.role]||'Dashboard');
   const allowedPagesForProfile=profile=>{
     if(isNursingManagerProfile(profile))return [
-      'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','My Leave & Permission',
+      'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiries','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts',
       'Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
-      'Patient Consumables','Stores','Stores In-charge Assignment','Food & Diet','My Profile'
+      'Patient Consumables','Stores','Stores In-charge Assignment','Staff Leave Calendar','Food & Diet','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
     if(profile?.role==='Manager'&&employeeDepartment(profile)&&!pages.includes('Employees'))pages.push('Employees');
@@ -1588,14 +1588,14 @@ function initSamaraInaugurationInvitation(){
     if(CLINICAL_ROLES.includes(role)){
       return [
         {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My To-Do List','Notifications'].filter(item=>allowed.includes(item))},
-        {title:'MY DUTIES & LEAVE',items:['Duty Assignment','My Leave & Permission','Leave Approvals'].filter(item=>allowed.includes(item))},
+        {title:'MY DUTIES & LEAVE',items:['Duty Assignment','Staff Leave Calendar','My Leave & Permission','Leave Approvals'].filter(item=>allowed.includes(item))},
         {title:'PHARMACY & STORES',items:['Patient Consumables','Stores','Stores In-charge Assignment'].filter(item=>allowed.includes(item))}
       ];
     }
     if(role==='Manager'&&allowed.includes('My To-Do List')&&allowed.includes('Employees')&&!allowed.includes('Accounts Dashboard')){
       return [
         {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','Duty Assignment','My To-Do List'].filter(item=>allowed.includes(item))},
-        {title:'MY DUTIES & LEAVE',items:['Duty Assignment','My Leave & Permission'].filter(item=>allowed.includes(item))},
+        {title:'MY DUTIES & LEAVE',items:['Duty Assignment','Staff Leave Calendar','My Leave & Permission'].filter(item=>allowed.includes(item))},
         {title:'NURSING STAFF',items:['Employees'].filter(item=>allowed.includes(item))},
         {title:'ADMISSION',items:['Enquiries','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},
         {title:'ROOMS & PACKAGES',items:['Rooms','Care Packages'].filter(item=>allowed.includes(item))},
@@ -6993,6 +6993,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='My Profile'&&h(MyProfile,{profile,onProfileUpdate:setProfile}),
           page==='My To-Do List'&&h(NursePersonalTodoList,{profile}),
           page==="Director's Office"&&h(DirectorOfficeDashboard,{profile,onNavigate:setPage}),
+          page==='Staff Leave Calendar'&&h(LeavePermission,{profile,mode:'approvals'}),
           page==='My Leave & Permission'&&h(LeavePermission,{profile,mode:'mine'}),
           page==='Leave Approvals'&&h(LeavePermission,{profile,mode:'approvals'}),
           page==='Career Applications'&&h(CareerApplications,{profile,onNavigate:setPage}),
@@ -12063,7 +12064,10 @@ Thank you.`;
       const days=Math.floor((new Date(r.to_date+'T00:00:00')-new Date(r.from_date+'T00:00:00'))/86400000)+1;
       return `${formatDateIN(r.from_date)}${r.to_date!==r.from_date?` – ${formatDateIN(r.to_date)}`:''} · ${days} day${days===1?'':'s'} · ${r.shift_part||'Full Day'}`;
     }
-    const visible=isApprovals?rows.filter(r=>r.employee_id!==profile.id):rows.filter(r=>r.employee_id===profile.id);
+    const nursingStaffRow=row=>{const p=byId(row.employee_id),d=String(p.department||'').toLowerCase(),g=String(p.designation||'').toLowerCase(),role=String(p.role||'').toLowerCase();return role==='nurse'||role==='caregiver'||d==='nursing'||d==='caregiving'||g.includes('nursing supervisor')};
+    const visible=isApprovals
+      ?rows.filter(r=>r.employee_id!==profile.id&&(!isNursingManagerProfile(profile)||nursingStaffRow(r)))
+      :rows.filter(r=>r.employee_id===profile.id);
     const pending=visible.filter(r=>['pending_superior','pending_management'].includes(r.status));
     const history=visible.filter(r=>!['pending_superior','pending_management'].includes(r.status));
     function canRecommend(r){return r.status==='pending_superior'&&r.reporting_superior_id===profile.id&&!['Admin','Manager'].includes(profile.role)}
