@@ -1,0 +1,20 @@
+SAMARA CARE ERP 2.11.94 — COMPACT MOBILE ROOMS
+
+Replace only these files:
+1. app.js
+2. styles.css
+3. index.html
+4. service-worker.js
+
+No SQL or Edge Function deployment is required.
+
+Mobile Rooms improvements:
+- Replaced the extra-wide Rooms table with compact stacked room cards.
+- Removed excessive row height and horizontal scrolling.
+- Room/bed, type, floor/wing, tariff, status and patient are visible within the phone width.
+- Edit / Tariff is immediately available on each card.
+- Reservation, room-shift and delete actions remain available according to status and permission.
+- Desktop/Windows Rooms table remains unchanged.
+- The patient-bed exclusion for Samara Office and Samara Store remains active.
+
+After deployment, refresh/repair the mobile PWA and confirm version 2.11.94.

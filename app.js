@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.93';
+  const APP_VERSION = '2.11.94';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '13-Sep-2026 Patient Bed Count Correction';
+  const APP_BUILD_DATE = '13-Sep-2026 Compact Mobile Rooms';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -20344,7 +20344,7 @@ function RoomsBeds({profile}){
                   ))
                 :h('div',{className:'empty'},'No beds currently available.')
             )
-          :h('div',{className:'table-wrap'},h('table',{className:'table rooms-table'},
+          :h('div',{className:'table-wrap rooms-desktop-table-wrap'},h('table',{className:'table rooms-table'},
               h('thead',null,h('tr',null,['Room','Bed','Type','Floor / Wing','Room Rent / Day','Nursing / Day','Special Nurse / Day','Status','Patient','Action'].map(x=>h('th',{key:x},x)))),
               h('tbody',null,
                 displayedRoomRows.map(row=>{
@@ -20371,6 +20371,29 @@ function RoomsBeds({profile}){
                 displayedRoomRows.length===0&&h('tr',null,h('td',{colSpan:10,className:'empty'},'No patient beds configured in this selection.'))
               )
             ))
+      ),
+
+      !['available','occupied'].includes(dashboardBedFilter)&&h('div',{className:'rooms-mobile-list'},
+        displayedRoomRows.length?displayedRoomRows.map(row=>{
+          const p=patientFor(row),status=p?'Occupied':row.status;
+          return h('article',{className:'room-mobile-card',key:`mobile-room-${row.id}`},
+            h('div',{className:'room-mobile-card-head'},
+              h('div',null,h('strong',null,`Room ${row.room_no}-${row.bed_no}`),h('span',null,row.room_type||'Room')),
+              h('span',{className:`room-status room-status-${String(status).toLowerCase()}`},status)
+            ),
+            h('div',{className:'room-mobile-card-details'},
+              h('span',null,h('small',null,'Floor / Wing'),h('strong',null,[row.floor,row.wing].filter(Boolean).join(' / ')||'—')),
+              h('span',null,h('small',null,'Room / Nursing'),h('strong',null,`₹${Number(row.room_daily_rate??row.daily_rate??0).toLocaleString('en-IN')} / ₹${Number(row.nursing_daily_rate||0).toLocaleString('en-IN')}`)),
+              p?h('span',{className:'room-mobile-patient'},h('small',null,'Patient'),h('strong',null,formalName(p))):null
+            ),
+            canManage?h('div',{className:'room-mobile-actions'},
+              h('button',{className:'btn btn-primary',onClick:()=>openEdit(row)},'Edit / Tariff'),
+              status==='Reserved'&&h('button',{className:'btn btn-secondary',onClick:()=>openReservationView(row)},'View Reservation'),
+              p&&h('button',{className:'btn btn-secondary',onClick:()=>openTransfer(row)},'Shift Room'),
+              !p&&h('button',{className:'btn btn-danger',onClick:()=>removeRoom(row)},'Delete')
+            ):status==='Reserved'?h('button',{className:'btn btn-secondary room-mobile-view',onClick:()=>openReservationView(row)},'View Reservation'):null
+          );
+        }):h('div',{className:'empty'},'No patient beds configured in this selection.')
       ),
 
       !nurseView&&dashboardBedFilter===''&&operationalSpaceRows.length>0&&h('div',{className:'card panel operational-spaces-panel'},
