@@ -1,0 +1,42 @@
+SAMARA CARE ERP 2.11.97 — MOBILE HORIZONTAL-SCROLL AUDIT
+
+AUDIT RESULT
+The application source contains 32 rendered table definitions, in addition to several custom grids and tab strips. Standard tables inherited desktop minimum widths of approximately 680–1120 pixels, which caused right-side scrolling on phones.
+
+AREAS CORRECTED
+1. Clinical Alerts and Clinical Escalation registers
+2. Notifications — Pharmacy & Stores requests and overdue clinical items
+3. HR — Career Applications and Interviews
+4. HR — unlinked/legacy login accounts and Nursing staff lists
+5. Admission Enquiries
+6. Discharge workflow and financial-clearance registers
+7. Vital Signs history and patient trends
+8. Shift-task and clinical activity registers
+9. Food & Beverage records
+10. Patient Documents register
+11. Patient Medication history, modification/review and MAR tables
+12. Intelligent Report clinical annexure tables
+13. Accounts reports and Patient Ledger tables
+14. Stores assignment, receipts, stock, indent and handover registers
+15. Chargeable Items / Charge Master tables
+16. WhatsApp delivery/report logs
+17. Recovery Timeline
+18. Audit/history and other standard ERP data tables
+19. General filter tabs, time chips, patient badges and mail folder controls
+
+MOBILE BEHAVIOUR
+- Wide rows become compact two-column labelled cards.
+- Long content and Action fields use the full card width.
+- Buttons appear inside each card and do not require rightward scrolling.
+- Empty-state rows remain full width.
+- Tabs/chips wrap within the phone width instead of scrolling sideways.
+- Inputs, selects, modals and main content are constrained to the viewport.
+
+PRESERVED CUSTOM MOBILE LAYOUTS
+- Rooms compact cards
+- Patient Master compact list
+- Employee Master compact list
+- Medication action/log cards
+
+DESKTOP / WINDOWS
+Desktop tables and their column layouts remain unchanged.

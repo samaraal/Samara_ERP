@@ -1,0 +1,19 @@
+SAMARA CARE ERP 2.11.97 — GLOBAL COMPACT MOBILE DATA LAYOUT
+
+Replace only these files:
+1. app.js
+2. styles.css
+3. index.html
+4. service-worker.js
+
+No SQL or Edge Function deployment is required.
+
+After deployment:
+1. Open the ERP mobile app.
+2. Use Menu > App Help > Repair App once, or fully refresh the PWA.
+3. Confirm version 2.11.97.
+4. Review the corrected areas listed in MOBILE_HORIZONTAL_SCROLL_AUDIT_2.11.97.txt.
+
+The update converts wide mobile tables into compact labelled cards while preserving all Windows/desktop tables. Action buttons are kept visible inside each mobile card. It also prevents page-level horizontal overflow and wraps tabs/chips within the phone width.
+
+All functionality from version 2.11.96 remains included.

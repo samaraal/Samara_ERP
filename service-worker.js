@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.96';
-const CACHE = 'samara-erp-2.11.96-room-reservation-workflow';
+const APP_VERSION = '2.11.97';
+const CACHE = 'samara-erp-2.11.97-global-mobile-compact';
 const SHELL = [
   './',
   './index.html',

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.96';
+  const APP_VERSION = '2.11.97';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '13-Sep-2026 Dedicated Room Reservation Workflow';
+  const APP_BUILD_DATE = '13-Sep-2026 Global Compact Mobile Tables';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -5982,6 +5982,49 @@ Caring with Compassion. Living with Dignity.`;
     return null;
   }
 
+  function GlobalMobileTableAdapter(){
+    React.useEffect(()=>{
+      const media=window.matchMedia?.('(max-width:760px)');
+      let frame=0;
+      const excluded='table.rooms-table,table.patient-master-table,table.employee-master-table,table.medication-log-table';
+      const wideLabels=/action|details|description|remarks|instruction|patient|resident|employee|applicant|medicine|item|service|address|message|reason|particular/i;
+      const enhanceTable=table=>{
+        if(!table?.matches?.('table')||table.matches(excluded)||table.closest('.rooms-desktop-table-wrap'))return;
+        const headRows=table.tHead?.rows||[];
+        const headerRow=headRows.length?headRows[headRows.length-1]:null;
+        const headers=headerRow?[...headerRow.cells].map(th=>String(th.textContent||'').replace(/\s+/g,' ').trim()):[];
+        if(!headers.length)return;
+        table.classList.add('samara-mobile-card-table');
+        table.closest('.table-wrap,.report-detail-table-wrap,.ledger-table-wrap,.patient-med-table-wrap')?.classList.add('samara-mobile-card-wrap');
+        [...table.tBodies].flatMap(body=>[...body.rows]).forEach(row=>{
+          const cells=[...row.children].filter(cell=>cell.tagName==='TD');
+          if(!cells.length)return;
+          row.classList.add('samara-mobile-card-row');
+          cells.forEach((cell,index)=>{
+            const existing=cell.getAttribute('data-label');
+            const label=String(existing||headers[index]||'Details').replace(/\s+/g,' ').trim();
+            cell.setAttribute('data-mobile-label',label);
+            if(wideLabels.test(label)||Number(cell.getAttribute('colspan')||1)>1)cell.classList.add('samara-mobile-wide-cell');
+            else cell.classList.remove('samara-mobile-wide-cell');
+          });
+        });
+      };
+      const scan=()=>{
+        cancelAnimationFrame(frame);
+        frame=requestAnimationFrame(()=>{
+          if(media&&!media.matches)return;
+          document.querySelectorAll('.content table,.modal table,.patient-file-backdrop table').forEach(enhanceTable);
+        });
+      };
+      const observer=new MutationObserver(scan);
+      observer.observe(document.body,{childList:true,subtree:true});
+      window.addEventListener('resize',scan,{passive:true});
+      scan();
+      return()=>{observer.disconnect();window.removeEventListener('resize',scan);cancelAnimationFrame(frame)};
+    },[]);
+    return null;
+  }
+
   function ClinicalAlertBell({engine,onOpen}){
     const [preview,setPreview]=React.useState(false);
     const rows=(engine?.alerts||[]).slice().sort((a,b)=>{
@@ -6881,6 +6924,7 @@ Caring with Compassion. Living with Dignity.`;
     return h('div',{className:`app mobile-role-${String(profile.role||'user').toLowerCase().replace(/[^a-z0-9]+/g,'-')}`},
       h(GlobalSmartHover),
       h(GlobalNavigableSurfaces),
+      h(GlobalMobileTableAdapter),
       h(GlobalFormRequirementManager,{page,profile}),
       h(GlobalNursingVoiceInput,{profile}),
       h(Sidebar,{profile,page,setPage,allowed}),
