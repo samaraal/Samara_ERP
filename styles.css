@@ -301,6 +301,19 @@ body{font-size:17px;line-height:1.42}
   .content{padding:13px}.panel{padding:14px}.table th,.table td{font-size:15px;padding:8px 9px}.btn{font-size:16px}.field input,.field select,.field textarea{font-size:16px}
 }
 
+/* v2.11.95 — status colours for Rooms dashboard cards */
+.room-summary .room-stat-total{background:linear-gradient(135deg,#eef6ff,#dcecff)!important;border-color:#99c3f2!important}
+.room-summary .room-stat-total span,.room-summary .room-stat-total strong,.room-summary .room-stat-total small{color:#15599a!important}
+.room-summary .room-stat-available{background:linear-gradient(135deg,#effcf4,#d9f5e4)!important;border-color:#83d3a2!important}
+.room-summary .room-stat-available span,.room-summary .room-stat-available strong,.room-summary .room-stat-available small{color:#08763c!important}
+.room-summary .room-stat-occupied{background:linear-gradient(135deg,#fff3f3,#ffdede)!important;border-color:#ee9b9b!important}
+.room-summary .room-stat-occupied span,.room-summary .room-stat-occupied strong,.room-summary .room-stat-occupied small{color:#b42318!important}
+.room-summary .room-stat-reserved{background:linear-gradient(135deg,#f5f3ff,#e8e2ff)!important;border-color:#b9a9ef!important}
+.room-summary .room-stat-reserved span,.room-summary .room-stat-reserved strong,.room-summary .room-stat-reserved small{color:#5940aa!important}
+.room-summary .room-stat-maintenance{background:linear-gradient(135deg,#fff9eb,#ffedbd)!important;border-color:#e5bd58!important}
+.room-summary .room-stat-maintenance span,.room-summary .room-stat-maintenance strong,.room-summary .room-stat-maintenance small{color:#8a5900!important}
+.room-summary .room-summary-link.active{border-width:2px!important;box-shadow:0 0 0 3px rgba(70,46,61,.10),0 9px 22px rgba(70,46,61,.10)!important}
+
 .first-login-card{max-width:620px}.first-login-card h1{font-size:30px;line-height:1.2}.first-login-card p{font-size:17px;line-height:1.55}
 
 /* ERP 1.0.2 global search */

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.94';
+  const APP_VERSION = '2.11.95';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '13-Sep-2026 Compact Mobile Rooms';
+  const APP_BUILD_DATE = '13-Sep-2026 Colour-coded Rooms Dashboard';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -20302,11 +20302,11 @@ function RoomsBeds({profile}){
         canManage&&h('button',{className:'btn btn-primary',onClick:openNew},'+ Add Room / Bed')
       ),
       !nurseView&&h('div',{className:'grid stats room-summary'},
-        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter===''?'active':''}`,onClick:()=>showRoomFilter(''),'aria-label':'Show all patient beds'},h('span',null,'Total Patient Beds'),h('strong',null,patientUseRows.length),h('small',null,'Office and Store excluded →')),
+        h('button',{type:'button',className:`card stat room-stat-total room-summary-link ${dashboardBedFilter===''?'active':''}`,onClick:()=>showRoomFilter(''),'aria-label':'Show all patient beds'},h('span',null,'Total Patient Beds'),h('strong',null,patientUseRows.length),h('small',null,'Office and Store excluded →')),
         h('button',{type:'button',className:`card stat room-stat-occupied room-summary-link ${dashboardBedFilter==='occupied'?'active':''}`,onClick:()=>showRoomFilter('occupied'),'aria-label':'Show occupied beds'},h('span',null,'Occupied'),h('strong',null,occupied),h('small',null,'View occupied beds →')),
-        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter==='available'?'active':''}`,onClick:()=>showRoomFilter('available'),'aria-label':'Show available beds'},h('span',null,'Available'),h('strong',null,availableRows.length),h('small',null,'View available beds →')),
-        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter==='reserved'?'active':''}`,onClick:()=>showRoomFilter('reserved'),'aria-label':'Show reserved beds'},h('span',null,'Reserved'),h('strong',null,reserved),h('small',null,'View reserved beds →')),
-        h('button',{type:'button',className:`card stat room-summary-link ${dashboardBedFilter==='maintenance'?'active':''}`,onClick:()=>showRoomFilter('maintenance'),'aria-label':'Show maintenance beds'},h('span',null,'Maintenance'),h('strong',null,maintenance),h('small',null,'View maintenance beds →'))
+        h('button',{type:'button',className:`card stat room-stat-available room-summary-link ${dashboardBedFilter==='available'?'active':''}`,onClick:()=>showRoomFilter('available'),'aria-label':'Show available beds'},h('span',null,'Available'),h('strong',null,availableRows.length),h('small',null,'View available beds →')),
+        h('button',{type:'button',className:`card stat room-stat-reserved room-summary-link ${dashboardBedFilter==='reserved'?'active':''}`,onClick:()=>showRoomFilter('reserved'),'aria-label':'Show reserved beds'},h('span',null,'Reserved'),h('strong',null,reserved),h('small',null,'View reserved beds →')),
+        h('button',{type:'button',className:`card stat room-stat-maintenance room-summary-link ${dashboardBedFilter==='maintenance'?'active':''}`,onClick:()=>showRoomFilter('maintenance'),'aria-label':'Show maintenance beds'},h('span',null,'Maintenance'),h('strong',null,maintenance),h('small',null,'View maintenance beds →'))
       ),
 
       dashboardBedFilter!=='occupied'&&h('div',{id:'room-filter-results',className:`card panel ${dashboardBedFilter==='available'?'bed-availability-panel':''}`},

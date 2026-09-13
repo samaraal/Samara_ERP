@@ -1,0 +1,22 @@
+SAMARA CARE ERP 2.11.95 — COLOUR-CODED ROOMS DASHBOARD
+
+Replace only these files:
+1. app.js
+2. styles.css
+3. index.html
+4. service-worker.js
+
+No SQL or Edge Function deployment is required.
+
+Rooms dashboard colours:
+- Total Patient Beds: Blue
+- Available: Green
+- Occupied: Red
+- Reserved: Purple / Blue
+- Maintenance: Amber
+
+The colours use light backgrounds with strong readable text and work on desktop and mobile. The selected dashboard box has a clearer border and shadow.
+
+All corrections from versions 2.11.93 and 2.11.94 remain included, including patient-bed exclusions and compact mobile Room cards.
+
+After deployment, refresh/repair the app and confirm version 2.11.95.

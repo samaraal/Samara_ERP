@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.94';
-const CACHE = 'samara-erp-2.11.94-compact-mobile-rooms';
+const APP_VERSION = '2.11.95';
+const CACHE = 'samara-erp-2.11.95-room-dashboard-colours';
 const SHELL = [
   './',
   './index.html',
