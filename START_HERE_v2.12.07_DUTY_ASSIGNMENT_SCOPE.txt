@@ -1,0 +1,19 @@
+SAMARA CARE ERP v2.12.07 — DUTY ASSIGNMENT CONTROL
+====================================================
+
+Purpose
+- Duty Assignment is now available to the Nurse Manager.
+
+Permissions
+- Admin and Director/management accounts can assign and modify duty for all active employees.
+- Nurse Manager can assign duty only to Nursing, Caregiving and Nursing Supervisor employees under her responsibility.
+- Nurse Manager can update duty status for her team, but the Edit action remains restricted to Admin/Director.
+- Nurses and Caregivers can view their own schedule and update their own duty status.
+
+Deployment
+1. Replace app.js, index.html and service-worker.js.
+2. Replace the other files from the same supplied package if they are already part of the current deployment.
+3. Use Menu → App Help / Repair → Repair App once after deployment.
+
+Note: This release changes the application permission/display layer. Confirm the existing
+duty_assignments table and its RLS policy remain enabled in Supabase before production use.

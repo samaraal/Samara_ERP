@@ -1,5 +1,5 @@
-const APP_VERSION = '2.12.07';
-const CACHE = 'samara-erp-2.12.07-duty-assignment-control';
+const APP_VERSION = '2.12.08';
+const CACHE = 'samara-erp-2.12.08-duty-assignment-menu';
 const SHELL = [
   './',
   './index.html',
