@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.99';
+  const APP_VERSION = '2.12.00';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '13-Sep-2026 Compact Mobile Ledger References';
+  const APP_BUILD_DATE = '13-Sep-2026 Mobile Ledger Startup Fix';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -23176,13 +23176,6 @@ function ShiftHandover({profile,onNavigate}){
     const dateOnly=value=>String(value||'').slice(0,10);
     const dateDiff=(a,b)=>Math.round((new Date(`${dateOnly(a)}T00:00:00`)-new Date(`${dateOnly(b)}T00:00:00`))/86400000);
     const money=value=>`₹${Number(value||0).toLocaleString('en-IN',{maximumFractionDigits:2})}`;
-    const compactLedgerReference=value=>{
-      const text=String(value||'').trim();
-      if(!text)return '';
-      if(text.length<=30)return text;
-      return `${text.slice(0,12)}…${text.slice(-10)}`;
-    };
-
     function optionKind(pkg){
       const unit=String(pkg?.duration_unit||'').toLowerCase();
       const value=Number(pkg?.duration_value||0);
@@ -24219,6 +24212,12 @@ function ShiftHandover({profile,onNavigate}){
     const [message,setMessage]=React.useState('');
 
     const money=value=>`₹${Number(value||0).toLocaleString('en-IN',{maximumFractionDigits:2})}`;
+    const compactLedgerReference=value=>{
+      const text=String(value||'').trim();
+      if(!text)return '';
+      if(text.length<=30)return text;
+      return `${text.slice(0,12)}…${text.slice(-10)}`;
+    };
     const patientLabel=p=>`${formalName(p)||p.full_name||'Patient'} · ${p.patient_id||'No ID'}${p.room_no?` · Room ${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:''}`;
     const q=String(query||'').trim().toLowerCase();
     const matches=(patients||[]).filter(p=>{
