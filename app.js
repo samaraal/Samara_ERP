@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.23';
+  const APP_VERSION = '2.12.24';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6993,7 +6993,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='My Profile'&&h(MyProfile,{profile,onProfileUpdate:setProfile}),
           page==='My To-Do List'&&h(NursePersonalTodoList,{profile}),
           page==="Director's Office"&&h(DirectorOfficeDashboard,{profile,onNavigate:setPage}),
-          page==='Staff Leave Calendar'&&h(LeavePermission,{profile,mode:'approvals'}),
+          page==='Staff Leave Calendar'&&h(LeavePermission,{profile,mode:'approvals',calendar:true}),
           page==='My Leave & Permission'&&h(LeavePermission,{profile,mode:'mine'}),
           page==='Leave Approvals'&&h(LeavePermission,{profile,mode:'approvals'}),
           page==='Career Applications'&&h(CareerApplications,{profile,onNavigate:setPage}),
@@ -12007,13 +12007,16 @@ Thank you.`;
     );
   }
 
-  function LeavePermission({profile,mode='mine'}){
+  function LeavePermission({profile,mode='mine',calendar=false}){
     const isApprovals=mode==='approvals';
     const [rows,setRows]=React.useState([]),[profiles,setProfiles]=React.useState([]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [showForm,setShowForm]=React.useState(false);
     const [submitBusy,setSubmitBusy]=React.useState(false),[modalMsg,setModalMsg]=React.useState(''),[submitted,setSubmitted]=React.useState(false);
     const empty={request_type:'Leave',leave_type:'Casual Leave',from_date:todayISOIndia(),to_date:todayISOIndia(),shift_part:'Full Day',permission_date:todayISOIndia(),permission_from:'',permission_to:'',reason:'',handover_remarks:'',contact_during_absence:''};
     const [form,setForm]=React.useState(empty);
+    const [calendarSearch,setCalendarSearch]=React.useState('');
+    const [calendarDate,setCalendarDate]=React.useState(todayISOIndia());
+    const [expandedCalendarRows,setExpandedCalendarRows]=React.useState(new Set());
     const byId=id=>profiles.find(x=>x.id===id)||{};
     const statusLabel=s=>({pending_superior:'Pending Superior',pending_management:'Pending Management',approved:'Approved',rejected:'Rejected',cancelled:'Cancelled'}[s]||s||'—');
     const statusClass=s=>s==='approved'?'success':s==='rejected'?'error':'';
@@ -12096,6 +12099,41 @@ Thank you.`;
         )
       );
     }
+    function calendarMatches(r){
+      const q=calendarSearch.trim().toLowerCase();
+      if(q.length>=3){
+        const p=byId(r.employee_id);
+        const hay=[p.full_name,p.mobile,p.mobile_number,p.phone,p.phone_number,p.contact_number,p.designation,p.position,p.role,p.department,p.employee_id,p.login_id,r.employee_name].filter(Boolean).join(' ').toLowerCase();
+        if(!hay.includes(q))return false;
+      }
+      const month=String(calendarDate||todayISOIndia()).slice(0,7);
+      const start=`${month}-01`;
+      const end=new Date(Number(month.slice(0,4)),Number(month.slice(5,7)),0).toISOString().slice(0,10);
+      const from=r.request_type==='Leave'?r.from_date:r.permission_date;
+      const to=r.request_type==='Leave'?(r.to_date||r.from_date):r.permission_date;
+      return Boolean(from&&to&&from<=end&&to>=start);
+    }
+    function calendarRequestCard(r){
+      const expanded=expandedCalendarRows.has(r.id),emp=byId(r.employee_id);
+      return h('div',{className:`absence-card calendar-absence-card${expanded?' is-expanded':''}`,key:r.id},
+        h('button',{type:'button',className:'calendar-absence-summary',onClick:()=>setExpandedCalendarRows(prev=>{const next=new Set(prev);next.has(r.id)?next.delete(r.id):next.add(r.id);return next})},
+          h('span',{className:'calendar-absence-day'},r.request_type==='Leave'?formatDateIN(r.from_date):formatDateIN(r.permission_date)),
+          h('span',{className:'calendar-absence-person'},formalName(emp)||r.employee_name||'Employee'),
+          h('span',{className:`badge ${statusClass(r.status)}`},statusLabel(r.status)),
+          h('span',{className:'calendar-absence-chevron'},expanded?'⌃':'⌄')
+        ),
+        expanded?h('div',{className:'absence-grid calendar-absence-details'},
+          h('div',null,h('small',null,'Type'),h('strong',null,r.request_type==='Leave'?(r.leave_type||'Leave'):'Permission')),
+          h('div',null,h('small',null,r.request_type==='Leave'?'Period':'Date / Time'),h('strong',null,r.request_type==='Leave'?duration(r):`${formatDateIN(r.permission_date)} · ${duration(r)}`)),
+          h('div',null,h('small',null,'Employee'),h('strong',null,formalName(emp)||r.employee_name||'Employee')),
+          h('div',null,h('small',null,'Position'),h('strong',null,[emp.designation||emp.position,emp.department].filter(Boolean).join(' · ')||'—')),
+          h('div',null,h('small',null,'Reason'),h('strong',null,r.reason||'—')),
+          h('div',null,h('small',null,'Status'),h('strong',null,statusLabel(r.status))),
+          r.handover_remarks?h('div',null,h('small',null,'Handover'),h('strong',null,r.handover_remarks)):null,
+          r.decision_by_name?h('div',null,h('small',null,'Decision'),h('strong',null,`${r.decision_by_name}${r.decision_at?` · ${fmt(r.decision_at)}`:''}`)):null
+        ):null
+      );
+    }
     const formModal=showForm?h('div',{className:'modal-backdrop'},h('form',{className:'card modal absence-modal',onSubmit:submit},
       h('div',{className:'panel-head'},h('div',null,h('h3',null,'Apply for Leave / Permission'),h('small',null,'Your request will follow the configured approval hierarchy')),h('button',{type:'button',className:'close',onClick:()=>setShowForm(false)},'×')),
       h('div',{className:'modal-grid'},
@@ -12110,6 +12148,22 @@ Thank you.`;
         miniInput('Contact During Absence',form.contact_during_absence,v=>setForm({...form,contact_during_absence:v}),false,'tel')
       ),modalMsg?h('div',{className:`message ${submitted?'success':''}`,style:{marginTop:'12px'}},modalMsg):null,h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:submitBusy,onClick:()=>setShowForm(false)},submitted?'Close':'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:submitBusy||submitted},submitted?'Submitted ✓':(submitBusy?'Submitting…':'Submit Request')))
     )):null;
+    if(calendar){
+      const calendarRows=rows.filter(calendarMatches).sort((a,b)=>String(a.from_date||a.permission_date||'').localeCompare(String(b.from_date||b.permission_date||'')));
+      const monthLabel=new Date(`${String(calendarDate||todayISOIndia()).slice(0,7)}-01T00:00:00`).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+      return h(React.Fragment,null,
+        h(Section,{title:'Staff Leave Calendar',subtitle:`${monthLabel} · ${calendarRows.length} leave / permission record${calendarRows.length===1?'':'s'}`,actions:h('button',{className:'btn btn-secondary',onClick:load,disabled:busy},'Refresh')},
+          msg?h('div',{className:'message'},msg):null,
+          h('div',{className:'leave-calendar-controls'},
+            h('input',{type:'search',value:calendarSearch,onChange:e=>setCalendarSearch(e.target.value),placeholder:'Search name, mobile, position…','aria-label':'Search staff by name, mobile or position'}),
+            h('input',{type:'date',value:calendarDate,onChange:e=>setCalendarDate(e.target.value),'aria-label':'Choose calendar date'}),
+            calendarSearch.length>0&&calendarSearch.length<3?h('small',{className:'field-hint'},'Type at least 3 characters'):null,
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setCalendarSearch('');setCalendarDate(todayISOIndia());setExpandedCalendarRows(new Set())}},'Clear')
+          ),
+          busy?h('div',{className:'empty'},'Loading leave calendar…'):h('div',{className:'absence-list calendar-absence-list'},...calendarRows.map(calendarRequestCard),calendarRows.length===0?h('div',{className:'empty'},'No leave or permission records found for this month.'):null)
+        )
+      );
+    }
     if(isApprovals){
       const directCount=rows.filter(r=>r.status==='pending_superior'&&r.reporting_superior_id===profile.id).length;
       const managementCount=['Admin','Manager'].includes(profile.role)?rows.filter(r=>['pending_superior','pending_management'].includes(r.status)&&r.employee_id!==profile.id).length:0;

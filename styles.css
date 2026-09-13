@@ -2109,3 +2109,24 @@ p,span,small,strong,b,label,td,th,button,a{overflow-wrap:break-word;word-break:n
 @media(max-width:760px){.system-maintenance-grid{grid-template-columns:1fr}.system-information-grid{grid-template-columns:1fr 1fr}.system-maintenance-card{padding:15px!important}.system-maintenance-card p{font-size:14px}}
 @media(max-width:760px){.modal>.close{display:none!important}.modal>.actions{position:static!important;display:flex!important;flex-wrap:wrap!important;width:100%!important;max-width:100%!important;overflow:visible!important}.modal>.actions>.btn{position:static!important;transform:none!important;min-width:0!important;margin:0!important}}
 .duty-assignment-modal .panel-head>.close{display:none!important}.duty-assignment-modal>.actions{flex-wrap:nowrap!important}.duty-assignment-modal>.actions>.btn{white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+.leave-calendar-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
+.leave-calendar-controls input[type=search]{flex:1 1 280px;min-width:220px}
+.leave-calendar-controls input[type=date]{flex:0 1 180px;min-width:160px}
+.leave-calendar-controls .field-hint{color:#a20d59;flex:0 0 100%}
+.calendar-absence-card{overflow:hidden;padding:0!important}
+.calendar-absence-summary{width:100%;display:grid;grid-template-columns:110px minmax(0,1fr) auto 24px;gap:10px;align-items:center;text-align:left;background:transparent;border:0;padding:14px 16px;color:inherit;font:inherit;cursor:pointer}
+.calendar-absence-day{font-weight:800;color:#7b1048}
+.calendar-absence-person{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.calendar-absence-chevron{font-size:20px;color:#a20d59;text-align:center}
+.calendar-absence-details{padding:0 16px 15px;border-top:1px solid #f0d5e3}
+@media(max-width:760px){
+  .leave-calendar-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(132px,42%);gap:8px}
+  .leave-calendar-controls input[type=search],.leave-calendar-controls input[type=date]{width:100%;min-width:0;box-sizing:border-box}
+  .leave-calendar-controls .field-hint{grid-column:1/-1}
+  .leave-calendar-controls .btn{grid-column:1/-1;width:100%}
+  .calendar-absence-summary{grid-template-columns:86px minmax(0,1fr) 22px;gap:7px;padding:12px 11px}
+  .calendar-absence-summary .badge{grid-column:2;justify-self:start}
+  .calendar-absence-chevron{grid-column:3;grid-row:1 / span 2}
+  .calendar-absence-details{padding:0 11px 12px}
+  .calendar-absence-details.absence-grid>div{grid-template-columns:92px minmax(0,1fr)!important}
+}
