@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.24';
+  const APP_VERSION = '2.12.25';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12106,12 +12106,10 @@ Thank you.`;
         const hay=[p.full_name,p.mobile,p.mobile_number,p.phone,p.phone_number,p.contact_number,p.designation,p.position,p.role,p.department,p.employee_id,p.login_id,r.employee_name].filter(Boolean).join(' ').toLowerCase();
         if(!hay.includes(q))return false;
       }
-      const month=String(calendarDate||todayISOIndia()).slice(0,7);
-      const start=`${month}-01`;
-      const end=new Date(Number(month.slice(0,4)),Number(month.slice(5,7)),0).toISOString().slice(0,10);
+      const selectedDate=String(calendarDate||todayISOIndia());
       const from=r.request_type==='Leave'?r.from_date:r.permission_date;
       const to=r.request_type==='Leave'?(r.to_date||r.from_date):r.permission_date;
-      return Boolean(from&&to&&from<=end&&to>=start);
+      return Boolean(from&&to&&from<=selectedDate&&to>=selectedDate);
     }
     function calendarRequestCard(r){
       const expanded=expandedCalendarRows.has(r.id),emp=byId(r.employee_id);
@@ -12150,9 +12148,9 @@ Thank you.`;
     )):null;
     if(calendar){
       const calendarRows=rows.filter(calendarMatches).sort((a,b)=>String(a.from_date||a.permission_date||'').localeCompare(String(b.from_date||b.permission_date||'')));
-      const monthLabel=new Date(`${String(calendarDate||todayISOIndia()).slice(0,7)}-01T00:00:00`).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+      const selectedLabel=formatDateIN(calendarDate||todayISOIndia());
       return h(React.Fragment,null,
-        h(Section,{title:'Staff Leave Calendar',subtitle:`${monthLabel} · ${calendarRows.length} leave / permission record${calendarRows.length===1?'':'s'}`,actions:h('button',{className:'btn btn-secondary',onClick:load,disabled:busy},'Refresh')},
+        h(Section,{title:'Staff Leave Calendar',subtitle:`${selectedLabel} · ${calendarRows.length} leave / permission record${calendarRows.length===1?'':'s'}`,actions:h('button',{className:'btn btn-secondary',onClick:load,disabled:busy},'Refresh')},
           msg?h('div',{className:'message'},msg):null,
           h('div',{className:'leave-calendar-controls'},
             h('input',{type:'search',value:calendarSearch,onChange:e=>setCalendarSearch(e.target.value),placeholder:'Search name, mobile, position…','aria-label':'Search staff by name, mobile or position'}),
