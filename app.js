@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.08';
+  const APP_VERSION = '2.12.09';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1510,7 +1510,7 @@ function initSamaraInaugurationInvitation(){
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
-    { title:'PHARMACY & STORES', items:['Patient Consumables','Stores'] },
+    { title:'PHARMACY & STORES', items:['Patient Consumables','Stores','Stores In-charge Assignment'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
     { title:'COMMUNICATION', items:['WhatsApp Inbox','WhatsApp Logs','Family Communication','Feedback','Mail Dashboard'] },
@@ -1547,11 +1547,11 @@ function initSamaraInaugurationInvitation(){
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','My Leave & Permission',
       'Enquiries','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts',
       'Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
-      'Patient Consumables','Stores','Food & Diet','My Profile'
+      'Patient Consumables','Stores','Stores In-charge Assignment','Food & Diet','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
     if(profile?.role==='Manager'&&employeeDepartment(profile)&&!pages.includes('Employees'))pages.push('Employees');
-    if(isNursingManagerProfile(profile)){ if(!pages.includes('My To-Do List'))pages.push('My To-Do List'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Employees'))pages.push('Employees'); }
+    if(isNursingManagerProfile(profile)){ if(!pages.includes('My To-Do List'))pages.push('My To-Do List'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Stores In-charge Assignment'))pages.push('Stores In-charge Assignment'); if(!pages.includes('Employees'))pages.push('Employees'); }
     return pages;
   };
   const CLINICAL_ROLES=['Nurse','Caregiver'];
@@ -1583,7 +1583,7 @@ function initSamaraInaugurationInvitation(){
     if(CLINICAL_ROLES.includes(role)){
       return [
         {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My To-Do List','My Leave & Permission','Leave Approvals','Notifications'].filter(item=>allowed.includes(item))},
-        {title:'PHARMACY & STORES',items:['Patient Consumables','Stores'].filter(item=>allowed.includes(item))}
+        {title:'PHARMACY & STORES',items:['Patient Consumables','Stores','Stores In-charge Assignment'].filter(item=>allowed.includes(item))}
       ];
     }
     if(role==='Manager'&&allowed.includes('My To-Do List')&&allowed.includes('Employees')&&!allowed.includes('Accounts Dashboard')){
@@ -1592,7 +1592,7 @@ function initSamaraInaugurationInvitation(){
         {title:'NURSING HR',items:['Employees','My Leave & Permission'].filter(item=>allowed.includes(item))},
         {title:'ADMISSION',items:['Enquiries','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},
         {title:'ROOMS & PACKAGES',items:['Rooms','Care Packages'].filter(item=>allowed.includes(item))},
-        {title:'PHARMACY & STORES',items:['Patient Consumables','Stores'].filter(item=>allowed.includes(item))},
+        {title:'PHARMACY & STORES',items:['Patient Consumables','Stores','Stores In-charge Assignment'].filter(item=>allowed.includes(item))},
         {title:'FOOD & DIET',items:['Food & Diet'].filter(item=>allowed.includes(item))},
         {title:'CLINICAL REVIEW',items:['Reports','Intelligent Reports','Medication Errors','Recovery Timeline'].filter(item=>allowed.includes(item))},
         {title:'MY ACCOUNT',items:['My Profile'].filter(item=>allowed.includes(item))}
@@ -7008,6 +7008,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Medicines'&&h(Medicines,{profile,onNavigate:setPage}),
           page==='Patient Consumables'&&h(PatientConsumables,{profile}),
           page==='Stores'&&h(ConsumablesStores,{profile}),
+          page==='Stores In-charge Assignment'&&h(StoresInchargeAssignmentPage,{profile}),
           page==='Food & Diet'&&h(FoodDiet,{profile}),
           page==='Physiotherapy'&&h(Physiotherapy,{profile,onNavigate:setPage}),
           page==='Duty Assignment'&&h(DutyAssignment,{profile}),
@@ -25884,6 +25885,11 @@ Please access the Samara Family Portal for detailed account information.`;
     );
   }
 
+  function StoresInchargeAssignmentPage({profile}){
+    const authority=useStoreAuthority(profile);
+    return h('div',null,h(StoreInchargeAssignment,{profile,authority}));
+  }
+
   function ConsumablesStores({profile}){
     const authority=useStoreAuthority(profile);
     const controller=authority.controller;
@@ -25945,9 +25951,8 @@ Please access the Samara Family Portal for detailed account information.`;
     const inStock=stock.filter(x=>Number(x.balance_qty)>0).length;
     const stockStatus=row=>Number(row.balance_qty)<=0?'OUT OF STOCK':(Number(row.reorder_level)>0&&Number(row.balance_qty)<=Number(row.reorder_level)?'LOW STOCK':'IN STOCK');
     const statusStyle=row=>({fontWeight:900,fontSize:'12px',padding:'5px 8px',borderRadius:'999px',display:'inline-block',background:Number(row.balance_qty)<=0?'#fdebec':(Number(row.reorder_level)>0&&Number(row.balance_qty)<=Number(row.reorder_level)?'#fff4dc':'#e7f6ef'),color:'#5d3146'});
-    if(!controller&&!oversight)return h('div',null,h(StoreInchargeAssignment,{profile,authority}),h(Section,{title:'Pharmacy & Stores'},h('p',null,authority.active?'Pharmacy & Stores is presently assigned to the STD.':'Pharmacy & Stores access is assigned to the Nurse Manager.')));
+    if(!controller&&!oversight)return h('div',null,h(Section,{title:'Pharmacy & Stores'},h('p',null,authority.active?'Pharmacy & Stores is presently assigned to the STD.':'Pharmacy & Stores access is assigned to the Nurse Manager.')));
     return h('div',null,
-      h(StoreInchargeAssignment,{profile,authority}),
       h(Section,{title:'Pharmacy & Stores',subtitle:`Medicines, consumables, vendor receipts, stock issues and balances. Current In-charge: ${authority.active?'STD (temporary assignment)':'Nurse Manager'}.`},
         h('div',{className:'grid stats'},
           h('div',{className:'card stat'},h('span',null,'Items in Stock'),h('strong',null,inStock)),
