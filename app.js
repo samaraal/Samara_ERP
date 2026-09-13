@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.11';
+  const APP_VERSION = '2.12.12';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1473,6 +1473,11 @@ function initSamaraInaugurationInvitation(){
       login==='rajaiahboomi' ||
       login==='maneeshaboominathan' ||
       login==='ram';
+  };
+  const isNonPayrollManagementAccount=row=>{
+    const clean=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const name=clean(row?.full_name||row?.name), login=clean(row?.login_id||row?.username), employeeId=clean(row?.employee_id);
+    return isSamaraAdministratorAccount(row)||['administrator','boomir','drchellaboomi','chellaboomi','maneeshaboominathan','mrram','ram'].includes(name)||['administrator','boomir','chellaboomi','maneeshaboominathan','ram'].includes(login)||['0001','003','001','009','0008'].includes(employeeId);
   };
   const employeeProfileScore=row=>{
     const department=employeeDepartment(row);
@@ -22683,7 +22688,7 @@ function DutyAssignment({profile}){
       ]);
       if(a.error){setMessage(a.error.message||'Unable to load duty assignments.');setAssignments([])}
       else setAssignments(a.data||[]);
-      if(!e.error)setStaff((e.data||[]).filter(x=>x.is_active!==false));
+      if(!e.error)setStaff((e.data||[]).filter(x=>x.is_active!==false&&!isNonPayrollManagementAccount(x)));
       if(!p.error)setPatients(p.data||[]);
       setLoading(false);
     }
