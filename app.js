@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.05';
+  const APP_VERSION = '2.12.06';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1509,7 +1509,7 @@ function initSamaraInaugurationInvitation(){
     { title:"DIRECTOR'S OFFICE", items:["Director's Office"] },
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
-    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
+    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'PHARMACY & STORES', items:['Patient Consumables','Stores'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
@@ -1522,8 +1522,8 @@ function initSamaraInaugurationInvitation(){
     Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&!NURSING_ENTRY_NAV.includes(item)),
     Manager:ALL_NAV.filter(item=>!["Director's Office",'System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
 
-    Nurse:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
-    Caregiver:['Clinical Dashboard','Clinical Alerts','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
+    Nurse:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
+    Caregiver:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
     Accounts:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
     Kitchen:['Notifications','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission'],
     STD:["Director's Office",'Patient Consumables','Stores','WhatsApp Inbox','Feedback','My Leave & Permission']
@@ -1546,7 +1546,7 @@ function initSamaraInaugurationInvitation(){
     if(isNursingManagerProfile(profile))return [
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','My Leave & Permission',
       'Enquiries','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts',
-      'Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
+      'Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
       'Patient Consumables','Stores','Food & Diet','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
@@ -7010,6 +7010,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Stores'&&h(ConsumablesStores,{profile}),
           page==='Food & Diet'&&h(FoodDiet,{profile}),
           page==='Physiotherapy'&&h(Physiotherapy,{profile,onNavigate:setPage}),
+          page==='Duty Assignment'&&h(DutyAssignment,{profile}),
           page==='Special Nurse'&&h(SpecialNurseManagement,{profile}),
           page==='Shift Handover'&&h(ShiftHandover,{profile,onNavigate:setPage}),
           page==='Incidents'&&h(Incidents,{profile,onNavigate:setPage}),
@@ -22593,6 +22594,229 @@ function RoomsBeds({profile,onNavigate}){
       toast&&h('div',{className:`samara-toast ${toast.type}`,role:'status','aria-live':'polite'},
         h('span',{className:'samara-toast-icon','aria-hidden':'true'},toast.type==='success'?'✓':'!'),
         h('div',null,h('strong',null,toast.type==='success'?'Special Nurse updated':'Update failed'),h('span',null,toast.text)),
+        h('button',{type:'button','aria-label':'Close notification',onClick:()=>setToast(null)},'×')
+      )
+    );
+  }
+
+function DutyAssignment({profile}){
+    const canManage=['Admin','Manager'].includes(profile?.role);
+    const SHIFT_OPTIONS=['Full Day','Day Shift','Night Shift','First Half','Second Half'];
+    const DUTY_TYPE_OPTIONS=['Medication Rounds','Vitals Check','Wound Dressing','Mobility Assistance','Feeding Assistance','Bathing / Hygiene Care','Patient Escort','Documentation / Charting','Ward Round','General Duty','Other'];
+    const STATUS_ALL=['Assigned','Acknowledged','In Progress','Completed','Cancelled'];
+    const STATUS_STAFF=['Assigned','Acknowledged','In Progress','Completed'];
+    const [assignments,setAssignments]=React.useState([]);
+    const [staff,setStaff]=React.useState([]);
+    const [patients,setPatients]=React.useState([]);
+    const [loading,setLoading]=React.useState(true);
+    const [message,setMessage]=React.useState('');
+    function mondayOfWeek(dateStr){
+      const d=new Date(dateStr+'T00:00:00');
+      const day=d.getDay();
+      const diff=day===0?-6:1-day;
+      d.setDate(d.getDate()+diff);
+      return d.toISOString().slice(0,10);
+    }
+    function addDaysISO(dateStr,days){
+      const d=new Date(dateStr+'T00:00:00');
+      d.setDate(d.getDate()+days);
+      return d.toISOString().slice(0,10);
+    }
+    const [rangeStart,setRangeStart]=React.useState(()=>mondayOfWeek(todayISOIndia()));
+    const [rangeEnd,setRangeEnd]=React.useState(()=>addDaysISO(mondayOfWeek(todayISOIndia()),6));
+    function jumpWeek(offsetWeeks){
+      const newStart=addDaysISO(rangeStart,offsetWeeks*7);
+      setRangeStart(newStart);
+      setRangeEnd(addDaysISO(newStart,6));
+    }
+    function resetToThisWeek(){
+      const start=mondayOfWeek(todayISOIndia());
+      setRangeStart(start);
+      setRangeEnd(addDaysISO(start,6));
+    }
+    const [showForm,setShowForm]=React.useState(false);
+    const [editing,setEditing]=React.useState(null);
+    const [busy,setBusy]=React.useState(false);
+    const [toast,setToast]=React.useState(null);
+    const toastTimer=React.useRef(null);
+    const emptyForm={employee_id:'',duty_date:todayISOIndia(),shift:'Full Day',duty_type:'General Duty',patient_id:'',ward_room:'',duty_task:'',remarks:'',status:'Assigned'};
+    const [form,setForm]=React.useState(emptyForm);
+
+    function showToast(type,text){
+      showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
+      clearTimeout(toastTimer.current);
+      setToast({type,text});
+      toastTimer.current=setTimeout(()=>setToast(null),4500);
+    }
+    React.useEffect(()=>()=>clearTimeout(toastTimer.current),[]);
+
+    async function load(){
+      setLoading(true);setMessage('');
+      const [a,e,p]=await Promise.all([
+        client.from('duty_assignments').select('*').order('duty_date',{ascending:false}).order('created_at',{ascending:false}).limit(500),
+        client.from('profiles').select('id,auth_user_id,title,full_name,employee_id,role,department,designation,reporting_superior_id,is_active').order('full_name'),
+        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').order('full_name')
+      ]);
+      if(a.error){setMessage(a.error.message||'Unable to load duty assignments.');setAssignments([])}
+      else setAssignments(a.data||[]);
+      if(!e.error)setStaff((e.data||[]).filter(x=>x.is_active!==false&&(CLINICAL_ROLES.includes(x.role)||String(x.department||'').trim().toLowerCase()==='nursing')));
+      if(!p.error)setPatients(p.data||[]);
+      setLoading(false);
+    }
+
+    React.useEffect(()=>{
+      load();
+      const channel=client.channel('duty-assignment-live')
+        .on('postgres_changes',{event:'*',schema:'public',table:'duty_assignments'},load)
+        .subscribe();
+      return()=>client.removeChannel(channel);
+    },[]);
+
+    // Nursing staff scope: everyone in the Nursing department, plus anyone
+    // with role Nurse or Caregiver clinic-wide — the same list applies for
+    // the Nursing Manager and for Admin/Manager oversight.
+    const staffScope=staff;
+    const staffScopeIds=React.useMemo(()=>new Set(staffScope.map(s=>s.id)),[staffScope]);
+
+    const staffFor=id=>staff.find(s=>s.id===id||s.auth_user_id===id)||{};
+    const patientFor=id=>patients.find(p=>p.id===id)||{};
+    const patientLabel=id=>{const p=patientFor(id);return p.id?`${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}${p.bed_no?`-${p.bed_no}`:''}`:''};
+
+    const visibleAssignments=React.useMemo(()=>{
+      let rows=assignments.filter(r=>r.duty_date>=rangeStart&&r.duty_date<=rangeEnd);
+      if(canManage)rows=rows.filter(r=>staffScopeIds.has(r.employee_id));
+      else rows=rows.filter(r=>r.employee_id===profile.id);
+      return [...rows].sort((a,b)=>a.duty_date===b.duty_date
+        ?(formalName(staffFor(a.employee_id))||'').localeCompare(formalName(staffFor(b.employee_id))||'')
+        :a.duty_date.localeCompare(b.duty_date));
+    },[assignments,rangeStart,rangeEnd,canManage,staffScopeIds,profile]);
+
+    function openCreate(){
+      setEditing(null);
+      const today=todayISOIndia();
+      setForm({...emptyForm,duty_date:(today>=rangeStart&&today<=rangeEnd)?today:rangeStart});
+      setShowForm(true);
+    }
+    function openEdit(row){
+      setEditing(row);
+      setForm({...emptyForm,...row,patient_id:row.patient_id||'',ward_room:row.ward_room||'',duty_task:row.duty_task||'',remarks:row.remarks||''});
+      setShowForm(true);
+    }
+
+    async function save(e){
+      e.preventDefault();
+      if(!canManage)return;
+      if(!form.employee_id){showToast('error','Please select the staff member to assign.');return}
+      if(!form.duty_date){showToast('error','Please select the duty date.');return}
+      setBusy(true);
+      const {data:{user}}=await client.auth.getUser();
+      const payload={
+        employee_id:form.employee_id,
+        duty_date:form.duty_date,
+        shift:form.shift,
+        duty_type:form.duty_type,
+        patient_id:form.patient_id||null,
+        ward_room:form.ward_room.trim()||null,
+        duty_task:form.duty_task.trim()||null,
+        remarks:form.remarks.trim()||null,
+        status:form.status,
+        assigned_by:user?.id||profile?.id,
+        assigned_by_name:formalName(profile)||profile?.full_name||'Authorised user',
+        assigned_by_role:profile?.role,
+        updated_at:new Date().toISOString()
+      };
+      const query=editing
+        ?client.from('duty_assignments').update(payload).eq('id',editing.id).select('id').single()
+        :client.from('duty_assignments').insert(payload).select('id').single();
+      const {data,error}=await query;
+      setBusy(false);
+      if(error){showToast('error',error.message||'Unable to save duty assignment.');return}
+      showToast('success',editing?'Duty assignment updated successfully.':'Duty assigned successfully.');
+      setShowForm(false);await load();
+      writeAuditEvent(editing?'Duty Assignment Updated':'Duty Assigned','Duty Assignment',data?.id||editing?.id,{
+        employee:formalName(staffFor(form.employee_id))||'Staff',
+        duty_date:form.duty_date,
+        shift:form.shift,
+        duty_type:form.duty_type,
+        status:form.status
+      },'Success');
+    }
+
+    async function updateStatus(row,status){
+      const isOwner=row.employee_id===profile.id;
+      if(!canManage&&!isOwner)return;
+      const {error}=await client.from('duty_assignments').update({status,updated_at:new Date().toISOString()}).eq('id',row.id);
+      if(error){showToast('error',error.message||'Unable to update duty status.');return}
+      showToast('success',`Duty status changed to ${status}.`);
+      await load();
+    }
+
+    const rows=visibleAssignments.map(row=>{
+      const emp=staffFor(row.employee_id);
+      const isOwner=row.employee_id===profile.id;
+      const statusOptions=canManage?STATUS_ALL:STATUS_STAFF;
+      return [
+        canManage?`${formalName(emp)||'Staff'}${emp.role?` · ${emp.role}`:''}`:formalName(emp)||'You',
+        formatDateIN(row.duty_date),
+        row.shift||'—',
+        row.duty_type||'General Duty',
+        row.patient_id?patientLabel(row.patient_id):(row.ward_room||'—'),
+        row.duty_task||row.remarks||'—',
+        h('span',{className:`badge ${row.status==='Completed'?'':row.status==='Cancelled'?'off':''}`},row.status||'Assigned'),
+        h('div',{className:'employee-actions'},
+          canManage&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(row)},'Edit'),
+          (canManage||isOwner)&&h('select',{value:row.status||'Assigned',onChange:e=>updateStatus(row,e.target.value)},statusOptions.map(x=>h('option',{key:x,value:x},x)))
+        )
+      ];
+    });
+
+    return h(React.Fragment,null,
+      h(Section,{
+        title:'Duty Assignment',
+        subtitle:canManage?'Assign shift, task and patient / ward duty to nursing staff':'Your nursing duty schedule',
+        actions:h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>jumpWeek(-1)},'‹ Prev Week'),
+          h(StrictDateInput,{value:rangeStart,onChange:e=>setRangeStart(e.target.value)}),
+          h('span',{style:{opacity:.65,fontSize:'12px'}},'to'),
+          h(StrictDateInput,{value:rangeEnd,onChange:e=>setRangeEnd(e.target.value)}),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>jumpWeek(1)},'Next Week ›'),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:resetToThisWeek},'This Week'),
+          canManage&&h('button',{type:'button',className:'btn btn-primary',onClick:openCreate},'＋ Assign Duty')
+        )
+      },
+        message&&h('div',{className:'message error'},message),
+        canManage&&h('p',{className:'small-note'},'Showing all Nursing department staff, and any Nurse / Caregiver clinic-wide.')
+      ),
+      h(LogTable,{
+        title:`Duty Schedule — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)} (${rows.length})`,
+        subtitle:canManage?'Nursing duty schedule for the selected week':'Your nursing duty schedule for the selected week',
+        heads:['Staff','Date','Shift','Duty Type','Patient / Ward / Room','Task / Remarks','Status','Action'],
+        rows
+      }),
+      !loading&&!message&&!rows.length&&h('div',{className:'card panel'},h('p',{className:'small-note'},canManage?'No duty has been assigned for this period yet.':'No duty has been assigned to you for this period.')),
+      showForm&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setShowForm(false)}},
+        h('form',{className:'card modal',style:{width:'min(760px,96vw)',maxHeight:'92vh',overflow:'auto'},onSubmit:save},
+          h('div',{className:'panel-head'},
+            h('div',null,h('h3',null,editing?'Edit Duty Assignment':'Assign Duty'),h('small',null,'Shift, task and patient / ward duty for a nursing staff member')),
+            h('button',{type:'button',className:'close',onClick:()=>setShowForm(false)},'×')
+          ),
+          h('div',{className:'modal-grid'},
+            h('div',{className:'field'},h('label',null,'Staff Member'),h('select',{required:true,value:form.employee_id,onChange:e=>setForm({...form,employee_id:e.target.value})},h('option',{value:''},'Select Nurse or Caregiver'),staffScope.map(s=>h('option',{key:s.id,value:s.id},`${formalName(s)}${s.employee_id?` · ${s.employee_id}`:''} · ${s.role}`)))),
+            h('div',{className:'field'},h('label',null,'Duty Date'),h(StrictDateInput,{value:form.duty_date,onChange:e=>setForm({...form,duty_date:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Shift'),h('select',{value:form.shift,onChange:e=>setForm({...form,shift:e.target.value})},SHIFT_OPTIONS.map(x=>h('option',{key:x,value:x},x)))),
+            h('div',{className:'field'},h('label',null,'Duty Type'),h('select',{value:form.duty_type,onChange:e=>setForm({...form,duty_type:e.target.value})},DUTY_TYPE_OPTIONS.map(x=>h('option',{key:x,value:x},x)))),
+            h('div',{className:'field'},h('label',null,'Assigned Patient (optional)'),h('select',{value:form.patient_id,onChange:e=>setForm({...form,patient_id:e.target.value})},h('option',{value:''},'Not patient-specific'),patients.filter(p=>p.is_active!==false).map(p=>h('option',{key:p.id,value:p.id},patientLabel(p.id))))),
+            h('div',{className:'field'},h('label',null,'Ward / Room (optional)'),h('input',{value:form.ward_room,onChange:e=>setForm({...form,ward_room:e.target.value}),placeholder:'Example: Ward B / Room 4'})),
+            h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},STATUS_ALL.map(x=>h('option',{key:x,value:x},x)))),
+            h('div',{className:'field span-2'},h('label',null,'Task Details / Instructions'),h('textarea',{rows:3,value:form.duty_task,onChange:e=>setForm({...form,duty_task:e.target.value}),placeholder:'Specific duty instructions for this assignment'})),
+            h('div',{className:'field span-2'},h('label',null,'Remarks (optional)'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value})}))
+          ),
+          h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowForm(false)},'Cancel'),h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':editing?'Update Assignment':'Save Assignment'))
+        )
+      ),
+      toast&&h('div',{className:`samara-toast ${toast.type}`,role:'status','aria-live':'polite'},
+        h('span',{className:'samara-toast-icon','aria-hidden':'true'},toast.type==='success'?'✓':'!'),
+        h('div',null,h('strong',null,toast.type==='success'?'Duty Assignment updated':'Update failed'),h('span',null,toast.text)),
         h('button',{type:'button','aria-label':'Close notification',onClick:()=>setToast(null)},'×')
       )
     );
