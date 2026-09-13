@@ -2094,3 +2094,16 @@ p,span,small,strong,b,label,td,th,button,a{overflow-wrap:break-word;word-break:n
   button,.btn,input,select,textarea{max-width:100%;min-width:0}
   .panel-head,.section-title,.actions{min-width:0;flex-wrap:wrap}
 }
+
+/* v2.12.03 — restored System Maintenance page */
+.system-maintenance-hero{background:linear-gradient(120deg,#fff8fb,#f9d8e7)!important;border-color:#edbfd3!important}
+.system-maintenance-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.system-maintenance-card{display:flex;flex-direction:column;align-items:flex-start;min-width:0;margin:0!important;background:linear-gradient(145deg,#fff,#fff7fb)!important;border-color:#edc5d7!important}
+.system-maintenance-card .system-maintenance-icon{width:44px;height:44px;display:grid;place-items:center;border-radius:13px;background:#f8deea;color:#a20b55;font-size:22px;font-weight:900}
+.system-maintenance-card h3{margin:12px 0 7px;color:#71103f}.system-maintenance-card p{flex:1;margin:0 0 15px;color:#69515e;line-height:1.5}
+.system-maintenance-card .btn{width:100%}
+.system-information-card{border-color:#edc5d7!important}.system-information-card h3{color:#71103f}
+.system-information-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.system-information-grid>div{display:grid;gap:3px;min-width:0;padding:12px;border:1px solid #efd5e0;border-radius:12px;background:#fff8fb}
+.system-information-grid small{color:#866676;font-weight:800}.system-information-grid strong{color:#432735;overflow-wrap:anywhere}.system-information-grid .system-ok{color:#087c39}.system-information-grid .system-warn{color:#b42318}
+@media(max-width:760px){.system-maintenance-grid{grid-template-columns:1fr}.system-information-grid{grid-template-columns:1fr 1fr}.system-maintenance-card{padding:15px!important}.system-maintenance-card p{font-size:14px}}
