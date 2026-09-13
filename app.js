@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.14';
+  const APP_VERSION = '2.12.15';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -20300,6 +20300,7 @@ function RoomsBeds({profile,onNavigate}){
       setMsg('');setShow(true);
     }
     function openEdit(row){
+      if(row.duty_date<todayISOIndia()){showToast('error','Past duty dates cannot be modified.');return}
       setEditing(row);
       setForm({
         room_no:row.room_no||'',bed_no:row.bed_no||'',room_type:['Private / Single','Private','Single'].includes(row.room_type)?'Single / Private':row.room_type||'Twin Sharing',
@@ -22763,7 +22764,7 @@ function DutyAssignment({profile}){
       if(!canManage)return;
       if(!form.employee_id){showToast('error','Please select the staff member to assign.');return}
       if(!form.duty_date){showToast('error','Please select the duty date.');return}
-      if(!editing&&form.duty_date<todayISOIndia()){showToast('error','Duty can be assigned only from today onward.');return}
+      if(form.duty_date<todayISOIndia()){showToast('error','Duty can be assigned only from today onward.');return}
       setBusy(true);
       const {data:{user}}=await client.auth.getUser();
       const payload={
