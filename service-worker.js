@@ -1,5 +1,5 @@
-const APP_VERSION = '2.11.98';
-const CACHE = 'samara-erp-2.11.98-stores-mobile-cards';
+const APP_VERSION = '2.11.99';
+const CACHE = 'samara-erp-2.11.99-mobile-ledger-compact';
 const SHELL = [
   './',
   './index.html',

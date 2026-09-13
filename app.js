@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.11.98';
+  const APP_VERSION = '2.11.99';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '13-Sep-2026 Stores Mobile Stock Cards';
+  const APP_BUILD_DATE = '13-Sep-2026 Compact Mobile Ledger References';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -5987,7 +5987,7 @@ Caring with Compassion. Living with Dignity.`;
       const media=window.matchMedia?.('(max-width:760px)');
       let frame=0;
       const excluded='table.rooms-table,table.patient-master-table,table.employee-master-table,table.medication-log-table';
-      const wideLabels=/action|details|description|remarks|instruction|patient|resident|employee|applicant|medicine|item|service|address|message|reason|particular/i;
+      const wideLabels=/action|details|description|remarks|instruction|patient|resident|employee|applicant|medicine|item|service|address|message|reason|particular|source|reference/i;
       const enhanceTable=table=>{
         if(!table?.matches?.('table')||table.matches(excluded)||table.closest('.rooms-desktop-table-wrap'))return;
         const headRows=table.tHead?.rows||[];
@@ -23176,6 +23176,12 @@ function ShiftHandover({profile,onNavigate}){
     const dateOnly=value=>String(value||'').slice(0,10);
     const dateDiff=(a,b)=>Math.round((new Date(`${dateOnly(a)}T00:00:00`)-new Date(`${dateOnly(b)}T00:00:00`))/86400000);
     const money=value=>`₹${Number(value||0).toLocaleString('en-IN',{maximumFractionDigits:2})}`;
+    const compactLedgerReference=value=>{
+      const text=String(value||'').trim();
+      if(!text)return '';
+      if(text.length<=30)return text;
+      return `${text.slice(0,12)}…${text.slice(-10)}`;
+    };
 
     function optionKind(pkg){
       const unit=String(pkg?.duration_unit||'').toLowerCase();
@@ -24453,7 +24459,11 @@ function ShiftHandover({profile,onNavigate}){
               h('td',{className:'ledger-debit'},row._debit?money(row._debit):'—'),
               h('td',{className:'ledger-credit'},row._credit?money(row._credit):'—'),
               h('td',{className:'ledger-balance'},money(row._balance)),
-              h('td',null,h('div',null,row.source_type||row.payment_mode||'—'),h('div',{className:'small-note'},row.payment_reference||row.reference_no||row.source_key||''))
+              h('td',{className:'ledger-source-cell'},
+                h('div',{className:'ledger-source-name'},row.source_type||row.payment_mode||'—'),
+                h('div',{className:'small-note ledger-reference-full'},row.payment_reference||row.reference_no||row.source_key||''),
+                h('div',{className:'small-note ledger-reference-compact',title:row.payment_reference||row.reference_no||row.source_key||''},compactLedgerReference(row.payment_reference||row.reference_no||row.source_key||''))
+              )
             )))
           )):h('div',{className:'empty-state'},'No billing transactions have been recorded for this patient yet.')
         )
