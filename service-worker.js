@@ -1,5 +1,5 @@
-const APP_VERSION = '2.12.21';
-const CACHE = 'samara-erp-2.12.21-duty-buttons';
+const APP_VERSION = '2.12.22';
+const CACHE = 'samara-erp-2.12.22-clinical-push';
 const SHELL = [
   './',
   './index.html',
@@ -68,8 +68,11 @@ self.addEventListener('push', event => {
     body: payload.body || 'Clinical attention required.',
     icon: payload.icon || './icons/icon-192.png',
     badge: payload.badge || './icons/icon-192.png',
-    tag: payload.tag || `samara-clinical-${Date.now()}`,
-    renotify: payload.renotify !== false,
+    // Keep one notification slot per clinical escalation.  The dispatcher may
+    // retry while an item remains unresolved, but a retry must not create a
+    // new audible notification every minute on the same phone.
+    tag: payload.alert_key ? `samara-clinical-${payload.alert_key}` : (payload.tag || 'samara-clinical-alert'),
+    renotify: false,
     requireInteraction: Boolean(payload.requireInteraction),
     data: { url: payload.url || './?push_page=Clinical%20Alerts', alert_key: payload.alert_key || '', event_kind: payload.event_kind || 'alert' },
     vibrate: payload.event_kind === 'escalation' ? [220,100,220,100,220] : [160,80,160]
