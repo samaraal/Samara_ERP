@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.64';
+  const APP_VERSION = '2.12.65';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12174,9 +12174,11 @@ Thank you.`;
         if(!hay.includes(q))return false;
       }
       const selectedDate=String(calendarDate||todayISOIndia());
+      const weekStart=mondayOfWeek(selectedDate);
+      const weekEnd=addDaysISO(weekStart,6);
       const from=r.request_type==='Leave'?r.from_date:r.permission_date;
       const to=r.request_type==='Leave'?(r.to_date||r.from_date):r.permission_date;
-      return Boolean(from&&to&&from<=selectedDate&&to>=selectedDate);
+      return Boolean(from&&to&&from<=weekEnd&&to>=weekStart);
     }
     function calendarRequestCard(r){
       const expanded=expandedCalendarRows.has(r.id),emp=byId(r.employee_id);
@@ -12219,17 +12221,23 @@ Thank you.`;
     )):null;
     if(calendar){
       const calendarRows=rows.filter(calendarMatches).sort((a,b)=>String(a.from_date||a.permission_date||'').localeCompare(String(b.from_date||b.permission_date||'')));
-      const selectedLabel=formatDateIN(calendarDate||todayISOIndia());
+      const selectedDate=calendarDate||todayISOIndia();
+      const weekStart=mondayOfWeek(selectedDate);
+      const weekEnd=addDaysISO(weekStart,6);
+      const selectedLabel=`${formatDateWithDayIN(weekStart)} to ${formatDateWithDayIN(weekEnd)}`;
       return h(React.Fragment,null,
         h(Section,{title:'Staff Leave Calendar',subtitle:`${selectedLabel} · ${calendarRows.length} leave / permission record${calendarRows.length===1?'':'s'}`,actions:h('button',{className:'btn btn-secondary',onClick:load,disabled:busy},'Refresh')},
           msg?h('div',{className:'message'},msg):null,
           h('div',{className:'leave-calendar-controls'},
             h('input',{type:'search',value:calendarSearch,onChange:e=>setCalendarSearch(e.target.value),placeholder:'Search name, mobile, position…','aria-label':'Search staff by name, mobile or position'}),
             h('input',{type:'date',value:calendarDate,onChange:e=>setCalendarDate(e.target.value),'aria-label':'Choose calendar date'}),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCalendarDate(addDaysISO(mondayOfWeek(selectedDate),-7))},'‹ Previous Week'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCalendarDate(mondayOfWeek(todayISOIndia()))},'This Week'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCalendarDate(addDaysISO(mondayOfWeek(selectedDate),7))},'Next Week ›'),
             calendarSearch.length>0&&calendarSearch.length<3?h('small',{className:'field-hint'},'Type at least 3 characters'):null,
             h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setCalendarSearch('');setCalendarDate(todayISOIndia());setExpandedCalendarRows(new Set())}},'Clear')
           ),
-          busy?h('div',{className:'empty'},'Loading leave calendar…'):h('div',{className:'absence-list calendar-absence-list'},...calendarRows.map(calendarRequestCard),calendarRows.length===0?h('div',{className:'empty'},'No leave or permission records found for this month.'):null)
+          busy?h('div',{className:'empty'},'Loading leave calendar…'):h('div',{className:'absence-list calendar-absence-list'},...calendarRows.map(calendarRequestCard),calendarRows.length===0?h('div',{className:'empty'},'No leave or permission records found for this week.'):null)
         )
       );
     }
