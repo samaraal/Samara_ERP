@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.63';
+  const APP_VERSION = '2.12.64';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1583,19 +1583,22 @@ function initSamaraInaugurationInvitation(){
     'My To-Do & Follow-up':'My To-Do & Follow-up',
     'My To-Do List':'My To-Do List'
   };
-  const displayNavLabel=(item,role)=>CLINICAL_ROLES.includes(role)?(ROLE_LABELS[item]||item):item;
+  const displayNavLabel=(item,role)=>{
+    if(item==='Duty Assignment'&&(CLINICAL_ROLES.includes(role)||role==='Manager'))return 'My Duty';
+    return CLINICAL_ROLES.includes(role)?(ROLE_LABELS[item]||item):item;
+  };
   const sectionsFor = (allowed,role) => {
     if(CLINICAL_ROLES.includes(role)){
       return [
         {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My To-Do List','Notifications'].filter(item=>allowed.includes(item))},
-        {title:'MY DUTIES & LEAVE',items:['Duty Assignment','Staff Leave Calendar','My Leave & Permission','Leave Approvals'].filter(item=>allowed.includes(item))},
+        {title:'DUTY ROSTER & LEAVE',items:['Duty Assignment','Staff Leave Calendar','My Leave & Permission','Leave Approvals'].filter(item=>allowed.includes(item))},
         {title:'PHARMACY & STORES',items:['Patient Consumables','Stores','Stores In-charge Assignment'].filter(item=>allowed.includes(item))}
       ];
     }
     if(role==='Manager'&&allowed.includes('My To-Do List')&&allowed.includes('Employees')&&!allowed.includes('Accounts Dashboard')){
       return [
         {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','My To-Do List'].filter(item=>allowed.includes(item))},
-        {title:'MY DUTIES & LEAVE',items:['Duty Assignment','My Leave & Permission'].filter(item=>allowed.includes(item))},
+        {title:'DUTY ROSTER & LEAVE',items:['Duty Assignment','My Leave & Permission'].filter(item=>allowed.includes(item))},
         {title:'NURSING STAFF',items:['Duty Calendar','Staff Leave Calendar','Employees'].filter(item=>allowed.includes(item))},
         {title:'ADMISSION',items:['Enquiries','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},
         {title:'ROOMS & PACKAGES',items:['Rooms','Care Packages'].filter(item=>allowed.includes(item))},
@@ -1702,6 +1705,15 @@ function initSamaraInaugurationInvitation(){
     const parts=new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'2-digit',year:'numeric'}).formatToParts(date);
     const get=type=>parts.find(part=>part.type===type)?.value||'';
     return `${get('day')}:${get('month')}:${get('year')}`;
+  };
+  const formatDateWithDayIN = value => {
+    if(!value)return '—';
+    const raw=String(value).trim();
+    const dateOnly=raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const date=dateOnly?new Date(Date.UTC(Number(dateOnly[1]),Number(dateOnly[2])-1,Number(dateOnly[3]))):new Date(value);
+    if(Number.isNaN(date.getTime()))return formatDateIN(value);
+    const weekday=new Intl.DateTimeFormat('en-IN',{timeZone:dateOnly?'UTC':'Asia/Kolkata',weekday:'long'}).format(date);
+    return `${formatDateIN(value)} – ${weekday}`;
   };
   // Strict ERP date controls: the visible value is always DD:MM:YYYY.
   // A transparent native picker is retained only for calendar selection; its locale-specific
@@ -23024,7 +23036,7 @@ function ShiftManagement({profile}){
       const statusStyle=displayStatus==='Leave granted'?{background:'#fde2e2',color:'#b42318'}:isOff?{background:'#eee9ff',color:'#5940aa'}:displayStatus==='Acknowledged'?{background:'#d9f5e4',color:'#11643a'}:displayStatus==='Assigned'?{background:'#fff1c9',color:'#8b5a00'}:displayStatus==='Cancelled'?{background:'#f2f2f2',color:'#6d6d6d'}:{};
       return [
         canManage?`${formalName(emp)||'Staff'}${emp.role?` · ${emp.role}`:''}`:formalName(emp)||'You',
-        formatDateIN(row.duty_date),
+        formatDateWithDayIN(row.duty_date),
         row.shift||'—',
         row.duty_type||'General Duty',
         row.patient_id?patientLabel(row.patient_id):(row.ward_room||'—'),
@@ -23071,7 +23083,7 @@ function ShiftManagement({profile}){
         return h('button',{type:'button',className:`duty-roster-cell ${statusClass}`,key:row.id,onClick:()=>setSelectedDuty(row),title:'Open duty details'},h('strong',null,off?'Weekly Off':row.shift||'Duty'),h('small',null,off?'':displayStatus),leave?.status!=='approved'&&leave&&h('em',null,'Leave conflict'))
       }));
     };
-    const rosterHeader=h('div',{className:'duty-roster-header'},h('strong',null,'Staff'),...calendarDays.map((date,index)=>h('strong',{key:date},h('span',null,['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][index]),h('small',null,formatDateIN(date)))));
+    const rosterHeader=h('div',{className:'duty-roster-header'},h('strong',null,'Staff'),...calendarDays.map((date,index)=>h('strong',{key:date},h('span',null,['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][index]),h('small',null,formatDateWithDayIN(date)))));
     const rosterRows=filteredRosterStaff.map(person=>{
       const staffHeader=h('div',{className:'duty-roster-staff'},h('strong',null,formalName(person)||person.full_name||'Staff'),h('small',null,[person.mobile,person.designation].filter(Boolean).join(' · ')||'—'),h('small',null,person.employee_id||''));
       const dayCells=calendarDays.map((date,index)=>h('div',{className:'duty-roster-grid-cell','data-day':['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][index],key:date},rosterCell(person,date)));
@@ -23084,7 +23096,7 @@ function ShiftManagement({profile}){
       simpleAssignmentList
     ):null;
     const calendarColumns=calendarDays.map((date,index)=>{
-      const dateLabel=formatDateIN(date);
+      const dateLabel=formatDateWithDayIN(date);
       const dayRows=rows.filter(cells=>cells[1]===dateLabel);
       return h('div',{className:'duty-calendar-day',key:date},
         h('div',{className:'duty-calendar-day-head'},h('strong',null,['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][index]),h('small',null,dateLabel)),
@@ -23130,7 +23142,7 @@ function ShiftManagement({profile}){
       h('input',{type:'search',value:staffSearch,onChange:e=>setStaffSearch(e.target.value),placeholder:'Search staff, mobile, patient/ward or task…','aria-label':'Search staff, mobile, patient, ward or task'}),
       (!dropdownSearch&&staffSearch.length>0&&staffSearch.length<3)?h('small',null,'Type at least 3 characters'):null,
       h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setStaffSearch('');setShiftFilter('');setStatusFilter('')}},'Clear'));
-    const simpleAssignmentList=h('div',{className:'duty-simple-list'},
+    const simpleAssignmentList=h('div',{className:`duty-simple-list ${onlyMineView?'duty-simple-list-mine':''}`},
       filteredCalendarRows.map(row=>{
         const emp=staffFor(row.employee_id);
         const leaveOnly=Boolean(row.__leaveRecord);
@@ -23138,9 +23150,9 @@ function ShiftManagement({profile}){
         const off=Boolean(row.is_weekly_off)||row.status==='Weekly Off';
         const displayStatus=effectiveDutyStatus(row);
         const statusStyle=leaveOnly||displayStatus==='Leave granted'?{background:'#fde2e2',color:'#b42318'}:off?{background:'#eee9ff',color:'#5940aa'}:displayStatus==='Acknowledged'?{background:'#d9f5e4',color:'#11643a'}:displayStatus==='Assigned'?{background:'#fff1c9',color:'#8b5a00'}:{};
-        return h('button',{type:'button',className:'duty-simple-row',key:row.id,onClick:()=>setSelectedDuty(row),'data-hover-info':[`Staff: ${formalName(emp)||'Staff'}`,`Date: ${formatDateIN(row.duty_date)}`,`Shift: ${off?'Weekly Off':row.shift||'—'}`,`Duty: ${row.duty_type||'General Duty'}`,`Status: ${displayStatus}`,leaveConflict?.status!=='approved'&&leaveConflict?`Leave: ${leaveStatusLabel(leaveConflict.status)}`:''].filter(Boolean).join('\n')},
-          h('span',{className:'duty-simple-primary'},h('strong',null,formalName(emp)||'Staff'),h('small',null,emp.employee_id||emp.role||'—')),
-          h('span',null,h('small',null,'Date'),h('strong',null,formatDateIN(row.duty_date))),
+        return h('button',{type:'button',className:'duty-simple-row',key:row.id,onClick:()=>setSelectedDuty(row),'data-hover-info':[`Staff: ${formalName(emp)||'Staff'}`,`Date: ${formatDateWithDayIN(row.duty_date)}`,`Shift: ${off?'Weekly Off':row.shift||'—'}`,`Duty: ${row.duty_type||'General Duty'}`,`Status: ${displayStatus}`,leaveConflict?.status!=='approved'&&leaveConflict?`Leave: ${leaveStatusLabel(leaveConflict.status)}`:''].filter(Boolean).join('\n')},
+          !onlyMineView&&h('span',{className:'duty-simple-primary'},h('strong',null,formalName(emp)||'Staff'),h('small',null,emp.employee_id||emp.role||'—')),
+          h('span',null,h('small',null,'Date'),h('strong',null,formatDateWithDayIN(row.duty_date))),
           h('span',null,h('small',null,'Shift'),h('strong',null,off?'Weekly Off':row.shift||'—')),
           h('span',null,h('small',null,'Duty'),h('strong',null,row.duty_type||'General Duty')),
           h('span',{className:'duty-simple-status'},h('small',null,'Status'),h('span',{className:'badge',style:statusStyle},displayStatus),leaveConflict?.status!=='approved'&&leaveConflict&&h('em',null,'Leave conflict')),
@@ -23150,7 +23162,7 @@ function ShiftManagement({profile}){
     );
     return h(React.Fragment,null,
       h(Section,{
-        title:teamMode?scheduleTitle:'My Duties',
+        title:teamMode?scheduleTitle:'My Duty',
         subtitle:scheduleSubtitle,
         actions:h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
           !dayCalendar&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>jumpWeek(-1)},'‹ Prev Week'),
@@ -23159,14 +23171,14 @@ function ShiftManagement({profile}){
           !dayCalendar&&h(StrictDateInput,{value:rangeEnd,onChange:e=>setRangeEnd(e.target.value)}),
           !dayCalendar&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>jumpWeek(1)},'Next Week ›'),
           !dayCalendar&&h('button',{type:'button',className:'btn btn-secondary',onClick:resetToThisWeek},'This Week'),
-          dayCalendar&&h('strong',null,`Selected date: ${formatDateIN(calendarDate)}`),
+          dayCalendar&&h('strong',null,`Selected date: ${formatDateWithDayIN(calendarDate)}`),
           canManage&&h('button',{type:'button',className:'btn btn-primary',onClick:openCreate},'＋ Assign Duty')
         )
       },
         message&&h('div',{className:'message error'},message),
       canManage&&h('p',{className:'small-note'},fullDutyControl?'Showing all active employees.':'Showing Nursing, Caregiving and Nursing Supervisor staff. Nursing Manager duties are assigned by Admin/Director.')
       ),
-      teamMode? h(Section,{title:dayCalendar?`${scheduleTitle} — ${formatDateIN(calendarDate)}`:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)}`,subtitle:scheduleSubtitle},staffRoster()):h(Section,{title:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)} (${visibleAssignments.length})`,subtitle:'Select a duty row to view complete details and available actions.'},assignmentSearch,simpleAssignmentList),
+      teamMode? h(Section,{title:dayCalendar?`${scheduleTitle} — ${formatDateWithDayIN(calendarDate)}`:`${scheduleTitle} — ${formatDateWithDayIN(rangeStart)} to ${formatDateWithDayIN(rangeEnd)}`,subtitle:scheduleSubtitle},staffRoster()):h(Section,{title:`${scheduleTitle} — ${formatDateWithDayIN(rangeStart)} to ${formatDateWithDayIN(rangeEnd)} (${visibleAssignments.length})`,subtitle:scheduleSubtitle},assignmentSearch,simpleAssignmentList),
       !loading&&!message&&!rows.length&&h('div',{className:'card panel'},h('p',{className:'small-note'},canManage?'No duty has been assigned for this period yet.':'No duty has been assigned to you for this period.')),
       selectedDuty&&(()=>{
         const emp=staffFor(selectedDuty.employee_id);
@@ -23178,10 +23190,10 @@ function ShiftManagement({profile}){
         const selectedReassignment=/re-?assignment/i.test(String(selectedDuty.staff_response||''))||/re-?assignment/i.test(String(selectedDuty.modification_request||''));
         return h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setSelectedDuty(null)}},
           h('div',{className:'card modal duty-detail-modal',style:{width:'min(760px,96vw)',maxHeight:'90vh',overflow:'auto'}},
-            h('div',{className:'panel-head'},h('div',null,h('h3',null,'Duty Details'),h('small',null,`${formalName(emp)||'Staff'} · ${formatDateIN(selectedDuty.duty_date)}`)),h('button',{type:'button',className:'close',onClick:()=>setSelectedDuty(null)},'×')),
+            h('div',{className:'panel-head'},h('div',null,h('h3',null,'Duty Details'),h('small',null,`${formalName(emp)||'Staff'} · ${formatDateWithDayIN(selectedDuty.duty_date)}`)),h('button',{type:'button',className:'close',onClick:()=>setSelectedDuty(null)},'×')),
             h('div',{className:'duty-detail-grid'},
               h('div',{className:'duty-detail-item'},h('small',null,'Staff'),h('strong',null,formalName(emp)||'Staff')),
-              h('div',{className:'duty-detail-item'},h('small',null,'Date'),h('strong',null,formatDateIN(selectedDuty.duty_date))),
+              h('div',{className:'duty-detail-item'},h('small',null,'Date'),h('strong',null,formatDateWithDayIN(selectedDuty.duty_date))),
               h('div',{className:'duty-detail-item'},h('small',null,'Shift'),h('strong',null,selectedDuty.shift||'—')),
               h('div',{className:'duty-detail-item'},h('small',null,'Duty Type'),h('strong',null,selectedDuty.duty_type||'General Duty')),
               h('div',{className:'duty-detail-item span-2'},h('small',null,'Patient / Ward / Room'),h('strong',null,selectedDuty.patient_id?patientLabel(selectedDuty.patient_id):(selectedDuty.ward_room||'—'))),
