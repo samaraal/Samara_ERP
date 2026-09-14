@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.66';
+  const APP_VERSION = '2.12.67';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12096,6 +12096,7 @@ Thank you.`;
     const [form,setForm]=React.useState(empty);
     const [calendarSearch,setCalendarSearch]=React.useState('');
     const [calendarDate,setCalendarDate]=React.useState(todayISOIndia());
+    const [calendarStatusFilter,setCalendarStatusFilter]=React.useState('');
     const [requestStatusFilter,setRequestStatusFilter]=React.useState('');
     const [expandedCalendarRows,setExpandedCalendarRows]=React.useState(new Set());
     const byId=id=>profiles.find(x=>x.id===id)||{};
@@ -12196,10 +12197,10 @@ Thank you.`;
       return Boolean(from&&to&&from<=weekEnd&&to>=weekStart);
     }
     function calendarRequestCard(r){
-      const expanded=expandedCalendarRows.has(r.id),emp=byId(r.employee_id);
-      return h('div',{className:`absence-card calendar-absence-card${expanded?' is-expanded':''}`,key:r.id},
-        h('button',{type:'button',className:'calendar-absence-summary',onClick:()=>setExpandedCalendarRows(prev=>{const next=new Set(prev);next.has(r.id)?next.delete(r.id):next.add(r.id);return next})},
-          h('span',{className:'calendar-absence-day'},r.request_type==='Leave'?formatDateIN(r.from_date):formatDateIN(r.permission_date)),
+      const calendarKey=r.__calendarKey||String(r.id),expanded=expandedCalendarRows.has(calendarKey),emp=byId(r.employee_id);
+      return h('div',{className:`absence-card calendar-absence-card${expanded?' is-expanded':''}`,key:calendarKey},
+        h('button',{type:'button',className:'calendar-absence-summary',onClick:()=>setExpandedCalendarRows(prev=>{const next=new Set(prev);next.has(calendarKey)?next.delete(calendarKey):next.add(calendarKey);return next})},
+          h('span',{className:'calendar-absence-day'},formatDateWithDayIN(r.__calendarDay||(r.request_type==='Leave'?r.from_date:r.permission_date))),
           h('span',{className:'calendar-absence-person'},(isApprovals||calendar)?(formalName(emp)||r.employee_name||'Employee'):(r.request_type==='Leave'?(r.leave_type||'Leave'):'Permission')),
           h('span',{className:`badge ${statusClass(r.status)}`},statusLabel(r.status)),
           h('span',{className:'calendar-absence-chevron'},expanded?'⌃':'⌄')
@@ -12235,23 +12236,34 @@ Thank you.`;
       ),modalMsg?h('div',{className:`message ${submitted?'success':''}`,style:{marginTop:'12px'}},modalMsg):null,h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:submitBusy,onClick:()=>setShowForm(false)},submitted?'Close':'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:submitBusy||submitted},submitted?'Submitted ✓':(submitBusy?'Submitting…':'Submit Request')))
     )):null;
     if(calendar){
-      const calendarRows=rows.filter(calendarMatches).sort((a,b)=>String(a.from_date||a.permission_date||'').localeCompare(String(b.from_date||b.permission_date||'')));
       const selectedDate=calendarDate||todayISOIndia();
       const weekStart=mondayOfWeek(selectedDate);
       const weekEnd=addDaysISO(weekStart,6);
+      const calendarBaseRows=rows.filter(calendarMatches).filter(r=>!calendarStatusFilter||(calendarStatusFilter==='pending'?['pending_superior','pending_management'].includes(r.status):r.status===calendarStatusFilter)).sort((a,b)=>String(a.from_date||a.permission_date||'').localeCompare(String(b.from_date||b.permission_date||'')));
+      const calendarRows=calendarBaseRows.flatMap(r=>{
+        if(r.request_type!=='Leave')return [{...r,__calendarDay:r.permission_date,__calendarKey:`${r.id}-${r.permission_date||'date'}`}];
+        const from=r.from_date&&r.from_date>weekStart?r.from_date:weekStart;
+        const to=(r.to_date||r.from_date)&&((r.to_date||r.from_date)<weekEnd?(r.to_date||r.from_date):weekEnd);
+        const days=[];
+        for(let day=from;day&&to&&day<=to;day=addDaysISO(day,1))days.push({...r,__calendarDay:day,__calendarKey:`${r.id}-${day}`});
+        return days;
+      });
       const selectedLabel=`${formatDateWithDayIN(weekStart)} to ${formatDateWithDayIN(weekEnd)}`;
+      const currentWeek=mondayOfWeek(todayISOIndia());
+      const statusButton=(value,label)=>h('button',{type:'button',className:calendarStatusFilter===value?'active':'',onClick:()=>setCalendarStatusFilter(calendarStatusFilter===value?'':value)},h('strong',null,rows.filter(calendarMatches).filter(r=>value?(value==='pending'?['pending_superior','pending_management'].includes(r.status):r.status===value):true).length),h('small',null,label));
       return h(React.Fragment,null,
-        h(Section,{title:'Staff Leave Calendar',subtitle:`${selectedLabel} · ${calendarRows.length} leave / permission record${calendarRows.length===1?'':'s'}`,actions:h('button',{className:'btn btn-secondary',onClick:load,disabled:busy},'Refresh')},
+        h(Section,{title:'Staff Leave Calendar',subtitle:`${selectedLabel} · ${calendarBaseRows.length} leave / permission record${calendarBaseRows.length===1?'':'s'}`,actions:h('button',{className:'btn btn-secondary',onClick:load,disabled:busy},'Refresh')},
           msg?h('div',{className:'message'},msg):null,
           h('div',{className:'leave-calendar-controls'},
             h('input',{type:'search',value:calendarSearch,onChange:e=>setCalendarSearch(e.target.value),placeholder:'Search name, mobile, position…','aria-label':'Search staff by name, mobile or position'}),
             h('input',{type:'date',value:calendarDate,onChange:e=>setCalendarDate(e.target.value),'aria-label':'Choose calendar date'}),
-            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCalendarDate(addDaysISO(mondayOfWeek(selectedDate),-7))},'‹ Previous Week'),
-            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCalendarDate(mondayOfWeek(todayISOIndia()))},'This Week'),
-            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCalendarDate(addDaysISO(mondayOfWeek(selectedDate),7))},'Next Week ›'),
+            h('button',{type:'button',className:'btn btn-secondary week-filter',onClick:()=>setCalendarDate(addDaysISO(mondayOfWeek(selectedDate),-7))},'‹ Previous Week'),
+            h('button',{type:'button',className:`btn btn-secondary week-filter ${weekStart===currentWeek?'active':''}`,onClick:()=>setCalendarDate(currentWeek)},'This Week'),
+            h('button',{type:'button',className:'btn btn-secondary week-filter',onClick:()=>setCalendarDate(addDaysISO(mondayOfWeek(selectedDate),7))},'Next Week ›'),
             calendarSearch.length>0&&calendarSearch.length<3?h('small',{className:'field-hint'},'Type at least 3 characters'):null,
-            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setCalendarSearch('');setCalendarDate(todayISOIndia());setExpandedCalendarRows(new Set())}},'Clear')
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setCalendarSearch('');setCalendarDate(todayISOIndia());setCalendarStatusFilter('');setExpandedCalendarRows(new Set())}},'Clear')
           ),
+          h('div',{className:'absence-summary leave-calendar-status-filter'},statusButton('','All'),statusButton('pending','Pending'),statusButton('approved','Approved'),statusButton('rejected','Rejected'),statusButton('cancelled','Cancelled')),
           busy?h('div',{className:'empty'},'Loading leave calendar…'):h('div',{className:'absence-list calendar-absence-list'},...calendarRows.map(calendarRequestCard),calendarRows.length===0?h('div',{className:'empty'},'No leave or permission records found for this week.'):null)
         )
       );
