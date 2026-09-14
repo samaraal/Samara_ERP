@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.57';
+  const APP_VERSION = '2.12.58';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22785,9 +22785,11 @@ function ShiftManagement({profile}){
     const [form,setForm]=React.useState(emptyForm);
 
     function showToast(type,text){
-      showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
+      const savedWithWarning=type==='success'&&/saved with warning|saved for review|warning/i.test(String(text));
+      const noticeType=savedWithWarning?'warning':type;
+      showSamaraActionToast(noticeType,savedWithWarning?'Assignment saved with warning':type==='success'?'Success':'Action failed',text);
       clearTimeout(toastTimer.current);
-      setToast({type,text});
+      setToast({type:noticeType,text});
       toastTimer.current=setTimeout(()=>setToast(null),4500);
     }
     React.useEffect(()=>()=>clearTimeout(toastTimer.current),[]);
