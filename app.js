@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.25';
+  const APP_VERSION = '2.12.26';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '13-Sep-2026 Accurate HR WhatsApp Dashboard Count';
+  const APP_BUILD_DATE = '14-Sep-2026 Duty reassignment action fix';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -22585,32 +22585,6 @@ function RoomsBeds({profile,onNavigate}){
       showToast('success',`Assignment status changed to ${status}.`);
       await load();
     }
-    async function requestModification(row){
-      if(row.employee_id!==profile.id)return;
-      if(row.status==='Acknowledged')return;
-      const reason=prompt('Reason for requesting duty modification:','');
-      if(!reason||!reason.trim())return;
-      const {error}=await client.from('duty_assignments').update({staff_response:'Modification Requested',modification_request:reason.trim(),modification_requested_at:new Date().toISOString(),modification_requested_by:profile.id,updated_at:new Date().toISOString()}).eq('id',row.id);
-      if(error){showToast('error',error.message||'Unable to request modification.');return}
-      showToast('success','Modification request sent','The reviewer will decide whether to modify or retain the assignment.');await load();
-    }
-    async function requestShiftChange(row){
-      if(row.employee_id!==profile.id)return;
-      const reason=prompt('Reason for requesting change of shift / reassignment:','');
-      if(!reason||!reason.trim())return;
-      const {error}=await client.from('duty_assignments').update({staff_response:'Shift Change Requested',modification_request:`Shift change / reassignment request: ${reason.trim()}`,modification_requested_at:new Date().toISOString(),modification_requested_by:profile.id,updated_at:new Date().toISOString()}).eq('id',row.id);
-      if(error){showToast('error',error.message||'Unable to request change of shift.');return}
-      showToast('success','Shift change request sent','The reviewer will decide whether the duty should be reassigned.');await load();
-    }
-    async function reviewRequest(row,decision){
-      if(!canManage||!row.modification_request)return;
-      const remarks=prompt(`${decision==='Modified'?'Enter the revised duty details or approval note:':'Enter review remarks:'}`,row.modification_request||'');
-      if(remarks===null)return;
-      const {data:{user}}=await client.auth.getUser();
-      const {error}=await client.from('duty_assignments').update({review_status:decision,review_remarks:remarks.trim()||null,reviewed_at:new Date().toISOString(),reviewed_by:user?.id||profile.id,reviewed_by_name:formalName(profile)||profile.full_name||'Reviewer',staff_response:decision==='Modified'?'Modified':'Original Retained',updated_at:new Date().toISOString()}).eq('id',row.id);
-      if(error){showToast('error',error.message||'Unable to review request.');return}
-      showToast('success',`Request reviewed: ${decision}`);await load();
-    }
 
     const rows=assignments.map(row=>[
       patientLabel(row.patient_id),
@@ -22875,6 +22849,31 @@ function ShiftManagement({profile}){
       if(error){showToast('error',error.message||'Unable to update duty status.');return}
       showToast('success',`Duty status changed to ${status}.`);
       await load();
+    }
+    async function requestModification(row){
+      if(row.employee_id!==profile.id||row.status==='Acknowledged')return;
+      const reason=prompt('Reason for requesting duty modification:','');
+      if(!reason||!reason.trim())return;
+      const {error}=await client.from('duty_assignments').update({staff_response:'Modification Requested',modification_request:reason.trim(),modification_requested_at:new Date().toISOString(),modification_requested_by:profile.id,updated_at:new Date().toISOString()}).eq('id',row.id);
+      if(error){showToast('error',error.message||'Unable to request modification.');return}
+      showToast('success','Modification request sent','The reviewer will decide whether to modify or retain the assignment.');await load();
+    }
+    async function requestShiftChange(row){
+      if(row.employee_id!==profile.id)return;
+      const reason=prompt('Reason for requesting change of shift / reassignment:','');
+      if(!reason||!reason.trim())return;
+      const {error}=await client.from('duty_assignments').update({staff_response:'Shift Change Requested',modification_request:`Shift change / reassignment request: ${reason.trim()}`,modification_requested_at:new Date().toISOString(),modification_requested_by:profile.id,updated_at:new Date().toISOString()}).eq('id',row.id);
+      if(error){showToast('error',error.message||'Unable to request change of shift.');return}
+      showToast('success','Shift change request sent','The reviewer will decide whether the duty should be reassigned.');await load();
+    }
+    async function reviewRequest(row,decision){
+      if(!canManage||!row.modification_request)return;
+      const remarks=prompt(`${decision==='Modified'?'Enter the revised duty details or approval note:':'Enter review remarks:'}`,row.modification_request||'');
+      if(remarks===null)return;
+      const {data:{user}}=await client.auth.getUser();
+      const {error}=await client.from('duty_assignments').update({review_status:decision,review_remarks:remarks.trim()||null,reviewed_at:new Date().toISOString(),reviewed_by:user?.id||profile.id,reviewed_by_name:formalName(profile)||profile.full_name||'Reviewer',staff_response:decision==='Modified'?'Modified':'Original Retained',updated_at:new Date().toISOString()}).eq('id',row.id);
+      if(error){showToast('error',error.message||'Unable to review request.');return}
+      showToast('success',`Request reviewed: ${decision}`);await load();
     }
 
     const rows=visibleAssignments.map(row=>{
