@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.38';
+  const APP_VERSION = '2.12.39';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '14-Sep-2026 Compact assignment list with detail view';
+  const APP_BUILD_DATE = '14-Sep-2026 Unified assignment and calendar list view';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -23013,8 +23013,8 @@ function ShiftManagement({profile}){
     const rosterNoResults=filteredRosterStaff.length===0?h('div',{className:'duty-roster-no-results'},staffSearchReady?'No staff or duty records match this search.':'No staff records found.'):null;
     const staffRoster=teamMode?h('div',{className:'duty-roster-wrap'},
       h('div',{className:'duty-calendar-toolbar'},h('label',null,'Select date'),h(StrictDateInput,{value:calendarDate,onChange:e=>setCalendarDate(e.target.value)}),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCalendarDate(todayISOIndia())},'Today')),
-      h('div',{className:'duty-roster-search'},h('input',{type:'search',value:staffSearch,onChange:e=>setStaffSearch(e.target.value),placeholder:'Search staff name, mobile or date…','aria-label':'Search staff name, mobile or date'}),staffSearch.length>0&&staffSearch.length<3?h('small',null,'Type at least 3 characters'):null,h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setStaffSearch('')},'Clear')),
-      h('div',{className:'duty-roster-scroll'},h('div',{className:'duty-roster-grid',style:dayCalendar?{gridTemplateColumns:'minmax(220px,1.2fr) minmax(180px,1fr)'}:undefined},rosterHeader,...rosterRows,rosterNoResults))
+      assignmentSearch,
+      simpleAssignmentList
     ):null;
     const calendarColumns=calendarDays.map((date,index)=>{
       const dateLabel=formatDateIN(date);
@@ -23024,8 +23024,15 @@ function ShiftManagement({profile}){
         dayRows.length?dayRows.map((cells,rowIndex)=>{const displayCells=onlyMineView?cells.slice(1):cells;const wideIndexes=onlyMineView?[3,4,6,7]:[4,5,7,8];return h('div',{className:'duty-calendar-entry',key:rowIndex},...displayCells.map((cell,cellIndex)=>h('div',{className:`duty-assignment-card-field ${wideIndexes.includes(cellIndex)?'wide':''}`,key:cellIndex},h('small',null,cardHeads[cellIndex]),h('div',{className:'duty-assignment-card-value'},cell??'—'))))}):h('div',{className:'duty-calendar-empty'},'No duty')
       );
     });
+    const filteredAssignmentRows=visibleAssignments.filter(row=>{
+      if(!staffSearchReady)return true;
+      const emp=staffFor(row.employee_id);
+      const identity=[formalName(emp),emp.full_name,emp.mobile,emp.mobile_number,emp.phone,emp.designation,emp.employee_id].filter(Boolean).join(' ').toLowerCase();
+      return identity.includes(searchText)||formatDateIN(row.duty_date).toLowerCase().includes(searchText)||String(row.duty_date).includes(searchText);
+    });
+    const assignmentSearch=h('div',{className:'duty-roster-search'},h('input',{type:'search',value:staffSearch,onChange:e=>setStaffSearch(e.target.value),placeholder:'Search staff name, mobile or date…','aria-label':'Search staff name, mobile or date'}),staffSearch.length>0&&staffSearch.length<3?h('small',null,'Type at least 3 characters'):null,h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setStaffSearch('')},'Clear'));
     const simpleAssignmentList=h('div',{className:'duty-simple-list'},
-      visibleAssignments.map(row=>{
+      filteredAssignmentRows.map(row=>{
         const emp=staffFor(row.employee_id);
         const leaveConflict=loadedDutyLeaveConflict(row);
         const off=Boolean(row.is_weekly_off)||row.status==='Weekly Off';
