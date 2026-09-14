@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.48';
+  const APP_VERSION = '2.12.49';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -23023,10 +23023,10 @@ function ShiftManagement({profile}){
     const filteredAssignmentRows=visibleAssignments.filter(row=>{
       if(!staffSearchReady)return true;
       const emp=staffFor(row.employee_id);
-      const identity=[formalName(emp),emp.full_name,emp.mobile,emp.mobile_number,emp.phone,emp.designation,emp.employee_id].filter(Boolean).join(' ').toLowerCase();
+      const identity=[formalName(emp),emp.full_name,emp.mobile,emp.mobile_number,emp.phone,emp.designation,emp.employee_id,row.duty_type,row.shift,row.status,row.ward_room,row.duty_task,row.remarks,row.patient_id?patientLabel(row.patient_id):''].filter(Boolean).join(' ').toLowerCase();
       return identity.includes(searchText);
     });
-    const assignmentSearch=h('div',{className:'duty-roster-search'},h('input',{type:'search',value:staffSearch,onChange:e=>setStaffSearch(e.target.value),placeholder:'Search staff name or mobile…','aria-label':'Search staff name, mobile or date'}),staffSearch.length>0&&staffSearch.length<3?h('small',null,'Type at least 3 characters'):null,h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setStaffSearch('')},'Clear'));
+    const assignmentSearch=h('div',{className:'duty-roster-search'},h('input',{type:'search',value:staffSearch,onChange:e=>setStaffSearch(e.target.value),placeholder:'Search staff, mobile or duty…','aria-label':'Search staff name, mobile or date'}),staffSearch.length>0&&staffSearch.length<3?h('small',null,'Type at least 3 characters'):null,h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setStaffSearch('')},'Clear'));
     const simpleAssignmentList=h('div',{className:'duty-simple-list'},
       filteredAssignmentRows.map(row=>{
         const emp=staffFor(row.employee_id);
