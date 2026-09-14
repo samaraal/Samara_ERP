@@ -2119,7 +2119,10 @@ p,span,small,strong,b,label,td,th,button,a{overflow-wrap:break-word;word-break:n
 .calendar-absence-person{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .calendar-absence-chevron{font-size:20px;color:#a20d59;text-align:center}
 .calendar-absence-details{padding:0 16px 15px;border-top:1px solid #f0d5e3}
-.leave-calendar-controls .week-filter.active{background:#c51667;color:#fff;box-shadow:0 4px 12px rgba(197,22,103,.2)}
+.leave-calendar-controls .week-filter.active{color:#fff;box-shadow:0 4px 12px rgba(83,25,54,.22);transform:translateY(-1px)}
+.leave-calendar-controls .week-filter-previous.active{background:#8b3d72;border-color:#8b3d72}
+.leave-calendar-controls .week-filter-current.active{background:#c51667;border-color:#c51667}
+.leave-calendar-controls .week-filter-next.active{background:#c78319;border-color:#c78319}
 .leave-calendar-status-filter{margin-top:4px!important;margin-bottom:12px!important}
 @media(max-width:760px){
   .leave-calendar-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(132px,42%);gap:8px}

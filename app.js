@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.67';
+  const APP_VERSION = '2.12.68';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12257,9 +12257,9 @@ Thank you.`;
           h('div',{className:'leave-calendar-controls'},
             h('input',{type:'search',value:calendarSearch,onChange:e=>setCalendarSearch(e.target.value),placeholder:'Search name, mobile, position…','aria-label':'Search staff by name, mobile or position'}),
             h('input',{type:'date',value:calendarDate,onChange:e=>setCalendarDate(e.target.value),'aria-label':'Choose calendar date'}),
-            h('button',{type:'button',className:'btn btn-secondary week-filter',onClick:()=>setCalendarDate(addDaysISO(mondayOfWeek(selectedDate),-7))},'‹ Previous Week'),
-            h('button',{type:'button',className:`btn btn-secondary week-filter ${weekStart===currentWeek?'active':''}`,onClick:()=>setCalendarDate(currentWeek)},'This Week'),
-            h('button',{type:'button',className:'btn btn-secondary week-filter',onClick:()=>setCalendarDate(addDaysISO(mondayOfWeek(selectedDate),7))},'Next Week ›'),
+            h('button',{type:'button',className:`btn btn-secondary week-filter week-filter-previous ${weekStart===addDaysISO(currentWeek,-7)?'active':''}`,onClick:()=>setCalendarDate(addDaysISO(mondayOfWeek(selectedDate),-7))},'‹ Previous Week'),
+            h('button',{type:'button',className:`btn btn-secondary week-filter week-filter-current ${weekStart===currentWeek?'active':''}`,onClick:()=>setCalendarDate(currentWeek)},'This Week'),
+            h('button',{type:'button',className:`btn btn-secondary week-filter week-filter-next ${weekStart===addDaysISO(currentWeek,7)?'active':''}`,onClick:()=>setCalendarDate(addDaysISO(mondayOfWeek(selectedDate),7))},'Next Week ›'),
             calendarSearch.length>0&&calendarSearch.length<3?h('small',{className:'field-hint'},'Type at least 3 characters'):null,
             h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setCalendarSearch('');setCalendarDate(todayISOIndia());setCalendarStatusFilter('');setExpandedCalendarRows(new Set())}},'Clear')
           ),
