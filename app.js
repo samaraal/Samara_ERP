@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.33';
+  const APP_VERSION = '2.12.34';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '14-Sep-2026 Startup fix for staff roster search';
+  const APP_BUILD_DATE = '14-Sep-2026 Admin roster and staff search display fix';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -22688,7 +22688,7 @@ function ShiftManagement({profile}){
     // the Nursing Manager's own duty remains an Admin/Director assignment.
     const nursingManager=isNursingManagerProfile(profile);
     const fullDutyControl=profile?.role==='Admin'||(profile?.role==='Manager'&&!nursingManager);
-    const teamMode=viewMode==='team';
+    const teamMode=viewMode==='team'||fullDutyControl;
     const canManage=fullDutyControl||(nursingManager&&teamMode);
     const canModify=fullDutyControl;
     const SHIFT_OPTIONS=['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Morning Shift (7 AM–2 PM)','Evening Shift (1 PM–7 PM)','General Shift (9 AM–6 PM)'];
