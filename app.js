@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.36';
+  const APP_VERSION = '2.12.37';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '14-Sep-2026 Correct detail state initialization';
+  const APP_BUILD_DATE = '14-Sep-2026 Date-safe duty calendar and separate view';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -1510,7 +1510,7 @@ function initSamaraInaugurationInvitation(){
   const NAV_SECTIONS = [
     { title:'OVERVIEW', items:['Dashboard','Notifications'] },
     { title:'ADMIN', items:['Rooms','Care Packages','Shift Management','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
-    { title:'HR', items:['HR Dashboard','Employees','Duty Assignment','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
+    { title:'HR', items:['HR Dashboard','Employees','Duty Assignment','Duty Calendar','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:"DIRECTOR'S OFFICE", items:["Director's Office"] },
     { title:'ADMISSION', items:['Enquiries','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
@@ -1551,7 +1551,7 @@ function initSamaraInaugurationInvitation(){
     if(isNursingManagerProfile(profile))return [
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiries','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts',
-      'Duty Assignment','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
+      'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
       'Patient Consumables','Stores','Stores In-charge Assignment','Staff Leave Calendar','Food & Diet','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
@@ -1596,7 +1596,7 @@ function initSamaraInaugurationInvitation(){
       return [
         {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','My To-Do List'].filter(item=>allowed.includes(item))},
         {title:'MY DUTIES & LEAVE',items:['Duty Assignment','My Leave & Permission'].filter(item=>allowed.includes(item))},
-        {title:'NURSING STAFF',items:['Staff Duty Assignment','Staff Leave Calendar','Employees'].filter(item=>allowed.includes(item))},
+        {title:'NURSING STAFF',items:['Duty Calendar','Staff Leave Calendar','Employees'].filter(item=>allowed.includes(item))},
         {title:'ADMISSION',items:['Enquiries','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},
         {title:'ROOMS & PACKAGES',items:['Rooms','Care Packages'].filter(item=>allowed.includes(item))},
         {title:'PHARMACY & STORES',items:['Patient Consumables','Stores','Stores In-charge Assignment'].filter(item=>allowed.includes(item))},
@@ -7020,7 +7020,8 @@ Caring with Compassion. Living with Dignity.`;
           page==='Stores In-charge Assignment'&&h(StoresInchargeAssignmentPage,{profile}),
           page==='Food & Diet'&&h(FoodDiet,{profile}),
           page==='Physiotherapy'&&h(Physiotherapy,{profile,onNavigate:setPage}),
-          page==='Duty Assignment'&&h(DutyAssignment,{profile,viewMode:'mine'}),
+          page==='Duty Assignment'&&h(DutyAssignment,{profile,viewMode:'assignment'}),
+          page==='Duty Calendar'&&h(DutyAssignment,{profile,viewMode:'team'}),
           page==='Staff Duty Assignment'&&h(DutyAssignment,{profile,viewMode:'team'}),
           page==='Special Nurse'&&h(SpecialNurseManagement,{profile}),
           page==='Shift Handover'&&h(ShiftHandover,{profile,onNavigate:setPage}),
@@ -22688,7 +22689,7 @@ function ShiftManagement({profile}){
     // the Nursing Manager's own duty remains an Admin/Director assignment.
     const nursingManager=isNursingManagerProfile(profile);
     const fullDutyControl=profile?.role==='Admin'||(profile?.role==='Manager'&&!nursingManager);
-    const teamMode=viewMode==='team'||fullDutyControl;
+    const teamMode=viewMode==='team';
     const canManage=fullDutyControl||(nursingManager&&teamMode);
     const canModify=fullDutyControl;
     const SHIFT_OPTIONS=['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Morning Shift (7 AM–2 PM)','Evening Shift (1 PM–7 PM)','General Shift (9 AM–6 PM)'];
@@ -22702,20 +22703,26 @@ function ShiftManagement({profile}){
     const [loading,setLoading]=React.useState(true);
     const [message,setMessage]=React.useState('');
     const [staffSearch,setStaffSearch]=React.useState('');
+    function parseISODateUTC(dateStr){
+      const [year,month,day]=String(dateStr||'').slice(0,10).split('-').map(Number);
+      return new Date(Date.UTC(year,month-1,day));
+    }
     function mondayOfWeek(dateStr){
-      const d=new Date(dateStr+'T00:00:00');
-      const day=d.getDay();
+      const d=parseISODateUTC(dateStr);
+      const day=d.getUTCDay();
       const diff=day===0?-6:1-day;
-      d.setDate(d.getDate()+diff);
+      d.setUTCDate(d.getUTCDate()+diff);
       return d.toISOString().slice(0,10);
     }
     function addDaysISO(dateStr,days){
-      const d=new Date(dateStr+'T00:00:00');
-      d.setDate(d.getDate()+days);
+      const d=parseISODateUTC(dateStr);
+      d.setUTCDate(d.getUTCDate()+days);
       return d.toISOString().slice(0,10);
     }
     const [rangeStart,setRangeStart]=React.useState(()=>mondayOfWeek(todayISOIndia()));
     const [rangeEnd,setRangeEnd]=React.useState(()=>addDaysISO(mondayOfWeek(todayISOIndia()),6));
+    const [calendarDate,setCalendarDate]=React.useState(()=>todayISOIndia());
+    const dayCalendar=viewMode==='team';
     function jumpWeek(offsetWeeks){
       const newStart=addDaysISO(rangeStart,offsetWeeks*7);
       setRangeStart(newStart);
@@ -22812,14 +22819,16 @@ function ShiftManagement({profile}){
     }
 
     const visibleAssignments=React.useMemo(()=>{
-      let rows=assignments.filter(r=>r.duty_date>=rangeStart&&r.duty_date<=rangeEnd);
+      const visibleStart=dayCalendar?calendarDate:rangeStart;
+      const visibleEnd=dayCalendar?calendarDate:rangeEnd;
+      let rows=assignments.filter(r=>r.duty_date>=visibleStart&&r.duty_date<=visibleEnd);
       if(fullDutyControl)rows=rows;
       else if(nursingManager&&teamMode)rows=rows.filter(r=>staffScopeIds.has(r.employee_id));
       else rows=rows.filter(r=>r.employee_id===profile.id);
       return [...rows].sort((a,b)=>a.duty_date===b.duty_date
         ?(formalName(staffFor(a.employee_id))||'').localeCompare(formalName(staffFor(b.employee_id))||'')
         :a.duty_date.localeCompare(b.duty_date));
-    },[assignments,rangeStart,rangeEnd,canManage,fullDutyControl,staffScopeIds,profile]);
+    },[assignments,rangeStart,rangeEnd,calendarDate,dayCalendar,canManage,fullDutyControl,staffScopeIds,profile]);
 
     function openCreate(){
       setEditing(null);
@@ -22969,13 +22978,13 @@ function ShiftManagement({profile}){
       ];
     });
 
-    const scheduleTitle=teamMode?'Nursing Staff Duty Assignments':'My Duty Schedule';
+    const scheduleTitle=dayCalendar?'Duty Calendar':teamMode?'Nursing Staff Duty Assignments':'My Duty Schedule';
     const onlyMineView=!teamMode&&!fullDutyControl;
     const scheduleSubtitle=teamMode
       ?(fullDutyControl?'Assign and modify duty for all employees':'Duties assigned by the Nursing Manager to Nursing, Caregiving and Nursing Supervisor staff. Nursing Manager duties are assigned by Admin/Director.')
       :(formalName(profile)||profile?.full_name||'Assigned staff member');
     const cardHeads=onlyMineView?['Date','Shift','Duty Type','Patient / Ward / Room','Task / Remarks','Status','Request / Decision','Action']:['Staff','Date','Shift','Duty Type','Patient / Ward / Room','Task / Remarks','Status','Request / Decision','Action'];
-    const calendarDays=Array.from({length:7},(_,index)=>addDaysISO(rangeStart,index));
+    const calendarDays=dayCalendar?[calendarDate]:Array.from({length:7},(_,index)=>addDaysISO(rangeStart,index));
     const searchText=staffSearch.trim().toLowerCase();
     const staffSearchReady=searchText.length>=3;
     const filteredRosterStaff=teamMode?staffScope.filter(person=>{
@@ -23003,8 +23012,9 @@ function ShiftManagement({profile}){
     });
     const rosterNoResults=filteredRosterStaff.length===0?h('div',{className:'duty-roster-no-results'},staffSearchReady?'No staff or duty records match this search.':'No staff records found.'):null;
     const staffRoster=teamMode?h('div',{className:'duty-roster-wrap'},
+      h('div',{className:'duty-calendar-toolbar'},h('label',null,'Select date'),h(StrictDateInput,{value:calendarDate,onChange:e=>setCalendarDate(e.target.value)}),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCalendarDate(todayISOIndia())},'Today')),
       h('div',{className:'duty-roster-search'},h('input',{type:'search',value:staffSearch,onChange:e=>setStaffSearch(e.target.value),placeholder:'Search staff name, mobile or date…','aria-label':'Search staff name, mobile or date'}),staffSearch.length>0&&staffSearch.length<3?h('small',null,'Type at least 3 characters'):null,h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setStaffSearch('')},'Clear')),
-      h('div',{className:'duty-roster-scroll'},h('div',{className:'duty-roster-grid'},rosterHeader,...rosterRows,rosterNoResults))
+      h('div',{className:'duty-roster-scroll'},h('div',{className:'duty-roster-grid',style:dayCalendar?{gridTemplateColumns:'minmax(220px,1.2fr) minmax(180px,1fr)'}:undefined},rosterHeader,...rosterRows,rosterNoResults))
     ):null;
     const calendarColumns=calendarDays.map((date,index)=>{
       const dateLabel=formatDateIN(date);
@@ -23019,19 +23029,20 @@ function ShiftManagement({profile}){
         title:teamMode?scheduleTitle:'My Duties',
         subtitle:scheduleSubtitle,
         actions:h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
-          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>jumpWeek(-1)},'‹ Prev Week'),
-          h(StrictDateInput,{value:rangeStart,onChange:e=>setRangeStart(e.target.value)}),
-          h('span',{style:{opacity:.65,fontSize:'12px'}},'to'),
-          h(StrictDateInput,{value:rangeEnd,onChange:e=>setRangeEnd(e.target.value)}),
-          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>jumpWeek(1)},'Next Week ›'),
-          h('button',{type:'button',className:'btn btn-secondary',onClick:resetToThisWeek},'This Week'),
+          !dayCalendar&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>jumpWeek(-1)},'‹ Prev Week'),
+          !dayCalendar&&h(StrictDateInput,{value:rangeStart,onChange:e=>setRangeStart(e.target.value)}),
+          !dayCalendar&&h('span',{style:{opacity:.65,fontSize:'12px'}},'to'),
+          !dayCalendar&&h(StrictDateInput,{value:rangeEnd,onChange:e=>setRangeEnd(e.target.value)}),
+          !dayCalendar&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>jumpWeek(1)},'Next Week ›'),
+          !dayCalendar&&h('button',{type:'button',className:'btn btn-secondary',onClick:resetToThisWeek},'This Week'),
+          dayCalendar&&h('strong',null,`Selected date: ${formatDateIN(calendarDate)}`),
           canManage&&h('button',{type:'button',className:'btn btn-primary',onClick:openCreate},'＋ Assign Duty')
         )
       },
         message&&h('div',{className:'message error'},message),
       canManage&&h('p',{className:'small-note'},fullDutyControl?'Showing all active employees.':'Showing Nursing, Caregiving and Nursing Supervisor staff. Nursing Manager duties are assigned by Admin/Director.')
       ),
-      teamMode? h(Section,{title:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)}`,subtitle:scheduleSubtitle},staffRoster):h(Section,{title:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)} (${rows.length})`,subtitle:scheduleSubtitle},h('div',{className:'duty-week-calendar'},...calendarColumns)),
+      teamMode? h(Section,{title:dayCalendar?`${scheduleTitle} — ${formatDateIN(calendarDate)}`:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)}`,subtitle:scheduleSubtitle},staffRoster):h(Section,{title:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)} (${rows.length})`,subtitle:scheduleSubtitle},h('div',{className:'duty-week-calendar'},...calendarColumns)),
       !loading&&!message&&!rows.length&&h('div',{className:'card panel'},h('p',{className:'small-note'},canManage?'No duty has been assigned for this period yet.':'No duty has been assigned to you for this period.')),
       selectedDuty&&(()=>{
         const emp=staffFor(selectedDuty.employee_id);

@@ -2206,3 +2206,7 @@ p,span,small,strong,b,label,td,th,button,a{overflow-wrap:break-word;word-break:n
 .duty-detail-history{display:grid;gap:6px;border:1px solid #ead6e0;border-radius:12px;padding:12px;background:#fffafd}
 .duty-detail-actions{display:flex;gap:8px;flex-wrap:wrap}
 @media(max-width:640px){.duty-detail-grid{grid-template-columns:1fr}.duty-detail-item.span-2,.duty-detail-history.span-2{grid-column:auto}.duty-detail-actions .btn{flex:1 1 100%;min-height:44px}}
+.duty-calendar-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.duty-calendar-toolbar label{font-weight:800;color:#64103d}
+.duty-calendar-toolbar input{min-width:170px}
+@media(max-width:640px){.duty-calendar-toolbar{align-items:stretch}.duty-calendar-toolbar label{width:100%}.duty-calendar-toolbar input,.duty-calendar-toolbar .btn{flex:1 1 100%;min-height:44px}}
