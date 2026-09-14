@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.39';
+  const APP_VERSION = '2.12.40';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '14-Sep-2026 Unified assignment and calendar list view';
+  const APP_BUILD_DATE = '14-Sep-2026 Calendar list initialization fix';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -23011,7 +23011,7 @@ function ShiftManagement({profile}){
       return h('div',{className:'duty-roster-row',key:person.id},staffHeader,...dayCells);
     });
     const rosterNoResults=filteredRosterStaff.length===0?h('div',{className:'duty-roster-no-results'},staffSearchReady?'No staff or duty records match this search.':'No staff records found.'):null;
-    const staffRoster=teamMode?h('div',{className:'duty-roster-wrap'},
+    const staffRoster=()=>teamMode?h('div',{className:'duty-roster-wrap'},
       h('div',{className:'duty-calendar-toolbar'},h('label',null,'Select date'),h(StrictDateInput,{value:calendarDate,onChange:e=>setCalendarDate(e.target.value)}),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCalendarDate(todayISOIndia())},'Today')),
       assignmentSearch,
       simpleAssignmentList
@@ -23065,7 +23065,7 @@ function ShiftManagement({profile}){
         message&&h('div',{className:'message error'},message),
       canManage&&h('p',{className:'small-note'},fullDutyControl?'Showing all active employees.':'Showing Nursing, Caregiving and Nursing Supervisor staff. Nursing Manager duties are assigned by Admin/Director.')
       ),
-      teamMode? h(Section,{title:dayCalendar?`${scheduleTitle} — ${formatDateIN(calendarDate)}`:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)}`,subtitle:scheduleSubtitle},staffRoster):h(Section,{title:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)} (${visibleAssignments.length})`,subtitle:'Select a duty row to view complete details and available actions.'},simpleAssignmentList),
+      teamMode? h(Section,{title:dayCalendar?`${scheduleTitle} — ${formatDateIN(calendarDate)}`:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)}`,subtitle:scheduleSubtitle},staffRoster()):h(Section,{title:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)} (${visibleAssignments.length})`,subtitle:'Select a duty row to view complete details and available actions.'},assignmentSearch,simpleAssignmentList),
       !loading&&!message&&!rows.length&&h('div',{className:'card panel'},h('p',{className:'small-note'},canManage?'No duty has been assigned for this period yet.':'No duty has been assigned to you for this period.')),
       selectedDuty&&(()=>{
         const emp=staffFor(selectedDuty.employee_id);
