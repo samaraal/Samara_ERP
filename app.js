@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.26';
+  const APP_VERSION = '2.12.27';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '14-Sep-2026 Duty reassignment action fix';
+  const APP_BUILD_DATE = '14-Sep-2026 Duty reassignment audit and leave conflict protection';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -22779,6 +22779,20 @@ function ShiftManagement({profile}){
     const staffFor=id=>staff.find(s=>s.id===id||s.auth_user_id===id)||{};
     const patientFor=id=>patients.find(p=>p.id===id)||{};
     const patientLabel=id=>{const p=patientFor(id);return p.id?`${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}${p.bed_no?`-${p.bed_no}`:''}`:''};
+    const leaveStatusLabel=status=>({approved:'Approved Leave / Permission',pending_superior:'Leave / Permission Pending Superior Approval',pending_management:'Leave / Permission Pending Management Approval'}[status]||status||'Leave / Permission');
+    async function findDutyLeaveConflict(employeeId,dutyDate){
+      if(!employeeId||!dutyDate)return {conflict:null,error:null};
+      const {data,error}=await client.from('absence_requests')
+        .select('id,employee_id,employee_name,request_type,status,leave_type,from_date,to_date,permission_date,permission_from,permission_to')
+        .eq('employee_id',employeeId)
+        .in('status',['approved','pending_superior','pending_management']);
+      if(error)return {conflict:null,error};
+      const conflict=(data||[]).find(item=>{
+        if(item.request_type==='Permission')return item.permission_date===dutyDate;
+        return Boolean(item.from_date&&item.to_date&&item.from_date<=dutyDate&&item.to_date>=dutyDate);
+      })||null;
+      return {conflict,error:null};
+    }
 
     const visibleAssignments=React.useMemo(()=>{
       let rows=assignments.filter(r=>r.duty_date>=rangeStart&&r.duty_date<=rangeEnd);
@@ -22809,6 +22823,17 @@ function ShiftManagement({profile}){
       if(!form.duty_date){showToast('error','Please select the duty date.');return}
       if(form.duty_date<todayISOIndia()){showToast('error','Duty can be assigned only from today onward.');return}
       setBusy(true);
+      const leaveCheck=await findDutyLeaveConflict(form.employee_id,form.duty_date);
+      if(leaveCheck.error){setBusy(false);showToast('error','Leave conflict check failed',leaveCheck.error.message||'Unable to verify leave / permission records. Duty was not assigned.');return}
+      if(leaveCheck.conflict){
+        const conflict=leaveCheck.conflict;
+        const period=conflict.request_type==='Permission'
+          ?`${formatDateIN(conflict.permission_date)}${conflict.permission_from?` · ${conflict.permission_from}${conflict.permission_to?`–${conflict.permission_to}`:''}`:''}`
+          :`${formatDateIN(conflict.from_date)}${conflict.to_date&&conflict.to_date!==conflict.from_date?` – ${formatDateIN(conflict.to_date)}`:''}`;
+        setBusy(false);
+        showToast('error','Duty assignment blocked',`${leaveStatusLabel(conflict.status)} exists for ${formalName(staffFor(form.employee_id))||conflict.employee_name||'this employee'} on ${period}. No duty was assigned.`);
+        return;
+      }
       const {data:{user}}=await client.auth.getUser();
       const payload={
         employee_id:form.employee_id,
@@ -22862,16 +22887,17 @@ function ShiftManagement({profile}){
       if(row.employee_id!==profile.id)return;
       const reason=prompt('Reason for requesting change of shift / reassignment:','');
       if(!reason||!reason.trim())return;
-      const {error}=await client.from('duty_assignments').update({staff_response:'Shift Change Requested',modification_request:`Shift change / reassignment request: ${reason.trim()}`,modification_requested_at:new Date().toISOString(),modification_requested_by:profile.id,updated_at:new Date().toISOString()}).eq('id',row.id);
+      const {error}=await client.from('duty_assignments').update({staff_response:'Reassignment Requested',modification_request:`Request for Re-assignment: ${reason.trim()}`,modification_requested_at:new Date().toISOString(),modification_requested_by:profile.id,updated_at:new Date().toISOString()}).eq('id',row.id);
       if(error){showToast('error',error.message||'Unable to request change of shift.');return}
-      showToast('success','Shift change request sent','The reviewer will decide whether the duty should be reassigned.');await load();
+      showToast('success','Request for Re-assignment received','The reviewer will decide whether the duty should be reassigned.');await load();
     }
     async function reviewRequest(row,decision){
       if(!canManage||!row.modification_request)return;
       const remarks=prompt(`${decision==='Modified'?'Enter the revised duty details or approval note:':'Enter review remarks:'}`,row.modification_request||'');
       if(remarks===null)return;
       const {data:{user}}=await client.auth.getUser();
-      const {error}=await client.from('duty_assignments').update({review_status:decision,review_remarks:remarks.trim()||null,reviewed_at:new Date().toISOString(),reviewed_by:user?.id||profile.id,reviewed_by_name:formalName(profile)||profile.full_name||'Reviewer',staff_response:decision==='Modified'?'Modified':'Original Retained',updated_at:new Date().toISOString()}).eq('id',row.id);
+      const reassignment=/re-?assignment/i.test(String(row.staff_response||''))||/re-?assignment/i.test(String(row.modification_request||''));
+      const {error}=await client.from('duty_assignments').update({review_status:decision,review_remarks:remarks.trim()||null,reviewed_at:new Date().toISOString(),reviewed_by:user?.id||profile.id,reviewed_by_name:formalName(profile)||profile.full_name||'Reviewer',staff_response:reassignment?(decision==='Modified'?'Reassignment Approved':'Reassignment Declined'):(decision==='Modified'?'Modified':'Original Retained'),updated_at:new Date().toISOString()}).eq('id',row.id);
       if(error){showToast('error',error.message||'Unable to review request.');return}
       showToast('success',`Request reviewed: ${decision}`);await load();
     }
@@ -22880,6 +22906,15 @@ function ShiftManagement({profile}){
       const emp=staffFor(row.employee_id);
       const isOwner=row.employee_id===profile.id;
       const statusOptions=canManage?STATUS_ALL:['Acknowledged'];
+      const reassignmentRequested=/re-?assignment/i.test(String(row.staff_response||''))||/re-?assignment/i.test(String(row.modification_request||''));
+      const requestDecision=(row.modification_request||row.staff_response||row.review_status)
+        ?h('div',{style:{display:'grid',gap:'3px',minWidth:'180px'}},
+          row.staff_response==='Reassignment Requested'&&h('strong',{className:'small-note'},'Request for Re-assignment received'),
+          row.modification_requested_at&&h('small',null,`Requested: ${formalName(emp)||'Staff'} · ${fmt(row.modification_requested_at)}`),
+          row.review_status&&h('small',null,`Decision: ${row.review_status}${row.reviewed_by_name?` · ${row.reviewed_by_name}`:''}${row.reviewed_at?` · ${fmt(row.reviewed_at)}`:''}`),
+          row.review_remarks&&h('small',null,`Remarks: ${row.review_remarks}`)
+        )
+        : '—';
       return [
         canManage?`${formalName(emp)||'Staff'}${emp.role?` · ${emp.role}`:''}`:formalName(emp)||'You',
         formatDateIN(row.duty_date),
@@ -22888,12 +22923,13 @@ function ShiftManagement({profile}){
         row.patient_id?patientLabel(row.patient_id):(row.ward_room||'—'),
         row.duty_task||row.remarks||'—',
         h('span',{className:`badge ${row.status==='Completed'?'':row.status==='Cancelled'?'off':''}`},row.status||'Assigned'),
+        requestDecision,
         h('div',{className:'employee-actions'},
           canModify&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(row)},'Edit'),
           canManage&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(row)},'Modify'),
           isOwner&&h('button',{type:'button',className:'btn btn-secondary',disabled:row.status==='Acknowledged',onClick:()=>updateStatus(row,'Acknowledged')},'Action- Acknowledge'),
           isOwner&&h('button',{type:'button',className:'btn btn-secondary',disabled:row.status==='Acknowledged'||Boolean(row.modification_request),onClick:()=>requestModification(row)},'Request Modify'),
-          isOwner&&h('button',{type:'button',className:'btn btn-secondary',disabled:row.staff_response==='Shift Change Requested',onClick:()=>requestShiftChange(row)},'Request for Change of Shift'),
+          isOwner&&h('button',{type:'button',className:'btn btn-secondary',disabled:row.staff_response==='Reassignment Requested'||reassignmentRequested&&Boolean(row.review_status),onClick:()=>requestShiftChange(row)},'Request for Change of Shift'),
           canManage&&row.modification_request&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>reviewRequest(row,'Modified')},'Modify / Approve'),
           canManage&&row.modification_request&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>reviewRequest(row,'Original Retained')},'Retain Original')
         )
@@ -22924,7 +22960,7 @@ function ShiftManagement({profile}){
       h(LogTable,{
         title:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)} (${rows.length})`,
         subtitle:scheduleSubtitle,
-        heads:['Staff','Date','Shift','Duty Type','Patient / Ward / Room','Task / Remarks','Status','Action'],
+        heads:['Staff','Date','Shift','Duty Type','Patient / Ward / Room','Task / Remarks','Status','Request / Decision','Action'],
         rows
       }),
       !loading&&!message&&!rows.length&&h('div',{className:'card panel'},h('p',{className:'small-note'},canManage?'No duty has been assigned for this period yet.':'No duty has been assigned to you for this period.')),
