@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.68';
+  const APP_VERSION = '2.12.69';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12254,6 +12254,7 @@ Thank you.`;
       return h(React.Fragment,null,
         h(Section,{title:'Staff Leave Calendar',subtitle:`${selectedLabel} · ${calendarBaseRows.length} leave / permission record${calendarBaseRows.length===1?'':'s'}`,actions:h('button',{className:'btn btn-secondary',onClick:load,disabled:busy},'Refresh')},
           msg?h('div',{className:'message'},msg):null,
+          h('div',{className:'selected-week-banner'},h('small',null,'Selected week'),h('strong',null,selectedLabel)),
           h('div',{className:'leave-calendar-controls'},
             h('input',{type:'search',value:calendarSearch,onChange:e=>setCalendarSearch(e.target.value),placeholder:'Search name, mobile, position…','aria-label':'Search staff by name, mobile or position'}),
             h('input',{type:'date',value:calendarDate,onChange:e=>setCalendarDate(e.target.value),'aria-label':'Choose calendar date'}),
