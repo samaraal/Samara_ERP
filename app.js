@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.27';
+  const APP_VERSION = '2.12.28';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '14-Sep-2026 Duty reassignment audit and leave conflict protection';
+  const APP_BUILD_DATE = '14-Sep-2026 Duty action timestamps and decision lock';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -22835,6 +22835,7 @@ function ShiftManagement({profile}){
         return;
       }
       const {data:{user}}=await client.auth.getUser();
+      const actionNow=new Date().toISOString();
       const payload={
         employee_id:form.employee_id,
         duty_date:form.duty_date,
@@ -22848,7 +22849,8 @@ function ShiftManagement({profile}){
         assigned_by:user?.id||profile?.id,
         assigned_by_name:formalName(profile)||profile?.full_name||'Authorised user',
         assigned_by_role:profile?.role,
-        updated_at:new Date().toISOString()
+        assigned_at:editing?(editing.assigned_at||editing.created_at||null):actionNow,
+        updated_at:actionNow
       };
       const query=editing
         ?client.from('duty_assignments').update(payload).eq('id',editing.id).select('id').single()
@@ -22870,7 +22872,13 @@ function ShiftManagement({profile}){
     async function updateStatus(row,status){
       const isOwner=row.employee_id===profile.id;
       if(!canManage&&!isOwner)return;
-      const {error}=await client.from('duty_assignments').update({status,updated_at:new Date().toISOString()}).eq('id',row.id);
+      const actionNow=new Date().toISOString();
+      const {data:{user}}=await client.auth.getUser();
+      const actorId=user?.id||profile.id;
+      const actorName=formalName(profile)||profile.full_name||'Authorised user';
+      const update={status,updated_at:actionNow,status_updated_at:actionNow,status_updated_by:actorId,status_updated_by_name:actorName};
+      if(status==='Acknowledged')Object.assign(update,{acknowledged_at:actionNow,acknowledged_by:actorId,acknowledged_by_name:actorName});
+      const {error}=await client.from('duty_assignments').update(update).eq('id',row.id);
       if(error){showToast('error',error.message||'Unable to update duty status.');return}
       showToast('success',`Duty status changed to ${status}.`);
       await load();
@@ -22879,7 +22887,8 @@ function ShiftManagement({profile}){
       if(row.employee_id!==profile.id||row.status==='Acknowledged')return;
       const reason=prompt('Reason for requesting duty modification:','');
       if(!reason||!reason.trim())return;
-      const {error}=await client.from('duty_assignments').update({staff_response:'Modification Requested',modification_request:reason.trim(),modification_requested_at:new Date().toISOString(),modification_requested_by:profile.id,updated_at:new Date().toISOString()}).eq('id',row.id);
+      const actionNow=new Date().toISOString();
+      const {error}=await client.from('duty_assignments').update({staff_response:'Modification Requested',modification_request:reason.trim(),modification_requested_at:actionNow,modification_requested_by:profile.id,modification_requested_by_name:formalName(profile)||profile.full_name||'Staff',updated_at:actionNow}).eq('id',row.id);
       if(error){showToast('error',error.message||'Unable to request modification.');return}
       showToast('success','Modification request sent','The reviewer will decide whether to modify or retain the assignment.');await load();
     }
@@ -22887,7 +22896,8 @@ function ShiftManagement({profile}){
       if(row.employee_id!==profile.id)return;
       const reason=prompt('Reason for requesting change of shift / reassignment:','');
       if(!reason||!reason.trim())return;
-      const {error}=await client.from('duty_assignments').update({staff_response:'Reassignment Requested',modification_request:`Request for Re-assignment: ${reason.trim()}`,modification_requested_at:new Date().toISOString(),modification_requested_by:profile.id,updated_at:new Date().toISOString()}).eq('id',row.id);
+      const actionNow=new Date().toISOString();
+      const {error}=await client.from('duty_assignments').update({staff_response:'Reassignment Requested',modification_request:`Request for Re-assignment: ${reason.trim()}`,modification_requested_at:actionNow,modification_requested_by:profile.id,modification_requested_by_name:formalName(profile)||profile.full_name||'Staff',updated_at:actionNow}).eq('id',row.id);
       if(error){showToast('error',error.message||'Unable to request change of shift.');return}
       showToast('success','Request for Re-assignment received','The reviewer will decide whether the duty should be reassigned.');await load();
     }
@@ -22897,7 +22907,8 @@ function ShiftManagement({profile}){
       if(remarks===null)return;
       const {data:{user}}=await client.auth.getUser();
       const reassignment=/re-?assignment/i.test(String(row.staff_response||''))||/re-?assignment/i.test(String(row.modification_request||''));
-      const {error}=await client.from('duty_assignments').update({review_status:decision,review_remarks:remarks.trim()||null,reviewed_at:new Date().toISOString(),reviewed_by:user?.id||profile.id,reviewed_by_name:formalName(profile)||profile.full_name||'Reviewer',staff_response:reassignment?(decision==='Modified'?'Reassignment Approved':'Reassignment Declined'):(decision==='Modified'?'Modified':'Original Retained'),updated_at:new Date().toISOString()}).eq('id',row.id);
+      const actionNow=new Date().toISOString();
+      const {error}=await client.from('duty_assignments').update({review_status:decision,review_remarks:remarks.trim()||null,reviewed_at:actionNow,reviewed_by:user?.id||profile.id,reviewed_by_name:formalName(profile)||profile.full_name||'Reviewer',staff_response:reassignment?(decision==='Modified'?'Reassignment Approved':'Reassignment Declined'):(decision==='Modified'?'Modified':'Original Retained'),updated_at:actionNow}).eq('id',row.id);
       if(error){showToast('error',error.message||'Unable to review request.');return}
       showToast('success',`Request reviewed: ${decision}`);await load();
     }
@@ -22907,14 +22918,17 @@ function ShiftManagement({profile}){
       const isOwner=row.employee_id===profile.id;
       const statusOptions=canManage?STATUS_ALL:['Acknowledged'];
       const reassignmentRequested=/re-?assignment/i.test(String(row.staff_response||''))||/re-?assignment/i.test(String(row.modification_request||''));
-      const requestDecision=(row.modification_request||row.staff_response||row.review_status)
-        ?h('div',{style:{display:'grid',gap:'3px',minWidth:'180px'}},
+      const requestDecision=h('div',{style:{display:'grid',gap:'3px',minWidth:'220px'}},
+          row.assigned_at&&h('small',null,`Assigned: ${row.assigned_by_name||'Authorised user'} · ${fmt(row.assigned_at)}`),
+          !row.assigned_at&&row.created_at&&h('small',null,`Assigned: ${row.assigned_by_name||'Authorised user'} · ${fmt(row.created_at)}`),
+          row.acknowledged_at&&h('small',null,`Acknowledged: ${row.acknowledged_by_name||'Staff'} · ${fmt(row.acknowledged_at)}`),
+          row.status_updated_at&&row.status!=='Acknowledged'&&h('small',null,`Status updated: ${row.status_updated_by_name||'Authorised user'} · ${fmt(row.status_updated_at)}`),
           row.staff_response==='Reassignment Requested'&&h('strong',{className:'small-note'},'Request for Re-assignment received'),
-          row.modification_requested_at&&h('small',null,`Requested: ${formalName(emp)||'Staff'} · ${fmt(row.modification_requested_at)}`),
+          row.modification_requested_at&&h('small',null,`Requested: ${row.modification_requested_by_name||formalName(emp)||'Staff'} · ${fmt(row.modification_requested_at)}`),
           row.review_status&&h('small',null,`Decision: ${row.review_status}${row.reviewed_by_name?` · ${row.reviewed_by_name}`:''}${row.reviewed_at?` · ${fmt(row.reviewed_at)}`:''}`),
           row.review_remarks&&h('small',null,`Remarks: ${row.review_remarks}`)
-        )
-        : '—';
+        );
+      const statusStyle=row.status==='Acknowledged'?{background:'#d9f5e4',color:'#11643a'}:row.status==='Assigned'?{background:'#fff1c9',color:'#8b5a00'}:row.status==='Completed'?{background:'#dceeff',color:'#175cd3'}:row.status==='Cancelled'?{background:'#f2f2f2',color:'#6d6d6d'}:{};
       return [
         canManage?`${formalName(emp)||'Staff'}${emp.role?` · ${emp.role}`:''}`:formalName(emp)||'You',
         formatDateIN(row.duty_date),
@@ -22922,7 +22936,7 @@ function ShiftManagement({profile}){
         row.duty_type||'General Duty',
         row.patient_id?patientLabel(row.patient_id):(row.ward_room||'—'),
         row.duty_task||row.remarks||'—',
-        h('span',{className:`badge ${row.status==='Completed'?'':row.status==='Cancelled'?'off':''}`},row.status||'Assigned'),
+        h('span',{className:'badge',style:statusStyle},row.status||'Assigned'),
         requestDecision,
         h('div',{className:'employee-actions'},
           canModify&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(row)},'Edit'),
@@ -22930,8 +22944,8 @@ function ShiftManagement({profile}){
           isOwner&&h('button',{type:'button',className:'btn btn-secondary',disabled:row.status==='Acknowledged',onClick:()=>updateStatus(row,'Acknowledged')},'Action- Acknowledge'),
           isOwner&&h('button',{type:'button',className:'btn btn-secondary',disabled:row.status==='Acknowledged'||Boolean(row.modification_request),onClick:()=>requestModification(row)},'Request Modify'),
           isOwner&&h('button',{type:'button',className:'btn btn-secondary',disabled:row.staff_response==='Reassignment Requested'||reassignmentRequested&&Boolean(row.review_status),onClick:()=>requestShiftChange(row)},'Request for Change of Shift'),
-          canManage&&row.modification_request&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>reviewRequest(row,'Modified')},'Modify / Approve'),
-          canManage&&row.modification_request&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>reviewRequest(row,'Original Retained')},'Retain Original')
+          canManage&&row.modification_request&&h('button',{type:'button',className:'btn btn-secondary',disabled:Boolean(row.review_status),onClick:()=>reviewRequest(row,'Modified')},row.review_status?'Decision Recorded':'Modify / Approve'),
+          canManage&&row.modification_request&&h('button',{type:'button',className:'btn btn-secondary',disabled:Boolean(row.review_status),onClick:()=>reviewRequest(row,'Original Retained')},row.review_status?'Decision Recorded':'Retain Original')
         )
       ];
     });
