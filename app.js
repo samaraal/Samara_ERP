@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.51';
+  const APP_VERSION = '2.12.52';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22706,7 +22706,8 @@ function ShiftManagement({profile}){
     const [loading,setLoading]=React.useState(true);
     const [message,setMessage]=React.useState('');
     const [staffSearch,setStaffSearch]=React.useState('');
-    const [dutySearchField,setDutySearchField]=React.useState('all');
+    const [shiftFilter,setShiftFilter]=React.useState('');
+    const [statusFilter,setStatusFilter]=React.useState('');
     function parseISODateUTC(dateStr){
       const [year,month,day]=String(dateStr||'').slice(0,10).split('-').map(Number);
       return new Date(Date.UTC(year,month-1,day));
@@ -22983,8 +22984,8 @@ function ShiftManagement({profile}){
     const cardHeads=onlyMineView?['Date','Shift','Duty Type','Patient / Ward / Room','Task / Remarks','Status','Request / Decision','Action']:['Staff','Date','Shift','Duty Type','Patient / Ward / Room','Task / Remarks','Status','Request / Decision','Action'];
     const calendarDays=dayCalendar?[calendarDate]:Array.from({length:7},(_,index)=>addDaysISO(rangeStart,index));
     const searchText=staffSearch.trim().toLowerCase();
-    const dropdownSearch=dutySearchField==='shift'||dutySearchField==='status';
-    const staffSearchReady=dropdownSearch?Boolean(staffSearch):searchText.length>=3;
+    const dropdownSearch=Boolean(shiftFilter||statusFilter);
+    const staffSearchReady=dropdownSearch||searchText.length>=3;
     const filteredRosterStaff=teamMode?staffScope.filter(person=>{
       if(!staffSearchReady)return true;
       const identity=[formalName(person),person.full_name,person.mobile,person.mobile_number,person.phone,person.designation,person.employee_id].filter(Boolean).join(' ').toLowerCase();
@@ -23022,36 +23023,23 @@ function ShiftManagement({profile}){
         dayRows.length?dayRows.map((cells,rowIndex)=>{const displayCells=onlyMineView?cells.slice(1):cells;const wideIndexes=onlyMineView?[3,4,6,7]:[4,5,7,8];return h('div',{className:'duty-calendar-entry',key:rowIndex},...displayCells.map((cell,cellIndex)=>h('div',{className:`duty-assignment-card-field ${wideIndexes.includes(cellIndex)?'wide':''}`,key:cellIndex},h('small',null,cardHeads[cellIndex]),h('div',{className:'duty-assignment-card-value'},cell??'—'))))}):h('div',{className:'duty-calendar-empty'},'No duty')
       );
     });
-    const dutySearchFields=[
-      ['all','All fields'],
-      ['staff','Staff name / mobile'],
-      ['shift','Shift'],
-      ['status','Status'],
-      ['patient','Patient / ward'],
-      ['task','Task / remarks']
-    ];
     const dutyShiftOptions=['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Morning Shift (7 AM–2 PM)','Evening Shift (1 PM–7 PM)','General Shift (9 AM–6 PM)'];
     const dutyStatusOptions=['Assigned','Acknowledged','In Progress','Completed','Cancelled','Weekly Off'];
     const filteredAssignmentRows=visibleAssignments.filter(row=>{
+      if(shiftFilter&&row.shift!==shiftFilter)return false;
+      if(statusFilter&&row.status!==statusFilter)return false;
+      if(!searchText)return true;
       if(!staffSearchReady)return true;
       const emp=staffFor(row.employee_id);
-      const fields={
-        all:[formalName(emp),emp.full_name,emp.mobile,emp.mobile_number,emp.phone,emp.designation,emp.employee_id,row.duty_type,row.shift,row.status,row.ward_room,row.duty_task,row.remarks,row.patient_id?patientLabel(row.patient_id):''].filter(Boolean).join(' '),
-        staff:[formalName(emp),emp.full_name,emp.mobile,emp.mobile_number,emp.phone,emp.employee_id].filter(Boolean).join(' '),
-        duty_type:row.duty_type,
-        shift:row.shift,
-        status:row.status,
-        patient:[row.ward_room,row.patient_id?patientLabel(row.patient_id):''].filter(Boolean).join(' '),
-        task:[row.duty_task,row.remarks].filter(Boolean).join(' ')
-      };
-      return String(fields[dutySearchField]||'').toLowerCase().includes(searchText);
+      const searchable=[formalName(emp),emp.full_name,emp.mobile,emp.mobile_number,emp.phone,emp.designation,emp.employee_id,row.duty_type,row.shift,row.status,row.ward_room,row.duty_task,row.remarks,row.patient_id?patientLabel(row.patient_id):''].filter(Boolean).join(' ').toLowerCase();
+      return searchable.includes(searchText);
     });
-    const assignmentSearchControl=dutySearchField==='shift'
-      ?h('select',{value:staffSearch,onChange:e=>setStaffSearch(e.target.value),'aria-label':'Filter by shift'},h('option',{value:''},'All shifts'),dutyShiftOptions.map(value=>h('option',{key:value,value},value)))
-      :dutySearchField==='status'
-        ?h('select',{value:staffSearch,onChange:e=>setStaffSearch(e.target.value),'aria-label':'Filter by status'},h('option',{value:''},'All statuses'),dutyStatusOptions.map(value=>h('option',{key:value,value},value)))
-        :h('input',{type:'search',value:staffSearch,onChange:e=>setStaffSearch(e.target.value),placeholder:'Search…','aria-label':'Search selected duty field'});
-    const assignmentSearch=h('div',{className:'duty-roster-search'},h('select',{value:dutySearchField,onChange:e=>{setDutySearchField(e.target.value);setStaffSearch('')},'aria-label':'Search field'},dutySearchFields.map(([value,label])=>h('option',{key:value,value},label))),assignmentSearchControl,(!dropdownSearch&&staffSearch.length>0&&staffSearch.length<3)?h('small',null,'Type at least 3 characters'):null,h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setStaffSearch('')},'Clear'));
+    const assignmentSearch=h('div',{className:'duty-roster-search'},
+      h('select',{value:shiftFilter,onChange:e=>setShiftFilter(e.target.value),'aria-label':'Filter by shift'},h('option',{value:''},'All shifts'),dutyShiftOptions.map(value=>h('option',{key:value,value},value))),
+      h('select',{value:statusFilter,onChange:e=>setStatusFilter(e.target.value),'aria-label':'Filter by status'},h('option',{value:''},'All statuses'),dutyStatusOptions.map(value=>h('option',{key:value,value},value))),
+      h('input',{type:'search',value:staffSearch,onChange:e=>setStaffSearch(e.target.value),placeholder:'Search staff, mobile, patient/ward or task…','aria-label':'Search staff, mobile, patient, ward or task'}),
+      (!dropdownSearch&&staffSearch.length>0&&staffSearch.length<3)?h('small',null,'Type at least 3 characters'):null,
+      h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setStaffSearch('');setShiftFilter('');setStatusFilter('')}},'Clear'));
     const simpleAssignmentList=h('div',{className:'duty-simple-list'},
       filteredAssignmentRows.map(row=>{
         const emp=staffFor(row.employee_id);
