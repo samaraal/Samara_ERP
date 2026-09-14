@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.61';
+  const APP_VERSION = '2.12.62';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5951,8 +5951,8 @@ Caring with Compassion. Living with Dignity.`;
       const clean=text=>String(text||'').replace(/\s+/g,' ').trim();
       const detailsFor=el=>{
         if(!el||el.classList?.contains('topbar-clinical-alert-badge'))return '';
-        const explicit=clean(el.getAttribute?.('data-hover-info'));
-        if(explicit)return explicit;
+        const explicitRaw=String(el.getAttribute?.('data-hover-info')||'').trim();
+        if(explicitRaw)return explicitRaw;
         const aria=clean(el.getAttribute?.('aria-label'));
         const title=clean(el.getAttribute?.('title'));
         if(title&&title!==clean(el.textContent))return title;
@@ -5966,7 +5966,7 @@ Caring with Compassion. Living with Dignity.`;
       };
       const position=(el)=>{
         const r=el.getBoundingClientRect();
-        const w=Math.min(480,window.innerWidth-28);
+        const w=Math.min(390,window.innerWidth-28);
         tip.style.maxWidth=`${w}px`;
         tip.style.left=`${Math.max(12,Math.min(window.innerWidth-w-12,r.left+r.width/2-w/2))}px`;
         const above=r.top>150;
@@ -5975,7 +5975,23 @@ Caring with Compassion. Living with Dignity.`;
       };
       const show=(el)=>{
         const info=detailsFor(el);if(!info)return;
-        active=el;tip.textContent=info;tip.classList.add('show');position(el);
+        active=el;
+        tip.textContent='';
+        const lines=info.split(/\n/).map(line=>line.trim()).filter(Boolean);
+        if(lines.length>1){
+          lines.forEach(line=>{
+            const match=line.match(/^([^:]+):\s*(.*)$/);
+            const item=document.createElement('div');item.className='samara-smart-hover-line';
+            if(match){
+              const label=document.createElement('span');label.className='samara-smart-hover-label';label.textContent=match[1].trim();
+              const colon=document.createElement('span');colon.className='samara-smart-hover-colon';colon.textContent=':';
+              const value=document.createElement('span');value.className='samara-smart-hover-value';value.textContent=match[2];
+              item.append(label,colon,value);
+            }else item.textContent=line;
+            tip.appendChild(item);
+          });
+        }else tip.textContent=info;
+        tip.classList.add('show');position(el);
       };
       const hide=()=>{active=null;tip.classList.remove('show')};
       const targetFrom=e=>e.target?.closest?.('[data-hover-info],[data-nav],button[aria-label],button[title],a[aria-label],a[title],button:has(small),button:has(p),[role="button"][aria-label]');
@@ -6185,7 +6201,7 @@ Caring with Compassion. Living with Dignity.`;
     if(document.getElementById('samara-smart-hover-styles'))return;
     const style=document.createElement('style');style.id='samara-smart-hover-styles';
     style.textContent=`
-      .samara-smart-hover{position:fixed;z-index:10080;display:none;width:min(480px,calc(100vw - 28px));box-sizing:border-box;padding:15px 17px;border:2px solid #e46a9e;border-radius:14px;background:linear-gradient(135deg,#7a1247 0%,#a80d4f 58%,#d93679 100%);color:#fff;font-size:15px;font-weight:800;line-height:1.55;letter-spacing:.01em;white-space:normal;overflow-wrap:anywhere;box-shadow:0 14px 34px rgba(122,18,71,.30);pointer-events:none}.samara-smart-hover.show{display:block}
+      .samara-smart-hover{position:fixed;z-index:10080;display:none;width:min(390px,calc(100vw - 28px));box-sizing:border-box;padding:15px 17px;border:2px solid #e5a3c1;border-radius:14px;background:linear-gradient(135deg,#fffafd 0%,#fff1f7 100%);color:#4f1736;font-size:15px;font-weight:700;line-height:1.5;letter-spacing:.01em;white-space:normal;overflow-wrap:anywhere;box-shadow:0 14px 34px rgba(122,18,71,.22);pointer-events:none}.samara-smart-hover.show{display:block}.samara-smart-hover-line{display:grid;grid-template-columns:72px 14px minmax(0,1fr);align-items:start;gap:0;margin:2px 0}.samara-smart-hover-label{font-weight:900;color:#7a1247}.samara-smart-hover-colon{font-weight:900;color:#b01264}.samara-smart-hover-value{min-width:0;color:#4f1736;font-weight:700;overflow-wrap:anywhere}
       .topbar-alert-centre{position:relative;display:flex;align-items:center;z-index:100}
       .topbar-alert-preview{position:absolute;right:0;top:calc(100% + 10px);width:min(420px,calc(100vw - 28px));background:#fff;border:1px solid #ead1de;border-radius:16px;box-shadow:0 18px 48px rgba(74,20,49,.22);overflow:hidden;z-index:10100;text-align:left}
       .topbar-alert-preview-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px;background:#fff7fb;border-bottom:1px solid #f0dce6}.topbar-alert-preview-head>div{display:flex;flex-direction:column;gap:2px}.topbar-alert-preview-head strong{color:#6f153f;font-size:15px}.topbar-alert-preview-head small{color:#715b68;font-weight:700}.topbar-alert-open-all{border:0;border-radius:9px;background:#a80d4f;color:#fff;padding:8px 11px;font-weight:900;cursor:pointer}
@@ -23118,7 +23134,7 @@ function ShiftManagement({profile}){
         const off=Boolean(row.is_weekly_off)||row.status==='Weekly Off';
         const displayStatus=effectiveDutyStatus(row);
         const statusStyle=leaveOnly||displayStatus==='Leave granted'?{background:'#fde2e2',color:'#b42318'}:off?{background:'#eee9ff',color:'#5940aa'}:displayStatus==='Acknowledged'?{background:'#d9f5e4',color:'#11643a'}:displayStatus==='Assigned'?{background:'#fff1c9',color:'#8b5a00'}:{};
-        return h('button',{type:'button',className:'duty-simple-row',key:row.id,onClick:()=>setSelectedDuty(row),'data-hover-info':[`Staff: ${formalName(emp)||'Staff'}`,`Date: ${formatDateIN(row.duty_date)}`,`Shift: ${off?'Weekly Off':row.shift||'—'}`,`Duty: ${row.duty_type||'General Duty'}`,`Status: ${displayStatus}`,leaveConflict?.status!=='approved'&&leaveConflict?'Leave conflict':''].filter(Boolean).join(' · ')},
+        return h('button',{type:'button',className:'duty-simple-row',key:row.id,onClick:()=>setSelectedDuty(row),'data-hover-info':[`Staff: ${formalName(emp)||'Staff'}`,`Date: ${formatDateIN(row.duty_date)}`,`Shift: ${off?'Weekly Off':row.shift||'—'}`,`Duty: ${row.duty_type||'General Duty'}`,`Status: ${displayStatus}`,leaveConflict?.status!=='approved'&&leaveConflict?`Leave: ${leaveStatusLabel(leaveConflict.status)}`:''].filter(Boolean).join('\n')},
           h('span',{className:'duty-simple-primary'},h('strong',null,formalName(emp)||'Staff'),h('small',null,emp.employee_id||emp.role||'—')),
           h('span',null,h('small',null,'Date'),h('strong',null,formatDateIN(row.duty_date))),
           h('span',null,h('small',null,'Shift'),h('strong',null,off?'Weekly Off':row.shift||'—')),
