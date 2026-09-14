@@ -1,5 +1,5 @@
-const APP_VERSION = '2.12.70';
-const CACHE = 'samara-erp-2.12.70-leave-list';
+const APP_VERSION = '2.12.71';
+const CACHE = 'samara-erp-2.12.71-leave-list';
 const SHELL = [
   './',
   './index.html',
