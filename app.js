@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.29';
+  const APP_VERSION = '2.12.30';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '14-Sep-2026 Duty compact layout and leave conflict alert';
+  const APP_BUILD_DATE = '14-Sep-2026 Personal duty compact labels';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -22964,9 +22964,11 @@ function ShiftManagement({profile}){
     });
 
     const scheduleTitle=teamMode?'Nursing Staff Duty Assignments':'My Duty Schedule';
+    const onlyMineView=!teamMode&&!fullDutyControl;
     const scheduleSubtitle=teamMode
       ?(fullDutyControl?'Assign and modify duty for all employees':'Duties assigned by the Nursing Manager to Nursing, Caregiving and Nursing Supervisor staff. Nursing Manager duties are assigned by Admin/Director.')
-      :'Only your own duty assignments are shown here.';
+      :(formalName(profile)||profile?.full_name||'Assigned staff member');
+    const cardHeads=onlyMineView?['Date','Shift','Duty Type','Patient / Ward / Room','Task / Remarks','Status','Request / Decision','Action']:['Staff','Date','Shift','Duty Type','Patient / Ward / Room','Task / Remarks','Status','Request / Decision','Action'];
     return h(React.Fragment,null,
       h(Section,{
         title:teamMode?scheduleTitle:'My Duties',
@@ -22984,13 +22986,9 @@ function ShiftManagement({profile}){
         message&&h('div',{className:'message error'},message),
       canManage&&h('p',{className:'small-note'},fullDutyControl?'Showing all active employees.':'Showing Nursing, Caregiving and Nursing Supervisor staff. Nursing Manager duties are assigned by Admin/Director.')
       ),
-      h(LogTable,{
-        className:'duty-assignment-log',
-        title:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)} (${rows.length})`,
-        subtitle:scheduleSubtitle,
-        heads:['Staff','Date','Shift','Duty Type','Patient / Ward / Room','Task / Remarks','Status','Request / Decision','Action'],
-        rows
-      }),
+      h(Section,{title:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)} (${rows.length})`,subtitle:scheduleSubtitle},
+        h('div',{className:'duty-assignment-cards'},...rows.map((cells,index)=>{const displayCells=onlyMineView?cells.slice(1):cells;const wideIndexes=onlyMineView?[3,4,6,7]:[4,5,7,8];return h('article',{className:'duty-assignment-card',key:index},...displayCells.map((cell,cellIndex)=>h('div',{className:`duty-assignment-card-field ${wideIndexes.includes(cellIndex)?'wide':''}`,key:cellIndex},h('small',null,cardHeads[cellIndex]),h('div',{className:'duty-assignment-card-value'},cell??'—'))))}),rows.length===0?h('div',{className:'empty'},'No records found'):null)
+      ),
       !loading&&!message&&!rows.length&&h('div',{className:'card panel'},h('p',{className:'small-note'},canManage?'No duty has been assigned for this period yet.':'No duty has been assigned to you for this period.')),
       showForm&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setShowForm(false)}},
         h('form',{className:'card modal duty-assignment-modal',style:{width:'min(760px,96vw)',maxHeight:'92vh',overflow:'auto'},onSubmit:save},
