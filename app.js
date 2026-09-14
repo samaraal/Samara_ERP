@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.65';
+  const APP_VERSION = '2.12.66';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2220,6 +2220,21 @@ function initSamaraInaugurationInvitation(){
     const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
     const get=type=>parts.find(part=>part.type===type)?.value||'';
     return `${get('year')}-${get('month')}-${get('day')}`;
+  };
+  const parseISODateUTC = dateStr => {
+    const [year,month,day]=String(dateStr||'').slice(0,10).split('-').map(Number);
+    return new Date(Date.UTC(year,month-1,day));
+  };
+  const addDaysISO = (dateStr,days) => {
+    const d=parseISODateUTC(dateStr);
+    d.setUTCDate(d.getUTCDate()+days);
+    return d.toISOString().slice(0,10);
+  };
+  const mondayOfWeek = dateStr => {
+    const d=parseISODateUTC(dateStr);
+    const day=d.getUTCDay();
+    d.setUTCDate(d.getUTCDate()+(day===0?-6:1-day));
+    return d.toISOString().slice(0,10);
   };
   const isFutureDateIndia = value => Boolean(value&&String(value).slice(0,10)>todayISOIndia());
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[ch]));
