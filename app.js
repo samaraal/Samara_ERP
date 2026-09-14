@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.46';
+  const APP_VERSION = '2.12.48';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1976,9 +1976,9 @@ function initSamaraInaugurationInvitation(){
         grid-template-columns: 42px minmax(0,1fr) 28px !important;
         align-items: center !important;
         gap: 12px !important;
-        min-width: min(525px, calc(100vw - 28px)) !important;
-        max-width: 680px !important;
-        padding: 14px 16px !important;
+        min-width: min(680px, calc(100vw - 28px)) !important;
+        max-width: 820px !important;
+        padding: 18px 20px !important;
         border: 0 !important;
         border-radius: 13px !important;
         background: linear-gradient(105deg,#7b1747,#a80d4f,#c41465) !important;
@@ -1993,12 +1993,12 @@ function initSamaraInaugurationInvitation(){
         display: inline-flex !important;
         align-items: center !important;
         justify-content: center !important;
-        width: 38px !important;
-        height: 38px !important;
+        width: 46px !important;
+        height: 46px !important;
         border-radius: 50% !important;
         background: rgba(255,255,255,.18) !important;
         color: #ffffff !important;
-        font-size: 24px !important;
+        font-size: 28px !important;
         font-weight: 900 !important;
       }
 
@@ -2014,7 +2014,7 @@ function initSamaraInaugurationInvitation(){
       .toast.success strong,
       [data-toast-type="success"] strong {
         color: #ffffff !important;
-        font-size: 16px !important;
+        font-size: 19px !important;
         line-height: 1.25 !important;
         font-weight: 800 !important;
       }
@@ -2028,8 +2028,8 @@ function initSamaraInaugurationInvitation(){
       .samara-toast.success > div > span,
       .toast.success > div > span,
       [data-toast-type="success"] > div > span {
-        font-size: 13px !important;
-        line-height: 1.35 !important;
+        font-size: 15px !important;
+        line-height: 1.45 !important;
         font-weight: 600 !important;
         opacity: .96 !important;
       }
@@ -20317,7 +20317,8 @@ function RoomsBeds({profile,onNavigate}){
     React.useEffect(()=>{const timer=setInterval(()=>setReservationClock(Date.now()),60000);return()=>clearInterval(timer)},[]);
 
     function showToast(type,text){
-      showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
+      const savedWithWarning=type==='success'&&/saved for review|warning/i.test(String(text));
+      showSamaraActionToast(type,savedWithWarning?'Assignment saved with warning':type==='success'?'Saved successfully':'Action failed',text);
       setToast({type,text});
       setTimeout(()=>setToast(null),4500);
     }
@@ -22861,6 +22862,10 @@ function ShiftManagement({profile}){
       if(failedCheck){setBusy(false);showToast('error',`Leave conflict check failed: ${failedCheck.error.message||'Unable to verify leave / permission records. The weekly duty was not assigned.'}`);return}
       const leaveConflicts=checks.map((result,index)=>result.conflict?{date:workingDates[index],conflict:result.conflict}:null).filter(Boolean);
       const leaveWarning=leaveConflicts.length?leaveConflicts.map(item=>`${leaveStatusLabel(item.conflict.status)} on ${formatDateIN(item.date)}`).join('; '):'';
+      if(!editing){
+        const duplicateDate=weekDates.find(date=>assignments.some(row=>String(row.employee_id)===String(form.employee_id)&&row.duty_date===date));
+        if(duplicateDate){setBusy(false);showToast('error',`Assignment not saved: an assignment already exists for ${formalName(staffFor(form.employee_id))||'this employee'} on ${formatDateIN(duplicateDate)}. Open the existing row to modify it.`);return}
+      }
       const {data:{user}}=await client.auth.getUser();
       const actionNow=new Date().toISOString();
       const basePayload={employee_id:form.employee_id,patient_id:form.patient_id||null,ward_room:form.ward_room.trim()||null,duty_task:form.duty_task.trim()||null,remarks:form.remarks.trim()||null,assigned_by:user?.id||profile?.id,assigned_by_name:formalName(profile)||profile?.full_name||'Authorised user',assigned_by_role:profile?.role,assigned_at:editing?(editing.assigned_at||editing.created_at||null):actionNow,updated_at:actionNow};
@@ -22873,7 +22878,7 @@ function ShiftManagement({profile}){
       const {data,error}=await query;
       setBusy(false);
       if(error){showToast('error',error.message||'Unable to save duty assignment.');return}
-      showToast('success',editing?'Duty assignment updated successfully.':`Weekly duty assigned successfully for ${formatDateIN(weekStart)} to ${formatDateIN(weekDates[6])}.`);
+      showToast('success',leaveWarning?`Assignment saved with warning: ${formalName(staffFor(form.employee_id))||'This employee'} has ${leaveWarning}. It is available for review and modification.`:(editing?'Duty assignment updated successfully.':`Weekly duty assigned successfully for ${formatDateIN(weekStart)} to ${formatDateIN(weekDates[6])}.`));
       setShowForm(false);await load();
       if(leaveWarning)setMessage(`Warning: ${formalName(staffFor(form.employee_id))||'This employee'} has ${leaveWarning}. Assignment was saved for review and modification.`);
       writeAuditEvent(editing?'Duty Assignment Updated':'Duty Assigned','Duty Assignment',data?.id||editing?.id,{
@@ -23003,7 +23008,7 @@ function ShiftManagement({profile}){
     });
     const rosterNoResults=filteredRosterStaff.length===0?h('div',{className:'duty-roster-no-results'},staffSearchReady?'No staff or duty records match this search.':'No staff records found.'):null;
     const staffRoster=()=>teamMode?h('div',{className:'duty-roster-wrap'},
-      h('div',{className:'duty-calendar-toolbar'},h('label',null,'Select date'),h(StrictDateInput,{value:calendarDate,onChange:e=>setCalendarDate(e.target.value)}),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCalendarDate(todayISOIndia())},'Today')),
+      h('div',{className:'duty-calendar-toolbar'},h('label',null,'Select date'),h(StrictDateInput,{value:calendarDate,onChange:e=>setCalendarDate(e.target.value)}),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCalendarDate(addDaysISO(mondayOfWeek(calendarDate),-7))},'‹ Previous Week'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCalendarDate(todayISOIndia())},'This Week'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCalendarDate(addDaysISO(mondayOfWeek(calendarDate),7))},'Next Week ›')),
       assignmentSearch,
       simpleAssignmentList
     ):null;
@@ -23019,9 +23024,9 @@ function ShiftManagement({profile}){
       if(!staffSearchReady)return true;
       const emp=staffFor(row.employee_id);
       const identity=[formalName(emp),emp.full_name,emp.mobile,emp.mobile_number,emp.phone,emp.designation,emp.employee_id].filter(Boolean).join(' ').toLowerCase();
-      return identity.includes(searchText)||formatDateIN(row.duty_date).toLowerCase().includes(searchText)||String(row.duty_date).includes(searchText);
+      return identity.includes(searchText);
     });
-    const assignmentSearch=h('div',{className:'duty-roster-search'},h('input',{type:'search',value:staffSearch,onChange:e=>setStaffSearch(e.target.value),placeholder:'Search staff name, mobile or date…','aria-label':'Search staff name, mobile or date'}),staffSearch.length>0&&staffSearch.length<3?h('small',null,'Type at least 3 characters'):null,h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setStaffSearch('')},'Clear'));
+    const assignmentSearch=h('div',{className:'duty-roster-search'},h('input',{type:'search',value:staffSearch,onChange:e=>setStaffSearch(e.target.value),placeholder:'Search staff name or mobile…','aria-label':'Search staff name, mobile or date'}),staffSearch.length>0&&staffSearch.length<3?h('small',null,'Type at least 3 characters'):null,h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setStaffSearch('')},'Clear'));
     const simpleAssignmentList=h('div',{className:'duty-simple-list'},
       filteredAssignmentRows.map(row=>{
         const emp=staffFor(row.employee_id);
