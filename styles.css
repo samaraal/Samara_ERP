@@ -36,6 +36,7 @@
 
 /* v2.11.98 — dedicated compact Pharmacy & Stores stock cards */
 .stores-stock-mobile{display:none}
+.stores-register-mobile,.stores-ledger-mobile{display:none}
 .ledger-reference-compact{display:none}
 .mobile-module-menu-button{min-width:0;flex:1;min-height:50px;padding:10px 14px;border:1px solid rgba(255,255,255,.34);border-radius:14px;background:linear-gradient(110deg,rgba(255,255,255,.12),rgba(255,255,255,.2));color:#fff;font:inherit;font-size:17px;font-weight:850;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
 .mobile-module-menu-button:active{background:rgba(255,255,255,.26)}
@@ -89,6 +90,17 @@ p,span,small,strong,b,label,td,th,button,a{
 @media(max-width:760px){
   .stores-stock-desktop{display:none!important}
   .stores-stock-mobile{display:grid;gap:10px;width:100%;min-width:0}
+  .stores-register-desktop,.stores-ledger-desktop{display:none!important}
+  .stores-register-mobile,.stores-ledger-mobile{display:grid;gap:10px;width:100%;min-width:0}
+  .stores-ledger-card{display:grid;gap:10px;width:100%;min-width:0;padding:13px;border:1px solid #ead2dd;border-radius:14px;background:#fff;box-shadow:0 3px 10px rgba(83,25,54,.06)}
+  .stores-ledger-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;min-width:0;padding-bottom:8px;border-bottom:1px solid #f0dce5}
+  .stores-ledger-card-head strong{color:#7a1247;font-size:15px}
+  .stores-ledger-card-head span{color:#806b77;font-size:12px;text-align:right}
+  .stores-ledger-card-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;min-width:0}
+  .stores-ledger-card-fields>div{display:grid;gap:2px;min-width:0}
+  .stores-ledger-card-fields>div:first-child{grid-column:1/-1}
+  .stores-ledger-card-fields small{color:#856b78;font-size:10px;font-weight:800;text-transform:uppercase}
+  .stores-ledger-card-fields strong{color:#412c36;font-size:13px;line-height:1.3;overflow-wrap:anywhere;word-break:break-word}
   .stores-stock-card{display:grid;gap:9px;width:100%;min-width:0;padding:12px;border:1px solid #ead2dd;border-radius:14px;background:#fff;box-shadow:0 3px 10px rgba(83,25,54,.06)}
   .stores-stock-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;min-width:0}
   .stores-stock-card-head>strong{min-width:0;color:#4a2638;font-size:15px;line-height:1.3;overflow-wrap:anywhere}

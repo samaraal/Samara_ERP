@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.69';
+  const APP_VERSION = '2.12.70';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -26466,13 +26466,15 @@ Please access the Samara Family Portal for detailed account information.`;
         ))
       ),
       h(Section,{title:'Vendor Receipt Register'},
-        h('div',{className:'table-wrap'},h('table',{className:'table'},
+        h('div',{className:'stores-register-mobile'},receipts.length?receipts.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card',key:`mobile-receipt-${r.id}`},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('span',null,formatDateIN(r.received_date))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Quantity'),h('strong',null,`${r.quantity} ${r.unit}`)),h('div',null,h('small',null,'Vendor'),h('strong',null,r.vendor_name||'—')),h('div',null,h('small',null,'Invoice'),h('strong',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'Batch / Expiry'),h('strong',null,[r.batch_no,r.expiry_date&&`Exp ${formatDateIN(r.expiry_date)}`].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'Received By'),h('strong',null,r.received_by_name||'—'))))}):h('div',{className:'stores-view-only'},'No vendor receipts recorded.')),
+        h('div',{className:'table-wrap stores-register-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Receipt','Date','Item','Qty','Vendor','Invoice','Batch / Expiry','Received By'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,receipts.length?receipts.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('td',null,formatDateIN(r.received_date)),h('td',null,item?.item_name||'—'),h('td',null,`${r.quantity} ${r.unit}`),h('td',null,r.vendor_name),h('td',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—'),h('td',null,[r.batch_no,r.expiry_date&&`Exp ${formatDateIN(r.expiry_date)}`].filter(Boolean).join(' · ')||'—'),h('td',null,r.received_by_name||'—'))}):h('tr',null,h('td',{colSpan:8,style:{textAlign:'center',padding:'24px'}},'No vendor receipts recorded.')))
         ))
       ),
       h(Section,{title:'Pharmacy & Stores Stock Ledger',subtitle:'Every vendor receipt, patient issue, return and physical adjustment is retained here.'},
-        h('div',{className:'table-wrap'},h('table',{className:'table'},
+        h('div',{className:'stores-ledger-mobile'},ledger.length?ledger.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card',key:`mobile-ledger-${r.id}`},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('span',null,formatDateTimeIN(r.movement_at))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Movement Type'),h('strong',null,r.movement_type||'—')),h('div',null,h('small',null,'Stock In'),h('strong',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Stock Out'),h('strong',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),h('div',null,h('small',null,'Patient / Reference'),h('strong',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'By'),h('strong',null,r.actor_name||'—'))))}):h('div',{className:'stores-view-only'},'No stock movements recorded.')),
+        h('div',{className:'table-wrap stores-ledger-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Movement','Date / Time','Item','Type','Stock In','Stock Out','Balance After','Patient / Reference','By'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,ledger.length?ledger.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('td',null,formatDateTimeIN(r.movement_at)),h('td',null,item?.item_name||'—'),h('td',null,r.movement_type),h('td',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—'),h('td',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—'),h('td',null,h('strong',null,r.balance_after)),h('td',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—'),h('td',null,r.actor_name||'—'))}):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},'No stock movements recorded.')))
         ))
