@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.73';
+  const APP_VERSION = '2.12.74';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -3136,22 +3136,25 @@ Caring with Compassion. Living with Dignity.`;
 
         let subscription=await registration.pushManager.getSubscription();
 
-        // Replace a subscription that was created with the previous VAPID key.
-        if(subscription){
-          try{
-            const oldEndpoint=subscription.endpoint;
-            await client.from('push_subscriptions')
-              .update({is_active:false,updated_at:new Date().toISOString()})
-              .eq('endpoint',oldEndpoint);
-          }catch(_){}
-          try{ await subscription.unsubscribe(); }catch(_){}
+        // Preserve the endpoint and server delivery history when the key matches.
+        const requestedKey=base64UrlToUint8Array(vapidPublicKey);
+        const existingKey=subscription?.options?.applicationServerKey;
+        const keyMatches=existingKey && new Uint8Array(existingKey).length===requestedKey.length &&
+          new Uint8Array(existingKey).every((value,index)=>value===requestedKey[index]);
+        if(subscription && !keyMatches){
+          const {error:deactivateError}=await client.from('push_subscriptions')
+            .update({is_active:false,updated_at:new Date().toISOString()})
+            .eq('endpoint',subscription.endpoint);
+          if(deactivateError)throw deactivateError;
+          if(!(await subscription.unsubscribe()))throw new Error('Unable to replace the previous push subscription. Please retry.');
           subscription=null;
         }
-
-        subscription=await registration.pushManager.subscribe({
-          userVisibleOnly:true,
-          applicationServerKey:base64UrlToUint8Array(vapidPublicKey)
-        });
+        if(!subscription){
+          subscription=await registration.pushManager.subscribe({
+            userVisibleOnly:true,
+            applicationServerKey:requestedKey
+          });
+        }
 
         const json=subscription.toJSON();
         const {data:{user}}=await client.auth.getUser();
@@ -3520,7 +3523,7 @@ Caring with Compassion. Living with Dignity.`;
         play(nextToAnnounce.priority);
         speak(nextToAnnounce);
 
-        if(settings.browser_notifications_enabled&&Notification.permission==='granted'){
+        if(!(isMobileClinicalDevice()&&pushEnabled&&['Admin','Manager'].includes(profile?.role))&&settings.browser_notifications_enabled&&Notification.permission==='granted'){
           showSystemNotification(
             `${nextToAnnounce.title}${nextToAnnounce.description?` · ${nextToAnnounce.description}`:''}`,
             {

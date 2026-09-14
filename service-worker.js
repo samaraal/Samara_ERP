@@ -1,5 +1,5 @@
-const APP_VERSION = '2.12.73';
-const CACHE = 'samara-erp-2.12.73-staff-workflows';
+const APP_VERSION = '2.12.74';
+const CACHE = 'samara-erp-2.12.74-push-subscription-fix';
 const SHELL = [
   './',
   './index.html',
@@ -76,20 +76,27 @@ async function mayShowPush(payload) {
       request.onerror = () => reject(request.error);
     });
     const key = pushThrottleKey(payload);
-    const last = await new Promise((resolve, reject) => {
-      const request = db.transaction('throttle', 'readonly').objectStore('throttle').get(key);
-      request.onsuccess = () => resolve(Number(request.result || 0));
-      request.onerror = () => reject(request.error);
-    });
-    const now = Date.now();
-    if (now - last < PUSH_REPEAT_MS) { db.close(); return false; }
-    await new Promise((resolve, reject) => {
-      const request = db.transaction('throttle', 'readwrite').objectStore('throttle').put(now, key);
-      request.onsuccess = resolve;
-      request.onerror = () => reject(request.error);
-    });
-    db.close();
-    return true;
+    // Read and reserve in ONE transaction: simultaneous push events cannot
+    // both pass the same check before either has recorded its delivery.
+    try {
+      return await new Promise((resolve, reject) => {
+        const transaction = db.transaction('throttle', 'readwrite');
+        const store = transaction.objectStore('throttle');
+        let allowed = false;
+        const request = store.get(key);
+        request.onsuccess = () => {
+          const now = Date.now();
+          const last = Number(request.result || 0);
+          if (!last || now - last >= PUSH_REPEAT_MS) {
+            allowed = true;
+            store.put(now, key);
+          }
+        };
+        transaction.oncomplete = () => resolve(allowed);
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error);
+      });
+    } finally { db.close(); }
   } catch (_) { return true; }
 }
 
