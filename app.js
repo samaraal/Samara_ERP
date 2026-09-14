@@ -22852,8 +22852,10 @@ function ShiftManagement({profile}){
     const [busy,setBusy]=React.useState(false);
     const [toast,setToast]=React.useState(null);
     const toastTimer=React.useRef(null);
-    const emptyForm={employee_id:'',duty_date:todayISOIndia(),week_start:mondayOfWeek(todayISOIndia()),weekly_off:'None',shift:'Full Day',duty_type:'General Duty',patient_id:'',ward_room:'',duty_task:'',remarks:'',status:'Assigned'};
+    const emptyForm={employee_id:'',duty_date:todayISOIndia(),week_start:mondayOfWeek(todayISOIndia()),weekly_off:'None',shift:SHIFT_OPTIONS[0],duty_type:'General Duty',patient_id:'',ward_room:'',duty_task:'',remarks:'',status:'Assigned'};
     const [form,setForm]=React.useState(emptyForm);
+    const [employeeSearch,setEmployeeSearch]=React.useState('');
+    const dutyVoiceSessionRef=React.useRef(0);
 
     // ---- Voice Assistant: auto-fill employee, shift, duty type and week from
     // an English or Tamil spoken command. The result only pre-fills the form
@@ -22880,6 +22882,7 @@ function ShiftManagement({profile}){
     React.useEffect(()=>()=>clearTimeout(toastTimer.current),[]);
 
     function stopDutyVoice(){
+      if(dutyVoiceRecognitionRef.current||dutyVoiceRecorderRef.current)setVoiceProcessing(true);
       try{dutyVoiceRecognitionRef.current?.stop?.()}catch(_){}
       dutyVoiceRecognitionRef.current=null;
       try{if(dutyVoiceRecorderRef.current&&dutyVoiceRecorderRef.current.state!=='inactive')dutyVoiceRecorderRef.current.stop()}catch(_){}
@@ -22888,10 +22891,12 @@ function ShiftManagement({profile}){
       setVoiceListening(false);
     }
     function closeDutyVoice(){
+      dutyVoiceSessionRef.current++;
       stopDutyVoice();
       setVoiceOpen(false);setVoiceMessage('');setVoiceHeard('');setVoiceProcessing(false);
     }
-    React.useEffect(()=>{if(!showForm)stopDutyVoice()},[showForm]);
+    React.useEffect(()=>{if(!showForm)closeDutyVoice()},[showForm]);
+    React.useEffect(()=>()=>{dutyVoiceSessionRef.current++;stopDutyVoice()},[]);
 
     function bestDutyVoiceMime(){
       for(const x of ['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus']){try{if(window.MediaRecorder&&MediaRecorder.isTypeSupported?.(x))return x}catch(_){}}
@@ -22901,23 +22906,17 @@ function ShiftManagement({profile}){
       return String(text||'').toLowerCase().replace(/[.,!?;:'"()]/g,' ').replace(/\s+/g,' ').trim();
     }
     function matchEmployeeFromVoice(text){
-      const words=` ${normaliseVoiceWords(text)} `;
-      if(!words.trim())return null;
-      let best=null,bestScore=0;
-      staffScope.forEach(person=>{
-        const nameParts=[formalName(person),person.full_name].filter(Boolean).join(' ').toLowerCase()
-          .replace(/\b(mr|mrs|ms|miss|dr|smt|shri)\b\.?/g,'').replace(/\s+/g,' ').trim();
-        const tokens=nameParts.split(' ').filter(tok=>tok.length>1);
-        let score=0;
-        tokens.forEach(tok=>{
-          const safe=tok.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-          if(new RegExp(`\\b${safe}\\b`).test(words))score+=1;
-        });
-        const idOrMobile=[person.employee_id,person.mobile,person.mobile_number,person.phone].filter(Boolean).map(String);
-        idOrMobile.forEach(v=>{if(v.length>=4&&words.includes(v.toLowerCase()))score+=3});
-        if(score>bestScore){bestScore=score;best=person}
-      });
-      return bestScore>0?best:null;
+      const normalise=value=>normaliseVoiceWords(value).replace(/[^\p{L}\p{M}\p{N}]+/gu,' ').trim();
+      const words=` ${normalise(text)} `;
+      const contains=value=>value&&words.includes(` ${value} `);
+      const ranked=staffScope.map(person=>{
+        const name=normalise(person.full_name||formalName(person)).replace(/^(mr|mrs|ms|miss|dr|smt|shri) /,'');
+        const tokens=[...new Set(name.split(' ').filter(x=>x.length>1))];
+        const score=contains(normalise(person.employee_id))?1000:contains(name)?100+tokens.length:tokens.filter(contains).length;
+        return {person,score};
+      }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score);
+      // Never choose arbitrarily between staff with the same spoken name.
+      return ranked.length&&(!ranked[1]||ranked[0].score>ranked[1].score)?ranked[0].person:null;
     }
     function matchShiftFromVoice(text){
       const t=` ${normaliseVoiceWords(text)} `;
@@ -22925,7 +22924,7 @@ function ShiftManagement({profile}){
       if(/\bmorning\b|காலை/.test(t))return 'Morning Shift (7 AM–2 PM)';
       if(/\bevening\b|மாலை/.test(t))return 'Evening Shift (1 PM–7 PM)';
       if(/general\s*shift|பொது\s*ஷிப்ட்|பொது\s*ஷிஃப்ட்/.test(t))return 'General Shift (9 AM–6 PM)';
-      if(/\bday\s*shift\b|பகல்\s*ஷிப்ட்|பகல்\s*ஷிஃப்ட்|\bfull\s*day\b/.test(t))return 'Day Shift (7 AM–7 PM)';
+      if(/\bday\s*shift\b|பகல்|\bfull\s*day\b/.test(t))return 'Day Shift (7 AM–7 PM)';
       return '';
     }
     function matchDutyTypeFromVoice(text){
@@ -22940,21 +22939,27 @@ function ShiftManagement({profile}){
       if(/documentation|charting|பதிவு|ஆவணப்படுத்த/.test(t))return 'Documentation / Charting';
       if(/ward round|வார்டு\s*சுற்று/.test(t))return 'Ward Round';
       if(/general duty|பொது\s*பணி/.test(t))return 'General Duty';
+      if(/\bother\b|மற்ற|வேறு/.test(t))return 'Other';
       return '';
     }
     function matchWeekStartFromVoice(text){
-      const t=normaliseVoiceWords(text);
-      if(/next week|அடுத்த\s*வாரம்/.test(t))return mondayOfWeek(addDaysISO(todayISOIndia(),7));
-      if(/this week|current week|இந்த\s*வாரம்/.test(t))return mondayOfWeek(todayISOIndia());
+      const t=normaliseVoiceWords(text).replace(/[௦-௯]/g,x=>String(x.charCodeAt(0)-0x0be6));
+      if(/next week|அடுத்த\s*வார/.test(t))return mondayOfWeek(addDaysISO(todayISOIndia(),7));
+      if(/this week|current week|இந்த\s*வார|இவ்வார/.test(t))return mondayOfWeek(todayISOIndia());
+      const valid=(year,month,day)=>{
+        const iso=`${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        const date=parseISODateUTC(iso);
+        return !Number.isNaN(date.getTime())&&date.toISOString().slice(0,10)===iso?mondayOfWeek(iso):'';
+      };
+      const iso=t.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
+      if(iso)return valid(+iso[1],+iso[2],+iso[3]);
       const dm=t.match(/\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/);
-      if(dm){
-        const day=Number(dm[1]),month=Number(dm[2]);
-        let year=dm[3]?Number(dm[3]):new Date().getFullYear();
-        if(year<100)year+=2000;
-        if(day>=1&&day<=31&&month>=1&&month<=12){
-          const iso=`${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-          if(!Number.isNaN(parseISODateUTC(iso).getTime()))return mondayOfWeek(iso);
-        }
+      if(dm){let year=dm[3]?+dm[3]:+todayISOIndia().slice(0,4);if(year<100)year+=2000;return valid(year,+dm[2],+dm[1])}
+      const months=['january|jan|ஜனவரி','february|feb|பிப்ரவரி','march|mar|மார்ச்','april|apr|ஏப்ரல்','may|மே','june|jun|ஜூன்','july|jul|ஜூலை','august|aug|ஆகஸ்ட்','september|sept|sep|செப்டம்பர்','october|oct|அக்டோபர்','november|nov|நவம்பர்','december|dec|டிசம்பர்'];
+      for(let i=0;i<months.length;i++){
+        const before=t.match(new RegExp(`(\\d{1,2})(?:st|nd|rd|th|ஆம்)?\\s+(?:of\\s+)?(?:${months[i]})(?:\\s+(\\d{4}))?`));
+        const after=t.match(new RegExp(`(?:${months[i]})\\s+(\\d{1,2})(?:st|nd|rd|th|ஆம்)?(?:\\s+(\\d{4}))?`));
+        const match=before||after;if(match)return valid(+(match[2]||todayISOIndia().slice(0,4)),i+1,+match[1]);
       }
       return '';
     }
@@ -22970,16 +22975,17 @@ function ShiftManagement({profile}){
         setVoiceHeard(combined);
         return;
       }
+      if(matchedEmployee)setEmployeeSearch('');
       setForm(current=>({
         ...current,
         employee_id:matchedEmployee?matchedEmployee.id:current.employee_id,
         shift:matchedShift||current.shift,
         duty_type:matchedDutyType||current.duty_type,
         week_start:matchedWeek||current.week_start,
-        duty_date:editing?(matchedWeek||current.duty_date):current.duty_date
+        duty_date:editing&&matchedWeek?addDaysISO(matchedWeek,(parseISODateUTC(current.duty_date).getUTCDay()+6)%7):current.duty_date
       }));
       const summary=[
-        matchedEmployee?`Employee: ${formalName(matchedEmployee)}`:'Employee: not recognised — please select',
+        matchedEmployee?`Employee: ${formalName(matchedEmployee)}`:'Employee: not uniquely recognised — search by name or employee ID',
         matchedShift?`Shift: ${matchedShift}`:'Shift: not recognised — please select',
         matchedDutyType?`Duty Type: ${matchedDutyType}`:'Duty Type: not recognised — please select',
         matchedWeek?`Week starting: ${formatDateIN(matchedWeek)}`:'Week: not recognised — please select'
@@ -22987,7 +22993,8 @@ function ShiftManagement({profile}){
       setVoiceHeard(combined);
       setVoiceMessage(`Heard: "${combined}". ${summary}. Please review the fields below before saving.`);
     }
-    async function sendDutyVoiceTranscript(spoken,lang){
+    async function sendDutyVoiceTranscript(spoken,lang,token){
+      if(token!==dutyVoiceSessionRef.current)return;
       setVoiceProcessing(true);
       try{
         if(String(lang).toLowerCase().startsWith('en')){applyDutyVoiceCommand(spoken,spoken);return}
@@ -22996,13 +23003,15 @@ function ShiftManagement({profile}){
         const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{method:'POST',headers:{'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify({transcript:spoken,spoken_language:lang,current_form_type:'Duty Assignment',current_task_kind:'Roster Voice Command',now_iso:new Date().toISOString(),timezone:'Asia/Kolkata'})});
         const result=await response.json().catch(()=>({error:'Unable to read voice response'}));
         if(!response.ok||result.error)throw new Error(result.error||'Unable to convert Tamil speech.');
+        if(token!==dutyVoiceSessionRef.current)return;
         const f=result.fields||{};
         const text=String(f.details||f.notes||f.description||f.title||result.translated_text||result.translation||'').trim()||spoken;
         applyDutyVoiceCommand(text,spoken);
-      }catch(error){setVoiceMessage(`Tamil speech was captured, but English conversion could not complete. ${error.message||''}`)}
-      finally{setVoiceProcessing(false)}
+      }catch(error){if(token!==dutyVoiceSessionRef.current)return;applyDutyVoiceCommand(spoken,'');setVoiceMessage(current=>`${current} English conversion unavailable; matched the original Tamil where possible.`)}
+      finally{if(token===dutyVoiceSessionRef.current)setVoiceProcessing(false)}
     }
-    async function sendDutyVoiceAudio(blob,lang){
+    async function sendDutyVoiceAudio(blob,lang,token){
+      if(token!==dutyVoiceSessionRef.current)return;
       if(!blob){setVoiceMessage('The previous recording is not available. Please record again.');return}
       setVoiceProcessing(true);setVoiceMessage('Understanding your voice command…');
       try{
@@ -23012,46 +23021,51 @@ function ShiftManagement({profile}){
         const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{method:'POST',headers:{'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey},body:fd});
         const result=await response.json().catch(()=>({error:'Unable to read voice response'}));
         if(!response.ok||result.error)throw new Error(result.error||'Unable to process voice.');
+        if(token!==dutyVoiceSessionRef.current)return;
         const f=result.fields||{};
         const transcript=String(result.transcript||'').trim();
         const text=String(f.details||f.notes||f.description||f.title||result.translated_text||result.translation||transcript||'').trim();
         if(!text){setVoiceMessage('No usable speech was returned. Please try again.');return}
         applyDutyVoiceCommand(text,transcript||text);
-      }catch(error){setVoiceMessage(error.message||'Unable to process voice.')}
-      finally{setVoiceProcessing(false)}
+      }catch(error){if(token===dutyVoiceSessionRef.current)setVoiceMessage(error.message||'Unable to process voice.')}
+      finally{if(token===dutyVoiceSessionRef.current)setVoiceProcessing(false)}
     }
-    function startDutyVoiceRecorder(lang){
-      if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){setVoiceMessage('Microphone recording is not available in this browser.');return}
+    function startDutyVoiceRecorder(lang,token){
+      if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){setVoiceProcessing(false);setVoiceMessage('Microphone recording is not available in this browser.');return}
+      setVoiceProcessing(true);
       navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
+        if(token!==dutyVoiceSessionRef.current){stream.getTracks().forEach(t=>t.stop());return}
+        setVoiceProcessing(false);
         dutyVoiceStreamRef.current=stream;dutyVoiceChunksRef.current=[];dutyVoiceLangRef.current=lang;
         const mime=bestDutyVoiceMime();const rec=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);dutyVoiceRecorderRef.current=rec;
-        rec.ondataavailable=e=>{if(e.data?.size)dutyVoiceChunksRef.current.push(e.data)};
+        rec.ondataavailable=e=>{if(token===dutyVoiceSessionRef.current&&e.data?.size)dutyVoiceChunksRef.current.push(e.data)};
         rec.onstop=async()=>{
+          if(token!==dutyVoiceSessionRef.current){stream.getTracks().forEach(t=>t.stop());return}
           const blob=new Blob(dutyVoiceChunksRef.current,{type:rec.mimeType||dutyVoiceChunksRef.current[0]?.type||'audio/webm'});
           dutyVoiceChunksRef.current=[];
           try{stream.getTracks().forEach(t=>t.stop())}catch(_){}
           dutyVoiceStreamRef.current=null;dutyVoiceRecorderRef.current=null;setVoiceListening(false);
-          if(blob.size<1000){setVoiceMessage('No useful speech was captured. Please try again.');return}
-          await sendDutyVoiceAudio(blob,dutyVoiceLangRef.current);
+          if(blob.size<1000){setVoiceProcessing(false);setVoiceMessage('No useful speech was captured. Please try again.');return}
+          await sendDutyVoiceAudio(blob,lang,token);
         };
         rec.start();setVoiceListening(true);setVoiceMessage(lang==='ta-IN'?'🎤 Listening in Tamil… Tap Stop when finished.':'🎤 Listening in English… Tap Stop when finished.');
-      }).catch(error=>{setVoiceListening(false);setVoiceMessage(error?.name==='NotAllowedError'?'Microphone permission is blocked. Please allow microphone access.':(error.message||'Unable to start microphone.'))});
+      }).catch(error=>{if(token!==dutyVoiceSessionRef.current)return;stopDutyVoice();setVoiceProcessing(false);setVoiceListening(false);setVoiceMessage(error?.name==='NotAllowedError'?'Microphone permission is blocked. Please allow microphone access.':(error.message||'Unable to start microphone.'))});
     }
     function startDutyVoice(lang){
       if(voiceListening||voiceProcessing)return;
-      setVoiceHeard('');setVoiceMessage('');
-      if(navigator.mediaDevices?.getUserMedia&&window.MediaRecorder)return startDutyVoiceRecorder(lang);
+      const token=++dutyVoiceSessionRef.current;
+      setVoiceProcessing(true);setVoiceHeard('');setVoiceMessage('Starting microphone…');
       const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-      if(!SR)return startDutyVoiceRecorder(lang);
+      if(!SR)return startDutyVoiceRecorder(lang,token);
       try{
         const rec=new SR();dutyVoiceRecognitionRef.current=rec;rec.lang=lang;rec.interimResults=true;rec.continuous=true;rec.maxAlternatives=1;
         let finalText='';let latest='';let handled=false;
-        rec.onstart=()=>{setVoiceListening(true);setVoiceMessage(lang==='ta-IN'?'🎤 Listening in Tamil…':'🎤 Listening in English…')};
-        rec.onresult=e=>{let interim='';for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0]?.transcript||'';if(e.results[i].isFinal)finalText+=`${t} `;else interim+=t}latest=(finalText||interim).trim();setVoiceHeard(latest)};
-        const finish=()=>{if(handled)return;handled=true;setVoiceListening(false);const spoken=(finalText||latest).trim();if(spoken)sendDutyVoiceTranscript(spoken,lang);else setVoiceMessage('No speech was captured. Please try again.')};
-        rec.onerror=e=>{setVoiceListening(false);if(e?.error==='not-allowed'||e?.error==='service-not-allowed'){handled=true;setVoiceMessage('Microphone / speech permission is blocked. Please allow microphone access.')}else if(!latest&&!finalText){handled=true;startDutyVoiceRecorder(lang)}};
+        rec.onstart=()=>{if(token!==dutyVoiceSessionRef.current){rec.abort();return}setVoiceProcessing(false);setVoiceListening(true);setVoiceMessage(lang==='ta-IN'?'🎤 Listening in Tamil…':'🎤 Listening in English…')};
+        rec.onresult=e=>{if(token!==dutyVoiceSessionRef.current)return;let interim='';for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0]?.transcript||'';if(e.results[i].isFinal)finalText+=`${t} `;else interim+=t}latest=(finalText+interim).trim();setVoiceHeard(latest)};
+        const finish=()=>{if(handled||token!==dutyVoiceSessionRef.current)return;handled=true;dutyVoiceRecognitionRef.current=null;setVoiceProcessing(false);setVoiceListening(false);const spoken=(latest||finalText).trim();if(spoken)sendDutyVoiceTranscript(spoken,lang,token);else setVoiceMessage('No speech was captured. Please try again.')};
+        rec.onerror=e=>{if(token!==dutyVoiceSessionRef.current)return;setVoiceProcessing(false);setVoiceListening(false);if(e?.error==='not-allowed'||e?.error==='service-not-allowed'){handled=true;setVoiceMessage('Microphone / speech permission is blocked. Please allow microphone access.')}else if(!latest&&!finalText){handled=true;startDutyVoiceRecorder(lang,token)}};
         rec.onend=finish;rec.start();
-      }catch(_){startDutyVoiceRecorder(lang)}
+      }catch(_){startDutyVoiceRecorder(lang,token)}
     }
 
     async function load(){
@@ -23140,6 +23154,7 @@ function ShiftManagement({profile}){
     },[assignments,rangeStart,rangeEnd,calendarDate,dayCalendar,canManage,fullDutyControl,staffScopeIds,profile]);
 
     function openCreate(){
+      setEmployeeSearch('');
       setEditing(null);
       const today=todayISOIndia();
       const weekStart=mondayOfWeek((today>=rangeStart&&today<=rangeEnd)?today:rangeStart);
@@ -23148,6 +23163,7 @@ function ShiftManagement({profile}){
       setShowForm(true);
     }
     function openEdit(row){
+      setEmployeeSearch('');
       setEditing(row);
       setForm({...emptyForm,...row,status:effectiveDutyStatus(row),week_start:row.week_start||mondayOfWeek(row.duty_date),weekly_off:row.weekly_off_day||'None',patient_id:row.patient_id||'',ward_room:row.ward_room||'',duty_task:row.duty_task||'',remarks:row.remarks||''});
       closeDutyVoice();
@@ -23157,7 +23173,7 @@ function ShiftManagement({profile}){
     async function save(e){
       e.preventDefault();
       if(!canManage)return;
-      if(!form.employee_id){showToast('error','Please select the staff member to assign.');return}
+      if(!staffScope.some(person=>person.id===form.employee_id)){showToast('error','Please select the staff member to assign.');return}
       if(!form.duty_date&&!form.week_start){showToast('error','Please select the week starting date.');return}
       const weekStart=mondayOfWeek(form.week_start||form.duty_date);
       const weekDates=Array.from({length:7},(_,index)=>addDaysISO(weekStart,index));
@@ -23456,7 +23472,7 @@ function ShiftManagement({profile}){
           )
         );
       })(),
-      showForm&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setShowForm(false)}},
+      showForm&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget){closeDutyVoice();setShowForm(false)}}},
         h('form',{className:'card modal duty-assignment-modal',style:{width:'min(760px,96vw)',maxHeight:'92vh',overflow:'auto'},onSubmit:save},
           h('div',{className:'panel-head'},
             h('div',null,
@@ -23464,7 +23480,7 @@ function ShiftManagement({profile}){
               h('small',null,'Shift, task and patient / ward duty for a nursing staff member'),
               h('button',{type:'button',className:'btn btn-secondary duty-voice-toggle',onClick:()=>{if(voiceOpen){closeDutyVoice()}else{setVoiceOpen(true);setVoiceMessage('');setVoiceHeard('')}}},voiceOpen?'Hide Voice Assistant':'🎤 Voice Assistant')
             ),
-            h('button',{type:'button',className:'close',onClick:()=>setShowForm(false)},'×')
+            h('button',{type:'button',className:'close',onClick:()=>{closeDutyVoice();setShowForm(false)}},'×')
           ),
           voiceOpen&&h('div',{className:'duty-voice-panel'},
             h('div',{className:'samara-voice-modal-head'},h('div',null,h('strong',null,'🎤 Voice Assistant'),h('small',null,'Speak the employee, shift, duty type and week — in English or Tamil. Review the filled fields below before saving.'))),
@@ -23474,11 +23490,22 @@ function ShiftManagement({profile}){
                 h('button',{type:'button',className:'btn btn-secondary',disabled:voiceProcessing,onClick:()=>startDutyVoice('en-IN')},'🎤 Speak English')
               ),
             voiceHeard&&h('div',{className:'samara-voice-transcript'},h('small',null,'Heard'),h('div',null,voiceHeard)),
-            voiceMessage&&h('div',{className:'samara-voice-message'},voiceMessage)
+            voiceMessage&&h('div',{className:'samara-voice-message',role:'status','aria-live':'polite'},voiceMessage),
+            h('small',null,'Example: Priya, night shift, medication rounds, next week. / பிரியா, இரவு, மருந்து, அடுத்த வாரம்.'),
+            h('label',{htmlFor:'duty-voice-review'},'Review or type a command'),
+            h('textarea',{id:'duty-voice-review',rows:2,value:voiceHeard,disabled:voiceListening||voiceProcessing,onChange:e=>setVoiceHeard(e.target.value)}),
+            h('button',{type:'button',className:'btn btn-secondary',disabled:voiceListening||voiceProcessing||!voiceHeard.trim(),onClick:()=>applyDutyVoiceCommand(voiceHeard,'')},'Apply Command')
           ),
           h('div',{className:'modal-grid'},
-            h('div',{className:'field'},h('label',null,'Staff Member'),h('select',{required:true,value:form.employee_id,onChange:e=>setForm({...form,employee_id:e.target.value})},h('option',{value:''},'Select employee'),staffScope.map(s=>h('option',{key:s.id,value:s.id},`${formalName(s)}${s.employee_id?` · ${s.employee_id}`:''}${s.role?` · ${s.role}`:''}`)))),
-            h('div',{className:'field'},h('label',null,editing?'Duty Date':'Week Starting (Monday)'),h(StrictDateInput,{value:editing?form.duty_date:form.week_start,min:todayISOIndia(),onChange:e=>setForm({...form,duty_date:editing?e.target.value:form.duty_date,week_start:editing?form.week_start:mondayOfWeek(e.target.value)})})),
+            h('div',{className:'field duty-employee-selector'},
+              h('label',{htmlFor:'duty-employee-search'},'Search Employee'),
+              h('input',{id:'duty-employee-search',type:'search',value:employeeSearch,placeholder:'Name, employee ID, role or department',autoComplete:'off',onChange:e=>setEmployeeSearch(e.target.value)}),
+              h('label',{htmlFor:'duty-employee-select'},'Staff Member'),
+              h('select',{id:'duty-employee-select',required:true,value:form.employee_id,onChange:e=>setForm(current=>({...current,employee_id:e.target.value}))},
+                h('option',{value:''},'Select employee'),
+                staffScope.filter(person=>person.id===form.employee_id||normaliseVoiceWords(employeeSearch).split(' ').every(word=>normaliseVoiceWords([formalName(person),person.employee_id,person.role,person.department,person.designation].join(' ')).includes(word))).map(person=>h('option',{key:person.id,value:person.id},`${formalName(person)} · ${person.employee_id||'No ID'} · ${person.role||''}`))),
+              h('small',{role:'status'},staffScope.some(person=>normaliseVoiceWords(employeeSearch).split(' ').every(word=>normaliseVoiceWords([formalName(person),person.employee_id,person.role,person.department,person.designation].join(' ')).includes(word)))?'Filter the list, then select an employee.':'No matching employees. Any previously selected employee is retained.')),
+            h('div',{className:'field'},h('label',null,editing?'Duty Date':'Week Starting (Monday)'),h(StrictDateInput,{value:editing?form.duty_date:form.week_start,min:editing?todayISOIndia():mondayOfWeek(todayISOIndia()),onChange:e=>setForm({...form,duty_date:editing?e.target.value:form.duty_date,week_start:editing?form.week_start:(e.target.value?mondayOfWeek(e.target.value):'')})})),
             !editing&&h('div',{className:'field'},h('label',null,'Weekly Off'),h('select',{value:form.weekly_off,onChange:e=>setForm({...form,weekly_off:e.target.value})},h('option',{value:'None'},'No weekly off'),['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map((day,index)=>h('option',{key:day,value:String(index)},day)))),
             h('div',{className:'field'},h('label',null,'Shift'),h('select',{value:form.shift,onChange:e=>setForm({...form,shift:e.target.value})},SHIFT_OPTIONS.map(x=>h('option',{key:x,value:x},x)))),
             h('div',{className:'field'},h('label',null,'Duty Type'),h('select',{value:form.duty_type,onChange:e=>setForm({...form,duty_type:e.target.value})},DUTY_TYPE_OPTIONS.map(x=>h('option',{key:x,value:x},x)))),
@@ -23488,7 +23515,7 @@ function ShiftManagement({profile}){
             h('div',{className:'field span-2'},h('label',null,'Task Details / Instructions'),h('textarea',{rows:3,value:form.duty_task,onChange:e=>setForm({...form,duty_task:e.target.value}),placeholder:'Specific duty instructions for this assignment'})),
             h('div',{className:'field span-2'},h('label',null,'Remarks (optional)'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value})}))
           ),
-          h('div',{className:'actions',style:{display:'flex',gap:'8px',flexWrap:'nowrap',justifyContent:'stretch',width:'100%'}},h('button',{type:'button',className:'btn btn-secondary',style:{flex:'1 1 0',minWidth:0},onClick:()=>setShowForm(false)},'Cancel'),h('button',{className:'btn btn-primary',style:{flex:'1 1 0',minWidth:0},disabled:busy},busy?'Saving…':editing?'Update Assignment':'Save Assignment'),h('button',{type:'button',className:'btn btn-secondary',style:{flex:'1 1 0',minWidth:0},onClick:()=>setShowForm(false)},'Close'))
+          h('div',{className:'actions',style:{display:'flex',gap:'8px',flexWrap:'nowrap',justifyContent:'stretch',width:'100%'}},h('button',{type:'button',className:'btn btn-secondary',style:{flex:'1 1 0',minWidth:0},onClick:()=>{closeDutyVoice();setShowForm(false)}},'Cancel'),h('button',{className:'btn btn-primary',style:{flex:'1 1 0',minWidth:0},disabled:busy},busy?'Saving…':editing?'Update Assignment':'Save Assignment'),h('button',{type:'button',className:'btn btn-secondary',style:{flex:'1 1 0',minWidth:0},onClick:()=>{closeDutyVoice();setShowForm(false)}},'Close'))
         )
       ),
       toast&&h('div',{className:`samara-toast ${toast.type}`,role:'status','aria-live':'polite'},
