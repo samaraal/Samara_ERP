@@ -1,5 +1,5 @@
-const APP_VERSION = '2.12.30';
-const CACHE = 'samara-erp-2.12.30-duty-personal-view';
+const APP_VERSION = '2.12.31';
+const CACHE = 'samara-erp-2.12.31-duty-week-calendar';
 const SHELL = [
   './',
   './index.html',
