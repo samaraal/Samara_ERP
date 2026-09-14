@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.42';
+  const APP_VERSION = '2.12.45';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22859,16 +22859,8 @@ function ShiftManagement({profile}){
       const checks=await Promise.all(workingDates.map(date=>findDutyLeaveConflict(form.employee_id,date)));
       const failedCheck=checks.find(result=>result.error);
       if(failedCheck){setBusy(false);showToast('error',`Leave conflict check failed: ${failedCheck.error.message||'Unable to verify leave / permission records. The weekly duty was not assigned.'}`);return}
-      const leaveConflict=checks.map((result,index)=>result.conflict?{date:workingDates[index],conflict:result.conflict}:null).find(Boolean);
-      if(leaveConflict){
-        const conflict=leaveConflict.conflict;
-        const period=conflict.request_type==='Permission'
-          ?`${formatDateIN(conflict.permission_date)}${conflict.permission_from?` · ${conflict.permission_from}${conflict.permission_to?`–${conflict.permission_to}`:''}`:''}`
-          :`${formatDateIN(conflict.from_date)}${conflict.to_date&&conflict.to_date!==conflict.from_date?` – ${formatDateIN(conflict.to_date)}`:''}`;
-        setBusy(false);
-        showToast('error',`Weekly duty blocked: ${leaveStatusLabel(conflict.status)} exists for ${formalName(staffFor(form.employee_id))||conflict.employee_name||'this employee'} on ${period}. No weekly duty was assigned.`);
-        return;
-      }
+      const leaveConflicts=checks.map((result,index)=>result.conflict?{date:workingDates[index],conflict:result.conflict}:null).filter(Boolean);
+      const leaveWarning=leaveConflicts.length?leaveConflicts.map(item=>`${leaveStatusLabel(item.conflict.status)} on ${formatDateIN(item.date)}`).join('; '):'';
       if(!editing){
         const duplicateDate=weekDates.find(date=>assignments.some(row=>String(row.employee_id)===String(form.employee_id)&&row.duty_date===date));
         if(duplicateDate){setBusy(false);showToast('error',`Weekly duty blocked: an assignment already exists for ${formalName(staffFor(form.employee_id))||'this employee'} on ${formatDateIN(duplicateDate)}.`);return}
@@ -22887,6 +22879,7 @@ function ShiftManagement({profile}){
       if(error){showToast('error',error.message||'Unable to save duty assignment.');return}
       showToast('success',editing?'Duty assignment updated successfully.':`Weekly duty assigned successfully for ${formatDateIN(weekStart)} to ${formatDateIN(weekDates[6])}.`);
       setShowForm(false);await load();
+      if(leaveWarning)setMessage(`Warning: ${formalName(staffFor(form.employee_id))||'This employee'} has ${leaveWarning}. Assignment was saved for review and modification.`);
       writeAuditEvent(editing?'Duty Assignment Updated':'Duty Assigned','Duty Assignment',data?.id||editing?.id,{
         employee:formalName(staffFor(form.employee_id))||'Staff',
         duty_date:form.duty_date,
