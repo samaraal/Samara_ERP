@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.40';
+  const APP_VERSION = '2.12.41';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '14-Sep-2026 Calendar list initialization fix';
+  const APP_BUILD_DATE = '14-Sep-2026 Compact leave rows and status filters';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -12018,6 +12018,7 @@ Thank you.`;
     const [form,setForm]=React.useState(empty);
     const [calendarSearch,setCalendarSearch]=React.useState('');
     const [calendarDate,setCalendarDate]=React.useState(todayISOIndia());
+    const [requestStatusFilter,setRequestStatusFilter]=React.useState('');
     const [expandedCalendarRows,setExpandedCalendarRows]=React.useState(new Set());
     const byId=id=>profiles.find(x=>x.id===id)||{};
     const statusLabel=s=>({pending_superior:'Pending Superior',pending_management:'Pending Management',approved:'Approved',rejected:'Rejected',cancelled:'Cancelled'}[s]||s||'—');
@@ -12070,9 +12071,10 @@ Thank you.`;
       return `${formatDateIN(r.from_date)}${r.to_date!==r.from_date?` – ${formatDateIN(r.to_date)}`:''} · ${days} day${days===1?'':'s'} · ${r.shift_part||'Full Day'}`;
     }
     const nursingStaffRow=row=>{const p=byId(row.employee_id),d=String(p.department||'').toLowerCase(),g=String(p.designation||'').toLowerCase(),role=String(p.role||'').toLowerCase();return role==='nurse'||role==='caregiver'||d==='nursing'||d==='caregiving'||g.includes('nursing supervisor')};
-    const visible=isApprovals
+    const baseVisible=isApprovals
       ?rows.filter(r=>r.employee_id!==profile.id&&(!isNursingManagerProfile(profile)||nursingStaffRow(r)))
       :rows.filter(r=>r.employee_id===profile.id);
+    const visible=requestStatusFilter?baseVisible.filter(r=>requestStatusFilter==='pending'?['pending_superior','pending_management'].includes(r.status):r.status===requestStatusFilter):baseVisible;
     const pending=visible.filter(r=>['pending_superior','pending_management'].includes(r.status));
     const history=visible.filter(r=>!['pending_superior','pending_management'].includes(r.status));
     function canRecommend(r){return r.status==='pending_superior'&&r.reporting_superior_id===profile.id&&!['Admin','Manager'].includes(profile.role)}
@@ -12170,7 +12172,7 @@ Thank you.`;
       if(!['Admin','Manager'].includes(profile.role)&&directCount===0)return h(Section,{title:'Leave Approvals',subtitle:'Requests from employees reporting to you'},h('div',{className:'empty'},'No leave or permission requests are awaiting your approval.'));
       return h(React.Fragment,null,h(Section,{title:'Leave Approvals',subtitle:['Admin','Manager'].includes(profile.role)?`Management approval queue · ${managementCount} pending`:`Reporting superior approval queue · ${directCount} pending`,actions:h('button',{className:'btn btn-secondary',onClick:load,disabled:busy},'Refresh')},msg?h('div',{className:'message'},msg):null,h('div',{className:'absence-list'},...pending.map(requestCard)),pending.length===0?h('div',{className:'empty'},'No requests awaiting action.'):null),history.length?h(Section,{title:'Recent Decisions',subtitle:'Completed approval history'},h('div',{className:'absence-list'},...history.slice(0,30).map(requestCard))):null);
     }
-    return h(React.Fragment,null,h(Section,{title:'My Leave & Permission',subtitle:'Apply and track your leave, permission and approval status',actions:h('button',{className:'btn btn-primary',onClick:()=>{setForm({...empty});setModalMsg('');setSubmitted(false);setShowForm(true)}},'＋ New Request')},msg?h('div',{className:'message'},msg):null,h('div',{className:'absence-summary'},h('div',null,h('strong',null,pending.length),h('small',null,'Pending')),h('div',null,h('strong',null,visible.filter(r=>r.status==='approved').length),h('small',null,'Approved')),h('div',null,h('strong',null,visible.filter(r=>r.status==='rejected').length),h('small',null,'Rejected'))),h('div',{className:'absence-list'},...visible.map(requestCard)),visible.length===0?h('div',{className:'empty'},'No leave or permission requests submitted yet.'):null),formModal);
+    return h(React.Fragment,null,h(Section,{title:'My Leave & Permission',subtitle:'Apply and track your leave, permission and approval status',actions:h('button',{className:'btn btn-primary',onClick:()=>{setForm({...empty});setModalMsg('');setSubmitted(false);setShowForm(true)}},'＋ New Request')},msg?h('div',{className:'message'},msg):null,h('div',{className:'absence-summary'},h('button',{type:'button',className:requestStatusFilter==='pending'?'active':'' ,onClick:()=>setRequestStatusFilter(requestStatusFilter==='pending'?'':'pending')},h('strong',null,baseVisible.filter(r=>['pending_superior','pending_management'].includes(r.status)).length),h('small',null,'Pending')),h('button',{type:'button',className:requestStatusFilter==='approved'?'active':'',onClick:()=>setRequestStatusFilter(requestStatusFilter==='approved'?'':'approved')},h('strong',null,baseVisible.filter(r=>r.status==='approved').length),h('small',null,'Approved')),h('button',{type:'button',className:requestStatusFilter==='rejected'?'active':'',onClick:()=>setRequestStatusFilter(requestStatusFilter==='rejected'?'':'rejected')},h('strong',null,baseVisible.filter(r=>r.status==='rejected').length),h('small',null,'Rejected'))),h('div',{className:'absence-list'},...visible.map(calendarRequestCard),visible.length===0?h('div',{className:'empty'},requestStatusFilter?'No requests found for this status.':'No leave or permission requests submitted yet.'):null)),formModal);
   }
 
 

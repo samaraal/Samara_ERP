@@ -1,5 +1,5 @@
-const APP_VERSION = '2.12.40';
-const CACHE = 'samara-erp-2.12.40-calendar-list-fix';
+const APP_VERSION = '2.12.41';
+const CACHE = 'samara-erp-2.12.41-leave-list';
 const SHELL = [
   './',
   './index.html',
