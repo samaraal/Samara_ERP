@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.53';
+  const APP_VERSION = '2.12.54';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22697,7 +22697,7 @@ function ShiftManagement({profile}){
     const canModify=fullDutyControl;
     const SHIFT_OPTIONS=['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Morning Shift (7 AM–2 PM)','Evening Shift (1 PM–7 PM)','General Shift (9 AM–6 PM)'];
     const DUTY_TYPE_OPTIONS=['Medication Rounds','Vitals Check','Wound Dressing','Mobility Assistance','Feeding Assistance','Bathing / Hygiene Care','Patient Escort','Documentation / Charting','Ward Round','General Duty','Other'];
-    const STATUS_ALL=['Assigned','Acknowledged','Cancelled'];
+    const STATUS_ALL=['Assigned','Acknowledged','Cancelled','Leave granted'];
     const STATUS_STAFF=['Assigned','Acknowledged'];
     const [assignments,setAssignments]=React.useState([]);
     const [staff,setStaff]=React.useState([]);
@@ -23068,7 +23068,7 @@ function ShiftManagement({profile}){
         const leaveOnly=Boolean(row.__leaveRecord);
         const leaveConflict=leaveOnly?null:loadedDutyLeaveConflict(row);
         const off=Boolean(row.is_weekly_off)||row.status==='Weekly Off';
-        const statusStyle=leaveOnly?{background:'#fde2e2',color:'#b42318'}:off?{background:'#eee9ff',color:'#5940aa'}:row.status==='Acknowledged'?{background:'#d9f5e4',color:'#11643a'}:row.status==='Assigned'?{background:'#fff1c9',color:'#8b5a00'}:{};
+        const statusStyle=leaveOnly||row.status==='Leave granted'?{background:'#fde2e2',color:'#b42318'}:off?{background:'#eee9ff',color:'#5940aa'}:row.status==='Acknowledged'?{background:'#d9f5e4',color:'#11643a'}:row.status==='Assigned'?{background:'#fff1c9',color:'#8b5a00'}:{};
         return h('button',{type:'button',className:'duty-simple-row',key:row.id,onClick:()=>setSelectedDuty(row)},
           h('span',{className:'duty-simple-primary'},h('strong',null,formalName(emp)||'Staff'),h('small',null,emp.employee_id||emp.role||'—')),
           h('span',null,h('small',null,'Date'),h('strong',null,formatDateIN(row.duty_date))),
@@ -23116,7 +23116,7 @@ function ShiftManagement({profile}){
               h('div',{className:'duty-detail-item'},h('small',null,'Duty Type'),h('strong',null,selectedDuty.duty_type||'General Duty')),
               h('div',{className:'duty-detail-item span-2'},h('small',null,'Patient / Ward / Room'),h('strong',null,selectedDuty.patient_id?patientLabel(selectedDuty.patient_id):(selectedDuty.ward_room||'—'))),
               h('div',{className:'duty-detail-item span-2'},h('small',null,'Task / Remarks'),h('strong',null,selectedDuty.duty_task||selectedDuty.remarks||'—')),
-              h('div',{className:'duty-detail-item'},h('small',null,'Status'),h('span',{className:'badge',style:selectedLeaveOnly?{background:'#fde2e2',color:'#b42318'}:selectedOff?{background:'#eee9ff',color:'#5940aa'}:selectedDuty.status==='Acknowledged'?{background:'#d9f5e4',color:'#11643a'}:selectedDuty.status==='Assigned'?{background:'#fff1c9',color:'#8b5a00'}:{}},selectedDuty.status||'Assigned')),
+              h('div',{className:'duty-detail-item'},h('small',null,'Status'),h('span',{className:'badge',style:selectedLeaveOnly||selectedDuty.status==='Leave granted'?{background:'#fde2e2',color:'#b42318'}:selectedOff?{background:'#eee9ff',color:'#5940aa'}:selectedDuty.status==='Acknowledged'?{background:'#d9f5e4',color:'#11643a'}:selectedDuty.status==='Assigned'?{background:'#fff1c9',color:'#8b5a00'}:{}},selectedDuty.status||'Assigned')),
               selectedLeave&&h('div',{className:'duty-detail-item span-2'},h('small',null,'Leave Check'),h('strong',{style:{color:'#b42318'}},`⚠ ${leaveStatusLabel(selectedLeave.status)} · ${selectedLeave.request_type==='Permission'?formatDateIN(selectedLeave.permission_date):`${formatDateIN(selectedLeave.from_date)}${selectedLeave.to_date&&selectedLeave.to_date!==selectedLeave.from_date?` – ${formatDateIN(selectedLeave.to_date)}`:''}`}`)),
               h('div',{className:'duty-detail-history span-2'},h('strong',null,'Request / Decision History'),
                 selectedLeaveOnly?h('small',null,`Leave granted: ${selectedLeave.leave_type||selectedDuty.duty_type||'Leave / Permission'} · ${selectedLeave.employee_name||formalName(emp)||'Staff'}`):h('small',null,`Assigned: ${selectedDuty.assigned_by_name||'Authorised user'} · ${fmt(selectedDuty.assigned_at||selectedDuty.created_at)}`),
