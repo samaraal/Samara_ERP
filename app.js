@@ -22837,7 +22837,7 @@ function ShiftManagement({profile}){
     const [calendarDate,setCalendarDate]=React.useState(()=>todayISOIndia());
     const dayCalendar=viewMode==='team';
     function jumpWeek(offsetWeeks){
-      const newStart=addDaysISO(rangeStart,offsetWeeks*7);
+      const newStart=addDaysISO(mondayOfWeek(rangeStart||todayISOIndia()),offsetWeeks*7);
       setRangeStart(newStart);
       setRangeEnd(addDaysISO(newStart,6));
     }
@@ -22846,6 +22846,21 @@ function ShiftManagement({profile}){
       setRangeStart(start);
       setRangeEnd(addDaysISO(start,6));
     }
+    // Derive the selected state from the dates so manual changes stay in sync.
+    const selectedWeekStart=dayCalendar?mondayOfWeek(calendarDate||todayISOIndia()):rangeStart;
+    const selectedWeekEnd=dayCalendar?addDaysISO(selectedWeekStart,6):rangeEnd;
+    const currentWeekStart=mondayOfWeek(todayISOIndia());
+    const isWholeWeek=!!selectedWeekStart&&!!selectedWeekEnd&&selectedWeekStart===mondayOfWeek(selectedWeekStart)&&selectedWeekEnd===addDaysISO(selectedWeekStart,6);
+    const weekOffset=isWholeWeek?Math.round((parseISODateUTC(selectedWeekStart)-parseISODateUTC(currentWeekStart))/604800000):null;
+    const selectedWeekLabel=weekOffset===null?'Custom Date Range':weekOffset===0?'This Week':weekOffset===1?'Next Week':weekOffset===-1?'Previous Week':weekOffset>1?`${weekOffset} Weeks Ahead`:`${Math.abs(weekOffset)} Weeks Ago`;
+    function weekNavigationButton(label,offset,onClick){
+      const active=weekOffset===offset;
+      return h('button',{type:'button',className:`btn ${active?'btn-primary':'btn-secondary'}`,'aria-pressed':active,onClick,
+        style:active?{background:'#a91360',color:'#fff',border:'2px solid #790c44',boxShadow:'0 0 0 3px rgba(169,19,96,.16)',fontWeight:800}:undefined},active?`✓ ${label}`:label);
+    }
+    const selectedWeekNotice=h('div',{role:'status','aria-live':'polite',style:{padding:'12px 16px',margin:'12px 0',borderLeft:'5px solid #a91360',borderRadius:'10px',background:'#fce8f2',color:'#790c44'}},
+      h('strong',{style:{display:'block',fontSize:'17px'}},`Viewing: ${selectedWeekLabel}`),
+      h('span',null,selectedWeekStart&&selectedWeekEnd?`${formatDateWithDayIN(selectedWeekStart)} to ${formatDateWithDayIN(selectedWeekEnd)}`:'Select a start and end date'));
     const [showForm,setShowForm]=React.useState(false);
     const [editing,setEditing]=React.useState(null);
     const [selectedDuty,setSelectedDuty]=React.useState(null);
@@ -23337,7 +23352,7 @@ function ShiftManagement({profile}){
     });
     const rosterNoResults=filteredRosterStaff.length===0?h('div',{className:'duty-roster-no-results'},staffSearchReady?'No staff or duty records match this search.':'No staff records found.'):null;
     const staffRoster=()=>teamMode?h('div',{className:'duty-roster-wrap'},
-      h('div',{className:'duty-calendar-toolbar'},h('label',null,'Select date'),h('div',{className:'duty-calendar-date-control'},h(StrictDateInput,{value:calendarDate,onChange:e=>setCalendarDate(e.target.value)})),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCalendarDate(addDaysISO(mondayOfWeek(calendarDate),-7))},'‹ Previous Week'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCalendarDate(todayISOIndia())},'This Week'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCalendarDate(addDaysISO(mondayOfWeek(calendarDate),7))},'Next Week ›')),
+      h('div',{className:'duty-calendar-toolbar'},h('label',null,'Select date'),h('div',{className:'duty-calendar-date-control'},h(StrictDateInput,{value:calendarDate,onChange:e=>setCalendarDate(e.target.value)})),weekNavigationButton('‹ Previous Week',-1,()=>setCalendarDate(addDaysISO(mondayOfWeek(calendarDate||todayISOIndia()),-7))),weekNavigationButton('This Week',0,()=>setCalendarDate(todayISOIndia())),weekNavigationButton('Next Week ›',1,()=>setCalendarDate(addDaysISO(mondayOfWeek(calendarDate||todayISOIndia()),7)))),
       assignmentSearch,
       simpleAssignmentList
     ):null;
@@ -23414,16 +23429,17 @@ function ShiftManagement({profile}){
         title:teamMode?scheduleTitle:'My Duty',
         subtitle:scheduleSubtitle,
         actions:h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
-          !dayCalendar&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>jumpWeek(-1)},'‹ Prev Week'),
+          !dayCalendar&&weekNavigationButton('‹ Prev Week',-1,()=>jumpWeek(-1)),
           !dayCalendar&&h(StrictDateInput,{value:rangeStart,onChange:e=>setRangeStart(e.target.value)}),
           !dayCalendar&&h('span',{style:{opacity:.65,fontSize:'12px'}},'to'),
           !dayCalendar&&h(StrictDateInput,{value:rangeEnd,onChange:e=>setRangeEnd(e.target.value)}),
-          !dayCalendar&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>jumpWeek(1)},'Next Week ›'),
-          !dayCalendar&&h('button',{type:'button',className:'btn btn-secondary',onClick:resetToThisWeek},'This Week'),
+          !dayCalendar&&weekNavigationButton('Next Week ›',1,()=>jumpWeek(1)),
+          !dayCalendar&&weekNavigationButton('This Week',0,resetToThisWeek),
           dayCalendar&&h('strong',null,`Selected date: ${formatDateWithDayIN(calendarDate)}`),
           canManage&&h('button',{type:'button',className:'btn btn-primary',onClick:openCreate},'＋ Assign Duty')
         )
       },
+        selectedWeekNotice,
         message&&h('div',{className:'message error'},message),
       canManage&&h('p',{className:'small-note'},fullDutyControl?'Showing all active employees.':'Showing Nursing, Caregiving and Nursing Supervisor staff. Nursing Manager duties are assigned by Admin/Director.')
       ),
