@@ -2265,3 +2265,20 @@ p,span,small,strong,b,label,td,th,button,a{overflow-wrap:break-word;word-break:n
 .duty-roster-search select{width:180px!important;max-width:180px!important;flex:0 0 180px!important;min-height:42px;padding:9px 10px;border:1px solid #cddbd6;border-radius:12px;background:#fff;font:inherit}
 .duty-roster-search input{width:340px!important;max-width:340px!important;flex:0 1 340px!important}
 @media(max-width:640px){.duty-calendar-date-control{width:180px!important;max-width:180px!important;flex-basis:180px!important}.duty-calendar-toolbar .duty-calendar-date-control{flex:0 0 180px!important}.duty-roster-search select,.duty-roster-search input{width:100%!important;max-width:100%!important;flex-basis:100%!important}}
+
+/* Staff workflows: shared semantic colours and compact review panels. */
+button.samara-action-save{background:#167347!important;border-color:#105b37!important;color:#fff!important;box-shadow:0 4px 12px rgba(22,115,71,.18)!important}
+button.samara-action-save:hover{background:#105b37!important}
+button.samara-action-danger{background:#b42318!important;border-color:#912018!important;color:#fff!important}
+button.samara-action-danger:hover{background:#912018!important}
+button.samara-action-selected{background:#a91360!important;border-color:#790c44!important;color:#fff!important}
+button.samara-action-save:focus-visible,button.samara-action-danger:focus-visible,button.samara-action-selected:focus-visible{outline:3px solid #183e61;outline-offset:3px}
+button.samara-action-save:disabled,button.samara-action-danger:disabled{opacity:.55;cursor:not-allowed}
+.staff-coverage,.staff-voice-results{padding:14px;margin:12px 0;border:1px solid #d5e2dd;border-radius:12px;background:#f4faf7;color:#193d30;overflow-wrap:anywhere}
+.staff-coverage-shifts{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.staff-coverage details{margin-top:8px}
+.staff-coverage summary{cursor:pointer;font-weight:700}
+.staff-copy-row{padding:10px 0;border-bottom:1px solid #ead9e2;overflow-wrap:anywhere}
+.staff-voice-results>div{padding:6px 0}
+
+button.samara-action-neutral{background:#f8e7ef!important;border-color:#e4bfd2!important;color:#751243!important;box-shadow:none!important}

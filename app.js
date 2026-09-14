@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.72';
+  const APP_VERSION = '2.12.73';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '14-Sep-2026 Compact leave rows and status filters';
+  const APP_BUILD_DATE = '14-Sep-2026 Staff workflow improvements and security safeguards';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -492,7 +492,19 @@ function initSamaraInaugurationInvitation(){
       return true;
     }catch(error){console.warn('System notification unavailable:',error);return false}
   }
-  const h = React.createElement;
+  function h(type,props,...children){
+    // Shared semantic button colours; selected controls always remain pink.
+    if(type==='button'&&props){
+      const text=children.flat(Infinity).filter(x=>typeof x==='string').join(' ').replace(/^[^A-Za-z]+/,'').trim();
+      let tone='';
+      if(props['aria-pressed']===true||props['aria-selected']===true)tone='samara-action-selected';
+      else if(/^(cancel|close)$/i.test(text))tone='samara-action-neutral';
+      else if(/^(delete|remove|reject|revoke|cancel assignment|cancel duty)\b/i.test(text))tone='samara-action-danger';
+      else if(/^(save|saving|create|creating|add|assign|update|updating|confirm copy|copy previous week|approve|submit)\b/i.test(text))tone='samara-action-save';
+      if(tone)props={...props,className:`${props.className||''} ${tone}`.trim()};
+    }
+    return React.createElement(type,props,...children);
+  }
   const BRAND_LOGO_SRC='./assets/samara-logo.png?v=20260814-final';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
   const BrandLogo=({className='samara-brand-logo',alt='Samara Assisted Living'})=>
@@ -1699,12 +1711,12 @@ function initSamaraInaugurationInvitation(){
     if(!value)return '—';
     const raw=String(value).trim();
     const dateOnly=raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if(dateOnly)return `${dateOnly[3]}:${dateOnly[2]}:${dateOnly[1]}`;
+    if(dateOnly)return `${dateOnly[3]} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(dateOnly[2])-1]} ${dateOnly[1]}`;
     const date=new Date(value);
     if(Number.isNaN(date.getTime()))return raw;
-    const parts=new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'2-digit',year:'numeric'}).formatToParts(date);
+    const parts=new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'}).formatToParts(date);
     const get=type=>parts.find(part=>part.type===type)?.value||'';
-    return `${get('day')}:${get('month')}:${get('year')}`;
+    return `${get('day')} ${get('month').slice(0,3)} ${get('year')}`;
   };
   const formatDateWithDayIN = value => {
     if(!value)return '—';
@@ -1715,13 +1727,13 @@ function initSamaraInaugurationInvitation(){
     const weekday=new Intl.DateTimeFormat('en-IN',{timeZone:dateOnly?'UTC':'Asia/Kolkata',weekday:'long'}).format(date);
     return `${formatDateIN(value)} – ${weekday}`;
   };
-  // Strict ERP date controls: the visible value is always DD:MM:YYYY.
+  // Strict ERP date controls: the visible value is always DD Mon YYYY.
   // A transparent native picker is retained only for calendar selection; its locale-specific
   // MM/DD/YYYY rendering is never shown to the user. Database values remain YYYY-MM-DD.
   const StrictDateInput = props => {
     const {value,onChange,style,...nativeProps}=props||{};
     return h('div',{style:{position:'relative',width:'100%'}},
-      h('input',{type:'text',readOnly:true,value:value?formatDateIN(value):'',placeholder:'DD:MM:YYYY',style:{...(style||{}),width:'100%',paddingRight:'48px',cursor:'pointer'}}),
+      h('input',{type:'text',readOnly:true,value:value?formatDateIN(value):'',placeholder:'DD Mon YYYY',style:{...(style||{}),width:'100%',paddingRight:'48px',cursor:'pointer'}}),
       h('span',{'aria-hidden':'true',style:{position:'absolute',right:'15px',top:'50%',transform:'translateY(-50%)',pointerEvents:'none',fontSize:'18px'}},'▾'),
       h('input',{...nativeProps,type:'date',value:value||'',onChange,tabIndex:-1,'aria-label':nativeProps['aria-label']||'Choose date',style:{position:'absolute',inset:0,width:'100%',height:'100%',opacity:0,cursor:'pointer'}})
     );
@@ -22813,6 +22825,13 @@ function ShiftManagement({profile}){
     const [patients,setPatients]=React.useState([]);
     const [loading,setLoading]=React.useState(true);
     const [message,setMessage]=React.useState('');
+    const [loadError,setLoadError]=React.useState('');
+    const loadGeneration=React.useRef(0);
+    const [copyPreview,setCopyPreview]=React.useState(null);
+    const [copyBusy,setCopyBusy]=React.useState(false);
+    const saveLock=React.useRef(false);
+    const [voiceFields,setVoiceFields]=React.useState([]);
+    const [voiceCandidates,setVoiceCandidates]=React.useState([]);
     const [staffSearch,setStaffSearch]=React.useState('');
     const [shiftFilter,setShiftFilter]=React.useState('');
     const [statusFilter,setStatusFilter]=React.useState('');
@@ -22836,15 +22855,18 @@ function ShiftManagement({profile}){
     const [rangeEnd,setRangeEnd]=React.useState(()=>addDaysISO(mondayOfWeek(todayISOIndia()),6));
     const [calendarDate,setCalendarDate]=React.useState(()=>todayISOIndia());
     const dayCalendar=viewMode==='team';
-    function jumpWeek(offsetWeeks){
-      const newStart=addDaysISO(mondayOfWeek(rangeStart||todayISOIndia()),offsetWeeks*7);
-      setRangeStart(newStart);
-      setRangeEnd(addDaysISO(newStart,6));
+    function showDutyWeek(start){
+      if(dayCalendar)setCalendarDate(start);
+      else{setRangeStart(start);setRangeEnd(addDaysISO(start,6))}
     }
-    function resetToThisWeek(){
-      const start=mondayOfWeek(todayISOIndia());
-      setRangeStart(start);
-      setRangeEnd(addDaysISO(start,6));
+    function jumpWeek(offsetWeeks){
+      const displayed=dayCalendar?calendarDate:rangeStart;
+      showDutyWeek(addDaysISO(mondayOfWeek(displayed||todayISOIndia()),offsetWeeks*7));
+    }
+    function selectRelativeWeek(offsetWeeks){
+      // Presets are anchored to today, never to the currently displayed week.
+      const today=todayISOIndia();
+      showDutyWeek(dayCalendar&&offsetWeeks===0?today:addDaysISO(mondayOfWeek(today),offsetWeeks*7));
     }
     // Derive the selected state from the dates so manual changes stay in sync.
     const selectedWeekStart=dayCalendar?mondayOfWeek(calendarDate||todayISOIndia()):rangeStart;
@@ -22857,6 +22879,15 @@ function ShiftManagement({profile}){
       const active=weekOffset===offset;
       return h('button',{type:'button',className:`btn ${active?'btn-primary':'btn-secondary'}`,'aria-pressed':active,onClick,
         style:active?{background:'#a91360',color:'#fff',border:'2px solid #790c44',boxShadow:'0 0 0 3px rgba(169,19,96,.16)',fontWeight:800}:undefined},active?`✓ ${label}`:label);
+    }
+    function dutyWeekControls(){
+      return h('div',{role:'group','aria-label':'Choose or browse duty weeks',style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
+        h('button',{type:'button',className:'btn btn-secondary','aria-label':'Browse one week earlier',title:'Browse one week earlier',onClick:()=>jumpWeek(-1)},'←'),
+        weekNavigationButton('Previous Week',-1,()=>selectRelativeWeek(-1)),
+        weekNavigationButton('This Week',0,()=>selectRelativeWeek(0)),
+        weekNavigationButton('Next Week',1,()=>selectRelativeWeek(1)),
+        h('button',{type:'button',className:'btn btn-secondary','aria-label':'Browse one week later',title:'Browse one week later',onClick:()=>jumpWeek(1)},'→'),
+        h('small',{style:{flexBasis:'100%'}},'Week buttons are relative to today. Use the arrows to browse further weeks.'));
     }
     const selectedWeekNotice=h('div',{role:'status','aria-live':'polite',style:{padding:'12px 16px',margin:'12px 0',borderLeft:'5px solid #a91360',borderRadius:'10px',background:'#fce8f2',color:'#790c44'}},
       h('strong',{style:{display:'block',fontSize:'17px'}},`Viewing: ${selectedWeekLabel}`),
@@ -22908,7 +22939,7 @@ function ShiftManagement({profile}){
     function closeDutyVoice(){
       dutyVoiceSessionRef.current++;
       stopDutyVoice();
-      setVoiceOpen(false);setVoiceMessage('');setVoiceHeard('');setVoiceProcessing(false);
+      setVoiceFields([]);setVoiceOpen(false);setVoiceMessage('');setVoiceHeard('');setVoiceProcessing(false);
     }
     React.useEffect(()=>{if(!showForm)closeDutyVoice()},[showForm]);
     React.useEffect(()=>()=>{dutyVoiceSessionRef.current++;stopDutyVoice()},[]);
@@ -22920,7 +22951,7 @@ function ShiftManagement({profile}){
     function normaliseVoiceWords(text){
       return String(text||'').toLowerCase().replace(/[.,!?;:'"()]/g,' ').replace(/\s+/g,' ').trim();
     }
-    function matchEmployeeFromVoice(text){
+    function employeeVoiceMatches(text){
       const normalise=value=>normaliseVoiceWords(value).replace(/[^\p{L}\p{M}\p{N}]+/gu,' ').trim();
       const words=` ${normalise(text)} `;
       const contains=value=>value&&words.includes(` ${value} `);
@@ -22931,7 +22962,10 @@ function ShiftManagement({profile}){
         return {person,score};
       }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score);
       // Never choose arbitrarily between staff with the same spoken name.
-      return ranked.length&&(!ranked[1]||ranked[0].score>ranked[1].score)?ranked[0].person:null;
+      return ranked.length?ranked.filter(x=>x.score===ranked[0].score).map(x=>x.person):[];
+    }
+    function matchEmployeeFromVoice(text){
+      const matches=employeeVoiceMatches(text);return matches.length===1?matches[0]:null;
     }
     function matchShiftFromVoice(text){
       const t=` ${normaliseVoiceWords(text)} `;
@@ -22981,10 +23015,18 @@ function ShiftManagement({profile}){
     function applyDutyVoiceCommand(text,rawSpoken){
       const combined=`${text||''} ${rawSpoken||''}`.trim();
       if(!combined){setVoiceMessage('No usable speech was captured. Please try again.');return}
-      const matchedEmployee=matchEmployeeFromVoice(combined);
+      const candidates=employeeVoiceMatches(combined);
+      setVoiceCandidates(candidates.length>1?candidates:[]);
+      const matchedEmployee=candidates.length===1?candidates[0]:null;
       const matchedShift=matchShiftFromVoice(combined);
       const matchedDutyType=matchDutyTypeFromVoice(combined);
       const matchedWeek=matchWeekStartFromVoice(combined);
+      setVoiceFields([
+        {label:'Employee',value:matchedEmployee?formalName(matchedEmployee):'',state:matchedEmployee?'Recognised':candidates.length>1?'Choose employee — unchanged':'Not recognised — unchanged'},
+        {label:'Shift',value:matchedShift,state:matchedShift?'Recognised':'Not recognised — unchanged'},
+        {label:'Duty Type',value:matchedDutyType,state:matchedDutyType?'Recognised':'Not recognised — unchanged'},
+        {label:'Week',value:matchedWeek?formatDateIN(matchedWeek):'',state:matchedWeek?'Recognised':'Not recognised — unchanged'}
+      ]);
       if(!matchedEmployee&&!matchedShift&&!matchedDutyType&&!matchedWeek){
         setVoiceMessage(`Heard: "${combined}". No matching employee, shift, duty type or week was recognised. Please try again or fill the form manually.`);
         setVoiceHeard(combined);
@@ -23083,30 +23125,43 @@ function ShiftManagement({profile}){
       }catch(_){startDutyVoiceRecorder(lang,token)}
     }
 
-    async function load(){
-      setLoading(true);setMessage('');
-      const [a,e,p,l]=await Promise.all([
-        client.from('duty_assignments').select('*').order('duty_date',{ascending:false}).order('created_at',{ascending:false}).limit(500),
-        client.from('profiles').select('id,auth_user_id,title,full_name,employee_id,role,department,designation,reporting_superior_id,is_active').order('full_name'),
-        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').order('full_name'),
-        client.from('absence_requests').select('*').in('status',['approved','pending_superior','pending_management']).limit(1000)
-      ]);
-      if(a.error){setMessage(a.error.message||'Unable to load duty assignments.');setAssignments([])}
-      else setAssignments(a.data||[]);
-      if(!e.error)setStaff((e.data||[]).filter(x=>x.is_active!==false&&!isNonPayrollManagementAccount(x)));
-      if(!p.error)setPatients(p.data||[]);
-      if(!l.error)setAbsenceRows(l.data||[]);
-      setLoading(false);
+    async function allDutyPages(makeQuery){
+      const rows=[];
+      for(let page=0;;page++){
+        const result=await makeQuery().range(page*500,page*500+499);
+        if(result.error)throw result.error;
+        rows.push(...(result.data||[]));
+        if((result.data||[]).length<500)return rows;
+      }
     }
-
+    async function readDutyRange(start,end){
+      return allDutyPages(()=>client.from('duty_assignments').select('*').gte('duty_date',start).lte('duty_date',end).order('id'));
+    }
+    async function load(){
+      const generation=++loadGeneration.current;
+      setLoading(true);setLoadError('');
+      try{
+        const start=dayCalendar?mondayOfWeek(calendarDate||todayISOIndia()):rangeStart;
+        const end=dayCalendar?addDaysISO(start,6):rangeEnd;
+        if(!start||!end||start>end)throw new Error('Select a valid start and end date.');
+        const [a,e,p,l]=await Promise.all([
+          readDutyRange(start,end),
+          allDutyPages(()=>client.from('profiles').select('id,auth_user_id,title,full_name,employee_id,role,department,designation,reporting_superior_id,is_active').order('id')),
+          allDutyPages(()=>client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').order('id')),
+          allDutyPages(()=>client.from('absence_requests').select('*').in('status',['approved','pending_superior','pending_management']).order('id'))
+        ]);
+        if(generation!==loadGeneration.current)return;
+        setAssignments(a);setStaff(e.filter(x=>x.is_active!==false&&!isNonPayrollManagementAccount(x)));setPatients(p);setAbsenceRows(l);
+      }catch(error){if(generation===loadGeneration.current){setLoadError(error.message||'Unable to load duties.');setAssignments([])}}
+      finally{if(generation===loadGeneration.current)setLoading(false)}
+    }
     React.useEffect(()=>{
       load();
       const channel=client.channel('duty-assignment-live')
         .on('postgres_changes',{event:'*',schema:'public',table:'duty_assignments'},load)
-        .on('postgres_changes',{event:'*',schema:'public',table:'absence_requests'},load)
-        .subscribe();
-      return()=>client.removeChannel(channel);
-    },[]);
+        .on('postgres_changes',{event:'*',schema:'public',table:'absence_requests'},load).subscribe();
+      return()=>{loadGeneration.current++;client.removeChannel(channel)};
+    },[rangeStart,rangeEnd,calendarDate,dayCalendar]);
 
     const isNursingTeamMember=React.useCallback(row=>{
       const role=String(row?.role||'').trim().toLowerCase();
@@ -23152,8 +23207,74 @@ function ShiftManagement({profile}){
         .in('employee_id',employeeIdentityIds(employeeId))
         .in('status',['approved','pending_superior','pending_management']);
       if(error)return {conflict:null,error};
-      const conflict=(data||[]).find(item=>leaveRowMatchesDate(item,dutyDate))||null;
+      const matches=(data||[]).filter(item=>leaveRowMatchesDate(item,dutyDate));
+      const conflict=matches.find(item=>item.status==='approved')||matches[0]||null;
       return {conflict,error:null};
+    }
+
+    function coveragePanel(rows,start,end){
+      const active=rows.filter(row=>row.status!=='Cancelled'&&staffScope.some(p=>employeeIdentityIds(p.id).includes(String(row.employee_id))));
+      const working=active.filter(row=>!row.is_weekly_off&&row.status!=='Weekly Off');
+      const unique=items=>new Set(items.map(row=>staffFor(row.employee_id).id||row.employee_id)).size;
+      const unassigned=staffScope.filter(p=>!active.some(row=>employeeIdentityIds(p.id).includes(String(row.employee_id))));
+      const approved=absenceRows.filter(l=>l.status==='approved'&&staffScope.some(p=>employeeIdentityIds(p.id).includes(String(l.employee_id)))&&(l.request_type==='Permission'?l.permission_date>=start&&l.permission_date<=end:l.from_date<=end&&l.to_date>=start));
+      const groups=new Map();active.forEach(row=>{const key=`${staffFor(row.employee_id).id||row.employee_id}/${row.duty_date}`;groups.set(key,[...(groups.get(key)||[]),row])});
+      const overlaps=[...groups.values()].filter(rows=>rows.length>1);
+      return h('div',{className:'staff-coverage'},h('strong',null,`Roster coverage · ${formatDateIN(start)} to ${formatDateIN(end)}`),
+        h('p',null,`${unique(working)} staff assigned to working duties · ${unassigned.length} employees without any assignment · ${unique(approved)} staff with approved leave / permission · ${overlaps.length} employee-days with multiple assignments`),
+        h('div',{className:'staff-coverage-shifts'},[...new Set(working.map(r=>r.shift))].map(shift=>h('span',{key:shift,className:'badge'},`${shift}: ${unique(working.filter(r=>r.shift===shift))} staff`))),
+        h('small',null,'Counts are unique employees per shift across this period, not staffing targets.'),
+        unassigned.length>0&&h('details',null,h('summary',null,'Unassigned employees'),unassigned.map(p=>h('div',{key:p.id},formalName(p)))),
+        approved.length>0&&h('details',null,h('summary',null,'Approved leave / permission'),approved.map(l=>h('div',{key:l.id},`${formalName(staffFor(l.employee_id))}: ${formatDateIN(l.permission_date||l.from_date)} to ${formatDateIN(l.permission_date||l.to_date)}`))),
+        overlaps.length>0&&h('details',null,h('summary',null,'Multiple assignments to review'),overlaps.map((rows,i)=>h('div',{key:i},`${formalName(staffFor(rows[0].employee_id))} · ${formatDateIN(rows[0].duty_date)} · ${rows.map(r=>r.shift).join(', ')}`))));
+    }
+    const [coverageRetry,setCoverageRetry]=React.useState(0);
+    const [formCoverage,setFormCoverage]=React.useState({loading:false,rows:[],error:''});
+    React.useEffect(()=>{
+      let active=true;if(!showForm)return;
+      const start=form.week_start;if(!start){setFormCoverage({loading:false,rows:[],error:'Select a week.'});return}
+      setFormCoverage({loading:true,rows:[],error:''});
+      readDutyRange(start,addDaysISO(start,6)).then(rows=>{if(active)setFormCoverage({loading:false,rows,error:''})}).catch(error=>{if(active)setFormCoverage({loading:false,rows:[],error:error.message||'Unable to load coverage.'})});
+      return()=>{active=false};
+    },[showForm,form.week_start,assignments,coverageRetry]);
+    async function prepareCopy(target=selectedWeekStart){
+      if(!canManage||copyBusy)return;
+      setCopyBusy(true);
+      try{
+        if(!target||target!==mondayOfWeek(target))throw new Error('Select a complete Monday–Sunday week before copying.');
+        const end=addDaysISO(target,6);if(end<todayISOIndia())throw new Error('Select the current or a future week.');
+        const sourceStart=addDaysISO(target,-7);
+        const [source,existing,leave]=await Promise.all([readDutyRange(sourceStart,addDaysISO(sourceStart,6)),readDutyRange(target,end),allDutyPages(()=>client.from('absence_requests').select('*').eq('status','approved').order('id'))]);
+        const proposed=source.filter(r=>r.status!=='Cancelled'&&staffScope.some(p=>employeeIdentityIds(p.id).includes(String(r.employee_id)))).map(row=>{
+          const date=addDaysISO(row.duty_date,7);const employee=staffFor(row.employee_id);const ids=employeeIdentityIds(employee.id);
+          const reasons=[];
+          if(date<todayISOIndia())reasons.push('Past date');
+          if(existing.some(r=>r.status!=='Cancelled'&&ids.includes(String(r.employee_id))&&r.duty_date===date))reasons.push('Already assigned');
+          if(leave.some(l=>ids.includes(String(l.employee_id))&&leaveRowMatchesDate(l,date)))reasons.push('Approved leave / permission');
+          if(source.filter(r=>r.status!=='Cancelled'&&ids.includes(String(r.employee_id))&&r.duty_date===row.duty_date).length>1)reasons.push('Multiple source assignments');
+          return {row,date,employee,reasons};
+        });
+        setCopyPreview({target,sourceStart,proposed});
+      }catch(error){showToast('error',error.message||'Unable to prepare copy.')}finally{setCopyBusy(false)}
+    }
+    async function confirmCopy(){
+      if(copyBusy||!copyPreview||saveLock.current)return;
+      saveLock.current=true;setCopyBusy(true);
+      try{
+        const ready=copyPreview.proposed.filter(p=>!p.reasons.length);if(!ready.length)throw new Error('No conflict-free assignments to copy.');
+        const current=await readDutyRange(copyPreview.target,addDaysISO(copyPreview.target,6));
+        for(const p of ready){
+          if(current.some(r=>r.status!=='Cancelled'&&employeeIdentityIds(p.employee.id).includes(String(r.employee_id))&&r.duty_date===p.date))throw new Error('Roster changed. Close and reopen the preview before copying.');
+          const check=await findDutyLeaveConflict(p.employee.id,p.date);if(check.error)throw check.error;
+          if(check.conflict?.status==='approved')throw new Error('Leave changed. Close and reopen the preview before copying.');
+        }
+        const {data:{user},error:authError}=await client.auth.getUser();if(authError||!user)throw new Error('Sign in again before copying.');
+        const now=new Date().toISOString();
+        const payload=ready.map(({row,date,employee})=>({employee_id:employee.id,duty_date:date,week_start:copyPreview.target,weekly_off_day:row.weekly_off_day??null,shift:row.shift,duty_type:row.duty_type,patient_id:row.patient_id||null,ward_room:row.ward_room||null,duty_task:row.duty_task||null,remarks:row.remarks||null,is_weekly_off:!!row.is_weekly_off||row.status==='Weekly Off',status:row.is_weekly_off||row.status==='Weekly Off'?'Weekly Off':'Assigned',assigned_by:user.id,assigned_by_name:formalName(profile),assigned_by_role:profile.role,assigned_at:now,updated_at:now}));
+        const {error}=await client.from('duty_assignments').insert(payload);if(error)throw error;
+        writeAuditEvent('Previous Week Copied','Duty Assignment',null,{week_start:copyPreview.target,count:payload.length},'Success');
+        setCopyPreview(null);showToast('success',`${payload.length} assignments copied. Conflicting dates were skipped.`);await load();
+      }catch(error){showToast('error',error.message||'Copy failed.')}finally{saveLock.current=false;setCopyBusy(false)}
     }
 
     const visibleAssignments=React.useMemo(()=>{
@@ -23169,7 +23290,7 @@ function ShiftManagement({profile}){
     },[assignments,rangeStart,rangeEnd,calendarDate,dayCalendar,canManage,fullDutyControl,staffScopeIds,profile]);
 
     function openCreate(){
-      setEmployeeSearch('');
+      setVoiceCandidates([]);setEmployeeSearch('');
       setEditing(null);
       const today=todayISOIndia();
       const weekStart=mondayOfWeek((today>=rangeStart&&today<=rangeEnd)?today:rangeStart);
@@ -23178,16 +23299,17 @@ function ShiftManagement({profile}){
       setShowForm(true);
     }
     function openEdit(row){
-      setEmployeeSearch('');
+      setVoiceCandidates([]);setEmployeeSearch('');
       setEditing(row);
-      setForm({...emptyForm,...row,status:effectiveDutyStatus(row),week_start:row.week_start||mondayOfWeek(row.duty_date),weekly_off:row.weekly_off_day||'None',patient_id:row.patient_id||'',ward_room:row.ward_room||'',duty_task:row.duty_task||'',remarks:row.remarks||''});
+      setForm({...emptyForm,...row,status:effectiveDutyStatus(row),week_start:row.week_start||mondayOfWeek(row.duty_date),weekly_off:row.weekly_off_day??'None',patient_id:row.patient_id||'',ward_room:row.ward_room||'',duty_task:row.duty_task||'',remarks:row.remarks||''});
       closeDutyVoice();
       setShowForm(true);
     }
 
     async function save(e){
       e.preventDefault();
-      if(!canManage)return;
+      if(!canManage||saveLock.current)return;
+      if(voiceCandidates.length){showToast('error','Open Voice Assistant and choose a matching employee, or select an employee manually before saving.');return}
       if(!staffScope.some(person=>person.id===form.employee_id)){showToast('error','Please select the staff member to assign.');return}
       if(!form.duty_date&&!form.week_start){showToast('error','Please select the week starting date.');return}
       const weekStart=mondayOfWeek(form.week_start||form.duty_date);
@@ -23195,16 +23317,21 @@ function ShiftManagement({profile}){
       if(weekDates[6]<todayISOIndia()){showToast('error','The selected week has already ended. Please select the current or a future week.');return}
       const offIndex=form.weekly_off==='None'?null:Number(form.weekly_off);
       const employeeIds=new Set(employeeIdentityIds(form.employee_id));
-      const existingDates=new Set(assignments.filter(row=>employeeIds.has(String(row.employee_id))&&weekDates.includes(row.duty_date)).map(row=>row.duty_date));
+      saveLock.current=true;setBusy(true);
+      try{
+      const currentAssignments=await readDutyRange(weekStart,addDaysISO(weekStart,6));
+      const existingDates=new Set(currentAssignments.filter(row=>row.status!=='Cancelled'&&row.id!==editing?.id&&employeeIds.has(String(row.employee_id))&&weekDates.includes(row.duty_date)).map(row=>row.duty_date));
       const missingDates=weekDates.filter(date=>!existingDates.has(date));
       const retainedDates=weekDates.filter(date=>existingDates.has(date));
       if(!editing&&missingDates.length===0){showToast('warning',`Weekly duty already exists for ${formalName(staffFor(form.employee_id))||'this employee'} on all dates from ${formatDateIN(weekStart)} to ${formatDateIN(weekDates[6])}. Open an existing row to modify it.`);return}
       setBusy(true);
-      const workingDates=missingDates.filter(date=>date!==weekDates[offIndex]);
+      if(editing&&existingDates.has(form.duty_date))throw new Error('An assignment already exists for this employee and date.');
+      const workingDates=editing?[form.duty_date]:missingDates.filter(date=>date!==weekDates[offIndex]);
       const checks=await Promise.all(workingDates.map(date=>findDutyLeaveConflict(form.employee_id,date)));
       const failedCheck=checks.find(result=>result.error);
       if(failedCheck){setBusy(false);showToast('error',`Leave conflict check failed: ${failedCheck.error.message||'Unable to verify leave / permission records. The weekly duty was not assigned.'}`);return}
       const leaveConflicts=checks.map((result,index)=>result.conflict?{date:workingDates[index],conflict:result.conflict}:null).filter(Boolean);
+      if(leaveConflicts.some(item=>item.conflict.status==='approved'))throw new Error('Approved leave / permission overlaps this assignment. Change the dates or employee before saving.');
       const leaveWarning=leaveConflicts.length?leaveConflicts.map(item=>`${leaveStatusLabel(item.conflict.status)} on ${formatDateIN(item.date)}`).join('; '):'';
       const {data:{user}}=await client.auth.getUser();
       const actionNow=new Date().toISOString();
@@ -23229,6 +23356,7 @@ function ShiftManagement({profile}){
         duty_type:form.duty_type,
         status:form.status
       },'Success');
+      }catch(error){showToast('error',error.message||'Unable to save duty assignment.')}finally{saveLock.current=false;setBusy(false)}
     }
 
     async function updateStatus(row,status){
@@ -23352,7 +23480,7 @@ function ShiftManagement({profile}){
     });
     const rosterNoResults=filteredRosterStaff.length===0?h('div',{className:'duty-roster-no-results'},staffSearchReady?'No staff or duty records match this search.':'No staff records found.'):null;
     const staffRoster=()=>teamMode?h('div',{className:'duty-roster-wrap'},
-      h('div',{className:'duty-calendar-toolbar'},h('label',null,'Select date'),h('div',{className:'duty-calendar-date-control'},h(StrictDateInput,{value:calendarDate,onChange:e=>setCalendarDate(e.target.value)})),weekNavigationButton('‹ Previous Week',-1,()=>setCalendarDate(addDaysISO(mondayOfWeek(calendarDate||todayISOIndia()),-7))),weekNavigationButton('This Week',0,()=>setCalendarDate(todayISOIndia())),weekNavigationButton('Next Week ›',1,()=>setCalendarDate(addDaysISO(mondayOfWeek(calendarDate||todayISOIndia()),7)))),
+      h('div',{className:'duty-calendar-toolbar'},h('label',null,'Select date'),h('div',{className:'duty-calendar-date-control'},h(StrictDateInput,{value:calendarDate,onChange:e=>setCalendarDate(e.target.value)})),dutyWeekControls()),
       assignmentSearch,
       simpleAssignmentList
     ):null;
@@ -23429,22 +23557,31 @@ function ShiftManagement({profile}){
         title:teamMode?scheduleTitle:'My Duty',
         subtitle:scheduleSubtitle,
         actions:h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
-          !dayCalendar&&weekNavigationButton('‹ Prev Week',-1,()=>jumpWeek(-1)),
+          !dayCalendar&&dutyWeekControls(),
           !dayCalendar&&h(StrictDateInput,{value:rangeStart,onChange:e=>setRangeStart(e.target.value)}),
           !dayCalendar&&h('span',{style:{opacity:.65,fontSize:'12px'}},'to'),
           !dayCalendar&&h(StrictDateInput,{value:rangeEnd,onChange:e=>setRangeEnd(e.target.value)}),
-          !dayCalendar&&weekNavigationButton('Next Week ›',1,()=>jumpWeek(1)),
-          !dayCalendar&&weekNavigationButton('This Week',0,resetToThisWeek),
           dayCalendar&&h('strong',null,`Selected date: ${formatDateWithDayIN(calendarDate)}`),
+          canManage&&h('button',{type:'button',className:'btn btn-secondary',disabled:copyBusy||loading||!!loadError||!isWholeWeek,onClick:()=>prepareCopy()},copyBusy?'Preparing…':'Copy Previous Week'),
           canManage&&h('button',{type:'button',className:'btn duty-create-button',style:{background:'#167347',color:'#fff',border:'1px solid #105b37',boxShadow:'0 4px 12px rgba(22,115,71,.20)'},onClick:openCreate},'＋ Assign Duty')
         )
       },
         selectedWeekNotice,
+        loading&&h('p',{role:'status'},'Loading duties…'),
+        loadError&&h('div',{role:'alert',className:'message error'},`Unable to load duties: ${loadError}`,h('button',{type:'button',className:'btn btn-secondary',onClick:load},'Retry')),
+        canManage&&!loading&&!loadError&&coveragePanel(assignments,selectedWeekStart,selectedWeekEnd),
         message&&h('div',{className:'message error'},message),
       canManage&&h('p',{className:'small-note'},fullDutyControl?'Showing all active employees.':'Showing Nursing, Caregiving and Nursing Supervisor staff. Nursing Manager duties are assigned by Admin/Director.')
       ),
-      teamMode? h(Section,{title:dayCalendar?`${scheduleTitle} — ${formatDateWithDayIN(calendarDate)}`:`${scheduleTitle} — ${formatDateWithDayIN(rangeStart)} to ${formatDateWithDayIN(rangeEnd)}`,subtitle:scheduleSubtitle},staffRoster()):h(Section,{title:`${scheduleTitle} — ${formatDateWithDayIN(rangeStart)} to ${formatDateWithDayIN(rangeEnd)} (${visibleAssignments.length})`,subtitle:scheduleSubtitle},assignmentSearch,simpleAssignmentList),
-      !loading&&!message&&!rows.length&&h('div',{className:'card panel'},h('p',{className:'small-note'},canManage?'No duty has been assigned for this period yet.':'No duty has been assigned to you for this period.')),
+      !loading&&!loadError&&(teamMode? h(Section,{title:dayCalendar?`${scheduleTitle} — ${formatDateWithDayIN(calendarDate)}`:`${scheduleTitle} — ${formatDateWithDayIN(rangeStart)} to ${formatDateWithDayIN(rangeEnd)}`,subtitle:scheduleSubtitle},staffRoster()):h(Section,{title:`${scheduleTitle} — ${formatDateWithDayIN(rangeStart)} to ${formatDateWithDayIN(rangeEnd)} (${visibleAssignments.length})`,subtitle:scheduleSubtitle},assignmentSearch,simpleAssignmentList)),
+      !loading&&!loadError&&!message&&!rows.length&&h('div',{className:'card panel'},h('p',{className:'small-note'},canManage?'No duty has been assigned for this period yet.':'No duty has been assigned to you for this period.')),
+      copyPreview&&h('div',{className:'modal-backdrop'},h('div',{className:'card modal',role:'dialog','aria-modal':true,'aria-label':'Copy previous week preview',style:{maxHeight:'90vh',overflow:'auto'}},
+        h('h3',null,'Copy Previous Week — Preview'),
+        h('p',null,`${formatDateIN(copyPreview.sourceStart)} → ${formatDateIN(copyPreview.target)}. Only conflict-free rows will be copied; acknowledgements reset to Assigned.`),
+        !copyPreview.proposed.length&&h('p',null,'No assignments in the previous week.'),
+        copyPreview.proposed.map((p,i)=>h('div',{key:i,className:'staff-copy-row'},h('strong',null,formalName(p.employee)),` · ${formatDateIN(p.date)} · ${p.row.shift} · ${p.row.duty_type} · ${p.reasons.length?'Skip: '+p.reasons.join('; '):'Ready to copy'}`)),
+        h('button',{type:'button',className:'btn btn-secondary',disabled:copyBusy,onClick:()=>setCopyPreview(null)},'Cancel'),
+        h('button',{type:'button',className:'btn btn-primary',disabled:copyBusy||!copyPreview.proposed.some(p=>!p.reasons.length),onClick:confirmCopy},copyBusy?'Copying…':`Confirm Copy (${copyPreview.proposed.filter(p=>!p.reasons.length).length})`))),
       selectedDuty&&(()=>{
         const emp=staffFor(selectedDuty.employee_id);
         const selectedLeaveOnly=Boolean(selectedDuty.__leaveRecord);
@@ -23506,22 +23643,25 @@ function ShiftManagement({profile}){
                 h('button',{type:'button',className:'btn btn-secondary',disabled:voiceProcessing,onClick:()=>startDutyVoice('en-IN')},'🎤 Speak English')
               ),
             voiceHeard&&h('div',{className:'samara-voice-transcript'},h('small',null,'Heard'),h('div',null,voiceHeard)),
+            voiceFields.length>0&&h('div',{className:'staff-voice-results'},voiceFields.map(f=>h('div',{key:f.label},h('strong',null,f.label),` · ${f.state}${f.value?' · '+f.value:''}`))),
+            voiceCandidates.length>0&&h('div',{className:'field'},h('label',{htmlFor:'voice-employee-choice'},'Multiple employees matched — choose one'),h('select',{id:'voice-employee-choice',value:'',onChange:e=>{const person=voiceCandidates.find(p=>p.id===e.target.value);if(!person)return;setForm(current=>({...current,employee_id:person.id}));setEmployeeSearch('');setVoiceCandidates([]);setVoiceFields(fields=>fields.map(f=>f.label==='Employee'?{label:'Employee',state:'Selected manually',value:formalName(person)}:f))}},h('option',{value:''},'Choose employee'),voiceCandidates.map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)} · ${p.employee_id||p.id}`)))),
             voiceMessage&&h('div',{className:'samara-voice-message',role:'status','aria-live':'polite'},voiceMessage),
             h('small',null,'Example: Priya, night shift, medication rounds, next week. / பிரியா, இரவு, மருந்து, அடுத்த வாரம்.'),
             h('label',{htmlFor:'duty-voice-review'},'Review or type a command'),
             h('textarea',{id:'duty-voice-review',rows:2,value:voiceHeard,disabled:voiceListening||voiceProcessing,onChange:e=>setVoiceHeard(e.target.value)}),
             h('button',{type:'button',className:'btn btn-secondary',disabled:voiceListening||voiceProcessing||!voiceHeard.trim(),onClick:()=>applyDutyVoiceCommand(voiceHeard,'')},'Apply Command')
           ),
+          formCoverage.loading?h('p',{role:'status'},'Loading roster coverage…'):formCoverage.error?h('div',{role:'alert'},formCoverage.error,h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCoverageRetry(n=>n+1)},'Retry Coverage')):form.week_start&&coveragePanel(formCoverage.rows,form.week_start,addDaysISO(form.week_start,6)),
           h('div',{className:'modal-grid'},
             h('div',{className:'field duty-employee-selector'},
               h('label',{htmlFor:'duty-employee-search'},'Search Employee'),
               h('input',{id:'duty-employee-search',type:'search',value:employeeSearch,placeholder:'Name, employee ID, role or department',autoComplete:'off',onChange:e=>setEmployeeSearch(e.target.value)}),
               h('label',{htmlFor:'duty-employee-select'},'Staff Member'),
-              h('select',{id:'duty-employee-select',required:true,value:form.employee_id,onChange:e=>setForm(current=>({...current,employee_id:e.target.value}))},
+              h('select',{id:'duty-employee-select',required:true,value:form.employee_id,onChange:e=>{setForm(current=>({...current,employee_id:e.target.value}));setVoiceCandidates([]);setVoiceFields(fields=>fields.map(f=>f.label==='Employee'?{label:'Employee',state:'Selected manually',value:formalName(staffFor(e.target.value))}:f))}},
                 h('option',{value:''},'Select employee'),
                 staffScope.filter(person=>person.id===form.employee_id||normaliseVoiceWords(employeeSearch).split(' ').every(word=>normaliseVoiceWords([formalName(person),person.employee_id,person.role,person.department,person.designation].join(' ')).includes(word))).map(person=>h('option',{key:person.id,value:person.id},`${formalName(person)} · ${person.employee_id||'No ID'} · ${person.role||''}`))),
               h('small',{role:'status'},staffScope.some(person=>normaliseVoiceWords(employeeSearch).split(' ').every(word=>normaliseVoiceWords([formalName(person),person.employee_id,person.role,person.department,person.designation].join(' ')).includes(word)))?'Filter the list, then select an employee.':'No matching employees. Any previously selected employee is retained.')),
-            h('div',{className:'field'},h('label',null,editing?'Duty Date':'Week Starting (Monday)'),h(StrictDateInput,{value:editing?form.duty_date:form.week_start,min:editing?todayISOIndia():mondayOfWeek(todayISOIndia()),onChange:e=>setForm({...form,duty_date:editing?e.target.value:form.duty_date,week_start:editing?form.week_start:(e.target.value?mondayOfWeek(e.target.value):'')})})),
+            h('div',{className:'field'},h('label',null,editing?'Duty Date':'Week Starting (Monday)'),h(StrictDateInput,{value:editing?form.duty_date:form.week_start,min:editing?todayISOIndia():mondayOfWeek(todayISOIndia()),onChange:e=>setForm({...form,duty_date:editing?e.target.value:form.duty_date,week_start:e.target.value?mondayOfWeek(e.target.value):''})})),
             !editing&&h('div',{className:'field'},h('label',null,'Weekly Off'),h('select',{value:form.weekly_off,onChange:e=>setForm({...form,weekly_off:e.target.value})},h('option',{value:'None'},'No weekly off'),['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map((day,index)=>h('option',{key:day,value:String(index)},day)))),
             h('div',{className:'field'},h('label',null,'Shift'),h('select',{value:form.shift,onChange:e=>setForm({...form,shift:e.target.value})},SHIFT_OPTIONS.map(x=>h('option',{key:x,value:x},x)))),
             h('div',{className:'field'},h('label',null,'Duty Type'),h('select',{value:form.duty_type,onChange:e=>setForm({...form,duty_type:e.target.value})},DUTY_TYPE_OPTIONS.map(x=>h('option',{key:x,value:x},x)))),
@@ -23531,7 +23671,7 @@ function ShiftManagement({profile}){
             h('div',{className:'field span-2'},h('label',null,'Task Details / Instructions'),h('textarea',{rows:3,value:form.duty_task,onChange:e=>setForm({...form,duty_task:e.target.value}),placeholder:'Specific duty instructions for this assignment'})),
             h('div',{className:'field span-2'},h('label',null,'Remarks (optional)'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value})}))
           ),
-          h('div',{className:'actions',style:{display:'flex',gap:'8px',flexWrap:'nowrap',justifyContent:'stretch',width:'100%'}},h('button',{type:'button',className:'btn btn-secondary',style:{flex:'1 1 0',minWidth:0},onClick:()=>{closeDutyVoice();setShowForm(false)}},'Cancel'),h('button',{className:'btn btn-primary',style:{flex:'1 1 0',minWidth:0},disabled:busy},busy?'Saving…':editing?'Update Assignment':'Save Assignment'),h('button',{type:'button',className:'btn btn-secondary',style:{flex:'1 1 0',minWidth:0},onClick:()=>{closeDutyVoice();setShowForm(false)}},'Close'))
+          h('div',{className:'actions',style:{display:'flex',gap:'8px',flexWrap:'nowrap',justifyContent:'stretch',width:'100%'}},h('button',{type:'button',className:'btn btn-secondary',style:{flex:'1 1 0',minWidth:0},onClick:()=>{closeDutyVoice();setShowForm(false)}},'Cancel'),h('button',{className:'btn btn-primary',style:{flex:'1 1 0',minWidth:0},disabled:busy||formCoverage.loading||!!formCoverage.error},busy?'Saving…':editing?'Update Assignment':'Save Assignment'),h('button',{type:'button',className:'btn btn-secondary',style:{flex:'1 1 0',minWidth:0},onClick:()=>{closeDutyVoice();setShowForm(false)}},'Close'))
         )
       ),
       toast&&h('div',{className:`samara-toast ${toast.type}`,role:'status','aria-live':'polite'},
