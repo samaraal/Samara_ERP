@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.32';
+  const APP_VERSION = '2.12.33';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '14-Sep-2026 Staff weekly roster and three-character search';
+  const APP_BUILD_DATE = '14-Sep-2026 Startup fix for staff roster search';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -22409,7 +22409,6 @@ function RoomsBeds({profile,onNavigate}){
     const [showForm,setShowForm]=React.useState(false);
     const [editing,setEditing]=React.useState(null);
     const [busy,setBusy]=React.useState(false);
-    const [staffSearch,setStaffSearch]=React.useState('');
     const [toast,setToast]=React.useState(null);
     const toastTimer=React.useRef(null);
     const emptyForm={
@@ -22702,6 +22701,7 @@ function ShiftManagement({profile}){
     const [patients,setPatients]=React.useState([]);
     const [loading,setLoading]=React.useState(true);
     const [message,setMessage]=React.useState('');
+    const [staffSearch,setStaffSearch]=React.useState('');
     function mondayOfWeek(dateStr){
       const d=new Date(dateStr+'T00:00:00');
       const day=d.getDay();
