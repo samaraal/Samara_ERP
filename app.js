@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.71';
+  const APP_VERSION = '2.12.72';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7777,6 +7777,9 @@ Caring with Compassion. Living with Dignity.`;
   }
 
   function NursingMobileQuickActions({profile,page,onNavigate}){
+    // Keep the large clinical shortcut grid on the nursing dashboard only.
+    // Workflow pages need the full mobile viewport for their actual content.
+    if(page!=='Clinical Dashboard')return null;
     if(!CLINICAL_ROLES.includes(profile?.role)&&!isNursingManagerProfile(profile))return null;
     const actions=[
       ['Medicines','◐','Medication','Give / record'],
