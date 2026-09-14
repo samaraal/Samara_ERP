@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.54';
+  const APP_VERSION = '2.12.55';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1860,9 +1860,11 @@ function initSamaraInaugurationInvitation(){
     try{
       document.querySelectorAll('.samara-save-confirmation').forEach(node=>node.remove());
 
-      const success=type!=='error';
+      const success=type==='success';
+      const warning=type==='warning';
+      const tone=success?'success':warning?'warning':'error';
       const overlay=document.createElement('div');
-      overlay.className=`samara-save-confirmation ${success?'success':'error'}`;
+      overlay.className=`samara-save-confirmation ${tone}`;
       overlay.setAttribute('role',success?'status':'alert');
       overlay.setAttribute('aria-live',success?'polite':'assertive');
 
@@ -1891,8 +1893,10 @@ function initSamaraInaugurationInvitation(){
         padding:'14px',
         borderRadius:'17px',
         background:success
-          ?'linear-gradient(110deg,#7b1747,#a80d4f,#c41465)'
-          :'linear-gradient(110deg,#a7192b,#c9293c,#df4050)',
+          ?'linear-gradient(110deg,#087f5b,#0b9b73,#17b978)'
+          :warning
+            ?'linear-gradient(110deg,#9a5b00,#c47b00,#e0a51b)'
+            :'linear-gradient(110deg,#a7192b,#c9293c,#df4050)',
         color:'#ffffff',
         border:'2px solid rgba(255,255,255,.50)',
         boxShadow:'0 18px 48px rgba(0,0,0,.30)',
@@ -1915,10 +1919,10 @@ function initSamaraInaugurationInvitation(){
       const copy=document.createElement('div');
       Object.assign(copy.style,{display:'grid',gap:'4px',minWidth:'0'});
       const strong=document.createElement('strong');
-      strong.textContent=title||(success?'Saved successfully':'Unable to save');
+      strong.textContent=title||(success?'Success':warning?'Saved with warning':'Action failed');
       Object.assign(strong.style,{color:'#fff',fontSize:'17px',lineHeight:'1.15',fontWeight:'900'});
       const span=document.createElement('span');
-      span.textContent=text||(success?'Your entry has been saved successfully.':'Please check the entry and try again.');
+      span.textContent=text||(success?'Your entry has been saved successfully.':warning?'The entry was saved and requires review.':'Please check the entry and try again.');
       Object.assign(span.style,{color:'#fff',fontSize:'13px',lineHeight:'1.35',fontWeight:'600'});
       copy.append(strong,span);
 
@@ -21082,9 +21086,11 @@ function RoomsBeds({profile,onNavigate}){
     const toastTimer=React.useRef(null);
 
     function showToast(type,text){
-      showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
+      const savedWithWarning=type==='success'&&/saved with warning|saved for review|warning/i.test(String(text));
+      const noticeType=savedWithWarning?'warning':type;
+      showSamaraActionToast(noticeType,savedWithWarning?'Assignment saved with warning':type==='success'?'Success':'Action failed',text);
       clearTimeout(toastTimer.current);
-      setToast({type,text});
+      setToast({type:noticeType,text});
       toastTimer.current=setTimeout(()=>setToast(null),4500);
     }
     React.useEffect(()=>()=>clearTimeout(toastTimer.current),[]);
@@ -23164,7 +23170,7 @@ function ShiftManagement({profile}){
       ),
       toast&&h('div',{className:`samara-toast ${toast.type}`,role:'status','aria-live':'polite'},
         h('span',{className:'samara-toast-icon','aria-hidden':'true'},toast.type==='success'?'✓':'!'),
-        h('div',null,h('strong',null,toast.type==='success'?'Duty Assignment updated':'Update failed'),h('span',null,toast.text)),
+        h('div',null,h('strong',null,toast.type==='success'?'Success':toast.type==='warning'?'Assignment saved with warning':'Action failed'),h('span',null,toast.text)),
         h('button',{type:'button','aria-label':'Close notification',onClick:()=>setToast(null)},'×')
       )
     );
