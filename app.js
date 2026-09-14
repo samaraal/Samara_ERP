@@ -23436,7 +23436,7 @@ function ShiftManagement({profile}){
           !dayCalendar&&weekNavigationButton('Next Week ›',1,()=>jumpWeek(1)),
           !dayCalendar&&weekNavigationButton('This Week',0,resetToThisWeek),
           dayCalendar&&h('strong',null,`Selected date: ${formatDateWithDayIN(calendarDate)}`),
-          canManage&&h('button',{type:'button',className:'btn btn-primary',onClick:openCreate},'＋ Assign Duty')
+          canManage&&h('button',{type:'button',className:'btn duty-create-button',style:{background:'#167347',color:'#fff',border:'1px solid #105b37',boxShadow:'0 4px 12px rgba(22,115,71,.20)'},onClick:openCreate},'＋ Assign Duty')
         )
       },
         selectedWeekNotice,
