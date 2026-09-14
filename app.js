@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.52';
+  const APP_VERSION = '2.12.53';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22697,8 +22697,8 @@ function ShiftManagement({profile}){
     const canModify=fullDutyControl;
     const SHIFT_OPTIONS=['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Morning Shift (7 AM–2 PM)','Evening Shift (1 PM–7 PM)','General Shift (9 AM–6 PM)'];
     const DUTY_TYPE_OPTIONS=['Medication Rounds','Vitals Check','Wound Dressing','Mobility Assistance','Feeding Assistance','Bathing / Hygiene Care','Patient Escort','Documentation / Charting','Ward Round','General Duty','Other'];
-    const STATUS_ALL=['Assigned','Acknowledged','In Progress','Completed','Cancelled'];
-    const STATUS_STAFF=['Assigned','Acknowledged','In Progress','Completed'];
+    const STATUS_ALL=['Assigned','Acknowledged','Cancelled'];
+    const STATUS_STAFF=['Assigned','Acknowledged'];
     const [assignments,setAssignments]=React.useState([]);
     const [staff,setStaff]=React.useState([]);
     const [absenceRows,setAbsenceRows]=React.useState([]);
@@ -22761,7 +22761,7 @@ function ShiftManagement({profile}){
         client.from('duty_assignments').select('*').order('duty_date',{ascending:false}).order('created_at',{ascending:false}).limit(500),
         client.from('profiles').select('id,auth_user_id,title,full_name,employee_id,role,department,designation,reporting_superior_id,is_active').order('full_name'),
         client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').order('full_name'),
-        client.from('absence_requests').select('id,employee_id,employee_name,request_type,status,leave_type,from_date,to_date,permission_date,permission_from,permission_to').in('status',['approved','pending_superior','pending_management']).limit(1000)
+        client.from('absence_requests').select('*').in('status',['approved','pending_superior','pending_management']).limit(1000)
       ]);
       if(a.error){setMessage(a.error.message||'Unable to load duty assignments.');setAssignments([])}
       else setAssignments(a.data||[]);
@@ -23024,14 +23024,36 @@ function ShiftManagement({profile}){
       );
     });
     const dutyShiftOptions=['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Morning Shift (7 AM–2 PM)','Evening Shift (1 PM–7 PM)','General Shift (9 AM–6 PM)'];
-    const dutyStatusOptions=['Assigned','Acknowledged','In Progress','Completed','Cancelled','Weekly Off'];
+    const dutyStatusOptions=['Assigned','Acknowledged','Cancelled','Leave granted'];
+    const leaveCalendarRows=teamMode
+      ?absenceRows.filter(item=>item.status==='approved'&&leaveRowMatchesDate(item,calendarDate)).map(item=>{
+        const person=staffScope.find(person=>employeeIdentityIds(person.id).includes(String(item.employee_id)));
+        if(!person)return null;
+        const alreadyAssigned=visibleAssignments.some(row=>String(row.employee_id)===String(person.id)&&row.duty_date===calendarDate);
+        if(alreadyAssigned)return null;
+        return {id:`leave-${item.id}-${calendarDate}`,employee_id:person.id,duty_date:calendarDate,shift:'—',duty_type:item.request_type==='Permission'?'Permission':'Leave',status:'Leave granted',remarks:item.reason||item.leave_type||'Approved leave / permission',__leaveRecord:item};
+      }).filter(Boolean)
+      :[];
+    const calendarAssignmentRows=[...visibleAssignments,...leaveCalendarRows];
     const filteredAssignmentRows=visibleAssignments.filter(row=>{
+      const leaveConflict=loadedDutyLeaveConflict(row);
       if(shiftFilter&&row.shift!==shiftFilter)return false;
-      if(statusFilter&&row.status!==statusFilter)return false;
+      if(statusFilter==='Leave granted'&&leaveConflict?.status!=='approved')return false;
+      if(statusFilter&&statusFilter!=='Leave granted'&&row.status!==statusFilter)return false;
       if(!searchText)return true;
       if(!staffSearchReady)return true;
       const emp=staffFor(row.employee_id);
       const searchable=[formalName(emp),emp.full_name,emp.mobile,emp.mobile_number,emp.phone,emp.designation,emp.employee_id,row.duty_type,row.shift,row.status,row.ward_room,row.duty_task,row.remarks,row.patient_id?patientLabel(row.patient_id):''].filter(Boolean).join(' ').toLowerCase();
+      return searchable.includes(searchText);
+    });
+    const filteredCalendarRows=calendarAssignmentRows.filter(row=>{
+      const leaveConflict=row.__leaveRecord||loadedDutyLeaveConflict(row);
+      if(shiftFilter&&row.shift!==shiftFilter)return false;
+      if(statusFilter==='Leave granted'&&!((row.__leaveRecord)||leaveConflict?.status==='approved'))return false;
+      if(statusFilter&&statusFilter!=='Leave granted'&&row.status!==statusFilter)return false;
+      if(!searchText)return true;
+      const emp=staffFor(row.employee_id);
+      const searchable=[formalName(emp),emp.full_name,emp.mobile,emp.mobile_number,emp.phone,emp.designation,emp.employee_id,row.duty_type,row.shift,row.status,row.ward_room,row.duty_task,row.remarks,row.patient_id?patientLabel(row.patient_id):'',row.__leaveRecord?.leave_type,row.__leaveRecord?.reason].filter(Boolean).join(' ').toLowerCase();
       return searchable.includes(searchText);
     });
     const assignmentSearch=h('div',{className:'duty-roster-search'},
@@ -23041,11 +23063,12 @@ function ShiftManagement({profile}){
       (!dropdownSearch&&staffSearch.length>0&&staffSearch.length<3)?h('small',null,'Type at least 3 characters'):null,
       h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setStaffSearch('');setShiftFilter('');setStatusFilter('')}},'Clear'));
     const simpleAssignmentList=h('div',{className:'duty-simple-list'},
-      filteredAssignmentRows.map(row=>{
+      filteredCalendarRows.map(row=>{
         const emp=staffFor(row.employee_id);
-        const leaveConflict=loadedDutyLeaveConflict(row);
+        const leaveOnly=Boolean(row.__leaveRecord);
+        const leaveConflict=leaveOnly?null:loadedDutyLeaveConflict(row);
         const off=Boolean(row.is_weekly_off)||row.status==='Weekly Off';
-        const statusStyle=off?{background:'#eee9ff',color:'#5940aa'}:row.status==='Acknowledged'?{background:'#d9f5e4',color:'#11643a'}:row.status==='Assigned'?{background:'#fff1c9',color:'#8b5a00'}:{};
+        const statusStyle=leaveOnly?{background:'#fde2e2',color:'#b42318'}:off?{background:'#eee9ff',color:'#5940aa'}:row.status==='Acknowledged'?{background:'#d9f5e4',color:'#11643a'}:row.status==='Assigned'?{background:'#fff1c9',color:'#8b5a00'}:{};
         return h('button',{type:'button',className:'duty-simple-row',key:row.id,onClick:()=>setSelectedDuty(row)},
           h('span',{className:'duty-simple-primary'},h('strong',null,formalName(emp)||'Staff'),h('small',null,emp.employee_id||emp.role||'—')),
           h('span',null,h('small',null,'Date'),h('strong',null,formatDateIN(row.duty_date))),
@@ -23078,8 +23101,9 @@ function ShiftManagement({profile}){
       !loading&&!message&&!rows.length&&h('div',{className:'card panel'},h('p',{className:'small-note'},canManage?'No duty has been assigned for this period yet.':'No duty has been assigned to you for this period.')),
       selectedDuty&&(()=>{
         const emp=staffFor(selectedDuty.employee_id);
-        const selectedLeave=loadedDutyLeaveConflict(selectedDuty);
-        const selectedOff=Boolean(selectedDuty.is_weekly_off)||selectedDuty.status==='Weekly Off';
+        const selectedLeaveOnly=Boolean(selectedDuty.__leaveRecord);
+        const selectedLeave=selectedLeaveOnly?selectedDuty.__leaveRecord:loadedDutyLeaveConflict(selectedDuty);
+        const selectedOff=Boolean(selectedDuty.is_weekly_off)||selectedDuty.status==='Weekly Off'||selectedLeaveOnly;
         const selectedOwner=selectedDuty.employee_id===profile.id;
         const selectedReassignment=/re-?assignment/i.test(String(selectedDuty.staff_response||''))||/re-?assignment/i.test(String(selectedDuty.modification_request||''));
         return h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setSelectedDuty(null)}},
@@ -23092,10 +23116,10 @@ function ShiftManagement({profile}){
               h('div',{className:'duty-detail-item'},h('small',null,'Duty Type'),h('strong',null,selectedDuty.duty_type||'General Duty')),
               h('div',{className:'duty-detail-item span-2'},h('small',null,'Patient / Ward / Room'),h('strong',null,selectedDuty.patient_id?patientLabel(selectedDuty.patient_id):(selectedDuty.ward_room||'—'))),
               h('div',{className:'duty-detail-item span-2'},h('small',null,'Task / Remarks'),h('strong',null,selectedDuty.duty_task||selectedDuty.remarks||'—')),
-              h('div',{className:'duty-detail-item'},h('small',null,'Status'),h('span',{className:'badge',style:selectedOff?{background:'#eee9ff',color:'#5940aa'}:selectedDuty.status==='Acknowledged'?{background:'#d9f5e4',color:'#11643a'}:selectedDuty.status==='Assigned'?{background:'#fff1c9',color:'#8b5a00'}:{}},selectedDuty.status||'Assigned')),
+              h('div',{className:'duty-detail-item'},h('small',null,'Status'),h('span',{className:'badge',style:selectedLeaveOnly?{background:'#fde2e2',color:'#b42318'}:selectedOff?{background:'#eee9ff',color:'#5940aa'}:selectedDuty.status==='Acknowledged'?{background:'#d9f5e4',color:'#11643a'}:selectedDuty.status==='Assigned'?{background:'#fff1c9',color:'#8b5a00'}:{}},selectedDuty.status||'Assigned')),
               selectedLeave&&h('div',{className:'duty-detail-item span-2'},h('small',null,'Leave Check'),h('strong',{style:{color:'#b42318'}},`⚠ ${leaveStatusLabel(selectedLeave.status)} · ${selectedLeave.request_type==='Permission'?formatDateIN(selectedLeave.permission_date):`${formatDateIN(selectedLeave.from_date)}${selectedLeave.to_date&&selectedLeave.to_date!==selectedLeave.from_date?` – ${formatDateIN(selectedLeave.to_date)}`:''}`}`)),
               h('div',{className:'duty-detail-history span-2'},h('strong',null,'Request / Decision History'),
-                h('small',null,`Assigned: ${selectedDuty.assigned_by_name||'Authorised user'} · ${fmt(selectedDuty.assigned_at||selectedDuty.created_at)}`),
+                selectedLeaveOnly?h('small',null,`Leave granted: ${selectedLeave.leave_type||selectedDuty.duty_type||'Leave / Permission'} · ${selectedLeave.employee_name||formalName(emp)||'Staff'}`):h('small',null,`Assigned: ${selectedDuty.assigned_by_name||'Authorised user'} · ${fmt(selectedDuty.assigned_at||selectedDuty.created_at)}`),
                 selectedDuty.acknowledged_at&&h('small',null,`Acknowledged: ${selectedDuty.acknowledged_by_name||'Staff'} · ${fmt(selectedDuty.acknowledged_at)}`),
                 selectedDuty.status_updated_at&&h('small',null,`Status updated: ${selectedDuty.status_updated_by_name||'Authorised user'} · ${fmt(selectedDuty.status_updated_at)}`),
                 selectedDuty.modification_requested_at&&h('small',null,`Request received: ${selectedDuty.modification_requested_by_name||formalName(emp)||'Staff'} · ${fmt(selectedDuty.modification_requested_at)}`),
