@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.55';
+  const APP_VERSION = '2.12.56';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -565,7 +565,7 @@ function initSamaraInaugurationInvitation(){
       input:focus,select:focus,textarea:focus{border-color:#c21872!important;box-shadow:0 0 0 3px rgba(194,24,114,.14)!important}
       a,.link,.text-link{color:#a50e5b!important}
       .message.success,.samara-toast.success,.toast.success,[data-toast-type='success']{
-        background:linear-gradient(100deg,#7a1247,#b01264 56%,#d93679)!important;color:#fff!important;border-color:#a5135d!important;
+        background:linear-gradient(100deg,#087f5b,#0b9b73 56%,#17b978)!important;color:#fff!important;border-color:#087f5b!important;
       }
       .badge.success,.status-badge.success,.pill.success{background:#fae7f0!important;color:#781345!important;border-color:#e2adc7!important}
       .field-toggle-button.make-required{background:linear-gradient(100deg,#7a1247,#b01264,#e03a7c)!important;color:#fff!important}
@@ -1850,8 +1850,8 @@ function initSamaraInaugurationInvitation(){
 
   const isSuccessfulEntryElement = node => {
     if(!(node instanceof Element))return false;
-    if(node.matches('.samara-toast.success,.message.success,.toast.success,[data-toast-type="success"]'))return true;
-    return Boolean(node.querySelector('.samara-toast.success,.message.success,.toast.success,[data-toast-type="success"]'));
+    if(node.matches('.samara-toast.success,.samara-toast.warning,.message.success,.toast.success,.toast.warning,[data-toast-type="success"],[data-toast-type="warning"]'))return true;
+    return Boolean(node.querySelector('.samara-toast.success,.samara-toast.warning,.message.success,.toast.success,.toast.warning,[data-toast-type="success"],[data-toast-type="warning"]'));
   };
 
 
@@ -1860,8 +1860,8 @@ function initSamaraInaugurationInvitation(){
     try{
       document.querySelectorAll('.samara-save-confirmation').forEach(node=>node.remove());
 
-      const success=type==='success';
-      const warning=type==='warning';
+      const warning=type==='warning'||(type==='success'&&/saved with warning|saved for review|warning/i.test(String(text)));
+      const success=type==='success'&&!warning;
       const tone=success?'success':warning?'warning':'error';
       const overlay=document.createElement('div');
       overlay.className=`samara-save-confirmation ${tone}`;
@@ -1985,7 +1985,7 @@ function initSamaraInaugurationInvitation(){
         padding: 18px 20px !important;
         border: 0 !important;
         border-radius: 13px !important;
-        background: linear-gradient(105deg,#7b1747,#a80d4f,#c41465) !important;
+        background: linear-gradient(105deg,#087f5b,#0b9b73,#17b978) !important;
         color: #ffffff !important;
         box-shadow: 0 14px 34px rgba(122,18,71,.28) !important;
         font-weight: 700 !important;
@@ -2118,10 +2118,41 @@ function initSamaraInaugurationInvitation(){
         border-radius:50%!important;background:transparent!important;color:#fff!important;
         font-size:21px!important;font-weight:800!important;
       }
+      .samara-toast.warning,
+      .toast.warning,
+      [data-toast-type="warning"] {
+        position: fixed !important;
+        top: 46px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        z-index: 45000 !important;
+        display: grid !important;
+        grid-template-columns: 42px minmax(0,1fr) 28px !important;
+        align-items: center !important;
+        gap: 12px !important;
+        min-width: min(680px, calc(100vw - 28px)) !important;
+        max-width: 820px !important;
+        padding: 18px 20px !important;
+        border: 0 !important;
+        border-radius: 13px !important;
+        background: linear-gradient(105deg,#9a5b00,#c47b00,#e0a51b) !important;
+        color: #ffffff !important;
+        box-shadow: 0 14px 34px rgba(154,91,0,.28) !important;
+        font-weight: 700 !important;
+      }
+      .samara-toast.warning strong,
+      .samara-toast.warning span,
+      .toast.warning strong,
+      .toast.warning span,
+      [data-toast-type="warning"] strong,
+      [data-toast-type="warning"] span{color:#fff!important}
+      .samara-toast.warning .samara-toast-icon,
+      .toast.warning .samara-toast-icon,
+      [data-toast-type="warning"] .samara-toast-icon{display:inline-flex!important;align-items:center!important;justify-content:center!important;width:46px!important;height:46px!important;border-radius:50%!important;background:rgba(255,255,255,.18)!important;color:#fff!important;font-size:28px!important;font-weight:900!important}
       @media(max-width:650px){
-        .samara-toast.success,.samara-toast.error,
-        .toast.success,.toast.error,
-        [data-toast-type="success"],[data-toast-type="error"]{
+        .samara-toast.success,.samara-toast.warning,.samara-toast.error,
+        .toast.success,.toast.warning,.toast.error,
+        [data-toast-type="success"],[data-toast-type="warning"],[data-toast-type="error"]{
           top:calc(10px + env(safe-area-inset-top))!important;
           left:10px!important;
           right:10px!important;
