@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.31';
+  const APP_VERSION = '2.12.32';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '14-Sep-2026 Weekly duty calendar and leave validation';
+  const APP_BUILD_DATE = '14-Sep-2026 Staff weekly roster and three-character search';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -22409,6 +22409,7 @@ function RoomsBeds({profile,onNavigate}){
     const [showForm,setShowForm]=React.useState(false);
     const [editing,setEditing]=React.useState(null);
     const [busy,setBusy]=React.useState(false);
+    const [staffSearch,setStaffSearch]=React.useState('');
     const [toast,setToast]=React.useState(null);
     const toastTimer=React.useRef(null);
     const emptyForm={
@@ -22794,6 +22795,10 @@ function ShiftManagement({profile}){
       const ids=new Set(employeeIdentityIds(row.employee_id));
       return absenceRows.find(item=>ids.has(String(item.employee_id))&&leaveRowMatchesDate(item,row.duty_date))||null;
     };
+    const leaveForStaffDate=(staffRow,date)=>{
+      const ids=new Set(employeeIdentityIds(staffRow.id));
+      return absenceRows.find(item=>ids.has(String(item.employee_id))&&leaveRowMatchesDate(item,date))||null;
+    };
     async function findDutyLeaveConflict(employeeId,dutyDate){
       if(!employeeId||!dutyDate)return {conflict:null,error:null};
       const {data,error}=await client.from('absence_requests')
@@ -22970,6 +22975,36 @@ function ShiftManagement({profile}){
       :(formalName(profile)||profile?.full_name||'Assigned staff member');
     const cardHeads=onlyMineView?['Date','Shift','Duty Type','Patient / Ward / Room','Task / Remarks','Status','Request / Decision','Action']:['Staff','Date','Shift','Duty Type','Patient / Ward / Room','Task / Remarks','Status','Request / Decision','Action'];
     const calendarDays=Array.from({length:7},(_,index)=>addDaysISO(rangeStart,index));
+    const searchText=staffSearch.trim().toLowerCase();
+    const staffSearchReady=searchText.length>=3;
+    const filteredRosterStaff=teamMode?staffScope.filter(person=>{
+      if(!staffSearchReady)return true;
+      const identity=[formalName(person),person.full_name,person.mobile,person.mobile_number,person.phone,person.designation,person.employee_id].filter(Boolean).join(' ').toLowerCase();
+      const matchingDate=calendarDays.some(date=>formatDateIN(date).toLowerCase().includes(searchText)||date.includes(searchText));
+      const hasMatchingDuty=visibleAssignments.some(row=>String(row.employee_id)===String(person.id)&&calendarDays.includes(row.duty_date));
+      return identity.includes(searchText)||(matchingDate&&hasMatchingDuty);
+    }):[];
+    const rosterCell=(person,date)=>{
+      const dutyRows=visibleAssignments.filter(row=>String(row.employee_id)===String(person.id)&&row.duty_date===date);
+      const leave=leaveForStaffDate(person,date);
+      if(!dutyRows.length)return leave?h('div',{className:'duty-roster-cell leave'},`${leave.status==='approved'?'Leave':'Pending Leave'}`):h('span',{className:'duty-roster-empty'},'—');
+      return h('div',{className:'duty-roster-cell-stack'},...dutyRows.map(row=>{
+        const off=Boolean(row.is_weekly_off)||row.status==='Weekly Off';
+        const statusClass=off?'off':row.status==='Acknowledged'?'ack':row.status==='Assigned'?'assigned':'';
+        return h('button',{type:'button',className:`duty-roster-cell ${statusClass}`,key:row.id,onClick:()=>openEdit(row),title:'Open duty details'},h('strong',null,off?'Weekly Off':row.shift||'Duty'),h('small',null,off?'':row.status||'Assigned'),leave&&h('em',null,'Leave conflict'))
+      }));
+    };
+    const rosterHeader=h('div',{className:'duty-roster-header'},h('strong',null,'Staff'),...calendarDays.map((date,index)=>h('strong',{key:date},h('span',null,['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][index]),h('small',null,formatDateIN(date)))));
+    const rosterRows=filteredRosterStaff.map(person=>{
+      const staffHeader=h('div',{className:'duty-roster-staff'},h('strong',null,formalName(person)||person.full_name||'Staff'),h('small',null,[person.mobile,person.designation].filter(Boolean).join(' · ')||'—'),h('small',null,person.employee_id||''));
+      const dayCells=calendarDays.map((date,index)=>h('div',{className:'duty-roster-grid-cell','data-day':['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][index],key:date},rosterCell(person,date)));
+      return h('div',{className:'duty-roster-row',key:person.id},staffHeader,...dayCells);
+    });
+    const rosterNoResults=filteredRosterStaff.length===0?h('div',{className:'duty-roster-no-results'},staffSearchReady?'No staff or duty records match this search.':'No staff records found.'):null;
+    const staffRoster=teamMode?h('div',{className:'duty-roster-wrap'},
+      h('div',{className:'duty-roster-search'},h('input',{type:'search',value:staffSearch,onChange:e=>setStaffSearch(e.target.value),placeholder:'Search staff name, mobile or date…','aria-label':'Search staff name, mobile or date'}),staffSearch.length>0&&staffSearch.length<3?h('small',null,'Type at least 3 characters'):null,h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setStaffSearch('')},'Clear')),
+      h('div',{className:'duty-roster-scroll'},h('div',{className:'duty-roster-grid'},rosterHeader,...rosterRows,rosterNoResults))
+    ):null;
     const calendarColumns=calendarDays.map((date,index)=>{
       const dateLabel=formatDateIN(date);
       const dayRows=rows.filter(cells=>cells[1]===dateLabel);
@@ -22995,9 +23030,7 @@ function ShiftManagement({profile}){
         message&&h('div',{className:'message error'},message),
       canManage&&h('p',{className:'small-note'},fullDutyControl?'Showing all active employees.':'Showing Nursing, Caregiving and Nursing Supervisor staff. Nursing Manager duties are assigned by Admin/Director.')
       ),
-      h(Section,{title:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)} (${rows.length})`,subtitle:scheduleSubtitle},
-        h('div',{className:'duty-week-calendar'},...calendarColumns)
-      ),
+      teamMode? h(Section,{title:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)}`,subtitle:scheduleSubtitle},staffRoster):h(Section,{title:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)} (${rows.length})`,subtitle:scheduleSubtitle},h('div',{className:'duty-week-calendar'},...calendarColumns)),
       !loading&&!message&&!rows.length&&h('div',{className:'card panel'},h('p',{className:'small-note'},canManage?'No duty has been assigned for this period yet.':'No duty has been assigned to you for this period.')),
       showForm&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setShowForm(false)}},
         h('form',{className:'card modal duty-assignment-modal',style:{width:'min(760px,96vw)',maxHeight:'92vh',overflow:'auto'},onSubmit:save},

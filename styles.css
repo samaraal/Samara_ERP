@@ -2164,7 +2164,28 @@ p,span,small,strong,b,label,td,th,button,a{overflow-wrap:break-word;word-break:n
 .duty-calendar-entry .employee-actions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px!important}
 .duty-calendar-entry .employee-actions .btn{width:100%;min-width:0!important;padding:7px 4px;font-size:11px;white-space:normal}
 .duty-calendar-empty{padding:14px 5px;text-align:center;color:#8a6677;font-size:12px;background:#fffafd;border-radius:9px}
+.duty-roster-wrap{width:100%;max-width:100%}
+.duty-roster-search{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.duty-roster-search input{flex:1 1 280px;min-width:220px;max-width:100%;padding:11px 13px;border:1px solid #cddbd6;border-radius:12px;font:inherit}
+.duty-roster-search small{flex:0 0 100%;color:#a20d59}
+.duty-roster-scroll{width:100%;max-width:100%;overflow-x:auto}
+.duty-roster-grid{display:grid;grid-template-columns:minmax(180px,1.5fr) repeat(7,minmax(105px,1fr));min-width:0;border:1px solid #ead2dd;border-radius:13px;overflow:hidden;background:#fff}
+.duty-roster-header,.duty-roster-row{display:contents}
+.duty-roster-grid>strong,.duty-roster-header>strong{padding:9px 8px;background:#fff3f8;color:#7a1247;border-bottom:1px solid #ead2dd;font-size:12px;min-width:0}
+.duty-roster-header>strong:not(:first-child){text-align:center}.duty-roster-header>strong span,.duty-roster-header>strong small{display:block}.duty-roster-header>strong small{font-size:10px;color:#8a6677;font-weight:600}
+.duty-roster-staff{padding:8px;border-bottom:1px solid #f0dce5;min-width:0;overflow:hidden}.duty-roster-staff strong,.duty-roster-staff small{display:block;overflow-wrap:anywhere;word-break:break-word}.duty-roster-staff strong{font-size:12px;color:#4f1736}.duty-roster-staff small{font-size:10px;color:#8a6677;margin-top:2px}
+.duty-roster-grid-cell{padding:5px;border-bottom:1px solid #f0dce5;border-left:1px solid #f0dce5;min-width:0;min-height:58px;background:#fff}
+.duty-roster-cell-stack{display:grid;gap:4px}.duty-roster-cell{display:grid;gap:2px;width:100%;min-width:0;padding:7px 5px;border:1px solid #ead2dd;border-radius:8px;background:#fff8fb;color:#5d173d;font:inherit;text-align:left;cursor:pointer;overflow-wrap:anywhere;word-break:break-word}.duty-roster-cell strong,.duty-roster-cell small,.duty-roster-cell em{display:block;overflow-wrap:anywhere;word-break:break-word}.duty-roster-cell strong{font-size:11px}.duty-roster-cell small{font-size:10px}.duty-roster-cell em{font-size:9px;color:#b42318;font-style:normal}.duty-roster-cell.assigned{background:#fff8df;border-color:#f0d46b;color:#8b5a00}.duty-roster-cell.ack{background:#e8f8ed;border-color:#a8ddb7;color:#11643a}.duty-roster-cell.off{background:#eee9ff;border-color:#cfc0f0;color:#5940aa;cursor:default}.duty-roster-cell.leave{padding:7px 5px;border-radius:8px;background:#fde2e2;color:#b42318;font-size:10px;font-weight:800;text-align:center;overflow-wrap:anywhere}.duty-roster-empty{display:block;padding:11px 4px;text-align:center;color:#aa8c9d;font-size:12px}.duty-roster-no-results{grid-column:1/-1;padding:25px;text-align:center;color:#8a6677}
 @media(max-width:760px){
+  .duty-roster-scroll{overflow-x:visible}
+  .duty-roster-grid{display:block;border:0;background:transparent}
+  .duty-roster-header{display:none}
+  .duty-roster-row{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-bottom:8px;border:1px solid #ead2dd;border-radius:13px;overflow:hidden;background:#fff}
+  .duty-roster-staff{grid-column:1/-1;padding:10px;background:#fff3f8;border-bottom:1px solid #ead2dd}
+  .duty-roster-grid-cell{display:grid;grid-template-columns:58px minmax(0,1fr);align-items:center;gap:5px;padding:6px;border-left:0;border-bottom:1px solid #f0dce5;min-height:46px}
+  .duty-roster-grid-cell::before{content:attr(data-day);font-size:10px;font-weight:900;color:#7a1247}
+  .duty-roster-grid-cell .duty-roster-empty{padding:5px}
+  .duty-roster-cell-stack{width:100%}
   .duty-week-calendar{grid-template-columns:1fr;gap:8px}
   .duty-calendar-day{padding:7px}
   .duty-calendar-day-head{display:flex;flex-direction:row;justify-content:space-between;align-items:center}
