@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.28';
+  const APP_VERSION = '2.12.29';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '14-Sep-2026 Duty action timestamps and decision lock';
+  const APP_BUILD_DATE = '14-Sep-2026 Duty compact layout and leave conflict alert';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -5994,7 +5994,7 @@ Caring with Compassion. Living with Dignity.`;
       const media=window.matchMedia?.('(max-width:760px)');
       let frame=0;
       const excluded='table.rooms-table,table.patient-master-table,table.employee-master-table,table.medication-log-table';
-      const wideLabels=/action|details|description|remarks|instruction|patient|resident|employee|applicant|medicine|item|service|address|message|reason|particular|source|reference/i;
+      const wideLabels=/action|details|description|remarks|instruction|patient|resident|employee|applicant|medicine|item|service|address|message|reason|particular|source|reference|request|decision/i;
       const enhanceTable=table=>{
         if(!table?.matches?.('table')||table.matches(excluded)||table.closest('.rooms-desktop-table-wrap'))return;
         const headRows=table.tHead?.rows||[];
@@ -22697,6 +22697,7 @@ function ShiftManagement({profile}){
     const STATUS_STAFF=['Assigned','Acknowledged','In Progress','Completed'];
     const [assignments,setAssignments]=React.useState([]);
     const [staff,setStaff]=React.useState([]);
+    const [absenceRows,setAbsenceRows]=React.useState([]);
     const [patients,setPatients]=React.useState([]);
     const [loading,setLoading]=React.useState(true);
     const [message,setMessage]=React.useState('');
@@ -22742,15 +22743,17 @@ function ShiftManagement({profile}){
 
     async function load(){
       setLoading(true);setMessage('');
-      const [a,e,p]=await Promise.all([
+      const [a,e,p,l]=await Promise.all([
         client.from('duty_assignments').select('*').order('duty_date',{ascending:false}).order('created_at',{ascending:false}).limit(500),
         client.from('profiles').select('id,auth_user_id,title,full_name,employee_id,role,department,designation,reporting_superior_id,is_active').order('full_name'),
-        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').order('full_name')
+        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').order('full_name'),
+        client.from('absence_requests').select('id,employee_id,employee_name,request_type,status,leave_type,from_date,to_date,permission_date,permission_from,permission_to').in('status',['approved','pending_superior','pending_management']).limit(1000)
       ]);
       if(a.error){setMessage(a.error.message||'Unable to load duty assignments.');setAssignments([])}
       else setAssignments(a.data||[]);
       if(!e.error)setStaff((e.data||[]).filter(x=>x.is_active!==false&&!isNonPayrollManagementAccount(x)));
       if(!p.error)setPatients(p.data||[]);
+      if(!l.error)setAbsenceRows(l.data||[]);
       setLoading(false);
     }
 
@@ -22780,17 +22783,25 @@ function ShiftManagement({profile}){
     const patientFor=id=>patients.find(p=>p.id===id)||{};
     const patientLabel=id=>{const p=patientFor(id);return p.id?`${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}${p.bed_no?`-${p.bed_no}`:''}`:''};
     const leaveStatusLabel=status=>({approved:'Approved Leave / Permission',pending_superior:'Leave / Permission Pending Superior Approval',pending_management:'Leave / Permission Pending Management Approval'}[status]||status||'Leave / Permission');
+    const employeeIdentityIds=employeeId=>{
+      const person=staff.find(s=>s.id===employeeId||s.auth_user_id===employeeId)||{};
+      return [...new Set([employeeId,person.id,person.auth_user_id].filter(Boolean).map(String))];
+    };
+    const leaveRowMatchesDate=(item,dutyDate)=>item.request_type==='Permission'
+      ?item.permission_date===dutyDate
+      :Boolean(item.from_date&&item.to_date&&item.from_date<=dutyDate&&item.to_date>=dutyDate);
+    const loadedDutyLeaveConflict=row=>{
+      const ids=new Set(employeeIdentityIds(row.employee_id));
+      return absenceRows.find(item=>ids.has(String(item.employee_id))&&leaveRowMatchesDate(item,row.duty_date))||null;
+    };
     async function findDutyLeaveConflict(employeeId,dutyDate){
       if(!employeeId||!dutyDate)return {conflict:null,error:null};
       const {data,error}=await client.from('absence_requests')
         .select('id,employee_id,employee_name,request_type,status,leave_type,from_date,to_date,permission_date,permission_from,permission_to')
-        .eq('employee_id',employeeId)
+        .in('employee_id',employeeIdentityIds(employeeId))
         .in('status',['approved','pending_superior','pending_management']);
       if(error)return {conflict:null,error};
-      const conflict=(data||[]).find(item=>{
-        if(item.request_type==='Permission')return item.permission_date===dutyDate;
-        return Boolean(item.from_date&&item.to_date&&item.from_date<=dutyDate&&item.to_date>=dutyDate);
-      })||null;
+      const conflict=(data||[]).find(item=>leaveRowMatchesDate(item,dutyDate))||null;
       return {conflict,error:null};
     }
 
@@ -22824,14 +22835,14 @@ function ShiftManagement({profile}){
       if(form.duty_date<todayISOIndia()){showToast('error','Duty can be assigned only from today onward.');return}
       setBusy(true);
       const leaveCheck=await findDutyLeaveConflict(form.employee_id,form.duty_date);
-      if(leaveCheck.error){setBusy(false);showToast('error','Leave conflict check failed',leaveCheck.error.message||'Unable to verify leave / permission records. Duty was not assigned.');return}
+      if(leaveCheck.error){setBusy(false);showToast('error',`Leave conflict check failed: ${leaveCheck.error.message||'Unable to verify leave / permission records. Duty was not assigned.'}`);return}
       if(leaveCheck.conflict){
         const conflict=leaveCheck.conflict;
         const period=conflict.request_type==='Permission'
           ?`${formatDateIN(conflict.permission_date)}${conflict.permission_from?` · ${conflict.permission_from}${conflict.permission_to?`–${conflict.permission_to}`:''}`:''}`
           :`${formatDateIN(conflict.from_date)}${conflict.to_date&&conflict.to_date!==conflict.from_date?` – ${formatDateIN(conflict.to_date)}`:''}`;
         setBusy(false);
-        showToast('error','Duty assignment blocked',`${leaveStatusLabel(conflict.status)} exists for ${formalName(staffFor(form.employee_id))||conflict.employee_name||'this employee'} on ${period}. No duty was assigned.`);
+        showToast('error',`Duty assignment blocked: ${leaveStatusLabel(conflict.status)} exists for ${formalName(staffFor(form.employee_id))||conflict.employee_name||'this employee'} on ${period}. No duty was assigned.`);
         return;
       }
       const {data:{user}}=await client.auth.getUser();
@@ -22917,13 +22928,15 @@ function ShiftManagement({profile}){
       const emp=staffFor(row.employee_id);
       const isOwner=row.employee_id===profile.id;
       const statusOptions=canManage?STATUS_ALL:['Acknowledged'];
+      const leaveConflict=loadedDutyLeaveConflict(row);
       const reassignmentRequested=/re-?assignment/i.test(String(row.staff_response||''))||/re-?assignment/i.test(String(row.modification_request||''));
-      const requestDecision=h('div',{style:{display:'grid',gap:'3px',minWidth:'220px'}},
+      const requestDecision=h('div',{style:{display:'grid',gap:'3px',minWidth:0,maxWidth:'100%',overflowWrap:'anywhere',wordBreak:'break-word'}},
           row.assigned_at&&h('small',null,`Assigned: ${row.assigned_by_name||'Authorised user'} · ${fmt(row.assigned_at)}`),
           !row.assigned_at&&row.created_at&&h('small',null,`Assigned: ${row.assigned_by_name||'Authorised user'} · ${fmt(row.created_at)}`),
           row.acknowledged_at&&h('small',null,`Acknowledged: ${row.acknowledged_by_name||'Staff'} · ${fmt(row.acknowledged_at)}`),
           row.status_updated_at&&row.status!=='Acknowledged'&&h('small',null,`Status updated: ${row.status_updated_by_name||'Authorised user'} · ${fmt(row.status_updated_at)}`),
           row.staff_response==='Reassignment Requested'&&h('strong',{className:'small-note'},'Request for Re-assignment received'),
+          leaveConflict&&h('strong',{style:{color:'#b42318',overflowWrap:'anywhere'}},`⚠ Leave conflict: ${leaveStatusLabel(leaveConflict.status)} · ${leaveConflict.request_type==='Permission'?formatDateIN(leaveConflict.permission_date):`${formatDateIN(leaveConflict.from_date)}${leaveConflict.to_date&&leaveConflict.to_date!==leaveConflict.from_date?` – ${formatDateIN(leaveConflict.to_date)}`:''}`}`),
           row.modification_requested_at&&h('small',null,`Requested: ${row.modification_requested_by_name||formalName(emp)||'Staff'} · ${fmt(row.modification_requested_at)}`),
           row.review_status&&h('small',null,`Decision: ${row.review_status}${row.reviewed_by_name?` · ${row.reviewed_by_name}`:''}${row.reviewed_at?` · ${fmt(row.reviewed_at)}`:''}`),
           row.review_remarks&&h('small',null,`Remarks: ${row.review_remarks}`)
@@ -22936,7 +22949,7 @@ function ShiftManagement({profile}){
         row.duty_type||'General Duty',
         row.patient_id?patientLabel(row.patient_id):(row.ward_room||'—'),
         row.duty_task||row.remarks||'—',
-        h('span',{className:'badge',style:statusStyle},row.status||'Assigned'),
+        h('div',{style:{display:'grid',gap:'4px',justifyItems:'start'}},h('span',{className:'badge',style:statusStyle},row.status||'Assigned'),leaveConflict&&h('span',{className:'badge',style:{background:'#fde2e2',color:'#b42318'}},'Leave Conflict')),
         requestDecision,
         h('div',{className:'employee-actions'},
           canModify&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(row)},'Edit'),
@@ -22972,6 +22985,7 @@ function ShiftManagement({profile}){
       canManage&&h('p',{className:'small-note'},fullDutyControl?'Showing all active employees.':'Showing Nursing, Caregiving and Nursing Supervisor staff. Nursing Manager duties are assigned by Admin/Director.')
       ),
       h(LogTable,{
+        className:'duty-assignment-log',
         title:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)} (${rows.length})`,
         subtitle:scheduleSubtitle,
         heads:['Staff','Date','Shift','Duty Type','Patient / Ward / Room','Task / Remarks','Status','Request / Decision','Action'],

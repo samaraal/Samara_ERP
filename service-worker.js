@@ -1,5 +1,5 @@
-const APP_VERSION = '2.12.28';
-const CACHE = 'samara-erp-2.12.28-duty-action-audit';
+const APP_VERSION = '2.12.29';
+const CACHE = 'samara-erp-2.12.29-duty-compact-layout';
 const SHELL = [
   './',
   './index.html',
