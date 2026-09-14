@@ -22587,11 +22587,20 @@ function RoomsBeds({profile,onNavigate}){
     }
     async function requestModification(row){
       if(row.employee_id!==profile.id)return;
+      if(row.status==='Acknowledged')return;
       const reason=prompt('Reason for requesting duty modification:','');
       if(!reason||!reason.trim())return;
       const {error}=await client.from('duty_assignments').update({staff_response:'Modification Requested',modification_request:reason.trim(),modification_requested_at:new Date().toISOString(),modification_requested_by:profile.id,updated_at:new Date().toISOString()}).eq('id',row.id);
       if(error){showToast('error',error.message||'Unable to request modification.');return}
       showToast('success','Modification request sent','The reviewer will decide whether to modify or retain the assignment.');await load();
+    }
+    async function requestShiftChange(row){
+      if(row.employee_id!==profile.id)return;
+      const reason=prompt('Reason for requesting change of shift / reassignment:','');
+      if(!reason||!reason.trim())return;
+      const {error}=await client.from('duty_assignments').update({staff_response:'Shift Change Requested',modification_request:`Shift change / reassignment request: ${reason.trim()}`,modification_requested_at:new Date().toISOString(),modification_requested_by:profile.id,updated_at:new Date().toISOString()}).eq('id',row.id);
+      if(error){showToast('error',error.message||'Unable to request change of shift.');return}
+      showToast('success','Shift change request sent','The reviewer will decide whether the duty should be reassigned.');await load();
     }
     async function reviewRequest(row,decision){
       if(!canManage||!row.modification_request)return;
@@ -22883,8 +22892,9 @@ function ShiftManagement({profile}){
         h('div',{className:'employee-actions'},
           canModify&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(row)},'Edit'),
           canManage&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(row)},'Modify'),
-          isOwner&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>updateStatus(row,'Acknowledged')},'Acknowledged'),
-          isOwner&&!row.modification_request&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>requestModification(row)},'Request Modification'),
+          isOwner&&h('button',{type:'button',className:'btn btn-secondary',disabled:row.status==='Acknowledged',onClick:()=>updateStatus(row,'Acknowledged')},'Action- Acknowledge'),
+          isOwner&&h('button',{type:'button',className:'btn btn-secondary',disabled:row.status==='Acknowledged'||Boolean(row.modification_request),onClick:()=>requestModification(row)},'Request Modify'),
+          isOwner&&h('button',{type:'button',className:'btn btn-secondary',disabled:row.staff_response==='Shift Change Requested',onClick:()=>requestShiftChange(row)},'Request for Change of Shift'),
           canManage&&row.modification_request&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>reviewRequest(row,'Modified')},'Modify / Approve'),
           canManage&&row.modification_request&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>reviewRequest(row,'Original Retained')},'Retain Original')
         )
