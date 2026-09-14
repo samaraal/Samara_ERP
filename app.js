@@ -1551,7 +1551,7 @@ function initSamaraInaugurationInvitation(){
     if(isNursingManagerProfile(profile))return [
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiries','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts',
-      'Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
+      'Duty Assignment','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
       'Patient Consumables','Stores','Stores In-charge Assignment','Staff Leave Calendar','Food & Diet','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
@@ -1594,9 +1594,9 @@ function initSamaraInaugurationInvitation(){
     }
     if(role==='Manager'&&allowed.includes('My To-Do List')&&allowed.includes('Employees')&&!allowed.includes('Accounts Dashboard')){
       return [
-        {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','Duty Assignment','My To-Do List'].filter(item=>allowed.includes(item))},
-        {title:'MY DUTIES & LEAVE',items:['Duty Assignment','Staff Leave Calendar','My Leave & Permission'].filter(item=>allowed.includes(item))},
-        {title:'NURSING STAFF',items:['Employees'].filter(item=>allowed.includes(item))},
+        {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','My To-Do List'].filter(item=>allowed.includes(item))},
+        {title:'MY DUTIES & LEAVE',items:['Duty Assignment','My Leave & Permission'].filter(item=>allowed.includes(item))},
+        {title:'NURSING STAFF',items:['Staff Duty Assignment','Staff Leave Calendar','Employees'].filter(item=>allowed.includes(item))},
         {title:'ADMISSION',items:['Enquiries','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},
         {title:'ROOMS & PACKAGES',items:['Rooms','Care Packages'].filter(item=>allowed.includes(item))},
         {title:'PHARMACY & STORES',items:['Patient Consumables','Stores','Stores In-charge Assignment'].filter(item=>allowed.includes(item))},
@@ -7020,7 +7020,8 @@ Caring with Compassion. Living with Dignity.`;
           page==='Stores In-charge Assignment'&&h(StoresInchargeAssignmentPage,{profile}),
           page==='Food & Diet'&&h(FoodDiet,{profile}),
           page==='Physiotherapy'&&h(Physiotherapy,{profile,onNavigate:setPage}),
-          page==='Duty Assignment'&&h(DutyAssignment,{profile}),
+          page==='Duty Assignment'&&h(DutyAssignment,{profile,viewMode:'mine'}),
+          page==='Staff Duty Assignment'&&h(DutyAssignment,{profile,viewMode:'team'}),
           page==='Special Nurse'&&h(SpecialNurseManagement,{profile}),
           page==='Shift Handover'&&h(ShiftHandover,{profile,onNavigate:setPage}),
           page==='Incidents'&&h(Incidents,{profile,onNavigate:setPage}),
@@ -22698,13 +22699,14 @@ function ShiftManagement({profile}){
       ),h('div',{className:'actions'},h('button',{className:'btn btn-primary'},'Save Shift Settings')),saved&&h('div',{className:'message success'},'Shift settings saved for new assignments from the effective date.')));
   }
 
-function DutyAssignment({profile}){
+  function DutyAssignment({profile,viewMode='mine'}){
     // Admin/Director management accounts can assign and modify duty for every
-    // employee.  A Nurse Manager can assign duty only to her Nursing and
-    // Caregiving team; assignment edits remain reserved for Admin/Director.
+    // employee. A Nursing Manager can assign duty to other nursing staff;
+    // the Nursing Manager's own duty remains an Admin/Director assignment.
     const nursingManager=isNursingManagerProfile(profile);
     const fullDutyControl=profile?.role==='Admin'||(profile?.role==='Manager'&&!nursingManager);
-    const canManage=fullDutyControl||nursingManager;
+    const teamMode=viewMode==='team';
+    const canManage=fullDutyControl||(nursingManager&&teamMode);
     const canModify=fullDutyControl;
     const SHIFT_OPTIONS=['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Morning Shift (7 AM–2 PM)','Evening Shift (1 PM–7 PM)','General Shift (9 AM–6 PM)'];
     const DUTY_TYPE_OPTIONS=['Medication Rounds','Vitals Check','Wound Dressing','Mobility Assistance','Feeding Assistance','Bathing / Hygiene Care','Patient Escort','Documentation / Charting','Ward Round','General Duty','Other'];
@@ -22786,7 +22788,7 @@ function DutyAssignment({profile}){
     },[]);
     const staffScope=React.useMemo(()=>{
       if(fullDutyControl)return staff;
-      if(nursingManager)return staff.filter(s=>s.id===profile.id||isNursingTeamMember(s));
+      if(nursingManager)return staff.filter(s=>isNursingTeamMember(s));
       return staff;
     },[staff,fullDutyControl,nursingManager,isNursingTeamMember]);
     const staffScopeIds=React.useMemo(()=>new Set(staffScope.map(s=>s.id)),[staffScope]);
@@ -22797,7 +22799,8 @@ function DutyAssignment({profile}){
 
     const visibleAssignments=React.useMemo(()=>{
       let rows=assignments.filter(r=>r.duty_date>=rangeStart&&r.duty_date<=rangeEnd);
-      if(canManage)rows=rows.filter(r=>fullDutyControl||staffScopeIds.has(r.employee_id)||r.employee_id===profile.id);
+      if(fullDutyControl)rows=rows;
+      else if(nursingManager&&teamMode)rows=rows.filter(r=>staffScopeIds.has(r.employee_id));
       else rows=rows.filter(r=>r.employee_id===profile.id);
       return [...rows].sort((a,b)=>a.duty_date===b.duty_date
         ?(formalName(staffFor(a.employee_id))||'').localeCompare(formalName(staffFor(b.employee_id))||'')
@@ -22888,10 +22891,14 @@ function DutyAssignment({profile}){
       ];
     });
 
+    const scheduleTitle=teamMode?'Nursing Staff Duty Assignments':'My Duty Schedule';
+    const scheduleSubtitle=teamMode
+      ?(fullDutyControl?'Assign and modify duty for all employees':'Duties assigned by the Nursing Manager to Nursing, Caregiving and Nursing Supervisor staff. Nursing Manager duties are assigned by Admin/Director.')
+      :'Only your own duty assignments are shown here.';
     return h(React.Fragment,null,
       h(Section,{
-        title:'Duty Assignment',
-        subtitle:canManage?(fullDutyControl?'Assign and modify duty for all employees':'Assign duty for your Nursing and Caregiving team'):'Your nursing duty schedule',
+        title:teamMode?scheduleTitle:'My Duties',
+        subtitle:scheduleSubtitle,
         actions:h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>jumpWeek(-1)},'‹ Prev Week'),
           h(StrictDateInput,{value:rangeStart,onChange:e=>setRangeStart(e.target.value)}),
@@ -22903,11 +22910,11 @@ function DutyAssignment({profile}){
         )
       },
         message&&h('div',{className:'message error'},message),
-        canManage&&h('p',{className:'small-note'},fullDutyControl?'Showing all active employees.':'Showing only Nursing, Caregiving and Nursing Supervisor employees under your responsibility.')
+      canManage&&h('p',{className:'small-note'},fullDutyControl?'Showing all active employees.':'Showing Nursing, Caregiving and Nursing Supervisor staff. Nursing Manager duties are assigned by Admin/Director.')
       ),
       h(LogTable,{
-        title:`Duty Schedule — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)} (${rows.length})`,
-        subtitle:canManage?(fullDutyControl?'All employee duty schedule for the selected week':'Your team duty schedule for the selected week'):'Your nursing duty schedule for the selected week',
+        title:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)} (${rows.length})`,
+        subtitle:scheduleSubtitle,
         heads:['Staff','Date','Shift','Duty Type','Patient / Ward / Room','Task / Remarks','Status','Action'],
         rows
       }),
