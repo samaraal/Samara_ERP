@@ -2198,3 +2198,11 @@ p,span,small,strong,b,label,td,th,button,a{overflow-wrap:break-word;word-break:n
   .duty-assignment-log table.duty-assignment-log>tbody>tr>td[data-label="Action"] .employee-actions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
   .duty-assignment-log table.duty-assignment-log>tbody>tr>td[data-label="Action"] .employee-actions .btn{width:100%!important;min-height:38px!important;padding:8px 6px!important;font-size:12px!important}
 }
+.duty-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:4px 0 16px}
+.duty-detail-item{border:1px solid #ead6e0;border-radius:12px;padding:10px 12px;background:#fffafd;min-width:0}
+.duty-detail-item.span-2,.duty-detail-history.span-2{grid-column:1/-1}
+.duty-detail-item small,.duty-detail-history small{display:block;color:#7d6874;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.duty-detail-item strong{display:block;overflow-wrap:anywhere;word-break:break-word}
+.duty-detail-history{display:grid;gap:6px;border:1px solid #ead6e0;border-radius:12px;padding:12px;background:#fffafd}
+.duty-detail-actions{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:640px){.duty-detail-grid{grid-template-columns:1fr}.duty-detail-item.span-2,.duty-detail-history.span-2{grid-column:auto}.duty-detail-actions .btn{flex:1 1 100%;min-height:44px}}
