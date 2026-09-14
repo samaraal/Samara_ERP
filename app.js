@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.56';
+  const APP_VERSION = '2.12.57';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5966,7 +5966,7 @@ Caring with Compassion. Living with Dignity.`;
       };
       const position=(el)=>{
         const r=el.getBoundingClientRect();
-        const w=Math.min(360,window.innerWidth-24);
+        const w=Math.min(480,window.innerWidth-28);
         tip.style.maxWidth=`${w}px`;
         tip.style.left=`${Math.max(12,Math.min(window.innerWidth-w-12,r.left+r.width/2-w/2))}px`;
         const above=r.top>150;
@@ -6185,7 +6185,7 @@ Caring with Compassion. Living with Dignity.`;
     if(document.getElementById('samara-smart-hover-styles'))return;
     const style=document.createElement('style');style.id='samara-smart-hover-styles';
     style.textContent=`
-      .samara-smart-hover{position:fixed;z-index:10080;display:none;padding:9px 12px;border-radius:10px;background:#2f1d29;color:#fff;font-size:12px;font-weight:700;line-height:1.35;box-shadow:0 10px 26px rgba(0,0,0,.2);pointer-events:none}.samara-smart-hover.show{display:block}
+      .samara-smart-hover{position:fixed;z-index:10080;display:none;width:min(480px,calc(100vw - 28px));box-sizing:border-box;padding:15px 17px;border:2px solid #e46a9e;border-radius:14px;background:linear-gradient(135deg,#7a1247 0%,#a80d4f 58%,#d93679 100%);color:#fff;font-size:15px;font-weight:800;line-height:1.55;letter-spacing:.01em;white-space:normal;overflow-wrap:anywhere;box-shadow:0 14px 34px rgba(122,18,71,.30);pointer-events:none}.samara-smart-hover.show{display:block}
       .topbar-alert-centre{position:relative;display:flex;align-items:center;z-index:100}
       .topbar-alert-preview{position:absolute;right:0;top:calc(100% + 10px);width:min(420px,calc(100vw - 28px));background:#fff;border:1px solid #ead1de;border-radius:16px;box-shadow:0 18px 48px rgba(74,20,49,.22);overflow:hidden;z-index:10100;text-align:left}
       .topbar-alert-preview-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px;background:#fff7fb;border-bottom:1px solid #f0dce6}.topbar-alert-preview-head>div{display:flex;flex-direction:column;gap:2px}.topbar-alert-preview-head strong{color:#6f153f;font-size:15px}.topbar-alert-preview-head small{color:#715b68;font-weight:700}.topbar-alert-open-all{border:0;border-radius:9px;background:#a80d4f;color:#fff;padding:8px 11px;font-weight:900;cursor:pointer}
@@ -23106,7 +23106,7 @@ function ShiftManagement({profile}){
         const leaveConflict=leaveOnly?null:loadedDutyLeaveConflict(row);
         const off=Boolean(row.is_weekly_off)||row.status==='Weekly Off';
         const statusStyle=leaveOnly||row.status==='Leave granted'?{background:'#fde2e2',color:'#b42318'}:off?{background:'#eee9ff',color:'#5940aa'}:row.status==='Acknowledged'?{background:'#d9f5e4',color:'#11643a'}:row.status==='Assigned'?{background:'#fff1c9',color:'#8b5a00'}:{};
-        return h('button',{type:'button',className:'duty-simple-row',key:row.id,onClick:()=>setSelectedDuty(row)},
+        return h('button',{type:'button',className:'duty-simple-row',key:row.id,onClick:()=>setSelectedDuty(row),'data-hover-info':[`Staff: ${formalName(emp)||'Staff'}`,`Date: ${formatDateIN(row.duty_date)}`,`Shift: ${off?'Weekly Off':row.shift||'—'}`,`Duty: ${row.duty_type||'General Duty'}`,`Status: ${row.status||'Assigned'}`,leaveConflict?'Leave conflict':''].filter(Boolean).join(' · ')},
           h('span',{className:'duty-simple-primary'},h('strong',null,formalName(emp)||'Staff'),h('small',null,emp.employee_id||emp.role||'—')),
           h('span',null,h('small',null,'Date'),h('strong',null,formatDateIN(row.duty_date))),
           h('span',null,h('small',null,'Shift'),h('strong',null,off?'Weekly Off':row.shift||'—')),
