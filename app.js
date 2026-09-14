@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.62';
+  const APP_VERSION = '2.12.63';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12183,7 +12183,11 @@ Thank you.`;
           h('div',null,h('small',null,'Reason'),h('strong',null,r.reason||'—')),
           h('div',null,h('small',null,'Status'),h('strong',null,statusLabel(r.status))),
           r.handover_remarks?h('div',null,h('small',null,'Handover'),h('strong',null,r.handover_remarks)):null,
-          r.decision_by_name?h('div',null,h('small',null,'Decision'),h('strong',null,`${r.decision_by_name}${r.decision_at?` · ${fmt(r.decision_at)}`:''}`)):null
+          r.decision_by_name?h('div',null,h('small',null,'Decision'),h('strong',null,`${r.decision_by_name}${r.decision_at?` · ${fmt(r.decision_at)}`:''}`)):null,
+          h('div',{className:'absence-actions',style:{gridColumn:'1/-1'}},
+            isApprovals&&canRecommend(r)?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>act(r,'recommend')},'Recommend'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'reject')},'Reject')):null,
+            isApprovals&&canManage(r)?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>act(r,'approve')},'Approve'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'reject')},'Reject')):null
+          )
         ):null
       );
     }
