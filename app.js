@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.41';
+  const APP_VERSION = '2.12.42';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12120,7 +12120,7 @@ Thank you.`;
       return h('div',{className:`absence-card calendar-absence-card${expanded?' is-expanded':''}`,key:r.id},
         h('button',{type:'button',className:'calendar-absence-summary',onClick:()=>setExpandedCalendarRows(prev=>{const next=new Set(prev);next.has(r.id)?next.delete(r.id):next.add(r.id);return next})},
           h('span',{className:'calendar-absence-day'},r.request_type==='Leave'?formatDateIN(r.from_date):formatDateIN(r.permission_date)),
-          h('span',{className:'calendar-absence-person'},formalName(emp)||r.employee_name||'Employee'),
+          h('span',{className:'calendar-absence-person'},(isApprovals||calendar)?(formalName(emp)||r.employee_name||'Employee'):(r.request_type==='Leave'?(r.leave_type||'Leave'):'Permission')),
           h('span',{className:`badge ${statusClass(r.status)}`},statusLabel(r.status)),
           h('span',{className:'calendar-absence-chevron'},expanded?'⌃':'⌄')
         ),
