@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.45';
+  const APP_VERSION = '2.12.46';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22861,10 +22861,6 @@ function ShiftManagement({profile}){
       if(failedCheck){setBusy(false);showToast('error',`Leave conflict check failed: ${failedCheck.error.message||'Unable to verify leave / permission records. The weekly duty was not assigned.'}`);return}
       const leaveConflicts=checks.map((result,index)=>result.conflict?{date:workingDates[index],conflict:result.conflict}:null).filter(Boolean);
       const leaveWarning=leaveConflicts.length?leaveConflicts.map(item=>`${leaveStatusLabel(item.conflict.status)} on ${formatDateIN(item.date)}`).join('; '):'';
-      if(!editing){
-        const duplicateDate=weekDates.find(date=>assignments.some(row=>String(row.employee_id)===String(form.employee_id)&&row.duty_date===date));
-        if(duplicateDate){setBusy(false);showToast('error',`Weekly duty blocked: an assignment already exists for ${formalName(staffFor(form.employee_id))||'this employee'} on ${formatDateIN(duplicateDate)}.`);return}
-      }
       const {data:{user}}=await client.auth.getUser();
       const actionNow=new Date().toISOString();
       const basePayload={employee_id:form.employee_id,patient_id:form.patient_id||null,ward_room:form.ward_room.trim()||null,duty_task:form.duty_task.trim()||null,remarks:form.remarks.trim()||null,assigned_by:user?.id||profile?.id,assigned_by_name:formalName(profile)||profile?.full_name||'Authorised user',assigned_by_role:profile?.role,assigned_at:editing?(editing.assigned_at||editing.created_at||null):actionNow,updated_at:actionNow};
