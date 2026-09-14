@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.37';
+  const APP_VERSION = '2.12.38';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '14-Sep-2026 Date-safe duty calendar and separate view';
+  const APP_BUILD_DATE = '14-Sep-2026 Compact assignment list with detail view';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -22978,7 +22978,7 @@ function ShiftManagement({profile}){
       ];
     });
 
-    const scheduleTitle=dayCalendar?'Duty Calendar':teamMode?'Nursing Staff Duty Assignments':'My Duty Schedule';
+    const scheduleTitle=dayCalendar?'Duty Calendar':'Duty Assignment';
     const onlyMineView=!teamMode&&!fullDutyControl;
     const scheduleSubtitle=teamMode
       ?(fullDutyControl?'Assign and modify duty for all employees':'Duties assigned by the Nursing Manager to Nursing, Caregiving and Nursing Supervisor staff. Nursing Manager duties are assigned by Admin/Director.')
@@ -23024,6 +23024,22 @@ function ShiftManagement({profile}){
         dayRows.length?dayRows.map((cells,rowIndex)=>{const displayCells=onlyMineView?cells.slice(1):cells;const wideIndexes=onlyMineView?[3,4,6,7]:[4,5,7,8];return h('div',{className:'duty-calendar-entry',key:rowIndex},...displayCells.map((cell,cellIndex)=>h('div',{className:`duty-assignment-card-field ${wideIndexes.includes(cellIndex)?'wide':''}`,key:cellIndex},h('small',null,cardHeads[cellIndex]),h('div',{className:'duty-assignment-card-value'},cell??'—'))))}):h('div',{className:'duty-calendar-empty'},'No duty')
       );
     });
+    const simpleAssignmentList=h('div',{className:'duty-simple-list'},
+      visibleAssignments.map(row=>{
+        const emp=staffFor(row.employee_id);
+        const leaveConflict=loadedDutyLeaveConflict(row);
+        const off=Boolean(row.is_weekly_off)||row.status==='Weekly Off';
+        const statusStyle=off?{background:'#eee9ff',color:'#5940aa'}:row.status==='Acknowledged'?{background:'#d9f5e4',color:'#11643a'}:row.status==='Assigned'?{background:'#fff1c9',color:'#8b5a00'}:{};
+        return h('button',{type:'button',className:'duty-simple-row',key:row.id,onClick:()=>setSelectedDuty(row)},
+          h('span',{className:'duty-simple-primary'},h('strong',null,formalName(emp)||'Staff'),h('small',null,emp.employee_id||emp.role||'—')),
+          h('span',null,h('small',null,'Date'),h('strong',null,formatDateIN(row.duty_date))),
+          h('span',null,h('small',null,'Shift'),h('strong',null,off?'Weekly Off':row.shift||'—')),
+          h('span',null,h('small',null,'Duty'),h('strong',null,row.duty_type||'General Duty')),
+          h('span',{className:'duty-simple-status'},h('small',null,'Status'),h('span',{className:'badge',style:statusStyle},row.status||'Assigned'),leaveConflict&&h('em',null,'Leave conflict')),
+          h('span',{className:'duty-simple-open'},'View details ›')
+        );
+      })
+    );
     return h(React.Fragment,null,
       h(Section,{
         title:teamMode?scheduleTitle:'My Duties',
@@ -23042,7 +23058,7 @@ function ShiftManagement({profile}){
         message&&h('div',{className:'message error'},message),
       canManage&&h('p',{className:'small-note'},fullDutyControl?'Showing all active employees.':'Showing Nursing, Caregiving and Nursing Supervisor staff. Nursing Manager duties are assigned by Admin/Director.')
       ),
-      teamMode? h(Section,{title:dayCalendar?`${scheduleTitle} — ${formatDateIN(calendarDate)}`:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)}`,subtitle:scheduleSubtitle},staffRoster):h(Section,{title:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)} (${rows.length})`,subtitle:scheduleSubtitle},h('div',{className:'duty-week-calendar'},...calendarColumns)),
+      teamMode? h(Section,{title:dayCalendar?`${scheduleTitle} — ${formatDateIN(calendarDate)}`:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)}`,subtitle:scheduleSubtitle},staffRoster):h(Section,{title:`${scheduleTitle} — ${formatDateIN(rangeStart)} to ${formatDateIN(rangeEnd)} (${visibleAssignments.length})`,subtitle:'Select a duty row to view complete details and available actions.'},simpleAssignmentList),
       !loading&&!message&&!rows.length&&h('div',{className:'card panel'},h('p',{className:'small-note'},canManage?'No duty has been assigned for this period yet.':'No duty has been assigned to you for this period.')),
       selectedDuty&&(()=>{
         const emp=staffFor(selectedDuty.employee_id);
