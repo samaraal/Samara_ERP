@@ -22855,6 +22855,20 @@ function ShiftManagement({profile}){
     const emptyForm={employee_id:'',duty_date:todayISOIndia(),week_start:mondayOfWeek(todayISOIndia()),weekly_off:'None',shift:'Full Day',duty_type:'General Duty',patient_id:'',ward_room:'',duty_task:'',remarks:'',status:'Assigned'};
     const [form,setForm]=React.useState(emptyForm);
 
+    // ---- Voice Assistant: auto-fill employee, shift, duty type and week from
+    // an English or Tamil spoken command. The result only pre-fills the form
+    // fields above — nothing is saved until the user reviews and presses Save.
+    const [voiceOpen,setVoiceOpen]=React.useState(false);
+    const [voiceListening,setVoiceListening]=React.useState(false);
+    const [voiceProcessing,setVoiceProcessing]=React.useState(false);
+    const [voiceMessage,setVoiceMessage]=React.useState('');
+    const [voiceHeard,setVoiceHeard]=React.useState('');
+    const dutyVoiceRecognitionRef=React.useRef(null);
+    const dutyVoiceRecorderRef=React.useRef(null);
+    const dutyVoiceStreamRef=React.useRef(null);
+    const dutyVoiceChunksRef=React.useRef([]);
+    const dutyVoiceLangRef=React.useRef('ta-IN');
+
     function showToast(type,text){
       const savedWithWarning=type==='success'&&/saved with warning|saved for review|warning/i.test(String(text));
       const noticeType=savedWithWarning?'warning':type;
@@ -22864,6 +22878,181 @@ function ShiftManagement({profile}){
       toastTimer.current=setTimeout(()=>setToast(null),4500);
     }
     React.useEffect(()=>()=>clearTimeout(toastTimer.current),[]);
+
+    function stopDutyVoice(){
+      try{dutyVoiceRecognitionRef.current?.stop?.()}catch(_){}
+      dutyVoiceRecognitionRef.current=null;
+      try{if(dutyVoiceRecorderRef.current&&dutyVoiceRecorderRef.current.state!=='inactive')dutyVoiceRecorderRef.current.stop()}catch(_){}
+      try{dutyVoiceStreamRef.current?.getTracks?.().forEach(t=>t.stop())}catch(_){}
+      dutyVoiceStreamRef.current=null;
+      setVoiceListening(false);
+    }
+    function closeDutyVoice(){
+      stopDutyVoice();
+      setVoiceOpen(false);setVoiceMessage('');setVoiceHeard('');setVoiceProcessing(false);
+    }
+    React.useEffect(()=>{if(!showForm)stopDutyVoice()},[showForm]);
+
+    function bestDutyVoiceMime(){
+      for(const x of ['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus']){try{if(window.MediaRecorder&&MediaRecorder.isTypeSupported?.(x))return x}catch(_){}}
+      return '';
+    }
+    function normaliseVoiceWords(text){
+      return String(text||'').toLowerCase().replace(/[.,!?;:'"()]/g,' ').replace(/\s+/g,' ').trim();
+    }
+    function matchEmployeeFromVoice(text){
+      const words=` ${normaliseVoiceWords(text)} `;
+      if(!words.trim())return null;
+      let best=null,bestScore=0;
+      staffScope.forEach(person=>{
+        const nameParts=[formalName(person),person.full_name].filter(Boolean).join(' ').toLowerCase()
+          .replace(/\b(mr|mrs|ms|miss|dr|smt|shri)\b\.?/g,'').replace(/\s+/g,' ').trim();
+        const tokens=nameParts.split(' ').filter(tok=>tok.length>1);
+        let score=0;
+        tokens.forEach(tok=>{
+          const safe=tok.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+          if(new RegExp(`\\b${safe}\\b`).test(words))score+=1;
+        });
+        const idOrMobile=[person.employee_id,person.mobile,person.mobile_number,person.phone].filter(Boolean).map(String);
+        idOrMobile.forEach(v=>{if(v.length>=4&&words.includes(v.toLowerCase()))score+=3});
+        if(score>bestScore){bestScore=score;best=person}
+      });
+      return bestScore>0?best:null;
+    }
+    function matchShiftFromVoice(text){
+      const t=` ${normaliseVoiceWords(text)} `;
+      if(/\bnight\b|இரவு/.test(t))return 'Night Shift (7 PM–7 AM)';
+      if(/\bmorning\b|காலை/.test(t))return 'Morning Shift (7 AM–2 PM)';
+      if(/\bevening\b|மாலை/.test(t))return 'Evening Shift (1 PM–7 PM)';
+      if(/general\s*shift|பொது\s*ஷிப்ட்|பொது\s*ஷிஃப்ட்/.test(t))return 'General Shift (9 AM–6 PM)';
+      if(/\bday\s*shift\b|பகல்\s*ஷிப்ட்|பகல்\s*ஷிஃப்ட்|\bfull\s*day\b/.test(t))return 'Day Shift (7 AM–7 PM)';
+      return '';
+    }
+    function matchDutyTypeFromVoice(text){
+      const t=normaliseVoiceWords(text);
+      if(/medication|medicine|மருந்து/.test(t))return 'Medication Rounds';
+      if(/\bvitals?\b|blood pressure|\bbp\b|temperature|வைட்டல்ஸ்|உயிர்.*அளவீடு/.test(t))return 'Vitals Check';
+      if(/wound|dressing|காயம்|கட்டு/.test(t))return 'Wound Dressing';
+      if(/mobility|walking assist|நடை\s*உதவி|இயக்க\s*உதவி/.test(t))return 'Mobility Assistance';
+      if(/feeding|meal assist|உணவு\s*உதவி|சாப்பாடு/.test(t))return 'Feeding Assistance';
+      if(/\bbath|hygiene|குளியல்|சுகாதாரம்/.test(t))return 'Bathing / Hygiene Care';
+      if(/escort|transport.*patient|நோயாளி.*அழைத்து|எஸ்கார்ட்/.test(t))return 'Patient Escort';
+      if(/documentation|charting|பதிவு|ஆவணப்படுத்த/.test(t))return 'Documentation / Charting';
+      if(/ward round|வார்டு\s*சுற்று/.test(t))return 'Ward Round';
+      if(/general duty|பொது\s*பணி/.test(t))return 'General Duty';
+      return '';
+    }
+    function matchWeekStartFromVoice(text){
+      const t=normaliseVoiceWords(text);
+      if(/next week|அடுத்த\s*வாரம்/.test(t))return mondayOfWeek(addDaysISO(todayISOIndia(),7));
+      if(/this week|current week|இந்த\s*வாரம்/.test(t))return mondayOfWeek(todayISOIndia());
+      const dm=t.match(/\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/);
+      if(dm){
+        const day=Number(dm[1]),month=Number(dm[2]);
+        let year=dm[3]?Number(dm[3]):new Date().getFullYear();
+        if(year<100)year+=2000;
+        if(day>=1&&day<=31&&month>=1&&month<=12){
+          const iso=`${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+          if(!Number.isNaN(parseISODateUTC(iso).getTime()))return mondayOfWeek(iso);
+        }
+      }
+      return '';
+    }
+    function applyDutyVoiceCommand(text,rawSpoken){
+      const combined=`${text||''} ${rawSpoken||''}`.trim();
+      if(!combined){setVoiceMessage('No usable speech was captured. Please try again.');return}
+      const matchedEmployee=matchEmployeeFromVoice(combined);
+      const matchedShift=matchShiftFromVoice(combined);
+      const matchedDutyType=matchDutyTypeFromVoice(combined);
+      const matchedWeek=matchWeekStartFromVoice(combined);
+      if(!matchedEmployee&&!matchedShift&&!matchedDutyType&&!matchedWeek){
+        setVoiceMessage(`Heard: "${combined}". No matching employee, shift, duty type or week was recognised. Please try again or fill the form manually.`);
+        setVoiceHeard(combined);
+        return;
+      }
+      setForm(current=>({
+        ...current,
+        employee_id:matchedEmployee?matchedEmployee.id:current.employee_id,
+        shift:matchedShift||current.shift,
+        duty_type:matchedDutyType||current.duty_type,
+        week_start:matchedWeek||current.week_start,
+        duty_date:editing?(matchedWeek||current.duty_date):current.duty_date
+      }));
+      const summary=[
+        matchedEmployee?`Employee: ${formalName(matchedEmployee)}`:'Employee: not recognised — please select',
+        matchedShift?`Shift: ${matchedShift}`:'Shift: not recognised — please select',
+        matchedDutyType?`Duty Type: ${matchedDutyType}`:'Duty Type: not recognised — please select',
+        matchedWeek?`Week starting: ${formatDateIN(matchedWeek)}`:'Week: not recognised — please select'
+      ].join(' · ');
+      setVoiceHeard(combined);
+      setVoiceMessage(`Heard: "${combined}". ${summary}. Please review the fields below before saving.`);
+    }
+    async function sendDutyVoiceTranscript(spoken,lang){
+      setVoiceProcessing(true);
+      try{
+        if(String(lang).toLowerCase().startsWith('en')){applyDutyVoiceCommand(spoken,spoken);return}
+        setVoiceMessage('Converting Tamil speech to simple English…');
+        const {data:{session}}=await client.auth.getSession();if(!session)throw new Error('Please sign in again.');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{method:'POST',headers:{'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey,'Content-Type':'application/json'},body:JSON.stringify({transcript:spoken,spoken_language:lang,current_form_type:'Duty Assignment',current_task_kind:'Roster Voice Command',now_iso:new Date().toISOString(),timezone:'Asia/Kolkata'})});
+        const result=await response.json().catch(()=>({error:'Unable to read voice response'}));
+        if(!response.ok||result.error)throw new Error(result.error||'Unable to convert Tamil speech.');
+        const f=result.fields||{};
+        const text=String(f.details||f.notes||f.description||f.title||result.translated_text||result.translation||'').trim()||spoken;
+        applyDutyVoiceCommand(text,spoken);
+      }catch(error){setVoiceMessage(`Tamil speech was captured, but English conversion could not complete. ${error.message||''}`)}
+      finally{setVoiceProcessing(false)}
+    }
+    async function sendDutyVoiceAudio(blob,lang){
+      if(!blob){setVoiceMessage('The previous recording is not available. Please record again.');return}
+      setVoiceProcessing(true);setVoiceMessage('Understanding your voice command…');
+      try{
+        const {data:{session}}=await client.auth.getSession();if(!session)throw new Error('Please sign in again.');
+        const ext=(blob.type||'').includes('mp4')?'m4a':(blob.type||'').includes('ogg')?'ogg':'webm';
+        const fd=new FormData();fd.append('audio',blob,`duty-voice.${ext}`);fd.append('spoken_language',lang);fd.append('current_form_type','Duty Assignment');fd.append('current_task_kind','Roster Voice Command');fd.append('provider_preference','auto');fd.append('now_iso',new Date().toISOString());fd.append('timezone','Asia/Kolkata');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/director-office-voice`,{method:'POST',headers:{'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey},body:fd});
+        const result=await response.json().catch(()=>({error:'Unable to read voice response'}));
+        if(!response.ok||result.error)throw new Error(result.error||'Unable to process voice.');
+        const f=result.fields||{};
+        const transcript=String(result.transcript||'').trim();
+        const text=String(f.details||f.notes||f.description||f.title||result.translated_text||result.translation||transcript||'').trim();
+        if(!text){setVoiceMessage('No usable speech was returned. Please try again.');return}
+        applyDutyVoiceCommand(text,transcript||text);
+      }catch(error){setVoiceMessage(error.message||'Unable to process voice.')}
+      finally{setVoiceProcessing(false)}
+    }
+    function startDutyVoiceRecorder(lang){
+      if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){setVoiceMessage('Microphone recording is not available in this browser.');return}
+      navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
+        dutyVoiceStreamRef.current=stream;dutyVoiceChunksRef.current=[];dutyVoiceLangRef.current=lang;
+        const mime=bestDutyVoiceMime();const rec=mime?new MediaRecorder(stream,{mimeType:mime}):new MediaRecorder(stream);dutyVoiceRecorderRef.current=rec;
+        rec.ondataavailable=e=>{if(e.data?.size)dutyVoiceChunksRef.current.push(e.data)};
+        rec.onstop=async()=>{
+          const blob=new Blob(dutyVoiceChunksRef.current,{type:rec.mimeType||dutyVoiceChunksRef.current[0]?.type||'audio/webm'});
+          dutyVoiceChunksRef.current=[];
+          try{stream.getTracks().forEach(t=>t.stop())}catch(_){}
+          dutyVoiceStreamRef.current=null;dutyVoiceRecorderRef.current=null;setVoiceListening(false);
+          if(blob.size<1000){setVoiceMessage('No useful speech was captured. Please try again.');return}
+          await sendDutyVoiceAudio(blob,dutyVoiceLangRef.current);
+        };
+        rec.start();setVoiceListening(true);setVoiceMessage(lang==='ta-IN'?'🎤 Listening in Tamil… Tap Stop when finished.':'🎤 Listening in English… Tap Stop when finished.');
+      }).catch(error=>{setVoiceListening(false);setVoiceMessage(error?.name==='NotAllowedError'?'Microphone permission is blocked. Please allow microphone access.':(error.message||'Unable to start microphone.'))});
+    }
+    function startDutyVoice(lang){
+      if(voiceListening||voiceProcessing)return;
+      setVoiceHeard('');setVoiceMessage('');
+      if(navigator.mediaDevices?.getUserMedia&&window.MediaRecorder)return startDutyVoiceRecorder(lang);
+      const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+      if(!SR)return startDutyVoiceRecorder(lang);
+      try{
+        const rec=new SR();dutyVoiceRecognitionRef.current=rec;rec.lang=lang;rec.interimResults=true;rec.continuous=true;rec.maxAlternatives=1;
+        let finalText='';let latest='';let handled=false;
+        rec.onstart=()=>{setVoiceListening(true);setVoiceMessage(lang==='ta-IN'?'🎤 Listening in Tamil…':'🎤 Listening in English…')};
+        rec.onresult=e=>{let interim='';for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0]?.transcript||'';if(e.results[i].isFinal)finalText+=`${t} `;else interim+=t}latest=(finalText||interim).trim();setVoiceHeard(latest)};
+        const finish=()=>{if(handled)return;handled=true;setVoiceListening(false);const spoken=(finalText||latest).trim();if(spoken)sendDutyVoiceTranscript(spoken,lang);else setVoiceMessage('No speech was captured. Please try again.')};
+        rec.onerror=e=>{setVoiceListening(false);if(e?.error==='not-allowed'||e?.error==='service-not-allowed'){handled=true;setVoiceMessage('Microphone / speech permission is blocked. Please allow microphone access.')}else if(!latest&&!finalText){handled=true;startDutyVoiceRecorder(lang)}};
+        rec.onend=finish;rec.start();
+      }catch(_){startDutyVoiceRecorder(lang)}
+    }
 
     async function load(){
       setLoading(true);setMessage('');
@@ -22955,11 +23144,13 @@ function ShiftManagement({profile}){
       const today=todayISOIndia();
       const weekStart=mondayOfWeek((today>=rangeStart&&today<=rangeEnd)?today:rangeStart);
       setForm({...emptyForm,duty_date:weekStart,week_start:weekStart,weekly_off:'None'});
+      closeDutyVoice();
       setShowForm(true);
     }
     function openEdit(row){
       setEditing(row);
       setForm({...emptyForm,...row,status:effectiveDutyStatus(row),week_start:row.week_start||mondayOfWeek(row.duty_date),weekly_off:row.weekly_off_day||'None',patient_id:row.patient_id||'',ward_room:row.ward_room||'',duty_task:row.duty_task||'',remarks:row.remarks||''});
+      closeDutyVoice();
       setShowForm(true);
     }
 
@@ -23162,7 +23353,7 @@ function ShiftManagement({profile}){
       if(!searchText)return true;
       if(!staffSearchReady)return true;
       const emp=staffFor(row.employee_id);
-      const searchable=[formalName(emp),emp.full_name,emp.mobile,emp.mobile_number,emp.phone,emp.designation,emp.employee_id,row.duty_type,row.shift,row.status,row.ward_room,row.duty_task,row.remarks,row.patient_id?patientLabel(row.patient_id):''].filter(Boolean).join(' ').toLowerCase();
+      const searchable=[formalName(emp),emp.full_name,emp.mobile,emp.mobile_number,emp.phone,emp.designation,emp.employee_id].filter(Boolean).join(' ').toLowerCase();
       return searchable.includes(searchText);
     });
     const filteredCalendarRows=calendarAssignmentRows.filter(row=>{
@@ -23172,13 +23363,16 @@ function ShiftManagement({profile}){
       if(statusFilter&&statusFilter!=='Leave granted'&&effectiveDutyStatus(row)!==statusFilter)return false;
       if(!searchText)return true;
       const emp=staffFor(row.employee_id);
-      const searchable=[formalName(emp),emp.full_name,emp.mobile,emp.mobile_number,emp.phone,emp.designation,emp.employee_id,row.duty_type,row.shift,row.status,row.ward_room,row.duty_task,row.remarks,row.patient_id?patientLabel(row.patient_id):'',row.__leaveRecord?.leave_type,row.__leaveRecord?.reason].filter(Boolean).join(' ').toLowerCase();
+      // Employee search only: matches the assigned staff member's identity
+      // (name, mobile, employee ID, designation) — not the shift, duty type,
+      // patient/ward or task text.
+      const searchable=[formalName(emp),emp.full_name,emp.mobile,emp.mobile_number,emp.phone,emp.designation,emp.employee_id].filter(Boolean).join(' ').toLowerCase();
       return searchable.includes(searchText);
     });
     const assignmentSearch=h('div',{className:'duty-roster-search'},
       h('select',{value:shiftFilter,onChange:e=>setShiftFilter(e.target.value),'aria-label':'Filter by shift'},h('option',{value:''},'All shifts'),dutyShiftOptions.map(value=>h('option',{key:value,value},value))),
       h('select',{value:statusFilter,onChange:e=>setStatusFilter(e.target.value),'aria-label':'Filter by status'},h('option',{value:''},'All statuses'),dutyStatusOptions.map(value=>h('option',{key:value,value},value))),
-      h('input',{type:'search',value:staffSearch,onChange:e=>setStaffSearch(e.target.value),placeholder:'Search staff, mobile, patient/ward or task…','aria-label':'Search staff, mobile, patient, ward or task'}),
+      h('input',{type:'search',value:staffSearch,onChange:e=>setStaffSearch(e.target.value),placeholder:'Search employee by name, mobile, ID or designation…','aria-label':'Search employee by name, mobile, employee ID or designation'}),
       (!dropdownSearch&&staffSearch.length>0&&staffSearch.length<3)?h('small',null,'Type at least 3 characters'):null,
       h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setStaffSearch('');setShiftFilter('');setStatusFilter('')}},'Clear'));
     const simpleAssignmentList=h('div',{className:`duty-simple-list ${onlyMineView?'duty-simple-list-mine':''}`},
@@ -23265,8 +23459,22 @@ function ShiftManagement({profile}){
       showForm&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setShowForm(false)}},
         h('form',{className:'card modal duty-assignment-modal',style:{width:'min(760px,96vw)',maxHeight:'92vh',overflow:'auto'},onSubmit:save},
           h('div',{className:'panel-head'},
-            h('div',null,h('h3',null,editing?'Edit Duty Assignment':'Assign Duty'),h('small',null,'Shift, task and patient / ward duty for a nursing staff member')),
+            h('div',null,
+              h('h3',null,editing?'Edit Duty Assignment':'Assign Duty'),
+              h('small',null,'Shift, task and patient / ward duty for a nursing staff member'),
+              h('button',{type:'button',className:'btn btn-secondary duty-voice-toggle',onClick:()=>{if(voiceOpen){closeDutyVoice()}else{setVoiceOpen(true);setVoiceMessage('');setVoiceHeard('')}}},voiceOpen?'Hide Voice Assistant':'🎤 Voice Assistant')
+            ),
             h('button',{type:'button',className:'close',onClick:()=>setShowForm(false)},'×')
+          ),
+          voiceOpen&&h('div',{className:'duty-voice-panel'},
+            h('div',{className:'samara-voice-modal-head'},h('div',null,h('strong',null,'🎤 Voice Assistant'),h('small',null,'Speak the employee, shift, duty type and week — in English or Tamil. Review the filled fields below before saving.'))),
+            voiceListening?h('button',{type:'button',className:'btn btn-danger samara-voice-stop',onClick:stopDutyVoice},'■ Stop Recording'):
+              h('div',{className:'samara-voice-actions'},
+                h('button',{type:'button',className:'btn btn-primary',disabled:voiceProcessing,onClick:()=>startDutyVoice('ta-IN')},voiceProcessing?'Processing…':'🎤 Speak Tamil'),
+                h('button',{type:'button',className:'btn btn-secondary',disabled:voiceProcessing,onClick:()=>startDutyVoice('en-IN')},'🎤 Speak English')
+              ),
+            voiceHeard&&h('div',{className:'samara-voice-transcript'},h('small',null,'Heard'),h('div',null,voiceHeard)),
+            voiceMessage&&h('div',{className:'samara-voice-message'},voiceMessage)
           ),
           h('div',{className:'modal-grid'},
             h('div',{className:'field'},h('label',null,'Staff Member'),h('select',{required:true,value:form.employee_id,onChange:e=>setForm({...form,employee_id:e.target.value})},h('option',{value:''},'Select employee'),staffScope.map(s=>h('option',{key:s.id,value:s.id},`${formalName(s)}${s.employee_id?` · ${s.employee_id}`:''}${s.role?` · ${s.role}`:''}`)))),

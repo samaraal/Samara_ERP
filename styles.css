@@ -2121,6 +2121,11 @@ p,span,small,strong,b,label,td,th,button,a{overflow-wrap:break-word;word-break:n
 @media(max-width:760px){.system-maintenance-grid{grid-template-columns:1fr}.system-information-grid{grid-template-columns:1fr 1fr}.system-maintenance-card{padding:15px!important}.system-maintenance-card p{font-size:14px}}
 @media(max-width:760px){.modal>.close{display:none!important}.modal>.actions{position:static!important;display:flex!important;flex-wrap:wrap!important;width:100%!important;max-width:100%!important;overflow:visible!important}.modal>.actions>.btn{position:static!important;transform:none!important;min-width:0!important;margin:0!important}}
 .duty-assignment-modal .panel-head>.close{display:none!important}.duty-assignment-modal>.actions{flex-wrap:nowrap!important}.duty-assignment-modal>.actions>.btn{white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+.duty-voice-toggle{display:inline-flex;margin-top:8px;padding:7px 12px;font-size:12px;border-radius:999px;background:#fff7fb;color:#78103f;border:1px solid #dfb7c9}
+.duty-voice-panel{margin:0 0 16px;padding:14px;border:1px solid #ead1de;border-radius:14px;background:#fff7fb}
+.duty-voice-panel .samara-voice-modal-head{margin-bottom:10px}
+.duty-voice-panel .samara-voice-transcript,.duty-voice-panel .samara-voice-message{margin-top:10px}
+@media(max-width:760px){.duty-voice-panel .samara-voice-actions{grid-template-columns:1fr}}
 .leave-calendar-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
 .leave-calendar-controls input[type=search]{width:340px;max-width:340px;flex:0 1 340px;min-width:180px}
 .leave-calendar-controls input[type=date]{flex:0 1 180px;min-width:160px}
