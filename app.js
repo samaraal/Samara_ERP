@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.35';
+  const APP_VERSION = '2.12.36';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '14-Sep-2026 Compact roster detail interaction';
+  const APP_BUILD_DATE = '14-Sep-2026 Correct detail state initialization';
   const APP_SCHEMA_VERSION = '37';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -22408,7 +22408,6 @@ function RoomsBeds({profile,onNavigate}){
     const [message,setMessage]=React.useState('');
     const [showForm,setShowForm]=React.useState(false);
     const [editing,setEditing]=React.useState(null);
-    const [selectedDuty,setSelectedDuty]=React.useState(null);
     const [busy,setBusy]=React.useState(false);
     const [toast,setToast]=React.useState(null);
     const toastTimer=React.useRef(null);
@@ -22729,6 +22728,7 @@ function ShiftManagement({profile}){
     }
     const [showForm,setShowForm]=React.useState(false);
     const [editing,setEditing]=React.useState(null);
+    const [selectedDuty,setSelectedDuty]=React.useState(null);
     const [busy,setBusy]=React.useState(false);
     const [toast,setToast]=React.useState(null);
     const toastTimer=React.useRef(null);
