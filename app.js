@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.58';
+  const APP_VERSION = '2.12.59';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22895,31 +22895,33 @@ function ShiftManagement({profile}){
       const weekStart=mondayOfWeek(form.week_start||form.duty_date);
       const weekDates=Array.from({length:7},(_,index)=>addDaysISO(weekStart,index));
       if(weekDates[6]<todayISOIndia()){showToast('error','The selected week has already ended. Please select the current or a future week.');return}
-      setBusy(true);
       const offIndex=form.weekly_off==='None'?null:Number(form.weekly_off);
-      const workingDates=weekDates.filter((_,index)=>index!==offIndex);
+      const employeeIds=new Set(employeeIdentityIds(form.employee_id));
+      const existingDates=new Set(assignments.filter(row=>employeeIds.has(String(row.employee_id))&&weekDates.includes(row.duty_date)).map(row=>row.duty_date));
+      const missingDates=weekDates.filter(date=>!existingDates.has(date));
+      const retainedDates=weekDates.filter(date=>existingDates.has(date));
+      if(!editing&&missingDates.length===0){showToast('warning',`Weekly duty already exists for ${formalName(staffFor(form.employee_id))||'this employee'} on all dates from ${formatDateIN(weekStart)} to ${formatDateIN(weekDates[6])}. Open an existing row to modify it.`);return}
+      setBusy(true);
+      const workingDates=missingDates.filter(date=>date!==weekDates[offIndex]);
       const checks=await Promise.all(workingDates.map(date=>findDutyLeaveConflict(form.employee_id,date)));
       const failedCheck=checks.find(result=>result.error);
       if(failedCheck){setBusy(false);showToast('error',`Leave conflict check failed: ${failedCheck.error.message||'Unable to verify leave / permission records. The weekly duty was not assigned.'}`);return}
       const leaveConflicts=checks.map((result,index)=>result.conflict?{date:workingDates[index],conflict:result.conflict}:null).filter(Boolean);
       const leaveWarning=leaveConflicts.length?leaveConflicts.map(item=>`${leaveStatusLabel(item.conflict.status)} on ${formatDateIN(item.date)}`).join('; '):'';
-      if(!editing){
-        const duplicateDate=weekDates.find(date=>assignments.some(row=>String(row.employee_id)===String(form.employee_id)&&row.duty_date===date));
-        if(duplicateDate){setBusy(false);showToast('error',`Assignment not saved: an assignment already exists for ${formalName(staffFor(form.employee_id))||'this employee'} on ${formatDateIN(duplicateDate)}. Open the existing row to modify it.`);return}
-      }
       const {data:{user}}=await client.auth.getUser();
       const actionNow=new Date().toISOString();
       const basePayload={employee_id:form.employee_id,patient_id:form.patient_id||null,ward_room:form.ward_room.trim()||null,duty_task:form.duty_task.trim()||null,remarks:form.remarks.trim()||null,assigned_by:user?.id||profile?.id,assigned_by_name:formalName(profile)||profile?.full_name||'Authorised user',assigned_by_role:profile?.role,assigned_at:editing?(editing.assigned_at||editing.created_at||null):actionNow,updated_at:actionNow};
       const payload=editing
         ?{...basePayload,duty_date:form.duty_date,week_start:weekStart,weekly_off_day:form.weekly_off==='None'?null:Number(form.weekly_off),shift:form.shift,duty_type:form.duty_type,status:form.status,is_weekly_off:false}
-        :weekDates.map((date,index)=>{const isOff=index===offIndex;return {...basePayload,duty_date:date,week_start:weekStart,weekly_off_day:offIndex,shift:isOff?'Weekly Off':form.shift,duty_type:isOff?'Weekly Off':form.duty_type,status:isOff?'Weekly Off':form.status,is_weekly_off:isOff}});
+        :weekDates.filter(date=>!existingDates.has(date)).map(date=>{const index=weekDates.indexOf(date);const isOff=index===offIndex;return {...basePayload,duty_date:date,week_start:weekStart,weekly_off_day:offIndex,shift:isOff?'Weekly Off':form.shift,duty_type:isOff?'Weekly Off':form.duty_type,status:isOff?'Weekly Off':form.status,is_weekly_off:isOff}});
       const query=editing
         ?client.from('duty_assignments').update(payload).eq('id',editing.id).select('id').single()
         :client.from('duty_assignments').insert(payload).select('id');
       const {data,error}=await query;
       setBusy(false);
       if(error){showToast('error',error.message||'Unable to save duty assignment.');return}
-      showToast('success',leaveWarning?`Assignment saved with warning: ${formalName(staffFor(form.employee_id))||'This employee'} has ${leaveWarning}. It is available for review and modification.`:(editing?'Duty assignment updated successfully.':`Weekly duty assigned successfully for ${formatDateIN(weekStart)} to ${formatDateIN(weekDates[6])}.`));
+      const retainedNote=!editing&&retainedDates.length?` Existing assignment${retainedDates.length===1?'':'s'} on ${retainedDates.map(formatDateIN).join(', ')} retained.`:'';
+      showToast('success',leaveWarning?`Assignment saved with warning: ${formalName(staffFor(form.employee_id))||'This employee'} has ${leaveWarning}. It is available for review and modification.`:(editing?'Duty assignment updated successfully.':`Weekly duty assigned for ${formatDateIN(weekStart)} to ${formatDateIN(weekDates[6])}.${retainedNote}`));
       setShowForm(false);await load();
       if(leaveWarning)setMessage(`Warning: ${formalName(staffFor(form.employee_id))||'This employee'} has ${leaveWarning}. Assignment was saved for review and modification.`);
       writeAuditEvent(editing?'Duty Assignment Updated':'Duty Assigned','Duty Assignment',data?.id||editing?.id,{
