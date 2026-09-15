@@ -1,10 +1,11 @@
-const APP_VERSION = '2.12.75';
-const CACHE = 'samara-erp-2.12.75-enquiry-payment-folders';
+const APP_VERSION = '2.12.76';
+const CACHE = 'samara-erp-2.12.76-spot-assessment';
 const SHELL = [
   './',
   './index.html',
   `./styles.css?v=${APP_VERSION}`,
   `./app.js?v=${APP_VERSION}`,
+  `./spot-assessment.js?v=${APP_VERSION}`,
   `./bootstrap-error.js?v=${APP_VERSION}`,
   `./health-check.js?v=${APP_VERSION}`,
   `./config.js?v=${APP_VERSION}`,
