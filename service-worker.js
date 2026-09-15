@@ -1,5 +1,5 @@
-const APP_VERSION = '2.12.77';
-const CACHE = 'samara-erp-2.12.77-spot-assessment-voice';
+const APP_VERSION = '2.12.78';
+const CACHE = 'samara-erp-2.12.78-compact-checkboxes';
 const SHELL = [
   './',
   './index.html',

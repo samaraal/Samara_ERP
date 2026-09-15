@@ -142,7 +142,11 @@
     return h('div',{className:'spot-assessment'},h('style',null,`
       .spot-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.spot-wide{grid-column:1/-1}
       .spot-assessment input,.spot-assessment select,.spot-assessment textarea{width:100%;box-sizing:border-box}.spot-assessment textarea{resize:vertical}
-      .spot-checks{display:flex;flex-wrap:wrap;gap:12px}.spot-checks label{display:flex;align-items:center;gap:7px}.spot-checks input{width:auto}
+      .spot-assessment .spot-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 18px}
+      .spot-assessment .spot-checks label{display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:10px!important;min-height:44px;margin:0!important;padding:6px 0!important;font-size:14px!important;font-weight:500!important;line-height:1.4;cursor:pointer;min-width:0}
+      .spot-assessment .spot-checks input[type=checkbox]{appearance:auto!important;-webkit-appearance:checkbox!important;display:inline-block!important;box-sizing:border-box!important;width:18px!important;height:18px!important;min-width:18px!important;min-height:18px!important;max-width:18px!important;max-height:18px!important;flex:0 0 18px!important;padding:0!important;margin:0!important;border-radius:3px!important;box-shadow:none!important;transform:none!important;accent-color:#b01264;cursor:pointer}
+      .spot-assessment .spot-checks label:focus-within{outline:2px solid #b01264;outline-offset:2px;border-radius:4px}
+      @media(max-width:600px){.spot-assessment .spot-checks{grid-template-columns:1fr;gap:2px}}
       .spot-actions{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.spot-assessment fieldset{border:1px solid #ead4df;border-radius:12px;padding:16px;margin:16px 0;min-width:0}
       .spot-assessment legend{font-weight:750;color:#8b124d;padding:0 7px}.spot-wound{background:#fff8fb;border:1px solid #efdbe4;border-radius:10px;padding:12px;margin:12px 0}
       .spot-print{display:none}.spot-save-bar{position:sticky;bottom:0;padding:12px;background:#fff9fc;border:1px solid #ead4df;border-radius:12px;z-index:5}
