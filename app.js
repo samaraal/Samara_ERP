@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.76';
+  const APP_VERSION = '2.12.77';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6257,8 +6257,9 @@ Caring with Compassion. Living with Dignity.`;
 
   // v2.11.36: Global Tamil / English voice input for frontline nursing narrative fields.
   // Adds a compact Voice button beside free-text nursing fields without changing existing forms.
-  function GlobalNursingVoiceInput({profile}){
-    const enabled=['Nurse','Caregiver'].includes(profile?.role)||isNursingManagerProfile(profile);
+  function GlobalNursingVoiceInput({profile,page}){
+    const spotAssessment=page==='Spot Assessment';
+    const enabled=spotAssessment||['Nurse','Caregiver'].includes(profile?.role)||isNursingManagerProfile(profile);
     const [target,setTarget]=React.useState(null);
     const [open,setOpen]=React.useState(false);
     const [listening,setListening]=React.useState(false);
@@ -6275,7 +6276,8 @@ Caring with Compassion. Living with Dignity.`;
 
     function eligible(el){
       if(!enabled||!el||el.disabled||el.readOnly)return false;
-      if(el.dataset?.samaraVoice==='off')return false;
+      if(el.dataset?.samaraVoice==='off'||el.closest('.samara-voice-modal'))return false;
+      if(spotAssessment)return Boolean(el.closest('.spot-assessment')&&el.dataset?.samaraVoice==='on');
       const type=String(el.getAttribute('type')||'text').toLowerCase();
       if(el.tagName==='INPUT'&&!['text','search'].includes(type))return false;
       const bits=[el.name,el.id,el.placeholder,el.getAttribute('aria-label'),el.closest('label')?.innerText,el.parentElement?.querySelector(':scope > label')?.innerText].filter(Boolean).join(' ').toLowerCase();
@@ -6303,7 +6305,7 @@ Caring with Compassion. Living with Dignity.`;
       const ob=new MutationObserver(()=>window.setTimeout(addButtons,40));
       ob.observe(document.body,{childList:true,subtree:true});
       return()=>{ob.disconnect();document.querySelectorAll('.samara-global-voice-btn').forEach(x=>x.remove());document.querySelectorAll('[data-samara-voice-ready="1"]').forEach(x=>delete x.dataset.samaraVoiceReady)};
-    },[enabled]);
+    },[enabled,spotAssessment]);
 
     function stop(){
       try{recognitionRef.current?.stop?.()}catch(_){} recognitionRef.current=null;
@@ -6332,6 +6334,7 @@ Caring with Compassion. Living with Dignity.`;
       setMessage('Review and edit the text below. It has not yet been entered into the form.');
     }
     function useReviewedText(){
+      if(!target?.isConnected||target.disabled||target.readOnly){setMessage('This field is no longer available. Close Voice Input and reopen it from the assessment.');return}
       const clean=String(reviewText||'').trim();
       if(!clean){setMessage('Please enter or record the text before using it.');return}
       appendText(clean);
@@ -7064,7 +7067,7 @@ Caring with Compassion. Living with Dignity.`;
       h(GlobalNavigableSurfaces),
       h(GlobalMobileTableAdapter),
       h(GlobalFormRequirementManager,{page,profile}),
-      h(GlobalNursingVoiceInput,{profile}),
+      h(GlobalNursingVoiceInput,{profile,page}),
       h(Sidebar,{profile,page,setPage,allowed}),
       h('main',{className:'main'},
         h('header',{className:'topbar'},

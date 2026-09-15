@@ -1,5 +1,5 @@
-const APP_VERSION = '2.12.76';
-const CACHE = 'samara-erp-2.12.76-spot-assessment';
+const APP_VERSION = '2.12.77';
+const CACHE = 'samara-erp-2.12.77-spot-assessment-voice';
 const SHELL = [
   './',
   './index.html',

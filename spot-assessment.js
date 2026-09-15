@@ -56,9 +56,9 @@
       ['nursing_review','Nursing head — name / review notes','textarea'],['doctor_review','Resident doctor — name / review notes','textarea'])}
   ];
   const woundFields=fields(['kind','Type','select',['Wound','Bedsore / pressure injury','Other']],['location','Body location'],['size','Size / depth if measured'],['appearance','Appearance / discharge / surrounding skin'],['stage','Stage if documented by qualified clinician'],['dressing','Current dressing / care instructions']);
-  function initial(name=''){
+  function initial(name='',designation=''){
     const now=new Date();const date=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-    return {visit_date:date,assessor_name:name,wounds:[]};
+    return {visit_date:date,assessor_name:name,assessor_designation:designation,wounds:[]};
   }
   function validate(data,status){
     if(!String(data.person_name||'').trim())return 'Enter the person’s full name.';
@@ -101,7 +101,7 @@
     },[dirty]);
     function change(key,value){setData(old=>({...old,[key]:value}));setDirty(true);setNotice('')}
     function canLeave(){return !dirty||window.confirm('Discard unsaved Spot Assessment changes?')}
-    function create(){if(!canLeave())return;setRecord(null);setData(initial(profile?.full_name||''));setDirty(false);setError('');setNotice('')}
+    function create(){if(!canLeave())return;setRecord(null);setData(initial(profile?.full_name||'',profile?.designation||profile?.employee_designation||profile?.job_title||profile?.position||profile?.role||''));setDirty(false);setError('');setNotice('')}
     async function open(id){
       if(!canLeave()||saving.current)return;
       setBusy(true);setError('');setNotice('');
@@ -126,7 +126,9 @@
     }
     function control(field,values,onChange,prefix='spot'){
       const id=`${prefix}-${field.key}`,value=values[field.key]??'';
-      const props={id,name:id,value,onChange:e=>onChange(field.key,e.target.value),disabled:busy};
+      const identity=['assessor_name','assessor_designation'].includes(field.key);
+      const voice=!identity&&['text','textarea'].includes(field.type)&&!['lead_reference','blood_pressure','pulse','temperature','oxygen_saturation','size','stage'].includes(field.key);
+      const props={id,name:id,value,onChange:e=>onChange(field.key,e.target.value),disabled:busy,readOnly:identity,'data-samara-voice':voice?'on':'off'};
       let input;
       if(field.type==='textarea')input=h('textarea',{...props,rows:3});
       else if(field.type==='select')input=h('select',props,h('option',{value:''},'Select / not recorded'),field.options.map(o=>h('option',{key:o,value:o},o)));
