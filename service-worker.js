@@ -1,5 +1,5 @@
-const APP_VERSION = '2.12.74';
-const CACHE = 'samara-erp-2.12.74-push-subscription-fix';
+const APP_VERSION = '2.12.75';
+const CACHE = 'samara-erp-2.12.75-enquiry-payment-folders';
 const SHELL = [
   './',
   './index.html',

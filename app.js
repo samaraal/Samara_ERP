@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.74';
+  const APP_VERSION = '2.12.75';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -8432,6 +8432,42 @@ Caring with Compassion. Living with Dignity.`;
   }
   ensureGlobalDashboardNavigationStyle();
 
+
+  // Shared intake/WhatsApp routing. Pricing questions are admission enquiries;
+  // requests to pay an existing balance are payment follow-ups.
+  function requestCategory(row){
+    const metadata=[row.request_category,row.request_type,row.category,row.communication_type,row.template_name].filter(Boolean).join(' ').replace(/[_-]/g,' ').toLowerCase();
+    const text=[metadata,row.source,row.source_type,row.care_type,row.reason_for_enquiry,row.special_requirements,row.message_content].filter(Boolean).join(' ').replace(/[_-]/g,' ').toLowerCase();
+    if(/\b(payment|receipt|invoice|billing|refund)\b/.test(metadata)||/\b(payment|balance|amount|dues?)\s+(is\s+)?(pending|due|overdue|outstanding)\b|\b(pending|due|overdue|outstanding)\s+(payment|balance|amount|dues?)\b|\b(payment\s+(request|reminder|receipt|follow.?up|confirmation)|please\s+(pay|settle)|invoice|refund|paid\s+(the\s+)?(amount|bill|fees?))\b/.test(text))return 'Payment Follow-ups';
+    if(/\b(admission|admit|enquir\w*|assisted living|tracheost\w*|beds?|stay|pricing|prices?|tariff|cost|fees?|packages?|caregiver|physiotherapy|nursing|facility|services?|callback)\b|call back|please call|call me|request a call|our location/.test(text))return 'Admission Enquiries';
+    return 'Other';
+  }
+  function isAdmissionEnquiry(row){return requestCategory(row)!=='Payment Follow-ups';}
+  async function loadAdmissionIntake(activeOnly=false){
+    const data=[];
+    // Page before classifying, so neither the six-item preview nor the API row
+    // cap silently truncates the dashboard count.
+    for(let offset=0;;offset+=500){
+      let query=client.from('pre_admission_enquiries').select('*').order('created_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+499);
+      if(activeOnly)query=query.in('status',['New','Contacted','Assessment Scheduled']);
+      const result=await query;
+      if(result.error)return {data:[],error:result.error};
+      data.push(...(result.data||[]));
+      if((result.data||[]).length<500)return {data,error:null};
+    }
+  }
+  function whatsAppFolder(messages){
+    // Do not let generic outbound assisted-living templates turn a payment
+    // conversation into an enquiry. A new, explicit inbound enquiry can do so.
+    let folder='Other';
+    for(const row of messages){
+      const category=requestCategory(row);
+      if(category==='Payment Follow-ups'||(row.direction==='inbound'&&category==='Admission Enquiries'))folder=category;
+    }
+    if(folder==='Admission Enquiries'&&messages.some(row=>row.career_application_id||row.application_id||/patient|family|employee|hr applicant|emergency/i.test(row.source_type||'')))return 'Other';
+    return folder;
+  }
+
 function Dashboard({profile,onNavigate,alertEngine}){
     const [stats,setStats]=React.useState({employees:0,patients:0,availableBeds:0,reservationOverdue:0,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[],escalations:0,packageExpiry:0});
     const [managerPersonalSummary,setManagerPersonalSummary]=React.useState({today:0,overdue:0,followup:0,completed:0});
@@ -8504,7 +8540,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
         client.from('incidents').select('*',{count:'exact',head:true}).eq('status','Open'),
         client.from('patient_discharges').select('id,status,management_status,accounts_status'),
         client.from('family_visit_requests').select('*',{count:'exact',head:true}).eq('status','Pending'),
-        client.from('pre_admission_enquiries').select('id,patient_name,family_contact_name,family_contact_phone,source,status,care_type,created_at',{count:'exact'}).in('status',['New','Contacted','Assessment Scheduled']).order('created_at',{ascending:false}).limit(6),
+        loadAdmissionIntake(true),
         client.from('clinical_alert_escalations').select('*',{count:'exact',head:true}).is('resolved_at',null)
       ]);
       const patients=pat.data||[];
@@ -8593,8 +8629,8 @@ function Dashboard({profile,onNavigate,alertEngine}){
         discharges:activeDischarges.length,
         dischargeStatus,
         visitRequests:vis?.count||0,
-        enquiries:enq?.count||0,
-        recentEnquiries:enq?.data||[],
+        enquiries:(enq?.data||[]).filter(isAdmissionEnquiry).length,
+        recentEnquiries:(enq?.data||[]).filter(isAdmissionEnquiry).slice(0,6),
         escalations:esc?.count||0,
         packageExpiry
       });
@@ -9124,6 +9160,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
     const [rows,setRows]=React.useState([]),[selectedPhone,setSelectedPhone]=React.useState(''),[query,setQuery]=React.useState(''),[showUnread,setShowUnread]=React.useState(false),[reply,setReply]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState(''),[isMobile,setIsMobile]=React.useState(()=>window.matchMedia('(max-width: 700px)').matches),[patientContext,setPatientContext]=React.useState(null),[mobileComposer,setMobileComposer]=React.useState('');
     const replyEditorRef=React.useRef(null);
     const [subjectFilter,setSubjectFilter]=React.useState('All Subjects');
+    const [waFolder,setWaFolder]=React.useState(String(profile?.role||'')==='STD'?'Admission Enquiries':'All');
     const [dateFrom,setDateFrom]=React.useState('');
     const [dateTo,setDateTo]=React.useState('');
     const isSTD=String(profile?.role||'')==='STD';
@@ -9389,9 +9426,11 @@ Samara Assisted Living`;
       const name=last.contact_name||last.applicant_name||inbound?.contact_name||inbound?.applicant_name||phone;
       const source=last.source_type||inbound?.source_type||(last.career_application_id?'HR Applicant':'Website / Public');
       const subject=enquirySubject(sorted);
-      return {phone,msgs:sorted,last,name,source,subject,unread,lastAt:last.created_at,hasInbound:Boolean(inbound)};
-    }).filter(c=>!isSTD||c.hasInbound).sort((a,b)=>new Date(b.lastAt)-new Date(a.lastAt));
+      const folder=whatsAppFolder(isSTD?rows.filter(r=>phoneOf(r)===phone).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)):sorted);
+      return {phone,msgs:sorted,last,name,source,subject,folder,unread,lastAt:last.created_at,hasInbound:Boolean(inbound)};
+    }).filter(c=>!isSTD||(c.hasInbound&&c.folder!=='Payment Follow-ups')).sort((a,b)=>new Date(b.lastAt)-new Date(a.lastAt));
     const filtered=conversations.filter(c=>{
+      if(waFolder!=='All'&&c.folder!==waFolder)return false;
       if(showUnread&&!c.unread)return false;
       if(isSTD&&subjectFilter!=='All Subjects'&&c.subject!==subjectFilter)return false;
       const lastDate=new Date(c.lastAt);
@@ -9406,13 +9445,13 @@ Samara Assisted Living`;
       const hay=`${c.name} ${c.phone} ${c.source} ${c.subject} ${c.last.message_content||''}`.toLowerCase();
       return !query||hay.includes(query.toLowerCase());
     });
-    const active=conversations.find(c=>c.phone===selectedPhone)||filtered[0]||null;
+    const active=filtered.find(c=>c.phone===selectedPhone)||filtered[0]||null;
     React.useEffect(()=>{if(!isMobile&&!selectedPhone&&filtered[0])setSelectedPhone(filtered[0].phone)},[rows,query,showUnread,isMobile]);
     React.useEffect(()=>{
       if(!active)return;
       const unreadIds=active.msgs.filter(x=>x.direction==='inbound'&&!x.erp_read_at).map(x=>x.id);
       if(unreadIds.length)client.from('hr_whatsapp_communications').update({erp_read_at:new Date().toISOString(),updated_at:new Date().toISOString()}).in('id',unreadIds).then(load);
-    },[selectedPhone,rows.length]);
+    },[active?.phone,rows]);
     const latestInbound=active?[...active.msgs].reverse().find(x=>x.direction==='inbound'):null;
     const within24=latestInbound&&(Date.now()-new Date(latestInbound.received_at||latestInbound.created_at).getTime())<24*60*60*1000;
 	    function mediaInfo(r){
@@ -9662,12 +9701,15 @@ Thank you.`;
         setMessage('✓ Approved template accepted by Meta. Free-text reply will become available after the customer replies.');await load();
       }catch(error){setMessage(`Template send failed: ${error.message||error}`)}finally{setBusy(false)}
     }
-    const unreadTotal=conversations.reduce((n,c)=>n+c.unread,0);
+    const unreadTotal=conversations.filter(c=>waFolder==='All'||c.folder===waFolder).reduce((n,c)=>n+c.unread,0);
     return h(React.Fragment,null,
       h(Section,{title:patientContext?`WhatsApp — ${patientContext.patient_name}`:(isSTD?'WhatsApp Enquiry Desk':'WhatsApp Inbox'),subtitle:isMobile?null:(patientContext?'Patient-linked WhatsApp messages only. Other WhatsApp conversations are hidden in this view.':(isSTD?'Incoming public enquiries only. Filter by subject, name/mobile and date.':'Website/public enquiries, applicant replies and WhatsApp conversations in one place'))},
         patientContext?h('div',{className:'notice',style:{marginBottom:'12px',display:'flex',gap:'10px',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
           h('div',null,h('strong',null,patientContext.patient_name),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},patientContext.patient_code?`· ${patientContext.patient_code}`:''),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},`· +${patientContext.phone}`)),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPatientContext(null);setSelectedPhone('');setQuery('');setShowUnread(false);}},'Show All WhatsApp')
+        ):null,
+        (!isMobile||!selectedPhone)?h('nav',{'aria-label':'WhatsApp folders',style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'12px'}},
+          (isSTD?['Admission Enquiries','Other']:['All','Admission Enquiries','Payment Follow-ups','Other']).map(folder=>h('button',{type:'button',key:folder,'aria-pressed':waFolder===folder,className:`btn ${waFolder===folder?'btn-primary':'btn-secondary'}`,onClick:()=>{setWaFolder(folder);setSelectedPhone('');setSubjectFilter('All Subjects');setQuery('');setShowUnread(false);setDateFrom('');setDateTo('');}},`${folder} (${conversations.filter(c=>folder==='All'||c.folder===folder).length})`))
         ):null,
         (!isMobile||!selectedPhone)?h('div',{className:'wa-inbox-toolbar',style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginBottom:'14px'}},
           h('input',{value:query,onChange:e=>setQuery(e.target.value),placeholder:isSTD?'Search name, mobile, subject or message…':'Search name, mobile or message…',style:{flex:'1 1 280px',minWidth:'220px'}}),
@@ -13647,6 +13689,7 @@ Thank you.`;
 
   function Enquiries({profile}){
     const [rows,setRows]=React.useState([]),[msg,setMsg]=React.useState('');
+    const [intakeFolder,setIntakeFolder]=React.useState('Admission Enquiries');
     const [dashboardEnquiryFilter,setDashboardEnquiryFilter]=React.useState(()=>{
       try{
         const value=sessionStorage.getItem('samara-enquiry-filter')||'';
@@ -13656,7 +13699,7 @@ Thank you.`;
     });
     const canManage=['Admin','Manager'].includes(profile?.role);
     async function load(){
-      const {data,error}=await client.from('pre_admission_enquiries').select('*').order('created_at',{ascending:false});
+      const {data,error}=await loadAdmissionIntake();
       if(error){setMsg(error.message||'Unable to load enquiries.');return;}
       setRows(data||[]);setMsg('');
     }
@@ -13668,15 +13711,17 @@ Thank you.`;
       load();
     }
     const statuses=['New','Contacted','Assessment Scheduled','Estimate Sent','Bed Reserved','Converted to Admission','Closed'];
+    const categoryRows=rows.filter(r=>intakeFolder==='Admission Enquiries'?isAdmissionEnquiry(r):!isAdmissionEnquiry(r));
     const enquiryDisplayRows=dashboardEnquiryFilter==='active'
-      ?rows.filter(r=>['New','Contacted','Assessment Scheduled'].includes(String(r.status||'New')))
-      :rows;
+      ?categoryRows.filter(r=>['New','Contacted','Assessment Scheduled'].includes(String(r.status||'New')))
+      :categoryRows;
     return h(React.Fragment,null,
-      h(Section,{title:'Admission Enquiries',subtitle:'Read-only intake from the Samara Website and Family Portal. Admin / Manager review and update the status here.'},
+      h(Section,{title:intakeFolder,subtitle:'Read-only intake from the Samara Website and Family Portal. Admin / Manager review and update the status here.'},
         h('div',{className:'message info'},'New enquiries are submitted only from the public Website or secure Family Portal. ERP staff cannot create enquiry records from this screen.'),
         msg?h('div',{className:'message error'},msg):null
       ),
-      h(LogTable,{title:dashboardEnquiryFilter==='active'?`Active Admission Enquiries (${enquiryDisplayRows.length})`:'Enquiry Register',heads:['Received','Source','Resident','Age','Family Contact','Care Type','Preferred Room','Requirements','Status'],rows:enquiryDisplayRows.map(r=>[
+      h('nav',{'aria-label':'Intake folders',style:{display:'flex',gap:'8px',marginBottom:'12px',flexWrap:'wrap'}},['Admission Enquiries','Payment Follow-ups'].map(folder=>h('button',{type:'button',key:folder,'aria-pressed':intakeFolder===folder,className:`btn ${intakeFolder===folder?'btn-primary':'btn-secondary'}`,onClick:()=>{setIntakeFolder(folder);setDashboardEnquiryFilter('');}},folder))),
+      h(LogTable,{title:`${dashboardEnquiryFilter==='active'?'Active ':''}${intakeFolder} (${enquiryDisplayRows.length})`,heads:['Received','Source','Resident','Age','Family Contact','Care Type','Preferred Room','Requirements','Status'],rows:enquiryDisplayRows.map(r=>[
         formatDateTimeIN(r.created_at),
         h('span',{className:'badge'},r.source||'Website'),
         r.patient_name||'—',
