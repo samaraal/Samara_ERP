@@ -27,7 +27,7 @@ window.SamaraFoodVendor=function({client,profile}){
  const lock=R.useRef(false),request=R.useRef(null),noticeRef=R.useRef(null),headingRef=R.useRef(null);
  R.useEffect(()=>{const target=error?noticeRef.current:tab==='Messages'?headingRef.current:null;if(target){target.scrollIntoView({block:'center',behavior:'auto'});target.focus({preventScroll:true})}},[error,tab]);
  R.useEffect(()=>{setReport(null)},[from,to,vendor]);
- async function read(action,p={}){const {data,error}=await client.rpc('fv_rpc',{action,p});if(error)throw Error(error.message);return data}
+ async function read(action,p={}){const {data,error}=await client.rpc('fv_rpc',{action,p});if(error)throw Error(error.code==='23505'&&String(error.message).includes('fv_order_slot')?'An order already exists for this date and meal. Please open the existing order.':error.message);return data}
  async function load(range={}){try{const data=await read('load',{from:range.from||from,to:range.to||to});setState(data);setSettings(data.settings);if(!vendor)setVendor(data.settings.vendor_id);setError('')}catch(e){setError(e.message)}}
  R.useEffect(()=>{load()},[]);
  const authority=state?.authority||{},control=authority.control&&!busy,full=authority.billing,orders=state?.orders||[],events=state?.events||[],messages=state?.messages||[];
