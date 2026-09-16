@@ -1,0 +1,118 @@
+[
+  {
+    "name": "samara_food_order",
+    "language": "en",
+    "category": "UTILITY",
+    "components": [
+      {
+        "type": "HEADER",
+        "format": "IMAGE",
+        "example": {
+          "header_handle": [
+            "REPLACE_WITH_META_UPLOADED_SAMARA_LOGO_HANDLE"
+          ]
+        }
+      },
+      {
+        "type": "BODY",
+        "text": "Dear {{1}},\nPlease arrange the following food order for Samara Assisted Living.\n\nOrder: {{2}}\nDate and meal: {{3}}\nDelivery time: {{4}}\nResident quantities: {{5}}\nEmployee quantities: {{6}}\nTotal quantities: {{7}}\nOther requests / instructions: {{8}}\n\nPlease acknowledge this order.\nThank you, Samara Assisted Living.",
+        "example": {
+          "body_text": [
+            [
+              "Mrs. Yuvashree",
+              "FOOD-20260916-003",
+              "16-09-2026 / Lunch",
+              "12:30 PM",
+              "Standard meal: 12; Soft meal: 4",
+              "Standard meal: 6",
+              "Standard meal: 18; Soft meal: 4",
+              "Pack soft meals separately."
+            ]
+          ]
+        }
+      },
+      {
+        "type": "FOOTER",
+        "text": "Samara Assisted Living"
+      }
+    ]
+  },
+  {
+    "name": "samara_food_modification",
+    "language": "en",
+    "category": "UTILITY",
+    "components": [
+      {
+        "type": "HEADER",
+        "format": "IMAGE",
+        "example": {
+          "header_handle": [
+            "REPLACE_WITH_META_UPLOADED_SAMARA_LOGO_HANDLE"
+          ]
+        }
+      },
+      {
+        "type": "BODY",
+        "text": "Dear {{1}},\nPlease use this revised food order for Samara Assisted Living in place of the earlier version.\n\nOrder and revision: {{2}}\nDate and meal: {{3}}\nDelivery time: {{4}}\nChanges: {{5}}\nRevised resident quantities: {{6}}\nRevised employee quantities: {{7}}\nRevised total quantities: {{8}}\nReason / instructions: {{9}}\n\nPlease acknowledge the revised quantities.\nThank you, Samara Assisted Living.",
+        "example": {
+          "body_text": [
+            [
+              "Mrs. Yuvashree",
+              "FOOD-20260916-003 / Revision 2",
+              "16-09-2026 / Lunch",
+              "12:30 PM",
+              "Resident standard meals increased from 10 to 12",
+              "Standard meal: 12; Soft meal: 4",
+              "Standard meal: 6",
+              "Standard meal: 18; Soft meal: 4",
+              "Two additional portions required."
+            ]
+          ]
+        }
+      },
+      {
+        "type": "FOOTER",
+        "text": "Samara Assisted Living"
+      }
+    ]
+  },
+  {
+    "name": "samara_food_receipt",
+    "language": "en",
+    "category": "UTILITY",
+    "components": [
+      {
+        "type": "HEADER",
+        "format": "IMAGE",
+        "example": {
+          "header_handle": [
+            "REPLACE_WITH_META_UPLOADED_SAMARA_LOGO_HANDLE"
+          ]
+        }
+      },
+      {
+        "type": "BODY",
+        "text": "Dear {{1}},\nSamara Assisted Living has recorded a food delivery against your order.\n\nOrder and receipt: {{2}}\nDate and meal: {{3}}\nReceived at: {{4}}\nOrdered quantities: {{5}}\nAccepted this delivery: {{6}}\nRejected this delivery: {{7}}\nOutstanding quantities: {{8}}\nRemarks / instructions: {{9}}\n\nPlease review any discrepancy and acknowledge.\nThank you, Samara Assisted Living.",
+        "example": {
+          "body_text": [
+            [
+              "Mrs. Yuvashree",
+              "FOOD-20260916-003 / Receipt 1",
+              "16-09-2026 / Lunch",
+              "12:25 PM",
+              "Standard meal: 18; Soft meal: 4",
+              "Residents: Standard 11, Soft 4; Employees: Standard 6",
+              "None",
+              "Standard meal: 1",
+              "Please deliver the remaining portion."
+            ]
+          ]
+        }
+      },
+      {
+        "type": "FOOTER",
+        "text": "Samara Assisted Living"
+      }
+    ]
+  }
+]
