@@ -43,5 +43,12 @@ function workbook(sheets){
  const c=header(46);put(c,0,0x02014b50);put(c,4,20,2);put(c,6,20,2);put(c,16,crc);put(c,20,data.length);put(c,24,data.length);put(c,28,name.length,2);put(c,42,offset);central.push(c,name);offset+=30+name.length+data.length;}
  const size=central.reduce((n,a)=>n+a.length,0),end=header(22);put(end,0,0x06054b50);put(end,8,Object.keys(files).length,2);put(end,10,Object.keys(files).length,2);put(end,12,size);put(end,16,offset);return new Blob([...parts,...central,end],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
 }
-const api={logo,slots,ref,message,payload,manual,balance,workbook};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+function quantityRows(report){
+ return (report.orders||[]).filter(o=>o.data.vendor_id===report.vendor_id&&o.data.date>=report.from&&o.data.date<=report.to).sort((a,b)=>a.data.date.localeCompare(b.data.date)||slots.indexOf(a.data.slot)-slots.indexOf(b.data.slot)).flatMap(o=>{
+ const receipts=(report.events||[]).filter(e=>e.order_id===o.id&&e.kind==='receive');
+ return (o.data.items||[]).map((it,i)=>{const sum=k=>receipts.reduce((n,e)=>n+Number(e.data.items?.[i]?.[k]||0),0);
+ return [o.data.date,o.data.slot,ref(o.id),it.name,Number(it.residents||0),Number(it.employees||0),Number(it.residents||0)+Number(it.employees||0),receipts.length?sum('residents'):'Not recorded',receipts.length?sum('employees'):'Not recorded',receipts.length?sum('residents')+sum('employees'):'Not recorded',receipts.length?sum('rejected'):'Not recorded',o.status,o.data.instructions||''];});
+ });
+}
+const api={logo,slots,ref,message,payload,manual,balance,workbook,quantityRows};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(globalThis);
