@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.89';
+  const APP_VERSION = '2.12.90';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1685,6 +1685,39 @@ function initSamaraInaugurationInvitation(){
     const providerMessageId=result?.provider_message_id||result?.result?.messages?.[0]?.id||result?.messages?.[0]?.id||'';
     if(!providerMessageId)throw new Error('Meta did not return a WhatsApp message ID. The message is NOT confirmed as accepted.');
     return {...result,provider_message_id:providerMessageId};
+  }
+
+  // Welcome sends keep acceptance separate from Inbox persistence: retrying logging never sends again.
+  async function sendEmployeeWelcomeRecorded(request){
+    const number=normalizeWhatsAppRecipient(request.to);
+    const key='samara_employee_welcome_accepted:'+String(request.communicationLog.message_payload.employee_id);
+    const pending=JSON.parse(localStorage.getItem(key)||'null');
+    if(!pending&&!request.communicationLog.message_payload.resend){
+      const {data,error}=await client.from('hr_whatsapp_communications').select('id').eq('template_name','employee_welcome_samara').eq('recipient_number',number).limit(1);
+      if(error)throw new Error('Unable to check previous welcomes. No message sent. '+error.message);
+      if(data?.length)return {history_logged:true,already_sent:true};
+    }
+    const result=pending?.result||await sendWhatsAppTemplate(request);
+    const log=pending?.log||request.communicationLog;
+    const sentAt=pending?.sentAt||new Date().toISOString();
+    if(result.history_logged===true){localStorage.removeItem(key);return result;}
+    try{localStorage.setItem(key,JSON.stringify({result,log,sentAt}));}catch(error){console.warn('Unable to retain welcome logging recovery',error);}
+    try{
+      const {data,error}=await client.from('hr_whatsapp_communications').select('id').eq('provider_message_id',result.provider_message_id).limit(1);
+      if(error)throw error;
+      if(!data?.length){
+        const {error:insertError}=await client.from('hr_whatsapp_communications').insert({
+          recipient_number:number,template_name:'employee_welcome_samara',communication_type:log.communication_type,
+          status:'Accepted',provider_message_id:result.provider_message_id,direction:'outbound',message_type:'template',
+          message_content:log.message_content,message_payload:log.message_payload,contact_name:log.contact_name,
+          source_type:log.source_type,sent_by:log.sent_by,sent_by_name:log.sent_by_name,
+          sent_at:sentAt,created_at:sentAt,updated_at:sentAt
+        });
+        if(insertError)throw insertError;
+      }
+      localStorage.removeItem(key);
+      return {...result,history_logged:true};
+    }catch(error){return {...result,history_logged:false,history_error:error.message};}
   }
 
   async function sendWhatsAppText({to,text}){
@@ -12818,7 +12851,12 @@ Thank you.`;
         await load();
         const successText=result.repaired?'Employee account repaired successfully.':'New employee added successfully.';
         setMsg(successText);showEmployeeToast('success',successText);
-        if(sourceCareerId){await client.from('career_applications').update({status:'Converted to Employee',linked_employee_id:result.user_id,handled_by:profile.id,updated_at:new Date().toISOString()}).eq('id',sourceCareerId);setSourceCareerId('')}
+        if(sourceCareerId){
+          const {error:conversionError}=await client.from('career_applications').update({status:'Converted to Employee',linked_employee_id:result.user_id,handled_by:profile.id,updated_at:new Date().toISOString()}).eq('id',sourceCareerId);
+          if(conversionError)throw conversionError;
+          setSourceCareerId('');
+          await sendEmployeeWelcomeApi(createdRow);
+        }
         setForm(empty);setIdFiles([]);setQualificationFiles([]);setExperienceFiles([]);setOtherFiles([]);setCameraFiles([]);setPhotoFiles([]);setPhotoPreview('');
       }catch(error){
         const errorText=error.message||'Unable to create employee';
@@ -12834,14 +12872,15 @@ Thank you.`;
     }
     async function sendEmployeeWelcomeApi(row,{resend=false}={}){
       const number=normalizeWhatsAppRecipient(row?.mobile||'');
-      if(!number||welcomeBusy)return;
+      if(welcomeBusy)return;
+      if(!number){setMsg('Employee saved. Enter a valid mobile number before sending the welcome.');return;}
       const busyKey=String(row?.id||number);
       const employeeName=formalName(row)||row?.full_name||'Colleague';
       const designation=String(row?.designation||'').trim()||String(row?.department||'').trim()||'Team Member';
       const loginId=String(row?.login_id||'').trim()||'To be provided by HR';
       setWelcomeBusy(busyKey);
       try{
-        const result=await sendWhatsAppTemplate({
+        const result=await sendEmployeeWelcomeRecorded({
           to:number,
           templateName:'employee_welcome_samara',
           languageCode:'en',
@@ -12858,7 +12897,7 @@ Thank you.`;
           }
         });
         setWelcomeSentNumbers(current=>new Set([...current,number]));
-        const text=result?.history_logged===true?'Employee welcome WhatsApp accepted by Meta and recorded in WhatsApp Inbox.':'Employee welcome WhatsApp accepted by Meta; Inbox logging needs verification.';
+        const text=result?.history_logged===true?'Employee welcome WhatsApp accepted by Meta and recorded in WhatsApp Inbox.':`Employee welcome accepted by Meta, but Inbox logging failed: ${result.history_error||'unknown error'}. Use Resend Welcome to retry saving this accepted message; it will not send again while recovery is pending in this browser.`;
         setMsg(text);showEmployeeToast('success',text);
       }catch(error){
         const text=`Employee welcome WhatsApp API failed: ${error.message||error}`;
