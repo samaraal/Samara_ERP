@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.97';
+  const APP_VERSION = '2.12.98';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12057,25 +12057,6 @@ Thank you.`;
           card('Correspondence',correspondence.length,'Correspondence','Letters & communications'),
           card('Reminders',reminders.length,'Reminder','Upcoming reminders')
         ),
-        h('div',{className:'director-office-comm-grid',style:{marginTop:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:'10px'}},
-          commCard('WhatsApp Enquiries',waUnread,'◉','Attend incoming public enquiries','WhatsApp Inbox'),
-          h('button',{type:'button',onClick:()=>openNew('Call / Callback'),style:{
-              textAlign:'left',
-              border:'1px solid #e5a9c1',
-              borderRadius:'20px',
-              background:'linear-gradient(135deg,#fff4f8 0%,#f8dbe7 55%,#f1c3d5 100%)',
-              padding:'17px 18px',
-              cursor:'pointer',
-              minHeight:'106px',
-              boxShadow:'0 10px 24px rgba(128,18,70,.11)',
-              borderLeft:'5px solid #b40d52'
-            }},
-            h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px'}},h('span',{style:{fontSize:'27px'}},'☎'),h('strong',{style:{fontSize:'29px',fontWeight:950,color:'#9b124f'}},calls.length)),
-            h('div',{style:{fontWeight:900,color:'#351b29',marginTop:'5px',fontSize:'15px'}},'Call Enquiries'),
-            h('small',{style:{color:'#846d79'}},'Enter every phone enquiry manually')
-          ),
-          commCard('Feedback',feedbackOpen,'★','Review feedback and responses','Feedback')
-        ),
         urgent.length?h('div',{style:{marginTop:'12px',padding:'10px 12px',borderRadius:'12px',background:'#fff3f3',border:'1px solid #efc2c2',fontWeight:800,color:'#8d1b2c'}},`⚠ ${urgent.length} urgent item${urgent.length===1?'':'s'} pending`):null
       ),
 
@@ -12151,6 +12132,11 @@ Thank you.`;
         .director-office-page .director-office-stat-grid>button>div:nth-child(2){font-size:14px!important;font-weight:600!important;line-height:1.4!important;color:#741747!important;margin-top:5px!important;word-break:normal!important;overflow-wrap:normal!important}
         @media(max-width:480px){.director-office-page .director-office-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 
+        .director-office-page .director-office-comm-grid>button{color:#7f174a!important;font-family:inherit!important}
+        .director-office-page .director-office-comm-grid>button>div:nth-child(2){color:#741747!important;font-size:15px!important;font-weight:600!important;line-height:1.4!important}
+        .director-office-page .director-office-comm-grid>button>div:first-child>span{color:#8b1953!important;font-size:23px!important}
+        .director-office-page .director-office-comm-grid>button>div:first-child>strong{color:#8b1953!important;font-size:25px!important;font-weight:700!important}
+        .director-office-page .director-office-comm-grid>button>small{color:#846d79!important;font-size:13px!important;font-weight:400!important}
         .director-office-page .director-office-comm-grid{gap:6px!important}.director-office-page .director-office-comm-grid>button{padding:10px!important;min-height:0!important}
       `),
       h(Section,{title:filter==='Overdue'?'Overdue items':officeRangeLabel,actions:h('button',{type:'button',className:'btn btn-secondary',disabled:manualRefreshing||loading,onClick:refreshDirectorOffice},manualRefreshing?'Refreshing…':'Refresh')},
@@ -12181,6 +12167,27 @@ Thank you.`;
         loading?h('div',{className:'empty'},'Loading Director’s Office…'):
         h('div',{style:{display:'grid',gap:'10px'}},...filtered.flatMap((r,index)=>{const date=officeDateKey(r);return [index===0||officeDateKey(filtered[index-1])!==date?h('h4',{key:'date-'+date,style:{margin:'12px 0 0',color:date===todayKey?'#b50059':'#4b3040'}},(date===todayKey?'Today · ':'')+prettyDate(date)):null,itemCard(r,index)];}),
           filtered.length===0?h('div',{className:'empty'},'No items in this view.'):null
+        )
+      ),
+      h(Section,{title:'Enquiries & Feedback',subtitle:'WhatsApp enquiries, phone calls and feedback'},
+        h('div',{className:'director-office-comm-grid',style:{marginTop:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:'10px'}},
+          commCard('WhatsApp Enquiries',waUnread,'◉','Attend incoming public enquiries','WhatsApp Inbox'),
+          h('button',{type:'button',onClick:()=>openNew('Call / Callback'),style:{
+              textAlign:'left',
+              border:'1px solid #e5a9c1',
+              borderRadius:'20px',
+              background:'linear-gradient(135deg,#fff4f8 0%,#f8dbe7 55%,#f1c3d5 100%)',
+              padding:'17px 18px',
+              cursor:'pointer',
+              minHeight:'106px',
+              boxShadow:'0 10px 24px rgba(128,18,70,.11)',
+              borderLeft:'5px solid #b40d52'
+            }},
+            h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px'}},h('span',{style:{fontSize:'27px'}},'☎'),h('strong',{style:{fontSize:'29px',fontWeight:950,color:'#9b124f'}},calls.length)),
+            h('div',{style:{fontWeight:900,color:'#351b29',marginTop:'5px',fontSize:'15px'}},'Call Enquiries'),
+            h('small',{style:{color:'#846d79'}},'Enter every phone enquiry manually')
+          ),
+          commCard('Feedback',feedbackOpen,'★','Review feedback and responses','Feedback')
         )
       ),
       h(Section,{title:'Quick Add',subtitle:'Common Secretary actions'},
