@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.16';
+  const APP_VERSION = '2.13.17';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6674,6 +6674,19 @@ https://samaraassistedliving.com/`;
     // v2.8.18: Pop-up windows remain open until the user explicitly closes them.
     // Automatic modal closing after success messages has been disabled.
 
+    const [chargeApprovalPatientId,setChargeApprovalPatientId]=React.useState('');
+    React.useEffect(()=>{
+      const handler=event=>{
+        const patientId=event.detail?.patientId;
+        if(typeof patientId!=='string'||!patientId)return;
+        setChargeApprovalPatientId(patientId);
+        setPage('Charge Approvals');
+      };
+      window.addEventListener('samara-open-patient-charges',handler);
+      return()=>window.removeEventListener('samara-open-patient-charges',handler);
+    },[]);
+    React.useEffect(()=>{if(page!=='Charge Approvals')setChargeApprovalPatientId('')},[page]);
+
     React.useEffect(()=>{
       const handler=()=>setPage('Discharge Clearance');
       window.addEventListener('samara-return-discharge-clearance',handler);
@@ -7139,7 +7152,7 @@ https://samaraassistedliving.com/`;
           page==='Documents'&&h(Documents,{profile}),
           page==='Accounts Dashboard'&&h(AccountsDashboard,{profile,onNavigate:setPage}),
           page==='Package Expiry Dashboard'&&h(PackageExpiryDashboard,{profile,onNavigate:setPage}),
-          page==='Charge Approvals'&&h(ClinicalCharges,{profile}),
+          page==='Charge Approvals'&&h(ClinicalCharges,{profile,initialPatientId:chargeApprovalPatientId,key:chargeApprovalPatientId||'all'}),
           page==='Payments'&&h(BillingPayments,{profile}),
           page==='Patient Ledger'&&h(PatientLedgerView,{profile,onNavigate:setPage}),
           page==='Final Billing'&&h(FinalBillingView,{profile,onNavigate:setPage}),
@@ -24698,11 +24711,11 @@ function ShiftHandover({profile,onNavigate}){
           .select('id,patient_id,transaction_type,category,amount,payment_mode,transaction_date,description')
           .order('transaction_date',{ascending:false}).limit(3000),
         client.from('bill_charge_requests')
-          .select('id,approval_status,requested_amount,approved_amount,final_amount,created_at'),
+          .select('id,patient_id,approval_status,requested_amount,approved_amount,final_amount,created_at'),
         client.from('patient_discharges')
           .select('id,status,management_status,accounts_status,created_at'),
         client.from('patients')
-          .select('id,is_active,admission_date,room_no,bed_no,package_id,package_end_date')
+          .select('id,full_name,title,patient_id,is_active,admission_date,room_no,bed_no,package_id,package_end_date')
       ]);
       setState({
         loading:false,
@@ -24836,6 +24849,18 @@ function ShiftHandover({profile,onNavigate}){
             ].map(([label,value])=>h('div',{className:'accounts-status-item',key:label},h('span',null,label),h('strong',null,value)))
           )
         )
+      ),
+
+      h(Section,{title:'Pending Charges by Patient',subtitle:'Select a patient to review only their pending charge requests'},
+        state.requests.some(row=>(row.approval_status||'Pending')==='Pending')
+          ?h('div',{className:'accounts-workflow-grid'},
+            [...new Set(state.requests.filter(row=>(row.approval_status||'Pending')==='Pending').map(row=>row.patient_id).filter(Boolean))].map(patientId=>{
+              const patient=state.patients.find(row=>row.id===patientId)||{};
+              const count=state.requests.filter(row=>row.patient_id===patientId&&(row.approval_status||'Pending')==='Pending').length;
+              return h('button',{key:patientId,type:'button',className:'btn btn-secondary',onClick:()=>openPatientChargeApprovals(patientId),style:{textAlign:'left',whiteSpace:'normal'}},
+                `${formalName(patient)||patient.full_name||'Patient'} · ${patient.patient_id||''} · Room ${patient.room_no||'—'}-${patient.bed_no||'—'} · ${count} pending`);
+            }))
+          :h('p',null,state.loading?'Loading pending charges…':'No pending charge requests.')
       ),
 
       h(Section,{title:'Accounts Workflow',subtitle:'Open the required financial stage directly'},
@@ -25811,12 +25836,16 @@ function ShiftHandover({profile,onNavigate}){
     },[patientId]);
     return state.patientId===patientId?state:{patientId,loading:true,rows:[],error:''};
   }
+  function openPatientChargeApprovals(patientId){
+    window.dispatchEvent(new CustomEvent('samara-open-patient-charges',{detail:{patientId}}));
+  }
   function ChargeReadinessSummary({state}){
     if(!state.patientId)return null;
     return h('div',{className:'message '+(state.error||state.rows.length?'warning':'info'),style:{margin:'12px 0'},role:'status'},
       h('strong',null,state.loading?'Checking unposted charges…':state.error?'Charge verification unavailable':state.rows.length?`${state.rows.length} charge request(s) awaiting approval / ledger posting`:'All charge requests resolved'),
       state.error&&h('div',null,state.error+' Clearance is blocked until verification succeeds.'),
       state.rows.length>0&&h(React.Fragment,null,
+        h('button',{type:'button',className:'btn btn-primary',onClick:()=>openPatientChargeApprovals(state.patientId)},'View this patient’s pending charges'),
         h('p',null,'These requests are not included in Net Payable. Accounts must resolve them in Charge Approvals before discharge clearance.'),
         h('ul',null,state.rows.map(row=>h('li',{key:row.id},`${row.charge_date||''} · ${row.service_name||row.description||row.category} · Qty ${row.quantity||1} · ${row.approval_status||'Pending'}${row.billing_transaction_id?'':' · Not posted'}`)))
       ),
@@ -27266,7 +27295,7 @@ Please access the Samara Family Portal for detailed account information.`;
       )
     );
   }
-  function ClinicalCharges({profile}){
+  function ClinicalCharges({profile,initialPatientId=''}){
     const canRaise=['Admin','Manager','Nurse','Accounts'].includes(profile?.role);
     const canApprove=profile?.role==='Accounts';
     const canManageTariffs=profile?.role==='Admin';
@@ -27325,7 +27354,7 @@ Please access the Samara Family Portal for detailed account information.`;
       report_status:'Ordered',report_received_at:'',transport_type:'',paid_by_samara:false,remarks:''
     });
     const [form,setForm]=React.useState(fresh());
-    const [filter,setFilter]=React.useState({patient_id:'',status:'All',category:'All'});
+    const [filter,setFilter]=React.useState({patient_id:initialPatientId,status:initialPatientId?'Pending':'All',category:'All'});
     const [quickView,setQuickView]=React.useState('All');
 
     const notify=(type,text)=>{showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);setToast({type,text});setTimeout(()=>setToast(null),4500)};
