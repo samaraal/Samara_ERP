@@ -1,30 +1,5 @@
--- Food vendor management. Additive migration; does not alter existing clinical tables.
+-- Price future receipts by meal category; preserve prior ledger amounts and audit history.
 begin;
-create table if not exists public.fv_settings(id boolean primary key default true check(id), data jsonb not null);
-insert into public.fv_settings values(true,jsonb_build_object('vendor_id',gen_random_uuid(),'vendor_name','Mrs. Yuvashree','phone','918072992457','cutoffs','{}'::jsonb,'approved','{}'::jsonb)) on conflict do nothing;
-create table if not exists public.fv_orders(id uuid primary key default gen_random_uuid(),version integer not null default 1,status text not null default 'Draft',data jsonb not null,created_at timestamptz not null default now());
-create unique index if not exists fv_order_slot on public.fv_orders((data->>'date'),(data->>'slot'),(data->>'vendor_id')) where status <> 'Closed';
-create table if not exists public.fv_events(id uuid primary key default gen_random_uuid(),order_id uuid references public.fv_orders(id),kind text not null,data jsonb not null,actor uuid not null,created_at timestamptz not null default now());
-create table if not exists public.fv_messages(id uuid primary key default gen_random_uuid(),event_id uuid not null unique references public.fv_events(id),order_id uuid not null references public.fv_orders(id),kind text not null,snapshot jsonb not null,status text not null default 'Pending',provider_id text unique,error text,updated_at timestamptz not null default now());
-create table if not exists public.fv_rates(id uuid primary key default gen_random_uuid(),vendor_id text not null,item text not null,effective date not null,price numeric(12,2) not null check(price>=0),actor uuid not null,created_at timestamptz not null default now());
-create table if not exists public.fv_ledger(id uuid primary key default gen_random_uuid(),vendor_id text not null,day date not null,kind text not null,amount numeric(14,2),data jsonb not null,actor uuid not null,created_at timestamptz not null default now());
-create table if not exists public.fv_requests(id uuid primary key,actor uuid not null,result jsonb not null);
-create table if not exists public.fv_provider_status(id text primary key,status text not null,detail text,at timestamptz not null);
--- No direct client access, including to prices. All access goes through checked RPCs.
-do $$ declare t text;begin foreach t in array array['fv_settings','fv_orders','fv_events','fv_messages','fv_rates','fv_ledger','fv_requests','fv_provider_status'] loop execute format('alter table public.%I enable row level security',t);execute format('revoke all on public.%I from anon, authenticated',t);execute format('grant all on public.%I to service_role',t);end loop;end $$;
-create or replace function public.fv_access() returns jsonb language plpgsql security definer set search_path=public,pg_temp as $$
-declare p jsonb; full_access boolean:=false; delegated boolean:=false; nm boolean; director boolean:=false; des text;
-begin
- if auth.uid() is null then raise exception 'Sign in required';end if;
- select to_jsonb(x) into p from public.profiles x where x.id=auth.uid() or to_jsonb(x)->>'auth_user_id'=auth.uid()::text limit 1;
- if p is null or coalesce(p->>'is_active',p->>'active','true')='false' then raise exception 'Active profile required';end if;
- if to_regclass('public.director_office_positions') is not null then execute 'select exists(select 1 from public.director_office_positions where position_key=''director'' and assigned_profile_id::text=$1)' into director using p->>'id';end if;
- full_access:=coalesce(p->>'role'='Admin',false) or director;
- if to_regclass('public.store_incharge_assignments') is not null then execute 'select exists(select 1 from public.store_incharge_assignments where status=''Active'' and effective_from<=now() and effective_until>=now())' into delegated;end if;
- des:=trim(regexp_replace(lower(coalesce(nullif(p->>'designation',''),nullif(p->>'employee_designation',''),nullif(p->>'job_title',''),p->>'position','')),'[._ -]+',' ','g'));
- nm:=coalesce(des in ('nurse manager','nursing manager') or (des='' and lower(p->>'department')='nursing' and p->>'role'='Manager'),false);
- return jsonb_build_object('actor',p->>'id','name',coalesce(p->>'full_name','Staff'),'billing',full_access,'control',full_access or (nm and not delegated) or (coalesce(p->>'role'='STD',false) and delegated),'read',full_access or nm or coalesce(p->>'role'='STD',false),'delegated',delegated);
-end $$;
 create or replace function public.fv_rpc(action text,p jsonb default '{}'::jsonb) returns jsonb language plpgsql security definer set search_path=public,pg_temp as $$
 declare a jsonb:=public.fv_access(); cfg jsonb; o public.fv_orders; old jsonb; d jsonb; it jsonb; x jsonb; rec jsonb; result jsonb; eid uuid; mid uuid; oid uuid; rid uuid; i integer; q numeric; r numeric; e numeric; rej numeric; unitprice numeric; total numeric:=0; cut numeric; itemname text; already numeric; startday date; endday date; req uuid; vendor text;
 begin
@@ -159,20 +134,6 @@ begin
  end if;
  insert into public.fv_requests(id,actor,result) values(req,(a->>'actor')::uuid,coalesce(result,'{}'));return result;
 end $$;
-revoke all on function public.fv_access() from public;grant execute on function public.fv_access() to authenticated;
-revoke all on function public.fv_rpc(text,jsonb) from public;grant execute on function public.fv_rpc(text,jsonb) to authenticated;
--- Provider state can arrive before the HTTP send response is saved. Retain and reconcile it.
-create or replace function public.fv_apply_provider_status(p_id text,p_status text,p_detail text,p_at timestamptz) returns void language plpgsql security definer set search_path=public,pg_temp as $$
-declare prior text;chosen text;
-begin
- if p_status not in ('Accepted','Sent','Delivered','Read','Failed') then return;end if;
- perform pg_advisory_xact_lock(hashtext(p_id));
- select status into prior from public.fv_provider_status where id=p_id;
- chosen:=case when prior='Read' then 'Read' when prior='Delivered' and p_status<>'Read' then 'Delivered' when prior='Failed' and p_status in('Accepted','Sent') then 'Failed' when prior='Sent' and p_status='Accepted' then 'Sent' else p_status end;
- insert into public.fv_provider_status values(p_id,chosen,p_detail,p_at) on conflict(id) do update set status=excluded.status,detail=coalesce(excluded.detail,fv_provider_status.detail),at=greatest(excluded.at,fv_provider_status.at);
- update public.fv_messages set status=chosen,error=case when chosen='Failed' then coalesce(p_detail,'Meta delivery failure') else null end,updated_at=now() where provider_id=p_id and status<>'Manual confirmed';
-end $$;
-revoke all on function public.fv_apply_provider_status(text,text,text,timestamptz) from public;
-grant execute on function public.fv_apply_provider_status(text,text,text,timestamptz) to service_role;
+revoke all on function public.fv_rpc(text,jsonb) from public;
+grant execute on function public.fv_rpc(text,jsonb) to authenticated;
 commit;
-
