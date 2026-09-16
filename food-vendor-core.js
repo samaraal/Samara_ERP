@@ -1,5 +1,6 @@
 (function(root){
 'use strict';
+const statementLogo='https://app.samaraassistedliving.com/assets/samara-logo.png?v=20260814-final';
 const logo='https://samaraassistedliving.com/assets/samara-logo.png';
 const slots=['Tiffin','Morning Tea / Coffee','Lunch','Evening Tea / Coffee','Dinner'];
 const clean=v=>String(v??'').replace(/\s+/g,' ').trim()||'None';
@@ -95,7 +96,7 @@ function statementPdf(model){
  const wrap=(text,width,size=11,bold=false)=>{font(size,bold);const lines=[];let line='';for(const word of String(label(text)??'—').split(/\s+/)){if(line&&ctx.measureText(line+' '+word).width>width){lines.push(line);line=word}else line+=(line?' ':'')+word}lines.push(line);return lines};
  const text=(value,x,top,size=11,bold=false)=>{font(size,bold);ctx.fillText(String(label(value)),x,top)};
  const finish=()=>{if(!canvas)return;text('Page '+page,M,H-25,10);const raw=atob(canvas.toDataURL('image/jpeg',0.94).split(',')[1]);pages.push({width:canvas.width,height:canvas.height,bytes:Uint8Array.from(raw,c=>c.charCodeAt(0))})};
- const newPage=()=>{finish();page++;canvas=document.createElement('canvas');canvas.width=W*scale;canvas.height=H*scale;ctx=canvas.getContext('2d');ctx.scale(scale,scale);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);text('SAMARA ASSISTED LIVING',M,48,16,true);text('Food Vendor Statement',M,72,14,true);const vendorLines=wrap(model.vendor,W-2*M,18,true);vendorLines.forEach((v,i)=>text(v,M,101+i*22,18,true));y=118+vendorLines.length*22;text(model.period,M,y,11);y+=22};
+ const newPage=()=>{finish();page++;canvas=document.createElement('canvas');canvas.width=W*scale;canvas.height=H*scale;ctx=canvas.getContext('2d');ctx.scale(scale,scale);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);if(model.logoImage)ctx.drawImage(model.logoImage,M,24,180,180*(model.logoImage.naturalHeight||model.logoImage.height)/(model.logoImage.naturalWidth||model.logoImage.width));text('Food Vendor Statement',M,164,14,true);const vendorLines=wrap(model.vendor,W-2*M,18,true);vendorLines.forEach((v,i)=>text(v,M,193+i*22,18,true));y=210+vendorLines.length*22;text(model.period,M,y,11);y+=22};
  const drawRow=(row,widths,header=false,bold=false)=>{const lines=row.map((v,i)=>wrap(v,widths[i]-10,11,header||bold));const height=Math.max(...lines.map(v=>v.length))*15+12;let x=M;row.forEach((_,i)=>{ctx.fillStyle=header?'#eee':'#fff';ctx.fillRect(x,y,widths[i],height);ctx.strokeStyle='#999';ctx.lineWidth=.6;ctx.strokeRect(x,y,widths[i],height);lines[i].forEach((l,j)=>text(l,x+5,y+17+j*15,11,header||bold));x+=widths[i]});y+=height};
  const table=(heads,rows,widths,groupDates=false)=>{const header=()=>drawRow(heads,widths,true);if(y>H-180)newPage();header();let previousDate=null;rows.forEach((row,i)=>{const height=Math.max(...row.map((v,j)=>wrap(v,widths[j]-10).length))*15+12;if(y+height>H-50){newPage();header();previousDate=null}const shown=row.slice();if(groupDates&&row[0]===previousDate)shown[0]='';previousDate=row[0];drawRow(shown,widths,false,row[0]==='Grand total'||row[0]==='Total')})};
  newPage();table(model.heads,model.rows,model.heads.length===9?[88,112,72,72,72,72,72,72,72]:[100,160,111,111,111,111],true);
@@ -103,5 +104,5 @@ function statementPdf(model){
  for(const note of model.notes||[]){const lines=wrap(note,W-2*M,11);if(y+lines.length*15+20>H-50)newPage();y+=20;lines.forEach(l=>{text(l,M,y,11);y+=15})}finish();return pdfFromJpegs(pages);
 }
 
-const api={logo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary,label,amountWords,pdfFromJpegs,statementPdf};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+const api={logo,statementLogo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary,label,amountWords,pdfFromJpegs,statementPdf};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(globalThis);
