@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.18';
+  const APP_VERSION = '2.13.19';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22403,7 +22403,8 @@ function RoomsBeds({profile,onNavigate}){
     React.useEffect(()=>{const update=e=>setFoodView(e.detail||foodViewPreference());window.addEventListener('samara-food-view',update);return()=>window.removeEventListener('samara-food-view',update)},[]);
     const canViewIntake=profile?.role!=='STD'&&!isNursingManagerProfile(profile);
     return h(React.Fragment,null,
-      h('div',{className:'employee-actions'},(canViewIntake?['Food Vendor Management','Resident Food Intake']:['Food Vendor Management']).map(name=>h('button',{type:'button',key:name,className:foodView===name?'btn btn-primary':'btn btn-secondary',onClick:()=>{setFoodView(name);try{sessionStorage.setItem('samara_food_view',name)}catch(_error){}window.dispatchEvent(new CustomEvent('samara-food-view',{detail:name}))}},name))),
+      h('style',null,'@media(max-width:950px){.food-view-tabs{display:none!important}}'),
+      h('div',{className:'employee-actions food-view-tabs'},(canViewIntake?['Food Vendor Management','Resident Food Intake']:['Food Vendor Management']).map(name=>h('button',{type:'button',key:name,className:foodView===name?'btn btn-primary':'btn btn-secondary',onClick:()=>{setFoodView(name);try{sessionStorage.setItem('samara_food_view',name)}catch(_error){}window.dispatchEvent(new CustomEvent('samara-food-view',{detail:name}))}},name))),
       canViewIntake&&foodView==='Resident Food Intake'?h(ResidentFoodIntake,{profile}):window.SamaraFoodVendor?h(window.SamaraFoodVendor,{client,profile}):h('p',null,'Food Vendor files are updating. Refresh the ERP to load the module.')
     );
   }

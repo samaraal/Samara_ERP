@@ -63,7 +63,7 @@ function orderFilterFacts(order,events){
 function matchesOrderFilter(order,events,filter){
  const f=orderFilterFacts(order,events);
  switch(filter){
-  case 'Ordered':return order.status!=='Draft'&&order.status!=='Closed'&&!f.hasReceipts;
+  case 'Ordered':return order.status!=='Draft'&&f.ordered>0;
   case 'Received':return f.hasReceipts&&f.shortage===0;
   case 'Partially received':return Number(f.received)>0&&f.shortage>0;
   case 'Rejected':return f.rejected>0;
