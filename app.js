@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.07';
+  const APP_VERSION = '2.13.08';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22410,13 +22410,13 @@ function RoomsBeds({profile,onNavigate}){
       setSaving(true);
       const {data:existing,error:checkError}=await client.from('meal_records').select('id,meal_type').eq('patient_id',form.patient_id).eq('meal_date',form.meal_date);
       if(checkError){setSaving(false);return alert(checkError.message)}
-      if((existing||[]).some(row=>canonicalMealType(row.meal_type)===form.meal_type)){setSaving(false);return alert(`${form.meal_type} has already been recorded for this patient on ${formatDateIN(form.meal_date)}. Only one Tiffin, one Lunch and one Dinner entry is allowed per patient per day.`)}
+      if((existing||[]).some(row=>canonicalMealType(row.meal_type)===form.meal_type)){setSaving(false);return alert(`${form.meal_type==='Tiffin'?'Breakfast':form.meal_type} has already been recorded for this patient on ${formatDateIN(form.meal_date)}. Only one Breakfast, one Lunch and one Dinner entry is allowed per patient per day.`)}
       const servedAt=`${form.meal_date}T${form.served_time||'12:00'}:00+05:30`;
       const payload={patient_id:form.patient_id,meal_date:form.meal_date,meal_type:form.meal_type,menu,consumption_status:form.consumption_status,remarks:form.remarks,served_at:servedAt,recorded_by:profile.id,beverage_type:form.beverage_type==='None'?null:form.beverage_type,beverage_time:form.beverage_type==='None'?null:form.beverage_time};
       const {error}=await client.from('meal_records').insert(payload);
       setSaving(false);
       if(error){
-        if(error.code==='23505'||/meal_records_patient_date_type_unique/i.test(error.message||''))return alert(`${form.meal_type} has already been recorded for this patient on ${formatDateIN(form.meal_date)}. Duplicate meal entries are not allowed.`);
+        if(error.code==='23505'||/meal_records_patient_date_type_unique/i.test(error.message||''))return alert(`${form.meal_type==='Tiffin'?'Breakfast':form.meal_type} has already been recorded for this patient on ${formatDateIN(form.meal_date)}. Duplicate meal entries are not allowed.`);
         if(error.code==='23514'||/meal_records_valid_consumption_time/i.test(error.message||''))return alert(`${form.meal_type} must be recorded between ${mealTimeGuide(form.meal_type)}.`);
         return alert(error.message);
       }
@@ -22430,8 +22430,8 @@ function RoomsBeds({profile,onNavigate}){
         h('form',{className:'modal-grid food-beverage-entry',onSubmit:save},
           patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v})),
           h('div',{className:'field'},h('label',null,'Entry Date'),h(StrictDateInput,{value:form.meal_date,max:todayISOIndia(),required:true,onChange:e=>setForm({...form,meal_date:e.target.value})})),
-          miniSelect('Meal',form.meal_type,['Tiffin','Lunch','Dinner'],v=>setForm({...form,meal_type:v,menu:menus[v][0],custom_menu:''})),
-          h('div',{className:'field-help'},'Only one Tiffin, one Lunch and one Dinner entry is permitted for each patient on each date.'),
+          h('div',{className:'field'},h('label',null,'Meal'),h('select',{value:form.meal_type,onChange:e=>{const v=e.target.value;setForm({...form,meal_type:v,menu:menus[v][0],custom_menu:''})}},['Tiffin','Lunch','Dinner'].map(v=>h('option',{value:v,key:v},v==='Tiffin'?'Breakfast':v)))),
+          h('div',{className:'field-help'},'Only one Breakfast, one Lunch and one Dinner entry is permitted for each patient on each date.'),
           miniSelect('South Indian Menu',form.menu,menuOptions,v=>setForm({...form,menu:v})),
           form.menu==='Other / Custom'&&miniInput('Custom menu / feed',form.custom_menu,v=>setForm({...form,custom_menu:v}),true),
           miniInput(`Actual consumption time (${mealTimeGuide(form.meal_type)})`,form.served_time,v=>setForm({...form,served_time:v}),true,'time'),
@@ -22442,7 +22442,7 @@ function RoomsBeds({profile,onNavigate}){
           h('button',{className:'btn btn-primary',disabled:saving},saving?'Saving…':'Save Food & Beverage Entry')
         )
       ),
-      h(LogTable,{title:'Recent Food & Beverage Records',heads:['Patient / Room','Meal','Menu','Food Intake','Meal Time','Beverage','Beverage Time'],rows:rows.map(r=>[`${r.patients?.full_name||'—'} · ${r.patients?.room_no||'—'}-${r.patients?.bed_no||'—'}`,r.meal_type,r.menu,r.consumption_status,fmt(r.served_at),r.beverage_type||'—',r.beverage_time?String(r.beverage_time).slice(0,5):'—'])})
+      h(LogTable,{title:'Recent Food & Beverage Records',heads:['Patient / Room','Meal','Menu','Food Intake','Meal Time','Beverage','Beverage Time'],rows:rows.map(r=>[`${r.patients?.full_name||'—'} · ${r.patients?.room_no||'—'}-${r.patients?.bed_no||'—'}`,r.meal_type==='Tiffin'?'Breakfast':r.meal_type,r.menu,r.consumption_status,fmt(r.served_at),r.beverage_type||'—',r.beverage_time?String(r.beverage_time).slice(0,5):'—'])})
     );
   }
 

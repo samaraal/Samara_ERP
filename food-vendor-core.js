@@ -22,7 +22,7 @@ function message(kind,s){
  values=[...common,total(s.items),'Residents: '+summary(lines,'residents')+'; Employees: '+summary(lines,'employees'),summary(lines,'rejected'),String(s.outstanding)+' portions',clean(s.receipt.remarks)];
  body=`Dear {{1}},\nSamara Assisted Living has recorded a food delivery against your order.\n\nOrder and receipt: {{2}}\nDate and meal: {{3}}\nReceived at: {{4}}\nOrdered quantities: {{5}}\nAccepted this delivery: {{6}}\nRejected this delivery: {{7}}\nOutstanding quantities: {{8}}\nRemarks / instructions: {{9}}\n\nPlease review any discrepancy and acknowledge.\nThank you, Samara Assisted Living.`;
  }else throw Error('Unknown food message type');
- values=values.map(clean);const text=body.replace(/\{\{(\d+)\}\}/g,(_,i)=>values[Number(i)-1]);
+ values=values.map(v=>label(clean(v)));const text=body.replace(/\{\{(\d+)\}\}/g,(_,i)=>values[Number(i)-1]);
  return {name:'samara_food_'+kind,values,text,logo,tooLong:text.length>3500};
 }
 function payload(kind,s){const m=message(kind,s);if(!/^[1-9][0-9]{7,14}$/.test(s.phone))throw Error('Invalid vendor phone');if(m.tooLong)throw Error('Message exceeds 3500 characters; use manual WhatsApp or shorten instructions before finalising');return {messaging_product:'whatsapp',to:s.phone,type:'template',template:{name:m.name,language:{code:'en'},components:[{type:'header',parameters:[{type:'image',image:{link:logo}}]},{type:'body',parameters:m.values.map(text=>({type:'text',text}))}]}}}
@@ -73,5 +73,35 @@ function mealSummary(report){
  const rows=groups.map(g=>[g.meal,g.quantity,g.prices.size===1&&!g.missing?[...g.prices][0]:g.prices.size>1&&!g.missing?'Varies':null,g.missing?null:Math.round(g.amount*100)/100]);
  return [...rows,['Grand total',rows.reduce((n,r)=>n+r[1],0),null,rows.some(r=>r[3]==null)?null:Math.round(rows.reduce((n,r)=>n+r[3],0)*100)/100]];
 }
-const api={logo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+const label=v=>typeof v==='string'?v.replace(/\bTiffin\b/gi,'Breakfast'):v;
+function amountWords(value){
+ if(value==null)return 'Amount pending: rates are not fixed.';
+ const ones=['Zero','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'],tens=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+ const words=n=>n<20?ones[n]:n<100?tens[Math.floor(n/10)]+(n%10?' '+ones[n%10]:''):n<1000?ones[Math.floor(n/100)]+' Hundred'+(n%100?' '+words(n%100):''):n<100000?words(Math.floor(n/1000))+' Thousand'+(n%1000?' '+words(n%1000):''):n<10000000?words(Math.floor(n/100000))+' Lakh'+(n%100000?' '+words(n%100000):''):words(Math.floor(n/10000000))+' Crore'+(n%10000000?' '+words(n%10000000):'');
+ const paise=Math.round(Math.abs(Number(value))*100),rupees=Math.floor(paise/100);
+ return (value<0?'Minus ':'')+'Rupees '+words(rupees)+(paise%100?' and '+words(paise%100)+' Paise':'')+' Only';
+}
+function pdfFromJpegs(pages){
+ const enc=new TextEncoder(),parts=[],offsets=[0];let length=0;
+ const add=x=>{const b=typeof x==='string'?enc.encode(x):x;parts.push(b);length+=b.length};
+ const object=(id,head,data)=>{offsets[id]=length;add(id+' 0 obj\n'+head);if(data){add('\nstream\n');add(data);add('\nendstream')}add('\nendobj\n')};
+ add('%PDF-1.4\n');object(1,'<< /Type /Catalog /Pages 2 0 R >>');object(2,'<< /Type /Pages /Count '+pages.length+' /Kids ['+pages.map((_,i)=>(3+i*3)+' 0 R').join(' ')+'] >>');
+ pages.forEach((p,i)=>{const id=3+i*3,content=enc.encode('q 595.28 0 0 841.89 0 0 cm /Im0 Do Q');object(id,'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /XObject << /Im0 '+(id+1)+' 0 R >> >> /Contents '+(id+2)+' 0 R >>');object(id+1,'<< /Type /XObject /Subtype /Image /Width '+p.width+' /Height '+p.height+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+p.bytes.length+' >>',p.bytes);object(id+2,'<< /Length '+content.length+' >>',content)});
+ const start=length;add('xref\n0 '+offsets.length+'\n0000000000 65535 f \n');for(let i=1;i<offsets.length;i++)add(String(offsets[i]).padStart(10,'0')+' 00000 n \n');add('trailer\n<< /Size '+offsets.length+' /Root 1 0 R >>\nstartxref\n'+start+'\n%%EOF');return new Blob(parts,{type:'application/pdf'});
+}
+function statementPdf(model){
+ const pages=[],W=794,H=1123,M=45,scale=2;let canvas,ctx,y,page=0;
+ const font=(size,bold=false)=>{ctx.font=(bold?'bold ':'')+size+'px Arial';ctx.fillStyle='#222'};
+ const wrap=(text,width,size=11,bold=false)=>{font(size,bold);const lines=[];let line='';for(const word of String(label(text)??'—').split(/\s+/)){if(line&&ctx.measureText(line+' '+word).width>width){lines.push(line);line=word}else line+=(line?' ':'')+word}lines.push(line);return lines};
+ const text=(value,x,top,size=11,bold=false)=>{font(size,bold);ctx.fillText(String(label(value)),x,top)};
+ const finish=()=>{if(!canvas)return;text('Page '+page,M,H-25,10);const raw=atob(canvas.toDataURL('image/jpeg',0.94).split(',')[1]);pages.push({width:canvas.width,height:canvas.height,bytes:Uint8Array.from(raw,c=>c.charCodeAt(0))})};
+ const newPage=()=>{finish();page++;canvas=document.createElement('canvas');canvas.width=W*scale;canvas.height=H*scale;ctx=canvas.getContext('2d');ctx.scale(scale,scale);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);text('SAMARA ASSISTED LIVING',M,48,16,true);text('Food Vendor Statement',M,72,14,true);const vendorLines=wrap(model.vendor,W-2*M,18,true);vendorLines.forEach((v,i)=>text(v,M,101+i*22,18,true));y=118+vendorLines.length*22;text(model.period,M,y,11);y+=22};
+ const drawRow=(row,widths,header=false,bold=false)=>{const lines=row.map((v,i)=>wrap(v,widths[i]-10,11,header||bold));const height=Math.max(...lines.map(v=>v.length))*15+12;let x=M;row.forEach((_,i)=>{ctx.fillStyle=header?'#eee':'#fff';ctx.fillRect(x,y,widths[i],height);ctx.strokeStyle='#999';ctx.lineWidth=.6;ctx.strokeRect(x,y,widths[i],height);lines[i].forEach((l,j)=>text(l,x+5,y+17+j*15,11,header||bold));x+=widths[i]});y+=height};
+ const table=(heads,rows,widths,groupDates=false)=>{const header=()=>drawRow(heads,widths,true);if(y>H-180)newPage();header();let previousDate=null;rows.forEach((row,i)=>{const height=Math.max(...row.map((v,j)=>wrap(v,widths[j]-10).length))*15+12;if(y+height>H-50){newPage();header();previousDate=null}const shown=row.slice();if(groupDates&&row[0]===previousDate)shown[0]='';previousDate=row[0];drawRow(shown,widths,false,row[0]==='Grand total'||row[0]==='Total')})};
+ newPage();table(model.heads,model.rows,model.heads.length===9?[88,112,72,72,72,72,72,72,72]:[100,160,111,111,111,111],true);
+ if(y>H-300)newPage();y+=24;text('Meal summary - ordered portions',M,y,12,true);y+=12;table(model.summaryHeads,model.summary,model.summaryHeads.length===4?[140,80,110,150]:[230,130]);
+ for(const note of model.notes||[]){const lines=wrap(note,W-2*M,11);if(y+lines.length*15+20>H-50)newPage();y+=20;lines.forEach(l=>{text(l,M,y,11);y+=15})}finish();return pdfFromJpegs(pages);
+}
+
+const api={logo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary,label,amountWords,pdfFromJpegs,statementPdf};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(globalThis);
