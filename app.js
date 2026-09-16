@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.92';
+  const APP_VERSION = '2.12.93';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -10895,13 +10895,6 @@ Thank you.`;
     const dayRows=rows.filter(r=>dateKey(r.scheduled_at||r.due_date)===selected);
     return h('div',{className:'nurse-personal-todos'},
       h('div',{className:'shift-summary'},h('div',null,h('strong',null,'My To-Do List'),h('span',null,'Your private personal reminders')),h('button',{type:'button',className:'btn btn-primary',onClick:openNew},'＋ Add To-Do')),
-      h(Section,{title:'View period',subtitle:'Weeks run Monday–Sunday. Choose a month or a single calendar date.'},
-        h('div',{style:{display:'flex',flexWrap:'wrap',gap:'8px'}},
-          ...['Date','Previous Week','This Week','Next Week','Monthly'].map(period=>h('button',{type:'button',key:period,'aria-pressed':officePeriod===period,className:officePeriod===period?'btn btn-primary':'btn btn-secondary',onClick:()=>{setOfficePeriod(period);if(filter==='Today')setFilter('Open');}},period)),
-          officePeriod==='Monthly'?h('label',null,'Month ',h('input',{type:'month','aria-label':'Director Office month',value:officeMonth,onChange:e=>{if(e.target.value)setOfficeMonth(e.target.value);}})):null
-        ),
-        h('p',{style:{marginTop:'10px',fontWeight:700}},officeRangeLabel)
-      ),
       h(Section,{title:'Calendar',subtitle:'Tap a date to view its list'},calendar()),
       message&&!show?h('div',{className:`message ${message.startsWith('✓')?'success':'error'}`},message):null,
       h(Section,{title:`To-Do — ${formatDateIN(new Date(`${selected}T00:00:00`))}`,subtitle:`${dayRows.length} item${dayRows.length===1?'':'s'} for this day`},dayRows.length?h('div',{className:'nurse-todo-list'},dayRows.map((r,i)=>h('div',{className:`nurse-todo-row ${r.status==='Completed'?'completed':''}`,key:r.id},h('span',{className:'nurse-todo-number'},`${i+1}.`),h('button',{type:'button',className:'nurse-todo-check',onClick:()=>complete(r),'aria-label':r.status==='Completed'?'Mark pending':'Mark completed'},r.status==='Completed'?'✓':'○'),h('div',{className:'nurse-todo-copy'},h('strong',null,r.title),h('small',null,r.scheduled_at?new Date(r.scheduled_at).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:true}):'Any time')),h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(r)},'Edit'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>remove(r)},'Delete'))))):h('div',{className:'empty'},'No to-do items for this day.'),h('button',{type:'button',className:'btn btn-primary nurse-todo-add-bottom',onClick:openNew},'＋ Add To-Do')),
@@ -12204,6 +12197,13 @@ Thank you.`;
           }
         }
       `),
+      h(Section,{title:'View period',subtitle:'Weeks run Monday–Sunday. Choose a month or a single calendar date.'},
+        h('div',{style:{display:'flex',flexWrap:'wrap',gap:'8px'}},
+          ...['Date','Previous Week','This Week','Next Week','Monthly'].map(period=>h('button',{type:'button',key:period,'aria-pressed':officePeriod===period,className:officePeriod===period?'btn btn-primary':'btn btn-secondary',onClick:()=>{setOfficePeriod(period);if(filter==='Today')setFilter('Open');}},period)),
+          officePeriod==='Monthly'?h('label',null,'Month ',h('input',{type:'month','aria-label':'Director Office month',value:officeMonth,onChange:e=>{if(e.target.value)setOfficeMonth(e.target.value);}})):null
+        ),
+        h('p',{style:{marginTop:'10px',fontWeight:700}},officeRangeLabel)
+      ),
       h(Section,{title:'Calendar',subtitle:h('span',null,'Choose a date to see its tasks, appointments, calls and follow-ups',lastOfficeRefresh?h('span',{style:{marginLeft:'10px',fontSize:'12px',fontWeight:'700',color:'#7a6871'}},`Updated ${lastOfficeRefresh.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true})}`):null),actions:h('button',{type:'button',className:'btn btn-primary director-office-refresh',disabled:manualRefreshing||loading,onClick:refreshDirectorOffice,title:'Refresh Director’s Office entries now'},manualRefreshing?'↻ Refreshing…':'↻ Refresh')},renderDirectorCalendar()),
       h('div',{
         id:'director-followup-queue-anchor',
