@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.11';
+  const APP_VERSION = '2.13.12';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6098,7 +6098,7 @@ https://samaraassistedliving.com/`;
     React.useEffect(()=>{
       const media=window.matchMedia?.('(max-width:760px)');
       let frame=0;
-      const excluded='table.rooms-table,table.patient-master-table,table.employee-master-table,table.medication-log-table,table.vitals-log-table';
+      const excluded='table.fv-history-table,table.rooms-table,table.patient-master-table,table.employee-master-table,table.medication-log-table,table.vitals-log-table';
       const wideLabels=/action|details|description|remarks|instruction|patient|resident|employee|applicant|medicine|item|service|address|message|reason|particular|source|reference|request|decision/i;
       const enhanceTable=table=>{
         if(!table?.matches?.('table')||table.matches(excluded)||table.closest('.rooms-desktop-table-wrap'))return;
