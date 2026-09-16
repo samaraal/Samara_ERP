@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.85';
+  const APP_VERSION = '2.12.86';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7147,7 +7147,7 @@ Caring with Compassion. Living with Dignity.`;
           page==='Notifications'&&h(Notifications,{profile,onNavigate:setPage,engine:alertEngine}),
           page==='Audit Trail'&&h(AuditTrail),
           page==='Alert Settings'&&h(AlertSettings,{profile,engine:alertEngine}),
-          ['Dashboard','HR Dashboard','Clinical Dashboard','Accounts Dashboard',"Director's Office",'Food & Diet'].includes(page)&&h(GeneralHandoverWorklist,{profile}),
+          ['Dashboard','HR Dashboard','Clinical Dashboard','Accounts Dashboard',"Director's Office"].includes(page)&&h(GeneralHandoverWorklist,{profile}),
           page==='System Maintenance'&&h(SystemMaintenance,{profile})
         ),
         clinicalPopupVisible&&topClinicalAlert&&h('div',{className:`clinical-alert-popup ${String(topClinicalAlert.priority||'Routine').toLowerCase()}`},
