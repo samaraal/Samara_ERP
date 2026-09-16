@@ -3,7 +3,7 @@ begin;
 create table if not exists public.fv_settings(id boolean primary key default true check(id), data jsonb not null);
 insert into public.fv_settings values(true,jsonb_build_object('vendor_id',gen_random_uuid(),'vendor_name','Mrs. Yuvashree','phone','918072992457','cutoffs','{}'::jsonb,'approved','{}'::jsonb)) on conflict do nothing;
 create table if not exists public.fv_orders(id uuid primary key default gen_random_uuid(),version integer not null default 1,status text not null default 'Draft',data jsonb not null,created_at timestamptz not null default now());
-create unique index if not exists fv_order_slot on public.fv_orders((data->>'date'),(data->>'slot'),(data->>'vendor_id'));
+create unique index if not exists fv_order_slot on public.fv_orders((data->>'date'),(data->>'slot'),(data->>'vendor_id')) where status <> 'Closed';
 create table if not exists public.fv_events(id uuid primary key default gen_random_uuid(),order_id uuid references public.fv_orders(id),kind text not null,data jsonb not null,actor uuid not null,created_at timestamptz not null default now());
 create table if not exists public.fv_messages(id uuid primary key default gen_random_uuid(),event_id uuid not null unique references public.fv_events(id),order_id uuid not null references public.fv_orders(id),kind text not null,snapshot jsonb not null,status text not null default 'Pending',provider_id text unique,error text,updated_at timestamptz not null default now());
 create table if not exists public.fv_rates(id uuid primary key default gen_random_uuid(),vendor_id text not null,item text not null,effective date not null,price numeric(12,2) not null check(price>=0),actor uuid not null,created_at timestamptz not null default now());
