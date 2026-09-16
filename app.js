@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.90';
+  const APP_VERSION = '2.12.91';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2286,43 +2286,20 @@ function initSamaraInaugurationInvitation(){
   const isFutureDateIndia = value => Boolean(value&&String(value).slice(0,10)>todayISOIndia());
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[ch]));
   const whatsappNumber = value => { const digits=String(value||'').replace(/\D/g,''); if(!digits)return ''; if(digits.length===10)return `91${digits}`; if(digits.length===11&&digits.startsWith('0'))return `91${digits.slice(1)}`; return digits; };
-  const whatsappWelcomeUrl = (row,tempPassword='') => {
-    const number=whatsappNumber(row.mobile); if(!number)return '';
-    const name=formalName(row)||row.full_name||'Colleague';
-    const roleLine={
-      Nurse:'As a Nurse, your compassion, patience and clinical skills will make a meaningful difference in the lives of our residents.',
-      Caregiver:'Your kindness, patience and gentle support will bring comfort and confidence to our residents every day.',
-      Manager:'Your leadership will help us maintain high standards of resident care, teamwork and operational excellence.',
-      Accounts:'Your careful work will help us serve residents and families with transparency and trust.',
-      Kitchen:'Your care in preparing safe and nourishing food is an important part of every resident’s wellbeing.'
-    }[row.role]||'Your contribution will help us provide compassionate, respectful and high-quality care.';
-    const credentials=tempPassword?`
+  const whatsappWelcomeUrl = row => {
+    const number=whatsappNumber(row.mobile); if(!number||!String(row.login_id||'').trim())return '';
+    const text=`Dear ${formalName(row)||row.full_name||'Colleague'},
 
-SAMARA ASSISTED LIVING
-Your Login Details
+Your Samara Care ERP login details:
+Employee ID: ${row.employee_id||'Please contact HR'}
 Login ID: ${row.login_id}
-Temporary Password: ${tempPassword}`:`
+Samara Care ERP: https://app.samaraassistedliving.com/
 
-Login ID: ${row.login_id}`;
-    const text=`Dear ${name},
+Please use the password provided by HR. Contact HR if you need help signing in.
 
-Welcome to the Samara Family! 💚
-
-We are delighted to have you with us. At Samara, every resident deserves dignity, compassion and respect. From today, you become an important part of that mission.
-
-${roleLine}${credentials}
-
-Samara Care ERP: https://app.samaraassistedliving.com
-
-Please sign in and create a password of your own choice at the first login.
-
-We wish you a successful, fulfilling and rewarding journey with us. All the very best!
-
-Samara Health Care LLP
-Caring with Compassion. Living with Dignity.`;
+https://samaraassistedliving.com/`;
     return `https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(text))}`;
   };
-
 
   function CameraCaptureModal({config,onClose}){
     const videoRef=React.useRef(null),canvasRef=React.useRef(null),streamRef=React.useRef(null);
@@ -13392,7 +13369,7 @@ Thank you.`;
         h('td',{'data-label':'Employee'},formalName(r)),h('td',{'data-label':'Employee ID'},r.employee_id||'—'),h('td',{'data-label':'Login ID'},r.login_id),h('td',{'data-label':'Department'},`${employeeDepartment(r)}${r.designation?` · ${r.designation}`:''}`),h('td',{'data-label':'Access'},r.role),
         h('td',{'data-label':'Status'},h('span',{className:`badge ${enabled?'':'off'}`},enabled?'Active':'Disabled')),
         h('td',{'data-label':'Authentication'},h('span',{className:`badge auth-status ${status.className}`},status.text)),h('td',{'data-label':'Last sign-in'},fmt(auth?.last_sign_in_at||r.last_sign_in_at)),
-        h('td',{'data-label':'Actions'},fullHRAccess?h('div',{className:'employee-actions',onClick:e=>e.stopPropagation(),onKeyDown:e=>e.stopPropagation()},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Personnel File'),h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Documents'),h('button',{className:'btn btn-secondary',onClick:()=>printIdCard(r)},'Print ID Card'),r.mobile?h('button',{type:'button',className:employeeWelcomeSent(r)?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:welcomeBusy===String(r.id)||employeeWelcomeSent(r),onClick:()=>sendEmployeeWelcomeApi(r)},welcomeBusy===String(r.id)?'Sending…':employeeWelcomeSent(r)?'WhatsApp Welcome Sent ✓':'WhatsApp Welcome API'):null,employeeWelcomeSent(r)?h('button',{type:'button',className:'btn btn-secondary',disabled:welcomeBusy===String(r.id),onClick:()=>sendEmployeeWelcomeApi(r,{resend:true})},welcomeBusy===String(r.id)?'Resending…':'Resend Welcome'):null,h('button',{className:enabled?'btn btn-danger':'btn btn-secondary',disabled:managerBlocked,onClick:()=>toggle(r)},enabled?'Disable':'Enable'),auth?h('button',{className:'btn btn-primary',disabled:managerBlocked,onClick:()=>openReset(r)},'Reset Password'):h('button',{className:'btn btn-warning',disabled:managerBlocked,onClick:()=>openRepair(r)},'Repair Account')):h('div',{className:'employee-actions',onClick:e=>e.stopPropagation()},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'View Personnel File')))
+        h('td',{'data-label':'Actions'},fullHRAccess?h('div',{className:'employee-actions',onClick:e=>e.stopPropagation(),onKeyDown:e=>e.stopPropagation()},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Personnel File'),h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Documents'),h('button',{className:'btn btn-secondary',onClick:()=>printIdCard(r)},'Print ID Card'),r.mobile?h('button',{type:'button',className:employeeWelcomeSent(r)?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:welcomeBusy===String(r.id)||employeeWelcomeSent(r),onClick:()=>sendEmployeeWelcomeApi(r)},welcomeBusy===String(r.id)?'Sending…':employeeWelcomeSent(r)?'WhatsApp Welcome Sent ✓':'WhatsApp Welcome API'):null,employeeWelcomeSent(r)?h('button',{type:'button',className:'btn btn-secondary',disabled:welcomeBusy===String(r.id),onClick:()=>sendEmployeeWelcomeApi(r,{resend:true})},welcomeBusy===String(r.id)?'Resending…':'Resend Welcome'):null,whatsappWelcomeUrl(r)?h('a',{className:'btn btn-whatsapp',href:whatsappWelcomeUrl(r),target:'_blank',rel:'noopener noreferrer'},'Send Login Details'):null,h('button',{className:enabled?'btn btn-danger':'btn btn-secondary',disabled:managerBlocked,onClick:()=>toggle(r)},enabled?'Disable':'Enable'),auth?h('button',{className:'btn btn-primary',disabled:managerBlocked,onClick:()=>openReset(r)},'Reset Password'):h('button',{className:'btn btn-warning',disabled:managerBlocked,onClick:()=>openRepair(r)},'Repair Account')):h('div',{className:'employee-actions',onClick:e=>e.stopPropagation()},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'View Personnel File')))
       )}),effectiveRows.length===0?h('tr',null,h('td',{colSpan:9,className:'empty'},'No active employees found in this selection.')):null))
     );
 
@@ -13777,6 +13754,7 @@ Thank you.`;
             h('button',{type:'submit',className:'btn btn-primary',disabled:detailsBusy},detailsBusy?'Saving…':'Save')
           )
           :fullHRAccess?h('button',{type:'button',className:'btn btn-primary',onClick:()=>setDetailsEditing(true)},'Edit Employee'):null,
+        !detailsEditing&&fullHRAccess&&whatsappWelcomeUrl(detailsTarget)?h('a',{className:'btn btn-whatsapp',href:whatsappWelcomeUrl(detailsTarget),target:'_blank',rel:'noopener noreferrer'},'Send Login Details'):null,
         h('button',{type:'button',className:'btn btn-secondary',onClick:closePersonnel},'Close')
       )
     )):null;
