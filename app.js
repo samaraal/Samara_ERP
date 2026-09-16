@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.17';
+  const APP_VERSION = '2.13.18';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7691,7 +7691,7 @@ https://samaraassistedliving.com/`;
             onClick:()=>toggle(section.title),
             'aria-expanded':expanded
           },h('span',null,section.title),h('span',{className:'nav-chevron','aria-hidden':'true'},expanded?'−':'+')),
-          expanded&&h('div',{className:'nav nav-submenu'},section.items.map(item=>h('button',{
+          expanded&&h('div',{className:'nav nav-submenu'},section.items.map(item=>item==='Food & Diet'?h(FoodNavigationLinks,{key:item,profile,page,onNavigate:setPage}):h('button',{
             key:item,
             type:'button',
             'data-nav':item,
@@ -7810,7 +7810,7 @@ https://samaraassistedliving.com/`;
         h('button',{type:'button',className:`mobile-drawer-home ${page===home?'active':''}`,onClick:()=>onNavigate(home)},(CLINICAL_ROLES.includes(profile.role)||isNursingManagerProfile(profile))?'⌂  Nursing Dashboard':'⌂  Dashboard'),
         h('div',{className:'mobile-drawer-scroll'},sections.map(section=>{const expanded=openSection===section.title;return h('section',{className:`mobile-drawer-group ${expanded?'expanded':''}`,key:section.title},
           h('button',{type:'button',className:'mobile-drawer-group-head',onClick:()=>setOpenSection(current=>current===section.title?'':section.title),'aria-expanded':expanded},h('span',{className:'mobile-drawer-group-icon'},sectionIcon(section.title)),h('span',null,section.title),h('span',{className:'mobile-drawer-group-chevron'},expanded?'−':'+')),
-          expanded?h('div',{className:'mobile-drawer-items'},section.items.map(item=>h('button',{type:'button',key:item,'data-nav':item,className:page===item?'active':'',onClick:()=>onNavigate(item)},h('span',{className:'mobile-drawer-item-icon'},itemIcon(item)),h('span',null,displayNavLabel(item,profile.role)),h('span',{className:'mobile-drawer-item-arrow'},'›')))):null
+          expanded?h('div',{className:'mobile-drawer-items'},section.items.map(item=>item==='Food & Diet'?h(FoodNavigationLinks,{key:item,profile,page,onNavigate,mobile:true}):h('button',{type:'button',key:item,'data-nav':item,className:page===item?'active':'',onClick:()=>onNavigate(item)},h('span',{className:'mobile-drawer-item-icon'},itemIcon(item)),h('span',null,displayNavLabel(item,profile.role)),h('span',{className:'mobile-drawer-item-arrow'},'›')))):null
         )})),
         h('div',{className:'mobile-drawer-footer'},
           h('button',{type:'button',className:'mobile-update-button',onClick:samaraOpenAppHelp},'⚙  App Help / Repair'),
@@ -22386,12 +22386,25 @@ function RoomsBeds({profile,onNavigate}){
       )
     );
   }
+  function foodViewPreference(){
+    try{return sessionStorage.getItem('samara_food_view')==='Resident Food Intake'?'Resident Food Intake':'Food Vendor Management'}catch(_error){return 'Food Vendor Management'}
+  }
+  function FoodNavigationLinks({profile,page,onNavigate,mobile=false}){
+    const [view,setView]=React.useState(foodViewPreference);
+    React.useEffect(()=>{const update=()=>setView(foodViewPreference());window.addEventListener('samara-food-view',update);return()=>window.removeEventListener('samara-food-view',update)},[]);
+    const labels=profile?.role!=='STD'&&!isNursingManagerProfile(profile)?['Food Vendor Management','Resident Food Intake']:['Food Vendor Management'];
+    return h(React.Fragment,null,labels.map(label=>h('button',{key:label,type:'button','data-nav':'Food & Diet',className:page==='Food & Diet'&&view===label?'active':'',onClick:()=>{
+      try{sessionStorage.setItem('samara_food_view',label)}catch(_error){}
+      setView(label);window.dispatchEvent(new CustomEvent('samara-food-view',{detail:label}));onNavigate('Food & Diet');
+    }},mobile?h('span',{className:'mobile-drawer-item-icon'},'♨'):null,h('span',null,label),mobile?h('span',{className:'mobile-drawer-item-arrow'},'›'):null)));
+  }
   function FoodDiet({profile}){
-    const [foodView,setFoodView]=React.useState('Vendor Orders');
+    const [foodView,setFoodView]=React.useState(foodViewPreference);
+    React.useEffect(()=>{const update=e=>setFoodView(e.detail||foodViewPreference());window.addEventListener('samara-food-view',update);return()=>window.removeEventListener('samara-food-view',update)},[]);
     const canViewIntake=profile?.role!=='STD'&&!isNursingManagerProfile(profile);
     return h(React.Fragment,null,
-      h('div',{className:'employee-actions'},(canViewIntake?['Vendor Orders','Resident Intake']:['Vendor Orders']).map(name=>h('button',{type:'button',key:name,className:foodView===name?'btn btn-primary':'btn btn-secondary',onClick:()=>setFoodView(name)},name))),
-      canViewIntake&&foodView==='Resident Intake'?h(ResidentFoodIntake,{profile}):window.SamaraFoodVendor?h(window.SamaraFoodVendor,{client,profile}):h('p',null,'Food Vendor files are updating. Refresh the ERP to load the module.')
+      h('div',{className:'employee-actions'},(canViewIntake?['Food Vendor Management','Resident Food Intake']:['Food Vendor Management']).map(name=>h('button',{type:'button',key:name,className:foodView===name?'btn btn-primary':'btn btn-secondary',onClick:()=>{setFoodView(name);try{sessionStorage.setItem('samara_food_view',name)}catch(_error){}window.dispatchEvent(new CustomEvent('samara-food-view',{detail:name}))}},name))),
+      canViewIntake&&foodView==='Resident Food Intake'?h(ResidentFoodIntake,{profile}):window.SamaraFoodVendor?h(window.SamaraFoodVendor,{client,profile}):h('p',null,'Food Vendor files are updating. Refresh the ERP to load the module.')
     );
   }
   function ResidentFoodIntake({profile}){

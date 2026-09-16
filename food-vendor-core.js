@@ -53,6 +53,26 @@ function orderProgress(order,events){
  const status=order.status==='Closed'?'Closed':complete?'Received':receipts.length?'Partially received':order.status==='Draft'?'Draft':'Pending receipt';
  return {ordered,received:receipts.length?received:null,status};
 }
+function orderFilterFacts(order,events){
+ const receipts=(events||[]).filter(e=>e.order_id===order.id&&e.kind==='receive');
+ const progress=orderProgress(order,events);
+ const rejected=receipts.reduce((n,e)=>n+(e.data?.items||[]).reduce((a,it)=>a+Number(it.rejected||0),0),0);
+ const shortage=receipts.length?(order.data?.items||[]).reduce((n,it,i)=>n+['residents','employees'].reduce((a,k)=>a+Math.max(0,Number(it[k]||0)-receipts.reduce((b,e)=>b+Number(e.data?.items?.[i]?.[k]||0),0)),0),0):0;
+ return {...progress,rejected,shortage,hasReceipts:receipts.length>0};
+}
+function matchesOrderFilter(order,events,filter){
+ const f=orderFilterFacts(order,events);
+ switch(filter){
+  case 'Ordered':return order.status!=='Draft'&&order.status!=='Closed'&&!f.hasReceipts;
+  case 'Received':return f.hasReceipts&&f.shortage===0;
+  case 'Partially received':return Number(f.received)>0&&f.shortage>0;
+  case 'Rejected':return f.rejected>0;
+  case 'Shortage':return f.shortage>0;
+  case 'Draft':return order.status==='Draft';
+  case 'Closed':return order.status==='Closed';
+  default:return true;
+ }
+}
 function quantityRows(report){
  return (report.orders||[]).filter(o=>o.data.vendor_id===report.vendor_id&&o.data.date>=report.from&&o.data.date<=report.to).sort((a,b)=>a.data.date.localeCompare(b.data.date)||slots.indexOf(a.data.slot)-slots.indexOf(b.data.slot)).flatMap(o=>{
  const receipts=(report.events||[]).filter(e=>e.order_id===o.id&&e.kind==='receive');
@@ -114,5 +134,5 @@ function statementPdf(model){
  for(const note of model.notes||[]){const lines=wrap(note,W-2*M,11);if(y+lines.length*15+20>H-50)newPage();y+=20;lines.forEach(l=>{text(l,M,y,11);y+=15})}finish();return pdfFromJpegs(pages);
 }
 
-const api={dateText,orderProgress,logo,statementLogo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary,label,amountWords,pdfFromJpegs,statementPdf};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+const api={dateText,orderProgress,orderFilterFacts,matchesOrderFilter,logo,statementLogo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary,label,amountWords,pdfFromJpegs,statementPdf};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(globalThis);
