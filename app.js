@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.96';
+  const APP_VERSION = '2.12.97';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12143,9 +12143,14 @@ Thank you.`;
         .office-dot-legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-bottom:12px;font-size:12px;color:#69535f}.office-dot-legend span{display:inline-flex;align-items:center;gap:5px}.office-dot-legend i,.office-event-dots i{display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0}.office-event-dots{display:flex;justify-content:center;flex-wrap:wrap;gap:3px;min-height:9px;margin-top:7px}.office-day{box-shadow:0 3px 9px rgba(115,25,66,.06)}.office-day:focus-visible{outline:3px solid #168b81;outline-offset:2px}
         .office-seven{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;text-align:center;margin-top:8px}
         .office-seven>strong{font-size:12px}.office-day{min-width:0;border:1px solid #edcad9;background:#fff7fb;border-radius:10px;padding:12px 2px;color:#691139;cursor:pointer}.office-day small{display:block;font-size:10px;margin-top:5px}.office-today{border:2px solid #b50059;background:#fce0ef}
-        .director-office-page .director-office-stat-grid{grid-template-columns:repeat(auto-fit,minmax(105px,1fr))!important;gap:6px!important}
+        .director-office-page .director-office-stat-grid{grid-template-columns:repeat(auto-fit,minmax(145px,1fr))!important;gap:6px!important}
         .director-office-page .director-office-stat-grid>button{padding:9px!important;min-height:0!important;border-radius:12px!important}
         .director-office-page .director-office-stat-grid>button small{display:none!important}
+        .director-office-page .director-office-stat-grid>button{font-family:inherit!important;color:#7f174a!important;text-align:left;overflow-wrap:normal!important;word-break:normal!important;padding:12px 14px!important}
+        .director-office-page .director-office-stat-grid>button>div:first-child{font-size:25px!important;font-weight:700!important;line-height:1.15!important;color:#8b1953!important}
+        .director-office-page .director-office-stat-grid>button>div:nth-child(2){font-size:14px!important;font-weight:600!important;line-height:1.4!important;color:#741747!important;margin-top:5px!important;word-break:normal!important;overflow-wrap:normal!important}
+        @media(max-width:480px){.director-office-page .director-office-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+
         .director-office-page .director-office-comm-grid{gap:6px!important}.director-office-page .director-office-comm-grid>button{padding:10px!important;min-height:0!important}
       `),
       h(Section,{title:filter==='Overdue'?'Overdue items':officeRangeLabel,actions:h('button',{type:'button',className:'btn btn-secondary',disabled:manualRefreshing||loading,onClick:refreshDirectorOffice},manualRefreshing?'Refreshing…':'Refresh')},
