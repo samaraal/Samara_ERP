@@ -1,5 +1,5 @@
-const APP_VERSION = '2.12.78';
-const CACHE = 'samara-erp-2.12.78-compact-checkboxes';
+const APP_VERSION = '2.12.79';
+const CACHE = 'samara-erp-2.12.79-employee-documents';
 const SHELL = [
   './',
   './index.html',

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.78';
+  const APP_VERSION = '2.12.79';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12928,6 +12928,24 @@ Thank you.`;
       ));
     }
 
+    async function loadEmployeeDocuments(...employees){
+      // Older uploads may use either the profile ID or its linked login ID.
+      const ids=[...new Set(employees.flatMap(employee=>[employee?.id,employee?.auth_user_id]).filter(Boolean))];
+      const docs=new Map();
+      for(const id of ids){
+        for(const column of ['employee_id','profile_id']){
+          const {data,error}=await client.from('employee_documents').select('*').eq(column,id).order('created_at',{ascending:false});
+          // The original employee_documents schema did not have profile_id.
+          if(error){
+            if(column==='profile_id'&&error.code==='42703')continue;
+            throw new Error(`Unable to load employee documents: ${error.message||'Please retry.'}`);
+          }
+          for(const doc of data||[])docs.set(doc.id,doc);
+        }
+      }
+      return [...docs.values()].sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
+    }
+
     async function openDetails(row){
       setDetailsEditing(false);
       setDetailsTarget(row);setDetailsForm({...empty,...row,password:''});setDetailsMsg('');setDetailsDocs([]);loadEmploymentActions(row);
@@ -12942,16 +12960,11 @@ Thank you.`;
       }
       if(resolved.url)setPhotoPreview(resolved.url);
 
-      const ids=[resolved.profile?.id,resolved.profile?.auth_user_id,row.id,row.auth_user_id].filter(Boolean);
-      let docs=[];
-      for(const id of [...new Set(ids)]){
-        const {data}=await client.from('employee_documents').select('*').eq('employee_id',id).order('created_at',{ascending:false});
-        if(data?.length)docs.push(...data);
-        const {data:byProfile}=await client.from('employee_documents').select('*').eq('profile_id',id).order('created_at',{ascending:false});
-        if(byProfile?.length)docs.push(...byProfile);
+      try{
+        setDetailsDocs(await loadEmployeeDocuments(resolved.profile,row));
+      }catch(error){
+        setDetailsMsg(error.message||'Unable to load employee documents. Please reopen the personnel file to retry.');
       }
-      docs=docs.filter((doc,index,array)=>array.findIndex(x=>x.id===doc.id)===index).sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));
-      setDetailsDocs(docs);
     }
 
     async function saveDetails(e){
@@ -12998,7 +13011,13 @@ Thank you.`;
         setDetailsTarget(verifiedProfile);
         setDetailsForm({...empty,...verifiedProfile,password:''});
         setDetailsMsg(successText);showEmployeeToast('success',successText);setIdFiles([]);setQualificationFiles([]);setExperienceFiles([]);setOtherFiles([]);setCameraFiles([]);setPhotoFiles([]);await load();
-        const {data}=await client.from('employee_documents').select('*').eq('employee_id',detailsTarget.id).order('created_at',{ascending:false});setDetailsDocs(data||[]);
+        try{
+          setDetailsDocs(await loadEmployeeDocuments(verifiedProfile,detailsTarget));
+        }catch(error){
+          // Keep the visible documents if refresh fails after a successful save.
+          setDetailsMsg(`Employee information was saved, but documents could not be refreshed. ${error.message}`);
+          showEmployeeToast('error','Employee saved. Please reopen the personnel file to refresh documents.');
+        }
         const resolved=await resolveEmployeePhoto(detailsTarget,900);
         if(resolved.profile)setDetailsTarget(resolved.profile);
         if(resolved.url)setPhotoPreview(resolved.url);
@@ -13010,7 +13029,7 @@ Thank you.`;
       setDetailsBusy(false);
     }
     async function openDocument(doc){
-      const {data,error}=await client.storage.from('employee-documents').createSignedUrl(doc.storage_path,120);
+      const {data,error}=await client.storage.from('employee-documents').createSignedUrl(doc.storage_path||doc.file_path,120);
       if(error){alert(error.message);return}window.open(data.signedUrl,'_blank','noopener');
     }
 
