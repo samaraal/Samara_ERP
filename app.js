@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.94';
+  const APP_VERSION = '2.12.95';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -11650,16 +11650,27 @@ Thank you.`;
         setOfficeMonth(d.toISOString().slice(0,7));
       }else setSelectedOfficeDate(addDaysISO(selectedOfficeDate,direction*(officePeriod==='Date'?1:7)));
     }
+    const officeWeekLabel=officeRange.from===mondayOfWeek(todayKey)?'This Week':officeRange.from===addDaysISO(mondayOfWeek(todayKey),-7)?'Previous Week':officeRange.from===addDaysISO(mondayOfWeek(todayKey),7)?'Next Week':'Selected Week';
+    const officeCalendarCategories=[['Task','Tasks','#b31561'],['Appointment','Appointments','#168b81'],['Call / Callback','Calls','#3976d2'],['Follow-up','Follow-ups','#e69b23'],['Others','Others','#8856ba']];
     function renderDirectorCalendar(){
       if(officePeriod==='Date')return h('label',null,'Date ',h('input',{type:'date',value:selectedOfficeDate,onChange:e=>{if(e.target.value)selectOfficeDate(e.target.value);}}));
       const days=[];
-      let padding=0;
-      if(officePeriod==='Monthly')padding=(parseISODateUTC(officeRange.from).getUTCDay()+6)%7;
+      const padding=officePeriod==='Monthly'?(parseISODateUTC(officeRange.from).getUTCDay()+6)%7:0;
       for(let i=0;i<padding;i++)days.push(null);
       for(let d=officeRange.from;d<=officeRange.to;d=addDaysISO(d,1))days.push(d);
       return h('div',{className:'office-simple-calendar'},
+        h('div',{className:'office-dot-legend'},...officeCalendarCategories.map(([key,label,color])=>h('span',{key},h('i',{style:{background:color}}),label))),
         h('div',{className:'office-seven'},...['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>h('strong',{key:d},d))),
-        h('div',{className:'office-seven'},...days.map((d,i)=>d?h('button',{type:'button',key:d,className:'office-day'+(d===todayKey?' office-today':''),'aria-label':officePrettySelectedDate(d)+', '+(calendarCounts[d]||0)+' items',onClick:()=>selectOfficeDate(d)},h('strong',null,Number(d.slice(-2))),h('small',null,(calendarCounts[d]||0)+' items')):h('span',{key:'blank'+i})))
+        h('div',{className:'office-seven'},...days.map((d,i)=>{
+          if(!d)return h('span',{key:'blank'+i});
+          const items=rows.filter(r=>officeDateKey(r)===d&&r.status!=='Cancelled');
+          const present=officeCalendarCategories.filter(([key])=>items.some(r=>key==='Others'?!['Task','Appointment','Call / Callback','Follow-up'].includes(r.item_type):r.item_type===key));
+          const description=present.map(([,label])=>label).join(', ');
+          return h('button',{type:'button',key:d,className:'office-day'+(d===todayKey?' office-today':''),'aria-label':officePrettySelectedDate(d)+', '+items.length+' items'+(description?', '+description:''),title:description,onClick:()=>selectOfficeDate(d)},
+            h('strong',null,Number(d.slice(-2))),
+            h('span',{className:'office-event-dots','aria-hidden':true},...present.map(([key,label,color])=>h('i',{key,style:{background:color}}))),
+            h('small',null,items.length+' '+(items.length===1?'item':'items')));
+        }))
       );
     }
 
@@ -12128,6 +12139,8 @@ Thank you.`;
         }
       `),
       h('style',null,`
+        .office-simple-calendar{padding:14px;border:1px solid #edc8d9;border-radius:20px;background:linear-gradient(145deg,#fffafd,#fce9f2);box-shadow:0 8px 24px rgba(120,20,65,.07)}
+        .office-dot-legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-bottom:12px;font-size:12px;color:#69535f}.office-dot-legend span{display:inline-flex;align-items:center;gap:5px}.office-dot-legend i,.office-event-dots i{display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0}.office-event-dots{display:flex;justify-content:center;flex-wrap:wrap;gap:3px;min-height:9px;margin-top:7px}.office-day{box-shadow:0 3px 9px rgba(115,25,66,.06)}.office-day:focus-visible{outline:3px solid #168b81;outline-offset:2px}
         .office-seven{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;text-align:center;margin-top:8px}
         .office-seven>strong{font-size:12px}.office-day{min-width:0;border:1px solid #edcad9;background:#fff7fb;border-radius:10px;padding:12px 2px;color:#691139;cursor:pointer}.office-day small{display:block;font-size:10px;margin-top:5px}.office-today{border:2px solid #b50059;background:#fce0ef}
         .director-office-page .director-office-stat-grid{grid-template-columns:repeat(auto-fit,minmax(105px,1fr))!important;gap:6px!important}
@@ -12138,7 +12151,7 @@ Thank you.`;
       h(Section,{title:filter==='Overdue'?'Overdue items':officeRangeLabel,actions:h('button',{type:'button',className:'btn btn-secondary',disabled:manualRefreshing||loading,onClick:refreshDirectorOffice},manualRefreshing?'Refreshing…':'Refresh')},
         h('div',{style:{display:'flex',flexWrap:'wrap',gap:'6px',marginBottom:'12px'}},
           h('button',{type:'button',className:'btn btn-secondary','aria-label':'Previous period',onClick:()=>moveOfficePeriod(-1)},'‹'),
-          ...[['Date','Today'],['This Week','This Week'],['Monthly','Monthly']].map(([period,label])=>h('button',{type:'button',key:period,'aria-pressed':officePeriod===period,className:officePeriod===period?'btn btn-primary':'btn btn-secondary',onClick:()=>{setOfficePeriod(period);setSelectedOfficeDate(todayKey);if(period==='Monthly')setOfficeMonth(todayKey.slice(0,7));if(filter==='Today'||filter==='Overdue')setFilter('Open');}},label)),
+          ...[['Date','Today'],['This Week',officePeriod==='This Week'?officeWeekLabel:'This Week'],['Monthly','Monthly']].map(([period,label])=>h('button',{type:'button',key:period,title:period==='This Week'?'Return to current week':undefined,'aria-pressed':officePeriod===period&&(period!=='This Week'||officeWeekLabel==='This Week'),className:officePeriod===period&&(period!=='This Week'||officeWeekLabel==='This Week')?'btn btn-primary':'btn btn-secondary',onClick:()=>{setOfficePeriod(period);setSelectedOfficeDate(todayKey);if(period==='Monthly')setOfficeMonth(todayKey.slice(0,7));if(filter==='Today'||filter==='Overdue')setFilter('Open');}},label)),
           h('button',{type:'button',className:'btn btn-secondary','aria-label':'Next period',onClick:()=>moveOfficePeriod(1)},'›'),
           h('button',{type:'button',className:filter==='Overdue'?'btn btn-primary':'btn btn-secondary',onClick:()=>{setFilter(filter==='Overdue'?'Open':'Overdue');}},'Overdue · '+openRows.filter(r=>officeDateKey(r)&&officeDateKey(r)<todayKey).length),
           officePeriod==='Monthly'?h('label',null,'Month ',h('input',{type:'month','aria-label':'Director Office month',value:officeMonth,onChange:e=>{if(e.target.value)setOfficeMonth(e.target.value);}})):null
