@@ -64,5 +64,14 @@ function compactRows(report){
  return [g.date,g.meal,g.res,g.emp,g.res+g.emp,g.hasReceipt?g.received:null,priced?(rates.length===1?rates[0]:'Mixed'):null,g.entries.length?g.entries.reduce((n,e)=>n+Number(e.data.quantity||0),0):null,priced?Math.round(g.entries.reduce((n,e)=>n+Number(e.amount),0)*100)/100:null];
  });
 }
-const api={logo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+function mealSummary(report){
+ const groups=['Tiffin','Lunch','Dinner','Tea/Coffee'].map(meal=>({meal,quantity:0,amount:0,missing:false,prices:new Set()}));
+ for(const row of compactRows(report)){const category=/Tea|Coffee/.test(row[1])?'Coffee/Tea':row[1],g=groups.find(g=>g.meal===(category==='Coffee/Tea'?'Tea/Coffee':category));if(!g)continue;g.quantity+=row[4];
+ const rates=(report.rates||[]).filter(r=>r.item===category&&r.effective<=row[0]).sort((a,b)=>b.effective.localeCompare(a.effective)||String(b.created_at||'').localeCompare(String(a.created_at||'')));
+ const price=rates[0]?.price;if(row[4]>0){if(price==null){g.missing=true}else{g.prices.add(Number(price));g.amount+=row[4]*Number(price)}}
+ }
+ const rows=groups.map(g=>[g.meal,g.quantity,g.prices.size===1&&!g.missing?[...g.prices][0]:g.prices.size>1&&!g.missing?'Varies':null,g.missing?null:Math.round(g.amount*100)/100]);
+ return [...rows,['Grand total',rows.reduce((n,r)=>n+r[1],0),null,rows.some(r=>r[3]==null)?null:Math.round(rows.reduce((n,r)=>n+r[3],0)*100)/100]];
+}
+const api={logo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(globalThis);
