@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.95';
+  const APP_VERSION = '2.12.96';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -11659,18 +11659,18 @@ Thank you.`;
       for(let i=0;i<padding;i++)days.push(null);
       for(let d=officeRange.from;d<=officeRange.to;d=addDaysISO(d,1))days.push(d);
       return h('div',{className:'office-simple-calendar'},
-        h('div',{className:'office-dot-legend'},...officeCalendarCategories.map(([key,label,color])=>h('span',{key},h('i',{style:{background:color}}),label))),
         h('div',{className:'office-seven'},...['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>h('strong',{key:d},d))),
         h('div',{className:'office-seven'},...days.map((d,i)=>{
           if(!d)return h('span',{key:'blank'+i});
           const items=rows.filter(r=>officeDateKey(r)===d&&r.status!=='Cancelled');
           const present=officeCalendarCategories.filter(([key])=>items.some(r=>key==='Others'?!['Task','Appointment','Call / Callback','Follow-up'].includes(r.item_type):r.item_type===key));
           const description=present.map(([,label])=>label).join(', ');
-          return h('button',{type:'button',key:d,className:'office-day'+(d===todayKey?' office-today':''),'aria-label':officePrettySelectedDate(d)+', '+items.length+' items'+(description?', '+description:''),title:description,onClick:()=>selectOfficeDate(d)},
+          return h('button',{type:'button',key:d,className:'office-day'+(d===todayKey?' office-today':''),'aria-label':officePrettySelectedDate(d)+', '+items.length+' jobs'+(description?', '+description:''),title:description,onClick:()=>selectOfficeDate(d)},
             h('strong',null,Number(d.slice(-2))),
             h('span',{className:'office-event-dots','aria-hidden':true},...present.map(([key,label,color])=>h('i',{key,style:{background:color}}))),
-            h('small',null,items.length+' '+(items.length===1?'item':'items')));
-        }))
+            h('small',null,items.length+' '+(items.length===1?'job':'jobs')));
+        })),
+        h('div',{className:'office-dot-legend'},...officeCalendarCategories.map(([key,label,color])=>h('span',{key},h('i',{style:{background:color}}),label)))
       );
     }
 
