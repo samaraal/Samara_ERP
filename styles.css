@@ -2282,3 +2282,17 @@ button.samara-action-save:disabled,button.samara-action-danger:disabled{opacity:
 .staff-voice-results>div{padding:6px 0}
 
 button.samara-action-neutral{background:#f8e7ef!important;border-color:#e4bfd2!important;color:#751243!important;box-shadow:none!important}
+
+/* Compact vital signs: retain a real table and a bounded touch scroll area. */
+.card.vitals-log-table{min-width:0!important;max-width:100%!important}
+.table-wrap.vitals-log-table{display:block!important;width:100%!important;max-width:100%!important;min-width:0!important;overflow-x:auto!important;overflow-y:auto!important;max-height:65vh;touch-action:pan-x pan-y;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+table.table.vitals-log-table{display:table!important;width:100%!important;min-width:820px!important;table-layout:auto!important;border-collapse:separate!important;border-spacing:0!important}
+table.table.vitals-log-table>thead{display:table-header-group!important}
+table.table.vitals-log-table>tbody{display:table-row-group!important}
+table.table.vitals-log-table tr{display:table-row!important}
+table.table.vitals-log-table th,table.table.vitals-log-table td{display:table-cell!important;padding:8px 9px!important;font-size:12px!important;line-height:1.35!important;white-space:nowrap!important;border-bottom:1px solid #ead2dd!important;height:auto!important;min-height:0!important}
+table.table.vitals-log-table td::before{display:none!important}
+table.table.vitals-log-table th{position:sticky!important;top:0!important;z-index:2!important;background:#fff1f7!important;color:#68143f!important}
+table.table.vitals-log-table th:first-child,table.table.vitals-log-table td:first-child{position:sticky!important;left:0!important;min-width:115px!important;max-width:145px!important;white-space:normal!important;background:#fff8fb!important;color:#38172a!important;box-shadow:2px 0 4px #68143f12;z-index:1!important}
+table.table.vitals-log-table th:first-child{z-index:3!important}
+@media(max-width:760px){.card.vitals-log-table{padding:12px!important}table.table.vitals-log-table th,table.table.vitals-log-table td{padding:7px 8px!important;font-size:12px!important}}
