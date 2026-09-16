@@ -1,8 +1,11 @@
-const APP_VERSION = '2.12.82';
-const CACHE = 'samara-erp-2.12.82-interview-location-test';
+const APP_VERSION = '2.12.83';
+const CACHE = 'samara-erp-2.12.83-food-vendor';
 const SHELL = [
   './',
   './index.html',
+  `./food-vendor-core.js?v=${APP_VERSION}`,
+  `./food-vendor.js?v=${APP_VERSION}`,
+  `./food-vendor.css?v=${APP_VERSION}`,
   `./styles.css?v=${APP_VERSION}`,
   `./app.js?v=${APP_VERSION}`,
   `./spot-assessment.js?v=${APP_VERSION}`,

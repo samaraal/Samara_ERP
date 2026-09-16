@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.82';
+  const APP_VERSION = '2.12.83';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1543,7 +1543,7 @@ function initSamaraInaugurationInvitation(){
     Caregiver:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
     Accounts:['Accounts Dashboard','Duty Assignment','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
     Kitchen:['Notifications','Duty Assignment','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission'],
-    STD:["Director's Office",'Duty Assignment','Patient Consumables','Stores','WhatsApp Inbox','Feedback','My Leave & Permission']
+    STD:["Director's Office",'Food & Diet','Duty Assignment','Patient Consumables','Stores','WhatsApp Inbox','Feedback','My Leave & Permission']
   };
   Object.keys(ROLE_NAV).forEach(role=>{
     if(!ROLE_NAV[role].includes('My Profile'))ROLE_NAV[role].push('My Profile');
@@ -22347,6 +22347,13 @@ function RoomsBeds({profile,onNavigate}){
     );
   }
   function FoodDiet({profile}){
+    const [foodView,setFoodView]=React.useState('Vendor Orders');
+    return h(React.Fragment,null,
+      h('div',{className:'employee-actions'},['Vendor Orders','Resident Intake'].map(name=>h('button',{type:'button',key:name,className:foodView===name?'btn btn-primary':'btn btn-secondary',onClick:()=>setFoodView(name)},name))),
+      foodView==='Resident Intake'?h(ResidentFoodIntake,{profile}):window.SamaraFoodVendor?h(window.SamaraFoodVendor,{client,profile}):h('p',null,'Food Vendor files are updating. Refresh the ERP to load the module.')
+    );
+  }
+  function ResidentFoodIntake({profile}){
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
     const [saving,setSaving]=React.useState(false);
