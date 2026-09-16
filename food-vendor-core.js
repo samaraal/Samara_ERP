@@ -44,6 +44,15 @@ function workbook(sheets){
  const c=header(46);put(c,0,0x02014b50);put(c,4,20,2);put(c,6,20,2);put(c,16,crc);put(c,20,data.length);put(c,24,data.length);put(c,28,name.length,2);put(c,42,offset);central.push(c,name);offset+=30+name.length+data.length;}
  const size=central.reduce((n,a)=>n+a.length,0),end=header(22);put(end,0,0x06054b50);put(end,8,Object.keys(files).length,2);put(end,10,Object.keys(files).length,2);put(end,12,size);put(end,16,offset);return new Blob([...parts,...central,end],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
 }
+function orderProgress(order,events){
+ const receipts=(events||[]).filter(e=>e.order_id===order.id&&e.kind==='receive');
+ const items=order.data?.items||[],sum=k=>items.reduce((n,it)=>n+Number(it[k]||0),0);
+ const ordered=sum('residents')+sum('employees');
+ const received=receipts.reduce((n,e)=>n+(e.data?.items||[]).reduce((a,it)=>a+Number(it.residents||0)+Number(it.employees||0),0),0);
+ const complete=receipts.length>0&&items.every((it,i)=>['residents','employees'].every(k=>receipts.reduce((n,e)=>n+Number(e.data?.items?.[i]?.[k]||0),0)>=Number(it[k]||0)));
+ const status=order.status==='Closed'?'Closed':complete?'Received':receipts.length?'Partially received':order.status==='Draft'?'Draft':'Pending receipt';
+ return {ordered,received:receipts.length?received:null,status};
+}
 function quantityRows(report){
  return (report.orders||[]).filter(o=>o.data.vendor_id===report.vendor_id&&o.data.date>=report.from&&o.data.date<=report.to).sort((a,b)=>a.data.date.localeCompare(b.data.date)||slots.indexOf(a.data.slot)-slots.indexOf(b.data.slot)).flatMap(o=>{
  const receipts=(report.events||[]).filter(e=>e.order_id===o.id&&e.kind==='receive');
@@ -104,5 +113,5 @@ function statementPdf(model){
  for(const note of model.notes||[]){const lines=wrap(note,W-2*M,11);if(y+lines.length*15+20>H-50)newPage();y+=20;lines.forEach(l=>{text(l,M,y,11);y+=15})}finish();return pdfFromJpegs(pages);
 }
 
-const api={logo,statementLogo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary,label,amountWords,pdfFromJpegs,statementPdf};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+const api={orderProgress,logo,statementLogo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary,label,amountWords,pdfFromJpegs,statementPdf};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(globalThis);
