@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.91';
+  const APP_VERSION = '2.12.92';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -10895,6 +10895,13 @@ Thank you.`;
     const dayRows=rows.filter(r=>dateKey(r.scheduled_at||r.due_date)===selected);
     return h('div',{className:'nurse-personal-todos'},
       h('div',{className:'shift-summary'},h('div',null,h('strong',null,'My To-Do List'),h('span',null,'Your private personal reminders')),h('button',{type:'button',className:'btn btn-primary',onClick:openNew},'＋ Add To-Do')),
+      h(Section,{title:'View period',subtitle:'Weeks run Monday–Sunday. Choose a month or a single calendar date.'},
+        h('div',{style:{display:'flex',flexWrap:'wrap',gap:'8px'}},
+          ...['Date','Previous Week','This Week','Next Week','Monthly'].map(period=>h('button',{type:'button',key:period,'aria-pressed':officePeriod===period,className:officePeriod===period?'btn btn-primary':'btn btn-secondary',onClick:()=>{setOfficePeriod(period);if(filter==='Today')setFilter('Open');}},period)),
+          officePeriod==='Monthly'?h('label',null,'Month ',h('input',{type:'month','aria-label':'Director Office month',value:officeMonth,onChange:e=>{if(e.target.value)setOfficeMonth(e.target.value);}})):null
+        ),
+        h('p',{style:{marginTop:'10px',fontWeight:700}},officeRangeLabel)
+      ),
       h(Section,{title:'Calendar',subtitle:'Tap a date to view its list'},calendar()),
       message&&!show?h('div',{className:`message ${message.startsWith('✓')?'success':'error'}`},message):null,
       h(Section,{title:`To-Do — ${formatDateIN(new Date(`${selected}T00:00:00`))}`,subtitle:`${dayRows.length} item${dayRows.length===1?'':'s'} for this day`},dayRows.length?h('div',{className:'nurse-todo-list'},dayRows.map((r,i)=>h('div',{className:`nurse-todo-row ${r.status==='Completed'?'completed':''}`,key:r.id},h('span',{className:'nurse-todo-number'},`${i+1}.`),h('button',{type:'button',className:'nurse-todo-check',onClick:()=>complete(r),'aria-label':r.status==='Completed'?'Mark pending':'Mark completed'},r.status==='Completed'?'✓':'○'),h('div',{className:'nurse-todo-copy'},h('strong',null,r.title),h('small',null,r.scheduled_at?new Date(r.scheduled_at).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:true}):'Any time')),h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(r)},'Edit'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>remove(r)},'Delete'))))):h('div',{className:'empty'},'No to-do items for this day.'),h('button',{type:'button',className:'btn btn-primary nurse-todo-add-bottom',onClick:openNew},'＋ Add To-Do')),
@@ -10914,6 +10921,20 @@ Thank you.`;
         )
       ):null
     );
+  }
+
+  function directorOfficeRange(period,date,month,today){
+    if(period==='Monthly'){
+      const [year,number]=month.split('-').map(Number);
+      const last=new Date(Date.UTC(year,number,0)).getUTCDate();
+      return {from:month+'-01',to:month+'-'+String(last).padStart(2,'0')};
+    }
+    if(['Previous Week','This Week','Next Week'].includes(period)){
+      const offset=period==='Previous Week'?-7:period==='Next Week'?7:0;
+      const from=addDaysISO(mondayOfWeek(today),offset);
+      return {from,to:addDaysISO(from,6)};
+    }
+    return {from:date,to:date};
   }
 
   function DirectorOfficeDashboard({profile,onNavigate}){
@@ -10937,8 +10958,8 @@ Thank you.`;
     const [waUnread,setWaUnread]=React.useState(0);
     const [feedbackOpen,setFeedbackOpen]=React.useState(0);
     const [officeQuery,setOfficeQuery]=React.useState('');
-    const [officeFrom,setOfficeFrom]=React.useState('');
-    const [officeTo,setOfficeTo]=React.useState('');
+    const [officePeriod,setOfficePeriod]=React.useState('Date');
+    const [officeMonth,setOfficeMonth]=React.useState(()=>todayISOIndia().slice(0,7));
     const [selectedOfficeDate,setSelectedOfficeDate]=React.useState(()=>todayISOIndia());
     const [calendarMonth,setCalendarMonth]=React.useState(()=>{
       const t=new Date(); return new Date(t.getFullYear(),t.getMonth(),1);
@@ -11598,8 +11619,11 @@ Thank you.`;
       return acc;
     },{});
 
+    const officeRange=directorOfficeRange(officePeriod,selectedOfficeDate,officeMonth,todayKey);
+    const officeRangeLabel=officePeriod==='Date'?(selectedOfficeDate===todayKey?"Today's Items":officePrettySelectedDate(selectedOfficeDate)):`${officePeriod} · ${prettyDate(officeRange.from)} – ${prettyDate(officeRange.to)}`;
     const filtered=rows.filter(r=>{
-      if(officeDateKey(r)!==selectedOfficeDate)return false;
+      const itemDate=officeDateKey(r);
+      if(!itemDate||itemDate<officeRange.from||itemDate>officeRange.to)return false;
       let typeOk=false;
       if(filter==='All')typeOk=r.status!=='Cancelled';
       else if(filter==='Open')typeOk=isOpen(r);
@@ -11615,6 +11639,7 @@ Thank you.`;
     }).sort((a,b)=>String(a.scheduled_at||a.due_date||'').localeCompare(String(b.scheduled_at||b.due_date||'')));
 
     function selectOfficeDate(dateKey){
+      setOfficePeriod('Date');
       setSelectedOfficeDate(dateKey);
       setFilter('Open');
       const d=new Date(`${dateKey}T00:00:00`);
@@ -12184,7 +12209,7 @@ Thank you.`;
         id:'director-followup-queue-anchor',
         style:{height:'1px',scrollMarginTop:'118px'}
       }),
-      h(Section,{title:selectedOfficeDate===todayKey?"Today's Items":officePrettySelectedDate(selectedOfficeDate),subtitle:h('span',{className:'director-items-summary'},`${filtered.length} item${filtered.length===1?'':'s'} · ${filter}`),actions:
+      h(Section,{title:officeRangeLabel,subtitle:h('span',{className:'director-items-summary'},`${filtered.length} item${filtered.length===1?'':'s'} · ${filter}`),actions:
         h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
           ...['All','Open','For Director','Today','Task','Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder','Completed','Cancelled'].map(x=>
             h('button',{type:'button',key:x,className:filter===x?'btn btn-primary':'btn btn-secondary',onClick:()=>openDirectorQueue(x)},x)
