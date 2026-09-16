@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.15';
+  const APP_VERSION = '2.13.16';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -25152,6 +25152,7 @@ function ShiftHandover({profile,onNavigate}){
     };
 
     return h(React.Fragment,null,
+      patientId&&h(PatientChargeReadiness,{patientId}),
       h('div',{className:'accounts-hero'},
         h('div',null,
           h('small',null,'PATIENT LEDGER · FINAL SETTLEMENT'),
@@ -25554,7 +25555,14 @@ function ShiftHandover({profile,onNavigate}){
       }finally{setLoading(false)}
     }
 
-    React.useEffect(()=>{if(selected)loadPatientLedger(selected)},[selectedId]);
+    React.useEffect(()=>{
+      if(!selected)return;
+      loadPatientLedger(selected);
+      const refresh=()=>loadPatientLedger(selected);
+      const timer=setInterval(refresh,15000);
+      window.addEventListener('samara-refresh-charges',refresh);
+      return()=>{clearInterval(timer);window.removeEventListener('samara-refresh-charges',refresh)};
+    },[selectedId]);
     React.useEffect(()=>{
       if(!selectedId)return;
       const channel=client.channel(`patient-ledger-${selectedId}`)
@@ -25651,6 +25659,7 @@ function ShiftHandover({profile,onNavigate}){
     }
 
     return h('div',{className:'stack patient-ledger-page'},
+      selectedId&&h(PatientChargeReadiness,{patientId:selectedId}),
       h('style',null,`
         .patient-ledger-page .ledger-patient-tools{display:grid;grid-template-columns:minmax(280px,420px) minmax(320px,1fr);gap:14px;align-items:end}
         .patient-ledger-page .ledger-patient-tools .field{margin:0}
@@ -25767,6 +25776,58 @@ function ShiftHandover({profile,onNavigate}){
     );
   }
 
+  // Unposted requests must remain visible even when the posted ledger is settled.
+  function chargeNeedsReview(row){
+    const status=String(row.approval_status||'Pending');
+    return status!=='Rejected' && (!['Approved','Partially Approved'].includes(status)||!row.billing_transaction_id);
+  }
+  async function fetchUnpostedCharges(patientId){
+    if(!patientId)return [];
+    const rows=[];
+    for(let offset=0;;offset+=500){
+      const result=await client.from('bill_charge_requests').select('*').eq('patient_id',patientId).order('id').range(offset,offset+499);
+      if(result.error)throw result.error;
+      rows.push(...(result.data||[]));
+      if((result.data||[]).length<500)break;
+    }
+    return rows.filter(chargeNeedsReview);
+  }
+  function useChargeReadiness(patientId){
+    const [state,setState]=React.useState({patientId:null,loading:true,rows:[],error:''});
+    React.useEffect(()=>{
+      let active=true,sequence=0;
+      async function refresh(){
+        const current=++sequence;
+        try{const rows=await fetchUnpostedCharges(patientId);if(active&&sequence===current)setState({patientId,loading:false,rows,error:''});}
+        catch(error){if(active&&sequence===current)setState({patientId,loading:false,rows:[],error:error.message||'Unable to verify charges'});}
+      }
+      refresh();
+      const timer=setInterval(refresh,15000);
+      window.addEventListener('focus',refresh);
+      window.addEventListener('samara-refresh-charges',refresh);
+      const channel=patientId?client.channel('clearance-charges-'+patientId+'-'+Math.random())
+        .on('postgres_changes',{event:'*',schema:'public',table:'bill_charge_requests',filter:'patient_id=eq.'+patientId},refresh).subscribe():null;
+      return()=>{active=false;clearInterval(timer);window.removeEventListener('focus',refresh);window.removeEventListener('samara-refresh-charges',refresh);if(channel)client.removeChannel(channel)};
+    },[patientId]);
+    return state.patientId===patientId?state:{patientId,loading:true,rows:[],error:''};
+  }
+  function ChargeReadinessSummary({state}){
+    if(!state.patientId)return null;
+    return h('div',{className:'message '+(state.error||state.rows.length?'warning':'info'),style:{margin:'12px 0'},role:'status'},
+      h('strong',null,state.loading?'Checking unposted charges…':state.error?'Charge verification unavailable':state.rows.length?`${state.rows.length} charge request(s) awaiting approval / ledger posting`:'All charge requests resolved'),
+      state.error&&h('div',null,state.error+' Clearance is blocked until verification succeeds.'),
+      state.rows.length>0&&h(React.Fragment,null,
+        h('p',null,'These requests are not included in Net Payable. Accounts must resolve them in Charge Approvals before discharge clearance.'),
+        h('ul',null,state.rows.map(row=>h('li',{key:row.id},`${row.charge_date||''} · ${row.service_name||row.description||row.category} · Qty ${row.quantity||1} · ${row.approval_status||'Pending'}${row.billing_transaction_id?'':' · Not posted'}`)))
+      ),
+      h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.dispatchEvent(new Event('samara-refresh-charges'))},'Refresh charge check')
+    );
+  }
+  function PatientChargeReadiness({patientId}){
+    const state=useChargeReadiness(patientId);
+    return h(ChargeReadinessSummary,{state});
+  }
+
   function BillingPayments({profile}){
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
@@ -25803,6 +25864,8 @@ function ShiftHandover({profile,onNavigate}){
         return value==='outstanding'?'outstanding':'';
       }catch(_error){return ''}
     });
+    const chargeReadiness=useChargeReadiness(patientFilter);
+    const clearanceBlocked=chargeReadiness.loading||!!chargeReadiness.error||chargeReadiness.rows.length>0;
     const [quickView,setQuickView]=React.useState('Pending Bills');
     const [form,setForm]=React.useState({
       patient_id:dischargeTarget?.patient_id||'',
@@ -25897,11 +25960,13 @@ function ShiftHandover({profile,onNavigate}){
     React.useEffect(()=>{
       ensurePaymentSettlementStyle();
       load();
+      const paymentRefresh=setInterval(load,15000);
+      window.addEventListener('samara-refresh-charges',load);
       const channel=client.channel('billing-payments-live-v216')
         .on('postgres_changes',{event:'*',schema:'public',table:'billing_transactions'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'patient_discharges'},load)
         .subscribe();
-      return()=>client.removeChannel(channel);
+      return()=>{clearInterval(paymentRefresh);window.removeEventListener('samara-refresh-charges',load);client.removeChannel(channel)};
     },[]);
 
     React.useEffect(()=>{
@@ -26021,6 +26086,7 @@ function ShiftHandover({profile,onNavigate}){
     }
 
     async function approveRefundByAdmin(){
+      try{await verifyChargesBeforeClearance();}catch(error){setMessage(error.message||'Unable to verify charges.');return;}
       if(profile?.role!=='Admin'||!refundRequest||saving)return;
       const amount=Number(refundForm.admin_confirm_amount);
       if(!Number.isFinite(amount)||amount<=0){notify('error','Confirmation amount required','Re-enter the exact refund amount shown in the verified financial record.');return}
@@ -26303,6 +26369,27 @@ Please access the Samara Family Portal for detailed account information.`;
       }
     }
 
+    async function verifyChargesBeforeClearance(){
+      const unresolved=await fetchUnpostedCharges(dischargeTarget.patient_id);
+      window.dispatchEvent(new Event('samara-refresh-charges'));
+      if(unresolved.length)throw Error(`${unresolved.length} unresolved charge request(s). Open Charge Approvals and resolve every request before clearance.`);
+    }
+    async function clearZeroBalance(){
+      if(saving||!dischargeTarget||!['Admin','Accounts'].includes(profile?.role))return;
+      if(!String(form.closure_remarks||'').trim()){setMessage('Accounts closure remarks are required.');return;}
+      setSaving(true);setMessage('');
+      try{
+        await verifyChargesBeforeClearance();
+        const result=await client.rpc('close_patient_discharge_accounts_v2',{p_discharge_id:dischargeTarget.discharge_id,p_remarks:form.closure_remarks});
+        if(result.error)throw result.error;
+        try{sessionStorage.removeItem('samara_discharge_payment_target')}catch(_error){}
+        setDischargeTarget(null);
+        notify('success','Accounts cleared','Zero balance verified. Returned to Nursing for final physical discharge. No payment was recorded.');
+        await load();
+        window.dispatchEvent(new CustomEvent('samara-return-discharge-clearance'));
+      }catch(error){setMessage(error.message||'Clearance verification failed.');notify('error','Discharge not cleared',error.message);await load();}
+      finally{setSaving(false);}
+    }
     async function savePaymentAndPossiblyClose(e){
       e.preventDefault();
       if(!canEnter||saving)return;
@@ -26312,6 +26399,9 @@ Please access the Samara Family Portal for detailed account information.`;
         setMessage(text);notify('error','Patient required',text);return;
       }
 
+      if(dischargeTarget){
+        try{await verifyChargesBeforeClearance();}catch(error){setMessage(error.message||'Unable to verify charges.');return;}
+      }
       const amount=Number(form.amount);
       if(dischargeTarget&&advanceBalance>0.009){
         const text='This discharge has an excess patient balance. Use the controlled Refund Verification workflow; direct transaction posting is blocked.';
@@ -26690,7 +26780,14 @@ Please access the Samara Family Portal for detailed account information.`;
         refundRequest&&refundRequest.status==='Completed'&&h('div',{className:'message success'},`Refund ${money(refundRequest.accounts_amount||refundRequest.calculated_refund)} completed and posted to the ledger. Accounts clearance has returned to Nursing.`)
       ),
 
-      (!dischargeTarget||advanceBalance<=0.009)&&h(Section,{
+      patientFilter&&h(ChargeReadinessSummary,{state:chargeReadiness}),
+      dischargeTarget&&Math.abs(netPayable)<=0.009&&message&&h('div',{className:'message error'},message),
+      dischargeTarget&&Math.abs(netPayable)<=0.009&&h(Section,{title:'Zero Balance Discharge Clearance',subtitle:'Verify all charges and close the account without recording a payment.'},
+        h('label',null,'Accounts Closure Remarks'),
+        h('textarea',{value:form.closure_remarks,onChange:e=>setForm({...form,closure_remarks:e.target.value}),rows:3}),
+        h('button',{type:'button',className:'btn btn-primary',disabled:saving||loading||clearanceBlocked||!['Admin','Accounts'].includes(profile?.role),onClick:clearZeroBalance},saving?'Checking…':'Verify ₹0 Balance & Clear Accounts')
+      ),
+      (!dischargeTarget||pendingBills>0.009)&&h(Section,{
         title:dischargeTarget?'Final Payment & Discharge Settlement':'Manual Billing & Payment Entry',
         subtitle:dischargeTarget
           ?'Enter payment details. Exact settlement will close the discharge automatically.'
@@ -26794,7 +26891,7 @@ Please access the Samara Family Portal for detailed account information.`;
           ),
           h('button',{
             className:'btn btn-primary span-2 payment-submit',
-            disabled:saving||!form.patient_id
+            disabled:saving||!form.patient_id||!!dischargeTarget&&(loading||clearanceBlocked)
           },saving
             ?'Processing…'
             :dischargeTarget
@@ -27294,12 +27391,14 @@ Please access the Samara Family Portal for detailed account information.`;
     }
     React.useEffect(()=>{
       load();
+      const refreshTimer=setInterval(load,15000);
+      window.addEventListener('focus',load);
       const ch=client.channel('clinical-charges-v2')
         .on('postgres_changes',{event:'*',schema:'public',table:'bill_charge_requests'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'diagnostic_services'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'charge_tariff_master'},load)
         .subscribe();
-      return()=>client.removeChannel(ch);
+      return()=>{clearInterval(refreshTimer);window.removeEventListener('focus',load);client.removeChannel(ch)};
     },[]);
 
     function openNew(){const base=fresh();const firstCategory=Object.keys(categories)[0]||base.category;const firstService=(categories[firstCategory]||[])[0]||base.service_name;setFiles([]);setBatchItems([]);setForm({...base,category:firstCategory,service_name:firstService,description:firstService});setShow(true)}
