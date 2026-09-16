@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.20';
+  const APP_VERSION = '2.13.21';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1529,7 +1529,7 @@ function initSamaraInaugurationInvitation(){
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'PHARMACY & STORES', items:['Patient Consumables','Stores','Stores In-charge Assignment'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
-    { title:'OUTGOING PAYMENTS', items:['Outgoing Payments'] },
+    { title:'PAYMENTS & VOUCHERS', items:['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers'] },
     { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
     { title:'COMMUNICATION', items:['WhatsApp Inbox','WhatsApp Logs','Family Communication','Feedback','Mail Dashboard'] },
     { title:'MY ACCOUNT', items:['My Profile'] }
@@ -1538,7 +1538,7 @@ function initSamaraInaugurationInvitation(){
   const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
   const ROLE_NAV={
     Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&!NURSING_ENTRY_NAV.includes(item)),
-    Manager:ALL_NAV.filter(item=>!['Outgoing Payments',"Director's Office",'Enquiries & Feedback','System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
+    Manager:ALL_NAV.filter(item=>!['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers',"Director's Office",'Enquiries & Feedback','System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
 
     Nurse:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
@@ -1561,7 +1561,7 @@ function initSamaraInaugurationInvitation(){
   };
   const homePageForProfile=profile=>isNursingManagerProfile(profile)?'Clinical Dashboard':(ROLE_HOME[profile?.role]||'Dashboard');
   const allowedPagesForProfile=profile=>{
-    if(profile?.__outgoingTrialAccess&&profile?.role!=='Admin')return [...allowedPagesForProfile({...profile,__outgoingTrialAccess:false}),'Outgoing Payments'];
+    if(profile?.__paymentsTrial&&!profile.__paymentsNavResolved){const a=profile.__paymentsTrial;return [...allowedPagesForProfile({...profile,__paymentsNavResolved:true}).filter(x=>!['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers'].includes(x)),...(a.full?['Payments & Vouchers']:[]),'Payment Requests',...(a.pay?['Approved—Ready to Pay']:[]),'Payment Vouchers'];}
     if(isNursingManagerProfile(profile))return [
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts',
@@ -1603,7 +1603,7 @@ function initSamaraInaugurationInvitation(){
     return CLINICAL_ROLES.includes(role)?(ROLE_LABELS[item]||item):item;
   };
   const sectionsFor = (allowed,role) => {
-    if(role!=='Admin'&&allowed.includes('Outgoing Payments'))return [...sectionsFor(allowed.filter(x=>x!=='Outgoing Payments'),role),{title:'OUTGOING PAYMENTS',items:['Outgoing Payments']}];
+    if(role!=='Admin'&&allowed.includes('Payment Requests')){const items=allowed.filter(x=>['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers'].includes(x));return [...sectionsFor(allowed.filter(x=>!items.includes(x)),role),{title:'PAYMENTS & VOUCHERS',items}];}
     if(CLINICAL_ROLES.includes(role)){
       return [
         {title:'ADMISSION',items:['Spot Assessment'].filter(item=>allowed.includes(item))},
@@ -7015,11 +7015,12 @@ https://samaraassistedliving.com/`;
           data={...data,must_change_password:false};
           client.rpc('complete_my_first_login').then(()=>{}).catch(()=>{});
         }
-        try{const access=await profileTimeout(client.rpc('op_trial_access'),5000,'Outgoing access check');data={...data,__outgoingTrialAccess:!access.error&&Boolean(access.data)};}catch(_error){data={...data,__outgoingTrialAccess:false};}
+        try{const access=await profileTimeout(client.rpc('op_trial_access'),5000,'Outgoing access check');data={...data,__paymentsTrial:!access.error?access.data:null};}catch(_error){data={...data,__paymentsTrial:null};}
         setProfile(data);
 
         const allowedPages=allowedPagesForProfile(data);
-        const savedPage=readLastOpenPage();
+        const storedPage=readLastOpenPage();
+        const savedPage=storedPage==='Outgoing Payments'?'Payments & Vouchers':storedPage;
         const firstWorkspaceLoad=workspaceInitialisedForUserRef.current!==session.user.id;
 
         if(firstWorkspaceLoad){
@@ -7146,7 +7147,7 @@ https://samaraassistedliving.com/`;
           page==='Stores'&&h(ConsumablesStores,{profile}),
           page==='Stores In-charge Assignment'&&h(StoresInchargeAssignmentPage,{profile}),
           page==='Food & Diet'&&h(FoodDiet,{profile}),
-          page==='Outgoing Payments'&&allowed.includes('Outgoing Payments')&&window.SamaraOutgoingPayments&&h(window.SamaraOutgoingPayments,{client,profile}),
+          ['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers'].includes(page)&&allowed.includes(page)&&window.SamaraOutgoingPayments&&h(window.SamaraOutgoingPayments,{key:page,client,profile,initialView:page==='Payment Vouchers'?'Vouchers':page==='Approved—Ready to Pay'?'Ready':'Requests'}),
           page==='Physiotherapy'&&h(Physiotherapy,{profile,onNavigate:setPage}),
           page==='Duty Assignment'&&h(DutyAssignment,{profile,viewMode:'assignment'}),
           page==='Duty Calendar'&&h(DutyAssignment,{profile,viewMode:'team'}),
