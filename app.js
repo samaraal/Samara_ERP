@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.98';
+  const APP_VERSION = '2.12.99';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1523,7 +1523,7 @@ function initSamaraInaugurationInvitation(){
     { title:'OVERVIEW', items:['Dashboard','Notifications'] },
     { title:'ADMIN', items:['Rooms','Care Packages','Shift Management','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
     { title:'HR', items:['HR Dashboard','Employees','Duty Assignment','Duty Calendar','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
-    { title:"DIRECTOR'S OFFICE", items:["Director's Office"] },
+    { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiries & Feedback'] },
     { title:'ADMISSION', items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
@@ -1537,13 +1537,13 @@ function initSamaraInaugurationInvitation(){
   const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
   const ROLE_NAV={
     Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&!NURSING_ENTRY_NAV.includes(item)),
-    Manager:ALL_NAV.filter(item=>!["Director's Office",'System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
+    Manager:ALL_NAV.filter(item=>!["Director's Office",'Enquiries & Feedback','System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
 
     Nurse:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
     Accounts:['Accounts Dashboard','Duty Assignment','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
     Kitchen:['Notifications','Duty Assignment','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission'],
-    STD:["Director's Office",'Food & Diet','Duty Assignment','Patient Consumables','Stores','WhatsApp Inbox','Feedback','My Leave & Permission']
+    STD:["Director's Office",'Enquiries & Feedback','Food & Diet','Duty Assignment','Patient Consumables','Stores','WhatsApp Inbox','Feedback','My Leave & Permission']
   };
   Object.keys(ROLE_NAV).forEach(role=>{
     if(!ROLE_NAV[role].includes('My Profile'))ROLE_NAV[role].push('My Profile');
@@ -7101,6 +7101,7 @@ https://samaraassistedliving.com/`;
           page==='My Profile'&&h(MyProfile,{profile,onProfileUpdate:setProfile}),
           page==='My To-Do List'&&h(NursePersonalTodoList,{profile}),
           page==="Director's Office"&&h(DirectorOfficeDashboard,{profile,onNavigate:setPage}),
+          page==='Enquiries & Feedback'&&h(DirectorEnquiries,{profile,onNavigate:setPage}),
           page==='Staff Leave Calendar'&&h(LeavePermission,{profile,mode:'approvals',calendar:true}),
           page==='My Leave & Permission'&&h(LeavePermission,{profile,mode:'mine'}),
           page==='Leave Approvals'&&h(LeavePermission,{profile,mode:'approvals'}),
@@ -9176,7 +9177,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
     const [rows,setRows]=React.useState([]),[selectedPhone,setSelectedPhone]=React.useState(''),[query,setQuery]=React.useState(''),[showUnread,setShowUnread]=React.useState(false),[reply,setReply]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState(''),[isMobile,setIsMobile]=React.useState(()=>window.matchMedia('(max-width: 700px)').matches),[patientContext,setPatientContext]=React.useState(null),[mobileComposer,setMobileComposer]=React.useState('');
     const replyEditorRef=React.useRef(null);
     const [subjectFilter,setSubjectFilter]=React.useState('All Subjects');
-    const [waFolder,setWaFolder]=React.useState(String(profile?.role||'')==='STD'?'Admission Enquiries':'All');
+    const [waFolder,setWaFolder]=React.useState(()=>{const folder=sessionStorage.getItem('samara_whatsapp_folder');sessionStorage.removeItem('samara_whatsapp_folder');return folder==='Admission Enquiries'||String(profile?.role||'')==='STD'?'Admission Enquiries':'All';});
     const [dateFrom,setDateFrom]=React.useState('');
     const [dateTo,setDateTo]=React.useState('');
     const isSTD=String(profile?.role||'')==='STD';
@@ -10930,6 +10931,46 @@ Thank you.`;
     return {from:date,to:date};
   }
 
+  function directorEnquiryConversations(messages){
+    const groups={};
+    for(const row of messages){const phone=normalizeWhatsAppRecipient(row.recipient_number||row.sender_number||'');if(phone)(groups[phone]||(groups[phone]=[])).push(row);}
+    return Object.entries(groups).flatMap(([phone,rows])=>{
+      const sorted=rows.sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));
+      if(whatsAppFolder(sorted)!=='Admission Enquiries')return [];
+      const inbound=sorted.filter(r=>r.direction==='inbound'&&requestCategory(r)==='Admission Enquiries');
+      if(!inbound.length)return [];
+      const last=inbound[inbound.length-1];
+      return [{phone,name:last.contact_name||last.applicant_name||phone,last,unread:inbound.some(r=>!r.erp_read_at)}];
+    }).sort((a,b)=>String(b.last.created_at).localeCompare(String(a.last.created_at)));
+  }
+  function DirectorEnquiries({profile,onNavigate}){
+    const [enquiries,setEnquiries]=React.useState([]),[calls,setCalls]=React.useState([]),[feedback,setFeedback]=React.useState([]),[busy,setBusy]=React.useState(true),[error,setError]=React.useState('');
+    async function load(){
+      setBusy(true);setError('');
+      try{
+        async function all(table){const rows=[];for(let offset=0;;offset+=500){const r=await client.from(table).select('*').order('created_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+499);if(r.error)throw r.error;rows.push(...(r.data||[]));if((r.data||[]).length<500)return rows;}}
+        const [wa,office,fb]=await Promise.all([all('hr_whatsapp_communications'),all('director_office_items'),all('feedback')]);
+        setEnquiries(directorEnquiryConversations(wa));
+        setCalls(office.filter(r=>r.item_type==='Call / Callback'&&!['completed','cancelled'].includes(String(r.status||'').toLowerCase())));
+        setFeedback(fb.filter(r=>!['closed','resolved'].includes(String(r.status||'').toLowerCase())));
+      }catch(e){setError(e.message||'Unable to load enquiries');}finally{setBusy(false);}
+    }
+    React.useEffect(()=>{if(['Admin','STD'].includes(profile?.role))load();},[]);
+    if(!['Admin','STD'].includes(profile?.role))return null;
+    const tile=(label,count,note,action)=>h('button',{type:'button',className:'btn btn-secondary',onClick:action,style:{textAlign:'left',padding:'18px',whiteSpace:'normal',color:'#741747',background:'linear-gradient(135deg,#fff7fb,#f5d4e4)',border:'1px solid #e7acc8',borderRadius:'18px'}},h('strong',{style:{display:'block',fontSize:'26px',color:'#8b1953'}},busy||error?'—':count),h('span',{style:{display:'block',fontSize:'15px',fontWeight:600}},label),h('small',{style:{display:'block',fontWeight:400,marginTop:'5px'}},note));
+    return h(Section,{title:'Enquiries & Feedback',subtitle:"Director's Office",actions:h('button',{className:'btn btn-secondary',disabled:busy,onClick:load},busy?'Refreshing…':'Refresh')},
+      error?h('div',{className:'message error'},error):null,
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:'12px'}},
+        tile('WhatsApp Enquiries',enquiries.length,'Distinct enquiry conversations — not message count',()=>{sessionStorage.setItem('samara_whatsapp_folder','Admission Enquiries');onNavigate('WhatsApp Inbox');}),
+        tile('Pending Calls / Callbacks',calls.length,'Office call tasks; these are not all public enquiries',()=>onNavigate("Director's Office")),
+        tile('Open Feedback',feedback.length,'Excludes closed and resolved feedback',()=>onNavigate('Feedback'))),
+      h('h4',null,'WhatsApp enquiry conversations'),
+      h('p',{className:'small-note'},'Uses the Inbox Admission Enquiries classification. Payment, employee, recruitment and patient/family conversations are excluded. Counts each contact once; unread enquiries: '+enquiries.filter(x=>x.unread).length+'.'),
+      !busy&&!error&&!enquiries.length?h('p',null,'No classified enquiry conversations.'):null,
+      ...enquiries.map(e=>h('div',{key:e.phone,style:{padding:'12px',borderBottom:'1px solid #efd3e1',color:'#741747'}},h('strong',null,e.name),h('div',null,e.phone),h('small',null,e.unread?'Unread enquiry':'Read enquiry')))
+    );
+  }
+
   function DirectorOfficeDashboard({profile,onNavigate}){
     const TYPES=['Task','Appointment','Call / Callback','Follow-up','Visitor','Correspondence','Reminder'];
     const TASK_KINDS=['Visit','Buy / Purchase','Attend Function','Trip / Travel','General Task'];
@@ -11362,11 +11403,11 @@ Thank you.`;
     async function loadCommunicationCounts(){
       try{
         const {data:waRows}=await client.from('hr_whatsapp_communications')
-          .select('id,direction,read_at,created_at')
+          .select('*')
           .eq('direction','inbound')
           .order('created_at',{ascending:false})
           .limit(500);
-        setWaUnread((waRows||[]).filter(r=>!r.read_at).length);
+        setWaUnread(directorEnquiryConversations(waRows||[]).length);
       }catch(_){setWaUnread(0)}
       try{
         const {data:fbRows}=await client.from('feedback')
@@ -12167,27 +12208,6 @@ Thank you.`;
         loading?h('div',{className:'empty'},'Loading Director’s Office…'):
         h('div',{style:{display:'grid',gap:'10px'}},...filtered.flatMap((r,index)=>{const date=officeDateKey(r);return [index===0||officeDateKey(filtered[index-1])!==date?h('h4',{key:'date-'+date,style:{margin:'12px 0 0',color:date===todayKey?'#b50059':'#4b3040'}},(date===todayKey?'Today · ':'')+prettyDate(date)):null,itemCard(r,index)];}),
           filtered.length===0?h('div',{className:'empty'},'No items in this view.'):null
-        )
-      ),
-      h(Section,{title:'Enquiries & Feedback',subtitle:'WhatsApp enquiries, phone calls and feedback'},
-        h('div',{className:'director-office-comm-grid',style:{marginTop:'14px',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:'10px'}},
-          commCard('WhatsApp Enquiries',waUnread,'◉','Attend incoming public enquiries','WhatsApp Inbox'),
-          h('button',{type:'button',onClick:()=>openNew('Call / Callback'),style:{
-              textAlign:'left',
-              border:'1px solid #e5a9c1',
-              borderRadius:'20px',
-              background:'linear-gradient(135deg,#fff4f8 0%,#f8dbe7 55%,#f1c3d5 100%)',
-              padding:'17px 18px',
-              cursor:'pointer',
-              minHeight:'106px',
-              boxShadow:'0 10px 24px rgba(128,18,70,.11)',
-              borderLeft:'5px solid #b40d52'
-            }},
-            h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px'}},h('span',{style:{fontSize:'27px'}},'☎'),h('strong',{style:{fontSize:'29px',fontWeight:950,color:'#9b124f'}},calls.length)),
-            h('div',{style:{fontWeight:900,color:'#351b29',marginTop:'5px',fontSize:'15px'}},'Call Enquiries'),
-            h('small',{style:{color:'#846d79'}},'Enter every phone enquiry manually')
-          ),
-          commCard('Feedback',feedbackOpen,'★','Review feedback and responses','Feedback')
         )
       ),
       h(Section,{title:'Quick Add',subtitle:'Common Secretary actions'},
