@@ -50,5 +50,19 @@ function quantityRows(report){
  return [o.data.date,o.data.slot,ref(o.id),it.name,Number(it.residents||0),Number(it.employees||0),Number(it.residents||0)+Number(it.employees||0),receipts.length?sum('residents'):'Not recorded',receipts.length?sum('employees'):'Not recorded',receipts.length?sum('residents')+sum('employees'):'Not recorded',receipts.length?sum('rejected'):'Not recorded',o.status,o.data.instructions||''];});
  });
 }
-const api={logo,slots,ref,message,payload,manual,balance,workbook,quantityRows};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+function compactRows(report){
+ const groups=new Map();
+ for(const o of report.orders||[]){const d=o.data||{},receipts=(report.events||[]).filter(e=>e.order_id===o.id&&e.kind==='receive');
+ if(d.vendor_id!==report.vendor_id||d.date<report.from||d.date>report.to||o.status==='Draft'||(o.status==='Closed'&&!receipts.length))continue;
+ const key=d.date+'|'+d.slot,g=groups.get(key)||{date:d.date,meal:d.slot,res:0,emp:0,received:0,hasReceipt:false,entries:[]};
+ for(const it of d.items||[]){g.res+=Number(it.residents||0);g.emp+=Number(it.employees||0)}
+ for(const e of receipts){g.hasReceipt=true;for(const it of e.data.items||[])g.received+=Number(it.residents||0)+Number(it.employees||0)}
+ g.entries.push(...(report.entries||[]).filter(e=>e.kind==='Receipt'&&e.data.order_id===o.id));groups.set(key,g);
+ }
+ return [...groups.values()].sort((a,b)=>a.date.localeCompare(b.date)||slots.indexOf(a.meal)-slots.indexOf(b.meal)).map(g=>{
+ const priced=g.entries.length&&g.entries.every(e=>e.amount!=null&&e.data.unit_price!=null),rates=[...new Set(g.entries.map(e=>Number(e.data.unit_price)))];
+ return [g.date,g.meal,g.res,g.emp,g.res+g.emp,g.hasReceipt?g.received:null,priced?(rates.length===1?rates[0]:'Mixed'):null,g.entries.length?g.entries.reduce((n,e)=>n+Number(e.data.quantity||0),0):null,priced?Math.round(g.entries.reduce((n,e)=>n+Number(e.amount),0)*100)/100:null];
+ });
+}
+const api={logo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(globalThis);
