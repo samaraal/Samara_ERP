@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.13';
+  const APP_VERSION = '2.13.14';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1746,12 +1746,12 @@ function initSamaraInaugurationInvitation(){
     if(!value)return '—';
     const raw=String(value).trim();
     const dateOnly=raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if(dateOnly)return `${dateOnly[3]} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(dateOnly[2])-1]} ${dateOnly[1]}`;
+    if(dateOnly)return `${dateOnly[3]}-${dateOnly[2]}-${dateOnly[1]}`;
     const date=new Date(value);
     if(Number.isNaN(date.getTime()))return raw;
-    const parts=new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'}).formatToParts(date);
+    const parts=new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'2-digit',year:'numeric'}).formatToParts(date);
     const get=type=>parts.find(part=>part.type===type)?.value||'';
-    return `${get('day')} ${get('month').slice(0,3)} ${get('year')}`;
+    return `${get('day')}-${get('month')}-${get('year')}`;
   };
   const formatDateWithDayIN = value => {
     if(!value)return '—';
@@ -1762,13 +1762,13 @@ function initSamaraInaugurationInvitation(){
     const weekday=new Intl.DateTimeFormat('en-IN',{timeZone:dateOnly?'UTC':'Asia/Kolkata',weekday:'long'}).format(date);
     return `${formatDateIN(value)} – ${weekday}`;
   };
-  // Strict ERP date controls: the visible value is always DD Mon YYYY.
+  // Strict ERP date controls: the visible value is always DD-MM-YYYY.
   // A transparent native picker is retained only for calendar selection; its locale-specific
   // MM/DD/YYYY rendering is never shown to the user. Database values remain YYYY-MM-DD.
   const StrictDateInput = props => {
     const {value,onChange,style,...nativeProps}=props||{};
     return h('div',{style:{position:'relative',width:'100%'}},
-      h('input',{type:'text',readOnly:true,value:value?formatDateIN(value):'',placeholder:'DD Mon YYYY',style:{...(style||{}),width:'100%',paddingRight:'48px',cursor:'pointer'}}),
+      h('input',{type:'text',readOnly:true,value:value?formatDateIN(value):'',placeholder:'DD-MM-YYYY',style:{...(style||{}),width:'100%',paddingRight:'48px',cursor:'pointer'}}),
       h('span',{'aria-hidden':'true',style:{position:'absolute',right:'15px',top:'50%',transform:'translateY(-50%)',pointerEvents:'none',fontSize:'18px'}},'▾'),
       h('input',{...nativeProps,type:'date',value:value||'',onChange,tabIndex:-1,'aria-label':nativeProps['aria-label']||'Choose date',style:{position:'absolute',inset:0,width:'100%',height:'100%',opacity:0,cursor:'pointer'}})
     );
@@ -1778,7 +1778,7 @@ function initSamaraInaugurationInvitation(){
     let shown='';
     if(value){
       const m=String(value).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-      if(m){const hr=Number(m[4]);shown=`${m[3]}:${m[2]}:${m[1]} ${String(hr%12||12).padStart(2,'0')}:${m[5]} ${hr>=12?'PM':'AM'}`;}
+      if(m){const hr=Number(m[4]);shown=`${m[3]}-${m[2]}-${m[1]} ${String(hr%12||12).padStart(2,'0')}:${m[5]} ${hr>=12?'PM':'AM'}`;}
       else shown=String(value);
     }
     return h('div',{style:{position:'relative',width:'100%'}},
