@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.05';
+  const APP_VERSION = '2.13.06';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22375,9 +22375,10 @@ function RoomsBeds({profile,onNavigate}){
   }
   function FoodDiet({profile}){
     const [foodView,setFoodView]=React.useState('Vendor Orders');
+    const canViewIntake=profile?.role!=='STD'&&!isNursingManagerProfile(profile);
     return h(React.Fragment,null,
-      h('div',{className:'employee-actions'},['Vendor Orders','Resident Intake'].map(name=>h('button',{type:'button',key:name,className:foodView===name?'btn btn-primary':'btn btn-secondary',onClick:()=>setFoodView(name)},name))),
-      foodView==='Resident Intake'?h(ResidentFoodIntake,{profile}):window.SamaraFoodVendor?h(window.SamaraFoodVendor,{client,profile}):h('p',null,'Food Vendor files are updating. Refresh the ERP to load the module.')
+      h('div',{className:'employee-actions'},(canViewIntake?['Vendor Orders','Resident Intake']:['Vendor Orders']).map(name=>h('button',{type:'button',key:name,className:foodView===name?'btn btn-primary':'btn btn-secondary',onClick:()=>setFoodView(name)},name))),
+      canViewIntake&&foodView==='Resident Intake'?h(ResidentFoodIntake,{profile}):window.SamaraFoodVendor?h(window.SamaraFoodVendor,{client,profile}):h('p',null,'Food Vendor files are updating. Refresh the ERP to load the module.')
     );
   }
   function ResidentFoodIntake({profile}){
