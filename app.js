@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.80';
+  const APP_VERSION = '2.12.81';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -21419,6 +21419,18 @@ function RoomsBeds({profile,onNavigate}){
     const measured=value=>{if(value===null||value===undefined||String(value).trim()==='')return null;const n=Number(value);return Number.isFinite(n)&&n!==0?n:null};
     const tempC=value=>{const n=measured(value);if(n===null)return null;return n>=70&&n<=115?(n-32)*5/9:n};
     const calculateLevel=v=>{const systolic=measured(v.systolic),diastolic=measured(v.diastolic),pulse=measured(v.pulse),temperature=tempC(v.temperature),respiration=measured(v.respiration),spo2=measured(v.spo2),sugar=measured(v.blood_sugar);const any=[systolic,diastolic,pulse,temperature,respiration,spo2,sugar,measured(v.weight),v.pain_score!==''&&v.pain_score!==null?Number(v.pain_score):null].some(x=>x!==null);if(!any)return 'Not Recorded';if((spo2!==null&&spo2<90)||(systolic!==null&&(systolic>=180||systolic<80))||(diastolic!==null&&(diastolic>=120||diastolic<50))||(pulse!==null&&(pulse>130||pulse<40))||(temperature!==null&&(temperature>=39.5||temperature<35))||(respiration!==null&&(respiration>30||respiration<8))||(sugar!==null&&(sugar>400||sugar<50)))return 'Critical';if((spo2!==null&&spo2<94)||(systolic!==null&&(systolic>=160||systolic<90))||(diastolic!==null&&(diastolic>=100||diastolic<60))||(pulse!==null&&(pulse>110||pulse<50))||(temperature!==null&&(temperature>=38||temperature<35.5))||(respiration!==null&&(respiration>24||respiration<10))||(sugar!==null&&(sugar>250||sugar<70)))return 'Warning';return 'Normal'};
+    function vitalReading(field,value){
+      const number=measured(value);
+      if(number===null)return '—';
+      const level=calculateLevel({[field]:value,pain_score:null});
+      if(level!=='Warning'&&level!=='Critical')return number;
+      const low={systolic:90,diastolic:60,pulse:50,temperature:35.5,respiration:10,spo2:94,blood_sugar:70};
+      const comparable=field==='temperature'?tempC(value):number;
+      const direction=comparable<low[field]?'Low':'High';
+      return h('span',{className:'vital-abnormal',title:`${level}: ${direction.toLowerCase()} reading`,'aria-label':`${number}, ${direction.toLowerCase()}, ${level.toLowerCase()}`},`${number} ${direction==='Low'?'↓':'↑'}`);
+    }
+    function vitalBP(row){return h('span',null,vitalReading('systolic',row.systolic),' / ',vitalReading('diastolic',row.diastolic))}
+    function vitalAlert(level){return ['Warning','Critical'].includes(level)?h('strong',{className:'vital-abnormal'},level):level}
     async function load(){const {data}=await client.from('vital_signs').select('*,patients(full_name,title,patient_id,room_no,bed_no)').order('recorded_at',{ascending:false}).limit(150);setRows((data||[]).map(r=>({...r,computed_alert_level:calculateLevel(r)})))}
     React.useEffect(()=>{load();const ch=client.channel('vitals-live').on('postgres_changes',{event:'*',schema:'public',table:'vital_signs'},load).subscribe();return()=>client.removeChannel(ch)},[]);
     React.useEffect(()=>{
@@ -21441,7 +21453,7 @@ function RoomsBeds({profile,onNavigate}){
           h('div',{className:'vitals-grid'},input('Temperature','temperature','°C / °F',{placeholder:'98.6'}),input('Systolic BP','systolic','mmHg'),input('Diastolic BP','diastolic','mmHg'),input('Pulse','pulse','/min'),input('Respiration','respiration','/min'),input('SpO₂','spo2','%'),h('div',{className:'vital-input'},h('label',null,'Blood Sugar Type'),h('select',{value:form.blood_sugar_type||'Not Taken',onChange:e=>setForm({...form,blood_sugar_type:e.target.value,blood_sugar:e.target.value==='Not Taken'?'':form.blood_sugar})},['Not Taken','FBS','PPBS','RBS'].map(x=>h('option',{value:x,key:x},x)))),input('Blood Sugar','blood_sugar','mg/dL',{disabled:(form.blood_sugar_type||'Not Taken')==='Not Taken'}),input('Weight','weight','kg',{step:'0.1'}),input('Pain Score','pain_score','/10',{min:0,max:10})),
           h('div',{className:'vitals-bottom'},h('div',{className:'field'},h('label',null,'Clinical remarks'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value}),placeholder:'Symptoms, oxygen support, position, food status or other observations'})),h('button',{className:'btn btn-primary vitals-save'},'Save Vital Signs')))),
       selectedPatient&&latest&&h('div',{className:'latest-vitals-strip'},h('div',null,h('small',null,'Latest for selected patient'),h('strong',null,formalName(latest.patients||{})||latest.patients?.full_name)),[['BP',`${measured(latest.systolic)??'—'}/${measured(latest.diastolic)??'—'}`],['Pulse',measured(latest.pulse)??'—'],['SpO₂',measured(latest.spo2)??'—'],['Sugar',measured(latest.blood_sugar)!==null?`${latest.blood_sugar_type||'RBS'} ${measured(latest.blood_sugar)}`:'—'],['Status',latest.computed_alert_level]].map(([a,b])=>h('div',{key:a},h('small',null,a),h('strong',null,b)))),
-      h(LogTable,{className:'vitals-log-table',subtitle:'Swipe left or right to view all measurements.',title:selectedPatient?'Patient Vital Trend':'Recent Vital Signs',heads:['Patient','BP','Temp','Pulse','Resp.','SpO₂','Sugar Type','Sugar','Pain','Alert','Recorded'],rows:patientRows.map(r=>[formalName(r.patients||{})||r.patients?.full_name,`${measured(r.systolic)??'—'}/${measured(r.diastolic)??'—'}`,measured(r.temperature)??'—',measured(r.pulse)??'—',measured(r.respiration)??'—',measured(r.spo2)??'—',r.blood_sugar_type||'Not Taken',measured(r.blood_sugar)??'—',r.pain_score??'—',r.computed_alert_level,fmt(r.recorded_at)])})
+      h(LogTable,{className:'vitals-log-table',subtitle:'Swipe left or right to view all measurements.',title:selectedPatient?'Patient Vital Trend':'Recent Vital Signs',heads:['Patient','BP','Temp','Pulse','Resp.','SpO₂','Sugar Type','Sugar','Pain','Alert','Recorded'],rows:patientRows.map(r=>[formalName(r.patients||{})||r.patients?.full_name,vitalBP(r),vitalReading('temperature',r.temperature),vitalReading('pulse',r.pulse),vitalReading('respiration',r.respiration),vitalReading('spo2',r.spo2),r.blood_sugar_type||'Not Taken',vitalReading('blood_sugar',r.blood_sugar),r.pain_score??'—',vitalAlert(r.computed_alert_level),fmt(r.recorded_at)])})
     );
   }
 

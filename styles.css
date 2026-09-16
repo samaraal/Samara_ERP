@@ -2296,3 +2296,5 @@ table.table.vitals-log-table th{position:sticky!important;top:0!important;z-inde
 table.table.vitals-log-table th:first-child,table.table.vitals-log-table td:first-child{position:sticky!important;left:0!important;min-width:115px!important;max-width:145px!important;white-space:normal!important;background:#fff8fb!important;color:#38172a!important;box-shadow:2px 0 4px #68143f12;z-index:1!important}
 table.table.vitals-log-table th:first-child{z-index:3!important}
 @media(max-width:760px){.card.vitals-log-table{padding:12px!important}table.table.vitals-log-table th,table.table.vitals-log-table td{padding:7px 8px!important;font-size:12px!important}}
+
+.vitals-log-table .vital-abnormal{color:#b42318!important;font-weight:800!important}
