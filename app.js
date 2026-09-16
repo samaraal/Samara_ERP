@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.12.81';
+  const APP_VERSION = '2.12.82';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -10184,13 +10184,6 @@ Thank you.`;
     function candidateDisplayName(row){
       return [row.title,row.applicant_name].filter(Boolean).join(' ').trim()||'Candidate';
     }
-    function interviewModeDetails(row){
-      const mode=String(row?.interview_mode||'In Person').trim()||'In Person';
-      const detail=String(row?.interview_venue||'').trim();
-      if(mode==='Online')return {mode,detail:detail?`Online interview link: ${detail}`:'Online interview link will be shared by HR.'};
-      if(mode==='Phone')return {mode,detail:'HR will contact you on your registered mobile number at the scheduled time.'};
-      return {mode:'In Person',detail:`Venue: ${detail||'Samara Assisted Living, Mogappair, Chennai – 37'}. Please bring your relevant certificates and identification documents.`};
-    }
     function interviewTemplateParams(row){
       const when=row?.interview_at?new Date(row.interview_at):null;
       const modeInfo=interviewModeDetails(row);
@@ -10480,12 +10473,67 @@ Thank you.`;
     return selected&&edit?modal:h(Section,{title:'Career Applications',subtitle:'Click any applicant row to open the complete applicant file in chronological sections'},table);
   }
 
+    function interviewModeDetails(row){
+      const mode=String(row?.interview_mode||'In Person').trim()||'In Person';
+      const detail=String(row?.interview_venue||'').trim();
+      if(mode==='Online')return {mode,detail:detail?`Online interview link: ${detail}`:'Online interview link will be shared by HR.'};
+      if(mode==='Phone')return {mode,detail:'HR will contact you on your registered mobile number at the scheduled time.'};
+      const atSamara=!detail||/\bsamara\b|சமரா/i.test(detail);
+      const location=atSamara?' Google Maps: https://maps.app.goo.gl/NwdW9T6WFnosJg8V7?g_st=iw':'';
+      return {mode:'In Person',detail:`Venue: ${detail||'Samara Assisted Living, Mogappair, Chennai – 37'}.${location} Please bring your relevant certificates and identification documents.`};
+    }
+  function interviewTestMessage(){
+    const params=['Test Applicant (test only)','Staff Nurse','20-09-2026','10:00 AM','In Person',interviewModeDetails({interview_mode:'In Person'}).detail];
+    return {params,text:`Dear ${params[0]},\n\nThank you for your interest in joining Samara Assisted Living.\n\nWe are pleased to invite you for an interview for the position of ${params[1]}.\n\nInterview Date: ${params[2]}\nInterview Time: ${params[3]}\nInterview Mode: ${params[4]}\n\n${params[5]}\n\nKindly be available about 10 minutes before the scheduled time.\n\nWe look forward to meeting you.\n\nRegards,\nDr. Chella Boomi\nDirector\nSamara Health Care LLP\nContact: 9976735577`};
+  }
+  function InterviewWhatsAppTest({profile}){
+    const [open,setOpen]=React.useState(false);
+    const [busy,setBusy]=React.useState(false);
+    const [accepted,setAccepted]=React.useState(false);
+    const [message,setMessage]=React.useState('');
+    const sending=React.useRef(false);
+    if(profile?.role!=='Admin')return null;
+    const sample=interviewTestMessage();
+    async function sendTest(){
+      if(sending.current||accepted)return;
+      sending.current=true;setBusy(true);setMessage('Sending test message…');
+      try{
+        const result=await sendWhatsAppTemplate({to:'919176735577',templateName:'samara_interview_scheduled',languageCode:'en',bodyParams:sample.params});
+        setAccepted(true);
+        setMessage('Test accepted by Meta. Please check WhatsApp on +91 9176735577 and open the map link. Acceptance does not confirm delivery.');
+        try{
+          const now=new Date().toISOString();
+          const {error}=await client.from('hr_whatsapp_communications').insert({
+            career_application_id:null,application_id:null,applicant_name:'Test Applicant (test only)',recipient_number:'919176735577',
+            communication_type:'Interview Template Test',template_name:'samara_interview_scheduled',status:'Accepted',provider_message_id:result.provider_message_id,
+            sent_by:profile.id,sent_by_name:formalName(profile),direction:'outbound',message_type:'template',message_content:sample.text,
+            message_payload:{body_params:sample.params,test_only:true},contact_name:'Interview test recipient',source_type:'Template Test',sent_at:now,created_at:now,updated_at:now
+          });
+          if(error)throw error;
+        }catch(_){setMessage('Test accepted by Meta, but saving its ERP history failed. Do not resend; check WhatsApp on +91 9176735577.');}
+      }catch(error){setMessage(`Test could not be confirmed: ${error.message||error}. Check WhatsApp before retrying to avoid a duplicate.`);}
+      finally{sending.current=false;setBusy(false);}
+    }
+    return h('div',{style:{marginBottom:'16px'}},
+      h('button',{type:'button',className:'btn btn-secondary','aria-expanded':open,onClick:()=>setOpen(!open)},open?'Hide interview test':'Preview test interview message'),
+      open?h('div',{className:'field',style:{marginTop:'12px',padding:'16px',border:'1px solid #ead0de',borderRadius:'12px',background:'#fffafd'}},
+        h('h3',null,'Test interview WhatsApp'),
+        h('p',null,'To: +91 9176735577 · Fictional applicant · No interview record will be created.'),
+        h('small',null,'Approved template: samara_interview_scheduled · English'),
+        h('div',{style:{whiteSpace:'pre-wrap',overflowWrap:'anywhere',padding:'16px',margin:'12px 0',background:'#fff',color:'#331526',border:'1px solid #ead0de',borderRadius:'12px',maxWidth:'580px'}},sample.text),
+        h('button',{type:'button',className:'btn btn-whatsapp',disabled:busy||accepted,onClick:sendTest},busy?'Sending…':accepted?'Test accepted by Meta':'Send one test to +91 9176735577'),
+        message?h('p',{role:'status','aria-live':'polite'},message):null
+      ):null
+    );
+  }
+
   function HRInterviews({profile,onNavigate}){
     const [rows,setRows]=React.useState([]);
     const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     async function load(){const {data}=await client.from('career_applications').select('*').not('interview_at','is',null).order('interview_at',{ascending:true});setRows(data||[])}
     React.useEffect(()=>{load();const ch=client.channel('hr-interviews-live').on('postgres_changes',{event:'*',schema:'public',table:'career_applications'},load).subscribe();return()=>client.removeChannel(ch)},[]);
     return h(Section,{title:'Interviews',subtitle:'Scheduled recruitment interviews and candidate status'},
+      h(InterviewWhatsAppTest,{profile}),
       h('div',{className:'panel-head'},h('div',null),h('button',{className:'btn btn-primary',onClick:()=>onNavigate('Career Applications')},'Manage Applications')),
       h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Applicant','Department / Designation','Interview','Mode','Venue / Link','Status'].map(x=>h('th',{key:x},x)))),h('tbody',null,rows.map(r=>h('tr',{key:r.id},h('td',null,r.applicant_name),h('td',null,`${r.department} · ${r.designation}`),h('td',null,fmt(r.interview_at)),h('td',null,r.interview_mode||'—'),h('td',null,r.interview_venue||'—'),h('td',null,h('span',{className:'badge'},r.status)))),rows.length===0?h('tr',null,h('td',{colSpan:6,className:'empty'},'No interviews scheduled.')):null)))
     );

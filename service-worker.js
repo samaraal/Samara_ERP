@@ -1,5 +1,5 @@
-const APP_VERSION = '2.12.81';
-const CACHE = 'samara-erp-2.12.81-vital-alert-colors';
+const APP_VERSION = '2.12.82';
+const CACHE = 'samara-erp-2.12.82-interview-location-test';
 const SHELL = [
   './',
   './index.html',
