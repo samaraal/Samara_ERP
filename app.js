@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.22';
+  const APP_VERSION = '2.13.23';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -11067,7 +11067,7 @@ Thank you.`;
     React.useEffect(()=>{
       const el=dialog.current;
       if(!selected||!el)return;
-      const previous=document.activeElement;el.showModal();
+      const previous=document.activeElement;el.showModal();el.querySelector('h3')?.focus({preventScroll:true});el.scrollTop=0;
       return()=>{el.close();if(previous?.isConnected)previous.focus();};
     },[selectedId,Boolean(selected)]);
     if(!allowed||!directorTickerIdentity(profile))return null;
@@ -11098,7 +11098,7 @@ Thank you.`;
         onFocus:e=>setFocused(e.target.matches(':focus-visible')),onBlur:e=>{if(!e.currentTarget.contains(e.relatedTarget))setFocused(false);}},
         h('div',{className:'dt-track',ref:track},h('div',{className:'dt-group',ref:group},cards(false)),h('div',{className:'dt-group dt-copy','aria-hidden':true},cards(true)))),
       selected&&h('dialog',{className:'dt-dialog',ref:dialog,'aria-labelledby':'dt-detail-title',onCancel:()=>setSelectedId(null),onClose:()=>setSelectedId(null)},
-        h('h3',{id:'dt-detail-title'},selected.title||'Schedule details'),
+        h('h3',{id:'dt-detail-title',tabIndex:-1},selected.title||'Schedule details'),
         field('Type',selected.item_type==='Task'?(selected.task_kind||'Task'):selected.item_type),
         field('Schedule',time(selected)),field('Due date',selected.due_date?formatDateIN(selected.due_date):null),
         field('Status',selected.status||'Pending'),field('Priority',selected.priority||'Normal'),
