@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.23';
+  const APP_VERSION = '2.13.24';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7113,7 +7113,7 @@ https://samaraassistedliving.com/`;
         h(MobileMenu,{page,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
         h(NursingMobileQuickActions,{profile,page,onNavigate:setPage}),
         h('section',{className:'content'},
-          h(DirectorTodayTicker,{key:profile.id,profile}),
+          h(DirectorTodayTicker,{key:profile.id,profile,page,onNavigate:setPage}),
           page==='Dashboard'&&h(Dashboard,{profile,onNavigate:setPage,alertEngine}),
           page==='HR Dashboard'&&h(HRDashboard,{profile,onNavigate:setPage}),
           page==='Employees'&&h(Employees,{profile,onNavigate:setPage}),
@@ -11004,7 +11004,7 @@ Thank you.`;
     return rows.filter(r=>r.status!=='Cancelled'&&(r.scheduled_at?directorTickerDay(new Date(r.scheduled_at)):String(r.due_date||'').slice(0,10))===day)
       .sort((a,b)=>String(a.scheduled_at||a.due_date||'').localeCompare(String(b.scheduled_at||b.due_date||''))||String(a.id).localeCompare(String(b.id)));
   }
-  function DirectorTodayTicker({profile}){
+  function DirectorTodayTicker({profile,page,onNavigate}){
     const [allowed,setAllowed]=React.useState(false);
     const [rows,setRows]=React.useState([]);
     const [day,setDay]=React.useState(()=>directorTickerDay());
@@ -11014,6 +11014,30 @@ Thank you.`;
     const [hovered,setHovered]=React.useState(false);
     const [focused,setFocused]=React.useState(false);
     const [selectedId,setSelectedId]=React.useState(null);
+    const [welcome,setWelcome]=React.useState(false);
+    const welcomeDialog=React.useRef(null),acknowledgedDay=React.useRef('');
+    const dailyKey='samara-director-daily-plan:'+profile.id;
+    function closeWelcome(){
+      acknowledgedDay.current=day;
+      try{localStorage.setItem(dailyKey,day);}catch(_){}
+      setSelectedId(null);setWelcome(false);onNavigate?.("Director's Office");
+    }
+    React.useEffect(()=>{
+      if(!allowed||!ready||error)return;
+      let seen=acknowledgedDay.current;
+      try{seen=localStorage.getItem(dailyKey)||seen;}catch(_){}
+      setWelcome(seen!==day);
+    },[allowed,ready,day,error,dailyKey]);
+    React.useEffect(()=>{
+      const changed=e=>{if(e.key===dailyKey&&e.newValue===day){acknowledgedDay.current=day;setSelectedId(null);setWelcome(false);}};
+      window.addEventListener('storage',changed);return()=>window.removeEventListener('storage',changed);
+    },[dailyKey,day]);
+    React.useEffect(()=>{
+      const el=welcomeDialog.current;if(!welcome||!allowed||!el)return;
+      el.showModal();el.querySelector('h2')?.focus({preventScroll:true});el.scrollTop=0;
+      const previousOverflow=document.body.style.overflow;document.body.style.overflow='hidden';
+      return()=>{el.close();document.body.style.overflow=previousOverflow;};
+    },[welcome,allowed]);
     const track=React.useRef(null),group=React.useRef(null),dialog=React.useRef(null),offset=React.useRef(0);
     const selected=rows.find(r=>r.id===selectedId);
     React.useEffect(()=>{
@@ -11053,32 +11077,33 @@ Thank you.`;
     },[profile?.id,profile?.role,profile?.login_id,profile?.is_active]);
     React.useEffect(()=>{offset.current=0;if(track.current)track.current.style.transform='translateY(0)';},[rows,day]);
     React.useEffect(()=>{
-      if(!allowed||!rows.length||paused||hovered||focused||selectedId)return;
+      if(!allowed||!rows.length||paused||hovered||focused||selectedId||welcome||page!=="Director's Office")return;
       let frame,last;
       const move=now=>{
         if(last&&document.visibilityState==='visible'&&group.current&&track.current){
           const height=group.current.offsetHeight;
-          if(height){offset.current=(offset.current+Math.min(now-last,64)*0.018)%height;track.current.style.transform=`translateY(-${offset.current}px)`;}
+          if(height){offset.current=(offset.current+Math.min(now-last,64)*0.042)%height;track.current.style.transform=`translateY(-${offset.current}px)`;}
         }
         last=now;frame=requestAnimationFrame(move);
       };
       frame=requestAnimationFrame(move);return()=>cancelAnimationFrame(frame);
-    },[allowed,rows,paused,hovered,focused,selectedId]);
+    },[allowed,rows,paused,hovered,focused,selectedId,welcome,page]);
     React.useEffect(()=>{
       const el=dialog.current;
       if(!selected||!el)return;
       const previous=document.activeElement;el.showModal();el.querySelector('h3')?.focus({preventScroll:true});el.scrollTop=0;
       return()=>{el.close();if(previous?.isConnected)previous.focus();};
     },[selectedId,Boolean(selected)]);
-    if(!allowed||!directorTickerIdentity(profile))return null;
+    if(!allowed||!directorTickerIdentity(profile)||(!welcome&&page!=="Director's Office"))return null;
     const time=r=>r.scheduled_at?formatDateTimeIN(r.scheduled_at):'Today · Time not set';
     const field=(label,value)=>value?h('div',{className:'dt-detail-field'},h('strong',null,label),h('div',null,value)):null;
     const cards=duplicate=>rows.map((r,i)=>h('button',{type:'button',key:r.id,tabIndex:duplicate?-1:0,className:'dt-item',onClick:()=>setSelectedId(r.id)},
       h('span',{className:'dt-number'},i+1),h('span',null,h('strong',null,r.title||'Untitled schedule'),h('small',null,[time(r),r.item_type==='Task'?(r.task_kind||'Task'):r.item_type,r.status||'Pending'].filter(Boolean).join(' · ')))));
-    return h('section',{className:'director-today-ticker','aria-label':'Chellaboomi’s schedules today'},
+    return h(welcome?'dialog':'section',{className:'director-today-ticker'+(welcome?' dt-welcome':''),ref:welcome?welcomeDialog:null,'aria-label':'Chellaboomi’s schedules today',onCancel:welcome?e=>{e.preventDefault();closeWelcome();}:undefined},
       h('style',null,`
         .director-today-ticker{margin:0 0 16px;border:1px solid #e6afc6;border-radius:16px;background:#fff7fb;color:#551234;overflow:hidden}
         .dt-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;background:#f7dfeb}
+        .dt-welcome{position:fixed;inset:0;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;margin:0!important;border:0!important;border-radius:0!important;padding:0!important;box-sizing:border-box}.dt-welcome[open]{display:flex;flex-direction:column}.dt-welcome::backdrop{background:#fff7fb}.dt-welcome .dt-heading{flex-shrink:0;flex-wrap:wrap;padding:20px}.dt-welcome h2{font-size:24px;margin:0;color:#65143e}.dt-welcome .dt-window{height:auto;flex:1;overflow:auto;min-height:0;padding:8px 10px 24px}.dt-welcome .dt-item{min-height:76px}.dt-welcome .dt-heading button{font-weight:700}.dt-welcome .dt-heading small{margin-top:7px}
         .dt-heading strong,.dt-heading small{display:block}.dt-heading small{font-size:12px;margin-top:3px}
         .dt-heading button{background:#fff;border:1px solid #ca8ca8;border-radius:10px;padding:8px 12px;color:#65143e;min-height:40px;cursor:pointer}
         .dt-window{height:156px;overflow:hidden;position:relative}.dt-track{will-change:transform}.dt-group{padding:6px 10px;display:grid;gap:6px}
@@ -11091,12 +11116,12 @@ Thank you.`;
         .dt-dialog::backdrop{background:rgba(25,8,18,.55)}.dt-dialog h3{margin:0}.dt-detail-field{margin-top:14px;white-space:pre-wrap;overflow-wrap:anywhere}.dt-detail-field strong{display:block;font-size:12px;color:#85536b;margin-bottom:4px}
         .dt-dialog button{min-height:44px;padding:8px 16px;margin-top:16px;border-radius:9px;background:#8d2151;color:white;border:0;cursor:pointer}
       `),
-      h('div',{className:'dt-heading'},h('div',null,h('strong',null,`Today’s schedules · ${rows.length}`),h('small',null,'Director Chellaboomi · Tap a schedule for full details')),
-        h('button',{type:'button','aria-pressed':paused,onClick:()=>{offset.current=0;if(track.current)track.current.style.transform='translateY(0)';setPaused(!paused);}},paused?'Resume':'Pause')),
-      error?h('div',{className:'dt-message',role:'status'},error):!ready?h('div',{className:'dt-message'},'Loading today’s schedules…'):!rows.length?h('div',{className:'dt-message'},'No schedules planned for today.'):h('div',{className:'dt-window'+(paused||focused?' dt-still':''),
+      h('div',{className:'dt-heading'},h('div',null,h(welcome?'h2':'strong',{tabIndex:welcome?-1:undefined},`Today’s schedules · ${rows.length}`),h('small',null,'Director Chellaboomi · Tap a schedule for full details')),
+        welcome?h('button',{type:'button',onClick:closeWelcome},'Continue to Director’s Office'):h('button',{type:'button','aria-pressed':paused,onClick:()=>{offset.current=0;if(track.current)track.current.style.transform='translateY(0)';setPaused(!paused);}},paused?'Resume':'Pause')),
+      error?h('div',{className:'dt-message',role:'status'},error):!ready?h('div',{className:'dt-message'},'Loading today’s schedules…'):!rows.length?h('div',{className:'dt-message'},'No schedules planned for today.'):h('div',{className:'dt-window'+(welcome||paused||focused?' dt-still':''),
         onMouseEnter:()=>setHovered(true),onMouseLeave:()=>setHovered(false),onPointerDown:()=>setHovered(true),onPointerUp:e=>{if(e.pointerType!=='mouse')setHovered(false);},onPointerCancel:()=>setHovered(false),
         onFocus:e=>setFocused(e.target.matches(':focus-visible')),onBlur:e=>{if(!e.currentTarget.contains(e.relatedTarget))setFocused(false);}},
-        h('div',{className:'dt-track',ref:track},h('div',{className:'dt-group',ref:group},cards(false)),h('div',{className:'dt-group dt-copy','aria-hidden':true},cards(true)))),
+        h('div',{className:'dt-track',ref:track},h('div',{className:'dt-group',ref:group},cards(false)),!welcome&&h('div',{className:'dt-group dt-copy','aria-hidden':true},cards(true)))),
       selected&&h('dialog',{className:'dt-dialog',ref:dialog,'aria-labelledby':'dt-detail-title',onCancel:()=>setSelectedId(null),onClose:()=>setSelectedId(null)},
         h('h3',{id:'dt-detail-title',tabIndex:-1},selected.title||'Schedule details'),
         field('Type',selected.item_type==='Task'?(selected.task_kind||'Task'):selected.item_type),
