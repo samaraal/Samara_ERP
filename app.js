@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.36';
+  const APP_VERSION = '2.13.37';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -11945,15 +11945,15 @@ Thank you.`;
       boxShadow:'0 5px 15px rgba(122,24,69,.06)',
       borderLeft:'4px solid #cf2c70'
     }},
-      h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'flex-start',flexWrap:'wrap'}},
+      h('div',{className:'director-item-heading',style:{display:'grid',gridTemplateColumns:'minmax(0,1fr) auto',gap:'10px',alignItems:'start'}},
         h('div',{style:{display:'flex',alignItems:'flex-start',gap:'10px',minWidth:0,flex:'1 1 auto'}},
           h('span',{className:'director-item-serial','aria-label':`Item ${index+1}`},String(index+1)),
           h('div',{style:{minWidth:0}},
-            h('strong',{style:{fontSize:'15px',color:'#351b29'}},r.title),
+            h('strong',{style:{fontSize:'15px',color:'#351b29',overflowWrap:'anywhere'}},r.title),
           h('div',{style:{fontSize:'12px',color:'#806a76',marginTop:'3px'}},`${r.item_type==='Task'?(r.task_kind||'Task'):r.item_type} · ${r.priority||'Normal'}`)
           )
         ),
-        h('span',{className:'badge'},r.status||'Pending')
+        h('span',{className:'badge',style:{justifySelf:'end',alignSelf:'start',whiteSpace:'nowrap'}},r.status||'Pending')
       ),
       (r.contact_name||r.organisation||r.contact_mobile)?h('div',{style:{fontSize:'13px',color:'#4e4248'}},
         [r.contact_name,r.organisation,r.contact_mobile].filter(Boolean).join(' · ')
