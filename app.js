@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.34';
+  const APP_VERSION = '2.13.35';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -16600,8 +16600,8 @@ Please keep these login details confidential.`;
       try{
         const requested=sessionStorage.getItem('samara-patient-list-filter');
         sessionStorage.removeItem('samara-patient-list-filter');
-        return ['active','assigned','awaiting','high-risk','duplicates'].includes(requested)?requested:'all';
-      }catch(_error){return 'all'}
+        return ['active','assigned','awaiting','high-risk','duplicates'].includes(requested)?requested:'active';
+      }catch(_error){return 'active'}
     });
     const [editTarget,setEditTarget]=React.useState(null),[editForm,setEditForm]=React.useState(null),[editBusy,setEditBusy]=React.useState(false),[editMsg,setEditMsg]=React.useState('');
     const [editFamilyAccess,setEditFamilyAccess]=React.useState({enabled:false,id:null,family_user_id:'',relative_name:'',relationship:'',mobile:'',email:'',primary_contact:true,is_active:true});
@@ -17877,7 +17877,7 @@ Please keep these login details confidential.`;
     };
     const admissionField=(label,value)=>h('div',{className:'patient-admission-field'},h('span',null,label),h('strong',null,value||'—'));
     const patientDetailField=(label,value,extraClass='')=>h('div',{className:`patient-detail-field ${extraClass}`.trim()},h('span',{className:'patient-detail-label'},label),h('span',{className:'patient-detail-colon'},':'),h('span',{className:'patient-detail-value'},value==null||value===''?'—':value));
-    const patientQuickLabels={active:'Active patients',assigned:'Room assigned',awaiting:'Awaiting room','high-risk':'High-risk patients',duplicates:'Possible duplicates'};
+    const patientQuickLabels={active:'Active patients',inactive:'Inactive / discharged',all:'All records (including discharged)',assigned:'Room assigned',awaiting:'Awaiting room','high-risk':'High-risk patients',duplicates:'Possible duplicates'};
     function openPatientQuickFilter(filter){
       setPatientSearch('');
       setDistrictFilter('All');
@@ -17897,6 +17897,7 @@ Please keep these login details confidential.`;
       const matchesDistrict=districtFilter==='All'||String(r.district||'')===districtFilter;
       const matchesQuick=patientQuickFilter==='all'||
         (patientQuickFilter==='active'&&r.is_active!==false)||
+        (patientQuickFilter==='inactive'&&r.is_active===false)||
         (patientQuickFilter==='assigned'&&r.is_active!==false&&r.room_no&&r.bed_no)||
         (patientQuickFilter==='awaiting'&&r.is_active!==false&&(!r.room_no||!r.bed_no))||
         (patientQuickFilter==='high-risk'&&r.is_active!==false&&Boolean(r.fall_risk||r.pressure_sore_risk||r.aspiration_risk||r.wandering_risk||r.infection_risk||r.oxygen_required))||
@@ -17915,9 +17916,10 @@ Please keep these login details confidential.`;
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Patient Master'),h('small',null,'Single source for identity, admission, nursing, medicines, diet, documents, billing and recovery'))),
         patientQuickFilter!=='all'?h('div',{className:'message info patient-filter-summary',style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px',flexWrap:'wrap',marginBottom:'10px'}},
           h('strong',null,`Showing: ${patientQuickLabels[patientQuickFilter]||'Selected patients'} (${visibleRows.length})`),
-          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPatientQuickFilter('all')},'Show all')
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPatientQuickFilter('active')},'Reset to active')
         ):null,
         h('div',{className:'form-grid patient-master-filters',style:{marginBottom:'10px'}},
+          h('div',{className:'field'},h('label',{htmlFor:'patient-list-scope'},'Patient list'),h('select',{id:'patient-list-scope',value:patientQuickFilter,onChange:e=>setPatientQuickFilter(e.target.value)},Object.entries(patientQuickLabels).map(([value,label])=>h('option',{key:value,value},label)))),
           h('div',{className:'field'},h('label',null,'Search patient / place'),h('input',{
             value:patientSearch,onChange:e=>setPatientSearch(e.target.value),
             placeholder:'Patient name, room no. or Resident ID'
@@ -17952,7 +17954,7 @@ Please keep these login details confidential.`;
               },
                 h('td',{'data-label':'Photo'},r.photo_storage_path?h('span',{className:'photo-dot'},'Photo'):'—'),
                 h('td',{'data-label':'Resident ID'},r.patient_id||'—'),
-                h('td',{'data-label':'Patient'},h('button',{type:'button',className:'patient-name-link',onClick:e=>{e.stopPropagation();openPatient(r)}},formalName(r)),duplicateCount(r)?h('div',{className:'small-note danger-text'},'Possible duplicate'):null),
+                h('td',{'data-label':'Patient'},h('button',{type:'button',className:'patient-name-link',onClick:e=>{e.stopPropagation();openPatient(r)}},formalName(r)),r.is_active===false?h('div',{className:'patient-inactive-label',style:{display:'block',fontSize:'12px',fontWeight:700,marginTop:'4px'}},'Inactive / discharged'):null,duplicateCount(r)?h('div',{className:'small-note danger-text'},'Possible duplicate'):null),
                 h('td',{'data-label':'District / Town'},`${r.district||'—'}${r.village_town?` / ${r.village_town}`:''}`),
                 h('td',{'data-label':'Admission Type'},r.admission_type||'—'),
                 h('td',{'data-label':'Category'},r.patient_category||'—'),
