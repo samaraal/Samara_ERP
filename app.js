@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.24';
+  const APP_VERSION = '2.13.25';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -11077,7 +11077,7 @@ Thank you.`;
     },[profile?.id,profile?.role,profile?.login_id,profile?.is_active]);
     React.useEffect(()=>{offset.current=0;if(track.current)track.current.style.transform='translateY(0)';},[rows,day]);
     React.useEffect(()=>{
-      if(!allowed||!rows.length||paused||hovered||focused||selectedId||welcome||page!=="Director's Office")return;
+      if(!allowed||!rows.length||paused||hovered||focused||selectedId||(!welcome&&page!=="Director's Office"))return;
       let frame,last;
       const move=now=>{
         if(last&&document.visibilityState==='visible'&&group.current&&track.current){
@@ -11103,7 +11103,7 @@ Thank you.`;
       h('style',null,`
         .director-today-ticker{margin:0 0 16px;border:1px solid #e6afc6;border-radius:16px;background:#fff7fb;color:#551234;overflow:hidden}
         .dt-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;background:#f7dfeb}
-        .dt-welcome{position:fixed;inset:0;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;margin:0!important;border:0!important;border-radius:0!important;padding:0!important;box-sizing:border-box}.dt-welcome[open]{display:flex;flex-direction:column}.dt-welcome::backdrop{background:#fff7fb}.dt-welcome .dt-heading{flex-shrink:0;flex-wrap:wrap;padding:20px}.dt-welcome h2{font-size:24px;margin:0;color:#65143e}.dt-welcome .dt-window{height:auto;flex:1;overflow:auto;min-height:0;padding:8px 10px 24px}.dt-welcome .dt-item{min-height:76px}.dt-welcome .dt-heading button{font-weight:700}.dt-welcome .dt-heading small{margin-top:7px}
+        .dt-welcome{position:fixed;inset:0;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;margin:0!important;border:0!important;border-radius:0!important;padding:0!important;box-sizing:border-box}.dt-welcome[open]{display:flex;flex-direction:column}.dt-welcome::backdrop{background:#fff7fb}.dt-welcome .dt-heading{flex-shrink:0;flex-wrap:wrap;padding:20px}.dt-welcome h2{font-size:24px;margin:0;color:#65143e}.dt-welcome .dt-window{height:auto;flex:1;overflow:hidden;min-height:0;padding:0 10px}.dt-welcome .dt-window.dt-still{overflow:auto}.dt-welcome .dt-item{min-height:76px}.dt-welcome .dt-heading button{font-weight:700}.dt-welcome .dt-heading small{margin-top:7px}
         .dt-heading strong,.dt-heading small{display:block}.dt-heading small{font-size:12px;margin-top:3px}
         .dt-heading button{background:#fff;border:1px solid #ca8ca8;border-radius:10px;padding:8px 12px;color:#65143e;min-height:40px;cursor:pointer}
         .dt-window{height:156px;overflow:hidden;position:relative}.dt-track{will-change:transform}.dt-group{padding:6px 10px;display:grid;gap:6px}
@@ -11117,11 +11117,11 @@ Thank you.`;
         .dt-dialog button{min-height:44px;padding:8px 16px;margin-top:16px;border-radius:9px;background:#8d2151;color:white;border:0;cursor:pointer}
       `),
       h('div',{className:'dt-heading'},h('div',null,h(welcome?'h2':'strong',{tabIndex:welcome?-1:undefined},`Today’s schedules · ${rows.length}`),h('small',null,'Director Chellaboomi · Tap a schedule for full details')),
-        welcome?h('button',{type:'button',onClick:closeWelcome},'Continue to Director’s Office'):h('button',{type:'button','aria-pressed':paused,onClick:()=>{offset.current=0;if(track.current)track.current.style.transform='translateY(0)';setPaused(!paused);}},paused?'Resume':'Pause')),
-      error?h('div',{className:'dt-message',role:'status'},error):!ready?h('div',{className:'dt-message'},'Loading today’s schedules…'):!rows.length?h('div',{className:'dt-message'},'No schedules planned for today.'):h('div',{className:'dt-window'+(welcome||paused||focused?' dt-still':''),
-        onMouseEnter:()=>setHovered(true),onMouseLeave:()=>setHovered(false),onPointerDown:()=>setHovered(true),onPointerUp:e=>{if(e.pointerType!=='mouse')setHovered(false);},onPointerCancel:()=>setHovered(false),
+        welcome&&h('button',{type:'button',onClick:closeWelcome},'Continue to Director’s Office'),h('button',{type:'button','aria-pressed':paused,onClick:()=>{offset.current=0;if(track.current)track.current.style.transform='translateY(0)';setPaused(!paused);}},paused?'Resume':'Pause')),
+      error?h('div',{className:'dt-message',role:'status'},error):!ready?h('div',{className:'dt-message'},'Loading today’s schedules…'):!rows.length?h('div',{className:'dt-message'},'No schedules planned for today.'):h('div',{className:'dt-window'+(paused||focused?' dt-still':''),
+        onPointerDown:()=>setHovered(true),onPointerUp:()=>setHovered(false),onPointerLeave:()=>setHovered(false),onPointerCancel:()=>setHovered(false),
         onFocus:e=>setFocused(e.target.matches(':focus-visible')),onBlur:e=>{if(!e.currentTarget.contains(e.relatedTarget))setFocused(false);}},
-        h('div',{className:'dt-track',ref:track},h('div',{className:'dt-group',ref:group},cards(false)),!welcome&&h('div',{className:'dt-group dt-copy','aria-hidden':true},cards(true)))),
+        h('div',{className:'dt-track',ref:track},h('div',{className:'dt-group',ref:group},cards(false)),h('div',{className:'dt-group dt-copy','aria-hidden':true},cards(true)))),
       selected&&h('dialog',{className:'dt-dialog',ref:dialog,'aria-labelledby':'dt-detail-title',onCancel:()=>setSelectedId(null),onClose:()=>setSelectedId(null)},
         h('h3',{id:'dt-detail-title',tabIndex:-1},selected.title||'Schedule details'),
         field('Type',selected.item_type==='Task'?(selected.task_kind||'Task'):selected.item_type),
