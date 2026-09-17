@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.21';
+  const APP_VERSION = '2.13.22';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7113,6 +7113,7 @@ https://samaraassistedliving.com/`;
         h(MobileMenu,{page,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
         h(NursingMobileQuickActions,{profile,page,onNavigate:setPage}),
         h('section',{className:'content'},
+          h(DirectorTodayTicker,{key:profile.id,profile}),
           page==='Dashboard'&&h(Dashboard,{profile,onNavigate:setPage,alertEngine}),
           page==='HR Dashboard'&&h(HRDashboard,{profile,onNavigate:setPage}),
           page==='Employees'&&h(Employees,{profile,onNavigate:setPage}),
@@ -10987,6 +10988,125 @@ Thank you.`;
       h('p',{className:'small-note'},'Uses the Inbox Admission Enquiries classification. Payment, employee, recruitment and patient/family conversations are excluded. Counts each contact once; unread enquiries: '+enquiries.filter(x=>x.unread).length+'.'),
       !busy&&!error&&!enquiries.length?h('p',null,'No classified enquiry conversations.'):null,
       ...enquiries.map(e=>h('div',{key:e.phone,style:{padding:'12px',borderBottom:'1px solid #efd3e1',color:'#741747'}},h('strong',null,e.name),h('div',null,e.phone),h('small',null,e.unread?'Unread enquiry':'Read enquiry')))
+    );
+  }
+
+
+  function directorTickerIdentity(profile){
+    return Boolean(profile?.id&&profile?.role==='Admin'&&profile?.is_active!==false&&String(profile?.login_id||'').trim().toLowerCase()==='chellaboomi');
+  }
+  function directorTickerDay(now=new Date()){
+    const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
+    const part=type=>parts.find(p=>p.type===type).value;
+    return `${part('year')}-${part('month')}-${part('day')}`;
+  }
+  function directorTickerItems(rows,day){
+    return rows.filter(r=>r.status!=='Cancelled'&&(r.scheduled_at?directorTickerDay(new Date(r.scheduled_at)):String(r.due_date||'').slice(0,10))===day)
+      .sort((a,b)=>String(a.scheduled_at||a.due_date||'').localeCompare(String(b.scheduled_at||b.due_date||''))||String(a.id).localeCompare(String(b.id)));
+  }
+  function DirectorTodayTicker({profile}){
+    const [allowed,setAllowed]=React.useState(false);
+    const [rows,setRows]=React.useState([]);
+    const [day,setDay]=React.useState(()=>directorTickerDay());
+    const [error,setError]=React.useState('');
+    const [ready,setReady]=React.useState(false);
+    const [paused,setPaused]=React.useState(()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const [hovered,setHovered]=React.useState(false);
+    const [focused,setFocused]=React.useState(false);
+    const [selectedId,setSelectedId]=React.useState(null);
+    const track=React.useRef(null),group=React.useRef(null),dialog=React.useRef(null),offset=React.useRef(0);
+    const selected=rows.find(r=>r.id===selectedId);
+    React.useEffect(()=>{
+      if(!directorTickerIdentity(profile)){setAllowed(false);setRows([]);return;}
+      let disposed=false,busy=false;
+      async function refresh(){
+        if(busy)return;busy=true;
+        try{
+          const position=await client.from('director_office_positions').select('assigned_profile_id').eq('position_key','director').maybeSingle();
+          if(disposed)return;
+          if(position.error||position.data?.assigned_profile_id!==profile.id){setAllowed(false);setRows([]);return;}
+          setAllowed(true);
+          const current=directorTickerDay(),start=new Date(current+'T00:00:00+05:30'),end=new Date(start.getTime()+86400000);
+          const result=[];
+          for(let from=0;;from+=500){
+            const response=await client.from('director_office_items').select('*')
+              .or(`and(scheduled_at.gte.${start.toISOString()},scheduled_at.lt.${end.toISOString()}),and(scheduled_at.is.null,due_date.eq.${current})`)
+              .order('id').range(from,from+499);
+            if(response.error)throw response.error;
+            result.push(...(response.data||[]));
+            if((response.data||[]).length<500)break;
+          }
+          if(disposed)return;
+          const next=directorTickerItems(result,current);
+          setRows(old=>JSON.stringify(old)===JSON.stringify(next)?old:next);setDay(current);setError('');setReady(true);
+        }catch(_){if(!disposed){setError('Unable to refresh today’s schedules. Please try again.');setRows([]);setReady(true);}}
+        finally{busy=false;}
+      }
+      refresh();
+      const timer=setInterval(refresh,30000);
+      const onVisible=()=>{if(document.visibilityState==='visible')refresh();};
+      document.addEventListener('visibilitychange',onVisible);
+      const channel=client.channel('director-today-'+profile.id)
+        .on('postgres_changes',{event:'*',schema:'public',table:'director_office_items'},refresh)
+        .on('postgres_changes',{event:'*',schema:'public',table:'director_office_positions'},refresh).subscribe();
+      return()=>{disposed=true;clearInterval(timer);document.removeEventListener('visibilitychange',onVisible);client.removeChannel(channel);};
+    },[profile?.id,profile?.role,profile?.login_id,profile?.is_active]);
+    React.useEffect(()=>{offset.current=0;if(track.current)track.current.style.transform='translateY(0)';},[rows,day]);
+    React.useEffect(()=>{
+      if(!allowed||!rows.length||paused||hovered||focused||selectedId)return;
+      let frame,last;
+      const move=now=>{
+        if(last&&document.visibilityState==='visible'&&group.current&&track.current){
+          const height=group.current.offsetHeight;
+          if(height){offset.current=(offset.current+Math.min(now-last,64)*0.018)%height;track.current.style.transform=`translateY(-${offset.current}px)`;}
+        }
+        last=now;frame=requestAnimationFrame(move);
+      };
+      frame=requestAnimationFrame(move);return()=>cancelAnimationFrame(frame);
+    },[allowed,rows,paused,hovered,focused,selectedId]);
+    React.useEffect(()=>{
+      const el=dialog.current;
+      if(!selected||!el)return;
+      const previous=document.activeElement;el.showModal();
+      return()=>{el.close();if(previous?.isConnected)previous.focus();};
+    },[selectedId,Boolean(selected)]);
+    if(!allowed||!directorTickerIdentity(profile))return null;
+    const time=r=>r.scheduled_at?formatDateTimeIN(r.scheduled_at):'Today · Time not set';
+    const field=(label,value)=>value?h('div',{className:'dt-detail-field'},h('strong',null,label),h('div',null,value)):null;
+    const cards=duplicate=>rows.map((r,i)=>h('button',{type:'button',key:r.id,tabIndex:duplicate?-1:0,className:'dt-item',onClick:()=>setSelectedId(r.id)},
+      h('span',{className:'dt-number'},i+1),h('span',null,h('strong',null,r.title||'Untitled schedule'),h('small',null,[time(r),r.item_type==='Task'?(r.task_kind||'Task'):r.item_type,r.status||'Pending'].filter(Boolean).join(' · ')))));
+    return h('section',{className:'director-today-ticker','aria-label':'Chellaboomi’s schedules today'},
+      h('style',null,`
+        .director-today-ticker{margin:0 0 16px;border:1px solid #e6afc6;border-radius:16px;background:#fff7fb;color:#551234;overflow:hidden}
+        .dt-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;background:#f7dfeb}
+        .dt-heading strong,.dt-heading small{display:block}.dt-heading small{font-size:12px;margin-top:3px}
+        .dt-heading button{background:#fff;border:1px solid #ca8ca8;border-radius:10px;padding:8px 12px;color:#65143e;min-height:40px;cursor:pointer}
+        .dt-window{height:156px;overflow:hidden;position:relative}.dt-track{will-change:transform}.dt-group{padding:6px 10px;display:grid;gap:6px}
+        .dt-item{display:flex;gap:10px;align-items:center;width:100%;text-align:left;border:1px solid #eed1df;border-radius:10px;background:#fff;color:#491a31;padding:10px;cursor:pointer;min-height:64px}
+        .dt-item strong{display:block;font-size:14px}.dt-item small{display:block;font-size:12px;color:#775565;margin-top:4px}
+        .dt-number{flex-shrink:0;border-radius:50%;background:#f6d9e7;min-width:28px;height:28px;display:grid;place-items:center;font-weight:800}
+        .dt-item:focus-visible,.dt-heading button:focus-visible{outline:3px solid #ad205e;outline-offset:-3px}
+        .dt-still{overflow:auto}.dt-still .dt-track{transform:none!important}.dt-still .dt-copy{display:none}
+        .dt-message{padding:15px}.dt-dialog{width:min(620px,calc(100vw - 28px));max-height:80vh;overflow:auto;border:1px solid #dca7bf;border-radius:18px;padding:20px;color:#491a31;background:#fff;box-sizing:border-box;z-index:2147483647}
+        .dt-dialog::backdrop{background:rgba(25,8,18,.55)}.dt-dialog h3{margin:0}.dt-detail-field{margin-top:14px;white-space:pre-wrap;overflow-wrap:anywhere}.dt-detail-field strong{display:block;font-size:12px;color:#85536b;margin-bottom:4px}
+        .dt-dialog button{min-height:44px;padding:8px 16px;margin-top:16px;border-radius:9px;background:#8d2151;color:white;border:0;cursor:pointer}
+      `),
+      h('div',{className:'dt-heading'},h('div',null,h('strong',null,`Today’s schedules · ${rows.length}`),h('small',null,'Director Chellaboomi · Tap a schedule for full details')),
+        h('button',{type:'button','aria-pressed':paused,onClick:()=>{offset.current=0;if(track.current)track.current.style.transform='translateY(0)';setPaused(!paused);}},paused?'Resume':'Pause')),
+      error?h('div',{className:'dt-message',role:'status'},error):!ready?h('div',{className:'dt-message'},'Loading today’s schedules…'):!rows.length?h('div',{className:'dt-message'},'No schedules planned for today.'):h('div',{className:'dt-window'+(paused||focused?' dt-still':''),
+        onMouseEnter:()=>setHovered(true),onMouseLeave:()=>setHovered(false),onPointerDown:()=>setHovered(true),onPointerUp:e=>{if(e.pointerType!=='mouse')setHovered(false);},onPointerCancel:()=>setHovered(false),
+        onFocus:e=>setFocused(e.target.matches(':focus-visible')),onBlur:e=>{if(!e.currentTarget.contains(e.relatedTarget))setFocused(false);}},
+        h('div',{className:'dt-track',ref:track},h('div',{className:'dt-group',ref:group},cards(false)),h('div',{className:'dt-group dt-copy','aria-hidden':true},cards(true)))),
+      selected&&h('dialog',{className:'dt-dialog',ref:dialog,'aria-labelledby':'dt-detail-title',onCancel:()=>setSelectedId(null),onClose:()=>setSelectedId(null)},
+        h('h3',{id:'dt-detail-title'},selected.title||'Schedule details'),
+        field('Type',selected.item_type==='Task'?(selected.task_kind||'Task'):selected.item_type),
+        field('Schedule',time(selected)),field('Due date',selected.due_date?formatDateIN(selected.due_date):null),
+        field('Status',selected.status||'Pending'),field('Priority',selected.priority||'Normal'),
+        field('Contact / Place',selected.contact_name),field('Phone',selected.contact_mobile),field('Organisation',selected.organisation),
+        field('Details',selected.details),field('Director’s instruction',selected.director_note),
+        field('Director attention',selected.needs_director_attention?(selected.director_responded_at?'Responded · '+formatDateTimeIN(selected.director_responded_at):'Awaiting Director response'):null),
+        field('Rescheduled',selected.rescheduled_at?formatDateTimeIN(selected.rescheduled_at):null),field('Reschedule note',selected.reschedule_note),
+        h('button',{type:'button',onClick:()=>setSelectedId(null)},'Close details'))
     );
   }
 
