@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.25';
+  const APP_VERSION = '2.13.26';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1529,8 +1529,7 @@ function initSamaraInaugurationInvitation(){
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'PHARMACY & STORES', items:['Patient Consumables','Stores','Stores In-charge Assignment'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
-    { title:'PAYMENTS & VOUCHERS', items:['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers'] },
-    { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
+    { title:'ACCOUNTS / BILLING', items:['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
     { title:'COMMUNICATION', items:['WhatsApp Inbox','WhatsApp Logs','Family Communication','Feedback','Mail Dashboard'] },
     { title:'MY ACCOUNT', items:['My Profile'] }
   ];
@@ -1603,7 +1602,7 @@ function initSamaraInaugurationInvitation(){
     return CLINICAL_ROLES.includes(role)?(ROLE_LABELS[item]||item):item;
   };
   const sectionsFor = (allowed,role) => {
-    if(role!=='Admin'&&allowed.includes('Payment Requests')){const items=allowed.filter(x=>['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers'].includes(x));return [...sectionsFor(allowed.filter(x=>!items.includes(x)),role),{title:'PAYMENTS & VOUCHERS',items}];}
+    if(role!=='Admin'&&allowed.includes('Payment Requests')){const items=allowed.filter(x=>['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers'].includes(x));const sections=sectionsFor(allowed.filter(x=>!items.includes(x)),role);const accounts=sections.find(s=>s.title==='ACCOUNTS / BILLING');if(accounts)accounts.items=[...items,...accounts.items];else sections.push({title:'ACCOUNTS / BILLING',items});return sections;}
     if(CLINICAL_ROLES.includes(role)){
       return [
         {title:'ADMISSION',items:['Spot Assessment'].filter(item=>allowed.includes(item))},
@@ -2342,7 +2341,8 @@ https://samaraassistedliving.com/`;
       h('div',{className:'panel-head'},h('div',null,h('h3',null,config.title||'Camera Capture'),h('small',null,config.facingMode==='environment'?'Rear camera / document capture':'Front camera / webcam')),h('button',{type:'button',className:'close',onClick:onClose},'×')),
       error?h('div',{className:'message error'},error):null,
       h('div',{className:'camera-stage'},
-        captured?h('img',{src:captured,alt:'Captured preview',className:'camera-preview'}):h('video',{ref:videoRef,playsInline:true,muted:true,className:'camera-video'}),
+        h('video',{ref:videoRef,playsInline:true,muted:true,className:'camera-video',style:{display:captured?'none':'block'}}),
+        captured?h('img',{src:captured,alt:'Captured preview',className:'camera-preview'}):null,
         h('canvas',{ref:canvasRef,className:'camera-canvas'})
       ),
       h('div',{className:'camera-actions'},
@@ -7148,7 +7148,7 @@ https://samaraassistedliving.com/`;
           page==='Stores'&&h(ConsumablesStores,{profile}),
           page==='Stores In-charge Assignment'&&h(StoresInchargeAssignmentPage,{profile}),
           page==='Food & Diet'&&h(FoodDiet,{profile}),
-          ['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers'].includes(page)&&allowed.includes(page)&&window.SamaraOutgoingPayments&&h(window.SamaraOutgoingPayments,{key:page,client,profile,initialView:page==='Payment Vouchers'?'Vouchers':page==='Approved—Ready to Pay'?'Ready':'Requests'}),
+          ['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers'].includes(page)&&allowed.includes(page)&&window.SamaraOutgoingPayments&&h(window.SamaraOutgoingPayments,{key:page,client,profile,CameraCaptureModal,initialView:page==='Payment Vouchers'?'Vouchers':page==='Approved—Ready to Pay'?'Ready':'Requests'}),
           page==='Physiotherapy'&&h(Physiotherapy,{profile,onNavigate:setPage}),
           page==='Duty Assignment'&&h(DutyAssignment,{profile,viewMode:'assignment'}),
           page==='Duty Calendar'&&h(DutyAssignment,{profile,viewMode:'team'}),
