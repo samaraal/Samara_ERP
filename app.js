@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.35';
+  const APP_VERSION = '2.13.36';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -11001,7 +11001,7 @@ Thank you.`;
     return `${part('year')}-${part('month')}-${part('day')}`;
   }
   function directorTickerItems(rows,day){
-    return rows.filter(r=>r.status!=='Cancelled'&&(r.scheduled_at?directorTickerDay(new Date(r.scheduled_at)):String(r.due_date||'').slice(0,10))===day)
+    return rows.filter(r=>['pending','in progress','open'].includes(String(r.status||'Pending').trim().toLowerCase())&&(r.scheduled_at?directorTickerDay(new Date(r.scheduled_at)):String(r.due_date||'').slice(0,10))===day)
       .sort((a,b)=>String(a.scheduled_at||a.due_date||'').localeCompare(String(b.scheduled_at||b.due_date||''))||String(a.id).localeCompare(String(b.id)));
   }
   function DirectorTodayTicker({profile,page,onNavigate}){
@@ -11040,6 +11040,7 @@ Thank you.`;
     },[welcome,allowed]);
     const track=React.useRef(null),group=React.useRef(null),dialog=React.useRef(null),offset=React.useRef(0);
     const selected=rows.find(r=>r.id===selectedId);
+    React.useEffect(()=>{if(selectedId&&!rows.some(r=>r.id===selectedId))setSelectedId(null);},[rows,selectedId]);
     React.useEffect(()=>{
       if(!directorTickerIdentity(profile)){setAllowed(false);setRows([]);return;}
       let disposed=false,busy=false;
@@ -11116,9 +11117,9 @@ Thank you.`;
         .dt-dialog::backdrop{background:rgba(25,8,18,.55)}.dt-dialog h3{margin:0}.dt-detail-field{margin-top:14px;white-space:pre-wrap;overflow-wrap:anywhere}.dt-detail-field strong{display:block;font-size:12px;color:#85536b;margin-bottom:4px}
         .dt-dialog button{min-height:44px;padding:8px 16px;margin-top:16px;border-radius:9px;background:#8d2151;color:white;border:0;cursor:pointer}
       `),
-      h('div',{className:'dt-heading'},h('div',null,h(welcome?'h2':'strong',{tabIndex:welcome?-1:undefined},`Today’s schedules · ${rows.length}`),h('small',null,'Director Chellaboomi · Tap a schedule for full details')),
+      h('div',{className:'dt-heading'},h('div',null,h(welcome?'h2':'strong',{tabIndex:welcome?-1:undefined},`Today’s open schedules · ${rows.length}`),h('small',null,'Director Chellaboomi · Tap a schedule for full details')),
         welcome&&h('button',{type:'button',onClick:closeWelcome},'Continue to Director’s Office'),h('button',{type:'button','aria-pressed':paused,onClick:()=>{offset.current=0;if(track.current)track.current.style.transform='translateY(0)';setPaused(!paused);}},paused?'Resume':'Pause')),
-      error?h('div',{className:'dt-message',role:'status'},error):!ready?h('div',{className:'dt-message'},'Loading today’s schedules…'):!rows.length?h('div',{className:'dt-message'},'No schedules planned for today.'):h('div',{className:'dt-window'+(paused||focused?' dt-still':''),
+      error?h('div',{className:'dt-message',role:'status'},error):!ready?h('div',{className:'dt-message'},'Loading today’s schedules…'):!rows.length?h('div',{className:'dt-message'},'No pending or open schedules for today.'):h('div',{className:'dt-window'+(paused||focused?' dt-still':''),
         onPointerDown:()=>setHovered(true),onPointerUp:()=>setHovered(false),onPointerLeave:()=>setHovered(false),onPointerCancel:()=>setHovered(false),
         onFocus:e=>setFocused(e.target.matches(':focus-visible')),onBlur:e=>{if(!e.currentTarget.contains(e.relatedTarget))setFocused(false);}},
         h('div',{className:'dt-track',ref:track},h('div',{className:'dt-group',ref:group},cards(false)),h('div',{className:'dt-group dt-copy','aria-hidden':true},cards(true)))),
