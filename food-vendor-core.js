@@ -50,7 +50,7 @@ function orderProgress(order,events){
  const ordered=sum('residents')+sum('employees');
  const received=receipts.reduce((n,e)=>n+(e.data?.items||[]).reduce((a,it)=>a+Number(it.residents||0)+Number(it.employees||0),0),0);
  const complete=receipts.length>0&&items.every((it,i)=>['residents','employees'].every(k=>receipts.reduce((n,e)=>n+Number(e.data?.items?.[i]?.[k]||0),0)>=Number(it[k]||0)));
- const status=order.status==='Closed'?'Closed':complete?'Received':receipts.length?'Partially received':order.status==='Draft'?'Draft':'Pending receipt';
+ const status=order.status==='Cancellation pending'?'Cancellation pending':order.status==='Closed'?(order.data?.cancelled?'Cancelled':'Closed'):complete?'Received':receipts.length?'Partially received':order.status==='Draft'?'Draft':'Pending receipt';
  return {ordered,received:receipts.length?received:null,status};
 }
 function orderFilterFacts(order,events){
@@ -69,6 +69,8 @@ function matchesOrderFilter(order,events,filter){
   case 'Rejected':return f.rejected>0;
   case 'Shortage':return f.shortage>0;
   case 'Draft':return order.status==='Draft';
+  case 'Cancellation pending':return order.status==='Cancellation pending';
+  case 'Cancelled':return order.status==='Closed'&&!!order.data?.cancelled;
   case 'Closed':return order.status==='Closed';
   default:return true;
  }
