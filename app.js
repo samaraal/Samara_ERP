@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.44';
+  const APP_VERSION = '2.13.45';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -20358,6 +20358,7 @@ Doctor / Hospital: ${doctorHospital}`;
           )&&h('button',{className:'btn btn-primary',onClick:openNew},'Initiate Discharge')
         )
       ),
+      !isAccountsClearance&&h(DischargeMedicationReview),
       h(LogTable,{title:isAccountsClearance?`Pending Financial Clearance (${tableRows.length})`:`Discharge Workflow Register (${tableRows.length})`,
         heads:['Patient','Initiation Basis','Instruction / Request','Date','Initiated By','Management','Decision By','Decision Time','Accounts','Closed By','Closure Time','Final Status','Completed By','Action'],
         rows:tableRows
