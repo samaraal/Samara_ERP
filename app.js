@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.38';
+  const APP_VERSION = '2.13.39';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12389,6 +12389,27 @@ Thank you.`;
 
   function LeavePermission({profile,mode='mine',calendar=false}){
     const isApprovals=mode==='approvals';
+    const [returnTarget,setReturnTarget]=React.useState(null),[returnDate,setReturnDate]=React.useState(''),[returnNote,setReturnNote]=React.useState(''),[returnBusy,setReturnBusy]=React.useState(false),[returnError,setReturnError]=React.useState('');
+    const returnLock=React.useRef(false);
+    function canRecordReturn(r){return ['Admin','Manager'].includes(profile.role)&&r.employee_id!==profile.id&&r.request_type==='Leave'&&r.status==='approved'&&!r.return_to_duty_date&&r.from_date<=todayISOIndia();}
+    function openReturn(r){setReturnTarget(r);setReturnDate(todayISOIndia()<=r.to_date?todayISOIndia():r.to_date);setReturnNote('');setReturnError('');}
+    async function saveReturn(e){
+      e.preventDefault();if(returnLock.current||!returnTarget)return;
+      if(!returnDate||returnDate<returnTarget.from_date||returnDate>returnTarget.to_date||returnDate>todayISOIndia()){setReturnError('Choose an actual return date within the approved leave period, no later than today.');return;}
+      if(!returnNote.trim()){setReturnError('Please confirm the employee has rejoined in the remarks.');return;}
+      returnLock.current=true;setReturnBusy(true);setReturnError('');
+      try{
+        const {data,error}=await client.rpc('record_absence_early_return',{p_request_id:returnTarget.id,p_return_date:returnDate,p_remarks:returnNote.trim()});
+        if(error)throw error;
+        setReturnTarget(null);setMsg(data?.message||'Early return recorded.');await load();
+      }catch(error){setReturnError(error.message||'Unable to record the early return.');}
+      finally{returnLock.current=false;setReturnBusy(false);}
+    }
+    function returnDetails(r){return r.return_to_duty_date?h(React.Fragment,null,
+      h('div',null,h('small',null,'Originally Approved'),h('strong',null,`${formatDateIN(r.from_date)} – ${formatDateIN(r.original_leave_to_date)}`)),
+      h('div',null,h('small',null,'Returned to Duty'),h('strong',null,formatDateIN(r.return_to_duty_date))),
+      h('div',null,h('small',null,'Return Confirmed By'),h('strong',null,formalName(byId(r.return_recorded_by))||'Management'),h('small',null,fmt(r.return_recorded_at))),
+      h('div',null,h('small',null,'Return Remarks'),h('strong',null,r.return_remarks||'—'))):null;}
     const [rows,setRows]=React.useState([]),[profiles,setProfiles]=React.useState([]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [showForm,setShowForm]=React.useState(false);
     const [submitBusy,setSubmitBusy]=React.useState(false),[modalMsg,setModalMsg]=React.useState(''),[submitted,setSubmitted]=React.useState(false);
@@ -12400,6 +12421,19 @@ Thank you.`;
     const [requestStatusFilter,setRequestStatusFilter]=React.useState('');
     const [expandedCalendarRows,setExpandedCalendarRows]=React.useState(new Set());
     const byId=id=>profiles.find(x=>x.id===id)||{};
+    const returnModal=returnTarget?h('div',{className:'modal-backdrop'},h('form',{className:'card modal absence-modal',onSubmit:saveReturn},
+      h('div',{className:'panel-head'},h('h3',null,'Record Early Return'),h('button',{type:'button',className:'close',disabled:returnBusy,'aria-label':'Close early return',onClick:()=>setReturnTarget(null)},'×')),
+      h('p',null,`${returnTarget.employee_name||formalName(byId(returnTarget.employee_id))||'Employee'} · Approved ${formatDateIN(returnTarget.from_date)} – ${formatDateIN(returnTarget.to_date)}`),
+      h('div',{className:'modal-grid'},
+        h('div',{className:'field'},h('label',{htmlFor:'early-return-date'},'Actual Return Date'),h('input',{id:'early-return-date',type:'date',required:true,min:returnTarget.from_date,max:returnTarget.to_date<todayISOIndia()?returnTarget.to_date:todayISOIndia(),value:returnDate,disabled:returnBusy,onChange:e=>setReturnDate(e.target.value)})),
+        h('div',{className:'field span-2'},h('label',{htmlFor:'early-return-note'},'Return Confirmation / Remarks'),h('textarea',{id:'early-return-note',required:true,rows:3,value:returnNote,disabled:returnBusy,onChange:e=>setReturnNote(e.target.value),placeholder:'Confirm when the employee rejoined duty'}))
+      ),
+      h('p',null,returnDate===returnTarget.from_date?'No leave days taken. The leave will be marked cancelled, with the original approval preserved.':`Leave will end on ${returnDate?formatDateIN(addDaysISO(returnDate,-1)):'—'}. The return date is a working day; the original approval is retained.`),
+      h('small',null,'Use this for a return at the start of the working day or shift. Record attendance and duty assignments separately.'),
+      returnError?h('div',{className:'message error',role:'alert'},returnError):null,
+      h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:returnBusy,onClick:()=>setReturnTarget(null)},'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:returnBusy},returnBusy?'Saving…':'Confirm Early Return'))
+    )):null;
+
     const statusLabel=s=>({pending_superior:'Pending Superior',pending_management:'Pending Management',approved:'Approved',rejected:'Rejected',cancelled:'Cancelled'}[s]||s||'—');
     const statusClass=s=>s==='approved'?'success':s==='rejected'?'error':'';
     async function load(){
@@ -12445,6 +12479,7 @@ Thank you.`;
     }
     function duration(r){
       if(r.request_type==='Permission')return [r.permission_from,r.permission_to].filter(Boolean).join(' – ');
+      if(r.return_to_duty_date&&r.return_to_duty_date===r.from_date)return '0 days · Returned before taking leave';
       if(!r.from_date||!r.to_date)return '—';
       const days=Math.floor((new Date(r.to_date+'T00:00:00')-new Date(r.from_date+'T00:00:00'))/86400000)+1;
       return `${formatDateIN(r.from_date)}${r.to_date!==r.from_date?` – ${formatDateIN(r.to_date)}`:''} · ${days} day${days===1?'':'s'} · ${r.shift_part||'Full Day'}`;
@@ -12467,6 +12502,7 @@ Thank you.`;
           h('div',null,h('small',null,r.request_type==='Leave'?'Period':'Date / Time'),h('strong',null,r.request_type==='Leave'?duration(r):`${formatDateIN(r.permission_date)} · ${duration(r)}`)),
           h('div',null,h('small',null,'Reporting Superior'),h('strong',null,formalName(superior)||'Manager / Admin directly')),
           h('div',null,h('small',null,'Reason'),h('strong',null,r.reason||'—')),
+          returnDetails(r),
           r.handover_remarks?h('div',null,h('small',null,'Handover'),h('strong',null,r.handover_remarks)):null,
           r.superior_remarks?h('div',null,h('small',null,'Superior Remarks'),h('strong',null,r.superior_remarks)):null,
           r.management_remarks?h('div',null,h('small',null,'Management Remarks'),h('strong',null,r.management_remarks)):null,
@@ -12476,6 +12512,7 @@ Thank you.`;
           ):null
         ),
         h('div',{className:'absence-actions'},
+          canRecordReturn(r)?h('button',{type:'button',className:'btn btn-secondary',disabled:busy||returnBusy,onClick:()=>openReturn(r)},'Record Early Return'):null,
           !isApprovals&&['pending_superior','pending_management'].includes(r.status)?h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'cancel')},'Cancel Request'):null,
           isApprovals&&canRecommend(r)?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>act(r,'recommend')},'Recommend'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'reject')},'Reject')):null,
           isApprovals&&canManage(r)?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>act(r,'approve')},'Approve'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'reject')},'Reject')):null
@@ -12512,9 +12549,11 @@ Thank you.`;
           h('div',null,h('small',null,'Position'),h('strong',null,[emp.designation||emp.position,emp.department].filter(Boolean).join(' · ')||'—')),
           h('div',null,h('small',null,'Reason'),h('strong',null,r.reason||'—')),
           h('div',null,h('small',null,'Status'),h('strong',null,statusLabel(r.status))),
+          returnDetails(r),
           r.handover_remarks?h('div',null,h('small',null,'Handover'),h('strong',null,r.handover_remarks)):null,
           r.decision_by_name?h('div',null,h('small',null,'Decision'),h('strong',null,`${r.decision_by_name}${r.decision_at?` · ${fmt(r.decision_at)}`:''}`)):null,
           h('div',{className:'absence-actions',style:{gridColumn:'1/-1'}},
+            canRecordReturn(r)?h('button',{type:'button',className:'btn btn-secondary',disabled:busy||returnBusy,onClick:()=>openReturn(r)},'Record Early Return'):null,
             isApprovals&&canRecommend(r)?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>act(r,'recommend')},'Recommend'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'reject')},'Reject')):null,
             isApprovals&&canManage(r)?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>act(r,'approve')},'Approve'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'reject')},'Reject')):null
           )
@@ -12551,7 +12590,7 @@ Thank you.`;
       const selectedLabel=`${formatDateWithDayIN(weekStart)} to ${formatDateWithDayIN(weekEnd)}`;
       const currentWeek=mondayOfWeek(todayISOIndia());
       const statusButton=(value,label)=>h('button',{type:'button',className:calendarStatusFilter===value?'active':'',onClick:()=>setCalendarStatusFilter(calendarStatusFilter===value?'':value)},h('strong',null,rows.filter(calendarMatches).filter(r=>value?(value==='pending'?['pending_superior','pending_management'].includes(r.status):r.status===value):true).length),h('small',null,label));
-      return h(React.Fragment,null,
+      return h(React.Fragment,null,returnModal,
         h(Section,{title:'Staff Leave Calendar',subtitle:`${selectedLabel} · ${calendarBaseRows.length} leave / permission record${calendarBaseRows.length===1?'':'s'}`,actions:h('button',{className:'btn btn-secondary',onClick:load,disabled:busy},'Refresh')},
           msg?h('div',{className:'message'},msg):null,
           h('div',{className:'selected-week-banner'},h('small',null,'Selected week'),h('strong',null,selectedLabel)),
@@ -12573,7 +12612,7 @@ Thank you.`;
       const directCount=rows.filter(r=>r.status==='pending_superior'&&r.reporting_superior_id===profile.id).length;
       const managementCount=['Admin','Manager'].includes(profile.role)?rows.filter(r=>['pending_superior','pending_management'].includes(r.status)&&r.employee_id!==profile.id).length:0;
       if(!['Admin','Manager'].includes(profile.role)&&directCount===0)return h(Section,{title:'Leave Approvals',subtitle:'Requests from employees reporting to you'},h('div',{className:'empty'},'No leave or permission requests are awaiting your approval.'));
-      return h(React.Fragment,null,h(Section,{title:'Leave Approvals',subtitle:['Admin','Manager'].includes(profile.role)?`Management approval queue · ${managementCount} pending`:`Reporting superior approval queue · ${directCount} pending`,actions:h('button',{className:'btn btn-secondary',onClick:load,disabled:busy},'Refresh')},msg?h('div',{className:'message'},msg):null,h('div',{className:'absence-list'},...pending.map(requestCard)),pending.length===0?h('div',{className:'empty'},'No requests awaiting action.'):null),history.length?h(Section,{title:'Recent Decisions',subtitle:'Completed approval history'},h('div',{className:'absence-list'},...history.slice(0,30).map(requestCard))):null);
+      return h(React.Fragment,null,returnModal,h(Section,{title:'Leave Approvals',subtitle:['Admin','Manager'].includes(profile.role)?`Management approval queue · ${managementCount} pending`:`Reporting superior approval queue · ${directCount} pending`,actions:h('button',{className:'btn btn-secondary',onClick:load,disabled:busy},'Refresh')},msg?h('div',{className:'message'},msg):null,h('div',{className:'absence-list'},...pending.map(requestCard)),pending.length===0?h('div',{className:'empty'},'No requests awaiting action.'):null),history.length?h(Section,{title:'Recent Decisions',subtitle:'Completed approval history'},h('div',{className:'absence-list'},...history.slice(0,30).map(requestCard))):null);
     }
     return h(React.Fragment,null,h(Section,{title:'My Leave & Permission',subtitle:'Apply and track your leave, permission and approval status',actions:h('button',{className:'btn btn-primary',onClick:()=>{setForm({...empty});setModalMsg('');setSubmitted(false);setShowForm(true)}},'＋ New Request')},msg?h('div',{className:'message'},msg):null,h('div',{className:'absence-summary'},h('button',{type:'button',className:requestStatusFilter===''?'active':'',onClick:()=>setRequestStatusFilter('')},h('strong',null,baseVisible.length),h('small',null,'All')),h('button',{type:'button',className:requestStatusFilter==='pending'?'active':'' ,onClick:()=>setRequestStatusFilter(requestStatusFilter==='pending'?'':'pending')},h('strong',null,baseVisible.filter(r=>['pending_superior','pending_management'].includes(r.status)).length),h('small',null,'Pending')),h('button',{type:'button',className:requestStatusFilter==='approved'?'active':'',onClick:()=>setRequestStatusFilter(requestStatusFilter==='approved'?'':'approved')},h('strong',null,baseVisible.filter(r=>r.status==='approved').length),h('small',null,'Approved')),h('button',{type:'button',className:requestStatusFilter==='rejected'?'active':'',onClick:()=>setRequestStatusFilter(requestStatusFilter==='rejected'?'':'rejected')},h('strong',null,baseVisible.filter(r=>r.status==='rejected').length),h('small',null,'Rejected')),h('button',{type:'button',className:requestStatusFilter==='cancelled'?'active':'',onClick:()=>setRequestStatusFilter(requestStatusFilter==='cancelled'?'':'cancelled')},h('strong',null,baseVisible.filter(r=>r.status==='cancelled').length),h('small',null,'Cancelled'))),h('div',{className:'absence-list'},...visible.map(calendarRequestCard),visible.length===0?h('div',{className:'empty'},requestStatusFilter?'No requests found for this status.':'No leave or permission requests submitted yet.'):null)),formModal);
   }
