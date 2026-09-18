@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.46';
+  const APP_VERSION = '2.13.47';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -27370,6 +27370,60 @@ Please access the Samara Family Portal for detailed account information.`;
     return h('div',null,h(StoreInchargeAssignment,{profile,authority}));
   }
 
+// Shared non-financial stock display for charge requests and patient indents.
+// Stock is informational here; only the existing handover workflow issues stock.
+function stockAvailability(item, quantity, unit){
+  if(!item)return {status:'Select an inventory item',shortage:false};
+  if(item.balance_qty===null||item.balance_qty===undefined||item.balance_qty===''||!Number.isFinite(Number(item.balance_qty)))return {status:'Stock balance unavailable',shortage:false};
+  const balance=Number(item.balance_qty);
+  if(balance<=0)return {status:'Out of stock',shortage:Number(quantity)>0};
+  if(String(unit||'').trim().toLowerCase()!==String(item.unit||'').trim().toLowerCase())return {status:'Different units — quantity cannot be compared',shortage:false};
+  if(Number.isFinite(Number(quantity))&&Number(quantity)>balance)return {status:'Requested quantity exceeds store balance',shortage:true};
+  return {status:Number(item.reorder_level)>0&&balance<=Number(item.reorder_level)?'Low stock':'In stock',shortage:false};
+}
+
+function usePharmacyStock(){
+  const [items,setItems]=React.useState([]);
+  const [state,setState]=React.useState({loading:true,error:'',checkedAt:null});
+  const reload=React.useCallback(async()=>{
+    const result=await client.from('consumable_store_stock')
+      .select('item_id,item_name,unit,balance_qty,reorder_level,active')
+      .eq('active',true).order('item_name');
+    if(result.error){setState({loading:false,error:'Stock could not be refreshed. Check with Stores before issue.',checkedAt:null});return}
+    setItems(result.data||[]);
+    setState({loading:false,error:'',checkedAt:new Date()});
+  },[]);
+  React.useEffect(()=>{
+    let alive=true;
+    const refresh=()=>{if(alive)reload()};
+    refresh();
+    const timer=setInterval(refresh,15000);
+    window.addEventListener('focus',refresh);
+    return()=>{alive=false;clearInterval(timer);window.removeEventListener('focus',refresh)};
+  },[reload]);
+  return {items,...state,reload};
+}
+
+function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=true}){
+  const item=stock.items.find(row=>row.item_id===itemId);
+  const availability=stockAvailability(item,quantity,unit);
+  return h('div',{className:'field span-2',style:{padding:'12px',border:'1px solid #ead2dd',borderRadius:'10px'}},
+    showSelector&&h('label',null,'Specific stock item'),
+    showSelector&&h('select',{'aria-label':'Specific stock item',value:itemId||'',onChange:event=>onSelect(event.target.value),disabled:stock.loading},
+      h('option',{value:''},'Select exact item / brand / strength'),
+      stock.items.map(row=>h('option',{key:row.item_id,value:row.item_id},`${row.item_name} · ${row.unit}`))
+    ),
+    stock.loading?h('p',{'aria-live':'polite'},'Checking stock…'):
+    stock.error?h('p',{role:'status'},stock.error):
+    h('div',{'aria-live':'polite'},
+      item&&h('p',null,h('strong',null,`Store balance: ${item.balance_qty??'Unavailable'} ${item.unit}`)),
+      h('p',{style:{fontWeight:700,color:availability.shortage?'#a32c32':undefined}},availability.status),
+      stock.checkedAt&&h('small',null,`Checked ${stock.checkedAt.toLocaleTimeString('en-IN')}. Stock is not reserved by this request.`)
+    ),
+    h('button',{type:'button',className:'btn btn-secondary',onClick:stock.reload},'Refresh stock')
+  );
+}
+
   function ConsumablesStores({profile}){
     const authority=useStoreAuthority(profile);
     const controller=authority.controller;
@@ -27378,8 +27432,9 @@ Please access the Samara Family Portal for detailed account information.`;
     const [busy,setBusy]=React.useState(false);
     const [form,setForm]=React.useState({item_category:'Stores / Consumables',catalog_item:'',item_id:'',new_item_name:'',unit:'Nos',vendor_name:'',invoice_no:'',invoice_date:'',received_date:todayISOIndia(),quantity:'1',batch_no:'',expiry_date:'',unit_cost:'',remarks:'',generic_name:'',brand_name:'',strength:'',dosage_form:'Tablet',manufacturer:'',pack_size:''});
     const units=['Nos','Pairs','Packs','Boxes','Pieces','Rolls','Sets','Bottles'];
+    const basicPharmacyUnits={"Glucometer Strips": "Nos", "Lancets": "Nos", "Alcohol Swabs": "Nos", "Digital Thermometer": "Nos", "Thermometer Probe Covers": "Nos", "Pulse Oximeter": "Nos", "BP Cuff / Spare Cuff": "Nos", "Sterile Gauze Pads - 2 x 2": "Nos", "Sterile Gauze Pads - 4 x 4": "Nos", "Cotton Rolls": "Rolls", "Cotton Balls": "Nos", "Micropore Adhesive Tape": "Rolls", "Sterile Dressing Pads": "Nos", "Crepe Bandage - 2 inch": "Rolls", "Crepe Bandage - 4 inch": "Rolls", "Crepe Bandage - 6 inch": "Rolls", "Roller / Gauze Bandages": "Rolls", "Disposable Examination Gloves - S": "Pieces", "Disposable Examination Gloves - M": "Pieces", "Disposable Examination Gloves - L": "Pieces", "Surgical Masks": "Nos", "Disposable Syringe - 1 mL": "Nos", "Disposable Syringe - 2 mL": "Nos", "Disposable Syringe - 3 mL": "Nos", "Disposable Syringe - 5 mL": "Nos", "Disposable Syringe - 10 mL": "Nos", "Disposable Syringe - 20 mL": "Nos", "Needle - 18G": "Nos", "Needle - 20G": "Nos", "Needle - 21G": "Nos", "Needle - 22G": "Nos", "Needle - 23G": "Nos", "Needle - 24G": "Nos", "Needle - 25G": "Nos", "Needle - 26G": "Nos", "Insulin Syringe - U-40": "Nos", "Insulin Syringe - U-100": "Nos", "Insulin Pen Needle - 4 mm": "Nos", "Insulin Pen Needle - 5 mm": "Nos", "Insulin Pen Needle - 6 mm": "Nos", "Insulin Pen Needle - 8 mm": "Nos", "IV Cannula - 18G": "Nos", "IV Cannula - 20G": "Nos", "IV Cannula - 22G": "Nos", "IV Cannula - 24G": "Nos", "IV Sets": "Nos", "IV Extension Lines": "Nos", "Normal Saline Flush Syringes": "Nos", "Urine Specimen Containers": "Nos", "Disposable Urine Measuring Containers": "Nos", "Adult Urine Bags": "Nos", "Nebulizer Mask / Kit - Adult": "Nos", "Oxygen Nasal Cannula": "Nos", "Oxygen Masks": "Nos", "Suction Catheter - 10 Fr": "Nos", "Suction Catheter - 12 Fr": "Nos", "Suction Catheter - 14 Fr": "Nos", "Suction Catheter - 16 Fr": "Nos", "Feeding Syringe - 50 mL": "Nos", "Feeding Syringe - 60 mL": "Nos", "Disposable Underpads": "Nos", "Tongue Depressors": "Nos", "Hand Sanitizer": "Bottles", "Povidone-iodine Solution": "Bottles", "Chlorhexidine Antiseptic - As per Samara Protocol": "Bottles", "Normal Saline for Wound Cleansing": "Bottles", "Sharps Disposal Containers": "Nos", "Biomedical-waste Bags": "Nos"};
     const storesCatalog=['Adult Diapers','Underpads','Examination Gloves','Sterile Gloves','Surgical Masks','N95 Masks','PPE Kits','Cotton','Gauze','Cotton Rolls','Gauze Rolls','Adhesive Plaster','Micropore Tape','Dressing Pads','Bandages','Crepe Bandages','Syringes','Needles','IV Cannulas','IV Sets','Three-Way Cannulas','Urine Bags','Urinary Catheters','Ryle’s / NG Tubes','Feeding Tubes','Feeding Syringes','Suction Catheters','Tracheostomy Tubes','Tracheostomy Masks','Oxygen Masks','Nasal Cannulas','Nebulizer Masks','Disposable Aprons','Hand Sanitizer','Disinfectant Solution','Bed Linens','Patient Gowns','Tissue Paper','Wet Wipes','Garbage Bags','Biomedical Waste Bags','Cleaning Materials','Other Consumables'];
-    const pharmacyCatalog=['Tablets','Capsules','Syrups','Oral Drops','Injections','IV Fluids','Antibiotics','Analgesics / Pain Medicines','Antipyretics / Fever Medicines','Antacids','Antiemetics','Antihypertensives','Antidiabetic Medicines','Insulin','Anticoagulants','Respiratory Medicines','Nebulization Medicines','Antiseptic Solutions','Ointments','Creams','Eye Drops','Ear Drops','Nasal Drops / Sprays','Laxatives','Nutritional Supplements','Electrolyte Preparations','Emergency Medicines','Other Pharmacy Items'];
+    const pharmacyCatalog=[...["Glucometer Strips", "Lancets", "Alcohol Swabs", "Digital Thermometer", "Thermometer Probe Covers", "Pulse Oximeter", "BP Cuff / Spare Cuff", "Sterile Gauze Pads - 2 x 2", "Sterile Gauze Pads - 4 x 4", "Cotton Rolls", "Cotton Balls", "Micropore Adhesive Tape", "Sterile Dressing Pads", "Crepe Bandage - 2 inch", "Crepe Bandage - 4 inch", "Crepe Bandage - 6 inch", "Roller / Gauze Bandages", "Disposable Examination Gloves - S", "Disposable Examination Gloves - M", "Disposable Examination Gloves - L", "Surgical Masks", "Disposable Syringe - 1 mL", "Disposable Syringe - 2 mL", "Disposable Syringe - 3 mL", "Disposable Syringe - 5 mL", "Disposable Syringe - 10 mL", "Disposable Syringe - 20 mL", "Needle - 18G", "Needle - 20G", "Needle - 21G", "Needle - 22G", "Needle - 23G", "Needle - 24G", "Needle - 25G", "Needle - 26G", "Insulin Syringe - U-40", "Insulin Syringe - U-100", "Insulin Pen Needle - 4 mm", "Insulin Pen Needle - 5 mm", "Insulin Pen Needle - 6 mm", "Insulin Pen Needle - 8 mm", "IV Cannula - 18G", "IV Cannula - 20G", "IV Cannula - 22G", "IV Cannula - 24G", "IV Sets", "IV Extension Lines", "Normal Saline Flush Syringes", "Urine Specimen Containers", "Disposable Urine Measuring Containers", "Adult Urine Bags", "Nebulizer Mask / Kit - Adult", "Oxygen Nasal Cannula", "Oxygen Masks", "Suction Catheter - 10 Fr", "Suction Catheter - 12 Fr", "Suction Catheter - 14 Fr", "Suction Catheter - 16 Fr", "Feeding Syringe - 50 mL", "Feeding Syringe - 60 mL", "Disposable Underpads", "Tongue Depressors", "Hand Sanitizer", "Povidone-iodine Solution", "Chlorhexidine Antiseptic - As per Samara Protocol", "Normal Saline for Wound Cleansing", "Sharps Disposal Containers", "Biomedical-waste Bags"],'Tablets','Capsules','Syrups','Oral Drops','Injections','IV Fluids','Antibiotics','Analgesics / Pain Medicines','Antipyretics / Fever Medicines','Antacids','Antiemetics','Antihypertensives','Antidiabetic Medicines','Insulin','Anticoagulants','Respiratory Medicines','Nebulization Medicines','Antiseptic Solutions','Ointments','Creams','Eye Drops','Ear Drops','Nasal Drops / Sprays','Laxatives','Nutritional Supplements','Electrolyte Preparations','Emergency Medicines','Other Pharmacy Items'];
     const actor=formalName(profile)||profile?.full_name||profile?.login_id||profile?.role||'Staff';
     const notifyStore=(type,text)=>showSamaraActionToast(type,type==='success'?'Stores updated':'Stores action failed',text);
     const itemById=id=>stock.find(x=>x.item_id===id);
@@ -27398,7 +27453,7 @@ Please access the Samara Family Portal for detailed account information.`;
     }
     React.useEffect(()=>{load()},[]);
     function selectItem(id){const row=itemById(id);setForm(f=>({...f,item_id:id,catalog_item:'',new_item_name:'',unit:row?.unit||f.unit}))}
-    function selectCatalogItem(name){setForm(f=>({...f,catalog_item:name,item_id:'',new_item_name:name,unit:f.item_category==='Pharmacy'?'Packs':f.unit}))}
+    function selectCatalogItem(name){setForm(f=>({...f,catalog_item:name,item_id:'',new_item_name:name,unit:basicPharmacyUnits[name]||(f.item_category==='Pharmacy'?'Packs':f.unit)}))}
     async function receiveStock(e){
       e.preventDefault();if(!controller||busy)return;
       if(!form.item_id&&!String(form.new_item_name||'').trim()){notifyStore('error','Select an item or enter a new item name.');return}
@@ -27513,7 +27568,8 @@ Please access the Samara Family Portal for detailed account information.`;
 
   function PatientConsumables({profile}){
     const authority=useStoreAuthority(profile);
-    const [patients,setPatients]=React.useState([]),[rows,setRows]=React.useState([]),[stock,setStock]=React.useState([]);
+    const [patients,setPatients]=React.useState([]),[rows,setRows]=React.useState([]);
+    const stockInfo=usePharmacyStock(),stock=stockInfo.items;
     const [busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('Open');
     const [form,setForm]=React.useState({patient_id:'',store_item_id:'',item_name:'',requested_qty:'1',unit:'Nos',request_remarks:''});
     const storeController=authority.controller,nurse=profile?.role==='Nurse'&&!isNursingManagerProfile(profile);
@@ -27528,14 +27584,14 @@ Please access the Samara Family Portal for detailed account information.`;
       setTimeout(()=>document.getElementById('consumables-indent-register')?.scrollIntoView({behavior:'smooth',block:'start'}),40);
     }
     async function load(){
-      const [pRes,iRes,sRes]=await Promise.all([
+      const [pRes,iRes]=await Promise.all([
         client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').eq('is_active',true).order('full_name'),
         client.from('patient_consumable_indents').select('*').order('created_at',{ascending:false}).limit(500),
-        client.from('consumable_store_stock').select('*').eq('active',true).order('item_name')
+        stockInfo.reload()
       ]);
       if(!pRes.error)setPatients(pRes.data||[]);
       if(iRes.error){console.warn(iRes.error);notify('error','Consumables workflow database is not installed yet.')} else setRows(iRes.data||[]);
-      if(sRes.error)console.warn(sRes.error);else setStock(sRes.data||[]);
+
     }
     async function refreshIndents(){
       if(busy)return;
@@ -27548,7 +27604,7 @@ Please access the Samara Family Portal for detailed account information.`;
     function chooseItem(id){const st=stock.find(x=>x.item_id===id);setForm(f=>({...f,store_item_id:id,item_name:displayStoreItemName(st?.item_name)||'',unit:st?.unit||'Nos'}))}
     async function initiate(e){
       e.preventDefault();if(!nurse||busy)return;
-      if(!form.patient_id||!form.item_name||Number(form.requested_qty)<=0){notify('error','Select patient, consumable and valid quantity.');return}
+      if(!form.patient_id||!stock.some(x=>x.item_id===form.store_item_id)||!form.item_name||!Number.isFinite(Number(form.requested_qty))||Number(form.requested_qty)<=0){notify('error','Select patient, consumable and valid quantity.');return}
       setBusy(true);const result=await client.from('patient_consumable_indents').insert({patient_id:form.patient_id,store_item_id:form.store_item_id||null,item_name:form.item_name,requested_qty:Number(form.requested_qty),unit:form.unit||'Nos',request_remarks:form.request_remarks||null,initiated_by:profile.id,initiated_by_name:actorName,status:'Initiated'});setBusy(false);
       if(result.error)notify('error',result.error.message);else{notify('success','Patient consumable indent initiated and sent to Nurse Manager.');setForm(f=>({...f,store_item_id:'',item_name:'',requested_qty:'1',unit:'Nos',request_remarks:''}));await load()}
     }
@@ -27580,20 +27636,20 @@ Please access the Samara Family Portal for detailed account information.`;
     const openStatuses=['Initiated','Approved','Partially Approved','Handed Over','Receipt Discrepancy'];
     const visible=rows.filter(r=>filter==='All'||(filter==='Open'?openStatuses.includes(r.status):filter==='Awaiting Handover'?['Approved','Partially Approved'].includes(r.status):r.status===filter));
     const counts={initiated:rows.filter(r=>r.status==='Initiated').length,handover:rows.filter(r=>['Approved','Partially Approved'].includes(r.status)).length,receipt:rows.filter(r=>r.status==='Handed Over').length,discrepancy:rows.filter(r=>r.status==='Receipt Discrepancy').length};
-    const options=stock.length?stock:fallbackItems.map((item_name,i)=>({item_id:`fallback-${i}`,item_name,unit:'Nos',balance_qty:'—'}));
+    const options=stock;
     return h('div',null,
       h(Section,{title:'Patient Consumables',subtitle:'Nurse initiates for a patient → Store In-charge approves and hands over → Nurse confirms actual receipt.'},
         h('div',{className:'grid stats'},
           [['Awaiting Approval',counts.initiated,'Initiated'],['Awaiting Handover',counts.handover,'Awaiting Handover'],['Awaiting Receipt',counts.receipt,'Handed Over'],['Discrepancies',counts.discrepancy,'Receipt Discrepancy']].map(([label,count,target])=>h('button',{key:label,type:'button',className:'card stat',onClick:()=>navigateIndentFilter(target),style:{width:'100%',textAlign:'left',cursor:'pointer',border:filter===target?'2px solid #b30b5d':'1px solid #ead2dd',fontFamily:'inherit'}},h('span',null,label),h('strong',null,count),h('small',{style:{display:'block',marginTop:'7px',color:'#9b1456',fontWeight:800}},'Tap to view →')))
         )
       ),
-      nurse&&h(Section,{title:'New Patient Indent',subtitle:'Select an active patient and an item from the Stores master. Available balance is shown for visibility.'},
+      nurse&&h(Section,{title:'New Patient Indent',subtitle:'Select an active patient and a consumable or pharmacy item. Available store balance refreshes automatically; stock is issued at handover.'},
         h('form',{onSubmit:initiate},h('div',{className:'grid two'},
           h('div',{className:'field'},h('label',null,'Patient *'),h('select',{value:form.patient_id,onChange:e=>setForm({...form,patient_id:e.target.value}),required:true},h('option',{value:''},'Select active patient'),patients.map(p=>h('option',{key:p.id,value:p.id},patientLabel(p.id))))),
-          h('div',{className:'field'},h('label',null,'Consumable *'),h('select',{value:form.store_item_id,onChange:e=>chooseItem(e.target.value),required:stock.length>0},h('option',{value:''},'Select consumable'),options.map(x=>h('option',{key:x.item_id,value:x.item_id},`${x.item_name}${stock.length?` · Store balance ${x.balance_qty} ${x.unit}`:''}`)))),
+          h('div',{className:'field'},h('label',null,'Consumable / Pharmacy Item *'),h('select',{'aria-label':'Consumable / Pharmacy Item',value:form.store_item_id,onChange:e=>chooseItem(e.target.value),required:stock.length>0},h('option',{value:''},'Select consumable / pharmacy item'),options.map(x=>h('option',{key:x.item_id,value:x.item_id},`${x.item_name}${stock.length?` · Store balance ${x.balance_qty} ${x.unit}`:''}`)))),
           h('div',{className:'field'},h('label',null,'Quantity *'),h('input',{type:'number',min:'0.01',step:'0.01',value:form.requested_qty,onChange:e=>setForm({...form,requested_qty:e.target.value}),required:true})),
           h('div',{className:'field'},h('label',null,'Unit'),h('input',{value:form.unit,readOnly:true}))
-        ),h('div',{className:'field'},h('label',null,'Reason / Remarks'),h('textarea',{rows:2,value:form.request_remarks,onChange:e=>setForm({...form,request_remarks:e.target.value}),placeholder:'Optional clinical/use note'})),h('button',{className:'btn btn-primary',disabled:busy||!form.item_name},busy?'Saving…':'Initiate Indent'))
+        ),h(PharmacyStockPanel,{stock:stockInfo,itemId:form.store_item_id,quantity:form.requested_qty,unit:form.unit,showSelector:false}),h('div',{className:'field'},h('label',null,'Reason / Remarks'),h('textarea',{rows:2,value:form.request_remarks,onChange:e=>setForm({...form,request_remarks:e.target.value}),placeholder:'Optional clinical/use note'})),h('button',{className:'btn btn-primary',disabled:busy||!form.item_name},busy?'Saving…':'Initiate Indent'))
       ),
       h('div',{id:'consumables-indent-register',style:{scrollMarginTop:'90px'}},h(Section,{title:'Consumables Indent Register',actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:refreshIndents},busy?'Refreshing…':'↻ Refresh'),['Open','Initiated','Awaiting Handover','Handed Over','Receipt Discrepancy','Received','Rejected','All'].map(x=>h('button',{type:'button',key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>navigateIndentFilter(x),'aria-pressed':filter===x},x)))},
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Indent','Patient','Item / Store Balance','Requested','Approved','Handed Over','Received','Status','Initiated By / Time','Approval / Handover','Receipt','Action'].map(x=>h('th',{key:x},x)))),
@@ -27637,6 +27693,9 @@ Please access the Samara Family Portal for detailed account information.`;
     );
   }
   function ClinicalCharges({profile,initialPatientId=''}){
+    const chargeStock=usePharmacyStock();
+    const matchingStock=name=>{const matches=chargeStock.items.filter(x=>String(x.item_name).trim().toLowerCase()===String(name).trim().toLowerCase());return matches.length===1?matches[0]:null};
+    const stockDefaults=(category,name)=>{const item=['Consumables','Pharmacy & Basic Supplies'].includes(category)?matchingStock(name):null;return {store_item_id:item?.item_id||'',unit:item?.unit||'Service'}};
     const canRaise=['Admin','Manager','Nurse','Accounts'].includes(profile?.role);
     const canApprove=profile?.role==='Accounts';
     const canManageTariffs=profile?.role==='Admin';
@@ -27661,6 +27720,7 @@ Please access the Samara Family Portal for detailed account information.`;
       'Hospital Visits':['Patient Taken to Hospital','Hospital Bill Paid by Samara','Hospital Registration Fee','Investigation Charges','Outside Pharmacy Purchase','Radiology Charges'],
       'Transport':['Ambulance','Samara Vehicle','Taxi','Auto','Fuel','Toll','Parking'],
       'Special Care':['Special Nurse','Extra Caregiver','Additional Nursing Hours','Night Duty Charges'],
+      'Pharmacy & Basic Supplies':["Glucometer Strips", "Lancets", "Alcohol Swabs", "Digital Thermometer", "Thermometer Probe Covers", "Pulse Oximeter", "BP Cuff / Spare Cuff", "Sterile Gauze Pads - 2 x 2", "Sterile Gauze Pads - 4 x 4", "Cotton Rolls", "Cotton Balls", "Micropore Adhesive Tape", "Sterile Dressing Pads", "Crepe Bandage - 2 inch", "Crepe Bandage - 4 inch", "Crepe Bandage - 6 inch", "Roller / Gauze Bandages", "Disposable Examination Gloves - S", "Disposable Examination Gloves - M", "Disposable Examination Gloves - L", "Surgical Masks", "Disposable Syringe - 1 mL", "Disposable Syringe - 2 mL", "Disposable Syringe - 3 mL", "Disposable Syringe - 5 mL", "Disposable Syringe - 10 mL", "Disposable Syringe - 20 mL", "Needle - 18G", "Needle - 20G", "Needle - 21G", "Needle - 22G", "Needle - 23G", "Needle - 24G", "Needle - 25G", "Needle - 26G", "Insulin Syringe - U-40", "Insulin Syringe - U-100", "Insulin Pen Needle - 4 mm", "Insulin Pen Needle - 5 mm", "Insulin Pen Needle - 6 mm", "Insulin Pen Needle - 8 mm", "IV Cannula - 18G", "IV Cannula - 20G", "IV Cannula - 22G", "IV Cannula - 24G", "IV Sets", "IV Extension Lines", "Normal Saline Flush Syringes", "Urine Specimen Containers", "Disposable Urine Measuring Containers", "Adult Urine Bags", "Nebulizer Mask / Kit - Adult", "Oxygen Nasal Cannula", "Oxygen Masks", "Suction Catheter - 10 Fr", "Suction Catheter - 12 Fr", "Suction Catheter - 14 Fr", "Suction Catheter - 16 Fr", "Feeding Syringe - 50 mL", "Feeding Syringe - 60 mL", "Disposable Underpads", "Tongue Depressors", "Hand Sanitizer", "Povidone-iodine Solution", "Chlorhexidine Antiseptic - As per Samara Protocol", "Normal Saline for Wound Cleansing", "Sharps Disposal Containers", "Biomedical-waste Bags"],
       'Consumables':['Adult Diapers','Gloves','Syringes','Dressing Materials','PPE','Feeding Tubes','Catheters','Oxygen Consumables','Other Consumables'],
       'Food & Nutrition':['Special Diet','Nutritional Supplements','Tube Feed Formula','Outside Food Purchase'],
       'Miscellaneous':['Laundry','Courier','Miscellaneous Expense']
@@ -27684,7 +27744,7 @@ Please access the Samara Family Portal for detailed account information.`;
     const categories=Object.keys(catalogCategories).length?catalogCategories:fallbackCategories;
 
     const fresh=()=>({
-      patient_id:'',charge_date:todayISOIndia(),service_datetime:localDateTimeValue(),
+      patient_id:'',store_item_id:'',charge_date:todayISOIndia(),service_datetime:localDateTimeValue(),
       category:'Doctor Services',service_name:'General Physician Visit',other_service_name:'',
       service_provider:'',doctor_name:'',description:'General Physician Visit',
       quantity:'1',unit:'Service',unit_cost:'',requested_amount:'',urgency:'Routine',
@@ -27771,16 +27831,18 @@ Please access the Samara Family Portal for detailed account information.`;
       return()=>{clearInterval(refreshTimer);window.removeEventListener('focus',load);client.removeChannel(ch)};
     },[]);
 
-    function openNew(){const base=fresh();const firstCategory=Object.keys(categories)[0]||base.category;const firstService=(categories[firstCategory]||[])[0]||base.service_name;setFiles([]);setBatchItems([]);setForm({...base,category:firstCategory,service_name:firstService,description:firstService});setShow(true)}
+    function openNew(){const base=fresh();const firstCategory=Object.keys(categories)[0]||base.category;const firstService=(categories[firstCategory]||[])[0]||base.service_name;setFiles([]);setBatchItems([]);setForm({...base,category:firstCategory,service_name:firstService,description:firstService,...stockDefaults(firstCategory,firstService)});setShow(true)}
     function changeCategory(value){
       const first=(categories[value]||[])[0]||'Others';
-      setForm(current=>({...current,category:value,service_name:first,other_service_name:'',description:first==='Others'?'':first,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(value)&&first!=='Others'?first:''}));
+      setForm(current=>({...current,category:value,service_name:first,...stockDefaults(value,first),other_service_name:'',description:first==='Others'?'':first,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(value)&&first!=='Others'?first:''}));
     }
     function changeService(value){
-      setForm(current=>({...current,service_name:value,other_service_name:value==='Others'?current.other_service_name:'',description:value==='Others'?current.other_service_name:value,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(current.category)&&value!=='Others'?value:current.test_name}));
+      setForm(current=>({...current,service_name:value,...stockDefaults(current.category,value),other_service_name:value==='Others'?current.other_service_name:'',description:value==='Others'?current.other_service_name:value,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(current.category)&&value!=='Others'?value:current.test_name}));
     }
     function validateDraft(draft,draftFiles){
       if(!draft.patient_id)return 'Select the patient.';
+      if(!Number.isFinite(Number(draft.quantity))||Number(draft.quantity)<=0)return 'Enter a valid positive quantity.';
+      if(draft.store_item_id){const item=chargeStock.items.find(x=>x.item_id===draft.store_item_id);if(!item)return 'Selected stock item is no longer available. Refresh and select again.';if(item.unit!==draft.unit)return 'Use the selected stock item unit.';}
       if(draft.service_name==='Others'&&!String(draft.other_service_name||'').trim())return 'Enter the Other charge / service item.';
       if(isFutureDateIndia(draft.charge_date)||isFutureDateIndia(draft.bill_date))return 'Future dates are not permitted.';
       if(draft.bill_available&&(draftFiles||[]).length===0)return 'Upload the supporting bill / invoice when Bill available is selected.';
@@ -27819,14 +27881,14 @@ Please access the Samara Family Portal for detailed account information.`;
       }
     }
     async function saveOne(draft,draftFiles,user){
-      const qty=Math.max(1,Number(draft.quantity||1));
+      const qty=Number(draft.quantity);
       const nurseRaised=profile?.role==='Nurse';
       const isOther=draft.service_name==='Others';
       const effectiveService=isOther?String(draft.other_service_name||'').trim():draft.service_name;
       const rate=nurseRaised?0:Number(draft.unit_cost||0);
       const amount=nurseRaised?0:Number(draft.requested_amount||qty*rate||0);
       const payload={
-        patient_id:draft.patient_id,charge_date:draft.charge_date,
+        patient_id:draft.patient_id,charge_date:draft.charge_date,store_item_id:draft.store_item_id||null,
         service_datetime:new Date(draft.service_datetime).toISOString(),
         category:draft.category,service_code:isOther?'OTHER':effectiveService.toUpperCase().replace(/[^A-Z0-9]+/g,'_'),
         service_name:effectiveService,service_provider:draft.service_provider||null,
@@ -28030,7 +28092,10 @@ Please access the Samara Family Portal for detailed account information.`;
       miniInput('Provider / Organisation',form.service_provider,v=>setForm({...form,service_provider:v})),
       miniInput('Doctor / Consultant',form.doctor_name,v=>setForm({...form,doctor_name:v})),
       miniInput('Quantity',form.quantity,v=>setForm({...form,quantity:v}),true,'number'),
-      miniInput('Unit',form.unit,v=>setForm({...form,unit:v})),
+      form.store_item_id?h('div',{className:'field'},h('label',null,'Unit'),h('input',{value:form.unit,readOnly:true})):miniInput('Unit',form.unit,v=>setForm({...form,unit:v})),
+      ['Consumables','Pharmacy & Basic Supplies'].includes(form.category)&&h(PharmacyStockPanel,{stock:chargeStock,itemId:form.store_item_id,quantity:form.quantity,unit:form.unit,onSelect:id=>{const item=chargeStock.items.find(x=>x.item_id===id);setForm(current=>({...current,store_item_id:id,unit:item?.unit||current.unit}))}}),
+      ['Consumables','Pharmacy & Basic Supplies'].includes(form.category)&&h('p',{className:'span-2'},'Completed indents already create a charge request. Check the register before raising another charge for the same issue. Raising this request does not deduct stock.'),
+      form.category==='Pharmacy & Basic Supplies'&&h('p',{className:'span-2'},'Record the exact brand, size, concentration or pack size in Remarks where applicable. Reusable equipment and general supplies are subject to Accounts review before patient billing.'),
       profile?.role==='Accounts'&&miniInput('Unit Cost',form.unit_cost,v=>setForm({...form,unit_cost:v}),false,'number'),
       profile?.role==='Accounts'&&miniInput('Total Amount',form.requested_amount,v=>setForm({...form,requested_amount:v}),false,'number'),
       miniSelect('Urgency',form.urgency,['Routine','Urgent','Emergency'],v=>setForm({...form,urgency:v})),
