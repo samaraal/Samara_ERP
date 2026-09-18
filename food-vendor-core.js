@@ -137,5 +137,18 @@ function statementPdf(model){
  for(const note of model.notes||[]){const lines=wrap(note,W-2*M,11);if(y+lines.length*15+20>H-50)newPage();y+=20;lines.forEach(l=>{text(l,M,y,11);y+=15})}finish();return pdfFromJpegs(pages);
 }
 
-const api={dateText,orderProgress,orderFilterFacts,matchesOrderFilter,logo,statementLogo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary,label,amountWords,pdfFromJpegs,statementPdf};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+
+// Agreed vendor deadlines use the supply date in India, not the delivery hour.
+const cutoffRules={Tiffin:{time:'21:00',days:1,label:'Breakfast'},Breakfast:{time:'21:00',days:1,label:'Breakfast'},Lunch:{time:'08:00',days:0,label:'Lunch'},Dinner:{time:'17:00',days:0,label:'Dinner'}};
+function orderCutoff(order,now=Date.now()){
+ const rule=cutoffRules[order?.slot];if(!rule||!/^\d{4}-\d{2}-\d{2}$/.test(order?.date||''))return null;
+ const deadline=Date.parse(order.date+'T'+rule.time+':00+05:30')-rule.days*86400000;
+ if(!Number.isFinite(deadline))return null;
+ const date=new Date(deadline).toLocaleDateString('en-GB',{timeZone:'Asia/Kolkata'});
+ const time=new Date(deadline).toLocaleTimeString('en-US',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit',hour12:true});
+ const closed=now>=deadline;
+ return {deadline,closed,text:closed?'Cutoff passed for '+rule.label+' ('+date+' at '+time+' IST). No new orders or modifications are allowed.':'Order and modification cutoff: '+date+' at '+time+' IST.'};
+}
+
+const api={orderCutoff,cutoffRules,dateText,orderProgress,orderFilterFacts,matchesOrderFilter,logo,statementLogo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary,label,amountWords,pdfFromJpegs,statementPdf};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(globalThis);
