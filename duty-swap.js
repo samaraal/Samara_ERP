@@ -98,7 +98,7 @@
       e.preventDefault();if(lock.current||!data?.can_manage)return;
       lock.current=true;setBusy(true);setError('');
       try{
-        const {error}=await client.rpc('create_department_duty_swap',{p_std:form.std,p_nursing:form.nursing,p_starts_at:indiaISO(form.start),p_ends_at:indiaISO(form.end),p_reason:form.reason.trim()});
+        const {error}=await client.rpc('create_department_duty_swap',{p_std:form.std,p_nursing:form.nursing,p_starts_at:indiaISO(form.start),p_ends_at:indiaISO(form.end),p_reason:'Temporary duty swap'});
         if(error)throw error;
         setForm(f=>({...f,reason:''}));await load();window.dispatchEvent(new Event('samara-duty-swap-changed'));
       }catch(error){setError(error.message||'Unable to save assignment.')}finally{lock.current=false;setBusy(false)}
@@ -112,27 +112,24 @@
     }
     const input=(label,key,type='text')=>h('label',{className:'field'},label,h('input',{type,required:true,value:form[key],onInput:e=>{const value=e.target.value;setForm(f=>({...f,[key]:value}))},onChange:e=>{const value=e.target.value;setForm(f=>({...f,[key]:value}))}}));
     const select=(label,key,role)=>h('label',{className:'field'},label,h('select',{required:true,value:form[key],onChange:e=>setForm({...form,[key]:e.target.value})},h('option',{value:''},'Select employee'),...(data?.candidates||[]).filter(p=>p.role===role).map(p=>h('option',{value:p.id,key:p.id},p.name))));
-    return h('div',{className:'card'},
-      h('h3',null,'Temporary Duty Swap'),
-      h('p',null,'Interchange STD and Nursing Manager department responsibilities for a selected period. Regular duties return automatically at the end time, even when the ERP is closed.'),
-      h('p',null,'Each employee keeps their own login, personal records and audit identity. Admin/Director authority is not transferred.'),
+    return h('div',{className:'card',style:{maxWidth:'850px',padding:'24px'}},
+      h('h3',null,'This period'),
       error&&h('div',{className:'message error',role:'alert'},error),
       !data?h('p',null,'Loading assignments…'):null,
       data?.can_manage&&h('form',{onSubmit:save},
-        h('h4',null,'Assign a period'),h('div',{className:'modal-grid'},select('Regular STD','std','STD'),select('Regular Nursing Manager','nursing','Manager'),input('Start — India time','start','datetime-local'),input('End — India time','end','datetime-local')),
-        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{const day=form.start.slice(0,10);const next=new Date(day+'T00:00:00+05:30');next.setTime(next.getTime()+86400000);setForm({...form,start:day+'T00:00',end:indiaInput(next)})}},'Use full selected day'),
-        h('label',{className:'field'},'Reason / training purpose',h('textarea',{required:true,value:form.reason,onChange:e=>setForm({...form,reason:e.target.value})})),
-        h('p',{className:'message warning'},'All department duties and permissions will interchange during this period, including nursing oversight, Stores, Food & Diet, the STD desk and the corresponding WhatsApp access. Resolve any conflicting leave handover first.'),
-        h('button',{type:'submit',className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save Temporary Swap')
+        h('div',{className:'modal-grid'},select('Nursing Manager','std','STD'),select('STD','nursing','Manager')),
+        h('h4',null,'Period'),h('div',{className:'modal-grid'},input('From','start','datetime-local'),input('To','end','datetime-local')),
+        h('p',{className:'muted'},'India time. Regular duties return automatically after this period.'),
+        h('button',{type:'submit',className:'btn btn-primary',disabled:busy},busy?'Assigning…':'Assign')
       ),
-      h('h4',null,'Assignment history'),h('button',{type:'button',className:'btn btn-secondary',onClick:load,disabled:busy},'Refresh'),
+      h('h4',null,'Assignments'),
       (data?.assignments||[]).map(s=>h('div',{className:'card',key:s.id,style:{marginTop:'12px'}},
-        h('strong',null,s.status),h('p',null,`${s.std_name} → Nursing Manager duties; ${s.nursing_name} → STD duties`),
-        h('p',null,`${display(s.starts_at)} — ${display(s.ends_at)}`),h('p',null,s.reason),h('small',null,`Assigned by ${s.created_by_name}`),
+        h('strong',null,s.status),h('p',null,`Nursing Manager: ${s.std_name}`),h('p',null,`STD: ${s.nursing_name}`),
+        h('p',null,`${display(s.starts_at)} — ${display(s.ends_at)}`),h('small',null,`Assigned by ${s.created_by_name}`),
         s.cancellation_reason&&h('p',null,`Ended early: ${s.cancellation_reason}`),
         data?.can_manage&&['Active','Scheduled','Inactive employee'].includes(s.status)&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>{setEnding(s.id);setEndReason('')}},s.status==='Scheduled'?'Cancel assignment':'End assignment now')
       )),
-      data&&!data.assignments.length&&h('p',null,'No temporary duty swaps recorded.'),
+      data&&!data.assignments.length&&h('p',null,'No assignments yet.'),
       ending&&h('form',{className:'card',onSubmit:end},h('h4',null,'End temporary assignment'),h('p',null,'This immediately restores regular department duties.'),h('textarea',{required:true,placeholder:'Reason',value:endReason,onChange:e=>setEndReason(e.target.value)}),h('button',{className:'btn btn-primary',disabled:busy},'Confirm end'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setEnding(null),disabled:busy},'Keep assignment'))
     );
   }
