@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.54';
+  const APP_VERSION = '2.13.55';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -26176,7 +26176,7 @@ function ShiftHandover({profile,onNavigate}){
   function BillingPayments({profile}){
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
-    const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
+    const [patientLedger,setPatientLedger]=React.useState({patientId:null,rows:[],loading:true,error:''});
     const [loading,setLoading]=React.useState(true);
     const [saving,setSaving]=React.useState(false);
     const [message,setMessage]=React.useState('');
@@ -26210,8 +26210,9 @@ function ShiftHandover({profile,onNavigate}){
       }catch(_error){return ''}
     });
     const chargeReadiness=useChargeReadiness(patientFilter);
-    const clearanceBlocked=chargeReadiness.loading||!!chargeReadiness.error||chargeReadiness.rows.length>0;
-    const [quickView,setQuickView]=React.useState('Pending Bills');
+    const ledgerReady=patientLedger.patientId===patientFilter&&!patientLedger.loading&&!patientLedger.error;
+    const clearanceBlocked=!ledgerReady||chargeReadiness.loading||!!chargeReadiness.error||chargeReadiness.rows.length>0;
+    const [quickView,setQuickView]=React.useState(dischargeTarget?'Complete Transaction History':'Pending Bills');
     const [form,setForm]=React.useState({
       patient_id:dischargeTarget?.patient_id||'',
       transaction_type:'Payment',
@@ -26316,28 +26317,30 @@ function ShiftHandover({profile,onNavigate}){
 
     React.useEffect(()=>{
       let cancelled=false;
-      if(!patientFilter){
-        setPatientLedgerRows([]);
-        return()=>{cancelled=true};
-      }
+      setPatientLedger({patientId:patientFilter,rows:[],loading:!!patientFilter,error:''});
+      if(!patientFilter)return()=>{cancelled=true};
       (async()=>{
-        const {data,error}=await client.from('billing_transactions')
-          .select('*,patients(full_name,title,patient_id,room_no,bed_no)')
-          .eq('patient_id',patientFilter)
-          .order('transaction_date',{ascending:false});
-        if(cancelled)return;
-        if(error){
-          console.error('Selected patient ledger could not be loaded:',error);
-          setPatientLedgerRows(rows.filter(row=>row.patient_id===patientFilter));
-        }else{
-          setPatientLedgerRows(data||[]);
+        try{
+          const all=[];
+          for(let offset=0;;offset+=500){
+            const {data,error}=await client.from('billing_transactions')
+              .select('*,patients(full_name,title,patient_id,room_no,bed_no)')
+              .eq('patient_id',patientFilter).order('transaction_date',{ascending:false}).order('id').range(offset,offset+499);
+            if(cancelled)return;
+            if(error)throw error;
+            all.push(...(data||[]));
+            if((data||[]).length<500)break;
+          }
+          setPatientLedger({patientId:patientFilter,rows:all,loading:false,error:''});
+        }catch(error){
+          if(!cancelled)setPatientLedger({patientId:patientFilter,rows:[],loading:false,error:error.message||'Patient ledger could not be loaded.'});
         }
       })();
       return()=>{cancelled=true};
     },[patientFilter,rows]);
 
     const visibleRows=patientFilter
-      ?patientLedgerRows
+      ?(ledgerReady?patientLedger.rows:[])
       :rows;
 
     const totals=visibleRows.reduce((sum,row)=>{
@@ -26367,7 +26370,7 @@ function ShiftHandover({profile,onNavigate}){
     })();
 
     React.useEffect(()=>{
-      if(dischargeTarget&&patientFilter===dischargeTarget.patient_id&&pendingBills>0){
+      if(ledgerReady&&dischargeTarget&&patientFilter===dischargeTarget.patient_id&&pendingBills>0){
         setForm(current=>({
           ...current,
           patient_id:dischargeTarget.patient_id,
@@ -26377,10 +26380,10 @@ function ShiftHandover({profile,onNavigate}){
           description:`Final payment for discharge clearance of ${dischargeTarget.patient_name||'patient'}`
         }));
       }
-    },[dischargeTarget?.discharge_id,patientFilter,pendingBills]);
+    },[dischargeTarget?.discharge_id,patientFilter,pendingBills,ledgerReady]);
 
     React.useEffect(()=>{
-      if(!dischargeTarget||patientFilter!==dischargeTarget.patient_id||advanceBalance<=0.009)return;
+      if(!ledgerReady||!dischargeTarget||patientFilter!==dischargeTarget.patient_id||advanceBalance<=0.009)return;
       let cancelled=false;
       (async()=>{
         setRefundLoading(true);
@@ -26395,7 +26398,7 @@ function ShiftHandover({profile,onNavigate}){
         if(!cancelled)setRefundLoading(false);
       })();
       return()=>{cancelled=true};
-    },[dischargeTarget?.discharge_id,patientFilter,advanceBalance]);
+    },[dischargeTarget?.discharge_id,patientFilter,advanceBalance,ledgerReady]);
 
     async function verifyRefundByAccounts(){
       if(!canVerifyDischargeRefund||!refundRequest||saving)return;
@@ -26715,6 +26718,7 @@ Please access the Samara Family Portal for detailed account information.`;
     }
 
     async function verifyChargesBeforeClearance(){
+      if(!ledgerReady)throw Error('Wait until the complete patient ledger is loaded before financial clearance.');
       const unresolved=await fetchUnpostedCharges(dischargeTarget.patient_id);
       window.dispatchEvent(new Event('samara-refresh-charges'));
       if(unresolved.length)throw Error(`${unresolved.length} unresolved charge request(s). Open Charge Approvals and resolve every request before clearance.`);
@@ -26985,7 +26989,8 @@ Please access the Samara Family Portal for detailed account information.`;
 
     const summaryCards=[
       ['Total Charges',totals.Charge,'summary-blue'],
-      ['Payments / Advance',paidTotal,'summary-green'],
+      ['Payments Received',totals.Payment,'summary-green'],
+      ['Advance Receipts',totals.Advance,'summary-blue'],
       ['Discounts',totals.Discount,'summary-pink'],
       ['Pending Bills',pendingBills,pendingBills>0?'summary-red':'summary-green'],
       [balanceLabel,balanceDisplay,balanceTone,'signed']
@@ -26997,9 +27002,9 @@ Please access the Samara Family Portal for detailed account information.`;
         subtitle:`${dischargeTarget.patient_name} · ${dischargeTarget.patient_code||'No ID'} · Room ${dischargeTarget.room_no||'—'}${dischargeTarget.bed_no?`-${dischargeTarget.bed_no}`:''}`
       },
         h('div',{className:'message info'},
-          advanceBalance>0.009
+          !ledgerReady?'Loading the complete patient ledger. Settlement actions remain unavailable.':advanceBalance>0.009
             ?`Excess patient balance detected: ${money(advanceBalance)} refundable. The system has initiated a dual-control refund workflow. One Administrator must complete the financial verification first; a different Administrator must then approve it before the case returns to Nursing.`
-            :'Complete the exact final settlement below. Financial clearance is permitted only after the system verifies the ledger, amount, payment evidence and closure remarks.'
+            :(Math.abs(netPayable)<=0.009?'Account settled. No additional payment is due. Verify the existing receipts and clear Accounts below.':'Complete the exact final settlement below. Financial clearance is permitted only after the system verifies the ledger, amount, payment evidence and closure remarks.')
         )
       ),
 
@@ -27053,7 +27058,8 @@ Please access the Samara Family Portal for detailed account information.`;
         )
       ),
 
-      h('div',{className:'payment-summary-grid'},
+      patientFilter&&!ledgerReady&&h('div',{className:patientLedger.error?'message error':'message info'},patientLedger.error||'Loading complete patient ledger…'),
+      (!patientFilter||ledgerReady)&&h('div',{className:'payment-summary-grid'},
         summaryCards.map(([label,value,klass,format])=>h('div',{
           className:`payment-summary-card ${klass}`,
           key:label
@@ -27070,7 +27076,7 @@ Please access the Samara Family Portal for detailed account information.`;
         ))
       ),
 
-      dischargeTarget&&advanceBalance>0.009&&h(Section,{
+      dischargeTarget&&ledgerReady&&advanceBalance>0.009&&h(Section,{
         title:'Refund Required Before Discharge',
         subtitle:activeAccountantPresent?'Dual-control financial clearance · Accountant verification → Admin approval → Nursing':'Dual-control financial clearance · Admin fallback verification → independent Admin approval → Nursing'
       },
@@ -27126,13 +27132,13 @@ Please access the Samara Family Portal for detailed account information.`;
       ),
 
       patientFilter&&h(ChargeReadinessSummary,{state:chargeReadiness}),
-      dischargeTarget&&Math.abs(netPayable)<=0.009&&message&&h('div',{className:'message error'},message),
-      dischargeTarget&&Math.abs(netPayable)<=0.009&&h(Section,{title:'Zero Balance Discharge Clearance',subtitle:'Verify all charges and close the account without recording a payment.'},
+      dischargeTarget&&ledgerReady&&Math.abs(netPayable)<=0.009&&message&&h('div',{className:'message error'},message),
+      dischargeTarget&&ledgerReady&&Math.abs(netPayable)<=0.009&&h(Section,{title:'Zero Balance Discharge Clearance',subtitle:'Verify all charges and close the account without recording a payment.'},
         h('label',null,'Accounts Closure Remarks'),
         h('textarea',{value:form.closure_remarks,onChange:e=>setForm({...form,closure_remarks:e.target.value}),rows:3}),
         h('button',{type:'button',className:'btn btn-primary',disabled:saving||loading||clearanceBlocked||!['Admin','Accounts'].includes(profile?.role),onClick:clearZeroBalance},saving?'Checking…':'Verify ₹0 Balance & Clear Accounts')
       ),
-      (!dischargeTarget||pendingBills>0.009)&&h(Section,{
+      (!dischargeTarget||(ledgerReady&&pendingBills>0.009))&&h(Section,{
         title:dischargeTarget?'Final Payment & Discharge Settlement':'Manual Billing & Payment Entry',
         subtitle:dischargeTarget
           ?'Enter payment details. Exact settlement will close the discharge automatically.'
