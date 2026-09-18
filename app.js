@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.55';
+  const APP_VERSION = '2.13.56';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -19301,6 +19301,9 @@ Please keep these login details confidential.`;
     const [paymentTarget,setPaymentTarget]=React.useState(null);
     const [managementReviewRow,setManagementReviewRow]=React.useState(null);
     const [managementBilling,setManagementBilling]=React.useState([]);
+    const [managementSnapshot,setManagementSnapshot]=React.useState(null);
+    const [managementReviewError,setManagementReviewError]=React.useState('');
+    const managementReviewSequence=React.useRef(0);
     const [managementReviewLoading,setManagementReviewLoading]=React.useState(false);
     const [managementRemarks,setManagementRemarks]=React.useState('');
     const [managementDiscount,setManagementDiscount]=React.useState('');
@@ -19737,29 +19740,42 @@ Please keep these login details confidential.`;
 
     async function openManagementReview(row){
       if(!canApprove)return;
+      const sequence=++managementReviewSequence.current;
       setManagementReviewRow(row);
       setManagementBilling([]);
+      setManagementSnapshot(null);
+      setManagementReviewError('');
       setManagementRemarks(row.management_remarks||'');
       setManagementDiscount('');
       setManagementDiscountReason('');
       setManagementReviewLoading(true);
-      const {data,error}=await client.from('billing_transactions')
-        .select('id,transaction_type,category,amount,payment_mode,description,transaction_date,entered_by')
-        .eq('patient_id',row.patient_id)
-        .order('transaction_date',{ascending:false});
-      setManagementReviewLoading(false);
-      if(error){
+      try{
+        const {data,error}=await client.rpc('discharge_management_snapshot',{p_discharge_id:row.id});
+        if(sequence!==managementReviewSequence.current)return;
+        if(error)throw error;
+        if(!data?.token||data.patient_id!==row.patient_id)throw new Error('Unable to verify this patient account.');
+        setManagementBilling(data.ledger||[]);
+        setManagementSnapshot(data);
+      }catch(error){
+        if(sequence!==managementReviewSequence.current)return;
+        setManagementReviewError(error.message||'Account verification failed.');
         notify('error','Account details not loaded',error.message);
-        return;
+      }finally{
+        if(sequence===managementReviewSequence.current)setManagementReviewLoading(false);
       }
-      setManagementBilling(data||[]);
     }
 
     async function approveReviewed(decision,reasonOverride=''){
       const row=managementReviewRow;
       if(!row||!canApprove||busy)return;
 
-      const discountAmount=profile?.role==='Admin'?Number(managementDiscount||0):0;
+      if(decision==='Approved'&&(managementReviewLoading||managementReviewError||!managementSnapshot)){
+        notify('error','Review required','Refresh and review the verified patient account before approving.');return;
+      }
+      const discountAmount=decision==='Approved'&&profile?.role==='Admin'?Number(managementDiscount||0):0;
+      if(discountAmount>0&&Number(managementSnapshot?.pending_count||0)>0){
+        notify('error','Discount blocked','Accounts must resolve all pending charge requests and ledger postings before a final discount.');return;
+      }
       const totals=managementBillingTotals(managementBilling);
       const currentOutstanding=Math.max(
         0,
@@ -19790,80 +19806,12 @@ Please keep these login details confidential.`;
 
       setBusy(true);
       try{
-        const {data:{user}}=await client.auth.getUser();
-        const remarks=[
-          effectiveManagementRemarks||decision,
-          discountAmount>0?`Admin-approved discount: ₹${discountAmount.toLocaleString('en-IN')}`:'',
-          discountAmount>0?`Discount reason: ${String(managementDiscountReason||'').trim()}`:''
-        ].filter(Boolean).join(' | ');
-
-        // Preferred production workflow.
-        let approvalError=null;
-        try{
-          const rpcResult=await client.rpc('approve_patient_discharge_v2',{
-            p_discharge_id:row.id,
-            p_decision:decision,
-            p_remarks:remarks
-          });
-          approvalError=rpcResult.error||null;
-        }catch(error){
-          approvalError=error;
-        }
-
-        // Safe compatibility fallback for deployments where the RPC is unavailable.
-        if(approvalError){
-          const updatePayload={
-            management_status:decision,
-            management_remarks:remarks,
-            management_approved_at:new Date().toISOString(),
-            management_approved_by_name:formalName(profile)||profile?.full_name||profile?.login_id||'Management',
-            updated_at:new Date().toISOString()
-          };
-          if(decision==='Rejected'){
-            updatePayload.status='Returned to Nursing';
-            updatePayload.accounts_status='Pending';
-          }
-          const fallback=await client.from('patient_discharges')
-            .update(updatePayload)
-            .eq('id',row.id)
-            .select('id')
-            .single();
-          if(fallback.error)throw new Error(
-            `${approvalError.message||'Approval service unavailable'}; fallback also failed: ${fallback.error.message}`
-          );
-        }
-
-        // Save discount only after the management approval is successfully recorded.
-        if(decision==='Approved'&&discountAmount>0&&profile?.role==='Admin'){
-          const discountResult=await client.from('billing_transactions')
-            .insert({
-              patient_id:row.patient_id,
-              transaction_type:'Discount',
-              category:'Discharge Discount',
-              amount:discountAmount,
-              payment_mode:'Not applicable',
-              description:[
-                'Approved during discharge management review',
-                `Discharge ID: ${row.id}`,
-                `Reason: ${String(managementDiscountReason||'').trim()}`
-              ].join(' | '),
-              transaction_date:new Date().toISOString(),
-              entered_by:user?.id||profile.id
-            })
-            .select('id')
-            .single();
-
-          if(discountResult.error){
-            notify(
-              'error',
-              'Discharge approved, but discount needs attention',
-              `The discharge approval was saved. The discount was not recorded: ${discountResult.error.message}`
-            );
-            setManagementReviewRow(null);
-            await load();
-            return;
-          }
-        }
+        const result=await client.rpc('review_patient_discharge',{
+          p_discharge_id:row.id,p_decision:decision,p_remarks:effectiveManagementRemarks||decision,
+          p_discount:discountAmount,p_discount_reason:String(managementDiscountReason||'').trim(),
+          p_review_token:managementSnapshot?.token||null
+        });
+        if(result.error)throw result.error;
 
         setManagementReviewRow(null);
         notify(
@@ -19891,6 +19839,8 @@ Please keep these login details confidential.`;
           'Success'
         );
       }catch(error){
+        setManagementSnapshot(null);
+        setManagementReviewError(error.message||'Refresh and review the current account.');
         notify('error','Management decision not saved',error.message||'Unable to save the management decision.');
       }finally{
         setBusy(false);
@@ -20535,10 +20485,30 @@ Doctor / Hospital: ${doctorHospital}`;
               ].map(([label,value,tone])=>h('div',{className:`accounts-kpi ${tone}`,key:label},
                 h('span',null,label),
                 h('strong',null,`₹${Number(value||0).toLocaleString('en-IN')}`),
-                h('small',null,'Live patient account position')
+                h('small',null,'Posted account at review; pending requests listed below')
               ));
             })()
           ),
+
+          h('div',{className:'message '+(managementReviewError||managementSnapshot?.pending_count?'warning':'info'),role:'status'},
+            managementReviewLoading?'Loading the complete account and charge requests…':managementReviewError||
+              (managementSnapshot?.pending_count
+                ?`${managementSnapshot.pending_count} unresolved charge request(s). These are not included in posted outstanding. Accounts must resolve them before a final discount. Approval without a discount forwards the request to Accounts.`
+                :'All raised charge requests are resolved. The account will be checked again when you approve.'),
+            h('button',{type:'button',className:'btn btn-secondary',disabled:busy||managementReviewLoading,onClick:()=>openManagementReview(managementReviewRow)},'Refresh account review')
+          ),
+          h(LogTable,{
+            title:`Raised Charge Requests (${managementSnapshot?.requests?.length||0})`,
+            subtitle:'Includes pending, posted and rejected requests. Amounts awaiting Accounts are not treated as zero.',
+            heads:['Raised','Item','Quantity','Status','Amount','Ledger'],
+            rows:(managementSnapshot?.requests||[]).map(row=>[
+              formatDateTimeIN(row.raised_at||row.created_at||row.charge_date),
+              row.service_name||row.description||row.category||'Charge request',
+              row.quantity??1,row.approval_status||'Pending',
+              row.final_amount==null?'Amount awaiting Accounts':`₹${Number(row.final_amount).toLocaleString('en-IN')}`,
+              row.unresolved?'Awaiting Accounts / posting':row.approval_status==='Rejected'?'Rejected':'Posted'
+            ])
+          }),
 
           h(Section,{title:'Discharge Request Submitted by Nursing',subtitle:'Review the full initiation details before taking a management decision'},
             h('div',{className:'modal-grid'},
@@ -20607,7 +20577,7 @@ Doctor / Hospital: ${doctorHospital}`;
                 disabled:busy,
                 onClick:rejectAndReturnToNursing
               },busy?'Saving…':'Reject & Return to Nursing'),
-              h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>approveReviewed('Approved')},busy?'Saving…':'Approve & Forward to Accounts')
+              h('button',{type:'button',className:'btn btn-primary',disabled:busy||managementReviewLoading||!!managementReviewError||!managementSnapshot||(Number(managementDiscount)>0&&Number(managementSnapshot?.pending_count)>0),onClick:()=>approveReviewed('Approved')},busy?'Saving…':'Approve & Forward to Accounts')
             )
           )
         )
