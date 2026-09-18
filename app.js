@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.49';
+  const APP_VERSION = '2.13.50';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -9184,6 +9184,8 @@ function Dashboard({profile,onNavigate,alertEngine}){
     const Field=({label,required=false,children})=>h('div',{className:'field'},h('label',null,label,required?h('span',{style:{color:'#b42336',marginLeft:'4px'}},'*'):null),children);
     const [rows,setRows]=React.useState([]),[selectedPhone,setSelectedPhone]=React.useState(''),[query,setQuery]=React.useState(''),[showUnread,setShowUnread]=React.useState(false),[reply,setReply]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState(''),[isMobile,setIsMobile]=React.useState(()=>window.matchMedia('(max-width: 700px)').matches),[patientContext,setPatientContext]=React.useState(null),[mobileComposer,setMobileComposer]=React.useState('');
     const replyEditorRef=React.useRef(null);
+    const chatScrollRef=React.useRef(null);
+    const chatViewRef=React.useRef({key:null,followLatest:true});
     const [subjectFilter,setSubjectFilter]=React.useState('All Subjects');
     const [waFolder,setWaFolder]=React.useState(()=>{const folder=sessionStorage.getItem('samara_whatsapp_folder');sessionStorage.removeItem('samara_whatsapp_folder');return folder==='Admission Enquiries'||String(profile?.role||'')==='STD'?'Admission Enquiries':'All';});
     const [dateFrom,setDateFrom]=React.useState('');
@@ -9471,6 +9473,23 @@ Samara Assisted Living`;
       return !query||hay.includes(query.toLowerCase());
     });
     const active=filtered.find(c=>c.phone===selectedPhone)||filtered[0]||null;
+    const chatVisible=Boolean(active&&(!isMobile||selectedPhone));
+    const chatViewKey=chatVisible?active.phone:null;
+    React.useLayoutEffect(()=>{
+      const state=chatViewRef.current;
+      if(state.key!==chatViewKey){state.key=chatViewKey;state.followLatest=true;}
+      const pane=chatScrollRef.current;
+      if(!pane||!chatVisible)return;
+      const follow=()=>{if(state.followLatest)pane.scrollTop=pane.scrollHeight;};
+      follow();
+      // Keep the latest message visible as logos load or the composer resizes.
+      const observer=new ResizeObserver(follow);
+      observer.observe(pane);
+      Array.from(pane.children).forEach(child=>observer.observe(child));
+      return()=>observer.disconnect();
+    },[chatViewKey,chatVisible,active?.msgs.length,active?.msgs[active.msgs.length-1]?.id]);
+
+
     React.useEffect(()=>{if(!isMobile&&!selectedPhone&&filtered[0])setSelectedPhone(filtered[0].phone)},[rows,query,showUnread,isMobile]);
     React.useEffect(()=>{
       if(!active)return;
@@ -9778,7 +9797,7 @@ Thank you.`;
                   h('span',{className:`badge ${within24?'success':''}`},within24?'Reply window open':'Template required')
                 ):null
               ),
-              h('div',{className:'wa-chat-scroll'},active.msgs.map(r=>{
+              h('div',{className:'wa-chat-scroll',ref:chatScrollRef,onScroll:e=>{const pane=e.currentTarget;chatViewRef.current.followLatest=pane.scrollHeight-pane.scrollTop-pane.clientHeight<64;}},active.msgs.map(r=>{
                 const outgoing=r.direction!=='inbound';const media=mediaInfo(r);const text=chatText(r);
                 return h('div',{key:r.id,style:{display:'flex',justifyContent:outgoing?'flex-end':'flex-start',marginBottom:'8px'}},
                   h('div',{style:{position:'relative',maxWidth:'72%',padding:'8px 10px 6px',borderRadius:outgoing?'8px 0 8px 8px':'0 8px 8px 8px',background:outgoing?'#d9fdd3':'#fff',boxShadow:'0 1px 1px rgba(0,0,0,.08)',color:'#292229'}},
