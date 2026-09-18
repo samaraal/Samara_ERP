@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.39';
+  const APP_VERSION = '2.13.40';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -11144,7 +11144,7 @@ Thank you.`;
     const STATUSES=['Pending','In Progress','Completed','Cancelled'];
     const blank=()=>({
       item_type:'Follow-up',task_kind:'General Task',title:'',contact_name:'',contact_mobile:'',organisation:'',
-      scheduled_at:'',due_date:'',day_part:'',priority:'Normal',status:'Pending',details:'',director_note:'',
+      scheduled_at:'',due_date:todayISOIndia(),day_part:'',priority:'Normal',status:'Pending',details:'',director_note:'',
       needs_director_attention:false,director_responded_at:null
     });
     const [rows,setRows]=React.useState([]);
@@ -11660,7 +11660,7 @@ Thank you.`;
         contact_mobile:r.contact_mobile||'',
         organisation:r.organisation||'',
         scheduled_at:localInputValue(r.scheduled_at),
-        due_date:r.due_date||'',
+        due_date:r.due_date||(r.scheduled_at?'':todayISOIndia()),
         day_part:inferDayPart(r.details||''),
         priority:r.priority||'Normal',
         status:r.status||'Pending',
@@ -11675,6 +11675,7 @@ Thank you.`;
       e.preventDefault();
       if(saving)return;
       if(!form.title.trim())return setMessage('Please enter the subject / purpose.');
+      if(!taskDateValue())return setMessage('Please select a Scheduled / Due Date.');
       setSaving(true);setMessage('');
       let detailsForSave=form.details.trim();
       if(form.item_type==='Task'&&form.day_part){
@@ -12005,7 +12006,7 @@ Thank you.`;
             h('div',{className:'field'},h('label',null,'Task'),h('select',{value:form.task_kind||'General Task',onChange:e=>setForm({...form,task_kind:e.target.value})},TASK_KINDS.map(x=>h('option',{key:x},x)))),
             h('div',{className:'field span-2'},h('label',null,'What to do? *'),h('input',{required:true,value:form.title,onChange:e=>setForm({...form,title:e.target.value}),placeholder:form.task_kind==='Visit'?'Example: Visit Dr. Ravi':form.task_kind==='Buy / Purchase'?'Example: Buy office printer':form.task_kind==='Attend Function'?'Example: Attend hospital inauguration':form.task_kind==='Trip / Travel'?'Example: Chennai to Trichy trip':'Enter task'})),
             h('div',{className:'field span-2'},h('label',null,'Person / Place (optional)'),h('input',{value:form.contact_name,onChange:e=>setForm({...form,contact_name:e.target.value}),placeholder:'Name or place'})),
-            h('div',{className:'field'},h('label',null,'Date'),h(StrictDateInput,{value:taskDateValue(),onChange:e=>setTaskDate(e.target.value)})),
+            h('div',{className:'field'},h('label',null,'Scheduled / Due Date *'),h(StrictDateInput,{required:true,value:taskDateValue(),onChange:e=>setTaskDate(e.target.value)})),
             h('div',{className:'field'},h('label',null,'Time (optional)'),h('input',{type:'time',value:taskTimeValue(),onChange:e=>setTaskTime(e.target.value)})),
             h('div',{className:'field'},h('label',null,'Day Part (optional)'),h('select',{value:form.day_part||'',onChange:e=>setForm({...form,day_part:e.target.value})},
               h('option',{value:''},'—'),
@@ -12022,8 +12023,8 @@ Thank you.`;
             h('div',{className:'field'},h('label',null,form.item_type==='Call / Callback'?'Caller Name':'Person / Visitor'),h('input',{value:form.contact_name,onChange:e=>setForm({...form,contact_name:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Mobile'),h('input',{value:form.contact_mobile,onChange:e=>setForm({...form,contact_mobile:e.target.value}),inputMode:'tel'})),
             h('div',{className:'field span-2'},h('label',null,'Organisation'),h('input',{value:form.organisation,onChange:e=>setForm({...form,organisation:e.target.value})})),
-            h('div',{className:'field'},h('label',null,form.item_type==='Call / Callback'?'Call Date / Time':'Appointment / Call Time'),h(StrictDateTimeInput,{value:form.scheduled_at,onChange:e=>setForm({...form,scheduled_at:e.target.value})})),
-            h('div',{className:'field'},h('label',null,'Follow-up / Due Date'),h(StrictDateInput,{value:form.due_date,onChange:e=>setForm({...form,due_date:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Scheduled / Due Date *'),h(StrictDateInput,{required:true,value:taskDateValue(),onChange:e=>setTaskDate(e.target.value)})),
+            h('div',{className:'field'},h('label',null,'Time (optional)'),h('input',{type:'time',value:taskTimeValue(),onChange:e=>setTaskTime(e.target.value)})),
             h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value})},STATUSES.map(x=>h('option',{key:x},x)))),
             h('div',{className:'field span-2'},h('label',null,'Details'),h('textarea',{rows:3,value:form.details,onChange:e=>setForm({...form,details:e.target.value}),placeholder:'Short notes / action required'})),
             h('div',{className:'field span-2'},h('label',{style:{display:'flex',alignItems:'center',gap:'9px',fontWeight:900,color:'#7d1547'}},
