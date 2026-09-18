@@ -1,7 +1,7 @@
 (function(){
   'use strict';
   const h=React.createElement;
-  const signature=p=>[p?.role,p?.designation,p?.department,p?.__dutyContext?.assignment?.id||''].join('|');
+  const signature=p=>[p?.role,p?.designation,p?.department,p?.__dutyContext?.assignment?.id||'',p?.__dutyContext?.leave_cover?.id||'',(p?.__dutyContext?.roles||[]).join(',')].join('|');
   function applyContext(profile,context){
     if(!context||context.profile_id!==profile.id)throw new Error('Duty assignment identity could not be verified.');
     return {...profile,role:context.role,designation:context.designation,department:context.department,__dutyContext:context};
@@ -63,7 +63,7 @@
       }
       claim();document.addEventListener('visibilitychange',claim);
       return()=>{active=false;document.removeEventListener('visibilitychange',claim)};
-    },[profile?.id,day,context?.assignment?.id,context?.next_change_at]);
+    },[profile?.id,day,context?.assignment?.id,context?.leave_cover?.id,context?.next_change_at]);
     React.useEffect(()=>{if(!notice||!ready)return;const timer=setTimeout(()=>setNotice(null),8000);return()=>clearTimeout(timer)},[notice,ready]);
     return {notice:notice?.profile_id===profile?.id?notice:null,onClose:()=>setNotice(null)};
   }
@@ -72,12 +72,12 @@
     return h('div',{className:'duty-login-notice'},
       h('style',null,`.duty-login-notice{position:fixed;inset:0;z-index:11000;display:grid;place-items:center;overflow:hidden;background:rgba(255,248,252,.97);color:#7d104c;padding:24px}.duty-login-notice-message{width:min(100%,1050px);text-align:center;font-weight:900;line-height:1.2;animation:duty-notice-rise 8s ease-in-out both}.duty-login-notice-title{font-size:clamp(24px,3vw,44px);margin:0 0 14px}.duty-login-notice-main{font-size:clamp(30px,4.5vw,66px);margin:12px 0}.duty-login-notice-detail{font-size:clamp(18px,2vw,28px);margin:14px 0}.duty-login-notice-close{position:absolute;right:18px;top:18px;font-size:18px;font-weight:800}@keyframes duty-notice-rise{0%{transform:translateY(100vh);opacity:0}18%,80%{transform:translateY(0);opacity:1}100%{transform:translateY(-100vh);opacity:0}}@media(prefers-reduced-motion:reduce){.duty-login-notice-message{animation:none}}`),
       h('div',{className:'duty-login-notice-message',role:'status','aria-live':'polite'},
-        h('p',{className:'duty-login-notice-title'},'TEMPORARY DUTY SWAP'),
+        h('p',{className:'duty-login-notice-title'},notice.kind==='leave'?'LEAVE COVER':'TEMPORARY DUTY SWAP'),
         h('p',{className:'duty-login-notice-detail'},notice.name),
-        h('p',{className:'duty-login-notice-main'},notice.upcoming?`You will take charge of ${notice.acting_as} duties today.`:`You are assigned ${notice.acting_as} duties.`),
+        h('p',{className:'duty-login-notice-main'},notice.kind==='leave'?`Keep your duties and cover ${notice.acting_as} duties.`:notice.upcoming?`You will take charge of ${notice.acting_as} duties today.`:`You are assigned ${notice.acting_as} duties.`),
         notice.upcoming&&h('p',{className:'duty-login-notice-detail'},`Starts: ${display(notice.starts_at)}`),
-        h('p',{className:'duty-login-notice-detail'},`Until ${display(notice.ends_at)}`),
-        h('p',{className:'duty-login-notice-detail'},'Your regular duties return automatically afterwards.')
+        h('p',{className:'duty-login-notice-detail'},notice.kind==='leave'?'Until Admin/Director approves the return.':`Until ${display(notice.ends_at)}`),
+        h('p',{className:'duty-login-notice-detail'},notice.kind==='leave'?'Use your own login.':'Your regular duties return automatically afterwards.')
       ),
       h('button',{type:'button',className:'btn btn-secondary duty-login-notice-close',onClick:onClose,'aria-label':'Dismiss duty assignment notice'},'Close ✕')
     );
@@ -133,5 +133,25 @@
       ending&&h('form',{className:'card',onSubmit:end},h('h4',null,'End temporary assignment'),h('p',null,'This immediately restores regular department duties.'),h('textarea',{required:true,placeholder:'Reason',value:endReason,onChange:e=>setEndReason(e.target.value)}),h('button',{className:'btn btn-primary',disabled:busy},'Confirm end'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setEnding(null),disabled:busy},'Keep assignment'))
     );
   }
-  window.SamaraDutySwap={applyContext,regularProfile,useContext,useDailyNotice,Page,DailyNotice,signature,indiaISO,indiaInput};
+  function LeaveCoverPage({client}){
+    const [data,setData]=React.useState(null),[error,setError]=React.useState('');
+    React.useEffect(()=>{let active=true;async function load(){const result=await client.rpc('department_leave_workspace');if(!active)return;if(result.error)setError(result.error.message);else{setData(result.data);setError('')}}load();const timer=setInterval(load,15000);return()=>{active=false;clearInterval(timer)}},[client]);
+    return h('div',{className:'card',style:{maxWidth:'850px',padding:'24px'}},
+      h('h3',null,'Leave Cover'),
+      h('p',null,'When approved leave starts, the other employee keeps their duties and covers the absent employee.'),
+      h('p',null,'Cover continues until Admin/Director approves the return.'),
+      error&&h('p',{className:'message error',role:'alert'},error),
+      !data&&h('p',null,'Loading…'),
+      data?.assignments.map(c=>h('div',{className:'card',key:c.id,style:{marginTop:'12px'}},
+        h('strong',null,c.status),h('p',null,`On leave: ${c.absent_name} (${c.absent_role})`),
+        h('p',null,`Covering: ${c.cover_name||'Admin/Director must arrange cover'}`),
+        h('p',null,`From ${display(c.starts_at)}`),
+        h('p',{className:'muted'},`Planned return: ${display(c.expected_return_at)}. Cover ends only after return approval.`),
+        c.ended_at&&h('p',null,`Ended: ${display(c.ended_at)}`)
+      )),
+      data&&!data.assignments.length&&h('p',null,'No leave cover yet. It starts automatically from approved leave.'),
+      data?.can_manage&&h('p',null,'Approve leave through Leave Approvals. Review return requests below.')
+    );
+  }
+  window.SamaraDutySwap={applyContext,regularProfile,useContext,useDailyNotice,Page,LeaveCoverPage,DailyNotice,signature,indiaISO,indiaInput};
 })();

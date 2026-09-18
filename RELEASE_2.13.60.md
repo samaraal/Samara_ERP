@@ -1,0 +1,13 @@
+# Samara ERP 2.13.60 — Automatic leave cover
+
+Temporary Duty Swap and Leave Cover are under Admin for Admin/Director. Staff can view their own assignments under My Account.
+
+When approved leave starts for the regular STD or Nursing Manager, the unique active employee in the other role keeps their own department duties and receives the absent department's duties. Cover lasts until Admin/Director approves the return, including after the planned return date. The existing Return to Duty request/approval flow ends cover; rejecting a return leaves cover active. Personal records, permanent roles and audit identity remain unchanged. Training swaps remain separate and time-limited.
+
+The new Leave Cover page shows who is away, who is covering, the planned return and current status. The covering employee receives an eight-second daily scrolling notice. Both-absent or inactive staff receive no extra rights; ambiguous cover is shown for Admin/Director attention. Conflicting training swaps must be ended before leave approval, and new training swaps cannot overlap unresolved leave cover.
+
+Database migration: `130_mutual_department_leave_cover.sql`, after migrations 128 and 129. It adds approval-driven cover records, a union permission view while preserving the single-row effective profile view, named-supervisor routing, a scoped inbox union and daily notice receipts. WhatsApp read access combines the existing food-vendor and STD enquiry scopes; Nursing Manager send restrictions stay in place. Existing Edge services continue using the effective profile view and require no source change.
+
+No existing leave, return or assignment is approved, cancelled or created by this release. No historical leave is backfilled. Approved future leave entered after installation starts automatically at midnight India time on its start date. Client permissions refresh at that boundary, on focus and every 15 seconds; database permissions use server time.
+
+Validation: applied the migration twice in local PostgreSQL/PGlite with current production permission function definitions and all affected policy expressions. Tested both directions, retention of own duties, no Admin grant, permanent identity, supervisor delegation, scheduled activation boundary, cover beyond planned return, inactive/both-absent cases, training conflicts, actual return approval/rejection RPC, private helper/table access, daily receipt deduplication, and WhatsApp food/enquiry union with patient/HR/receipt exclusions. Checked navigation for both roles, Admin placement, context refresh and eight-second notice behavior, plus local browser layout and JavaScript syntax.
