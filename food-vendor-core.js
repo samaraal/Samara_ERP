@@ -1,5 +1,6 @@
 (function(root){
 'use strict';
+const dates=root.SamaraDateTime||(typeof require==='function'?require('./date-time.js'):null);
 const statementLogo='https://app.samaraassistedliving.com/assets/samara-logo.png?v=20260814-final';
 const logo='https://samaraassistedliving.com/assets/samara-logo.png';
 const slots=['Tiffin','Morning Tea / Coffee','Lunch','Evening Tea / Coffee','Dinner'];
@@ -18,7 +19,7 @@ function message(kind,s){
  const before=total(s.before?.items);values=[...common,`Previous quantities: ${before}. Revised: ${total(s.items)}. Previous delivery: ${clean(s.before?.delivery)}.`,summary(s.items,'residents'),summary(s.items,'employees'),total(s.items),clean(s.reason)+'; '+clean(s.instructions)];
  body=`Dear {{1}},\nPlease use this revised food order for Samara Assisted Living in place of the earlier version.\n\nOrder and revision: {{2}}\nDate and meal: {{3}}\nDelivery time: {{4}}\nChanges: {{5}}\nRevised resident quantities: {{6}}\nRevised employee quantities: {{7}}\nRevised total quantities: {{8}}\nReason / instructions: {{9}}\n\nPlease acknowledge the revised quantities.\nThank you, Samara Assisted Living.`;
  }else if(kind==='receipt'){
- common[1]+=' / Receipt '+String(s.receipt_id).slice(0,8);common[3]=new Date(s.receipt.received_at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});
+ common[1]+=' / Receipt '+String(s.receipt_id).slice(0,8);common[3]=dates.dateTime(s.receipt.received_at);
  const lines=s.receipt.items.map((i,n)=>({...i,name:s.items[n].name}));
  values=[...common,total(s.items),'Residents: '+summary(lines,'residents')+'; Employees: '+summary(lines,'employees'),summary(lines,'rejected'),String(s.outstanding)+' portions',clean(s.receipt.remarks)];
  body=`Dear {{1}},\nSamara Assisted Living has recorded a food delivery against your order.\n\nOrder and receipt: {{2}}\nDate and meal: {{3}}\nReceived at: {{4}}\nOrdered quantities: {{5}}\nAccepted this delivery: {{6}}\nRejected this delivery: {{7}}\nOutstanding quantities: {{8}}\nRemarks / instructions: {{9}}\n\nPlease review any discrepancy and acknowledge.\nThank you, Samara Assisted Living.`;
@@ -105,7 +106,7 @@ function mealSummary(report){
  const rows=groups.map(g=>[g.meal,g.quantity,g.prices.size===1&&!g.missing?[...g.prices][0]:g.prices.size>1&&!g.missing?'Varies':null,g.missing?null:Math.round(g.amount*100)/100]);
  return [...rows,['Grand total',rows.reduce((n,r)=>n+r[1],0),null,rows.some(r=>r[3]==null)?null:Math.round(rows.reduce((n,r)=>n+r[3],0)*100)/100]];
 }
-const dateText=v=>typeof v==='string'?v.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g,'$3-$2-$1').replace(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g,(_,d,m,y)=>d.padStart(2,'0')+'-'+m.padStart(2,'0')+'-'+y):v;
+const dateText=v=>typeof v==='string'?dates.text(v).replace(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g,(_,d,m,y)=>d.padStart(2,'0')+'-'+m.padStart(2,'0')+'-'+y):v;
 const label=v=>typeof v==='string'?dateText(v.replace(/\bTiffin\b/gi,'Breakfast')):v;
 function amountWords(value){
  if(value==null)return 'Amount pending: rates are not fixed.';

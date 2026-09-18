@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.47';
+  const APP_VERSION = '2.13.48';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1780,41 +1780,28 @@ function initSamaraInaugurationInvitation(){
     let shown='';
     if(value){
       const m=String(value).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-      if(m){const hr=Number(m[4]);shown=`${m[3]}-${m[2]}-${m[1]} ${String(hr%12||12).padStart(2,'0')}:${m[5]} ${hr>=12?'PM':'AM'}`;}
+      if(m){const hr=Number(m[4]);shown=`${m[3]}-${m[2]}-${m[1]}, ${String(hr%12||12).padStart(2,'0')}:${m[5]} ${hr>=12?'PM':'AM'} IST`;}
       else shown=String(value);
     }
     return h('div',{style:{position:'relative',width:'100%'}},
-      h('input',{type:'text',readOnly:true,value:shown,placeholder:'DD:MM:YYYY HH:MM AM/PM',style:{...(style||{}),width:'100%',paddingRight:'48px',cursor:'pointer'}}),
+      h('input',{type:'text',readOnly:true,value:shown,placeholder:'DD-MM-YYYY, hh:mm AM/PM IST',style:{...(style||{}),width:'100%',paddingRight:'48px',cursor:'pointer'}}),
       h('span',{'aria-hidden':'true',style:{position:'absolute',right:'15px',top:'50%',transform:'translateY(-50%)',pointerEvents:'none',fontSize:'18px'}},'▾'),
       h('input',{...nativeProps,type:'datetime-local',value:value||'',onChange,tabIndex:-1,'aria-label':nativeProps['aria-label']||'Choose date and time',style:{position:'absolute',inset:0,width:'100%',height:'100%',opacity:0,cursor:'pointer'}})
     );
   };
 
-  const formatTimeIN = value => {
-    if(!value)return '—';
-    const date=value instanceof Date?value:new Date(value);
-    if(Number.isNaN(date.getTime()))return String(value);
-    return new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:true}).format(date).toUpperCase();
-  };
-  const formatDateTimeIN = value => {
-    if(!value)return '—';
-    const date=value instanceof Date?value:new Date(value);
-    if(Number.isNaN(date.getTime()))return String(value);
-    return `${formatDateIN(date)} ${formatTimeIN(date)}`;
-  };
+  const formatTimeIN = value => window.SamaraDateTime.time(value);
+  const formatDateTimeIN = value => window.SamaraDateTime.dateTime(value);
   const fmt = value => formatDateTimeIN(value);
   const normaliseVisibleIndianDates = root => {
     if(!root)return;
-    const convert = text => String(text||'').replace(
-      /\b(\d{4})-(\d{2})-(\d{2})\b/g,
-      (_,year,month,day)=>`${day}-${month}-${year}`
-    );
+    const convert = text => window.SamaraDateTime.text(String(text||''));
     const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
     const nodes=[];
     while(walker.nextNode())nodes.push(walker.currentNode);
     nodes.forEach(node=>{
       const parent=node.parentElement;
-      if(!parent||['SCRIPT','STYLE','TEXTAREA','OPTION'].includes(parent.tagName))return;
+      if(!parent||parent.closest('script,style,textarea,option,[contenteditable]'))return;
       const updated=convert(node.nodeValue);
       if(updated!==node.nodeValue)node.nodeValue=updated;
     });
@@ -3210,7 +3197,7 @@ https://samaraassistedliving.com/`;
       // v2.11.21: standalone audio diagnostics. This deliberately bypasses
       // clinical alerts, Supabase, patient data and the Tamil voice formatter.
       const report={
-        time:new Date().toLocaleString(),
+        time:formatDateTimeIN(new Date()),
         secureContext:window.isSecureContext===true,
         audioContextSupport:!!(window.AudioContext||window.webkitAudioContext),
         audioContextState:'not tested',
@@ -9385,7 +9372,7 @@ Samara Assisted Living`;
         if(error)throw error;
         const repaired=await repairLegacyInterviewHistory(data||[]);
         setRows(repaired.slice().reverse());
-        if(showStatus)setMessage(`✓ WhatsApp Inbox refreshed at ${new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}.`);
+        if(showStatus)setMessage(`✓ WhatsApp Inbox refreshed at ${formatTimeIN(new Date())}.`);
       }catch(error){
         setMessage(`Unable to refresh WhatsApp Inbox: ${error?.message||error}`);
       }
@@ -9539,7 +9526,7 @@ Samara Assisted Living`;
       }finally{setMediaBusyId('')}
     }
     function chatText(r){
-      const raw=String(r?.message_content||r?.communication_type||'WhatsApp message');
+      const raw=window.SamaraDateTime.text(String(r?.message_content||r?.communication_type||'WhatsApp message'));
       if(String(r?.template_name||'').toLowerCase()==='employee_welcome_samara'){
         const employeeName=r?.contact_name||r?.applicant_name||'Colleague';
         const designation=r?.message_payload?.designation||'Team Member';
@@ -10487,7 +10474,7 @@ Thank you.`;
                 h('strong',{style:{color:inbound?'#315d54':'#5d1039'}},inbound?(item.contact_name||item.applicant_name||'Applicant'):(item.communication_type||'Samara WhatsApp')),
                 h('span',{style:{...waStatusStyle(status),display:'inline-block',padding:'3px 8px',borderRadius:'999px',fontSize:'11px',fontWeight:800}},inbound?'Received':statusMark)
               ),
-              item.message_content?h('div',{style:{marginTop:'8px',whiteSpace:'pre-wrap',fontSize:'14px',lineHeight:'1.5',color:'#2e252a'}},item.message_content):h('div',{style:{marginTop:'8px',fontSize:'13px',fontStyle:'italic',color:'#8a7180'}},item.template_name?`Template: ${item.template_name}`:'Message content was not stored for this older record.'),
+              item.message_content?h('div',{style:{marginTop:'8px',whiteSpace:'pre-wrap',fontSize:'14px',lineHeight:'1.5',color:'#2e252a'}},window.SamaraDateTime.text(item.message_content)):h('div',{style:{marginTop:'8px',fontSize:'13px',fontStyle:'italic',color:'#8a7180'}},item.template_name?`Template: ${item.template_name}`:'Message content was not stored for this older record.'),
               h('div',{style:{marginTop:'8px',display:'flex',justifyContent:'space-between',gap:'8px',flexWrap:'wrap',fontSize:'11px',color:'#8a7180'}},
                 h('span',null,formatDateTimeIN(item.received_at||item.sent_at||item.created_at)),
                 h('span',null,inbound?`From ${item.recipient_number||'—'}`:`To ${item.recipient_number||'—'} · ${item.sent_by_name||'ERP User'}`)
@@ -10918,7 +10905,7 @@ Thank you.`;
       h('div',{className:'shift-summary'},h('div',null,h('strong',null,'My To-Do List'),h('span',null,'Your private personal reminders')),h('button',{type:'button',className:'btn btn-primary',onClick:openNew},'＋ Add To-Do')),
       h(Section,{title:'Calendar',subtitle:'Tap a date to view its list'},calendar()),
       message&&!show?h('div',{className:`message ${message.startsWith('✓')?'success':'error'}`},message):null,
-      h(Section,{title:`To-Do — ${formatDateIN(new Date(`${selected}T00:00:00`))}`,subtitle:`${dayRows.length} item${dayRows.length===1?'':'s'} for this day`},dayRows.length?h('div',{className:'nurse-todo-list'},dayRows.map((r,i)=>h('div',{className:`nurse-todo-row ${r.status==='Completed'?'completed':''}`,key:r.id},h('span',{className:'nurse-todo-number'},`${i+1}.`),h('button',{type:'button',className:'nurse-todo-check',onClick:()=>complete(r),'aria-label':r.status==='Completed'?'Mark pending':'Mark completed'},r.status==='Completed'?'✓':'○'),h('div',{className:'nurse-todo-copy'},h('strong',null,r.title),h('small',null,r.scheduled_at?new Date(r.scheduled_at).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:true}):'Any time')),h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(r)},'Edit'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>remove(r)},'Delete'))))):h('div',{className:'empty'},'No to-do items for this day.'),h('button',{type:'button',className:'btn btn-primary nurse-todo-add-bottom',onClick:openNew},'＋ Add To-Do')),
+      h(Section,{title:`To-Do — ${formatDateIN(new Date(`${selected}T00:00:00`))}`,subtitle:`${dayRows.length} item${dayRows.length===1?'':'s'} for this day`},dayRows.length?h('div',{className:'nurse-todo-list'},dayRows.map((r,i)=>h('div',{className:`nurse-todo-row ${r.status==='Completed'?'completed':''}`,key:r.id},h('span',{className:'nurse-todo-number'},`${i+1}.`),h('button',{type:'button',className:'nurse-todo-check',onClick:()=>complete(r),'aria-label':r.status==='Completed'?'Mark pending':'Mark completed'},r.status==='Completed'?'✓':'○'),h('div',{className:'nurse-todo-copy'},h('strong',null,r.title),h('small',null,r.scheduled_at?formatTimeIN(r.scheduled_at):'Any time')),h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(r)},'Edit'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>remove(r)},'Delete'))))):h('div',{className:'empty'},'No to-do items for this day.'),h('button',{type:'button',className:'btn btn-primary nurse-todo-add-bottom',onClick:openNew},'＋ Add To-Do')),
       show?h('div',{className:'modal-backdrop'},
         h('form',{className:'modal-card nurse-todo-modal',onSubmit:save},
           h('div',{className:'panel-head'},
@@ -15830,7 +15817,7 @@ Please keep these login details confidential.`;
       h('div',{className:'panel-head'},h('div',null,h('h3',null,'Unified Patient Admission'),h('small',null,'Hospital discharge, direct admission, doctor referral or transfer'))),
       h('div',{className:'small-note',style:{display:'flex',justifyContent:'space-between',gap:'12px',alignItems:'center',marginBottom:'8px'}},
         h('span',null,lastAutoSavedAt
-          ?`Draft auto-saved at ${lastAutoSavedAt.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}`
+          ?`Draft auto-saved at ${formatTimeIN(lastAutoSavedAt)}`
           :'Admission form auto-save is active. Text entries, medicines and care-plan details are retained if you leave the page.'
         ),
         (draftRestored||lastAutoSavedAt)&&h('button',{
@@ -27418,7 +27405,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     h('div',{'aria-live':'polite'},
       item&&h('p',null,h('strong',null,`Store balance: ${item.balance_qty??'Unavailable'} ${item.unit}`)),
       h('p',{style:{fontWeight:700,color:availability.shortage?'#a32c32':undefined}},availability.status),
-      stock.checkedAt&&h('small',null,`Checked ${stock.checkedAt.toLocaleTimeString('en-IN')}. Stock is not reserved by this request.`)
+      stock.checkedAt&&h('small',null,`Checked ${formatTimeIN(stock.checkedAt)}. Stock is not reserved by this request.`)
     ),
     h('button',{type:'button',className:'btn btn-secondary',onClick:stock.reload},'Refresh stock')
   );

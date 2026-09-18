@@ -3,7 +3,7 @@
 const R=window.React,h=R.createElement;
 const money=n=>'₹'+Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const day=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});
-const stamp=v=>v?new Date(v).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',dateStyle:'medium',timeStyle:'short'})+' IST':'—';
+const stamp=v=>v?window.SamaraDateTime.dateTime(v):'—';
 const ref=(kind,n)=>'TRIAL-'+kind+'-'+String(n).padStart(5,'0');
 const categories=['Food vendors','Salaries','Purchases','Rent','Utilities','Maintenance','Patient refunds','Advance','Other'];
 const activePayments=(r,ps)=>ps.filter(p=>p.request_id===r.id&&!p.reversed_at);

@@ -1,8 +1,9 @@
-const APP_VERSION = '2.13.47';
-const CACHE = 'samara-erp-2.13.47-food-vendor';
+const APP_VERSION = '2.13.48';
+const CACHE = 'samara-erp-2.13.48-food-vendor';
 const SHELL = [
   './',
   './index.html',
+  `./date-time.js?v=${APP_VERSION}`,
   `./payments-statement-core.js?v=${APP_VERSION}`,
   `./payments-statement.js?v=${APP_VERSION}`,
   `./outgoing-payments.js?v=${APP_VERSION}`,
