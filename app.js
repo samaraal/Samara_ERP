@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.43';
+  const APP_VERSION = '2.13.44';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -16763,7 +16763,7 @@ Please keep these login details confidential.`;
     const [editDocs,setEditDocs]=React.useState([]),[editPhotoUrl,setEditPhotoUrl]=React.useState(''),[editCameraConfig,setEditCameraConfig]=React.useState(null);
     const [editUploads,setEditUploads]=React.useState({photo:[],identity:[],prescription:[],discharge:[],reports:[],other:[]});
     async function load(){const {data,error}=await client.from('patients').select('*').order('created_at',{ascending:false});if(error)console.error(error);setRows(data||[])}
-    React.useEffect(()=>{const loadRooms=async()=>{const {data}=await client.from('room_beds').select('*').order('room_no').order('bed_no');setRoomBeds(data||[])};load();loadRooms();const ch=client.channel('patients-live').on('postgres_changes',{event:'*',schema:'public',table:'patients'},load).on('postgres_changes',{event:'*',schema:'public',table:'room_beds'},loadRooms).subscribe();return()=>client.removeChannel(ch)},[]);
+    React.useEffect(()=>{const loadRooms=async()=>{const {data}=await client.from('room_beds').select('*').order('room_no').order('bed_no');setRoomBeds(data||[])};load();loadRooms();const timer=setInterval(load,30000);window.addEventListener('focus',load);const ch=client.channel('patients-live').on('postgres_changes',{event:'*',schema:'public',table:'patients'},load).on('postgres_changes',{event:'*',schema:'public',table:'room_beds'},loadRooms).subscribe();return()=>{clearInterval(timer);window.removeEventListener('focus',load);client.removeChannel(ch)}},[]);
     async function resolvePatientPhoto(p){
       let path=p.photo_storage_path||'';
       if(!path){
@@ -18004,6 +18004,7 @@ Please keep these login details confidential.`;
         r.district,r.taluk,r.village_town,r.locality_area,r.street_name,r.pincode
       ].some(value=>String(value||'').toLowerCase().includes(q));
       const matchesDistrict=districtFilter==='All'||String(r.district||'')===districtFilter;
+      if(['Nurse','Caregiver'].includes(profile?.role)&&(r.is_active===false||r.admission_status==='Discharged'))return false;
       const matchesQuick=patientQuickFilter==='all'||
         (patientQuickFilter==='active'&&r.is_active!==false)||
         (patientQuickFilter==='inactive'&&r.is_active===false)||
@@ -19261,8 +19262,10 @@ Please keep these login details confidential.`;
     React.useEffect(()=>{ensureFinalDischargeStyle()},[]);
     const isNurse=profile?.role==='Nurse';
     const isAccountsClearance=mode==='accounts';
-    const canInitiate=!isAccountsClearance&&['Admin','Manager','Nurse'].includes(profile?.role);
-    const canApprove=!isAccountsClearance&&['Admin','Manager'].includes(profile?.role);
+    const [isAssignedDirector,setIsAssignedDirector]=React.useState(false);
+    React.useEffect(()=>{client.from('director_office_positions').select('assigned_profile_id').eq('position_key','director').maybeSingle().then(r=>setIsAssignedDirector(r.data?.assigned_profile_id===profile?.id))},[profile?.id]);
+    const canInitiate=!isAccountsClearance&&isNurse&&!isAssignedDirector;
+    const canApprove=!isAccountsClearance&&(['Admin','Manager'].includes(profile?.role)||isAssignedDirector);
     const canCloseAccounts=isAccountsClearance&&['Admin','Accounts'].includes(profile?.role);
     const [rows,setRows]=React.useState([]);
     const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
@@ -19957,7 +19960,7 @@ Please keep these login details confidential.`;
 
     async function completeFinalDischarge(e){
       e.preventDefault();
-      if(!isNurse||busy||!finalDischargeRow)return;
+      if(!isNurse||isAssignedDirector||busy||!finalDischargeRow)return;
 
       const requiredChecks=[
         ['discharge_summary_handed_over','Discharge summary handed over'],
@@ -20290,7 +20293,7 @@ Doctor / Hospital: ${doctorHospital}`;
         },'Review & Decide'),
         canCloseAccounts&&row.management_status==='Approved'&&row.status!=='Completed'&&h('button',{className:'btn btn-secondary',onClick:()=>openPayments(row)},'View Payments'),
         canCloseAccounts&&row.management_status==='Approved'&&row.status!=='Completed'&&row.accounts_status==='Ready to Close'&&h('span',{className:'small-note'},'Financial closure must be completed through Payments with full transaction evidence.'),
-        isNurse&&String(row.accounts_status||'').trim().toLowerCase()==='cleared'&&String(row.status||'').trim().toLowerCase()!=='completed'&&h('button',{
+        isNurse&&!isAssignedDirector&&String(row.accounts_status||'').trim().toLowerCase()==='cleared'&&String(row.status||'').trim().toLowerCase()!=='completed'&&h('button',{
           type:'button',
           className:'btn btn-primary',
           onMouseDown:event=>event.stopPropagation(),
@@ -21807,6 +21810,18 @@ function RoomsBeds({profile,onNavigate}){
     );
   }
 
+  function DischargeMedicationReview(){
+    const [rows,setRows]=React.useState([]),[target,setTarget]=React.useState(null),[note,setNote]=React.useState(''),[busy,setBusy]=React.useState(false),[error,setError]=React.useState('');
+    async function load(){const r=await client.rpc('discharge_medication_review_list');if(r.error)setError(r.error.message);else setRows(r.data||[])}
+    React.useEffect(()=>{load()},[]);
+    async function save(e){e.preventDefault();if(busy)return;setBusy(true);const r=await client.rpc('review_discharge_medication',{p_id:target.id,p_note:note.trim()});setBusy(false);if(r.error){setError(r.error.message);return}setTarget(null);setNote('');await load()}
+    if(!rows.length&&!error)return null;
+    return h(Section,{title:`Discharged Patients — Medication Review (${rows.length})`,subtitle:'Unresolved doses before actual departure. Review the history; these are not current administration tasks.'},
+      error&&h('div',{className:'message error'},error),
+      h('details',null,h('summary',null,'Show pre-departure review list'),rows.map(r=>h('div',{key:r.id,className:'absence-card'},h('strong',null,`${r.patient_name} · ${r.medicine_name} ${r.strength||''}`),h('p',null,`${formatDateIN(r.scheduled_date)} ${r.scheduled_time} · ${r.previous_status}`),h('button',{className:'btn btn-secondary',onClick:()=>{setTarget(r);setNote('');setError('')}},'Record Review')))),
+      target&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:save},h('h3',null,'Review Pre-departure Dose'),h('p',null,`${target.patient_name} · ${target.medicine_name} · ${formatDateIN(target.scheduled_date)} ${target.scheduled_time}`),h('p',null,'Recording a review does not mark this dose as given or change its original administration record.'),h('label',{htmlFor:'discharge-review-note'},'Review outcome / follow-up'),h('textarea',{id:'discharge-review-note',required:true,value:note,onChange:e=>setNote(e.target.value)}),h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>setTarget(null)},'Cancel'),h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save Review')))));
+  }
+
   function Medicines({profile,onNavigate}){
     const today=todayISOIndia();
     const [state,setState]=React.useState({loading:true,orders:[],mar:[],patients:[],reviews:[],reviewItems:[],error:'',reviewSetupError:''});
@@ -21852,7 +21867,7 @@ function RoomsBeds({profile,onNavigate}){
     function orderActive(order){
       if(order.is_active===false)return false;
       const patient=patientFor(order);
-      if(!patient?.id||patient.is_active===false)return false;
+      if(!patient?.id||patient.is_active===false||patient.admission_status==='Discharged')return false;
       const status=String(order.status||'').trim().toLowerCase();
       if(['completed','discontinued','stopped','inactive'].includes(status))return false;
       const end=order.end_date||'';
@@ -21999,6 +22014,7 @@ function RoomsBeds({profile,onNavigate}){
       return normalizeMedicationTime(`${String(new Date().getHours()).padStart(2,'0')}:00`);
     }
     function openMar(order,time=''){
+      const p=patientFor(order);if(!p.id||p.is_active===false||p.admission_status==='Discharged'||order.discharge_closed_at){showSamaraActionToast('error','Patient discharged','Current administration is unavailable. Pre-departure records are retained for management review.');return}
       const scheduled=time||firstPendingTime(order);
       if(!scheduled){
         showSamaraActionToast('success','Already recorded','All scheduled doses for this prescription have already been recorded today.');
@@ -22025,6 +22041,8 @@ function RoomsBeds({profile,onNavigate}){
       e.preventDefault();
       setMarMessage('');
       if(!marTarget)return;
+      const fresh=await client.from('patients').select('is_active,admission_status').eq('id',marTarget.patient_id).single();
+      if(fresh.error||!fresh.data||fresh.data.is_active===false||fresh.data.admission_status==='Discharged'){setMarMessage('Patient is discharged or status could not be verified. Refresh the medication list.');await load();return}
       if(!marForm.scheduled_time){const text='Please select the scheduled medicine time.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;}
       if(['Refused','Missed','Delayed'].includes(marForm.status)&&!String(marForm.remarks||'').trim()){
         const text=`Please enter the reason for medicine status “${marForm.status}”.`;setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;
@@ -22088,13 +22106,16 @@ function RoomsBeds({profile,onNavigate}){
     }
     React.useEffect(()=>{
       load();
+      const timer=setInterval(load,30000);window.addEventListener('focus',load);
       const ch=client.channel('medicines-register-live')
+        .on('postgres_changes',{event:'*',schema:'public',table:'patients'},load)
+        .on('postgres_changes',{event:'*',schema:'public',table:'patient_discharges'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'medication_orders'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'medication_administrations'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'medication_reviews'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'medication_review_items'},load)
         .subscribe();
-      return()=>client.removeChannel(ch);
+      return()=>{clearInterval(timer);window.removeEventListener('focus',load);client.removeChannel(ch)};
     },[]);
 
     React.useEffect(()=>{
@@ -22123,6 +22144,7 @@ function RoomsBeds({profile,onNavigate}){
     const activeOrders=state.orders.filter(orderActive);
     const todayRows=[];
     state.orders.forEach(order=>parseTimes(order.scheduled_times).forEach(time=>{
+      const patient=patientFor(order);if(!patient.id||patient.is_active===false||patient.admission_status==='Discharged')return;
       if(!medicationOrderDoseEligible(order,today,time))return;
       if(doseWasBeforeAdmission(order,time))return;
       todayRows.push({order,time,log:doseStatus(order,time)});
@@ -22282,6 +22304,7 @@ function RoomsBeds({profile,onNavigate}){
         ),
         !useFrontlinePriority&&h('div',{className:'time-chip-list',style:{marginTop:'16px'}},tabs.map(([name,count])=>h('button',{type:'button',key:name,className:`btn ${tab===name?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(name)},`${name} (${count})`)))
       ),
+      h(DischargeMedicationReview),
       state.loading?h('div',{className:'card panel loading'},'Loading medication register…'):(useFrontlinePriority?nurseMedicationCards:table),
       reviewOpen&&h('div',{className:'modal-backdrop medication-review-backdrop',onClick:e=>{if(e.target===e.currentTarget&&!reviewBusy)setReviewOpen(false)}},
         h('form',{className:'card modal medication-review-modal',onSubmit:saveMedicationReview},
