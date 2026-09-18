@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.40';
+  const APP_VERSION = '2.13.41';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12390,9 +12390,10 @@ Thank you.`;
 
   function LeavePermission({profile,mode='mine',calendar=false}){
     const isApprovals=mode==='approvals';
+    const [handoverManagers,setHandoverManagers]=React.useState([]);
     const [returnTarget,setReturnTarget]=React.useState(null),[returnDate,setReturnDate]=React.useState(''),[returnNote,setReturnNote]=React.useState(''),[returnBusy,setReturnBusy]=React.useState(false),[returnError,setReturnError]=React.useState('');
     const returnLock=React.useRef(false);
-    function canRecordReturn(r){return ['Admin','Manager'].includes(profile.role)&&r.employee_id!==profile.id&&r.request_type==='Leave'&&r.status==='approved'&&!r.return_to_duty_date&&r.from_date<=todayISOIndia();}
+    function canRecordReturn(r){return !handoverManagers.includes(r.employee_id)&&['Admin','Manager'].includes(profile.role)&&r.employee_id!==profile.id&&r.request_type==='Leave'&&r.status==='approved'&&!r.return_to_duty_date&&r.from_date<=todayISOIndia();}
     function openReturn(r){setReturnTarget(r);setReturnDate(todayISOIndia()<=r.to_date?todayISOIndia():r.to_date);setReturnNote('');setReturnError('');}
     async function saveReturn(e){
       e.preventDefault();if(returnLock.current||!returnTarget)return;
@@ -12439,12 +12440,14 @@ Thank you.`;
     const statusClass=s=>s==='approved'?'success':s==='rejected'?'error':'';
     async function load(){
       setBusy(true);
-      const [reqRes,profRes]=await Promise.all([
+      const [reqRes,profRes,handoverRes]=await Promise.all([
         client.from('absence_requests').select('*').order('created_at',{ascending:false}).limit(300),
-        client.rpc('get_absence_people')
+        client.rpc('get_absence_people'),
+        client.from('store_incharge_assignments').select('nursing_manager_id').eq('status','Active').lte('effective_from',new Date().toISOString())
       ]);
       if(reqRes.error){setMsg(reqRes.error.message||'Unable to load leave requests');setRows([])}else setRows(reqRes.data||[]);
       if(!profRes.error)setProfiles(profRes.data||[]);
+      if(!handoverRes.error)setHandoverManagers((handoverRes.data||[]).map(x=>x.nursing_manager_id).filter(Boolean));
       setBusy(false);
     }
     React.useEffect(()=>{load();const ch=client.channel(`absence-${mode}`).on('postgres_changes',{event:'*',schema:'public',table:'absence_requests'},load).subscribe();return()=>client.removeChannel(ch)},[mode]);
@@ -12504,6 +12507,7 @@ Thank you.`;
           h('div',null,h('small',null,'Reporting Superior'),h('strong',null,formalName(superior)||'Manager / Admin directly')),
           h('div',null,h('small',null,'Reason'),h('strong',null,r.reason||'—')),
           returnDetails(r),
+          handoverManagers.includes(r.employee_id)&&h('div',{style:{gridColumn:'1/-1'},className:'message'},'Nursing Manager return: Admin/Director must use Approve Return to Duty under Stores In-charge Assignment. STD retains operational rights until approval.'),
           r.handover_remarks?h('div',null,h('small',null,'Handover'),h('strong',null,r.handover_remarks)):null,
           r.superior_remarks?h('div',null,h('small',null,'Superior Remarks'),h('strong',null,r.superior_remarks)):null,
           r.management_remarks?h('div',null,h('small',null,'Management Remarks'),h('strong',null,r.management_remarks)):null,
@@ -12551,6 +12555,7 @@ Thank you.`;
           h('div',null,h('small',null,'Reason'),h('strong',null,r.reason||'—')),
           h('div',null,h('small',null,'Status'),h('strong',null,statusLabel(r.status))),
           returnDetails(r),
+          handoverManagers.includes(r.employee_id)&&h('div',{style:{gridColumn:'1/-1'},className:'message'},'Nursing Manager return: Admin/Director must use Approve Return to Duty under Stores In-charge Assignment. STD retains operational rights until approval.'),
           r.handover_remarks?h('div',null,h('small',null,'Handover'),h('strong',null,r.handover_remarks)):null,
           r.decision_by_name?h('div',null,h('small',null,'Decision'),h('strong',null,`${r.decision_by_name}${r.decision_at?` · ${fmt(r.decision_at)}`:''}`)):null,
           h('div',{className:'absence-actions',style:{gridColumn:'1/-1'}},
@@ -27182,55 +27187,96 @@ Please access the Samara Family Portal for detailed account information.`;
   }
 
   function useStoreAuthority(profile){
-    const [assignments,setAssignments]=React.useState([]),[ready,setReady]=React.useState(false);
+    const [assignments,setAssignments]=React.useState([]),[ready,setReady]=React.useState(false),[canApprove,setCanApprove]=React.useState(false);
     const reload=React.useCallback(async()=>{
-      const res=await client.from('store_incharge_assignments').select('*').order('created_at',{ascending:false}).limit(100);
-      if(!res.error)setAssignments(res.data||[]);else if(res.error.code!=='42P01')console.warn(res.error);
-      setReady(true);
+      const [res,permission]=await Promise.all([
+        client.from('store_incharge_assignments').select('*').order('created_at',{ascending:false}).limit(100),
+        client.rpc('stores_return_approval_allowed')
+      ]);
+      if(!res.error)setAssignments(res.data||[]);else console.warn(res.error);
+      setCanApprove(!permission.error&&permission.data===true);setReady(true);
     },[]);
-    React.useEffect(()=>{reload()},[reload]);
+    React.useEffect(()=>{
+      reload();const timer=setInterval(reload,30000);window.addEventListener('focus',reload);
+      const ch=client.channel('stores-return-authority-'+profile.id).on('postgres_changes',{event:'*',schema:'public',table:'store_incharge_assignments'},reload).subscribe();
+      return()=>{clearInterval(timer);window.removeEventListener('focus',reload);client.removeChannel(ch)};
+    },[reload,profile.id]);
     const now=Date.now();
-    const active=assignments.find(x=>x.status==='Active'&&new Date(x.effective_from).getTime()<=now&&new Date(x.effective_until).getTime()>=now)||null;
-    const delegated=Boolean(active);
-    const isSTD=profile?.role==='STD';
+    const active=assignments.find(x=>x.status==='Active'&&new Date(x.effective_from).getTime()<=now)||null;
+    const scheduled=assignments.find(x=>x.status==='Active'&&new Date(x.effective_from).getTime()>now)||null;
+    const delegated=Boolean(active),isSTD=profile?.role==='STD';
     const controller=(isNursingManagerProfile(profile)&&!delegated)||(isSTD&&delegated);
-    return {assignments,active,delegated,controller,ready,reload};
+    return {assignments,active,scheduled,delegated,controller,canApprove,ready,reload};
   }
 
   const displayStoreItemName=value=>String(value||'').trim().toLowerCase()==='examination'?'Examination Gloves':String(value||'').trim();
 
   function StoreInchargeAssignment({profile,authority}){
-    const canAssign=profile?.role==='Admin';
-    const [busy,setBusy]=React.useState(false),[editing,setEditing]=React.useState(false);
+    const canAssign=authority.canApprove,current=authority.active||authority.scheduled;
+    const [busy,setBusy]=React.useState(false),[editing,setEditing]=React.useState(false),[returnOpen,setReturnOpen]=React.useState(false),[returnError,setReturnError]=React.useState('');
+    const actionLock=React.useRef(false);
     const localInput=value=>{const d=value?new Date(value):new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)};
     const defaultUntil=()=>localInput(Date.now()+12*60*60*1000);
     const [form,setForm]=React.useState({effective_from:localInput(),effective_until:defaultUntil(),reason:''});
-    async function assign(e){e.preventDefault();if(!canAssign||busy)return;
-      if(!form.reason.trim()){showSamaraActionToast('error','Reason required','Enter the reason for temporary Stores delegation.');return}
-      const rpc=editing&&authority.active?'modify_stores_std_assignment':'assign_stores_to_std';
-      const payload={p_effective_from:new Date(form.effective_from).toISOString(),p_effective_until:new Date(form.effective_until).toISOString(),p_reason:form.reason.trim()};
-      if(editing&&authority.active)payload.p_assignment_id=authority.active.id;
-      setBusy(true);const res=await client.rpc(rpc,payload);setBusy(false);
-      if(res.error)showSamaraActionToast('error',editing?'Modification failed':'Assignment failed',res.error.message);else{showSamaraActionToast('success',editing?'Assignment modified':'Stores responsibility assigned',editing?'The revised delegation period has been saved.':'STD will act as Store In-charge for the selected period.');setEditing(false);setForm({effective_from:localInput(),effective_until:defaultUntil(),reason:''});authority.reload()}
+    const [returnedAt,setReturnedAt]=React.useState(localInput()),[returnReason,setReturnReason]=React.useState('');
+    async function assign(e){
+      e.preventDefault();if(!canAssign||actionLock.current)return;
+      if(!form.reason.trim())return showSamaraActionToast('error','Reason required','Enter the reason for temporary delegation.');
+      actionLock.current=true;setBusy(true);
+      try{
+        const rpc=editing&&current?'modify_stores_std_assignment':'assign_stores_to_std';
+        const payload={p_effective_from:new Date(form.effective_from).toISOString(),p_effective_until:new Date(form.effective_until).toISOString(),p_reason:form.reason.trim()};
+        if(editing&&current)payload.p_assignment_id=current.id;
+        const res=await client.rpc(rpc,payload);if(res.error)throw res.error;
+        showSamaraActionToast('success','Assignment saved','STD retains Stores and Food & Diet control until Admin/Director approves Return to Duty.');
+        setEditing(false);setForm({effective_from:localInput(),effective_until:defaultUntil(),reason:''});await authority.reload();
+      }catch(error){showSamaraActionToast('error','Unable to save assignment',error.message)}finally{actionLock.current=false;setBusy(false)}
     }
-    function beginEdit(){if(!authority.active)return;setForm({effective_from:localInput(authority.active.effective_from),effective_until:localInput(authority.active.effective_until),reason:authority.active.reason||''});setEditing(true)}
-    async function endNow(){if(!canAssign||busy||!authority.active)return;const reason=prompt('Reason for cancelling the STD delegation:','Nurse Manager resumed duty early');if(reason===null||!reason.trim())return;setBusy(true);const res=await client.rpc('end_stores_std_assignment',{p_assignment_id:authority.active.id,p_reason:reason.trim()});setBusy(false);if(res.error)showSamaraActionToast('error','Unable to cancel assignment',res.error.message);else{showSamaraActionToast('success','Delegation cancelled','Stores responsibility has returned to the Nurse Manager.');setEditing(false);authority.reload()}}
-    return h(Section,{title:'Stores In-charge Assignment',subtitle:'Primary responsibility: Nurse Manager. Admin/Director may temporarily delegate the Stores position to the STD.'},
+    function beginEdit(){if(!current)return;setForm({effective_from:localInput(current.effective_from),effective_until:localInput(current.effective_until),reason:current.reason||''});setEditing(true)}
+    function openReturn(){setReturnedAt(localInput());setReturnReason('');setReturnError('');setReturnOpen(true)}
+    async function approveReturn(e){
+      e.preventDefault();if(!canAssign||!authority.active||actionLock.current)return;
+      if(!returnedAt||!Number.isFinite(new Date(returnedAt).getTime())||new Date(returnedAt).getTime()>Date.now())return setReturnError('Enter the actual return date and time, no later than now.');
+      if(!returnReason.trim())return setReturnError('Please enter return confirmation remarks.');
+      actionLock.current=true;setBusy(true);setReturnError('');
+      try{
+        const {data,error}=await client.rpc('approve_stores_return_to_duty',{p_assignment_id:authority.active.id,p_returned_at:new Date(returnedAt).toISOString(),p_reason:returnReason.trim()});
+        if(error)throw error;
+        setReturnOpen(false);setEditing(false);await authority.reload();
+        showSamaraActionToast('success','Return to Duty approved',data.message+(data.leave_shortened?' Approved leave has also been shortened to the actual period taken.':''));
+      }catch(error){setReturnError(error.message||'Unable to approve return.')}finally{actionLock.current=false;setBusy(false)}
+    }
+    async function cancelScheduled(){
+      if(!canAssign||busy||!authority.scheduled)return;
+      const reason=prompt('Reason for cancelling the future delegation:','');if(!reason?.trim())return;
+      setBusy(true);try{const {error}=await client.rpc('end_stores_std_assignment',{p_assignment_id:authority.scheduled.id,p_reason:reason.trim()});if(error)throw error;await authority.reload();setEditing(false)}catch(error){showSamaraActionToast('error','Unable to cancel',error.message)}finally{setBusy(false)}
+    }
+    const awaiting=authority.active&&new Date(authority.active.effective_until).getTime()<=Date.now();
+    return h(React.Fragment,null,h(Section,{title:'Stores In-charge Assignment',subtitle:'Stores and Food & Diet handover · STD continues until Admin/Director approves the Nursing Manager’s return.'},
       h('div',{className:'card',style:{padding:'14px',marginBottom:'14px',borderLeft:`5px solid ${authority.active?'#f28c28':'#b30b5d'}`}},
-        h('strong',null,authority.active?'Current In-charge: STD (Temporary)':'Current In-charge: Nurse Manager'),
-        authority.active&&h('div',{style:{marginTop:'6px'}},`${formatDateTimeIN(authority.active.effective_from)} to ${formatDateTimeIN(authority.active.effective_until)} · ${authority.active.reason}`),
-        canAssign&&authority.active&&h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'10px'}},
-          h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:beginEdit},'Modify Assignment'),
-          h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:endNow},'Cancel Delegation'))
+        h('strong',null,authority.active?'Current In-charge: STD — awaiting approved return':'Current In-charge: Nurse Manager'),
+        current&&h('div',{style:{marginTop:'6px'}},`Delegation starts: ${formatDateTimeIN(current.effective_from)} · Expected return: ${formatDateTimeIN(current.effective_until)} · ${current.reason}`),
+        awaiting&&h('p',{className:'message',role:'status'},'Expected return time has passed. STD remains in charge. Admin/Director: confirm the actual return or update the expected return if leave is extended.'),
+        canAssign&&current&&h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'10px'}},
+          h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:beginEdit},'Update Expected Return / Assignment'),
+          authority.active?h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:openReturn},'Approve Return to Duty'):h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:cancelScheduled},'Cancel Future Assignment'))
       ),
-      canAssign&&(!authority.active||editing)&&h('form',{onSubmit:assign},h('div',{className:'grid two'},
+      canAssign&&(!current||editing)&&h('form',{onSubmit:assign},h('div',{className:'grid two'},
         h('div',{className:'field'},h('label',null,'Effective From *'),h('input',{type:'datetime-local',value:form.effective_from,onChange:e=>setForm({...form,effective_from:e.target.value}),required:true})),
-        h('div',{className:'field'},h('label',null,'Effective Until *'),h('input',{type:'datetime-local',value:form.effective_until,onChange:e=>setForm({...form,effective_until:e.target.value}),required:true})),
-        h('div',{className:'field'},h('label',null,'Reason for Delegation *'),h('textarea',{rows:2,value:form.reason,onChange:e=>setForm({...form,reason:e.target.value}),required:true,placeholder:'Example: Nurse Manager on leave'}))
-      ),h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':editing?'Save Modification':'Assign Stores to STD'),editing&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>setEditing(false)},'Close Without Change'))),
-      h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Period','Assigned Position','Reason','Assigned By','Status'].map(x=>h('th',{key:x},x)))),h('tbody',null,
-        authority.assignments.length?authority.assignments.map(r=>{const displayStatus=r.status==='Active'&&new Date(r.effective_until).getTime()<Date.now()?'Expired':r.status;return h('tr',{key:r.id},h('td',null,`${formatDateTimeIN(r.effective_from)} — ${formatDateTimeIN(r.effective_until)}`),h('td',null,'STD'),h('td',null,r.reason),h('td',null,r.assigned_by_name||'—'),h('td',null,displayStatus))}):h('tr',null,h('td',{colSpan:5,style:{textAlign:'center'}},'No temporary assignment history.')))))
-    );
+        h('div',{className:'field'},h('label',null,'Expected Return *'),h('input',{type:'datetime-local',value:form.effective_until,onChange:e=>setForm({...form,effective_until:e.target.value}),required:true})),
+        h('div',{className:'field'},h('label',null,'Reason for Delegation / Extension *'),h('textarea',{rows:2,value:form.reason,onChange:e=>setForm({...form,reason:e.target.value}),required:true,placeholder:'Example: Nursing Manager on leave / leave extended'}))
+      ),h('p',null,'Expected return is for planning. STD’s operational rights will not expire automatically.'),h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':editing?'Save Modification':'Assign Stores & Food to STD'),editing&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>setEditing(false)},'Close Without Change'))),
+      h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Start / Expected Return','Position','Reason','Assigned By','Status / Return Approval'].map(x=>h('th',{key:x},x)))),h('tbody',null,
+        authority.assignments.length?authority.assignments.map(r=>{const displayStatus=r.status==='Active'?(new Date(r.effective_from).getTime()>Date.now()?'Scheduled':new Date(r.effective_until).getTime()<Date.now()?'Awaiting return approval · STD continues':'STD continues until return approval'):r.return_approved_at?'Return approved':'Ended';return h('tr',{key:r.id},h('td',null,`${formatDateTimeIN(r.effective_from)} — ${formatDateTimeIN(r.effective_until)}`),h('td',null,'STD'),h('td',null,r.reason),h('td',null,r.assigned_by_name||'—'),h('td',null,displayStatus,r.return_approved_at&&h('div',null,`Returned: ${formatDateTimeIN(r.returned_at)} · Approved by ${r.return_approved_by_name||'Management'} at ${formatDateTimeIN(r.return_approved_at)} · ${r.end_reason||''}`)))}):h('tr',null,h('td',{colSpan:5,style:{textAlign:'center'}},'No temporary assignment history.')))))
+    ),returnOpen&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:approveReturn},
+      h('h3',null,'Approve Return to Duty'),
+      h('p',null,'Confirm that the Nursing Manager has actually resumed duty. Approval transfers Stores and Food & Diet control back from STD immediately.'),
+      h('div',{className:'field'},h('label',{htmlFor:'stores-actual-return'},'Actual Return Date & Time *'),h('input',{id:'stores-actual-return',type:'datetime-local',required:true,value:returnedAt,max:localInput(),min:authority.active?localInput(authority.active.effective_from):undefined,disabled:busy,onChange:e=>setReturnedAt(e.target.value)})),
+      h('div',{className:'field'},h('label',{htmlFor:'stores-return-reason'},'Confirmation Remarks *'),h('textarea',{id:'stores-return-reason',required:true,rows:3,value:returnReason,disabled:busy,onChange:e=>setReturnReason(e.target.value),placeholder:'Confirm the return and handover'})),
+      h('small',null,'For an early return, approved leave covering the return date is shortened to the previous day and the original approval is preserved. Record attendance and duty assignments separately.'),
+      returnError&&h('p',{className:'message error',role:'alert'},returnError),
+      h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>setReturnOpen(false)},'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:busy},busy?'Approving…':'Approve & Transfer Control'))
+    )));
   }
 
   function StoresInchargeAssignmentPage({profile}){
