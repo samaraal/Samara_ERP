@@ -48,6 +48,40 @@
   const indiaInput=date=>new Date(date.getTime()+330*60000).toISOString().slice(0,16);
   const indiaISO=value=>value?new Date(value+':00+05:30').toISOString():null;
   const display=value=>value?new Intl.DateTimeFormat('en-IN',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Kolkata'}).format(new Date(value))+' IST':'—';
+  function useDailyNotice({client,profile,ready=true}){
+    const [notice,setNotice]=React.useState(null);
+    const context=profile?.__dutyContext;
+    const day=context?.server_now?indiaInput(new Date(context.server_now)).slice(0,10):'';
+    React.useEffect(()=>{
+      let active=true;
+      async function claim(){
+        if(document.visibilityState!=='visible'||!profile?.id||!context)return;
+        try{
+          const {data,error}=await client.rpc('claim_department_duty_notice');
+          if(active&&!error&&data?.profile_id===profile.id)setNotice(data);
+        }catch(_error){/* A notice failure never changes verified duties. */}
+      }
+      claim();document.addEventListener('visibilitychange',claim);
+      return()=>{active=false;document.removeEventListener('visibilitychange',claim)};
+    },[profile?.id,day,context?.assignment?.id,context?.next_change_at]);
+    React.useEffect(()=>{if(!notice||!ready)return;const timer=setTimeout(()=>setNotice(null),8000);return()=>clearTimeout(timer)},[notice,ready]);
+    return {notice:notice?.profile_id===profile?.id?notice:null,onClose:()=>setNotice(null)};
+  }
+  function DailyNotice({notice,onClose}){
+    if(!notice)return null;
+    return h('div',{className:'duty-login-notice'},
+      h('style',null,`.duty-login-notice{position:fixed;inset:0;z-index:11000;display:grid;place-items:center;overflow:hidden;background:rgba(255,248,252,.97);color:#7d104c;padding:24px}.duty-login-notice-message{width:min(100%,1050px);text-align:center;font-weight:900;line-height:1.2;animation:duty-notice-rise 8s ease-in-out both}.duty-login-notice-title{font-size:clamp(24px,3vw,44px);margin:0 0 14px}.duty-login-notice-main{font-size:clamp(30px,4.5vw,66px);margin:12px 0}.duty-login-notice-detail{font-size:clamp(18px,2vw,28px);margin:14px 0}.duty-login-notice-close{position:absolute;right:18px;top:18px;font-size:18px;font-weight:800}@keyframes duty-notice-rise{0%{transform:translateY(100vh);opacity:0}18%,80%{transform:translateY(0);opacity:1}100%{transform:translateY(-100vh);opacity:0}}@media(prefers-reduced-motion:reduce){.duty-login-notice-message{animation:none}}`),
+      h('div',{className:'duty-login-notice-message',role:'status','aria-live':'polite'},
+        h('p',{className:'duty-login-notice-title'},'TEMPORARY DUTY SWAP'),
+        h('p',{className:'duty-login-notice-detail'},notice.name),
+        h('p',{className:'duty-login-notice-main'},notice.upcoming?`You will take charge of ${notice.acting_as} duties today.`:`You are assigned ${notice.acting_as} duties.`),
+        notice.upcoming&&h('p',{className:'duty-login-notice-detail'},`Starts: ${display(notice.starts_at)}`),
+        h('p',{className:'duty-login-notice-detail'},`Until ${display(notice.ends_at)}`),
+        h('p',{className:'duty-login-notice-detail'},'Your regular duties return automatically afterwards.')
+      ),
+      h('button',{type:'button',className:'btn btn-secondary duty-login-notice-close',onClick:onClose,'aria-label':'Dismiss duty assignment notice'},'Close ✕')
+    );
+  }
   function Page({client}){
     const [data,setData]=React.useState(null),[error,setError]=React.useState(''),[busy,setBusy]=React.useState(false);
     const [form,setForm]=React.useState({std:'',nursing:'',start:indiaInput(new Date()),end:indiaInput(new Date(Date.now()+8*3600000)),reason:''});
@@ -102,5 +136,5 @@
       ending&&h('form',{className:'card',onSubmit:end},h('h4',null,'End temporary assignment'),h('p',null,'This immediately restores regular department duties.'),h('textarea',{required:true,placeholder:'Reason',value:endReason,onChange:e=>setEndReason(e.target.value)}),h('button',{className:'btn btn-primary',disabled:busy},'Confirm end'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setEnding(null),disabled:busy},'Keep assignment'))
     );
   }
-  window.SamaraDutySwap={applyContext,regularProfile,useContext,Page,signature,indiaISO,indiaInput};
+  window.SamaraDutySwap={applyContext,regularProfile,useContext,useDailyNotice,Page,DailyNotice,signature,indiaISO,indiaInput};
 })();

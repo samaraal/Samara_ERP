@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.57';
+  const APP_VERSION = '2.13.58';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6611,6 +6611,7 @@ https://samaraassistedliving.com/`;
     const [session,setSession]=React.useState(null);
     const [profile,setProfile]=React.useState(null);
     const dutyContext=window.SamaraDutySwap.useContext({client,profile,setProfile,onChanged:next=>setPage(homePageForProfile(next))});
+    const dutyNotice=window.SamaraDutySwap.useDailyNotice({client,profile,ready:dutyContext.ready});
     const [loading,setLoading]=React.useState(true);
     const [manualRefreshing,setManualRefreshing]=React.useState(false);
     const [lastOfficeRefresh,setLastOfficeRefresh]=React.useState(null);
@@ -7112,6 +7113,7 @@ https://samaraassistedliving.com/`;
         ),
         h(MobileMenu,{page,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
         h(NursingMobileQuickActions,{profile,page,onNavigate:setPage}),
+        h(window.SamaraDutySwap.DailyNotice,dutyNotice),
         h('section',{className:'content',key:window.SamaraDutySwap.signature(profile)},
           profile.__dutyContext?.assignment&&h('div',{className:'message warning',role:'status'},
             `Temporary assignment: ${profile.__dutyContext.assignment.acting_as} duties until ${formatDateTimeIN(profile.__dutyContext.assignment.ends_at)}. Regular duties return automatically.`),
