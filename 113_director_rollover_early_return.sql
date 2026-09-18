@@ -45,7 +45,7 @@ declare r public.absence_requests%rowtype; me public.profiles%rowtype; days_take
 begin
   select * into me from public.profiles
   where (id=auth.uid() or auth_user_id=auth.uid()) and coalesce(is_active,true) limit 1;
-  if me.id is null or me.role not in ('Admin','Manager') then
+  if me.id is null or coalesce(me.role,'') not in ('Admin','Manager') then
     raise exception 'Only an active Manager or Administrator can record an early return';
   end if;
   select * into r from public.absence_requests where id=p_request_id for update;
@@ -80,3 +80,4 @@ grant execute on function public.record_absence_early_return(bigint,date,text) t
 select cron.schedule('samara-director-office-2355-ist','25 18 * * *','select public.rollover_director_office_jobs();');
 notify pgrst, 'reload schema';
 commit;
+
