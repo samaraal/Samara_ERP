@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.52';
+  const APP_VERSION = '2.13.53';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1565,7 +1565,7 @@ function initSamaraInaugurationInvitation(){
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts',
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
-      'Patient Consumables','Stores','Stores In-charge Assignment','Staff Leave Calendar','Food & Diet','My Profile'
+      'Patient Consumables','Stores','Stores In-charge Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
     if(!pages.includes('Spot Assessment'))pages.push('Spot Assessment');
@@ -9187,22 +9187,23 @@ function Dashboard({profile,onNavigate,alertEngine}){
   }
 
   function WhatsAppInbox({profile}){
+    const foodOnly=isNursingManagerProfile(profile);
     const Field=({label,required=false,children})=>h('div',{className:'field'},h('label',null,label,required?h('span',{style:{color:'#b42336',marginLeft:'4px'}},'*'):null),children);
     const [rows,setRows]=React.useState([]),[selectedPhone,setSelectedPhone]=React.useState(''),[query,setQuery]=React.useState(''),[showUnread,setShowUnread]=React.useState(false),[reply,setReply]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState(''),[isMobile,setIsMobile]=React.useState(()=>window.matchMedia('(max-width: 700px)').matches),[patientContext,setPatientContext]=React.useState(null),[mobileComposer,setMobileComposer]=React.useState('');
     const replyEditorRef=React.useRef(null);
     const chatScrollRef=React.useRef(null);
     const chatViewRef=React.useRef({key:null,followLatest:true});
     const [subjectFilter,setSubjectFilter]=React.useState('All Subjects');
-    const [waFolder,setWaFolder]=React.useState(()=>{const folder=sessionStorage.getItem('samara_whatsapp_folder');sessionStorage.removeItem('samara_whatsapp_folder');return folder==='Admission Enquiries'||String(profile?.role||'')==='STD'?'Admission Enquiries':'All';});
+    const [waFolder,setWaFolder]=React.useState(()=>{const folder=sessionStorage.getItem('samara_whatsapp_folder');sessionStorage.removeItem('samara_whatsapp_folder');return foodOnly?'All':folder==='Admission Enquiries'||String(profile?.role||'')==='STD'?'Admission Enquiries':'All';});
     const [dateFrom,setDateFrom]=React.useState('');
     const [dateTo,setDateTo]=React.useState('');
     const isSTD=String(profile?.role||'')==='STD';
-    const WA_REOPEN_TEMPLATES=[
+    const WA_REOPEN_TEMPLATES=foodOnly?[{name:'samara_callback_request',label:'Food Vendor Callback',regarding:'food supply and delivery'}]:[
       {name:'samara_general_followup',label:'General Follow-up',regarding:'your assisted living enquiry'},
       {name:'samara_admission_followup',label:'Admission / Care Enquiry',regarding:'your family member'},
       {name:'samara_callback_request',label:'Callback Request',regarding:'your enquiry'}
     ];
-    const [templateName,setTemplateName]=React.useState('samara_general_followup'),[templateLanguage]=React.useState('en'),[templateRegarding,setTemplateRegarding]=React.useState('your assisted living enquiry'),[mediaBusyId,setMediaBusyId]=React.useState('');
+    const [templateName,setTemplateName]=React.useState(foodOnly?'samara_callback_request':'samara_general_followup'),[templateLanguage]=React.useState('en'),[templateRegarding,setTemplateRegarding]=React.useState(foodOnly?'food supply and delivery':'your assisted living enquiry'),[mediaBusyId,setMediaBusyId]=React.useState('');
     const [showEmergency,setShowEmergency]=React.useState(false);
     const [emergencyType,setEmergencyType]=React.useState('hospital_transfer');
     const [emergencyPatient,setEmergencyPatient]=React.useState('');
@@ -9296,7 +9297,7 @@ Please reply to this message and our team will be happy to assist you.
 Thank you,
 Samara Assisted Living`;
     }
-    const canUse=['Admin','Manager','HR','STD'].includes(String(profile?.role||''));
+    const canUse=foodOnly||['Admin','Manager','HR','STD'].includes(String(profile?.role||''));
     async function repairLegacyInterviewHistory(rawRows){
       // v2.10.84: Repair legacy generic outbound WhatsApp rows for HR interviews.
       // IMPORTANT: the Inbox rendering must NOT depend on a database UPDATE succeeding.
@@ -9377,9 +9378,9 @@ Samara Assisted Living`;
       if(!canUse)return;
       if(showStatus)setMessage('Refreshing WhatsApp Inbox…');
       try{
-        const {data,error}=await client.from('hr_whatsapp_communications').select('*').order('created_at',{ascending:false}).limit(1000);
+        const {data,error}=await (foodOnly?client.rpc('wa_food_inbox'):client.from('hr_whatsapp_communications').select('*').order('created_at',{ascending:false}).limit(1000));
         if(error)throw error;
-        const repaired=await repairLegacyInterviewHistory(data||[]);
+        const repaired=(foodOnly?(data||[]):await repairLegacyInterviewHistory(data||[]));
         setRows(repaired.slice().reverse());
         if(showStatus)setMessage(`✓ WhatsApp Inbox refreshed at ${formatTimeIN(new Date())}.`);
       }catch(error){
@@ -9392,6 +9393,7 @@ Samara Assisted Living`;
       return()=>client.removeChannel(ch);
     },[]);
     React.useEffect(()=>{
+      if(foodOnly){sessionStorage.removeItem('samara_patient_whatsapp_context');return;}
       let context=null;
       try{context=JSON.parse(sessionStorage.getItem('samara_patient_whatsapp_context')||'null')}catch(_error){}
       if(!context)return;
@@ -9457,9 +9459,9 @@ Samara Assisted Living`;
       const inbound=[...sorted].reverse().find(x=>x.direction==='inbound');
       const unread=sorted.filter(x=>x.direction==='inbound'&&!x.erp_read_at).length;
       const name=last.contact_name||last.applicant_name||inbound?.contact_name||inbound?.applicant_name||phone;
-      const source=last.source_type||inbound?.source_type||(last.career_application_id?'HR Applicant':'Website / Public');
+      const source=foodOnly?'Food Vendor':last.source_type||inbound?.source_type||(last.career_application_id?'HR Applicant':'Website / Public');
       const subject=enquirySubject(sorted);
-      const folder=whatsAppFolder(isSTD?rows.filter(r=>phoneOf(r)===phone).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)):sorted);
+      const folder=foodOnly?'Food Vendors':whatsAppFolder(isSTD?rows.filter(r=>phoneOf(r)===phone).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)):sorted);
       return {phone,msgs:sorted,last,name,source,subject,folder,unread,lastAt:last.created_at,hasInbound:Boolean(inbound)};
     }).filter(c=>!isSTD||(c.hasInbound&&c.folder!=='Payment Follow-ups')).sort((a,b)=>new Date(b.lastAt)-new Date(a.lastAt));
     const filtered=conversations.filter(c=>{
@@ -9753,13 +9755,13 @@ Thank you.`;
     }
     const unreadTotal=conversations.filter(c=>waFolder==='All'||c.folder===waFolder).reduce((n,c)=>n+c.unread,0);
     return h(React.Fragment,null,
-      h(Section,{title:patientContext?`WhatsApp — ${patientContext.patient_name}`:(isSTD?'WhatsApp Enquiry Desk':'WhatsApp Inbox'),subtitle:isMobile?null:(patientContext?'Patient-linked WhatsApp messages only. Other WhatsApp conversations are hidden in this view.':(isSTD?'Incoming public enquiries only. Filter by subject, name/mobile and date.':'Website/public enquiries, applicant replies and WhatsApp conversations in one place'))},
+      h(Section,{title:foodOnly?'WhatsApp — Food Vendors':patientContext?`WhatsApp — ${patientContext.patient_name}`:(isSTD?'WhatsApp Enquiry Desk':'WhatsApp Inbox'),subtitle:foodOnly?'Food-vendor conversations only.':isMobile?null:(patientContext?'Patient-linked WhatsApp messages only. Other WhatsApp conversations are hidden in this view.':(isSTD?'Incoming public enquiries only. Filter by subject, name/mobile and date.':'Website/public enquiries, applicant replies and WhatsApp conversations in one place'))},
         patientContext?h('div',{className:'notice',style:{marginBottom:'12px',display:'flex',gap:'10px',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
           h('div',null,h('strong',null,patientContext.patient_name),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},patientContext.patient_code?`· ${patientContext.patient_code}`:''),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},`· +${patientContext.phone}`)),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPatientContext(null);setSelectedPhone('');setQuery('');setShowUnread(false);}},'Show All WhatsApp')
         ):null,
         (!isMobile||!selectedPhone)?h('nav',{'aria-label':'WhatsApp folders',style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'12px'}},
-          (isSTD?['Admission Enquiries','Other']:['All','Admission Enquiries','Payment Follow-ups','Other']).map(folder=>h('button',{type:'button',key:folder,'aria-pressed':waFolder===folder,className:`btn ${waFolder===folder?'btn-primary':'btn-secondary'}`,onClick:()=>{setWaFolder(folder);setSelectedPhone('');setSubjectFilter('All Subjects');setQuery('');setShowUnread(false);setDateFrom('');setDateTo('');}},`${folder} (${conversations.filter(c=>folder==='All'||c.folder===folder).length})`))
+          (foodOnly?['All','Food Vendors']:isSTD?['Admission Enquiries','Other']:['All','Admission Enquiries','Payment Follow-ups','Other']).map(folder=>h('button',{type:'button',key:folder,'aria-pressed':waFolder===folder,className:`btn ${waFolder===folder?'btn-primary':'btn-secondary'}`,onClick:()=>{setWaFolder(folder);setSelectedPhone('');setSubjectFilter('All Subjects');setQuery('');setShowUnread(false);setDateFrom('');setDateTo('');}},`${folder} (${conversations.filter(c=>folder==='All'||c.folder===folder).length})`))
         ):null,
         (!isMobile||!selectedPhone)?h('div',{className:'wa-inbox-toolbar',style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginBottom:'14px'}},
           h('input',{value:query,onChange:e=>setQuery(e.target.value),placeholder:isSTD?'Search name, mobile, subject or message…':'Search name, mobile or message…',style:{flex:'1 1 280px',minWidth:'220px'}}),
@@ -9840,9 +9842,9 @@ Thank you.`;
               ):null,
               (!isMobile||mobileComposer==='reply')?h('div',{className:'wa-free-composer',style:{display:'block',opacity:within24?1:.72}},
                 isMobile?h('div',{className:'wa-mobile-composer-title'},h('span',null,'Direct WhatsApp reply'),h('button',{type:'button',className:'wa-mobile-composer-close',onClick:()=>setMobileComposer(''),'aria-label':'Close reply'},'×')):
-                  h('div',{style:{fontWeight:'800',color:within24?'#087f5b':'#5d1039',marginBottom:'7px'}},within24?'Direct message · reply window open':'Direct message locked · family member has not replied within the last 24 hours'),
+                  h('div',{style:{fontWeight:'800',color:within24?'#087f5b':'#5d1039',marginBottom:'7px'}},within24?'Direct message · reply window open':'Direct message locked · recipient has not replied within the last 24 hours'),
                 h('div',{style:{display:'flex',gap:'10px',alignItems:'stretch'}},
-                  h('textarea',{ref:replyEditorRef,value:reply,onChange:e=>setReply(e.target.value),placeholder:within24?'Type a direct message':'Direct messaging becomes available after the family member replies',disabled:busy||!within24,rows:2,style:{flex:'1 1 auto',minWidth:0,resize:'none',borderRadius:'10px',background:'#fff',margin:0}}),
+                  h('textarea',{ref:replyEditorRef,value:reply,onChange:e=>setReply(e.target.value),placeholder:within24?'Type a direct message':'Direct messaging becomes available after the recipient replies',disabled:busy||!within24,rows:2,style:{flex:'1 1 auto',minWidth:0,resize:'none',borderRadius:'10px',background:'#fff',margin:0}}),
                   h('button',{type:'button',className:'btn btn-primary',disabled:busy||!within24||!reply.trim(),onClick:sendReply,style:{minWidth:isMobile?'86px':'110px'}},busy?'Sending…':'Send')
                 )
               ):null,
@@ -9859,7 +9861,7 @@ Thank you.`;
             ):h('p',{className:'empty',style:{margin:'auto'}},'Select a WhatsApp conversation.')
           )
         ),
-        !isSTD&&showEmergency&&active?h('div',{className:'modal show',onClick:e=>{if(e.target===e.currentTarget&&!emergencyBusy)setShowEmergency(false)}},
+        !foodOnly&&!isSTD&&showEmergency&&active?h('div',{className:'modal show',onClick:e=>{if(e.target===e.currentTarget&&!emergencyBusy)setShowEmergency(false)}},
           h('div',{className:'modal-card',style:{maxWidth:'720px',border:'2px solid #b42336'}},
             h('div',{className:'modal-head'},
               h('div',null,
