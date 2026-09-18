@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.45';
+  const APP_VERSION = '2.13.46';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -19264,7 +19264,7 @@ Please keep these login details confidential.`;
     const isAccountsClearance=mode==='accounts';
     const [isAssignedDirector,setIsAssignedDirector]=React.useState(false);
     React.useEffect(()=>{client.from('director_office_positions').select('assigned_profile_id').eq('position_key','director').maybeSingle().then(r=>setIsAssignedDirector(r.data?.assigned_profile_id===profile?.id))},[profile?.id]);
-    const canInitiate=!isAccountsClearance&&isNurse&&!isAssignedDirector;
+    const canInitiate=!isAccountsClearance&&['Nurse','Manager'].includes(profile?.role)&&!isAssignedDirector;
     const canApprove=!isAccountsClearance&&(['Admin','Manager'].includes(profile?.role)||isAssignedDirector);
     const canCloseAccounts=isAccountsClearance&&['Admin','Accounts'].includes(profile?.role);
     const [rows,setRows]=React.useState([]);
