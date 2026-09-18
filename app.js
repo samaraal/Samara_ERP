@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.56';
+  const APP_VERSION = '2.13.57';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1527,7 +1527,7 @@ function initSamaraInaugurationInvitation(){
     { title:'ADMISSION', items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
-    { title:'PHARMACY & STORES', items:['Patient Consumables','Stores','Stores In-charge Assignment'] },
+    { title:'PHARMACY & STORES', items:['Patient Consumables','Stores','Stores In-charge Assignment','Temporary Duty Swap'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
     { title:'COMMUNICATION', items:['WhatsApp Inbox','WhatsApp Logs','Family Communication','Feedback','Mail Dashboard'] },
@@ -1546,6 +1546,7 @@ function initSamaraInaugurationInvitation(){
     STD:["Director's Office",'Enquiries & Feedback','Food & Diet','Duty Assignment','Patient Consumables','Stores','WhatsApp Inbox','Feedback','My Leave & Permission']
   };
   Object.keys(ROLE_NAV).forEach(role=>{
+    if(!ROLE_NAV[role].includes('Temporary Duty Swap'))ROLE_NAV[role].push('Temporary Duty Swap');
     if(!ROLE_NAV[role].includes('My Profile'))ROLE_NAV[role].push('My Profile');
   });
   const ROLE_HOME={Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet',STD:"Director's Office"};
@@ -1565,7 +1566,7 @@ function initSamaraInaugurationInvitation(){
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts',
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
-      'Patient Consumables','Stores','Stores In-charge Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
+      'Patient Consumables','Stores','Stores In-charge Assignment','Temporary Duty Swap','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
     if(!pages.includes('Spot Assessment'))pages.push('Spot Assessment');
@@ -1608,7 +1609,7 @@ function initSamaraInaugurationInvitation(){
         {title:'ADMISSION',items:['Spot Assessment'].filter(item=>allowed.includes(item))},
         {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My To-Do List','Notifications'].filter(item=>allowed.includes(item))},
         {title:'DUTY ROSTER & LEAVE',items:['Duty Assignment','Staff Leave Calendar','My Leave & Permission','Leave Approvals'].filter(item=>allowed.includes(item))},
-        {title:'PHARMACY & STORES',items:['Patient Consumables','Stores','Stores In-charge Assignment'].filter(item=>allowed.includes(item))},
+        {title:'PHARMACY & STORES',items:['Patient Consumables','Stores','Stores In-charge Assignment','Temporary Duty Swap'].filter(item=>allowed.includes(item))},
         {title:'MY ACCOUNT',items:['My Profile'].filter(item=>allowed.includes(item))}
       ];
     }
@@ -1619,7 +1620,7 @@ function initSamaraInaugurationInvitation(){
         {title:'NURSING STAFF',items:['Duty Calendar','Staff Leave Calendar','Employees'].filter(item=>allowed.includes(item))},
         {title:'ADMISSION',items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},
         {title:'ROOMS & PACKAGES',items:['Rooms','Care Packages'].filter(item=>allowed.includes(item))},
-        {title:'PHARMACY & STORES',items:['Patient Consumables','Stores','Stores In-charge Assignment'].filter(item=>allowed.includes(item))},
+        {title:'PHARMACY & STORES',items:['Patient Consumables','Stores','Stores In-charge Assignment','Temporary Duty Swap'].filter(item=>allowed.includes(item))},
         {title:'FOOD & DIET',items:['Food & Diet'].filter(item=>allowed.includes(item))},
         {title:'COMMUNICATION',items:['WhatsApp Inbox'].filter(item=>allowed.includes(item))},
         {title:'CLINICAL REVIEW',items:['Reports','Intelligent Reports','Medication Errors','Recovery Timeline'].filter(item=>allowed.includes(item))},
@@ -6609,6 +6610,7 @@ https://samaraassistedliving.com/`;
     };
     const [session,setSession]=React.useState(null);
     const [profile,setProfile]=React.useState(null);
+    const dutyContext=window.SamaraDutySwap.useContext({client,profile,setProfile,onChanged:next=>setPage(homePageForProfile(next))});
     const [loading,setLoading]=React.useState(true);
     const [manualRefreshing,setManualRefreshing]=React.useState(false);
     const [lastOfficeRefresh,setLastOfficeRefresh]=React.useState(null);
@@ -7081,6 +7083,9 @@ https://samaraassistedliving.com/`;
     if(recoveryMode&&session) return h(RecoveryPasswordChange,{onComplete:async()=>{setRecoveryMode(false);await client.auth.signOut();setAuthMessage('Password changed successfully. Please sign in with your new password.')}});
     if(!session) return h(Login,{externalMessage:authMessage,onClearMessage:()=>setAuthMessage('')});
     if(!profile) return h('div',{className:'loading'},'Loading your employee profile…');
+    if(!dutyContext.ready)return h('div',{className:'loading'},
+      dutyContext.error||'Verifying your current department duties…',
+      dutyContext.error&&h('button',{className:'btn btn-primary',onClick:dutyContext.refresh},'Retry duty check'));
     if(profile.must_change_password) return h(FirstLoginPasswordChange,{profile,onComplete:()=>setProfile({...profile,must_change_password:false})});
 
     const allowed = allowedPagesForProfile(profile);
@@ -7107,12 +7112,15 @@ https://samaraassistedliving.com/`;
         ),
         h(MobileMenu,{page,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
         h(NursingMobileQuickActions,{profile,page,onNavigate:setPage}),
-        h('section',{className:'content'},
+        h('section',{className:'content',key:window.SamaraDutySwap.signature(profile)},
+          profile.__dutyContext?.assignment&&h('div',{className:'message warning',role:'status'},
+            `Temporary assignment: ${profile.__dutyContext.assignment.acting_as} duties until ${formatDateTimeIN(profile.__dutyContext.assignment.ends_at)}. Regular duties return automatically.`),
+          page==='Temporary Duty Swap'&&h(window.SamaraDutySwap.Page,{client}),
           h(DirectorTodayTicker,{key:profile.id,profile,page,onNavigate:setPage}),
           page==='Dashboard'&&h(Dashboard,{profile,onNavigate:setPage,alertEngine}),
           page==='HR Dashboard'&&h(HRDashboard,{profile,onNavigate:setPage}),
           page==='Employees'&&h(Employees,{profile,onNavigate:setPage}),
-          page==='My Profile'&&h(MyProfile,{profile,onProfileUpdate:setProfile}),
+          page==='My Profile'&&h(MyProfile,{profile:window.SamaraDutySwap.regularProfile(profile),onProfileUpdate:p=>{setProfile({...p,...(profile.__dutyContext?{role:profile.role,designation:profile.designation,department:profile.department,__dutyContext:profile.__dutyContext}:{})});dutyContext.refresh()}}),
           page==='My To-Do List'&&h(NursePersonalTodoList,{profile}),
           page==="Director's Office"&&h(DirectorOfficeDashboard,{profile,onNavigate:setPage}),
           page==='Enquiries & Feedback'&&h(DirectorEnquiries,{profile,onNavigate:setPage}),
@@ -12573,7 +12581,7 @@ Thank you.`;
     const visible=requestStatusFilter?baseVisible.filter(r=>requestStatusFilter==='pending'?['pending_superior','pending_management'].includes(r.status):r.status===requestStatusFilter):baseVisible;
     const pending=visible.filter(r=>['pending_superior','pending_management'].includes(r.status));
     const history=visible.filter(r=>!['pending_superior','pending_management'].includes(r.status));
-    function canRecommend(r){return r.status==='pending_superior'&&r.reporting_superior_id===profile.id&&!['Admin','Manager'].includes(profile.role)}
+    function canRecommend(r){return r.status==='pending_superior'&&r.reporting_superior_id===(profile.__dutyContext?.acting_for_profile_id||profile.id)&&!['Admin','Manager'].includes(profile.role)}
     function canManage(r){return ['Admin','Manager'].includes(profile.role)&&['pending_superior','pending_management'].includes(r.status)}
     function requestCard(r){
       const emp=byId(r.employee_id);const superior=byId(r.reporting_superior_id);
@@ -12693,7 +12701,7 @@ Thank you.`;
       );
     }
     if(isApprovals){
-      const directCount=rows.filter(r=>r.status==='pending_superior'&&r.reporting_superior_id===profile.id).length;
+      const directCount=rows.filter(r=>r.status==='pending_superior'&&r.reporting_superior_id===(profile.__dutyContext?.acting_for_profile_id||profile.id)).length;
       const managementCount=['Admin','Manager'].includes(profile.role)?rows.filter(r=>['pending_superior','pending_management'].includes(r.status)&&r.employee_id!==profile.id).length:0;
       if(!['Admin','Manager'].includes(profile.role)&&directCount===0)return h(React.Fragment,null,h(StaffReturnToDuty,{profile,reviewOnly:true,onChanged:load}),h(StaffLeaveChanges,{profile,reviewOnly:true,onChanged:load}),h(Section,{title:'Leave Approvals',subtitle:'Requests from employees reporting to you'},h('div',{className:'empty'},'No leave or permission requests are awaiting your approval.')));
       return h(React.Fragment,null,h(StaffReturnToDuty,{profile,reviewOnly:true,onChanged:load}),h(StaffLeaveChanges,{profile,reviewOnly:true,onChanged:load}),returnModal,h(Section,{title:'Leave Approvals',subtitle:['Admin','Manager'].includes(profile.role)?`Management approval queue · ${managementCount} pending`:`Reporting superior approval queue · ${directCount} pending`,actions:h('button',{className:'btn btn-secondary',onClick:load,disabled:busy},'Refresh')},msg?h('div',{className:'message'},msg):null,h('div',{className:'absence-list'},...pending.map(requestCard)),pending.length===0?h('div',{className:'empty'},'No requests awaiting action.'):null),history.length?h(Section,{title:'Recent Decisions',subtitle:'Completed approval history'},h('div',{className:'absence-list'},...history.slice(0,30).map(requestCard))):null);

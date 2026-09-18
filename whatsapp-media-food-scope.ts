@@ -7,7 +7,7 @@ async function requireWhatsAppUser(req: Request) {
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
   const { data: { user }, error } = await db.auth.getUser(token);
   if (error || !user) throw new Error("Invalid ERP session");
-  const { data: profile, error: profileError } = await db.from("profiles").select("id,role,is_active,active").or(`id.eq.${user.id},auth_user_id.eq.${user.id}`).maybeSingle();
+  const { data: profile, error: profileError } = await db.from("duty_profiles").select("id,role,is_active,active").or(`id.eq.${user.id},auth_user_id.eq.${user.id}`).maybeSingle();
   if (profileError || !profile || !(profile.is_active ?? profile.active ?? false) || !["Admin", "Manager"].includes(profile.role)) throw new Error("WhatsApp access requires an active Admin or Manager account");
   return { db, user, profile };
 }
