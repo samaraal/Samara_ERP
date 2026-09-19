@@ -1536,7 +1536,7 @@ function initSamaraInaugurationInvitation(){
     { title:'ADMISSION', items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
-    { title:'PHARMACY & STORES', items:['Patient Consumables','Stores','Stores In-charge Assignment'] },
+    { title:'PHARMACY & STORES', items:['Consumables','Pharmacy'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
     { title:'COMMUNICATION', items:['WhatsApp Inbox','WhatsApp Logs','Family Communication','Feedback','Mail Dashboard'] },
@@ -1552,7 +1552,7 @@ function initSamaraInaugurationInvitation(){
     Caregiver:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
     Accounts:['Accounts Dashboard','Duty Assignment','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
     Kitchen:['Notifications','Duty Assignment','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission'],
-    STD:["Director's Office",'Enquiries & Feedback','Food & Diet','Duty Assignment','Patient Consumables','Stores','WhatsApp Inbox','Feedback','My Leave & Permission']
+    STD:["Director's Office",'Enquiries & Feedback','Food & Diet','Duty Assignment','Patient Consumables','Stores','Consumables','Pharmacy','WhatsApp Inbox','Feedback','My Leave & Permission']
   };
   Object.keys(ROLE_NAV).forEach(role=>{
     if(!ROLE_NAV[role].includes('Temporary Duty Swap'))ROLE_NAV[role].push('Temporary Duty Swap');
@@ -1578,12 +1578,12 @@ function initSamaraInaugurationInvitation(){
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts',
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
-      'Patient Consumables','Stores','Stores In-charge Assignment','Temporary Duty Swap','Leave Cover','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
+      'Patient Consumables','Stores','Stores In-charge Assignment','Consumables','Pharmacy','Temporary Duty Swap','Leave Cover','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
     if(!pages.includes('Spot Assessment'))pages.push('Spot Assessment');
     if(profile?.role==='Manager'&&employeeDepartment(profile)&&!pages.includes('Employees'))pages.push('Employees');
-    if(isNursingManagerProfile(profile)){ if(!pages.includes('My To-Do List'))pages.push('My To-Do List'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Stores In-charge Assignment'))pages.push('Stores In-charge Assignment'); if(!pages.includes('Employees'))pages.push('Employees'); }
+    if(isNursingManagerProfile(profile)){ if(!pages.includes('My To-Do List'))pages.push('My To-Do List'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Consumables'))pages.push('Consumables'); if(!pages.includes('Pharmacy'))pages.push('Pharmacy'); if(!pages.includes('Stores In-charge Assignment'))pages.push('Stores In-charge Assignment'); if(!pages.includes('Employees'))pages.push('Employees'); }
     return pages;
   };
   const CLINICAL_ROLES=['Nurse','Caregiver'];
@@ -1622,7 +1622,7 @@ function initSamaraInaugurationInvitation(){
         {title:'ADMISSION',items:['Spot Assessment'].filter(item=>allowed.includes(item))},
         {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My To-Do List','Notifications'].filter(item=>allowed.includes(item))},
         {title:'DUTY ROSTER & LEAVE',items:['Duty Assignment','Staff Leave Calendar','My Leave & Permission','Leave Approvals'].filter(item=>allowed.includes(item))},
-        {title:'PHARMACY & STORES',items:['Patient Consumables','Stores','Stores In-charge Assignment'].filter(item=>allowed.includes(item))},
+        {title:'PHARMACY & STORES',items:['Consumables','Pharmacy'].filter(item=>allowed.includes(item))},
         {title:'MY ACCOUNT',items:['My Profile'].filter(item=>allowed.includes(item))}
       ];
     }
@@ -1634,7 +1634,7 @@ function initSamaraInaugurationInvitation(){
         {title:'NURSING STAFF',items:['Staff Duty Assignment','Duty Calendar','Staff Leave Calendar','Employees'].filter(item=>allowed.includes(item))},
         {title:'ADMISSION',items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},
         {title:'ROOMS & PACKAGES',items:['Rooms','Care Packages'].filter(item=>allowed.includes(item))},
-        {title:'PHARMACY & STORES',items:['Patient Consumables','Stores','Stores In-charge Assignment'].filter(item=>allowed.includes(item))},
+        {title:'PHARMACY & STORES',items:['Consumables','Pharmacy'].filter(item=>allowed.includes(item))},
         {title:'FOOD & DIET',items:['Food & Diet'].filter(item=>allowed.includes(item))},
         {title:'COMMUNICATION',items:['WhatsApp Inbox'].filter(item=>allowed.includes(item))},
         {title:'CLINICAL REVIEW',items:['Reports','Intelligent Reports','Medication Errors','Recovery Timeline'].filter(item=>allowed.includes(item))},
@@ -7182,6 +7182,8 @@ https://samaraassistedliving.com/`;
           page==='Medicines'&&h(Medicines,{profile,onNavigate:setPage}),
           page==='Patient Consumables'&&h(PatientConsumables,{profile}),
           page==='Stores'&&h(ConsumablesStores,{profile}),
+          page==='Consumables'&&h(React.Fragment,null,h(PatientConsumables,{profile,categoryFilter:'Consumables'}),h(ConsumablesStores,{profile,categoryFilter:'Consumables'})),
+          page==='Pharmacy'&&h(ConsumablesStores,{profile,categoryFilter:'Pharmacy'}),
           page==='Stores In-charge Assignment'&&h(StoresInchargeAssignmentPage,{profile}),
           page==='Food & Diet'&&h(FoodDiet,{profile}),
           ['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(page)&&allowed.includes(page)&&window.SamaraOutgoingPayments&&h(window.SamaraOutgoingPayments,{key:page,client,profile,CameraCaptureModal,initialView:page==='Payment Statements'?'Statements':page==='Payment Vouchers'?'Vouchers':page==='Approved—Ready to Pay'?'Ready':'Requests'}),
@@ -7813,7 +7815,7 @@ https://samaraassistedliving.com/`;
     const [openSection,setOpenSection]=React.useState(activeSection);
     React.useEffect(()=>{const next=sections.find(section=>section.items.includes(page))?.title;if(next)setOpenSection(next)},[page]);
     const sectionIcon=title=>/OVERVIEW/.test(title)?'⌂':/HR/.test(title)?'♙':/ADMISSION/.test(title)?'♥':/ROOM/.test(title)?'▦':/PHARMACY|STORE/.test(title)?'♨':/FOOD/.test(title)?'₹':/CLINICAL/.test(title)?'✚':'⚙';
-    const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Stores'?'▥':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My To-Do List'?'✓':'›';
+    const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Consumables'?'▤':item==='Pharmacy'?'✚':item==='Stores'?'▥':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My To-Do List'?'✓':'›';
     React.useEffect(()=>{
       const onKey=e=>{if(e.key==='Escape')onClose()};
       document.addEventListener('keydown',onKey);
@@ -27533,13 +27535,13 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     ),h('div',{style:{display:'flex',gap:'8px',justifyContent:'flex-end',flexWrap:'wrap'}},h('button',{className:'btn btn-secondary',onClick:()=>setEditing(null)},'Close'),h('button',{className:'btn btn-primary',disabled:busy,onClick:save},busy?'Saving…':'Save Changes'))))))
   }
 
-  function ConsumablesStores({profile}){
+  function ConsumablesStores({profile,categoryFilter=''}){
     const authority=useStoreAuthority(profile);
     const controller=authority.controller;
     const oversight=['Admin','Manager'].includes(profile?.role);
-    const [stock,setStock]=React.useState([]),[receipts,setReceipts]=React.useState([]),[ledger,setLedger]=React.useState([]),[patients,setPatients]=React.useState([]);
+    const [stock,setStock]=React.useState([]),[receipts,setReceipts]=React.useState([]),[ledger,setLedger]=React.useState([]),[patients,setPatients]=React.useState([]),[itemMaster,setItemMaster]=React.useState([]);
     const [busy,setBusy]=React.useState(false);
-    const [form,setForm]=React.useState({item_category:'Stores / Consumables',catalog_item:'',item_id:'',new_item_name:'',unit:'Nos',vendor_name:'',invoice_no:'',invoice_date:'',received_date:todayISOIndia(),quantity:'1',batch_no:'',expiry_date:'',unit_cost:'',remarks:'',generic_name:'',brand_name:'',strength:'',dosage_form:'Tablet',manufacturer:'',pack_size:''});
+    const [form,setForm]=React.useState({item_category:categoryFilter==='Pharmacy'?'Pharmacy':'Stores / Consumables',catalog_item:'',item_id:'',new_item_name:'',unit:'Nos',vendor_name:'',invoice_no:'',invoice_date:'',received_date:todayISOIndia(),quantity:'1',batch_no:'',expiry_date:'',unit_cost:'',remarks:'',generic_name:'',brand_name:'',strength:'',dosage_form:'Tablet',manufacturer:'',pack_size:''});
     const units=['Nos','Pairs','Packs','Boxes','Pieces','Rolls','Sets','Bottles'];
     const basicPharmacyUnits={"Glucometer Strips": "Nos", "Lancets": "Nos", "Alcohol Swabs": "Nos", "Digital Thermometer": "Nos", "Thermometer Probe Covers": "Nos", "Pulse Oximeter": "Nos", "BP Cuff / Spare Cuff": "Nos", "Sterile Gauze Pads - 2 x 2": "Nos", "Sterile Gauze Pads - 4 x 4": "Nos", "Cotton Rolls": "Rolls", "Cotton Balls": "Nos", "Micropore Adhesive Tape": "Rolls", "Sterile Dressing Pads": "Nos", "Crepe Bandage - 2 inch": "Rolls", "Crepe Bandage - 4 inch": "Rolls", "Crepe Bandage - 6 inch": "Rolls", "Roller / Gauze Bandages": "Rolls", "Disposable Examination Gloves - S": "Pieces", "Disposable Examination Gloves - M": "Pieces", "Disposable Examination Gloves - L": "Pieces", "Surgical Masks": "Nos", "Disposable Syringe - 1 mL": "Nos", "Disposable Syringe - 2 mL": "Nos", "Disposable Syringe - 3 mL": "Nos", "Disposable Syringe - 5 mL": "Nos", "Disposable Syringe - 10 mL": "Nos", "Disposable Syringe - 20 mL": "Nos", "Needle - 18G": "Nos", "Needle - 20G": "Nos", "Needle - 21G": "Nos", "Needle - 22G": "Nos", "Needle - 23G": "Nos", "Needle - 24G": "Nos", "Needle - 25G": "Nos", "Needle - 26G": "Nos", "Insulin Syringe - U-40": "Nos", "Insulin Syringe - U-100": "Nos", "Insulin Pen Needle - 4 mm": "Nos", "Insulin Pen Needle - 5 mm": "Nos", "Insulin Pen Needle - 6 mm": "Nos", "Insulin Pen Needle - 8 mm": "Nos", "IV Cannula - 18G": "Nos", "IV Cannula - 20G": "Nos", "IV Cannula - 22G": "Nos", "IV Cannula - 24G": "Nos", "IV Sets": "Nos", "IV Extension Lines": "Nos", "Normal Saline Flush Syringes": "Nos", "Urine Specimen Containers": "Nos", "Disposable Urine Measuring Containers": "Nos", "Adult Urine Bags": "Nos", "Nebulizer Mask / Kit - Adult": "Nos", "Oxygen Nasal Cannula": "Nos", "Oxygen Masks": "Nos", "Suction Catheter - 10 Fr": "Nos", "Suction Catheter - 12 Fr": "Nos", "Suction Catheter - 14 Fr": "Nos", "Suction Catheter - 16 Fr": "Nos", "Feeding Syringe - 50 mL": "Nos", "Feeding Syringe - 60 mL": "Nos", "Disposable Underpads": "Nos", "Tongue Depressors": "Nos", "Hand Sanitizer": "Bottles", "Povidone-iodine Solution": "Bottles", "Chlorhexidine Antiseptic - As per Samara Protocol": "Bottles", "Normal Saline for Wound Cleansing": "Bottles", "Sharps Disposal Containers": "Nos", "Biomedical-waste Bags": "Nos"};
     const storesCatalog=['Adult Diapers','Underpads','Examination Gloves','Sterile Gloves','Surgical Masks','N95 Masks','PPE Kits','Cotton','Gauze','Cotton Rolls','Gauze Rolls','Adhesive Plaster','Micropore Tape','Dressing Pads','Bandages','Crepe Bandages','Syringes','Needles','IV Cannulas','IV Sets','Three-Way Cannulas','Urine Bags','Urinary Catheters','Ryle’s / NG Tubes','Feeding Tubes','Feeding Syringes','Suction Catheters','Tracheostomy Tubes','Tracheostomy Masks','Oxygen Masks','Nasal Cannulas','Nebulizer Masks','Disposable Aprons','Hand Sanitizer','Disinfectant Solution','Bed Linens','Patient Gowns','Tissue Paper','Wet Wipes','Garbage Bags','Biomedical Waste Bags','Cleaning Materials','Other Consumables'];
@@ -27549,16 +27551,17 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const itemById=id=>stock.find(x=>x.item_id===id);
     const patientName=id=>{const p=patients.find(x=>x.id===id);return p?(formalName(p)||p.full_name||p.patient_id||'Patient'):'—'};
     async function load(){
-      const [sRes,rRes,lRes,pRes]=await Promise.all([
+      const [sRes,rRes,lRes,pRes,mRes]=await Promise.all([
         client.from('consumable_store_stock').select('*').order('item_name'),
         client.from('consumable_store_receipts').select('*').order('received_at',{ascending:false}).limit(150),
         client.from('consumable_store_ledger').select('*').order('movement_at',{ascending:false}).limit(300),
-        client.from('patients').select('id,title,full_name,patient_id').order('full_name').limit(1000)
+        client.from('patients').select('id,title,full_name,patient_id').order('full_name').limit(1000),
+        client.from('consumable_store_items').select('id,item_name,unit,active,item_category,strength,dosage_form').order('item_name')
       ]);
       if(sRes.error){console.warn(sRes.error);notifyStore('error','Stores database is not installed yet. Please run 91_consumables_store_inventory.sql once in Supabase.')} else setStock(sRes.data||[]);
       if(!rRes.error)setReceipts(rRes.data||[]);
       if(!lRes.error)setLedger(lRes.data||[]);
-      if(!pRes.error)setPatients(pRes.data||[]);
+      if(!pRes.error)setPatients(pRes.data||[]); if(!mRes.error)setItemMaster(mRes.data||[]);
     }
     React.useEffect(()=>{load()},[]);
     function selectItem(id){const row=itemById(id);setForm(f=>({...f,item_id:id,catalog_item:'',new_item_name:'',unit:row?.unit||f.unit}))}
@@ -27590,19 +27593,34 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       setBusy(true);const res=await client.rpc('reconcile_consumable_store_stock',{p_item_id:row.item_id,p_physical_qty:qty,p_reason:String(reason).trim()});setBusy(false);
       if(res.error)notifyStore('error',res.error.message);else{notifyStore('success','Physical stock reconciled with a permanent ledger entry.');await load()}
     }
-    const low=stock.filter(x=>Number(x.balance_qty)>0&&Number(x.reorder_level)>0&&Number(x.balance_qty)<=Number(x.reorder_level));
-    const out=stock.filter(x=>Number(x.balance_qty)<=0);
-    const inStock=stock.filter(x=>Number(x.balance_qty)>0).length;
+    const masterById=new Map(itemMaster.map(x=>[x.id,x]));
+    const displayStock=categoryFilter?stock.filter(x=>(masterById.get(x.item_id)?.item_category||'Consumables')===categoryFilter):stock;
+    const displayIds=new Set(displayStock.map(x=>x.item_id));
+    const displayReceipts=categoryFilter?receipts.filter(x=>displayIds.has(x.item_id)):receipts;
+    const displayLedger=categoryFilter?ledger.filter(x=>displayIds.has(x.item_id)):ledger;
+    async function editStoreItem(row){
+      if(!controller)return;
+      const master=masterById.get(row.item_id); if(!master)return notifyStore('error','Item Master record not found. Refresh and try again.');
+      const name=prompt('Item name:',master.item_name||''); if(name===null)return;
+      const unit=prompt('Unit:',master.unit||'Nos'); if(unit===null)return;
+      const strength=prompt('Strength / specification:',master.strength||''); if(strength===null)return;
+      const dosage=prompt('Dosage form:',master.dosage_form||''); if(dosage===null)return;
+      setBusy(true); const res=await client.rpc('store_incharge_edit_item',{p_item_id:master.id,p_item_name:String(name).trim(),p_unit:String(unit).trim(),p_strength:String(strength).trim()||null,p_dosage_form:String(dosage).trim()||null}); setBusy(false);
+      if(res.error)notifyStore('error',res.error.message); else {notifyStore('success','Item details updated.');await load()}
+    }
+    const low=displayStock.filter(x=>Number(x.balance_qty)>0&&Number(x.reorder_level)>0&&Number(x.balance_qty)<=Number(x.reorder_level));
+    const out=displayStock.filter(x=>Number(x.balance_qty)<=0);
+    const inStock=displayStock.filter(x=>Number(x.balance_qty)>0).length;
     const stockStatus=row=>Number(row.balance_qty)<=0?'OUT OF STOCK':(Number(row.reorder_level)>0&&Number(row.balance_qty)<=Number(row.reorder_level)?'LOW STOCK':'IN STOCK');
     const statusStyle=row=>({fontWeight:900,fontSize:'12px',padding:'5px 8px',borderRadius:'999px',display:'inline-block',background:Number(row.balance_qty)<=0?'#fdebec':(Number(row.reorder_level)>0&&Number(row.balance_qty)<=Number(row.reorder_level)?'#fff4dc':'#e7f6ef'),color:'#5d3146'});
     if(!controller&&!oversight)return h('div',null,h(Section,{title:'Pharmacy & Stores'},h('p',null,authority.active?'Pharmacy & Stores is presently assigned to the STD.':'Pharmacy & Stores access is assigned to the Nurse Manager.')));
     return h('div',null,
-      h(Section,{title:'Pharmacy & Stores',subtitle:`Medicines, consumables, vendor receipts, stock issues and balances. Current In-charge: ${authority.active?'STD (temporary assignment)':'Nurse Manager'}.`},
+      h(Section,{title:categoryFilter||'Pharmacy & Stores',subtitle:`${categoryFilter==='Pharmacy'?'Medicines and pharmacy stock':categoryFilter==='Consumables'?'Patient consumables and general store stock':'Medicines, consumables, vendor receipts, stock issues and balances'}. Current In-charge: ${authority.active?'STD (temporary assignment)':'Nurse Manager'}.`},
         h('div',{className:'grid stats'},
           h('div',{className:'card stat'},h('span',null,'Items in Stock'),h('strong',null,inStock)),
           h('div',{className:'card stat'},h('span',null,'Low Stock'),h('strong',null,low.length)),
           h('div',{className:'card stat'},h('span',null,'Out of Stock'),h('strong',null,out.length)),
-          h('div',{className:'card stat'},h('span',null,'Store Items'),h('strong',null,stock.length))
+          h('div',{className:'card stat'},h('span',null,'Store Items'),h('strong',null,displayStock.length))
         )
       ),
       controller&&h(Section,{title:'Receive from Vendor',subtitle:'Every pharmacy or Stores item received from a vendor must first be entered here before issue.'},
@@ -27635,8 +27653,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
           h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Receive into Stores')
         )
       ),
-      h(Section,{title:'Current Pharmacy & Stores Stock',subtitle:'ERP balance = all Stock In − all Stock Out. Physical reconciliation creates a permanent adjustment entry; it never silently changes the balance.'},
-        h('div',{className:'stores-stock-mobile'},stock.length?stock.map(r=>h('article',{className:'stores-stock-card',key:`mobile-${r.item_id}`},
+      h(Section,{title:`Current ${categoryFilter||'Pharmacy & Stores'} Stock`,subtitle:'ERP balance = all Stock In − all Stock Out. Physical reconciliation creates a permanent adjustment entry; it never silently changes the balance.'},
+        h('div',{className:'stores-stock-mobile'},displayStock.length?displayStock.map(r=>h('article',{className:'stores-stock-card',key:`mobile-${r.item_id}`},
           h('div',{className:'stores-stock-card-head'},h('strong',null,displayStoreItemName(r.item_name)),h('span',{style:statusStyle(r)},stockStatus(r))),
           h('div',{className:'stores-stock-card-values'},
             h('span',null,h('small',null,'Unit'),h('b',null,r.unit)),
@@ -27647,29 +27665,29 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
           ),
           controller?h('div',{className:'stores-stock-card-actions'},
             h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),
-            h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally')
+            h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item')
           ):h('small',{className:'stores-view-only'},'View only')
         )):h('div',{className:'stores-stock-empty'},'No store items found.')),
         h('div',{className:'table-wrap stores-stock-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Item','Unit','Total In','Total Out','Balance','Reorder Level','Status','Action'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,stock.length?stock.map(r=>h('tr',{key:r.item_id},
+          h('tbody',null,displayStock.length?displayStock.map(r=>h('tr',{key:r.item_id},
             h('td',null,h('strong',null,displayStoreItemName(r.item_name))),h('td',null,r.unit),h('td',null,r.total_in),h('td',null,r.total_out),h('td',null,h('strong',null,r.balance_qty)),h('td',null,r.reorder_level),h('td',null,h('span',{style:statusStyle(r)},stockStatus(r))),
-            h('td',null,controller?h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally')):'View only')
+            h('td',null,controller?h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item')):'View only')
           )):h('tr',null,h('td',{colSpan:8,style:{textAlign:'center',padding:'24px'}},'No store items found.'))
         ))
       ),
       h(Section,{title:'Vendor Receipt Register'},
-        h('div',{className:'stores-register-mobile'},receipts.length?receipts.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card',key:`mobile-receipt-${r.id}`},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('span',null,formatDateIN(r.received_date))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Quantity'),h('strong',null,`${r.quantity} ${r.unit}`)),h('div',null,h('small',null,'Vendor'),h('strong',null,r.vendor_name||'—')),h('div',null,h('small',null,'Invoice'),h('strong',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'Batch / Expiry'),h('strong',null,[r.batch_no,r.expiry_date&&`Exp ${formatDateIN(r.expiry_date)}`].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'Received By'),h('strong',null,r.received_by_name||'—'))))}):h('div',{className:'stores-view-only'},'No vendor receipts recorded.')),
+        h('div',{className:'stores-register-mobile'},displayReceipts.length?displayReceipts.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card',key:`mobile-receipt-${r.id}`},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('span',null,formatDateIN(r.received_date))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Quantity'),h('strong',null,`${r.quantity} ${r.unit}`)),h('div',null,h('small',null,'Vendor'),h('strong',null,r.vendor_name||'—')),h('div',null,h('small',null,'Invoice'),h('strong',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'Batch / Expiry'),h('strong',null,[r.batch_no,r.expiry_date&&`Exp ${formatDateIN(r.expiry_date)}`].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'Received By'),h('strong',null,r.received_by_name||'—'))))}):h('div',{className:'stores-view-only'},'No vendor receipts recorded.')),
         h('div',{className:'table-wrap stores-register-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Receipt','Date','Item','Qty','Vendor','Invoice','Batch / Expiry','Received By'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,receipts.length?receipts.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('td',null,formatDateIN(r.received_date)),h('td',null,item?.item_name||'—'),h('td',null,`${r.quantity} ${r.unit}`),h('td',null,r.vendor_name),h('td',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—'),h('td',null,[r.batch_no,r.expiry_date&&`Exp ${formatDateIN(r.expiry_date)}`].filter(Boolean).join(' · ')||'—'),h('td',null,r.received_by_name||'—'))}):h('tr',null,h('td',{colSpan:8,style:{textAlign:'center',padding:'24px'}},'No vendor receipts recorded.')))
+          h('tbody',null,displayReceipts.length?displayReceipts.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('td',null,formatDateIN(r.received_date)),h('td',null,item?.item_name||'—'),h('td',null,`${r.quantity} ${r.unit}`),h('td',null,r.vendor_name),h('td',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—'),h('td',null,[r.batch_no,r.expiry_date&&`Exp ${formatDateIN(r.expiry_date)}`].filter(Boolean).join(' · ')||'—'),h('td',null,r.received_by_name||'—'))}):h('tr',null,h('td',{colSpan:8,style:{textAlign:'center',padding:'24px'}},'No vendor receipts recorded.')))
         ))
       ),
-      h(Section,{title:'Pharmacy & Stores Stock Ledger',subtitle:'Every vendor receipt, patient issue, return and physical adjustment is retained here.'},
-        h('div',{className:'stores-ledger-mobile'},ledger.length?ledger.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card',key:`mobile-ledger-${r.id}`},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('span',null,formatDateTimeIN(r.movement_at))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Movement Type'),h('strong',null,r.movement_type||'—')),h('div',null,h('small',null,'Stock In'),h('strong',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Stock Out'),h('strong',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),h('div',null,h('small',null,'Patient / Reference'),h('strong',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'By'),h('strong',null,r.actor_name||'—'))))}):h('div',{className:'stores-view-only'},'No stock movements recorded.')),
+      h(Section,{title:`${categoryFilter||'Pharmacy & Stores'} Stock Ledger`,subtitle:'Every vendor receipt, patient issue, return and physical adjustment is retained here.'},
+        h('div',{className:'stores-ledger-mobile'},displayLedger.length?displayLedger.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card',key:`mobile-ledger-${r.id}`},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('span',null,formatDateTimeIN(r.movement_at))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Movement Type'),h('strong',null,r.movement_type||'—')),h('div',null,h('small',null,'Stock In'),h('strong',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Stock Out'),h('strong',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),h('div',null,h('small',null,'Patient / Reference'),h('strong',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'By'),h('strong',null,r.actor_name||'—'))))}):h('div',{className:'stores-view-only'},'No stock movements recorded.')),
         h('div',{className:'table-wrap stores-ledger-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Movement','Date / Time','Item','Type','Stock In','Stock Out','Balance After','Patient / Reference','By'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,ledger.length?ledger.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('td',null,formatDateTimeIN(r.movement_at)),h('td',null,item?.item_name||'—'),h('td',null,r.movement_type),h('td',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—'),h('td',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—'),h('td',null,h('strong',null,r.balance_after)),h('td',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—'),h('td',null,r.actor_name||'—'))}):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},'No stock movements recorded.')))
+          h('tbody',null,displayLedger.length?displayLedger.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('td',null,formatDateTimeIN(r.movement_at)),h('td',null,item?.item_name||'—'),h('td',null,r.movement_type),h('td',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—'),h('td',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—'),h('td',null,h('strong',null,r.balance_after)),h('td',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—'),h('td',null,r.actor_name||'—'))}):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},'No stock movements recorded.')))
         ))
       )
     ));
@@ -27698,7 +27716,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         client.from('patient_consumable_indents').select('*').order('created_at',{ascending:false}).limit(500),
         stockInfo.reload()
       ]);
-      if(!pRes.error)setPatients(pRes.data||[]);
+      if(!pRes.error)setPatients(pRes.data||[]); if(!mRes.error)setItemMaster(mRes.data||[]);
       if(iRes.error){console.warn(iRes.error);notify('error','Consumables workflow database is not installed yet.')} else setRows(iRes.data||[]);
 
     }
@@ -27804,7 +27822,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
   function ClinicalCharges({profile,initialPatientId=''}){
     const chargeStock=usePharmacyStock();
     const matchingStock=name=>{const matches=chargeStock.items.filter(x=>String(x.item_name).trim().toLowerCase()===String(name).trim().toLowerCase());return matches.length===1?matches[0]:null};
-    const stockDefaults=(category,name)=>{const item=['Consumables','Pharmacy & Basic Supplies'].includes(category)?matchingStock(name):null;return {store_item_id:item?.item_id||'',unit:item?.unit||'Service'}};
+    const stockDefaults=(category,name)=>{const item=['Consumables','Pharmacy','Pharmacy & Basic Supplies'].includes(category)?matchingStock(name):null;return {store_item_id:item?.item_id||'',unit:item?.unit||'Service'}};
     const canRaise=['Admin','Manager','Nurse','Accounts'].includes(profile?.role);
     const canApprove=profile?.role==='Accounts';
     const canManageTariffs=profile?.role==='Admin';
@@ -27819,6 +27837,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const [batchItems,setBatchItems]=React.useState([]);
     const [tariffs,setTariffs]=React.useState([]);
     const [catalog,setCatalog]=React.useState([]);
+    const [storeMaster,setStoreMaster]=React.useState([]);
     const [tariffBusy,setTariffBusy]=React.useState(false);
     const defaultCategories={
       'Doctor Services':['General Physician Visit','Emergency Doctor Visit','Specialist Consultation','Teleconsultation','Home Visit','Follow-up Consultation'],
@@ -27850,7 +27869,14 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       return map;
     },[catalog]);
     const fallbackCategories=Object.fromEntries(Object.entries(defaultCategories).map(([category,services])=>[category,services.includes('Others')?services:[...services,'Others']]));
-    const categories=Object.keys(catalogCategories).length?catalogCategories:fallbackCategories;
+    const categories=React.useMemo(()=>{
+      const base=Object.keys(catalogCategories).length?{...catalogCategories}:{...fallbackCategories};
+      ['Consumables','Pharmacy'].forEach(cat=>{
+        const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+        if(names.length)base[cat]=[...new Set([...names,'Others'])];
+      });
+      return base;
+    },[catalogCategories,storeMaster]);
 
     const fresh=()=>({
       patient_id:'',store_item_id:'',charge_date:todayISOIndia(),service_datetime:localDateTimeValue(),
@@ -27891,7 +27917,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       const masterRequest=['Admin','Accounts'].includes(profile?.role)
         ?client.from('charge_tariff_master').select('*').order('category').order('display_order').order('service_name')
         :client.rpc('get_charge_service_catalog');
-      const [a,b,c]=await Promise.all([
+      const [a,b,c,d]=await Promise.all([
         client.from('bill_charge_requests')
           .select('*')
           .order('created_at',{ascending:false})
@@ -27900,7 +27926,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
           .select('*')
           .order('ordered_at',{ascending:false})
           .limit(500),
-        masterRequest
+        masterRequest,
+        client.from('consumable_store_items').select('id,item_name,unit,active,item_category,strength,dosage_form').eq('active',true).order('item_name')
       ]);
 
       if(a.error)notify('error',a.error.message);
@@ -27916,6 +27943,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         :allRequests;
 
       setRows(visibleRequests);
+      if(!d?.error)setStoreMaster(d.data||[]);
       if(!c.error){
         const masterRows=(c.data||[]).map(row=>({...row,is_active:row.is_active!==false}));
         setCatalog(masterRows);
