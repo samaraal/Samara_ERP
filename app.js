@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.60';
+  const APP_VERSION = '2.13.61';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7119,6 +7119,7 @@ https://samaraassistedliving.com/`;
         h(MobileMenu,{page,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
         h(NursingMobileQuickActions,{profile,page,onNavigate:setPage}),
         h(window.SamaraDutySwap.DailyNotice,dutyNotice),
+        h(window.SamaraDischargeWorkflow.Banner,{client,profile,onNavigate:setPage}),
         h('section',{className:'content',key:window.SamaraDutySwap.signature(profile)},
           profile.__dutyContext?.assignment&&h('div',{className:'message warning',role:'status'},
             `Temporary assignment: ${profile.__dutyContext.assignment.acting_as} duties until ${formatDateTimeIN(profile.__dutyContext.assignment.ends_at)}. Regular duties return automatically.`),
@@ -19911,7 +19912,10 @@ Please keep these login details confidential.`;
       await load();
     }
 
-    function openFinalDischarge(row){
+    async function openFinalDischarge(row){
+      const reviewResult=await client.rpc('discharge_workflow_workspace');
+      if(reviewResult.error){notify('error','Departure review unavailable',reviewResult.error.message);return}
+      const reviewed=reviewResult.data?.cases?.find(item=>item.id===row.id)?.reviews?.find(item=>item.status==='Approved');
       ensureFinalDischargeStyle();
       setFinalDischargeRow(row);
       setFinalForm({
@@ -19925,7 +19929,8 @@ Please keep these login details confidential.`;
         receiving_person_name:row.relative_name||row.voluntary_requester_name||'',
         receiving_person_contact:row.relative_contact||row.voluntary_requester_contact||'',
         relationship:row.voluntary_requested_by||'Relative / Attendant',
-        actual_departure_time:localDateTimeValue(),
+        actual_departure_time:reviewed?localDateTimeValue(new Date(reviewed.actual_departure_at)):localDateTimeValue(),
+        late_entry_reason:reviewed?.reason||'',
         transport_mode:row.transport_arrangement||'Own / Family Transport',
         transport_details:'',
         accompanied_by_name:row.relative_name||row.voluntary_requester_name||'',
@@ -20003,12 +20008,13 @@ Please keep these login details confidential.`;
       }
 
       setBusy(true);
-      const {data,error}=await client.rpc('confirm_patient_departure_v3',{
+      const {data,error}=await client.rpc('confirm_patient_departure_v4',{
         p_discharge_id:finalDischargeRow.id,
+        p_late_entry_reason:finalForm.late_entry_reason?.trim()||null,
         p_received_by_name:finalForm.receiving_person_name.trim(),
         p_received_by_contact:finalForm.receiving_person_contact.trim()||null,
         p_relationship:finalForm.relationship.trim()||null,
-        p_actual_departure_at:new Date(finalForm.actual_departure_time).toISOString(),
+        p_actual_departure_at:new Date(finalForm.actual_departure_time+'+05:30').toISOString(),
         p_transport_mode:finalForm.transport_mode,
         p_transport_details:finalForm.transport_details.trim()||null,
         p_accompanied_by_name:finalForm.accompanied_by_name.trim(),
@@ -20041,7 +20047,7 @@ Please keep these login details confidential.`;
         completed_by:profile?.id||null,
         completed_by_name:formalName(profile)||profile?.full_name||profile?.login_id||'Nurse',
         completed_at:new Date().toISOString(),
-        actual_departure_at:new Date(finalForm.actual_departure_time).toISOString()
+        actual_departure_at:new Date(finalForm.actual_departure_time+'+05:30').toISOString()
       };
       let whatsappAccepted=false;
       let whatsappError='';
@@ -20249,10 +20255,10 @@ Doctor / Hospital: ${doctorHospital}`;
       h('span',{className:`badge ${row.management_status==='Approved'?'':'off'}`},row.management_status||'Pending'),
       row.management_approved_by_name||'—',
       row.management_approved_at?fmt(row.management_approved_at):'—',
-      h('span',{className:`badge ${row.accounts_status==='Cleared'?'':'off'}`},row.accounts_status||'Pending'),
+      h('span',{className:`badge ${row.accounts_status==='Cleared'?'':'off'}`},row.accounts_status==='Cleared'?'Cleared':(row.accounts_recheck_at||String(row.accounts_remarks||'').includes('Financial activity changed after clearance'))?'Recheck required':row.accounts_status||'Pending'),
       row.accounts_cleared_by_name||'—',
       row.accounts_cleared_at?fmt(row.accounts_cleared_at):'—',
-      h('span',{className:`badge ${row.status==='Completed'?'':'off'}`},row.status||'Initiated'),
+      h('span',{className:`badge ${row.status==='Completed'?'':'off'}`},row.status!=='Completed'&&(row.accounts_recheck_at||String(row.accounts_remarks||'').includes('Financial activity changed after clearance'))&&row.accounts_status!=='Cleared'?'Accounts recheck required':row.status||'Initiated'),
       row.status==='Completed'?(row.completed_by_name||'—'):'—',
       h('div',{className:'employee-actions'},
         isHistoricalDuplicate(row)&&['Admin','Manager','Nurse'].includes(profile?.role)&&h('button',{
@@ -20322,7 +20328,7 @@ Doctor / Hospital: ${doctorHospital}`;
         h('div',{className:'panel-head'},
           h('p',{className:'small-note'},
             isAccountsClearance
-              ?'Accounts does not initiate or clinically approve discharge. Open Payments first, complete the financial settlement, then return here to enter closure remarks and close the discharge.'
+              ?'Open Payments to verify all charges and settle the balance. Accounts clearance is saved there; Nursing then confirms actual departure. Earlier clearances remain in the timeline.'
               :isNurse
                 ?(
                 rows.some(row=>row.accounts_status==='Cleared'&&row.status!=='Completed')
@@ -20342,8 +20348,9 @@ Doctor / Hospital: ${doctorHospital}`;
         )
       ),
       !isAccountsClearance&&h(DischargeMedicationReview),
+      h(window.SamaraDischargeWorkflow.Panel,{client,profile,onChanged:load}),
       h(LogTable,{title:isAccountsClearance?`Pending Financial Clearance (${tableRows.length})`:`Discharge Workflow Register (${tableRows.length})`,
-        heads:['Patient','Initiation Basis','Instruction / Request','Date','Initiated By','Management','Decision By','Decision Time','Accounts','Closed By','Closure Time','Final Status','Completed By','Action'],
+        heads:['Patient','Initiation Basis','Instruction / Request','Date','Initiated By','Management','Decision By','Decision Time','Accounts','Last Cleared By','Last Clearance Time','Current Status','Completed By','Action'],
         rows:tableRows
       }),
       show&&h('div',{className:'modal-backdrop'},
@@ -20643,6 +20650,7 @@ Doctor / Hospital: ${doctorHospital}`;
             miniInput('Contact Number',finalForm.receiving_person_contact,v=>setFinalForm({...finalForm,receiving_person_contact:v})),
             miniInput('Relationship',finalForm.relationship,v=>setFinalForm({...finalForm,relationship:v})),
             miniInput('Actual Departure Date & Time',finalForm.actual_departure_time,v=>setFinalForm({...finalForm,actual_departure_time:v}),true,'datetime-local'),
+            h('div',{className:'field span-2'},h('label',null,'Reason for late entry (required when over one hour late)'),h('textarea',{value:finalForm.late_entry_reason||'',onChange:e=>setFinalForm({...finalForm,late_entry_reason:e.target.value}),rows:2})),
             miniSelect(
               'Transport Mode',
               finalForm.transport_mode,
