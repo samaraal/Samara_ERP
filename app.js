@@ -21419,7 +21419,7 @@ function RoomsBeds({profile,onNavigate}){
   }
   function ClinicalDashboard({profile,onNavigate,alertEngine}){
     const oversightOnly=['Admin','Manager'].includes(profile?.role);
-    const [state,setState]=React.useState({loading:true,patients:[],medOrders:[],medLogs:[],careOrders:[],careLogs:[],vitals:[],physioOrders:[],physioSessions:[],incidents:[],handovers:[],discharges:[]});
+    const [state,setState]=React.useState({loading:true,patients:[],allPatients:[],roomBeds:[],medOrders:[],medLogs:[],careOrders:[],careLogs:[],vitals:[],physioOrders:[],physioSessions:[],incidents:[],handovers:[],discharges:[]});
     const today=todayISOIndia();
     const timeToMinutes=value=>{const text=String(value||'').trim();const m=text.match(/^(\d{1,2}):(\d{2})/);return m?Number(m[1])*60+Number(m[2]):9999};
     const parseClinicalTimes=value=>Array.isArray(value)?value.filter(Boolean).map(normalizeMedicationTime).filter(Boolean):String(value||'').split(',').map(normalizeMedicationTime).filter(Boolean);
@@ -21470,7 +21470,15 @@ function RoomsBeds({profile,onNavigate}){
         client.from('shift_handovers').select('*').order('created_at',{ascending:false}).limit(100),
         client.from('patient_discharges')
           .select('*')
-          .order('created_at',{ascending:false})
+          .order('created_at',{ascending:false}),
+        // Keep a lightweight patient identity lookup for handovers. The clinical
+        // work queues still use active patients only, but an older handover must
+        // not lose the patient's name merely because the active filter changes.
+        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no'),
+        // Room & Bed Master is the authoritative fallback for current occupancy.
+        // Some older patient rows can have blank room_no/bed_no even though the
+        // occupied room_beds row correctly points to the patient.
+        client.from('room_beds').select('id,patient_id,room_no,bed_no,status')
       ]);
       const data=results.map((result,index)=>{
         if(result.error){
@@ -21493,7 +21501,7 @@ function RoomsBeds({profile,onNavigate}){
         seenMedicationOrders.add(key);
         return true;
       });
-      setState({loading:false,patients:data[0],medOrders:validMedicationOrders,medLogs:data[2],careOrders:data[3],careLogs:data[4],vitals:data[5],physioOrders:data[6],physioSessions:data[7],incidents:data[8],handovers:data[9],discharges:data[10]});
+      setState({loading:false,patients:data[0],allPatients:data[11]||data[0],roomBeds:data[12]||[],medOrders:validMedicationOrders,medLogs:data[2],careOrders:data[3],careLogs:data[4],vitals:data[5],physioOrders:data[6],physioSessions:data[7],incidents:data[8],handovers:data[9],discharges:data[10]});
     }
     React.useEffect(()=>{load();const ch=client.channel('clinical-dashboard-live').on('postgres_changes',{event:'*',schema:'public',table:'vital_signs'},load).on('postgres_changes',{event:'*',schema:'public',table:'medication_administrations'},load).on('postgres_changes',{event:'*',schema:'public',table:'care_logs'},load).on('postgres_changes',{event:'*',schema:'public',table:'incidents'},load).on('postgres_changes',{event:'*',schema:'public',table:'patient_discharges'},load).on('postgres_changes',{event:'*',schema:'public',table:'shift_handovers'},load).subscribe();return()=>client.removeChannel(ch)},[]);
     const terminalMedicationStatuses=new Set(['given','refused','withheld','unavailable','missed']);
@@ -21550,7 +21558,7 @@ function RoomsBeds({profile,onNavigate}){
     const vitalsPending=state.patients.filter(p=>!vitalPatientIds.has(p.id));
     const physioDoneIds=new Set(state.physioSessions.map(x=>x.order_id));
     const physioPending=state.physioOrders.filter(x=>!physioDoneIds.has(x.id));
-    const patientName=row=>{const embedded=row?.patients||row;const linked=state.patients.find(p=>p.id===row?.patient_id);return formalName(embedded)||embedded?.full_name||formalName(linked)||linked?.full_name||'Patient';};
+    const patientName=row=>{const embedded=row?.patients||row;const linked=(state.allPatients||state.patients).find(p=>p.id===row?.patient_id)||state.patients.find(p=>p.id===row?.patient_id);return formalName(embedded)||embedded?.full_name||formalName(linked)||linked?.full_name||'Patient';};
     // Only the newest handover for each active patient contributes pending work.
     // A later handover with no pending task therefore clears the older item.
     const latestHandoverByPatient=new Map();
@@ -21635,7 +21643,7 @@ function RoomsBeds({profile,onNavigate}){
           )),
           !medDueTasks.length&&!vitalsPending.length&&!currentShiftCarePending.length&&!handoverPending.length&&!dischargeReady.length&&h('div',{className:'clinical-empty'},'No urgent clinical tasks are pending in the current shift.')),
         h('section',{className:'card clinical-panel'},h('div',{className:'clinical-panel-head'},h('div',null,h('h3',null,'Latest Shift Handover'),h('small',null,'Important information from the previous shift'))),
-          state.handovers.length?state.handovers.slice(0,5).map((x,index)=>{const linked=state.patients.find(p=>p.id===x.patient_id);const roomBed=linked?`Room ${linked.room_no||'—'} · Bed ${linked.bed_no||'—'}`:'Room / Bed —';return h('div',{className:`handover-card ${String(x.priority||'').toLowerCase()}`,key:x.id},
+          state.handovers.length?state.handovers.slice(0,5).map((x,index)=>{const linked=(state.allPatients||state.patients).find(p=>p.id===x.patient_id)||state.patients.find(p=>p.id===x.patient_id);const occupiedBed=(state.roomBeds||[]).find(b=>b.patient_id===x.patient_id&&String(b.status||'').trim().toLowerCase()==='occupied')||(state.roomBeds||[]).find(b=>b.patient_id===x.patient_id);const roomNo=linked?.room_no||occupiedBed?.room_no;const bedNo=linked?.bed_no||occupiedBed?.bed_no;const roomBed=(roomNo||bedNo)?`Room ${roomNo||'—'} · Bed ${bedNo||'—'}`:'Room / Bed —';return h('div',{className:`handover-card ${String(x.priority||'').toLowerCase()}`,key:x.id},
             h('div',null,h('strong',null,`${index+1}. ${patientName(x)} · ${roomBed} · ${x.shift||'Shift'} · ${x.priority||'Routine'}`),h('small',null,fmt(x.created_at))),
             h('p',null,x.patient_summary||x.summary||'No patient summary.'),
             x.pending_tasks&&h('p',null,h('b',null,'Pending tasks: '),x.pending_tasks),
