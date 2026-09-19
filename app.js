@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.68';
+  const APP_VERSION = '2.13.69';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -9235,6 +9235,22 @@ function Dashboard({profile,onNavigate,alertEngine}){
     const replyEditorRef=React.useRef(null);
     const chatScrollRef=React.useRef(null);
     const chatViewRef=React.useRef({key:null,followLatest:true});
+    const chatShellRef=React.useRef(null);
+    const renderChatShell=node=>isMobile&&selectedPhone?ReactDOM.createPortal(node,document.body):node;
+    React.useEffect(()=>{
+      if(!isMobile||!selectedPhone)return;
+      const previous=document.body.style.overflow;
+      document.body.style.overflow='hidden';
+      const viewport=window.visualViewport;
+      const resize=()=>{
+        const shell=chatShellRef.current;if(!shell)return;
+        shell.style.setProperty('--wa-viewport-height',(viewport?.height||window.innerHeight)+'px');
+        shell.style.setProperty('--wa-viewport-top',(viewport?.offsetTop||0)+'px');
+      };
+      resize();viewport?.addEventListener('resize',resize);viewport?.addEventListener('scroll',resize);
+      window.addEventListener('resize',resize);
+      return()=>{document.body.style.overflow=previous;viewport?.removeEventListener('resize',resize);viewport?.removeEventListener('scroll',resize);window.removeEventListener('resize',resize)};
+    },[isMobile,selectedPhone]);
     const [subjectFilter,setSubjectFilter]=React.useState('All Subjects');
     const [waFolder,setWaFolder]=React.useState(()=>{const folder=sessionStorage.getItem('samara_whatsapp_folder');sessionStorage.removeItem('samara_whatsapp_folder');return foodOnly?'All':folder==='Admission Enquiries'||String(profile?.role||'')==='STD'?'Admission Enquiries':'All';});
     const [dateFrom,setDateFrom]=React.useState('');
@@ -9279,7 +9295,12 @@ function Dashboard({profile,onNavigate,alertEngine}){
         @media(max-width:700px){
           .wa-inbox-shell{display:block!important;min-height:0!important;border-radius:12px!important;overflow:hidden!important}
           .wa-conversation-list{display:block!important;border-right:0!important;max-height:calc(100dvh - 250px)!important;min-height:420px!important}
-          .wa-chat-pane{display:none!important;height:calc(100dvh - 172px)!important;min-height:480px!important;max-height:calc(100dvh - 172px)!important}
+          .wa-chat-pane{display:none!important;min-height:0!important;height:100%!important;max-height:100%!important}
+          .wa-inbox-shell.wa-mobile-chat-open{position:fixed!important;top:var(--wa-viewport-top,0px)!important;left:0!important;right:0!important;width:100%!important;height:var(--wa-viewport-height,100dvh)!important;z-index:2147482000!important;border:0!important;border-radius:0!important;box-sizing:border-box!important;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+          .wa-chat-head,.wa-mobile-actions,.wa-free-composer,.wa-template-composer,.wa-chat-status{flex-shrink:0}
+          .wa-free-composer,.wa-template-composer{max-height:45%;overflow-y:auto}
+          .wa-chat-status{padding:6px 10px;background:#fff8e4;font-size:12px;max-height:64px;overflow:auto}
+          .wa-chat-scroll{overflow-anchor:none;touch-action:pan-y;overflow-wrap:anywhere}
           .wa-inbox-shell.wa-mobile-chat-open .wa-conversation-list{display:none!important}
           .wa-inbox-shell.wa-mobile-chat-open .wa-chat-pane{display:flex!important}
           .wa-chat-head{position:sticky;top:0;z-index:6;padding:8px 10px!important;min-height:58px!important}
@@ -9537,7 +9558,7 @@ Samara Assisted Living`;
       observer.observe(pane);
       Array.from(pane.children).forEach(child=>observer.observe(child));
       return()=>observer.disconnect();
-    },[chatViewKey,chatVisible,active?.msgs.length,active?.msgs[active.msgs.length-1]?.id]);
+    },[chatViewKey,chatVisible,isMobile,active?.msgs.length,active?.msgs[active.msgs.length-1]?.id]);
 
 
     React.useEffect(()=>{if(!isMobile&&!selectedPhone&&filtered[0])setSelectedPhone(filtered[0].phone)},[rows,query,showUnread,isMobile]);
@@ -9797,7 +9818,7 @@ Thank you.`;
     }
     const unreadTotal=conversations.filter(c=>waFolder==='All'||c.folder===waFolder).reduce((n,c)=>n+c.unread,0);
     return h(React.Fragment,null,
-      h(Section,{title:foodOnly?(leaveCover?'WhatsApp — Food Vendors & Enquiries':'WhatsApp — Food Vendors'):patientContext?`WhatsApp — ${patientContext.patient_name}`:(isSTD?'WhatsApp Enquiry Desk':'WhatsApp Inbox'),subtitle:foodOnly?(leaveCover?'Food vendors and STD enquiries. Sending remains limited to food vendors.':'Food-vendor conversations only.'):isMobile?null:(patientContext?'Patient-linked WhatsApp messages only. Other WhatsApp conversations are hidden in this view.':(isSTD?'Incoming public enquiries only. Filter by subject, name/mobile and date.':'Website/public enquiries, applicant replies and WhatsApp conversations in one place'))},
+      h(Section,{title:foodOnly?(leaveCover?'WhatsApp — Food Vendors & Enquiries':'WhatsApp — Food Vendors'):patientContext?`WhatsApp — ${patientContext.patient_name}`:(isSTD?'WhatsApp Enquiry Desk':'WhatsApp Inbox'),subtitle:foodOnly?(leaveCover?'Food vendors and STD enquiries. Sending remains limited to food vendors.':'Food-vendor conversations · view, send templates and reply.'):isMobile?null:(patientContext?'Patient-linked WhatsApp messages only. Other WhatsApp conversations are hidden in this view.':(isSTD?'Incoming public enquiries only. Filter by subject, name/mobile and date.':'Website/public enquiries, applicant replies and WhatsApp conversations in one place'))},
         patientContext?h('div',{className:'notice',style:{marginBottom:'12px',display:'flex',gap:'10px',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
           h('div',null,h('strong',null,patientContext.patient_name),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},patientContext.patient_code?`· ${patientContext.patient_code}`:''),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},`· +${patientContext.phone}`)),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPatientContext(null);setSelectedPhone('');setQuery('');setShowUnread(false);}},'Show All WhatsApp')
@@ -9822,7 +9843,7 @@ Thank you.`;
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>load(true)},'Refresh')
         ):null,
         message&&(!isMobile||!selectedPhone)?h('div',{className:'notice wa-inbox-status',style:{marginBottom:'12px'}},message):null,
-        h('div',{className:`wa-inbox-shell ${isMobile&&selectedPhone?'wa-mobile-chat-open':''}`},
+        renderChatShell(h('div',{ref:chatShellRef,className:`wa-inbox-shell ${isMobile&&selectedPhone?'wa-mobile-chat-open':''}`},
           h('div',{className:'wa-conversation-list'},
             filtered.length?filtered.map(c=>h('button',{key:c.phone,type:'button',onClick:()=>setSelectedPhone(c.phone),style:{display:'block',width:'100%',textAlign:'left',padding:'13px 14px',border:'0',borderBottom:'1px solid #f0e5e9',background:active?.phone===c.phone?'#f3f5f6':'#fff',cursor:'pointer'}},
               h('div',{style:{display:'flex',alignItems:'center',gap:'10px'}},
@@ -9877,8 +9898,9 @@ Thank you.`;
                   )
                 )
               })),
+              isMobile&&message?h('div',{className:'wa-chat-status',role:'status'},message):null,
               isMobile?h('div',{className:'wa-mobile-actions'},
-                h('div',{className:'wa-mobile-actions-status',style:{color:within24?'#087f5b':'#5d1039'}},within24?'Reply window open':'24-hour window closed · use an approved template'),
+                h('div',{className:'wa-mobile-actions-status',style:{color:within24?'#087f5b':'#5d1039'}},within24?'Send or reply to this conversation':'Send a template to start; reply after the recipient responds'),
                 within24?h('button',{type:'button',className:'wa-mobile-action-btn',onClick:()=>setMobileComposer(mobileComposer==='reply'?'':'reply')},mobileComposer==='reply'?'Close':'Reply'):null,
                 h('button',{type:'button',className:'wa-mobile-action-btn secondary',onClick:()=>setMobileComposer(mobileComposer==='template'?'':'template')},mobileComposer==='template'?'Close':'Template')
               ):null,
@@ -9902,7 +9924,7 @@ Thank you.`;
               ):null
             ):h('p',{className:'empty',style:{margin:'auto'}},'Select a WhatsApp conversation.')
           )
-        ),
+        )),
         !foodOnly&&!isSTD&&showEmergency&&active?h('div',{className:'modal show',onClick:e=>{if(e.target===e.currentTarget&&!emergencyBusy)setShowEmergency(false)}},
           h('div',{className:'modal-card',style:{maxWidth:'720px',border:'2px solid #b42336'}},
             h('div',{className:'modal-head'},
