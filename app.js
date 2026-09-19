@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.64';
+  const APP_VERSION = '2.13.65';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6282,7 +6282,7 @@ https://samaraassistedliving.com/`;
   // Adds a compact Voice button beside free-text nursing fields without changing existing forms.
   function GlobalNursingVoiceInput({profile,page}){
     const spotAssessment=page==='Spot Assessment';
-    const enabled=spotAssessment||['Nurse','Caregiver'].includes(profile?.role)||isNursingManagerProfile(profile);
+    const enabled=Boolean(profile?.id);
     const [target,setTarget]=React.useState(null);
     const [open,setOpen]=React.useState(false);
     const [listening,setListening]=React.useState(false);
@@ -6319,15 +6319,17 @@ https://samaraassistedliving.com/`;
         btn.title='Tamil / English voice input';btn.setAttribute('aria-label','Tamil or English voice input');
         btn.addEventListener('click',ev=>{ev.preventDefault();ev.stopPropagation();audioBlobRef.current=null;setTarget(el);setTranscript('');setReviewText('');setMessage('');setOpen(true)});
         el.insertAdjacentElement('afterend',btn);
+        window.SamaraDictation?.attach(btn,el);
       });
     }
 
     React.useEffect(()=>{
       if(!enabled)return;
       addButtons();
-      const ob=new MutationObserver(()=>window.setTimeout(addButtons,40));
-      ob.observe(document.body,{childList:true,subtree:true});
-      return()=>{ob.disconnect();document.querySelectorAll('.samara-global-voice-btn').forEach(x=>x.remove());document.querySelectorAll('[data-samara-voice-ready="1"]').forEach(x=>delete x.dataset.samaraVoiceReady)};
+      let disposed=false,pending=null;
+      const ob=new MutationObserver(()=>{if(pending!==null)return;pending=window.setTimeout(()=>{pending=null;if(!disposed)addButtons()},40)});
+      ob.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['disabled','readonly']});
+      return()=>{disposed=true;clearTimeout(pending);ob.disconnect();window.SamaraDictation?.stop();document.querySelectorAll('.samara-global-voice-btn').forEach(x=>x.remove());document.querySelectorAll('[data-samara-voice-ready="1"]').forEach(x=>delete x.dataset.samaraVoiceReady)};
     },[enabled,spotAssessment]);
 
     function stop(){

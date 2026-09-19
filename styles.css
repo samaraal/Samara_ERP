@@ -2329,3 +2329,12 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 .global-page-tools{display:flex;justify-content:flex-end;align-items:center;padding:10px 26px 0;gap:10px}
 .global-page-tools .btn{min-height:44px;white-space:nowrap;padding:10px 16px}
 @media(max-width:760px){.global-page-tools{padding:8px 13px 0}}
+
+/* Quick dictation sits beside field Voice input on desktop and wraps on phones. */
+.samara-dictation-tools{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;vertical-align:middle;max-width:100%;margin:5px 0 5px 6px;padding:4px;border-radius:10px;background:#fff7fb}
+.samara-dictation-tools label{display:inline-flex!important;align-items:center;gap:5px;margin:0!important;font-size:12px!important;color:#65113b}
+.samara-dictation-tools select{width:auto!important;min-width:0!important;max-width:100%;padding:7px!important;border:1px solid #d9b7c8;border-radius:8px;background:#fff;font:inherit;font-size:13px!important}
+.samara-dictation-tools .btn{padding:8px 10px!important;min-height:38px;font-size:13px!important;white-space:nowrap}
+.samara-dictation-status{flex-basis:100%;font-size:12px;color:#65113b;white-space:normal;overflow-wrap:anywhere}
+.samara-dictation-status:empty{display:none}
+@media(max-width:560px){.samara-dictation-tools{margin-left:0;gap:5px}.samara-dictation-tools select{max-width:100%}}
