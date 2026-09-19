@@ -3,3 +3,9 @@
 .fv-action-notice{flex-basis:100%;padding:12px;margin:4px 0;background:#fff2da;color:#6e481a;border-radius:8px}.fv-notice{scroll-margin-top:100px}.fv h2[tabindex]{scroll-margin-top:100px}.fv-notice:focus,.fv h2[tabindex]:focus{outline:2px solid #a71965;outline-offset:3px}
 
 .fv-dialog-backdrop{position:fixed;inset:0;z-index:100000;background:#25121ccc;display:flex;align-items:center;justify-content:center;padding:18px}.fv-dialog{background:#fff;color:#352b32;border-radius:18px;padding:22px;width:min(460px,100%);max-height:85dvh;overflow:auto;box-sizing:border-box}.fv-dialog h3{color:#791346;margin-top:0}.fv-dialog input{display:block;width:100%;box-sizing:border-box;padding:12px;margin-top:8px;border:1px solid #bba1b0;border-radius:8px;font-size:16px}.fv-dialog .fv-row{display:flex;gap:12px;margin-top:18px}
+
+/* Allow bold status even when a phone font supplies only a regular face. */
+.fv .fv-notice .fv-cutoff-status{font-weight:800!important;font-synthesis:weight!important}
+
+.fv .fv-notice .fv-cutoff-status.is-closed{color:#b42318!important}
+.fv .fv-notice .fv-cutoff-status.is-open{color:#146c2e!important}
