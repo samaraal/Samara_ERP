@@ -14,7 +14,7 @@
   }
   function finish(session, message, abort = true) {
     if (active !== session) return;
-    active = null; clearTimeout(session.timer);
+    active = null; clearTimeout(session.timer); clearTimeout(session.restartTimer); clearTimeout(session.stopTimer);
     session.entry.button.textContent = '🎙 Dictate';
     session.entry.button.setAttribute('aria-pressed','false');
     session.entry.language.disabled = false;
@@ -25,21 +25,39 @@
   function cancel(message = 'Dictation stopped. Review the text before saving.') {
     if (active) finish(active,message);
   }
-  function insert(el, text) {
-    const value = el.value || '';
-    const start = el.selectionStart ?? value.length, end = el.selectionEnd ?? value.length;
-    const prefix = value.slice(0,start), suffix = value.slice(end);
-    const addition = (prefix && !/\s$/.test(prefix) ? ' ' : '') + text + (suffix && !/^\s/.test(suffix) ? ' ' : '');
-    const setter = Object.getOwnPropertyDescriptor(el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype,'value').set;
-    setter.call(el,prefix + addition + suffix);
-    el.dispatchEvent(new Event('input',{bubbles:true}));
-    el.dispatchEvent(new Event('change',{bubbles:true}));
-    el.setSelectionRange(start + addition.length,start + addition.length);
+  // Replace only this session's insertion range. A recognition revision must
+  // never be appended to the preceding version of the same spoken phrase.
+  function render(session) {
+    const el = session.target;
+    if (!usable(el)) { finish(session,'The field closed or became unavailable. Dictation stopped.'); return false; }
+    if (el.value !== session.expected) { finish(session,'The field was edited. Dictation stopped to preserve your changes.'); return false; }
+    const text = [session.completed,session.phrase].filter(Boolean).join(' ');
+    if (!text) return true;
+    const addition = (session.prefix && !/\s$/.test(session.prefix) ? ' ' : '') + text +
+      (session.suffix && !/^\s/.test(session.suffix) ? ' ' : '');
+    const value = session.prefix + addition + session.suffix;
+    if (value === session.expected) return true;
+    session.expected = value;
+    session.writing = true;
+    try {
+      const setter = Object.getOwnPropertyDescriptor(el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype,'value').set;
+      setter.call(el,value);
+      el.dispatchEvent(new Event('input',{bubbles:true}));
+      el.dispatchEvent(new Event('change',{bubbles:true}));
+      el.setSelectionRange(session.prefix.length + addition.length,session.prefix.length + addition.length);
+    } finally { session.writing = false; }
+    return true;
   }
   function start(entry) {
     if (active?.entry === entry) {
-      active.entry.status.textContent = 'Finishing dictation…';
-      try { active.rec.stop(); } catch (_) { cancel(); }
+      const session = active;
+      if (session.stopping) return;
+      session.stopping = true;
+      clearTimeout(session.restartTimer);
+      entry.status.textContent = 'Finishing dictation…';
+      if (!session.rec) { finish(session,'Dictation stopped. Review the text before saving.'); return; }
+      session.stopTimer = setTimeout(()=>finish(session,'Dictation stopped. Review the text before saving.'),2000);
+      try { session.rec.stop(); } catch (_) { finish(session,'Dictation stopped. Review the text before saving.'); }
       return;
     }
     cancel();
@@ -51,43 +69,64 @@
     if (Array.from(scope?.querySelectorAll('button') || []).some(b=>/^(■\s*)?Stop( Recording)?$/i.test(b.textContent.trim()))) {
       entry.status.textContent = 'Stop the other voice recording first.'; return;
     }
+    const value = target.value || '', from = target.selectionStart ?? value.length, to = target.selectionEnd ?? value.length;
+    const session = {entry,target,API,lang:entry.language.value,rec:null,expected:value,
+      prefix:value.slice(0,from),suffix:value.slice(to),completed:'',phrase:'',
+      stopping:false,writing:false,emptyCycles:0,timer:null,restartTimer:null,stopTimer:null};
+    active = session;
+    entry.button.textContent = '■ Stop Dictation'; entry.button.setAttribute('aria-pressed','true');
+    entry.language.disabled = true; if (entry.fields) entry.fields.disabled = true;
+    session.timer = setTimeout(()=>finish(session,'Dictation stopped after 5 minutes. Review the text, then tap Dictate to continue.'),300000);
+    listen(session);
+  }
+  function listen(session) {
+    if (active !== session || session.stopping) return;
+    if (document.hidden || !usable(session.target)) { finish(session,'Dictation stopped because the field is no longer active.'); return; }
+    if (session.target.value !== session.expected) { finish(session,'The field was edited. Dictation stopped to preserve your changes.'); return; }
+    const {entry} = session;
     try {
-      const rec = new API();
-      const session = {entry,target,rec,committed:false,timer:null};
-      active = session;
-      rec.lang = entry.language.value; rec.continuous = false; rec.interimResults = false; rec.maxAlternatives = 1;
-      entry.button.textContent = '■ Stop Dictation'; entry.button.setAttribute('aria-pressed','true');
-      entry.language.disabled = true; if (entry.fields) entry.fields.disabled = true;
-      entry.status.textContent = 'Starting microphone…';
-      rec.onstart = () => { if (active === session) entry.status.textContent = 'Listening… Speak one phrase, then pause. Dictation stops automatically.'; };
+      const rec = new session.API(); session.rec = rec; session.phrase = '';
+      // Keep the UI session open across native utterance boundaries. Android's
+      // continuous mode can report expanding phrases as separate final results.
+      // A single-utterance recognizer gives one replaceable phrase per cycle.
+      rec.lang = session.lang; rec.continuous = false; rec.interimResults = true; rec.maxAlternatives = 1;
+      entry.status.textContent = 'Starting microphone… Tap Stop Dictation when finished.';
+      const current = () => active === session && session.rec === rec;
+      rec.onstart = () => { if (current()) entry.status.textContent = 'Listening… Words appear in the field as you speak. Pauses are OK. Tap Stop Dictation when finished.'; };
       rec.onresult = event => {
-        if (active !== session) return;
-        if (!usable(target)) { cancel('The field closed or became unavailable. Dictation stopped.'); return; }
-        // One utterance per tap, as in the original Dictate control. Some mobile
-        // recognizers replay or extend results; never append successive snapshots.
-        if (session.committed) return;
-        for (let i=event.results.length-1;i>=0;i--) {
-          const result = event.results[i], text = String(result[0]?.transcript || '').trim();
-          if (!result.isFinal || !text) continue;
-          session.committed = true;
-          insert(target,text);
-          finish(session,'Phrase added. Tap Dictate for another phrase. Review before saving.');
-          return;
-        }
+        if (!current()) return;
+        // Rebuild from the latest single-utterance snapshot, including interim
+        // corrections. Replayed or expanding results replace this phrase only.
+        const result = event.results[event.results.length-1];
+        const text = String(result?.[0]?.transcript || '').trim();
+        if (!text) return;
+        session.phrase = text;
+        if (render(session)) entry.status.textContent = 'Listening… Tap Stop Dictation when finished. Review the text before saving.';
       };
       rec.onerror = event => {
+        if (!current()) return;
+        if (event.error === 'no-speech' && !session.stopping) return; // onend reconnects, with a quiet-session limit.
         const messages = {'not-allowed':'Microphone permission was denied. Allow microphone access in browser settings or use typing.',
           'service-not-allowed':'Browser speech recognition is blocked. Use Voice or type.',
-          'no-speech':'No speech was heard. Tap Dictate to try again.',
           'network':'Speech recognition could not connect. Check your connection or use Voice.',
           'audio-capture':'No microphone is available. Check the microphone and try again.',
           'language-not-supported':'This browser does not support the selected language. Use Voice or type.'};
         finish(session,messages[event.error] || 'Dictation stopped. Review the text and try again.');
       };
-      rec.onend = () => finish(session,'Dictation finished. Review the text before saving.',false);
-      session.timer = setTimeout(()=>finish(session,'Dictation stopped after 90 seconds. Tap Dictate to continue.'),90000);
+      rec.onend = () => {
+        if (!current()) return;
+        session.rec = null;
+        if (session.phrase) {
+          session.completed = [session.completed,session.phrase].filter(Boolean).join(' ');
+          session.phrase = ''; session.emptyCycles = 0;
+        } else session.emptyCycles++;
+        if (session.stopping) { finish(session,'Dictation stopped. Review the text before saving.',false); return; }
+        if (session.emptyCycles >= 3) { finish(session,'No speech was heard. Dictation stopped; tap Dictate when ready.',false); return; }
+        entry.status.textContent = 'Still listening… Reconnecting after the pause. Tap Stop Dictation when finished.';
+        session.restartTimer = setTimeout(()=>listen(session),150);
+      };
       rec.start();
-    } catch (_) { if (active) cancel('Unable to start dictation. Try again or use Voice.'); }
+    } catch (_) { finish(session,'Unable to continue dictation. Review the text, then try again or use Voice.'); }
   }
   function attach(voice, target = null) {
     const existing = entries.get(voice);
@@ -152,6 +191,10 @@
     if(button&&isVoice(button))cancel();
   },true);
   document.addEventListener('change',event=>{if(active&&event.target!==active.target&&!active.entry.root.contains(event.target))cancel();},true);
+  // Typing, keyboard dictation or moving the caret takes ownership of the
+  // field; later recognition callbacks must not overwrite those edits.
+  document.addEventListener('input',event=>{if(active&&event.target===active.target&&!active.writing)cancel('Dictation stopped because you edited the field.');},true);
+  document.addEventListener('pointerdown',event=>{if(active&&event.target===active.target)cancel('Dictation stopped so you can edit the field.');},true);
   document.addEventListener('visibilitychange',()=>{if(document.hidden)cancel()});
   window.addEventListener('pagehide',()=>cancel());
   window.SamaraDictation={attach,stop:cancel};
