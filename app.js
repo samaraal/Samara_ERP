@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.62';
+  const APP_VERSION = '2.13.63';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -504,6 +504,15 @@ function initSamaraInaugurationInvitation(){
       if(tone)props={...props,className:`${props.className||''} ${tone}`.trim()};
     }
     return React.createElement(type,props,...children);
+  }
+  const ACCOUNTS_WORKFLOW_PAGES = ['Accounts Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','Package Expiry Dashboard'];
+  function AccountsWorkflowNavigation({page,allowed,onNavigate}){
+    if(!ACCOUNTS_WORKFLOW_PAGES.includes(page))return null;
+    return h('nav',{className:'accounts-workflow-nav','aria-label':'Accounts workflow'},
+      ACCOUNTS_WORKFLOW_PAGES.filter(item=>allowed.includes(item)).map(item=>
+        h('button',{key:item,type:'button',className:`btn ${item===page?'btn-primary samara-action-selected':'btn-secondary'}`,
+          'aria-current':item===page?'page':undefined,onClick:()=>{if(item!==page)onNavigate(item)}},
+          item==='Accounts Dashboard'?'Accounts Home':item==='Package Expiry Dashboard'?'Package Expiry':item)));
   }
   const BRAND_LOGO_SRC='./assets/samara-logo.png?v=20260814-final';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
@@ -7123,6 +7132,7 @@ https://samaraassistedliving.com/`;
         h('section',{className:'content',key:window.SamaraDutySwap.signature(profile)},
           profile.__dutyContext?.assignment&&h('div',{className:'message warning',role:'status'},
             `Temporary assignment: ${profile.__dutyContext.assignment.acting_as} duties until ${formatDateTimeIN(profile.__dutyContext.assignment.ends_at)}. Regular duties return automatically.`),
+          h(AccountsWorkflowNavigation,{page,allowed,onNavigate:setPage}),
           page==='Temporary Duty Swap'&&h(window.SamaraDutySwap.Page,{client}),
           page==='Leave Cover'&&h(React.Fragment,null,h(window.SamaraDutySwap.LeaveCoverPage,{client}),profile.__dutyContext?.can_manage&&h(StaffReturnToDuty,{profile,reviewOnly:true})),
           h(DirectorTodayTicker,{key:profile.id,profile,page,onNavigate:setPage}),
