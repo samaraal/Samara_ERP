@@ -149,7 +149,7 @@
       @media(max-width:600px){.spot-assessment .spot-checks{grid-template-columns:1fr;gap:2px}}
       .spot-actions{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.spot-assessment fieldset{border:1px solid #ead4df;border-radius:12px;padding:16px;margin:16px 0;min-width:0}
       .spot-assessment legend{font-weight:750;color:#8b124d;padding:0 7px}.spot-wound{background:#fff8fb;border:1px solid #efdbe4;border-radius:10px;padding:12px;margin:12px 0}
-      .spot-print{display:none}.spot-save-bar{position:sticky;bottom:0;padding:12px;background:#fff9fc;border:1px solid #ead4df;border-radius:12px;z-index:5}
+      .spot-print{display:none}.spot-assessment .spot-save-bar{position:static;clear:both;padding:12px;background:#fff9fc;border:1px solid #ead4df;border-radius:12px}
       @media(max-width:700px){.spot-grid{grid-template-columns:1fr}.spot-actions .btn{flex:1 1 140px}.spot-assessment fieldset{padding:12px}}
       @media print{body *{visibility:hidden}.spot-print,.spot-print *{visibility:visible}.spot-print{display:block;position:absolute;left:0;top:0;width:100%;color:#000;background:white;padding:14px;box-sizing:border-box;font:11pt Arial}.spot-print h1{font-size:18pt}.spot-print h2{font-size:13pt;margin-top:18px}.spot-print dl{margin:0}.spot-print dl>div{display:grid;grid-template-columns:36% 64%;border-bottom:1px solid #ddd;padding:5px 0;break-inside:avoid}.spot-print dt{font-weight:bold}.spot-print dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}.spot-editor,.spot-register,.spot-screen{display:none!important}}
     `),h('div',{className:'spot-screen'},h('h3',null,'Spot Assessment'),h('p',null,'Record observations during a visit. All logged-in ERP staff can create, view and update assessments.')),
