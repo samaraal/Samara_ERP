@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.63';
+  const APP_VERSION = '2.13.64';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6630,6 +6630,16 @@ https://samaraassistedliving.com/`;
     const [manualRefreshing,setManualRefreshing]=React.useState(false);
     const [lastOfficeRefresh,setLastOfficeRefresh]=React.useState(null);
     const [page,setPage]=React.useState(readLastOpenPage);
+    const [pageRefreshKey,setPageRefreshKey]=React.useState(0);
+    const pageEditedRef=React.useRef(false);
+    React.useEffect(()=>{pageEditedRef.current=false},[page]);
+    function refreshCurrentPage(){
+      if(pageEditedRef.current&&!window.confirm('Refresh this page? Current selections and any unsaved entries will be cleared.'))return;
+      pageEditedRef.current=false;
+      setPageRefreshKey(value=>value+1);
+      alertEngine.refresh().catch(error=>console.warn('Page alert refresh:',error));
+      window.dispatchEvent(new Event('samara-discharge-workflow-changed'));
+    }
     const previousPageRef=React.useRef(readLastOpenPage());
     const currentPageRef=React.useRef(readLastOpenPage());
     const workspaceInitialisedForUserRef=React.useRef(null);
@@ -7126,10 +7136,11 @@ https://samaraassistedliving.com/`;
           h('span',{className:'badge'},profile.role)
         ),
         h(MobileMenu,{page,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
+        h('div',{className:'global-page-tools'},h('button',{type:'button',className:'btn btn-secondary',onClick:refreshCurrentPage,title:'Reload the current page data','aria-label':'Refresh current page'},'↻ Refresh')),
         h(NursingMobileQuickActions,{profile,page,onNavigate:setPage}),
         h(window.SamaraDutySwap.DailyNotice,dutyNotice),
         h(window.SamaraDischargeWorkflow.Banner,{client,profile,onNavigate:setPage}),
-        h('section',{className:'content',key:window.SamaraDutySwap.signature(profile)},
+        h('section',{className:'content',key:window.SamaraDutySwap.signature(profile)+':'+pageRefreshKey,onChangeCapture:()=>{pageEditedRef.current=true},onInputCapture:()=>{pageEditedRef.current=true}},
           profile.__dutyContext?.assignment&&h('div',{className:'message warning',role:'status'},
             `Temporary assignment: ${profile.__dutyContext.assignment.acting_as} duties until ${formatDateTimeIN(profile.__dutyContext.assignment.ends_at)}. Regular duties return automatically.`),
           h(AccountsWorkflowNavigation,{page,allowed,onNavigate:setPage}),
