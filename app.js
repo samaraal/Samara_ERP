@@ -1530,7 +1530,7 @@ function initSamaraInaugurationInvitation(){
   const BED_CODE_OPTIONS = ['A','B','C','D'];
   const NAV_SECTIONS = [
     { title:'OVERVIEW', items:['Dashboard','Notifications'] },
-    { title:'ADMIN', items:['Temporary Duty Swap','Rooms','Care Packages','Shift Management','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
+    { title:'ADMIN', items:['Temporary Duty Swap','Rooms','Care Packages','Shift Management','Item Master','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
     { title:'HR', items:['HR Dashboard','Employees','Duty Assignment','Duty Calendar','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiries & Feedback'] },
     { title:'ADMISSION', items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'] },
@@ -7174,6 +7174,7 @@ https://samaraassistedliving.com/`;
           page==='Rooms'&&h(RoomsBeds,{profile,onNavigate:setPage}),
           page==='Shift Management'&&h(ShiftManagement,{profile}),
           page==='Care Packages'&&h(CarePackages,{profile}),
+          page==='Item Master'&&h(StoreItemMaster,{profile}),
           page==='Charge Master'&&h(ChargeMasterPage,{profile}),
           page==='Form Field Settings'&&h(FormFieldSettings,{profile}),
           page==='Daily Care'&&h(DailyCare,{profile,onNavigate:setPage}),
@@ -21419,7 +21420,7 @@ function RoomsBeds({profile,onNavigate}){
   }
   function ClinicalDashboard({profile,onNavigate,alertEngine}){
     const oversightOnly=['Admin','Manager'].includes(profile?.role);
-    const [state,setState]=React.useState({loading:true,patients:[],allPatients:[],roomBeds:[],medOrders:[],medLogs:[],careOrders:[],careLogs:[],vitals:[],physioOrders:[],physioSessions:[],incidents:[],handovers:[],discharges:[]});
+    const [state,setState]=React.useState({loading:true,patients:[],medOrders:[],medLogs:[],careOrders:[],careLogs:[],vitals:[],physioOrders:[],physioSessions:[],incidents:[],handovers:[],discharges:[]});
     const today=todayISOIndia();
     const timeToMinutes=value=>{const text=String(value||'').trim();const m=text.match(/^(\d{1,2}):(\d{2})/);return m?Number(m[1])*60+Number(m[2]):9999};
     const parseClinicalTimes=value=>Array.isArray(value)?value.filter(Boolean).map(normalizeMedicationTime).filter(Boolean):String(value||'').split(',').map(normalizeMedicationTime).filter(Boolean);
@@ -21470,15 +21471,7 @@ function RoomsBeds({profile,onNavigate}){
         client.from('shift_handovers').select('*').order('created_at',{ascending:false}).limit(100),
         client.from('patient_discharges')
           .select('*')
-          .order('created_at',{ascending:false}),
-        // Keep a lightweight patient identity lookup for handovers. The clinical
-        // work queues still use active patients only, but an older handover must
-        // not lose the patient's name merely because the active filter changes.
-        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no'),
-        // Room & Bed Master is the authoritative fallback for current occupancy.
-        // Some older patient rows can have blank room_no/bed_no even though the
-        // occupied room_beds row correctly points to the patient.
-        client.from('room_beds').select('id,patient_id,room_no,bed_no,status')
+          .order('created_at',{ascending:false})
       ]);
       const data=results.map((result,index)=>{
         if(result.error){
@@ -21501,7 +21494,7 @@ function RoomsBeds({profile,onNavigate}){
         seenMedicationOrders.add(key);
         return true;
       });
-      setState({loading:false,patients:data[0],allPatients:data[11]||data[0],roomBeds:data[12]||[],medOrders:validMedicationOrders,medLogs:data[2],careOrders:data[3],careLogs:data[4],vitals:data[5],physioOrders:data[6],physioSessions:data[7],incidents:data[8],handovers:data[9],discharges:data[10]});
+      setState({loading:false,patients:data[0],medOrders:validMedicationOrders,medLogs:data[2],careOrders:data[3],careLogs:data[4],vitals:data[5],physioOrders:data[6],physioSessions:data[7],incidents:data[8],handovers:data[9],discharges:data[10]});
     }
     React.useEffect(()=>{load();const ch=client.channel('clinical-dashboard-live').on('postgres_changes',{event:'*',schema:'public',table:'vital_signs'},load).on('postgres_changes',{event:'*',schema:'public',table:'medication_administrations'},load).on('postgres_changes',{event:'*',schema:'public',table:'care_logs'},load).on('postgres_changes',{event:'*',schema:'public',table:'incidents'},load).on('postgres_changes',{event:'*',schema:'public',table:'patient_discharges'},load).on('postgres_changes',{event:'*',schema:'public',table:'shift_handovers'},load).subscribe();return()=>client.removeChannel(ch)},[]);
     const terminalMedicationStatuses=new Set(['given','refused','withheld','unavailable','missed']);
@@ -21558,7 +21551,7 @@ function RoomsBeds({profile,onNavigate}){
     const vitalsPending=state.patients.filter(p=>!vitalPatientIds.has(p.id));
     const physioDoneIds=new Set(state.physioSessions.map(x=>x.order_id));
     const physioPending=state.physioOrders.filter(x=>!physioDoneIds.has(x.id));
-    const patientName=row=>{const embedded=row?.patients||row;const linked=(state.allPatients||state.patients).find(p=>p.id===row?.patient_id)||state.patients.find(p=>p.id===row?.patient_id);return formalName(embedded)||embedded?.full_name||formalName(linked)||linked?.full_name||'Patient';};
+    const patientName=row=>{const embedded=row?.patients||row;const linked=state.patients.find(p=>p.id===row?.patient_id);return formalName(embedded)||embedded?.full_name||formalName(linked)||linked?.full_name||'Patient';};
     // Only the newest handover for each active patient contributes pending work.
     // A later handover with no pending task therefore clears the older item.
     const latestHandoverByPatient=new Map();
@@ -21628,9 +21621,9 @@ function RoomsBeds({profile,onNavigate}){
           vitalsPending.slice(0,4).map(p=>h('div',{className:'clinical-work-row',key:p.id},h('span',null,'🩺'),h('div',null,h('strong',null,formalName(p)),h('small',null,`${p.patient_id||''} · Room ${p.room_no||'—'}-${p.bed_no||'—'} · Vitals not entered today`)),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>onNavigate('Vital Signs')},'Enter'))),
           currentShiftCarePending.slice(0,5).map((x,i)=>h('div',{className:'clinical-work-row',key:`care-${x.id}-${x.taskShift}-${i}`},h('span',null,'✅'),h('div',null,h('strong',null,patientName(x)),h('small',null,`${x.care_type||x.activity||'Care task'} · ${x.taskShift}`)),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>dashboardNavigate(onNavigate,'Shift Tasks','Today’s Operational Focus',{source:'Main Dashboard'})},'Open'))),
           upcomingShiftCarePending.length>0&&h('div',{className:'clinical-work-row upcoming-summary'},h('span',null,'🕒'),h('div',null,h('strong',null,`${upcomingShiftCarePending.length} care task(s) scheduled for next shift`),h('small',null,'Shown as a compact summary; they become actionable when the next shift starts.')),!oversightOnly&&h('button',{className:'mini-link',onClick:()=>dashboardNavigate(onNavigate,'Shift Tasks','Today’s Operational Focus',{source:'Main Dashboard'})},'Review')),
-          handoverPending.slice(0,8).map((row,index)=>{const linked=(state.allPatients||state.patients).find(p=>String(p.id)===String(row.patient_id))||state.patients.find(p=>String(p.id)===String(row.patient_id));const occupiedBed=(state.roomBeds||[]).find(b=>String(b.patient_id)===String(row.patient_id)&&String(b.status||'').trim().toLowerCase()==='occupied')||(state.roomBeds||[]).find(b=>String(b.patient_id)===String(row.patient_id));const roomNo=linked?.room_no||occupiedBed?.room_no;const bedNo=linked?.bed_no||occupiedBed?.bed_no;const roomBed=(roomNo||bedNo)?`Room ${roomNo||'—'} · Bed ${bedNo||'—'}`:'Room / Bed —';const displayName=linked?formalName(linked):patientName(row);return h('div',{className:`clinical-work-row ${String(row.priority||'').toLowerCase()==='critical'?'urgent':''}`,key:`handover-pending-${row.id||index}`},
+          handoverPending.slice(0,8).map((row,index)=>{const linked=state.patients.find(p=>p.id===row.patient_id);const roomBed=linked?`Room ${linked.room_no||'—'} · Bed ${linked.bed_no||'—'}`:'Room / Bed —';return h('div',{className:`clinical-work-row ${String(row.priority||'').toLowerCase()==='critical'?'urgent':''}`,key:`handover-pending-${row.id||index}`},
             h('span',null,'⇄'),
-            h('div',null,h('strong',null,`${displayName} · ${roomBed}`),h('small',null,`${row.priority||'Routine'} · Handover pending: ${row.pending_tasks}${row.special_instructions?` · Instruction: ${row.special_instructions}`:''}`),h(TamilAssist,{text:[`Handover pending: ${row.pending_tasks}`,row.special_instructions&&`Instruction: ${row.special_instructions}`].filter(Boolean).join('\n'),context:'Clinical Handover Alert'})),
+            h('div',null,h('strong',null,`${patientName(row)} · ${roomBed}`),h('small',null,`${row.priority||'Routine'} · Handover pending: ${row.pending_tasks}${row.special_instructions?` · Instruction: ${row.special_instructions}`:''}`),h(TamilAssist,{text:[`Handover pending: ${row.pending_tasks}`,row.special_instructions&&`Instruction: ${row.special_instructions}`].filter(Boolean).join('\n'),context:'Clinical Handover Alert'})),
             !oversightOnly?h('button',{className:'mini-link',onClick:()=>onNavigate('Shift Handover')},'Open'):h('b',null,row.priority||'Routine')
           )}),
           dischargeReady.slice(0,3).map(row=>h('div',{className:'clinical-work-row urgent',key:`discharge-${row.id}`},
@@ -21643,8 +21636,8 @@ function RoomsBeds({profile,onNavigate}){
           )),
           !medDueTasks.length&&!vitalsPending.length&&!currentShiftCarePending.length&&!handoverPending.length&&!dischargeReady.length&&h('div',{className:'clinical-empty'},'No urgent clinical tasks are pending in the current shift.')),
         h('section',{className:'card clinical-panel'},h('div',{className:'clinical-panel-head'},h('div',null,h('h3',null,'Latest Shift Handover'),h('small',null,'Important information from the previous shift'))),
-          state.handovers.length?state.handovers.slice(0,5).map((x,index)=>{const linked=(state.allPatients||state.patients).find(p=>String(p.id)===String(x.patient_id))||state.patients.find(p=>String(p.id)===String(x.patient_id));const occupiedBed=(state.roomBeds||[]).find(b=>String(b.patient_id)===String(x.patient_id)&&String(b.status||'').trim().toLowerCase()==='occupied')||(state.roomBeds||[]).find(b=>String(b.patient_id)===String(x.patient_id));const roomNo=linked?.room_no||occupiedBed?.room_no;const bedNo=linked?.bed_no||occupiedBed?.bed_no;const roomBed=(roomNo||bedNo)?`Room ${roomNo||'—'} · Bed ${bedNo||'—'}`:'Room / Bed —';const displayName=linked?formalName(linked):patientName(x);return h('div',{className:`handover-card ${String(x.priority||'').toLowerCase()}`,key:x.id},
-            h('div',null,h('strong',null,`${index+1}. ${displayName} · ${roomBed} · ${x.shift||'Shift'} · ${x.priority||'Routine'}`),h('small',null,fmt(x.created_at))),
+          state.handovers.length?state.handovers.slice(0,5).map((x,index)=>{const linked=state.patients.find(p=>p.id===x.patient_id);const roomBed=linked?`Room ${linked.room_no||'—'} · Bed ${linked.bed_no||'—'}`:'Room / Bed —';return h('div',{className:`handover-card ${String(x.priority||'').toLowerCase()}`,key:x.id},
+            h('div',null,h('strong',null,`${index+1}. ${patientName(x)} · ${roomBed} · ${x.shift||'Shift'} · ${x.priority||'Routine'}`),h('small',null,fmt(x.created_at))),
             h('p',null,x.patient_summary||x.summary||'No patient summary.'),
             x.pending_tasks&&h('p',null,h('b',null,'Pending tasks: '),x.pending_tasks),
             x.special_instructions&&h('p',null,h('b',null,'Special instructions: '),x.special_instructions),
@@ -27493,6 +27486,28 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     h('button',{type:'button',className:'btn btn-secondary',onClick:stock.reload},'Refresh stock')
   );
 }
+
+
+  function StoreItemMaster({profile}){
+    const [rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('All'),[search,setSearch]=React.useState(''),[editing,setEditing]=React.useState(null);
+    const load=React.useCallback(async()=>{const r=await client.from('consumable_store_items').select('id,item_name,unit,active,item_category,strength,dosage_form').order('item_name');if(r.error)showSamaraActionToast('error','Item Master','Run 132_store_item_master.sql first. '+r.error.message);else setRows(r.data||[])},[]);
+    React.useEffect(()=>{load()},[load]);
+    const visible=rows.filter(r=>{const c=r.item_category||'Consumables',q=search.trim().toLowerCase();return (filter==='All'||filter===c||(filter==='Inactive'&&r.active===false))&&(q.length<3||String(r.item_name||'').toLowerCase().includes(q))});
+    const save=async()=>{if(!editing?.item_name?.trim())return showSamaraActionToast('error','Item Master','Item name is required.');setBusy(true);const r=await client.rpc('admin_update_store_item',{p_item_id:editing.id,p_item_name:editing.item_name.trim(),p_category:editing.item_category,p_unit:editing.unit,p_strength:editing.strength||null,p_dosage_form:editing.dosage_form||null});setBusy(false);if(r.error)showSamaraActionToast('error','Item Master',r.error.message);else{showSamaraActionToast('success','Item Master','Item updated; existing stock and history are preserved.');setEditing(null);load()}};
+    const active=async(row,value)=>{if(!confirm(value?`Reactivate ${row.item_name}?`:`Deactivate ${row.item_name}? Old history will be preserved.`))return;setBusy(true);const r=await client.rpc('admin_set_store_item_active',{p_item_id:row.id,p_active:value});setBusy(false);if(r.error)showSamaraActionToast('error','Item Master',r.error.message);else load()};
+    const remove=async row=>{if(!confirm(`Delete ${row.item_name}? This is permitted only if it has never been used.`))return;setBusy(true);const r=await client.rpc('admin_delete_unused_store_item',{p_item_id:row.id});setBusy(false);if(r.error)showSamaraActionToast('error','Delete blocked',r.error.message);else{showSamaraActionToast('success','Item Master','Unused item deleted.');load()}};
+    return h('div',null,h(Section,{title:'Pharmacy & Stores Item Master',subtitle:'Admin control: classify, move, modify, deactivate or delete unused stock items. Moving an item keeps the same stock and transaction history.'},
+      h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'12px'}},h('input',{value:search,onChange:e=>setSearch(e.target.value),placeholder:'Search 3+ characters',style:{minWidth:'210px',flex:1}}),['All','Pharmacy','Consumables','Inactive'].map(x=>h('button',{key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>setFilter(x)},x)),h('button',{className:'btn btn-secondary',onClick:load},'↻ Refresh')),
+      h('div',{className:'stores-ledger-mobile'},visible.map(r=>h('article',{className:'stores-ledger-card',key:r.id},h('div',{className:'stores-ledger-card-head'},h('strong',null,r.item_name),h('span',null,r.active===false?'Inactive':(r.item_category||'Consumables'))),h('p',null,`${r.unit||'—'}${r.strength?` · ${r.strength}`:''}${r.dosage_form?` · ${r.dosage_form}`:''}`),h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{className:'btn btn-primary',onClick:()=>setEditing({...r,item_category:r.item_category||'Consumables'})},'Edit / Move'),h('button',{className:'btn btn-secondary',onClick:()=>active(r,r.active===false)},r.active===false?'Reactivate':'Deactivate'),h('button',{className:'btn btn-secondary',onClick:()=>remove(r)},'Delete if unused'))))),
+      h('div',{className:'table-wrap stores-ledger-desktop'},h('table',{className:'table'},h('thead',null,h('tr',null,['Item','Category','Unit','Strength / Form','Status','Actions'].map(x=>h('th',{key:x},x)))),h('tbody',null,visible.map(r=>h('tr',{key:r.id},h('td',null,r.item_name),h('td',null,r.item_category||'Consumables'),h('td',null,r.unit||'—'),h('td',null,[r.strength,r.dosage_form].filter(Boolean).join(' · ')||'—'),h('td',null,r.active===false?'Inactive':'Active'),h('td',null,h('button',{className:'btn btn-primary',onClick:()=>setEditing({...r,item_category:r.item_category||'Consumables'})},'Edit / Move')))))))
+    ),editing&&h('div',{className:'modal-backdrop'},h('div',{className:'modal-card',style:{maxWidth:'620px'}},h('h3',null,'Edit / Move Stock Item'),h('div',{className:'form-grid'},
+      h('div',{className:'field span-2'},h('label',null,'Item Name *'),h('input',{value:editing.item_name||'',onChange:e=>setEditing({...editing,item_name:e.target.value})})),
+      h('div',{className:'field'},h('label',null,'Category *'),h('select',{value:editing.item_category,onChange:e=>setEditing({...editing,item_category:e.target.value})},['Consumables','Pharmacy'].map(x=>h('option',{key:x,value:x},x)))),
+      h('div',{className:'field'},h('label',null,'Unit *'),h('input',{value:editing.unit||'',onChange:e=>setEditing({...editing,unit:e.target.value})})),
+      h('div',{className:'field'},h('label',null,'Strength / Specification'),h('input',{value:editing.strength||'',onChange:e=>setEditing({...editing,strength:e.target.value})})),
+      h('div',{className:'field'},h('label',null,'Dosage Form'),h('input',{value:editing.dosage_form||'',onChange:e=>setEditing({...editing,dosage_form:e.target.value})}))
+    ),h('div',{style:{display:'flex',gap:'8px',justifyContent:'flex-end'}},h('button',{className:'btn btn-secondary',onClick:()=>setEditing(null)},'Close'),h('button',{className:'btn btn-primary',disabled:busy,onClick:save},busy?'Saving…':'Save Changes')))))
+  }
 
   function ConsumablesStores({profile}){
     const authority=useStoreAuthority(profile);
