@@ -847,6 +847,44 @@ function initSamaraInaugurationInvitation(){
       .sidebar .nav-submenu button[data-nav='Refunds']::before,
       .sidebar .nav-submenu button[data-nav='Accounts Reports']::before{content:'₹'}
 
+      /* Colourful, meaningful sidebar icons */
+      .sidebar .nav-submenu button::before{font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif!important;font-weight:400!important;font-size:19px!important;color:initial!important}
+      .sidebar .nav-submenu button[data-nav='Rooms']::before{content:'🛏️'!important}
+      .sidebar .nav-submenu button[data-nav='Care Packages']::before{content:'🎁'!important}
+      .sidebar .nav-submenu button[data-nav='Shift Management']::before{content:'🕒'!important}
+      .sidebar .nav-submenu button[data-nav='Stores Master']::before{content:'📦'!important}
+      .sidebar .nav-submenu button[data-nav='Charge Master']::before{content:'💳'!important}
+      .sidebar .nav-submenu button[data-nav='Form Field Settings']::before{content:'🎛️'!important}
+      .sidebar .nav-submenu button[data-nav='Audit Trail']::before{content:'📋'!important}
+      .sidebar .nav-submenu button[data-nav='Alert Settings']::before{content:'🔔'!important}
+      .sidebar .nav-submenu button[data-nav='System Maintenance']::before{content:'🛠️'!important}
+      .sidebar .nav-submenu button[data-nav='Temporary Duty Swap']::before{content:'🔄'!important}
+      .sidebar .nav-submenu button[data-nav='Leave Cover']::before{content:'📅'!important}
+      .sidebar .nav-submenu button[data-nav='Employees']::before{content:'👥'!important}
+      .sidebar .nav-submenu button[data-nav='Duty Assignment']::before{content:'🗓️'!important}
+      .sidebar .nav-submenu button[data-nav='Duty Calendar']::before{content:'📆'!important}
+      .sidebar .nav-submenu button[data-nav='Staff Leave Calendar']::before{content:'🏖️'!important}
+      .sidebar .nav-submenu button[data-nav='Patients']::before{content:'🧑‍⚕️'!important}
+      .sidebar .nav-submenu button[data-nav='Admissions']::before{content:'🏥'!important}
+      .sidebar .nav-submenu button[data-nav='Documents']::before{content:'📄'!important}
+      .sidebar .nav-submenu button[data-nav='Clinical Dashboard']::before{content:'🩺'!important}
+      .sidebar .nav-submenu button[data-nav='Clinical Alerts']::before{content:'🚨'!important}
+      .sidebar .nav-submenu button[data-nav='Shift Tasks']::before{content:'✅'!important}
+      .sidebar .nav-submenu button[data-nav='Daily Care']::before{content:'🤲'!important}
+      .sidebar .nav-submenu button[data-nav='Vital Signs']::before{content:'❤️'!important}
+      .sidebar .nav-submenu button[data-nav='Medicines']::before{content:'💊'!important}
+      .sidebar .nav-submenu button[data-nav='Physiotherapy']::before{content:'🏃'!important}
+      .sidebar .nav-submenu button[data-nav='Shift Handover']::before{content:'🤝'!important}
+      .sidebar .nav-submenu button[data-nav='Incidents']::before{content:'⚠️'!important}
+      .sidebar .nav-submenu button[data-nav='Consumables']::before{content:'🧤'!important}
+      .sidebar .nav-submenu button[data-nav='Pharmacy']::before{content:'💊'!important}
+      .sidebar .nav-submenu button[data-nav='Food & Diet']::before{content:'🍽️'!important}
+      .sidebar .nav-submenu button[data-nav='Reports']::before,.sidebar .nav-submenu button[data-nav='Intelligent Reports']::before{content:'📊'!important}
+      .sidebar .nav-submenu button[data-nav='Payments']::before{content:'💰'!important}
+      .sidebar .nav-submenu button[data-nav='Patient Ledger']::before{content:'📒'!important}
+      .sidebar .nav-submenu button[data-nav='Final Billing']::before{content:'🧾'!important}
+      .sidebar .nav-submenu button[data-nav='Refunds']::before{content:'↩️'!important}
+
       .login-app-help{margin:15px 0 3px;padding:12px;border:1px solid #ead6df;border-radius:14px;background:#fffafd;text-align:center}
       .login-app-help>span{display:block;font-size:13px;color:#75616c;margin-bottom:8px}
       .login-app-help-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
@@ -1530,7 +1568,7 @@ function initSamaraInaugurationInvitation(){
   const BED_CODE_OPTIONS = ['A','B','C','D'];
   const NAV_SECTIONS = [
     { title:'OVERVIEW', items:['Dashboard','Notifications'] },
-    { title:'ADMIN', items:['Temporary Duty Swap','Rooms','Care Packages','Shift Management','Item Master','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
+    { title:'ADMIN', items:['Temporary Duty Swap','Rooms','Care Packages','Shift Management','Stores Master','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
     { title:'HR', items:['HR Dashboard','Employees','Duty Assignment','Duty Calendar','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiries & Feedback'] },
     { title:'ADMISSION', items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'] },
@@ -7174,7 +7212,7 @@ https://samaraassistedliving.com/`;
           page==='Rooms'&&h(RoomsBeds,{profile,onNavigate:setPage}),
           page==='Shift Management'&&h(ShiftManagement,{profile}),
           page==='Care Packages'&&h(CarePackages,{profile}),
-          page==='Item Master'&&h(StoreItemMaster,{profile}),
+          page==='Stores Master'&&h(StoreItemMaster,{profile}),
           page==='Charge Master'&&h(ChargeMasterPage,{profile}),
           page==='Form Field Settings'&&h(FormFieldSettings,{profile}),
           page==='Daily Care'&&h(DailyCare,{profile,onNavigate:setPage}),
@@ -27492,31 +27530,34 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
 
   function StoreItemMaster({profile}){
     const [rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('All'),[search,setSearch]=React.useState(''),[editing,setEditing]=React.useState(null),[adding,setAdding]=React.useState(null),[moveTargets,setMoveTargets]=React.useState({});
-    const load=React.useCallback(async()=>{const r=await client.from('consumable_store_items').select('id,item_name,unit,active,item_category,strength,dosage_form').order('item_name');if(r.error)showSamaraActionToast('error','Item Master','Run 132_store_item_master.sql first. '+r.error.message);else setRows(r.data||[])},[]);
+    const load=React.useCallback(async()=>{const r=await client.from('consumable_store_items').select('id,item_name,unit,active,item_category,strength,dosage_form,charge_rate').order('item_name');if(r.error)showSamaraActionToast('error','Stores Master','Run 132_store_item_master.sql first. '+r.error.message);else setRows(r.data||[])},[]);
     React.useEffect(()=>{load()},[load]);
     const visible=rows.filter(r=>{const c=r.item_category||'Consumables',q=search.trim().toLowerCase();return (filter==='All'||filter===c||(filter==='Inactive'&&r.active===false))&&(q.length<3||String(r.item_name||'').toLowerCase().includes(q))});
-    const save=async()=>{if(!editing?.item_name?.trim())return showSamaraActionToast('error','Item Master','Item name is required.');setBusy(true);const r=await client.rpc('admin_update_store_item',{p_item_id:editing.id,p_item_name:editing.item_name.trim(),p_category:editing.item_category||'Consumables',p_unit:editing.unit,p_strength:editing.strength||null,p_dosage_form:editing.dosage_form||null});setBusy(false);if(r.error)showSamaraActionToast('error','Item Master',r.error.message);else{showSamaraActionToast('success','Item Master','Item details updated.');setEditing(null);load()}};
-    const openAdd=()=>setAdding({item_name:'',item_category:'Consumables',unit:'Nos',strength:'',dosage_form:''});
-    const addItem=async()=>{if(!adding?.item_name?.trim())return showSamaraActionToast('error','Add New Item','Item name is required.');if(!adding?.unit?.trim())return showSamaraActionToast('error','Add New Item','Unit is required.');setBusy(true);const r=await client.rpc('admin_add_store_item',{p_item_name:adding.item_name.trim(),p_category:adding.item_category||'Consumables',p_unit:adding.unit.trim(),p_strength:adding.strength||null,p_dosage_form:adding.dosage_form||null});setBusy(false);if(r.error)showSamaraActionToast('error','Add New Item',r.error.message);else{showSamaraActionToast('success','Add New Item',`${adding.item_name.trim()} added under ${adding.item_category||'Consumables'}.`);setAdding(null);load()}};
+    const save=async()=>{if(!editing?.item_name?.trim())return showSamaraActionToast('error','Stores Master','Item name is required.');setBusy(true);const r=await client.rpc('admin_update_store_item',{p_item_id:editing.id,p_item_name:editing.item_name.trim(),p_category:editing.item_category||'Consumables',p_unit:editing.unit,p_strength:editing.strength||null,p_dosage_form:editing.dosage_form||null});setBusy(false);if(r.error)showSamaraActionToast('error','Stores Master',r.error.message);else{showSamaraActionToast('success','Stores Master','Item details updated.');setEditing(null);load()}};
+    const savePrice=async(itemId,value)=>{const rate=Number(value);if(!Number.isFinite(rate)||rate<0)return showSamaraActionToast('error','Stores Master','Enter a valid charge rate of zero or more.');setBusy(true);const r=await client.rpc('admin_set_store_item_charge_rate',{p_item_id:itemId,p_charge_rate:rate});setBusy(false);if(r.error)showSamaraActionToast('error','Stores Master',r.error.message);else{showSamaraActionToast('success','Stores Master','Charge rate updated for future patient charges.');load()}};
+    const openAdd=()=>setAdding({item_name:'',item_category:'Consumables',unit:'Nos',strength:'',dosage_form:'',charge_rate:''});
+    const addItem=async()=>{if(!adding?.item_name?.trim())return showSamaraActionToast('error','Add New Item','Item name is required.');if(!adding?.unit?.trim())return showSamaraActionToast('error','Add New Item','Unit is required.');setBusy(true);const r=await client.rpc('admin_add_store_item',{p_item_name:adding.item_name.trim(),p_category:adding.item_category||'Consumables',p_unit:adding.unit.trim(),p_strength:adding.strength||null,p_dosage_form:adding.dosage_form||null});if(!r.error&&String(adding.charge_rate||'').trim()!==''){const created=await client.from('consumable_store_items').select('id').ilike('item_name',adding.item_name.trim()).limit(1).maybeSingle();if(!created.error&&created.data?.id)await client.rpc('admin_set_store_item_charge_rate',{p_item_id:created.data.id,p_charge_rate:Number(adding.charge_rate||0)})}setBusy(false);if(r.error)showSamaraActionToast('error','Add New Item',r.error.message);else{showSamaraActionToast('success','Add New Item',`${adding.item_name.trim()} added under ${adding.item_category||'Consumables'}.`);setAdding(null);load()}};
     const moveItem=async row=>{const current=row.item_category||'Consumables',target=moveTargets[row.id];if(!target)return showSamaraActionToast('error','Move Item','Please select where to move this item.');if(target===current)return showSamaraActionToast('error','Move Item',`${row.item_name} is already under ${current}.`);if(!confirm(`Move ${row.item_name} from ${current} to ${target}? Stock and transaction history will be preserved.`))return;setBusy(true);const r=await client.rpc('admin_update_store_item',{p_item_id:row.id,p_item_name:row.item_name,p_category:target,p_unit:row.unit,p_strength:row.strength||null,p_dosage_form:row.dosage_form||null});setBusy(false);if(r.error)showSamaraActionToast('error','Move Item',r.error.message);else{showSamaraActionToast('success','Move Item',`${row.item_name} moved to ${target}. Stock and history are preserved.`);setMoveTargets(x=>({...x,[row.id]:''}));load()}};
-    const active=async(row,value)=>{if(!confirm(value?`Reactivate ${row.item_name}?`:`Deactivate ${row.item_name}? Old history will be preserved.`))return;setBusy(true);const r=await client.rpc('admin_set_store_item_active',{p_item_id:row.id,p_active:value});setBusy(false);if(r.error)showSamaraActionToast('error','Item Master',r.error.message);else load()};
-    const remove=async row=>{if(!confirm(`Delete ${row.item_name}? This is permitted only if it has never been used.`))return;setBusy(true);const r=await client.rpc('admin_delete_unused_store_item',{p_item_id:row.id});setBusy(false);if(r.error)showSamaraActionToast('error','Delete blocked',r.error.message);else{showSamaraActionToast('success','Item Master','Unused item deleted.');load()}};
+    const active=async(row,value)=>{if(!confirm(value?`Reactivate ${row.item_name}?`:`Deactivate ${row.item_name}? Old history will be preserved.`))return;setBusy(true);const r=await client.rpc('admin_set_store_item_active',{p_item_id:row.id,p_active:value});setBusy(false);if(r.error)showSamaraActionToast('error','Stores Master',r.error.message);else load()};
+    const remove=async row=>{if(!confirm(`Delete ${row.item_name}? This is permitted only if it has never been used.`))return;setBusy(true);const r=await client.rpc('admin_delete_unused_store_item',{p_item_id:row.id});setBusy(false);if(r.error)showSamaraActionToast('error','Delete blocked',r.error.message);else{showSamaraActionToast('success','Stores Master','Unused item deleted.');load()}};
     const moveSelect=row=>h('select',{value:moveTargets[row.id]||'',disabled:busy||row.active===false,onChange:e=>setMoveTargets(x=>({...x,[row.id]:e.target.value})),style:{minWidth:'130px'}},h('option',{value:''},'Select…'),['Pharmacy','Consumables'].filter(x=>x!==(row.item_category||'Consumables')).map(x=>h('option',{key:x,value:x},x)));
     const editButton=row=>h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setEditing({...row,item_category:row.item_category||'Consumables'})},'Edit');
-    return h('div',null,h(Section,{title:'Item Master',subtitle:'Admin control: classify, move, edit, deactivate or delete unused items. Moving keeps the same item history.'},
+    return h('div',null,h(Section,{title:'Stores Master',subtitle:'Admin control: classify, move, edit, deactivate or delete unused items. Moving keeps the same item history.'},
       h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'12px'}},h('input',{value:search,onChange:e=>setSearch(e.target.value),placeholder:'Search 3+ characters',style:{minWidth:'210px',flex:1}}),['All','Pharmacy','Consumables','Inactive'].map(x=>h('button',{key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>setFilter(x)},x)),h('button',{className:'btn btn-primary',onClick:openAdd},'+ Add New'),h('button',{className:'btn btn-secondary',onClick:load},'↻ Refresh')),
       h('div',{className:'stores-ledger-mobile'},visible.map(r=>h('article',{className:'stores-ledger-card',key:r.id},
         h('div',{className:'stores-ledger-card-head'},h('strong',null,r.item_name),h('span',null,r.active===false?'Inactive':'Active')),
         h('p',null,`${r.unit||'—'}${r.strength?` · ${r.strength}`:''}${r.dosage_form?` · ${r.dosage_form}`:''}`),
         h('div',{style:{display:'grid',gridTemplateColumns:'1fr',gap:'8px'}},
           h('div',null,h('small',{style:{display:'block',fontWeight:700,marginBottom:'3px'}},'Currently Under'),h('strong',null,r.item_category||'Consumables')),
+          h('div',null,h('small',{style:{display:'block',fontWeight:700,marginBottom:'3px'}},'Charge Rate'),h('div',{style:{display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}},h('strong',null,`₹${Number(r.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>{const v=prompt(`Charge rate for ${r.item_name}:`,String(r.charge_rate??0));if(v!==null)savePrice(r.id,v)}},'Edit Price'))),
           h('div',null,h('small',{style:{display:'block',fontWeight:700,marginBottom:'3px'}},'Move to'),h('div',{style:{display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}},moveSelect(r),h('button',{className:'btn btn-primary',disabled:busy||!moveTargets[r.id]||r.active===false,onClick:()=>moveItem(r)},'Move'))),
           h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},editButton(r),h('button',{className:'btn btn-secondary',onClick:()=>active(r,r.active===false)},r.active===false?'Reactivate':'Deactivate'),h('button',{className:'btn btn-secondary',onClick:()=>remove(r)},'Delete if unused'))
         )
       ))),
-      h('div',{className:'table-wrap stores-ledger-desktop'},h('table',{className:'table'},h('thead',null,h('tr',null,['Item','Currently Under','Move to','Status','Edit'].map(x=>h('th',{key:x},x)))),h('tbody',null,visible.map(r=>h('tr',{key:r.id},
+      h('div',{className:'table-wrap stores-ledger-desktop'},h('table',{className:'table'},h('thead',null,h('tr',null,['Item','Currently Under','Charge Rate','Move to','Status','Edit'].map(x=>h('th',{key:x},x)))),h('tbody',null,visible.map(r=>h('tr',{key:r.id},
         h('td',null,h('strong',null,r.item_name),h('div',{style:{fontSize:'12px',opacity:.72,marginTop:'3px'}},[r.unit,r.strength,r.dosage_form].filter(Boolean).join(' · ')||'—')),
         h('td',null,r.item_category||'Consumables'),
+        h('td',null,h('div',{style:{display:'flex',gap:'6px',alignItems:'center',minWidth:'170px'}},h('strong',null,`₹${Number(r.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>{const v=prompt(`Charge rate for ${r.item_name}:`,String(r.charge_rate??0));if(v!==null)savePrice(r.id,v)}},'Edit Price'))),
         h('td',null,h('div',{style:{display:'flex',gap:'6px',alignItems:'center'}},moveSelect(r),h('button',{className:'btn btn-primary',disabled:busy||!moveTargets[r.id]||r.active===false,onClick:()=>moveItem(r)},'Move'))),
         h('td',null,r.active===false?'Inactive':'Active'),
         h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},editButton(r),h('button',{className:'btn btn-secondary',onClick:()=>active(r,r.active===false)},r.active===false?'Reactivate':'Deactivate'),h('button',{className:'btn btn-secondary',onClick:()=>remove(r)},'Delete'))
@@ -27526,7 +27567,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       h('div',{className:'field'},h('label',null,'Currently Under *'),h('select',{value:adding.item_category||'Consumables',onChange:e=>setAdding({...adding,item_category:e.target.value})},h('option',{value:'Consumables'},'Consumables'),h('option',{value:'Pharmacy'},'Pharmacy'))),
       h('div',{className:'field'},h('label',null,'Unit *'),h('input',{value:adding.unit||'',onChange:e=>setAdding({...adding,unit:e.target.value})})),
       h('div',{className:'field'},h('label',null,'Strength / Specification'),h('input',{value:adding.strength||'',onChange:e=>setAdding({...adding,strength:e.target.value})})),
-      h('div',{className:'field'},h('label',null,'Dosage Form'),h('input',{value:adding.dosage_form||'',onChange:e=>setAdding({...adding,dosage_form:e.target.value})}))
+      h('div',{className:'field'},h('label',null,'Dosage Form'),h('input',{value:adding.dosage_form||'',onChange:e=>setAdding({...adding,dosage_form:e.target.value})})),
+      h('div',{className:'field'},h('label',null,'Charge Rate (₹)'),h('input',{type:'number',min:'0',step:'0.01',value:adding.charge_rate||'',onChange:e=>setAdding({...adding,charge_rate:e.target.value})}))
     ),h('div',{style:{display:'flex',gap:'8px',justifyContent:'flex-end',flexWrap:'wrap'}},h('button',{className:'btn btn-secondary',onClick:()=>setAdding(null)},'Close'),h('button',{className:'btn btn-primary',disabled:busy,onClick:addItem},busy?'Adding…':'Add Item')))),editing&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)',backdropFilter:'blur(1px)'}},h('div',{className:'modal-card',style:{maxWidth:'620px',background:'#fffafd',opacity:1,border:'1px solid #e7bfd1',borderRadius:'18px',boxShadow:'0 22px 60px rgba(55,18,35,.28)',padding:'22px'}},h('h3',null,'Edit Item'),h('p',{style:{marginTop:'-4px',opacity:.75}},`Currently Under: ${editing.item_category||'Consumables'}`),h('div',{className:'form-grid'},
       h('div',{className:'field span-2'},h('label',null,'Item Name *'),h('input',{value:editing.item_name||'',onChange:e=>setEditing({...editing,item_name:e.target.value})})),
       h('div',{className:'field'},h('label',null,'Unit *'),h('input',{value:editing.unit||'',onChange:e=>setEditing({...editing,unit:e.target.value})})),
@@ -27556,7 +27598,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         client.from('consumable_store_receipts').select('*').order('received_at',{ascending:false}).limit(150),
         client.from('consumable_store_ledger').select('*').order('movement_at',{ascending:false}).limit(300),
         client.from('patients').select('id,title,full_name,patient_id').order('full_name').limit(1000),
-        client.from('consumable_store_items').select('id,item_name,unit,active,item_category,strength,dosage_form').order('item_name')
+        client.from('consumable_store_items').select('id,item_name,unit,active,item_category,strength,dosage_form,charge_rate').order('item_name')
       ]);
       if(sRes.error){console.warn(sRes.error);notifyStore('error','Stores database is not installed yet. Please run 91_consumables_store_inventory.sql once in Supabase.')} else setStock(sRes.data||[]);
       if(!rRes.error)setReceipts(rRes.data||[]);
@@ -27600,7 +27642,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const displayLedger=categoryFilter?ledger.filter(x=>displayIds.has(x.item_id)):ledger;
     async function editStoreItem(row){
       if(!controller)return;
-      const master=masterById.get(row.item_id); if(!master)return notifyStore('error','Item Master record not found. Refresh and try again.');
+      const master=masterById.get(row.item_id); if(!master)return notifyStore('error','Stores Master record not found. Refresh and try again.');
       const name=prompt('Item name:',master.item_name||''); if(name===null)return;
       const unit=prompt('Unit:',master.unit||'Nos'); if(unit===null)return;
       const strength=prompt('Strength / specification:',master.strength||''); if(strength===null)return;
@@ -27822,7 +27864,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
   function ClinicalCharges({profile,initialPatientId=''}){
     const chargeStock=usePharmacyStock();
     const matchingStock=name=>{const matches=chargeStock.items.filter(x=>String(x.item_name).trim().toLowerCase()===String(name).trim().toLowerCase());return matches.length===1?matches[0]:null};
-    const stockDefaults=(category,name)=>{const item=['Consumables','Pharmacy','Pharmacy & Basic Supplies'].includes(category)?matchingStock(name):null;return {store_item_id:item?.item_id||'',unit:item?.unit||'Service'}};
+    const stockDefaults=(category,name)=>{const stockItem=['Consumables','Pharmacy','Pharmacy & Basic Supplies'].includes(category)?matchingStock(name):null;const masterItem=(storeMaster||[]).find(x=>x.active!==false&&String(x.item_name||'').trim().toLowerCase()===String(name||'').trim().toLowerCase());const rate=Number(masterItem?.charge_rate||0);return {store_item_id:stockItem?.item_id||masterItem?.id||'',unit:stockItem?.unit||masterItem?.unit||'Service',unit_cost:rate||'',requested_amount:rate||''}};
     const canRaise=['Admin','Manager','Nurse','Accounts'].includes(profile?.role);
     const canApprove=profile?.role==='Accounts';
     const canManageTariffs=profile?.role==='Admin';
@@ -27927,7 +27969,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
           .order('ordered_at',{ascending:false})
           .limit(500),
         masterRequest,
-        client.from('consumable_store_items').select('id,item_name,unit,active,item_category,strength,dosage_form').eq('active',true).order('item_name')
+        client.from('consumable_store_items').select('id,item_name,unit,active,item_category,strength,dosage_form,charge_rate').eq('active',true).order('item_name')
       ]);
 
       if(a.error)notify('error',a.error.message);
@@ -28022,8 +28064,10 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       const nurseRaised=profile?.role==='Nurse';
       const isOther=draft.service_name==='Others';
       const effectiveService=isOther?String(draft.other_service_name||'').trim():draft.service_name;
-      const rate=nurseRaised?0:Number(draft.unit_cost||0);
-      const amount=nurseRaised?0:Number(draft.requested_amount||qty*rate||0);
+      const masterItem=draft.store_item_id?storeMaster.find(x=>x.id===draft.store_item_id):null;
+      const masterRate=Number(masterItem?.charge_rate||0);
+      const rate=nurseRaised?masterRate:Number(draft.unit_cost||masterRate||0);
+      const amount=nurseRaised?(qty*rate):Number(draft.requested_amount||qty*rate||0);
       const payload={
         patient_id:draft.patient_id,charge_date:draft.charge_date,store_item_id:draft.store_item_id||null,
         service_datetime:new Date(draft.service_datetime).toISOString(),
@@ -28031,9 +28075,9 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         service_name:effectiveService,service_provider:draft.service_provider||null,
         doctor_name:draft.doctor_name||null,description:draft.description||effectiveService,
         quantity:qty,unit:draft.unit,
-        unit_cost:nurseRaised?null:(rate||null),
-        estimated_amount:nurseRaised?null:(qty*rate||null),
-        requested_amount:nurseRaised?null:(amount||null),
+        unit_cost:rate||null,
+        estimated_amount:qty*rate||null,
+        requested_amount:amount||null,
         billable:draft.billable,bill_available:draft.bill_available,
         bill_number:draft.bill_number||null,bill_date:draft.bill_date||null,
         urgency:draft.urgency,status:'Raised',approval_status:'Pending',
@@ -28093,7 +28137,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       if(!canApprove||busy)return;
       const isOther=String(row.service_code||'').toUpperCase()==='OTHER';
       const tariff=isOther?null:tariffs.find(t=>t.category===row.category&&t.service_name===row.service_name&&t.is_active!==false);
-      let amount=row.bill_available?Number(row.requested_amount||0):Number(tariff?.amount||0);
+      let amount=row.bill_available?Number(row.requested_amount||0):(row.store_item_id&&Number(row.requested_amount||0)>0?Number(row.requested_amount):Number(tariff?.amount||0));
       if(['Approved','Partially Approved'].includes(decision)){
         const defaultAmount=amount>0?String(amount):'';
         const entered=prompt(
@@ -28230,8 +28274,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       miniInput('Doctor / Consultant',form.doctor_name,v=>setForm({...form,doctor_name:v})),
       miniInput('Quantity',form.quantity,v=>setForm({...form,quantity:v}),true,'number'),
       form.store_item_id?h('div',{className:'field'},h('label',null,'Unit'),h('input',{value:form.unit,readOnly:true})):miniInput('Unit',form.unit,v=>setForm({...form,unit:v})),
-      ['Consumables','Pharmacy & Basic Supplies'].includes(form.category)&&h(PharmacyStockPanel,{stock:chargeStock,itemId:form.store_item_id,quantity:form.quantity,unit:form.unit,onSelect:id=>{const item=chargeStock.items.find(x=>x.item_id===id);setForm(current=>({...current,store_item_id:id,unit:item?.unit||current.unit}))}}),
-      ['Consumables','Pharmacy & Basic Supplies'].includes(form.category)&&h('p',{className:'span-2'},'Completed indents already create a charge request. Check the register before raising another charge for the same issue. Raising this request does not deduct stock.'),
+      ['Consumables','Pharmacy','Pharmacy & Basic Supplies'].includes(form.category)&&h(PharmacyStockPanel,{stock:chargeStock,itemId:form.store_item_id,quantity:form.quantity,unit:form.unit,onSelect:id=>{const item=chargeStock.items.find(x=>x.item_id===id);setForm(current=>({...current,store_item_id:id,unit:item?.unit||current.unit}))}}),
+      ['Consumables','Pharmacy','Pharmacy & Basic Supplies'].includes(form.category)&&h('p',{className:'span-2'},'Completed indents already create a charge request. Check the register before raising another charge for the same issue. Raising this request does not deduct stock.'),
       form.category==='Pharmacy & Basic Supplies'&&h('p',{className:'span-2'},'Record the exact brand, size, concentration or pack size in Remarks where applicable. Reusable equipment and general supplies are subject to Accounts review before patient billing.'),
       profile?.role==='Accounts'&&miniInput('Unit Cost',form.unit_cost,v=>setForm({...form,unit_cost:v}),false,'number'),
       profile?.role==='Accounts'&&miniInput('Total Amount',form.requested_amount,v=>setForm({...form,requested_amount:v}),false,'number'),
