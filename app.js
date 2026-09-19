@@ -27749,7 +27749,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         client.from('patient_consumable_indents').select('*').order('created_at',{ascending:false}).limit(500),
         stockInfo.reload()
       ]);
-      if(!pRes.error)setPatients(pRes.data||[]); if(!mRes.error)setItemMaster(mRes.data||[]);
+      if(!pRes.error)setPatients(pRes.data||[]);
       if(iRes.error){console.warn(iRes.error);notify('error','Consumables workflow database is not installed yet.')} else setRows(iRes.data||[]);
 
     }
