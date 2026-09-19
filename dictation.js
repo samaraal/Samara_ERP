@@ -53,23 +53,27 @@
     }
     try {
       const rec = new API();
-      const session = {entry,target,rec,seen:new Set(),timer:null};
+      const session = {entry,target,rec,committed:false,timer:null};
       active = session;
-      rec.lang = entry.language.value; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+      rec.lang = entry.language.value; rec.continuous = false; rec.interimResults = false; rec.maxAlternatives = 1;
       entry.button.textContent = '■ Stop Dictation'; entry.button.setAttribute('aria-pressed','true');
       entry.language.disabled = true; if (entry.fields) entry.fields.disabled = true;
       entry.status.textContent = 'Starting microphone…';
-      rec.onstart = () => { if (active === session) entry.status.textContent = 'Listening… Speak, then tap Stop Dictation. Review before saving.'; };
+      rec.onstart = () => { if (active === session) entry.status.textContent = 'Listening… Speak one phrase, then pause. Dictation stops automatically.'; };
       rec.onresult = event => {
         if (active !== session) return;
         if (!usable(target)) { cancel('The field closed or became unavailable. Dictation stopped.'); return; }
-        let interim = '';
-        for (let i=0;i<event.results.length;i++) {
+        // One utterance per tap, as in the original Dictate control. Some mobile
+        // recognizers replay or extend results; never append successive snapshots.
+        if (session.committed) return;
+        for (let i=event.results.length-1;i>=0;i--) {
           const result = event.results[i], text = String(result[0]?.transcript || '').trim();
-          if (result.isFinal && !session.seen.has(i)) { session.seen.add(i); if (text) insert(target,text); }
-          else if (!result.isFinal) interim += ' ' + text;
+          if (!result.isFinal || !text) continue;
+          session.committed = true;
+          insert(target,text);
+          finish(session,'Phrase added. Tap Dictate for another phrase. Review before saving.');
+          return;
         }
-        entry.status.textContent = interim.trim() || 'Text added. Continue speaking or tap Stop Dictation. Review before saving.';
       };
       rec.onerror = event => {
         const messages = {'not-allowed':'Microphone permission was denied. Allow microphone access in browser settings or use typing.',
