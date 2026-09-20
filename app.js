@@ -11300,6 +11300,7 @@ Thank you.`;
     const [voiceProcessing,setVoiceProcessing]=React.useState(false);
     const [voiceTranscript,setVoiceTranscript]=React.useState('');
     const [voiceMessage,setVoiceMessage]=React.useState('');
+    const [voiceProvider,setVoiceProvider]=React.useState('auto');
     const [rescheduleTarget,setRescheduleTarget]=React.useState(null);
     const [rescheduleDate,setRescheduleDate]=React.useState('');
     const [rescheduleTime,setRescheduleTime]=React.useState('');
@@ -11421,7 +11422,7 @@ Thank you.`;
       }
     }
 
-    async function interpretVoiceTranscript(transcript,spokenLanguage){
+    async function interpretVoiceTranscript(transcript,spokenLanguage,providerPreference='auto'){
       const text=String(transcript||'').trim();
       if(!text)return;
       setVoiceProcessing(true);
@@ -11442,7 +11443,8 @@ Thank you.`;
             current_form_type:form.item_type||'Follow-up',
             current_task_kind:form.task_kind||'General Task',
             now_iso:new Date().toISOString(),
-            timezone:'Asia/Kolkata'
+            timezone:'Asia/Kolkata',
+            provider_preference:providerPreference
           })
         });
         const result=await response.json().catch(()=>({error:'Unable to read voice-processing response'}));
@@ -11472,11 +11474,13 @@ Thank you.`;
       }
     }
 
-    function shouldUseMobileAudioRecorder(){
+    function shouldUseMobileAudioRecorder(lang=''){
       const ua=String(navigator.userAgent||'');
       const mobileUA=/iPhone|iPad|iPod|Android/i.test(ua);
       const coarse=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
-      return Boolean(mobileUA||coarse);
+      // Always use mobile audio recorder for Tamil to get better capture via Gemini
+      const isTamil=String(lang||'').toLowerCase().startsWith('ta');
+      return Boolean(mobileUA||coarse||isTamil);
     }
 
     function bestMobileAudioMime(){
@@ -11494,9 +11498,9 @@ Thank you.`;
       return '';
     }
 
-    async function sendMobileAudioForVoice(blob,lang){
+    async function sendMobileAudioForVoice(blob,lang,providerPreference='auto'){
       setVoiceProcessing(true);
-      setVoiceMessage('Understanding your voice…');
+      setVoiceMessage(providerPreference==='openai'?'Trying OpenAI…':providerPreference==='gemini'?'Trying Gemini again…':'Trying Gemini first; OpenAI will be used automatically if needed…');
       try{
         const {data:{session}}=await client.auth.getSession();
         if(!session)throw new Error('Your session has expired. Please sign in again.');
@@ -11510,6 +11514,7 @@ Thank you.`;
         fd.append('spoken_language',lang);
         fd.append('current_form_type',form.item_type||'Follow-up');
         fd.append('current_task_kind',form.task_kind||'General Task');
+        fd.append('provider_preference',providerPreference);
         fd.append('now_iso',new Date().toISOString());
         fd.append('timezone','Asia/Kolkata');
 
@@ -11543,7 +11548,7 @@ Thank you.`;
           details:x.details||'',
           needs_director_attention:typeof x.needs_director_attention==='boolean'?x.needs_director_attention:false
         }));
-        setVoiceMessage('✓ Voice entry filled in simple English. Please check the fields before Save.');
+        setVoiceMessage(`✓ Voice entry filled in simple English. Processed by ${result?.provider_used||result?.provider||'voice service'}. Please check the fields before Save.`);
       }catch(error){
         setVoiceMessage(error.message||'Unable to process mobile voice entry.');
       }finally{
@@ -11551,7 +11556,7 @@ Thank you.`;
       }
     }
 
-    async function startMobileVoiceRecording(lang='ta-IN'){
+    async function startMobileVoiceRecording(lang='ta-IN',providerPreference='auto'){
       if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){
         setVoiceMessage('Microphone recording is not available in this mobile browser. Please allow microphone access and try Safari/Chrome.');
         return;
@@ -11596,7 +11601,7 @@ Thank you.`;
             setVoiceMessage('No useful speech was captured. Please try again.');
             return;
           }
-          await sendMobileAudioForVoice(blob,mobileVoiceLangRef.current);
+          await sendMobileAudioForVoice(blob,mobileVoiceLangRef.current,providerPreference);
         };
 
         recorder.start();
@@ -11613,10 +11618,10 @@ Thank you.`;
       }
     }
 
-    function startVoiceEntry(lang='ta-IN'){
+    function startVoiceEntry(lang='ta-IN',providerPreference='auto'){
       if(!canVoice)return;
-      if(shouldUseMobileAudioRecorder()){
-        startMobileVoiceRecording(lang);
+      if(shouldUseMobileAudioRecorder(lang)){
+        startMobileVoiceRecording(lang,providerPreference);
         return;
       }
       const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -11660,7 +11665,7 @@ Thank you.`;
             const spoken=String(finalText||'').trim();
             if(spoken){
               setVoiceTranscript(spoken);
-              interpretVoiceTranscript(spoken,lang);
+              interpretVoiceTranscript(spoken,lang,providerPreference);
             }else{
               setVoiceMessage(current=>current.startsWith('🎤')?'No speech was captured. Please try again.':current);
             }
@@ -12131,6 +12136,10 @@ Thank you.`;
             h('div',{className:'actions'},
               h('button',{type:'button',className:'btn btn-primary',disabled:voiceProcessing,onClick:()=>startVoiceEntry('ta-IN')},voiceProcessing?'Processing…':'🎤 Speak Tamil'),
               h('button',{type:'button',className:'btn btn-secondary',disabled:voiceProcessing,onClick:()=>startVoiceEntry('en-IN')},'🎤 Speak English')
+            ),
+            !voiceListening&&h('div',{className:'actions',style:{marginTop:'6px'}},
+              h('button',{type:'button',className:'btn btn-outline',disabled:voiceProcessing,onClick:()=>startVoiceEntry('ta-IN','openai'),style:{fontSize:'11px',padding:'4px 8px'}},'Retry with OpenAI'),
+              h('button',{type:'button',className:'btn btn-outline',disabled:voiceProcessing,onClick:()=>startVoiceEntry('ta-IN','gemini'),style:{fontSize:'11px',padding:'4px 8px'}},'Retry with Gemini')
             )
           ),
           voiceTranscript?h('div',{style:{marginTop:'9px',padding:'8px 10px',borderRadius:'10px',background:'#fff',fontSize:'13px'}},
