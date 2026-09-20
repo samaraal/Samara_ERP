@@ -11631,7 +11631,7 @@ Thank you.`;
         const recognition=new SpeechRecognition();
         recognition.lang=lang;
         recognition.interimResults=true;
-        recognition.continuous=false;
+        recognition.continuous=true;
         recognition.maxAlternatives=1;
         voiceRecognitionRef.current=recognition;
         let finalText='';
@@ -11654,14 +11654,24 @@ Thank you.`;
             :`Voice recognition stopped${code?`: ${code}`:''}. Please try again.`);
         };
         recognition.onend=()=>{
-          setVoiceListening(false);
-          voiceRecognitionRef.current=null;
-          const spoken=String(finalText||'').trim();
-          if(spoken){
-            setVoiceTranscript(spoken);
-            interpretVoiceTranscript(spoken,lang);
+          // Only stop if user manually stopped (voiceListening is already false)
+          if(!voiceListening){
+            voiceRecognitionRef.current=null;
+            const spoken=String(finalText||'').trim();
+            if(spoken){
+              setVoiceTranscript(spoken);
+              interpretVoiceTranscript(spoken,lang);
+            }else{
+              setVoiceMessage(current=>current.startsWith('🎤')?'No speech was captured. Please try again.':current);
+            }
           }else{
-            setVoiceMessage(current=>current.startsWith('🎤')?'No speech was captured. Please try again.':current);
+            // Restart recognition if still listening (continuous mode)
+            try{
+              recognition.start();
+            }catch(e){
+              setVoiceListening(false);
+              voiceRecognitionRef.current=null;
+            }
           }
         };
         recognition.start();
