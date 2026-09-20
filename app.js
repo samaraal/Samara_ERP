@@ -6346,7 +6346,6 @@ https://samaraassistedliving.com/`;
     function eligible(el){
       if(!enabled||!el||el.disabled||el.readOnly)return false;
       if(el.dataset?.samaraVoice==='off'||el.closest('.samara-voice-modal'))return false;
-      if(el.closest('.director-office-page'))return false;
       if(spotAssessment)return Boolean(el.closest('.spot-assessment')&&el.dataset?.samaraVoice==='on');
       const type=String(el.getAttribute('type')||'text').toLowerCase();
       if(el.tagName==='INPUT'&&!['text','search'].includes(type))return false;
@@ -12106,7 +12105,7 @@ Thank you.`;
       )
     );
 
-    const formModal=showForm?h('div',{className:'modal-backdrop'},
+    const formModal=showForm?h('div',{className:'modal-backdrop director-office-modal'},
       h('form',{className:'card modal',onSubmit:save,style:{maxWidth:'760px'}},
         h('div',{className:'panel-head'},
           h('div',null,h('h3',null,form.item_type==='Task'?(editingId?'Update Task':'New Quick Task'):(editingId?'Update Director’s Office Item':'New Director’s Office Item')),h('small',null,form.item_type==='Task'?'Short personal task — only the essentials':'Keep only the details needed for Director follow-up')),
