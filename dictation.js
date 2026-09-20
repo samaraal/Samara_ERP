@@ -160,6 +160,7 @@
   }
   function isVoice(button) {
     if (button.closest('.samara-dictation-tools,.samara-voice-modal')) return false;
+    if (button.closest('.director-office-page')) return false;
     return button.classList.contains('samara-global-voice-btn') || /^(Voice(?: Input| Entry| Assistant)?|Speak Tamil|Speak English)$/i.test(button.textContent.replace(/^[^A-Za-z]+/,'').trim());
   }
   function scan() {
