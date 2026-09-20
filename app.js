@@ -6346,6 +6346,7 @@ https://samaraassistedliving.com/`;
     function eligible(el){
       if(!enabled||!el||el.disabled||el.readOnly)return false;
       if(el.dataset?.samaraVoice==='off'||el.closest('.samara-voice-modal'))return false;
+      if(el.closest('.director-office-page'))return false;
       if(spotAssessment)return Boolean(el.closest('.spot-assessment')&&el.dataset?.samaraVoice==='on');
       const type=String(el.getAttribute('type')||'text').toLowerCase();
       if(el.tagName==='INPUT'&&!['text','search'].includes(type))return false;
