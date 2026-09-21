@@ -38,10 +38,14 @@
       }
       refreshRef.current=()=>refresh(true);refresh(true);
       const interval=setInterval(()=>refresh(),15000);
-      const focus=()=>refresh(true);
-      const visible=()=>{if(document.visibilityState==='visible')refresh(true)};
-      window.addEventListener('focus',focus);window.addEventListener('samara-duty-swap-changed',focus);document.addEventListener('visibilitychange',visible);
-      return()=>{active=false;clearInterval(interval);clearTimeout(boundaryTimer);window.removeEventListener('focus',focus);window.removeEventListener('samara-duty-swap-changed',focus);document.removeEventListener('visibilitychange',visible)};
+      // File pickers return focus/visibility before their change event. Keep the
+      // current form mounted while revalidating, as with the periodic refresh.
+      // Explicit duty changes, scheduled boundaries and failures still block.
+      const focus=()=>refresh();
+      const changed=()=>refresh(true);
+      const visible=()=>{if(document.visibilityState==='visible')refresh()};
+      window.addEventListener('focus',focus);window.addEventListener('samara-duty-swap-changed',changed);document.addEventListener('visibilitychange',visible);
+      return()=>{active=false;clearInterval(interval);clearTimeout(boundaryTimer);window.removeEventListener('focus',focus);window.removeEventListener('samara-duty-swap-changed',changed);document.removeEventListener('visibilitychange',visible)};
     },[profile?.id,Boolean(profile?.__dutyContext)]);
     return {...state,ready:state.id===profile?.id&&Boolean(profile?.__dutyContext)&&state.ready,refresh:()=>refreshRef.current()};
   }
