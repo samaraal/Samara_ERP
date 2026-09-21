@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.77';
+  const APP_VERSION = '2.13.81';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -20183,6 +20183,41 @@ Please keep these login details confidential.`;
       onNavigate?.('Payments');
     }
 
+    async function requestDiscountApproval(row){
+      if(profile?.role!=='Accounts'||busy)return;
+      const reason=window.prompt('Reason for requesting discharge discount consideration:','');
+      if(reason===null)return;
+      if(!String(reason).trim()){notify('error','Request not sent','Reason is mandatory.');return;}
+      const suggestedText=window.prompt('Suggested discount amount (optional):','');
+      if(suggestedText===null)return;
+      const suggested=String(suggestedText).trim()===''?null:Number(suggestedText);
+      if(suggested!==null&&(!Number.isFinite(suggested)||suggested<0)){notify('error','Request not sent','Enter a valid suggested discount amount.');return;}
+      setBusy(true);
+      const {error}=await client.rpc('request_discharge_discount_review',{p_discharge_id:row.id,p_reason:String(reason).trim(),p_suggested_amount:suggested});
+      setBusy(false);
+      if(error){notify('error','Discount request not sent',error.message);return;}
+      notify('success','Sent to Admin / Director','Accounts clearance is paused until Management decides the discount request.');
+      await load();
+    }
+
+    async function decideDiscountRequest(row){
+      if(!canApprove||busy||row.discount_request_status!=='Pending')return;
+      const suggested=Number(row.discount_suggested_amount||0);
+      const amountText=window.prompt(`Accounts requested discount consideration.\nReason: ${row.discount_request_reason||'—'}\nSuggested: ${suggested?`₹${suggested.toLocaleString('en-IN')}`:'Not specified'}\n\nEnter approved discount amount, or enter 0 to decline:`,suggested?String(suggested):'0');
+      if(amountText===null)return;
+      const amount=Number(amountText);
+      if(!Number.isFinite(amount)||amount<0){notify('error','Decision not saved','Enter a valid amount.');return;}
+      const decision=amount>0?'Approved':'Declined';
+      const remarks=window.prompt(decision==='Approved'?'Management remarks / reason for approved discount:':'Reason for declining the discount request:',row.discount_request_reason||'')||'';
+      if(decision==='Declined'&&!String(remarks).trim()){notify('error','Decision not saved','Reason for declining is mandatory.');return;}
+      setBusy(true);
+      const {error}=await client.rpc('decide_discharge_discount_review',{p_discharge_id:row.id,p_decision:decision,p_amount:amount,p_remarks:String(remarks).trim()||null});
+      setBusy(false);
+      if(error){notify('error','Discount decision not saved',error.message);return;}
+      notify('success',decision==='Approved'?'Discount approved':'Discount declined',decision==='Approved'?`₹${amount.toLocaleString('en-IN')} approved. The case has returned to Accounts for clearance.`:'The case has returned to Accounts without a discount.');
+      await load();
+    }
+
     async function closeAccounts(row){
       if(!canCloseAccounts||busy)return;
       const remarks=prompt('Payment reference / Accounts closure remarks:','All payments received')||'';
@@ -20563,6 +20598,11 @@ Doctor / Hospital: ${doctorHospital}`;
           className:'btn btn-primary',
           onClick:()=>openManagementReview(row)
         },'Review & Decide'),
+        canApprove&&row.management_status==='Approved'&&row.discount_request_status==='Pending'&&row.status!=='Completed'&&h('button',{
+          type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>decideDiscountRequest(row)
+        },'Review Discount Request'),
+        canCloseAccounts&&row.management_status==='Approved'&&row.status!=='Completed'&&row.discount_request_status==='Pending'&&h('span',{className:'small-note'},'Discount Approval Pending — Admin / Director'),
+        canCloseAccounts&&profile?.role==='Accounts'&&row.management_status==='Approved'&&row.status!=='Completed'&&row.discount_request_status!=='Pending'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>requestDiscountApproval(row)},'Request Discount Approval'),
         canCloseAccounts&&row.management_status==='Approved'&&row.status!=='Completed'&&h('button',{className:'btn btn-secondary',onClick:()=>openPayments(row)},'View Payments'),
         canCloseAccounts&&row.management_status==='Approved'&&row.status!=='Completed'&&row.accounts_status==='Ready to Close'&&h('span',{className:'small-note'},'Financial closure must be completed through Payments with full transaction evidence.'),
         isNurse&&!isAssignedDirector&&String(row.accounts_status||'').trim().toLowerCase()==='cleared'&&String(row.status||'').trim().toLowerCase()!=='completed'&&h('button',{
