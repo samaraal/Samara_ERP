@@ -15540,8 +15540,11 @@ Thank you.`;
   tr{page-break-inside:avoid;page-break-after:auto}
   th,td{border:1px solid #c59bae;padding:4px;text-align:left;vertical-align:top}
   th{background:linear-gradient(90deg,#f9e4ee,#fff1f7)}.fee-table th{width:34%;font-weight:800}.fee-table td{font-weight:600}
-  .signatures{display:grid;grid-template-columns:1fr 1fr;gap:16px 25px;margin-top:22px;page-break-inside:avoid}
-  .signature{min-height:72px}.line{border-top:1px solid #222;padding-top:4px;margin-top:27px;font-weight:700}
+  .final-consent-block{break-inside:avoid-page;page-break-inside:avoid}
+  .final-consent-block h2{break-after:avoid-page;page-break-after:avoid}
+  .final-consent-block>p{break-after:avoid-page;page-break-after:avoid}
+  .signatures{display:grid;grid-template-columns:1fr 1fr;gap:10px 25px;margin-top:14px;break-inside:avoid-page;page-break-inside:avoid}
+  .signature{min-height:62px;break-inside:avoid-page;page-break-inside:avoid}.line{border-top:1px solid #222;padding-top:3px;margin-top:20px;font-weight:700}
   .footer{margin-top:14px;padding-top:6px;border-top:1px solid #d8b6c7;font-size:7.5px;color:#7a1247}
   @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.no-print{display:none!important}}
 </style>
@@ -15620,6 +15623,7 @@ Thank you.`;
   <h2>7. Review, Change of Care and Discharge</h2>
   <p>The care plan may be reviewed and reasonably modified based on the Resident’s condition, doctor’s advice and assessed needs, with communication to the Resident or Representative. Transfer or discharge may be initiated on medical advice, voluntary request, non-payment subject to lawful procedure, serious safety concerns, or where the facility can no longer safely meet the Resident’s needs. Final nursing, accounts, belongings and document handover procedures shall be completed at discharge.</p>
 
+  <div class="final-consent-block">
   <h2>8. Acknowledgement</h2>
   <p>The undersigned confirm that the admission details, medicine list, care plan, package or billing arrangement and key facility procedures have been explained in a language understood by them; questions were permitted; and the information provided is true to the best of their knowledge. This consent does not waive any right or remedy available under applicable law.</p>
 
@@ -15637,6 +15641,7 @@ Thank you.`;
         <div>Relationship / Designation: __________________</div>
         <div>Date & Time: ________________________</div>
       </div>`).join('')}
+  </div>
   </div>
 
   <div class="footer">
