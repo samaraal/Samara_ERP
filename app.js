@@ -15410,11 +15410,22 @@ Thank you.`;
         const {data,error}=await client.storage.from('patient-documents').download(storagePath);
         if(error)throw error;
         if(!data)return '';
+        // Supabase Storage can return uploaded photographs as application/octet-stream.
+        // Chrome will then omit that data URL when it is used as an <img> in print/PDF.
+        // Preserve the bytes but give the embedded Blob a real image MIME type.
+        const cleanPath=String(storagePath||'').split('?')[0].toLowerCase();
+        const inferredType=cleanPath.endsWith('.png')?'image/png'
+          :cleanPath.endsWith('.webp')?'image/webp'
+          :cleanPath.endsWith('.gif')?'image/gif'
+          :cleanPath.endsWith('.heic')||cleanPath.endsWith('.heif')?'image/heic'
+          :'image/jpeg';
+        const sourceType=String(data.type||'').toLowerCase();
+        const imageBlob=sourceType.startsWith('image/')?data:new Blob([await data.arrayBuffer()],{type:inferredType});
         return await new Promise((resolve,reject)=>{
           const reader=new FileReader();
           reader.onload=()=>resolve(String(reader.result||''));
           reader.onerror=reject;
-          reader.readAsDataURL(data);
+          reader.readAsDataURL(imageBlob);
         });
       }catch(error){
         console.warn('Unable to embed resident photo for consent PDF:',error);
