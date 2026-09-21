@@ -15536,8 +15536,12 @@ Thank you.`;
             </tr>`).join('')
           :'<tr><td colspan="8">No current medicine recorded at admission.</td></tr>';
 
-        const careHtml=carePlan.length
-          ?carePlan.map((c,index)=>`
+        const uniqueCarePlan=carePlan.filter((c,index,rows)=>{
+          const key=[c.care_type,c.shift,c.frequency,c.instruction||''].map(v=>String(v||'').trim().toLowerCase()).join('|');
+          return rows.findIndex(x=>[x.care_type,x.shift,x.frequency,x.instruction||''].map(v=>String(v||'').trim().toLowerCase()).join('|')===key)===index;
+        });
+        const careHtml=uniqueCarePlan.length
+          ?uniqueCarePlan.map((c,index)=>`
             <tr>
               <td>${index+1}</td>
               <td><strong>${consentEscape(c.care_type)}</strong></td>
@@ -18344,8 +18348,12 @@ Please keep these login details confidential.`;
             </tr>`).join('')
           :'<tr><td colspan="8">No prescribed medication declared at admission.</td></tr>';
 
-        const careRows=care.length
-          ?care.map((item,index)=>`<tr>
+        const uniqueCare=care.filter((item,index,rows)=>{
+          const key=[item.care_type,item.shift,item.frequency,item.instruction||''].map(v=>String(v||'').trim().toLowerCase()).join('|');
+          return rows.findIndex(x=>[x.care_type,x.shift,x.frequency,x.instruction||''].map(v=>String(v||'').trim().toLowerCase()).join('|')===key)===index;
+        });
+        const careRows=uniqueCare.length
+          ?uniqueCare.map((item,index)=>`<tr>
               <td>${index+1}</td>
               <td><strong>${escapeHtml(item.care_type||'')}</strong></td>
               <td>${escapeHtml(item.shift||'')}</td>
