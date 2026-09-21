@@ -1,7 +1,7 @@
 (function(){
   'use strict';
   const h=React.createElement;
-  const signature=p=>[p?.role,p?.designation,p?.department,p?.__dutyContext?.assignment?.id||'',p?.__dutyContext?.leave_cover?.id||'',(p?.__dutyContext?.roles||[]).join(',')].join('|');
+  const signature=p=>[p?.role,p?.designation,p?.department,p?.__dutyContext?.assignment?.id||'',p?.__dutyContext?.leave_cover?.id||'',(p?.__dutyContext?.additional_duties||[]).map(x=>x.id).join(','),(p?.__dutyContext?.roles||[]).join(',')].join('|');
   function applyContext(profile,context){
     if(!context||context.profile_id!==profile.id)throw new Error('Duty assignment identity could not be verified.');
     return {...profile,role:context.role,designation:context.designation,department:context.department,__dutyContext:context};
@@ -133,6 +133,22 @@
       ending&&h('form',{className:'card',onSubmit:end},h('h4',null,'End temporary assignment'),h('p',null,'This immediately restores regular department duties.'),h('textarea',{required:true,placeholder:'Reason',value:endReason,onChange:e=>setEndReason(e.target.value)}),h('button',{className:'btn btn-primary',disabled:busy},'Confirm end'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setEnding(null),disabled:busy},'Keep assignment'))
     );
   }
+  function AdditionalDutyPage({client}){
+    const [data,setData]=React.useState(null),[error,setError]=React.useState(''),[busy,setBusy]=React.useState(false),[ending,setEnding]=React.useState(null),[endReason,setEndReason]=React.useState('');
+    const [form,setForm]=React.useState({source:'',receiver:'',start:indiaInput(new Date()),end:'',reason:''});
+    async function load(){const r=await client.rpc('additional_duty_workspace');if(r.error)setError(r.error.message);else{setData(r.data);setError('')}}
+    React.useEffect(()=>{load();const t=setInterval(load,15000);return()=>clearInterval(t)},[]);
+    const people=data?.candidates||[];const std=people.find(x=>x.role==='STD');const nm=people.find(x=>x.role==='Manager');
+    React.useEffect(()=>{if(!form.source&&std&&nm)setForm(f=>({...f,source:std.id,receiver:nm.id}))},[data]);
+    function setDirection(v){if(!std||!nm)return;setForm(f=>({...f,source:v==='std-to-nm'?std.id:nm.id,receiver:v==='std-to-nm'?nm.id:std.id}))}
+    const direction=form.source&&std&&form.source===std.id?'std-to-nm':'nm-to-std';
+    async function save(e){e.preventDefault();if(busy||!data?.can_manage)return;setBusy(true);setError('');try{const r=await client.rpc('create_department_additional_duty',{p_source:form.source,p_receiver:form.receiver,p_starts_at:indiaISO(form.start),p_ends_at:form.end?indiaISO(form.end):null,p_reason:form.reason.trim()});if(r.error)throw r.error;setForm(f=>({...f,reason:'',end:''}));await load();window.dispatchEvent(new Event('samara-duty-swap-changed'))}catch(e){setError(e.message||'Unable to assign additional duty.')}finally{setBusy(false)}}
+    async function end(e){e.preventDefault();setBusy(true);try{const r=await client.rpc('end_department_additional_duty',{p_id:ending,p_reason:endReason.trim()});if(r.error)throw r.error;setEnding(null);setEndReason('');await load();window.dispatchEvent(new Event('samara-duty-swap-changed'))}catch(e){setError(e.message)}finally{setBusy(false)}}
+    return h('div',{className:'card',style:{maxWidth:'850px',padding:'24px'}},h('h3',null,'Additional Duty Assignment'),h('p',null,'Adds the other role without removing or swapping regular duties. Leave auto-cover and Temporary Duty Swap remain unchanged.'),error&&h('div',{className:'message error',role:'alert'},error),
+      data?.can_manage&&h('form',{onSubmit:save},h('label',{className:'field'},'Direction',h('select',{value:direction,onChange:e=>setDirection(e.target.value)},h('option',{value:'std-to-nm'},'Add STD duties to Nursing Manager'),h('option',{value:'nm-to-std'},'Add Nursing Manager duties to STD'))),h('div',{className:'modal-grid'},h('label',{className:'field'},'From',h('input',{type:'datetime-local',required:true,value:form.start,onChange:e=>setForm({...form,start:e.target.value})})),h('label',{className:'field'},'Until (optional)',h('input',{type:'datetime-local',value:form.end,onChange:e=>setForm({...form,end:e.target.value})}))),h('label',{className:'field'},'Reason',h('textarea',{required:true,value:form.reason,onChange:e=>setForm({...form,reason:e.target.value}),placeholder:'Reason for additional duty'})),h('p',{className:'muted'},'If Until is blank, the additional duty continues until Admin/Director ends it.'),h('button',{className:'btn btn-primary',disabled:busy||!std||!nm},busy?'Saving…':'Assign Additional Duty')),
+      h('h4',{style:{marginTop:'22px'}},'Assignments'),...(data?.assignments||[]).map(a=>h('div',{className:'card',key:a.id,style:{marginTop:'10px'}},h('strong',null,a.status),h('p',null,`${a.receiver_name} keeps ${a.receiver_role} duties + receives ${a.source_role} duties.`),h('p',null,`Reason: ${a.reason}`),h('p',null,`${display(a.starts_at)} — ${a.ends_at?display(a.ends_at):'Until ended by Admin/Director'}`),h('small',null,`Assigned by ${a.created_by_name}`),a.end_reason&&h('p',null,`Ended: ${a.end_reason}`),data?.can_manage&&['Active','Scheduled'].includes(a.status)&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>{setEnding(a.id);setEndReason('')}},a.status==='Scheduled'?'Cancel':'End Additional Duty'))),data&&!data.assignments.length&&h('p',null,'No additional-duty assignments yet.'),
+      ending&&h('form',{className:'card',onSubmit:end},h('h4',null,'End Additional Duty'),h('textarea',{required:true,value:endReason,onChange:e=>setEndReason(e.target.value),placeholder:'Reason for ending'}),h('button',{className:'btn btn-primary',disabled:busy},'Confirm End'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setEnding(null),disabled:busy},'Keep Assignment')));
+  }
   function LeaveCoverPage({client}){
     const [data,setData]=React.useState(null),[error,setError]=React.useState('');
     React.useEffect(()=>{let active=true;async function load(){const result=await client.rpc('department_leave_workspace');if(!active)return;if(result.error)setError(result.error.message);else{setData(result.data);setError('')}}load();const timer=setInterval(load,15000);return()=>{active=false;clearInterval(timer)}},[client]);
@@ -153,5 +169,5 @@
       data?.can_manage&&h('p',null,'Approve leave through Leave Approvals. Review return requests below.')
     );
   }
-  window.SamaraDutySwap={applyContext,regularProfile,useContext,useDailyNotice,Page,LeaveCoverPage,DailyNotice,signature,indiaISO,indiaInput};
+  window.SamaraDutySwap={applyContext,regularProfile,useContext,useDailyNotice,Page,AdditionalDutyPage,LeaveCoverPage,DailyNotice,signature,indiaISO,indiaInput};
 })();

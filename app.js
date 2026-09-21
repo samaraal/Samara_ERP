@@ -1603,6 +1603,7 @@ function initSamaraInaugurationInvitation(){
   Object.keys(ROLE_NAV).forEach(role=>{
     if(!ROLE_NAV[role].includes('Temporary Duty Swap'))ROLE_NAV[role].push('Temporary Duty Swap');
     if(!ROLE_NAV[role].includes('Leave Cover'))ROLE_NAV[role].push('Leave Cover');
+    if(!ROLE_NAV[role].includes('Additional Duty Assignment'))ROLE_NAV[role].push('Additional Duty Assignment');
     if(!ROLE_NAV[role].includes('My Profile'))ROLE_NAV[role].push('My Profile');
   });
   const ROLE_HOME={Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet',STD:"Director's Office"};
@@ -1618,13 +1619,14 @@ function initSamaraInaugurationInvitation(){
   const homePageForProfile=profile=>isNursingManagerProfile(profile)?'Clinical Dashboard':(ROLE_HOME[profile?.role]||'Dashboard');
   const hasDutyRole=(profile,role)=>profile?.role===role||Boolean(profile?.__dutyContext?.roles?.includes(role));
   const allowedPagesForProfile=profile=>{
+    if(profile?.__dutyContext?.additional_duties?.length&&!profile.__additionalNavResolved){const c=profile.__dutyContext;const base=allowedPagesForProfile({...profile,__additionalNavResolved:true});const extras=(c.additional_duties||[]).flatMap(d=>allowedPagesForProfile({...profile,__additionalNavResolved:true,role:d.covering_role,designation:d.covering_designation,department:d.covering_role==='Manager'?'Nursing':profile.department}));return [...new Set([...base,...extras])];}
     if(profile?.__dutyContext?.leave_cover&&!profile.__leaveNavResolved){const c=profile.__dutyContext;return [...new Set([...allowedPagesForProfile({...profile,__leaveNavResolved:true}),...allowedPagesForProfile({...profile,__leaveNavResolved:true,role:c.regular_role,designation:c.regular_designation,department:c.regular_department}),...allowedPagesForProfile({...profile,__leaveNavResolved:true,role:c.leave_cover.covering_role,designation:c.leave_cover.covering_designation})])];}
     if(profile?.__paymentsTrial&&!profile.__paymentsNavResolved){const a=profile.__paymentsTrial;return [...allowedPagesForProfile({...profile,__paymentsNavResolved:true}).filter(x=>!['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(x)),...(a.full?['Payments & Vouchers']:[]),'Payment Requests',...(a.pay?['Approved—Ready to Pay']:[]),'Payment Vouchers','Payment Statements'];}
     if(isNursingManagerProfile(profile))return [
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts',
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
-      'Patient Consumables','Stores','Stores In-charge Assignment','Consumables','Pharmacy','Temporary Duty Swap','Leave Cover','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
+      'Patient Consumables','Stores','Stores In-charge Assignment','Consumables','Pharmacy','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
     if(!pages.includes('Spot Assessment'))pages.push('Spot Assessment');
@@ -1661,7 +1663,7 @@ function initSamaraInaugurationInvitation(){
     return CLINICAL_ROLES.includes(role)?(ROLE_LABELS[item]||item):item;
   };
   const sectionsFor = (allowed,role,canManageDuties=role==='Admin') => {
-    if(allowed.some(item=>['Temporary Duty Swap','Leave Cover'].includes(item))){const dutyItems=allowed.filter(item=>['Temporary Duty Swap','Leave Cover'].includes(item));const sections=sectionsFor(allowed.filter(item=>!dutyItems.includes(item)),role,canManageDuties);const title=canManageDuties?'ADMIN':'MY ACCOUNT';let section=sections.find(item=>item.title===title);if(!section){section={title,items:[]};sections.splice(canManageDuties?1:sections.length,0,section)}section.items.push(...dutyItems);return sections;}
+    if(allowed.some(item=>['Temporary Duty Swap','Leave Cover','Additional Duty Assignment'].includes(item))){const dutyItems=allowed.filter(item=>['Temporary Duty Swap','Leave Cover','Additional Duty Assignment'].includes(item));const sections=sectionsFor(allowed.filter(item=>!dutyItems.includes(item)),role,canManageDuties);const title=canManageDuties?'ADMIN':'MY ACCOUNT';let section=sections.find(item=>item.title===title);if(!section){section={title,items:[]};sections.splice(canManageDuties?1:sections.length,0,section)}section.items.push(...dutyItems);return sections;}
     if(role!=='Admin'&&allowed.includes('Payment Requests')){const items=allowed.filter(x=>['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(x));const sections=sectionsFor(allowed.filter(x=>!items.includes(x)),role,canManageDuties);const accounts=sections.find(s=>s.title==='ACCOUNTS / BILLING');if(accounts)accounts.items=[...items,...accounts.items];else sections.push({title:'ACCOUNTS / BILLING',items});return sections;}
     if(CLINICAL_ROLES.includes(role)){
       return [
@@ -7193,6 +7195,7 @@ https://samaraassistedliving.com/`;
             `Temporary assignment: ${profile.__dutyContext.assignment.acting_as} duties until ${formatDateTimeIN(profile.__dutyContext.assignment.ends_at)}. Regular duties return automatically.`),
           h(AccountsWorkflowNavigation,{page,allowed,onNavigate:setPage}),
           page==='Temporary Duty Swap'&&h(window.SamaraDutySwap.Page,{client}),
+          page==='Additional Duty Assignment'&&h(window.SamaraDutySwap.AdditionalDutyPage,{client}),
           page==='Leave Cover'&&h(React.Fragment,null,h(window.SamaraDutySwap.LeaveCoverPage,{client}),profile.__dutyContext?.can_manage&&h(StaffReturnToDuty,{profile,reviewOnly:true})),
           h(DirectorTodayTicker,{key:profile.id,profile,page,onNavigate:setPage}),
           page==='Dashboard'&&h(Dashboard,{profile,onNavigate:setPage,alertEngine}),
