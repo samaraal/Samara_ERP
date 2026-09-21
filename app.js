@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.81';
+  const APP_VERSION = '2.13.82';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -19583,6 +19583,7 @@ Please keep these login details confidential.`;
     React.useEffect(()=>{client.from('director_office_positions').select('assigned_profile_id').eq('position_key','director').maybeSingle().then(r=>setIsAssignedDirector(r.data?.assigned_profile_id===profile?.id))},[profile?.id]);
     const canInitiate=!isAccountsClearance&&['Nurse','Manager'].includes(profile?.role)&&!isAssignedDirector;
     const canApprove=!isAccountsClearance&&(['Admin','Manager'].includes(profile?.role)||isAssignedDirector);
+    const canDecideDiscount=!isAccountsClearance&&(profile?.role==='Admin'||isAssignedDirector);
     const canCloseAccounts=isAccountsClearance&&['Admin','Accounts'].includes(profile?.role);
     const [rows,setRows]=React.useState([]);
     const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
@@ -20201,7 +20202,7 @@ Please keep these login details confidential.`;
     }
 
     async function decideDiscountRequest(row){
-      if(!canApprove||busy||row.discount_request_status!=='Pending')return;
+      if(!canDecideDiscount||busy||row.discount_request_status!=='Pending')return;
       const suggested=Number(row.discount_suggested_amount||0);
       const amountText=window.prompt(`Accounts requested discount consideration.\nReason: ${row.discount_request_reason||'—'}\nSuggested: ${suggested?`₹${suggested.toLocaleString('en-IN')}`:'Not specified'}\n\nEnter approved discount amount, or enter 0 to decline:`,suggested?String(suggested):'0');
       if(amountText===null)return;
@@ -20598,7 +20599,7 @@ Doctor / Hospital: ${doctorHospital}`;
           className:'btn btn-primary',
           onClick:()=>openManagementReview(row)
         },'Review & Decide'),
-        canApprove&&row.management_status==='Approved'&&row.discount_request_status==='Pending'&&row.status!=='Completed'&&h('button',{
+        canDecideDiscount&&row.management_status==='Approved'&&row.discount_request_status==='Pending'&&row.status!=='Completed'&&h('button',{
           type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>decideDiscountRequest(row)
         },'Review Discount Request'),
         canCloseAccounts&&row.management_status==='Approved'&&row.status!=='Completed'&&row.discount_request_status==='Pending'&&h('span',{className:'small-note'},'Discount Approval Pending — Admin / Director'),
