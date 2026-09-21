@@ -14705,10 +14705,27 @@ Thank you.`;
     },[]);
 
     const normalizePhone=value=>String(value||'').replace(/\D/g,'').slice(-10);
-    const countryMobile=value=>{
+    const ADMISSION_COUNTRY_CODES=[
+      ['India','+91'],['United Arab Emirates','+971'],['United States / Canada','+1'],['United Kingdom','+44'],
+      ['Singapore','+65'],['Australia','+61'],['Saudi Arabia','+966'],['Qatar','+974'],['Oman','+968'],['Kuwait','+965'],
+      ['Bahrain','+973'],['Malaysia','+60'],['New Zealand','+64'],['Germany','+49'],['France','+33'],['Ireland','+353'],
+      ['Italy','+39'],['Netherlands','+31'],['Switzerland','+41'],['Japan','+81'],['South Korea','+82'],['Sri Lanka','+94'],
+      ['Bangladesh','+880'],['Nepal','+977'],['Pakistan','+92'],['South Africa','+27']
+    ];
+    const admissionDialCode=value=>{
+      const compact=String(value||'').trim().replace(/\s+/g,'');
+      const match=ADMISSION_COUNTRY_CODES.map(x=>x[1]).sort((a,b)=>b.length-a.length).find(code=>compact.startsWith(code));
+      return match||'+91';
+    };
+    const internationalLocalPart=value=>{
+      const compact=String(value||'').trim().replace(/\s+/g,'');
+      const code=admissionDialCode(compact);
+      return compact.startsWith(code)?compact.slice(code.length).replace(/\D/g,''):compact.replace(/\D/g,'');
+    };
+    const formatInternationalMobile=(code,local)=>`${code} ${String(local||'').replace(/\D/g,'').slice(0,15)}`;
+    const validInternationalMobile=value=>{
       const digits=String(value||'').replace(/\D/g,'');
-      const local=digits.startsWith('91')?digits.slice(2,12):digits.slice(-10);
-      return `+91 ${local}`;
+      return digits.length>=7&&digits.length<=15;
     };
     const numberedItems=value=>String(value||'').split(/\n+/).map(x=>x.replace(/^\s*\d+[.)]\s*/, '').trim()).filter(Boolean);
     const numberedText=items=>items.map((item,index)=>`${index+1}. ${item}`).join('\n');
@@ -14723,12 +14740,21 @@ Thank you.`;
       const items=numberedItems(form[key]).filter((_,i)=>i!==index);
       setForm(current=>({...current,[key]:numberedText(items)}));
     }
-    function mobileField(label,key,required=false){
-      return h('div',{className:'field',key},h('label',null,`${label}${required?' *':''}`),h('input',{
-        type:'tel',inputMode:'tel',required,value:form[key]||'+91 ',placeholder:'+91 9876543210',
-        onFocus:e=>{if(!String(e.target.value||'').trim())setForm(current=>({...current,[key]:'+91 '}))},
-        onChange:e=>setForm(current=>({...current,[key]:countryMobile(e.target.value)}))
-      }));
+    function mobileField(label,key,required=false,onBlur){
+      const value=form[key]||'+91 ';
+      const code=admissionDialCode(value);
+      const local=internationalLocalPart(value);
+      return h('div',{className:'field',key},
+        h('label',null,`${label}${required?' *':''}`),
+        h('div',{style:{display:'grid',gridTemplateColumns:'minmax(118px,42%) 1fr',gap:'6px'}},
+          h('select',{value:code,'aria-label':`${label} country code`,onChange:e=>setForm(current=>({...current,[key]:formatInternationalMobile(e.target.value,local)}))},
+            ADMISSION_COUNTRY_CODES.map(([country,dial])=>h('option',{key:`${country}-${dial}`,value:dial},`${country} (${dial})`))
+          ),
+          h('input',{type:'tel',inputMode:'tel',required,value:local,placeholder:'Mobile number',
+            onChange:e=>setForm(current=>({...current,[key]:formatInternationalMobile(code,e.target.value)})),onBlur
+          })
+        )
+      );
     }
     function numberedClinicalField(label,key,draft,setDraft,required=false){
       const items=numberedItems(form[key]);
@@ -15838,9 +15864,9 @@ Please keep these login details confidential.`;
         ['Doctor contact',form.doctor_phone,false]
       ];
       for(const [label,value,required] of mobileChecks){
-        const local=normalizePhone(value);
-        if(required&&local.length!==10){setMsg(`${label} must contain a valid 10-digit mobile number after the +91 country code.`);setBusy(false);return}
-        if(!required&&local&&local.length!==10){setMsg(`${label} must contain a valid 10-digit mobile number after the +91 country code.`);setBusy(false);return}
+        const local=internationalLocalPart(value);
+        if(required&&!local){setMsg(`${label} is required.`);setBusy(false);return}
+        if(local&&!validInternationalMobile(value)){setMsg(`${label} must contain a valid international mobile number including the country code.`);setBusy(false);return}
       }
       if(duplicateMobilePatient&&!returningPatient&&!interruptedAdmissionPatient){
         setMsg(`This mobile number is already registered to ${formalName(duplicateMobilePatient)||duplicateMobilePatient.full_name} · ${duplicateMobilePatient.patient_id||duplicateMobilePatient.patient_code||'Resident ID unavailable'}. A different patient cannot use the same mobile number. If this is the same previous resident, use Re-admission; otherwise correct the mobile number.`);
@@ -16169,12 +16195,7 @@ Please keep these login details confidential.`;
         ['Government Employee','Private Employee'].includes(form.profession)
           ?selectField('Employment Status','employment_status',form,setForm,EMPLOYMENT_SERVICE_STATUS)
           :null,
-        h('div',{className:'field'},h('label',null,'Mobile'),h('input',{
-          type:'tel',inputMode:'tel',value:form.mobile||'+91 ',placeholder:'+91 9876543210',
-          onChange:e=>setForm({...form,mobile:countryMobile(e.target.value)}),
-          onBlur:autoDetectReturningPatient,
-          readOnly:false
-        })),
+        mobileField('Mobile','mobile',false,autoDetectReturningPatient),
         field('State','state',form,setForm,false),
         h('div',{className:'field'},
           h('label',null,'District'),
@@ -16242,7 +16263,7 @@ Please keep these login details confidential.`;
           )),
           h('div',{className:'field'},h('label',null,'Authorised Relative Name'),h('input',{required:true,value:familyAccess.relative_name,onChange:e=>setFamilyAccess({...familyAccess,relative_name:e.target.value})})),
           h('div',{className:'field'},h('label',null,'Relationship'),h('select',{required:true,value:familyAccess.relationship||'',onChange:e=>setFamilyAccess({...familyAccess,relationship:e.target.value})},h('option',{value:''},'Select relationship'),...['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].map(x=>h('option',{key:x,value:x},x)))),
-          h('div',{className:'field'},h('label',null,'Family WhatsApp Number'),h('input',{required:true,type:'tel',inputMode:'tel',value:familyAccess.mobile||'+91 ',placeholder:'+91 9876543210',onChange:e=>setFamilyAccess({...familyAccess,mobile:countryMobile(e.target.value)})})),
+          h('div',{className:'field'},h('label',null,'Family WhatsApp Number'),h('div',{style:{display:'grid',gridTemplateColumns:'minmax(118px,42%) 1fr',gap:'6px'}},h('select',{value:admissionDialCode(familyAccess.mobile),'aria-label':'Family WhatsApp country code',onChange:e=>setFamilyAccess({...familyAccess,mobile:formatInternationalMobile(e.target.value,internationalLocalPart(familyAccess.mobile))})},ADMISSION_COUNTRY_CODES.map(([country,dial])=>h('option',{key:`wa-${country}-${dial}`,value:dial},`${country} (${dial})`))),h('input',{required:true,type:'tel',inputMode:'tel',value:internationalLocalPart(familyAccess.mobile),placeholder:'Mobile number',onChange:e=>setFamilyAccess({...familyAccess,mobile:formatInternationalMobile(admissionDialCode(familyAccess.mobile),e.target.value)})}))),
           h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:familyAccess.email,onChange:e=>setFamilyAccess({...familyAccess,email:e.target.value})})),
           dailyWhatsAppEnabled&&h('div',{className:'field'},h('label',null,'Daily Intelligent Report Time'),h('input',{type:'time',step:'300',required:true,value:familyAccess.daily_whatsapp_time||'20:00',onChange:e=>setFamilyAccess({...familyAccess,daily_whatsapp_time:e.target.value})})),
           dailyWhatsAppEnabled&&h('div',{className:'small-note',style:{alignSelf:'end',paddingBottom:'12px'}},'The Intelligent Patient Report will be generated automatically and sent through the approved WhatsApp API template at this time every day (India time).'),
