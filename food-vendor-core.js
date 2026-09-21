@@ -83,7 +83,11 @@ function quantityRows(report){
  return [o.data.date,o.data.slot,ref(o.id),it.name,Number(it.residents||0),Number(it.employees||0),Number(it.residents||0)+Number(it.employees||0),receipts.length?sum('residents'):'Not recorded',receipts.length?sum('employees'):'Not recorded',receipts.length?sum('residents')+sum('employees'):'Not recorded',receipts.length?sum('rejected'):'Not recorded',o.status,o.data.instructions||''];});
  });
 }
+function rateFor(report,meal,day){
+ if(!report)return null;const category=/Tea|Coffee/.test(meal)?'Coffee/Tea':meal;const rates=(report.rates||[]).filter(r=>r&&r.item===category&&r.effective<=day).sort((a,b)=>b.effective.localeCompare(a.effective)||String(b.created_at||'').localeCompare(String(a.created_at||'')));return rates[0]?.price==null?null:Number(rates[0].price);
+}
 function compactRows(report){
+ if(!report)return [];
  const groups=new Map();
  for(const o of report.orders||[]){const d=o.data||{},receipts=(report.events||[]).filter(e=>e.order_id===o.id&&e.kind==='receive');
  if(d.vendor_id!==report.vendor_id||d.date<report.from||d.date>report.to||o.status==='Draft'||(o.status==='Closed'&&!receipts.length))continue;
@@ -93,8 +97,10 @@ function compactRows(report){
  g.entries.push(...(report.entries||[]).filter(e=>e.kind==='Receipt'&&e.data.order_id===o.id));groups.set(key,g);
  }
  return [...groups.values()].sort((a,b)=>a.date.localeCompare(b.date)||slots.indexOf(a.meal)-slots.indexOf(b.meal)).map(g=>{
- const priced=g.entries.length&&g.entries.every(e=>e.amount!=null&&e.data.unit_price!=null),rates=[...new Set(g.entries.map(e=>Number(e.data.unit_price)))];
- return [g.date,g.meal,g.res,g.emp,g.res+g.emp,g.hasReceipt?g.received:null,priced?(rates.length===1?rates[0]:'Mixed'):null,g.entries.length?g.entries.reduce((n,e)=>n+Number(e.data.quantity||0),0):null,priced?Math.round(g.entries.reduce((n,e)=>n+Number(e.amount),0)*100)/100:null];
+ const priced=g.entries.length&&g.entries.every(e=>e.amount!=null&&e.data?.unit_price!=null),rates=[...new Set(g.entries.map(e=>Number(e.data?.unit_price)))],fallbackRate=rateFor(report,g.meal,g.date);
+ const rate=priced?(rates.length===1?rates[0]:'Mixed'):fallbackRate,quantity=g.entries.length?g.entries.reduce((n,e)=>n+Number(e.data?.quantity||0),0):(g.hasReceipt?g.received:null);
+ const amount=priced?Math.round(g.entries.reduce((n,e)=>n+Number(e.amount),0)*100)/100:(typeof rate==='number'&&quantity!=null?Math.round(quantity*rate*100)/100:null);
+ return [g.date,g.meal,g.res,g.emp,g.res+g.emp,g.hasReceipt?g.received:null,rate,quantity,amount];
  });
 }
 function mealSummary(report){
@@ -151,5 +157,5 @@ function orderCutoff(order,now=Date.now()){
  return {deadline,closed,text:closed?'Cutoff passed for '+rule.label+' ('+date+' at '+time+' IST). No new orders or modifications are allowed.':'Order and modification cutoff: '+date+' at '+time+' IST.'};
 }
 
-const api={orderCutoff,cutoffRules,dateText,orderProgress,orderFilterFacts,matchesOrderFilter,logo,statementLogo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary,label,amountWords,pdfFromJpegs,statementPdf};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+const api={rateFor,orderCutoff,cutoffRules,dateText,orderProgress,orderFilterFacts,matchesOrderFilter,logo,statementLogo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary,label,amountWords,pdfFromJpegs,statementPdf};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(globalThis);
