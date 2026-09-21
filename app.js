@@ -15511,14 +15511,14 @@ Thank you.`;
           }
         }
         if(photoPath){
-          // Download the stored file directly through Supabase and embed its bytes in the
-          // print document. This keeps the preview and the final saved PDF independent of
-          // temporary signed URLs, without changing the resident-photo retrieval workflow.
-          photoDataUrl=await patientPhotoPathToDataUrl(photoPath);
-          if(!photoDataUrl){
-            const {data,error:photoUrlError}=await client.storage.from('patient-documents').createSignedUrl(photoPath,1800);
-            if(photoUrlError)console.warn('Unable to create consent patient photo URL:',photoUrlError);
-            photoDataUrl=data?.signedUrl||'';
+          const {data,error:photoUrlError}=await client.storage.from('patient-documents').createSignedUrl(photoPath,1800);
+          if(photoUrlError)console.warn('Unable to create consent patient photo URL:',photoUrlError);
+          const signedPhotoUrl=data?.signedUrl||'';
+          if(signedPhotoUrl){
+            // Embed the actual image bytes in the print document. This prevents the browser's
+            // PDF renderer from dropping an expiring/private Storage URL while printing.
+            photoDataUrl=await urlToDataUrl(signedPhotoUrl);
+            if(!photoDataUrl)photoDataUrl=signedPhotoUrl;
           }
         }
 
@@ -18266,15 +18266,27 @@ Please keep these login details confidential.`;
           return;
         }
 
-        // Keep the existing Patient File photo resolver, but for printing prefer the
-        // permanent Storage path and embed the file bytes directly in the document.
+        // Use the exact same patient-photo resolver as the Patient File header, then
+        // embed the image into the print document as a data URL. This prevents the
+        // browser/PDF print engine from losing an expiring signed Storage URL.
         let consentPhotoUrl='';
         try{
-          const consentPhotoPath=row.photo_storage_path||photoResult.data?.[0]?.storage_path||'';
-          if(consentPhotoPath)consentPhotoUrl=await patientPhotoPathToDataUrl(consentPhotoPath);
-          if(!consentPhotoUrl){
-            const resolvedPhotoUrl=await resolvePatientPhoto(row);
-            if(resolvedPhotoUrl)consentPhotoUrl=resolvedPhotoUrl;
+          const resolvedPhotoUrl=await resolvePatientPhoto(row);
+          if(resolvedPhotoUrl){
+            try{
+              const response=await fetch(resolvedPhotoUrl,{cache:'no-store'});
+              if(!response.ok)throw new Error(`Photo fetch failed (${response.status})`);
+              const blob=await response.blob();
+              consentPhotoUrl=await new Promise((resolve,reject)=>{
+                const reader=new FileReader();
+                reader.onload=()=>resolve(String(reader.result||''));
+                reader.onerror=()=>reject(reader.error||new Error('Unable to read patient photo'));
+                reader.readAsDataURL(blob);
+              });
+            }catch(photoEmbedError){
+              console.warn('Consent photo data embedding failed; using signed URL fallback:',photoEmbedError);
+              consentPhotoUrl=resolvedPhotoUrl;
+            }
           }
         }catch(photoResolveError){
           console.warn('Unable to resolve resident photo for consent:',photoResolveError);
