@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.87';
+  const APP_VERSION = '2.13.88';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -14631,7 +14631,7 @@ Thank you.`;
             setDraftRestored(true);
             if(returningFromDocumentPicker){
               sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD);
-              setMsg('Admission details preserved after document selection.');
+              setMsg('Admission draft preserved after document selection.');
             }else{
               setMsg('Saved Admission draft restored. Uploaded files must be selected again for browser security.');
             }
@@ -15110,9 +15110,9 @@ Thank you.`;
       return h('div',{className:'field capture-field'},
         h('label',null,label),
         h('div',{className:'capture-actions'},
-          h('label',{className:'btn btn-secondary file-button'},'Upload File',h('input',{type:'file',multiple:!isPhoto,accept,onClick:saveAdmissionDraftBeforeDocumentPicker,onChange:e=>{sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD);const picked=Array.from(e.target.files||[]);setter(isPhoto?picked.slice(0,1):picked);if(isPhoto&&picked[0]){if(patientPhotoPreview)URL.revokeObjectURL(patientPhotoPreview);setPatientPhotoPreview(URL.createObjectURL(picked[0]))}}})),
-          h('label',{className:'btn btn-secondary file-button'},'Mobile Camera',h('input',{type:'file',multiple:!isPhoto,accept:'image/*',capture:isPhoto?'user':'environment',onClick:saveAdmissionDraftBeforeDocumentPicker,onChange:e=>{sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD);const picked=Array.from(e.target.files||[]);setter(prev=>isPhoto?picked.slice(0,1):[...(prev||[]),...picked]);if(isPhoto&&picked[0]){if(patientPhotoPreview)URL.revokeObjectURL(patientPhotoPreview);setPatientPhotoPreview(URL.createObjectURL(picked[0]))}}})),
-          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{saveAdmissionDraftBeforeDocumentPicker();setCameraConfig({title:label,facingMode:isPhoto?'user':'environment',filePrefix:isPhoto?'patient-photo':'patient-document',onCapture:file=>{sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD);setCapturedFiles(setter,isPhoto,file)}})}},'Webcam')
+          h('label',{className:'btn btn-secondary file-button'},'Upload File',h('input',{type:'file',multiple:!isPhoto,accept,onClick:saveAdmissionDraftBeforeDocumentPicker,onChange:e=>{sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD);const picked=Array.from(e.target.files||[]);setter(isPhoto?picked.slice(0,1):picked);if(isPhoto&&picked[0]){if(patientPhotoPreview)URL.revokeObjectURL(patientPhotoPreview);setPatientPhotoPreview(URL.createObjectURL(picked[0]))}if(picked.length)setMsg(`${label} selected. Admission draft preserved.`)}})),
+          h('label',{className:'btn btn-secondary file-button'},'Mobile Camera',h('input',{type:'file',multiple:!isPhoto,accept:'image/*',capture:isPhoto?'user':'environment',onClick:saveAdmissionDraftBeforeDocumentPicker,onChange:e=>{sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD);const picked=Array.from(e.target.files||[]);setter(prev=>isPhoto?picked.slice(0,1):[...(prev||[]),...picked]);if(isPhoto&&picked[0]){if(patientPhotoPreview)URL.revokeObjectURL(patientPhotoPreview);setPatientPhotoPreview(URL.createObjectURL(picked[0]))}if(picked.length)setMsg(`${label} captured. Admission draft preserved.`)}})),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{saveAdmissionDraftBeforeDocumentPicker();setCameraConfig({title:label,facingMode:isPhoto?'user':'environment',filePrefix:isPhoto?'patient-photo':'patient-document',onCapture:file=>{sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD);setCapturedFiles(setter,isPhoto,file);setMsg(`${label} captured. Admission draft preserved.`)}})}},'Webcam')
         ),
         isPhoto&&patientPhotoPreview?h('img',{src:patientPhotoPreview,className:'patient-capture-preview',alt:'Patient preview'}):null,
         h('small',null,files?.length?`${files.length} file(s) selected`:'Choose an existing file, use the mobile camera, or open the webcam.')
@@ -15140,7 +15140,10 @@ Thank you.`;
         msg.includes('restored')||
         msg.includes('saved. Print')||
         msg.includes('formalities are complete')||
-        msg.includes('activated under consent-upload exception');
+        msg.includes('activated under consent-upload exception')||
+        msg.includes('Admission draft preserved')||
+        msg.includes('selected. Admission draft preserved')||
+        msg.includes('captured. Admission draft preserved');
       if(!successMessage)showAdmissionError(msg);
     },[msg,admissionSaveAttempt]);
 
