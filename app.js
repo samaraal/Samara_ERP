@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.83';
+  const APP_VERSION = '2.13.85';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '21-Sep-2026 Admission contacts and numbered clinical lists';
+  const APP_BUILD_DATE = '21-Sep-2026 Admission minimum-details server auto-save';
   const APP_SCHEMA_VERSION = '38';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -14598,6 +14598,8 @@ Thank you.`;
     const ADMISSION_DRAFT_KEY=`samara_admission_draft_${profile?.id||'current'}`;
     const [draftRestored,setDraftRestored]=React.useState(false);
     const [lastAutoSavedAt,setLastAutoSavedAt]=React.useState(null);
+    const [serverDraftSaved,setServerDraftSaved]=React.useState(false);
+    const [serverDraftError,setServerDraftError]=React.useState('');
     const draftReadyRef=React.useRef(false);
     React.useEffect(()=>{
       try{
@@ -14670,11 +14672,81 @@ Thank you.`;
       return()=>clearTimeout(timer);
     },[form,meds,care,familyAccess,returningPatient,draftPatientId,busy]);
 
+    // Persistent Admission draft: once the minimum identity details are present,
+    // keep the whole form in Supabase as well as in browser storage. This is a
+    // DRAFT only; it does not create an active patient, occupy a bed, start billing,
+    // or activate medication/vitals/care alerts.
+    React.useEffect(()=>{
+      if(!draftReadyRef.current||busy||returningPatient)return;
+      const name=String(form.full_name||'').trim();
+      const phoneOk=validInternationalMobile(form.mobile);
+      const addressParts=[form.house_no,form.street_name,form.locality_area,form.village_town,form.district,form.pincode]
+        .map(value=>String(value||'').trim()).filter(Boolean);
+      const addressOk=addressParts.length>=2 && Boolean(form.village_town||form.street_name||form.house_no||form.locality_area);
+      if(!name||!phoneOk||!addressOk){setServerDraftSaved(false);return}
+      const timer=setTimeout(async()=>{
+        try{
+          const {data:{user}}=await client.auth.getUser();
+          if(!user?.id)return;
+          const draftPayload={form,meds,care,familyAccess,patient_id:draftPatientId||null,saved_at:new Date().toISOString()};
+          const {error}=await client.from('admission_drafts').upsert({
+            created_by:user.id,
+            patient_name:name,
+            mobile:String(form.mobile||'').trim(),
+            address:addressParts.join(', '),
+            draft_payload:draftPayload,
+            updated_at:new Date().toISOString()
+          },{onConflict:'created_by'});
+          if(error)throw error;
+          setServerDraftSaved(true);setServerDraftError('');setLastAutoSavedAt(new Date());
+        }catch(error){
+          console.warn('Unable to save Admission draft to server:',error);
+          setServerDraftSaved(false);setServerDraftError(error?.message||'Server draft save failed');
+        }
+      },900);
+      return()=>clearTimeout(timer);
+    },[form,meds,care,familyAccess,draftPatientId,busy,returningPatient]);
+
+    // If this browser has no local draft, recover the staff member's latest
+    // server draft. This makes interrupted mobile/desktop admission entry recoverable.
+    React.useEffect(()=>{
+      let active=true;
+      (async()=>{
+        try{
+          if(localStorage.getItem(ADMISSION_DRAFT_KEY))return;
+          const {data:{user}}=await client.auth.getUser();
+          if(!user?.id)return;
+          const {data,error}=await client.from('admission_drafts').select('draft_payload,updated_at').eq('created_by',user.id).maybeSingle();
+          if(error||!data?.draft_payload?.form||!active)return;
+          const draft=data.draft_payload;
+          if(window.confirm('An unfinished Admission draft saved on the server was found. Restore it?')){
+            setForm({...initial,...draft.form});
+            setMeds(Array.isArray(draft.meds)&&draft.meds.length?draft.meds:[blankMedicine()]);
+            setCare(Array.isArray(draft.care)&&draft.care.length?draft.care:[blankCare()]);
+            if(draft.familyAccess)setFamilyAccess(current=>({...current,...draft.familyAccess}));
+            setDraftPatientId(draft.patient_id||'');
+            setDraftRestored(true);setServerDraftSaved(true);
+            setMsg('Saved Admission draft restored from the server. Uploaded files must be selected again for browser security.');
+          }
+        }catch(error){console.warn('Unable to restore server Admission draft:',error)}
+      })();
+      return()=>{active=false};
+    },[]);
+
+    async function removeServerAdmissionDraft(){
+      try{
+        const {data:{user}}=await client.auth.getUser();
+        if(user?.id)await client.from('admission_drafts').delete().eq('created_by',user.id);
+      }catch(error){console.warn('Unable to remove server Admission draft:',error)}
+      setServerDraftSaved(false);setServerDraftError('');
+    }
+
     function clearAdmissionDraft(){
       try{localStorage.removeItem(ADMISSION_DRAFT_KEY)}catch(_error){}
       setDraftRestored(false);
       setLastAutoSavedAt(null);
       setDraftPatientId('');
+      removeServerAdmissionDraft();
     }
 
     React.useEffect(()=>{
@@ -15907,7 +15979,7 @@ Please keep these login details confidential.`;
       if(!['Admin','Manager'].includes(profile?.role)){setMsg('Only Admin or Manager can allot a room and complete patient admission.');setBusy(false);return}
       if(!numberedItems(form.diagnosis).length){setMsg('Add at least one diagnosis / condition at admission.');setBusy(false);return}
       const mobileChecks=[
-        ['Patient mobile',form.mobile,false],
+        ['Patient mobile',form.mobile,true],
         ['Attendant mobile',form.attendant_phone,true],
         ['Alternative mobile',form.attendant_alternative_phone,false],
         ['Doctor contact',form.doctor_phone,false]
@@ -16150,9 +16222,11 @@ Please keep these login details confidential.`;
     return h('form',{className:'card panel',onSubmit:submit},
       h('div',{className:'panel-head'},h('div',null,h('h3',null,'Unified Patient Admission'),h('small',null,'Hospital discharge, direct admission, doctor referral or transfer'))),
       h('div',{className:'small-note',style:{display:'flex',justifyContent:'space-between',gap:'12px',alignItems:'center',marginBottom:'8px'}},
-        h('span',null,lastAutoSavedAt
-          ?`Draft auto-saved at ${formatTimeIN(lastAutoSavedAt)}`
-          :'Admission form auto-save is active. Text entries, medicines and care-plan details are retained if you leave the page.'
+        h('span',null,serverDraftError
+          ?`Browser draft saved; server auto-save needs attention: ${serverDraftError}`
+          :lastAutoSavedAt
+            ?`${serverDraftSaved?'Draft safely auto-saved':'Draft auto-saved in this device'} at ${formatTimeIN(lastAutoSavedAt)}`
+            :'Enter Patient Name, Mobile and Address to start automatic draft saving. The draft will not activate clinical alerts or billing.'
         ),
         (draftRestored||lastAutoSavedAt)&&h('button',{
           type:'button',
@@ -16244,7 +16318,7 @@ Please keep these login details confidential.`;
         ['Government Employee','Private Employee'].includes(form.profession)
           ?selectField('Employment Status','employment_status',form,setForm,EMPLOYMENT_SERVICE_STATUS)
           :null,
-        mobileField('Mobile','mobile',false,autoDetectReturningPatient),
+        mobileField('Mobile','mobile',true,autoDetectReturningPatient),
         field('State','state',form,setForm,false),
         h('div',{className:'field'},
           h('label',null,'District'),
