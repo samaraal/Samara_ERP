@@ -14544,11 +14544,9 @@ Thank you.`;
     const initial={admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
     const [form,setForm]=React.useState(initial),[meds,setMeds]=React.useState([blankMedicine()]),[care,setCare]=React.useState([blankCare()]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [familyAccess,setFamilyAccess]=React.useState({delivery_mode:'Family Portal Access',enabled:true,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:true,daily_whatsapp_time:'20:00'});
-    const [familyAccess2,setFamilyAccess2]=React.useState({enabled:false,relative_name:'',relationship:'',mobile:'+91 ',email:'',family_portal_enabled:true,daily_whatsapp_enabled:true});
     const familyPortalEnabled=['Family Portal Access','Both'].includes(familyAccess.delivery_mode);
     const dailyWhatsAppEnabled=['Daily WhatsApp Update','Both'].includes(familyAccess.delivery_mode);
     const [familyCredential,setFamilyCredential]=React.useState(null);
-    const [familyCredential2,setFamilyCredential2]=React.useState(null);
     const [admissionWhatsAppStatus,setAdmissionWhatsAppStatus]=React.useState('');
     const [photoFiles,setPhotoFiles]=React.useState([]),[idFiles,setIdFiles]=React.useState([]),[dischargeFiles,setDischargeFiles]=React.useState([]),[prescriptionFiles,setPrescriptionFiles]=React.useState([]),[reportFiles,setReportFiles]=React.useState([]),[cameraConfig,setCameraConfig]=React.useState(null),[patientPhotoPreview,setPatientPhotoPreview]=React.useState('');
     const [roomBeds,setRoomBeds]=React.useState([]);
@@ -15839,22 +15837,31 @@ Thank you.`;
       cleanAdmissionAfterConsent();
     }
 
-    async function saveOneFamilyPortalAccess(patient,access,setCredential){
-      if(!access?.family_portal_enabled&&!access?.primary_contact)return null;
-      const mobile=String(access.mobile||'').replace(/\D/g,'').slice(-10);
-      if(!String(access.relative_name||'').trim())throw new Error('Enter the authorised family member name.');
-      if(!String(access.relationship||'').trim())throw new Error('Enter the relationship to the resident.');
+    async function saveFamilyPortalAccess(patient){
+      if(!familyPortalEnabled)return null;
+      const mobile=String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10);
+      if(!String(familyAccess.relative_name||'').trim())throw new Error('Enter the authorised family member name.');
+      if(!String(familyAccess.relationship||'').trim())throw new Error('Enter the relationship to the resident.');
       if(mobile.length!==10)throw new Error('Enter a valid 10-digit family mobile number.');
       const {data:existingRows}=await client.from('family_portal_access').select('id,mobile,relative_name,is_active').eq('patient_id',patient.id).eq('is_active',true);
-      const existing=(existingRows||[]).find(row=>String(row.mobile||'').replace(/\D/g,'').slice(-10)===mobile&&String(row.relative_name||'').trim().toLowerCase()===String(access.relative_name||'').trim().toLowerCase());
+      const existing=(existingRows||[]).find(row=>String(row.mobile||'').replace(/\D/g,'').slice(-10)===mobile&&String(row.relative_name||'').trim().toLowerCase()===String(familyAccess.relative_name||'').trim().toLowerCase());
       const pin=String(Math.floor(100000+Math.random()*900000));
-      const {data,error}=await client.rpc('upsert_family_portal_access',{p_patient_id:patient.id,p_relative_name:String(access.relative_name).trim(),p_relationship:String(access.relationship).trim(),p_mobile:mobile,p_email:String(access.email||'').trim()||null,p_primary_contact:!!access.primary_contact,p_pin:pin,p_access_id:existing?.id||null});
+      const {data,error}=await client.rpc('upsert_family_portal_access',{p_patient_id:patient.id,p_relative_name:String(familyAccess.relative_name).trim(),p_relationship:String(familyAccess.relationship).trim(),p_mobile:mobile,p_email:String(familyAccess.email||'').trim()||null,p_primary_contact:!!familyAccess.primary_contact,p_pin:pin,p_access_id:existing?.id||null});
       if(error)throw error;
-      const credential={...(Array.isArray(data)?data[0]:data),pin,mobile,patient_id:patient.patient_id||patient.patient_code||'',patient_db_id:patient.id||null,patient_name:formalName(patient)||patient.full_name||form.full_name||'',relative_name:String(access.relative_name||'').trim(),admission_date:patient.admission_date||form.admission_date||'',room_bed:[patient.room_no||form.room_no,patient.bed_no||form.bed_no].filter(Boolean).join(' / ')};
-      setCredential?.(credential);return credential;
+      const credential={
+        ...(Array.isArray(data)?data[0]:data),
+        pin,
+        mobile,
+        patient_id:patient.patient_id||patient.patient_code||'',
+        patient_db_id:patient.id||null,
+        patient_name:formalName(patient)||patient.full_name||form.full_name||'',
+        relative_name:String(familyAccess.relative_name||'').trim(),
+        admission_date:patient.admission_date||form.admission_date||'',
+        room_bed:[patient.room_no||form.room_no,patient.bed_no||form.bed_no].filter(Boolean).join(' / ')
+      };
+      setFamilyCredential(credential);
+      return credential;
     }
-    async function saveFamilyPortalAccess(patient){return familyPortalEnabled?saveOneFamilyPortalAccess(patient,{...familyAccess,family_portal_enabled:true},setFamilyCredential):null}
-    async function saveSecondFamilyPortalAccess(patient){return familyAccess2.enabled&&familyAccess2.family_portal_enabled?saveOneFamilyPortalAccess(patient,{...familyAccess2,primary_contact:false},setFamilyCredential2):null}
     async function saveFamilyCommunicationPreference(patient){
       if(!patient?.id)return null;
       const mobile=String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10);
@@ -15862,7 +15869,6 @@ Thank you.`;
       if(!String(familyAccess.relationship||'').trim())throw new Error('Enter the relationship to the resident.');
       if(mobile.length!==10)throw new Error('Enter a valid 10-digit family WhatsApp number.');
       if(dailyWhatsAppEnabled&&!String(familyAccess.daily_whatsapp_time||'').trim())throw new Error('Select the daily WhatsApp report time.');
-      if(familyAccess2.enabled){const m2=String(familyAccess2.mobile||'').replace(/\D/g,'').slice(-10);if(!String(familyAccess2.relative_name||'').trim())throw new Error('Enter Family Member 2 name.');if(!String(familyAccess2.relationship||'').trim())throw new Error('Enter Family Member 2 relationship.');if(m2.length!==10)throw new Error('Enter a valid 10-digit mobile number for Family Member 2.');if(m2===mobile)throw new Error('Family Member 2 must have a different mobile number.');}
       const payload={
         patient_id:patient.id,
         delivery_mode:familyAccess.delivery_mode,
@@ -15873,12 +15879,6 @@ Thank you.`;
         recipient_mobile:mobile,
         recipient_email:String(familyAccess.email||'').trim()||null,
         daily_report_time:dailyWhatsAppEnabled?(familyAccess.daily_whatsapp_time||'20:00'):null,
-        secondary_enabled:!!familyAccess2.enabled,
-        secondary_recipient_name:familyAccess2.enabled?String(familyAccess2.relative_name||'').trim()||null:null,
-        secondary_relationship:familyAccess2.enabled?String(familyAccess2.relationship||'').trim()||null:null,
-        secondary_recipient_mobile:familyAccess2.enabled?String(familyAccess2.mobile||'').replace(/\D/g,'').slice(-10)||null:null,
-        secondary_recipient_email:familyAccess2.enabled?String(familyAccess2.email||'').trim()||null:null,
-        secondary_daily_whatsapp_enabled:!!(familyAccess2.enabled&&familyAccess2.daily_whatsapp_enabled),
         timezone:'Asia/Kolkata',
         is_active:true,
         updated_at:new Date().toISOString()
@@ -16239,7 +16239,6 @@ Please keep these login details confidential.`;
       try{
         await saveFamilyCommunicationPreference(patient);
         const portalCredential=familyPortalEnabled?await saveFamilyPortalAccess(patient):null;
-        const portalCredential2=familyAccess2.enabled&&familyAccess2.family_portal_enabled?await saveSecondFamilyPortalAccess(patient):null;
         const admissionCredential=admissionWhatsAppCredential(patient,portalCredential);
         let admissionPhotoPath=patient.photo_storage_path||'';
         if(photoFiles[0])admissionPhotoPath=await uploadPatientFile(patient.id,photoFiles[0],'Patient Photo',true);
@@ -16291,8 +16290,6 @@ Please keep these login details confidential.`;
         }).eq('id',patient.id);
         const admissionWhatsAppResult=await autoSendAdmissionWhatsAppOnce(patient,admissionCredential);
         const familyPortalWhatsAppResult=portalCredential?await autoSendFamilyPortalWhatsAppOnce(patient,portalCredential):{status:'skipped'};
-        const admissionWhatsAppResult2=familyAccess2.enabled?await autoSendAdmissionWhatsAppOnce(patient,admissionWhatsAppCredential(patient,portalCredential2||{relative_name:familyAccess2.relative_name,mobile:String(familyAccess2.mobile||'').replace(/\D/g,'').slice(-10)})):{status:'skipped'};
-        const familyPortalWhatsAppResult2=portalCredential2?await autoSendFamilyPortalWhatsAppOnce(patient,portalCredential2):{status:'skipped'};
         setConsentRecord({
           patient,
           form:{...form},
@@ -16510,16 +16507,7 @@ Please keep these login details confidential.`;
           h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:familyAccess.email,onChange:e=>setFamilyAccess({...familyAccess,email:e.target.value})})),
           dailyWhatsAppEnabled&&h('div',{className:'field'},h('label',null,'Daily Intelligent Report Time'),h('input',{type:'time',step:'300',required:true,value:familyAccess.daily_whatsapp_time||'20:00',onChange:e=>setFamilyAccess({...familyAccess,daily_whatsapp_time:e.target.value})})),
           dailyWhatsAppEnabled&&h('div',{className:'small-note',style:{alignSelf:'end',paddingBottom:'12px'}},'The Intelligent Patient Report will be generated automatically and sent through the approved WhatsApp API template at this time every day (India time).'),
-          familyPortalEnabled&&h('label',{className:'check-card span-2'},h('input',{type:'checkbox',checked:!!familyAccess.primary_contact,onChange:e=>setFamilyAccess({...familyAccess,primary_contact:e.target.checked})}),h('span',null,'Primary Family Contact for Family Portal')),
-          h('label',{className:'check-card span-2',style:{marginTop:'8px'}},h('input',{type:'checkbox',checked:!!familyAccess2.enabled,onChange:e=>setFamilyAccess2({...familyAccess2,enabled:e.target.checked})}),h('span',null,'Add Family Member 2 (separate Family Portal login + WhatsApp)')),
-          familyAccess2.enabled&&h(React.Fragment,null,
-            h('div',{className:'field'},h('label',null,'Family Member 2 Name'),h('input',{required:true,value:familyAccess2.relative_name,onChange:e=>setFamilyAccess2({...familyAccess2,relative_name:e.target.value})})),
-            h('div',{className:'field'},h('label',null,'Relationship'),h('select',{required:true,value:familyAccess2.relationship||'',onChange:e=>setFamilyAccess2({...familyAccess2,relationship:e.target.value})},h('option',{value:''},'Select relationship'),...['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].map(x=>h('option',{key:`f2-${x}`,value:x},x)))),
-            h('div',{className:'field'},h('label',null,'Family Member 2 WhatsApp'),h('div',{style:{display:'grid',gridTemplateColumns:'minmax(118px,42%) 1fr',gap:'6px'}},h('select',{value:admissionDialCode(familyAccess2.mobile),onChange:e=>setFamilyAccess2({...familyAccess2,mobile:formatInternationalMobile(e.target.value,internationalLocalPart(familyAccess2.mobile))})},ADMISSION_COUNTRY_CODES.map(([country,dial])=>h('option',{key:`wa2-${country}-${dial}`,value:dial},`${country} (${dial})`))),h('input',{required:true,type:'tel',inputMode:'tel',value:internationalLocalPart(familyAccess2.mobile),placeholder:'Mobile number',onChange:e=>setFamilyAccess2({...familyAccess2,mobile:formatInternationalMobile(admissionDialCode(familyAccess2.mobile),e.target.value)})}))),
-            h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:familyAccess2.email,onChange:e=>setFamilyAccess2({...familyAccess2,email:e.target.value})})),
-            h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!familyAccess2.family_portal_enabled,onChange:e=>setFamilyAccess2({...familyAccess2,family_portal_enabled:e.target.checked})}),h('span',null,'Family Portal Access')),
-            h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!familyAccess2.daily_whatsapp_enabled,onChange:e=>setFamilyAccess2({...familyAccess2,daily_whatsapp_enabled:e.target.checked})}),h('span',null,'WhatsApp Notifications / Daily Report'))
-          )
+          familyPortalEnabled&&h('label',{className:'check-card span-2'},h('input',{type:'checkbox',checked:!!familyAccess.primary_contact,onChange:e=>setFamilyAccess({...familyAccess,primary_contact:e.target.checked})}),h('span',null,'Primary Family Contact for Family Portal'))
         ),
       familyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},
           h('strong',null,'Family Portal login created'),
@@ -29275,18 +29263,18 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       setBusy(true);
       try{
         const results=await Promise.all([
-          client.from('patients').select('*'),client.from('vital_signs').select('*'),client.from('care_logs').select('*'),client.from('care_orders').select('*'),client.from('medication_orders').select('*'),client.from('medication_administrations').select('*'),client.from('meal_records').select('*'),client.from('physiotherapy_plans').select('*'),client.from('physiotherapy_sessions').select('*'),client.from('incidents').select('*'),client.from('billing_transactions').select('*'),client.from('recovery_events').select('*'),client.from('shift_handovers').select('*'),client.from('patient_documents').select('*'),client.from('profiles').select('*'),client.from('audit_log').select('*'),client.from('medication_reviews').select('*'),client.from('medication_review_items').select('*')
+          client.from('patients').select('*'),client.from('vital_signs').select('*'),client.from('care_logs').select('*'),client.from('care_orders').select('*'),client.from('medication_orders').select('*'),client.from('medication_administrations').select('*'),client.from('meal_records').select('*'),client.from('physiotherapy_plans').select('*'),client.from('physiotherapy_sessions').select('*'),client.from('incidents').select('*'),client.from('billing_transactions').select('*'),client.from('recovery_events').select('*'),client.from('shift_handovers').select('*'),client.from('patient_documents').select('*'),client.from('profiles').select('*'),client.from('audit_log').select('*'),client.from('medication_reviews').select('*'),client.from('medication_review_items').select('*'),client.from('bill_charge_requests').select('id,patient_id,charge_date,service_datetime,category,service_name,description,quantity,unit,status,approval_status,remarks,raised_by_name,raised_at,created_at').eq('category','Nursing Procedures')
         ]);
-        const [pats,vitals,care,careOrders,orders,mar,meals,physioOrders,physioSessions,incidents,billing,recovery,handovers,documents,staff,audit,medicationReviews,medicationReviewItems]=results.map(safeRows);
+        const [pats,vitals,care,careOrders,orders,mar,meals,physioOrders,physioSessions,incidents,billing,recovery,handovers,documents,staff,audit,medicationReviews,medicationReviewItems,nursingProcedures]=results.map(safeRows);
         const selectedPatient=pats.find(p=>p.id===patientId)||patients.find(p=>p.id===patientId)||null;
         if(activeMode==='Resident-wise'&&selectedPatient&&isFutureDateIndia(selectedPatient.admission_date)){
           throw new Error(`The Patient File contains a future Admission Date (${formatDateIN(selectedPatient.admission_date)}). Please correct it in Patient Edit before generating or sharing the report.`);
         }
         const dayData={
-          vitals:byDay(vitals,reportDate,['recorded_at','created_at']),care:byDay(care,reportDate,['completed_at','created_at','care_date']),careOrders:careOrders.filter(x=>x.is_active!==false),mar:byDay(mar,reportDate,['administered_at','created_at','scheduled_date']),meals:byDay(meals,reportDate,['served_at','created_at','meal_date']),physioSessions:byDay(physioSessions,reportDate,['session_at','created_at','session_date']),incidents:byDay(incidents,reportDate,['incident_at','created_at']),billing:byDay(billing,reportDate,['transaction_date','created_at']),recovery:byDay(recovery,reportDate,['event_at','created_at']),handovers:byDay(handovers,reportDate,['created_at','handover_date']),documents:byDay(documents,reportDate,['created_at','report_date']),audit:byDay(audit,reportDate,['created_at'])
+          vitals:byDay(vitals,reportDate,['recorded_at','created_at']),care:byDay(care,reportDate,['completed_at','created_at','care_date']),careOrders:careOrders.filter(x=>x.is_active!==false),mar:byDay(mar,reportDate,['administered_at','created_at','scheduled_date']),meals:byDay(meals,reportDate,['served_at','created_at','meal_date']),physioSessions:byDay(physioSessions,reportDate,['session_at','created_at','session_date']),incidents:byDay(incidents,reportDate,['incident_at','created_at']),billing:byDay(billing,reportDate,['transaction_date','created_at']),recovery:byDay(recovery,reportDate,['event_at','created_at']),handovers:byDay(handovers,reportDate,['created_at','handover_date']),documents:byDay(documents,reportDate,['created_at','report_date']),audit:byDay(audit,reportDate,['created_at']),nursingProcedures:byDay(nursingProcedures,reportDate,['service_datetime','charge_date','raised_at','created_at'])
         };
         const data=activeMode==='Resident-wise'?{
-          patients:selectedPatient?[selectedPatient]:[],vitals:byDay(byPatient(vitals,patientId),reportDate,['recorded_at','created_at']),care:byDay(byPatient(care,patientId),reportDate,['completed_at','created_at','care_date']),careOrders:byPatient(careOrders,patientId).filter(x=>x.is_active!==false),medicationOrders:byPatient(orders,patientId),mar:byDay(byPatient(mar,patientId),reportDate,['administered_at','created_at','scheduled_date']),meals:byDay(byPatient(meals,patientId),reportDate,['served_at','created_at','meal_date']),physioOrders:byPatient(physioOrders,patientId).filter(x=>x.is_active!==false),physioSessions:byDay(byPatient(physioSessions,patientId),reportDate,['session_at','created_at','session_date']),incidents:byDay(byPatient(incidents,patientId),reportDate,['incident_at','created_at']),billing:byPatient(billing,patientId),recovery:byDay(byPatient(recovery,patientId),reportDate,['event_at','created_at']),handovers:byDay(byPatient(handovers,patientId),reportDate,['created_at','handover_date']),documents:byPatient(documents,patientId),medicationReviews:byDay(byPatient(medicationReviews,patientId),reportDate,['reviewed_at','created_at']),medicationReviewItems:medicationReviewItems.filter(item=>medicationReviews.some(review=>review.patient_id===patientId&&review.id===item.review_id))
+          patients:selectedPatient?[selectedPatient]:[],vitals:byDay(byPatient(vitals,patientId),reportDate,['recorded_at','created_at']),care:byDay(byPatient(care,patientId),reportDate,['completed_at','created_at','care_date']),careOrders:byPatient(careOrders,patientId).filter(x=>x.is_active!==false),medicationOrders:byPatient(orders,patientId),mar:byDay(byPatient(mar,patientId),reportDate,['administered_at','created_at','scheduled_date']),meals:byDay(byPatient(meals,patientId),reportDate,['served_at','created_at','meal_date']),physioOrders:byPatient(physioOrders,patientId).filter(x=>x.is_active!==false),physioSessions:byDay(byPatient(physioSessions,patientId),reportDate,['session_at','created_at','session_date']),incidents:byDay(byPatient(incidents,patientId),reportDate,['incident_at','created_at']),billing:byPatient(billing,patientId),recovery:byDay(byPatient(recovery,patientId),reportDate,['event_at','created_at']),handovers:byDay(byPatient(handovers,patientId),reportDate,['created_at','handover_date']),documents:byPatient(documents,patientId),medicationReviews:byDay(byPatient(medicationReviews,patientId),reportDate,['reviewed_at','created_at']),medicationReviewItems:medicationReviewItems.filter(item=>medicationReviews.some(review=>review.patient_id===patientId&&review.id===item.review_id)),nursingProcedures:byDay(byPatient(nursingProcedures,patientId),reportDate,['service_datetime','charge_date','raised_at','created_at'])
         }:{...dayData,patients:pats.filter(p=>p.is_active!==false&&dateOnly(p.admission_date)<=reportDate),newAdmissions:pats.filter(p=>dateOnly(p.admission_date)===reportDate)};
         const charges=data.billing.filter(x=>x.transaction_type==='Charge').reduce((a,x)=>a+Number(x.amount||0),0);
         const payments=data.billing.filter(x=>x.transaction_type==='Payment').reduce((a,x)=>a+Number(x.amount||0),0);
@@ -29556,6 +29544,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         )
       );
       const medicationRows=[...(d.mar||[])].sort((a,b)=>String(a.scheduled_time||a.scheduled_at||'').localeCompare(String(b.scheduled_time||b.scheduled_at||''))).map(row=>{const order=orderMap[row.order_id||row.medication_order_id]||{};return [row.scheduled_time||String(row.scheduled_at||'').slice(11,16)||'—',row.administered_at?fmt(row.administered_at):'—',row.medicine_name||order.medicine_name||'Medicine',row.dose||row.strength||order.dose||order.strength||'—',row.route||order.route||'—',row.status||'Recorded',row.remarks||row.exception_reason||staffName(row.administered_by)]});
+      const procedureRows=[...(d.nursingProcedures||[])].sort((a,b)=>new Date(a.service_datetime||a.raised_at||a.created_at)-new Date(b.service_datetime||b.raised_at||b.created_at)).map(row=>[row.service_datetime?fmt(row.service_datetime):formatDateIN(row.charge_date||row.created_at),row.service_name||'Nursing Procedure',row.status||row.approval_status||'Recorded',row.quantity?`${row.quantity}${row.unit?` ${row.unit}`:''}`:'—',row.remarks||row.description||'—',row.raised_by_name||'—']);
       const careRows=[...(d.care||[])].sort((a,b)=>new Date(a.completed_at||a.created_at)-new Date(b.completed_at||b.created_at)).map(row=>{const order=careOrderMap[row.care_order_id]||{};return [order.care_type||order.task_name||row.care_type||'Care activity',row.shift||order.shift||'—',row.status||'Recorded',fmt(row.completed_at||row.created_at),row.remarks||'—',staffName(row.completed_by)]});
       const nextPlan=[latestHandover?.pending_tasks&&['Pending tasks',latestHandover.pending_tasks],latestHandover?.special_instructions&&['Special instructions',latestHandover.special_instructions],latestHandover?.patient_summary&&['Patient summary',latestHandover.patient_summary],(d.medicationOrders||[]).filter(x=>x.is_active!==false&&!x.stopped_at).length&&['Medication plan',`Continue ${(d.medicationOrders||[]).filter(x=>x.is_active!==false&&!x.stopped_at).length} active prescription item(s) at the ordered times.`],(d.careOrders||[]).length&&['Care plan',`Continue ${(d.careOrders||[]).length} active care-plan item(s).`]].filter(Boolean);
     return h(React.Fragment,null,
@@ -29635,6 +29624,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
           ),
           h('div',{className:'annexure-section'},h('h3',null,'VITAL-SIGN TREND'),detailTable(['Date / Time','Blood Pressure','Pulse','SpO₂','Temperature','Respiratory Rate','Blood Sugar','Assessment'],sortedVitals.map(row=>[fmt(row.recorded_at||row.created_at),`${vitalMeasurement(row,'systolic')??'—'}/${vitalMeasurement(row,'diastolic')??'—'}`,vitalMeasurement(row,'pulse')??'—',vitalMeasurement(row,'spo2')!=null?`${vitalMeasurement(row,'spo2')}%`:'—',vitalMeasurement(row,'temperature')??'—',vitalMeasurement(row,'respiration')??'—',vitalMeasurement(row,'blood_sugar')!=null?`${row.blood_sugar_type||'RBS'} ${vitalMeasurement(row,'blood_sugar')}`:'Not taken',vitalAssessment(row)]))),
           h('div',{className:'annexure-section'},h('h3',null,'MEDICATION ADMINISTRATION DETAILS'),detailTable(['Scheduled','Actual','Medicine','Dose','Route','Status','Remarks / Recorded By'],medicationRows)),
+          h('div',{className:'annexure-section'},h('h3',null,'NURSING PROCEDURES'),detailTable(['Date / Time','Procedure','Status','Quantity','Remarks','Recorded By'],procedureRows,'No nursing procedures recorded for the selected report date.')),
           h('div',{className:'annexure-section'},h('h3',null,'DAILY CARE AND NURSING DETAILS'),detailTable(['Care Activity','Shift','Status','Completed At','Remarks','Recorded By'],careRows)),
           h('div',{className:'annexure-two-column',style:{gridTemplateColumns:'1fr'}},
             h('div',{className:'annexure-section'},h('h3',null,'FOOD / FLUID INTAKE'),detailTable(['Meal','Menu','Food Intake','Meal Time','Beverage','Beverage Time'],(d.meals||[]).map(row=>[row.meal_type||'Meal',row.menu||'—',row.consumption_status||'Recorded',fmt(row.served_at),row.beverage_type||'—',row.beverage_time?String(row.beverage_time).slice(0,5):'—']))),
