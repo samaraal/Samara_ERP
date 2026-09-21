@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.85';
+  const APP_VERSION = '2.13.86';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -14601,12 +14601,16 @@ Thank you.`;
     const [serverDraftSaved,setServerDraftSaved]=React.useState(false);
     const [serverDraftError,setServerDraftError]=React.useState('');
     const draftReadyRef=React.useRef(false);
+    const ADMISSION_FILE_PICKER_GUARD='samara_admission_file_picker_guard';
     React.useEffect(()=>{
       try{
         const raw=localStorage.getItem(ADMISSION_DRAFT_KEY);
         if(raw){
           const draft=JSON.parse(raw);
-          if(draft?.form&&window.confirm('An unfinished Admission form was found. Restore the saved draft?')){
+          const guardAt=Number(sessionStorage.getItem(ADMISSION_FILE_PICKER_GUARD)||0);
+          const returningFromDocumentPicker=guardAt>0&&(Date.now()-guardAt)<120000;
+          const shouldRestore=Boolean(draft?.form)&&(returningFromDocumentPicker||window.confirm('An unfinished Admission form was found. Restore the saved draft?'));
+          if(shouldRestore){
             setForm({...initial,...draft.form});
             setMeds(Array.isArray(draft.meds)&&draft.meds.length?draft.meds:[blankMedicine()]);
             setCare(Array.isArray(draft.care)&&draft.care.length?draft.care:[blankCare()]);
@@ -14614,10 +14618,15 @@ Thank you.`;
             setReturningPatient(draft.returningPatient||null);
             setDraftPatientId(draft.patient_id||'');
             setDraftRestored(true);
-            setMsg('Saved Admission draft restored. Uploaded files must be selected again for browser security.');
-          }else if(raw){
-            localStorage.removeItem(ADMISSION_DRAFT_KEY);
+            if(returningFromDocumentPicker){
+              sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD);
+              setMsg('Admission details preserved after document selection.');
+            }else{
+              setMsg('Saved Admission draft restored. Uploaded files must be selected again for browser security.');
+            }
           }
+          // Never delete a valid draft merely because Restore was declined.
+          // Starting a new admission must be an explicit action, not a side-effect of Cancel.
         }
       }catch(error){
         console.warn('Unable to restore Admission draft:',error);
@@ -15063,6 +15072,17 @@ Thank you.`;
         setCare([...care,{...blankCare(),care_type:name,is_locked:true}]);
       }
     }
+    function saveAdmissionDraftBeforeDocumentPicker(){
+      try{
+        localStorage.setItem(ADMISSION_DRAFT_KEY,JSON.stringify({
+          form,meds,care,familyAccess,returningPatient,patient_id:draftPatientId||null,saved_at:new Date().toISOString()
+        }));
+        sessionStorage.setItem(ADMISSION_FILE_PICKER_GUARD,String(Date.now()));
+        setLastAutoSavedAt(new Date());
+      }catch(error){
+        console.warn('Unable to preserve Admission before document selection:',error);
+      }
+    }
     function setCapturedFiles(setter,isPhoto,file){
       setter(prev=>isPhoto?[file]:[...(prev||[]),file]);
       if(isPhoto){
@@ -15074,9 +15094,9 @@ Thank you.`;
       return h('div',{className:'field capture-field'},
         h('label',null,label),
         h('div',{className:'capture-actions'},
-          h('label',{className:'btn btn-secondary file-button'},'Upload File',h('input',{type:'file',multiple:!isPhoto,accept,onChange:e=>{const picked=Array.from(e.target.files||[]);setter(isPhoto?picked.slice(0,1):picked);if(isPhoto&&picked[0]){if(patientPhotoPreview)URL.revokeObjectURL(patientPhotoPreview);setPatientPhotoPreview(URL.createObjectURL(picked[0]))}}})),
-          h('label',{className:'btn btn-secondary file-button'},'Mobile Camera',h('input',{type:'file',multiple:!isPhoto,accept:'image/*',capture:isPhoto?'user':'environment',onChange:e=>{const picked=Array.from(e.target.files||[]);setter(prev=>isPhoto?picked.slice(0,1):[...(prev||[]),...picked]);if(isPhoto&&picked[0]){if(patientPhotoPreview)URL.revokeObjectURL(patientPhotoPreview);setPatientPhotoPreview(URL.createObjectURL(picked[0]))}}})),
-          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCameraConfig({title:label,facingMode:isPhoto?'user':'environment',filePrefix:isPhoto?'patient-photo':'patient-document',onCapture:file=>setCapturedFiles(setter,isPhoto,file)})},'Webcam')
+          h('label',{className:'btn btn-secondary file-button'},'Upload File',h('input',{type:'file',multiple:!isPhoto,accept,onClick:saveAdmissionDraftBeforeDocumentPicker,onChange:e=>{sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD);const picked=Array.from(e.target.files||[]);setter(isPhoto?picked.slice(0,1):picked);if(isPhoto&&picked[0]){if(patientPhotoPreview)URL.revokeObjectURL(patientPhotoPreview);setPatientPhotoPreview(URL.createObjectURL(picked[0]))}}})),
+          h('label',{className:'btn btn-secondary file-button'},'Mobile Camera',h('input',{type:'file',multiple:!isPhoto,accept:'image/*',capture:isPhoto?'user':'environment',onClick:saveAdmissionDraftBeforeDocumentPicker,onChange:e=>{sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD);const picked=Array.from(e.target.files||[]);setter(prev=>isPhoto?picked.slice(0,1):[...(prev||[]),...picked]);if(isPhoto&&picked[0]){if(patientPhotoPreview)URL.revokeObjectURL(patientPhotoPreview);setPatientPhotoPreview(URL.createObjectURL(picked[0]))}}})),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{saveAdmissionDraftBeforeDocumentPicker();setCameraConfig({title:label,facingMode:isPhoto?'user':'environment',filePrefix:isPhoto?'patient-photo':'patient-document',onCapture:file=>{sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD);setCapturedFiles(setter,isPhoto,file)}})}},'Webcam')
         ),
         isPhoto&&patientPhotoPreview?h('img',{src:patientPhotoPreview,className:'patient-capture-preview',alt:'Patient preview'}):null,
         h('small',null,files?.length?`${files.length} file(s) selected`:'Choose an existing file, use the mobile camera, or open the webcam.')
