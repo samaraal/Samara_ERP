@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.94';
+  const APP_VERSION = '2.13.95';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -19778,6 +19778,8 @@ Please keep these login details confidential.`;
     const [rectificationNote,setRectificationNote]=React.useState('');
     const [showFinalDischarge,setShowFinalDischarge]=React.useState(false);
     const [finalDischargeRow,setFinalDischargeRow]=React.useState(null);
+    const finalDischargeSubmitting=React.useRef(false);
+    const finalDischargeCompleted=finalDischargeRow?.status==='Completed'||rows.some(row=>row.id===finalDischargeRow?.id&&row.status==='Completed');
     const [dischargeWhatsAppBusy,setDischargeWhatsAppBusy]=React.useState('');
     const [finalForm,setFinalForm]=React.useState({
       discharge_summary_handed_over:false,
@@ -20411,6 +20413,7 @@ Please keep these login details confidential.`;
     }
 
     async function openFinalDischarge(row){
+      finalDischargeSubmitting.current=false;
       const reviewResult=await client.rpc('discharge_workflow_workspace');
       if(reviewResult.error){notify('error','Departure review unavailable',reviewResult.error.message);return}
       const reviewed=reviewResult.data?.cases?.find(item=>item.id===row.id)?.reviews?.find(item=>item.status==='Approved');
@@ -20446,7 +20449,7 @@ Please keep these login details confidential.`;
 
     async function completeFinalDischarge(e){
       e.preventDefault();
-      if(!isNurse||isAssignedDirector||busy||!finalDischargeRow)return;
+      if(!isNurse||isAssignedDirector||busy||!finalDischargeRow||finalDischargeCompleted||finalDischargeSubmitting.current)return;
 
       const requiredChecks=[
         ['discharge_summary_handed_over','Discharge summary handed over'],
@@ -20506,6 +20509,7 @@ Please keep these login details confidential.`;
       }
 
       setBusy(true);
+      finalDischargeSubmitting.current=true;
       const {data,error}=await client.rpc('confirm_patient_departure_v4',{
         p_discharge_id:finalDischargeRow.id,
         p_late_entry_reason:finalForm.late_entry_reason?.trim()||null,
@@ -20531,10 +20535,11 @@ Please keep these login details confidential.`;
         p_valuables_handed_over:finalForm.valuables_handed_over,
         p_final_instructions_explained:finalForm.final_instructions_explained,
         p_patient_condition_confirmed:finalForm.patient_condition_confirmed
-      });
+      }).catch(error=>({error}));
       setBusy(false);
 
       if(error){
+        finalDischargeSubmitting.current=false;
         notify('error','Final discharge not completed',error.message||'Unable to complete final discharge.');
         return;
       }
@@ -20547,6 +20552,8 @@ Please keep these login details confidential.`;
         completed_at:new Date().toISOString(),
         actual_departure_at:new Date(finalForm.actual_departure_time+'+05:30').toISOString()
       };
+      // Lock the form as soon as the discharge is saved, before notifications finish.
+      setFinalDischargeRow(completedRow);
       let whatsappAccepted=false;
       let whatsappError='';
       try{
@@ -21128,8 +21135,10 @@ Doctor / Hospital: ${doctorHospital}`;
             h('button',{type:'button',className:'close',onClick:()=>setShowFinalDischarge(false)},'×')
           ),
           h('div',{className:'message success'},
+            finalDischargeCompleted?'Final discharge completed successfully. The patient has been discharged and the room and bed released.':
             'Accounts clearance completed. Confirm all clinical handover items and the patient’s actual departure before releasing the room and bed.'
           ),
+          h('fieldset',{disabled:busy||finalDischargeCompleted,style:{border:0,padding:0,margin:0,minWidth:0}},
           h('div',{className:'final-discharge-checklist'},
             [
               ['discharge_summary_handed_over','Discharge summary handed over'],
@@ -21196,9 +21205,12 @@ Doctor / Hospital: ${doctorHospital}`;
               })
             )
           ),
+          ),
+          finalDischargeCompleted&&h('div',{className:'message success',role:'status','aria-live':'polite'},'✓ Final discharge completed successfully. The room and bed have been released. You can close this window.'),
           h('div',{className:'actions'},
-            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowFinalDischarge(false)},'Cancel'),
-            h('button',{className:'btn btn-primary',disabled:busy},busy?'Completing…':'Complete Final Discharge & Release Room')
+            !finalDischargeCompleted&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>setShowFinalDischarge(false)},'Cancel'),
+            h('button',{className:'btn btn-primary',disabled:busy||finalDischargeCompleted},finalDischargeCompleted?'Discharge Completed':busy?'Completing…':'Complete Final Discharge & Release Room'),
+            finalDischargeCompleted&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowFinalDischarge(false)},'Close')
           )
         )
       ),
