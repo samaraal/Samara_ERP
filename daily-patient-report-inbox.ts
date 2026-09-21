@@ -216,13 +216,19 @@ Deno.serve(async req=>{
     try{
      const pr=await sb.from("patients").select("*").eq("id",pref.patient_id).single();
      if(pr.error)throw pr.error;if(pr.data.is_active===false){results.push({patient_id:pref.patient_id,status:"skipped_inactive"});continue}
-     const bytes=await makeReport(sb,pr.data,date),file=await uploadAndSign(sb,pr.data,date,bytes),wa=await sendWhatsApp(pref.recipient_mobile,pref.recipient_name||"Family Member",patientName(pr.data),date,file.url),provider=wa?.messages?.[0]?.id||null;
-     const inboxError=await recordWhatsAppInbox(sb,{patient:pr.data,recipientName:pref.recipient_name||"Family Member",recipientMobile:pref.recipient_mobile,date,providerId:provider,storagePath:file.path,scheduled:true});
-	     const patientLog=await sb.from("patient_communications").insert({patient_id:pr.data.id,communication_type:"Daily Intelligent Patient Report",method:"WhatsApp",recipient_type:"Relative",recipient_name:pref.recipient_name||"Family Member",recipient_number:digits(pref.recipient_mobile),report_date:date,status:"Accepted",provider_message_id:provider,message_preview:"Detailed two-page Intelligent Patient Report PDF",created_at:new Date().toISOString()});
+     const bytes=await makeReport(sb,pr.data,date),file=await uploadAndSign(sb,pr.data,date,bytes);
+     const recipients=[{name:pref.recipient_name||"Family Member",mobile:pref.recipient_mobile,enabled:true},{name:pref.secondary_recipient_name||"Family Member 2",mobile:pref.secondary_recipient_mobile,enabled:Boolean(pref.secondary_enabled&&pref.secondary_daily_whatsapp_enabled)}].filter((r:any)=>r.enabled&&digits(r.mobile).length>=10);
+     const deliveryResults:any[]=[];let inboxError:any=null,patientLog:any={error:null},provider:string|null=null;
+     for(const recipient of recipients){
+       const wa=await sendWhatsApp(recipient.mobile,recipient.name,patientName(pr.data),date,file.url);provider=wa?.messages?.[0]?.id||null;
+       const oneInboxError=await recordWhatsAppInbox(sb,{patient:pr.data,recipientName:recipient.name,recipientMobile:recipient.mobile,date,providerId:provider,storagePath:file.path,scheduled:true});if(oneInboxError)inboxError=oneInboxError;
+       const oneLog=await sb.from("patient_communications").insert({patient_id:pr.data.id,communication_type:"Daily Intelligent Patient Report",method:"WhatsApp",recipient_type:"Relative",recipient_name:recipient.name,recipient_number:digits(recipient.mobile),report_date:date,status:"Accepted",provider_message_id:provider,message_preview:"Detailed two-page Intelligent Patient Report PDF",created_at:new Date().toISOString()});if(oneLog.error)patientLog=oneLog;
+       deliveryResults.push({recipient:recipient.name,mobile:digits(recipient.mobile),provider_message_id:provider,inbox_recorded:!oneInboxError,patient_history_recorded:!oneLog.error});
+     }
 	     if(patientLog.error)console.error("DAILY_REPORT patient history insert failed",pref.patient_id,patientLog.error);
 	     const preferenceUpdate=await sb.from("patient_family_communication_preferences").update({last_report_sent_at:new Date().toISOString(),last_report_status:"Accepted by Meta",updated_at:new Date().toISOString()}).eq("patient_id",pref.patient_id);
 	     if(preferenceUpdate.error)console.error("DAILY_REPORT preference timestamp update failed",pref.patient_id,preferenceUpdate.error);
-	     results.push({patient_id:pr.data.id,status:"sent",provider_message_id:provider,inbox_recorded:!inboxError,patient_history_recorded:!patientLog.error,preference_updated:!preferenceUpdate.error});
+	     results.push({patient_id:pr.data.id,status:"sent",provider_message_id:provider,deliveries:deliveryResults,inbox_recorded:!inboxError,patient_history_recorded:!patientLog.error,preference_updated:!preferenceUpdate.error});
      console.log("DAILY_REPORT_SENT",JSON.stringify(results[results.length-1]));
     }catch(e){const error=e instanceof Error?e.message:String(e);console.error("DAILY_REPORT_FAILED",JSON.stringify({patient_id:pref.patient_id,error}));results.push({patient_id:pref.patient_id,status:"failed",error})}
    }
