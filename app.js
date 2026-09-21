@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.82';
+  const APP_VERSION = '2.13.83';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6300,7 +6300,7 @@ https://samaraassistedliving.com/`;
       if(!canReceive){setItem(null);return}
       try{
         const jobs=[];
-        if(isManagement||isAccounts||isNursing)jobs.push(client.from('patient_discharges').select('id,patient_id,status,management_status,accounts_status,created_at').order('created_at',{ascending:false}).limit(100));
+        if(isManagement||isAccounts||isNursing)jobs.push(client.from('patient_discharges').select('id,patient_id,status,management_status,accounts_status,discount_request_status,discount_request_reason,discount_suggested_amount,discount_requested_at,discount_decision,discount_approved_amount,created_at').order('created_at',{ascending:false}).limit(100));
         else jobs.push(Promise.resolve({data:[],error:null}));
         if(isAccounts)jobs.push(client.from('bill_charge_requests').select('id,patient_id,service_name,description,approval_status,created_at').eq('approval_status','Pending').order('created_at',{ascending:false}).limit(100));
         else jobs.push(Promise.resolve({data:[],error:null}));
@@ -6309,8 +6309,10 @@ https://samaraassistedliving.com/`;
         (dis.data||[]).forEach(row=>{
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
           if(['completed','closed','cancelled','canceled'].includes(status))return;
+          const discountStatus=String(row.discount_request_status||'').trim().toLowerCase();
           if(isManagement&&['','pending'].includes(management))candidates.push({key:`discharge-management-${row.id}-${management}`,kind:'Discharge',title:'Discharge approval required',detail:'A discharge has been initiated by Nursing and is waiting for Admin / Director review.',page:'Discharge',at:row.created_at});
-          if(isAccounts&&management==='approved'&&accounts!=='cleared')candidates.push({key:`discharge-accounts-${row.id}-${accounts}`,kind:'Discharge',title:'Discharge sent to Accounts',detail:'Management has approved the discharge. Accounts clearance is now required.',page:'Discharge Clearance',at:row.created_at});
+          if(isManagement&&management==='approved'&&discountStatus==='pending')candidates.push({key:`discharge-discount-${row.id}-${row.discount_requested_at||'pending'}`,kind:'Discount Request',title:'Discharge discount approval required',detail:`Accounts has requested discount consideration${row.discount_suggested_amount?` (suggested ₹${Number(row.discount_suggested_amount).toLocaleString('en-IN')})`:''}. Open Discharge to review and decide.`,page:'Discharge',at:row.discount_requested_at||row.created_at});
+          if(isAccounts&&management==='approved'&&accounts!=='cleared'&&discountStatus!=='pending')candidates.push({key:`discharge-accounts-${row.id}-${accounts}-${discountStatus||'none'}`,kind:'Discharge',title:discountStatus==='approved'||discountStatus==='declined'?'Discount decision received — Accounts action required':'Discharge sent to Accounts',detail:discountStatus==='approved'?`Management approved a discharge discount of ₹${Number(row.discount_approved_amount||0).toLocaleString('en-IN')}. Complete Accounts settlement.`:discountStatus==='declined'?'Management declined the discount request. Complete Accounts settlement with the payable amount.':'Management has approved the discharge. Accounts clearance is now required.',page:'Discharge Clearance',at:row.discount_decided_at||row.created_at});
           if(isNursing&&accounts==='cleared')candidates.push({key:`discharge-nursing-${row.id}-${status}`,kind:'Discharge',title:'Accounts cleared — Nursing action required',detail:'Accounts clearance is complete. Please complete Final Discharge Clearance and patient handover.',page:'Discharge',at:row.created_at});
         });
         if(isAccounts)(charges.data||[]).forEach(row=>candidates.push({key:`charge-${row.id}-${row.approval_status}`,kind:'Charge Request',title:'New charge request',detail:row.service_name||row.description||'A charge has been raised and is waiting for Accounts review.',page:'Charge Approvals',at:row.created_at}));
@@ -20577,7 +20579,7 @@ Doctor / Hospital: ${doctorHospital}`;
       h('span',{className:`badge ${row.accounts_status==='Cleared'?'':'off'}`},row.accounts_status==='Cleared'?'Cleared':(row.accounts_recheck_at||String(row.accounts_remarks||'').includes('Financial activity changed after clearance'))?'Recheck required':row.accounts_status||'Pending'),
       row.accounts_cleared_by_name||'—',
       row.accounts_cleared_at?fmt(row.accounts_cleared_at):'—',
-      h('span',{className:`badge ${row.status==='Completed'?'':'off'}`},row.status!=='Completed'&&(row.accounts_recheck_at||String(row.accounts_remarks||'').includes('Financial activity changed after clearance'))&&row.accounts_status!=='Cleared'?'Accounts recheck required':row.status||'Initiated'),
+      h('span',{className:`badge ${row.status==='Completed'?'':'off'}`},row.status!=='Completed'&&row.discount_request_status==='Pending'?'Discount Approval Pending — Admin / Director':row.status!=='Completed'&&(row.accounts_recheck_at||String(row.accounts_remarks||'').includes('Financial activity changed after clearance'))&&row.accounts_status!=='Cleared'?'Accounts recheck required':row.status||'Initiated'),
       row.status==='Completed'?(row.completed_by_name||'—'):'—',
       h('div',{className:'employee-actions'},
         isHistoricalDuplicate(row)&&['Admin','Manager','Nurse'].includes(profile?.role)&&h('button',{
