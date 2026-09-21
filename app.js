@@ -15458,24 +15458,39 @@ Thank you.`;
           errorCorrectionLevel:'M'
         });
 
+        // Resolve the resident photograph from the permanent patient record first and,
+        // if that pointer is missing/stale, from the latest saved Patient Photo/Photograph
+        // document.  Older uploads used "Patient Photograph", so searching only for
+        // "%Patient Photo%" made the consent photo appear intermittently.
         let photoDataUrl='';
         let photoPath=patient.photo_storage_path||admission.photo_storage_path||'';
         if(!photoPath&&patient.id){
-          const {data:photoDocs}=await client.from('patient_documents')
-            .select('storage_path,created_at')
+          const {data:photoDocs,error:photoDocError}=await client.from('patient_documents')
+            .select('storage_path,document_type,created_at')
             .eq('patient_id',patient.id)
-            .ilike('document_type','%Patient Photo%')
+            .in('document_type',['Patient Photo','Patient Photograph'])
             .order('created_at',{ascending:false})
             .limit(1);
+          if(photoDocError)console.warn('Unable to locate consent patient photo document:',photoDocError);
           photoPath=photoDocs?.[0]?.storage_path||'';
+          // Repair the patient master pointer so every later consent/report uses the same photo.
+          if(photoPath){
+            const {error:repairPhotoError}=await client.from('patients')
+              .update({photo_storage_path:photoPath})
+              .eq('id',patient.id);
+            if(repairPhotoError)console.warn('Unable to repair patient photo pointer:',repairPhotoError);
+          }
         }
         if(photoPath){
           const {data,error:photoUrlError}=await client.storage.from('patient-documents').createSignedUrl(photoPath,1800);
           if(photoUrlError)console.warn('Unable to create consent patient photo URL:',photoUrlError);
-          // Use the signed Storage URL directly in the print iframe. The Patient File already
-          // displays the same stored photograph this way; converting it with fetch/FileReader
-          // can fail because of browser/CORS restrictions and leaves an empty photo frame.
-          photoDataUrl=data?.signedUrl||'';
+          const signedPhotoUrl=data?.signedUrl||'';
+          if(signedPhotoUrl){
+            // Embed the actual image bytes in the print document. This prevents the browser's
+            // PDF renderer from dropping an expiring/private Storage URL while printing.
+            photoDataUrl=await urlToDataUrl(signedPhotoUrl);
+            if(!photoDataUrl)photoDataUrl=signedPhotoUrl;
+          }
         }
 
         const medicinesHtml=medicines.length
