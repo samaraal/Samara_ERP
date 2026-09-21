@@ -19,6 +19,32 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// Save API outcomes in the shared Inbox; provider IDs make accepted writes idempotent.
+async function recordCommunication(caller: any, body: any, to: string, result: any, accepted: boolean) {
+  const log = body.communication_log;
+  if (!log || typeof log !== "object") return { history_logged: false };
+  const providerId = result?.messages?.[0]?.id || null;
+  const now = new Date().toISOString();
+  const row = {
+    recipient_number: to, template_name: body.template_name || null,
+    communication_type: log.communication_type || "WhatsApp Message",
+    direction: "outbound", message_type: body.message_type || "template",
+    status: accepted ? "Accepted" : "Failed", provider_message_id: providerId,
+    message_content: log.message_content || "", message_payload: log.message_payload || {},
+    contact_name: log.contact_name || null, source_type: log.source_type || "Patient / Family",
+    sent_by: caller.profile.id, sent_by_name: log.sent_by_name || null,
+    sent_at: accepted ? now : null, failed_at: accepted ? null : now,
+    error_message: accepted ? null : String(result?.error?.message || "Meta rejected this message"),
+    created_at: now, updated_at: now,
+  };
+  const query = caller.db.from("hr_whatsapp_communications");
+  const { error } = providerId
+    ? await query.upsert(row, { onConflict: "provider_message_id", ignoreDuplicates: true })
+    : await query.insert(row);
+  if (error) console.error("WhatsApp Inbox recording failed", error.message);
+  return { history_logged: !error, ...(error ? { history_error: error.message } : {}) };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -78,11 +104,15 @@ Deno.serve(async (req) => {
     const result = await metaResponse.json();
     if (!metaResponse.ok) {
       console.error("Meta WhatsApp API error:", result);
-      return new Response(JSON.stringify({ success: false, error: result }), { status: metaResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const history = await recordCommunication(caller, body, to, result, false);
+      return new Response(JSON.stringify({ success: false, error: result, ...history }), { status: metaResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-    const { error: auditError } = await caller.db.from("audit_log").insert({ user_id: caller.user.id, action: "WhatsApp Sent", entity: "WhatsApp", details: { recipient: to, provider_message_id: result?.messages?.[0]?.id || null } });
+    const providerMessageId = result?.messages?.[0]?.id || null;
+    if (!providerMessageId) throw new Error("Meta did not confirm a message ID; acceptance is unknown. Check delivery logs before retrying.");
+    const history = await recordCommunication(caller, body, to, result, true);
+    const { error: auditError } = await caller.db.from("audit_log").insert({ user_id: caller.user.id, action: "WhatsApp Sent", entity: "WhatsApp", details: { recipient: to, provider_message_id: providerMessageId, template_name: body.template_name || null, history_logged: history.history_logged } });
     if (auditError) console.error("WhatsApp audit failed", auditError.message);
-    return new Response(JSON.stringify({ success: true, result }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ success: true, result, provider_message_id: providerMessageId, ...history }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
     console.error("WhatsApp send error:", error);
     return new Response(JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Unknown error" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
