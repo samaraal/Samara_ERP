@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.88';
+  const APP_VERSION = '2.13.89';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -17567,8 +17567,8 @@ Please keep these login details confidential.`;
     function editCaptureField(label,key,accept='image/*,.pdf',photo=false){
       const files=editUploads[key]||[];
       return h('div',{className:'field capture-field'},h('label',null,label),h('div',{className:'capture-actions'},
-        h('label',{className:'btn btn-secondary file-button'},'Upload File',h('input',{type:'file',multiple:!photo,accept,onChange:e=>addEditFiles(key,e.target.files,photo)})),
-        h('label',{className:'btn btn-secondary file-button'},'Mobile Camera',h('input',{type:'file',multiple:!photo,accept:'image/*',capture:photo?'user':'environment',onChange:e=>addEditFiles(key,e.target.files,photo)})),
+        h('label',{className:'btn btn-secondary file-button',onClick:e=>e.stopPropagation()},'Upload File',h('input',{type:'file',multiple:!photo,accept,onClick:e=>e.stopPropagation(),onChange:e=>{e.preventDefault();e.stopPropagation();const chosen=Array.from(e.target.files||[]);addEditFiles(key,chosen,photo);e.target.value='';}})),
+        h('label',{className:'btn btn-secondary file-button',onClick:e=>e.stopPropagation()},'Mobile Camera',h('input',{type:'file',multiple:!photo,accept:'image/*',capture:photo?'user':'environment',onClick:e=>e.stopPropagation(),onChange:e=>{e.preventDefault();e.stopPropagation();const chosen=Array.from(e.target.files||[]);addEditFiles(key,chosen,photo);e.target.value='';}})),
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setEditCameraConfig({title:label,facingMode:photo?'user':'environment',filePrefix:photo?'patient-photo':'patient-document',onCapture:file=>addEditFiles(key,[file],photo)})},'Webcam')
       ),h('small',null,files.length?`${files.length} new file(s) selected`:'No new file selected'));
     }
@@ -18106,7 +18106,8 @@ Please keep these login details confidential.`;
           careResult,
           roomResult,
           packageResult,
-          signedResult
+          signedResult,
+          photoResult
         ]=await Promise.all([
           client.from('medication_orders').select('*').eq('patient_id',row.id).order('created_at'),
           client.from('care_orders').select('*').eq('patient_id',row.id).order('created_at'),
@@ -18122,6 +18123,12 @@ Please keep these login details confidential.`;
             .select('*')
             .eq('patient_id',row.id)
             .eq('document_type','Signed Admission Consent Form')
+            .order('created_at',{ascending:false})
+            .limit(1),
+          client.from('patient_documents')
+            .select('*')
+            .eq('patient_id',row.id)
+            .in('document_type',['Patient Photo','Patient Photograph'])
             .order('created_at',{ascending:false})
             .limit(1)
         ]);
@@ -18152,6 +18159,13 @@ Please keep these login details confidential.`;
           };
           showPatientToast('success','Signed Admission Consent opened for printing.');
           return;
+        }
+
+        let consentPhotoUrl='';
+        const consentPhotoPath=row.photo_storage_path||photoResult.data?.[0]?.storage_path||'';
+        if(consentPhotoPath){
+          const {data:photoSigned}=await client.storage.from('patient-documents').createSignedUrl(consentPhotoPath,1800);
+          consentPhotoUrl=photoSigned?.signedUrl||'';
         }
 
         const qrGenerator=await ensurePatientQrGenerator();
@@ -18248,7 +18262,9 @@ Please keep these login details confidential.`;
   .brand-logo{display:block;width:210px;max-height:78px;object-fit:contain;object-position:left center}
   .brand{text-align:center}.document-title{font-size:17px;font-weight:800;line-height:1.25;color:#8a124f;margin:0}
   .qr{text-align:center}.qr img{width:88px;height:88px}.qr small{display:block;font-size:7px;color:#7a1247}
-  .identity{border:1px solid #c59bae;border-radius:7px;padding:9px;display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;margin-bottom:10px}
+  .identity-wrap{display:grid;grid-template-columns:1fr ${consentPhotoUrl?'92px':'0px'};gap:10px;align-items:start;margin-bottom:10px}
+  .identity{border:1px solid #c59bae;border-radius:7px;padding:9px;display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;margin:0}
+  .resident-photo{width:92px;height:112px;border:1px solid #c59bae;border-radius:7px;object-fit:cover;background:#faf5f8}
   h2{font-size:13px;margin:11px 0 4px;border-bottom:1px solid #d9a9c0;padding-bottom:3px;color:#8a124f}
   h3{font-size:11px;margin:8px 0 4px;color:#8a124f}
   p{margin:5px 0;text-align:justify}
@@ -18276,6 +18292,7 @@ Please keep these login details confidential.`;
     </div>
   </div>
 
+  <div class="identity-wrap">
   <div class="identity">
     <div><b>Resident:</b> ${escapeHtml(formalName(row))}</div>
     <div><b>Resident ID:</b> ${escapeHtml(patientCode)}</div>
@@ -18290,6 +18307,8 @@ Please keep these login details confidential.`;
     <div><b>Attendant Contact:</b> ${escapeHtml(row.attendant_phone||'—')}</div>
     <div><b>Billing:</b> ${escapeHtml(row.billing_package||'No Package / Daily Billing')}</div>
     <div><b>Condition:</b> ${escapeHtml(row.diagnosis||'—')}</div>
+  </div>
+  ${consentPhotoUrl?`<img class="resident-photo" src="${escapeHtml(consentPhotoUrl)}" alt="Resident photo">`:''}
   </div>
 
   <h2>1. Voluntary Admission and Authority</h2>
@@ -19437,7 +19456,7 @@ Please keep these login details confidential.`;
           )
         )
       ),
-      canEdit&&editTarget&&editForm&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal patient-edit-modal',onSubmit:savePatientEdit},
+      canEdit&&editTarget&&editForm&&h('div',{className:'modal-backdrop',onClick:e=>e.stopPropagation()},h('form',{className:'card modal patient-edit-modal',onClick:e=>e.stopPropagation(),onSubmit:savePatientEdit},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Edit Patient Information'),h('small',null,`${editTarget.patient_id||'—'} · Correct duplicate or wrongly entered details`)),h('button',{type:'button',className:'close',onClick:()=>{setEditTarget(null);setEditForm(null)}},'×')),
         editMsg&&h('div',{className:`message ${editMsg.includes('successfully')?'success':'error'}`},editMsg),
         h('div',{className:'modal-grid'},
