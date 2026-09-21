@@ -17178,6 +17178,8 @@ Please keep these login details confidential.`;
     const clinicalView=CLINICAL_ROLES.includes(profile?.role);
     const nursingManagerView=isNursingManagerProfile(profile);
     const [rows,setRows]=React.useState([]),[selected,setSelected]=React.useState(null),[details,setDetails]=React.useState(null),[photoUrl,setPhotoUrl]=React.useState(''),[tab,setTab]=React.useState('Overview');
+    const [clinicalHistoryRange,setClinicalHistoryRange]=React.useState('7');
+    const [clinicalHistoryDate,setClinicalHistoryDate]=React.useState(todayISOIndia());
     const consentResidentRef=React.useRef(null);consentResidentRef.current=selected?.id;
     const [patientSearch,setPatientSearch]=React.useState('');
     const [diagnosisDraft,setDiagnosisDraft]=React.useState('');
@@ -17261,7 +17263,7 @@ Please keep these login details confidential.`;
     function displayDailyReportTime(value){if(!value)return 'Not scheduled';const parts=String(value).slice(0,5).split(':');const hh=Number(parts[0]),mm=parts[1]||'00';if(!Number.isFinite(hh))return String(value);const suffix=hh>=12?'PM':'AM';const hour=hh%12||12;return `${hour}:${mm} ${suffix}`;}
     async function openPatient(p,desiredTab='Overview'){
       setSelected(p);setPhotoUrl('');setTab(desiredTab);
-      const [m,ma,mr,mri,c,cl,v,ph,ps,d,meal,bill,rec,inc,fam,mom,wa,pref,reportWa,url]=await Promise.all([
+      const [m,ma,mr,mri,c,cl,v,ph,ps,d,meal,bill,rec,inc,fam,mom,wa,pref,reportWa,hand,url]=await Promise.all([
         client.from('medication_orders').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}),
         client.from('medication_administrations').select('*').eq('patient_id',p.id).order('scheduled_date',{ascending:false}).limit(100),
         client.from('medication_reviews').select('*').eq('patient_id',p.id).order('reviewed_at',{ascending:false}),
@@ -17281,6 +17283,7 @@ Please keep these login details confidential.`;
         canEdit?client.from('hr_whatsapp_communications').select('id,recipient_number,template_name,status,provider_message_id,message_payload,created_at').in('template_name',['samara_family_portal_access','samara_patient_admission']).order('created_at',{ascending:false}).limit(500):Promise.resolve({data:[]}),
         canEdit?client.from('patient_family_communication_preferences').select('*').eq('patient_id',p.id).maybeSingle():Promise.resolve({data:null}),
         canEdit?client.from('patient_communications').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}).limit(50):Promise.resolve({data:[]}),
+        client.from('shift_handovers').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}).limit(100),
         resolvePatientPhoto(p)
       ]);
       const momentRows=await Promise.all((mom?.data||[]).map(async row=>{
@@ -17296,7 +17299,8 @@ Please keep these login details confidential.`;
         medicationReviewItems:(mri?.data||[]).filter(item=>(mr?.data||[]).some(review=>review.id===item.review_id)),
         medicationReviewError:[mr?.error,mri?.error].filter(Boolean).map(error=>error.message).join(' | '),
         mar:todayMar,
-        care:c.data||[],careLogs:cl.data||[],vitals:v.data||[],physio:ph.data||[],physioSessions:ps.data||[],docs:d.data||[],meals:meal.data||[],billing:bill.data||[],recovery:rec.data||[],incidents:inc.data||[],familyAccess:dedupeFamilyAccessRows(fam?.data||[]),dailyMoments:momentRows,familyWhatsApp:wa?.data||[],familyPreference:pref?.data||null,reportWhatsApp:reportWa?.data||[]
+        allMar:ma.data||[],
+        care:c.data||[],careLogs:cl.data||[],vitals:v.data||[],physio:ph.data||[],physioSessions:ps.data||[],docs:d.data||[],meals:meal.data||[],billing:bill.data||[],recovery:rec.data||[],incidents:inc.data||[],familyAccess:dedupeFamilyAccessRows(fam?.data||[]),dailyMoments:momentRows,familyWhatsApp:wa?.data||[],familyPreference:pref?.data||null,reportWhatsApp:reportWa?.data||[],handovers:hand?.data||[]
       });
       setPhotoUrl(url);
     }
@@ -19247,7 +19251,7 @@ Please keep these login details confidential.`;
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setTab('Consent')},'Consent'),
           canEdit?h('button',{className:'btn btn-secondary',onClick:()=>setShowFamilyDetails(true)},'Family Details'):null,
           canEdit?h('button',{className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Patient'):h('span',{className:'pill'},'View only'),h('button',{className:'close',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false)}},'×'))),
-        h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Admission Details'),tabButton('Documents',details.docs.length),tabButton('Consent',details.docs.filter(window.SamaraConsent.isConsent).length),tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),tabButton('Daily Moments',(details.dailyMoments||[]).length),!clinicalView?tabButton('Billing',details.billing.length,nursingManagerView?'Pending Dues':'Billing'):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
+        h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Admission Details'),tabButton('Documents',details.docs.length),tabButton('Consent',details.docs.filter(window.SamaraConsent.isConsent).length),(canEdit||nursingManagerView)?tabButton('Clinical History',(details.allMar||[]).length+(details.careLogs||[]).length+(details.vitals||[]).length+(details.physioSessions||[]).length):null,tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),tabButton('Daily Moments',(details.dailyMoments||[]).length),!clinicalView?tabButton('Billing',details.billing.length,nursingManagerView?'Pending Dues':'Billing'):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
         h('div',{className:'patient-tab-content'},
           tab==='Overview'&&h('div',{className:'tabs-grid'},
             h('div',{className:'section-card'},
@@ -19334,6 +19338,28 @@ Please keep these login details confidential.`;
           ),
           tab==='Consent'&&h(window.SamaraConsent.Panel,{key:selected.id,client,patient:selected,documents:details.docs,canUpload:canEdit,onOpen:openDoc,onPrint:canEdit?()=>printPatientConsent(selected):null,onSaved:(id,doc,changes)=>{if(consentResidentRef.current!==id)return;setSelected(current=>current?.id===id?{...current,...changes}:current);setDetails(current=>current?{...current,docs:[doc,...current.docs.filter(d=>d.id!==doc.id)]}:current);load();}}),
           tab==='Documents'&&h('div',{className:'section-card'},h('div',{className:'panel-head'},h('h4',null,'Patient Documents'),canEdit?h('button',{className:'btn btn-secondary',onClick:()=>printPatientIdCard(selected)},'Print Resident ID Card'):null),details.docs.length?details.docs.map(d=>h('div',{className:'timeline-item',key:d.id},h('strong',null,d.document_type||'Document'),h('span',null,d.document_name||d.file_name||'File'),h('button',{className:'btn btn-secondary',onClick:()=>openDoc(d)},'Open'))):sectionEmpty('No documents uploaded.')),
+          tab==='Clinical History'&&(canEdit||nursingManagerView)&&(()=>{
+            const dateOnly=value=>String(value||'').slice(0,10);
+            const selectedDate=clinicalHistoryDate||todayISOIndia();
+            const yesterday=(()=>{const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().slice(0,10)})();
+            const cutoff=(()=>{const d=new Date();d.setDate(d.getDate()-6);return d.toISOString().slice(0,10)})();
+            const itemDate=(row,fields)=>{for(const f of fields){if(row?.[f])return dateOnly(row[f]);}return ''};
+            const keep=(row,fields)=>{const d=itemDate(row,fields);if(!d)return false;if(clinicalHistoryRange==='today')return d===todayISOIndia();if(clinicalHistoryRange==='yesterday')return d===yesterday;if(clinicalHistoryRange==='custom')return d===selectedDate;return d>=cutoff&&d<=todayISOIndia();};
+            const medRows=(details.allMar||[]).filter(x=>keep(x,['scheduled_date','administered_at','created_at']));
+            const careRows=(details.careLogs||[]).filter(x=>keep(x,['care_date','completed_at','created_at']));
+            const vitalRows=(details.vitals||[]).filter(x=>keep(x,['recorded_at','created_at']));
+            const physioRows=(details.physioSessions||[]).filter(x=>keep(x,['session_date','session_at','created_at']));
+            const handoverRows=(details.handovers||[]).filter(x=>keep(x,['handover_date','created_at']));
+            const medName=x=>{const order=(details.medHistory||[]).find(m=>String(m.id)===String(x.order_id||x.medication_order_id));return x.medicine_name||order?.medicine_name||'Medicine'};
+            return h('div',{className:'clinical-history-tab'},
+              h('div',{className:'section-card'},h('div',{className:'panel-head'},h('div',null,h('h4',null,'Clinical History'),h('small',null,'Read-only resident-wise clinical record for Nursing Manager / Admin / Director. Historical entries cannot be edited here.'))),h('div',{className:'actions',style:{flexWrap:'wrap',gap:'8px'}},[['today','Today'],['yesterday','Yesterday'],['7','Last 7 Days'],['custom','Custom Date']].map(([value,label])=>h('button',{type:'button',key:value,className:`btn ${clinicalHistoryRange===value?'btn-primary':'btn-secondary'}`,onClick:()=>setClinicalHistoryRange(value)},label)),clinicalHistoryRange==='custom'&&h('input',{type:'date',value:clinicalHistoryDate,max:todayISOIndia(),onChange:e=>setClinicalHistoryDate(e.target.value),style:{minHeight:'42px'}}))),
+              h('div',{className:'section-card'},h('h4',null,`Medication Administration (${medRows.length})`),medRows.length?medRows.map(x=>h('div',{className:'timeline-item',key:`ch-med-${x.id}`},h('strong',null,`${formatDateIN(x.scheduled_date||dateOnly(x.administered_at||x.created_at))} · ${medicationTimeLabel(x.scheduled_time)||'—'} · ${medName(x)} · ${x.status||'Recorded'}`),h('span',{className:'patient-file-detail'},`Actual: ${x.administered_at?fmt(x.administered_at):'—'} · ${x.remarks||x.exception_reason||'No remarks'}${x.late_entry_justification?` · Late entry: ${x.late_entry_justification}`:''}`))):sectionEmpty('No medication administration records for the selected period.')),
+              h('div',{className:'section-card'},h('h4',null,`Care History (${careRows.length})`),careRows.length?careRows.map(x=>h('div',{className:'timeline-item',key:`ch-care-${x.id}`},h('strong',null,`${formatDateIN(x.care_date||dateOnly(x.created_at))} · ${x.care_type||'Care'} · ${x.shift||'—'} · ${x.status||'Recorded'}`),h('span',{className:'patient-file-detail'},x.remarks||'No remarks'))):sectionEmpty('No care records for the selected period.')),
+              h('div',{className:'section-card'},h('h4',null,`Vitals (${vitalRows.length})`),vitalRows.length?vitalRows.map(x=>h('div',{className:'timeline-item',key:`ch-vital-${x.id}`},h('strong',null,`${fmt(x.recorded_at||x.created_at)} · BP ${x.systolic||'—'}/${x.diastolic||'—'}`),h('span',{className:'patient-file-detail'},`Pulse ${x.pulse||'—'} · SpO₂ ${x.spo2||'—'} · Temp ${x.temperature||'—'} · Sugar ${x.blood_sugar_type||'Not Taken'} ${x.blood_sugar||'—'} · ${x.alert_level||'Normal'}`))):sectionEmpty('No vital signs for the selected period.')),
+              h('div',{className:'section-card'},h('h4',null,`Physiotherapy (${physioRows.length})`),physioRows.length?physioRows.map(x=>h('div',{className:'timeline-item',key:`ch-physio-${x.id}`},h('strong',null,`${formatDateIN(x.session_date||dateOnly(x.created_at))} · ${x.status||'Recorded'}`),h('span',{className:'patient-file-detail'},x.notes||'No notes'))):sectionEmpty('No physiotherapy sessions for the selected period.')),
+              h('div',{className:'section-card'},h('h4',null,`Shift Handover (${handoverRows.length})`),handoverRows.length?handoverRows.map(x=>h('div',{className:'timeline-item',key:`ch-hand-${x.id}`},h('strong',null,`${formatDateIN(x.handover_date||dateOnly(x.created_at))} · ${x.shift||'—'} · ${x.priority||'Routine'}`),h('span',{className:'patient-file-detail'},[x.patient_summary||x.summary,x.pending_tasks&&`Pending: ${x.pending_tasks}`,x.special_instructions&&`Instructions: ${x.special_instructions}`].filter(Boolean).join(' · ')||'No details'))):sectionEmpty('No shift handover records for the selected period.'))
+            );
+          })(),
           tab==='Medicines'&&h('div',{className:'patient-medication-tab'},
             h('div',{className:'section-card'},
               h('h4',null,'Current Prescription'),
