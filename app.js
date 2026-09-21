@@ -1348,9 +1348,14 @@ function initSamaraInaugurationInvitation(){
         mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9'/%3E%3Cpath d='M13.73 21a2 2 0 0 1-3.46 0'/%3E%3C/svg%3E")!important;
       }
 
-      .sidebar .nav-submenu button[data-nav='HR Dashboard']::before{content:'▦'!important;color:#a20f59!important}
-      .sidebar .nav-submenu button[data-nav='Career Applications']::before{content:'▤'!important;color:#c31c67!important}
-      .sidebar .nav-submenu button[data-nav='Interviews']::before{content:'◷'!important;color:#7d1748!important}
+      .sidebar .nav-submenu button[data-nav='HR Dashboard']::before{content:''!important;color:#a20f59!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='7' height='7' rx='1'/%3E%3Crect x='14' y='3' width='7' height='7' rx='1'/%3E%3Crect x='3' y='14' width='7' height='7' rx='1'/%3E%3Crect x='14' y='14' width='7' height='7' rx='1'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='7' height='7' rx='1'/%3E%3Crect x='14' y='3' width='7' height='7' rx='1'/%3E%3Crect x='3' y='14' width='7' height='7' rx='1'/%3E%3Crect x='14' y='14' width='7' height='7' rx='1'/%3E%3C/svg%3E")!important}
+      .sidebar .nav-submenu button[data-nav='Duty Assignment']::before{content:''!important;color:#c21872!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 11l2 2 4-4'/%3E%3Crect x='4' y='4' width='16' height='16' rx='2'/%3E%3Cpath d='M8 2v4M16 2v4M4 8h16'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 11l2 2 4-4'/%3E%3Crect x='4' y='4' width='16' height='16' rx='2'/%3E%3Cpath d='M8 2v4M16 2v4M4 8h16'/%3E%3C/svg%3E")!important}
+      .sidebar .nav-submenu button[data-nav='Duty Calendar']::before{content:''!important;color:#9b4bc1!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M8 3v4M16 3v4M3 10h18M8 14h2M14 14h2M8 18h2M14 18h2'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M8 3v4M16 3v4M3 10h18M8 14h2M14 14h2M8 18h2M14 18h2'/%3E%3C/svg%3E")!important}
+      .sidebar .nav-submenu button[data-nav='Staff Leave Calendar']::before{content:''!important;color:#e06a9f!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M8 3v4M16 3v4M3 10h18M8 15l2 2 5-5'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M8 3v4M16 3v4M3 10h18M8 15l2 2 5-5'/%3E%3C/svg%3E")!important}
+      .sidebar .nav-submenu button[data-nav='My Leave & Permission']::before{content:''!important;color:#d38a24!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z'/%3E%3Cpath d='M4 21a8 8 0 0 1 16 0M17 7h5M19.5 4.5v5'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z'/%3E%3Cpath d='M4 21a8 8 0 0 1 16 0M17 7h5M19.5 4.5v5'/%3E%3C/svg%3E")!important}
+      .sidebar .nav-submenu button[data-nav='Leave Approvals']::before{content:''!important;color:#2eaa72!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 11l2 2 5-5'/%3E%3Cpath d='M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 11l2 2 5-5'/%3E%3Cpath d='M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z'/%3E%3C/svg%3E")!important}
+      .sidebar .nav-submenu button[data-nav='Career Applications']::before{content:''!important;color:#c31c67!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='3' width='16' height='18' rx='2'/%3E%3Cpath d='M8 8h8M8 12h8M8 16h5'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='3' width='16' height='18' rx='2'/%3E%3Cpath d='M8 8h8M8 12h8M8 16h5'/%3E%3C/svg%3E")!important}
+      .sidebar .nav-submenu button[data-nav='Interviews']::before{content:''!important;color:#7d1748!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 3h8M9 3v3h6V3M5 8h14v12H5zM9 12h6M9 16h4'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 3h8M9 3v3h6V3M5 8h14v12H5zM9 12h6M9 16h4'/%3E%3C/svg%3E")!important}
       .sidebar .nav-submenu button[data-nav='Employees']::before{
         color:#c21872!important;
         -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='9' cy='8' r='4'/%3E%3Cpath d='M2 21a7 7 0 0 1 14 0M16 4a4 4 0 0 1 0 8M17 13a6 6 0 0 1 5 6'/%3E%3C/svg%3E")!important;
@@ -6282,6 +6287,47 @@ https://samaraassistedliving.com/`;
     );
   }
 
+  function WorkflowActionPopups({profile,onNavigate}){
+    const [item,setItem]=React.useState(null);
+    const closed=React.useRef(new Set());
+    const role=String(profile?.role||'').trim().toLowerCase();
+    const isManagement=['admin','administrator','director'].includes(role)||(role==='manager'&&!isNursingManagerProfile(profile));
+    const isAccounts=role==='accounts';
+    const isNursing=role==='nurse'||(role==='manager'&&isNursingManagerProfile(profile));
+    const canReceive=isManagement||isAccounts||isNursing;
+    const dismiss=current=>{if(current?.key)closed.current.add(current.key);setItem(null)};
+    const load=React.useCallback(async()=>{
+      if(!canReceive){setItem(null);return}
+      try{
+        const jobs=[];
+        if(isManagement||isAccounts||isNursing)jobs.push(client.from('patient_discharges').select('id,patient_id,status,management_status,accounts_status,created_at').order('created_at',{ascending:false}).limit(100));
+        else jobs.push(Promise.resolve({data:[],error:null}));
+        if(isAccounts)jobs.push(client.from('bill_charge_requests').select('id,patient_id,service_name,description,approval_status,created_at').eq('approval_status','Pending').order('created_at',{ascending:false}).limit(100));
+        else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges]=await Promise.all(jobs);
+        const candidates=[];
+        (dis.data||[]).forEach(row=>{
+          const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
+          if(['completed','closed','cancelled','canceled'].includes(status))return;
+          if(isManagement&&['','pending'].includes(management))candidates.push({key:`discharge-management-${row.id}-${management}`,kind:'Discharge',title:'Discharge approval required',detail:'A discharge has been initiated by Nursing and is waiting for Admin / Director review.',page:'Discharge',at:row.created_at});
+          if(isAccounts&&management==='approved'&&accounts!=='cleared')candidates.push({key:`discharge-accounts-${row.id}-${accounts}`,kind:'Discharge',title:'Discharge sent to Accounts',detail:'Management has approved the discharge. Accounts clearance is now required.',page:'Discharge Clearance',at:row.created_at});
+          if(isNursing&&accounts==='cleared')candidates.push({key:`discharge-nursing-${row.id}-${status}`,kind:'Discharge',title:'Accounts cleared — Nursing action required',detail:'Accounts clearance is complete. Please complete Final Discharge Clearance and patient handover.',page:'Discharge',at:row.created_at});
+        });
+        if(isAccounts)(charges.data||[]).forEach(row=>candidates.push({key:`charge-${row.id}-${row.approval_status}`,kind:'Charge Request',title:'New charge request',detail:row.service_name||row.description||'A charge has been raised and is waiting for Accounts review.',page:'Charge Approvals',at:row.created_at}));
+        candidates.sort((a,b)=>new Date(b.at||0)-new Date(a.at||0));
+        const next=candidates.find(x=>!closed.current.has(x.key));
+        setItem(current=>current&&candidates.some(x=>x.key===current.key)?current:(next||null));
+      }catch(error){console.warn('Workflow action pop-up unavailable:',error)}
+    },[profile?.id,role,isManagement,isAccounts,isNursing]);
+    React.useEffect(()=>{load();const timer=setInterval(load,30000);window.addEventListener('focus',load);window.addEventListener('samara-discharge-workflow-changed',load);return()=>{clearInterval(timer);window.removeEventListener('focus',load);window.removeEventListener('samara-discharge-workflow-changed',load)}},[load]);
+    if(!item)return null;
+    return h('div',{className:'modal-backdrop','data-manual-close':'true',style:{zIndex:10040}},h('div',{className:'card modal',role:'alertdialog','aria-modal':'true',style:{width:'min(520px,94vw)'}},
+      h('div',{className:'panel-head'},h('div',null,h('h3',null,item.title),h('small',null,item.kind+' workflow')),h('button',{type:'button',className:'close','aria-label':'Close',onClick:()=>dismiss(item)},'×')),
+      h('div',{className:'message warning',style:{margin:'12px 0'}},item.detail),
+      h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dismiss(item)},'Close'),h('button',{type:'button',className:'btn btn-primary',onClick:()=>{dismiss(item);onNavigate(item.page)}},'Open & Take Action'))
+    ));
+  }
+
   function StoreIndentAlerts({profile,onNavigate}){
     const [pending,setPending]=React.useState([]),[latest,setLatest]=React.useState(null);
     const initialised=React.useRef(false);
@@ -7193,6 +7239,7 @@ https://samaraassistedliving.com/`;
           h('h2',null,displayNavLabel(page,profile.role)),
           h(GlobalSearch,{onNavigate:setPage,profile}),
           h(StoreIndentAlerts,{profile,onNavigate:setPage}),
+          h(WorkflowActionPopups,{profile,onNavigate:setPage}),
           profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
           h('span',{className:'badge'},profile.role)
         ),
