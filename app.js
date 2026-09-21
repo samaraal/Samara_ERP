@@ -6300,7 +6300,7 @@ https://samaraassistedliving.com/`;
       if(!canReceive){setItem(null);return}
       try{
         const jobs=[];
-        if(isManagement||isAccounts||isNursing)jobs.push(client.from('patient_discharges').select('id,patient_id,status,management_status,accounts_status,discount_request_status,discount_request_reason,discount_suggested_amount,discount_requested_at,discount_decision,discount_approved_amount,created_at').order('created_at',{ascending:false}).limit(100));
+        if(isManagement||isAccounts||isNursing)jobs.push(client.from('patient_discharges').select('id,patient_id,status,management_status,accounts_status,discount_request_status,discount_request_reason,discount_suggested_amount,discount_requested_at,discount_decision,discount_approved_amount,discount_decided_at,created_at').order('created_at',{ascending:false}).limit(100));
         else jobs.push(Promise.resolve({data:[],error:null}));
         if(isAccounts)jobs.push(client.from('bill_charge_requests').select('id,patient_id,service_name,description,approval_status,created_at').eq('approval_status','Pending').order('created_at',{ascending:false}).limit(100));
         else jobs.push(Promise.resolve({data:[],error:null}));
@@ -6310,10 +6310,10 @@ https://samaraassistedliving.com/`;
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
           if(['completed','closed','cancelled','canceled'].includes(status))return;
           const discountStatus=String(row.discount_request_status||'').trim().toLowerCase();
-          if(isManagement&&['','pending'].includes(management))candidates.push({key:`discharge-management-${row.id}-${management}`,kind:'Discharge',title:'Discharge approval required',detail:'A discharge has been initiated by Nursing and is waiting for Admin / Director review.',page:'Discharge',at:row.created_at});
-          if(isManagement&&management==='approved'&&discountStatus==='pending')candidates.push({key:`discharge-discount-${row.id}-${row.discount_requested_at||'pending'}`,kind:'Discount Request',title:'Discharge discount approval required',detail:`Accounts has requested discount consideration${row.discount_suggested_amount?` (suggested ₹${Number(row.discount_suggested_amount).toLocaleString('en-IN')})`:''}. Open Discharge to review and decide.`,page:'Discharge',at:row.discount_requested_at||row.created_at});
-          if(isAccounts&&management==='approved'&&accounts!=='cleared'&&discountStatus!=='pending')candidates.push({key:`discharge-accounts-${row.id}-${accounts}-${discountStatus||'none'}`,kind:'Discharge',title:discountStatus==='approved'||discountStatus==='declined'?'Discount decision received — Accounts action required':'Discharge sent to Accounts',detail:discountStatus==='approved'?`Management approved a discharge discount of ₹${Number(row.discount_approved_amount||0).toLocaleString('en-IN')}. Complete Accounts settlement.`:discountStatus==='declined'?'Management declined the discount request. Complete Accounts settlement with the payable amount.':'Management has approved the discharge. Accounts clearance is now required.',page:'Discharge Clearance',at:row.discount_decided_at||row.created_at});
-          if(isNursing&&accounts==='cleared')candidates.push({key:`discharge-nursing-${row.id}-${status}`,kind:'Discharge',title:'Accounts cleared — Nursing action required',detail:'Accounts clearance is complete. Please complete Final Discharge Clearance and patient handover.',page:'Discharge',at:row.created_at});
+          if(isManagement&&['','pending'].includes(management))candidates.push({key:`discharge-management-${row.id}-${management}`,kind:'Discharge',title:'Discharge approval required',detail:'A discharge has been initiated by Nursing and is waiting for Admin / Director review.',page:'Discharge',target:{type:'management-review',discharge_id:row.id,patient_id:row.patient_id},at:row.created_at});
+          if(isManagement&&management==='approved'&&discountStatus==='pending')candidates.push({key:`discharge-discount-${row.id}-${row.discount_requested_at||'pending'}`,kind:'Discount Request',title:'Discharge discount approval required',detail:`Accounts has requested discount consideration${row.discount_suggested_amount?` (suggested ₹${Number(row.discount_suggested_amount).toLocaleString('en-IN')})`:''}. Open Discharge to review and decide.`,page:'Discharge',target:{type:'discount-review',discharge_id:row.id,patient_id:row.patient_id},at:row.discount_requested_at||row.created_at});
+          if(isAccounts&&management==='approved'&&accounts!=='cleared'&&discountStatus!=='pending')candidates.push({key:`discharge-accounts-${row.id}-${accounts}-${discountStatus||'none'}`,kind:'Discharge',title:discountStatus==='approved'||discountStatus==='declined'?'Discount decision received — Accounts action required':'Discharge sent to Accounts',detail:discountStatus==='approved'?`Management approved a discharge discount of ₹${Number(row.discount_approved_amount||0).toLocaleString('en-IN')}. Complete Accounts settlement.`:discountStatus==='declined'?'Management declined the discount request. Complete Accounts settlement with the payable amount.':'Management has approved the discharge. Accounts clearance is now required.',page:'Discharge Clearance',target:{type:'accounts-discharge',discharge_id:row.id,patient_id:row.patient_id},at:row.discount_decided_at||row.created_at});
+          if(isNursing&&accounts==='cleared')candidates.push({key:`discharge-nursing-${row.id}-${status}`,kind:'Discharge',title:'Accounts cleared — Nursing action required',detail:'Accounts clearance is complete. Please complete Final Discharge Clearance and patient handover.',page:'Discharge',target:{type:'nursing-discharge',discharge_id:row.id,patient_id:row.patient_id},at:row.created_at});
         });
         if(isAccounts)(charges.data||[]).forEach(row=>candidates.push({key:`charge-${row.id}-${row.approval_status}`,kind:'Charge Request',title:'New charge request',detail:row.service_name||row.description||'A charge has been raised and is waiting for Accounts review.',page:'Charge Approvals',at:row.created_at}));
         candidates.sort((a,b)=>new Date(b.at||0)-new Date(a.at||0));
@@ -6326,7 +6326,7 @@ https://samaraassistedliving.com/`;
     return h('div',{className:'modal-backdrop','data-manual-close':'true',style:{zIndex:10040}},h('div',{className:'card modal',role:'alertdialog','aria-modal':'true',style:{width:'min(520px,94vw)'}},
       h('div',{className:'panel-head'},h('div',null,h('h3',null,item.title),h('small',null,item.kind+' workflow')),h('button',{type:'button',className:'close','aria-label':'Close',onClick:()=>dismiss(item)},'×')),
       h('div',{className:'message warning',style:{margin:'12px 0'}},item.detail),
-      h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dismiss(item)},'Close'),h('button',{type:'button',className:'btn btn-primary',onClick:()=>{dismiss(item);onNavigate(item.page)}},'Open & Take Action'))
+      h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dismiss(item)},'Close'),h('button',{type:'button',className:'btn btn-primary',onClick:()=>{try{if(item.target)sessionStorage.setItem('samara-workflow-target',JSON.stringify(item.target));}catch(_error){} dismiss(item);onNavigate(item.page)}},'Open & Take Action'))
     ));
   }
 
@@ -19602,6 +19602,9 @@ Please keep these login details confidential.`;
         return value==='open'?'open':'';
       }catch(_error){return ''}
     });
+    const [workflowTarget,setWorkflowTarget]=React.useState(()=>{
+      try{return JSON.parse(sessionStorage.getItem('samara-workflow-target')||'null')}catch(_error){return null}
+    });
     const [paymentTarget,setPaymentTarget]=React.useState(null);
     const [managementReviewRow,setManagementReviewRow]=React.useState(null);
     const [managementBilling,setManagementBilling]=React.useState([]);
@@ -20220,6 +20223,20 @@ Please keep these login details confidential.`;
       notify('success',decision==='Approved'?'Discount approved':'Discount declined',decision==='Approved'?`₹${amount.toLocaleString('en-IN')} approved. The case has returned to Accounts for clearance.`:'The case has returned to Accounts without a discount.');
       await load();
     }
+
+    React.useEffect(()=>{
+      if(!workflowTarget||!rows.length)return;
+      const row=rows.find(r=>r.id===workflowTarget.discharge_id);
+      if(!row)return;
+      try{sessionStorage.removeItem('samara-workflow-target')}catch(_error){}
+      setWorkflowTarget(null);
+      setTimeout(()=>{
+        if(workflowTarget.type==='discount-review'&&canDecideDiscount&&row.discount_request_status==='Pending')decideDiscountRequest(row);
+        else if(workflowTarget.type==='management-review'&&canApprove)openManagementReview(row);
+        else if(workflowTarget.type==='accounts-discharge'&&canCloseAccounts)openPayments(row);
+        else if(workflowTarget.type==='nursing-discharge'&&isNurse)openFinalDischarge(row);
+      },120);
+    },[workflowTarget,rows.length]);
 
     async function closeAccounts(row){
       if(!canCloseAccounts||busy)return;
