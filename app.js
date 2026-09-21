@@ -15470,8 +15470,12 @@ Thank you.`;
           photoPath=photoDocs?.[0]?.storage_path||'';
         }
         if(photoPath){
-          const {data}=await client.storage.from('patient-documents').createSignedUrl(photoPath,300);
-          if(data?.signedUrl)photoDataUrl=await urlToDataUrl(data.signedUrl);
+          const {data,error:photoUrlError}=await client.storage.from('patient-documents').createSignedUrl(photoPath,1800);
+          if(photoUrlError)console.warn('Unable to create consent patient photo URL:',photoUrlError);
+          // Use the signed Storage URL directly in the print iframe. The Patient File already
+          // displays the same stored photograph this way; converting it with fetch/FileReader
+          // can fail because of browser/CORS restrictions and leaves an empty photo frame.
+          photoDataUrl=data?.signedUrl||'';
         }
 
         const medicinesHtml=medicines.length
@@ -15571,7 +15575,7 @@ Thank you.`;
       <div><b>Billing:</b> ${consentEscape(admission.billing_package)}</div>
       <div><b>Condition:</b> ${consentEscape(admission.diagnosis)}</div>
     </div>
-    ${photoDataUrl?`<div class="photo"><img src="${photoDataUrl}" alt="Resident photograph"></div>`:''}
+    ${photoDataUrl?`<div class="photo"><img src="${consentEscape(photoDataUrl)}" alt="Resident photograph"></div>`:''}
   </div>
 
   <h2>1. Voluntary Admission and Authority</h2>
