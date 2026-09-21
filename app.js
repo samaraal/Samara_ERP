@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.89';
+  const APP_VERSION = '2.13.90';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -16407,7 +16407,7 @@ Please keep these login details confidential.`;
           photoFiles,
           setPhotoFiles,
           'image/*',
-          false
+          true
         ),
         patientCaptureInput(
           returningPatient?'New Aadhaar / ID Card (only if changed)':'Aadhaar / Identity Card (temporary exception allowed)',
@@ -17564,13 +17564,38 @@ Please keep these login details confidential.`;
       const picked=Array.from(files||[]);setEditUploads(prev=>({...prev,[key]:replace?picked.slice(0,1):[...(prev[key]||[]),...picked]}));
       if(key==='photo'&&picked[0]){if(editPhotoUrl&&editPhotoUrl.startsWith('blob:'))URL.revokeObjectURL(editPhotoUrl);setEditPhotoUrl(URL.createObjectURL(picked[0]))}
     }
+    const EDIT_DOCUMENT_TYPES={photo:'Patient Photo',identity:'Identity Proof',prescription:'Current Prescription',discharge:'Discharge / Transfer Summary',reports:'Lab / Scan / Test Report',other:'Other Medical Document'};
+    async function uploadEditFilesImmediately(key,files,photo=false){
+      const chosen=Array.from(files||[]);
+      if(!editTarget?.id||!chosen.length)return;
+      setEditMsg(`Uploading ${chosen.length>1?`${chosen.length} files`:'file'}…`);
+      try{
+        for(const file of chosen){
+          const mime=String(file.type||'').toLowerCase();
+          const name=String(file.name||'').toLowerCase();
+          const allowed=mime==='application/pdf'||mime.startsWith('image/')||/\.(jpe?g|png|webp|heic|heif|pdf)$/i.test(name);
+          if(!allowed)throw new Error('Please use JPG/JPEG, PNG, HEIC/HEIF, WEBP or PDF files.');
+          if(file.size>15*1024*1024)throw new Error(`${file.name||'Document'} is larger than 15 MB.`);
+          await uploadEditDocument(editTarget.id,file,EDIT_DOCUMENT_TYPES[key]||'Other Medical Document',photo);
+        }
+        setEditUploads(prev=>({...prev,[key]:[]}));
+        await loadEditMedia({...editTarget,photo_storage_path:photo?null:editTarget.photo_storage_path});
+        await load();
+        setEditMsg(`${labelForEditDocument(key)} uploaded successfully. You can continue editing this patient.`);
+      }catch(error){
+        console.error('Patient document upload failed:',error);
+        setEditMsg(`Upload failed: ${error.message||error}`);
+      }
+    }
+    function labelForEditDocument(key){return ({photo:'Patient photo',identity:'Aadhaar / identity document',prescription:'Prescription',discharge:'Discharge / transfer summary',reports:'Report',other:'Document'})[key]||'Document'}
     function editCaptureField(label,key,accept='image/*,.pdf',photo=false){
       const files=editUploads[key]||[];
+      const pick=async e=>{e.preventDefault();e.stopPropagation();const chosen=Array.from(e.target.files||[]);e.target.value='';if(!chosen.length)return;addEditFiles(key,chosen,photo);await uploadEditFilesImmediately(key,chosen,photo)};
       return h('div',{className:'field capture-field'},h('label',null,label),h('div',{className:'capture-actions'},
-        h('label',{className:'btn btn-secondary file-button',onClick:e=>e.stopPropagation()},'Upload File',h('input',{type:'file',multiple:!photo,accept,onClick:e=>e.stopPropagation(),onChange:e=>{e.preventDefault();e.stopPropagation();const chosen=Array.from(e.target.files||[]);addEditFiles(key,chosen,photo);e.target.value='';}})),
-        h('label',{className:'btn btn-secondary file-button',onClick:e=>e.stopPropagation()},'Mobile Camera',h('input',{type:'file',multiple:!photo,accept:'image/*',capture:photo?'user':'environment',onClick:e=>e.stopPropagation(),onChange:e=>{e.preventDefault();e.stopPropagation();const chosen=Array.from(e.target.files||[]);addEditFiles(key,chosen,photo);e.target.value='';}})),
-        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setEditCameraConfig({title:label,facingMode:photo?'user':'environment',filePrefix:photo?'patient-photo':'patient-document',onCapture:file=>addEditFiles(key,[file],photo)})},'Webcam')
-      ),h('small',null,files.length?`${files.length} new file(s) selected`:'No new file selected'));
+        h('label',{className:'btn btn-secondary file-button',onClick:e=>e.stopPropagation()},'Upload File',h('input',{type:'file',multiple:!photo,accept,onClick:e=>e.stopPropagation(),onChange:pick})),
+        h('label',{className:'btn btn-secondary file-button',onClick:e=>e.stopPropagation()},'Mobile Camera',h('input',{type:'file',multiple:!photo,accept:'image/*',capture:photo?'user':'environment',onClick:e=>e.stopPropagation(),onChange:pick})),
+        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setEditCameraConfig({title:label,facingMode:photo?'user':'environment',filePrefix:photo?'patient-photo':'patient-document',onCapture:async file=>{addEditFiles(key,[file],photo);await uploadEditFilesImmediately(key,[file],photo)}})},'Webcam')
+      ),h('small',null,files.length?`${files.length} file(s) uploading…`:'Choose a file. It uploads immediately and this patient window stays open.'));
     }
     async function uploadEditDocument(patientId,file,type,isPhoto=false){
       const safe=String(file.name||type).replace(/[^a-zA-Z0-9._-]/g,'_');const path=`${patientId}/${Date.now()}-${Math.random().toString(36).slice(2,8)}-${safe}`;
