@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.92';
+  const APP_VERSION = '2.13.93';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -17133,6 +17133,7 @@ Please keep these login details confidential.`;
     const clinicalView=CLINICAL_ROLES.includes(profile?.role);
     const nursingManagerView=isNursingManagerProfile(profile);
     const [rows,setRows]=React.useState([]),[selected,setSelected]=React.useState(null),[details,setDetails]=React.useState(null),[photoUrl,setPhotoUrl]=React.useState(''),[tab,setTab]=React.useState('Overview');
+    const consentResidentRef=React.useRef(null);consentResidentRef.current=selected?.id;
     const [patientSearch,setPatientSearch]=React.useState('');
     const [diagnosisDraft,setDiagnosisDraft]=React.useState('');
     const [allergyDraft,setAllergyDraft]=React.useState('');
@@ -19157,9 +19158,10 @@ Please keep these login details confidential.`;
         h('button',{type:'button',className:'patient-mobile-back',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('')}},'← Back to Patients'),
         h('div',{className:'panel-head patient-master-header'},h('div',{className:'patient-head',style:{display:'flex',alignItems:'center',gap:'14px',minWidth:0,flex:'1 1 auto'}},photoUrl?h('img',{src:photoUrl,className:'patient-photo',alt:`${formalName(selected)} photo`,style:{width:'92px',height:'108px',maxWidth:'92px',minWidth:'92px',maxHeight:'108px',objectFit:'cover',objectPosition:'center',borderRadius:'16px',border:'1px solid #ead0de',background:'#fff',display:'block',flex:'0 0 92px'}}):h('div',{className:'patient-photo patient-photo-placeholder',style:{width:'92px',height:'108px',maxWidth:'92px',minWidth:'92px',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'16px',flex:'0 0 92px'}},'SC'),h('div',{style:{minWidth:0,flex:'1 1 auto'}},h('h3',null,formalName(selected)),h('small',null,`${selected.patient_id||'—'} · ${selected.admission_type||''} · ${selected.patient_category||''}`),h('div',{className:'patient-header-badges'},h('span',{className:'badge'},selected.is_active===false?'Inactive':'Active'),selected.room_no&&selected.bed_no?h('span',{className:'pill'},`Room ${selected.room_no} · Bed ${selected.bed_no}`):h('span',{className:'pill warning'},'Room not assigned'),selected.special_nurse_required?h('span',{className:'pill warning'},`Special nurse: ${selected.special_nurse_name||'Required'}`):null))),h('div',{className:'employee-actions'},
           h('button',{className:'btn btn-secondary',onClick:()=>setTab('Admission Details')},'Admission Details'),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setTab('Consent')},'Consent'),
           canEdit?h('button',{className:'btn btn-secondary',onClick:()=>setShowFamilyDetails(true)},'Family Details'):null,
           canEdit?h('button',{className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Patient'):h('span',{className:'pill'},'View only'),h('button',{className:'close',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false)}},'×'))),
-        h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Admission Details'),tabButton('Documents',details.docs.length),tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),tabButton('Daily Moments',(details.dailyMoments||[]).length),!clinicalView?tabButton('Billing',details.billing.length,nursingManagerView?'Pending Dues':'Billing'):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
+        h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Admission Details'),tabButton('Documents',details.docs.length),tabButton('Consent',details.docs.filter(window.SamaraConsent.isConsent).length),tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),tabButton('Daily Moments',(details.dailyMoments||[]).length),!clinicalView?tabButton('Billing',details.billing.length,nursingManagerView?'Pending Dues':'Billing'):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
         h('div',{className:'patient-tab-content'},
           tab==='Overview'&&h('div',{className:'tabs-grid'},
             h('div',{className:'section-card'},
@@ -19244,6 +19246,7 @@ Please keep these login details confidential.`;
               h(TamilAssist,{text:[selected.special_instructions,selected.special_precautions||selected.precautions].filter(Boolean).join('\n'),context:'Patient Special Instructions and Precautions'})
             )
           ),
+          tab==='Consent'&&h(window.SamaraConsent.Panel,{key:selected.id,client,patient:selected,documents:details.docs,canUpload:canEdit,onOpen:openDoc,onPrint:canEdit?()=>printPatientConsent(selected):null,onSaved:(id,doc,changes)=>{if(consentResidentRef.current!==id)return;setSelected(current=>current?.id===id?{...current,...changes}:current);setDetails(current=>current?{...current,docs:[doc,...current.docs.filter(d=>d.id!==doc.id)]}:current);load();}}),
           tab==='Documents'&&h('div',{className:'section-card'},h('div',{className:'panel-head'},h('h4',null,'Patient Documents'),canEdit?h('button',{className:'btn btn-secondary',onClick:()=>printPatientIdCard(selected)},'Print Resident ID Card'):null),details.docs.length?details.docs.map(d=>h('div',{className:'timeline-item',key:d.id},h('strong',null,d.document_type||'Document'),h('span',null,d.document_name||d.file_name||'File'),h('button',{className:'btn btn-secondary',onClick:()=>openDoc(d)},'Open'))):sectionEmpty('No documents uploaded.')),
           tab==='Medicines'&&h('div',{className:'patient-medication-tab'},
             h('div',{className:'section-card'},
