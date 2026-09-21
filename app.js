@@ -15459,7 +15459,16 @@ Thank you.`;
         });
 
         let photoDataUrl='';
-        const photoPath=patient.photo_storage_path||admission.photo_storage_path||'';
+        let photoPath=patient.photo_storage_path||admission.photo_storage_path||'';
+        if(!photoPath&&patient.id){
+          const {data:photoDocs}=await client.from('patient_documents')
+            .select('storage_path,created_at')
+            .eq('patient_id',patient.id)
+            .ilike('document_type','%Patient Photo%')
+            .order('created_at',{ascending:false})
+            .limit(1);
+          photoPath=photoDocs?.[0]?.storage_path||'';
+        }
         if(photoPath){
           const {data}=await client.storage.from('patient-documents').createSignedUrl(photoPath,300);
           if(data?.signedUrl)photoDataUrl=await urlToDataUrl(data.signedUrl);
@@ -16173,7 +16182,9 @@ Please keep these login details confidential.`;
         await saveFamilyCommunicationPreference(patient);
         const portalCredential=familyPortalEnabled?await saveFamilyPortalAccess(patient):null;
         const admissionCredential=admissionWhatsAppCredential(patient,portalCredential);
-        if(photoFiles[0])await uploadPatientFile(patient.id,photoFiles[0],'Patient Photo',true);
+        let admissionPhotoPath=patient.photo_storage_path||'';
+        if(photoFiles[0])admissionPhotoPath=await uploadPatientFile(patient.id,photoFiles[0],'Patient Photo',true);
+        if(admissionPhotoPath)patient={...patient,photo_storage_path:admissionPhotoPath};
         for(const f of idFiles)await uploadPatientFile(patient.id,f,'Identity Proof');
         for(const f of dischargeFiles)await uploadPatientFile(patient.id,f,needsHospital?'Discharge / Transfer Summary':'Medical History');
         for(const f of prescriptionFiles)await uploadPatientFile(patient.id,f,'Current Prescription');
@@ -18353,7 +18364,7 @@ Please keep these login details confidential.`;
   <p>Samara Care is an assisted-living and supportive-care facility and is not represented as a full-service hospital. Services may include accommodation, assistance with activities of daily living, medication support according to recorded prescriptions, nutrition support, nursing observation, physiotherapy where arranged, and coordination with external doctors, laboratories, ambulances and hospitals. Clinical emergencies or needs beyond the facility’s capability may require transfer to an appropriate hospital.</p>
 
   <h2>3. Medical Information, Medication and Emergency Authorisation</h2>
-  <p>The Resident or Representative confirms that known illnesses, allergies, medicines, behavioural concerns, mobility risks and special instructions have been disclosed accurately. Consent is given to administer or assist with prescribed medicines according to the recorded medication orders and to contact the treating doctor when required. In an emergency, Samara Assisted Living is authorised to arrange first aid, ambulance transport and hospital evaluation where reasonably necessary. The hospital may be of Samara's choice depending upon the situation and the patient's condition. External medical, ambulance, investigation and hospital expenses remain chargeable as applicable.</p>
+  <p>The Resident or Representative confirms that known illnesses, allergies, medicines, behavioural concerns, mobility risks and special instructions have been disclosed accurately. Consent is given to administer or assist with medicines according to the recorded prescription and to contact the treating doctor. In an emergency, Samara Care is authorised to arrange first aid, ambulance transport and hospital evaluation where reasonably necessary. External medical, ambulance, investigation and hospital expenses remain chargeable as applicable.</p>
 
   <h3>Current Medicines Recorded at Admission</h3>
   <table>
