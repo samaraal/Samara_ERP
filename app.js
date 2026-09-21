@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.76';
+  const APP_VERSION = '2.13.77';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,8 +250,8 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '14-Sep-2026 Staff workflow improvements and security safeguards';
-  const APP_SCHEMA_VERSION = '37';
+  const APP_BUILD_DATE = '21-Sep-2026 Admission contacts and numbered clinical lists';
+  const APP_SCHEMA_VERSION = '38';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
   const RESIDENT_PROFESSIONS=[
@@ -891,6 +891,16 @@ function initSamaraInaugurationInvitation(){
       .login-app-help-actions button:hover,.login-app-help-actions button:focus{background:#eef8f6}
       .sidebar-footer{display:grid!important;gap:8px!important}
       .mobile-update-button{width:100%!important;min-height:45px!important;margin-bottom:7px!important;border:1px solid #dfc7d3!important;border-radius:13px!important;background:#fff!important;color:#7a1247!important;font-weight:850!important}
+
+      .clinical-list-field{position:relative}
+      .clinical-numbered-list{margin:0 0 8px 22px;padding:0;display:grid;gap:6px}
+      .clinical-numbered-list li{padding:7px 8px;border:1px solid #ead3de;border-radius:9px;background:#fffafd}
+      .clinical-numbered-list li span{display:inline}
+      .clinical-list-remove{float:right;border:0;background:transparent;color:#a20f55;font-size:20px;font-weight:800;line-height:1;cursor:pointer}
+      .clinical-add-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;align-items:center}
+      .clinical-add-button{min-width:68px;min-height:40px}
+      .clinical-empty{margin:0 0 7px}
+      @media(max-width:700px){.clinical-add-row{grid-template-columns:minmax(0,1fr) auto}.clinical-add-button{min-width:62px;padding-left:10px!important;padding-right:10px!important}}
 
       .sidebar .nav-submenu button[data-nav='WhatsApp Inbox']::before{content:'◉'!important;color:#169b67!important}
       .sidebar .nav-submenu button[data-nav='Mail Dashboard']::before{content:'✉'!important;color:#b01264!important}
@@ -5370,7 +5380,7 @@ https://samaraassistedliving.com/`;
 
   const FORM_FIELD_CATALOG = [
     ['Admissions','Patient name'],['Admissions','Age'],['Admissions','Gender'],['Admissions','Mobile'],
-    ['Admissions','State'],['Admissions','District'],['Admissions','Taluk'],['Admissions','Village / Town / City'],['Admissions','Locality / Area'],['Admissions','Street / Road Name'],['Admissions','Door / House No.'],['Admissions','Apartment / Building'],['Admissions','Flat No.'],['Admissions','Landmark'],['Admissions','PIN Code'],['Admissions','Family / attendant name'],['Admissions','Attendant phone'],
+    ['Admissions','State'],['Admissions','District'],['Admissions','Taluk'],['Admissions','Village / Town / City'],['Admissions','Locality / Area'],['Admissions','Street / Road Name'],['Admissions','Door / House No.'],['Admissions','Apartment / Building'],['Admissions','Flat No.'],['Admissions','Landmark'],['Admissions','PIN Code'],['Admissions','Family / attendant name'],['Admissions','Attendant phone'],['Admissions','Alternative Mobile No.'],
     ['Admissions','Patient category'],['Admissions','Admission date'],['Admissions','Admission source'],
     ['Admissions','Hospital name'],['Admissions','Diagnosis / procedure'],['Admissions','Treating doctor'],
     ['Admissions','Doctor phone'],['Admissions','Known allergies'],['Admissions','Room number'],
@@ -14473,9 +14483,9 @@ Thank you.`;
 
   function Admissions({profile,onNavigate}){
     const today=new Date().toISOString().slice(0,10);
-    const initial={admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'',address:'',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'',referring_doctor:'',referring_source:'',family_doctor:'',attendant_name:'',attendant_phone:'',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
+    const initial={admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
     const [form,setForm]=React.useState(initial),[meds,setMeds]=React.useState([blankMedicine()]),[care,setCare]=React.useState([blankCare()]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
-    const [familyAccess,setFamilyAccess]=React.useState({delivery_mode:'Family Portal Access',enabled:true,relative_name:'',relationship:'',mobile:'',email:'',primary_contact:true,daily_whatsapp_time:'20:00'});
+    const [familyAccess,setFamilyAccess]=React.useState({delivery_mode:'Family Portal Access',enabled:true,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:true,daily_whatsapp_time:'20:00'});
     const familyPortalEnabled=['Family Portal Access','Both'].includes(familyAccess.delivery_mode);
     const dailyWhatsAppEnabled=['Daily WhatsApp Update','Both'].includes(familyAccess.delivery_mode);
     const [familyCredential,setFamilyCredential]=React.useState(null);
@@ -14533,6 +14543,8 @@ Thank you.`;
     const [returningPatient,setReturningPatient]=React.useState(null);
     const [draftPatientId,setDraftPatientId]=React.useState('');
     const [patientSearch,setPatientSearch]=React.useState('');
+    const [diagnosisDraft,setDiagnosisDraft]=React.useState('');
+    const [allergyDraft,setAllergyDraft]=React.useState('');
     const [matchList,setMatchList]=React.useState([]);
     const ADMISSION_DRAFT_KEY=`samara_admission_draft_${profile?.id||'current'}`;
     const [draftRestored,setDraftRestored]=React.useState(false);
@@ -14677,7 +14689,7 @@ Thank you.`;
       let alive=true;
       async function loadPreviousPatients(){
         const {data,error}=await client.from('patients')
-          .select('id,patient_id,patient_code,title,full_name,age,gender,blood_group,profession,profession_field,employment_status,mobile,address,state,district,taluk,village_town,locality_area,street_name,house_no,apartment_name,flat_no,landmark,pincode,attendant_name,attendant_phone,allergies,diagnosis,treating_doctor,doctor_phone,hospital_name,photo_storage_path,is_active,admission_date,discharge_date,patient_category,billing_package,diet_plan,feeding_instruction,special_instructions')
+          .select('id,patient_id,patient_code,title,full_name,age,gender,blood_group,profession,profession_field,employment_status,mobile,address,state,district,taluk,village_town,locality_area,street_name,house_no,apartment_name,flat_no,landmark,pincode,attendant_name,attendant_phone,attendant_alternative_phone,allergies,diagnosis,treating_doctor,doctor_phone,hospital_name,photo_storage_path,is_active,admission_date,discharge_date,patient_category,billing_package,diet_plan,feeding_instruction,special_instructions')
           .order('full_name',{ascending:true});
         if(!alive)return;
         if(error){
@@ -14693,6 +14705,42 @@ Thank you.`;
     },[]);
 
     const normalizePhone=value=>String(value||'').replace(/\D/g,'').slice(-10);
+    const countryMobile=value=>{
+      const digits=String(value||'').replace(/\D/g,'');
+      const local=digits.startsWith('91')?digits.slice(2,12):digits.slice(-10);
+      return `+91 ${local}`;
+    };
+    const numberedItems=value=>String(value||'').split(/\n+/).map(x=>x.replace(/^\s*\d+[.)]\s*/, '').trim()).filter(Boolean);
+    const numberedText=items=>items.map((item,index)=>`${index+1}. ${item}`).join('\n');
+    function addNumberedClinicalItem(key,draft,setDraft){
+      const item=String(draft||'').trim();
+      if(!item)return;
+      const items=numberedItems(form[key]);
+      setForm(current=>({...current,[key]:numberedText([...items,item])}));
+      setDraft('');
+    }
+    function removeNumberedClinicalItem(key,index){
+      const items=numberedItems(form[key]).filter((_,i)=>i!==index);
+      setForm(current=>({...current,[key]:numberedText(items)}));
+    }
+    function mobileField(label,key,required=false){
+      return h('div',{className:'field',key},h('label',null,`${label}${required?' *':''}`),h('input',{
+        type:'tel',inputMode:'tel',required,value:form[key]||'+91 ',placeholder:'+91 9876543210',
+        onFocus:e=>{if(!String(e.target.value||'').trim())setForm(current=>({...current,[key]:'+91 '}))},
+        onChange:e=>setForm(current=>({...current,[key]:countryMobile(e.target.value)}))
+      }));
+    }
+    function numberedClinicalField(label,key,draft,setDraft,required=false){
+      const items=numberedItems(form[key]);
+      return h('div',{className:'field clinical-list-field'},
+        h('label',null,`${label}${required?' *':''}`),
+        items.length?h('ol',{className:'clinical-numbered-list'},items.map((item,index)=>h('li',{key:`${key}-${index}`},h('span',null,item),h('button',{type:'button',className:'clinical-list-remove',title:'Remove',onClick:()=>removeNumberedClinicalItem(key,index)},'×')))):h('div',{className:'small-note clinical-empty'},'No item added yet.'),
+        h('div',{className:'clinical-add-row'},
+          h('input',{value:draft,placeholder:`Enter ${label.toLowerCase()} and click Add`,onChange:e=>setDraft(e.target.value),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();addNumberedClinicalItem(key,draft,setDraft)}}}),
+          h('button',{type:'button',className:'btn btn-secondary clinical-add-button',onClick:()=>addNumberedClinicalItem(key,draft,setDraft)},'Add')
+        )
+      );
+    }
     const normalizeText=value=>String(value||'').trim().toLowerCase().replace(/\s+/g,' ');
     function findReturningPatients(value){
       const raw=String(value||'').trim();
@@ -14753,7 +14801,8 @@ Thank you.`;
         landmark:patient.landmark||'',
         pincode:patient.pincode||'',
         attendant_name:patient.attendant_name||'',
-        attendant_phone:patient.attendant_phone||'',
+        attendant_phone:patient.attendant_phone||'+91 ',
+        attendant_alternative_phone:patient.attendant_alternative_phone||'+91 ',
         allergies:patient.allergies||'',
         treating_doctor:patient.treating_doctor||'',
         doctor_phone:patient.doctor_phone||'',
@@ -15781,6 +15830,18 @@ Please keep these login details confidential.`;
       setBusy(true);
       setMsg('');
       if(!['Admin','Manager'].includes(profile?.role)){setMsg('Only Admin or Manager can allot a room and complete patient admission.');setBusy(false);return}
+      if(!numberedItems(form.diagnosis).length){setMsg('Add at least one diagnosis / condition at admission.');setBusy(false);return}
+      const mobileChecks=[
+        ['Patient mobile',form.mobile,false],
+        ['Attendant mobile',form.attendant_phone,true],
+        ['Alternative mobile',form.attendant_alternative_phone,false],
+        ['Doctor contact',form.doctor_phone,false]
+      ];
+      for(const [label,value,required] of mobileChecks){
+        const local=normalizePhone(value);
+        if(required&&local.length!==10){setMsg(`${label} must contain a valid 10-digit mobile number after the +91 country code.`);setBusy(false);return}
+        if(!required&&local&&local.length!==10){setMsg(`${label} must contain a valid 10-digit mobile number after the +91 country code.`);setBusy(false);return}
+      }
       if(duplicateMobilePatient&&!returningPatient&&!interruptedAdmissionPatient){
         setMsg(`This mobile number is already registered to ${formalName(duplicateMobilePatient)||duplicateMobilePatient.full_name} · ${duplicateMobilePatient.patient_id||duplicateMobilePatient.patient_code||'Resident ID unavailable'}. A different patient cannot use the same mobile number. If this is the same previous resident, use Re-admission; otherwise correct the mobile number.`);
         setBusy(false);
@@ -16109,8 +16170,8 @@ Please keep these login details confidential.`;
           ?selectField('Employment Status','employment_status',form,setForm,EMPLOYMENT_SERVICE_STATUS)
           :null,
         h('div',{className:'field'},h('label',null,'Mobile'),h('input',{
-          type:'tel',value:form.mobile,
-          onChange:e=>setForm({...form,mobile:e.target.value}),
+          type:'tel',inputMode:'tel',value:form.mobile||'+91 ',placeholder:'+91 9876543210',
+          onChange:e=>setForm({...form,mobile:countryMobile(e.target.value)}),
           onBlur:autoDetectReturningPatient,
           readOnly:false
         })),
@@ -16151,7 +16212,8 @@ Please keep these login details confidential.`;
         })),
         h('div',{className:'small-note span-2'},composePatientAddress(form)||'The complete residential address will be assembled automatically from the above fields.'),
         field('Family / attendant name','attendant_name',form,setForm,true),
-        field('Attendant phone','attendant_phone',form,setForm,true,'tel')
+        mobileField('Attendant Mobile No.','attendant_phone',true),
+        mobileField('Alternative Mobile No.','attendant_alternative_phone',false)
       ),
       h('div',{className:'small-note',style:{marginBottom:'8px'}},
         'Only Aadhaar / Identity Card is the standard identity document. A temporary exception permits admission without it for now. Photo and all other supporting documents are optional and may be added later.'
@@ -16180,7 +16242,7 @@ Please keep these login details confidential.`;
           )),
           h('div',{className:'field'},h('label',null,'Authorised Relative Name'),h('input',{required:true,value:familyAccess.relative_name,onChange:e=>setFamilyAccess({...familyAccess,relative_name:e.target.value})})),
           h('div',{className:'field'},h('label',null,'Relationship'),h('select',{required:true,value:familyAccess.relationship||'',onChange:e=>setFamilyAccess({...familyAccess,relationship:e.target.value})},h('option',{value:''},'Select relationship'),...['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].map(x=>h('option',{key:x,value:x},x)))),
-          h('div',{className:'field'},h('label',null,'Family WhatsApp Number'),h('input',{required:true,inputMode:'numeric',maxLength:10,value:familyAccess.mobile,onChange:e=>setFamilyAccess({...familyAccess,mobile:e.target.value.replace(/\D/g,'').slice(0,10)})})),
+          h('div',{className:'field'},h('label',null,'Family WhatsApp Number'),h('input',{required:true,type:'tel',inputMode:'tel',value:familyAccess.mobile||'+91 ',placeholder:'+91 9876543210',onChange:e=>setFamilyAccess({...familyAccess,mobile:countryMobile(e.target.value)})})),
           h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:familyAccess.email,onChange:e=>setFamilyAccess({...familyAccess,email:e.target.value})})),
           dailyWhatsAppEnabled&&h('div',{className:'field'},h('label',null,'Daily Intelligent Report Time'),h('input',{type:'time',step:'300',required:true,value:familyAccess.daily_whatsapp_time||'20:00',onChange:e=>setFamilyAccess({...familyAccess,daily_whatsapp_time:e.target.value})})),
           dailyWhatsAppEnabled&&h('div',{className:'small-note',style:{alignSelf:'end',paddingBottom:'12px'}},'The Intelligent Patient Report will be generated automatically and sent through the approved WhatsApp API template at this time every day (India time).'),
@@ -16231,13 +16293,13 @@ Please keep these login details confidential.`;
             })
           ),
 
-          field(
+          numberedClinicalField(
             needsHospital?'Diagnosis / condition at admission':'Current condition / care requirement',
-            'diagnosis',form,setForm,true
+            'diagnosis',diagnosisDraft,setDiagnosisDraft,true
           ),
           field(needsHospital?'Treating doctor':'Doctor / family physician (if any)','treating_doctor',form,setForm,false),
-          field('Doctor contact','doctor_phone',form,setForm,false,'tel'),
-          field('Known allergies','allergies',form,setForm,false),
+          mobileField('Doctor contact','doctor_phone',false),
+          numberedClinicalField('Known allergies','allergies',allergyDraft,setAllergyDraft,false),
           textareaField(
             isDirectElderlyCare?'Daily care needs / family instructions':'Instructions / precautions',
             'special_instructions',form,setForm,'span-2'
@@ -16889,6 +16951,8 @@ Please keep these login details confidential.`;
     const nursingManagerView=isNursingManagerProfile(profile);
     const [rows,setRows]=React.useState([]),[selected,setSelected]=React.useState(null),[details,setDetails]=React.useState(null),[photoUrl,setPhotoUrl]=React.useState(''),[tab,setTab]=React.useState('Overview');
     const [patientSearch,setPatientSearch]=React.useState('');
+    const [diagnosisDraft,setDiagnosisDraft]=React.useState('');
+    const [allergyDraft,setAllergyDraft]=React.useState('');
     const [districtFilter,setDistrictFilter]=React.useState('All');
     const [patientQuickFilter,setPatientQuickFilter]=React.useState(()=>{
       try{
