@@ -18211,11 +18211,30 @@ Please keep these login details confidential.`;
           return;
         }
 
+        // Use the exact same patient-photo resolver as the Patient File header, then
+        // embed the image into the print document as a data URL. This prevents the
+        // browser/PDF print engine from losing an expiring signed Storage URL.
         let consentPhotoUrl='';
-        const consentPhotoPath=row.photo_storage_path||photoResult.data?.[0]?.storage_path||'';
-        if(consentPhotoPath){
-          const {data:photoSigned}=await client.storage.from('patient-documents').createSignedUrl(consentPhotoPath,1800);
-          consentPhotoUrl=photoSigned?.signedUrl||'';
+        try{
+          const resolvedPhotoUrl=await resolvePatientPhoto(row);
+          if(resolvedPhotoUrl){
+            try{
+              const response=await fetch(resolvedPhotoUrl,{cache:'no-store'});
+              if(!response.ok)throw new Error(`Photo fetch failed (${response.status})`);
+              const blob=await response.blob();
+              consentPhotoUrl=await new Promise((resolve,reject)=>{
+                const reader=new FileReader();
+                reader.onload=()=>resolve(String(reader.result||''));
+                reader.onerror=()=>reject(reader.error||new Error('Unable to read patient photo'));
+                reader.readAsDataURL(blob);
+              });
+            }catch(photoEmbedError){
+              console.warn('Consent photo data embedding failed; using signed URL fallback:',photoEmbedError);
+              consentPhotoUrl=resolvedPhotoUrl;
+            }
+          }
+        }catch(photoResolveError){
+          console.warn('Unable to resolve resident photo for consent:',photoResolveError);
         }
 
         const qrGenerator=await ensurePatientQrGenerator();
@@ -18368,7 +18387,7 @@ Please keep these login details confidential.`;
   <p>Samara Care is an assisted-living and supportive-care facility and is not represented as a full-service hospital. Services may include accommodation, assistance with activities of daily living, medication support according to recorded prescriptions, nutrition support, nursing observation, physiotherapy where arranged, and coordination with external doctors, laboratories, ambulances and hospitals. Clinical emergencies or needs beyond the facility’s capability may require transfer to an appropriate hospital.</p>
 
   <h2>3. Medical Information, Medication and Emergency Authorisation</h2>
-  <p>The Resident or Representative confirms that known illnesses, allergies, medicines, behavioural concerns, mobility risks and special instructions have been disclosed accurately. Consent is given to administer or assist with medicines according to the recorded prescription and to contact the treating doctor. In an emergency, Samara Care is authorised to arrange first aid, ambulance transport and hospital evaluation where reasonably necessary. External medical, ambulance, investigation and hospital expenses remain chargeable as applicable.</p>
+  <p>The Resident or Representative confirms that known illnesses, allergies, medicines, behavioural concerns, mobility risks and special instructions have been disclosed accurately. Consent is given to administer or assist with prescribed medicines according to the recorded medication orders and to contact the treating doctor when required. In an emergency, Samara Assisted Living is authorised to arrange first aid, ambulance transport and hospital evaluation where reasonably necessary. The hospital may be of Samara's choice depending upon the situation and the patient's condition. External medical, ambulance, investigation and hospital expenses remain chargeable as applicable.</p>
 
   <h3>Current Medicines Recorded at Admission</h3>
   <table>
@@ -18438,7 +18457,24 @@ Please keep these login details confidential.`;
         document.body.appendChild(frame);
         const doc=frame.contentDocument||frame.contentWindow.document;
         doc.open();doc.write(html);doc.close();
-        await new Promise(resolve=>setTimeout(resolve,400));
+        // Do not open the browser print/PDF dialog until every image (logo, QR and
+        // resident photograph) has either loaded or failed. A fixed 400 ms delay was
+        // too short and is why the photo could appear in Patient File but disappear
+        // from the saved Consent PDF.
+        await new Promise(resolve=>{
+          const images=Array.from(doc.images||[]);
+          if(!images.length)return resolve();
+          let remaining=images.length;
+          let settled=false;
+          const finish=()=>{if(settled)return;settled=true;resolve()};
+          const oneDone=()=>{remaining-=1;if(remaining<=0)finish()};
+          images.forEach(img=>{
+            if(img.complete)oneDone();
+            else{img.addEventListener('load',oneDone,{once:true});img.addEventListener('error',oneDone,{once:true});}
+          });
+          setTimeout(finish,5000);
+        });
+        await new Promise(resolve=>setTimeout(resolve,120));
         const previousDocumentTitle=document.title;
         const printTitle=String(filename||'Admission_Consent').replace(/\.pdf$/i,'');
         document.title=printTitle;
