@@ -9554,8 +9554,14 @@ Samara Assisted Living`;
       if(!canUse)return;
       if(showStatus)setMessage('Refreshing WhatsApp Inbox…');
       try{
-        const {data,error}=await (foodOnly?client.rpc('wa_food_inbox'):client.from('hr_whatsapp_communications').select('*').order('created_at',{ascending:false}).limit(1000));
-        if(error)throw error;
+        const data=[];
+        for(let offset=0;;offset+=1000){
+          const query=foodOnly?client.rpc('wa_food_inbox'):client.from('hr_whatsapp_communications').select('*');
+          const page=await query.order('created_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+999);
+          if(page.error)throw page.error;
+          data.push(...(page.data||[]));
+          if((page.data||[]).length<1000)break;
+        }
         const repaired=(foodOnly?(data||[]):await repairLegacyInterviewHistory(data||[]));
         setRows(repaired.slice().reverse());
         if(showStatus)setMessage(`✓ WhatsApp Inbox refreshed at ${formatTimeIN(new Date())}.`);
@@ -9653,7 +9659,7 @@ Samara Assisted Living`;
         const to=new Date(`${dateTo}T23:59:59`);
         if(lastDate>to)return false;
       }
-      const hay=`${c.name} ${c.phone} ${c.source} ${c.subject} ${c.last.message_content||''}`.toLowerCase();
+      const hay=`${c.name} ${c.phone} ${c.source} ${c.subject} ${c.msgs.map(r=>`${r.message_content||''} ${r.communication_type||''} ${r.template_name||''}`).join(' ')}`.toLowerCase();
       return !query||hay.includes(query.toLowerCase());
     });
     const active=filtered.find(c=>c.phone===selectedPhone)||filtered[0]||null;
@@ -9983,6 +9989,8 @@ Thank you.`;
               ),
               h('div',{className:'wa-chat-scroll',ref:chatScrollRef,onScroll:e=>{const pane=e.currentTarget;chatViewRef.current.followLatest=pane.scrollHeight-pane.scrollTop-pane.clientHeight<64;}},active.msgs.map(r=>{
                 const outgoing=r.direction!=='inbound';const media=mediaInfo(r);const text=chatText(r);
+                const status=String(r.status||'Unknown');
+                const deliveryLabel=({read:'✓✓ Read',delivered:'✓✓ Delivered',sent:'✓ Sent',accepted:'✓ Accepted',failed:'Failed',unknown:'Acceptance unknown',sending:'Sending…',pending:'Pending'})[status.toLowerCase()]||status;
                 return h('div',{key:r.id,style:{display:'flex',justifyContent:outgoing?'flex-end':'flex-start',marginBottom:'8px'}},
                   h('div',{style:{position:'relative',maxWidth:'72%',padding:'8px 10px 6px',borderRadius:outgoing?'8px 0 8px 8px':'0 8px 8px 8px',background:outgoing?'#d9fdd3':'#fff',boxShadow:'0 1px 1px rgba(0,0,0,.08)',color:'#292229'}},
                     outgoing?h(React.Fragment,null,
@@ -10007,7 +10015,8 @@ Thank you.`;
                     outgoing&&['samara_bill_reminder','samara_payment_receipt','samara_family_portal_access','samara_discharge_confirmation','employee_welcome_samara'].includes(String(r.template_name||'').toLowerCase())
                       ?h('a',{href:String(r.template_name||'').toLowerCase()==='employee_welcome_samara'?'https://app.samaraassistedliving.com/':'https://family.samaraassistedliving.com/',target:'_blank',rel:'noopener noreferrer',style:{display:'block',marginTop:'9px',padding:'8px 10px',borderRadius:'7px',background:'#fff',border:'1px solid #b8d9c5',color:'#087f5b',fontWeight:'800',textAlign:'center',textDecoration:'none'}},String(r.template_name||'').toLowerCase()==='employee_welcome_samara'?'↗ Open Samara Care ERP':String(r.template_name||'').toLowerCase()==='samara_payment_receipt'?'↗ View Family Portal website':'↗ View Family Portal')
                       :null,
-                    h('small',{style:{display:'block',marginTop:'4px',textAlign:'right',color:'#667781',fontSize:'11px'}},`${fmt(r.received_at||r.sent_at||r.created_at)}${outgoing?`  ${String(r.status||'Sent').toLowerCase()==='read'?'✓✓':String(r.status||'Sent').toLowerCase()==='delivered'?'✓✓':'✓'}`:''}`)
+                    outgoing&&r.error_message?h('div',{style:{fontSize:'12px',color:'#a12335',marginTop:'6px'}},r.error_message):null,
+                    h('small',{style:{display:'block',marginTop:'4px',textAlign:'right',color:'#667781',fontSize:'11px'}},`${fmt(r.received_at||r.sent_at||r.created_at)}${outgoing?`  ${deliveryLabel}`:''}`)
                   )
                 )
               })),
