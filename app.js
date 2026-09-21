@@ -3524,7 +3524,7 @@ https://samaraassistedliving.com/`;
       // so the Nurse screen could remain "Overdue" until a later refresh.
       const thresholdCandidates=list.filter(a=>
         Number(a.overdue_minutes)>=escalationMinutes &&
-        String(a.alert_type||'').toLowerCase()!=='regularisation' &&
+        !['regularisation','daily care'].includes(String(a.alert_type||'').toLowerCase()) &&
         !String(a.title||'').toLowerCase().includes('backlog regularisation')
       );
       if(thresholdCandidates.length){
@@ -3610,7 +3610,7 @@ https://samaraassistedliving.com/`;
           showSystemNotification(
             `${nextToAnnounce.title}${nextToAnnounce.description?` · ${nextToAnnounce.description}`:''}`,
             {
-              body:`${nextToAnnounce.description||nextToAnnounce.title||'Clinical task due'}\n${nextToAnnounce.patient_name||'Patient'} · ${nextToAnnounce.room_label||''}${Number(nextToAnnounce.overdue_minutes||0)>0?` · ${englishOverdueLabel(nextToAnnounce.overdue_minutes)}`:' · Due now'}`,
+              body:`${nextToAnnounce.description||nextToAnnounce.title||'Clinical task due'}\n${nextToAnnounce.patient_name||'Patient'} · ${nextToAnnounce.room_label||''}${String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?' · Pending for current shift':Number(nextToAnnounce.overdue_minutes||0)>0?` · ${englishOverdueLabel(nextToAnnounce.overdue_minutes)}`:' · Due now'}`,
               tag:nextToAnnounce.key,
               requireInteraction:nextToAnnounce.priority==='Critical',
               icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',
@@ -3630,7 +3630,7 @@ https://samaraassistedliving.com/`;
             room:nextToAnnounce.room_label||'',
             alertType:nextToAnnounce.title||'Clinical task due',
             details:nextToAnnounce.description||nextToAnnounce.title||'Clinical task due',
-            dueText:overdue>0?englishOverdueLabel(overdue):'Due now',
+            dueText:String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?'Pending for current shift':overdue>0?englishOverdueLabel(overdue):'Due now',
             message:nextToAnnounce.is_escalated?'Escalated — please attend and record immediately.':'Please attend and record immediately.',
             priority:nextToAnnounce.priority||'Routine'
           });
