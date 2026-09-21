@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.13.86';
+  const APP_VERSION = '2.13.87';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -14602,6 +14602,7 @@ Thank you.`;
     const [serverDraftError,setServerDraftError]=React.useState('');
     const draftReadyRef=React.useRef(false);
     const ADMISSION_FILE_PICKER_GUARD='samara_admission_file_picker_guard';
+    const ADMISSION_DRAFT_SESSION_STATE=`samara_admission_draft_session_${profile?.id||'current'}`;
     React.useEffect(()=>{
       try{
         const raw=localStorage.getItem(ADMISSION_DRAFT_KEY);
@@ -14609,8 +14610,18 @@ Thank you.`;
           const draft=JSON.parse(raw);
           const guardAt=Number(sessionStorage.getItem(ADMISSION_FILE_PICKER_GUARD)||0);
           const returningFromDocumentPicker=guardAt>0&&(Date.now()-guardAt)<120000;
-          const shouldRestore=Boolean(draft?.form)&&(returningFromDocumentPicker||window.confirm('An unfinished Admission form was found. Restore the saved draft?'));
+          const sessionState=sessionStorage.getItem(ADMISSION_DRAFT_SESSION_STATE)||'';
+          let shouldRestore=false;
+          if(Boolean(draft?.form)){
+            if(returningFromDocumentPicker||sessionState==='restore'){
+              shouldRestore=true;
+            }else if(sessionState!=='skip'){
+              shouldRestore=window.confirm('An unfinished Admission form was found. Restore the saved draft?');
+              sessionStorage.setItem(ADMISSION_DRAFT_SESSION_STATE,shouldRestore?'restore':'skip');
+            }
+          }
           if(shouldRestore){
+            sessionStorage.setItem(ADMISSION_DRAFT_SESSION_STATE,'restore');
             setForm({...initial,...draft.form});
             setMeds(Array.isArray(draft.meds)&&draft.meds.length?draft.meds:[blankMedicine()]);
             setCare(Array.isArray(draft.care)&&draft.care.length?draft.care:[blankCare()]);
@@ -14728,7 +14739,11 @@ Thank you.`;
           const {data,error}=await client.from('admission_drafts').select('draft_payload,updated_at').eq('created_by',user.id).maybeSingle();
           if(error||!data?.draft_payload?.form||!active)return;
           const draft=data.draft_payload;
-          if(window.confirm('An unfinished Admission draft saved on the server was found. Restore it?')){
+          const sessionState=sessionStorage.getItem(ADMISSION_DRAFT_SESSION_STATE)||'';
+          if(sessionState==='skip')return;
+          const shouldRestore=sessionState==='restore'||window.confirm('An unfinished Admission draft saved on the server was found. Restore it?');
+          sessionStorage.setItem(ADMISSION_DRAFT_SESSION_STATE,shouldRestore?'restore':'skip');
+          if(shouldRestore){
             setForm({...initial,...draft.form});
             setMeds(Array.isArray(draft.meds)&&draft.meds.length?draft.meds:[blankMedicine()]);
             setCare(Array.isArray(draft.care)&&draft.care.length?draft.care:[blankCare()]);
@@ -14752,6 +14767,7 @@ Thank you.`;
 
     function clearAdmissionDraft(){
       try{localStorage.removeItem(ADMISSION_DRAFT_KEY)}catch(_error){}
+      try{sessionStorage.removeItem(ADMISSION_DRAFT_SESSION_STATE);sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD)}catch(_error){}
       setDraftRestored(false);
       setLastAutoSavedAt(null);
       setDraftPatientId('');
