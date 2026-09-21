@@ -15390,15 +15390,38 @@ Thank you.`;
     async function urlToDataUrl(url){
       if(!url)return '';
       try{
-        const response=await fetch(url);
+        const response=await fetch(url,{cache:'no-store'});
         if(!response.ok)throw new Error('Unable to retrieve image');
         const blob=await response.blob();
-        return await new Promise((resolve,reject)=>{
-          const reader=new FileReader();
-          reader.onload=()=>resolve(reader.result);
-          reader.onerror=reject;
-          reader.readAsDataURL(blob);
-        });
+
+        // Normalise the resident photograph to an ordinary PNG before printing.
+        // Chrome can preview some source image encodings correctly but omit them
+        // when its PDF print backend serialises the page.  A canvas-generated PNG
+        // is self-contained and is reliably embedded in the saved PDF.
+        try{
+          const bitmap=await createImageBitmap(blob);
+          const maxSide=900;
+          const scale=Math.min(1,maxSide/Math.max(bitmap.width||1,bitmap.height||1));
+          const width=Math.max(1,Math.round(bitmap.width*scale));
+          const height=Math.max(1,Math.round(bitmap.height*scale));
+          const canvas=document.createElement('canvas');
+          canvas.width=width;
+          canvas.height=height;
+          const context=canvas.getContext('2d',{alpha:false});
+          if(!context)throw new Error('Canvas is unavailable');
+          context.fillStyle='#ffffff';
+          context.fillRect(0,0,width,height);
+          context.drawImage(bitmap,0,0,width,height);
+          if(typeof bitmap.close==='function')bitmap.close();
+          return canvas.toDataURL('image/png');
+        }catch(_normaliseError){
+          return await new Promise((resolve,reject)=>{
+            const reader=new FileReader();
+            reader.onload=()=>resolve(String(reader.result||''));
+            reader.onerror=reject;
+            reader.readAsDataURL(blob);
+          });
+        }
       }catch(_error){
         return '';
       }
@@ -18244,18 +18267,10 @@ Please keep these login details confidential.`;
         try{
           const resolvedPhotoUrl=await resolvePatientPhoto(row);
           if(resolvedPhotoUrl){
-            try{
-              const response=await fetch(resolvedPhotoUrl,{cache:'no-store'});
-              if(!response.ok)throw new Error(`Photo fetch failed (${response.status})`);
-              const blob=await response.blob();
-              consentPhotoUrl=await new Promise((resolve,reject)=>{
-                const reader=new FileReader();
-                reader.onload=()=>resolve(String(reader.result||''));
-                reader.onerror=()=>reject(reader.error||new Error('Unable to read patient photo'));
-                reader.readAsDataURL(blob);
-              });
-            }catch(photoEmbedError){
-              console.warn('Consent photo data embedding failed; using signed URL fallback:',photoEmbedError);
+            const embeddedPhotoUrl=await urlToDataUrl(resolvedPhotoUrl);
+            if(embeddedPhotoUrl)consentPhotoUrl=embeddedPhotoUrl;
+            else{
+              console.warn('Consent photo PNG embedding failed; using signed URL fallback.');
               consentPhotoUrl=resolvedPhotoUrl;
             }
           }
