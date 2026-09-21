@@ -5,6 +5,13 @@
  const money=value=>'₹'+Number(value||0).toLocaleString('en-IN');
  const allowed=p=>['Admin','Manager','Nurse','Accounts'].includes(p?.role)||(p?.__dutyContext?.roles||[]).some(r=>['Admin','Manager','Nurse','Accounts'].includes(r));
  const changed=()=>window.dispatchEvent(new Event('samara-discharge-workflow-changed'));
+ let followUpRequest=null,followUpSequence=0;
+ function openFollowUp(onNavigate,profile,cases){
+  const target=cases.find(c=>c.reviews.some(r=>r.status==='Pending'))||cases.find(c=>c.overdue)||cases.find(c=>c.status!=='Completed'&&c.accounts_status==='Cleared');
+  followUpRequest={id:target?.id,sequence:++followUpSequence};
+  onNavigate(profile?.role==='Accounts'?'Discharge Clearance':'Discharge');
+  window.dispatchEvent(new Event('samara-open-discharge-follow-up'));
+ }
  function useWorkspace(client,profile){
   const [data,setData]=R.useState(null),[error,setError]=R.useState('');
   const sequence=R.useRef(0);
@@ -30,7 +37,7 @@
    h('strong',null,waiting.length?`${waiting.length} patient(s): Accounts cleared — Nursing departure pending`:`${reviews.length} late departure report(s) awaiting management review`),
    overdue>0&&h('div',null,`${overdue} waiting over 2 hours — Nursing Manager / Admin attention required.`),
    waiting.length>0&&h('div',null,waiting.map(c=>c.patient_name).join(', ')),
-   h('button',{className:'btn btn-secondary',type:'button',onClick:()=>onNavigate(profile?.role==='Accounts'?'Discharge Clearance':'Discharge')},'Open discharge follow-up'));
+   h('button',{className:'btn btn-secondary',type:'button',onClick:()=>openFollowUp(onNavigate,profile,data.cases)},'Open discharge follow-up'));
  }
  function Panel({client,profile,onChanged}){
   const {data,error,load}=useWorkspace(client,profile);
@@ -38,6 +45,23 @@
   const [review,setReview]=R.useState(null),[note,setNote]=R.useState(''),[confirmed,setConfirmed]=R.useState(false);
   const [busy,setBusy]=R.useState(false),[message,setMessage]=R.useState('');
   const reviewSequence=R.useRef(0);
+  const panelRef=R.useRef(null);
+  const [followUp,setFollowUp]=R.useState(()=>followUpRequest);
+  R.useEffect(()=>{
+   const open=()=>setFollowUp(followUpRequest);
+   window.addEventListener('samara-open-discharge-follow-up',open);
+   return()=>window.removeEventListener('samara-open-discharge-follow-up',open);
+  },[]);
+  R.useEffect(()=>{
+   if(!followUp||(!data&&!error)||!panelRef.current)return;
+   const target=Array.from(panelRef.current.querySelectorAll('details[data-discharge-id]')).find(el=>el.dataset.dischargeId===followUp.id);
+   if(target)target.open=true;
+   const focusTarget=target?.querySelector('summary')||panelRef.current;
+   focusTarget.focus({preventScroll:true});
+   focusTarget.scrollIntoView({block:'start',behavior:'auto'});
+   if(followUpRequest===followUp)followUpRequest=null;
+   setFollowUp(null);
+  },[followUp,data,error]);
   R.useEffect(()=>()=>{reviewSequence.current++},[]);
   async function finish(text){setMessage(text);changed();await load();await onChanged?.()}
   async function report(e){
@@ -65,7 +89,7 @@
   if(!allowed(profile))return null;
   const field=(label,node)=>h('label',{style:{display:'grid',gap:'6px',margin:'12px 0'}},h('span',null,label),node);
   const button=(text,action,disabled=false)=>h('button',{type:'button',className:'btn btn-secondary',disabled:disabled||busy,onClick:action},text);
-  return h('section',{className:'card',style:{padding:'16px',margin:'14px 0',minWidth:0,overflowWrap:'anywhere'}},
+  return h('section',{ref:panelRef,tabIndex:-1,className:'card',style:{padding:'16px',margin:'14px 0',minWidth:0,overflowWrap:'anywhere',scrollMarginTop:'120px'}},
    h('h3',null,'Discharge timeline & departure follow-up'),
    h('p',null,'Earlier Accounts clearances remain in the history. A recheck applies to later financial changes.'),
    error&&h('div',{className:'message error',role:'alert'},error),
@@ -74,8 +98,9 @@
    !data&&!error&&h('p',null,'Loading discharge history…'),
    data?.cases.map(c=>{
     const pending=c.reviews.find(r=>r.status==='Pending'),approved=c.reviews.find(r=>r.status==='Approved');
-    return h('details',{key:c.id,style:{padding:'12px 0',borderBottom:'1px solid #9995'}},
-     h('summary',{style:{cursor:'pointer',fontWeight:700,padding:'8px 0'}},`${c.patient_name} · ${c.patient_code} — ${c.status==='Completed'?'Completed':c.accounts_status==='Cleared'?'Accounts cleared; Nursing departure pending':c.accounts_recheck_at||c.legacy_reset?'Accounts recheck required':'Awaiting Accounts'}`),
+    return h('details',{key:c.id,'data-discharge-id':c.id,style:{padding:'12px 0',borderBottom:'1px solid #9995'}},
+     h('summary',{style:{cursor:'pointer',fontWeight:700,padding:'8px 0',scrollMarginTop:'120px'}},`${c.patient_name} · ${c.patient_code} — ${c.status==='Completed'?'Completed':pending?'Departure review pending':c.accounts_status==='Cleared'?'Accounts cleared; Nursing departure pending':c.accounts_recheck_at||c.legacy_reset?'Accounts recheck required':'Awaiting Accounts'}`),
+     pending&&c.status!=='Completed'&&h('p',{className:'message warning'},'Final Nursing discharge is blocked until an authorised reviewer resolves the pending departure report below.'),
      c.overdue&&h('p',{className:'message warning'},'Waiting over 2 hours. Nursing Manager / Admin attention required.'),
      h('p',null,`Initiated: ${time(c.initiated_at)} · Management approved: ${time(c.management_approved_at)}`),
      c.accounts_cleared_at&&h('p',null,`Last Accounts clearance: ${time(c.accounts_cleared_at)} · ${c.accounts_cleared_by_name||'Name not recorded'}`),
