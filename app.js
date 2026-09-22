@@ -28186,7 +28186,8 @@ Please access the Samara Family Portal for detailed account information.`;
         title:quickView==='Complete Transaction History'
           ?'Complete Transaction History'
           :quickView,
-        heads:['Patient','Type','Category','Amount','Mode','Description','Date'],
+        subtitle:'Payment / Advance rows can resend the original Amount Received WhatsApp without creating another financial transaction.',
+        heads:['Patient','Type','Category','Amount','Mode','Description','Date','WhatsApp'],
         rows:filteredRows.map(row=>[
           formalName(row.patients||{})||row.patients?.full_name||'—',
           row.transaction_type,
@@ -28194,7 +28195,24 @@ Please access the Samara Family Portal for detailed account information.`;
           money(row.amount),
           row.payment_mode||'—',
           row.description||'—',
-          fmt(row.transaction_date)
+          fmt(row.transaction_date),
+          ['Payment','Advance'].includes(row.transaction_type)
+            ?h('button',{
+                type:'button',
+                className:'btn btn-whatsapp',
+                style:{padding:'6px 9px',fontSize:'12px',whiteSpace:'nowrap'},
+                onClick:()=>sendPaymentReceiptWhatsAppApi({
+                  patient_id:row.patient_id,
+                  amount:Number(row.amount||0),
+                  payment_mode:row.payment_mode||'—',
+                  reference:row.payment_reference||row.reference||'',
+                  transaction_id:row.id||'',
+                  date:row.transaction_date||row.created_at||new Date().toISOString(),
+                  category:row.category||row.transaction_type,
+                  description:String(row.description||'').trim()
+                })
+              },'Resend WhatsApp')
+            :'—'
         ])
       }),
 
