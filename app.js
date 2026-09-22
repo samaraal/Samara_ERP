@@ -18970,6 +18970,39 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
 .patient-file-backdrop .patient-master-header{
   width:100%!important;
   min-width:0!important;
+  position:relative!important;
+}
+.patient-file-backdrop .patient-discharge-stamp{
+  position:absolute!important;
+  right:18px!important;
+  top:112px!important;
+  z-index:8!important;
+  pointer-events:none!important;
+  transform:rotate(-8deg)!important;
+  border:4px double #c62828!important;
+  border-radius:8px!important;
+  padding:7px 14px 6px!important;
+  color:#c62828!important;
+  background:rgba(255,255,255,.92)!important;
+  box-shadow:0 0 0 2px rgba(198,40,40,.08)!important;
+  text-align:center!important;
+  text-transform:uppercase!important;
+  font-weight:900!important;
+  letter-spacing:1.4px!important;
+  line-height:1.05!important;
+  opacity:.94!important;
+}
+.patient-file-backdrop .patient-discharge-stamp strong{
+  display:block!important;
+  font-size:24px!important;
+  letter-spacing:2px!important;
+}
+.patient-file-backdrop .patient-discharge-stamp span{
+  display:block!important;
+  margin-top:5px!important;
+  font-size:12px!important;
+  letter-spacing:.6px!important;
+  text-transform:none!important;
 }
 .patient-file-backdrop .patient-master-header>.employee-actions{
   display:flex!important;
@@ -19465,7 +19498,11 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
           h('button',{className:'btn btn-secondary',onClick:()=>setTab('Admission Details')},'Admission Details'),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setTab('Consent')},'Consent'),
           canEdit?h('button',{className:'btn btn-secondary',onClick:()=>setShowFamilyDetails(true)},'Family Details'):null,
-          canEdit?h('button',{className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Patient'):h('span',{className:'pill'},'View only'),h('button',{className:'close',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false)}},'×'))),
+          canEdit?h('button',{className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Patient'):h('span',{className:'pill'},'View only'),h('button',{className:'close',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false)}},'×')),
+          completedPatientDischarge()?h('div',{className:'patient-discharge-stamp','aria-label':'Patient discharged'},
+            h('strong',null,'DISCHARGED'),
+            h('span',null,`Discharged on ${formatDateIN(String(completedPatientDischarge().actual_departure_at||completedPatientDischarge().updated_at||completedPatientDischarge().created_at||'').slice(0,10))} · ${formatTimeIN(completedPatientDischarge().actual_departure_at||completedPatientDischarge().updated_at||completedPatientDischarge().created_at)}`)
+          ):null),
         h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Admission Details'),tabButton('Documents',details.docs.length),tabButton('Consent',details.docs.filter(window.SamaraConsent.isConsent).length),(canEdit||nursingManagerView)?tabButton('Clinical History',(details.allMar||[]).length+(details.nursingProcedures||[]).length+(details.careLogs||[]).length+(details.vitals||[]).length+(details.physioSessions||[]).length):null,tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),tabButton('Daily Moments',(details.dailyMoments||[]).length),!clinicalView?tabButton('Billing',details.billing.length,nursingManagerView?'Pending Dues':'Billing'):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
         h('div',{className:'patient-tab-content'},
           tab==='Overview'&&h('div',{className:'tabs-grid'},
