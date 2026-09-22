@@ -26796,6 +26796,49 @@ function ShiftHandover({profile,onNavigate}){
       document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
     }
 
+    function downloadLedgerPDF(){
+      if(!selected)return;
+      const pdfRows=rowsWithBalance.slice().reverse().map((row,index)=>`<tr>
+        <td>${index+1}</td>
+        <td>${escapeExcel(fmt(row.transaction_date||row.created_at))}</td>
+        <td><b>${escapeExcel(`${row.transaction_type||'Transaction'} · ${row.category||'General'}`)}</b>${row.description?`<div class="desc">${escapeExcel(row.description)}</div>`:''}</td>
+        <td class="num">${row._debit?escapeExcel(money(row._debit)):'—'}</td>
+        <td class="num">${row._credit?escapeExcel(money(row._credit)):'—'}</td>
+        <td class="num balance">${escapeExcel(money(row._balance))}</td>
+        <td>${escapeExcel(row.source_type||row.payment_mode||'—')}${(row.payment_reference||row.reference_no||row.source_key)?`<div class="desc">${escapeExcel(row.payment_reference||row.reference_no||row.source_key)}</div>`:''}</td>
+      </tr>`).join('');
+      const roomText=roomBed?`${roomBed.room_no||'—'}${roomBed.bed_no?`-${roomBed.bed_no}`:''}`:(selected.room_no?`${selected.room_no}${selected.bed_no?`-${selected.bed_no}`:''}`:'—');
+      const generatedOn=fmt(new Date());
+      const patientName=formalName(selected)||selected.full_name||'Patient';
+      const admissionDate=selected.admission_date||selected.admitted_at||selected.created_at||'';
+      const doctor=selected.treating_doctor||selected.doctor_name||selected.doctor||'—';
+      const mobile=selected.mobile||selected.attendant_phone||selected.emergency_contact_phone||'—';
+      const status=balance>0?'AMOUNT PAYABLE':balance<0?'ADVANCE / CREDIT':'ACCOUNT SETTLED';
+      const html=`<!doctype html><html><head><meta charset="utf-8"><title>Patient Account Ledger - ${escapeExcel(patientName)}</title><style>
+        @page{size:A4 portrait;margin:12mm 10mm 15mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#3b2833;margin:0;font-size:10.5px;line-height:1.35;background:#fff}.top{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #b20b5d;padding:0 2px 9px;margin-bottom:12px}.logo{width:145px;max-height:72px;object-fit:contain}.org{text-align:right}.org strong{display:block;color:#b20b5d;font-size:17px;letter-spacing:.2px}.org span{display:block;color:#6d5963;font-size:9px}.title{text-align:center;margin:5px 0 12px}.title h1{font-size:20px;margin:0;color:#321d28}.title p{margin:3px 0 0;color:#7b6670}.patient{border:1px solid #e9c7d6;border-radius:10px;padding:9px 11px;margin-bottom:12px;display:grid;grid-template-columns:1fr 1fr;gap:5px 20px}.field{display:grid;grid-template-columns:105px 1fr;gap:5px}.label{font-weight:700;color:#654353}.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:0 0 13px}.sum{border:1px solid #e8c4d4;border-radius:7px;padding:7px;background:#fffafd}.sum span{display:block;font-size:8.5px;color:#7c6872;text-transform:uppercase}.sum strong{display:block;margin-top:3px;font-size:13px;color:#741041}.sum.payable{border-color:#d99aad;background:#fff5f7}.section-title{color:#a20b55;font-size:13px;font-weight:800;margin:11px 0 6px;border-bottom:1px solid #e7b8cc;padding-bottom:4px}table{width:100%;border-collapse:collapse;table-layout:fixed}thead{display:table-header-group}tr{page-break-inside:avoid}th{background:#f7dce8;color:#67123d;border:1px solid #dfb4c6;padding:6px 5px;text-align:left;font-size:9px}td{border:1px solid #ead4dd;padding:5px;vertical-align:top;word-wrap:break-word}th:nth-child(1){width:4%}th:nth-child(2){width:12%}th:nth-child(3){width:34%}th:nth-child(4),th:nth-child(5),th:nth-child(6){width:10%}th:nth-child(7){width:20%}.num{text-align:right;white-space:nowrap}.balance{font-weight:700}.desc{font-size:8.5px;color:#74636b;margin-top:2px}.status{text-align:center;font-size:15px;font-weight:800;color:#a20b55;margin:14px 0 6px}.note{border:1px solid #ead0db;border-radius:8px;padding:8px;margin:8px 0 18px;color:#6b5961}.signatures{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;margin-top:30px;text-align:center}.sig{border-top:1px solid #6f5c65;padding-top:8px}.footer{border-top:1px solid #eccbd9;margin-top:22px;padding-top:8px;text-align:center;color:#6f5a64;font-size:8.5px}.footer b{color:#8d174d}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.no-print{display:none!important}}
+      </style></head><body>
+        <div class="top"><img class="logo" src="${patientLedgerSamaraLogo}" alt="Samara Assisted Living"><div class="org"><strong>SAMARA HEALTH CARE LLP</strong><span>Assisted Living Management System</span><span>Compassion • Comfort • Dignity</span></div></div>
+        <div class="title"><h1>PATIENT ACCOUNT LEDGER</h1><p>System-generated resident financial statement · Generated on ${escapeExcel(generatedOn)}</p></div>
+        <div class="patient">
+          <div class="field"><span class="label">Patient Name</span><span>${escapeExcel(patientName)}</span></div><div class="field"><span class="label">Resident ID</span><span>${escapeExcel(selected.patient_id||'—')}</span></div>
+          <div class="field"><span class="label">Room / Bed</span><span>${escapeExcel(roomText)}</span></div><div class="field"><span class="label">Admission Date</span><span>${escapeExcel(admissionDate?fmt(admissionDate):'—')}</span></div>
+          <div class="field"><span class="label">Mobile</span><span>${escapeExcel(mobile)}</span></div><div class="field"><span class="label">Treating Doctor</span><span>${escapeExcel(doctor)}</span></div>
+        </div>
+        <div class="section-title">Financial Summary</div><div class="summary">
+          <div class="sum"><span>Total Charges</span><strong>${escapeExcel(money(totals.charges))}</strong></div><div class="sum"><span>Payments / Advances</span><strong>${escapeExcel(money(totals.receipts))}</strong></div><div class="sum"><span>Discounts</span><strong>${escapeExcel(money(totals.discounts))}</strong></div><div class="sum"><span>Refunds</span><strong>${escapeExcel(money(totals.refunds))}</strong></div><div class="sum payable"><span>Current Balance</span><strong>${escapeExcel(money(Math.abs(balance)))}</strong></div>
+        </div>
+        <div class="section-title">Complete Patient Ledger</div><table><thead><tr><th>Sl.</th><th>Date / Time</th><th>Particulars / Description</th><th>Debit (₹)</th><th>Credit (₹)</th><th>Balance (₹)</th><th>Source / Reference</th></tr></thead><tbody>${pdfRows||'<tr><td colspan="7" style="text-align:center">No billing transactions recorded</td></tr>'}</tbody></table>
+        <div class="status">${status}${balance!==0?` · ${escapeExcel(money(Math.abs(balance)))}`:''}</div>
+        <div class="note"><b>Important:</b> This ledger reflects transactions recorded in Samara Care ERP as on ${escapeExcel(generatedOn)}. Charges, payments, advances, discounts, refunds and authorised adjustments are shown according to the entries posted in the system.</div>
+        <div class="signatures"><div class="sig">Prepared By</div><div class="sig">Accounts / Administrator</div><div class="sig">Patient / Attendant</div></div>
+        <div class="footer"><b>Samara Health Care LLP</b> · RBK VILLA, No: 23-A, Reddipalayam Road, Jeswant Nagar Phase 1, Mogappair West, Chennai 600037.<br>9976735577 · 7395961616 · care@samaraassistedliving.com · www.samaraassistedliving.com<br>Computer-generated patient account ledger · No manual alteration permitted</div>
+        <script>window.addEventListener('load',()=>{const imgs=[...document.images];Promise.all(imgs.map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=i.onerror=r}))).then(()=>setTimeout(()=>window.print(),250));});<\/script>
+      </body></html>`;
+      const win=window.open('','_blank');
+      if(!win){alert('Please allow pop-ups to download / save the Patient Ledger PDF.');return}
+      win.document.open();win.document.write(html);win.document.close();
+    }
+
     return h('div',{className:'stack patient-ledger-page'},
       selectedId&&h(PatientChargeReadiness,{patientId:selectedId}),
       h('style',null,`
@@ -26890,6 +26933,7 @@ function ShiftHandover({profile,onNavigate}){
           h('div',{style:{display:'flex',justifyContent:'space-between',gap:'12px',alignItems:'center',flexWrap:'wrap'}},
             h('div',null,h('h3',{style:{marginBottom:'2px'}},'Complete Patient Ledger'),h('div',{className:'small-note'},`${ledger.length} transaction${ledger.length===1?'':'s'} · newest first`)),
             h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
+              h('button',{className:'btn btn-primary',onClick:downloadLedgerPDF,disabled:!selected},'Download / Save PDF'),
               h('button',{className:'btn btn-secondary',onClick:downloadLedgerExcel,disabled:!selected},'Download Excel'),
               h('button',{className:'btn btn-secondary',onClick:()=>loadPatientLedger(selected)},'Refresh')
             )
