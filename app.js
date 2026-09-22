@@ -27087,6 +27087,24 @@ function ShiftHandover({profile,onNavigate}){
 
   function BillingPayments({profile}){
     const [patients]=usePatients();
+    // Accounts history must remain available after discharge.  Keep the existing
+    // active-patient list for new manual entries, and load a separate all-patient
+    // list only for financial history / receipt resend selection.
+    const [financialPatients,setFinancialPatients]=React.useState([]);
+    React.useEffect(()=>{
+      let cancelled=false;
+      (async()=>{
+        const {data,error}=await client.from('patients').select('*').order('full_name');
+        if(error){console.error('Accounts patient history list could not be loaded:',error);return}
+        if(!cancelled)setFinancialPatients(data||[]);
+      })();
+      const ch=client.channel(`accounts-all-patients-${Math.random()}`)
+        .on('postgres_changes',{event:'*',schema:'public',table:'patients'},async()=>{
+          const {data,error}=await client.from('patients').select('*').order('full_name');
+          if(!error&&!cancelled)setFinancialPatients(data||[]);
+        }).subscribe();
+      return()=>{cancelled=true;client.removeChannel(ch)};
+    },[]);
     const [rows,setRows]=React.useState([]);
     const [patientLedger,setPatientLedger]=React.useState({patientId:null,rows:[],loading:true,error:''});
     const [loading,setLoading]=React.useState(true);
@@ -27937,8 +27955,8 @@ Please access the Samara Family Portal for detailed account information.`;
               }
             },
               h('option',{value:''},'Select patient'),
-              patients.map(patient=>h('option',{key:patient.id,value:patient.id},
-                `${formalName(patient)||patient.full_name} · ${patient.patient_id||'No ID'}`
+              financialPatients.map(patient=>h('option',{key:patient.id,value:patient.id},
+                `${formalName(patient)||patient.full_name} · ${patient.patient_id||'No ID'}${patient.is_active===false?' · Discharged / Inactive':' · Active'}`
               ))
             )
           ),
