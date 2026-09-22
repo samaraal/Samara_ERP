@@ -20860,7 +20860,10 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
 
       setBusy(true);
       finalDischargeSubmitting.current=true;
-      const {data,error}=await client.rpc('confirm_patient_departure_v4',{
+      let data=null;
+      let error=null;
+      try{
+        const rpcResult=await client.rpc('confirm_patient_departure_v4',{
         p_discharge_id:finalDischargeRow.id,
         p_late_entry_reason:finalForm.late_entry_reason?.trim()||null,
         p_received_by_name:finalForm.receiving_person_name.trim(),
@@ -20885,7 +20888,12 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
         p_valuables_handed_over:finalForm.valuables_handed_over,
         p_final_instructions_explained:finalForm.final_instructions_explained,
         p_patient_condition_confirmed:finalForm.patient_condition_confirmed
-      }).catch(error=>({error}));
+        });
+        data=rpcResult?.data??null;
+        error=rpcResult?.error??null;
+      }catch(rpcError){
+        error=rpcError;
+      }
       setBusy(false);
 
       if(error){
