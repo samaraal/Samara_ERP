@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.03';
+  const APP_VERSION = '2.14.04';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1724,13 +1724,21 @@ function initSamaraInaugurationInvitation(){
     if(digits.length===11&&digits.startsWith('0'))return `91${digits.slice(1)}`;
     return digits;
   };
+  const FAMILY_COUNTRY_CODES=[
+    ['India','+91'],['United Arab Emirates','+971'],['United States / Canada','+1'],['United Kingdom','+44'],
+    ['Singapore','+65'],['Australia','+61'],['Saudi Arabia','+966'],['Qatar','+974'],['Oman','+968'],['Kuwait','+965'],
+    ['Bahrain','+973'],['Malaysia','+60'],['New Zealand','+64'],['Germany','+49'],['France','+33'],['Ireland','+353'],
+    ['Italy','+39'],['Netherlands','+31'],['Switzerland','+41'],['Japan','+81'],['South Korea','+82'],['Sri Lanka','+94'],
+    ['Bangladesh','+880'],['Nepal','+977'],['Pakistan','+92'],['South Africa','+27']
+  ];
   const splitGlobalPhone = value => {
     const raw=String(value||'').trim();
-    const explicit=raw.match(/^\s*\+(\d{1,3})[\s-]+(.+)$/);
-    if(explicit)return {country_code:`+${explicit[1]}`,mobile:String(explicit[2]||'').replace(/\D/g,'').slice(0,14)};
     const digits=raw.replace(/\D/g,'');
     if(!digits)return {country_code:'+91',mobile:''};
-    if(digits.length===10)return {country_code:'+91',mobile:digits};
+    // Legacy Samara records containing a bare 10-digit number are Indian.
+    if(!raw.startsWith('+')&&digits.length===10)return {country_code:'+91',mobile:digits};
+    const dial=FAMILY_COUNTRY_CODES.map(x=>x[1]).sort((a,b)=>b.length-a.length).find(code=>digits.startsWith(code.replace(/\D/g,'')));
+    if(dial){const codeDigits=dial.replace(/\D/g,'');return {country_code:dial,mobile:digits.slice(codeDigits.length).slice(0,14)};}
     if(digits.length===12&&digits.startsWith('91'))return {country_code:'+91',mobile:digits.slice(2)};
     return {country_code:'+91',mobile:digits.slice(-10)};
   };
@@ -1740,11 +1748,13 @@ function initSamaraInaugurationInvitation(){
     return code&&local?`+${code} ${local}`:'';
   };
   const validateGlobalPhone = (countryCode,mobile,label='mobile number') => {
-    const code=String(countryCode||'').replace(/\D/g,'');
+    const selected=FAMILY_COUNTRY_CODES.find(([,dial])=>dial===countryCode);
+    if(!selected)throw new Error(`Select a country code for ${label}.`);
+    const code=selected[1].replace(/\D/g,'');
     const local=String(mobile||'').replace(/\D/g,'');
-    if(code.length<1||code.length>3)throw new Error(`Enter a valid country code for ${label}, for example +91.`);
-    if(local.length<4||local.length>14||code.length+local.length>15)throw new Error(`Enter a valid ${label}. Country code + number must be no more than 15 digits.`);
-    return `+${code} ${local}`;
+    if(selected[1]==='+91'&&local.length!==10)throw new Error(`Enter a valid 10-digit Indian ${label}.`);
+    if(selected[1]!=='+91'&&(local.length<4||code.length+local.length>15))throw new Error(`Enter a valid ${selected[0]} ${label}.`);
+    return `${selected[1]} ${local}`;
   };
   const compactWhatsAppParam = (value,max=60,fallback='—') => {
     const clean=String(value??'').replace(/\s+/g,' ').trim();
@@ -17732,7 +17742,6 @@ Please keep these login details confidential.`;
       const mobile=validateGlobalPhone(editFamilyAccess.country_code,editFamilyAccess.mobile,'family mobile number');
       if(!String(editFamilyAccess.relative_name||'').trim())throw new Error('Enter the authorised family member name.');
       if(!String(editFamilyAccess.relationship||'').trim())throw new Error('Enter the relationship to the resident.');
-      if(mobile.length!==10)throw new Error('Enter a valid 10-digit family mobile number.');
       let accessId=editFamilyAccess.id||null;
       if(!accessId){const {data:existingRows}=await client.from('family_portal_access').select('id,mobile,relative_name,is_active').eq('patient_id',editTarget.id).eq('is_active',true);const existing=(existingRows||[]).find(row=>normalizeWhatsAppRecipient(row.mobile)===normalizeWhatsAppRecipient(mobile)&&String(row.relative_name||'').trim().toLowerCase()===String(editFamilyAccess.relative_name||'').trim().toLowerCase());accessId=existing?.id||null;}
       const isNew=!accessId;
@@ -17758,7 +17767,7 @@ Please keep these login details confidential.`;
             const firstMobile=editFamilyAccess.enabled?normalizeWhatsAppRecipient(globalPhoneValue(editFamilyAccess.country_code,editFamilyAccess.mobile)):'';
       if(editFamilyAccess.enabled&&firstMobile===normalizeWhatsAppRecipient(mobile))throw new Error('Family Contact 2 must use a different mobile number from Family Contact 1.');
       let accessId=item.id||null;
-      if(!accessId){const {data:existingRows}=await client.from('family_portal_access').select('id,mobile,relative_name,is_active').eq('patient_id',editTarget.id);const existing=(existingRows||[]).find(row=>String(row.mobile||'').replace(/\D/g,'').slice(-10)===mobile);accessId=existing?.id||null;}
+      if(!accessId){const {data:existingRows}=await client.from('family_portal_access').select('id,mobile,relative_name,is_active').eq('patient_id',editTarget.id);const existing=(existingRows||[]).find(row=>normalizeWhatsAppRecipient(row.mobile)===normalizeWhatsAppRecipient(mobile));accessId=existing?.id||null;}
       const isNew=!accessId;
       const pin=isNew?String(Math.floor(100000+Math.random()*900000)):null;
       const {data,error}=await client.rpc('upsert_family_portal_access',{p_patient_id:editTarget.id,p_relative_name:String(item.relative_name).trim(),p_relationship:String(item.relationship).trim(),p_mobile:mobile,p_email:String(item.email||'').trim()||null,p_primary_contact:false,p_pin:pin,p_access_id:accessId});
@@ -19749,7 +19758,7 @@ Please keep these login details confidential.`;
             h('div',{className:'field'},h('label',null,'Family User ID'),h('input',{readOnly:true,value:editFamilyAccess.family_user_id||'Generated when saved'})),
             h('div',{className:'field'},h('label',null,'Authorised Relative Name'),h('input',{required:true,value:editFamilyAccess.relative_name||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,relative_name:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Relationship'),h('select',{required:true,value:editFamilyAccess.relationship||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,relationship:e.target.value})},h('option',{value:''},'Select relationship'),...(editFamilyAccess.relationship&&!['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].includes(editFamilyAccess.relationship)?[h('option',{key:editFamilyAccess.relationship,value:editFamilyAccess.relationship},editFamilyAccess.relationship)]:[]),...['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].map(x=>h('option',{key:x,value:x},x)))),
-            h('div',{className:'field'},h('label',null,'Family Mobile Number'),h('div',{style:{display:'grid',gridTemplateColumns:'92px 1fr',gap:'8px'}},h('input',{required:true,inputMode:'tel',placeholder:'+91',value:editFamilyAccess.country_code||'+91',onChange:e=>setEditFamilyAccess({...editFamilyAccess,country_code:`+${e.target.value.replace(/\D/g,'').slice(0,3)}`})}),h('input',{required:true,inputMode:'tel',maxLength:14,placeholder:'Mobile number',value:editFamilyAccess.mobile||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,mobile:e.target.value.replace(/\D/g,'').slice(0,14)})})),h('small',null,'Global format · country code + mobile number')),
+            h('div',{className:'field'},h('label',null,'Family Mobile Number'),h('div',{style:{display:'grid',gridTemplateColumns:'minmax(150px,42%) 1fr',gap:'8px'}},h('select',{required:true,value:editFamilyAccess.country_code||'+91','aria-label':'Family Contact 1 country code',onChange:e=>setEditFamilyAccess({...editFamilyAccess,country_code:e.target.value})},FAMILY_COUNTRY_CODES.map(([country,dial])=>h('option',{key:`fam1-${country}-${dial}`,value:dial},`${country} (${dial})`))),h('input',{required:true,type:'tel',inputMode:'tel',maxLength:14,placeholder:(editFamilyAccess.country_code||'+91')==='+91'?'10-digit mobile number':'Mobile number',value:editFamilyAccess.mobile||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,mobile:e.target.value.replace(/\D/g,'').slice(0,14)})})),h('small',null,(editFamilyAccess.country_code||'+91')==='+91'?'India: 10-digit mobile number required.':'International number validated for the selected country code.')),
             h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:editFamilyAccess.email||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,email:e.target.value})})),
             h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!editFamilyAccess.primary_contact,onChange:e=>setEditFamilyAccess({...editFamilyAccess,primary_contact:e.target.checked})}),h('span',null,'Primary Family Contact'))
           ),
@@ -19760,7 +19769,7 @@ Please keep these login details confidential.`;
               h('div',{className:'field'},h('label',null,'Family User ID'),h('input',{readOnly:true,value:editFamilyAccess2.family_user_id||'Generated when saved'})),
               h('div',{className:'field'},h('label',null,'Authorised Relative Name'),h('input',{required:true,value:editFamilyAccess2.relative_name||'',onChange:e=>setEditFamilyAccess2({...editFamilyAccess2,relative_name:e.target.value})})),
               h('div',{className:'field'},h('label',null,'Relationship'),h('select',{required:true,value:editFamilyAccess2.relationship||'',onChange:e=>setEditFamilyAccess2({...editFamilyAccess2,relationship:e.target.value})},h('option',{value:''},'Select relationship'),...['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].map(x=>h('option',{key:x,value:x},x)))),
-              h('div',{className:'field'},h('label',null,'Family Mobile Number'),h('div',{style:{display:'grid',gridTemplateColumns:'92px 1fr',gap:'8px'}},h('input',{required:true,inputMode:'tel',placeholder:'+91',value:editFamilyAccess2.country_code||'+91',onChange:e=>setEditFamilyAccess2({...editFamilyAccess2,country_code:`+${e.target.value.replace(/\D/g,'').slice(0,3)}`})}),h('input',{required:true,inputMode:'tel',maxLength:14,placeholder:'Mobile number',value:editFamilyAccess2.mobile||'',onChange:e=>setEditFamilyAccess2({...editFamilyAccess2,mobile:e.target.value.replace(/\D/g,'').slice(0,14)})})),h('small',null,'Global format · country code + mobile number')),
+              h('div',{className:'field'},h('label',null,'Family Mobile Number'),h('div',{style:{display:'grid',gridTemplateColumns:'minmax(150px,42%) 1fr',gap:'8px'}},h('select',{required:true,value:editFamilyAccess2.country_code||'+91','aria-label':'Family Contact 2 country code',onChange:e=>setEditFamilyAccess2({...editFamilyAccess2,country_code:e.target.value})},FAMILY_COUNTRY_CODES.map(([country,dial])=>h('option',{key:`fam2-${country}-${dial}`,value:dial},`${country} (${dial})`))),h('input',{required:true,type:'tel',inputMode:'tel',maxLength:14,placeholder:(editFamilyAccess2.country_code||'+91')==='+91'?'10-digit mobile number':'Mobile number',value:editFamilyAccess2.mobile||'',onChange:e=>setEditFamilyAccess2({...editFamilyAccess2,mobile:e.target.value.replace(/\D/g,'').slice(0,14)})})),h('small',null,(editFamilyAccess2.country_code||'+91')==='+91'?'India: 10-digit mobile number required.':'International number validated for the selected country code.')),
               h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:editFamilyAccess2.email||'',onChange:e=>setEditFamilyAccess2({...editFamilyAccess2,email:e.target.value})})),
               h('div',{className:'small-note'},'Family Contact 1 remains the Primary Family Contact. Contact 2 receives a separate login and PIN.')
             )

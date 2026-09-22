@@ -1,19 +1,15 @@
-SAMARA CARE ERP v2.14.02 — TWO FAMILY CONTACTS
+Samara ERP v2.14.04 — Global Family Phone Correction
 
-Replace only these 3 files in the ERP root:
-1. app.js
-2. index.html
-3. service-worker.js
+Replace these 3 files in the ERP root:
+- app.js
+- index.html
+- service-worker.js
 
-No SQL is required for this update. The existing family_portal_access structure already supports multiple access rows.
+No SQL is required.
 
-Implemented:
-- Patient Edit now preserves/edits Alternative Mobile No.
-- Family Portal Access supports Family Contact 1 (primary) and optional Family Contact 2.
-- Contact 2 gets a separate Family User ID / PIN and independent active status.
-- Alternative Mobile No. is prefilled into Contact 2 when available.
-- Contact 2 must have a different mobile number from Contact 1.
-- Patient > Family Portal already renders each authorised family access separately, so each contact has its own Portal Access WhatsApp, Admission WhatsApp and PIN reset controls.
-- Primary Family Contact remains Contact 1; existing Daily Patient Report recipient behavior is unchanged.
-
-After deployment, use App Help / Repair > Check for Updates if an older cached version remains visible.
+Changes only:
+1. Family Contact 1 and Family Contact 2 now use the ERP country/dial-code dropdown.
+2. India (+91) requires exactly 10 local digits.
+3. Other countries are not forced to 10 digits; validation uses the selected dial code and E.164 maximum length.
+4. Existing +country-code family numbers are split correctly when editing; legacy bare 10-digit numbers remain treated as India.
+5. Removed the erroneous global 10-digit validation that caused the reported save failure.
