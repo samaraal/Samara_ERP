@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.07';
+  const APP_VERSION = '2.14.08';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -17431,14 +17431,40 @@ Please keep these login details confidential.`;
 
     function previewFamilyPortal(){
       if(!selected||!details)return;
-      const win=window.open('','_blank','width=430,height=860');
-      if(!win){showPatientToast('error','Please allow pop-ups to open the Family Portal preview.');return}
       const family=(details.familyAccess||[]).filter(x=>x.is_active!==false);
-      const esc=value=>String(value??'—').replace(/[&<>\"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch]));
-      const vitals=(details.vitals||[]).slice(0,5).map(v=>`<tr><td>${esc(fmt(v.recorded_at||v.created_at))}</td><td>${esc([v.bp_systolic&&v.bp_diastolic?`${v.bp_systolic}/${v.bp_diastolic}`:'',v.pulse?`Pulse ${v.pulse}`:'',v.spo2?`SpO₂ ${v.spo2}%`:'',v.temperature?`Temp ${v.temperature}`:''].filter(Boolean).join(' · '))}</td></tr>`).join('');
-      const meds=(details.meds||[]).slice(0,12).map(m=>`<tr><td>${esc([m.medicine_name,m.strength].filter(Boolean).join(' '))}</td><td>${esc(m.frequency||m.route||'—')}</td></tr>`).join('');
-      win.document.write(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin Family Portal Preview</title><style>body{margin:0;font-family:Arial,sans-serif;background:#fff7fb;color:#34242d}.bar{position:sticky;top:0;background:#b01264;color:#fff;padding:12px 16px;font-weight:800}.wrap{padding:14px}.card{background:#fff;border:1px solid #edc9da;border-radius:14px;padding:14px;margin-bottom:12px}.name{font-size:22px;font-weight:900;color:#7d1748}.pill{display:inline-block;background:#e7f5ee;color:#087f5b;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:800;margin-top:6px}table{width:100%;border-collapse:collapse;font-size:13px}td{padding:8px 4px;border-bottom:1px solid #f0e3e9;vertical-align:top}h3{margin:0 0 10px;color:#8e1550}.note{font-size:12px;color:#725f69;line-height:1.45}.contact{padding:8px 0;border-bottom:1px solid #f0e3e9}</style></head><body><div class="bar">ADMIN PREVIEW — FAMILY PORTAL · READ ONLY</div><div class="wrap"><div class="card"><div class="name">${esc(formalName(selected)||selected.full_name)}</div><div>${esc(selected.patient_id)} · Room ${esc(selected.room_no)} / Bed ${esc(selected.bed_no)}</div><span class="pill">${selected.is_active===false?'Inactive':'Active Resident'}</span><p class="note">Preview only. This does not create a family login, change Last Login, reset a PIN or send WhatsApp.</p></div><div class="card"><h3>Authorised Family Access</h3>${family.length?family.map(f=>`<div class="contact"><b>${esc(f.relative_name)}</b> · ${esc(f.relationship)}${f.primary_contact?' · Primary':''}<br><span class="note">${esc(f.mobile)}</span></div>`).join(''):'No active family access.'}</div><div class="card"><h3>Recent Vitals</h3><table>${vitals||'<tr><td>No vitals recorded.</td></tr>'}</table></div><div class="card"><h3>Current Medicines</h3><table>${meds||'<tr><td>No current medicines.</td></tr>'}</table></div><div class="card"><h3>Daily Moments</h3><div>${(details.dailyMoments||[]).length} active moment(s)</div></div><div class="card"><h3>Daily Patient Report</h3><div>${details.familyPreference?.daily_whatsapp_enabled?'WhatsApp report enabled':'WhatsApp report not enabled'}</div></div></div></body></html>`);
-      win.document.close();
+      const access=family.find(x=>x.primary_contact)||family[0]||{};
+      const previewId=(window.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      const portalOrigin='https://family.samaraassistedliving.com';
+      const dashboard={
+        patient:{
+          patient_name:formalName(selected)||selected.full_name||'Resident',
+          patient_code:selected.patient_id||selected.patient_code||'',
+          room_no:selected.room_no||'',bed_no:selected.bed_no||'',admission_date:selected.admission_date||null
+        },
+        medication_orders:(details.medHistory||details.meds||[]),
+        medication_administrations:(details.allMar||details.mar||[]).map(x=>({...x,order_id:x.order_id||x.medication_order_id||x.medication_order_uuid||null,administered_at:x.administered_at||x.actual_time||x.completed_at||x.created_at})),
+        care_orders:details.care||[],care_logs:details.careLogs||[],
+        vitals:(details.vitals||[]).map(x=>({...x,systolic:x.systolic??x.bp_systolic??null,diastolic:x.diastolic??x.bp_diastolic??null,temperature:x.temperature??x.temp??null})),
+        physio_plans:details.physio||[],physio_sessions:details.physioSessions||[],
+        meals:details.meals||[],billing:details.billing||[],documents:details.docs||[],
+        daily_moments:details.dailyMoments||[]
+      };
+      const session={
+        admin_preview:true,access_id:access.id||'admin-preview',patient_uuid:selected.id,
+        patient_code:selected.patient_id||selected.patient_code||'',patient_name:formalName(selected)||selected.full_name||'Resident',
+        room_no:selected.room_no||'',bed_no:selected.bed_no||'',admission_date:selected.admission_date||null,
+        relative_name:access.relative_name||'Authorised Family Member',relationship:access.relationship||'Authorised Relative'
+      };
+      let popup=null;
+      const handler=event=>{
+        if(event.origin!==portalOrigin||event.source!==popup)return;
+        if(event.data?.type!=='SAMARA_FAMILY_ADMIN_PREVIEW_REQUEST'||event.data?.preview_id!==previewId)return;
+        popup.postMessage({type:'SAMARA_FAMILY_ADMIN_PREVIEW_DATA',preview_id:previewId,session,dashboard},portalOrigin);
+      };
+      window.addEventListener('message',handler);
+      popup=window.open(`${portalOrigin}/?admin_preview=${encodeURIComponent(previewId)}`,'_blank','noopener=false');
+      if(!popup){window.removeEventListener('message',handler);showPatientToast('error','Please allow pop-ups to open the Family Portal preview.');return}
+      window.setTimeout(()=>window.removeEventListener('message',handler),120000);
     }
 
     function openPatientWhatsApp(openEmergency=false){
