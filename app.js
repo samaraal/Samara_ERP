@@ -27476,10 +27476,17 @@ function ShiftHandover({profile,onNavigate}){
 
     async function sendPaymentReceiptWhatsAppApi(receipt,{automatic=false}={}){
       if(!receipt)return false;
-      const patient=patients.find(p=>p.id===receipt.patient_id)||{};
+      // IMPORTANT: `patients` from usePatients() contains active residents only.
+      // A historical Payment/Advance can belong to a discharged resident, so resolve
+      // the resident from the all-patient Accounts list first. This prevents later
+      // active-patient filtering changes from breaking receipt resend.
+      const patient=financialPatients.find(p=>String(p.id)===String(receipt.patient_id))
+        ||patients.find(p=>String(p.id)===String(receipt.patient_id))
+        ||{};
       // Payment receipts must also work for discharged/inactive patients.
-      // Family contacts are stored in family_portal_access (including Contact 2),
-      // so do not rely only on the legacy attendant_phone field on patients.
+      // Family contacts are stored in family_portal_access (including Contact 2).
+      // We also keep the Patient File and family communication preference as safe
+      // fallbacks because Accounts RLS can differ from Admission/Patient Master RLS.
       let familyContacts=[];
       try{
         const {data,error}=await client.from('family_portal_access')
@@ -27499,9 +27506,34 @@ function ShiftHandover({profile,onNavigate}){
       }catch(contactError){
         console.warn('Could not load family_portal_access for payment WhatsApp:',contactError);
       }
-      const legacyMobile=normalizeWhatsAppRecipient(patient.attendant_phone||patient.mobile||'');
-      if(legacyMobile&&!familyContacts.some(contact=>contact.mobile===legacyMobile)){
-        familyContacts.push({name:patient.attendant_name||'Family Member',mobile:legacyMobile,primary:familyContacts.length===0});
+      // Family communication preference is another authoritative patient-linked
+      // recipient source already used by Samara daily family communication.
+      try{
+        const {data:pref,error:prefError}=await client.from('patient_family_communication_preferences')
+          .select('recipient_name,recipient_mobile,is_active')
+          .eq('patient_id',receipt.patient_id)
+          .maybeSingle();
+        if(prefError)throw prefError;
+        const prefMobile=normalizeWhatsAppRecipient(pref?.recipient_mobile||'');
+        if(prefMobile&&!familyContacts.some(contact=>contact.mobile===prefMobile)){
+          familyContacts.push({name:String(pref?.recipient_name||patient.attendant_name||'Family Member').trim()||'Family Member',mobile:prefMobile,primary:familyContacts.length===0});
+        }
+      }catch(prefError){
+        console.warn('Could not load family communication preference for payment WhatsApp:',prefError);
+      }
+
+      // Patient File fallbacks.  Include the alternative family number as well; this
+      // was previously omitted from Payment WhatsApp resend.
+      const patientFileContacts=[
+        {name:patient.attendant_name||'Family Member',mobile:patient.attendant_phone||'',primary:true},
+        {name:'Family Contact 2',mobile:patient.attendant_alternative_phone||'',primary:false},
+        {name:patient.attendant_name||'Family Member',mobile:patient.mobile||'',primary:false}
+      ];
+      for(const item of patientFileContacts){
+        const mobile=normalizeWhatsAppRecipient(item.mobile||'');
+        if(mobile&&!familyContacts.some(contact=>contact.mobile===mobile)){
+          familyContacts.push({...item,mobile,primary:item.primary&&familyContacts.length===0});
+        }
       }
       // Remove accidental duplicate numbers while preserving primary/contact order.
       familyContacts=familyContacts.filter((contact,index,list)=>list.findIndex(item=>item.mobile===contact.mobile)===index);
