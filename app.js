@@ -17265,6 +17265,7 @@ Please keep these login details confidential.`;
     const [familyResetBusy,setFamilyResetBusy]=React.useState(null);
     const [familyResetCredential,setFamilyResetCredential]=React.useState(null);
     const [familyPortalWaBusy,setFamilyPortalWaBusy]=React.useState('');
+    const [dischargeWaBusy,setDischargeWaBusy]=React.useState('');
     const [dailyReportToggleBusy,setDailyReportToggleBusy]=React.useState(false);
     const [dailyQuickEdit,setDailyQuickEdit]=React.useState(null);
     const [dailyQuickEditBusy,setDailyQuickEditBusy]=React.useState(false);
@@ -17329,7 +17330,7 @@ Please keep these login details confidential.`;
     function displayDailyReportTime(value){if(!value)return 'Not scheduled';const parts=String(value).slice(0,5).split(':');const hh=Number(parts[0]),mm=parts[1]||'00';if(!Number.isFinite(hh))return String(value);const suffix=hh>=12?'PM':'AM';const hour=hh%12||12;return `${hour}:${mm} ${suffix}`;}
     async function openPatient(p,desiredTab='Overview'){
       setSelected(p);setPhotoUrl('');setTab(desiredTab);
-      const [m,ma,mr,mri,c,cl,v,ph,ps,d,meal,bill,rec,inc,fam,mom,wa,pref,reportWa,proc,hand,url]=await Promise.all([
+      const [m,ma,mr,mri,c,cl,v,ph,ps,d,meal,bill,rec,inc,fam,mom,wa,pref,reportWa,proc,hand,discharges,url]=await Promise.all([
         client.from('medication_orders').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}),
         client.from('medication_administrations').select('*').eq('patient_id',p.id).order('scheduled_date',{ascending:false}).limit(100),
         client.from('medication_reviews').select('*').eq('patient_id',p.id).order('reviewed_at',{ascending:false}),
@@ -17346,11 +17347,12 @@ Please keep these login details confidential.`;
         client.from('incidents').select('*').eq('patient_id',p.id).order('incident_at',{ascending:false}).limit(100),
         canEdit?client.from('family_portal_access').select('id,family_user_id,relative_name,relationship,mobile,email,primary_contact,is_active,last_login_at,created_at,updated_at').eq('patient_id',p.id).order('primary_contact',{ascending:false}).order('created_at',{ascending:true}):Promise.resolve({data:[]}),
         client.from('patient_daily_moments').select('*').eq('patient_id',p.id).gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}),
-        canEdit?client.from('hr_whatsapp_communications').select('id,recipient_number,template_name,status,provider_message_id,message_payload,created_at').in('template_name',['samara_family_portal_access','samara_patient_admission']).order('created_at',{ascending:false}).limit(500):Promise.resolve({data:[]}),
+        canEdit?client.from('hr_whatsapp_communications').select('id,recipient_number,template_name,status,provider_message_id,message_payload,created_at').in('template_name',['samara_family_portal_access','samara_patient_admission','samara_discharge_confirmation']).order('created_at',{ascending:false}).limit(500):Promise.resolve({data:[]}),
         canEdit?client.from('patient_family_communication_preferences').select('*').eq('patient_id',p.id).maybeSingle():Promise.resolve({data:null}),
         canEdit?client.from('patient_communications').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}).limit(50):Promise.resolve({data:[]}),
         client.from('bill_charge_requests').select('id,patient_id,charge_date,service_datetime,category,service_name,description,quantity,unit,status,approval_status,remarks,raised_by_name,raised_at,created_at').eq('patient_id',p.id).eq('category','Nursing Procedures').order('service_datetime',{ascending:false}).limit(100),
         client.from('shift_handovers').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}).limit(100),
+        canEdit?client.from('patient_discharges').select('*').eq('patient_id',p.id).order('updated_at',{ascending:false}).limit(20):Promise.resolve({data:[]}),
         resolvePatientPhoto(p)
       ]);
       const momentRows=await Promise.all((mom?.data||[]).map(async row=>{
@@ -17367,7 +17369,7 @@ Please keep these login details confidential.`;
         medicationReviewError:[mr?.error,mri?.error].filter(Boolean).map(error=>error.message).join(' | '),
         mar:todayMar,
         allMar:ma.data||[],
-        care:c.data||[],careLogs:cl.data||[],vitals:v.data||[],physio:ph.data||[],physioSessions:ps.data||[],docs:d.data||[],meals:meal.data||[],billing:bill.data||[],recovery:rec.data||[],incidents:inc.data||[],familyAccess:dedupeFamilyAccessRows(fam?.data||[]),dailyMoments:momentRows,familyWhatsApp:wa?.data||[],familyPreference:pref?.data||null,reportWhatsApp:reportWa?.data||[],nursingProcedures:proc?.data||[],handovers:hand?.data||[]
+        care:c.data||[],careLogs:cl.data||[],vitals:v.data||[],physio:ph.data||[],physioSessions:ps.data||[],docs:d.data||[],meals:meal.data||[],billing:bill.data||[],recovery:rec.data||[],incidents:inc.data||[],familyAccess:dedupeFamilyAccessRows(fam?.data||[]),dailyMoments:momentRows,familyWhatsApp:wa?.data||[],familyPreference:pref?.data||null,reportWhatsApp:reportWa?.data||[],nursingProcedures:proc?.data||[],handovers:hand?.data||[],discharges:discharges?.data||[]
       });
       setPhotoUrl(url);
     }
@@ -17525,6 +17527,66 @@ Please keep these login details confidential.`;
         showPatientToast('error',`Admission WhatsApp API failed: ${error.message||error}.`);
       }finally{
         setFamilyPortalWaBusy('');
+      }
+    }
+
+    function completedPatientDischarge(){
+      return (details?.discharges||[]).find(row=>String(row?.status||'').toLowerCase()==='completed')||null;
+    }
+
+    async function resendPatientDischargeWhatsApp(access){
+      const discharge=completedPatientDischarge();
+      if(!discharge){showPatientToast('error','No completed discharge record is available for this resident.');return}
+      if(!access?.mobile){showPatientToast('error','Registered family WhatsApp number is not available.');return}
+      if(dischargeWaBusy)return;
+      const busyKey=`discharge-${access.id||'family'}`;
+      setDischargeWaBusy(busyKey);
+      try{
+        const recipient=access.relative_name||selected?.attendant_name||discharge.relative_name||'Family Member';
+        const patientName=formalName(selected)||selected?.full_name||'Patient';
+        const departureAt=discharge.actual_departure_at||discharge.updated_at||discharge.created_at;
+        const departureDate=formatDateIN(String(departureAt||'').slice(0,10));
+        const departureTime=formatTimeIN(departureAt);
+        const renderedMessage=`Dear ${recipient},
+
+We confirm that ${patientName} has been discharged from Samara Assisted Living.
+
+Discharge Date: ${departureDate}
+Discharge Time: ${departureTime}
+
+The discharge formalities have been completed.
+
+Thank you for placing your trust in Samara Assisted Living. We wish the patient continued recovery and good health.
+
+For any further assistance, please contact us.
+
+Thank you.
+
+Samara Assisted Living • Compassion • Comfort • Dignity`;
+        const result=await sendWhatsAppTemplate({
+          to:access.mobile,
+          templateName:'samara_discharge_confirmation',
+          languageCode:'en',
+          bodyParams:[recipient,patientName,departureDate,departureTime],
+          communicationLog:{
+            communication_type:'Discharge Confirmation Resent',
+            message_content:renderedMessage,
+            contact_name:recipient,
+            source_type:'Patient / Family · Discharge',
+            sent_by:profile?.id||null,
+            sent_by_name:formalName(profile)||profile?.full_name||'Samara Management',
+            message_payload:{discharge_id:discharge.id,patient_id:selected?.id||null,patient_code:selected?.patient_id||null,patient_name:patientName,resend:true,automatic:false,body_params:[recipient,patientName,departureDate,departureTime],button_text:'View Family Portal',button_url:'https://family.samaraassistedliving.com'}
+          }
+        });
+        const now=new Date().toISOString();
+        const updateResult=await client.from('patient_discharges').update({discharge_whatsapp_sent_at:now,discharge_whatsapp_message_id:result.provider_message_id,discharge_whatsapp_status:'Accepted',updated_at:now}).eq('id',discharge.id);
+        if(updateResult.error)console.warn('Discharge WhatsApp status could not be saved:',updateResult.error);
+        setDetails(current=>current?{...current,discharges:(current.discharges||[]).map(row=>row.id===discharge.id?{...row,discharge_whatsapp_sent_at:now,discharge_whatsapp_message_id:result.provider_message_id,discharge_whatsapp_status:'Accepted',updated_at:now}:row),familyWhatsApp:result?.history_logged===true?[{id:`accepted-${result.provider_message_id}`,recipient_number:normalizeWhatsAppRecipient(access.mobile),template_name:'samara_discharge_confirmation',status:'Accepted',provider_message_id:result.provider_message_id,message_payload:{discharge_id:discharge.id,patient_id:selected?.id||null,patient_code:selected?.patient_id||null,resend:true},created_at:now},...(current.familyWhatsApp||[])]:current.familyWhatsApp}:current);
+        showPatientToast(result?.history_logged===true?'success':'warning',result?.history_logged===true?'Discharge confirmation WhatsApp resent and recorded in WhatsApp Inbox.':'Meta accepted the discharge confirmation. Inbox logging could not be confirmed; do not resend solely for this warning.');
+      }catch(error){
+        showPatientToast('error',`Discharge WhatsApp API failed: ${error.message||error}.`);
+      }finally{
+        setDischargeWaBusy('');
       }
     }
 
@@ -19697,6 +19759,7 @@ Please keep these login details confidential.`;
                 ),
                 access.is_active&&(()=>{const portalWhatsAppSent=familyPortalWhatsAppSent(access);const admissionSent=admissionWhatsAppSent(access);return h('div',{className:'actions',style:{marginTop:'10px'}},
                   h('button',{type:'button',className:admissionSent?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:familyPortalWaBusy===access.id,onClick:()=>sendPatientAdmissionWhatsApp(access,{resend:admissionSent})},familyPortalWaBusy===access.id?'Sending…':admissionSent?'Resend Admission WhatsApp':'Send Admission WhatsApp'),
+                  completedPatientDischarge()?h('button',{type:'button',className:'btn btn-whatsapp',disabled:!!dischargeWaBusy,onClick:()=>resendPatientDischargeWhatsApp(access)},dischargeWaBusy===`discharge-${access.id||'family'}`?'Resending Discharge WhatsApp…':'Resend Discharge WhatsApp'):null,
                   h('button',{type:'button',className:'btn btn-secondary',disabled:familyResetBusy===access.id,onClick:()=>resetSelectedFamilyPin(access)},familyResetBusy===access.id?'Resetting…':'Forgot / Reset PIN'),
                   h('button',{type:'button',className:portalWhatsAppSent?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:portalWhatsAppSent||familyPortalWaBusy===access.id,onClick:()=>sendPatientPortalWhatsApp(access)},familyPortalWaBusy===access.id?'Sending…':portalWhatsAppSent?'Portal Access WhatsApp Sent ✓':'Send Portal Access WhatsApp API'),
                   portalWhatsAppSent?h('button',{type:'button',className:'btn btn-secondary',disabled:familyPortalWaBusy===access.id,onClick:()=>sendPatientPortalWhatsApp(access,{resend:true})},familyPortalWaBusy===access.id?'Resending…':'Resend Portal Access WhatsApp'):null,
