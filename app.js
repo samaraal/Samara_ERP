@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.04';
+  const APP_VERSION = '2.14.05';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -17785,11 +17785,14 @@ Please keep these login details confidential.`;
       const mode=portalEnabled&&dailyEnabled?'Both':dailyEnabled?'Daily WhatsApp Update':'Family Portal Access';
       const recipientName=String(editDailyWhatsApp.recipient_name||editFamilyAccess.relative_name||editForm.attendant_name||'').trim();
       const relationship=String(editDailyWhatsApp.relationship||editFamilyAccess.relationship||'').trim();
-      const mobile=String(editDailyWhatsApp.mobile||editFamilyAccess.mobile||editForm.attendant_phone||'').replace(/\D/g,'').slice(-10);
+      const portalMobile=portalEnabled?validateGlobalPhone(editFamilyAccess.country_code,editFamilyAccess.mobile,'family WhatsApp number'):'';
+      const dailyRaw=String(editDailyWhatsApp.mobile||'').trim();
+      const dailyMobile=dailyRaw?(dailyRaw.startsWith('+')?dailyRaw:(portalMobile||dailyRaw)):portalMobile;
+      const mobile=String(dailyMobile||editForm.attendant_phone||'').trim();
       if(active&&!recipientName)throw new Error('Enter the authorised family member name for family communication.');
-      if(active&&mobile.length!==10)throw new Error('Enter a valid 10-digit family WhatsApp number.');
+      if(active&&!mobile)throw new Error('Enter a valid family WhatsApp number.');
       if(dailyEnabled&&!String(editDailyWhatsApp.daily_report_time||'').trim())throw new Error('Select the Daily Patient Report WhatsApp time.');
-      const payload={patient_id:editTarget.id,delivery_mode:mode,family_portal_enabled:portalEnabled,daily_whatsapp_enabled:dailyEnabled,recipient_name:recipientName||'Family Member',relationship:relationship||null,recipient_mobile:mobile||String(editForm.attendant_phone||'').replace(/\D/g,'').slice(-10),recipient_email:String(editDailyWhatsApp.email||editFamilyAccess.email||'').trim()||null,daily_report_time:dailyEnabled?(editDailyWhatsApp.daily_report_time||'20:00'):null,timezone:'Asia/Kolkata',is_active:active,updated_at:new Date().toISOString()};
+      const payload={patient_id:editTarget.id,delivery_mode:mode,family_portal_enabled:portalEnabled,daily_whatsapp_enabled:dailyEnabled,recipient_name:recipientName||'Family Member',relationship:relationship||null,recipient_mobile:mobile,recipient_email:String(editDailyWhatsApp.email||editFamilyAccess.email||'').trim()||null,daily_report_time:dailyEnabled?(editDailyWhatsApp.daily_report_time||'20:00'):null,timezone:'Asia/Kolkata',is_active:active,updated_at:new Date().toISOString()};
       const {data,error}=await client.from('patient_family_communication_preferences').upsert(payload,{onConflict:'patient_id'}).select().single();if(error)throw error;return data;
     }
 
@@ -17800,7 +17803,7 @@ Please keep these login details confidential.`;
       setFamilyResetCredential(null);
       try{
         const pin=String(Math.floor(100000+Math.random()*900000));
-        const mobile=String(access.mobile||'').replace(/\D/g,'').slice(-10);
+        const mobile=String(access.mobile||'').trim();
         const {data,error}=await client.rpc('upsert_family_portal_access',{
           p_patient_id:selected.id,
           p_relative_name:access.relative_name,
