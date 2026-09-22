@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.02';
+  const APP_VERSION = '2.14.03';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1723,6 +1723,28 @@ function initSamaraInaugurationInvitation(){
     if(digits.length===10)return `91${digits}`;
     if(digits.length===11&&digits.startsWith('0'))return `91${digits.slice(1)}`;
     return digits;
+  };
+  const splitGlobalPhone = value => {
+    const raw=String(value||'').trim();
+    const explicit=raw.match(/^\s*\+(\d{1,3})[\s-]+(.+)$/);
+    if(explicit)return {country_code:`+${explicit[1]}`,mobile:String(explicit[2]||'').replace(/\D/g,'').slice(0,14)};
+    const digits=raw.replace(/\D/g,'');
+    if(!digits)return {country_code:'+91',mobile:''};
+    if(digits.length===10)return {country_code:'+91',mobile:digits};
+    if(digits.length===12&&digits.startsWith('91'))return {country_code:'+91',mobile:digits.slice(2)};
+    return {country_code:'+91',mobile:digits.slice(-10)};
+  };
+  const globalPhoneValue = (countryCode,mobile) => {
+    const code=String(countryCode||'+91').replace(/\D/g,'').slice(0,3);
+    const local=String(mobile||'').replace(/\D/g,'').slice(0,14);
+    return code&&local?`+${code} ${local}`:'';
+  };
+  const validateGlobalPhone = (countryCode,mobile,label='mobile number') => {
+    const code=String(countryCode||'').replace(/\D/g,'');
+    const local=String(mobile||'').replace(/\D/g,'');
+    if(code.length<1||code.length>3)throw new Error(`Enter a valid country code for ${label}, for example +91.`);
+    if(local.length<4||local.length>14||code.length+local.length>15)throw new Error(`Enter a valid ${label}. Country code + number must be no more than 15 digits.`);
+    return `+${code} ${local}`;
   };
   const compactWhatsAppParam = (value,max=60,fallback='—') => {
     const clean=String(value??'').replace(/\s+/g,' ').trim();
@@ -15842,9 +15864,8 @@ Thank you.`;
       const mobile=String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10);
       if(!String(familyAccess.relative_name||'').trim())throw new Error('Enter the authorised family member name.');
       if(!String(familyAccess.relationship||'').trim())throw new Error('Enter the relationship to the resident.');
-      if(mobile.length!==10)throw new Error('Enter a valid 10-digit family mobile number.');
-      const {data:existingRows}=await client.from('family_portal_access').select('id,mobile,relative_name,is_active').eq('patient_id',patient.id).eq('is_active',true);
-      const existing=(existingRows||[]).find(row=>String(row.mobile||'').replace(/\D/g,'').slice(-10)===mobile&&String(row.relative_name||'').trim().toLowerCase()===String(familyAccess.relative_name||'').trim().toLowerCase());
+            const {data:existingRows}=await client.from('family_portal_access').select('id,mobile,relative_name,is_active').eq('patient_id',patient.id).eq('is_active',true);
+      const existing=(existingRows||[]).find(row=>normalizeWhatsAppRecipient(row.mobile)===normalizeWhatsAppRecipient(mobile)&&String(row.relative_name||'').trim().toLowerCase()===String(familyAccess.relative_name||'').trim().toLowerCase());
       const pin=String(Math.floor(100000+Math.random()*900000));
       const {data,error}=await client.rpc('upsert_family_portal_access',{p_patient_id:patient.id,p_relative_name:String(familyAccess.relative_name).trim(),p_relationship:String(familyAccess.relationship).trim(),p_mobile:mobile,p_email:String(familyAccess.email||'').trim()||null,p_primary_contact:!!familyAccess.primary_contact,p_pin:pin,p_access_id:existing?.id||null});
       if(error)throw error;
@@ -17226,8 +17247,8 @@ Please keep these login details confidential.`;
       }catch(_error){return 'active'}
     });
     const [editTarget,setEditTarget]=React.useState(null),[editForm,setEditForm]=React.useState(null),[editBusy,setEditBusy]=React.useState(false),[editMsg,setEditMsg]=React.useState('');
-    const [editFamilyAccess,setEditFamilyAccess]=React.useState({enabled:false,id:null,family_user_id:'',relative_name:'',relationship:'',mobile:'',email:'',primary_contact:true,is_active:true});
-    const [editFamilyAccess2,setEditFamilyAccess2]=React.useState({enabled:false,id:null,family_user_id:'',relative_name:'',relationship:'',mobile:'',email:'',primary_contact:false,is_active:true});
+    const [editFamilyAccess,setEditFamilyAccess]=React.useState({enabled:false,id:null,family_user_id:'',relative_name:'',relationship:'',country_code:'+91',mobile:'',email:'',primary_contact:true,is_active:true});
+    const [editFamilyAccess2,setEditFamilyAccess2]=React.useState({enabled:false,id:null,family_user_id:'',relative_name:'',relationship:'',country_code:'+91',mobile:'',email:'',primary_contact:false,is_active:true});
     const [editDailyWhatsApp,setEditDailyWhatsApp]=React.useState({enabled:false,recipient_name:'',relationship:'',mobile:'',email:'',daily_report_time:'20:00'});
     const [editFamilyCredential,setEditFamilyCredential]=React.useState(null);
     const [editFamilyCredential2,setEditFamilyCredential2]=React.useState(null);
@@ -17624,8 +17645,10 @@ Please keep these login details confidential.`;
       const familyRows=Array.isArray(existingFamily)?existingFamily:existingFamily?[existingFamily]:[];
       const primaryFamily=familyRows.find(x=>x.primary_contact)||familyRows[0]||null;
       const secondaryFamily=familyRows.find(x=>x.id!==primaryFamily?.id)||null;
-      setEditFamilyAccess(primaryFamily?{enabled:true,...primaryFamily}:{enabled:false,id:null,family_user_id:'',relative_name:row.attendant_name||'',relationship:'',mobile:String(row.attendant_phone||'').replace(/\D/g,'').slice(-10),email:'',primary_contact:true,is_active:true});
-      setEditFamilyAccess2(secondaryFamily?{enabled:true,...secondaryFamily,primary_contact:false}:{enabled:false,id:null,family_user_id:'',relative_name:'',relationship:'',mobile:String(row.attendant_alternative_phone||'').replace(/\D/g,'').slice(-10),email:'',primary_contact:false,is_active:true});
+      const primaryPhone=splitGlobalPhone(primaryFamily?.mobile||row.attendant_phone||'');
+      const secondaryPhone=splitGlobalPhone(secondaryFamily?.mobile||row.attendant_alternative_phone||'');
+      setEditFamilyAccess(primaryFamily?{enabled:true,...primaryFamily,...primaryPhone}:{enabled:false,id:null,family_user_id:'',relative_name:row.attendant_name||'',relationship:'',...primaryPhone,email:'',primary_contact:true,is_active:true});
+      setEditFamilyAccess2(secondaryFamily?{enabled:true,...secondaryFamily,...secondaryPhone,primary_contact:false}:{enabled:false,id:null,family_user_id:'',relative_name:'',relationship:'',...secondaryPhone,email:'',primary_contact:false,is_active:true});
       setEditDailyWhatsApp({enabled:!!existingComm?.daily_whatsapp_enabled,recipient_name:existingComm?.recipient_name||primaryFamily?.relative_name||row.attendant_name||'',relationship:existingComm?.relationship||primaryFamily?.relationship||'',mobile:String(existingComm?.recipient_mobile||primaryFamily?.mobile||row.attendant_phone||'').replace(/\D/g,'').slice(-10),email:existingComm?.recipient_email||primaryFamily?.email||'',daily_report_time:String(existingComm?.daily_report_time||'20:00').slice(0,5)});
       setEditFamilyCredential(null);setEditFamilyCredential2(null);
       setEditMeds(currentUpcomingMedicineOrders(existingMeds||[]).map(m=>({...blankMedicine(),...m,times:Array.isArray(m.scheduled_times)?m.scheduled_times.join(', '):(m.times||''),custom_duration_days:m.duration_days||''})));
@@ -17706,12 +17729,12 @@ Please keep these login details confidential.`;
         if(editFamilyAccess.id){const {error}=await client.rpc('set_family_portal_access_status',{p_access_id:editFamilyAccess.id,p_active:false});if(error)throw error;}
         return {disabled:true};
       }
-      const mobile=String(editFamilyAccess.mobile||'').replace(/\D/g,'').slice(-10);
+      const mobile=validateGlobalPhone(editFamilyAccess.country_code,editFamilyAccess.mobile,'family mobile number');
       if(!String(editFamilyAccess.relative_name||'').trim())throw new Error('Enter the authorised family member name.');
       if(!String(editFamilyAccess.relationship||'').trim())throw new Error('Enter the relationship to the resident.');
       if(mobile.length!==10)throw new Error('Enter a valid 10-digit family mobile number.');
       let accessId=editFamilyAccess.id||null;
-      if(!accessId){const {data:existingRows}=await client.from('family_portal_access').select('id,mobile,relative_name,is_active').eq('patient_id',editTarget.id).eq('is_active',true);const existing=(existingRows||[]).find(row=>String(row.mobile||'').replace(/\D/g,'').slice(-10)===mobile&&String(row.relative_name||'').trim().toLowerCase()===String(editFamilyAccess.relative_name||'').trim().toLowerCase());accessId=existing?.id||null;}
+      if(!accessId){const {data:existingRows}=await client.from('family_portal_access').select('id,mobile,relative_name,is_active').eq('patient_id',editTarget.id).eq('is_active',true);const existing=(existingRows||[]).find(row=>normalizeWhatsAppRecipient(row.mobile)===normalizeWhatsAppRecipient(mobile)&&String(row.relative_name||'').trim().toLowerCase()===String(editFamilyAccess.relative_name||'').trim().toLowerCase());accessId=existing?.id||null;}
       const isNew=!accessId;
       const pin=isNew?String(Math.floor(100000+Math.random()*900000)):null;
       const {data,error}=await client.rpc('upsert_family_portal_access',{p_patient_id:editTarget.id,p_relative_name:String(editFamilyAccess.relative_name).trim(),p_relationship:String(editFamilyAccess.relationship).trim(),p_mobile:mobile,p_email:String(editFamilyAccess.email||'').trim()||null,p_primary_contact:!!editFamilyAccess.primary_contact,p_pin:pin,p_access_id:accessId});
@@ -17729,12 +17752,11 @@ Please keep these login details confidential.`;
         if(item.id){const {error}=await client.rpc('set_family_portal_access_status',{p_access_id:item.id,p_active:false});if(error)throw error;}
         return {disabled:true};
       }
-      const mobile=String(item.mobile||'').replace(/\D/g,'').slice(-10);
+      const mobile=validateGlobalPhone(item.country_code,item.mobile,'second family mobile number');
       if(!String(item.relative_name||'').trim())throw new Error('Enter the second authorised family member name.');
       if(!String(item.relationship||'').trim())throw new Error('Enter the second family member relationship to the resident.');
-      if(mobile.length!==10)throw new Error('Enter a valid 10-digit second family mobile number.');
-      const firstMobile=String(editFamilyAccess.mobile||'').replace(/\D/g,'').slice(-10);
-      if(editFamilyAccess.enabled&&firstMobile===mobile)throw new Error('Family Contact 2 must use a different mobile number from Family Contact 1.');
+            const firstMobile=editFamilyAccess.enabled?normalizeWhatsAppRecipient(globalPhoneValue(editFamilyAccess.country_code,editFamilyAccess.mobile)):'';
+      if(editFamilyAccess.enabled&&firstMobile===normalizeWhatsAppRecipient(mobile))throw new Error('Family Contact 2 must use a different mobile number from Family Contact 1.');
       let accessId=item.id||null;
       if(!accessId){const {data:existingRows}=await client.from('family_portal_access').select('id,mobile,relative_name,is_active').eq('patient_id',editTarget.id);const existing=(existingRows||[]).find(row=>String(row.mobile||'').replace(/\D/g,'').slice(-10)===mobile);accessId=existing?.id||null;}
       const isNew=!accessId;
@@ -19618,14 +19640,14 @@ Please keep these login details confidential.`;
                   h('button',{type:'button',className:'btn btn-secondary',disabled:familyResetBusy===access.id,onClick:()=>resetSelectedFamilyPin(access)},familyResetBusy===access.id?'Resetting…':'Forgot / Reset PIN'),
                   h('button',{type:'button',className:portalWhatsAppSent?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:portalWhatsAppSent||familyPortalWaBusy===access.id,onClick:()=>sendPatientPortalWhatsApp(access)},familyPortalWaBusy===access.id?'Sending…':portalWhatsAppSent?'Portal Access WhatsApp Sent ✓':'Send Portal Access WhatsApp API'),
                   portalWhatsAppSent?h('button',{type:'button',className:'btn btn-secondary',disabled:familyPortalWaBusy===access.id,onClick:()=>sendPatientPortalWhatsApp(access,{resend:true})},familyPortalWaBusy===access.id?'Resending…':'Resend Portal Access WhatsApp'):null,
-                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${String(access.mobile||'').replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal\nResident ID: ${selected?.patient_id||''}\nPortal: https://family.samaraassistedliving.com\nIf the PIN is forgotten, please contact Samara to reset it.`))}`,'_blank','noopener')},'Existing Method')
+                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/${normalizeWhatsAppRecipient(access.mobile)}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal\nResident ID: ${selected?.patient_id||''}\nPortal: https://family.samaraassistedliving.com\nIf the PIN is forgotten, please contact Samara to reset it.`))}`,'_blank','noopener')},'Existing Method')
                 )})()
               )))
               :h('div',null,sectionEmpty('Family Portal access has not been created for this resident.'),h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEditPatient(selected)},'Create Family Portal Access')),
             familyResetCredential&&h('div',{className:'message success',style:{marginTop:'14px'}},
               h('strong',null,'New Family Portal PIN generated'),
               h('div',null,`Resident ID: ${selected?.patient_id||'—'} · Temporary PIN: ${familyResetCredential.pin}`),
-              h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${familyResetCredential.mobile}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal login\nResident ID: ${selected?.patient_id||''}\nTemporary PIN: ${familyResetCredential.pin}\nPortal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send New PIN by WhatsApp')
+              h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/${normalizeWhatsAppRecipient(familyResetCredential.mobile)}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal login\nResident ID: ${selected?.patient_id||''}\nTemporary PIN: ${familyResetCredential.pin}\nPortal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send New PIN by WhatsApp')
             )
           )
         ),
@@ -19727,7 +19749,7 @@ Please keep these login details confidential.`;
             h('div',{className:'field'},h('label',null,'Family User ID'),h('input',{readOnly:true,value:editFamilyAccess.family_user_id||'Generated when saved'})),
             h('div',{className:'field'},h('label',null,'Authorised Relative Name'),h('input',{required:true,value:editFamilyAccess.relative_name||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,relative_name:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Relationship'),h('select',{required:true,value:editFamilyAccess.relationship||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,relationship:e.target.value})},h('option',{value:''},'Select relationship'),...(editFamilyAccess.relationship&&!['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].includes(editFamilyAccess.relationship)?[h('option',{key:editFamilyAccess.relationship,value:editFamilyAccess.relationship},editFamilyAccess.relationship)]:[]),...['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].map(x=>h('option',{key:x,value:x},x)))),
-            h('div',{className:'field'},h('label',null,'Family Mobile Number'),h('input',{required:true,inputMode:'numeric',maxLength:10,value:editFamilyAccess.mobile||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,mobile:e.target.value.replace(/\D/g,'').slice(0,10)})})),
+            h('div',{className:'field'},h('label',null,'Family Mobile Number'),h('div',{style:{display:'grid',gridTemplateColumns:'92px 1fr',gap:'8px'}},h('input',{required:true,inputMode:'tel',placeholder:'+91',value:editFamilyAccess.country_code||'+91',onChange:e=>setEditFamilyAccess({...editFamilyAccess,country_code:`+${e.target.value.replace(/\D/g,'').slice(0,3)}`})}),h('input',{required:true,inputMode:'tel',maxLength:14,placeholder:'Mobile number',value:editFamilyAccess.mobile||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,mobile:e.target.value.replace(/\D/g,'').slice(0,14)})})),h('small',null,'Global format · country code + mobile number')),
             h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:editFamilyAccess.email||'',onChange:e=>setEditFamilyAccess({...editFamilyAccess,email:e.target.value})})),
             h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!editFamilyAccess.primary_contact,onChange:e=>setEditFamilyAccess({...editFamilyAccess,primary_contact:e.target.checked})}),h('span',null,'Primary Family Contact'))
           ),
@@ -19738,13 +19760,13 @@ Please keep these login details confidential.`;
               h('div',{className:'field'},h('label',null,'Family User ID'),h('input',{readOnly:true,value:editFamilyAccess2.family_user_id||'Generated when saved'})),
               h('div',{className:'field'},h('label',null,'Authorised Relative Name'),h('input',{required:true,value:editFamilyAccess2.relative_name||'',onChange:e=>setEditFamilyAccess2({...editFamilyAccess2,relative_name:e.target.value})})),
               h('div',{className:'field'},h('label',null,'Relationship'),h('select',{required:true,value:editFamilyAccess2.relationship||'',onChange:e=>setEditFamilyAccess2({...editFamilyAccess2,relationship:e.target.value})},h('option',{value:''},'Select relationship'),...['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].map(x=>h('option',{key:x,value:x},x)))),
-              h('div',{className:'field'},h('label',null,'Family Mobile Number'),h('input',{required:true,inputMode:'numeric',maxLength:10,value:editFamilyAccess2.mobile||'',onChange:e=>setEditFamilyAccess2({...editFamilyAccess2,mobile:e.target.value.replace(/\D/g,'').slice(0,10)})})),
+              h('div',{className:'field'},h('label',null,'Family Mobile Number'),h('div',{style:{display:'grid',gridTemplateColumns:'92px 1fr',gap:'8px'}},h('input',{required:true,inputMode:'tel',placeholder:'+91',value:editFamilyAccess2.country_code||'+91',onChange:e=>setEditFamilyAccess2({...editFamilyAccess2,country_code:`+${e.target.value.replace(/\D/g,'').slice(0,3)}`})}),h('input',{required:true,inputMode:'tel',maxLength:14,placeholder:'Mobile number',value:editFamilyAccess2.mobile||'',onChange:e=>setEditFamilyAccess2({...editFamilyAccess2,mobile:e.target.value.replace(/\D/g,'').slice(0,14)})})),h('small',null,'Global format · country code + mobile number')),
               h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:editFamilyAccess2.email||'',onChange:e=>setEditFamilyAccess2({...editFamilyAccess2,email:e.target.value})})),
               h('div',{className:'small-note'},'Family Contact 1 remains the Primary Family Contact. Contact 2 receives a separate login and PIN.')
             )
           ),
-          editFamilyCredential2&&h('div',{className:'message success',style:{marginTop:'12px'}},h('strong',null,'Family Contact 2 Portal PIN generated'),h('div',null,`Resident ID: ${editTarget?.patient_id||'—'} · Temporary PIN: ${editFamilyCredential2.pin}`),h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${editFamilyCredential2.mobile}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal login\nResident ID: ${editTarget?.patient_id||''}\nTemporary PIN: ${editFamilyCredential2.pin}\nPortal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send Contact 2 Login by WhatsApp')),
-          editFamilyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},h('strong',null,'Family Portal PIN generated'),h('div',null,`Resident ID: ${editTarget?.patient_id||'—'} · Temporary PIN: ${editFamilyCredential.pin}`),h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/91${editFamilyCredential.mobile}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal login\nResident ID: ${editTarget?.patient_id||''}\nTemporary PIN: ${editFamilyCredential.pin}\nPortal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send Login by WhatsApp'))
+          editFamilyCredential2&&h('div',{className:'message success',style:{marginTop:'12px'}},h('strong',null,'Family Contact 2 Portal PIN generated'),h('div',null,`Resident ID: ${editTarget?.patient_id||'—'} · Temporary PIN: ${editFamilyCredential2.pin}`),h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/${normalizeWhatsAppRecipient(editFamilyCredential2.mobile)}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal login\nResident ID: ${editTarget?.patient_id||''}\nTemporary PIN: ${editFamilyCredential2.pin}\nPortal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send Contact 2 Login by WhatsApp')),
+          editFamilyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},h('strong',null,'Family Portal PIN generated'),h('div',null,`Resident ID: ${editTarget?.patient_id||'—'} · Temporary PIN: ${editFamilyCredential.pin}`),h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/${normalizeWhatsAppRecipient(editFamilyCredential.mobile)}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal login\nResident ID: ${editTarget?.patient_id||''}\nTemporary PIN: ${editFamilyCredential.pin}\nPortal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send Login by WhatsApp'))
         ),
         h('div',{className:'section-card',style:{background:'#fff8fc'}},
           h('div',{className:'section-title'},h('div',null,h('h4',null,'Daily Patient Report WhatsApp'),h('small',null,'Automatically send the A4 Intelligent Patient Care Report PDF to the authorised family contact at the selected time.'))),
