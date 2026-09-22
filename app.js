@@ -28731,6 +28731,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         .on('postgres_changes',{event:'*',schema:'public',table:'bill_charge_requests'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'diagnostic_services'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'charge_tariff_master'},load)
+        .on('postgres_changes',{event:'*',schema:'public',table:'consumable_store_items'},load)
         .subscribe();
       return()=>{clearInterval(refreshTimer);window.removeEventListener('focus',load);client.removeChannel(ch)};
     },[]);
@@ -28858,11 +28859,29 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       }catch(error){notify('error',error.message||'Unable to save clinical charges.')}
       setBusy(false);
     }
+    function currentStoreMasterItem(row){
+      if(!row)return null;
+      const byId=row.store_item_id?storeMaster.find(item=>item.id===row.store_item_id):null;
+      if(byId)return byId;
+      const wanted=String(row.service_name||row.description||'').trim().toLowerCase();
+      if(!wanted)return null;
+      const matches=storeMaster.filter(item=>item.active!==false&&String(item.item_name||'').trim().toLowerCase()===wanted);
+      return matches.length===1?matches[0]:null;
+    }
+    function currentStoreRequestAmount(row){
+      const saved=Number(row?.requested_amount||row?.estimated_amount||0);
+      if(saved>0)return {amount:saved,fromMaster:false};
+      const item=currentStoreMasterItem(row);
+      const rate=Number(item?.charge_rate||0);
+      const qty=Number(row?.quantity||1);
+      return rate>0&&qty>0?{amount:rate*qty,fromMaster:true,rate,item}: {amount:0,fromMaster:false,rate:rate||0,item};
+    }
     async function decide(row,decision){
       if(!canApprove||busy)return;
       const isOther=String(row.service_code||'').toUpperCase()==='OTHER';
       const tariff=isOther?null:tariffs.find(t=>t.category===row.category&&t.service_name===row.service_name&&t.is_active!==false);
-      let amount=row.bill_available?Number(row.requested_amount||0):(row.store_item_id&&Number(row.requested_amount||0)>0?Number(row.requested_amount):Number(tariff?.amount||0));
+      const storeAmount=currentStoreRequestAmount(row);
+      let amount=row.bill_available?Number(row.requested_amount||0):(storeAmount.amount>0?storeAmount.amount:Number(tariff?.amount||0));
       if(['Approved','Partially Approved'].includes(decision)){
         const defaultAmount=amount>0?String(amount):'';
         const entered=prompt(
@@ -28972,7 +28991,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
           canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-danger',disabled:busy,onClick:()=>decide(r,'Rejected')},'Reject'),
           !canApprove&&h('span',{style:{color:'#8b7780'}},'—')
         ),
-        profile?.role==='Nurse'?'Hidden':money(r.requested_amount||r.estimated_amount),
+        profile?.role==='Nurse'?'Hidden':(()=>{const store=currentStoreRequestAmount(r);return store.amount>0?h('span',null,money(store.amount),store.fromMaster?h('small',{style:{display:'block',color:'#7b6570',marginTop:'2px'}},`Store rate ₹${Number(store.rate).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})} × ${Number(r.quantity||1)}`):null):'—'})(),
         profile?.role==='Nurse'?'Hidden':money(r.approved_amount??r.final_amount),
         r.service_provider||r.hospital_name||r.laboratory_name||'—',
         r.decision_by_name||'—',r.decision_at?fmt(r.decision_at):'—',r.decision_remarks||r.approval_remarks||'—'
