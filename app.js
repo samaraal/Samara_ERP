@@ -27477,14 +27477,40 @@ function ShiftHandover({profile,onNavigate}){
     async function sendPaymentReceiptWhatsAppApi(receipt,{automatic=false}={}){
       if(!receipt)return false;
       const patient=patients.find(p=>p.id===receipt.patient_id)||{};
-      const to=patient.attendant_phone||patient.mobile||'';
-      if(!to){
-        const text='Family / patient WhatsApp number is not available in the Patient File.';
+      // Payment receipts must also work for discharged/inactive patients.
+      // Family contacts are stored in family_portal_access (including Contact 2),
+      // so do not rely only on the legacy attendant_phone field on patients.
+      let familyContacts=[];
+      try{
+        const {data,error}=await client.from('family_portal_access')
+          .select('id,relative_name,mobile,primary_contact,is_active,created_at')
+          .eq('patient_id',receipt.patient_id)
+          .eq('is_active',true)
+          .order('primary_contact',{ascending:false})
+          .order('created_at',{ascending:true});
+        if(error)throw error;
+        familyContacts=(data||[])
+          .map(contact=>({
+            name:String(contact.relative_name||'Family Member').trim()||'Family Member',
+            mobile:normalizeWhatsAppRecipient(contact.mobile||''),
+            primary:!!contact.primary_contact
+          }))
+          .filter(contact=>contact.mobile);
+      }catch(contactError){
+        console.warn('Could not load family_portal_access for payment WhatsApp:',contactError);
+      }
+      const legacyMobile=normalizeWhatsAppRecipient(patient.attendant_phone||patient.mobile||'');
+      if(legacyMobile&&!familyContacts.some(contact=>contact.mobile===legacyMobile)){
+        familyContacts.push({name:patient.attendant_name||'Family Member',mobile:legacyMobile,primary:familyContacts.length===0});
+      }
+      // Remove accidental duplicate numbers while preserving primary/contact order.
+      familyContacts=familyContacts.filter((contact,index,list)=>list.findIndex(item=>item.mobile===contact.mobile)===index);
+      if(!familyContacts.length){
+        const text='Family / patient WhatsApp number is not available in the Patient File or Family Contacts.';
         setMessage(text);
         if(automatic)notify('error','Payment saved · WhatsApp not sent',text);
         return false;
       }
-      const recipient=patient.attendant_name||formalName(patient)||patient.full_name||'Family Member';
       const patientName=formalName(patient)||patient.full_name||'Patient';
       const purpose=[
         String(receipt.category||'').trim(),
@@ -27494,7 +27520,13 @@ function ShiftHandover({profile,onNavigate}){
       const paidDate=formatDateIN(receipt.date);
       const reference=receipt.reference||receipt.transaction_id||'—';
       const paymentMode=receipt.payment_mode||'—';
-      const renderedMessage=`Dear ${recipient},
+      try{
+        let acceptedCount=0;
+        const failures=[];
+        for(const contact of familyContacts){
+          const recipient=contact.name||'Family Member';
+          const to=contact.mobile;
+          const renderedMessage=`Dear ${recipient},
 
 Thank you. We confirm receipt of ₹${amountText} towards the account of ${patientName} on ${paidDate}.
 
@@ -27506,8 +27538,7 @@ The payment has been recorded in our system.
 For any clarification regarding the account, please contact Samara Assisted Living.
 
 Thank you.`;
-      try{
-        const communicationLog={
+          const communicationLog={
             communication_type:`Payment Receipt${receipt.category?` · ${receipt.category}`:''}`,
             message_content:renderedMessage,
             contact_name:recipient,
@@ -27524,33 +27555,28 @@ Thank you.`;
               reference
             }
           };
-        const sendResult=await sendWhatsAppTemplate({
-          to,
-          templateName:'samara_payment_receipt',
-          languageCode:'en',
-          bodyParams:[
-            recipient,
-            amountText,
-            patientName,
-            paidDate,
-            reference,
-            paymentMode
-          ],
-          communicationLog
-        });
-        const inboxLogged=await ensureWhatsAppInboxLog({
-          sendResult,to,communicationLog,templateName:'samara_payment_receipt'
-        });
-        if(automatic){
-          notify(
-            'success',
-            'Payment saved · WhatsApp accepted',
-            `${money(receipt.amount)} received${purpose?` towards ${purpose}`:''}. Meta accepted the receipt${inboxLogged?' and it was recorded in WhatsApp Inbox':' (Inbox logging needs attention)'}. Await delivery confirmation.`
-          );
-        }else{
-          notify('success','WhatsApp receipt accepted','Meta accepted the payment receipt and it was recorded in WhatsApp Inbox. Await delivery confirmation.');
+          try{
+            const sendResult=await sendWhatsAppTemplate({
+              to,
+              templateName:'samara_payment_receipt',
+              languageCode:'en',
+              bodyParams:[recipient,amountText,patientName,paidDate,reference,paymentMode],
+              communicationLog
+            });
+            await ensureWhatsAppInboxLog({sendResult,to,communicationLog,templateName:'samara_payment_receipt'});
+            acceptedCount+=1;
+          }catch(contactError){
+            failures.push(`${recipient}: ${contactError?.message||contactError}`);
+          }
         }
-        return true;
+        if(acceptedCount){
+          const contactText=acceptedCount===1?'1 family contact':`${acceptedCount} family contacts`;
+          if(automatic)notify('success','Payment saved · WhatsApp accepted',`${money(receipt.amount)} received${purpose?` towards ${purpose}`:''}. Meta accepted the receipt for ${contactText}; each accepted message is recorded in WhatsApp Inbox.`);
+          else notify('success','WhatsApp receipt accepted',`Meta accepted the payment receipt for ${contactText}; each message is recorded in WhatsApp Inbox.`);
+          if(failures.length)setMessage(`Payment receipt sent to ${contactText}, but ${failures.length} contact(s) failed: ${failures.join(' | ')}`);
+          return true;
+        }
+        throw new Error(failures.join(' | ')||'WhatsApp API did not accept the payment receipt.');
       }catch(apiError){
         const errorText=apiError?.message||String(apiError);
         if(automatic){
@@ -27558,19 +27584,8 @@ Thank you.`;
           notify('error','Payment saved · WhatsApp not sent','The financial transaction is safe. Use Resend Payment Receipt to retry the WhatsApp notification.');
           return false;
         }
-        const number=normalizeWhatsAppRecipient(to);
-        const text=`Dear ${recipient},
-
-Thank you. We confirm receipt of ₹${amountText} for ${patientName}.
-
-Towards: ${purpose||'Patient account'}
-Receipt No.: ${reference}
-Payment Mode: ${paymentMode}
-Date: ${paidDate}
-
-Samara Assisted Living`;
-        if(number)window.open(`https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(text))}`,'_blank','noopener');
-        setMessage(`WhatsApp API could not send (${errorText}); the existing WhatsApp message has been opened as fallback.`);
+        setMessage(`WhatsApp API could not send the payment receipt (${errorText}). No financial transaction was changed.`);
+        notify('error','WhatsApp receipt not sent',errorText);
         return false;
       }
     }
