@@ -1,15 +1,17 @@
-Samara ERP v2.14.04 — Global Family Phone Correction
+SAMARA ADMIN PREVIEW — MINIMAL ERP PATCH
 
-Replace these 3 files in the ERP root:
-- app.js
-- index.html
-- service-worker.js
+Purpose: Fix only the Preview Family Portal hand-off from ERP to the Family Portal.
 
-No SQL is required.
+Replace ONLY:
+1. app.js
+2. index.html
 
-Changes only:
-1. Family Contact 1 and Family Contact 2 now use the ERP country/dial-code dropdown.
-2. India (+91) requires exactly 10 local digits.
-3. Other countries are not forced to 10 digits; validation uses the selected dial code and E.164 maximum length.
-4. Existing +country-code family numbers are split correctly when editing; legacy bare 10-digit numbers remain treated as India.
-5. Removed the erroneous global 10-digit validation that caused the reported save failure.
+No SQL. No Edge Functions. No other ERP files. ERP version remains 2.14.08.
+
+What changed:
+- The existing Preview Family Portal button now proactively sends the already-built preview payload to the new Family Portal tab several times during startup.
+- It still keeps the existing request/response hand-off as a fallback.
+- This avoids depending on window.opener, which can be unavailable for cross-origin tabs.
+- The Family Portal already stores the successfully received preview in sessionStorage, so Refresh in the same tab can restore it.
+
+Nothing else in ERP was changed.

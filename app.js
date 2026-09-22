@@ -17462,9 +17462,16 @@ Please keep these login details confidential.`;
         popup.postMessage({type:'SAMARA_FAMILY_ADMIN_PREVIEW_DATA',preview_id:previewId,session,dashboard},portalOrigin);
       };
       window.addEventListener('message',handler);
-      popup=window.open(`${portalOrigin}/?admin_preview=${encodeURIComponent(previewId)}`,'_blank','noopener=false');
+      popup=window.open(`${portalOrigin}/?admin_preview=${encodeURIComponent(previewId)}`,'_blank');
       if(!popup){window.removeEventListener('message',handler);showPatientToast('error','Please allow pop-ups to open the Family Portal preview.');return}
-      window.setTimeout(()=>window.removeEventListener('message',handler),120000);
+
+      // Send the preview payload proactively as well as responding to the portal request.
+      // This avoids relying on window.opener, which some browsers/privacy settings sever
+      // for cross-origin tabs. The Family Portal validates both origin and preview_id.
+      const previewMessage={type:'SAMARA_FAMILY_ADMIN_PREVIEW_DATA',preview_id:previewId,session,dashboard};
+      const sendPreview=()=>{try{if(popup&&!popup.closed)popup.postMessage(previewMessage,portalOrigin)}catch(_){}};
+      [400,900,1600,2800,4500,7000].forEach(ms=>window.setTimeout(sendPreview,ms));
+      window.setTimeout(()=>window.removeEventListener('message',handler),15000);
     }
 
     function openPatientWhatsApp(openEmergency=false){
