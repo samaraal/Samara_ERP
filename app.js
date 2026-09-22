@@ -28588,8 +28588,19 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
   }
   function ClinicalCharges({profile,initialPatientId=''}){
     const chargeStock=usePharmacyStock();
-    const matchingStock=name=>{const matches=chargeStock.items.filter(x=>String(x.item_name).trim().toLowerCase()===String(name).trim().toLowerCase());return matches.length===1?matches[0]:null};
-    const stockDefaults=(category,name)=>{const stockItem=['Consumables','Pharmacy','Pharmacy & Basic Supplies'].includes(category)?matchingStock(name):null;const masterItem=(storeMaster||[]).find(x=>x.active!==false&&String(x.item_name||'').trim().toLowerCase()===String(name||'').trim().toLowerCase());const rate=Number(masterItem?.charge_rate||0);return {store_item_id:stockItem?.item_id||masterItem?.id||'',unit:stockItem?.unit||masterItem?.unit||'Service',unit_cost:rate||'',requested_amount:rate||''}};
+    const storeCategories=['Consumables','Pharmacy','Pharmacy & Basic Supplies'];
+    const normalStoreName=value=>String(value||'').trim().toLowerCase().replace(/\s+/g,' ');
+    const matchingStock=name=>{const wanted=normalStoreName(name);const matches=chargeStock.items.filter(x=>normalStoreName(x.item_name)===wanted);return matches.length===1?matches[0]:null};
+    const matchingStoreMaster=(category,name,itemId)=>{
+      if(itemId){const byId=(storeMaster||[]).find(x=>String(x.id)===String(itemId));if(byId)return byId;}
+      const wanted=normalStoreName(name);if(!wanted)return null;
+      const matches=(storeMaster||[]).filter(x=>x.active!==false&&normalStoreName(x.item_name)===wanted);
+      if(matches.length===1)return matches[0];
+      const categoryMatches=matches.filter(x=>normalStoreName(x.item_category)===normalStoreName(category)||
+        (category==='Pharmacy & Basic Supplies'&&normalStoreName(x.item_category)==='pharmacy'));
+      return categoryMatches.length===1?categoryMatches[0]:null;
+    };
+    const stockDefaults=(category,name)=>{const stockItem=storeCategories.includes(category)?matchingStock(name):null;const masterItem=matchingStoreMaster(category,name,stockItem?.item_id);const rate=Number(masterItem?.charge_rate||0);return {store_item_id:stockItem?.item_id||masterItem?.id||'',unit:stockItem?.unit||masterItem?.unit||'Service',unit_cost:rate||'',requested_amount:rate||''}};
     const canRaise=['Admin','Manager','Nurse','Accounts'].includes(profile?.role);
     const canApprove=profile?.role==='Accounts';
     const canManageTariffs=profile?.role==='Admin';
@@ -28747,7 +28758,15 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     function validateDraft(draft,draftFiles){
       if(!draft.patient_id)return 'Select the patient.';
       if(!Number.isFinite(Number(draft.quantity))||Number(draft.quantity)<=0)return 'Enter a valid positive quantity.';
-      if(draft.store_item_id){const item=chargeStock.items.find(x=>x.item_id===draft.store_item_id);if(!item)return 'Selected stock item is no longer available. Refresh and select again.';if(item.unit!==draft.unit)return 'Use the selected stock item unit.';}
+      if(draft.store_item_id){const item=chargeStock.items.find(x=>String(x.item_id)===String(draft.store_item_id));if(!item)return 'Selected stock item is no longer available. Refresh and select again.';if(item.unit!==draft.unit)return 'Use the selected stock item unit.';}
+      if(profile?.role==='Nurse'&&storeCategories.includes(draft.category)){
+        const stockItem=chargeStock.items.find(x=>String(x.item_id)===String(draft.store_item_id))||matchingStock(draft.service_name==='Others'?draft.other_service_name:draft.service_name);
+        const masterItem=matchingStoreMaster(draft.category,draft.service_name==='Others'?draft.other_service_name:draft.service_name,draft.store_item_id||stockItem?.item_id);
+        if(!draft.store_item_id||!stockItem)return 'This item is not linked to Stores stock. Refresh and select the item from the Stores list.';
+        if(!(Number(masterItem?.charge_rate)>0))return 'Charge rate is not fixed for this item. Ask Admin / Stores In-charge to set the rate before raising the charge.';
+        if(!(Number(stockItem.balance_qty)>0))return 'This item is out of stock. A charge request cannot be raised until stock is available.';
+        if(Number(draft.quantity)>Number(stockItem.balance_qty))return `Only ${stockItem.balance_qty} ${stockItem.unit||draft.unit||''} available in Stores. Reduce the quantity before raising the charge.`;
+      }
       if(draft.service_name==='Others'&&!String(draft.other_service_name||'').trim())return 'Enter the Other charge / service item.';
       if(isFutureDateIndia(draft.charge_date)||isFutureDateIndia(draft.bill_date))return 'Future dates are not permitted.';
       if(draft.bill_available&&(draftFiles||[]).length===0)return 'Upload the supporting bill / invoice when Bill available is selected.';
@@ -28790,7 +28809,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       const nurseRaised=profile?.role==='Nurse';
       const isOther=draft.service_name==='Others';
       const effectiveService=isOther?String(draft.other_service_name||'').trim():draft.service_name;
-      const masterItem=draft.store_item_id?storeMaster.find(x=>x.id===draft.store_item_id):null;
+      const masterItem=matchingStoreMaster(draft.category,effectiveService,draft.store_item_id);
       const masterRate=Number(masterItem?.charge_rate||0);
       const rate=nurseRaised?masterRate:Number(draft.unit_cost||masterRate||0);
       const amount=nurseRaised?(qty*rate):Number(draft.requested_amount||qty*rate||0);
@@ -28861,12 +28880,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     }
     function currentStoreMasterItem(row){
       if(!row)return null;
-      const byId=row.store_item_id?storeMaster.find(item=>item.id===row.store_item_id):null;
-      if(byId)return byId;
-      const wanted=String(row.service_name||row.description||'').trim().toLowerCase();
-      if(!wanted)return null;
-      const matches=storeMaster.filter(item=>item.active!==false&&String(item.item_name||'').trim().toLowerCase()===wanted);
-      return matches.length===1?matches[0]:null;
+      return matchingStoreMaster(row.category,row.service_name||row.description,row.store_item_id);
     }
     function currentStoreRequestAmount(row){
       const saved=Number(row?.requested_amount||row?.estimated_amount||0);
@@ -29070,7 +29084,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         ),
         h('div',{className:'modal-grid'},
           profile?.role==='Nurse'&&h('div',{className:'clinical-charge-note'},
-            'Nursing staff record only the service/expense occurrence. Financial amounts are not visible here. If a bill is available, upload it; Accounts will verify it. Otherwise Accounts will use the Admin-fixed tariff.'
+            'Nursing staff record only the service/expense occurrence. Financial amounts are not visible here. Pharmacy / Consumable charges can be raised only when the Stores item has a fixed charge rate and sufficient stock. If a bill is available, upload it; Accounts will verify it.'
           ),
           ...basicFields.filter(Boolean)
         ),
