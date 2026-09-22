@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.06';
+  const APP_VERSION = '2.14.07';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -16091,7 +16091,7 @@ Thank you.`;
           }),
           communicationLog:{
             communication_type:'Family Portal Access',
-            message_content:`Dear ${recipient},\n\nFamily Portal access is available for ${patientName}.\nResident ID: ${credential.patient_id||'—'}\nPortal: https://family.samaraassistedliving.com`,
+            message_content:`Meta template: samara_family_portal_access\nExact body variables submitted to Meta:\n1. ${credential.relative_name||'Family Member'}\n2. ${credential.patient_name||form.full_name||'Patient'}\n3. ${formatDateIN(credential.admission_date||form.admission_date)}\n4. ${credential.patient_id||'—'}\n5. ${reason}\n6. ${proposedStay}\n7. ${roomBed}`,
             contact_name:recipient,
             source_type:'Patient / Family · Family Portal',
             sent_by:profile?.id||null,
@@ -17429,6 +17429,18 @@ Please keep these login details confidential.`;
       finally{setDailyReportToggleBusy(false)}
     }
 
+    function previewFamilyPortal(){
+      if(!selected||!details)return;
+      const win=window.open('','_blank','width=430,height=860');
+      if(!win){showPatientToast('error','Please allow pop-ups to open the Family Portal preview.');return}
+      const family=(details.familyAccess||[]).filter(x=>x.is_active!==false);
+      const esc=value=>String(value??'—').replace(/[&<>\"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch]));
+      const vitals=(details.vitals||[]).slice(0,5).map(v=>`<tr><td>${esc(fmt(v.recorded_at||v.created_at))}</td><td>${esc([v.bp_systolic&&v.bp_diastolic?`${v.bp_systolic}/${v.bp_diastolic}`:'',v.pulse?`Pulse ${v.pulse}`:'',v.spo2?`SpO₂ ${v.spo2}%`:'',v.temperature?`Temp ${v.temperature}`:''].filter(Boolean).join(' · '))}</td></tr>`).join('');
+      const meds=(details.meds||[]).slice(0,12).map(m=>`<tr><td>${esc([m.medicine_name,m.strength].filter(Boolean).join(' '))}</td><td>${esc(m.frequency||m.route||'—')}</td></tr>`).join('');
+      win.document.write(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin Family Portal Preview</title><style>body{margin:0;font-family:Arial,sans-serif;background:#fff7fb;color:#34242d}.bar{position:sticky;top:0;background:#b01264;color:#fff;padding:12px 16px;font-weight:800}.wrap{padding:14px}.card{background:#fff;border:1px solid #edc9da;border-radius:14px;padding:14px;margin-bottom:12px}.name{font-size:22px;font-weight:900;color:#7d1748}.pill{display:inline-block;background:#e7f5ee;color:#087f5b;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:800;margin-top:6px}table{width:100%;border-collapse:collapse;font-size:13px}td{padding:8px 4px;border-bottom:1px solid #f0e3e9;vertical-align:top}h3{margin:0 0 10px;color:#8e1550}.note{font-size:12px;color:#725f69;line-height:1.45}.contact{padding:8px 0;border-bottom:1px solid #f0e3e9}</style></head><body><div class="bar">ADMIN PREVIEW — FAMILY PORTAL · READ ONLY</div><div class="wrap"><div class="card"><div class="name">${esc(formalName(selected)||selected.full_name)}</div><div>${esc(selected.patient_id)} · Room ${esc(selected.room_no)} / Bed ${esc(selected.bed_no)}</div><span class="pill">${selected.is_active===false?'Inactive':'Active Resident'}</span><p class="note">Preview only. This does not create a family login, change Last Login, reset a PIN or send WhatsApp.</p></div><div class="card"><h3>Authorised Family Access</h3>${family.length?family.map(f=>`<div class="contact"><b>${esc(f.relative_name)}</b> · ${esc(f.relationship)}${f.primary_contact?' · Primary':''}<br><span class="note">${esc(f.mobile)}</span></div>`).join(''):'No active family access.'}</div><div class="card"><h3>Recent Vitals</h3><table>${vitals||'<tr><td>No vitals recorded.</td></tr>'}</table></div><div class="card"><h3>Current Medicines</h3><table>${meds||'<tr><td>No current medicines.</td></tr>'}</table></div><div class="card"><h3>Daily Moments</h3><div>${(details.dailyMoments||[]).length} active moment(s)</div></div><div class="card"><h3>Daily Patient Report</h3><div>${details.familyPreference?.daily_whatsapp_enabled?'WhatsApp report enabled':'WhatsApp report not enabled'}</div></div></div></body></html>`);
+      win.document.close();
+    }
+
     function openPatientWhatsApp(openEmergency=false){
       const access=primaryFamilyContact();
       const phone=normalizeWhatsAppRecipient(access?.mobile||selected?.attendant_phone||selected?.mobile||'');
@@ -17504,7 +17516,7 @@ Please keep these login details confidential.`;
           }),
           communicationLog:{
             communication_type:`Family Portal Access${resend?' · Resent':''}`,
-            message_content:`Dear ${recipient},\n\nFamily Portal access is available for ${patientName}.\nResident ID: ${selected?.patient_id||'—'}\nPortal: https://family.samaraassistedliving.com`,
+            message_content:`Meta template: samara_family_portal_access\nExact body variables submitted to Meta:\n1. ${access.relative_name||'Family Member'}\n2. ${patientName}\n3. ${formatDateIN(selected?.admission_date)}\n4. ${selected?.patient_id||'—'}\n5. ${selected?.patient_category||'Assisted living care'}\n6. ${selected?.patient_category==='Short Stay'?'Short stay – as agreed':'As per agreed care plan'}\n7. ${[selected?.room_no,selected?.bed_no].filter(Boolean).join(' / ')||'—'}`,
             contact_name:recipient,
             source_type:'Patient / Family · Family Portal',
             sent_by:profile?.id||null,
@@ -17892,8 +17904,8 @@ Please keep these login details confidential.`;
       payload.age=editForm.age===''?null:Number(editForm.age);
       const {data,error}=await client.from('patients').update(payload).eq('id',editTarget.id).select().single();
       if(error){const text=error.message||'Unable to update patient';setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
-      let familySaveResult=null;
-      try{familySaveResult=await saveEditedFamilyPortalAccess();await saveEditedSecondFamilyPortalAccess();await saveEditedFamilyCommunicationPreference();}
+      let familySaveResult=null,familySaveResult2=null;
+      try{familySaveResult=await saveEditedFamilyPortalAccess();familySaveResult2=await saveEditedSecondFamilyPortalAccess();await saveEditedFamilyCommunicationPreference();}
       catch(familyError){const text=`Patient details saved, but Family communication settings could not be updated: ${familyError.message||familyError}`;setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
       try{
         for(const f of editUploads.photo)await uploadEditDocument(editTarget.id,f,'Patient Photo',true);
@@ -17949,7 +17961,9 @@ Please keep these login details confidential.`;
             ?'Patient information and Family Portal access updated successfully.'
             :'Patient information updated successfully.';
       setEditMsg(successText);showPatientToast('success',successText);await load();await loadEditMedia({...data,id:editTarget.id});
-      if(selected?.id===editTarget.id){setSelected(data);setTimeout(()=>openPatient(data,editFamilyAccess.enabled?'Family Portal':tab),0)}
+      const newlyGeneratedCredential=familySaveResult2?.pin?familySaveResult2:(familySaveResult?.pin?familySaveResult:null);
+      if(newlyGeneratedCredential)setFamilyResetCredential(newlyGeneratedCredential);
+      if(selected?.id===editTarget.id){setSelected(data);setTimeout(()=>{openPatient(data,editFamilyAccess.enabled?'Family Portal':tab);if(newlyGeneratedCredential)setFamilyResetCredential(newlyGeneratedCredential)},0)}
       setEditUploads({photo:[],identity:[],prescription:[],discharge:[],reports:[],other:[]});setEditBusy(false);
     }
 
@@ -19614,6 +19628,7 @@ Please keep these login details confidential.`;
             h('div',{className:'panel-head family-portal-login-head'},
               h('div',null,h('h4',null,'Family Portal Login'),h('small',null,'View the authorised family login details for this resident. Temporary PINs are shown only when first created or reset.')),
               h('div',{className:'actions family-portal-login-actions'},
+                h('button',{type:'button',className:'btn btn-secondary',onClick:previewFamilyPortal},'👁 Preview Family Portal'),
                 h('button',{type:'button',className:'btn btn-whatsapp',disabled:!primaryFamilyContact(),onClick:()=>openPatientWhatsApp(false)},'WhatsApp Messages'),
                 h('button',{type:'button',className:'btn',disabled:!primaryFamilyContact(),onClick:()=>openPatientWhatsApp(true),style:{background:'#b42336',color:'#fff',border:'1px solid #8e1627',fontWeight:'900'}},'🚨 Emergency'),
                 h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Family Access')
@@ -19656,10 +19671,19 @@ Please keep these login details confidential.`;
                 )})()
               )))
               :h('div',null,sectionEmpty('Family Portal access has not been created for this resident.'),h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEditPatient(selected)},'Create Family Portal Access')),
-            familyResetCredential&&h('div',{className:'message success',style:{marginTop:'14px'}},
-              h('strong',null,'New Family Portal PIN generated'),
-              h('div',null,`Resident ID: ${selected?.patient_id||'—'} · Temporary PIN: ${familyResetCredential.pin}`),
-              h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>window.open(`https://wa.me/${normalizeWhatsAppRecipient(familyResetCredential.mobile)}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal login\nResident ID: ${selected?.patient_id||''}\nTemporary PIN: ${familyResetCredential.pin}\nPortal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send New PIN by WhatsApp')
+            familyResetCredential&&h('div',{className:'message success',style:{marginTop:'14px',position:'relative'}},
+              h('button',{type:'button',className:'icon-btn',title:'Close PIN confirmation',onClick:()=>setFamilyResetCredential(null),style:{position:'absolute',right:'8px',top:'8px'}},'×'),
+              h('strong',null,'Family Portal temporary PIN — keep until copied or shared'),
+              h('div',{style:{marginTop:'6px',fontSize:'16px',fontWeight:'900'}},`Resident ID: ${selected?.patient_id||'—'} · Temporary PIN: ${familyResetCredential.pin}`),
+              h('div',{className:'actions',style:{marginTop:'8px'}},
+                h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{try{await navigator.clipboard.writeText(String(familyResetCredential.pin||''));showPatientToast('success','Temporary PIN copied.')}catch(_){showPatientToast('error','Unable to copy automatically. Please copy the PIN manually.')}}},'Copy PIN'),
+                h('button',{type:'button',className:'btn btn-whatsapp',disabled:familyPortalWaBusy==='new-pin',onClick:async()=>{setFamilyPortalWaBusy('new-pin');try{await sendPatientPortalWhatsApp({id:'new-pin',relative_name:familyResetCredential.relative_name||'Family Member',mobile:familyResetCredential.mobile},{resend:true});showPatientToast('success','Family Portal access template sent. Keep this PIN visible until it is securely shared with the family member.')}catch(_error){}finally{setFamilyPortalWaBusy('')}}},familyPortalWaBusy==='new-pin'?'Sending…':'Send Portal Access WhatsApp API'),
+                h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/${normalizeWhatsAppRecipient(familyResetCredential.mobile)}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal login
+Resident ID: ${selected?.patient_id||''}
+Temporary PIN: ${familyResetCredential.pin}
+Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send PIN by Existing Method')
+              ),
+              h('small',{style:{display:'block',marginTop:'8px'}},'The approved Portal Access API template does not contain the temporary PIN. Copy/share this PIN separately, then close this confirmation.')
             )
           )
         ),
