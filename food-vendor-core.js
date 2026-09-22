@@ -147,8 +147,9 @@ function statementPdf(model){
 
 // Agreed vendor deadlines use the supply date in India, not the delivery hour.
 const cutoffRules={Tiffin:{time:'21:00',days:1,label:'Breakfast'},Breakfast:{time:'21:00',days:1,label:'Breakfast'},Lunch:{time:'08:00',days:0,label:'Lunch'},Dinner:{time:'17:00',days:0,label:'Dinner'}};
-function orderCutoff(order,now=Date.now()){
- const rule=cutoffRules[order?.slot];if(!rule||!/^\d{4}-\d{2}-\d{2}$/.test(order?.date||''))return null;
+function orderCutoff(order,now=Date.now(),configured={}){
+ const base=cutoffRules[order?.slot],saved=configured?.[order?.slot]||configured?.[base?.label];
+ const rule=base?{...base,...(saved&&typeof saved==='object'?saved:{})}:null;if(!rule||!/^\d{4}-\d{2}-\d{2}$/.test(order?.date||''))return null;
  const deadline=Date.parse(order.date+'T'+rule.time+':00+05:30')-rule.days*86400000;
  if(!Number.isFinite(deadline))return null;
  const date=new Date(deadline).toLocaleDateString('en-GB',{timeZone:'Asia/Kolkata'});
