@@ -14838,7 +14838,7 @@ Thank you.`;
             occupant_name:occupant?formalName(occupant):'',
             occupant_patient_id:occupant?.patient_code||occupant?.patient_id||'',
             occupant_mobile:occupant?.mobile||'',
-            occupant_id:occupant?.id||room.patient_id||null
+            occupant_id:occupant?.id||null
           };
         });
         setRoomBeds(merged);
@@ -15224,7 +15224,7 @@ Thank you.`;
     // resident from being attached to somebody else merely because a mobile is reused.
     const interruptedAdmissionPatient=React.useMemo(()=>{
       if(returningPatient||draftLinkedPatient||!duplicateMobilePatient||!selectedDraftBed)return null;
-      const occupantId=selectedDraftBed.occupant_id||selectedDraftBed.patient_id||'';
+      const occupantId=selectedDraftBed.occupant_id||'';
       if(!occupantId||String(occupantId)!==String(duplicateMobilePatient.id))return null;
       const cleanName=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]/g,'');
       const formName=cleanName(form.full_name);
@@ -15240,7 +15240,7 @@ Thank you.`;
 
     function bedBelongsToCurrentPatient(bed){
       if(!bed||!currentAdmissionPatientId)return false;
-      const occupantId=bed.occupant_id||bed.patient_id||'';
+      const occupantId=bed.occupant_id||'';
       return Boolean(occupantId&&String(occupantId)===String(currentAdmissionPatientId));
     }
 
@@ -16147,7 +16147,7 @@ Please keep these login details confidential.`;
       const selectedBedIsCurrentPatient=bedBelongsToCurrentPatient(selectedBed);
       const selectedBedIsReservedForThisAdmission=Boolean(selectedBed&&reservedAdmissionBedId&&String(selectedBed.id)===String(reservedAdmissionBedId));
       const selectedBedOccupiedByOther=Boolean(
-        selectedBed&&(selectedBed.occupant_id||selectedBed.patient_id)&&!selectedBedIsCurrentPatient
+        selectedBed&&selectedBed.occupant_id&&!selectedBedIsCurrentPatient
       );
       const selectedBedStatus=String(selectedBed?.status||'Available');
 
@@ -20020,7 +20020,7 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
     );
 
     const availableCount=sorted.filter(r=>{
-      const occupied=!!(r.occupant_id||r.patient_id)&&String(r.occupant_id||r.patient_id)!==String(currentPatientId||'');
+      const occupied=!!r.occupant_id&&String(r.occupant_id)!==String(currentPatientId||'');
       const status=occupied?'Occupied':String(r.status||'Available');
       return status==='Available';
     }).length;
@@ -20037,7 +20037,7 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
     }
 
     function optionDetails(r){
-      const occupantId=r.occupant_id||r.patient_id;
+      const occupantId=r.occupant_id;
       const isCurrent=Boolean(
         currentPatientId&&String(occupantId||'')===String(currentPatientId)
       );
