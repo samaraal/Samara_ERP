@@ -139,6 +139,7 @@
         try{
           const loginAudit=await securityRequest({action:'login_success',login_id:normalized});
           if(!loginAudit?.audit_recorded)throw new Error('Login audit was not confirmed');
+          try{sessionStorage.setItem(`samara_session_access_logged_v1:${signedUid}`,'1')}catch(_error){}
         }catch(auditError){
           console.error('LOGIN AUDIT FAILED',auditError);
           await client.auth.signOut().catch(()=>{});

@@ -428,6 +428,20 @@
         try{const access=await profileTimeout(client.rpc('op_trial_access'),5000,'Outgoing access check');data={...data,__paymentsTrial:!access.error?access.data:null};}catch(_error){data={...data,__paymentsTrial:null};}
         setProfile(data);
 
+        // Audit a restored authenticated session once per browser/app lifecycle.
+        // sessionStorage survives ordinary refreshes, preventing Audit Trail flooding,
+        // but is cleared when the tab/app lifecycle ends so a later restored session is visible.
+        try{
+          const accessKey=`samara_session_access_logged_v1:${session.user.id}`;
+          if(!sessionStorage.getItem(accessKey)){
+            const {data:accessAudit,error:accessAuditError}=await client.functions.invoke('admin-users',{body:{action:'session_access'}});
+            if(accessAuditError||!accessAudit?.audit_recorded)throw accessAuditError||new Error('Session access audit was not confirmed');
+            sessionStorage.setItem(accessKey,'1');
+          }
+        }catch(accessAuditError){
+          console.warn('Session access audit could not be recorded:',accessAuditError);
+        }
+
         const allowedPages=allowedPagesForProfile(data);
         const storedPage=readLastOpenPage();
         const savedPage=storedPage==='Outgoing Payments'?'Payments & Vouchers':storedPage;
