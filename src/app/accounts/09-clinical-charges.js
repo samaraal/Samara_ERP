@@ -1,5 +1,5 @@
   function ChargeMasterPage({profile}){
-    const [rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(false);
+    const [rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState('');
     const notify=(type,text)=>showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
     async function load(){
       const {data,error}=await client.from('charge_tariff_master').select('*').order('category').order('display_order').order('service_name');
@@ -17,10 +17,15 @@
     }
     async function toggle(row){setBusy(true);const {error}=await client.from('charge_tariff_master').update({is_active:row.is_active===false,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',row.id);setBusy(false);if(error)notify('error',error.message);else load()}
     if(profile?.role!=='Admin')return h(Section,{title:'Charge Master'},h('p',null,'Administrator access only.'));
+    const searchText=String(search||'').trim().toLowerCase();
+    const visibleRows=searchText.length>=3?rows.filter(row=>`${row.category||''} ${row.service_name||''}`.toLowerCase().includes(searchText)):rows;
     return h(React.Fragment,null,
       h(Section,{title:'Charge Master',subtitle:'Administrator-controlled chargeable items and fixed tariffs. Nursing can use item names but cannot see financial amounts.'},
-        h('div',{style:{display:'flex',justifyContent:'flex-end',marginBottom:'10px'}},h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>saveItem(null)},'+ Add Charge Item')),
-        h(LogTable,{title:'Chargeable Items',heads:['Category','Service / Item','Fixed Tariff (No Bill)','Status','Action'],rows:rows.map(row=>[row.category,row.service_name,row.amount!=null?`₹${Number(row.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveItem(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggle(row)},row.is_active===false?'Activate':'Deactivate'))])})
+        h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'end',gap:'12px',marginBottom:'10px',flexWrap:'wrap'}},
+          h('div',{className:'field',style:{minWidth:'280px',margin:0}},h('label',null,'Search Charge Items'),h('input',{type:'search',value:search,onChange:e=>setSearch(e.target.value),placeholder:'Type at least 3 letters...'}),searchText.length>0&&searchText.length<3?h('small',null,'Enter at least 3 letters to filter.'):null),
+          h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>saveItem(null)},'+ Add Charge Item')
+        ),
+        h(LogTable,{title:`Chargeable Items (${visibleRows.length})`,heads:['Category','Service / Item','Fixed Tariff (No Bill)','Status','Action'],rows:visibleRows.map(row=>[row.category,row.service_name,row.amount!=null?`₹${Number(row.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveItem(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggle(row)},row.is_active===false?'Activate':'Deactivate'))])})
       )
     );
   }
@@ -386,13 +391,19 @@
       const storeAmount=currentStoreRequestAmount(row);
       let amount=row.bill_available?Number(row.requested_amount||0):(storeAmount.amount>0?storeAmount.amount:Number(tariff?.amount||0));
       if(['Approved','Partially Approved'].includes(decision)){
+        if(!row.bill_available&&!isOther&&!(amount>0)){
+          notify('error',storeCategories.includes(row.category)
+            ?'Approval blocked: this Stores / Pharmacy item has no active fixed charge rate. Ask Admin / Stores In-charge to fix the rate before approval.'
+            :'Approval blocked: this charge item has no active fixed tariff. Ask Admin to fix the tariff before approval.');
+          return;
+        }
         const defaultAmount=amount>0?String(amount):'';
         const entered=prompt(
           row.bill_available
             ?'Verify the uploaded bill and enter the actual bill amount:'
-            :amount>0
-              ?`Admin-fixed tariff is ${money(amount)}. Verify or enter the approved amount:`
-              :'No active fixed tariff is configured. Enter the verified amount:',
+            :isOther
+              ?'Enter the verified amount for this custom / Other charge:'
+              :`Fixed rate is ${money(amount)}. Verify the approved amount:`,
           defaultAmount
         );
         if(entered===null)return;
