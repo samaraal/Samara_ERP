@@ -29451,6 +29451,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
 
     const register=h(LogTable,{
       title:`Bill & Charge Requests (${filtered.length})`,
+      className:'samara-mobile-card-table',
       heads:['Date','Patient','Category','Service','Qty','Decision','Action','Request Amount','Approved Amount','Provider','Decision By','Decision Time','Remarks'],
       rows:filtered.map(r=>[
         formatDateIN(r.charge_date),pLabel(r.patient_id),r.category,r.service_name||r.description,
@@ -30730,13 +30731,15 @@ function AuditTrail(){
   }
 
   function LogTable({title,subtitle,heads,rows,className=''}){
+    const mobileCards=String(className||'').split(/\s+/).includes('samara-mobile-card-table');
+    const wideMobileLabels=new Set(['Patient','Service','Action','Provider','Remarks']);
     return h(Section,{title,subtitle,className},
-      h('div',{className:`table-wrap ${className}`.trim()},
+      h('div',{className:`table-wrap ${mobileCards?'samara-mobile-card-wrap':''}`.trim()},
         h('table',{className:`table ${className}`.trim()},
           h('thead',null,h('tr',null,heads.map(x=>h('th',{key:x},x)))),
           h('tbody',null,
-            ...rows.map((r,i)=>h('tr',{key:i},...r.map((v,j)=>h('td',{key:j,'data-label':heads[j]||''},v)))),
-            rows.length===0?h('tr',null,h('td',{colSpan:heads.length,className:'empty'},'No records found')):null
+            ...rows.map((r,i)=>h('tr',{key:i,className:mobileCards?'samara-mobile-card-row':''},...r.map((v,j)=>h('td',{key:j,'data-label':heads[j]||'','data-mobile-label':heads[j]||'',className:mobileCards&&wideMobileLabels.has(heads[j])?'samara-mobile-wide-cell':''},v)))),
+            rows.length===0?h('tr',{className:mobileCards?'samara-mobile-card-row':''},h('td',{colSpan:heads.length,className:'empty','data-mobile-label':''},'No records found')):null
           )
         )
       )
