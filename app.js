@@ -6213,6 +6213,23 @@ https://samaraassistedliving.com/`;
 
   function GlobalMobileTableAdapter(){
     React.useEffect(()=>{
+      if(!document.getElementById('samara-mobile-card-table-style')){
+        const style=document.createElement('style');style.id='samara-mobile-card-table-style';style.textContent=`
+          @media (max-width:760px){
+            .samara-mobile-card-wrap{overflow-x:hidden!important;width:100%!important;max-width:100%!important;border:0!important;background:transparent!important}
+            table.samara-mobile-card-table{display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;border:0!important;background:transparent!important}
+            table.samara-mobile-card-table thead{display:none!important}
+            table.samara-mobile-card-table tbody{display:block!important;width:100%!important}
+            table.samara-mobile-card-table tr.samara-mobile-card-row{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:8px 12px!important;width:100%!important;max-width:100%!important;margin:0 0 12px!important;padding:12px!important;box-sizing:border-box!important;border:1px solid #ead2dd!important;border-radius:14px!important;background:#fff!important;box-shadow:0 3px 10px rgba(109,24,61,.05)!important}
+            table.samara-mobile-card-table tr.samara-mobile-card-row>td{display:block!important;width:auto!important;min-width:0!important;max-width:100%!important;padding:0!important;border:0!important;white-space:normal!important;overflow-wrap:anywhere!important;word-break:break-word!important;box-sizing:border-box!important}
+            table.samara-mobile-card-table tr.samara-mobile-card-row>td::before{content:attr(data-mobile-label);display:block!important;margin-bottom:2px!important;color:#856675!important;font-size:11px!important;font-weight:800!important;text-transform:uppercase!important;letter-spacing:.02em!important}
+            table.samara-mobile-card-table tr.samara-mobile-card-row>td.samara-mobile-wide-cell{grid-column:1/-1!important}
+            table.samara-mobile-card-table tr.samara-mobile-card-row>td.empty{grid-column:1/-1!important;text-align:center!important;padding:12px!important}
+            table.samara-mobile-card-table .employee-actions{min-width:0!important;width:100%!important;max-width:100%!important}
+            table.samara-mobile-card-table button{max-width:100%!important}
+          }
+        `;document.head.appendChild(style);
+      }
       const media=window.matchMedia?.('(max-width:760px)');
       let frame=0;
       const excluded='table.fv-history-table,table.rooms-table,table.patient-master-table,table.employee-master-table,table.medication-log-table,table.vitals-log-table';
