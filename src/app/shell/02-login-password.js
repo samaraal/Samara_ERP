@@ -138,14 +138,13 @@
         // if the browser navigates/closes immediately after authentication.
         try{
           const loginAudit=await securityRequest({action:'login_success',login_id:normalized});
-          if(!loginAudit?.audit_recorded)throw new Error('Login audit was not confirmed');
+          if(!loginAudit?.audit_recorded){
+            console.warn('LOGIN AUDIT NOT CONFIRMED',loginAudit);
+          }
           try{sessionStorage.setItem(`samara_session_access_logged_v1:${signedUid}`,'1')}catch(_error){}
         }catch(auditError){
+          // Audit logging must never block an otherwise valid, identity-verified login.
           console.error('LOGIN AUDIT FAILED',auditError);
-          await client.auth.signOut().catch(()=>{});
-          setMessage('Sign-in was verified, but the required Audit Trail record could not be saved. Please try again.');
-          setBusy(false);
-          return;
         }
       }
       }catch(error){
