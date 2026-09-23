@@ -3555,7 +3555,7 @@ https://samaraassistedliving.com/`;
       // escalation RPC first and WAIT for it. Previously this was fire-and-forget,
       // so the Nurse screen could remain "Overdue" until a later refresh.
       const thresholdCandidates=list.filter(a=>
-        Number(a.overdue_minutes)>=escalationMinutes &&
+        Number(a.overdue_minutes)>=(String(a.alert_type||'').toLowerCase()==='vital signs'?90:escalationMinutes) &&
         !['regularisation','daily care'].includes(String(a.alert_type||'').toLowerCase()) &&
         !String(a.title||'').toLowerCase().includes('backlog regularisation')
       );
@@ -14585,7 +14585,7 @@ Thank you.`;
 
   function Admissions({profile,onNavigate}){
     const today=new Date().toISOString().slice(0,10);
-    const initial={admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
+    const initial={admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,admission_time:localDateTimeValue().slice(11,16),vitals_time_1:'06:00',vitals_time_2:'14:00',vitals_time_3:'22:00',hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
     const [form,setForm]=React.useState(initial),[meds,setMeds]=React.useState([blankMedicine()]),[care,setCare]=React.useState([blankCare()]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [familyAccess,setFamilyAccess]=React.useState({delivery_mode:'Family Portal Access',enabled:true,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:true,daily_whatsapp_time:'20:00'});
     const familyPortalEnabled=['Family Portal Access','Both'].includes(familyAccess.delivery_mode);
@@ -16201,8 +16201,10 @@ Please keep these login details confidential.`;
         prescription_verified:true,prescription_verified_by:user.id,prescription_verified_at:new Date().toISOString(),
         package_id:selectedPackage?.id||null,package_start_date:selectedPackage?form.admission_date:null,
         package_end_date:selectedPackage?packageEndDate():null,package_fee:selectedPackage?selectedPackageFee():null,
-        package_room_class:selectedPackage?packageRoomClass():null};
-      ['physio_required','therapy_type','physiotherapist_name','physio_frequency','physio_time','physio_precautions'].forEach(k=>delete payload[k]);
+        package_room_class:selectedPackage?packageRoomClass():null,
+        admission_time:form.admission_time||localDateTimeValue().slice(11,16),
+        vitals_schedule:[form.vitals_time_1||'06:00',form.vitals_time_2||'14:00',form.vitals_time_3||'22:00']};
+      ['physio_required','therapy_type','physiotherapist_name','physio_frequency','physio_time','physio_precautions','vitals_time_1','vitals_time_2','vitals_time_3'].forEach(k=>delete payload[k]);
 
       if(admissionExistingPatient){
         if(!selectedBedIsCurrentPatient){
@@ -16740,7 +16742,9 @@ Please keep these login details confidential.`;
             true,
             currentAdmissionPatientId
           ),
-          field('Admission date','admission_date',form,setForm,true,'date')),
+          field('Admission date','admission_date',form,setForm,true,'date'),
+          field('Admission time','admission_time',form,setForm,true,'time')),
+        h('div',{className:'section-card',style:{marginTop:'12px'}},h('h4',null,'Routine Vital Signs Schedule'),h('p',{className:'small-note'},'Three routine observations per day. Default times are 6:00 AM, 2:00 PM and 10:00 PM. Escalation starts only 30 minutes after the applicable scheduled time.'),h('div',{className:'form-grid'},field('Morning vitals','vitals_time_1',form,setForm,true,'time'),field('Afternoon vitals','vitals_time_2',form,setForm,true,'time'),field('Night vitals','vitals_time_3',form,setForm,true,'time'))),
         noPackageSelected&&h('div',{
           className:'message success',
           style:{marginTop:'10px'}
@@ -22312,7 +22316,7 @@ function RoomsBeds({profile,onNavigate}){
       // patient and must not move the medication eligibility boundary forward.
       // Use updated_at only for a re-admission where created_at is from an
       // earlier date and no dedicated admission timestamp is available.
-      const explicit=[patient.admission_datetime,patient.admission_timestamp,patient.admitted_at].filter(Boolean);
+      const explicit=[patient.admission_datetime,patient.admission_timestamp,patient.admitted_at,patient.admission_time?`${patient.admission_date}T${String(patient.admission_time).slice(0,5)}:00`:null].filter(Boolean);
       const createdDate=String(patient.created_at||'').slice(0,10);
       const fallback=createdDate===today?[patient.created_at]:[patient.updated_at,patient.created_at];
       const candidates=[...explicit,...fallback].filter(Boolean);
@@ -22776,7 +22780,7 @@ function RoomsBeds({profile,onNavigate}){
     const [tab,setTab]=React.useState(()=>isFrontlineClinical?'Today’s MAR':'Active Prescriptions');
     const [patientFilter,setPatientFilter]=React.useState('');
     const [marTarget,setMarTarget]=React.useState(null);
-    const [marForm,setMarForm]=React.useState({scheduled_time:'',status:'Given',administered_at:'',remarks:'',late_entry_reason:'',late_entry_justification:''});
+    const [marForm,setMarForm]=React.useState({scheduled_time:'',status:'Given',administered_at:'',remarks:'',late_entry_reason:'',late_entry_justification:'',reschedule:false,rescheduled_time:''});
     const [marBusy,setMarBusy]=React.useState(false);
     const [marMessage,setMarMessage]=React.useState('');
     const [showShiftMedication,setShowShiftMedication]=React.useState(false);
@@ -22909,7 +22913,7 @@ function RoomsBeds({profile,onNavigate}){
       // Do not let an ordinary same-day patient edit redefine admission time.
       // created_at is preferred for a first admission; updated_at is retained
       // only as a re-admission fallback when the patient record is older.
-      const explicit=[patient.admission_datetime,patient.admission_timestamp,patient.admitted_at].filter(Boolean);
+      const explicit=[patient.admission_datetime,patient.admission_timestamp,patient.admitted_at,patient.admission_time?`${patient.admission_date}T${String(patient.admission_time).slice(0,5)}:00`:null].filter(Boolean);
       const createdDate=String(patient.created_at||'').slice(0,10);
       const fallback=createdDate===today?[patient.created_at]:[patient.updated_at,patient.created_at];
       const candidates=[...explicit,...fallback].filter(Boolean);
@@ -22969,7 +22973,8 @@ function RoomsBeds({profile,onNavigate}){
         administered_at:existing?.administered_at?localDateTimeValue(new Date(existing.administered_at)):localDateTimeValue(),
         remarks:existing?.remarks||'',
         late_entry_reason:existing?.late_entry_reason||'',
-        late_entry_justification:existing?.late_entry_justification||''
+        late_entry_justification:existing?.late_entry_justification||'',
+        reschedule:false,rescheduled_time:''
       });
       setMarMessage('');
     }
@@ -22984,6 +22989,8 @@ function RoomsBeds({profile,onNavigate}){
       if(['Refused','Missed','Delayed'].includes(marForm.status)&&!String(marForm.remarks||'').trim()){
         const text=`Please enter the reason for medicine status “${marForm.status}”.`;setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;
       }
+      if(marForm.status==='Refused'&&marForm.reschedule&&!marForm.rescheduled_time){const text='Please select the re-medication time.';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
+      if(marForm.status==='Refused'&&marForm.reschedule&&normalizeMedicationTime(marForm.rescheduled_time)<=normalizeMedicationTime(marForm.scheduled_time)){const text='Re-medication time must be later than the refused scheduled dose.';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
       const entryTime=new Date();
       const administrationTime=marForm.administered_at?new Date(marForm.administered_at):entryTime;
       if(Number.isNaN(administrationTime.getTime())){const text='Please enter a valid administration time.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;}
@@ -23016,7 +23023,9 @@ function RoomsBeds({profile,onNavigate}){
         late_entry:isLateEntry,
         entry_delay_minutes:entryDelayMinutes,
         late_entry_reason:isLateEntry?String(marForm.late_entry_reason||'').trim():null,
-        late_entry_justification:isLateEntry?String(marForm.late_entry_justification||'').trim():null
+        late_entry_justification:isLateEntry?String(marForm.late_entry_justification||'').trim():null,
+        rescheduled_time:marForm.status==='Refused'&&marForm.reschedule?normalizeMedicationTime(marForm.rescheduled_time):null,
+        reschedule_reason:marForm.status==='Refused'&&marForm.reschedule?String(marForm.remarks||'').trim():null
       };
       const {error}=await client.from('medication_administrations').insert(payload);
       if(error){const text=error.message||'Unable to save the Medication Administration Record.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
@@ -23227,7 +23236,7 @@ function RoomsBeds({profile,onNavigate}){
       );
     }
 
-    const targetTimes=marTarget?parseTimes(marTarget.scheduled_times):[];
+    const targetTimes=marTarget?Array.from(new Set([...parseTimes(marTarget.scheduled_times),marForm.scheduled_time].filter(Boolean))):[];
     const currentEntryDelay=marForm.administered_at?Math.max(0,Math.round((Date.now()-new Date(marForm.administered_at).getTime())/60000)):0;
     const currentIsLateEntry=currentEntryDelay>30;
     const lateEntryReasons=['Forgot to record immediately','Emergency patient care','Network or device issue','Medicine administered by another staff member','Patient-related delay','Doctor instruction','Other'];
@@ -23295,6 +23304,8 @@ function RoomsBeds({profile,onNavigate}){
             h('div',{className:'field'},h('label',null,'Frequency'),h('input',{value:marTarget.frequency||'—',readOnly:true})),
             h('div',{className:'field'},h('label',null,'Scheduled Time'),h('select',{value:marForm.scheduled_time,onChange:e=>setMarForm({...marForm,scheduled_time:e.target.value})},(targetTimes.length?targetTimes:[marForm.scheduled_time]).filter(Boolean).map(time=>h('option',{key:time,value:time},medicationTimeLabel(time))))),
             h('div',{className:'field'},h('label',null,'Status'),h('select',{value:marForm.status,onChange:e=>setMarForm({...marForm,status:e.target.value})},['Given','Delayed','Refused','Missed'].map(status=>h('option',{key:status,value:status},status)))),
+            marForm.status==='Refused'&&h('label',{className:'checkbox span-2'},h('input',{type:'checkbox',checked:!!marForm.reschedule,onChange:e=>setMarForm({...marForm,reschedule:e.target.checked,rescheduled_time:e.target.checked?(marForm.rescheduled_time||''):''})}),' Re-medication required — reschedule this refused dose'),
+            marForm.status==='Refused'&&marForm.reschedule&&h('div',{className:'field span-2'},h('label',null,'Re-medication Time'),h('input',{type:'time',required:true,value:marForm.rescheduled_time,onChange:e=>setMarForm({...marForm,rescheduled_time:e.target.value})}),h('small',null,'A new medication alert will be created for this time. The original refusal remains permanently in MAR history.')),
             h('div',{className:'field span-2'},h('label',null,'Actual Administration Time'),h(StrictDateTimeInput,{value:marForm.administered_at,onChange:e=>setMarForm({...marForm,administered_at:e.target.value}),required:true}),h('small',null,'The system records the MAR entry time automatically and staff cannot edit it.')),
             currentIsLateEntry&&h('div',{className:'message warning span-2'},`Late entry detected: this record is being entered approximately ${currentEntryDelay} minutes after the stated administration time. Justification is compulsory.`),
             currentIsLateEntry&&h('div',{className:'field'},h('label',null,'Late Entry Reason'),h('select',{value:marForm.late_entry_reason,onChange:e=>setMarForm({...marForm,late_entry_reason:e.target.value}),required:true},h('option',{value:''},'Select reason'),lateEntryReasons.map(reason=>h('option',{key:reason,value:reason},reason)))),
