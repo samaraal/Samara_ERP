@@ -53,7 +53,10 @@
     const outstanding=Math.max(0,charges-collections-discounts+refunds);
     const todayCollections=sum(rows.filter(row=>dateKey(row.transaction_date)===today),['Payment','Advance']);
     const monthCollections=sum(rows.filter(row=>monthKey(row.transaction_date)===month),['Payment','Advance']);
-    const monthRevenue=sum(rows.filter(row=>monthKey(row.transaction_date)===month),['Charge']);
+    const monthRows=rows.filter(row=>monthKey(row.transaction_date)===month);
+    const monthGrossCharges=sum(monthRows,['Charge']);
+    const monthDiscounts=sum(monthRows,['Discount']);
+    const monthRevenue=Math.max(0,monthGrossCharges-monthDiscounts);
     const pendingApprovals=state.requests.filter(row=>(row.approval_status||'Pending')==='Pending').length;
     const finalBills=state.patients.filter(row=>row.is_active!==false).filter(patient=>{
       const patientRows=rows.filter(row=>row.patient_id===patient.id);
@@ -71,9 +74,10 @@
       return end<=limit;
     }).length;
     const refundValue=refunds;
+    const netRevenue=Math.max(0,charges-discounts);
     const averageDailyRevenue=(()=>{
-      const chargeDates=[...new Set(rows.filter(row=>row.transaction_type==='Charge').map(row=>dateKey(row.transaction_date)).filter(Boolean))];
-      return chargeDates.length?charges/chargeDates.length:0;
+      const revenueDates=[...new Set(rows.filter(row=>['Charge','Discount'].includes(row.transaction_type)).map(row=>dateKey(row.transaction_date)).filter(Boolean))];
+      return revenueDates.length?netRevenue/revenueDates.length:0;
     })();
 
     const modeTotals=['Cash','UPI','RTGS','Card Payment'].map(mode=>[
@@ -85,13 +89,13 @@
     const kpis=[
       ['Collections Today',todayCollections,'Payments','green','Received today'],
       ['Collections This Month',monthCollections,'Payments','blue','Payment and advance receipts'],
-      ['Revenue This Month',monthRevenue,'Accounts Reports','teal','Charges raised during the month'],
+      ['Net Revenue This Month',monthRevenue,'Accounts Reports','teal','Gross charges less approved discounts'],
       ['Outstanding Receivables',outstanding,'Final Billing','red','Net pending across patients'],
       ['Pending Approvals',pendingApprovals,'Charge Approvals','orange','Clinical charges awaiting decision',true],
       ['Pending Final Bills',finalBills,'Final Billing','purple','Active patients with balance',true],
       ['Discharge Clearance',dischargeClearance,'Discharge Clearance','orange','Management-approved cases',true],
       ['Package Expiry',packageExpiry,'Package Expiry Dashboard','orange','Expired / expiring within 3 days',true],
-      ['Average Daily Revenue',averageDailyRevenue,'Accounts Reports','blue','Based on charge-posting days']
+      ['Average Daily Net Revenue',averageDailyRevenue,'Accounts Reports','blue','Net revenue across charge / discount posting days']
     ];
 
     return h(React.Fragment,null,
@@ -144,9 +148,10 @@
           ),
           h('div',{className:'accounts-status-list'},
             [
-              ['Total Charges',money(charges)],
-              ['Collections',money(collections)],
+              ['Gross Charges',money(charges)],
               ['Discounts',money(discounts)],
+              ['Net Revenue',money(netRevenue)],
+              ['Collections',money(collections)],
               ['Refunds',money(refundValue)],
               ['Net Outstanding',money(outstanding)]
             ].map(([label,value])=>h('div',{className:'accounts-status-item',key:label},h('span',null,label),h('strong',null,value)))
