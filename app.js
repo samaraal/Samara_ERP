@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.12';
+  const APP_VERSION = '2.14.13';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22860,6 +22860,7 @@ function RoomsBeds({profile,onNavigate}){
     const [periodFilter,setPeriodFilter]=React.useState('All');
     const [dateFrom,setDateFrom]=React.useState('');
     const [dateTo,setDateTo]=React.useState('');
+    const [appliedMedicationFilter,setAppliedMedicationFilter]=React.useState({period:'All',from:'',to:''});
     const [marTarget,setMarTarget]=React.useState(null);
     const [marForm,setMarForm]=React.useState({scheduled_time:'',status:'Given',administered_at:'',remarks:'',late_entry_reason:'',late_entry_justification:'',reschedule:false,rescheduled_time:''});
     const [marBusy,setMarBusy]=React.useState(false);
@@ -23169,13 +23170,14 @@ function RoomsBeds({profile,onNavigate}){
     },[state.loading,state.orders]);
 
     function dateInSelectedPeriod(value){
-      if(!value)return periodFilter==='All'&&!dateFrom&&!dateTo;
+      const period=appliedMedicationFilter.period||'All';
+      let from=appliedMedicationFilter.from||'',to=appliedMedicationFilter.to||'';
+      if(!value)return period==='All'&&!from&&!to;
       const day=String(value).slice(0,10);
-      let from=dateFrom,to=dateTo;
-      if(periodFilter!=='All'){
+      if(period!=='All'){
         const end=today;
         const start=new Date(`${today}T00:00:00`);
-        const days=periodFilter==='Today'?0:periodFilter==='7 Days'?6:periodFilter==='30 Days'?29:null;
+        const days=period==='Today'?0:period==='7 Days'?6:period==='30 Days'?29:null;
         if(days!==null){start.setDate(start.getDate()-days);from=start.toISOString().slice(0,10);to=end;}
       }
       if(from&&day<from)return false;
@@ -23366,7 +23368,8 @@ function RoomsBeds({profile,onNavigate}){
           h('div',{className:'field'},h('label',null,'Period'),h('select',{value:periodFilter,onChange:e=>{setPeriodFilter(e.target.value);if(e.target.value!=='All'){setDateFrom('');setDateTo('');}}},['All','Today','7 Days','30 Days'].map(x=>h('option',{key:x,value:x},x)))),
           h('div',{className:'field'},h('label',null,'From date'),h('input',{type:'date',max:dateTo||today,value:dateFrom,onChange:e=>{setDateFrom(e.target.value);setPeriodFilter('All');}})),
           h('div',{className:'field'},h('label',null,'To date'),h('input',{type:'date',min:dateFrom||undefined,max:today,value:dateTo,onChange:e=>{setDateTo(e.target.value);setPeriodFilter('All');}})),
-          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPeriodFilter('All');setDateFrom('');setDateTo('');}},'Clear dates')
+          h('button',{type:'button',className:'btn btn-primary',onClick:()=>setAppliedMedicationFilter({period:periodFilter,from:dateFrom,to:dateTo})},'Apply Filter'),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPeriodFilter('All');setDateFrom('');setDateTo('');setAppliedMedicationFilter({period:'All',from:'',to:''});}},'Clear Filter')
         ),
         !useFrontlinePriority&&h('div',{className:'time-chip-list',style:{marginTop:'12px'}},tabs.map(([name,count])=>h('button',{type:'button',key:name,className:`btn ${tab===name?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(name)},`${name} (${count})`)))
       ),
