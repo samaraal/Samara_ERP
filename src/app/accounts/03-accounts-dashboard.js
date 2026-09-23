@@ -50,13 +50,60 @@
     const collections=sum(rows,['Payment','Advance']);
     const discounts=sum(rows,['Discount']);
     const refunds=sum(rows,['Refund']);
-    const outstanding=Math.max(0,charges-collections-discounts+refunds);
+    // Cash-realisation view for the dashboard: charges/discounts define the earned ceiling;
+    // receipts realise revenue only up to that ceiling. Any excess receipt remains an advance.
+    // Recompute after every transaction so a later charge can materialise an earlier advance,
+    // while a later discount can reduce previously realised revenue.
+    function buildRealisation(rowsToProcess){
+      const byPatient=new Map();
+      (rowsToProcess||[]).forEach((row,index)=>{
+        const key=row.patient_id||'__unassigned__';
+        if(!byPatient.has(key))byPatient.set(key,[]);
+        byPatient.get(key).push({...row,_sourceIndex:index});
+      });
+      let realised=0,outstanding=0,unadjustedAdvance=0;
+      const realisedByDate=new Map();
+      byPatient.forEach(patientRows=>{
+        patientRows.sort((a,b)=>{
+          const ad=new Date(a.transaction_date||0).getTime();
+          const bd=new Date(b.transaction_date||0).getTime();
+          return ad-bd||a._sourceIndex-b._sourceIndex;
+        });
+        let gross=0,discount=0,receipts=0,refund=0,previousRealised=0;
+        patientRows.forEach(row=>{
+          const amount=Number(row.amount||0);
+          if(row.transaction_type==='Charge')gross+=amount;
+          else if(row.transaction_type==='Discount')discount+=amount;
+          else if(row.transaction_type==='Payment'||row.transaction_type==='Advance')receipts+=amount;
+          else if(row.transaction_type==='Refund')refund+=amount;
+          const netCharges=Math.max(0,gross-discount);
+          const netReceipts=Math.max(0,receipts-refund);
+          const currentRealised=Math.min(netCharges,netReceipts);
+          const delta=currentRealised-previousRealised;
+          const key=dateKey(row.transaction_date);
+          if(key)realisedByDate.set(key,(realisedByDate.get(key)||0)+delta);
+          previousRealised=currentRealised;
+        });
+        const netCharges=Math.max(0,gross-discount);
+        const netReceipts=Math.max(0,receipts-refund);
+        realised+=Math.min(netCharges,netReceipts);
+        outstanding+=Math.max(0,netCharges-netReceipts);
+        unadjustedAdvance+=Math.max(0,netReceipts-netCharges);
+      });
+      return {realised,outstanding,unadjustedAdvance,realisedByDate};
+    }
+    const realisation=buildRealisation(rows);
+    const outstanding=realisation.outstanding;
+    const unadjustedAdvance=realisation.unadjustedAdvance;
     const todayCollections=sum(rows.filter(row=>dateKey(row.transaction_date)===today),['Payment','Advance']);
     const monthCollections=sum(rows.filter(row=>monthKey(row.transaction_date)===month),['Payment','Advance']);
     const monthRows=rows.filter(row=>monthKey(row.transaction_date)===month);
     const monthGrossCharges=sum(monthRows,['Charge']);
     const monthDiscounts=sum(monthRows,['Discount']);
-    const monthRevenue=Math.max(0,monthGrossCharges-monthDiscounts);
+    const monthNetCharges=Math.max(0,monthGrossCharges-monthDiscounts);
+    const monthRealisedRevenue=[...realisation.realisedByDate.entries()]
+      .filter(([key])=>String(key).slice(0,7)===month)
+      .reduce((total,[,value])=>total+Number(value||0),0);
     const pendingApprovals=state.requests.filter(row=>(row.approval_status||'Pending')==='Pending').length;
     const finalBills=state.patients.filter(row=>row.is_active!==false).filter(patient=>{
       const patientRows=rows.filter(row=>row.patient_id===patient.id);
@@ -74,10 +121,11 @@
       return end<=limit;
     }).length;
     const refundValue=refunds;
-    const netRevenue=Math.max(0,charges-discounts);
+    const netCharges=Math.max(0,charges-discounts);
+    const realisedRevenue=realisation.realised;
     const averageDailyRevenue=(()=>{
-      const revenueDates=[...new Set(rows.filter(row=>['Charge','Discount'].includes(row.transaction_type)).map(row=>dateKey(row.transaction_date)).filter(Boolean))];
-      return revenueDates.length?netRevenue/revenueDates.length:0;
+      const realisedDays=[...realisation.realisedByDate.entries()].filter(([,value])=>Math.abs(Number(value||0))>0.009);
+      return realisedDays.length?realisedRevenue/realisedDays.length:0;
     })();
 
     const modeTotals=['Cash','UPI','RTGS','Card Payment'].map(mode=>[
@@ -89,13 +137,17 @@
     const kpis=[
       ['Collections Today',todayCollections,'Payments','green','Received today'],
       ['Collections This Month',monthCollections,'Payments','blue','Payment and advance receipts'],
-      ['Net Revenue This Month',monthRevenue,'Accounts Reports','teal','Gross charges less approved discounts'],
-      ['Outstanding Receivables',outstanding,'Final Billing','red','Net pending across patients'],
+      ['Gross Charges This Month',monthGrossCharges,'Accounts Reports','teal','Approved charges raised this month'],
+      ['Discounts This Month',monthDiscounts,'Accounts Reports','purple','Approved discounts granted this month'],
+      ['Net Charges This Month',monthNetCharges,'Accounts Reports','blue','Gross charges less approved discounts'],
+      ['Realised Revenue This Month',monthRealisedRevenue,'Accounts Reports','green','Revenue materialised against charges'],
+      ['Outstanding Receivables',outstanding,'Final Billing','red','Approved net charges still unpaid'],
+      ['Unadjusted Advances',unadjustedAdvance,'Payments','blue','Receipts not yet materialised against charges'],
       ['Pending Approvals',pendingApprovals,'Charge Approvals','orange','Clinical charges awaiting decision',true],
       ['Pending Final Bills',finalBills,'Final Billing','purple','Active patients with balance',true],
       ['Discharge Clearance',dischargeClearance,'Discharge Clearance','orange','Management-approved cases',true],
       ['Package Expiry',packageExpiry,'Package Expiry Dashboard','orange','Expired / expiring within 3 days',true],
-      ['Average Daily Net Revenue',averageDailyRevenue,'Accounts Reports','blue','Net revenue across charge / discount posting days']
+      ['Average Daily Realised Revenue',averageDailyRevenue,'Accounts Reports','blue','Materialised revenue across realised-revenue days']
     ];
 
     return h(React.Fragment,null,
@@ -150,8 +202,10 @@
             [
               ['Gross Charges',money(charges)],
               ['Discounts',money(discounts)],
-              ['Net Revenue',money(netRevenue)],
-              ['Collections',money(collections)],
+              ['Net Charges',money(netCharges)],
+              ['Realised Revenue',money(realisedRevenue)],
+              ['Collections / Receipts',money(collections)],
+              ['Unadjusted Advances',money(unadjustedAdvance)],
               ['Refunds',money(refundValue)],
               ['Net Outstanding',money(outstanding)]
             ].map(([label,value])=>h('div',{className:'accounts-status-item',key:label},h('span',null,label),h('strong',null,value)))
