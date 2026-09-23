@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '2.14.14';
+  const VERSION = '2.14.15';
   let rendering = false;
 
   const escapeHtml = value => String(value ?? '')
@@ -64,13 +64,58 @@
     rendering = false;
   };
 
+  // v2.14.15: once the app is running, an error must NOT wipe the whole screen.
+  // Before the app starts, the full "startup error" screen is still shown (as before).
+  // After it starts, the error is logged to client_errors and a small notice is shown instead.
+  const appIsRunning = () => {
+    const root = document.getElementById('root');
+    return window.SAMARA_APP_STARTED === true && !!root && root.childElementCount > 0;
+  };
+  const isHarmless = message => /ResizeObserver loop|^Script error\.?$/i.test(String(message || '').trim());
+  let lastNoticeAt = 0;
+  const softNotice = () => {
+    try {
+      const now = Date.now();
+      if (now - lastNoticeAt < 20000 || !document.body) return;
+      lastNoticeAt = now;
+      document.getElementById('samara-soft-error')?.remove();
+      const box = document.createElement('div');
+      box.id = 'samara-soft-error';
+      box.setAttribute('role', 'status');
+      box.style.cssText = 'position:fixed;left:50%;bottom:max(16px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:2147483000;max-width:min(520px,calc(100vw - 24px));background:#2f1022;color:#fff;border-radius:14px;padding:12px 44px 12px 16px;font:500 15px/1.45 Arial,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.28)';
+      box.textContent = 'Something did not finish. If you were saving, please check the record was saved before trying again.';
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.textContent = '×';
+      close.setAttribute('aria-label', 'Close');
+      close.style.cssText = 'position:absolute;top:6px;right:8px;border:0;background:transparent;color:#fff;font-size:24px;line-height:1;cursor:pointer';
+      close.addEventListener('click', () => box.remove());
+      box.appendChild(close);
+      document.body.appendChild(box);
+      setTimeout(() => box.remove(), 9000);
+    } catch (_) {}
+  };
+
   window.addEventListener('error', event => {
+    // Ignore failed <img>/<script> loads that bubble here without a JS error.
+    if (!event.error && !event.message) return;
+    if (appIsRunning()) {
+      if (isHarmless(event.message)) return;
+      try { window.SamaraReportError?.('window-error', event.error || event.message); } catch (_) {}
+      softNotice();
+      return;
+    }
     const detail = event.error?.stack || `${event.message || 'JavaScript error'}\n${event.filename || ''}:${event.lineno || ''}:${event.colno || ''}`;
     show('Application startup error', detail);
   });
 
   window.addEventListener('unhandledrejection', event => {
     const reason = event.reason;
+    if (appIsRunning()) {
+      try { window.SamaraReportError?.('unhandled-rejection', reason); } catch (_) {}
+      softNotice();
+      return;
+    }
     show('Application request error', reason?.stack || reason?.message || String(reason));
   });
 
