@@ -29059,15 +29059,19 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     },[catalog]);
     const fallbackCategories=Object.fromEntries(Object.entries(defaultCategories).map(([category,services])=>[category,services.includes('Others')?services:[...services,'Others']]));
     const categories=React.useMemo(()=>{
-      // Nursing Bills & Charges must use the live Stores/Pharmacy master only.
-      // This prevents free-text/legacy charge items from being raised by Nurses.
+      // Nurses may raise Nursing Procedure service charges plus patient-specific
+      // Consumables/Pharmacy charges. Inventory categories must still come only
+      // from the live Stores master; Nursing Procedures are services and do not
+      // require an indent/received stock balance.
       if(profile?.role==='Nurse'){
-        const nurseStoreCategories={};
+        const nurseCategories={};
+        const nursingProcedures=(catalogCategories['Nursing Procedures']||fallbackCategories['Nursing Procedures']||[]).filter(Boolean);
+        if(nursingProcedures.length)nurseCategories['Nursing Procedures']=[...new Set(nursingProcedures)];
         ['Consumables','Pharmacy'].forEach(cat=>{
           const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
-          if(names.length)nurseStoreCategories[cat]=[...new Set(names)];
+          if(names.length)nurseCategories[cat]=[...new Set(names)];
         });
-        return nurseStoreCategories;
+        return nurseCategories;
       }
       const base=Object.keys(catalogCategories).length?{...catalogCategories}:{...fallbackCategories};
       ['Consumables','Pharmacy'].forEach(cat=>{
@@ -29192,7 +29196,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     }
     function validateDraft(draft,draftFiles){
       if(!draft.patient_id)return 'Select the patient.';
-      if(profile?.role==='Nurse'&&!['Consumables','Pharmacy'].includes(draft.category))return 'Nursing Bills & Charges can use only active items from Stores / Pharmacy.';
+      if(profile?.role==='Nurse'&&!['Nursing Procedures','Consumables','Pharmacy'].includes(draft.category))return 'Nursing Bills & Charges can use Nursing Procedures and active patient-received items from Stores / Pharmacy.';
       if(!Number.isFinite(Number(draft.quantity))||Number(draft.quantity)<=0)return 'Enter a valid positive quantity.';
       if(draft.store_item_id){const item=chargeStock.items.find(x=>String(x.item_id)===String(draft.store_item_id));if(!item)return 'Selected stock item is no longer available. Refresh and select again.';if(item.unit!==draft.unit)return 'Use the selected stock item unit.';}
       if(profile?.role==='Nurse'&&storeCategories.includes(draft.category)){
