@@ -152,6 +152,29 @@
     const [form,setForm]=React.useState(fresh());
     const [filter,setFilter]=React.useState({patient_id:initialPatientId,status:initialPatientId?'Pending':'All',category:'All'});
     const [quickView,setQuickView]=React.useState('All');
+    const [workflowRequestId,setWorkflowRequestId]=React.useState('');
+    React.useEffect(()=>{
+      if(profile?.role!=='Accounts')return;
+      try{
+        const raw=sessionStorage.getItem('samara-workflow-target');
+        if(!raw)return;
+        const target=JSON.parse(raw);
+        if(target?.type==='charge-request'&&target?.request_id){
+          setWorkflowRequestId(String(target.request_id));
+          setQuickView('All');
+          setFilter(current=>({...current,patient_id:'',status:'All',category:'All'}));
+          sessionStorage.removeItem('samara-workflow-target');
+        }
+      }catch(_error){}
+    },[profile?.id,profile?.role]);
+    React.useEffect(()=>{
+      if(!workflowRequestId||!rows.some(row=>String(row.id)===workflowRequestId))return;
+      const timer=setTimeout(()=>{
+        const node=document.getElementById(`charge-request-${workflowRequestId}`)||document.getElementById('bill-charge-register');
+        if(node)node.scrollIntoView({behavior:'smooth',block:'center'});
+      },80);
+      return()=>clearTimeout(timer);
+    },[workflowRequestId,rows]);
 
     const notify=(type,text)=>{showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);setToast({type,text});setTimeout(()=>setToast(null),4500)};
     function openChargeView(view){
@@ -457,6 +480,7 @@
     }
 
     const filtered=rows.filter(r=>
+      (!workflowRequestId||String(r.id)===workflowRequestId)&&
       (!filter.patient_id||r.patient_id===filter.patient_id)&&
       (filter.status==='All'||(r.approval_status||'Pending')===filter.status)&&
       (filter.category==='All'||r.category===filter.category)&&
@@ -565,7 +589,13 @@
     const mobileRegister=h(Section,{title:`Bill & Charge Requests (${filtered.length})`,subtitle:'Mobile view — each request is contained within the screen. No horizontal scrolling.'},
       h('div',{style:{width:'100%',maxWidth:'100%',overflowX:'hidden'}},filtered.length?filtered.map(chargeMobileCard):h('div',{className:'empty',style:{padding:'18px'}},'No records found'))
     );
-    const register=isChargeMobile?mobileRegister:desktopRegister;
+    const register=h(React.Fragment,null,
+      workflowRequestId&&h('div',{className:'message warning',style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',marginBottom:'10px'}},
+        h('span',null,'Showing the exact charge request opened from the notification.'),
+        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setWorkflowRequestId('')},'Show All Charge Requests')
+      ),
+      isChargeMobile?mobileRegister:desktopRegister
+    );
 
     const diagTable=h(LogTable,{
       title:'Diagnostic Services Timeline',
