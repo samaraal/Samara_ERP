@@ -1,31 +1,51 @@
   function ChargeMasterPage({profile}){
-    const [rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState('');
+    const [serviceRows,setServiceRows]=React.useState([]),[storeRows,setStoreRows]=React.useState([]),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState('');
     const notify=(type,text)=>showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
+    const stockCategories=['Consumables','Pharmacy','Pharmacy & Basic Supplies'];
     async function load(){
-      const {data,error}=await client.from('charge_tariff_master').select('*').order('category').order('display_order').order('service_name');
-      if(error){notify('error',error.message);return} setRows(data||[]);
+      const [services,stores]=await Promise.all([
+        client.from('charge_tariff_master').select('*').order('category').order('display_order').order('service_name'),
+        client.from('consumable_store_items').select('id,item_name,unit,active,item_category,charge_rate').order('item_category').order('item_name')
+      ]);
+      if(services.error){notify('error',services.error.message);return}
+      if(stores.error){notify('error',stores.error.message);return}
+      setServiceRows((services.data||[]).filter(row=>!stockCategories.includes(String(row.category||'').trim())));
+      setStoreRows(stores.data||[]);
     }
     React.useEffect(()=>{load()},[]);
-    async function saveItem(row){
-      const category=prompt('Charge category:',row?.category||'Miscellaneous'); if(category===null||!String(category).trim())return;
+    async function saveService(row){
+      const category=prompt('Charge category:',row?.category||'Nursing Procedures'); if(category===null||!String(category).trim())return;
+      if(stockCategories.includes(String(category).trim())){notify('error','Consumables and Pharmacy items are controlled only from Stores Master. Add or edit the item there so the same item name, ID and rate are used everywhere.');return}
       const serviceName=prompt('Chargeable service / item:',row?.service_name||''); if(serviceName===null||!String(serviceName).trim())return;
       const entered=prompt('Admin-fixed tariff when no external bill is available (leave blank to set later):',row?.amount!=null?String(row.amount):''); if(entered===null)return;
       const amount=String(entered).trim()===''?null:Number(entered); if(amount!==null&&(!Number.isFinite(amount)||amount<=0)){notify('error','Enter a valid tariff greater than zero, or leave it blank.');return}
       setBusy(true); const payload={category:String(category).trim(),service_name:String(serviceName).trim(),amount,is_active:row?.is_active!==false,updated_by:profile.id,updated_at:new Date().toISOString()};
       const result=row?.id?await client.from('charge_tariff_master').update(payload).eq('id',row.id):await client.from('charge_tariff_master').insert(payload); setBusy(false);
-      if(result.error)notify('error',result.error.message); else {notify('success',row?.id?'Charge Master item updated.':'Charge Master item added.');load()}
+      if(result.error)notify('error',result.error.message); else {notify('success',row?.id?'Charge Master service updated.':'Charge Master service added.');load()}
     }
-    async function toggle(row){setBusy(true);const {error}=await client.from('charge_tariff_master').update({is_active:row.is_active===false,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',row.id);setBusy(false);if(error)notify('error',error.message);else load()}
+    async function toggleService(row){setBusy(true);const {error}=await client.from('charge_tariff_master').update({is_active:row.is_active===false,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',row.id);setBusy(false);if(error)notify('error',error.message);else load()}
+    async function editStoreRate(row){
+      const entered=prompt(`Fixed patient charge rate for ${row.item_name}:`,row?.charge_rate!=null?String(row.charge_rate):'');
+      if(entered===null)return;
+      const rate=String(entered).trim()===''?null:Number(entered);
+      if(rate!==null&&(!Number.isFinite(rate)||rate<=0)){notify('error','Enter a valid rate greater than zero, or leave it blank.');return}
+      setBusy(true);
+      const {error}=await client.from('consumable_store_items').update({charge_rate:rate,updated_at:new Date().toISOString()}).eq('id',row.id);
+      setBusy(false);
+      if(error)notify('error',error.message);else{notify('success','Stores / Pharmacy charge rate updated.');load()}
+    }
     if(profile?.role!=='Admin')return h(Section,{title:'Charge Master'},h('p',null,'Administrator access only.'));
-    const searchText=String(search||'').trim().toLowerCase();
-    const visibleRows=searchText.length>=3?rows.filter(row=>`${row.category||''} ${row.service_name||''}`.toLowerCase().includes(searchText)):rows;
+    const q=String(search||'').trim().toLowerCase();
+    const match=row=>q.length<3||`${row.category||row.item_category||''} ${row.service_name||row.item_name||''}`.toLowerCase().includes(q);
+    const visibleStores=storeRows.filter(match),visibleServices=serviceRows.filter(match);
     return h(React.Fragment,null,
-      h(Section,{title:'Charge Master',subtitle:'Administrator-controlled chargeable items and fixed tariffs. Nursing can use item names but cannot see financial amounts.'},
+      h(Section,{title:'Charge Master',subtitle:'Stores / Pharmacy items use the exact live Stores Master item name, ID and charge rate. Separate aliases are not permitted. Non-stock service tariffs remain controlled here.'},
         h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'end',gap:'12px',marginBottom:'10px',flexWrap:'wrap'}},
-          h('div',{className:'field',style:{minWidth:'280px',margin:0}},h('label',null,'Search Charge Items'),h('input',{type:'search',value:search,onChange:e=>setSearch(e.target.value),placeholder:'Type at least 3 letters...'}),searchText.length>0&&searchText.length<3?h('small',null,'Enter at least 3 letters to filter.'):null),
-          h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>saveItem(null)},'+ Add Charge Item')
+          h('div',{className:'field',style:{minWidth:'280px',margin:0}},h('label',null,'Search Charge Items'),h('input',{type:'search',value:search,onChange:e=>setSearch(e.target.value),placeholder:'Type at least 3 letters...'}),q.length>0&&q.length<3?h('small',null,'Enter at least 3 letters to filter.'):null),
+          h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>saveService(null)},'+ Add Service Charge')
         ),
-        h(LogTable,{title:`Chargeable Items (${visibleRows.length})`,heads:['Category','Service / Item','Fixed Tariff (No Bill)','Status','Action'],rows:visibleRows.map(row=>[row.category,row.service_name,row.amount!=null?`₹${Number(row.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveItem(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggle(row)},row.is_active===false?'Activate':'Deactivate'))])})
+        h(LogTable,{title:`Stores / Pharmacy Items (${visibleStores.length})`,heads:['Category','Exact Stores Item','Unit','Fixed Charge Rate','Status','Action'],rows:visibleStores.map(row=>[row.item_category||'Consumables',row.item_name,row.unit||'—',row.charge_rate!=null?`₹${Number(row.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.active===false?'Inactive':'Active',h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreRate(row)},'Edit Rate')])}),
+        h(LogTable,{title:`Non-stock Service Charges (${visibleServices.length})`,heads:['Category','Service','Fixed Tariff (No Bill)','Status','Action'],rows:visibleServices.map(row=>[row.category,row.service_name,row.amount!=null?`₹${Number(row.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveService(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggleService(row)},row.is_active===false?'Activate':'Deactivate'))])})
       )
     );
   }
@@ -105,14 +125,14 @@
         const nursingProcedures=(catalogCategories['Nursing Procedures']||fallbackCategories['Nursing Procedures']||[]).filter(Boolean);
         if(nursingProcedures.length)nurseCategories['Nursing Procedures']=[...new Set(nursingProcedures)];
         ['Consumables','Pharmacy'].forEach(cat=>{
-          const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+          const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false&&Number(x.charge_rate)>0).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
           if(names.length)nurseCategories[cat]=[...new Set(names)];
         });
         return nurseCategories;
       }
       const base=Object.keys(catalogCategories).length?{...catalogCategories}:{...fallbackCategories};
       ['Consumables','Pharmacy'].forEach(cat=>{
-        const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+        const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false&&Number(x.charge_rate)>0).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
         if(names.length)base[cat]=[...new Set([...names,'Others'])];
       });
       return base;
@@ -387,7 +407,7 @@
     async function decide(row,decision){
       if(!canApprove||busy)return;
       const isOther=String(row.service_code||'').toUpperCase()==='OTHER';
-      const tariff=isOther?null:tariffs.find(t=>t.category===row.category&&t.service_name===row.service_name&&t.is_active!==false);
+      const tariff=(isOther||storeCategories.includes(row.category))?null:tariffs.find(t=>t.category===row.category&&t.service_name===row.service_name&&t.is_active!==false);
       const storeAmount=currentStoreRequestAmount(row);
       let amount=row.bill_available?Number(row.requested_amount||0):(storeAmount.amount>0?storeAmount.amount:Number(tariff?.amount||0));
       if(['Approved','Partially Approved'].includes(decision)){
@@ -634,6 +654,7 @@
       if(!canManageTariffs)return;
       const category=prompt('Charge category:',row?.category||'Miscellaneous');
       if(category===null||!String(category).trim())return;
+      if(storeCategories.includes(String(category).trim())){notify('error','Consumables and Pharmacy items are controlled only from Stores Master. Use the exact Stores item and rate.');return}
       const serviceName=prompt('Chargeable service / item:',row?.service_name||'');
       if(serviceName===null||!String(serviceName).trim())return;
       const entered=prompt('Admin-fixed tariff when no external bill is available (leave blank to set later):',row?.amount!==null&&row?.amount!==undefined?String(row.amount):'');
@@ -658,7 +679,7 @@
     }
     const tariffPanel=canManageTariffs?h(Section,{title:'Charge Master',subtitle:'Admin-controlled list of all chargeable services/items. Fixed tariffs and amounts are visible only to Admin/Accounts; Nursing sees item names only. “Others” remains editable for Nursing and Accounts.'},
       h('div',{style:{display:'flex',justifyContent:'flex-end',marginBottom:'10px'}},h('button',{type:'button',className:'btn btn-primary',disabled:tariffBusy,onClick:()=>saveMasterItem(null)},'+ Add Charge Item')),
-      h(LogTable,{title:'Chargeable Items',heads:['Category','Service / Item','Fixed Tariff (No Bill)','Status','Action'],rows:(tariffs||[]).map(row=>[
+      h(LogTable,{title:'Chargeable Items',heads:['Category','Service / Item','Fixed Tariff (No Bill)','Status','Action'],rows:(tariffs||[]).filter(row=>!storeCategories.includes(String(row.category||'').trim())).map(row=>[
         row.category,row.service_name,row.amount!==null&&row.amount!==undefined?money(row.amount):'Not set',row.is_active===false?'Inactive':'Active',
         h('div',{className:'employee-actions'},
           h('button',{className:'btn btn-secondary',disabled:tariffBusy,onClick:()=>saveMasterItem(row)},'Edit'),
