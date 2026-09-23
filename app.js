@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.09';
+  const APP_VERSION = '2.14.10';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -250,7 +250,7 @@ function initSamaraInaugurationInvitation(){
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '21-Sep-2026 Admission minimum-details server auto-save';
+  const APP_BUILD_DATE = '23-Sep-2026 Mobile Bills structural card view';
   const APP_SCHEMA_VERSION = '38';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -4045,6 +4045,8 @@ https://samaraassistedliving.com/`;
   function AlertSettings({profile,engine}){
     const [form,setForm]=React.useState(engine.settings);
     const [toast,setToast]=React.useState(null);
+    const [isChargeMobile,setIsChargeMobile]=React.useState(()=>typeof window!=='undefined'&&window.matchMedia('(max-width: 760px)').matches);
+    React.useEffect(()=>{if(typeof window==='undefined')return;const mq=window.matchMedia('(max-width: 760px)');const sync=()=>setIsChargeMobile(mq.matches);sync();mq.addEventListener?.('change',sync);return()=>mq.removeEventListener?.('change',sync)},[]);
     React.useEffect(()=>setForm(engine.settings),[engine.settings]);
     async function save(e){
       e.preventDefault();
@@ -29466,9 +29468,32 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       navCard('Approved Value Today',money(approvedTodayValue),'Approved Today','Actual value approved today')
     );
 
-    const register=h(LogTable,{
+    const chargeMobileCard=r=>h('article',{key:r.id||`${r.patient_id}-${r.charge_date}-${r.service_name}`,className:'card',style:{padding:'14px',marginBottom:'10px',width:'100%',maxWidth:'100%',boxSizing:'border-box',overflow:'hidden'}},
+      h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'flex-start'}},
+        h('div',{style:{minWidth:0,flex:'1 1 auto'}},h('strong',{style:{display:'block',fontSize:'16px',overflowWrap:'anywhere'}},r.service_name||r.description||'Charge'),h('small',{style:{display:'block',marginTop:'3px',overflowWrap:'anywhere'}},pLabel(r.patient_id))),
+        h('span',{className:'badge',style:{flex:'0 0 auto'}},r.approval_status||'Pending')
+      ),
+      h('div',{style:{display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1fr)',gap:'8px 12px',marginTop:'12px'}},
+        h('div',{style:{minWidth:0}},h('small',null,'Date'),h('div',{style:{overflowWrap:'anywhere'}},formatDateIN(r.charge_date))),
+        h('div',{style:{minWidth:0}},h('small',null,'Quantity'),h('div',{style:{overflowWrap:'anywhere'}},`${r.quantity||1} ${r.unit||''}`)),
+        h('div',{style:{minWidth:0}},h('small',null,'Category'),h('div',{style:{overflowWrap:'anywhere'}},r.category||'—')),
+        h('div',{style:{minWidth:0}},h('small',null,'Provider'),h('div',{style:{overflowWrap:'anywhere'}},r.service_provider||r.hospital_name||r.laboratory_name||'—')),
+        h('div',{style:{gridColumn:'1 / -1',minWidth:0}},h('small',null,'Patient'),h('div',{style:{overflowWrap:'anywhere',wordBreak:'break-word'}},pLabel(r.patient_id))),
+        h('div',{style:{gridColumn:'1 / -1',minWidth:0}},h('small',null,'Service'),h('div',{style:{overflowWrap:'anywhere',wordBreak:'break-word'}},r.service_name||r.description||'—')),
+        h('div',{style:{minWidth:0}},h('small',null,'Request Amount'),h('div',null,profile?.role==='Nurse'?'Hidden':(()=>{const store=currentStoreRequestAmount(r);return store.amount>0?money(store.amount):'—'})())),
+        h('div',{style:{minWidth:0}},h('small',null,'Approved Amount'),h('div',null,profile?.role==='Nurse'?'Hidden':money(r.approved_amount??r.final_amount))),
+        h('div',{style:{gridColumn:'1 / -1',minWidth:0}},h('small',null,'Decision'),h('div',{style:{overflowWrap:'anywhere'}},[r.decision_by_name,r.decision_at&&fmt(r.decision_at)].filter(Boolean).join(' · ')||'—')),
+        h('div',{style:{gridColumn:'1 / -1',minWidth:0}},h('small',null,'Remarks'),h('div',{style:{overflowWrap:'anywhere',wordBreak:'break-word'}},r.decision_remarks||r.approval_remarks||r.remarks||'—'))
+      ),
+      canApprove&&(r.approval_status||'Pending')==='Pending'&&h('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:'6px',marginTop:'12px'}},
+        h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>decide(r,'Approved')},'Approve'),
+        h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>decide(r,'Partially Approved')},'Partial'),
+        h('button',{className:'btn btn-danger',disabled:busy,onClick:()=>decide(r,'Rejected')},'Reject')
+      )
+    );
+
+    const desktopRegister=h(LogTable,{
       title:`Bill & Charge Requests (${filtered.length})`,
-      className:'samara-mobile-card-table',
       heads:['Date','Patient','Category','Service','Qty','Decision','Action','Request Amount','Approved Amount','Provider','Decision By','Decision Time','Remarks'],
       rows:filtered.map(r=>[
         formatDateIN(r.charge_date),pLabel(r.patient_id),r.category,r.service_name||r.description,
@@ -29486,6 +29511,10 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         r.decision_by_name||'—',r.decision_at?fmt(r.decision_at):'—',r.decision_remarks||r.approval_remarks||'—'
       ])
     });
+    const mobileRegister=h(Section,{title:`Bill & Charge Requests (${filtered.length})`,subtitle:'Mobile view — each request is contained within the screen. No horizontal scrolling.'},
+      h('div',{style:{width:'100%',maxWidth:'100%',overflowX:'hidden'}},filtered.length?filtered.map(chargeMobileCard):h('div',{className:'empty',style:{padding:'18px'}},'No records found'))
+    );
+    const register=isChargeMobile?mobileRegister:desktopRegister;
 
     const diagTable=h(LogTable,{
       title:'Diagnostic Services Timeline',

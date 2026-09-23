@@ -1,14 +1,30 @@
-Samara Care ERP v2.11.16 — Login Password Eye Button
+SAMARA ERP 2.14.10 — MOBILE BILLS & CHARGES STRUCTURAL FIX
+Base: Samara_ERP-main(92)
 
-Replace only these files in the ERP root:
+WHY 3 FILES THIS TIME
+The deployed browser title/service worker were still pinned to 2.14.08/2.14.09. Updating app.js alone could leave an older cached app running. This package intentionally updates app.js + index.html + service-worker.js together to 2.14.10.
+
+REPLACE ONLY
 1. app.js
 2. index.html
 3. service-worker.js
 
-Change made:
-- Added eye/show-password button to the ERP login Password field.
-- Clicking the eye toggles between hidden and visible password text.
-- No Supabase SQL change.
-- No database, nursing, billing, WhatsApp, Stores, Director Office or other ERP workflow changes.
+NO SQL.
 
-After upload, refresh the ERP. The app version should show 2.11.16 and the normal update mechanism can detect the new build.
+MOBILE CHANGE
+- At <=760px, the Bills & Charges desktop table is NOT rendered at all.
+- A separate native mobile card list is rendered instead.
+- Each request stays inside the viewport; long Patient, MR No., Room, Service and Remarks wrap inside the card.
+- No right-side columns and no horizontal table scrolling are required.
+- Nurse financial values remain Hidden.
+- Accounts approval buttons remain available on mobile when applicable.
+- Desktop continues to render the existing full table.
+
+VERSION / CACHE
+- ERP app version: 2.14.10
+- Browser title and asset cache-busting: 2.14.10
+- Service worker cache: new 2.14.10 cache
+After upload, use App Help / Repair once or fully close/reopen the PWA/browser tab.
+
+UNCHANGED
+No Bills data, charge workflow, Stores, Admission, Family Portal, WhatsApp, clinical, Accounts calculations, HR, Food & Diet or database logic changed.
