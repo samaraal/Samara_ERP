@@ -1,0 +1,29 @@
+SAMARA ERP — SAFE UPDATE 135
+
+PURPOSE
+1. Nursing Manager: 3+ character search while receiving/working with Pharmacy & Consumables.
+2. Nurse Bills & Charges: Pharmacy/Consumables can be charged only from quantity already Received for that patient through the indent workflow.
+3. Stores stock continues to deduct at HAND OVER only. Receipt and Billing do NOT deduct stock again.
+4. Nursing Manager cannot use Physical Tally to manually reduce stock. Physical Tally remains management oversight only (Admin/Manager).
+
+INSTALL
+1. In Supabase SQL Editor run: 135_received_stock_charge_link.sql
+2. Replace only app.js with the app.js in this package.
+3. Hard refresh / repair PWA if required.
+
+IMPORTANT
+- Do not change or reinstall the existing indent/handover SQL.
+- Existing Hand Over stock deduction is deliberately preserved.
+- Existing historical Bills/Charges are not altered by this migration.
+- Legacy active-patient stock reconciliation should be performed only after verifying the exact old charge rows against any old Handed Over indents, to avoid a double deduction. This package deliberately does not blindly deduct historical stock.
+
+REGRESSION CHECK
+A. Vendor receipt increases stock.
+B. Nurse indent does not reduce stock.
+C. Manager approval does not reduce stock.
+D. Hand Over reduces stock exactly once.
+E. Nurse Received does not reduce Stores again.
+F. Before Received, Nurse cannot raise that Pharmacy/Consumable charge.
+G. After Received, Nurse can charge only the received/unbilled quantity.
+H. A second charge cannot exceed the remaining received quantity.
+I. Nursing Manager has no Physical Tally stock-reduction control.
