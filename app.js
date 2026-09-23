@@ -15201,6 +15201,7 @@ Thank you.`;
         msg.includes('completed')||
         msg.includes('restored')||
         msg.includes('saved. Print')||
+        msg.includes('Admission completed and saved successfully')||
         msg.includes('formalities are complete')||
         msg.includes('activated under consent-upload exception')||
         msg.includes('Admission draft preserved')||
@@ -16204,8 +16205,9 @@ Please keep these login details confidential.`;
       const {data:{user}}=await client.auth.getUser();
       let patient=null;
       const admissionExistingPatient=effectiveExistingPatient;
+      const pendingAdmissionResume=Boolean(admissionExistingPatient&&String(admissionExistingPatient.admission_status||'').toLowerCase()==='admission pending');
       let patientCode=admissionExistingPatient?.patient_code||admissionExistingPatient?.patient_id||null;
-      const payload={...form,address:composePatientAddress(form),age:Number(form.age)||null,is_active:true,admission_status:'Active',
+      const payload={...form,address:composePatientAddress(form),age:Number(form.age)||null,is_active:pendingAdmissionResume?false:true,admission_status:pendingAdmissionResume?'Admission Pending':'Active',
         undergoing_prescribed_medication:form.undergoing_prescribed_medication==='Yes',
         prescription_verified:true,prescription_verified_by:user.id,prescription_verified_at:new Date().toISOString(),
         package_id:selectedPackage?.id||null,package_start_date:selectedPackage?form.admission_date:null,
@@ -16237,9 +16239,11 @@ Please keep these login details confidential.`;
         }
         patient=updated;
 
-        await client.from('medication_orders').update({is_active:false}).eq('patient_id',patient.id);
-        await client.from('care_orders').update({is_active:false}).eq('patient_id',patient.id);
-        await client.from('physiotherapy_plans').update({is_active:false}).eq('patient_id',patient.id);
+        if(!pendingAdmissionResume){
+          await client.from('medication_orders').update({is_active:false}).eq('patient_id',patient.id);
+          await client.from('care_orders').update({is_active:false}).eq('patient_id',patient.id);
+          await client.from('physiotherapy_plans').update({is_active:false}).eq('patient_id',patient.id);
+        }
       }else{
         try{
           patientCode=await generateMonthlyPatientCode();
@@ -16248,8 +16252,11 @@ Please keep these login details confidential.`;
           setBusy(false);
           return;
         }
+        // Safe admission commit: create a non-active staging row first. The resident
+        // is not considered admitted, and the bed is not occupied, until every
+        // admission setup step below succeeds.
         const {data:created,error:createError}=await client.from('patients')
-          .insert({...payload,patient_id:patientCode,patient_code:patientCode,created_by:user.id})
+          .insert({...payload,is_active:false,admission_status:'Admission Pending',patient_id:patientCode,patient_code:patientCode,created_by:user.id})
           .select()
           .single();
         if(createError){setMsg(createError.message);setBusy(false);return}
@@ -16266,28 +16273,6 @@ Please keep these login details confidential.`;
           }));
         }catch(draftLinkError){
           console.warn('Unable to link Admission draft to created patient:',draftLinkError);
-        }
-        if(!selectedBedIsCurrentPatient){
-          const {error:roomAssignError}=await client.rpc('assign_patient_room',{
-            p_patient_id:patient.id,
-            p_room_bed_id:selectedBed.id,
-            p_reason:selectedBedIsReservedForThisAdmission?'Reserved room admission':'Initial admission room allotment'
-          });
-          if(roomAssignError){
-            await client.from('patients').delete().eq('id',patient.id);
-            setDraftPatientId('');
-            try{
-              const rawDraft=localStorage.getItem(ADMISSION_DRAFT_KEY);
-              if(rawDraft){
-                const currentDraft=JSON.parse(rawDraft);
-                delete currentDraft.patient_id;
-                localStorage.setItem(ADMISSION_DRAFT_KEY,JSON.stringify(currentDraft));
-              }
-            }catch(_error){}
-            setMsg(roomAssignError.message||'Unable to allot the selected room.');
-            setBusy(false);
-            return;
-          }
         }
       }
       try{
@@ -16319,6 +16304,25 @@ Please keep these login details confidential.`;
         }
         const careRows=effectiveCare.map(c=>({...c,is_locked:undefined,patient_id:patient.id,entered_by:user.id}));if(careRows.length)await client.from('care_orders').insert(careRows);
         if(form.physio_required&&form.therapy_type)await client.from('physiotherapy_plans').insert({patient_id:patient.id,advised_by:form.treating_doctor||form.referring_doctor,therapy_type:form.therapy_type,physiotherapist_name:form.physiotherapist_name||null,frequency:form.physio_frequency,preferred_time:form.physio_time,precautions:form.physio_precautions,start_date:form.admission_date,entered_by:user.id});
+        // Final admission commit. For a NEW resident, only now allot the room and
+        // activate the patient. This prevents validation/setup errors from leaving a
+        // patient shown as admitted or a bed shown as occupied.
+        if(!admissionExistingPatient||pendingAdmissionResume){
+          const {error:roomAssignError}=await client.rpc('assign_patient_room',{
+            p_patient_id:patient.id,
+            p_room_bed_id:selectedBed.id,
+            p_reason:selectedBedIsReservedForThisAdmission?'Reserved room admission':'Initial admission room allotment'
+          });
+          if(roomAssignError)throw new Error(roomAssignError.message||'Unable to allot the selected room.');
+          const {data:activatedPatient,error:activateError}=await client.from('patients')
+            .update({is_active:true,admission_status:'Active'})
+            .eq('id',patient.id)
+            .select()
+            .single();
+          if(activateError)throw activateError;
+          patient=activatedPatient;
+        }
+
         await client.from('audit_log').insert({
           user_id:user.id,
           action:admissionExistingPatient?'PATIENT_ADMISSION_RECORD_RESUMED':'PATIENT_ADMISSION_COMPLETED',
@@ -16386,7 +16390,7 @@ Please keep these login details confidential.`;
             :familyPortalWhatsAppResult?.status==='failed'
               ?' Family Portal access was created, but its automatic WhatsApp failed; use Resend Portal Access from the Family Portal tab.'
               :'';
-        setMsg(`Admission data saved.${admissionWhatsAppNote}${familyPortalWhatsAppNote} Print the generated consent, obtain signatures and upload the signed form to complete admission formalities.`);
+        setMsg(`Admission completed and saved successfully.${admissionWhatsAppNote}${familyPortalWhatsAppNote} Room / bed allotment is confirmed. Print the generated consent, obtain signatures and upload the signed form to complete admission formalities.`);
       }catch(err){setMsg(`${admissionExistingPatient?'Existing patient admission resumed':'Patient created'}, but document or care setup failed: ${err.message}`)}
       setBusy(false);
     }
