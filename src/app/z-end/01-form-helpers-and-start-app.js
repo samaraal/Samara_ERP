@@ -8,5 +8,6 @@
   function field(label,key,form,setForm,required,type='text'){const inputProps={type,value:form[key],required,onChange:e=>setForm({...form,[key]:e.target.value})};if(type==='date'&&key==='admission_date')inputProps.max=todayISOIndia();return h('div',{className:'field',key},h('label',null,label),h('input',inputProps))}
   function selectField(label,key,form,setForm,options){return h('div',{className:'field',key},h('label',null,label),h('select',{value:form[key],onChange:e=>setForm({...form,[key]:e.target.value})},options.map(x=>h('option',{key:x,value:x},x))))}
 
-  ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+  ReactDOM.createRoot(document.getElementById('root')).render(h(PageErrorBoundary,{variant:'app',page:'App'},h(App)));
+  window.SAMARA_APP_STARTED=true;
 })();

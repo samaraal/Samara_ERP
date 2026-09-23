@@ -541,7 +541,7 @@
         h(NursingMobileQuickActions,{profile,page,onNavigate:setPage}),
         h(window.SamaraDutySwap.DailyNotice,dutyNotice),
         h(window.SamaraDischargeWorkflow.Banner,{client,profile,onNavigate:setPage}),
-        h('section',{className:'content',key:window.SamaraDutySwap.signature(profile)+':'+pageRefreshKey,onChangeCapture:()=>{pageEditedRef.current=true},onInputCapture:()=>{pageEditedRef.current=true}},
+        h(PageErrorBoundary,{page,resetKey:page+':'+pageRefreshKey,onHome:()=>setPage(homePageForProfile(profile)||allowed[0])},h('section',{className:'content',key:window.SamaraDutySwap.signature(profile)+':'+pageRefreshKey,onChangeCapture:()=>{pageEditedRef.current=true},onInputCapture:()=>{pageEditedRef.current=true}},
           profile.__dutyContext?.assignment&&h('div',{className:'message warning',role:'status'},
             `Temporary assignment: ${profile.__dutyContext.assignment.acting_as} duties until ${formatDateTimeIN(profile.__dutyContext.assignment.ends_at)}. Regular duties return automatically.`),
           h(AccountsWorkflowNavigation,{page,allowed,onNavigate:setPage}),
@@ -620,7 +620,7 @@
           page==='Alert Settings'&&h(AlertSettings,{profile,engine:alertEngine}),
           ['Dashboard','HR Dashboard','Clinical Dashboard','Accounts Dashboard',"Director's Office"].includes(page)&&h(GeneralHandoverWorklist,{profile}),
           page==='System Maintenance'&&h(SystemMaintenance,{profile})
-        ),
+        )),
         clinicalPopupVisible&&topClinicalAlert&&h('div',{className:`clinical-alert-popup ${String(topClinicalAlert.priority||'Routine').toLowerCase()}`},
           h('div',{className:'clinical-alert-popup-head'},h('strong',null,topClinicalAlert.priority==='Critical'?'🔴 ':topClinicalAlert.priority==='Urgent'?'🟠 ':'🔵 ',topClinicalAlert.title)),
           h('strong',null,topClinicalAlert.patient_name||'Patient'),

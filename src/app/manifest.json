@@ -52,6 +52,11 @@
    "lines": 54
   },
   {
+   "file": "core/09-error-safety.js",
+   "about": "Error safety: page crash protection (PageErrorBoundary) + error logging to client_errors",
+   "lines": 90
+  },
+  {
    "file": "shared/01-camera-and-global-search.js",
    "about": "Camera capture popup, global search",
    "lines": 87

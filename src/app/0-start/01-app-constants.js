@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.14';
+  const APP_VERSION = '2.14.15';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12,7 +12,7 @@
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  const APP_BUILD_DATE = '23-Sep-2026 Mobile Bills structural card view';
+  const APP_BUILD_DATE = '24-Sep-2026 Page crash protection + error log';
   const APP_SCHEMA_VERSION = '38';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
