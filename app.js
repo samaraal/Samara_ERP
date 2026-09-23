@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.10';
+  const APP_VERSION = '2.14.12';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22857,6 +22857,9 @@ function RoomsBeds({profile,onNavigate}){
     const useFrontlinePriority=isFrontlineClinical&&compactMedicationView;
     const [tab,setTab]=React.useState(()=>isFrontlineClinical?'Today’s MAR':'Active Prescriptions');
     const [patientFilter,setPatientFilter]=React.useState('');
+    const [periodFilter,setPeriodFilter]=React.useState('All');
+    const [dateFrom,setDateFrom]=React.useState('');
+    const [dateTo,setDateTo]=React.useState('');
     const [marTarget,setMarTarget]=React.useState(null);
     const [marForm,setMarForm]=React.useState({scheduled_time:'',status:'Given',administered_at:'',remarks:'',late_entry_reason:'',late_entry_justification:'',reschedule:false,rescheduled_time:''});
     const [marBusy,setMarBusy]=React.useState(false);
@@ -23165,6 +23168,21 @@ function RoomsBeds({profile,onNavigate}){
       clearTaskNavigationContext();
     },[state.loading,state.orders]);
 
+    function dateInSelectedPeriod(value){
+      if(!value)return periodFilter==='All'&&!dateFrom&&!dateTo;
+      const day=String(value).slice(0,10);
+      let from=dateFrom,to=dateTo;
+      if(periodFilter!=='All'){
+        const end=today;
+        const start=new Date(`${today}T00:00:00`);
+        const days=periodFilter==='Today'?0:periodFilter==='7 Days'?6:periodFilter==='30 Days'?29:null;
+        if(days!==null){start.setDate(start.getDate()-days);from=start.toISOString().slice(0,10);to=end;}
+      }
+      if(from&&day<from)return false;
+      if(to&&day>to)return false;
+      return true;
+    }
+    function orderDate(order){return order.effective_from||order.start_date||order.created_at||'';}
     const activeOrders=state.orders.filter(orderActive);
     const todayRows=[];
     state.orders.forEach(order=>parseTimes(order.scheduled_times).forEach(time=>{
@@ -23173,15 +23191,33 @@ function RoomsBeds({profile,onNavigate}){
       if(doseWasBeforeAdmission(order,time))return;
       todayRows.push({order,time,log:doseStatus(order,time)});
     }));
+    // A refused dose may be explicitly rescheduled. Keep the original refusal in MAR,
+    // and expose the new time as a separate actionable dose for the same patient/order.
+    state.mar.filter(log=>log.scheduled_date===today&&log.rescheduled_time).forEach(log=>{
+      const order=state.orders.find(item=>item.id===log.order_id);
+      if(!order)return;
+      const time=normalizeMedicationTime(log.rescheduled_time);
+      if(!time||todayRows.some(item=>item.order.id===order.id&&normalizeMedicationTime(item.time)===time))return;
+      const patient=patientFor(order);if(!patient.id||patient.is_active===false||patient.admission_status==='Discharged')return;
+      todayRows.push({order,time,log:doseStatus(order,time),rescheduledFrom:normalizeMedicationTime(log.scheduled_time)});
+    });
     const missedRows=todayRows.filter(x=>{
       if(x.log)return ['missed','refused','delayed','not given','withheld','unavailable'].includes(String(x.log.status||'').toLowerCase());
       return pendingDoseState(x).minutes>=15;
     });
     const completedOrders=state.orders.filter(o=>String(o.status||'').toLowerCase()==='completed'||(o.end_date&&o.end_date<today&&o.is_active!==false));
     const discontinuedOrders=state.orders.filter(o=>o.is_active===false||['discontinued','stopped','inactive'].includes(String(o.status||'').toLowerCase()));
-    const filtered=rows=>patientFilter?rows.filter(item=>(item.order||item).patient_id===patientFilter):rows;
-    const historyCount=state.orders.length;
-    const tabs=[['Active Prescriptions',activeOrders.length],['Today’s MAR',todayRows.length],['Missed Medicines',missedRows.length],['Prescription History',historyCount],['Completed Medicines',completedOrders.length],['Discontinued Medicines',discontinuedOrders.length]];
+    const patientMatches=item=>!patientFilter||(item.order||item).patient_id===patientFilter;
+    const filtered=rows=>rows.filter(patientMatches);
+    const periodOrders=rows=>filtered(rows).filter(order=>dateInSelectedPeriod(orderDate(order)));
+    const visibleActive=filtered(activeOrders);
+    const visibleToday=filtered(todayRows);
+    const visibleMissed=filtered(missedRows);
+    const visibleHistory=periodOrders(state.orders);
+    const visibleCompleted=periodOrders(completedOrders);
+    const visibleDiscontinued=periodOrders(discontinuedOrders);
+    const historyCount=visibleHistory.length;
+    const tabs=[['Active Prescriptions',visibleActive.length],['Today’s MAR',visibleToday.length],['Missed Medicines',visibleMissed.length],['Prescription History',historyCount],['Completed Medicines',visibleCompleted.length],['Discontinued Medicines',visibleDiscontinued.length]];
 
     function scheduledDoseDate(time){
       const raw=String(time||'').slice(0,8);
@@ -23284,15 +23320,15 @@ function RoomsBeds({profile,onNavigate}){
     );
 
     let table=null;
-    if(tab==='Active Prescriptions')table=h(LogTable,{className:'medication-log-table',title:'Active Prescription Register',subtitle:'Current medicines transcribed during admission or patient update',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR','Action'],rows:prescriptionRows(activeOrders)});
-    if(tab==='Today’s MAR')table=h(LogTable,{className:'medication-log-table medication-mar-table',title:"Today’s Medication Administration",subtitle:'Scheduled doses and current administration status',heads:['Patient','Medicine','Time','Status','Administered','Entry recorded','Entry audit','Remarks','Action'],rows:marRows(todayRows)});
-    if(tab==='Missed Medicines')table=h(LogTable,{className:'medication-log-table medication-mar-table',title:'Overdue / Exception Medicines',subtitle:'Unresolved overdue doses and medicine exceptions requiring clinical review',heads:['Patient','Medicine','Time','Status','Administered','Entry recorded','Entry audit','Reason / Remarks','Action'],rows:marRows(missedRows)});
-    if(tab==='Completed Medicines')table=h(LogTable,{className:'medication-log-table',title:'Completed Medicine Courses',subtitle:'Prescription courses completed by status or end date',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR','Action'],rows:prescriptionRows(completedOrders)});
-    if(tab==='Discontinued Medicines')table=h(LogTable,{className:'medication-log-table',title:'Discontinued Medicines',subtitle:'Stopped or inactive prescriptions retained for history',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR'],rows:prescriptionRows(discontinuedOrders).map(row=>row.slice(0,-1))});
+    if(tab==='Active Prescriptions')table=h(LogTable,{className:'medication-log-table',title:'Active Prescription Register',subtitle:'Current medicines transcribed during admission or patient update',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR','Action'],rows:prescriptionRows(visibleActive)});
+    if(tab==='Today’s MAR')table=h(LogTable,{className:'medication-log-table medication-mar-table',title:"Today’s Medication Administration",subtitle:'Scheduled doses and current administration status',heads:['Patient','Medicine','Time','Status','Administered','Entry recorded','Entry audit','Remarks','Action'],rows:marRows(visibleToday)});
+    if(tab==='Missed Medicines')table=h(LogTable,{className:'medication-log-table medication-mar-table',title:'Overdue / Exception Medicines',subtitle:'Unresolved overdue doses and medicine exceptions requiring clinical review',heads:['Patient','Medicine','Time','Status','Administered','Entry recorded','Entry audit','Reason / Remarks','Action'],rows:marRows(visibleMissed)});
+    if(tab==='Completed Medicines')table=h(LogTable,{className:'medication-log-table',title:'Completed Medicine Courses',subtitle:'Prescription courses completed by status or end date',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR','Action'],rows:prescriptionRows(visibleCompleted)});
+    if(tab==='Discontinued Medicines')table=h(LogTable,{className:'medication-log-table',title:'Discontinued Medicines',subtitle:'Stopped or inactive prescriptions retained for history',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR'],rows:prescriptionRows(visibleDiscontinued).map(row=>row.slice(0,-1))});
 
     if(tab==='Prescription History'){
-      const historyOrders=filtered(state.orders).sort((a,b)=>String(b.effective_from||b.created_at||'').localeCompare(String(a.effective_from||a.created_at||'')));
-      const reviewRows=(patientFilter?state.reviews.filter(r=>r.patient_id===patientFilter):state.reviews);
+      const historyOrders=visibleHistory.sort((a,b)=>String(b.effective_from||b.created_at||'').localeCompare(String(a.effective_from||a.created_at||'')));
+      const reviewRows=state.reviews.filter(r=>(!patientFilter||r.patient_id===patientFilter)&&dateInSelectedPeriod(r.reviewed_at||r.created_at));
       table=h('div',{className:'medication-history-workspace'},
         h(LogTable,{className:'medication-log-table',title:'Prescription Version History',subtitle:'Every medication order is retained. Modified or stopped orders are never overwritten.',heads:['Patient','Version','Medicine / Strength','Frequency / Route','Times','Effective From','Stopped At','Doctor','Origin / Status'],rows:historyOrders.map(order=>[
           patientLabel(order),`V${order.version_no||1}`,medicineLabel(order),[order.frequency,order.route].filter(Boolean).join(' · ')||'—',parseTimes(order.scheduled_times).map(medicationTimeLabel).join(', ')||'—',order.effective_from?fmt(order.effective_from):(order.start_date?formatDateIN(order.start_date):fmt(order.created_at)),order.stopped_at?fmt(order.stopped_at):'—',order.prescribed_by_doctor||'—',[order.change_action,order.is_active===false?(order.status||'Stopped'):(order.status||'Active')].filter(Boolean).join(' · ')
@@ -23326,9 +23362,15 @@ function RoomsBeds({profile,onNavigate}){
           h('div',{className:'field',style:{minWidth:'260px',marginBottom:0}},h('label',null,'Patient filter'),h('select',{value:patientFilter,onChange:e=>setPatientFilter(e.target.value)},h('option',{value:''},'All patients'),state.patients.filter(p=>p.is_active!==false).map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)||p.full_name} · ${p.patient_id||'No ID'}`)))),
           h('div',{className:'actions'},canReviseMedication&&h('button',{type:'button',className:'btn btn-primary',disabled:Boolean(state.reviewSetupError),onClick:()=>openMedicationReview(patientFilter)},'Doctor Review / Modify'),h('button',{type:'button',className:'btn btn-secondary',onClick:load},state.loading?'Loading…':'Refresh'))
         ),
-        !useFrontlinePriority&&h('div',{className:'time-chip-list',style:{marginTop:'16px'}},tabs.map(([name,count])=>h('button',{type:'button',key:name,className:`btn ${tab===name?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(name)},`${name} (${count})`)))
+        !useFrontlinePriority&&h('div',{className:'medication-register-filters'},
+          h('div',{className:'field'},h('label',null,'Period'),h('select',{value:periodFilter,onChange:e=>{setPeriodFilter(e.target.value);if(e.target.value!=='All'){setDateFrom('');setDateTo('');}}},['All','Today','7 Days','30 Days'].map(x=>h('option',{key:x,value:x},x)))),
+          h('div',{className:'field'},h('label',null,'From date'),h('input',{type:'date',max:dateTo||today,value:dateFrom,onChange:e=>{setDateFrom(e.target.value);setPeriodFilter('All');}})),
+          h('div',{className:'field'},h('label',null,'To date'),h('input',{type:'date',min:dateFrom||undefined,max:today,value:dateTo,onChange:e=>{setDateTo(e.target.value);setPeriodFilter('All');}})),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPeriodFilter('All');setDateFrom('');setDateTo('');}},'Clear dates')
+        ),
+        !useFrontlinePriority&&h('div',{className:'time-chip-list',style:{marginTop:'12px'}},tabs.map(([name,count])=>h('button',{type:'button',key:name,className:`btn ${tab===name?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(name)},`${name} (${count})`)))
       ),
-      h(DischargeMedicationReview),
+      !patientFilter&&h(DischargeMedicationReview),
       state.loading?h('div',{className:'card panel loading'},'Loading medication register…'):(useFrontlinePriority?nurseMedicationCards:table),
       reviewOpen&&h('div',{className:'modal-backdrop medication-review-backdrop',onClick:e=>{if(e.target===e.currentTarget&&!reviewBusy)setReviewOpen(false)}},
         h('form',{className:'card modal medication-review-modal',onSubmit:saveMedicationReview},

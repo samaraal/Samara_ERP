@@ -2355,3 +2355,6 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
     max-height:none!important;
   }
 }
+
+/* v2.14.12 — Medication register patient/date filters */
+.medication-register-filters{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-top:12px}.medication-register-filters .field{margin:0;min-width:150px}.medication-register-filters .btn{margin-bottom:1px}@media(max-width:700px){.medication-register-filters{display:grid;grid-template-columns:1fr 1fr}.medication-register-filters .field{min-width:0}.medication-register-filters .btn{grid-column:1/-1}}
