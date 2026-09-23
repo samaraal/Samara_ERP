@@ -1632,6 +1632,12 @@ function initSamaraInaugurationInvitation(){
     const department=clean(profile?.department);
     return !designation && department==='nursing' && clean(profile?.role)==='manager';
   };
+  const isAdmissionDelegateProfile=profile=>{
+    const clean=value=>String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'');
+    const login=clean(profile?.login_id||profile?.username||'');
+    const name=clean(profile?.full_name||profile?.name||'');
+    return login==='jaya'||login==='saranya'||name==='jaya'||name==='saranya';
+  };
   const homePageForProfile=profile=>isNursingManagerProfile(profile)?'Clinical Dashboard':(ROLE_HOME[profile?.role]||'Dashboard');
   const hasDutyRole=(profile,role)=>profile?.role===role||Boolean(profile?.__dutyContext?.roles?.includes(role));
   const allowedPagesForProfile=profile=>{
@@ -1646,6 +1652,7 @@ function initSamaraInaugurationInvitation(){
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
     if(!pages.includes('Spot Assessment'))pages.push('Spot Assessment');
+    if(isAdmissionDelegateProfile(profile)&&!pages.includes('Admissions'))pages.push('Admissions');
     if(profile?.role==='Manager'&&employeeDepartment(profile)&&!pages.includes('Employees'))pages.push('Employees');
     if(isNursingManagerProfile(profile)){ if(!pages.includes('My To-Do List'))pages.push('My To-Do List'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Consumables'))pages.push('Consumables'); if(!pages.includes('Pharmacy'))pages.push('Pharmacy'); if(!pages.includes('Stores In-charge Assignment'))pages.push('Stores In-charge Assignment'); if(!pages.includes('Employees'))pages.push('Employees'); }
     return pages;
@@ -1685,7 +1692,7 @@ function initSamaraInaugurationInvitation(){
     if(role!=='Admin'&&allowed.includes('Payment Requests')){const items=allowed.filter(x=>['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(x));const sections=sectionsFor(allowed.filter(x=>!items.includes(x)),role,canManageDuties);const accounts=sections.find(s=>s.title==='ACCOUNTS / BILLING');if(accounts)accounts.items=[...items,...accounts.items];else sections.push({title:'ACCOUNTS / BILLING',items});return sections;}
     if(CLINICAL_ROLES.includes(role)){
       return [
-        {title:'ADMISSION',items:['Spot Assessment'].filter(item=>allowed.includes(item))},
+        {title:'ADMISSION',items:['Spot Assessment','Admissions'].filter(item=>allowed.includes(item))},
         {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My To-Do List','Notifications'].filter(item=>allowed.includes(item))},
         {title:'DUTY ROSTER & LEAVE',items:['Duty Assignment','Staff Leave Calendar','My Leave & Permission','Leave Approvals'].filter(item=>allowed.includes(item))},
         {title:'PHARMACY & STORES',items:['Raise Indent','Received Indents / Used Balance'].filter(item=>allowed.includes(item))},
@@ -14597,6 +14604,8 @@ Thank you.`;
     const initial={admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,admission_time:localDateTimeValue().slice(11,16),vitals_time_1:'06:00',vitals_time_2:'14:00',vitals_time_3:'22:00',hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
     const [form,setForm]=React.useState(initial),[meds,setMeds]=React.useState([blankMedicine()]),[care,setCare]=React.useState([blankCare()]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [familyAccess,setFamilyAccess]=React.useState({delivery_mode:'Family Portal Access',enabled:true,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:true,daily_whatsapp_time:'20:00'});
+    const [familyAccess2,setFamilyAccess2]=React.useState({enabled:false,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:false});
+    const [familyCredential2,setFamilyCredential2]=React.useState(null);
     const familyPortalEnabled=['Family Portal Access','Both'].includes(familyAccess.delivery_mode);
     const dailyWhatsAppEnabled=['Daily WhatsApp Update','Both'].includes(familyAccess.delivery_mode);
     const [familyCredential,setFamilyCredential]=React.useState(null);
@@ -14688,6 +14697,7 @@ Thank you.`;
             setMeds(Array.isArray(draft.meds)&&draft.meds.length?draft.meds:[blankMedicine()]);
             setCare(Array.isArray(draft.care)&&draft.care.length?draft.care:[blankCare()]);
             if(draft.familyAccess)setFamilyAccess(current=>({...current,...draft.familyAccess}));
+            if(draft.familyAccess2)setFamilyAccess2(current=>({...current,...draft.familyAccess2}));
             setReturningPatient(draft.returningPatient||null);
             setDraftPatientId(draft.patient_id||'');
             setDraftRestored(true);
@@ -14810,6 +14820,7 @@ Thank you.`;
             setMeds(Array.isArray(draft.meds)&&draft.meds.length?draft.meds:[blankMedicine()]);
             setCare(Array.isArray(draft.care)&&draft.care.length?draft.care:[blankCare()]);
             if(draft.familyAccess)setFamilyAccess(current=>({...current,...draft.familyAccess}));
+            if(draft.familyAccess2)setFamilyAccess2(current=>({...current,...draft.familyAccess2}));
             setDraftPatientId(draft.patient_id||'');
             setDraftRestored(true);setServerDraftSaved(true);
             setMsg('Saved Admission draft restored from the server. Uploaded files must be selected again for browser security.');
@@ -15153,7 +15164,7 @@ Thank you.`;
     function saveAdmissionDraftBeforeDocumentPicker(){
       try{
         localStorage.setItem(ADMISSION_DRAFT_KEY,JSON.stringify({
-          form,meds,care,familyAccess,returningPatient,patient_id:draftPatientId||null,saved_at:new Date().toISOString()
+          form,meds,care,familyAccess,familyAccess2,returningPatient,patient_id:draftPatientId||null,saved_at:new Date().toISOString()
         }));
         sessionStorage.setItem(ADMISSION_FILE_PICKER_GUARD,String(Date.now()));
         setLastAutoSavedAt(new Date());
@@ -15899,7 +15910,7 @@ Thank you.`;
             const {data:existingRows}=await client.from('family_portal_access').select('id,mobile,relative_name,is_active').eq('patient_id',patient.id).eq('is_active',true);
       const existing=(existingRows||[]).find(row=>normalizeWhatsAppRecipient(row.mobile)===normalizeWhatsAppRecipient(mobile)&&String(row.relative_name||'').trim().toLowerCase()===String(familyAccess.relative_name||'').trim().toLowerCase());
       const pin=String(Math.floor(100000+Math.random()*900000));
-      const {data,error}=await client.rpc('upsert_family_portal_access',{p_patient_id:patient.id,p_relative_name:String(familyAccess.relative_name).trim(),p_relationship:String(familyAccess.relationship).trim(),p_mobile:mobile,p_email:String(familyAccess.email||'').trim()||null,p_primary_contact:!!familyAccess.primary_contact,p_pin:pin,p_access_id:existing?.id||null});
+      const {data,error}=await client.rpc('upsert_family_portal_access',{p_patient_id:patient.id,p_relative_name:String(familyAccess.relative_name).trim(),p_relationship:String(familyAccess.relationship).trim(),p_mobile:mobile,p_email:String(familyAccess.email||'').trim()||null,p_primary_contact:true,p_pin:pin,p_access_id:existing?.id||null});
       if(error)throw error;
       const credential={
         ...(Array.isArray(data)?data[0]:data),
@@ -15913,6 +15924,23 @@ Thank you.`;
         room_bed:[patient.room_no||form.room_no,patient.bed_no||form.bed_no].filter(Boolean).join(' / ')
       };
       setFamilyCredential(credential);
+      return credential;
+    }
+    async function saveSecondFamilyPortalAccess(patient){
+      if(!familyAccess2.enabled)return null;
+      const mobile=String(familyAccess2.mobile||'').replace(/\D/g,'').slice(-10);
+      const primaryMobile=String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10);
+      if(!String(familyAccess2.relative_name||'').trim())throw new Error('Enter Family Contact 2 authorised relative name.');
+      if(!String(familyAccess2.relationship||'').trim())throw new Error('Enter Family Contact 2 relationship to the resident.');
+      if(mobile.length!==10)throw new Error('Enter a valid 10-digit mobile number for Family Contact 2.');
+      if(mobile===primaryMobile)throw new Error('Family Contact 2 must use a different mobile number from Family Contact 1.');
+      const {data:existingRows}=await client.from('family_portal_access').select('id,mobile').eq('patient_id',patient.id);
+      const existing=(existingRows||[]).find(row=>normalizeWhatsAppRecipient(row.mobile)===normalizeWhatsAppRecipient(mobile));
+      const pin=String(Math.floor(100000+Math.random()*900000));
+      const {data,error}=await client.rpc('upsert_family_portal_access',{p_patient_id:patient.id,p_relative_name:String(familyAccess2.relative_name).trim(),p_relationship:String(familyAccess2.relationship).trim(),p_mobile:mobile,p_email:String(familyAccess2.email||'').trim()||null,p_primary_contact:false,p_pin:pin,p_access_id:existing?.id||null});
+      if(error)throw error;
+      const credential={...(Array.isArray(data)?data[0]:data),pin,mobile,patient_id:patient.patient_id||patient.patient_code||'',patient_db_id:patient.id||null,patient_name:formalName(patient)||patient.full_name||form.full_name||'',relative_name:String(familyAccess2.relative_name||'').trim(),admission_date:patient.admission_date||form.admission_date||'',room_bed:[patient.room_no||form.room_no,patient.bed_no||form.bed_no].filter(Boolean).join(' / ')};
+      setFamilyCredential2(credential);
       return credential;
     }
     async function saveFamilyCommunicationPreference(patient){
@@ -16144,7 +16172,15 @@ Please keep these login details confidential.`;
       setAdmissionErrorToast('');
       setBusy(true);
       setMsg('');
-      if(!['Admin','Manager'].includes(profile?.role)){setMsg('Only Admin or Manager can allot a room and complete patient admission.');setBusy(false);return}
+      if(!['Admin','Manager'].includes(profile?.role)&&!isAdmissionDelegateProfile(profile)){setMsg('Only Admin, Nursing Manager, Jaya or Saranya can complete patient admission.');setBusy(false);return}
+      if(!familyPortalEnabled){setMsg('Family Portal Access is mandatory for every admission. Select Family Portal Access or Both.');setBusy(false);return}
+      if(!String(familyAccess.relative_name||'').trim()||!String(familyAccess.relationship||'').trim()||String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10).length!==10){setMsg('Complete the mandatory Family Portal Contact 1 details: authorised relative name, relationship and valid mobile number.');setBusy(false);return}
+      if(familyAccess2.enabled){
+        const mobile2=String(familyAccess2.mobile||'').replace(/\D/g,'').slice(-10);
+        const mobile1=String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10);
+        if(!String(familyAccess2.relative_name||'').trim()||!String(familyAccess2.relationship||'').trim()||mobile2.length!==10){setMsg('Complete Family Portal Contact 2 details or turn off Contact 2.');setBusy(false);return}
+        if(mobile1===mobile2){setMsg('Family Contact 2 must use a different mobile number from Family Contact 1.');setBusy(false);return}
+      }
       if(!numberedItems(form.diagnosis).length){setMsg('Add at least one diagnosis / condition at admission.');setBusy(false);return}
       const mobileChecks=[
         ['Patient mobile',form.mobile,true],
@@ -16269,7 +16305,7 @@ Please keep these login details confidential.`;
           const rawDraft=localStorage.getItem(ADMISSION_DRAFT_KEY);
           const currentDraft=rawDraft?JSON.parse(rawDraft):{};
           localStorage.setItem(ADMISSION_DRAFT_KEY,JSON.stringify({
-            ...currentDraft,form,meds,care,familyAccess,returningPatient,patient_id:patient.id,saved_at:new Date().toISOString()
+            ...currentDraft,form,meds,care,familyAccess,familyAccess2,returningPatient,patient_id:patient.id,saved_at:new Date().toISOString()
           }));
         }catch(draftLinkError){
           console.warn('Unable to link Admission draft to created patient:',draftLinkError);
@@ -16278,7 +16314,9 @@ Please keep these login details confidential.`;
       try{
         await saveFamilyCommunicationPreference(patient);
         const portalCredential=familyPortalEnabled?await saveFamilyPortalAccess(patient):null;
+        const portalCredential2=familyPortalEnabled&&familyAccess2.enabled?await saveSecondFamilyPortalAccess(patient):null;
         const admissionCredential=admissionWhatsAppCredential(patient,portalCredential);
+        const admissionCredential2=portalCredential2?admissionWhatsAppCredential(patient,portalCredential2):null;
         let admissionPhotoPath=patient.photo_storage_path||'';
         if(photoFiles[0])admissionPhotoPath=await uploadPatientFile(patient.id,photoFiles[0],'Patient Photo',true);
         if(admissionPhotoPath)patient={...patient,photo_storage_path:admissionPhotoPath};
@@ -16348,6 +16386,8 @@ Please keep these login details confidential.`;
         }).eq('id',patient.id);
         const admissionWhatsAppResult=await autoSendAdmissionWhatsAppOnce(patient,admissionCredential);
         const familyPortalWhatsAppResult=portalCredential?await autoSendFamilyPortalWhatsAppOnce(patient,portalCredential):{status:'skipped'};
+        const admissionWhatsAppResult2=admissionCredential2?await autoSendAdmissionWhatsAppOnce(patient,admissionCredential2):{status:'skipped'};
+        const familyPortalWhatsAppResult2=portalCredential2?await autoSendFamilyPortalWhatsAppOnce(patient,portalCredential2):{status:'skipped'};
         setConsentRecord({
           patient,
           form:{...form},
@@ -16390,7 +16430,8 @@ Please keep these login details confidential.`;
             :familyPortalWhatsAppResult?.status==='failed'
               ?' Family Portal access was created, but its automatic WhatsApp failed; use Resend Portal Access from the Family Portal tab.'
               :'';
-        setMsg(`Admission completed and saved successfully.${admissionWhatsAppNote}${familyPortalWhatsAppNote} Room / bed allotment is confirmed. Print the generated consent, obtain signatures and upload the signed form to complete admission formalities.`);
+        const secondContactNote=portalCredential2?` Family Contact 2 portal access was created${familyPortalWhatsAppResult2?.status==='sent'?' and WhatsApp access details were sent automatically':''}${admissionWhatsAppResult2?.status==='sent'?' together with the admission WhatsApp':''}.`:'';
+        setMsg(`Admission completed and saved successfully.${admissionWhatsAppNote}${familyPortalWhatsAppNote}${secondContactNote} Room / bed allotment is confirmed. Print the generated consent, obtain signatures and upload the signed form to complete admission formalities.`);
       }catch(err){setMsg(`${admissionExistingPatient?'Existing patient admission resumed':'Patient created'}, but document or care setup failed: ${err.message}`)}
       setBusy(false);
     }
@@ -16556,8 +16597,8 @@ Please keep these login details confidential.`;
       h('div',{className:'section-card'},
         h('div',{className:'section-title'},h('div',null,h('h4',null,'Family Communication Preference'),h('small',null,'Choose how the authorised family member will receive resident updates after admission.'))),
         h('div',{className:'form-grid'},
-          h('div',{className:'field span-2'},h('label',null,'Communication Option'),h('select',{value:familyAccess.delivery_mode,onChange:e=>{const mode=e.target.value;setFamilyAccess({...familyAccess,delivery_mode:mode,enabled:['Family Portal Access','Both'].includes(mode)})}},
-            ...['Family Portal Access','Daily WhatsApp Update','Both'].map(x=>h('option',{key:x,value:x},x))
+          h('div',{className:'field span-2'},h('label',null,'Communication Option *'),h('select',{value:familyAccess.delivery_mode,onChange:e=>{const mode=e.target.value;setFamilyAccess({...familyAccess,delivery_mode:mode,enabled:['Family Portal Access','Both'].includes(mode)})}},
+            ...['Family Portal Access','Both'].map(x=>h('option',{key:x,value:x},x))
           )),
           h('div',{className:'field'},h('label',null,'Authorised Relative Name'),h('input',{required:true,value:familyAccess.relative_name,onChange:e=>setFamilyAccess({...familyAccess,relative_name:e.target.value})})),
           h('div',{className:'field'},h('label',null,'Relationship'),h('select',{required:true,value:familyAccess.relationship||'',onChange:e=>setFamilyAccess({...familyAccess,relationship:e.target.value})},h('option',{value:''},'Select relationship'),...['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].map(x=>h('option',{key:x,value:x},x)))),
@@ -16565,7 +16606,14 @@ Please keep these login details confidential.`;
           h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:familyAccess.email,onChange:e=>setFamilyAccess({...familyAccess,email:e.target.value})})),
           dailyWhatsAppEnabled&&h('div',{className:'field'},h('label',null,'Daily Intelligent Report Time'),h('input',{type:'time',step:'300',required:true,value:familyAccess.daily_whatsapp_time||'20:00',onChange:e=>setFamilyAccess({...familyAccess,daily_whatsapp_time:e.target.value})})),
           dailyWhatsAppEnabled&&h('div',{className:'small-note',style:{alignSelf:'end',paddingBottom:'12px'}},'The Intelligent Patient Report will be generated automatically and sent through the approved WhatsApp API template at this time every day (India time).'),
-          familyPortalEnabled&&h('label',{className:'check-card span-2'},h('input',{type:'checkbox',checked:!!familyAccess.primary_contact,onChange:e=>setFamilyAccess({...familyAccess,primary_contact:e.target.checked})}),h('span',null,'Primary Family Contact for Family Portal'))
+          familyPortalEnabled&&h('label',{className:'check-card span-2'},h('input',{type:'checkbox',checked:true,disabled:true}),h('span',null,'Family Portal Access mandatory · Contact 1 is Primary Family Contact')),
+          h('div',{className:'span-2',style:{borderTop:'1px solid #ecd6e2',marginTop:'8px',paddingTop:'12px'}},
+            h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!familyAccess2.enabled,onChange:e=>setFamilyAccess2({...familyAccess2,enabled:e.target.checked})}),h('span',null,'Enable Family Contact 2 — separate Family Portal login + automatic WhatsApp messages'))
+          ),
+          familyAccess2.enabled&&h('div',{className:'field'},h('label',null,'Contact 2 Authorised Relative Name *'),h('input',{required:true,value:familyAccess2.relative_name,onChange:e=>setFamilyAccess2({...familyAccess2,relative_name:e.target.value})})),
+          familyAccess2.enabled&&h('div',{className:'field'},h('label',null,'Contact 2 Relationship *'),h('select',{required:true,value:familyAccess2.relationship||'',onChange:e=>setFamilyAccess2({...familyAccess2,relationship:e.target.value})},h('option',{value:''},'Select relationship'),...['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].map(x=>h('option',{key:`fam2-${x}`,value:x},x)))),
+          familyAccess2.enabled&&h('div',{className:'field'},h('label',null,'Contact 2 WhatsApp Number *'),h('div',{style:{display:'grid',gridTemplateColumns:'minmax(118px,42%) 1fr',gap:'6px'}},h('select',{value:admissionDialCode(familyAccess2.mobile),'aria-label':'Family Contact 2 country code',onChange:e=>setFamilyAccess2({...familyAccess2,mobile:formatInternationalMobile(e.target.value,internationalLocalPart(familyAccess2.mobile))})},ADMISSION_COUNTRY_CODES.map(([country,dial])=>h('option',{key:`wa2-${country}-${dial}`,value:dial},`${country} (${dial})`))),h('input',{required:true,type:'tel',inputMode:'tel',value:internationalLocalPart(familyAccess2.mobile),placeholder:'Mobile number',onChange:e=>setFamilyAccess2({...familyAccess2,mobile:formatInternationalMobile(admissionDialCode(familyAccess2.mobile),e.target.value)})}))),
+          familyAccess2.enabled&&h('div',{className:'field'},h('label',null,'Contact 2 Email (optional)'),h('input',{type:'email',value:familyAccess2.email,onChange:e=>setFamilyAccess2({...familyAccess2,email:e.target.value})}))
         ),
       familyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},
           h('strong',null,'Family Portal login created'),
