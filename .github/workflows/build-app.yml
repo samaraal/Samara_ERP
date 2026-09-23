@@ -1,0 +1,68 @@
+# Rebuilds app.js automatically whenever a file in src/app/ is changed on GitHub.
+# If the change has a syntax error, the build fails, app.js is NOT updated,
+# and the live site keeps running the last good version.
+name: Build app.js
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/app/**'
+      - 'app.js'
+      - 'tools/build-app.js'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Did this push change src/app?
+        id: changes
+        run: |
+          BEFORE="${{ github.event.before }}"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
+            echo "src=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$BEFORE" "${{ github.sha }}" | grep -qE '^(src/app/|tools/build-app.js)'; then
+            echo "src=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "src=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Only app.js was uploaded directly: do NOT overwrite it, just warn loudly.
+      - name: Warn if app.js was edited directly
+        if: steps.changes.outputs.src == 'false'
+        run: |
+          node tools/build-app.js --check || {
+            echo "::error::app.js was uploaded directly and no longer matches src/app. Put the change into the matching file in src/app instead, otherwise the next src/app edit will undo it.";
+            exit 1; }
+
+      - name: Build app.js from src/app
+        if: steps.changes.outputs.src == 'true'
+        run: node tools/build-app.js
+
+      - name: Commit rebuilt app.js (only if it changed)
+        if: steps.changes.outputs.src == 'true'
+        run: |
+          if git diff --quiet -- app.js; then
+            echo "app.js already up to date."
+          else
+            git config user.name "samara-build-bot"
+            git config user.email "samara-build-bot@users.noreply.github.com"
+            git add app.js
+            git commit -m "Rebuild app.js from src/app"
+            git push
+          fi
+
+      - name: Final check - app.js matches src/app
+        if: steps.changes.outputs.src == 'true'
+        run: node tools/build-app.js --check
