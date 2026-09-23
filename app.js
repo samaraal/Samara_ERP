@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.08';
+  const APP_VERSION = '2.14.09';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7218,29 +7218,41 @@ https://samaraassistedliving.com/`;
       let timer;
       let signingOut=false;
       const INACTIVITY_MS=30*60*1000;
-      const reset=()=>{
+      let lastActivityAt=Date.now();
+      const signOutForInactivity=async()=>{
+        if(signingOut)return;
+        signingOut=true;
+        clearTimeout(timer);
+        await client.auth.signOut().catch(()=>{});
+        setAuthMessage('You were signed out after 30 minutes of inactivity for security.');
+      };
+      const schedule=()=>{
         if(signingOut)return;
         clearTimeout(timer);
-        timer=setTimeout(async()=>{
-          if(document.visibilityState==='hidden'){
-            // Backgrounded mobile/PWA pages can have timers clamped. Give the
-            // user a fresh inactivity window when the app becomes visible again.
-            reset();
-            return;
-          }
-          signingOut=true;
-          await client.auth.signOut().catch(()=>{});
-          setAuthMessage('You were signed out after 30 minutes of inactivity for security.');
-        },INACTIVITY_MS);
+        const remaining=INACTIVITY_MS-(Date.now()-lastActivityAt);
+        if(remaining<=0){signOutForInactivity();return}
+        timer=setTimeout(()=>{
+          if(Date.now()-lastActivityAt>=INACTIVITY_MS)signOutForInactivity();
+          else schedule();
+        },remaining);
+      };
+      const recordActivity=()=>{
+        if(signingOut)return;
+        lastActivityAt=Date.now();
+        schedule();
       };
       const events=['click','keydown','touchstart','pointerdown','input','change','scroll','wheel'];
-      events.forEach(name=>window.addEventListener(name,reset,{passive:true,capture:true}));
-      const onVisibility=()=>{if(document.visibilityState==='visible')reset()};
+      events.forEach(name=>window.addEventListener(name,recordActivity,{passive:true,capture:true}));
+      const onVisibility=()=>{
+        if(document.visibilityState!=='visible')return;
+        if(Date.now()-lastActivityAt>=INACTIVITY_MS)signOutForInactivity();
+        else schedule();
+      };
       document.addEventListener('visibilitychange',onVisibility);
-      reset();
+      schedule();
       return()=>{
         clearTimeout(timer);
-        events.forEach(name=>window.removeEventListener(name,reset,true));
+        events.forEach(name=>window.removeEventListener(name,recordActivity,true));
         document.removeEventListener('visibilitychange',onVisibility);
       };
     },[session?.user?.id,recoveryMode]);
@@ -28638,14 +28650,14 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
           ),
           controller?h('div',{className:'stores-stock-card-actions'},
             h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),
-            h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null,canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null
+            h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null
           ):h('small',{className:'stores-view-only'},'View only')
         )):h('div',{className:'stores-stock-empty'},'No store items found.')),
         h('div',{className:'table-wrap stores-stock-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Item','Unit','Total In','Total Out','Balance','Reorder Level','Status','Action'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,displayStock.length?displayStock.map(r=>h('tr',{key:r.item_id},
             h('td',null,h('strong',null,displayStoreItemName(r.item_name))),h('td',null,r.unit),h('td',null,r.total_in),h('td',null,r.total_out),h('td',null,h('strong',null,r.balance_qty)),h('td',null,r.reorder_level),h('td',null,h('span',{style:statusStyle(r)},stockStatus(r))),
-            h('td',null,controller?h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item')):'View only')
+            h('td',null,controller?h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null):'View only')
           )):h('tr',null,h('td',{colSpan:8,style:{textAlign:'center',padding:'24px'}},'No store items found.'))
         ))
       ),
@@ -28854,13 +28866,23 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     },[catalog]);
     const fallbackCategories=Object.fromEntries(Object.entries(defaultCategories).map(([category,services])=>[category,services.includes('Others')?services:[...services,'Others']]));
     const categories=React.useMemo(()=>{
+      // Nursing Bills & Charges must use the live Stores/Pharmacy master only.
+      // This prevents free-text/legacy charge items from being raised by Nurses.
+      if(profile?.role==='Nurse'){
+        const nurseStoreCategories={};
+        ['Consumables','Pharmacy'].forEach(cat=>{
+          const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+          if(names.length)nurseStoreCategories[cat]=[...new Set(names)];
+        });
+        return nurseStoreCategories;
+      }
       const base=Object.keys(catalogCategories).length?{...catalogCategories}:{...fallbackCategories};
       ['Consumables','Pharmacy'].forEach(cat=>{
         const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
         if(names.length)base[cat]=[...new Set([...names,'Others'])];
       });
       return base;
-    },[catalogCategories,storeMaster]);
+    },[catalogCategories,storeMaster,profile?.role]);
 
     const fresh=()=>({
       patient_id:'',store_item_id:'',charge_date:todayISOIndia(),service_datetime:localDateTimeValue(),
@@ -28953,7 +28975,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       return()=>{clearInterval(refreshTimer);window.removeEventListener('focus',load);client.removeChannel(ch)};
     },[]);
 
-    function openNew(){const base=fresh();const firstCategory=Object.keys(categories)[0]||base.category;const firstService=(categories[firstCategory]||[])[0]||base.service_name;setFiles([]);setBatchItems([]);setForm({...base,category:firstCategory,service_name:firstService,description:firstService,...stockDefaults(firstCategory,firstService)});setShow(true)}
+    function openNew(){const base=fresh();const availableCategories=Object.keys(categories);if(profile?.role==='Nurse'&&!availableCategories.length){notify('error','No active Stores / Pharmacy items are available. Add or activate an item in Stores before raising a charge.');return}const firstCategory=availableCategories[0]||base.category;const firstService=(categories[firstCategory]||[])[0]||base.service_name;setFiles([]);setBatchItems([]);setForm({...base,category:firstCategory,service_name:firstService,description:firstService,...stockDefaults(firstCategory,firstService)});setShow(true)}
     function changeCategory(value){
       const first=(categories[value]||[])[0]||'Others';
       setForm(current=>({...current,category:value,service_name:first,...stockDefaults(value,first),other_service_name:'',description:first==='Others'?'':first,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(value)&&first!=='Others'?first:''}));
@@ -28963,6 +28985,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     }
     function validateDraft(draft,draftFiles){
       if(!draft.patient_id)return 'Select the patient.';
+      if(profile?.role==='Nurse'&&!['Consumables','Pharmacy'].includes(draft.category))return 'Nursing Bills & Charges can use only active items from Stores / Pharmacy.';
       if(!Number.isFinite(Number(draft.quantity))||Number(draft.quantity)<=0)return 'Enter a valid positive quantity.';
       if(draft.store_item_id){const item=chargeStock.items.find(x=>String(x.item_id)===String(draft.store_item_id));if(!item)return 'Selected stock item is no longer available. Refresh and select again.';if(item.unit!==draft.unit)return 'Use the selected stock item unit.';}
       if(profile?.role==='Nurse'&&storeCategories.includes(draft.category)){

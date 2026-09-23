@@ -1,0 +1,34 @@
+SAMARA CARE ERP v2.14.09 — SAFE ISOLATED UPDATE
+
+This update changes only the following three requested areas:
+
+1) Nursing Manager — Stores/Consumables/Pharmacy charge rate on Windows
+   - The existing Rate button already available in the mobile stock card is now also available in the Windows/desktop stock table.
+   - Uses the existing store-in-charge rate RPC and permissions.
+   - No change to stock receipt, issue, reconciliation, category movement, or unrelated Stores workflows.
+   - Removed an accidental duplicate Rate button from the mobile card; functionality remains unchanged.
+
+2) Nurse — Bills & Charges item source
+   - For role Nurse, the Raise Bill / Charge form now lists only ACTIVE items from the live Consumables and Pharmacy Stores Master.
+   - Legacy/default charge-master services and free-text “Others” are not offered to Nurses.
+   - Server submission guard in the UI also blocks a Nurse draft outside Consumables/Pharmacy.
+   - Existing rate-fixed and in-stock validation remains unchanged.
+   - Admin/Manager/Accounts charge workflows remain unchanged.
+
+3) 30-minute inactivity sign-out — all authenticated users
+   - Existing 30-minute rule retained and strengthened.
+   - Background/hidden browser time now counts as inactivity instead of silently starting a fresh 30-minute period.
+   - On return to the app after >=30 minutes without activity, the user is signed out.
+   - Click, key, touch, pointer, input/change, scroll and wheel activity reset the 30-minute timer.
+
+NO SQL IS REQUIRED FOR THIS UPDATE.
+
+DEPLOYMENT
+Upload/replace the files from this package exactly as usual. Version is 2.14.09.
+After deployment, use Check for Updates / Reload App if an older cached version is shown.
+
+QUICK REGRESSION CHECK
+A. Nursing Manager on Windows: Pharmacy or Consumables > Current Stock > Action must show Rate ₹... and allow update.
+B. Nurse: Bills & Charges > Raise Bill / Charge must show only live Consumables/Pharmacy items.
+C. Admin/Accounts: existing Bills & Charges options remain available.
+D. Leave an authenticated test session untouched for >30 minutes; it must return to login with the inactivity message.
