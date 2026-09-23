@@ -1,32 +1,36 @@
-# Rebuilds app.js automatically whenever a file in src/app/ is changed on GitHub.
-# If the change has a syntax error, the build fails, app.js is NOT updated,
-# and the live site keeps running the last good version.
-name: Build app.js
+# Samara ERP — Build app.js from src/app AND publish the website.
+# Runs on every commit to main (and on "Run workflow").
+# - If src/app changed: rebuilds app.js and commits it.
+# - If the rebuilt app.js has a syntax error: stops. Nothing is published; the live site stays as it was.
+# - Then publishes the site to GitHub Pages (Settings → Pages → Source must be "GitHub Actions").
+name: Build and deploy
 
 on:
   push:
     branches: [main]
-    paths:
-      - 'src/app/**'
-      - 'app.js'
-      - 'tools/build-app.js'
   workflow_dispatch:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
 
-      - name: Did this push change src/app?
+      - name: Did this commit change src/app?
         id: changes
         run: |
           BEFORE="${{ github.event.before }}"
@@ -37,14 +41,6 @@ jobs:
           else
             echo "src=false" >> "$GITHUB_OUTPUT"
           fi
-
-      # Only app.js was uploaded directly: do NOT overwrite it, just warn loudly.
-      - name: Warn if app.js was edited directly
-        if: steps.changes.outputs.src == 'false'
-        run: |
-          node tools/build-app.js --check || {
-            echo "::error::app.js was uploaded directly and no longer matches src/app. Put the change into the matching file in src/app instead, otherwise the next src/app edit will undo it.";
-            exit 1; }
 
       - name: Build app.js from src/app
         if: steps.changes.outputs.src == 'true'
@@ -63,6 +59,29 @@ jobs:
             git push
           fi
 
-      - name: Final check - app.js matches src/app
-        if: steps.changes.outputs.src == 'true'
-        run: node tools/build-app.js --check
+      # Stops here (nothing published) if app.js was uploaded directly and differs from src/app.
+      - name: Check app.js matches src/app
+        run: |
+          node tools/build-app.js --check || {
+            echo "::error::app.js does not match src/app. Put the change into the matching file in src/app instead of uploading app.js. The live site was NOT changed.";
+            exit 1; }
+
+      - name: Prepare website files
+        run: |
+          mkdir -p _site
+          tar --exclude=./.git --exclude=./.github --exclude=./_site -cf - . | tar -xf - -C _site
+          ls _site | head -50
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
