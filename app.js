@@ -4045,8 +4045,6 @@ https://samaraassistedliving.com/`;
   function AlertSettings({profile,engine}){
     const [form,setForm]=React.useState(engine.settings);
     const [toast,setToast]=React.useState(null);
-    const [isChargeMobile,setIsChargeMobile]=React.useState(()=>typeof window!=='undefined'&&window.matchMedia('(max-width: 760px)').matches);
-    React.useEffect(()=>{if(typeof window==='undefined')return;const mq=window.matchMedia('(max-width: 760px)');const sync=()=>setIsChargeMobile(mq.matches);sync();mq.addEventListener?.('change',sync);return()=>mq.removeEventListener?.('change',sync)},[]);
     React.useEffect(()=>setForm(engine.settings),[engine.settings]);
     async function save(e){
       e.preventDefault();
@@ -29047,6 +29045,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const [patientReturns,setPatientReturns]=React.useState([]);
     const [storeAllocations,setStoreAllocations]=React.useState([]);
     const [tariffBusy,setTariffBusy]=React.useState(false);
+    const [isChargeMobile,setIsChargeMobile]=React.useState(()=>typeof window!=='undefined'&&window.matchMedia('(max-width: 760px)').matches);
+    React.useEffect(()=>{if(typeof window==='undefined')return;const mq=window.matchMedia('(max-width: 760px)');const sync=()=>setIsChargeMobile(mq.matches);sync();mq.addEventListener?.('change',sync);return()=>mq.removeEventListener?.('change',sync)},[]);
     const defaultCategories={
       'Doctor Services':['General Physician Visit','Emergency Doctor Visit','Specialist Consultation','Teleconsultation','Home Visit','Follow-up Consultation'],
       'Nursing Procedures':['Blood Glucose Monitoring','Blood Sample Collection','Blood Transfusion Assistance','Bladder Wash','Catheterization','Urinary Catheterization / Change','Dressing','Dressing - Minor','Dressing - Major','Wound / Pressure Sore Dressing','ECG','Enema','Injection','Injection - IM / IV / SC','IV Cannulation','IV Fluid Administration','Nebulization - Own Nebulizer','Nebulization - Samara Nebulizer','Oxygen Therapy','Pressure Sore Care','Ryle’s Tube Feeding','Ryle’s / NG Tube Insertion','Ryle’s / NG Tube Change','Stoma Care','Suctioning','Tracheostomy Suctioning','Tracheostomy Dressing / Care','Wound Care','Other Nursing Procedure'],
