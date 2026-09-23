@@ -45,6 +45,7 @@ helper it uses, before `z-end/...`). The build refuses to run if a file is missi
 > needed for: <describe the change>.
 > Do not rename existing functions, variables or CSS class names. Do not add any code that
 > watches or changes the whole page (no MutationObserver, no document-wide listeners).
+> Do not create START_HERE / RELEASE / README files; instead give me 2–4 lines to add at the top of CHANGELOG.md.
 > Reply with only the changed part and tell me what else in the app might be affected.
 
 ## File map
