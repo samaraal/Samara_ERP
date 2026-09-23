@@ -395,6 +395,12 @@
     }
     function currentStoreMasterItem(row){
       if(!row)return null;
+      // Permanent charge code is the authoritative link for Stores / Pharmacy charges.
+      // This also supports older requests whose store_item_id may be absent/stale after migration.
+      if(row.charge_item_code){
+        const byCode=(storeMaster||[]).find(x=>x.active!==false&&String(x.item_code||'')===String(row.charge_item_code));
+        if(byCode)return byCode;
+      }
       return matchingStoreMaster(row.category,row.service_name||row.description,row.store_item_id);
     }
     function currentStoreRequestAmount(row){
