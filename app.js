@@ -7684,8 +7684,18 @@ https://samaraassistedliving.com/`;
         }
 
         // Successful authentication may proceed only after strict identity verification.
-        securityRequest({action:'login_success',login_id:normalized}).catch(()=>{});
-        Promise.resolve(writeAuditEvent('User Login','Authentication',normalized,{login_id:normalized,auth_user_id:signedUid},'Success')).catch(()=>{});
+        // Record the login server-side before continuing so the Audit Trail cannot lose it
+        // if the browser navigates/closes immediately after authentication.
+        try{
+          const loginAudit=await securityRequest({action:'login_success',login_id:normalized});
+          if(!loginAudit?.audit_recorded)throw new Error('Login audit was not confirmed');
+        }catch(auditError){
+          console.error('LOGIN AUDIT FAILED',auditError);
+          await client.auth.signOut().catch(()=>{});
+          setMessage('Sign-in was verified, but the required Audit Trail record could not be saved. Please try again.');
+          setBusy(false);
+          return;
+        }
       }
       }catch(error){
         setMessage(error?.message||'Unable to sign in. Please check the connection and try again.');
