@@ -1,15 +1,4 @@
-Samara ERP v2.14.23 — Direct UPI QR controlled retest
-
-Purpose:
-- Re-enable Show Direct UPI QR for a controlled test.
-- QR creation sends NO family mobile number and NO email to Razorpay.
-- Existing Payment Link / WhatsApp / Copy Link / Open Razorpay remain unchanged.
-- No SQL required.
-
-Deploy:
-1. Redeploy existing Supabase Edge Function staff-payment-request with supplied index.ts.
-2. Upload the remaining files to Samara_ERP preserving paths.
-3. Update ERP to v2.14.23.
-4. Create a fresh ₹1 request and click Show Direct UPI QR once.
-
-If Razorpay again returns HTTP 400/404, the failure occurs before any mobile-number prompt and is not caused by family mobile mapping.
+Samara ERP v2.14.24 - narrow Direct UPI QR UI crash fix
+Fix: Show Direct UPI QR now calls existing showPaymentQr(). v2.14.23 incorrectly referenced undefined showOnlinePaymentQr().
+No SQL required. No Edge Function redeployment required; backend remains the v2.14.23 no-mobile QR test.
+Upload these ERP frontend files preserving paths.
