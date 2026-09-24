@@ -129,6 +129,26 @@
       }catch(error){notify('error','QR could not be displayed',error.message||String(error))}
     }
 
+    async function cancelOnlinePaymentRequest(){
+      if(!paymentRequest?.id)return;
+      const ok=window.confirm(`Cancel this ${paymentRequest.payment_type==='advance'?'advance':'outstanding'} payment link for ${money(paymentRequest.amount)}?\n\nThe Razorpay link will stop accepting payment.`);
+      if(!ok)return;
+      setPaymentRequestBusy(true);
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/staff-payment-request`,{
+          method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session.access_token}`},
+          body:JSON.stringify({action:'cancel',request_id:paymentRequest.id})
+        });
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok||result.success===false)throw new Error(result.error||'Payment link could not be cancelled.');
+        setPaymentRequest(null);
+        notify('success','Payment link cancelled','The Razorpay payment link has been cancelled and can no longer be used.');
+      }catch(error){notify('error','Cancellation failed',error.message||String(error))}
+      finally{setPaymentRequestBusy(false)}
+    }
+
     async function sendPaymentLinkWhatsApp(){
       if(!paymentRequest?.payment_url)return;
       try{
@@ -982,16 +1002,20 @@ Please access the Samara Family Portal for detailed account information.`;
       ),
 
       paymentRequest&&paymentRequest.patient_id===patientFilter&&h(Section,{title:'Online Payment Request',subtitle:'Razorpay-hosted secure payment link · Family Portal login is not required'},
-        h('div',{className:'message success'},
-          h('strong',null,`${paymentRequest.payment_type==='advance'?'Advance':'Outstanding'} · ${money(paymentRequest.amount)}`),
-          h('div',{style:{marginTop:'6px',wordBreak:'break-all'}},paymentRequest.payment_url),
-          h('div',{className:'payment-quick-buttons',style:{marginTop:'12px'}},
-            h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendPaymentLinkWhatsApp},'Send Payment Link · WhatsApp API'),
-            h('button',{type:'button',className:'btn btn-primary',onClick:showPaymentQr},'Show QR Code'),
-            h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{await navigator.clipboard.writeText(paymentRequest.payment_url);notify('success','Link copied','Secure payment link copied to clipboard.')}},'Copy Payment Link'),
-            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(paymentRequest.payment_url,'_blank','noopener')},'Open Razorpay Payment Link')
+        h('div',{style:{background:'#fff',border:'1px solid #efc5d8',borderRadius:'14px',padding:'14px 16px',boxShadow:'0 3px 12px rgba(130,25,78,.06)'}},
+          h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'12px',flexWrap:'wrap'}},
+            h('strong',{style:{color:'#8f164f',fontSize:'16px'}},`${paymentRequest.payment_type==='advance'?'Advance':'Outstanding'} · ${money(paymentRequest.amount)}`),
+            h('button',{type:'button',className:'btn btn-secondary',style:{minWidth:'92px'},onClick:()=>setPaymentRequest(null)},'Close')
           ),
-          h('small',null,`Request ID: ${paymentRequest.request_code||paymentRequest.id||'—'}${paymentRequest.expires_at?` · Expires ${fmt(paymentRequest.expires_at)}`:''}`)
+          h('div',{style:{marginTop:'7px',wordBreak:'break-all',fontSize:'13px',color:'#5f4b55'}},paymentRequest.payment_url),
+          h('div',{className:'payment-quick-buttons',style:{marginTop:'12px'}},
+            h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendPaymentLinkWhatsApp},'Send via WhatsApp'),
+            h('button',{type:'button',className:'btn btn-primary',onClick:showPaymentQr},'Show QR Code'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{await navigator.clipboard.writeText(paymentRequest.payment_url);notify('success','Link copied','Secure payment link copied to clipboard.')}},'Copy Link'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(paymentRequest.payment_url,'_blank','noopener')},'Open Razorpay'),
+            h('button',{type:'button',className:'btn btn-danger',disabled:paymentRequestBusy,onClick:cancelOnlinePaymentRequest},paymentRequestBusy?'Cancelling…':'Cancel Payment Link')
+          ),
+          h('small',{style:{display:'block',marginTop:'9px',color:'#6f6268'}},`Request ID: ${paymentRequest.request_code||paymentRequest.id||'—'}${paymentRequest.expires_at?` · Expires ${fmt(paymentRequest.expires_at)}`:''}`)
         )
       ),
 
