@@ -2376,3 +2376,22 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
   .app:has(.mobile-drawer-layer) .samara-float-nav{display:none!important}
 }
 @media print{.samara-float-nav,.global-back-button{display:none!important}}
+
+/* v2.14.39 — Compact workflow pop-up (charge requests, discharge approvals) */
+.samara-workflow-popup{position:fixed;inset:0;z-index:10040;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(45,18,31,.45)}
+.samara-workflow-popup-card{width:min(460px,100%);max-height:calc(100vh - 48px);overflow:auto;box-sizing:border-box;background:#fff;border:1px solid #efc8da;border-radius:20px;padding:18px;box-shadow:0 20px 50px rgba(83,16,51,.28)}
+.samara-workflow-popup-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.samara-workflow-popup-head h3{margin:0;color:#4d1835;font-size:19px;line-height:1.25}
+.samara-workflow-popup-head small{display:block;margin-top:3px;color:#76566a}
+.samara-workflow-popup-x{flex:0 0 38px;width:38px;height:38px;min-height:38px!important;border:0;border-radius:50%;background:#f6e8ef;color:#8c0f4f;font-size:22px;line-height:1;cursor:pointer}
+.samara-workflow-popup-detail{margin:14px 0;padding:12px 14px;border:1px solid #efd58a;border-radius:12px;background:#fff6d8;color:#5f4a0c;font-size:16px}
+.samara-workflow-popup-actions{display:flex;gap:10px}
+.samara-workflow-popup-actions .btn{flex:1;min-height:46px}
+@media(max-width:420px){.samara-workflow-popup-actions{flex-direction:column-reverse}}
+
+/* v2.14.39 — Phone safety net: restore header, Module menu and bottom bar when nothing is open */
+@media(max-width:760px){
+  body .app.samara-chrome-restore .topbar{display:grid!important}
+  body .app.samara-chrome-restore .mobile-menu{display:flex!important}
+  body .app.samara-chrome-restore .mobile-bottom-nav{display:grid!important}
+}

@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.38';
-const CACHE = 'samara-erp-2.14.38-workflow-popup-fix';
+const APP_VERSION = '2.14.39';
+const CACHE = 'samara-erp-2.14.39-compact-popup-safety-net';
 const SHELL = [
   './',
   './index.html',
