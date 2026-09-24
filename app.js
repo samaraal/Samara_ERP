@@ -7018,6 +7018,58 @@ https://samaraassistedliving.com/`;
         }catch(_error){}
       }
     },[page]);
+    // v2.14.36: Global Back navigation. Every page change is remembered, so the
+    // on-screen Back button, the Android back button and the iPhone back swipe
+    // all return to the previous ERP page instead of leaving staff stuck.
+    const navHistoryRef=React.useRef({stack:[],prev:null,fromBack:false,ready:false});
+    const [navDepth,setNavDepth]=React.useState(0);
+    React.useEffect(()=>{
+      // Start remembering pages only after the signed-in workspace has opened, so the
+      // automatic "restore last page" step is not recorded as a step to go back to.
+      const nav=navHistoryRef.current;
+      nav.ready=false;nav.stack=[];setNavDepth(0);
+      if(!profile?.id)return;
+      const timer=setTimeout(()=>{nav.ready=true},800);
+      return()=>clearTimeout(timer);
+    },[profile?.id]);
+    React.useEffect(()=>{
+      const nav=navHistoryRef.current;
+      if(nav.ready&&nav.prev&&nav.prev!==page&&!nav.fromBack){
+        nav.stack.push(nav.prev);
+        if(nav.stack.length>40)nav.stack.shift();
+        try{history.pushState({samaraNav:nav.stack.length},'')}catch(_){}
+      }
+      nav.fromBack=false;
+      nav.prev=page;
+      setNavDepth(nav.stack.length);
+    },[page]);
+    React.useEffect(()=>{
+      const onPop=()=>{
+        const nav=navHistoryRef.current;
+        if(!nav.stack.length)return;
+        if(pageEditedRef.current&&!window.confirm('Go back? Any entries you have not saved on this page will be lost.')){
+          try{history.pushState({samaraNav:nav.stack.length},'')}catch(_){}
+          return;
+        }
+        const target=nav.stack.pop();
+        nav.fromBack=true;
+        pageEditedRef.current=false;
+        setNavDepth(nav.stack.length);
+        setPage(target);
+        window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}});
+      };
+      window.addEventListener('popstate',onPop);
+      return()=>window.removeEventListener('popstate',onPop);
+    },[]);
+    function goBackPage(){
+      if(navHistoryRef.current.stack.length){history.back();return}
+      const homePage=profile?homePageForProfile(profile):'';
+      if(homePage&&page!==homePage){
+        if(pageEditedRef.current&&!window.confirm('Go back? Any entries you have not saved on this page will be lost.'))return;
+        setPage(homePage);
+      }
+    }
+
     // v2.8.18: Pop-up windows remain open until the user explicitly closes them.
     // Automatic modal closing after success messages has been disabled.
 
@@ -7485,7 +7537,9 @@ https://samaraassistedliving.com/`;
           h('span',{className:'badge'},profile.role)
         ),
         h(MobileMenu,{page,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
-        h('div',{className:'global-page-tools'},h('button',{type:'button',className:'btn btn-secondary',onClick:refreshCurrentPage,title:'Reload the current page data','aria-label':'Refresh current page'},'↻ Refresh')),
+        h('div',{className:'global-page-tools'},
+          (navDepth>0||page!==(homePageForProfile(profile)||allowed[0]))&&h('button',{type:'button',className:'btn btn-secondary global-back-button',onClick:goBackPage,title:'Go back to the previous page','aria-label':'Go back'},'‹ Back'),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:refreshCurrentPage,title:'Reload the current page data','aria-label':'Refresh current page'},'↻ Refresh')),
         h(NursingMobileQuickActions,{profile,page,onNavigate:setPage}),
         h(window.SamaraDutySwap.DailyNotice,dutyNotice),
         h(window.SamaraDischargeWorkflow.Banner,{client,profile,onNavigate:setPage}),
@@ -7616,6 +7670,9 @@ https://samaraassistedliving.com/`;
           )
         ),
         profile&&profile.role!=='STD'&&page!=='HR Dashboard'&&!alertEngine.soundUnlocked&&h('button',{type:'button',className:'sound-unlock-button',onClick:alertEngine.unlockSound},'🔊 Enable Alert Sound'),
+        (navDepth>0||page!==(homePageForProfile(profile)||allowed[0]))&&h('div',{className:'samara-float-nav','aria-label':'Back and Home'},
+          h('button',{type:'button',className:'samara-float-back',onClick:goBackPage,'aria-label':'Go back',title:'Back'},'‹ Back'),
+          h('button',{type:'button',className:'samara-float-home',onClick:()=>{if(pageEditedRef.current&&!window.confirm('Go to Home? Any entries you have not saved on this page will be lost.'))return;pageEditedRef.current=false;setPage(homePageForProfile(profile)||allowed[0]);window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}})},'aria-label':'Go to Home',title:'Home'},'⌂')),
         h(MobileBottomNav,{page,setPage,allowed,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
         mobileDrawerOpen&&h(MobileNavigationDrawer,{profile,allowed,page,onNavigate:(next)=>{setPage(next);setMobileDrawerOpen(false)},onClose:()=>setMobileDrawerOpen(false)})
       )
