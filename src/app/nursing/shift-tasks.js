@@ -21,7 +21,8 @@
       setLoading(true);
       const [m,ml,c,cl,p,pl,v]=await Promise.all([
         client.from('medication_orders').select(`*,patients(${patientFields})`).eq('is_active',true),
-        client.from('medication_administrations').select('*').eq('scheduled_date',today),
+        // Yesterday is included so a late-night dose rescheduled past midnight still appears today.
+        client.from('medication_administrations').select('*').in('scheduled_date',[addDaysISODate(today,-1),today]),
         client.from('care_orders').select(`*,patients(${patientFields})`).eq('is_active',true),
         client.from('care_logs').select('*').eq('care_date',today),
         client.from('physiotherapy_plans').select(`*,patients(${patientFields})`).eq('is_active',true),
@@ -129,9 +130,26 @@
         order,
         time,
         label:`${order.medicine_name||'Medicine'} ${order.strength||''}`.trim(),
-        log:medLogs.find(x=>x.order_id===order.id&&String(x.scheduled_time).slice(0,5)===time)
+        log:medLogs.find(x=>x.order_id===order.id&&String(x.scheduled_date||'').slice(0,10)===today&&String(x.scheduled_time).slice(0,5)===time)
       });
     }));
+    // Rescheduled doses (patient sleeping / refused / missed, re-medication time set by the nurse).
+    medLogs.filter(log=>log.rescheduled_time&&rescheduledDoseDate(log)===today).forEach(log=>{
+      const order=meds.find(o=>o.id===log.order_id);if(!order)return;
+      const time=normalizeMedicationTime(log.rescheduled_time).slice(0,5);
+      if(!time||shiftForTime(time)!==shift)return;
+      if(medTasks.some(t=>t.order.id===order.id&&t.time===time))return;
+      medTasks.push({
+        type:'Medicine',
+        patient_id:order.patient_id,
+        patient:order.patients,
+        order,
+        time,
+        rescheduledFrom:normalizeMedicationTime(log.scheduled_time),
+        label:`${order.medicine_name||'Medicine'} ${order.strength||''}`.trim()+' (rescheduled)',
+        log:medLogs.find(x=>x.order_id===order.id&&String(x.scheduled_date||'').slice(0,10)===today&&String(x.scheduled_time).slice(0,5)===time)
+      });
+    });
     medTasks.sort((a,b)=>a.time.localeCompare(b.time));
 
     const currentCareTasks=care.filter(order=>order?.id&&order?.patient_id&&order?.patients).flatMap(order=>{

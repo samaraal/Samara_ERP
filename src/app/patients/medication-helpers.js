@@ -24,6 +24,26 @@
     if(Number.isNaN(hour))return String(value||'');
     return `${hour===0?12:hour>12?hour-12:hour}:${normalized.slice(3,5)||'00'} ${hour<12?'AM':'PM'}`;
   }
+  // Doses that were not given (refused, patient sleeping, missed, delayed) can be rescheduled.
+  const MEDICATION_RESCHEDULE_STATUSES=['Refused','Missed','Delayed'];
+  function addDaysISODate(dateISO,days){
+    const d=new Date(`${String(dateISO).slice(0,10)}T00:00:00Z`);if(Number.isNaN(d.getTime()))return '';
+    d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);
+  }
+  // Minutes from the original dose to the re-medication time (crossing midnight when the new time is earlier).
+  function medicationRescheduleGapMinutes(scheduledTime,rescheduledTime){
+    const a=normalizeMedicationTime(scheduledTime),b=normalizeMedicationTime(rescheduledTime);
+    if(!/^\d{2}:\d{2}$/.test(a)||!/^\d{2}:\d{2}$/.test(b))return NaN;
+    const am=Number(a.slice(0,2))*60+Number(a.slice(3,5)),bm=Number(b.slice(0,2))*60+Number(b.slice(3,5));
+    return bm>am?bm-am:bm+1440-am;
+  }
+  // Date on which a rescheduled dose falls: same day, or the next day when the new time is past midnight.
+  function rescheduledDoseDate(log){
+    const date=String(log?.scheduled_date||'').slice(0,10);
+    const from=normalizeMedicationTime(log?.scheduled_time),to=normalizeMedicationTime(log?.rescheduled_time);
+    if(!date||!to)return '';
+    return to>from?date:addDaysISODate(date,1);
+  }
   function medicationOrderDoseEligible(order,dateISO,time){
     if(!order||!dateISO||!time)return false;
     const normalized=normalizeMedicationTime(time);

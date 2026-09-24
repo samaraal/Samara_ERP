@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.30';
-const CACHE = 'samara-erp-2.14.30-discharge-physio-close';
+const APP_VERSION = '2.14.31';
+const CACHE = 'samara-erp-2.14.31-medication-reschedule';
 const SHELL = [
   './',
   './index.html',

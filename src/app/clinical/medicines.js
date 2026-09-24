@@ -240,8 +240,9 @@
       if(['Refused','Missed','Delayed'].includes(marForm.status)&&!String(marForm.remarks||'').trim()){
         const text=`Please enter the reason for medicine status “${marForm.status}”.`;setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;
       }
-      if(marForm.status==='Refused'&&marForm.reschedule&&!marForm.rescheduled_time){const text='Please select the re-medication time.';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
-      if(marForm.status==='Refused'&&marForm.reschedule&&normalizeMedicationTime(marForm.rescheduled_time)<=normalizeMedicationTime(marForm.scheduled_time)){const text='Re-medication time must be later than the refused scheduled dose.';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
+      const canReschedule=MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule;
+      if(canReschedule&&!marForm.rescheduled_time){const text='Please select the re-medication time.';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
+      if(canReschedule){const gap=medicationRescheduleGapMinutes(marForm.scheduled_time,marForm.rescheduled_time);if(!(gap>=15&&gap<=12*60)){const text='Re-medication time must be 15 minutes to 12 hours after the original dose time (it may be after midnight).';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}}
       const entryTime=new Date();
       const administrationTime=marForm.administered_at?new Date(marForm.administered_at):entryTime;
       if(Number.isNaN(administrationTime.getTime())){const text='Please enter a valid administration time.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;}
@@ -275,8 +276,8 @@
         entry_delay_minutes:entryDelayMinutes,
         late_entry_reason:isLateEntry?String(marForm.late_entry_reason||'').trim():null,
         late_entry_justification:isLateEntry?String(marForm.late_entry_justification||'').trim():null,
-        rescheduled_time:marForm.status==='Refused'&&marForm.reschedule?normalizeMedicationTime(marForm.rescheduled_time):null,
-        reschedule_reason:marForm.status==='Refused'&&marForm.reschedule?String(marForm.remarks||'').trim():null
+        rescheduled_time:canReschedule?normalizeMedicationTime(marForm.rescheduled_time):null,
+        reschedule_reason:canReschedule?String(marForm.remarks||'').trim():null
       };
       const {error}=await client.from('medication_administrations').insert(payload);
       if(error){const text=error.message||'Unable to save the Medication Administration Record.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
@@ -364,10 +365,10 @@
     }));
     // A refused dose may be explicitly rescheduled. Keep the original refusal in MAR,
     // and expose the new time as a separate actionable dose for the same patient/order.
-    state.mar.filter(log=>log.scheduled_date===today&&log.rescheduled_time).forEach(log=>{
+    state.mar.filter(log=>log.rescheduled_time&&rescheduledDoseDate(log)===today).forEach(log=>{
       const order=state.orders.find(item=>item.id===log.order_id);
       if(!order)return;
-      const time=normalizeMedicationTime(log.rescheduled_time);
+      const time=normalizeMedicationTime(log.rescheduled_time).slice(0,5);
       if(!time||todayRows.some(item=>item.order.id===order.id&&normalizeMedicationTime(item.time)===time))return;
       const patient=patientFor(order);if(!patient.id||patient.is_active===false||patient.admission_status==='Discharged')return;
       todayRows.push({order,time,date:today,log:doseStatus(order,time,today),rescheduledFrom:normalizeMedicationTime(log.scheduled_time)});
@@ -406,6 +407,12 @@
         const order=state.orders.find(item=>item.id===log.order_id);if(!order)return;
         const date=String(log.scheduled_date||'').slice(0,10),time=normalizeMedicationTime(log.scheduled_time);
         if(!rows.some(item=>item.order.id===order.id&&item.date===date&&normalizeMedicationTime(item.time)===time))rows.push({order,time,date,log});
+      });
+      state.mar.filter(log=>log.rescheduled_time).forEach(log=>{
+        const date=rescheduledDoseDate(log);if(!date||!dateInSelectedPeriod(date))return;
+        const order=state.orders.find(item=>item.id===log.order_id);if(!order)return;
+        const time=normalizeMedicationTime(log.rescheduled_time).slice(0,5);
+        if(!rows.some(item=>item.order.id===order.id&&item.date===date&&normalizeMedicationTime(item.time)===time))rows.push({order,time,date,log:doseStatus(order,time,date),rescheduledFrom:normalizeMedicationTime(log.scheduled_time)});
       });
       return rows;
     })():todayRows;
@@ -453,8 +460,17 @@
         h('span',{className:'badge',style:urgent?{background:dose.minutes>=60?'#fdecec':'#fff4dd',color:dose.minutes>=60?'#b42318':'#9a6700'}:{}},dose.status),
         item.log?.administered_at?fmt(item.log.administered_at):'—',
         item.log?.entry_recorded_at?fmt(item.log.entry_recorded_at):(item.log?.created_at?fmt(item.log.created_at):'—'),
-        dose.audit,item.log?.remarks||'—',
-        historical&&!item.log?h('span',{className:'small-note'},'—'):h('button',{type:'button',className:item.log&&isFrontlineClinical?'btn btn-secondary clinical-action-done':item.log?'btn btn-secondary':urgent?'btn btn-danger':'btn btn-primary',disabled:Boolean(item.log&&isFrontlineClinical),onClick:()=>openMar(item.order,item.time)},item.log?(isFrontlineClinical?'Recorded ✓':'View / Correct'):(urgent?'Resolve Dose':'Record Dose'))
+        dose.audit,
+        h('div',null,item.log?.remarks||'—',
+          item.log?.rescheduled_time?h('small',{style:{display:'block',color:'#9a6700',fontWeight:700}},`Rescheduled to ${medicationTimeLabel(item.log.rescheduled_time)}${rescheduledDoseDate(item.log)!==String(item.log.scheduled_date||'').slice(0,10)?' (next day)':''}`):null,
+          item.rescheduledFrom?h('small',{style:{display:'block',color:'#9a6700',fontWeight:700}},`Rescheduled dose (was ${medicationTimeLabel(item.rescheduledFrom)})`):null),
+        (()=>{
+          // A not-given dose that was rescheduled: offer the rescheduled dose directly from this row.
+          const rt=item.log?.rescheduled_time?normalizeMedicationTime(item.log.rescheduled_time).slice(0,5):'';
+          if(rt&&rescheduledDoseDate(item.log)===today&&!doseStatus(item.order,rt,today))
+            return h('button',{type:'button',className:'btn btn-primary',onClick:()=>openMar(item.order,rt)},`Give Rescheduled Dose (${medicationTimeLabel(rt)})`);
+          return null;
+        })()||(historical&&!item.log?h('span',{className:'small-note'},'—'):h('button',{type:'button',className:item.log&&isFrontlineClinical?'btn btn-secondary clinical-action-done':item.log?'btn btn-secondary':urgent?'btn btn-danger':'btn btn-primary',disabled:Boolean(item.log&&isFrontlineClinical),onClick:()=>openMar(item.order,item.time)},item.log?(isFrontlineClinical?'Recorded ✓':'View / Correct'):(urgent?'Resolve Dose':'Record Dose')))
       ];
     });
 
@@ -625,8 +641,8 @@
             h('div',{className:'field'},h('label',null,'Frequency'),h('input',{value:marTarget.frequency||'—',readOnly:true})),
             h('div',{className:'field'},h('label',null,'Scheduled Time'),h('select',{value:marForm.scheduled_time,onChange:e=>setMarForm({...marForm,scheduled_time:e.target.value})},(targetTimes.length?targetTimes:[marForm.scheduled_time]).filter(Boolean).map(time=>h('option',{key:time,value:time},medicationTimeLabel(time))))),
             h('div',{className:'field'},h('label',null,'Status'),h('select',{value:marForm.status,onChange:e=>setMarForm({...marForm,status:e.target.value})},['Given','Delayed','Refused','Missed'].map(status=>h('option',{key:status,value:status},status)))),
-            marForm.status==='Refused'&&h('label',{className:'checkbox span-2'},h('input',{type:'checkbox',checked:!!marForm.reschedule,onChange:e=>setMarForm({...marForm,reschedule:e.target.checked,rescheduled_time:e.target.checked?(marForm.rescheduled_time||''):''})}),' Re-medication required — reschedule this refused dose'),
-            marForm.status==='Refused'&&marForm.reschedule&&h('div',{className:'field span-2'},h('label',null,'Re-medication Time'),h('input',{type:'time',required:true,value:marForm.rescheduled_time,onChange:e=>setMarForm({...marForm,rescheduled_time:e.target.value})}),h('small',null,'A new medication alert will be created for this time. The original refusal remains permanently in MAR history.')),
+            MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&h('label',{className:'checkbox span-2'},h('input',{type:'checkbox',checked:!!marForm.reschedule,onChange:e=>setMarForm({...marForm,reschedule:e.target.checked,rescheduled_time:e.target.checked?(marForm.rescheduled_time||''):''})}),' Re-medication required — reschedule this dose (e.g. patient sleeping / refused now)'),
+            MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule&&h('div',{className:'field span-2'},h('label',null,'Re-medication Time'),h('input',{type:'time',required:true,value:marForm.rescheduled_time,onChange:e=>setMarForm({...marForm,rescheduled_time:e.target.value})}),h('small',null,'The dose will appear again at this time in Today’s MAR and Shift Tasks (a time after midnight falls on the next day). The original entry remains permanently in MAR history.')),
             h('div',{className:'field span-2'},h('label',null,'Actual Administration Time'),h(StrictDateTimeInput,{value:marForm.administered_at,onChange:e=>setMarForm({...marForm,administered_at:e.target.value}),required:true}),h('small',null,'The system records the MAR entry time automatically and staff cannot edit it.')),
             currentIsLateEntry&&h('div',{className:'message warning span-2'},`Late entry detected: this record is being entered approximately ${currentEntryDelay} minutes after the stated administration time. Justification is compulsory.`),
             currentIsLateEntry&&h('div',{className:'field'},h('label',null,'Late Entry Reason'),h('select',{value:marForm.late_entry_reason,onChange:e=>setMarForm({...marForm,late_entry_reason:e.target.value}),required:true},h('option',{value:''},'Select reason'),lateEntryReasons.map(reason=>h('option',{key:reason,value:reason},reason)))),
