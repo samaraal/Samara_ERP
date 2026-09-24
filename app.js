@@ -6541,10 +6541,16 @@ https://samaraassistedliving.com/`;
     },[profile?.id,role,isManagement,isAccounts,isNursing]);
     React.useEffect(()=>{load();const timer=setInterval(load,30000);window.addEventListener('focus',load);window.addEventListener('samara-discharge-workflow-changed',load);return()=>{clearInterval(timer);window.removeEventListener('focus',load);window.removeEventListener('samara-discharge-workflow-changed',load)}},[load]);
     if(!item)return null;
-    return h('div',{className:'modal-backdrop','data-manual-close':'true',style:{zIndex:10040}},h('div',{className:'card modal',role:'alertdialog','aria-modal':'true',style:{width:'min(520px,94vw)'}},
-      h('div',{className:'panel-head'},h('div',null,h('h3',null,item.title),h('small',null,item.kind+' workflow')),h('button',{type:'button',className:'close','aria-label':'Close',onClick:()=>dismiss(item)},'×')),
-      h('div',{className:'message warning',style:{margin:'12px 0'}},item.detail),
-      h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dismiss(item)},'Close'),h('button',{type:'button',className:'btn btn-primary',onClick:()=>{try{if(item.target)sessionStorage.setItem('samara-workflow-target',JSON.stringify(item.target));}catch(_error){} dismiss(item);onNavigate(item.page)}},'Open & Take Action'))
+    // v2.14.39: compact alert card with its own classes, so phone "full-screen form" rules
+    // do not stretch it to the whole screen or add a second floating Close button.
+    return h('div',{className:'samara-workflow-popup',role:'presentation'},h('div',{className:'samara-workflow-popup-card',role:'alertdialog','aria-modal':'true','aria-label':item.title},
+      h('div',{className:'samara-workflow-popup-head'},
+        h('div',null,h('h3',null,item.title),h('small',null,item.kind+' workflow')),
+        h('button',{type:'button',className:'samara-workflow-popup-x','aria-label':'Close',onClick:()=>dismiss(item)},'×')),
+      h('div',{className:'samara-workflow-popup-detail'},item.detail),
+      h('div',{className:'samara-workflow-popup-actions'},
+        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dismiss(item)},'Close'),
+        h('button',{type:'button',className:'btn btn-primary',onClick:()=>{try{if(item.target)sessionStorage.setItem('samara-workflow-target',JSON.stringify(item.target));}catch(_error){} dismiss(item);onNavigate(item.page)}},'Open & Take Action'))
     ));
   }
 
