@@ -2059,6 +2059,28 @@ function initSamaraInaugurationInvitation(){
 
 
 
+  // v2.14.34: red error panels across the ERP (".message.error") show simple English.
+  const samaraTechnicalError=/violates|constraint|duplicate key|row-level security|permission denied|jwt|refresh token|failed to fetch|networkerror|invalid input syntax|does not exist|schema cache|non-2xx|null value in column|value too long|out of range/i;
+  function samaraTranslateErrorNode(el){
+    try{
+      if(!(el instanceof Element))return;
+      const targets=el.matches('.message.error,.admission-error-toast span')?[el]:[...el.querySelectorAll('.message.error,.admission-error-toast span')];
+      for(const node of targets){
+        for(const child of node.childNodes){
+          if(child.nodeType===3&&samaraTechnicalError.test(child.nodeValue||'')){
+            const friendly=samaraFriendlyError(child.nodeValue);
+            if(friendly!==child.nodeValue)child.nodeValue=friendly;
+          }
+        }
+      }
+    }catch(_){}
+  }
+  try{
+    const samaraErrorObserver=new MutationObserver(list=>{for(const m of list){if(m.type==='characterData'&&m.target.parentElement)samaraTranslateErrorNode(m.target.parentElement);m.addedNodes&&m.addedNodes.forEach(n=>samaraTranslateErrorNode(n.nodeType===3?n.parentElement:n));}});
+    const startObserver=()=>samaraErrorObserver.observe(document.body,{childList:true,subtree:true,characterData:true});
+    if(document.body)startObserver();else document.addEventListener('DOMContentLoaded',startObserver);
+  }catch(_){}
+
   const showSamaraActionToast = (type='success',title='',text='') => {
     try{
       document.querySelectorAll('.samara-save-confirmation').forEach(node=>node.remove());
@@ -2125,7 +2147,7 @@ function initSamaraInaugurationInvitation(){
       strong.textContent=title||(success?'Success':warning?'Saved with warning':'Action failed');
       Object.assign(strong.style,{color:'#fff',fontSize:'17px',lineHeight:'1.15',fontWeight:'900'});
       const span=document.createElement('span');
-      span.textContent=text||(success?'Your entry has been saved successfully.':warning?'The entry was saved and requires review.':'Please check the entry and try again.');
+      span.textContent=(!success&&!warning&&text)?samaraFriendlyError(text):(text||(success?'Your entry has been saved successfully.':warning?'The entry was saved and requires review.':'Please check the entry and try again.'));
       Object.assign(span.style,{color:'#fff',fontSize:'13px',lineHeight:'1.35',fontWeight:'600'});
       copy.append(strong,span);
 
