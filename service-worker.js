@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.37';
-const CACHE = 'samara-erp-2.14.37-mobile-home-signout';
+const APP_VERSION = '2.14.38';
+const CACHE = 'samara-erp-2.14.38-workflow-popup-fix';
 const SHELL = [
   './',
   './index.html',
