@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.17';
-const CACHE = 'samara-erp-2.14.17-direct-upi-qr';
+const APP_VERSION = '2.14.18';
+const CACHE = 'samara-erp-2.14.18-direct-upi-qr';
 const SHELL = [
   './',
   './index.html',
