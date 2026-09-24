@@ -7072,6 +7072,26 @@ https://samaraassistedliving.com/`;
       window.addEventListener('popstate',onPop);
       return()=>window.removeEventListener('popstate',onPop);
     },[]);
+    // v2.14.39: Phone safety net. If the header / bottom bar are hidden but no pop-up is
+    // actually visible on screen, bring them back so staff are never left stuck.
+    React.useEffect(()=>{
+      if(!profile?.id)return;
+      const visible=el=>{if(!el)return false;const r=el.getBoundingClientRect();return r.width>20&&r.height>20&&el.getClientRects().length>0&&getComputedStyle(el).visibility!=='hidden'};
+      const check=()=>{
+        try{
+          const app=document.querySelector('#root > .app, .app');if(!app)return;
+          if(!window.matchMedia('(max-width: 760px)').matches){app.classList.remove('samara-chrome-restore');return}
+          const topbar=app.querySelector('.topbar');
+          const hidden=topbar&&getComputedStyle(topbar).display==='none';
+          const popupOpen=[...document.querySelectorAll('.modal-backdrop .modal,.modal-backdrop .card,.modal-backdrop .modal-card,.patient-file-backdrop > *,.samara-workflow-popup-card')].some(visible);
+          app.classList.toggle('samara-chrome-restore',Boolean(hidden&&!popupOpen)||(app.classList.contains('samara-chrome-restore')&&!popupOpen));
+        }catch(_){}
+      };
+      check();
+      const timer=setInterval(check,1500);
+      return()=>clearInterval(timer);
+    },[profile?.id]);
+
     function goBackPage(){
       if(navHistoryRef.current.stack.length){history.back();return}
       const homePage=profile?homePageForProfile(profile):'';
