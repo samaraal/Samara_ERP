@@ -13,10 +13,14 @@
       setStoreRows(stores.data||[]);
     }
     React.useEffect(()=>{load()},[]);
+    const normalizeChargeName=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+    const chargeNameTokens=value=>new Set(normalizeChargeName(value).split(' ').filter(Boolean).map(x=>x.length>3&&x.endsWith('s')?x.slice(0,-1):x));
+    const findSimilarService=(category,name,excludeId='')=>{const n=normalizeChargeName(name),a=chargeNameTokens(name);let best=null,bestScore=0;for(const x of serviceRows){if(String(x.id)===String(excludeId)||String(x.category)!==String(category))continue;const xn=normalizeChargeName(x.service_name);if(xn===n)return {...x,_score:1};const b=chargeNameTokens(x.service_name),intersection=[...a].filter(t=>b.has(t)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;const numsA=[...a].filter(t=>/^\d+(?:\.\d+)?$/.test(t)).sort().join('|'),numsB=[...b].filter(t=>/^\d+(?:\.\d+)?$/.test(t)).sort().join('|');if(numsA!==numsB)continue;if(score>bestScore){bestScore=score;best=x}}return bestScore>=0.72?best:null};
     async function saveService(row){
       const category=prompt('Charge category:',row?.category||'Nursing Procedures'); if(category===null||!String(category).trim())return;
       if(stockCategories.includes(String(category).trim())){notify('error','Consumables and Pharmacy items are controlled only from Stores Master. Add or edit the item there so the same item name, ID and rate are used everywhere.');return}
       const serviceName=prompt('Chargeable service / item:',row?.service_name||''); if(serviceName===null||!String(serviceName).trim())return;
+      const duplicate=findSimilarService(String(category).trim(),String(serviceName).trim(),row?.id||'');if(duplicate){notify('error',`${duplicate.charge_code?duplicate.charge_code+' · ':''}${duplicate.service_name} already exists or is too similar under ${duplicate.category}. Use/edit the existing procedure instead; genuine variants must include their distinguishing detail.`);return}
       const entered=prompt('Admin-fixed tariff when no external bill is available (leave blank to set later):',row?.amount!=null?String(row.amount):''); if(entered===null)return;
       const amount=String(entered).trim()===''?null:Number(entered); if(amount!==null&&(!Number.isFinite(amount)||amount<=0)){notify('error','Enter a valid tariff greater than zero, or leave it blank.');return}
       setBusy(true); const payload={category:String(category).trim(),service_name:String(serviceName).trim(),amount,is_active:row?.is_active!==false,updated_by:profile.id,updated_at:new Date().toISOString()};
@@ -31,8 +35,10 @@
       if(rate!==null&&(!Number.isFinite(rate)||rate<=0)){notify('error','Enter a valid rate greater than zero, or leave it blank.');return}
       setBusy(true);
       const {error}=await client.from('consumable_store_items').update({charge_rate:rate,updated_at:new Date().toISOString()}).eq('id',row.id);
-      setBusy(false);
-      if(error)notify('error',error.message);else{notify('success','Stores / Pharmacy charge rate updated.');load()}
+      if(error){setBusy(false);notify('error',error.message);return}
+      const verify=await client.from('consumable_store_items').select('charge_rate').eq('id',row.id).maybeSingle();setBusy(false);
+      if(verify.error||!verify.data||((rate===null)!=(verify.data.charge_rate===null))||(rate!==null&&Math.abs(Number(verify.data.charge_rate)-rate)>0.009)){notify('error','The database did not confirm the new rate. No success has been recorded.');return}
+      notify('success','Stores / Pharmacy charge rate saved and verified.');load()
     }
     if(profile?.role!=='Admin')return h(Section,{title:'Charge Master'},h('p',null,'Administrator access only.'));
     const q=String(search||'').trim().toLowerCase();
