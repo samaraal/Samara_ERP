@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.35';
+  const APP_VERSION = '2.14.36';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12,7 +12,7 @@
     return `${h} hr${h===1?'':'s'}${r?` ${r} min`:''} overdue`;
   }
 
-  // v2.14.35: Turn technical database / network errors into simple English for staff.
+  // v2.14.36: Turn technical database / network errors into simple English for staff.
   // The original technical message is still written to the browser console for support.
   function samaraFriendlyError(raw){
     const text=String(raw==null?'':(raw.message||raw.error_description||raw.error||raw)).trim();
