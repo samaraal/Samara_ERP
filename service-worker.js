@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.39';
-const CACHE = 'samara-erp-2.14.39-compact-popup-safety-net';
+const APP_VERSION = '2.14.40';
+const CACHE = 'samara-erp-2.14.40-charge-master-variants';
 const SHELL = [
   './',
   './index.html',

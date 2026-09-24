@@ -3,6 +3,10 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.40 — Charge Master: cylinder variants no longer blocked as duplicates
+- Editing/adding Oxygen Therapy B-type vs D-type lines (same hours) was rejected as "already exists" by the too-similar check. Names that each carry their own distinguishing detail (e.g. B-type vs D-type) are now treated as genuine variants.
+- The duplicate warning now names the matching item instead of the generic "record already exists" message.
+
 ## 2.14.15 — Page crash protection + error log
 - A crash on one page now shows "This page had a problem" on that page only; menu and other pages keep working.
 - Errors after login no longer replace the whole app with "Application request error"; a small notice is shown instead.
