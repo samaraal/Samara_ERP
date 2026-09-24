@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.19';
+  const APP_VERSION = '2.14.20';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -27650,10 +27650,11 @@ function ShiftHandover({profile,onNavigate}){
         const targets=(contactResult.contacts||[]).filter(x=>normalizeWhatsAppRecipient(x.mobile));
         if(!targets.length)throw new Error('No active registered family mobile number is available for this patient.');
         const text=`Samara Assisted Living\nSecure payment request for ${paymentRequest.patient_name||'patient'}\nPurpose: ${paymentRequest.payment_type==='advance'?'Advance Payment':'Outstanding Payment'}\nAmount: ${money(paymentRequest.amount)}\nPay securely: ${paymentRequest.payment_url}\nThis link is unique to this payment request and will expire automatically.`;
-        const failures=[];
-        for(const contact of targets){try{await sendWhatsAppText({to:contact.mobile,text})}catch(e){failures.push(`${contact.relative_name||contact.mobile}: ${e.message}`)}}
-        if(failures.length===targets.length)throw new Error(failures.join(' | '));
-        notify(failures.length?'error':'success',failures.length?'Partly sent':'Payment link sent',failures.length?`Sent to ${targets.length-failures.length} contact(s). ${failures.join(' | ')}`:`WhatsApp payment link sent to ${targets.length} family contact(s).`);
+        const sendResponse=await fetch(`${cfg.supabaseUrl}/functions/v1/staff-payment-request`,{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session.access_token}`},body:JSON.stringify({action:'send_whatsapp',request_id:paymentRequest.id,text})});
+        const sendResult=await sendResponse.json().catch(()=>({}));
+        if(!sendResponse.ok||sendResult.success===false)throw new Error(sendResult.error||'WhatsApp payment link could not be sent.');
+        const sent=Number(sendResult.sent||0),failed=Array.isArray(sendResult.failures)?sendResult.failures:[];
+        notify(failed.length?'error':'success',failed.length?'Partly sent':'Payment link sent',failed.length?`Sent to ${sent} contact(s). ${failed.join(' | ')}`:`WhatsApp payment link sent to ${sent} registered family contact(s).`);
       }catch(error){notify('error','WhatsApp not sent',error.message||String(error))}
     }
 
@@ -28438,7 +28439,7 @@ Please access the Samara Family Portal for detailed account information.`;
           !paymentRequestBusy&&paymentRequest&&paymentRequest.patient_id===patientFilter&&h('div',{className:'samara-payment-request-card'},
             h('div',{className:'samara-payment-request-summary'},h('div',null,h('span',null,'Patient'),h('strong',null,paymentRequest.patient_name||'Patient')),h('div',null,h('span',null,'Purpose'),h('strong',null,paymentRequest.payment_type==='advance'?'Advance Payment':'Outstanding Payment')),h('div',null,h('span',null,'Amount'),h('strong',{className:'samara-payment-request-amount'},money(paymentRequest.amount)))),
             h('div',{className:'samara-payment-link-box'},h('span',null,'Secure Razorpay link'),h('code',null,paymentRequest.payment_url)),
-            h('div',{className:'samara-payment-action-grid'},h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendPaymentLinkWhatsApp},'Send via WhatsApp'),h('button',{type:'button',className:'btn btn-primary',onClick:showPaymentQr},'Show QR Code'),h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{await navigator.clipboard.writeText(paymentRequest.payment_url);notify('success','Link copied','Secure payment link copied to clipboard.')}},'Copy Link'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(paymentRequest.payment_url,'_blank','noopener')},'Open Razorpay'),h('button',{type:'button',className:'btn btn-danger',disabled:paymentRequestBusy,onClick:cancelOnlinePaymentRequest},'Cancel Payment Link')),
+            h('div',{className:'samara-payment-action-grid'},h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendPaymentLinkWhatsApp},'Send via WhatsApp'),h('button',{type:'button',className:'btn btn-secondary',disabled:true,title:'Direct UPI QR is not enabled for the Samara Razorpay merchant account.'},'Direct UPI QR Unavailable'),h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{await navigator.clipboard.writeText(paymentRequest.payment_url);notify('success','Link copied','Secure payment link copied to clipboard.')}},'Copy Link'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(paymentRequest.payment_url,'_blank','noopener')},'Open Razorpay'),h('button',{type:'button',className:'btn btn-danger',disabled:paymentRequestBusy,onClick:cancelOnlinePaymentRequest},'Cancel Payment Link')),
             h('div',{className:'samara-payment-request-foot'},`Request ID: ${paymentRequest.request_code||paymentRequest.id||'—'}${paymentRequest.expires_at?` · Expires ${fmt(paymentRequest.expires_at)}`:''}`)
           )
         )
