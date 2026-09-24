@@ -16469,7 +16469,8 @@ Please keep these login details confidential.`;
       ['physio_required','therapy_type','physiotherapist_name','physio_frequency','physio_time','physio_precautions','vitals_time_1','vitals_time_2','vitals_time_3'].forEach(k=>delete payload[k]);
 
       if(admissionExistingPatient){
-        if(!selectedBedIsCurrentPatient){
+        // v2.14.35: a pending admission gets its room only once, in the final commit below.
+        if(!selectedBedIsCurrentPatient&&!pendingAdmissionResume){
           const {error:roomAssignError}=await client.rpc('assign_patient_room',{
             p_patient_id:admissionExistingPatient.id,
             p_room_bed_id:selectedBed.id,
@@ -16561,7 +16562,7 @@ Please keep these login details confidential.`;
         // activate the patient. This prevents validation/setup errors from leaving a
         // patient shown as admitted or a bed shown as occupied.
         if(!admissionExistingPatient||pendingAdmissionResume){
-          const {error:roomAssignError}=await client.rpc('assign_patient_room',{
+          const {error:roomAssignError}=selectedBedIsCurrentPatient?{error:null}:await client.rpc('assign_patient_room',{
             p_patient_id:patient.id,
             p_room_bed_id:selectedBed.id,
             p_reason:selectedBedIsReservedForThisAdmission?'Reserved room admission':'Initial admission room allotment'
