@@ -28,6 +28,8 @@
     const [lastPaymentReceipt,setLastPaymentReceipt]=React.useState(null);
     const [dailyPayableSent,setDailyPayableSent]=React.useState(false);
     const [dailyPayableChecking,setDailyPayableChecking]=React.useState(false);
+    const [paymentRequest,setPaymentRequest]=React.useState(null);
+    const [paymentRequestBusy,setPaymentRequestBusy]=React.useState(false);
     const [refundRequest,setRefundRequest]=React.useState(null);
     const [refundLoading,setRefundLoading]=React.useState(false);
     const [activeAccountantPresent,setActiveAccountantPresent]=React.useState(false);
@@ -81,6 +83,65 @@
       showSamaraActionToast(type,title,text);
       setToast({type,title,text});
       setTimeout(()=>setToast(null),5000);
+    }
+
+    async function createOnlinePaymentRequest(kind='outstanding'){
+      if(!patientFilter){notify('error','Select patient','Select a patient before creating an online payment request.');return}
+      if(kind==='outstanding'&&pendingBills<1){notify('error','No outstanding amount','This patient has no amount currently payable.');return}
+      let amount=kind==='outstanding'?pendingBills:0;
+      if(kind==='advance'){
+        const entered=window.prompt('Enter advance amount (₹):','');
+        if(entered===null)return;
+        amount=Number(String(entered).replace(/,/g,'').trim());
+        if(!Number.isFinite(amount)||amount<1||amount>500000){notify('error','Invalid amount','Enter an advance amount between ₹1 and ₹5,00,000.');return}
+      }
+      setPaymentRequestBusy(true);
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/staff-payment-request`,{
+          method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session.access_token}`},
+          body:JSON.stringify({action:'create',patient_id:patientFilter,payment_type:kind,amount:Number(amount)})
+        });
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok||result.success===false)throw new Error(result.error||'Payment request could not be created.');
+        setPaymentRequest(result);
+        notify('success','Payment request created',`${kind==='advance'?'Advance':'Outstanding'} payment request for ${money(result.amount||amount)} is ready.`);
+      }catch(error){notify('error','Payment request failed',error.message||String(error))}
+      finally{setPaymentRequestBusy(false)}
+    }
+
+    async function ensurePaymentQr(){
+      if(window.SamaraQRCode)return window.SamaraQRCode;
+      await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='./vendor/qrcode.bundle.js';script.onload=resolve;script.onerror=()=>reject(new Error('QR generator could not be loaded.'));document.head.appendChild(script)});
+      if(!window.SamaraQRCode)throw new Error('QR generator is unavailable.');
+      return window.SamaraQRCode;
+    }
+
+    async function showPaymentQr(){
+      if(!paymentRequest?.payment_url)return;
+      try{
+        const qr=await ensurePaymentQr();
+        const dataUrl=qr.toDataURL(paymentRequest.payment_url,{margin:3,scale:8});
+        const w=window.open('','_blank','width=520,height=720');
+        if(!w)throw new Error('Allow pop-ups to display the payment QR code.');
+        w.document.write(`<!doctype html><html><head><title>Samara Payment QR</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;text-align:center;padding:24px;color:#5d1740;background:#fff7fb}main{max-width:440px;margin:auto;background:#fff;padding:24px;border-radius:20px;box-shadow:0 10px 35px #b0186720}img{width:min(330px,85vw)}h1{color:#b01867}.amt{font-size:34px;font-weight:800}.small{font-size:13px;color:#765}</style></head><body><main><h1>Samara Assisted Living</h1><p>Scan to pay securely</p><div class="amt">${money(paymentRequest.amount)}</div><p>${paymentRequest.patient_name||''}<br>${paymentRequest.payment_type==='advance'?'Advance Payment':'Outstanding Payment'}</p><img src="${dataUrl}" alt="Payment QR"><p class="small">This QR opens Samara's secure Razorpay payment page. Request expires ${paymentRequest.expires_at?fmt(paymentRequest.expires_at):'automatically'}.</p></main></body></html>`);w.document.close();
+      }catch(error){notify('error','QR could not be displayed',error.message||String(error))}
+    }
+
+    async function sendPaymentLinkWhatsApp(){
+      if(!paymentRequest?.payment_url)return;
+      try{
+        const {data:contacts,error}=await client.from('family_portal_access').select('mobile,relative_name,is_active').eq('patient_id',patientFilter).eq('is_active',true);
+        if(error)throw error;
+        const targets=(contacts||[]).filter(x=>normalizeWhatsAppRecipient(x.mobile));
+        if(!targets.length)throw new Error('No active Family Portal mobile number is available for this patient.');
+        const text=`Samara Assisted Living\nSecure payment request for ${paymentRequest.patient_name||'patient'}\nPurpose: ${paymentRequest.payment_type==='advance'?'Advance Payment':'Outstanding Payment'}\nAmount: ${money(paymentRequest.amount)}\nPay securely: ${paymentRequest.payment_url}\nThis link is unique to this payment request and will expire automatically.`;
+        const failures=[];
+        for(const contact of targets){try{await sendWhatsAppText({to:contact.mobile,text})}catch(e){failures.push(`${contact.relative_name||contact.mobile}: ${e.message}`)}}
+        if(failures.length===targets.length)throw new Error(failures.join(' | '));
+        notify(failures.length?'error':'success',failures.length?'Partly sent':'Payment link sent',failures.length?`Sent to ${targets.length-failures.length} contact(s). ${failures.join(' | ')}`:`WhatsApp payment link sent to ${targets.length} family contact(s).`);
+      }catch(error){notify('error','WhatsApp not sent',error.message||String(error))}
     }
 
     function money(value){
@@ -913,6 +974,24 @@ Please access the Samara Family Portal for detailed account information.`;
               onClick:()=>sendDailyBillWhatsAppApi({resend:true})
             },'Resend Daily Payable WhatsApp')
           )
+          ,patientFilter&&h(React.Fragment,null,
+            h('button',{type:'button',className:'btn btn-primary',disabled:paymentRequestBusy||pendingBills<1,onClick:()=>createOnlinePaymentRequest('outstanding')},paymentRequestBusy?'Preparing…':`Create Online Payment · ${money(pendingBills)}`),
+            h('button',{type:'button',className:'btn btn-secondary',disabled:paymentRequestBusy,onClick:()=>createOnlinePaymentRequest('advance')},'Create Advance Payment Link')
+          )
+        )
+      ),
+
+      paymentRequest&&paymentRequest.patient_id===patientFilter&&h(Section,{title:'Online Payment Request',subtitle:'Family Portal login is not required · Same Samara Razorpay account'},
+        h('div',{className:'message success'},
+          h('strong',null,`${paymentRequest.payment_type==='advance'?'Advance':'Outstanding'} · ${money(paymentRequest.amount)}`),
+          h('div',{style:{marginTop:'6px',wordBreak:'break-all'}},paymentRequest.payment_url),
+          h('div',{className:'payment-quick-buttons',style:{marginTop:'12px'}},
+            h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendPaymentLinkWhatsApp},'Send Payment Link · WhatsApp API'),
+            h('button',{type:'button',className:'btn btn-primary',onClick:showPaymentQr},'Show QR Code'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{await navigator.clipboard.writeText(paymentRequest.payment_url);notify('success','Link copied','Secure payment link copied to clipboard.')}},'Copy Payment Link'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(paymentRequest.payment_url,'_blank','noopener')},'Open Payment Page')
+          ),
+          h('small',null,`Request ID: ${paymentRequest.request_code||paymentRequest.id||'—'}${paymentRequest.expires_at?` · Expires ${fmt(paymentRequest.expires_at)}`:''}`)
         )
       ),
 
