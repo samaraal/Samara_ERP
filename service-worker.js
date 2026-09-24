@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.35';
-const CACHE = 'samara-erp-2.14.35-nurse-room-admission';
+const APP_VERSION = '2.14.36';
+const CACHE = 'samara-erp-2.14.36-back-navigation';
 const SHELL = [
   './',
   './index.html',

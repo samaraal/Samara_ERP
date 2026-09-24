@@ -2327,6 +2327,7 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 
 /* One shared refresh action on every authenticated module. */
 .global-page-tools{display:flex;justify-content:flex-end;align-items:center;padding:10px 26px 0;gap:10px}
+.global-page-tools .global-back-button{margin-right:auto;font-weight:800}
 .global-page-tools .btn{min-height:44px;white-space:nowrap;padding:10px 16px}
 @media(max-width:760px){.global-page-tools{padding:8px 13px 0}}
 
@@ -2358,3 +2359,20 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 
 /* v2.14.12 — Medication register patient/date filters */
 .medication-register-filters{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-top:12px}.medication-register-filters .field{margin:0;min-width:150px}.medication-register-filters .btn{margin-bottom:1px}@media(max-width:700px){.medication-register-filters{display:grid;grid-template-columns:1fr 1fr}.medication-register-filters .field{min-width:0}.medication-register-filters .btn{grid-column:1/-1}}
+
+/* v2.14.36 — Global Back / Home. Desktop: Back sits beside Refresh.
+   Phones: a small floating Back + Home pair that is always reachable, even when
+   the page header has scrolled away. Hidden while a pop-up form is open (it has its own Close). */
+.samara-float-nav{display:none}
+@media(max-width:760px){
+  .global-page-tools .global-back-button{display:none!important}
+  .samara-float-nav{display:flex;position:fixed;left:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:125;gap:6px;
+    background:rgba(255,255,255,.96);border:1px solid #e7bfd3;border-radius:999px;padding:4px;box-shadow:0 8px 24px rgba(93,16,57,.22);backdrop-filter:blur(10px)}
+  .samara-float-nav button{min-height:40px!important;border:0;border-radius:999px;background:#fdeaf3;color:#8c0f4f;font-weight:800;font-size:15px;padding:0 14px;cursor:pointer}
+  .samara-float-nav .samara-float-home{width:40px;padding:0;font-size:18px;background:#fff}
+  .samara-float-nav button:active{opacity:.8}
+  .app:has(.modal-backdrop) .samara-float-nav,
+  .app:has(.patient-file-backdrop) .samara-float-nav,
+  .app:has(.mobile-drawer-layer) .samara-float-nav{display:none!important}
+}
+@media print{.samara-float-nav,.global-back-button{display:none!important}}
