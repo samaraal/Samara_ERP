@@ -133,7 +133,19 @@
         if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
         const response=await fetch(`${cfg.supabaseUrl}/functions/v1/staff-payment-request`,{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session.access_token}`},body:JSON.stringify({action:'create_qr',request_id:paymentRequest.id})});
         const result=await response.json().catch(()=>({}));
-        if(!response.ok||result.success===false)throw new Error(result.error||'Direct UPI QR could not be created.');
+        if(!response.ok||result.success===false||!result.qr_image_url){
+          // Razorpay's QR Codes API is not enabled on every account (it answers HTTP 400 "The requested URL was not found on the server").
+          // Fall back to a locally generated QR of the secure Razorpay payment link, so staff can still show a scannable code.
+          const serverError=result.error||'Direct UPI QR could not be created.';
+          if(!paymentRequest.payment_url)throw new Error(serverError);
+          console.warn('[Samara payments] Razorpay QR unavailable, using payment-link QR fallback:',serverError);
+          const qr=await ensurePaymentQr();
+          const linkQr=qr.toDataURL(paymentRequest.payment_url,{errorCorrectionLevel:'M',size:340,margin:4});
+          w.document.open();
+          w.document.write(`<!doctype html><html><head><title>Samara Payment QR</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;text-align:center;padding:24px;color:#5d1740;background:#fff7fb}main{max-width:440px;margin:auto;background:#fff;padding:24px;border-radius:20px;box-shadow:0 10px 35px #b0186720}img{width:min(340px,86vw);height:auto}h1{color:#b01867}.amt{font-size:34px;font-weight:800}.small{font-size:13px;color:#765;line-height:1.45}.upi{font-weight:700;color:#16814d}.link{font-size:12px;word-break:break-all;color:#8a2a5c}</style></head><body><main><h1>Samara Assisted Living</h1><p class="upi">Scan &amp; Pay Securely</p><div class="amt">${money(paymentRequest.amount)}</div><p>${paymentRequest.patient_name||''}<br>${paymentRequest.payment_type==='advance'?'Advance Payment':'Outstanding Payment'}</p><img src="${linkQr}" alt="Razorpay payment link QR"><p class="small">Scan with the phone camera or Google Lens to open the secure Razorpay page, then pay by UPI (Google Pay, PhonePe, Paytm), card or net banking.<br>Amount and Samara payment reference are fixed for this request.</p><p class="link">${paymentRequest.payment_url}</p></main></body></html>`);w.document.close();
+          notify('warning','Payment-link QR shown','Razorpay direct UPI QR is not enabled on this Razorpay account, so a QR of the secure payment link is shown instead.');
+          return;
+        }
         setPaymentRequest(prev=>prev?{...prev,razorpay_qr_id:result.qr_id,razorpay_qr_image_url:result.qr_image_url}:prev);
         w.document.open();
         w.document.write(`<!doctype html><html><head><title>Samara Direct UPI QR</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;text-align:center;padding:24px;color:#5d1740;background:#fff7fb}main{max-width:440px;margin:auto;background:#fff;padding:24px;border-radius:20px;box-shadow:0 10px 35px #b0186720}img{width:min(340px,86vw);height:auto}h1{color:#b01867}.amt{font-size:34px;font-weight:800}.small{font-size:13px;color:#765;line-height:1.45}.upi{font-weight:700;color:#16814d}</style></head><body><main><h1>Samara Assisted Living</h1><p class="upi">Direct UPI Scan & Pay</p><div class="amt">${money(paymentRequest.amount)}</div><p>${paymentRequest.patient_name||''}<br>${paymentRequest.payment_type==='advance'?'Advance Payment':'Outstanding Payment'}</p><img src="${result.qr_image_url}" alt="Razorpay UPI QR"><p class="small">Scan this QR directly using Google Pay, PhonePe, Paytm or another UPI app.<br>Amount and Samara payment reference are fixed for this request.</p></main></body></html>`);w.document.close();
