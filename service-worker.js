@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.29';
-const CACHE = 'samara-erp-2.14.29-razorpay-payment-sync';
+const APP_VERSION = '2.14.30';
+const CACHE = 'samara-erp-2.14.30-discharge-physio-close';
 const SHELL = [
   './',
   './index.html',

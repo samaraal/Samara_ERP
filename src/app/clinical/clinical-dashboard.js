@@ -74,7 +74,7 @@
         seenMedicationOrders.add(key);
         return true;
       });
-      setState({loading:false,patients:data[0],medOrders:validMedicationOrders,medLogs:data[2],careOrders:data[3],careLogs:data[4],vitals:data[5],physioOrders:data[6],physioSessions:data[7],incidents:data[8],handovers:data[9],discharges:data[10]});
+      setState({loading:false,patients:data[0],medOrders:validMedicationOrders,medLogs:data[2],careOrders:data[3],careLogs:data[4],vitals:data[5],physioOrders:(data[6]||[]).filter(x=>activePatientIds.has(x.patient_id)),physioSessions:data[7],incidents:data[8],handovers:data[9],discharges:data[10]});
     }
     React.useEffect(()=>{load();const ch=client.channel('clinical-dashboard-live').on('postgres_changes',{event:'*',schema:'public',table:'vital_signs'},load).on('postgres_changes',{event:'*',schema:'public',table:'medication_administrations'},load).on('postgres_changes',{event:'*',schema:'public',table:'care_logs'},load).on('postgres_changes',{event:'*',schema:'public',table:'incidents'},load).on('postgres_changes',{event:'*',schema:'public',table:'patient_discharges'},load).on('postgres_changes',{event:'*',schema:'public',table:'shift_handovers'},load).subscribe();return()=>client.removeChannel(ch)},[]);
     const terminalMedicationStatuses=new Set(['given','refused','withheld','unavailable','missed']);

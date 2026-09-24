@@ -15,7 +15,7 @@
       saveTaskNavigationContext({page,return_page:'Shift Tasks',...context});
       onNavigate?.(page);
     }
-    const patientFields='id,patient_id,full_name,room_no,bed_no,special_nurse_required,special_nurse_name,special_nurse_shift,fall_risk,pressure_sore_risk,aspiration_risk,wandering_risk,infection_risk,seizure_history,oxygen_required,dressing_required';
+    const patientFields='id,patient_id,full_name,room_no,bed_no,special_nurse_required,special_nurse_name,special_nurse_shift,fall_risk,pressure_sore_risk,aspiration_risk,wandering_risk,infection_risk,seizure_history,oxygen_required,dressing_required,is_active,admission_status';
 
     async function load(){
       setLoading(true);
@@ -32,7 +32,7 @@
       setMedLogs(ml.data||[]);
       setCare(c.data||[]);
       setCareLogs(cl.data||[]);
-      setPhysio(p.data||[]);
+      setPhysio((p.data||[]).filter(x=>x.patients&&x.patients.is_active!==false&&x.patients.admission_status!=='Discharged'));
       setPhysioLogs(pl.data||[]);
       setVitals(v.data||[]);
       setLoading(false);

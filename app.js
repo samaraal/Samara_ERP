@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.29';
+  const APP_VERSION = '2.14.30';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -17055,7 +17055,7 @@ Please keep these login details confidential.`;
       saveTaskNavigationContext({page,return_page:'Shift Tasks',...context});
       onNavigate?.(page);
     }
-    const patientFields='id,patient_id,full_name,room_no,bed_no,special_nurse_required,special_nurse_name,special_nurse_shift,fall_risk,pressure_sore_risk,aspiration_risk,wandering_risk,infection_risk,seizure_history,oxygen_required,dressing_required';
+    const patientFields='id,patient_id,full_name,room_no,bed_no,special_nurse_required,special_nurse_name,special_nurse_shift,fall_risk,pressure_sore_risk,aspiration_risk,wandering_risk,infection_risk,seizure_history,oxygen_required,dressing_required,is_active,admission_status';
 
     async function load(){
       setLoading(true);
@@ -17072,7 +17072,7 @@ Please keep these login details confidential.`;
       setMedLogs(ml.data||[]);
       setCare(c.data||[]);
       setCareLogs(cl.data||[]);
-      setPhysio(p.data||[]);
+      setPhysio((p.data||[]).filter(x=>x.patients&&x.patients.is_active!==false&&x.patients.admission_status!=='Discharged'));
       setPhysioLogs(pl.data||[]);
       setVitals(v.data||[]);
       setLoading(false);
@@ -22569,7 +22569,7 @@ function RoomsBeds({profile,onNavigate}){
         seenMedicationOrders.add(key);
         return true;
       });
-      setState({loading:false,patients:data[0],medOrders:validMedicationOrders,medLogs:data[2],careOrders:data[3],careLogs:data[4],vitals:data[5],physioOrders:data[6],physioSessions:data[7],incidents:data[8],handovers:data[9],discharges:data[10]});
+      setState({loading:false,patients:data[0],medOrders:validMedicationOrders,medLogs:data[2],careOrders:data[3],careLogs:data[4],vitals:data[5],physioOrders:(data[6]||[]).filter(x=>activePatientIds.has(x.patient_id)),physioSessions:data[7],incidents:data[8],handovers:data[9],discharges:data[10]});
     }
     React.useEffect(()=>{load();const ch=client.channel('clinical-dashboard-live').on('postgres_changes',{event:'*',schema:'public',table:'vital_signs'},load).on('postgres_changes',{event:'*',schema:'public',table:'medication_administrations'},load).on('postgres_changes',{event:'*',schema:'public',table:'care_logs'},load).on('postgres_changes',{event:'*',schema:'public',table:'incidents'},load).on('postgres_changes',{event:'*',schema:'public',table:'patient_discharges'},load).on('postgres_changes',{event:'*',schema:'public',table:'shift_handovers'},load).subscribe();return()=>client.removeChannel(ch)},[]);
     const terminalMedicationStatuses=new Set(['given','refused','withheld','unavailable','missed']);
@@ -24019,14 +24019,17 @@ function RoomsBeds({profile,onNavigate}){
       setLoading(true);setMessage('');
       const [plansResult,patientsResult,sessionsResult]=await Promise.all([
         client.from('physiotherapy_plans').select('*').order('created_at',{ascending:false}),
-        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').order('full_name'),
+        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active,admission_status').order('full_name'),
         client.from('physiotherapy_sessions').select('*').order('session_date',{ascending:false}).order('created_at',{ascending:false}).limit(300)
       ]);
       if(plansResult.error){
         setMessage(plansResult.error.message||'Unable to load physiotherapy plans.');
         setPlans([]);
       }else{
-        setPlans((plansResult.data||[]).filter(row=>row.is_active!==false));
+        // Hide plans of discharged/inactive residents (their physiotherapy stops at discharge).
+        const patientRows=patientsResult.error?null:(patientsResult.data||[]);
+        const admitted=patientRows?new Set(patientRows.filter(p=>p.is_active!==false&&p.admission_status!=='Discharged').map(p=>p.id)):null;
+        setPlans((plansResult.data||[]).filter(row=>row.is_active!==false&&(!admitted||admitted.has(row.patient_id))));
       }
       if(!patientsResult.error)setPatients(patientsResult.data||[]);
       if(!sessionsResult.error)setSessions(sessionsResult.data||[]);
@@ -24081,6 +24084,7 @@ function RoomsBeds({profile,onNavigate}){
     async function saveSession(e){
       e.preventDefault();
       if(!entryPlan||saving)return;
+      {const pt=patientFor(entryPlan.patient_id);if(pt.id&&(pt.is_active===false||pt.admission_status==='Discharged')){showToast('error','This patient has been discharged. Physiotherapy sessions can no longer be recorded.');return;}}
       if(isFutureDateIndia(form.session_date)){
         showToast('error','Future physiotherapy session dates are not permitted.');
         return;

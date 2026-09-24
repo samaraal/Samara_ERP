@@ -45,14 +45,17 @@
       setLoading(true);setMessage('');
       const [plansResult,patientsResult,sessionsResult]=await Promise.all([
         client.from('physiotherapy_plans').select('*').order('created_at',{ascending:false}),
-        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').order('full_name'),
+        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active,admission_status').order('full_name'),
         client.from('physiotherapy_sessions').select('*').order('session_date',{ascending:false}).order('created_at',{ascending:false}).limit(300)
       ]);
       if(plansResult.error){
         setMessage(plansResult.error.message||'Unable to load physiotherapy plans.');
         setPlans([]);
       }else{
-        setPlans((plansResult.data||[]).filter(row=>row.is_active!==false));
+        // Hide plans of discharged/inactive residents (their physiotherapy stops at discharge).
+        const patientRows=patientsResult.error?null:(patientsResult.data||[]);
+        const admitted=patientRows?new Set(patientRows.filter(p=>p.is_active!==false&&p.admission_status!=='Discharged').map(p=>p.id)):null;
+        setPlans((plansResult.data||[]).filter(row=>row.is_active!==false&&(!admitted||admitted.has(row.patient_id))));
       }
       if(!patientsResult.error)setPatients(patientsResult.data||[]);
       if(!sessionsResult.error)setSessions(sessionsResult.data||[]);
@@ -107,6 +110,7 @@
     async function saveSession(e){
       e.preventDefault();
       if(!entryPlan||saving)return;
+      {const pt=patientFor(entryPlan.patient_id);if(pt.id&&(pt.is_active===false||pt.admission_status==='Discharged')){showToast('error','This patient has been discharged. Physiotherapy sessions can no longer be recorded.');return;}}
       if(isFutureDateIndia(form.session_date)){
         showToast('error','Future physiotherapy session dates are not permitted.');
         return;
