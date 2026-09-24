@@ -158,10 +158,13 @@
     async function sendPaymentLinkWhatsApp(){
       if(!paymentRequest?.payment_url)return;
       try{
-        const {data:contacts,error}=await client.from('family_portal_access').select('mobile,relative_name,is_active').eq('patient_id',patientFilter).eq('is_active',true);
-        if(error)throw error;
-        const targets=(contacts||[]).filter(x=>normalizeWhatsAppRecipient(x.mobile));
-        if(!targets.length)throw new Error('No active Family Portal mobile number is available for this patient.');
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
+        const contactResponse=await fetch(`${cfg.supabaseUrl}/functions/v1/staff-payment-request`,{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session.access_token}`},body:JSON.stringify({action:'family_contacts',patient_id:patientFilter})});
+        const contactResult=await contactResponse.json().catch(()=>({}));
+        if(!contactResponse.ok||contactResult.success===false)throw new Error(contactResult.error||'Registered family contacts could not be loaded.');
+        const targets=(contactResult.contacts||[]).filter(x=>normalizeWhatsAppRecipient(x.mobile));
+        if(!targets.length)throw new Error('No active registered family mobile number is available for this patient.');
         const text=`Samara Assisted Living\nSecure payment request for ${paymentRequest.patient_name||'patient'}\nPurpose: ${paymentRequest.payment_type==='advance'?'Advance Payment':'Outstanding Payment'}\nAmount: ${money(paymentRequest.amount)}\nPay securely: ${paymentRequest.payment_url}\nThis link is unique to this payment request and will expire automatically.`;
         const failures=[];
         for(const contact of targets){try{await sendWhatsAppText({to:contact.mobile,text})}catch(e){failures.push(`${contact.relative_name||contact.mobile}: ${e.message}`)}}
