@@ -3,6 +3,20 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.43 — Food Orders: period is visible and upcoming orders are listed
+- Orders / History always show the period in view ("Showing 01-09-2026 to 24-09-2026 + upcoming 7 days"); the button is now "Change period".
+- When the period reaches today, the list also includes the next 7 days, so tomorrow's orders appear without changing the period.
+- Cut-off card: once today's cutoff for a meal has passed, it shows the next delivery date that can still be ordered (e.g. tomorrow's Breakfast, open until 9 PM).
+
+## 2.14.42 — Food: no receiving before the delivery day
+- A food order can be received only from 3 hours before its scheduled delivery time (IST). Earlier, tomorrow's Breakfast could be marked Received today.
+- Receive button is disabled (with the opening time shown) until then; too-early orders are left out of the Receive list; receipt times before the window are rejected.
+- Database: `143_food_receipt_time_guard.sql` (trigger on fv_events, plus a one-time correction that resets FOOD-FF7D4170 to Ordered).
+
+## 2.14.41 — Food orders: clear help when an order already exists for the meal
+- New order now checks the chosen date + meal straight away and shows who holds the slot (draft, placed order, cancellation pending, or received), with a button to open it — even for tomorrow's orders, which the Orders list (1st of month → today) did not show.
+- Replaces the dead-end "An order already exists… open the existing order" message.
+
 ## 2.14.40 — Charge Master: cylinder variants no longer blocked as duplicates
 - Editing/adding Oxygen Therapy B-type vs D-type lines (same hours) was rejected as "already exists" by the too-similar check. Names that each carry their own distinguishing detail (e.g. B-type vs D-type) are now treated as genuine variants.
 - The duplicate warning now names the matching item instead of the generic "record already exists" message.
