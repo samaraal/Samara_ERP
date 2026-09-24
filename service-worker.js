@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.32';
-const CACHE = 'samara-erp-2.14.32-clinical-alerts-repair';
+const APP_VERSION = '2.14.33';
+const CACHE = 'samara-erp-2.14.33-login-audit-fix';
 const SHELL = [
   './',
   './index.html',

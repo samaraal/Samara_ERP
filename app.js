@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.32';
+  const APP_VERSION = '2.14.33';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7618,7 +7618,7 @@ https://samaraassistedliving.com/`;
     const [recoveryBusy,setRecoveryBusy]=React.useState(false);
     const [recoveryMessage,setRecoveryMessage]=React.useState('');
     React.useEffect(()=>{if(externalMessage)setMessage(externalMessage)},[externalMessage]);
-    async function securityRequest(payload){
+    async function securityRequest(payload,accessToken){
       // The login_precheck / audit Edge Function is helpful, but it must never
       // leave the whole ERP stuck on "Signing in…" if the function is slow.
       const controller=new AbortController();
@@ -7626,7 +7626,9 @@ https://samaraassistedliving.com/`;
       try{
         const response=await fetch(`${cfg.supabaseUrl}/functions/v1/admin-users`,{
           method:'POST',
-          headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey},
+          // v2.14.33: login_success must carry the new session token, otherwise the server
+          // cannot identify the user and answers "Not authenticated" (login not audited).
+          headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,...(accessToken?{'Authorization':`Bearer ${accessToken}`}:{})},
           body:JSON.stringify(payload),
           signal:controller.signal
         });
@@ -7706,8 +7708,10 @@ https://samaraassistedliving.com/`;
         // Record the login server-side before continuing so the Audit Trail cannot lose it
         // if the browser navigates/closes immediately after authentication.
         try{
-          const loginAudit=await securityRequest({action:'login_success',login_id:normalized});
-          if(!loginAudit?.audit_recorded){
+          let accessToken=signInData?.session?.access_token||'';
+          if(!accessToken){try{accessToken=(await client.auth.getSession())?.data?.session?.access_token||''}catch(_error){}}
+          const loginAudit=await securityRequest({action:'login_success',login_id:normalized},accessToken);
+          if(!(loginAudit?.audit_recorded||loginAudit?.ok)){
             console.warn('LOGIN AUDIT NOT CONFIRMED',loginAudit);
           }
           try{sessionStorage.setItem(`samara_session_access_logged_v1:${signedUid}`,'1')}catch(_error){}
