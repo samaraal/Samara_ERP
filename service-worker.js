@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.28';
-const CACHE = 'samara-erp-2.14.28-razorpay-qr-autostatus';
+const APP_VERSION = '2.14.29';
+const CACHE = 'samara-erp-2.14.29-razorpay-payment-sync';
 const SHELL = [
   './',
   './index.html',

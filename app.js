@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.28';
+  const APP_VERSION = '2.14.29';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -27684,6 +27684,26 @@ function ShiftHandover({profile,onNavigate}){
       },5000);
     }
 
+    async function syncPendingOnlinePayments({silent=true}={}){
+      try{
+        const {data:{session}}=await client.auth.getSession();if(!session)return;
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/staff-payment-request`,{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session.access_token}`},body:JSON.stringify({action:'reconcile_pending'})});
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok||result.success===false)throw new Error(result.error||'Online payments could not be synced.');
+        if(result.posted?.length){
+          notify('success','Online payments received',`${result.posted.length} online payment(s) posted to the ledger: ${result.posted.map(x=>`${x.request_code} ${money(x.amount)}`).join(', ')}.`);
+          try{await load()}catch(_){}
+        }else if(!silent)notify('success','Online payments up to date',`Checked ${result.checked||0} pending request(s). No new payments.`);
+        if(result.failed?.length)console.warn('[Samara payments] sync issues:',result.failed);
+      }catch(error){if(!silent)notify('error','Sync failed',error.message||String(error));else console.warn('[Samara payments] sync failed:',error)}
+    }
+    React.useEffect(()=>{
+      if(!['Admin','Manager','Accounts'].includes(profile?.role))return;
+      syncPendingOnlinePayments();
+      const t=setInterval(()=>syncPendingOnlinePayments(),3*60*1000);
+      return()=>clearInterval(t);
+    },[]);
+
     async function checkOnlinePaymentStatus(){
       if(!paymentRequest?.id)return;
       setPaymentRequestBusy(true);
@@ -28586,7 +28606,7 @@ Please access the Samara Family Portal for detailed account information.`;
           )
           ,patientFilter&&h('div',{className:'online-payment-actions'},
             h('button',{type:'button',className:'btn samara-pay-main',disabled:paymentRequestBusy||pendingBills<1,onClick:()=>createOnlinePaymentRequest('outstanding')},paymentRequestBusy?'Preparing secure link…':`Create Online Payment · ${money(pendingBills)}`),
-            h('button',{type:'button',className:'btn samara-pay-advance',disabled:paymentRequestBusy,onClick:openAdvancePaymentModal},'Advance Payment')
+            h('button',{type:'button',className:'btn samara-pay-advance',disabled:paymentRequestBusy,onClick:openAdvancePaymentModal},'Advance Payment'),h('button',{type:'button',className:'btn btn-secondary',disabled:paymentRequestBusy,onClick:()=>syncPendingOnlinePayments({silent:false}),title:'Check Razorpay for any online payments not yet posted to the ledger'},'Sync Online Payments')
           )
         )
       ),
