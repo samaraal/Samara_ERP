@@ -7083,8 +7083,9 @@ https://samaraassistedliving.com/`;
           if(!window.matchMedia('(max-width: 760px)').matches){app.classList.remove('samara-chrome-restore');return}
           const topbar=app.querySelector('.topbar');
           const hidden=topbar&&getComputedStyle(topbar).display==='none';
-          const popupOpen=[...document.querySelectorAll('.modal-backdrop .modal,.modal-backdrop .card,.modal-backdrop .modal-card,.patient-file-backdrop > *,.samara-workflow-popup-card')].some(visible);
-          app.classList.toggle('samara-chrome-restore',Boolean(hidden&&!popupOpen)||(app.classList.contains('samara-chrome-restore')&&!popupOpen));
+          const popupOpen=[...document.querySelectorAll('.modal-backdrop .modal,.modal-backdrop .card,.modal-backdrop .modal-card,.patient-file-backdrop > *,.samara-workflow-popup-card')].filter(el=>!el.closest('.topbar,.mobile-menu,.mobile-bottom-nav')).some(visible);
+          const want=Boolean(hidden&&!popupOpen)||(app.classList.contains('samara-chrome-restore')&&!popupOpen);
+          if(app.classList.contains('samara-chrome-restore')!==want)app.classList.toggle('samara-chrome-restore',want);
         }catch(_){}
       };
       check();
