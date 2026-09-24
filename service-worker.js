@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.15';
-const CACHE = 'samara-erp-2.14.15-error-safety';
+const APP_VERSION = '2.14.16';
+const CACHE = 'samara-erp-2.14.16-payment-ui';
 const SHELL = [
   './',
   './index.html',

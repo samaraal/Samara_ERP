@@ -30,6 +30,9 @@
     const [dailyPayableChecking,setDailyPayableChecking]=React.useState(false);
     const [paymentRequest,setPaymentRequest]=React.useState(null);
     const [paymentRequestBusy,setPaymentRequestBusy]=React.useState(false);
+    const [advancePaymentModal,setAdvancePaymentModal]=React.useState(false);
+    const [advancePaymentAmount,setAdvancePaymentAmount]=React.useState('');
+    const [paymentWorkspace,setPaymentWorkspace]=React.useState(false);
     const [refundRequest,setRefundRequest]=React.useState(null);
     const [refundLoading,setRefundLoading]=React.useState(false);
     const [activeAccountantPresent,setActiveAccountantPresent]=React.useState(false);
@@ -85,17 +88,17 @@
       setTimeout(()=>setToast(null),5000);
     }
 
-    async function createOnlinePaymentRequest(kind='outstanding'){
+    function openAdvancePaymentModal(){
+      if(!patientFilter){notify('error','Select patient','Select a patient before creating an online payment request.');return}
+      setAdvancePaymentAmount('');setAdvancePaymentModal(true);
+    }
+    async function createOnlinePaymentRequest(kind='outstanding',advanceAmount=null){
       if(!patientFilter){notify('error','Select patient','Select a patient before creating an online payment request.');return}
       if(kind==='outstanding'&&pendingBills<1){notify('error','No outstanding amount','This patient has no amount currently payable.');return}
-      let amount=kind==='outstanding'?pendingBills:0;
-      if(kind==='advance'){
-        const entered=window.prompt('Enter advance amount (₹):','');
-        if(entered===null)return;
-        amount=Number(String(entered).replace(/,/g,'').trim());
-        if(!Number.isFinite(amount)||amount<1||amount>500000){notify('error','Invalid amount','Enter an advance amount between ₹1 and ₹5,00,000.');return}
-      }
-      setPaymentRequestBusy(true);
+      let amount=kind==='outstanding'?pendingBills:Number(String(advanceAmount??'').replace(/,/g,'').trim());
+      if(kind==='advance'&&(!Number.isFinite(amount)||amount<1||amount>500000)){notify('error','Invalid amount','Enter an advance amount between ₹1 and ₹5,00,000.');return}
+      if(kind==='advance')setAdvancePaymentModal(false);
+      setPaymentRequestBusy(true);setPaymentWorkspace(true);
       try{
         const {data:{session}}=await client.auth.getSession();
         if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
@@ -105,7 +108,7 @@
         });
         const result=await response.json().catch(()=>({}));
         if(!response.ok||result.success===false)throw new Error(result.error||'Payment request could not be created.');
-        setPaymentRequest(result);
+        setPaymentRequest(result);setPaymentWorkspace(true);
         notify('success','Payment request created',`${kind==='advance'?'Advance':'Outstanding'} payment request for ${money(result.amount||amount)} is ready.`);
       }catch(error){notify('error','Payment request failed',error.message||String(error))}
       finally{setPaymentRequestBusy(false)}
@@ -137,13 +140,10 @@
       try{
         const {data:{session}}=await client.auth.getSession();
         if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
-        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/staff-payment-request`,{
-          method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session.access_token}`},
-          body:JSON.stringify({action:'cancel',request_id:paymentRequest.id})
-        });
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/staff-payment-request`,{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session.access_token}`},body:JSON.stringify({action:'cancel',request_id:paymentRequest.id})});
         const result=await response.json().catch(()=>({}));
         if(!response.ok||result.success===false)throw new Error(result.error||'Payment link could not be cancelled.');
-        setPaymentRequest(null);
+        setPaymentRequest(null);setPaymentWorkspace(false);
         notify('success','Payment link cancelled','The Razorpay payment link has been cancelled and can no longer be used.');
       }catch(error){notify('error','Cancellation failed',error.message||String(error))}
       finally{setPaymentRequestBusy(false)}
@@ -230,13 +230,12 @@
     React.useEffect(()=>{
       ensurePaymentSettlementStyle();
       load();
-      const paymentRefresh=setInterval(load,15000);
       window.addEventListener('samara-refresh-charges',load);
       const channel=client.channel('billing-payments-live-v216')
         .on('postgres_changes',{event:'*',schema:'public',table:'billing_transactions'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'patient_discharges'},load)
         .subscribe();
-      return()=>{clearInterval(paymentRefresh);window.removeEventListener('samara-refresh-charges',load);client.removeChannel(channel)};
+      return()=>{window.removeEventListener('samara-refresh-charges',load);client.removeChannel(channel)};
     },[]);
 
     React.useEffect(()=>{
@@ -935,6 +934,24 @@ Please access the Samara Family Portal for detailed account information.`;
       [balanceLabel,balanceDisplay,balanceTone,'signed']
     ];
 
+    if(paymentWorkspace){
+      return h(React.Fragment,null,
+        h('div',{className:'samara-payment-page'},
+          h('div',{className:'samara-payment-page-head'},
+            h('div',null,h('div',{className:'samara-payment-eyebrow'},'SAMARA SECURE PAYMENT'),h('h2',null,'Online Payment'),h('p',null,'Create, share or display the Razorpay payment request for the selected patient.')),
+            h('button',{type:'button',className:'btn samara-payment-back',disabled:paymentRequestBusy,onClick:()=>{setPaymentWorkspace(false);setPaymentRequest(null)}},'← Back to Payments')
+          ),
+          paymentRequestBusy&&h('div',{className:'samara-payment-preparing'},h('div',{className:'samara-payment-spinner'}),h('strong',null,'Preparing secure Razorpay payment link…'),h('span',null,'Please wait for a moment. Do not click again.')),
+          !paymentRequestBusy&&paymentRequest&&paymentRequest.patient_id===patientFilter&&h('div',{className:'samara-payment-request-card'},
+            h('div',{className:'samara-payment-request-summary'},h('div',null,h('span',null,'Patient'),h('strong',null,paymentRequest.patient_name||'Patient')),h('div',null,h('span',null,'Purpose'),h('strong',null,paymentRequest.payment_type==='advance'?'Advance Payment':'Outstanding Payment')),h('div',null,h('span',null,'Amount'),h('strong',{className:'samara-payment-request-amount'},money(paymentRequest.amount)))),
+            h('div',{className:'samara-payment-link-box'},h('span',null,'Secure Razorpay link'),h('code',null,paymentRequest.payment_url)),
+            h('div',{className:'samara-payment-action-grid'},h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendPaymentLinkWhatsApp},'Send via WhatsApp'),h('button',{type:'button',className:'btn btn-primary',onClick:showPaymentQr},'Show QR Code'),h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{await navigator.clipboard.writeText(paymentRequest.payment_url);notify('success','Link copied','Secure payment link copied to clipboard.')}},'Copy Link'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(paymentRequest.payment_url,'_blank','noopener')},'Open Razorpay'),h('button',{type:'button',className:'btn btn-danger',disabled:paymentRequestBusy,onClick:cancelOnlinePaymentRequest},'Cancel Payment Link')),
+            h('div',{className:'samara-payment-request-foot'},`Request ID: ${paymentRequest.request_code||paymentRequest.id||'—'}${paymentRequest.expires_at?` · Expires ${fmt(paymentRequest.expires_at)}`:''}`)
+          )
+        )
+      );
+    }
+
     return h(React.Fragment,null,
       dischargeTarget&&h(Section,{
         title:'Discharge Final Payment',
@@ -994,30 +1011,14 @@ Please access the Samara Family Portal for detailed account information.`;
               onClick:()=>sendDailyBillWhatsAppApi({resend:true})
             },'Resend Daily Payable WhatsApp')
           )
-          ,patientFilter&&h(React.Fragment,null,
-            h('button',{type:'button',className:'btn btn-primary',disabled:paymentRequestBusy||pendingBills<1,onClick:()=>createOnlinePaymentRequest('outstanding')},paymentRequestBusy?'Preparing…':`Create Online Payment · ${money(pendingBills)}`),
-            h('button',{type:'button',className:'btn btn-secondary',disabled:paymentRequestBusy,onClick:()=>createOnlinePaymentRequest('advance')},'Create Advance Payment Link')
+          ,patientFilter&&h('div',{className:'online-payment-actions'},
+            h('button',{type:'button',className:'btn samara-pay-main',disabled:paymentRequestBusy||pendingBills<1,onClick:()=>createOnlinePaymentRequest('outstanding')},paymentRequestBusy?'Preparing secure link…':`Create Online Payment · ${money(pendingBills)}`),
+            h('button',{type:'button',className:'btn samara-pay-advance',disabled:paymentRequestBusy,onClick:openAdvancePaymentModal},'Advance Payment')
           )
         )
       ),
 
-      paymentRequest&&paymentRequest.patient_id===patientFilter&&h(Section,{title:'Online Payment Request',subtitle:'Razorpay-hosted secure payment link · Family Portal login is not required'},
-        h('div',{style:{background:'#fff',border:'1px solid #efc5d8',borderRadius:'14px',padding:'14px 16px',boxShadow:'0 3px 12px rgba(130,25,78,.06)'}},
-          h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'12px',flexWrap:'wrap'}},
-            h('strong',{style:{color:'#8f164f',fontSize:'16px'}},`${paymentRequest.payment_type==='advance'?'Advance':'Outstanding'} · ${money(paymentRequest.amount)}`),
-            h('button',{type:'button',className:'btn btn-secondary',style:{minWidth:'92px'},onClick:()=>setPaymentRequest(null)},'Close')
-          ),
-          h('div',{style:{marginTop:'7px',wordBreak:'break-all',fontSize:'13px',color:'#5f4b55'}},paymentRequest.payment_url),
-          h('div',{className:'payment-quick-buttons',style:{marginTop:'12px'}},
-            h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendPaymentLinkWhatsApp},'Send via WhatsApp'),
-            h('button',{type:'button',className:'btn btn-primary',onClick:showPaymentQr},'Show QR Code'),
-            h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{await navigator.clipboard.writeText(paymentRequest.payment_url);notify('success','Link copied','Secure payment link copied to clipboard.')}},'Copy Link'),
-            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(paymentRequest.payment_url,'_blank','noopener')},'Open Razorpay'),
-            h('button',{type:'button',className:'btn btn-danger',disabled:paymentRequestBusy,onClick:cancelOnlinePaymentRequest},paymentRequestBusy?'Cancelling…':'Cancel Payment Link')
-          ),
-          h('small',{style:{display:'block',marginTop:'9px',color:'#6f6268'}},`Request ID: ${paymentRequest.request_code||paymentRequest.id||'—'}${paymentRequest.expires_at?` · Expires ${fmt(paymentRequest.expires_at)}`:''}`)
-        )
-      ),
+      advancePaymentModal&&h('div',{className:'samara-payment-modal',role:'dialog','aria-modal':'true'},h('div',{className:'samara-payment-backdrop',onClick:()=>!paymentRequestBusy&&setAdvancePaymentModal(false)}),h('div',{className:'samara-payment-card'},h('button',{type:'button',className:'samara-payment-close',disabled:paymentRequestBusy,onClick:()=>setAdvancePaymentModal(false),'aria-label':'Close'},'×'),h('div',{className:'samara-payment-brand'},h('img',{src:'./assets/samara-logo.png',alt:'Samara Assisted Living'})),h('div',{className:'samara-payment-heading'},h('div',{className:'samara-payment-icon'},'₹'),h('div',null,h('h2',null,'Enter Advance Payment'),h('p',null,'Create a secure Razorpay payment link for this patient.'))),h('label',{className:'samara-payment-label'},'Advance amount'),h('div',{className:'samara-amount-field'},h('span',null,'₹'),h('input',{type:'number',min:'1',max:'500000',step:'1',autoFocus:true,value:advancePaymentAmount,onChange:e=>setAdvancePaymentAmount(e.target.value),onKeyDown:e=>{if(e.key==='Enter'&&!paymentRequestBusy)createOnlinePaymentRequest('advance',advancePaymentAmount)}})),h('p',{className:'samara-payment-note'},'The family will receive a Razorpay-hosted secure payment link. Family Portal login is not required.'),h('div',{className:'samara-payment-actions'},h('button',{type:'button',className:'samara-btn secondary',disabled:paymentRequestBusy,onClick:()=>setAdvancePaymentModal(false)},'Cancel'),h('button',{type:'button',className:'samara-btn primary',disabled:paymentRequestBusy,onClick:()=>createOnlinePaymentRequest('advance',advancePaymentAmount)},paymentRequestBusy?'Preparing…':'Create Payment Link')))),
 
       patientFilter&&!ledgerReady&&h('div',{className:patientLedger.error?'message error':'message info'},patientLedger.error||'Loading complete patient ledger…'),
       (!patientFilter||ledgerReady)&&h('div',{className:'payment-summary-grid'},

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.15';
+  const APP_VERSION = '2.14.16';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -26943,6 +26943,16 @@ function ShiftHandover({profile,onNavigate}){
         .payment-summary-grid{grid-template-columns:1fr}
       }
 
+      /* Compact Samara online payment UI, aligned with Family Portal payment modal */
+      .online-payment-actions{grid-column:2;display:grid;grid-template-columns:1fr;gap:9px;width:min(100%,520px);justify-self:end}.online-payment-actions .btn{min-height:42px;padding:9px 14px}
+      .samara-pay-main{background:linear-gradient(100deg,#8d0648,#d91d70)!important;border-color:#b70e5c!important;color:#fff!important}
+      .samara-pay-advance{background:#fff0f6!important;border:1px solid #e7a8c5!important;color:#8c174d!important}
+      .samara-payment-workspace{margin:14px 0;padding:22px;border:1px solid #efc8da;border-radius:20px;background:linear-gradient(145deg,#fff 0%,#fff8fb 100%);box-shadow:0 10px 30px rgba(107,18,66,.08)}.samara-payment-page{max-width:1040px;margin:18px auto;padding:26px;border:1px solid #efc8da;border-radius:22px;background:linear-gradient(145deg,#fff 0%,#fff8fb 100%);box-shadow:0 12px 34px rgba(107,18,66,.09)}.samara-payment-page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:20px}.samara-payment-page-head h2{margin:3px 0 5px;color:#7f1045;font-size:26px}.samara-payment-page-head p{margin:0;color:#6d5964}
+      .samara-payment-workspace-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px}.samara-payment-workspace-head h2{margin:2px 0 4px;color:#7f1045;font-size:24px}.samara-payment-workspace-head p{margin:0;color:#6d5964}.samara-payment-eyebrow{font-size:11px;font-weight:900;letter-spacing:.12em;color:#c2185b}.samara-payment-back{background:#fff0f6!important;color:#8c174d!important;border:1px solid #efbfd4!important;white-space:nowrap}
+      .samara-payment-request-card{max-width:920px;margin:0 auto;border:1px solid #edc5d7;border-radius:18px;background:#fff;padding:20px}.samara-payment-request-summary{display:grid;grid-template-columns:1.4fr 1fr .8fr;gap:12px}.samara-payment-request-summary>div{padding:13px 15px;border-radius:13px;background:#fff5f9}.samara-payment-request-summary span,.samara-payment-link-box span{display:block;font-size:12px;color:#7b6872;margin-bottom:5px}.samara-payment-request-summary strong{color:#432331;font-size:16px}.samara-payment-request-amount{font-size:24px!important;color:#a10c52!important}.samara-payment-link-box{margin:14px 0;padding:12px 15px;border:1px dashed #e2a7c1;border-radius:12px;background:#fffafd}.samara-payment-link-box code{font-family:inherit;color:#6d2146;word-break:break-all}.samara-payment-action-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.samara-payment-request-foot{margin-top:12px;font-size:12px;color:#76636d}.samara-payment-preparing{max-width:620px;margin:20px auto;text-align:center;padding:30px;border:1px solid #efc8da;border-radius:18px;background:#fff}.samara-payment-preparing strong,.samara-payment-preparing span{display:block}.samara-payment-preparing strong{color:#9d0c52;font-size:18px}.samara-payment-preparing span{margin-top:7px;color:#6d5964}
+      .samara-payment-modal{position:fixed;inset:0;z-index:12000;display:flex;align-items:center;justify-content:center;padding:18px}.samara-payment-backdrop{position:absolute;inset:0;background:rgba(43,24,35,.62);backdrop-filter:blur(3px)}.samara-payment-card{position:relative;z-index:1;width:min(620px,100%);background:linear-gradient(145deg,#fff 0%,#fff9fc 100%);border:1px solid #f0c8da;border-radius:24px;box-shadow:0 28px 80px rgba(71,18,48,.28);padding:26px 30px 28px;color:#402434}.samara-payment-close{position:absolute;right:18px;top:18px;width:42px;height:42px;border:0;border-radius:50%;background:#f2edf0;color:#4b3742;font-size:27px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer}.samara-payment-brand img{width:150px;max-height:70px;object-fit:contain;object-position:left center;margin:0 0 18px}.samara-payment-heading{display:flex;gap:18px;align-items:center;padding-right:38px}.samara-payment-heading h2{margin:0;color:#9d0c52;font-size:1.65rem;line-height:1.15}.samara-payment-heading p{margin:7px 0 0;color:#65515d;font-size:1.05rem;line-height:1.45}.samara-payment-icon{flex:0 0 68px;width:68px;height:68px;border-radius:20px;background:#fde3ee;color:#9d0c52;display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:900}.samara-payment-label{display:block;margin:22px 0 8px;font-weight:900;color:#6f143f}.samara-amount-field{display:grid;grid-template-columns:58px 1fr;align-items:center;border:2px solid #e8549b;border-radius:13px;background:#fff;overflow:hidden}.samara-amount-field span{height:58px;display:flex;align-items:center;justify-content:center;background:#fff2f7;color:#6f143f;font-size:1.45rem;font-weight:900}.samara-amount-field input{height:58px;border:0!important;outline:0!important;padding:0 16px!important;font-size:1.65rem!important;font-weight:800;color:#301d27;background:#fff}.samara-payment-note{color:#5f4b56;font-size:1rem;line-height:1.5;margin:14px 0 0}.samara-payment-actions{display:flex;justify-content:space-between;gap:16px;margin-top:26px}.samara-btn{min-height:52px;border-radius:12px;padding:12px 24px;font-size:1.05rem;font-weight:900;cursor:pointer;border:1px solid #efbfd4}.samara-btn.secondary{background:#fff0f6;color:#8c174d}.samara-btn.primary{margin-left:auto;min-width:210px;color:#fff;border-color:#b70e5c;background:linear-gradient(100deg,#8d0648,#e11170);box-shadow:0 10px 22px rgba(177,13,91,.18)}.samara-payment-spinner{width:48px;height:48px;border:5px solid #f2cadc;border-top-color:#c51664;border-radius:50%;margin:0 auto 18px;animation:samara-payment-spin .8s linear infinite}@keyframes samara-payment-spin{to{transform:rotate(360deg)}}
+      @media(max-width:800px){.online-payment-actions{grid-column:1;width:100%;grid-template-columns:1fr}.samara-payment-page{margin:10px 0;padding:16px}.samara-payment-page-head{display:block}.samara-payment-request-summary{grid-template-columns:1fr}.samara-payment-action-grid{grid-template-columns:1fr 1fr}.samara-payment-workspace-head{display:block}.samara-payment-back{margin-top:12px}.samara-payment-card{padding:22px 18px 20px}.samara-payment-actions{display:grid;grid-template-columns:1fr 1.35fr}.samara-btn{min-width:0!important;padding:11px 12px}}
+
       /* v2.8.31 — PRINT/PDF: never print scrollable report containers */
       @media print{
         @page{
@@ -27443,12 +27453,11 @@ function ShiftHandover({profile,onNavigate}){
         catch(error){if(active&&sequence===current)setState({patientId,loading:false,rows:[],error:error.message||'Unable to verify charges'});}
       }
       refresh();
-      const timer=setInterval(refresh,15000);
       window.addEventListener('focus',refresh);
       window.addEventListener('samara-refresh-charges',refresh);
       const channel=patientId?client.channel('clearance-charges-'+patientId+'-'+Math.random())
         .on('postgres_changes',{event:'*',schema:'public',table:'bill_charge_requests',filter:'patient_id=eq.'+patientId},refresh).subscribe():null;
-      return()=>{active=false;clearInterval(timer);window.removeEventListener('focus',refresh);window.removeEventListener('samara-refresh-charges',refresh);if(channel)client.removeChannel(channel)};
+      return()=>{active=false;window.removeEventListener('focus',refresh);window.removeEventListener('samara-refresh-charges',refresh);if(channel)client.removeChannel(channel)};
     },[patientId]);
     return state.patientId===patientId?state:{patientId,loading:true,rows:[],error:''};
   }
@@ -27505,6 +27514,9 @@ function ShiftHandover({profile,onNavigate}){
     const [dailyPayableChecking,setDailyPayableChecking]=React.useState(false);
     const [paymentRequest,setPaymentRequest]=React.useState(null);
     const [paymentRequestBusy,setPaymentRequestBusy]=React.useState(false);
+    const [advancePaymentModal,setAdvancePaymentModal]=React.useState(false);
+    const [advancePaymentAmount,setAdvancePaymentAmount]=React.useState('');
+    const [paymentWorkspace,setPaymentWorkspace]=React.useState(false);
     const [refundRequest,setRefundRequest]=React.useState(null);
     const [refundLoading,setRefundLoading]=React.useState(false);
     const [activeAccountantPresent,setActiveAccountantPresent]=React.useState(false);
@@ -27560,17 +27572,17 @@ function ShiftHandover({profile,onNavigate}){
       setTimeout(()=>setToast(null),5000);
     }
 
-    async function createOnlinePaymentRequest(kind='outstanding'){
+    function openAdvancePaymentModal(){
+      if(!patientFilter){notify('error','Select patient','Select a patient before creating an online payment request.');return}
+      setAdvancePaymentAmount('');setAdvancePaymentModal(true);
+    }
+    async function createOnlinePaymentRequest(kind='outstanding',advanceAmount=null){
       if(!patientFilter){notify('error','Select patient','Select a patient before creating an online payment request.');return}
       if(kind==='outstanding'&&pendingBills<1){notify('error','No outstanding amount','This patient has no amount currently payable.');return}
-      let amount=kind==='outstanding'?pendingBills:0;
-      if(kind==='advance'){
-        const entered=window.prompt('Enter advance amount (₹):','');
-        if(entered===null)return;
-        amount=Number(String(entered).replace(/,/g,'').trim());
-        if(!Number.isFinite(amount)||amount<1||amount>500000){notify('error','Invalid amount','Enter an advance amount between ₹1 and ₹5,00,000.');return}
-      }
-      setPaymentRequestBusy(true);
+      let amount=kind==='outstanding'?pendingBills:Number(String(advanceAmount??'').replace(/,/g,'').trim());
+      if(kind==='advance'&&(!Number.isFinite(amount)||amount<1||amount>500000)){notify('error','Invalid amount','Enter an advance amount between ₹1 and ₹5,00,000.');return}
+      if(kind==='advance')setAdvancePaymentModal(false);
+      setPaymentRequestBusy(true);setPaymentWorkspace(true);
       try{
         const {data:{session}}=await client.auth.getSession();
         if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
@@ -27580,7 +27592,7 @@ function ShiftHandover({profile,onNavigate}){
         });
         const result=await response.json().catch(()=>({}));
         if(!response.ok||result.success===false)throw new Error(result.error||'Payment request could not be created.');
-        setPaymentRequest(result);
+        setPaymentRequest(result);setPaymentWorkspace(true);
         notify('success','Payment request created',`${kind==='advance'?'Advance':'Outstanding'} payment request for ${money(result.amount||amount)} is ready.`);
       }catch(error){notify('error','Payment request failed',error.message||String(error))}
       finally{setPaymentRequestBusy(false)}
@@ -27612,13 +27624,10 @@ function ShiftHandover({profile,onNavigate}){
       try{
         const {data:{session}}=await client.auth.getSession();
         if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
-        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/staff-payment-request`,{
-          method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session.access_token}`},
-          body:JSON.stringify({action:'cancel',request_id:paymentRequest.id})
-        });
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/staff-payment-request`,{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session.access_token}`},body:JSON.stringify({action:'cancel',request_id:paymentRequest.id})});
         const result=await response.json().catch(()=>({}));
         if(!response.ok||result.success===false)throw new Error(result.error||'Payment link could not be cancelled.');
-        setPaymentRequest(null);
+        setPaymentRequest(null);setPaymentWorkspace(false);
         notify('success','Payment link cancelled','The Razorpay payment link has been cancelled and can no longer be used.');
       }catch(error){notify('error','Cancellation failed',error.message||String(error))}
       finally{setPaymentRequestBusy(false)}
@@ -27705,13 +27714,12 @@ function ShiftHandover({profile,onNavigate}){
     React.useEffect(()=>{
       ensurePaymentSettlementStyle();
       load();
-      const paymentRefresh=setInterval(load,15000);
       window.addEventListener('samara-refresh-charges',load);
       const channel=client.channel('billing-payments-live-v216')
         .on('postgres_changes',{event:'*',schema:'public',table:'billing_transactions'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'patient_discharges'},load)
         .subscribe();
-      return()=>{clearInterval(paymentRefresh);window.removeEventListener('samara-refresh-charges',load);client.removeChannel(channel)};
+      return()=>{window.removeEventListener('samara-refresh-charges',load);client.removeChannel(channel)};
     },[]);
 
     React.useEffect(()=>{
@@ -28410,6 +28418,24 @@ Please access the Samara Family Portal for detailed account information.`;
       [balanceLabel,balanceDisplay,balanceTone,'signed']
     ];
 
+    if(paymentWorkspace){
+      return h(React.Fragment,null,
+        h('div',{className:'samara-payment-page'},
+          h('div',{className:'samara-payment-page-head'},
+            h('div',null,h('div',{className:'samara-payment-eyebrow'},'SAMARA SECURE PAYMENT'),h('h2',null,'Online Payment'),h('p',null,'Create, share or display the Razorpay payment request for the selected patient.')),
+            h('button',{type:'button',className:'btn samara-payment-back',disabled:paymentRequestBusy,onClick:()=>{setPaymentWorkspace(false);setPaymentRequest(null)}},'← Back to Payments')
+          ),
+          paymentRequestBusy&&h('div',{className:'samara-payment-preparing'},h('div',{className:'samara-payment-spinner'}),h('strong',null,'Preparing secure Razorpay payment link…'),h('span',null,'Please wait for a moment. Do not click again.')),
+          !paymentRequestBusy&&paymentRequest&&paymentRequest.patient_id===patientFilter&&h('div',{className:'samara-payment-request-card'},
+            h('div',{className:'samara-payment-request-summary'},h('div',null,h('span',null,'Patient'),h('strong',null,paymentRequest.patient_name||'Patient')),h('div',null,h('span',null,'Purpose'),h('strong',null,paymentRequest.payment_type==='advance'?'Advance Payment':'Outstanding Payment')),h('div',null,h('span',null,'Amount'),h('strong',{className:'samara-payment-request-amount'},money(paymentRequest.amount)))),
+            h('div',{className:'samara-payment-link-box'},h('span',null,'Secure Razorpay link'),h('code',null,paymentRequest.payment_url)),
+            h('div',{className:'samara-payment-action-grid'},h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendPaymentLinkWhatsApp},'Send via WhatsApp'),h('button',{type:'button',className:'btn btn-primary',onClick:showPaymentQr},'Show QR Code'),h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{await navigator.clipboard.writeText(paymentRequest.payment_url);notify('success','Link copied','Secure payment link copied to clipboard.')}},'Copy Link'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(paymentRequest.payment_url,'_blank','noopener')},'Open Razorpay'),h('button',{type:'button',className:'btn btn-danger',disabled:paymentRequestBusy,onClick:cancelOnlinePaymentRequest},'Cancel Payment Link')),
+            h('div',{className:'samara-payment-request-foot'},`Request ID: ${paymentRequest.request_code||paymentRequest.id||'—'}${paymentRequest.expires_at?` · Expires ${fmt(paymentRequest.expires_at)}`:''}`)
+          )
+        )
+      );
+    }
+
     return h(React.Fragment,null,
       dischargeTarget&&h(Section,{
         title:'Discharge Final Payment',
@@ -28469,30 +28495,14 @@ Please access the Samara Family Portal for detailed account information.`;
               onClick:()=>sendDailyBillWhatsAppApi({resend:true})
             },'Resend Daily Payable WhatsApp')
           )
-          ,patientFilter&&h(React.Fragment,null,
-            h('button',{type:'button',className:'btn btn-primary',disabled:paymentRequestBusy||pendingBills<1,onClick:()=>createOnlinePaymentRequest('outstanding')},paymentRequestBusy?'Preparing…':`Create Online Payment · ${money(pendingBills)}`),
-            h('button',{type:'button',className:'btn btn-secondary',disabled:paymentRequestBusy,onClick:()=>createOnlinePaymentRequest('advance')},'Create Advance Payment Link')
+          ,patientFilter&&h('div',{className:'online-payment-actions'},
+            h('button',{type:'button',className:'btn samara-pay-main',disabled:paymentRequestBusy||pendingBills<1,onClick:()=>createOnlinePaymentRequest('outstanding')},paymentRequestBusy?'Preparing secure link…':`Create Online Payment · ${money(pendingBills)}`),
+            h('button',{type:'button',className:'btn samara-pay-advance',disabled:paymentRequestBusy,onClick:openAdvancePaymentModal},'Advance Payment')
           )
         )
       ),
 
-      paymentRequest&&paymentRequest.patient_id===patientFilter&&h(Section,{title:'Online Payment Request',subtitle:'Razorpay-hosted secure payment link · Family Portal login is not required'},
-        h('div',{style:{background:'#fff',border:'1px solid #efc5d8',borderRadius:'14px',padding:'14px 16px',boxShadow:'0 3px 12px rgba(130,25,78,.06)'}},
-          h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'12px',flexWrap:'wrap'}},
-            h('strong',{style:{color:'#8f164f',fontSize:'16px'}},`${paymentRequest.payment_type==='advance'?'Advance':'Outstanding'} · ${money(paymentRequest.amount)}`),
-            h('button',{type:'button',className:'btn btn-secondary',style:{minWidth:'92px'},onClick:()=>setPaymentRequest(null)},'Close')
-          ),
-          h('div',{style:{marginTop:'7px',wordBreak:'break-all',fontSize:'13px',color:'#5f4b55'}},paymentRequest.payment_url),
-          h('div',{className:'payment-quick-buttons',style:{marginTop:'12px'}},
-            h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendPaymentLinkWhatsApp},'Send via WhatsApp'),
-            h('button',{type:'button',className:'btn btn-primary',onClick:showPaymentQr},'Show QR Code'),
-            h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{await navigator.clipboard.writeText(paymentRequest.payment_url);notify('success','Link copied','Secure payment link copied to clipboard.')}},'Copy Link'),
-            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(paymentRequest.payment_url,'_blank','noopener')},'Open Razorpay'),
-            h('button',{type:'button',className:'btn btn-danger',disabled:paymentRequestBusy,onClick:cancelOnlinePaymentRequest},paymentRequestBusy?'Cancelling…':'Cancel Payment Link')
-          ),
-          h('small',{style:{display:'block',marginTop:'9px',color:'#6f6268'}},`Request ID: ${paymentRequest.request_code||paymentRequest.id||'—'}${paymentRequest.expires_at?` · Expires ${fmt(paymentRequest.expires_at)}`:''}`)
-        )
-      ),
+      advancePaymentModal&&h('div',{className:'samara-payment-modal',role:'dialog','aria-modal':'true'},h('div',{className:'samara-payment-backdrop',onClick:()=>!paymentRequestBusy&&setAdvancePaymentModal(false)}),h('div',{className:'samara-payment-card'},h('button',{type:'button',className:'samara-payment-close',disabled:paymentRequestBusy,onClick:()=>setAdvancePaymentModal(false),'aria-label':'Close'},'×'),h('div',{className:'samara-payment-brand'},h('img',{src:'./assets/samara-logo.png',alt:'Samara Assisted Living'})),h('div',{className:'samara-payment-heading'},h('div',{className:'samara-payment-icon'},'₹'),h('div',null,h('h2',null,'Enter Advance Payment'),h('p',null,'Create a secure Razorpay payment link for this patient.'))),h('label',{className:'samara-payment-label'},'Advance amount'),h('div',{className:'samara-amount-field'},h('span',null,'₹'),h('input',{type:'number',min:'1',max:'500000',step:'1',autoFocus:true,value:advancePaymentAmount,onChange:e=>setAdvancePaymentAmount(e.target.value),onKeyDown:e=>{if(e.key==='Enter'&&!paymentRequestBusy)createOnlinePaymentRequest('advance',advancePaymentAmount)}})),h('p',{className:'samara-payment-note'},'The family will receive a Razorpay-hosted secure payment link. Family Portal login is not required.'),h('div',{className:'samara-payment-actions'},h('button',{type:'button',className:'samara-btn secondary',disabled:paymentRequestBusy,onClick:()=>setAdvancePaymentModal(false)},'Cancel'),h('button',{type:'button',className:'samara-btn primary',disabled:paymentRequestBusy,onClick:()=>createOnlinePaymentRequest('advance',advancePaymentAmount)},paymentRequestBusy?'Preparing…':'Create Payment Link')))),
 
       patientFilter&&!ledgerReady&&h('div',{className:patientLedger.error?'message error':'message info'},patientLedger.error||'Loading complete patient ledger…'),
       (!patientFilter||ledgerReady)&&h('div',{className:'payment-summary-grid'},

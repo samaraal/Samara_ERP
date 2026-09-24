@@ -24,12 +24,11 @@
         catch(error){if(active&&sequence===current)setState({patientId,loading:false,rows:[],error:error.message||'Unable to verify charges'});}
       }
       refresh();
-      const timer=setInterval(refresh,15000);
       window.addEventListener('focus',refresh);
       window.addEventListener('samara-refresh-charges',refresh);
       const channel=patientId?client.channel('clearance-charges-'+patientId+'-'+Math.random())
         .on('postgres_changes',{event:'*',schema:'public',table:'bill_charge_requests',filter:'patient_id=eq.'+patientId},refresh).subscribe():null;
-      return()=>{active=false;clearInterval(timer);window.removeEventListener('focus',refresh);window.removeEventListener('samara-refresh-charges',refresh);if(channel)client.removeChannel(channel)};
+      return()=>{active=false;window.removeEventListener('focus',refresh);window.removeEventListener('samara-refresh-charges',refresh);if(channel)client.removeChannel(channel)};
     },[patientId]);
     return state.patientId===patientId?state:{patientId,loading:true,rows:[],error:''};
   }
