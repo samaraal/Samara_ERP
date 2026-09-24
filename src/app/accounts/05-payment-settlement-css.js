@@ -218,7 +218,14 @@
         .accounts-report-actions .btn{flex:1 1 145px!important}
       }
 
-    `;
+    
+/* Samara payment WhatsApp send status */
+.samara-payment-send-status{display:flex;align-items:flex-start;gap:8px;margin:4px 0 12px;padding:11px 14px;border-radius:12px;background:#fff4f8;border:1px solid #f3bfd3;color:#6f1743;font-size:13px;line-height:1.35}
+.samara-payment-send-status strong{white-space:nowrap;color:#a20f57}.samara-payment-send-status span{color:#5e4a55}
+.samara-payment-send-status.progress{background:#fff8e8;border-color:#f1d58c}.samara-payment-send-status.progress strong{color:#8a5b00}
+.samara-payment-send-status.success{background:#edf9f2;border-color:#b9e4ca}.samara-payment-send-status.success strong{color:#137a45}
+.samara-payment-send-status.error{background:#fff0f1;border-color:#efc0c5}.samara-payment-send-status.error strong{color:#b42334}
+`;
     document.head.appendChild(style);
   };
 

@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.20';
-const CACHE = 'samara-erp-2.14.20-payment-contact-fix';
+const APP_VERSION = '2.14.21';
+const CACHE = 'samara-erp-2.14.21-payment-contact-fix';
 const SHELL = [
   './',
   './index.html',

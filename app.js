@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.20';
+  const APP_VERSION = '2.14.21';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -27101,7 +27101,14 @@ function ShiftHandover({profile,onNavigate}){
         .accounts-report-actions .btn{flex:1 1 145px!important}
       }
 
-    `;
+    
+/* Samara payment WhatsApp send status */
+.samara-payment-send-status{display:flex;align-items:flex-start;gap:8px;margin:4px 0 12px;padding:11px 14px;border-radius:12px;background:#fff4f8;border:1px solid #f3bfd3;color:#6f1743;font-size:13px;line-height:1.35}
+.samara-payment-send-status strong{white-space:nowrap;color:#a20f57}.samara-payment-send-status span{color:#5e4a55}
+.samara-payment-send-status.progress{background:#fff8e8;border-color:#f1d58c}.samara-payment-send-status.progress strong{color:#8a5b00}
+.samara-payment-send-status.success{background:#edf9f2;border-color:#b9e4ca}.samara-payment-send-status.success strong{color:#137a45}
+.samara-payment-send-status.error{background:#fff0f1;border-color:#efc0c5}.samara-payment-send-status.error strong{color:#b42334}
+`;
     document.head.appendChild(style);
   };
 
@@ -27514,6 +27521,8 @@ function ShiftHandover({profile,onNavigate}){
     const [dailyPayableChecking,setDailyPayableChecking]=React.useState(false);
     const [paymentRequest,setPaymentRequest]=React.useState(null);
     const [paymentRequestBusy,setPaymentRequestBusy]=React.useState(false);
+    const [paymentWhatsAppBusy,setPaymentWhatsAppBusy]=React.useState(false);
+    const [paymentWhatsAppStatus,setPaymentWhatsAppStatus]=React.useState(null);
     const [advancePaymentModal,setAdvancePaymentModal]=React.useState(false);
     const [advancePaymentAmount,setAdvancePaymentAmount]=React.useState('');
     const [paymentWorkspace,setPaymentWorkspace]=React.useState(false);
@@ -27640,7 +27649,9 @@ function ShiftHandover({profile,onNavigate}){
     }
 
     async function sendPaymentLinkWhatsApp(){
-      if(!paymentRequest?.payment_url)return;
+      if(!paymentRequest?.payment_url||paymentWhatsAppBusy)return;
+      setPaymentWhatsAppBusy(true);
+      setPaymentWhatsAppStatus({type:'progress',title:'Sending payment link…',detail:'Please wait while Samara sends the secure Razorpay link to the registered family WhatsApp number(s).'});
       try{
         const {data:{session}}=await client.auth.getSession();
         if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
@@ -27654,8 +27665,14 @@ function ShiftHandover({profile,onNavigate}){
         const sendResult=await sendResponse.json().catch(()=>({}));
         if(!sendResponse.ok||sendResult.success===false)throw new Error(sendResult.error||'WhatsApp payment link could not be sent.');
         const sent=Number(sendResult.sent||0),failed=Array.isArray(sendResult.failures)?sendResult.failures:[];
-        notify(failed.length?'error':'success',failed.length?'Partly sent':'Payment link sent',failed.length?`Sent to ${sent} contact(s). ${failed.join(' | ')}`:`WhatsApp payment link sent to ${sent} registered family contact(s).`);
-      }catch(error){notify('error','WhatsApp not sent',error.message||String(error))}
+        const detail=failed.length?`Sent to ${sent} contact(s). ${failed.join(' | ')}`:`WhatsApp payment link sent successfully to ${sent} registered family contact${sent===1?'':'s'}.`;
+        setPaymentWhatsAppStatus({type:failed.length?'error':'success',title:failed.length?'Partly sent':'Payment link sent successfully',detail});
+        notify(failed.length?'error':'success',failed.length?'Partly sent':'Payment link sent',detail);
+      }catch(error){
+        const detail=error.message||String(error);
+        setPaymentWhatsAppStatus({type:'error',title:'WhatsApp not sent',detail});
+        notify('error','WhatsApp not sent',detail);
+      }finally{setPaymentWhatsAppBusy(false)}
     }
 
     function money(value){
@@ -28439,7 +28456,8 @@ Please access the Samara Family Portal for detailed account information.`;
           !paymentRequestBusy&&paymentRequest&&paymentRequest.patient_id===patientFilter&&h('div',{className:'samara-payment-request-card'},
             h('div',{className:'samara-payment-request-summary'},h('div',null,h('span',null,'Patient'),h('strong',null,paymentRequest.patient_name||'Patient')),h('div',null,h('span',null,'Purpose'),h('strong',null,paymentRequest.payment_type==='advance'?'Advance Payment':'Outstanding Payment')),h('div',null,h('span',null,'Amount'),h('strong',{className:'samara-payment-request-amount'},money(paymentRequest.amount)))),
             h('div',{className:'samara-payment-link-box'},h('span',null,'Secure Razorpay link'),h('code',null,paymentRequest.payment_url)),
-            h('div',{className:'samara-payment-action-grid'},h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendPaymentLinkWhatsApp},'Send via WhatsApp'),h('button',{type:'button',className:'btn btn-secondary',disabled:true,title:'Direct UPI QR is not enabled for the Samara Razorpay merchant account.'},'Direct UPI QR Unavailable'),h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{await navigator.clipboard.writeText(paymentRequest.payment_url);notify('success','Link copied','Secure payment link copied to clipboard.')}},'Copy Link'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(paymentRequest.payment_url,'_blank','noopener')},'Open Razorpay'),h('button',{type:'button',className:'btn btn-danger',disabled:paymentRequestBusy,onClick:cancelOnlinePaymentRequest},'Cancel Payment Link')),
+            paymentWhatsAppStatus&&h('div',{className:`samara-payment-send-status ${paymentWhatsAppStatus.type||''}`},h('strong',null,paymentWhatsAppStatus.title),h('span',null,paymentWhatsAppStatus.detail)),
+            h('div',{className:'samara-payment-action-grid'},h('button',{type:'button',className:'btn btn-whatsapp',disabled:paymentWhatsAppBusy,onClick:sendPaymentLinkWhatsApp},paymentWhatsAppBusy?'Sending…':'Send via WhatsApp'),h('button',{type:'button',className:'btn btn-secondary',disabled:true,title:'Direct UPI QR is not enabled for the Samara Razorpay merchant account.'},'Direct UPI QR Unavailable'),h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{await navigator.clipboard.writeText(paymentRequest.payment_url);notify('success','Link copied','Secure payment link copied to clipboard.')}},'Copy Link'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(paymentRequest.payment_url,'_blank','noopener')},'Open Razorpay'),h('button',{type:'button',className:'btn btn-danger',disabled:paymentRequestBusy,onClick:cancelOnlinePaymentRequest},'Cancel Payment Link')),
             h('div',{className:'samara-payment-request-foot'},`Request ID: ${paymentRequest.request_code||paymentRequest.id||'—'}${paymentRequest.expires_at?` · Expires ${fmt(paymentRequest.expires_at)}`:''}`)
           )
         )
