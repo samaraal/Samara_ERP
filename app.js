@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.16';
+  const APP_VERSION = '2.14.17';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -27606,14 +27606,20 @@ function ShiftHandover({profile,onNavigate}){
     }
 
     async function showPaymentQr(){
-      if(!paymentRequest?.payment_url)return;
+      if(!paymentRequest?.id)return;
+      const w=window.open('','_blank','width=520,height=720');
+      if(!w){notify('error','QR could not be displayed','Allow pop-ups to display the payment QR code.');return}
+      w.document.write(`<!doctype html><html><head><title>Samara Payment QR</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;text-align:center;padding:24px;color:#5d1740;background:#fff7fb}main{max-width:440px;margin:auto;background:#fff;padding:28px;border-radius:20px;box-shadow:0 10px 35px #b0186720}h1{color:#b01867}.wait{font-size:18px;line-height:1.5}.spin{width:44px;height:44px;border:5px solid #f7d9e8;border-top-color:#b01867;border-radius:50%;margin:28px auto;animation:s 1s linear infinite}@keyframes s{to{transform:rotate(360deg)}}</style></head><body><main><h1>Samara Assisted Living</h1><div class="spin"></div><p class="wait">Preparing direct UPI Scan & Pay QR…<br>Please wait for a moment.</p></main></body></html>`);w.document.close();
       try{
-        const qr=await ensurePaymentQr();
-        const dataUrl=qr.toDataURL(paymentRequest.payment_url,{margin:3,scale:8});
-        const w=window.open('','_blank','width=520,height=720');
-        if(!w)throw new Error('Allow pop-ups to display the payment QR code.');
-        w.document.write(`<!doctype html><html><head><title>Samara Payment QR</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;text-align:center;padding:24px;color:#5d1740;background:#fff7fb}main{max-width:440px;margin:auto;background:#fff;padding:24px;border-radius:20px;box-shadow:0 10px 35px #b0186720}img{width:min(330px,85vw)}h1{color:#b01867}.amt{font-size:34px;font-weight:800}.small{font-size:13px;color:#765}</style></head><body><main><h1>Samara Assisted Living</h1><p>Scan to pay securely</p><div class="amt">${money(paymentRequest.amount)}</div><p>${paymentRequest.patient_name||''}<br>${paymentRequest.payment_type==='advance'?'Advance Payment':'Outstanding Payment'}</p><img src="${dataUrl}" alt="Payment QR"><p class="small">This QR opens the secure Razorpay payment link. Request expires ${paymentRequest.expires_at?fmt(paymentRequest.expires_at):'automatically'}.</p></main></body></html>`);w.document.close();
-      }catch(error){notify('error','QR could not be displayed',error.message||String(error))}
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/staff-payment-request`,{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session.access_token}`},body:JSON.stringify({action:'create_qr',request_id:paymentRequest.id})});
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok||result.success===false)throw new Error(result.error||'Direct UPI QR could not be created.');
+        setPaymentRequest(prev=>prev?{...prev,razorpay_qr_id:result.qr_id,razorpay_qr_image_url:result.qr_image_url}:prev);
+        w.document.open();
+        w.document.write(`<!doctype html><html><head><title>Samara Direct UPI QR</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;text-align:center;padding:24px;color:#5d1740;background:#fff7fb}main{max-width:440px;margin:auto;background:#fff;padding:24px;border-radius:20px;box-shadow:0 10px 35px #b0186720}img{width:min(340px,86vw);height:auto}h1{color:#b01867}.amt{font-size:34px;font-weight:800}.small{font-size:13px;color:#765;line-height:1.45}.upi{font-weight:700;color:#16814d}</style></head><body><main><h1>Samara Assisted Living</h1><p class="upi">Direct UPI Scan & Pay</p><div class="amt">${money(paymentRequest.amount)}</div><p>${paymentRequest.patient_name||''}<br>${paymentRequest.payment_type==='advance'?'Advance Payment':'Outstanding Payment'}</p><img src="${result.qr_image_url}" alt="Razorpay UPI QR"><p class="small">Scan this QR directly using Google Pay, PhonePe, Paytm or another UPI app.<br>Amount and Samara payment reference are fixed for this request.</p></main></body></html>`);w.document.close();
+      }catch(error){w.close();notify('error','QR could not be displayed',error.message||String(error))}
     }
 
     async function cancelOnlinePaymentRequest(){

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '2.14.16';
+  const VERSION = '2.14.17';
   let rendering = false;
 
   const escapeHtml = value => String(value ?? '')
@@ -64,7 +64,7 @@
     rendering = false;
   };
 
-  // v2.14.16: once the app is running, an error must NOT wipe the whole screen.
+  // v2.14.17: once the app is running, an error must NOT wipe the whole screen.
   // Before the app starts, the full "startup error" screen is still shown (as before).
   // After it starts, the error is logged to client_errors and a small notice is shown instead.
   const appIsRunning = () => {
