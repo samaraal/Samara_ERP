@@ -598,7 +598,6 @@
           h('h2',null,displayNavLabel(page,profile.role)),
           h(GlobalSearch,{onNavigate:setPage,profile}),
           h(StoreIndentAlerts,{profile,onNavigate:setPage}),
-          h(WorkflowActionPopups,{profile,onNavigate:setPage}),
           profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
           h('span',{className:'badge'},profile.role)
         ),
@@ -741,6 +740,10 @@
         (navDepth>0||page!==(homePageForProfile(profile)||allowed[0]))&&h('div',{className:'samara-float-nav','aria-label':'Back and Home'},
           h('button',{type:'button',className:'samara-float-back',onClick:goBackPage,'aria-label':'Go back',title:'Back'},'‹ Back'),
           h('button',{type:'button',className:'samara-float-home',onClick:()=>{if(pageEditedRef.current&&!window.confirm('Go to Home? Any entries you have not saved on this page will be lost.'))return;pageEditedRef.current=false;setPage(homePageForProfile(profile)||allowed[0]);window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}})},'aria-label':'Go to Home',title:'Home'},'⌂')),
+        // v2.14.38: workflow pop-ups (charge requests, discharge approvals) must render OUTSIDE the
+        // header. On phones the header is hidden while any pop-up is open, which previously hid
+        // this pop-up together with the header, menu and bottom bar (Accounts login froze).
+        h(WorkflowActionPopups,{profile,onNavigate:setPage}),
         h(MobileBottomNav,{page,setPage,allowed,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
         mobileDrawerOpen&&h(MobileNavigationDrawer,{profile,allowed,page,onNavigate:(next)=>{setPage(next);setMobileDrawerOpen(false)},onClose:()=>setMobileDrawerOpen(false)})
       )
