@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.26';
+  const APP_VERSION = '2.14.28';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -27603,7 +27603,7 @@ function ShiftHandover({profile,onNavigate}){
         if(!response.ok||result.success===false)throw new Error(result.error||'Payment request could not be created.');
         setPaymentRequest(result);setPaymentWorkspace(true);
         if(result.contact_prefilled===false)notify('warning','Payment link created – no mobile on file',`No active family mobile is registered for this patient, so Razorpay will ask the payer for a mobile number. Add the family mobile in Family Portal access (or set SAMARA_PAYMENT_CONTACT on the server) and create a new link to skip that step.`);
-        else notify('success','Payment request created',`${kind==='advance'?'Advance':'Outstanding'} payment request for ${money(result.amount||amount)} is ready.`);
+        else notify('success','Payment request created',`${kind==='advance'?'Advance':'Outstanding'} payment request for ${money(result.amount||amount)} is ready.${result.contact_masked?` Payer mobile ${result.contact_masked} is pre-filled, so Razorpay will not ask for it.`:''}`);
       }catch(error){notify('error','Payment request failed',error.message||String(error))}
       finally{setPaymentRequestBusy(false)}
     }
@@ -27635,13 +27635,61 @@ function ShiftHandover({profile,onNavigate}){
           const linkQr=qr.toDataURL(paymentRequest.payment_url,{errorCorrectionLevel:'M',size:340,margin:4});
           w.document.open();
           w.document.write(`<!doctype html><html><head><title>Samara Payment QR</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;text-align:center;padding:24px;color:#5d1740;background:#fff7fb}main{max-width:440px;margin:auto;background:#fff;padding:24px;border-radius:20px;box-shadow:0 10px 35px #b0186720}img{width:min(340px,86vw);height:auto}h1{color:#b01867}.amt{font-size:34px;font-weight:800}.small{font-size:13px;color:#765;line-height:1.45}.upi{font-weight:700;color:#16814d}.link{font-size:12px;word-break:break-all;color:#8a2a5c}</style></head><body><main><h1>Samara Assisted Living</h1><p class="upi">Scan &amp; Pay Securely</p><div class="amt">${money(paymentRequest.amount)}</div><p>${paymentRequest.patient_name||''}<br>${paymentRequest.payment_type==='advance'?'Advance Payment':'Outstanding Payment'}</p><img src="${linkQr}" alt="Razorpay payment link QR"><p class="small">Scan with the phone camera or Google Lens to open the secure Razorpay page, then pay by UPI (Google Pay, PhonePe, Paytm), card or net banking.<br>Amount and Samara payment reference are fixed for this request.</p><p class="link">${paymentRequest.payment_url}</p></main></body></html>`);w.document.close();
-          notify('warning','Payment-link QR shown','Razorpay direct UPI QR is not enabled on this Razorpay account, so a QR of the secure payment link is shown instead.');
+          notify('warning','Payment-link QR shown','Razorpay QR Codes is not yet enabled on the Samara Razorpay account, so a QR of the payment link is shown. Razorpay will ask the payer for a mobile number until QR Codes is enabled.');
           return;
         }
         setPaymentRequest(prev=>prev?{...prev,razorpay_qr_id:result.qr_id,razorpay_qr_image_url:result.qr_image_url}:prev);
         w.document.open();
-        w.document.write(`<!doctype html><html><head><title>Samara Direct UPI QR</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;text-align:center;padding:24px;color:#5d1740;background:#fff7fb}main{max-width:440px;margin:auto;background:#fff;padding:24px;border-radius:20px;box-shadow:0 10px 35px #b0186720}img{width:min(340px,86vw);height:auto}h1{color:#b01867}.amt{font-size:34px;font-weight:800}.small{font-size:13px;color:#765;line-height:1.45}.upi{font-weight:700;color:#16814d}</style></head><body><main><h1>Samara Assisted Living</h1><p class="upi">Direct UPI Scan & Pay</p><div class="amt">${money(paymentRequest.amount)}</div><p>${paymentRequest.patient_name||''}<br>${paymentRequest.payment_type==='advance'?'Advance Payment':'Outstanding Payment'}</p><img src="${result.qr_image_url}" alt="Razorpay UPI QR"><p class="small">Scan this QR directly using Google Pay, PhonePe, Paytm or another UPI app.<br>Amount and Samara payment reference are fixed for this request.</p></main></body></html>`);w.document.close();
+        w.document.write(`<!doctype html><html><head><title>Samara Direct UPI QR</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;text-align:center;padding:24px;color:#5d1740;background:#fff7fb}main{max-width:440px;margin:auto;background:#fff;padding:24px;border-radius:20px;box-shadow:0 10px 35px #b0186720}img{width:min(340px,86vw);height:auto}h1{color:#b01867}.amt{font-size:34px;font-weight:800}.small{font-size:13px;color:#765;line-height:1.45}.upi{font-weight:700;color:#16814d}</style></head><body><main><h1>Samara Assisted Living</h1><p class="upi">Direct UPI Scan & Pay</p><div class="amt">${money(paymentRequest.amount)}</div><p>${paymentRequest.patient_name||''}<br>${paymentRequest.payment_type==='advance'?'Advance Payment':'Outstanding Payment'}</p><img src="${result.qr_image_url}" alt="Razorpay UPI QR"><p class="small">Scan this QR directly using Google Pay, PhonePe, Paytm or another UPI app.<br>Amount and Samara payment reference are fixed for this request.</p><p id="samara-qr-status" class="small" style="font-weight:700;color:#8a2a5c">Waiting for payment… this window updates automatically.</p></main></body></html>`);w.document.close();
+        watchOnlinePayment(paymentRequest.id,w);
       }catch(error){w.close();notify('error','QR could not be displayed',error.message||String(error))}
+    }
+
+    const paymentWatchRef=React.useRef(null);
+    React.useEffect(()=>()=>{if(paymentWatchRef.current)clearInterval(paymentWatchRef.current)},[]);
+
+    async function reconcileOnlinePayment(requestId,{silent=false}={}){
+      const {data:{session}}=await client.auth.getSession();
+      if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
+      const response=await fetch(`${cfg.supabaseUrl}/functions/v1/staff-payment-request`,{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session.access_token}`},body:JSON.stringify({action:'reconcile',request_id:requestId})});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok||result.success===false)throw new Error(result.error||'Payment status could not be checked.');
+      if(result.status==='Paid'){
+        setPaymentRequest(prev=>prev&&prev.id===requestId?{...prev,status:'Paid',razorpay_payment_id:result.payment_id}:prev);
+        notify('success','Payment received',`Online payment received and posted to the patient ledger${result.payment_id?` (Razorpay ${result.payment_id})`:''}.`);
+        try{await load()}catch(_){}
+      }else if(!silent){
+        notify('warning','Not paid yet','Razorpay has not received this payment yet. Check again after the family completes the payment.');
+      }
+      return result;
+    }
+
+    function watchOnlinePayment(requestId,popup){
+      if(paymentWatchRef.current)clearInterval(paymentWatchRef.current);
+      const started=Date.now();let busy=false;
+      const setPopup=(html,color)=>{try{const el=popup&&!popup.closed&&popup.document.getElementById('samara-qr-status');if(el){el.innerHTML=html;if(color)el.style.color=color}}catch(_){}};
+      paymentWatchRef.current=setInterval(async()=>{
+        if(busy)return;
+        const popupOpen=popup&&!popup.closed;
+        if(Date.now()-started>20*60*1000||!popupOpen){clearInterval(paymentWatchRef.current);paymentWatchRef.current=null;return}
+        busy=true;
+        try{
+          const result=await reconcileOnlinePayment(requestId,{silent:true});
+          if(result.status==='Paid'){
+            clearInterval(paymentWatchRef.current);paymentWatchRef.current=null;
+            setPopup('✅ Payment received and posted to the Samara ledger. You may close this window.','#16814d');
+          }
+        }catch(error){console.warn('[Samara payments] status check failed:',error)}
+        finally{busy=false}
+      },5000);
+    }
+
+    async function checkOnlinePaymentStatus(){
+      if(!paymentRequest?.id)return;
+      setPaymentRequestBusy(true);
+      try{await reconcileOnlinePayment(paymentRequest.id)}
+      catch(error){notify('error','Status check failed',error.message||String(error))}
+      finally{setPaymentRequestBusy(false)}
     }
 
     async function cancelOnlinePaymentRequest(){
@@ -28468,9 +28516,9 @@ Please access the Samara Family Portal for detailed account information.`;
           paymentRequestBusy&&h('div',{className:'samara-payment-preparing'},h('div',{className:'samara-payment-spinner'}),h('strong',null,'Preparing secure Razorpay payment link…'),h('span',null,'Please wait for a moment. Do not click again.')),
           !paymentRequestBusy&&paymentRequest&&paymentRequest.patient_id===patientFilter&&h('div',{className:'samara-payment-request-card'},
             h('div',{className:'samara-payment-request-summary'},h('div',null,h('span',null,'Patient'),h('strong',null,paymentRequest.patient_name||'Patient')),h('div',null,h('span',null,'Purpose'),h('strong',null,paymentRequest.payment_type==='advance'?'Advance Payment':'Outstanding Payment')),h('div',null,h('span',null,'Amount'),h('strong',{className:'samara-payment-request-amount'},money(paymentRequest.amount)))),
-            h('div',{className:'samara-payment-link-box'},h('span',null,'Secure Razorpay link'),h('code',null,paymentRequest.payment_url)),
+            h('div',{className:'samara-payment-link-box'},h('span',null,'Secure Razorpay link'),h('code',null,paymentRequest.payment_url),paymentRequest.contact_masked?h('small',{style:{display:'block',marginTop:'6px',color:'#16814d'}},`Payer mobile pre-filled: ${paymentRequest.contact_masked}`):paymentRequest.contact_prefilled===false?h('small',{style:{display:'block',marginTop:'6px',color:'#b45309'}},'No family mobile found. Razorpay will ask the payer for a mobile number.'):null),
             paymentWhatsAppStatus&&h('div',{className:`samara-payment-send-status ${paymentWhatsAppStatus.type||''}`},h('div',{className:'samara-payment-send-icon','aria-hidden':'true'},paymentWhatsAppStatus.type==='progress'?'↻':paymentWhatsAppStatus.type==='success'?'✓':'!'),h('div',{className:'samara-payment-send-copy'},h('strong',null,paymentWhatsAppStatus.title),h('span',null,paymentWhatsAppStatus.detail))),
-            h('div',{className:'samara-payment-action-grid'},h('button',{type:'button',className:'btn btn-whatsapp',disabled:paymentWhatsAppBusy,onClick:sendPaymentLinkWhatsApp},paymentWhatsAppBusy?'Sending…':'Send via WhatsApp'),h('button',{type:'button',className:'btn btn-primary',disabled:paymentRequestBusy,onClick:showPaymentQr,title:'Create a fixed-amount Razorpay UPI QR for this payment request. No family mobile number or email is sent for QR creation.'},'Show Direct UPI QR'),h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{await navigator.clipboard.writeText(paymentRequest.payment_url);notify('success','Link copied','Secure payment link copied to clipboard.')}},'Copy Link'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(paymentRequest.payment_url,'_blank','noopener')},'Open Razorpay'),h('button',{type:'button',className:'btn btn-danger',disabled:paymentRequestBusy,onClick:cancelOnlinePaymentRequest},'Cancel Payment Link')),
+            h('div',{className:'samara-payment-action-grid'},h('button',{type:'button',className:'btn btn-whatsapp',disabled:paymentWhatsAppBusy,onClick:sendPaymentLinkWhatsApp},paymentWhatsAppBusy?'Sending…':'Send via WhatsApp'),h('button',{type:'button',className:'btn btn-primary',disabled:paymentRequestBusy,onClick:showPaymentQr,title:'Create a fixed-amount Razorpay UPI QR for this payment request. No family mobile number or email is sent for QR creation.'},'Show Direct UPI QR'),h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{await navigator.clipboard.writeText(paymentRequest.payment_url);notify('success','Link copied','Secure payment link copied to clipboard.')}},'Copy Link'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(paymentRequest.payment_url,'_blank','noopener')},'Open Razorpay'),h('button',{type:'button',className:'btn btn-secondary',disabled:paymentRequestBusy,onClick:checkOnlinePaymentStatus},'Check Payment Status'),h('button',{type:'button',className:'btn btn-danger',disabled:paymentRequestBusy||paymentRequest.status==='Paid',onClick:cancelOnlinePaymentRequest},'Cancel Payment Link')),
             h('div',{className:'samara-payment-request-foot'},`Request ID: ${paymentRequest.request_code||paymentRequest.id||'—'}${paymentRequest.expires_at?` · Expires ${fmt(paymentRequest.expires_at)}`:''}`)
           )
         )
