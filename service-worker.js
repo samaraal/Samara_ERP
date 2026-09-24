@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.36';
-const CACHE = 'samara-erp-2.14.36-back-navigation';
+const APP_VERSION = '2.14.37';
+const CACHE = 'samara-erp-2.14.37-mobile-home-signout';
 const SHELL = [
   './',
   './index.html',

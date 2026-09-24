@@ -62,6 +62,7 @@
 
       /* v2.8.22 — iPhone / Android mobile workspace polish */
       .mobile-bottom-nav{display:none!important}
+      .mobile-global-home,.mobile-global-signout{display:none!important}
 
       @media(max-width:760px){
         html,body,#root,.app{max-width:100%;overflow-x:hidden}
@@ -164,6 +165,10 @@
         }
         .mobile-menu option,.mobile-menu optgroup{background:#fff!important;color:#382333!important}
 
+        .global-page-tools .mobile-global-home,
+        .global-page-tools .mobile-global-signout{display:inline-flex!important;align-items:center!important;justify-content:center!important;font-weight:900!important}
+        .global-page-tools .mobile-global-home{margin-right:auto!important}
+        .global-page-tools .mobile-global-signout{color:#8a124f!important;border-color:#e7bfd1!important;background:#fff7fb!important}
         .content{
           padding:14px!important;
           padding-bottom:calc(96px + env(safe-area-inset-bottom))!important;

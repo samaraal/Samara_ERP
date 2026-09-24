@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.36';
+  const APP_VERSION = '2.14.37';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -4381,6 +4381,7 @@ https://samaraassistedliving.com/`;
 
       /* v2.8.22 — iPhone / Android mobile workspace polish */
       .mobile-bottom-nav{display:none!important}
+      .mobile-global-home,.mobile-global-signout{display:none!important}
 
       @media(max-width:760px){
         html,body,#root,.app{max-width:100%;overflow-x:hidden}
@@ -4483,6 +4484,10 @@ https://samaraassistedliving.com/`;
         }
         .mobile-menu option,.mobile-menu optgroup{background:#fff!important;color:#382333!important}
 
+        .global-page-tools .mobile-global-home,
+        .global-page-tools .mobile-global-signout{display:inline-flex!important;align-items:center!important;justify-content:center!important;font-weight:900!important}
+        .global-page-tools .mobile-global-home{margin-right:auto!important}
+        .global-page-tools .mobile-global-signout{color:#8a124f!important;border-color:#e7bfd1!important;background:#fff7fb!important}
         .content{
           padding:14px!important;
           padding-bottom:calc(96px + env(safe-area-inset-bottom))!important;
@@ -7539,7 +7544,9 @@ https://samaraassistedliving.com/`;
         h(MobileMenu,{page,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
         h('div',{className:'global-page-tools'},
           (navDepth>0||page!==(homePageForProfile(profile)||allowed[0]))&&h('button',{type:'button',className:'btn btn-secondary global-back-button',onClick:goBackPage,title:'Go back to the previous page','aria-label':'Go back'},'‹ Back'),
-          h('button',{type:'button',className:'btn btn-secondary',onClick:refreshCurrentPage,title:'Reload the current page data','aria-label':'Refresh current page'},'↻ Refresh')),
+          h('button',{type:'button',className:'btn btn-secondary mobile-global-home',onClick:()=>{pageEditedRef.current=false;setPage(homePageForProfile(profile)||allowed[0]);window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}})},title:'Go to Home','aria-label':'Go to Home'},'⌂ Home'),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:refreshCurrentPage,title:'Reload the current page data','aria-label':'Refresh current page'},'↻ Refresh'),
+          h('button',{type:'button',className:'btn btn-secondary mobile-global-signout',onClick:async()=>{if(!window.confirm('Are you sure you want to sign out?'))return;await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');await client.auth.signOut()},title:'Sign out of Samara Care','aria-label':'Sign out'},'⇥ Sign Out')),
         h(NursingMobileQuickActions,{profile,page,onNavigate:setPage}),
         h(window.SamaraDutySwap.DailyNotice,dutyNotice),
         h(window.SamaraDischargeWorkflow.Banner,{client,profile,onNavigate:setPage}),
