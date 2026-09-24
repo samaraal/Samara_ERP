@@ -17052,7 +17052,7 @@ Please keep these login details confidential.`;
         h('span',{className:'icon','aria-hidden':'true'},'!'),
         h('div',null,
           h('strong',null,'Admission could not be saved'),
-          h('span',null,admissionErrorToast)
+          h('span',null,samaraFriendlyError(admissionErrorToast))
         ),
         h('button',{
           type:'button',
