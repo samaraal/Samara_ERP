@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.25';
+  const APP_VERSION = '2.14.26';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -27602,7 +27602,8 @@ function ShiftHandover({profile,onNavigate}){
         const result=await response.json().catch(()=>({}));
         if(!response.ok||result.success===false)throw new Error(result.error||'Payment request could not be created.');
         setPaymentRequest(result);setPaymentWorkspace(true);
-        notify('success','Payment request created',`${kind==='advance'?'Advance':'Outstanding'} payment request for ${money(result.amount||amount)} is ready.`);
+        if(result.contact_prefilled===false)notify('warning','Payment link created – no mobile on file',`No active family mobile is registered for this patient, so Razorpay will ask the payer for a mobile number. Add the family mobile in Family Portal access (or set SAMARA_PAYMENT_CONTACT on the server) and create a new link to skip that step.`);
+        else notify('success','Payment request created',`${kind==='advance'?'Advance':'Outstanding'} payment request for ${money(result.amount||amount)} is ready.`);
       }catch(error){notify('error','Payment request failed',error.message||String(error))}
       finally{setPaymentRequestBusy(false)}
     }
