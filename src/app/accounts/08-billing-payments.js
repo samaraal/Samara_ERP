@@ -125,7 +125,7 @@
         const dataUrl=qr.toDataURL(paymentRequest.payment_url,{margin:3,scale:8});
         const w=window.open('','_blank','width=520,height=720');
         if(!w)throw new Error('Allow pop-ups to display the payment QR code.');
-        w.document.write(`<!doctype html><html><head><title>Samara Payment QR</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;text-align:center;padding:24px;color:#5d1740;background:#fff7fb}main{max-width:440px;margin:auto;background:#fff;padding:24px;border-radius:20px;box-shadow:0 10px 35px #b0186720}img{width:min(330px,85vw)}h1{color:#b01867}.amt{font-size:34px;font-weight:800}.small{font-size:13px;color:#765}</style></head><body><main><h1>Samara Assisted Living</h1><p>Scan to pay securely</p><div class="amt">${money(paymentRequest.amount)}</div><p>${paymentRequest.patient_name||''}<br>${paymentRequest.payment_type==='advance'?'Advance Payment':'Outstanding Payment'}</p><img src="${dataUrl}" alt="Payment QR"><p class="small">This QR opens Samara's secure Razorpay payment page. Request expires ${paymentRequest.expires_at?fmt(paymentRequest.expires_at):'automatically'}.</p></main></body></html>`);w.document.close();
+        w.document.write(`<!doctype html><html><head><title>Samara Payment QR</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;text-align:center;padding:24px;color:#5d1740;background:#fff7fb}main{max-width:440px;margin:auto;background:#fff;padding:24px;border-radius:20px;box-shadow:0 10px 35px #b0186720}img{width:min(330px,85vw)}h1{color:#b01867}.amt{font-size:34px;font-weight:800}.small{font-size:13px;color:#765}</style></head><body><main><h1>Samara Assisted Living</h1><p>Scan to pay securely</p><div class="amt">${money(paymentRequest.amount)}</div><p>${paymentRequest.patient_name||''}<br>${paymentRequest.payment_type==='advance'?'Advance Payment':'Outstanding Payment'}</p><img src="${dataUrl}" alt="Payment QR"><p class="small">This QR opens the secure Razorpay payment link. Request expires ${paymentRequest.expires_at?fmt(paymentRequest.expires_at):'automatically'}.</p></main></body></html>`);w.document.close();
       }catch(error){notify('error','QR could not be displayed',error.message||String(error))}
     }
 
@@ -981,7 +981,7 @@ Please access the Samara Family Portal for detailed account information.`;
         )
       ),
 
-      paymentRequest&&paymentRequest.patient_id===patientFilter&&h(Section,{title:'Online Payment Request',subtitle:'Family Portal login is not required · Same Samara Razorpay account'},
+      paymentRequest&&paymentRequest.patient_id===patientFilter&&h(Section,{title:'Online Payment Request',subtitle:'Razorpay-hosted secure payment link · Family Portal login is not required'},
         h('div',{className:'message success'},
           h('strong',null,`${paymentRequest.payment_type==='advance'?'Advance':'Outstanding'} · ${money(paymentRequest.amount)}`),
           h('div',{style:{marginTop:'6px',wordBreak:'break-all'}},paymentRequest.payment_url),
@@ -989,7 +989,7 @@ Please access the Samara Family Portal for detailed account information.`;
             h('button',{type:'button',className:'btn btn-whatsapp',onClick:sendPaymentLinkWhatsApp},'Send Payment Link · WhatsApp API'),
             h('button',{type:'button',className:'btn btn-primary',onClick:showPaymentQr},'Show QR Code'),
             h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{await navigator.clipboard.writeText(paymentRequest.payment_url);notify('success','Link copied','Secure payment link copied to clipboard.')}},'Copy Payment Link'),
-            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(paymentRequest.payment_url,'_blank','noopener')},'Open Payment Page')
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(paymentRequest.payment_url,'_blank','noopener')},'Open Razorpay Payment Link')
           ),
           h('small',null,`Request ID: ${paymentRequest.request_code||paymentRequest.id||'—'}${paymentRequest.expires_at?` · Expires ${fmt(paymentRequest.expires_at)}`:''}`)
         )
