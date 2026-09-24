@@ -1063,7 +1063,7 @@
       // escalation RPC first and WAIT for it. Previously this was fire-and-forget,
       // so the Nurse screen could remain "Overdue" until a later refresh.
       const thresholdCandidates=list.filter(a=>
-        Number(a.overdue_minutes)>=(String(a.alert_type||'').toLowerCase()==='vital signs'?90:escalationMinutes) &&
+        Number(a.overdue_minutes)>=(String(a.alert_type||'').toLowerCase()==='vital signs'?60:escalationMinutes) &&
         !['regularisation','daily care'].includes(String(a.alert_type||'').toLowerCase()) &&
         !String(a.title||'').toLowerCase().includes('backlog regularisation')
       );
@@ -1083,11 +1083,16 @@
       try{
         const {data:escRows,error:escError}=await client
           .from('clinical_alert_escalations')
-          .select('alert_key,alert_type,source_id,patient_id,due_at,resolved_at')
+          .select('alert_key,alert_type,source_id,patient_id,due_at,resolved_at,escalated_to_role')
           .is('resolved_at',null)
           .limit(500);
         if(escError)throw escError;
         openEscalations=escRows||[];
+        // v2.14.32: Vital Signs escalate to Managers at 60 min and to Admin/Directors at 90 min.
+        // Admin/Director screens ignore vitals escalations still at the Manager level.
+        const viewerRole=String(profile?.role||'').trim().toLowerCase();
+        const adminTierViewer=['admin','administrator','director'].includes(viewerRole);
+        if(adminTierViewer)openEscalations=openEscalations.filter(e=>!(String(e.alert_type||'').toLowerCase()==='vital signs'&&String(e.escalated_to_role||'')==='Manager'));
       }catch(escError){
         console.warn('Clinical escalation status:',escError?.message||escError);
       }
