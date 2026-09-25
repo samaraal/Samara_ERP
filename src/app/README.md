@@ -120,7 +120,7 @@ helper it uses, before `z-end/...`). The build refuses to run if a file is missi
 | 64 | `accounts/07-charge-readiness.js` | 56 | Unposted charge checks |
 | 65 | `accounts/08-billing-payments.js` | 1172 | Billing & payments |
 | 66 | `stores/store-authority-items.js` | 236 | Store in-charge, item master, pharmacy stock; duplicate-billing guard vs Nursing Procedure Codes |
-| 67 | `stores/consumables-stores.js` | 354 | Consumables stores (Standard Category tagging + filter, category-prefix naming for Pharmacy) |
+| 67 | `stores/consumables-stores.js` | 416 | Consumables stores (Standard Category tagging + filter, category-prefix naming for Pharmacy, Clean Up Item Names) |
 | 68 | `stores/patient-consumables.js` | 131 | Patient consumables |
 | 69 | `accounts/09-clinical-charges.js` | 822 | Charge master (category filter + auto-generated IDs), clinical charges (store-rate approval fix) |
 | 70 | `reports/whatsapp-delivery-logs.js` | 51 | WhatsApp delivery logs |

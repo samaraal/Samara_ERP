@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.54 — Pharmacy & Stores: Clean Up Item Names
+- Some items were entered with that day's received quantity stuck onto the end of the name by mistake (e.g. "INJ.ADRENALINE 1ML-2" — the "-2" being the quantity received, not part of the medicine's name).
+- New "Clean Up Item Names" button (Current Stock section, Pharmacy & Stores) finds every item ending in "-<number>" and shows a review list (current name vs. proposed clean name) before touching anything — untick, or hand-edit, any row that's actually a genuine code ending in a number (e.g. "U-40" on an insulin syringe) rather than a mistaken quantity, then Apply only renames the ticked rows.
+- Renaming an item only changes its display name going forward; its stock history, receipts and past charges stay linked by the item's internal ID and are unaffected.
+- No database changes; reuses the existing item-rename permission and RPC (`store_incharge_edit_item`) already used by "Edit Item".
+
 ## 2.14.53 — Fix: 2.14.52's category filter hid every existing item
 - Bug: right after 2.14.52, since no item had a Standard Category yet, choosing "Tablets" (or any category) in Standard Item List made "Existing Inventory Item" show nothing at all — the exact items it was meant to help find were now hidden until someone tagged them first.
 - Fix: the filter now only applies once at least one item is actually tagged with that category. Until then, picking a category shows every item in the section exactly as before (with a note that nothing is tagged yet), so Receive from Vendor is never blocked while tagging is still in progress.

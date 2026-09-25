@@ -10,6 +10,7 @@
     const [movementPeriod,setMovementPeriod]=React.useState('month'),[movementItem,setMovementItem]=React.useState('All'),[movementFrom,setMovementFrom]=React.useState(todayISOIndia().slice(0,8)+'01'),[movementTo,setMovementTo]=React.useState(todayISOIndia());
     const [historyItem,setHistoryItem]=React.useState(null),[historyLedger,setHistoryLedger]=React.useState([]),[historyReceipts,setHistoryReceipts]=React.useState([]),[historyBusy,setHistoryBusy]=React.useState(false);
     const [categoryEditItem,setCategoryEditItem]=React.useState(null),[categoryEditValue,setCategoryEditValue]=React.useState('');
+    const [cleanupCandidates,setCleanupCandidates]=React.useState(null);
     const [form,setForm]=React.useState({item_category:categoryFilter==='Pharmacy'?'Pharmacy':'Stores / Consumables',catalog_item:'',item_id:'',new_item_name:'',unit:'Nos',vendor_name:'',invoice_no:'',invoice_date:'',received_date:todayISOIndia(),quantity:'1',batch_no:'',expiry_date:'',unit_cost:'',remarks:'',generic_name:'',brand_name:'',strength:'',dosage_form:'Tablet',manufacturer:'',pack_size:''});
     const units=['Nos','Pairs','Packs','Boxes','Pieces','Rolls','Sets','Bottles'];
     const basicPharmacyUnits={"Glucometer Strips": "Nos", "Lancets": "Nos", "Alcohol Swabs": "Nos", "Digital Thermometer": "Nos", "Thermometer Probe Covers": "Nos", "Pulse Oximeter": "Nos", "BP Cuff / Spare Cuff": "Nos", "Sterile Gauze Pads - 2 x 2": "Nos", "Sterile Gauze Pads - 4 x 4": "Nos", "Cotton Rolls": "Rolls", "Cotton Balls": "Nos", "Micropore Adhesive Tape": "Rolls", "Sterile Dressing Pads": "Nos", "Crepe Bandage - 2 inch": "Rolls", "Crepe Bandage - 4 inch": "Rolls", "Crepe Bandage - 6 inch": "Rolls", "Roller / Gauze Bandages": "Rolls", "Disposable Examination Gloves - S": "Pieces", "Disposable Examination Gloves - M": "Pieces", "Disposable Examination Gloves - L": "Pieces", "Surgical Masks": "Nos", "Disposable Syringe - 1 mL": "Nos", "Disposable Syringe - 2 mL": "Nos", "Disposable Syringe - 3 mL": "Nos", "Disposable Syringe - 5 mL": "Nos", "Disposable Syringe - 10 mL": "Nos", "Disposable Syringe - 20 mL": "Nos", "Needle - 18G": "Nos", "Needle - 20G": "Nos", "Needle - 21G": "Nos", "Needle - 22G": "Nos", "Needle - 23G": "Nos", "Needle - 24G": "Nos", "Needle - 25G": "Nos", "Needle - 26G": "Nos", "Insulin Syringe - U-40": "Nos", "Insulin Syringe - U-100": "Nos", "Insulin Pen Needle - 4 mm": "Nos", "Insulin Pen Needle - 5 mm": "Nos", "Insulin Pen Needle - 6 mm": "Nos", "Insulin Pen Needle - 8 mm": "Nos", "IV Cannula - 18G": "Nos", "IV Cannula - 20G": "Nos", "IV Cannula - 22G": "Nos", "IV Cannula - 24G": "Nos", "IV Sets": "Nos", "IV Extension Lines": "Nos", "Normal Saline Flush Syringes": "Nos", "Urine Specimen Containers": "Nos", "Disposable Urine Measuring Containers": "Nos", "Adult Urine Bags": "Nos", "Nebulizer Mask / Kit - Adult": "Nos", "Oxygen Nasal Cannula": "Nos", "Oxygen Masks": "Nos", "Suction Catheter - 10 Fr": "Nos", "Suction Catheter - 12 Fr": "Nos", "Suction Catheter - 14 Fr": "Nos", "Suction Catheter - 16 Fr": "Nos", "Feeding Syringe - 50 mL": "Nos", "Feeding Syringe - 60 mL": "Nos", "Disposable Underpads": "Nos", "Tongue Depressors": "Nos", "Hand Sanitizer": "Bottles", "Povidone-iodine Solution": "Bottles", "Chlorhexidine Antiseptic - As per Samara Protocol": "Bottles", "Normal Saline for Wound Cleansing": "Bottles", "Sharps Disposal Containers": "Nos", "Biomedical-waste Bags": "Nos"};
@@ -85,6 +86,41 @@
       }
       setBusy(false);
       notifyStore(failed?'error':'success',`${done} item(s) auto-tagged.${failed?` ${failed} could not be saved — try again.`:''} Please spot-check using each item's Category button; matches from a plain name search may not always be exact.`);
+      await load();
+    }
+    // Some items were entered with the received quantity stuck onto the end of the
+    // name by mistake (e.g. "INJ.ADRENALINE 1ML-2" instead of "INJ.ADRENALINE 1ML",
+    // the "-2" being that day's quantity, not part of the item). This finds items
+    // ending in "-<number>" for review, never renames anything without a human
+    // checking each suggestion first — a few legitimate names also end in a
+    // hyphen + number (e.g. an "Insulin Syringe - U-40" strength code) and must
+    // stay unchanged, so every row can be unchecked or hand-edited before Apply.
+    function openCleanupNames(){
+      const relevant=categoryFilter?itemMaster.filter(m=>(m.item_category||'Consumables')===categoryFilter):itemMaster;
+      const candidates=relevant.filter(m=>m.active!==false).map(m=>{
+        const oldName=String(m.item_name||'').trim();
+        const newName=oldName.replace(/-\d{1,3}$/,'').trim();
+        return {id:m.id,oldName,newName,unit:m.unit,strength:m.strength,dosage_form:m.dosage_form,selected:true};
+      }).filter(c=>c.newName&&c.newName!==c.oldName);
+      if(!candidates.length){notifyStore('error','No item names ending in "-<number>" were found in this section.');return}
+      setCleanupCandidates(candidates);
+    }
+    function toggleCleanupCandidate(id){setCleanupCandidates(list=>list.map(c=>c.id===id?{...c,selected:!c.selected}:c))}
+    function editCleanupCandidateName(id,value){setCleanupCandidates(list=>list.map(c=>c.id===id?{...c,newName:value}:c))}
+    async function applyCleanupNames(){
+      if(!cleanupCandidates||busy)return;
+      const selected=cleanupCandidates.filter(c=>c.selected&&c.newName.trim()&&c.newName.trim()!==c.oldName);
+      if(!selected.length){setCleanupCandidates(null);return}
+      setBusy(true);
+      let done=0,failed=0;
+      for(let i=0;i<selected.length;i+=10){
+        const batch=selected.slice(i,i+10);
+        const results=await Promise.all(batch.map(c=>client.rpc('store_incharge_edit_item',{p_item_id:c.id,p_item_name:c.newName.trim(),p_unit:String(c.unit||'Nos').trim(),p_strength:c.strength||null,p_dosage_form:c.dosage_form||null})));
+        results.forEach(r=>r.error?failed++:done++);
+      }
+      setBusy(false);
+      notifyStore(failed?'error':'success',`${done} item name(s) cleaned up.${failed?` ${failed} failed — try again.`:''}`);
+      setCleanupCandidates(null);
       await load();
     }
     async function receiveStock(e){
@@ -251,7 +287,10 @@
         )
       ),
       h('div',{id:'stores-current-stock',style:{scrollMarginTop:'90px'}},h(Section,{title:`Current ${categoryFilter||'Pharmacy & Stores'} Stock${stockView!=='All'?` — ${stockView}`:''}`,subtitle:'Tap History on any item to see its complete stock-wise movement trail: vendor receipts, patient handovers/issues, confirmed returns and balance after every movement. Use Category to tag an item so it appears when that Standard Item List category is chosen above.'},
-        controller&&untaggedGuessableCount>0&&h('div',{style:{marginBottom:'12px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:autoAssignCategories},`Assign Category to All (${untaggedGuessableCount})`)),
+        controller&&h('div',{style:{marginBottom:'12px',display:'flex',gap:'8px',flexWrap:'wrap'}},
+          untaggedGuessableCount>0&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:autoAssignCategories},`Assign Category to All (${untaggedGuessableCount})`),
+          h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:openCleanupNames},'Clean Up Item Names (remove trailing quantity)')
+        ),
         h('div',{className:'stores-stock-mobile'},displayStock.length?displayStock.map(r=>h('article',{className:'stores-stock-card',key:`mobile-${r.item_id}`},
           h('div',{className:'stores-stock-card-head'},h('strong',null,`${masterById.get(r.item_id)?.item_code?`${masterById.get(r.item_id).item_code} · `:''}${displayStoreItemName(r.item_name)}`),h('span',{style:statusStyle(r)},stockStatus(r))),
           h('div',{className:'stores-stock-card-values'},
@@ -330,6 +369,24 @@
           h('div',{style:{display:'flex',gap:'8px',marginTop:'14px',flexWrap:'wrap'}},
             h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:saveCategoryEdit},busy?'Saving…':'Save'),
             h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCategoryEditItem(null)},'Cancel')
+          )
+        )
+      ),
+      cleanupCandidates&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)'}},
+        h('div',{className:'modal-card',style:{maxWidth:'720px',maxHeight:'88vh',overflowY:'auto'}},
+          h('h3',null,'Clean Up Item Names'),
+          h('p',{className:'small-note'},'Untick, or edit the New Name, for any row that is not actually a mistaken quantity — e.g. a genuine strength/size code that happens to end in a number (such as "U-40") should be left as is.'),
+          h('div',{className:'table-wrap',style:{marginTop:'10px'}},h('table',{className:'table'},
+            h('thead',null,h('tr',null,['','Current Name','New Name'].map(x=>h('th',{key:x},x)))),
+            h('tbody',null,cleanupCandidates.map(c=>h('tr',{key:c.id},
+              h('td',null,h('input',{type:'checkbox',checked:c.selected,onChange:()=>toggleCleanupCandidate(c.id)})),
+              h('td',null,c.oldName),
+              h('td',null,h('input',{value:c.newName,disabled:!c.selected,onChange:e=>editCleanupCandidateName(c.id,e.target.value),style:{width:'100%'}}))
+            )))
+          )),
+          h('div',{style:{display:'flex',gap:'8px',marginTop:'14px',flexWrap:'wrap'}},
+            h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:applyCleanupNames},busy?'Saving…':`Apply to ${cleanupCandidates.filter(c=>c.selected).length} item(s)`),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCleanupCandidates(null)},'Cancel')
           )
         )
       ),

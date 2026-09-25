@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.53';
-const CACHE = 'samara-erp-2.14.53-store-category-fallback';
+const APP_VERSION = '2.14.54';
+const CACHE = 'samara-erp-2.14.54-store-name-cleanup';
 const SHELL = [
   './',
   './index.html',

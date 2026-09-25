@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.53';
+  const APP_VERSION = '2.14.54';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -24711,6 +24711,7 @@ function RoomsBeds({profile,onNavigate}){
     const [patients]=usePatients();
     const [master,setMaster]=React.useState([]);
     const [requests,setRequests]=React.useState([]);
+    const [storeItems,setStoreItems]=React.useState([]);
     const [busy,setBusy]=React.useState(false);
     const [form,setForm]=React.useState({patient_id:'',procedure_id:'',scheduled_at:'',remarks:''});
     const [showMasterForm,setShowMasterForm]=React.useState(false);
@@ -24718,13 +24719,39 @@ function RoomsBeds({profile,onNavigate}){
     const [editingMaster,setEditingMaster]=React.useState(null);
 
     const load=React.useCallback(async()=>{
-      const [m,r]=await Promise.all([
+      const [m,r,s]=await Promise.all([
         client.from('nursing_procedure_master').select('*').order('display_order').order('procedure_name'),
-        client.from('nursing_procedure_requests').select('*').order('requested_at',{ascending:false}).limit(300)
+        client.from('nursing_procedure_requests').select('*').order('requested_at',{ascending:false}).limit(300),
+        client.from('consumable_store_items').select('id,item_name,item_category').eq('active',true)
       ]);
       if(!m.error)setMaster(m.data||[]);else console.warn(m.error);
       if(!r.error)setRequests(r.data||[]);else console.warn(r.error);
+      if(!s.error)setStoreItems(s.data||[]);
     },[]);
+
+    // Checks a new/edited procedure name against other active procedure codes AND
+    // against Consumables/Pharmacy item names, so the same real thing (e.g. "Blood
+    // Glucose Monitoring" vs "Glucose Strips") is not billed twice from two catalogs.
+    const normalizeName=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+    const nameTokens=value=>new Set(normalizeName(value).split(' ').filter(Boolean).map(x=>x.length>3&&x.endsWith('s')?x.slice(0,-1):x));
+    const findCatalogDuplicate=(name,excludeId='')=>{
+      const n=normalizeName(name);if(!n)return null;const a=nameTokens(name);
+      let best=null,bestScore=0;
+      for(const p of master){
+        if(String(p.id)===String(excludeId))continue;
+        const pn=normalizeName(p.procedure_name);if(!pn)continue;
+        if(pn===n)return {label:p.procedure_name,source:'Nursing Procedure Code',code:p.code,match:'exact'};
+        const b=nameTokens(p.procedure_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;
+        if(score>bestScore){bestScore=score;best={label:p.procedure_name,source:'Nursing Procedure Code',code:p.code}}
+      }
+      for(const s of storeItems){
+        const sn=normalizeName(s.item_name);if(!sn)continue;
+        if(sn===n)return {label:s.item_name,source:s.item_category||'Consumables/Pharmacy',match:'exact'};
+        const b=nameTokens(s.item_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;
+        if(score>bestScore){bestScore=score;best={label:s.item_name,source:s.item_category||'Consumables/Pharmacy'}}
+      }
+      return bestScore>=0.72?{...best,match:best.match||'similar'}:null;
+    };
     React.useEffect(()=>{
       load();
       const ch=client.channel('nursing-procedures-live')
@@ -24784,6 +24811,8 @@ function RoomsBeds({profile,onNavigate}){
       e.preventDefault();
       if(!canManageMaster||busy)return;
       if(!masterForm.code.trim()||!masterForm.procedure_name.trim())return showSamaraActionToast('error','Nursing Procedure Code','Code and procedure name are required.');
+      const duplicate=findCatalogDuplicate(masterForm.procedure_name,editingMaster?.id);
+      if(duplicate)return showSamaraActionToast('error','Possible duplicate',`"${masterForm.procedure_name}" looks similar to the existing ${duplicate.source}${duplicate.code?` (${duplicate.code})`:''}: "${duplicate.label}". Use/edit that entry instead, or include a distinguishing detail in the procedure name.`);
       setBusy(true);
       const res=editingMaster
         ?await client.from('nursing_procedure_master').update({code:masterForm.code.trim(),procedure_name:masterForm.procedure_name.trim(),updated_at:new Date().toISOString()}).eq('id',editingMaster.id)
@@ -29526,13 +29555,43 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
 
 
   function StoreItemMaster({profile}){
-    const [rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('All'),[search,setSearch]=React.useState(''),[editing,setEditing]=React.useState(null),[adding,setAdding]=React.useState(null),[moveTargets,setMoveTargets]=React.useState({}),[duplicateAlert,setDuplicateAlert]=React.useState(null);
-    const load=React.useCallback(async()=>{const r=await client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate').order('item_name');if(r.error)showSamaraActionToast('error','Stores Master','Run 132_store_item_master.sql first. '+r.error.message);else setRows(r.data||[])},[]);
+    const [rows,setRows]=React.useState([]),[procedureRows,setProcedureRows]=React.useState([]),[busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('All'),[search,setSearch]=React.useState(''),[editing,setEditing]=React.useState(null),[adding,setAdding]=React.useState(null),[moveTargets,setMoveTargets]=React.useState({}),[duplicateAlert,setDuplicateAlert]=React.useState(null);
+    const load=React.useCallback(async()=>{
+      const [r,p]=await Promise.all([
+        client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate').order('item_name'),
+        client.from('nursing_procedure_master').select('id,code,procedure_name').eq('is_active',true)
+      ]);
+      if(r.error)showSamaraActionToast('error','Stores Master','Run 132_store_item_master.sql first. '+r.error.message);else setRows(r.data||[]);
+      if(!p.error)setProcedureRows(p.data||[]);
+    },[]);
     React.useEffect(()=>{load()},[load]);
     const visible=rows.filter(r=>{const c=r.item_category||'Consumables',q=search.trim().toLowerCase();return (filter==='All'||filter===c||(filter==='Inactive'&&r.active===false))&&(q.length<3||`${r.item_code||''} ${r.item_name||''}`.toLowerCase().includes(q))});
     const normalizeMasterName=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\b(ml|mg|gm|g|iu|fr)\b/g,' $1 ').replace(/\s+/g,' ').trim();
     const masterTokens=value=>new Set(normalizeMasterName(value).split(' ').filter(Boolean).map(x=>x.length>3&&x.endsWith('s')?x.slice(0,-1):x));
-    const similarMasterItem=(name,excludeId='')=>{const n=normalizeMasterName(name);if(!n)return null;const a=masterTokens(name);let best=null,bestScore=0;for(const r of rows){if(String(r.id)===String(excludeId))continue;const rn=normalizeMasterName(r.item_name);if(!rn)continue;if(rn===n)return {...r,_match:'exact',_score:1};const b=masterTokens(r.item_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;const numsA=[...a].filter(x=>/^\d+(?:\.\d+)?$/.test(x)).sort().join('|'),numsB=[...b].filter(x=>/^\d+(?:\.\d+)?$/.test(x)).sort().join('|');if(numsA!==numsB)continue;if(score>bestScore){bestScore=score;best=r}}return bestScore>=0.72?{...best,_match:'similar',_score:bestScore}:null};
+    // Checks both other store items AND active Nursing Procedure codes, so a new
+    // Consumables/Pharmacy item that really means the same thing as an existing
+    // procedure (e.g. "Glucose Strips" vs the "Blood Glucose Monitoring" procedure)
+    // is caught before it can create a confusing, possibly double-billed, entry.
+    const similarMasterItem=(name,excludeId='')=>{
+      const n=normalizeMasterName(name);if(!n)return null;const a=masterTokens(name);
+      let best=null,bestScore=0;
+      for(const r of rows){
+        if(String(r.id)===String(excludeId))continue;
+        const rn=normalizeMasterName(r.item_name);if(!rn)continue;
+        if(rn===n)return {...r,_source:'store',_match:'exact',_score:1};
+        const b=masterTokens(r.item_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;
+        const numsA=[...a].filter(x=>/^\d+(?:\.\d+)?$/.test(x)).sort().join('|'),numsB=[...b].filter(x=>/^\d+(?:\.\d+)?$/.test(x)).sort().join('|');
+        if(numsA!==numsB)continue;
+        if(score>bestScore){bestScore=score;best={...r,_source:'store'}}
+      }
+      for(const p of procedureRows){
+        const pn=normalizeMasterName(p.procedure_name);if(!pn)continue;
+        if(pn===n)return {item_name:p.procedure_name,item_code:p.code,_source:'procedure',_match:'exact',_score:1};
+        const b=masterTokens(p.procedure_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;
+        if(score>bestScore){bestScore=score;best={item_name:p.procedure_name,item_code:p.code,_source:'procedure'}}
+      }
+      return bestScore>=0.72?{...best,_match:'similar',_score:bestScore}:null;
+    };
     const duplicateWarning=(candidate,excludeId='')=>{const hit=similarMasterItem(candidate,excludeId);if(!hit)return false;setDuplicateAlert({entered:String(candidate||'').trim(),...hit});return true};
     const save=async()=>{if(!editing?.item_name?.trim())return showSamaraActionToast('error','Stores Master','Item name is required.');if(duplicateWarning(editing.item_name,editing.id))return;setBusy(true);const r=await client.rpc('admin_update_store_item',{p_item_id:editing.id,p_item_name:editing.item_name.trim(),p_category:editing.item_category||'Consumables',p_unit:editing.unit,p_strength:editing.strength||null,p_dosage_form:editing.dosage_form||null});setBusy(false);if(r.error)showSamaraActionToast('error','Stores Master',r.error.message);else{showSamaraActionToast('success','Stores Master','Item details updated.');setEditing(null);load()}};
     const savePrice=async(itemId,value)=>{const rate=Number(value);if(!Number.isFinite(rate)||rate<0)return showSamaraActionToast('error','Stores Master','Enter a valid charge rate of zero or more.');setBusy(true);const r=await client.rpc('admin_set_store_item_charge_rate',{p_item_id:itemId,p_charge_rate:rate});if(r.error){setBusy(false);return showSamaraActionToast('error','Stores Master',r.error.message)}const verify=await client.from('consumable_store_items').select('charge_rate').eq('id',itemId).maybeSingle();setBusy(false);if(verify.error||!verify.data||Math.abs(Number(verify.data.charge_rate)-rate)>0.009)return showSamaraActionToast('error','Rate not saved','The database did not confirm the new charge rate. No success has been recorded. Please check Stores permissions.');showSamaraActionToast('success','Stores Master','Charge rate saved and verified for future patient charges.');load()};
@@ -29563,7 +29622,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         h('td',null,r.active===false?'Inactive':'Active'),
         h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},editButton(r),h('button',{className:'btn btn-secondary',onClick:()=>active(r,r.active===false)},r.active===false?'Reactivate':'Deactivate'),h('button',{className:'btn btn-secondary',onClick:()=>remove(r)},'Delete'))
       )))))
-    ),duplicateAlert&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.58)',backdropFilter:'blur(2px)',zIndex:10050}},h('div',{className:'modal-card',style:{width:'min(92vw,760px)',maxWidth:'760px',background:'#fffafd',border:'2px solid #d92f4b',borderRadius:'24px',boxShadow:'0 26px 80px rgba(55,18,35,.35)',padding:'30px 32px'}},h('div',{style:{fontSize:'30px',fontWeight:900,color:'#a71936',marginBottom:'14px'}},duplicateAlert._match==='exact'?'Item Already Exists':'Possible Duplicate Item'),h('div',{style:{fontSize:'21px',lineHeight:1.55,color:'#402936'}},h('p',{style:{margin:'0 0 14px'}},'The item you entered cannot be added because a matching item is already available.'),h('div',{style:{background:'#fff1f5',border:'1px solid #efb8c7',borderRadius:'16px',padding:'18px 20px',marginBottom:'16px'}},h('div',{style:{fontSize:'24px',fontWeight:900,color:'#7f1230'}},`${duplicateAlert.item_code?duplicateAlert.item_code+' · ':''}${duplicateAlert.item_name}`),h('div',{style:{fontSize:'20px',fontWeight:800,marginTop:'7px'}},`Already available under: ${duplicateAlert.item_category||'Stores / Pharmacy'}`),duplicateAlert.unit&&h('div',{style:{fontSize:'18px',marginTop:'5px'}},`Unit: ${duplicateAlert.unit}`)),h('p',{style:{margin:'0'}},'Please use or edit the existing master item. If this is genuinely different, include the distinguishing size, strength, gauge or dosage form in the item name.')),h('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:'24px'}},h('button',{className:'btn btn-primary',style:{fontSize:'19px',padding:'12px 30px',minWidth:'120px'},onClick:()=>setDuplicateAlert(null)},'OK')))),adding&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)',backdropFilter:'blur(1px)'}},h('div',{className:'modal-card',style:{maxWidth:'620px',background:'#fffafd',opacity:1,border:'1px solid #e7bfd1',borderRadius:'18px',boxShadow:'0 22px 60px rgba(55,18,35,.28)',padding:'22px'}},h('h3',null,'Add New Item'),h('div',{className:'form-grid'},
+    ),duplicateAlert&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.58)',backdropFilter:'blur(2px)',zIndex:10050}},h('div',{className:'modal-card',style:{width:'min(92vw,760px)',maxWidth:'760px',background:'#fffafd',border:'2px solid #d92f4b',borderRadius:'24px',boxShadow:'0 26px 80px rgba(55,18,35,.35)',padding:'30px 32px'}},h('div',{style:{fontSize:'30px',fontWeight:900,color:'#a71936',marginBottom:'14px'}},duplicateAlert._match==='exact'?'Item Already Exists':'Possible Duplicate Item'),h('div',{style:{fontSize:'21px',lineHeight:1.55,color:'#402936'}},h('p',{style:{margin:'0 0 14px'}},'The item you entered cannot be added because a matching item is already available.'),h('div',{style:{background:'#fff1f5',border:'1px solid #efb8c7',borderRadius:'16px',padding:'18px 20px',marginBottom:'16px'}},h('div',{style:{fontSize:'24px',fontWeight:900,color:'#7f1230'}},`${duplicateAlert.item_code?duplicateAlert.item_code+' · ':''}${duplicateAlert.item_name}`),h('div',{style:{fontSize:'20px',fontWeight:800,marginTop:'7px'}},duplicateAlert._source==='procedure'?'Already listed as a Nursing Procedure Code':`Already available under: ${duplicateAlert.item_category||'Stores / Pharmacy'}`),duplicateAlert.unit&&h('div',{style:{fontSize:'18px',marginTop:'5px'}},`Unit: ${duplicateAlert.unit}`)),h('p',{style:{margin:'0'}},duplicateAlert._source==='procedure'?'A Nursing Procedure with this name already exists. Adding the same thing again as a Stores/Pharmacy item risks charging the patient twice for it. If this consumable is genuinely different from the procedure (for example, the strips used to perform it), include a distinguishing detail in the item name.':'Please use or edit the existing master item. If this is genuinely different, include the distinguishing size, strength, gauge or dosage form in the item name.')),h('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:'24px'}},h('button',{className:'btn btn-primary',style:{fontSize:'19px',padding:'12px 30px',minWidth:'120px'},onClick:()=>setDuplicateAlert(null)},'OK')))),adding&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)',backdropFilter:'blur(1px)'}},h('div',{className:'modal-card',style:{maxWidth:'620px',background:'#fffafd',opacity:1,border:'1px solid #e7bfd1',borderRadius:'18px',boxShadow:'0 22px 60px rgba(55,18,35,.28)',padding:'22px'}},h('h3',null,'Add New Item'),h('div',{className:'form-grid'},
       h('div',{className:'field span-2'},h('label',null,'Item Name *'),h('input',{value:adding.item_name||'',onChange:e=>setAdding({...adding,item_name:e.target.value})})),
       h('div',{className:'field'},h('label',null,'Currently Under *'),h('select',{value:adding.item_category||'Consumables',onChange:e=>setAdding({...adding,item_category:e.target.value})},h('option',{value:'Consumables'},'Consumables'),h('option',{value:'Pharmacy'},'Pharmacy'))),
       h('div',{className:'field'},h('label',null,'Unit *'),h('input',{value:adding.unit||'',onChange:e=>setAdding({...adding,unit:e.target.value})})),
@@ -29590,6 +29649,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const [movementPeriod,setMovementPeriod]=React.useState('month'),[movementItem,setMovementItem]=React.useState('All'),[movementFrom,setMovementFrom]=React.useState(todayISOIndia().slice(0,8)+'01'),[movementTo,setMovementTo]=React.useState(todayISOIndia());
     const [historyItem,setHistoryItem]=React.useState(null),[historyLedger,setHistoryLedger]=React.useState([]),[historyReceipts,setHistoryReceipts]=React.useState([]),[historyBusy,setHistoryBusy]=React.useState(false);
     const [categoryEditItem,setCategoryEditItem]=React.useState(null),[categoryEditValue,setCategoryEditValue]=React.useState('');
+    const [cleanupCandidates,setCleanupCandidates]=React.useState(null);
     const [form,setForm]=React.useState({item_category:categoryFilter==='Pharmacy'?'Pharmacy':'Stores / Consumables',catalog_item:'',item_id:'',new_item_name:'',unit:'Nos',vendor_name:'',invoice_no:'',invoice_date:'',received_date:todayISOIndia(),quantity:'1',batch_no:'',expiry_date:'',unit_cost:'',remarks:'',generic_name:'',brand_name:'',strength:'',dosage_form:'Tablet',manufacturer:'',pack_size:''});
     const units=['Nos','Pairs','Packs','Boxes','Pieces','Rolls','Sets','Bottles'];
     const basicPharmacyUnits={"Glucometer Strips": "Nos", "Lancets": "Nos", "Alcohol Swabs": "Nos", "Digital Thermometer": "Nos", "Thermometer Probe Covers": "Nos", "Pulse Oximeter": "Nos", "BP Cuff / Spare Cuff": "Nos", "Sterile Gauze Pads - 2 x 2": "Nos", "Sterile Gauze Pads - 4 x 4": "Nos", "Cotton Rolls": "Rolls", "Cotton Balls": "Nos", "Micropore Adhesive Tape": "Rolls", "Sterile Dressing Pads": "Nos", "Crepe Bandage - 2 inch": "Rolls", "Crepe Bandage - 4 inch": "Rolls", "Crepe Bandage - 6 inch": "Rolls", "Roller / Gauze Bandages": "Rolls", "Disposable Examination Gloves - S": "Pieces", "Disposable Examination Gloves - M": "Pieces", "Disposable Examination Gloves - L": "Pieces", "Surgical Masks": "Nos", "Disposable Syringe - 1 mL": "Nos", "Disposable Syringe - 2 mL": "Nos", "Disposable Syringe - 3 mL": "Nos", "Disposable Syringe - 5 mL": "Nos", "Disposable Syringe - 10 mL": "Nos", "Disposable Syringe - 20 mL": "Nos", "Needle - 18G": "Nos", "Needle - 20G": "Nos", "Needle - 21G": "Nos", "Needle - 22G": "Nos", "Needle - 23G": "Nos", "Needle - 24G": "Nos", "Needle - 25G": "Nos", "Needle - 26G": "Nos", "Insulin Syringe - U-40": "Nos", "Insulin Syringe - U-100": "Nos", "Insulin Pen Needle - 4 mm": "Nos", "Insulin Pen Needle - 5 mm": "Nos", "Insulin Pen Needle - 6 mm": "Nos", "Insulin Pen Needle - 8 mm": "Nos", "IV Cannula - 18G": "Nos", "IV Cannula - 20G": "Nos", "IV Cannula - 22G": "Nos", "IV Cannula - 24G": "Nos", "IV Sets": "Nos", "IV Extension Lines": "Nos", "Normal Saline Flush Syringes": "Nos", "Urine Specimen Containers": "Nos", "Disposable Urine Measuring Containers": "Nos", "Adult Urine Bags": "Nos", "Nebulizer Mask / Kit - Adult": "Nos", "Oxygen Nasal Cannula": "Nos", "Oxygen Masks": "Nos", "Suction Catheter - 10 Fr": "Nos", "Suction Catheter - 12 Fr": "Nos", "Suction Catheter - 14 Fr": "Nos", "Suction Catheter - 16 Fr": "Nos", "Feeding Syringe - 50 mL": "Nos", "Feeding Syringe - 60 mL": "Nos", "Disposable Underpads": "Nos", "Tongue Depressors": "Nos", "Hand Sanitizer": "Bottles", "Povidone-iodine Solution": "Bottles", "Chlorhexidine Antiseptic - As per Samara Protocol": "Bottles", "Normal Saline for Wound Cleansing": "Bottles", "Sharps Disposal Containers": "Nos", "Biomedical-waste Bags": "Nos"};
@@ -29665,6 +29725,41 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       }
       setBusy(false);
       notifyStore(failed?'error':'success',`${done} item(s) auto-tagged.${failed?` ${failed} could not be saved — try again.`:''} Please spot-check using each item's Category button; matches from a plain name search may not always be exact.`);
+      await load();
+    }
+    // Some items were entered with the received quantity stuck onto the end of the
+    // name by mistake (e.g. "INJ.ADRENALINE 1ML-2" instead of "INJ.ADRENALINE 1ML",
+    // the "-2" being that day's quantity, not part of the item). This finds items
+    // ending in "-<number>" for review, never renames anything without a human
+    // checking each suggestion first — a few legitimate names also end in a
+    // hyphen + number (e.g. an "Insulin Syringe - U-40" strength code) and must
+    // stay unchanged, so every row can be unchecked or hand-edited before Apply.
+    function openCleanupNames(){
+      const relevant=categoryFilter?itemMaster.filter(m=>(m.item_category||'Consumables')===categoryFilter):itemMaster;
+      const candidates=relevant.filter(m=>m.active!==false).map(m=>{
+        const oldName=String(m.item_name||'').trim();
+        const newName=oldName.replace(/-\d{1,3}$/,'').trim();
+        return {id:m.id,oldName,newName,unit:m.unit,strength:m.strength,dosage_form:m.dosage_form,selected:true};
+      }).filter(c=>c.newName&&c.newName!==c.oldName);
+      if(!candidates.length){notifyStore('error','No item names ending in "-<number>" were found in this section.');return}
+      setCleanupCandidates(candidates);
+    }
+    function toggleCleanupCandidate(id){setCleanupCandidates(list=>list.map(c=>c.id===id?{...c,selected:!c.selected}:c))}
+    function editCleanupCandidateName(id,value){setCleanupCandidates(list=>list.map(c=>c.id===id?{...c,newName:value}:c))}
+    async function applyCleanupNames(){
+      if(!cleanupCandidates||busy)return;
+      const selected=cleanupCandidates.filter(c=>c.selected&&c.newName.trim()&&c.newName.trim()!==c.oldName);
+      if(!selected.length){setCleanupCandidates(null);return}
+      setBusy(true);
+      let done=0,failed=0;
+      for(let i=0;i<selected.length;i+=10){
+        const batch=selected.slice(i,i+10);
+        const results=await Promise.all(batch.map(c=>client.rpc('store_incharge_edit_item',{p_item_id:c.id,p_item_name:c.newName.trim(),p_unit:String(c.unit||'Nos').trim(),p_strength:c.strength||null,p_dosage_form:c.dosage_form||null})));
+        results.forEach(r=>r.error?failed++:done++);
+      }
+      setBusy(false);
+      notifyStore(failed?'error':'success',`${done} item name(s) cleaned up.${failed?` ${failed} failed — try again.`:''}`);
+      setCleanupCandidates(null);
       await load();
     }
     async function receiveStock(e){
@@ -29831,7 +29926,10 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         )
       ),
       h('div',{id:'stores-current-stock',style:{scrollMarginTop:'90px'}},h(Section,{title:`Current ${categoryFilter||'Pharmacy & Stores'} Stock${stockView!=='All'?` — ${stockView}`:''}`,subtitle:'Tap History on any item to see its complete stock-wise movement trail: vendor receipts, patient handovers/issues, confirmed returns and balance after every movement. Use Category to tag an item so it appears when that Standard Item List category is chosen above.'},
-        controller&&untaggedGuessableCount>0&&h('div',{style:{marginBottom:'12px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:autoAssignCategories},`Assign Category to All (${untaggedGuessableCount})`)),
+        controller&&h('div',{style:{marginBottom:'12px',display:'flex',gap:'8px',flexWrap:'wrap'}},
+          untaggedGuessableCount>0&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:autoAssignCategories},`Assign Category to All (${untaggedGuessableCount})`),
+          h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:openCleanupNames},'Clean Up Item Names (remove trailing quantity)')
+        ),
         h('div',{className:'stores-stock-mobile'},displayStock.length?displayStock.map(r=>h('article',{className:'stores-stock-card',key:`mobile-${r.item_id}`},
           h('div',{className:'stores-stock-card-head'},h('strong',null,`${masterById.get(r.item_id)?.item_code?`${masterById.get(r.item_id).item_code} · `:''}${displayStoreItemName(r.item_name)}`),h('span',{style:statusStyle(r)},stockStatus(r))),
           h('div',{className:'stores-stock-card-values'},
@@ -29910,6 +30008,24 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
           h('div',{style:{display:'flex',gap:'8px',marginTop:'14px',flexWrap:'wrap'}},
             h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:saveCategoryEdit},busy?'Saving…':'Save'),
             h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCategoryEditItem(null)},'Cancel')
+          )
+        )
+      ),
+      cleanupCandidates&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)'}},
+        h('div',{className:'modal-card',style:{maxWidth:'720px',maxHeight:'88vh',overflowY:'auto'}},
+          h('h3',null,'Clean Up Item Names'),
+          h('p',{className:'small-note'},'Untick, or edit the New Name, for any row that is not actually a mistaken quantity — e.g. a genuine strength/size code that happens to end in a number (such as "U-40") should be left as is.'),
+          h('div',{className:'table-wrap',style:{marginTop:'10px'}},h('table',{className:'table'},
+            h('thead',null,h('tr',null,['','Current Name','New Name'].map(x=>h('th',{key:x},x)))),
+            h('tbody',null,cleanupCandidates.map(c=>h('tr',{key:c.id},
+              h('td',null,h('input',{type:'checkbox',checked:c.selected,onChange:()=>toggleCleanupCandidate(c.id)})),
+              h('td',null,c.oldName),
+              h('td',null,h('input',{value:c.newName,disabled:!c.selected,onChange:e=>editCleanupCandidateName(c.id,e.target.value),style:{width:'100%'}}))
+            )))
+          )),
+          h('div',{style:{display:'flex',gap:'8px',marginTop:'14px',flexWrap:'wrap'}},
+            h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:applyCleanupNames},busy?'Saving…':`Apply to ${cleanupCandidates.filter(c=>c.selected).length} item(s)`),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setCleanupCandidates(null)},'Cancel')
           )
         )
       ),
