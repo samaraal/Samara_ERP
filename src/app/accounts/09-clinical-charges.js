@@ -159,19 +159,26 @@
     const [filter,setFilter]=React.useState({patient_id:initialPatientId,status:initialPatientId?'Pending':'All',category:'All'});
     const [quickView,setQuickView]=React.useState('All');
     const [workflowRequestId,setWorkflowRequestId]=React.useState('');
+    // v2.14.45: only an "Open & Take Action" click from the last 2 minutes focuses one request.
+    // Opening Charge Approvals from the menu / tabs always shows every pending request.
     React.useEffect(()=>{
       if(profile?.role!=='Accounts')return;
-      try{
-        const raw=sessionStorage.getItem('samara-workflow-target');
-        if(!raw)return;
-        const target=JSON.parse(raw);
-        if(target?.type==='charge-request'&&target?.request_id){
-          setWorkflowRequestId(String(target.request_id));
-          setQuickView('All');
-          setFilter(current=>({...current,patient_id:'',status:'All',category:'All'}));
-          sessionStorage.removeItem('samara-workflow-target');
-        }
-      }catch(_error){}
+      const apply=target=>{
+        if(target?.type!=='charge-request'||!target?.request_id)return false;
+        try{sessionStorage.removeItem('samara-workflow-target')}catch(_error){}
+        if(!target.at||Date.now()-Number(target.at)>120000)return false;
+        setWorkflowRequestId(String(target.request_id));
+        setQuickView('All');
+        setFilter(current=>({...current,patient_id:'',status:'All',category:'All'}));
+        return true;
+      };
+      try{const raw=sessionStorage.getItem('samara-workflow-target');if(raw)apply(JSON.parse(raw))}catch(_error){}
+      const onTarget=event=>apply(event.detail);
+      window.addEventListener('samara-workflow-target',onTarget);
+      // Tapping "Charge Approvals" in the menu or the Accounts tab bar while here = show all requests again.
+      const onMenu=event=>{const el=event.target&&event.target.closest?event.target.closest('[data-nav="Charge Approvals"],.accounts-workflow-nav button[aria-current="page"]'):null;if(el){setWorkflowRequestId('');setQuickView('All');setFilter(current=>({...current,status:'All',category:'All'}))}};
+      document.addEventListener('click',onMenu,true);
+      return()=>{window.removeEventListener('samara-workflow-target',onTarget);document.removeEventListener('click',onMenu,true)};
     },[profile?.id,profile?.role]);
     React.useEffect(()=>{
       if(!workflowRequestId||!rows.some(row=>String(row.id)===workflowRequestId))return;

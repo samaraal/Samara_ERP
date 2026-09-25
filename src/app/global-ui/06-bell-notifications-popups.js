@@ -122,7 +122,7 @@
       h('div',{className:'samara-workflow-popup-detail'},item.detail),
       h('div',{className:'samara-workflow-popup-actions'},
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dismiss(item)},'Close'),
-        h('button',{type:'button',className:'btn btn-primary',onClick:()=>{try{if(item.target)sessionStorage.setItem('samara-workflow-target',JSON.stringify(item.target));}catch(_error){} dismiss(item);onNavigate(item.page)}},'Open & Take Action'))
+        h('button',{type:'button',className:'btn btn-primary',onClick:()=>{const target=item.target?{...item.target,at:Date.now()}:null;try{if(target)sessionStorage.setItem('samara-workflow-target',JSON.stringify(target));}catch(_error){} dismiss(item);onNavigate(item.page);/* v2.14.45: tell an already-open page to show this exact item now */if(target)setTimeout(()=>window.dispatchEvent(new CustomEvent('samara-workflow-target',{detail:target})),0)}},'Open & Take Action'))
     ));
   }
 

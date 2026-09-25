@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.44';
+  const APP_VERSION = '2.14.45';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6550,7 +6550,7 @@ https://samaraassistedliving.com/`;
       h('div',{className:'samara-workflow-popup-detail'},item.detail),
       h('div',{className:'samara-workflow-popup-actions'},
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dismiss(item)},'Close'),
-        h('button',{type:'button',className:'btn btn-primary',onClick:()=>{try{if(item.target)sessionStorage.setItem('samara-workflow-target',JSON.stringify(item.target));}catch(_error){} dismiss(item);onNavigate(item.page)}},'Open & Take Action'))
+        h('button',{type:'button',className:'btn btn-primary',onClick:()=>{const target=item.target?{...item.target,at:Date.now()}:null;try{if(target)sessionStorage.setItem('samara-workflow-target',JSON.stringify(target));}catch(_error){} dismiss(item);onNavigate(item.page);/* v2.14.45: tell an already-open page to show this exact item now */if(target)setTimeout(()=>window.dispatchEvent(new CustomEvent('samara-workflow-target',{detail:target})),0)}},'Open & Take Action'))
     ));
   }
 
@@ -29841,19 +29841,26 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const [filter,setFilter]=React.useState({patient_id:initialPatientId,status:initialPatientId?'Pending':'All',category:'All'});
     const [quickView,setQuickView]=React.useState('All');
     const [workflowRequestId,setWorkflowRequestId]=React.useState('');
+    // v2.14.45: only an "Open & Take Action" click from the last 2 minutes focuses one request.
+    // Opening Charge Approvals from the menu / tabs always shows every pending request.
     React.useEffect(()=>{
       if(profile?.role!=='Accounts')return;
-      try{
-        const raw=sessionStorage.getItem('samara-workflow-target');
-        if(!raw)return;
-        const target=JSON.parse(raw);
-        if(target?.type==='charge-request'&&target?.request_id){
-          setWorkflowRequestId(String(target.request_id));
-          setQuickView('All');
-          setFilter(current=>({...current,patient_id:'',status:'All',category:'All'}));
-          sessionStorage.removeItem('samara-workflow-target');
-        }
-      }catch(_error){}
+      const apply=target=>{
+        if(target?.type!=='charge-request'||!target?.request_id)return false;
+        try{sessionStorage.removeItem('samara-workflow-target')}catch(_error){}
+        if(!target.at||Date.now()-Number(target.at)>120000)return false;
+        setWorkflowRequestId(String(target.request_id));
+        setQuickView('All');
+        setFilter(current=>({...current,patient_id:'',status:'All',category:'All'}));
+        return true;
+      };
+      try{const raw=sessionStorage.getItem('samara-workflow-target');if(raw)apply(JSON.parse(raw))}catch(_error){}
+      const onTarget=event=>apply(event.detail);
+      window.addEventListener('samara-workflow-target',onTarget);
+      // Tapping "Charge Approvals" in the menu or the Accounts tab bar while here = show all requests again.
+      const onMenu=event=>{const el=event.target&&event.target.closest?event.target.closest('[data-nav="Charge Approvals"],.accounts-workflow-nav button[aria-current="page"]'):null;if(el){setWorkflowRequestId('');setQuickView('All');setFilter(current=>({...current,status:'All',category:'All'}))}};
+      document.addEventListener('click',onMenu,true);
+      return()=>{window.removeEventListener('samara-workflow-target',onTarget);document.removeEventListener('click',onMenu,true)};
     },[profile?.id,profile?.role]);
     React.useEffect(()=>{
       if(!workflowRequestId||!rows.some(row=>String(row.id)===workflowRequestId))return;
