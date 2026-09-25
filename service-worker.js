@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.50';
-const CACHE = 'samara-erp-2.14.50-store-approval-fix';
+const APP_VERSION = '2.14.51';
+const CACHE = 'samara-erp-2.14.51-discharge-status-label-fix';
 const SHELL = [
   './',
   './index.html',

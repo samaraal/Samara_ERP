@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.51 — Fix: Discharge timeline mislabelled "Awaiting Accounts"
+- Bug: on the Discharge timeline ("Discharge timeline & departure follow-up", shown on both Discharge and Discharge Clearance pages), a case that had not yet been approved by Admin/Manager — still Pending, or Returned/Rejected — was also labelled "Awaiting Accounts", the same wording used for a case genuinely waiting on Accounts. That made a case still stuck at Management review look like it should already be in Accounts' "Pending Financial Clearance" list, when it correctly wasn't there yet.
+- Fix: the timeline now shows "Awaiting Management Approval" for a case still pending the Admin/Manager decision, and "Returned by Management" for one that was rejected, and only says "Awaiting Accounts" once Management has actually approved it. The "Pending Financial Clearance" table itself was not changed — it was already correct (it only ever listed management-approved, not-yet-cleared cases); only the timeline's wording was misleading.
+- Not related to the 2.14.50 Consumables/Pharmacy pricing fix or any billing/charge-approval code — this is a separate, pre-existing label in `discharge-workflow.js` that a discharge review with a Pending or Rejected status surfaced.
+- No database changes; frontend-only (`discharge-workflow.js`).
+
 ## 2.14.50 — Fix: Consumables/Pharmacy approval used a stale, invisible rate
 - Bug: approving a Consumables/Pharmacy charge checked the amount against a leftover Charge Master tariff row from before Stores Master had its own rate column — a row Admin could not even see (Charge Master's Stores/Pharmacy table only shows/edits `consumable_store_items.charge_rate`). Editing the rate from Stores Master had no effect on what Accounts was required to approve, and it never accounted for quantity, so a request for more than 1 unit could only coincidentally match.
 - Fix: Accounts' approval for Consumables/Pharmacy items now always checks against the live Stores Master rate × the request's quantity. The approval prompt also now shows the breakdown, e.g. "Store rate ₹70.00 × 3 = ₹210.00", instead of just a flat figure that didn't visibly connect to the ₹70 shown in Charge Master.

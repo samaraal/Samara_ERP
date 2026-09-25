@@ -99,7 +99,7 @@
    data?.cases.map(c=>{
     const pending=c.reviews.find(r=>r.status==='Pending'),approved=c.reviews.find(r=>r.status==='Approved');
     return h('details',{key:c.id,'data-discharge-id':c.id,style:{padding:'12px 0',borderBottom:'1px solid #9995'}},
-     h('summary',{style:{cursor:'pointer',fontWeight:700,padding:'8px 0',scrollMarginTop:'120px'}},`${c.patient_name} · ${c.patient_code} — ${c.status==='Completed'?'Completed':pending?'Departure review pending':c.accounts_status==='Cleared'?'Accounts cleared; Nursing departure pending':c.accounts_recheck_at||c.legacy_reset?'Accounts recheck required':'Awaiting Accounts'}`),
+     h('summary',{style:{cursor:'pointer',fontWeight:700,padding:'8px 0',scrollMarginTop:'120px'}},`${c.patient_name} · ${c.patient_code} — ${c.status==='Completed'?'Completed':pending?'Departure review pending':c.accounts_status==='Cleared'?'Accounts cleared; Nursing departure pending':c.accounts_recheck_at||c.legacy_reset?'Accounts recheck required':c.management_status==='Rejected'?'Returned by Management':c.management_status!=='Approved'?'Awaiting Management Approval':'Awaiting Accounts'}`),
      pending&&c.status!=='Completed'&&h('p',{className:'message warning'},'Final Nursing discharge is blocked until an authorised reviewer resolves the pending departure report below.'),
      c.overdue&&h('p',{className:'message warning'},'Waiting over 2 hours. Nursing Manager / Admin attention required.'),
      h('p',null,`Initiated: ${time(c.initiated_at)} · Management approved: ${time(c.management_approved_at)}`),
