@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.50 — Fix: Consumables/Pharmacy approval used a stale, invisible rate
+- Bug: approving a Consumables/Pharmacy charge checked the amount against a leftover Charge Master tariff row from before Stores Master had its own rate column — a row Admin could not even see (Charge Master's Stores/Pharmacy table only shows/edits `consumable_store_items.charge_rate`). Editing the rate from Stores Master had no effect on what Accounts was required to approve, and it never accounted for quantity, so a request for more than 1 unit could only coincidentally match.
+- Fix: Accounts' approval for Consumables/Pharmacy items now always checks against the live Stores Master rate × the request's quantity. The approval prompt also now shows the breakdown, e.g. "Store rate ₹70.00 × 3 = ₹210.00", instead of just a flat figure that didn't visibly connect to the ₹70 shown in Charge Master.
+- Non-stock service tariffs (Nursing Procedures, Doctor Services, Lab, etc.) are unaffected — unchanged.
+- Database: `146_store_charge_approval_live_rate.sql` (reissues `decide_bill_charge_request_v5` with the same name/parameters — nothing else to update).
+
 ## 2.14.49 — Charge Master: category filter + auto-generated IDs
 - Charge Master (Admin) now has a Category dropdown next to the search box, with a live count per category (e.g. "Nursing Procedures (24)"), so items can be found instantly instead of scrolling through the full list — covers Consumables, Pharmacy, Nursing Procedures and every other category in one place.
 - New Charge Master service items now get an ID automatically — one short prefix per category (NUR- Nursing Procedures, DOC- Doctor Services, DIA- Diagnostic/Imaging, LAB- Laboratory, BIO- Biomedical Equipment, and so on, same idea as the Stores Master CON-/PHA- codes). Admin no longer types a code when adding one.

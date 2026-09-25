@@ -483,13 +483,18 @@
       }
       return matchingStoreMaster(row.category,row.service_name||row.description,row.store_item_id);
     }
+    // v2.14.50: always price a Stores/Pharmacy charge off the LIVE Stores Master
+    // rate × quantity, not a snapshot saved when the charge was raised — so if
+    // Admin changes the rate later, the approval screen reflects it. The raise-
+    // time snapshot (requested_amount/estimated_amount) is only a fallback for
+    // an item that no longer has a live, priced Stores Master match.
     function currentStoreRequestAmount(row){
-      const saved=Number(row?.requested_amount||row?.estimated_amount||0);
-      if(saved>0)return {amount:saved,fromMaster:false};
       const item=currentStoreMasterItem(row);
       const rate=Number(item?.charge_rate||0);
       const qty=Number(row?.quantity||1);
-      return rate>0&&qty>0?{amount:rate*qty,fromMaster:true,rate,item}: {amount:0,fromMaster:false,rate:rate||0,item};
+      if(rate>0&&qty>0)return {amount:rate*qty,fromMaster:true,rate,item};
+      const saved=Number(row?.requested_amount||row?.estimated_amount||0);
+      return saved>0?{amount:saved,fromMaster:false}: {amount:0,fromMaster:false,rate:rate||0,item};
     }
     async function decide(row,decision){
       if(!canApprove||busy)return;
@@ -510,7 +515,9 @@
             ?'Verify the uploaded bill and enter the actual bill amount:'
             :isOther
               ?'Enter the verified amount for this custom / Other charge:'
-              :`Fixed rate is ${money(amount)}. Verify the approved amount:`,
+              :storeAmount.fromMaster
+                ?`Store rate ${money(storeAmount.rate)} × ${Number(row.quantity||1)} = ${money(amount)}. Verify the approved amount:`
+                :`Fixed rate is ${money(amount)}. Verify the approved amount:`,
           defaultAmount
         );
         if(entered===null)return;
