@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.54';
+  const APP_VERSION = '2.14.55';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -9005,7 +9005,7 @@ https://samaraassistedliving.com/`;
   }
 
 function Dashboard({profile,onNavigate,alertEngine}){
-    const [stats,setStats]=React.useState({employees:0,patients:0,availableBeds:0,reservationOverdue:0,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[],escalations:0,packageExpiry:0});
+    const [stats,setStats]=React.useState({employees:0,patients:0,availableBeds:0,reservationOverdue:0,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[],escalations:0,packageExpiry:0,pendingConsent:0});
     const [managerPersonalSummary,setManagerPersonalSummary]=React.useState({today:0,overdue:0,followup:0,completed:0});
     const [directorOfficeSummary,setDirectorOfficeSummary]=React.useState({
       isDirector:false,
@@ -9119,6 +9119,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
         return end<=soonDate;
       }).length;
       const risks=patients.filter(p=>p.fall_risk||p.pressure_sore_risk||p.aspiration_risk||p.wandering_risk||p.infection_risk||p.oxygen_required).length;
+      const pendingConsent=patients.filter(p=>['Awaiting Signed Consent','Upload Pending - Exception'].includes(p.admission_consent_status)).length;
       const outstanding=Math.max(0,(bill.data||[]).reduce((total,row)=>{
         const amount=Number(row.amount||0);
         const type=String(row.transaction_type||'Charge');
@@ -9168,7 +9169,8 @@ function Dashboard({profile,onNavigate,alertEngine}){
         enquiries:(enq?.data||[]).filter(isAdmissionEnquiry).length,
         recentEnquiries:(enq?.data||[]).filter(isAdmissionEnquiry).slice(0,6),
         escalations:esc?.count||0,
-        packageExpiry
+        packageExpiry,
+        pendingConsent
       });
     })()},[]);
     // Dashboard clinical action cards represent ACTIVE/PENDING actions, not completed logs.
@@ -9188,6 +9190,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
       {label:'Available beds',value:stats.availableBeds,page:'Rooms',icon:'🛏️',roomBedFilter:'available',status:stats.availableBeds?`${stats.availableBeds} currently available bed${stats.availableBeds===1?'':'s'}`:'No beds currently available'},
       {label:'Reservation Overdue',value:stats.reservationOverdue,page:'Rooms',icon:'⏰',roomBedFilter:'reserved',status:stats.reservationOverdue?`${stats.reservationOverdue} reservation${stats.reservationOverdue===1?'':'s'} awaiting action`:'No overdue reservations'},
       {label:'High-risk patients',value:stats.risks,page:'Patients',icon:'⚠️',patientFilter:'high-risk'},
+      {label:'Pending Signed Consent',value:stats.pendingConsent,page:'Patients',icon:'✍️',patientFilter:'pending-consent',status:stats.pendingConsent?`${stats.pendingConsent} admission${stats.pendingConsent===1?'':'s'} awaiting signed consent upload`:'No pending signed consent'},
       {label:'Active employees',value:stats.employees,page:'Employees',icon:'🧑‍⚕️',employeeFilter:'__ALL__'},
       {label:'Medicine Actions Today',value:medicineActionsToday,page:'Clinical Alerts',icon:'💊',clinicalFocus:'Medication',status:medicineActionsToday?`${medicineActionsToday} pending / due medication action${medicineActionsToday===1?'':'s'}`:'No medication actions due'},
       {label:'Care actions today',value:careActionsToday,page:'Clinical Alerts',icon:'✅',clinicalFocus:'Daily Care',status:careActionsToday?`${careActionsToday} pending / due care action${careActionsToday===1?'':'s'}`:'No care actions due'},
@@ -17660,7 +17663,7 @@ Please keep these login details confidential.`;
       try{
         const requested=sessionStorage.getItem('samara-patient-list-filter');
         sessionStorage.removeItem('samara-patient-list-filter');
-        return ['active','assigned','awaiting','high-risk','duplicates'].includes(requested)?requested:'active';
+        return ['active','assigned','awaiting','high-risk','duplicates','pending-consent'].includes(requested)?requested:'active';
       }catch(_error){return 'active'}
     });
     const [editTarget,setEditTarget]=React.useState(null),[editForm,setEditForm]=React.useState(null),[editBusy,setEditBusy]=React.useState(false),[editMsg,setEditMsg]=React.useState('');
@@ -18204,30 +18207,42 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
       const picked=Array.from(files||[]);setEditUploads(prev=>({...prev,[key]:replace?picked.slice(0,1):[...(prev[key]||[]),...picked]}));
       if(key==='photo'&&picked[0]){if(editPhotoUrl&&editPhotoUrl.startsWith('blob:'))URL.revokeObjectURL(editPhotoUrl);setEditPhotoUrl(URL.createObjectURL(picked[0]))}
     }
-    const EDIT_DOCUMENT_TYPES={photo:'Patient Photo',identity:'Identity Proof',prescription:'Current Prescription',discharge:'Discharge / Transfer Summary',reports:'Lab / Scan / Test Report',other:'Other Medical Document'};
+    const EDIT_DOCUMENT_TYPES={photo:'Patient Photo',identity:'Identity Proof',prescription:'Current Prescription',discharge:'Discharge / Transfer Summary',reports:'Lab / Scan / Test Report',other:'Other Medical Document',consent:'Signed Admission Consent Form'};
     async function uploadEditFilesImmediately(key,files,photo=false){
       const chosen=Array.from(files||[]);
       if(!editTarget?.id||!chosen.length)return;
       setEditMsg(`Uploading ${chosen.length>1?`${chosen.length} files`:'file'}…`);
       try{
+        let latestConsentPath=null;
         for(const file of chosen){
           const mime=String(file.type||'').toLowerCase();
           const name=String(file.name||'').toLowerCase();
           const allowed=mime==='application/pdf'||mime.startsWith('image/')||/\.(jpe?g|png|webp|heic|heif|pdf)$/i.test(name);
           if(!allowed)throw new Error('Please use JPG/JPEG, PNG, HEIC/HEIF, WEBP or PDF files.');
           if(file.size>15*1024*1024)throw new Error(`${file.name||'Document'} is larger than 15 MB.`);
-          await uploadEditDocument(editTarget.id,file,EDIT_DOCUMENT_TYPES[key]||'Other Medical Document',photo);
+          const storedPath=await uploadEditDocument(editTarget.id,file,EDIT_DOCUMENT_TYPES[key]||'Other Medical Document',photo);
+          if(key==='consent')latestConsentPath=storedPath;
+        }
+        if(key==='consent'&&latestConsentPath){
+          const {error:consentError}=await client.from('patients').update({
+            admission_consent_status:'Completed',
+            admission_consent_uploaded_at:new Date().toISOString(),
+            admission_consent_storage_path:latestConsentPath,
+            admission_consent_exception_reason:null
+          }).eq('id',editTarget.id);
+          if(consentError)throw consentError;
+          setEditTarget(prev=>prev?{...prev,admission_consent_status:'Completed',admission_consent_uploaded_at:new Date().toISOString(),admission_consent_storage_path:latestConsentPath,admission_consent_exception_reason:null}:prev);
         }
         setEditUploads(prev=>({...prev,[key]:[]}));
         await loadEditMedia({...editTarget,photo_storage_path:photo?null:editTarget.photo_storage_path});
         await load();
-        setEditMsg(`${labelForEditDocument(key)} uploaded successfully. You can continue editing this patient.`);
+        setEditMsg(key==='consent'?'Signed Admission Consent uploaded. Admission formalities are now complete.':`${labelForEditDocument(key)} uploaded successfully. You can continue editing this patient.`);
       }catch(error){
         console.error('Patient document upload failed:',error);
         setEditMsg(`Upload failed: ${error.message||error}`);
       }
     }
-    function labelForEditDocument(key){return ({photo:'Patient photo',identity:'Aadhaar / identity document',prescription:'Prescription',discharge:'Discharge / transfer summary',reports:'Report',other:'Document'})[key]||'Document'}
+    function labelForEditDocument(key){return ({photo:'Patient photo',identity:'Aadhaar / identity document',prescription:'Prescription',discharge:'Discharge / transfer summary',reports:'Report',other:'Document',consent:'Signed Admission Consent Form'})[key]||'Document'}
     function editCaptureField(label,key,accept='image/*,.pdf',photo=false){
       const files=editUploads[key]||[];
       const pick=async e=>{e.preventDefault();e.stopPropagation();const chosen=Array.from(e.target.files||[]);e.target.value='';if(!chosen.length)return;addEditFiles(key,chosen,photo);await uploadEditFilesImmediately(key,chosen,photo)};
@@ -18243,6 +18258,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
       const {data:{user}}=await client.auth.getUser();
       const {error:doc}=await client.from('patient_documents').insert({patient_id:patientId,document_type:type,document_name:file.name||type,storage_path:path,mime_type:file.type||null,file_size:file.size||null,uploaded_by:user?.id||null,is_verified:true});if(doc)throw doc;
       if(isPhoto){const {error:pe}=await client.from('patients').update({photo_storage_path:path}).eq('id',patientId);if(pe)throw pe}
+      return path;
     }
     async function deleteEditDocument(doc){
       if(!confirm(`Delete ${doc.document_name||doc.document_type||'this document'}?`))return;
@@ -18396,6 +18412,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
     async function savePatientEdit(e){
       e.preventDefault();setEditBusy(true);setEditMsg('');
       if(isFutureDateIndia(editForm.admission_date)){const text=`Admission date cannot be later than today (${formatDateIN(todayISOIndia())}). Please correct the date.`;setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
+      if(!editFamilyAccess.enabled&&!editFamilyAccess2.enabled){const text='Family Portal Access is mandatory. Enable Family Contact 1 or Family Contact 2 before saving.';setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
       const normalizedEditMobile=String(editForm.mobile||'').replace(/\D/g,'').slice(-10);
       if(normalizedEditMobile.length===10){
         const {data:mobilePatients,error:mobileCheckError}=await client.from('patients').select('id,patient_id,patient_code,title,full_name,mobile');
@@ -19161,6 +19178,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
     function sectionEmpty(text){return h('p',{className:'small-note'},text)}
     const duplicateRows=rows.filter(r=>duplicateCount(r)>0);
     const activeRows=rows.filter(r=>r.is_active!==false);
+    const pendingConsentRows=rows.filter(r=>r.is_active!==false&&['Awaiting Signed Consent','Upload Pending - Exception'].includes(r.admission_consent_status));
     const districtOptions=['All',...Array.from(new Set(rows.map(r=>String(r.district||'').trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b))];
     const admissionDateLabel=value=>value?formatDateIN(String(value).slice(0,10)):'—';
     const admissionMoney=value=>value===null||value===undefined||value===''?'—':`₹${Number(value||0).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:2})}`;
@@ -19175,7 +19193,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
     };
     const admissionField=(label,value)=>h('div',{className:'patient-admission-field'},h('span',null,label),h('strong',null,value||'—'));
     const patientDetailField=(label,value,extraClass='')=>h('div',{className:`patient-detail-field ${extraClass}`.trim()},h('span',{className:'patient-detail-label'},label),h('span',{className:'patient-detail-colon'},':'),h('span',{className:'patient-detail-value'},value==null||value===''?'—':value));
-    const patientQuickLabels={active:'Active patients',inactive:'Inactive / discharged',all:'All records (including discharged)',assigned:'Room assigned',awaiting:'Awaiting room','high-risk':'High-risk patients',duplicates:'Possible duplicates'};
+    const patientQuickLabels={active:'Active patients',inactive:'Inactive / discharged',all:'All records (including discharged)',assigned:'Room assigned',awaiting:'Awaiting room','high-risk':'High-risk patients',duplicates:'Possible duplicates','pending-consent':'Pending signed consent'};
     function openPatientQuickFilter(filter){
       setPatientSearch('');
       setDistrictFilter('All');
@@ -19200,7 +19218,8 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
         (patientQuickFilter==='assigned'&&r.is_active!==false&&r.room_no&&r.bed_no)||
         (patientQuickFilter==='awaiting'&&r.is_active!==false&&(!r.room_no||!r.bed_no))||
         (patientQuickFilter==='high-risk'&&r.is_active!==false&&Boolean(r.fall_risk||r.pressure_sore_risk||r.aspiration_risk||r.wandering_risk||r.infection_risk||r.oxygen_required))||
-        (patientQuickFilter==='duplicates'&&duplicateCount(r)>0);
+        (patientQuickFilter==='duplicates'&&duplicateCount(r)>0)||
+        (patientQuickFilter==='pending-consent'&&r.is_active!==false&&['Awaiting Signed Consent','Upload Pending - Exception'].includes(r.admission_consent_status));
       return matchesSearch&&matchesDistrict&&matchesQuick;
     });
     return h(React.Fragment,null,
@@ -19209,7 +19228,8 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
         h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='assigned'?'active':''}`,onClick:()=>openPatientQuickFilter('assigned')},h('span',null,'Room assigned'),h('strong',null,activeRows.filter(x=>x.room_no&&x.bed_no).length)),
         h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='awaiting'?'active':''}`,onClick:()=>openPatientQuickFilter('awaiting')},h('span',null,'Awaiting room'),h('strong',null,activeRows.filter(x=>!x.room_no||!x.bed_no).length)),
         h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='high-risk'?'active':''}`,onClick:()=>openPatientQuickFilter('high-risk')},h('span',null,'High-risk patients'),h('strong',null,activeRows.filter(x=>x.fall_risk||x.pressure_sore_risk||x.aspiration_risk||x.wandering_risk||x.infection_risk||x.oxygen_required).length)),
-        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='duplicates'?'active':''}`,onClick:()=>openPatientQuickFilter('duplicates')},h('span',null,'Possible duplicates'),h('strong',null,duplicateRows.length))
+        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='duplicates'?'active':''}`,onClick:()=>openPatientQuickFilter('duplicates')},h('span',null,'Possible duplicates'),h('strong',null,duplicateRows.length)),
+        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='pending-consent'?'active':''}`,onClick:()=>openPatientQuickFilter('pending-consent')},h('span',null,'Pending signed consent'),h('strong',null,pendingConsentRows.length))
       ),
       h('div',{className:'card panel',id:'patient-filter-results',style:{scrollMarginTop:'148px'}},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Patient Master'),h('small',null,'Single source for identity, admission, nursing, medicines, diet, documents, billing and recovery'))),
@@ -20393,7 +20413,8 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
         h('div',{className:'section-card patient-edit-media'},
           h('div',{className:'panel-head'},h('div',null,h('h4',null,'Patient Photo and Medical Documents'),h('small',null,'Upload a file, use the mobile camera, or capture through the webcam.'))),
           h('div',{className:'patient-edit-photo-row'},editPhotoUrl?h('img',{src:editPhotoUrl,className:'patient-photo',alt:'Patient photo'}):h('div',{className:'patient-photo patient-photo-placeholder'},'SC'),editCaptureField('Patient Photo','photo','image/*',true)),
-          h('div',{className:'upload-grid'},editCaptureField('Identity Proof','identity'),editCaptureField('Current Prescription','prescription'),editCaptureField('Discharge / Transfer Summary','discharge'),editCaptureField('Lab / Scan / Test Reports','reports'),editCaptureField('Other Medical Documents','other')),
+          editTarget?.admission_consent_status&&editTarget.admission_consent_status!=='Completed'?h('div',{className:'message warning',style:{marginBottom:'12px'}},h('strong',null,'Signed Admission Consent pending'),h('div',null,`Status: ${editTarget.admission_consent_status}${editTarget.admission_consent_exception_reason?` — Reason recorded: ${editTarget.admission_consent_exception_reason}`:''}. Upload the signed consent form below to complete admission formalities.`)):null,
+          h('div',{className:'upload-grid'},editCaptureField('Identity Proof','identity'),editCaptureField('Current Prescription','prescription'),editCaptureField('Discharge / Transfer Summary','discharge'),editCaptureField('Lab / Scan / Test Reports','reports'),editCaptureField('Other Medical Documents','other'),editTarget?.admission_consent_status&&editTarget.admission_consent_status!=='Completed'?editCaptureField('Signed Admission Consent Form','consent','image/*,.pdf',false):null),
           h('h4',{style:{marginTop:'18px'}},'Uploaded Documents'),
           editDocs.length?h('div',{className:'uploaded-documents-list'},editDocs.map(doc=>h('div',{className:'timeline-item',key:doc.id},h('div',null,h('strong',null,doc.document_type||'Document'),h('span',null,doc.document_name||'File')),h('div',{className:'employee-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openDoc(doc)},'Open'),h('button',{type:'button',className:'btn btn-danger',onClick:()=>deleteEditDocument(doc)},'Delete'))))):h('p',{className:'small-note'},'No documents uploaded yet.')
         ),
@@ -24711,6 +24732,7 @@ function RoomsBeds({profile,onNavigate}){
     const [patients]=usePatients();
     const [master,setMaster]=React.useState([]);
     const [requests,setRequests]=React.useState([]);
+    const [storeItems,setStoreItems]=React.useState([]);
     const [busy,setBusy]=React.useState(false);
     const [form,setForm]=React.useState({patient_id:'',procedure_id:'',scheduled_at:'',remarks:''});
     const [showMasterForm,setShowMasterForm]=React.useState(false);
@@ -24718,13 +24740,39 @@ function RoomsBeds({profile,onNavigate}){
     const [editingMaster,setEditingMaster]=React.useState(null);
 
     const load=React.useCallback(async()=>{
-      const [m,r]=await Promise.all([
+      const [m,r,s]=await Promise.all([
         client.from('nursing_procedure_master').select('*').order('display_order').order('procedure_name'),
-        client.from('nursing_procedure_requests').select('*').order('requested_at',{ascending:false}).limit(300)
+        client.from('nursing_procedure_requests').select('*').order('requested_at',{ascending:false}).limit(300),
+        client.from('consumable_store_items').select('id,item_name,item_category').eq('active',true)
       ]);
       if(!m.error)setMaster(m.data||[]);else console.warn(m.error);
       if(!r.error)setRequests(r.data||[]);else console.warn(r.error);
+      if(!s.error)setStoreItems(s.data||[]);
     },[]);
+
+    // Checks a new/edited procedure name against other active procedure codes AND
+    // against Consumables/Pharmacy item names, so the same real thing (e.g. "Blood
+    // Glucose Monitoring" vs "Glucose Strips") is not billed twice from two catalogs.
+    const normalizeName=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+    const nameTokens=value=>new Set(normalizeName(value).split(' ').filter(Boolean).map(x=>x.length>3&&x.endsWith('s')?x.slice(0,-1):x));
+    const findCatalogDuplicate=(name,excludeId='')=>{
+      const n=normalizeName(name);if(!n)return null;const a=nameTokens(name);
+      let best=null,bestScore=0;
+      for(const p of master){
+        if(String(p.id)===String(excludeId))continue;
+        const pn=normalizeName(p.procedure_name);if(!pn)continue;
+        if(pn===n)return {label:p.procedure_name,source:'Nursing Procedure Code',code:p.code,match:'exact'};
+        const b=nameTokens(p.procedure_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;
+        if(score>bestScore){bestScore=score;best={label:p.procedure_name,source:'Nursing Procedure Code',code:p.code}}
+      }
+      for(const s of storeItems){
+        const sn=normalizeName(s.item_name);if(!sn)continue;
+        if(sn===n)return {label:s.item_name,source:s.item_category||'Consumables/Pharmacy',match:'exact'};
+        const b=nameTokens(s.item_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;
+        if(score>bestScore){bestScore=score;best={label:s.item_name,source:s.item_category||'Consumables/Pharmacy'}}
+      }
+      return bestScore>=0.72?{...best,match:best.match||'similar'}:null;
+    };
     React.useEffect(()=>{
       load();
       const ch=client.channel('nursing-procedures-live')
@@ -24784,6 +24832,8 @@ function RoomsBeds({profile,onNavigate}){
       e.preventDefault();
       if(!canManageMaster||busy)return;
       if(!masterForm.code.trim()||!masterForm.procedure_name.trim())return showSamaraActionToast('error','Nursing Procedure Code','Code and procedure name are required.');
+      const duplicate=findCatalogDuplicate(masterForm.procedure_name,editingMaster?.id);
+      if(duplicate)return showSamaraActionToast('error','Possible duplicate',`"${masterForm.procedure_name}" looks similar to the existing ${duplicate.source}${duplicate.code?` (${duplicate.code})`:''}: "${duplicate.label}". Use/edit that entry instead, or include a distinguishing detail in the procedure name.`);
       setBusy(true);
       const res=editingMaster
         ?await client.from('nursing_procedure_master').update({code:masterForm.code.trim(),procedure_name:masterForm.procedure_name.trim(),updated_at:new Date().toISOString()}).eq('id',editingMaster.id)
@@ -29526,13 +29576,43 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
 
 
   function StoreItemMaster({profile}){
-    const [rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('All'),[search,setSearch]=React.useState(''),[editing,setEditing]=React.useState(null),[adding,setAdding]=React.useState(null),[moveTargets,setMoveTargets]=React.useState({}),[duplicateAlert,setDuplicateAlert]=React.useState(null);
-    const load=React.useCallback(async()=>{const r=await client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate').order('item_name');if(r.error)showSamaraActionToast('error','Stores Master','Run 132_store_item_master.sql first. '+r.error.message);else setRows(r.data||[])},[]);
+    const [rows,setRows]=React.useState([]),[procedureRows,setProcedureRows]=React.useState([]),[busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('All'),[search,setSearch]=React.useState(''),[editing,setEditing]=React.useState(null),[adding,setAdding]=React.useState(null),[moveTargets,setMoveTargets]=React.useState({}),[duplicateAlert,setDuplicateAlert]=React.useState(null);
+    const load=React.useCallback(async()=>{
+      const [r,p]=await Promise.all([
+        client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate').order('item_name'),
+        client.from('nursing_procedure_master').select('id,code,procedure_name').eq('is_active',true)
+      ]);
+      if(r.error)showSamaraActionToast('error','Stores Master','Run 132_store_item_master.sql first. '+r.error.message);else setRows(r.data||[]);
+      if(!p.error)setProcedureRows(p.data||[]);
+    },[]);
     React.useEffect(()=>{load()},[load]);
     const visible=rows.filter(r=>{const c=r.item_category||'Consumables',q=search.trim().toLowerCase();return (filter==='All'||filter===c||(filter==='Inactive'&&r.active===false))&&(q.length<3||`${r.item_code||''} ${r.item_name||''}`.toLowerCase().includes(q))});
     const normalizeMasterName=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\b(ml|mg|gm|g|iu|fr)\b/g,' $1 ').replace(/\s+/g,' ').trim();
     const masterTokens=value=>new Set(normalizeMasterName(value).split(' ').filter(Boolean).map(x=>x.length>3&&x.endsWith('s')?x.slice(0,-1):x));
-    const similarMasterItem=(name,excludeId='')=>{const n=normalizeMasterName(name);if(!n)return null;const a=masterTokens(name);let best=null,bestScore=0;for(const r of rows){if(String(r.id)===String(excludeId))continue;const rn=normalizeMasterName(r.item_name);if(!rn)continue;if(rn===n)return {...r,_match:'exact',_score:1};const b=masterTokens(r.item_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;const numsA=[...a].filter(x=>/^\d+(?:\.\d+)?$/.test(x)).sort().join('|'),numsB=[...b].filter(x=>/^\d+(?:\.\d+)?$/.test(x)).sort().join('|');if(numsA!==numsB)continue;if(score>bestScore){bestScore=score;best=r}}return bestScore>=0.72?{...best,_match:'similar',_score:bestScore}:null};
+    // Checks both other store items AND active Nursing Procedure codes, so a new
+    // Consumables/Pharmacy item that really means the same thing as an existing
+    // procedure (e.g. "Glucose Strips" vs the "Blood Glucose Monitoring" procedure)
+    // is caught before it can create a confusing, possibly double-billed, entry.
+    const similarMasterItem=(name,excludeId='')=>{
+      const n=normalizeMasterName(name);if(!n)return null;const a=masterTokens(name);
+      let best=null,bestScore=0;
+      for(const r of rows){
+        if(String(r.id)===String(excludeId))continue;
+        const rn=normalizeMasterName(r.item_name);if(!rn)continue;
+        if(rn===n)return {...r,_source:'store',_match:'exact',_score:1};
+        const b=masterTokens(r.item_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;
+        const numsA=[...a].filter(x=>/^\d+(?:\.\d+)?$/.test(x)).sort().join('|'),numsB=[...b].filter(x=>/^\d+(?:\.\d+)?$/.test(x)).sort().join('|');
+        if(numsA!==numsB)continue;
+        if(score>bestScore){bestScore=score;best={...r,_source:'store'}}
+      }
+      for(const p of procedureRows){
+        const pn=normalizeMasterName(p.procedure_name);if(!pn)continue;
+        if(pn===n)return {item_name:p.procedure_name,item_code:p.code,_source:'procedure',_match:'exact',_score:1};
+        const b=masterTokens(p.procedure_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;
+        if(score>bestScore){bestScore=score;best={item_name:p.procedure_name,item_code:p.code,_source:'procedure'}}
+      }
+      return bestScore>=0.72?{...best,_match:'similar',_score:bestScore}:null;
+    };
     const duplicateWarning=(candidate,excludeId='')=>{const hit=similarMasterItem(candidate,excludeId);if(!hit)return false;setDuplicateAlert({entered:String(candidate||'').trim(),...hit});return true};
     const save=async()=>{if(!editing?.item_name?.trim())return showSamaraActionToast('error','Stores Master','Item name is required.');if(duplicateWarning(editing.item_name,editing.id))return;setBusy(true);const r=await client.rpc('admin_update_store_item',{p_item_id:editing.id,p_item_name:editing.item_name.trim(),p_category:editing.item_category||'Consumables',p_unit:editing.unit,p_strength:editing.strength||null,p_dosage_form:editing.dosage_form||null});setBusy(false);if(r.error)showSamaraActionToast('error','Stores Master',r.error.message);else{showSamaraActionToast('success','Stores Master','Item details updated.');setEditing(null);load()}};
     const savePrice=async(itemId,value)=>{const rate=Number(value);if(!Number.isFinite(rate)||rate<0)return showSamaraActionToast('error','Stores Master','Enter a valid charge rate of zero or more.');setBusy(true);const r=await client.rpc('admin_set_store_item_charge_rate',{p_item_id:itemId,p_charge_rate:rate});if(r.error){setBusy(false);return showSamaraActionToast('error','Stores Master',r.error.message)}const verify=await client.from('consumable_store_items').select('charge_rate').eq('id',itemId).maybeSingle();setBusy(false);if(verify.error||!verify.data||Math.abs(Number(verify.data.charge_rate)-rate)>0.009)return showSamaraActionToast('error','Rate not saved','The database did not confirm the new charge rate. No success has been recorded. Please check Stores permissions.');showSamaraActionToast('success','Stores Master','Charge rate saved and verified for future patient charges.');load()};
@@ -29563,7 +29643,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         h('td',null,r.active===false?'Inactive':'Active'),
         h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},editButton(r),h('button',{className:'btn btn-secondary',onClick:()=>active(r,r.active===false)},r.active===false?'Reactivate':'Deactivate'),h('button',{className:'btn btn-secondary',onClick:()=>remove(r)},'Delete'))
       )))))
-    ),duplicateAlert&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.58)',backdropFilter:'blur(2px)',zIndex:10050}},h('div',{className:'modal-card',style:{width:'min(92vw,760px)',maxWidth:'760px',background:'#fffafd',border:'2px solid #d92f4b',borderRadius:'24px',boxShadow:'0 26px 80px rgba(55,18,35,.35)',padding:'30px 32px'}},h('div',{style:{fontSize:'30px',fontWeight:900,color:'#a71936',marginBottom:'14px'}},duplicateAlert._match==='exact'?'Item Already Exists':'Possible Duplicate Item'),h('div',{style:{fontSize:'21px',lineHeight:1.55,color:'#402936'}},h('p',{style:{margin:'0 0 14px'}},'The item you entered cannot be added because a matching item is already available.'),h('div',{style:{background:'#fff1f5',border:'1px solid #efb8c7',borderRadius:'16px',padding:'18px 20px',marginBottom:'16px'}},h('div',{style:{fontSize:'24px',fontWeight:900,color:'#7f1230'}},`${duplicateAlert.item_code?duplicateAlert.item_code+' · ':''}${duplicateAlert.item_name}`),h('div',{style:{fontSize:'20px',fontWeight:800,marginTop:'7px'}},`Already available under: ${duplicateAlert.item_category||'Stores / Pharmacy'}`),duplicateAlert.unit&&h('div',{style:{fontSize:'18px',marginTop:'5px'}},`Unit: ${duplicateAlert.unit}`)),h('p',{style:{margin:'0'}},'Please use or edit the existing master item. If this is genuinely different, include the distinguishing size, strength, gauge or dosage form in the item name.')),h('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:'24px'}},h('button',{className:'btn btn-primary',style:{fontSize:'19px',padding:'12px 30px',minWidth:'120px'},onClick:()=>setDuplicateAlert(null)},'OK')))),adding&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)',backdropFilter:'blur(1px)'}},h('div',{className:'modal-card',style:{maxWidth:'620px',background:'#fffafd',opacity:1,border:'1px solid #e7bfd1',borderRadius:'18px',boxShadow:'0 22px 60px rgba(55,18,35,.28)',padding:'22px'}},h('h3',null,'Add New Item'),h('div',{className:'form-grid'},
+    ),duplicateAlert&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.58)',backdropFilter:'blur(2px)',zIndex:10050}},h('div',{className:'modal-card',style:{width:'min(92vw,760px)',maxWidth:'760px',background:'#fffafd',border:'2px solid #d92f4b',borderRadius:'24px',boxShadow:'0 26px 80px rgba(55,18,35,.35)',padding:'30px 32px'}},h('div',{style:{fontSize:'30px',fontWeight:900,color:'#a71936',marginBottom:'14px'}},duplicateAlert._match==='exact'?'Item Already Exists':'Possible Duplicate Item'),h('div',{style:{fontSize:'21px',lineHeight:1.55,color:'#402936'}},h('p',{style:{margin:'0 0 14px'}},'The item you entered cannot be added because a matching item is already available.'),h('div',{style:{background:'#fff1f5',border:'1px solid #efb8c7',borderRadius:'16px',padding:'18px 20px',marginBottom:'16px'}},h('div',{style:{fontSize:'24px',fontWeight:900,color:'#7f1230'}},`${duplicateAlert.item_code?duplicateAlert.item_code+' · ':''}${duplicateAlert.item_name}`),h('div',{style:{fontSize:'20px',fontWeight:800,marginTop:'7px'}},duplicateAlert._source==='procedure'?'Already listed as a Nursing Procedure Code':`Already available under: ${duplicateAlert.item_category||'Stores / Pharmacy'}`),duplicateAlert.unit&&h('div',{style:{fontSize:'18px',marginTop:'5px'}},`Unit: ${duplicateAlert.unit}`)),h('p',{style:{margin:'0'}},duplicateAlert._source==='procedure'?'A Nursing Procedure with this name already exists. Adding the same thing again as a Stores/Pharmacy item risks charging the patient twice for it. If this consumable is genuinely different from the procedure (for example, the strips used to perform it), include a distinguishing detail in the item name.':'Please use or edit the existing master item. If this is genuinely different, include the distinguishing size, strength, gauge or dosage form in the item name.')),h('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:'24px'}},h('button',{className:'btn btn-primary',style:{fontSize:'19px',padding:'12px 30px',minWidth:'120px'},onClick:()=>setDuplicateAlert(null)},'OK')))),adding&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)',backdropFilter:'blur(1px)'}},h('div',{className:'modal-card',style:{maxWidth:'620px',background:'#fffafd',opacity:1,border:'1px solid #e7bfd1',borderRadius:'18px',boxShadow:'0 22px 60px rgba(55,18,35,.28)',padding:'22px'}},h('h3',null,'Add New Item'),h('div',{className:'form-grid'},
       h('div',{className:'field span-2'},h('label',null,'Item Name *'),h('input',{value:adding.item_name||'',onChange:e=>setAdding({...adding,item_name:e.target.value})})),
       h('div',{className:'field'},h('label',null,'Currently Under *'),h('select',{value:adding.item_category||'Consumables',onChange:e=>setAdding({...adding,item_category:e.target.value})},h('option',{value:'Consumables'},'Consumables'),h('option',{value:'Pharmacy'},'Pharmacy'))),
       h('div',{className:'field'},h('label',null,'Unit *'),h('input',{value:adding.unit||'',onChange:e=>setAdding({...adding,unit:e.target.value})})),

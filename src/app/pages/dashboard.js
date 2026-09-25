@@ -91,7 +91,7 @@
   }
 
 function Dashboard({profile,onNavigate,alertEngine}){
-    const [stats,setStats]=React.useState({employees:0,patients:0,availableBeds:0,reservationOverdue:0,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[],escalations:0,packageExpiry:0});
+    const [stats,setStats]=React.useState({employees:0,patients:0,availableBeds:0,reservationOverdue:0,meds:0,care:0,outstanding:0,risks:0,incidents:0,discharges:0,dischargeStatus:'No active discharge',visitRequests:0,enquiries:0,recentEnquiries:[],escalations:0,packageExpiry:0,pendingConsent:0});
     const [managerPersonalSummary,setManagerPersonalSummary]=React.useState({today:0,overdue:0,followup:0,completed:0});
     const [directorOfficeSummary,setDirectorOfficeSummary]=React.useState({
       isDirector:false,
@@ -205,6 +205,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
         return end<=soonDate;
       }).length;
       const risks=patients.filter(p=>p.fall_risk||p.pressure_sore_risk||p.aspiration_risk||p.wandering_risk||p.infection_risk||p.oxygen_required).length;
+      const pendingConsent=patients.filter(p=>['Awaiting Signed Consent','Upload Pending - Exception'].includes(p.admission_consent_status)).length;
       const outstanding=Math.max(0,(bill.data||[]).reduce((total,row)=>{
         const amount=Number(row.amount||0);
         const type=String(row.transaction_type||'Charge');
@@ -254,7 +255,8 @@ function Dashboard({profile,onNavigate,alertEngine}){
         enquiries:(enq?.data||[]).filter(isAdmissionEnquiry).length,
         recentEnquiries:(enq?.data||[]).filter(isAdmissionEnquiry).slice(0,6),
         escalations:esc?.count||0,
-        packageExpiry
+        packageExpiry,
+        pendingConsent
       });
     })()},[]);
     // Dashboard clinical action cards represent ACTIVE/PENDING actions, not completed logs.
@@ -274,6 +276,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
       {label:'Available beds',value:stats.availableBeds,page:'Rooms',icon:'🛏️',roomBedFilter:'available',status:stats.availableBeds?`${stats.availableBeds} currently available bed${stats.availableBeds===1?'':'s'}`:'No beds currently available'},
       {label:'Reservation Overdue',value:stats.reservationOverdue,page:'Rooms',icon:'⏰',roomBedFilter:'reserved',status:stats.reservationOverdue?`${stats.reservationOverdue} reservation${stats.reservationOverdue===1?'':'s'} awaiting action`:'No overdue reservations'},
       {label:'High-risk patients',value:stats.risks,page:'Patients',icon:'⚠️',patientFilter:'high-risk'},
+      {label:'Pending Signed Consent',value:stats.pendingConsent,page:'Patients',icon:'✍️',patientFilter:'pending-consent',status:stats.pendingConsent?`${stats.pendingConsent} admission${stats.pendingConsent===1?'':'s'} awaiting signed consent upload`:'No pending signed consent'},
       {label:'Active employees',value:stats.employees,page:'Employees',icon:'🧑‍⚕️',employeeFilter:'__ALL__'},
       {label:'Medicine Actions Today',value:medicineActionsToday,page:'Clinical Alerts',icon:'💊',clinicalFocus:'Medication',status:medicineActionsToday?`${medicineActionsToday} pending / due medication action${medicineActionsToday===1?'':'s'}`:'No medication actions due'},
       {label:'Care actions today',value:careActionsToday,page:'Clinical Alerts',icon:'✅',clinicalFocus:'Daily Care',status:careActionsToday?`${careActionsToday} pending / due care action${careActionsToday===1?'':'s'}`:'No care actions due'},

@@ -80,7 +80,7 @@ helper it uses, before `z-end/...`). The build refuses to run if a file is missi
 | 26 | `shell/04-navigation-menus.js` | 179 | Sidebar, mobile menu, bottom nav, drawer, nursing quick actions |
 | 27 | `pages/family-feedback.js` | 217 | Family communication + Feedback dashboard |
 | 28 | `pages/titan-mail.js` | 340 | Titan Mail page |
-| 29 | `pages/dashboard.js` | 388 | Home Dashboard and its navigation helpers |
+| 29 | `pages/dashboard.js` | 391 | Home Dashboard and its navigation helpers (+ Pending Signed Consent card) |
 | 30 | `pages/manager-personal-todo.js` | 391 | Manager personal to-do |
 | 31 | `pages/whatsapp-inbox.js` | 754 | WhatsApp Inbox |
 | 32 | `hr/hr-dashboard.js` | 101 | HR dashboard |
@@ -94,7 +94,7 @@ helper it uses, before `z-end/...`). The build refuses to run if a file is missi
 | 40 | `patients/medication-helpers.js` | 135 | Medication time/frequency helpers shared by Admissions & Medicines |
 | 41 | `patients/admissions.js` | 2350 | Admissions page (+ Tamil Nadu districts list) |
 | 42 | `nursing/shift-tasks.js` | 397 | Shift tasks |
-| 43 | `patients/patients.js` | 2777 | Patients page |
+| 43 | `patients/patients.js` | 2795 | Patients page (Family Portal mandatory on edit, deferred consent upload, pending-consent quick filter) |
 | 44 | `patients/patient-select-helpers.js` | 97 | usePatients, patient/room-bed dropdowns, file input, Section |
 | 45 | `patients/discharge.js` | 1517 | Discharge management |
 | 46 | `rooms/care-packages.js` | 101 | Care packages |

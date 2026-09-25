@@ -24,7 +24,7 @@
       try{
         const requested=sessionStorage.getItem('samara-patient-list-filter');
         sessionStorage.removeItem('samara-patient-list-filter');
-        return ['active','assigned','awaiting','high-risk','duplicates'].includes(requested)?requested:'active';
+        return ['active','assigned','awaiting','high-risk','duplicates','pending-consent'].includes(requested)?requested:'active';
       }catch(_error){return 'active'}
     });
     const [editTarget,setEditTarget]=React.useState(null),[editForm,setEditForm]=React.useState(null),[editBusy,setEditBusy]=React.useState(false),[editMsg,setEditMsg]=React.useState('');
@@ -568,30 +568,42 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
       const picked=Array.from(files||[]);setEditUploads(prev=>({...prev,[key]:replace?picked.slice(0,1):[...(prev[key]||[]),...picked]}));
       if(key==='photo'&&picked[0]){if(editPhotoUrl&&editPhotoUrl.startsWith('blob:'))URL.revokeObjectURL(editPhotoUrl);setEditPhotoUrl(URL.createObjectURL(picked[0]))}
     }
-    const EDIT_DOCUMENT_TYPES={photo:'Patient Photo',identity:'Identity Proof',prescription:'Current Prescription',discharge:'Discharge / Transfer Summary',reports:'Lab / Scan / Test Report',other:'Other Medical Document'};
+    const EDIT_DOCUMENT_TYPES={photo:'Patient Photo',identity:'Identity Proof',prescription:'Current Prescription',discharge:'Discharge / Transfer Summary',reports:'Lab / Scan / Test Report',other:'Other Medical Document',consent:'Signed Admission Consent Form'};
     async function uploadEditFilesImmediately(key,files,photo=false){
       const chosen=Array.from(files||[]);
       if(!editTarget?.id||!chosen.length)return;
       setEditMsg(`Uploading ${chosen.length>1?`${chosen.length} files`:'file'}…`);
       try{
+        let latestConsentPath=null;
         for(const file of chosen){
           const mime=String(file.type||'').toLowerCase();
           const name=String(file.name||'').toLowerCase();
           const allowed=mime==='application/pdf'||mime.startsWith('image/')||/\.(jpe?g|png|webp|heic|heif|pdf)$/i.test(name);
           if(!allowed)throw new Error('Please use JPG/JPEG, PNG, HEIC/HEIF, WEBP or PDF files.');
           if(file.size>15*1024*1024)throw new Error(`${file.name||'Document'} is larger than 15 MB.`);
-          await uploadEditDocument(editTarget.id,file,EDIT_DOCUMENT_TYPES[key]||'Other Medical Document',photo);
+          const storedPath=await uploadEditDocument(editTarget.id,file,EDIT_DOCUMENT_TYPES[key]||'Other Medical Document',photo);
+          if(key==='consent')latestConsentPath=storedPath;
+        }
+        if(key==='consent'&&latestConsentPath){
+          const {error:consentError}=await client.from('patients').update({
+            admission_consent_status:'Completed',
+            admission_consent_uploaded_at:new Date().toISOString(),
+            admission_consent_storage_path:latestConsentPath,
+            admission_consent_exception_reason:null
+          }).eq('id',editTarget.id);
+          if(consentError)throw consentError;
+          setEditTarget(prev=>prev?{...prev,admission_consent_status:'Completed',admission_consent_uploaded_at:new Date().toISOString(),admission_consent_storage_path:latestConsentPath,admission_consent_exception_reason:null}:prev);
         }
         setEditUploads(prev=>({...prev,[key]:[]}));
         await loadEditMedia({...editTarget,photo_storage_path:photo?null:editTarget.photo_storage_path});
         await load();
-        setEditMsg(`${labelForEditDocument(key)} uploaded successfully. You can continue editing this patient.`);
+        setEditMsg(key==='consent'?'Signed Admission Consent uploaded. Admission formalities are now complete.':`${labelForEditDocument(key)} uploaded successfully. You can continue editing this patient.`);
       }catch(error){
         console.error('Patient document upload failed:',error);
         setEditMsg(`Upload failed: ${error.message||error}`);
       }
     }
-    function labelForEditDocument(key){return ({photo:'Patient photo',identity:'Aadhaar / identity document',prescription:'Prescription',discharge:'Discharge / transfer summary',reports:'Report',other:'Document'})[key]||'Document'}
+    function labelForEditDocument(key){return ({photo:'Patient photo',identity:'Aadhaar / identity document',prescription:'Prescription',discharge:'Discharge / transfer summary',reports:'Report',other:'Document',consent:'Signed Admission Consent Form'})[key]||'Document'}
     function editCaptureField(label,key,accept='image/*,.pdf',photo=false){
       const files=editUploads[key]||[];
       const pick=async e=>{e.preventDefault();e.stopPropagation();const chosen=Array.from(e.target.files||[]);e.target.value='';if(!chosen.length)return;addEditFiles(key,chosen,photo);await uploadEditFilesImmediately(key,chosen,photo)};
@@ -607,6 +619,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
       const {data:{user}}=await client.auth.getUser();
       const {error:doc}=await client.from('patient_documents').insert({patient_id:patientId,document_type:type,document_name:file.name||type,storage_path:path,mime_type:file.type||null,file_size:file.size||null,uploaded_by:user?.id||null,is_verified:true});if(doc)throw doc;
       if(isPhoto){const {error:pe}=await client.from('patients').update({photo_storage_path:path}).eq('id',patientId);if(pe)throw pe}
+      return path;
     }
     async function deleteEditDocument(doc){
       if(!confirm(`Delete ${doc.document_name||doc.document_type||'this document'}?`))return;
@@ -760,6 +773,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
     async function savePatientEdit(e){
       e.preventDefault();setEditBusy(true);setEditMsg('');
       if(isFutureDateIndia(editForm.admission_date)){const text=`Admission date cannot be later than today (${formatDateIN(todayISOIndia())}). Please correct the date.`;setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
+      if(!editFamilyAccess.enabled&&!editFamilyAccess2.enabled){const text='Family Portal Access is mandatory. Enable Family Contact 1 or Family Contact 2 before saving.';setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
       const normalizedEditMobile=String(editForm.mobile||'').replace(/\D/g,'').slice(-10);
       if(normalizedEditMobile.length===10){
         const {data:mobilePatients,error:mobileCheckError}=await client.from('patients').select('id,patient_id,patient_code,title,full_name,mobile');
@@ -1525,6 +1539,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
     function sectionEmpty(text){return h('p',{className:'small-note'},text)}
     const duplicateRows=rows.filter(r=>duplicateCount(r)>0);
     const activeRows=rows.filter(r=>r.is_active!==false);
+    const pendingConsentRows=rows.filter(r=>r.is_active!==false&&['Awaiting Signed Consent','Upload Pending - Exception'].includes(r.admission_consent_status));
     const districtOptions=['All',...Array.from(new Set(rows.map(r=>String(r.district||'').trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b))];
     const admissionDateLabel=value=>value?formatDateIN(String(value).slice(0,10)):'—';
     const admissionMoney=value=>value===null||value===undefined||value===''?'—':`₹${Number(value||0).toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:2})}`;
@@ -1539,7 +1554,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
     };
     const admissionField=(label,value)=>h('div',{className:'patient-admission-field'},h('span',null,label),h('strong',null,value||'—'));
     const patientDetailField=(label,value,extraClass='')=>h('div',{className:`patient-detail-field ${extraClass}`.trim()},h('span',{className:'patient-detail-label'},label),h('span',{className:'patient-detail-colon'},':'),h('span',{className:'patient-detail-value'},value==null||value===''?'—':value));
-    const patientQuickLabels={active:'Active patients',inactive:'Inactive / discharged',all:'All records (including discharged)',assigned:'Room assigned',awaiting:'Awaiting room','high-risk':'High-risk patients',duplicates:'Possible duplicates'};
+    const patientQuickLabels={active:'Active patients',inactive:'Inactive / discharged',all:'All records (including discharged)',assigned:'Room assigned',awaiting:'Awaiting room','high-risk':'High-risk patients',duplicates:'Possible duplicates','pending-consent':'Pending signed consent'};
     function openPatientQuickFilter(filter){
       setPatientSearch('');
       setDistrictFilter('All');
@@ -1564,7 +1579,8 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
         (patientQuickFilter==='assigned'&&r.is_active!==false&&r.room_no&&r.bed_no)||
         (patientQuickFilter==='awaiting'&&r.is_active!==false&&(!r.room_no||!r.bed_no))||
         (patientQuickFilter==='high-risk'&&r.is_active!==false&&Boolean(r.fall_risk||r.pressure_sore_risk||r.aspiration_risk||r.wandering_risk||r.infection_risk||r.oxygen_required))||
-        (patientQuickFilter==='duplicates'&&duplicateCount(r)>0);
+        (patientQuickFilter==='duplicates'&&duplicateCount(r)>0)||
+        (patientQuickFilter==='pending-consent'&&r.is_active!==false&&['Awaiting Signed Consent','Upload Pending - Exception'].includes(r.admission_consent_status));
       return matchesSearch&&matchesDistrict&&matchesQuick;
     });
     return h(React.Fragment,null,
@@ -1573,7 +1589,8 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
         h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='assigned'?'active':''}`,onClick:()=>openPatientQuickFilter('assigned')},h('span',null,'Room assigned'),h('strong',null,activeRows.filter(x=>x.room_no&&x.bed_no).length)),
         h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='awaiting'?'active':''}`,onClick:()=>openPatientQuickFilter('awaiting')},h('span',null,'Awaiting room'),h('strong',null,activeRows.filter(x=>!x.room_no||!x.bed_no).length)),
         h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='high-risk'?'active':''}`,onClick:()=>openPatientQuickFilter('high-risk')},h('span',null,'High-risk patients'),h('strong',null,activeRows.filter(x=>x.fall_risk||x.pressure_sore_risk||x.aspiration_risk||x.wandering_risk||x.infection_risk||x.oxygen_required).length)),
-        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='duplicates'?'active':''}`,onClick:()=>openPatientQuickFilter('duplicates')},h('span',null,'Possible duplicates'),h('strong',null,duplicateRows.length))
+        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='duplicates'?'active':''}`,onClick:()=>openPatientQuickFilter('duplicates')},h('span',null,'Possible duplicates'),h('strong',null,duplicateRows.length)),
+        h('button',{type:'button',className:`card stat patient-stat-touch ${patientQuickFilter==='pending-consent'?'active':''}`,onClick:()=>openPatientQuickFilter('pending-consent')},h('span',null,'Pending signed consent'),h('strong',null,pendingConsentRows.length))
       ),
       h('div',{className:'card panel',id:'patient-filter-results',style:{scrollMarginTop:'148px'}},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Patient Master'),h('small',null,'Single source for identity, admission, nursing, medicines, diet, documents, billing and recovery'))),
@@ -2757,7 +2774,8 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
         h('div',{className:'section-card patient-edit-media'},
           h('div',{className:'panel-head'},h('div',null,h('h4',null,'Patient Photo and Medical Documents'),h('small',null,'Upload a file, use the mobile camera, or capture through the webcam.'))),
           h('div',{className:'patient-edit-photo-row'},editPhotoUrl?h('img',{src:editPhotoUrl,className:'patient-photo',alt:'Patient photo'}):h('div',{className:'patient-photo patient-photo-placeholder'},'SC'),editCaptureField('Patient Photo','photo','image/*',true)),
-          h('div',{className:'upload-grid'},editCaptureField('Identity Proof','identity'),editCaptureField('Current Prescription','prescription'),editCaptureField('Discharge / Transfer Summary','discharge'),editCaptureField('Lab / Scan / Test Reports','reports'),editCaptureField('Other Medical Documents','other')),
+          editTarget?.admission_consent_status&&editTarget.admission_consent_status!=='Completed'?h('div',{className:'message warning',style:{marginBottom:'12px'}},h('strong',null,'Signed Admission Consent pending'),h('div',null,`Status: ${editTarget.admission_consent_status}${editTarget.admission_consent_exception_reason?` — Reason recorded: ${editTarget.admission_consent_exception_reason}`:''}. Upload the signed consent form below to complete admission formalities.`)):null,
+          h('div',{className:'upload-grid'},editCaptureField('Identity Proof','identity'),editCaptureField('Current Prescription','prescription'),editCaptureField('Discharge / Transfer Summary','discharge'),editCaptureField('Lab / Scan / Test Reports','reports'),editCaptureField('Other Medical Documents','other'),editTarget?.admission_consent_status&&editTarget.admission_consent_status!=='Completed'?editCaptureField('Signed Admission Consent Form','consent','image/*,.pdf',false):null),
           h('h4',{style:{marginTop:'18px'}},'Uploaded Documents'),
           editDocs.length?h('div',{className:'uploaded-documents-list'},editDocs.map(doc=>h('div',{className:'timeline-item',key:doc.id},h('div',null,h('strong',null,doc.document_type||'Document'),h('span',null,doc.document_name||'File')),h('div',{className:'employee-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openDoc(doc)},'Open'),h('button',{type:'button',className:'btn btn-danger',onClick:()=>deleteEditDocument(doc)},'Delete'))))):h('p',{className:'small-note'},'No documents uploaded yet.')
         ),

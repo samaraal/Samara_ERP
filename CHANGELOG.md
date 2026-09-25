@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.55 — Family Portal mandatory on Edit Patient + deferred consent upload + pending-consent list
+- Family Portal Access is now mandatory (at least Family Contact 1 or Family Contact 2 enabled) when saving an existing patient's details from Edit Patient — not just at the moment of new admission. This closes the gap for older residents admitted before Family Portal existed who currently have zero contacts on file; the Admissions page already enforced this for new admissions.
+- New admission flow already generates the consent form, sends the automatic admission WhatsApp message (falling back to a manual WhatsApp button if the API fails), and lets an urgent/technical case defer the signed-consent upload with a recorded reason — none of that changed. What was missing was a way to go back and finish a deferred upload later: Edit Patient's document section now shows a "Signed Admission Consent Form" upload option whenever a patient's consent is not yet completed (with the exception reason shown, if one was recorded). Uploading it there marks the consent Completed, same as finishing it from Admissions.
+- New "Pending signed consent" quick filter and count on the Patients page, and a matching "Pending Signed Consent" card on the Dashboard, so any admission still waiting on a signed/uploaded consent form is never silently forgotten — click either one to jump straight to the filtered list.
+- No database changes; reuses the existing `patients.admission_consent_status` / `patient_documents` columns and storage bucket already used by the Admissions consent workflow.
+
 ## 2.14.54 — Pharmacy & Stores: Clean Up Item Names
 - Some items were entered with that day's received quantity stuck onto the end of the name by mistake (e.g. "INJ.ADRENALINE 1ML-2" — the "-2" being the quantity received, not part of the medicine's name).
 - New "Clean Up Item Names" button (Current Stock section, Pharmacy & Stores) finds every item ending in "-<number>" and shows a review list (current name vs. proposed clean name) before touching anything — untick, or hand-edit, any row that's actually a genuine code ending in a number (e.g. "U-40" on an insulin syringe) rather than a mistaken quantity, then Apply only renames the ticked rows.
