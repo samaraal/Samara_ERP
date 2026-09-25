@@ -128,7 +128,12 @@
     }
     const masterById=new Map(itemMaster.map(x=>[x.id,x]));
     const categoryStock=categoryFilter?stock.filter(x=>(masterById.get(x.item_id)?.item_category||'Consumables')===categoryFilter):stock;
-    const standardCategoryStock=form.catalog_item?categoryStock.filter(x=>(masterById.get(x.item_id)?.standard_category||'')===form.catalog_item):categoryStock;
+    const standardCategoryMatches=form.catalog_item?categoryStock.filter(x=>(masterById.get(x.item_id)?.standard_category||'')===form.catalog_item):null;
+    // Never hide existing items just because tagging hasn't been done yet —
+    // filter to the chosen category only once at least one item is tagged
+    // with it; otherwise fall back to showing every item in the section.
+    const standardCategoryStock=standardCategoryMatches&&standardCategoryMatches.length?standardCategoryMatches:categoryStock;
+    const standardCategoryFilterActive=Boolean(standardCategoryMatches&&standardCategoryMatches.length);
     const untaggedGuessableCount=itemMaster.filter(m=>m.active!==false&&!m.standard_category&&guessStandardCategory(m)).length;
     const stockSearchText=stockSearch.trim().toLowerCase();
     const searchedStock=stockSearchText.length>=3?categoryStock.filter(x=>String(x.item_name||'').toLowerCase().includes(stockSearchText)):categoryStock;
@@ -220,7 +225,7 @@
           h('div',{className:'grid two'},
             h('div',{className:'field'},h('label',null,'Section *'),h('select',{value:form.item_category,onChange:e=>setForm({...form,item_category:e.target.value,catalog_item:'',item_id:'',new_item_name:'',unit:e.target.value==='Pharmacy'?'Packs':'Nos'})},['Stores / Consumables','Pharmacy'].map(x=>h('option',{key:x,value:x},x)))),
             h('div',{className:'field'},h('label',null,'Standard Item List'),h('select',{value:form.catalog_item,onChange:e=>selectCatalogItem(e.target.value)},h('option',{value:''},'Select from standard list'),((form.item_category==='Pharmacy'?pharmacyCatalog:storesCatalog).filter(x=>stockSearchText.length<3||String(x||'').toLowerCase().includes(stockSearchText))).map(x=>h('option',{key:x,value:x},x)))),
-            h('div',{className:'field'},h('label',null,'Existing Inventory Item'),h('select',{value:form.item_id,onChange:e=>selectItem(e.target.value)},h('option',{value:''},'Select existing item'),((stockSearchText.length>=3?standardCategoryStock.filter(x=>String(x.item_name||'').toLowerCase().includes(stockSearchText)):standardCategoryStock)).map(x=>h('option',{key:x.item_id,value:x.item_id},`${masterById.get(x.item_id)?.item_code?`${masterById.get(x.item_id).item_code} · `:''}${displayStoreItemName(x.item_name)} · Balance ${x.balance_qty} ${x.unit}`))),form.catalog_item&&h('small',null,standardCategoryStock.length?`Showing only items tagged "${form.catalog_item}".`:`No existing items are tagged "${form.catalog_item}" yet — use the Category button on an item below, or Assign Category to All.`)),
+            h('div',{className:'field'},h('label',null,'Existing Inventory Item'),h('select',{value:form.item_id,onChange:e=>selectItem(e.target.value)},h('option',{value:''},'Select existing item'),((stockSearchText.length>=3?standardCategoryStock.filter(x=>String(x.item_name||'').toLowerCase().includes(stockSearchText)):standardCategoryStock)).map(x=>h('option',{key:x.item_id,value:x.item_id},`${masterById.get(x.item_id)?.item_code?`${masterById.get(x.item_id).item_code} · `:''}${displayStoreItemName(x.item_name)} · Balance ${x.balance_qty} ${x.unit}`))),form.catalog_item&&h('small',null,standardCategoryFilterActive?`Showing only items tagged "${form.catalog_item}".`:`No items are tagged "${form.catalog_item}" yet, so every ${form.item_category} item is shown below — use the Category button on an item, or Assign Category to All, to start filtering.`)),
             h('div',{className:'field'},h('label',null,'Add Item Manually'),h('input',{value:form.new_item_name,onChange:e=>setForm({...form,new_item_name:e.target.value,catalog_item:'',item_id:''}),placeholder:form.item_category==='Pharmacy'?'Enter medicine / pharmacy item':'Enter Stores item'})),
             h('div',{className:'field'},h('label',null,'Unit'),h('select',{value:form.unit,onChange:e=>setForm({...form,unit:e.target.value}),disabled:Boolean(form.item_id)},units.map(x=>h('option',{key:x,value:x},x)))),
             h('div',{className:'field'},h('label',null,'Quantity Received *'),h('input',{type:'number',min:'0.01',step:'0.01',value:form.quantity,onChange:e=>setForm({...form,quantity:e.target.value}),required:true})),

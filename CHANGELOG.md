@@ -3,6 +3,11 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.53 — Fix: 2.14.52's category filter hid every existing item
+- Bug: right after 2.14.52, since no item had a Standard Category yet, choosing "Tablets" (or any category) in Standard Item List made "Existing Inventory Item" show nothing at all — the exact items it was meant to help find were now hidden until someone tagged them first.
+- Fix: the filter now only applies once at least one item is actually tagged with that category. Until then, picking a category shows every item in the section exactly as before (with a note that nothing is tagged yet), so Receive from Vendor is never blocked while tagging is still in progress.
+- No database changes; frontend-only.
+
 ## 2.14.52 — Pharmacy & Stores: Existing Inventory Item now filters by category
 - Bug: in Pharmacy & Stores > Receive from Vendor, choosing a category from "Standard Item List" (e.g. "Tablets") had no effect on the "Existing Inventory Item" dropdown below it — it always listed every item in the section.
 - Fix: each store item can now be tagged with a Standard Category (new "Category" button on every item, next to Edit Item / Rate). Once tagged, choosing that category in "Standard Item List" filters "Existing Inventory Item" down to just those items. A new item added by picking a Standard Item List entry is tagged automatically.
