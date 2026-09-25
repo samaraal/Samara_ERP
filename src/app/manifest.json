@@ -272,6 +272,11 @@
    "lines": 268
   },
   {
+   "file": "nursing/nursing-procedures.js",
+   "about": "Nursing Procedures: Nurse request -> Nursing Manager approve -> Nurse confirm & start; procedure code master",
+   "lines": 175
+  },
+  {
    "file": "nursing/duty-assignment.js",
    "about": "Shift management + Duty Assignment (duty roster)",
    "lines": 892

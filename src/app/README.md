@@ -1,6 +1,6 @@
 # Samara ERP – app.js source files
 
-`app.js` (about 30,900 lines) is now split into the 75 small files in this folder.
+`app.js` (about 30,900 lines) is now split into the 76 small files in this folder.
 The live site still loads **one** `app.js`. It is rebuilt by joining these files, in the order in
 `manifest.json`, into a file that is byte-for-byte identical to the old app.js.
 
@@ -106,6 +106,7 @@ helper it uses, before `z-end/...`). The build refuses to run if a file is missi
 | 52 | `clinical/food.js` | 87 | Food / diet / resident food intake |
 | 53 | `clinical/physiotherapy.js` | 244 | Physiotherapy |
 | 54 | `nursing/special-nurse.js` | 268 | Special nurse management |
+| 54a | `nursing/nursing-procedures.js` | 175 | Nursing Procedures: Nurse request → Nursing Manager approve → Nurse confirm & start; procedure code master |
 | 55 | `nursing/duty-assignment.js` | 892 | Shift management + Duty Assignment (duty roster) |
 | 56 | `nursing/shift-handover.js` | 157 | Shift handover |
 | 57 | `clinical/incidents-documents.js` | 222 | Incidents, documents |

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.45';
+  const APP_VERSION = '2.14.46';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1630,7 +1630,7 @@ function initSamaraInaugurationInvitation(){
     { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiries & Feedback'] },
     { title:'ADMISSION', items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
-    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
+    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Nursing Procedures','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'PHARMACY & STORES', items:['Consumables','Pharmacy'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
@@ -1643,7 +1643,7 @@ function initSamaraInaugurationInvitation(){
     Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&!NURSING_ENTRY_NAV.includes(item)),
     Manager:ALL_NAV.filter(item=>!['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements',"Director's Office",'Enquiries & Feedback','System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
 
-    Nurse:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Raise Indent','Received Indents / Used Balance','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
+    Nurse:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Nursing Procedures','Raise Indent','Received Indents / Used Balance','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
     Accounts:['Accounts Dashboard','Duty Assignment','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
     Kitchen:['Notifications','Duty Assignment','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission'],
@@ -1679,7 +1679,7 @@ function initSamaraInaugurationInvitation(){
     if(profile?.__paymentsTrial&&!profile.__paymentsNavResolved){const a=profile.__paymentsTrial;return [...allowedPagesForProfile({...profile,__paymentsNavResolved:true}).filter(x=>!['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(x)),...(a.full?['Payments & Vouchers']:[]),'Payment Requests',...(a.pay?['Approved—Ready to Pay']:[]),'Payment Vouchers','Payment Statements'];}
     if(isNursingManagerProfile(profile))return [
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
-      'Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts',
+      'Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Nursing Procedures',
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
       'Patient Consumables','Stores','Stores In-charge Assignment','Consumables','Pharmacy','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
     ];
@@ -1726,7 +1726,7 @@ function initSamaraInaugurationInvitation(){
     if(CLINICAL_ROLES.includes(role)){
       return [
         {title:'ADMISSION',items:['Spot Assessment','Admissions'].filter(item=>allowed.includes(item))},
-        {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My To-Do List','Notifications'].filter(item=>allowed.includes(item))},
+        {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Nursing Procedures','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My To-Do List','Notifications'].filter(item=>allowed.includes(item))},
         {title:'DUTY ROSTER & LEAVE',items:['Duty Assignment','Staff Leave Calendar','My Leave & Permission','Leave Approvals'].filter(item=>allowed.includes(item))},
         {title:'PHARMACY & STORES',items:['Raise Indent','Received Indents / Used Balance'].filter(item=>allowed.includes(item))},
         {title:'MY ACCOUNT',items:['My Profile'].filter(item=>allowed.includes(item))}
@@ -1735,7 +1735,7 @@ function initSamaraInaugurationInvitation(){
     if(role==='Manager'&&allowed.includes('My To-Do List')&&allowed.includes('Employees')&&!allowed.includes('Accounts Dashboard')){
       return [
         {title:"DIRECTOR'S OFFICE",items:["Director's Office",'Enquiries & Feedback','Feedback'].filter(item=>allowed.includes(item))},
-        {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','My To-Do List'].filter(item=>allowed.includes(item))},
+        {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','Nursing Procedures','My To-Do List'].filter(item=>allowed.includes(item))},
         {title:'DUTY ROSTER & LEAVE',items:['Duty Assignment','My Leave & Permission'].filter(item=>allowed.includes(item))},
         {title:'NURSING STAFF',items:['Staff Duty Assignment','Duty Calendar','Staff Leave Calendar','Employees'].filter(item=>allowed.includes(item))},
         {title:'ADMISSION',items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},
@@ -7629,6 +7629,7 @@ https://samaraassistedliving.com/`;
           page==='Duty Calendar'&&h(DutyAssignment,{profile,viewMode:'team'}),
           page==='Staff Duty Assignment'&&h(DutyAssignment,{profile,viewMode:'team'}),
           page==='Special Nurse'&&h(SpecialNurseManagement,{profile}),
+          page==='Nursing Procedures'&&h(NursingProcedures,{profile}),
           page==='Shift Handover'&&h(ShiftHandover,{profile,onNavigate:setPage}),
           page==='Incidents'&&h(Incidents,{profile,onNavigate:setPage}),
           page==='Documents'&&h(Documents,{profile}),
@@ -24701,6 +24702,181 @@ function RoomsBeds({profile,onNavigate}){
     );
   }
 
+  function NursingProcedures({profile}){
+    const canRequest=profile?.role==='Nurse';
+    const canDecide=['Admin','Manager'].includes(profile?.role);
+    const canManageMaster=['Admin','Manager'].includes(profile?.role);
+    const canStart=profile?.role==='Nurse';
+    const [patients]=usePatients();
+    const [master,setMaster]=React.useState([]);
+    const [requests,setRequests]=React.useState([]);
+    const [busy,setBusy]=React.useState(false);
+    const [form,setForm]=React.useState({patient_id:'',procedure_id:'',scheduled_at:'',remarks:''});
+    const [showMasterForm,setShowMasterForm]=React.useState(false);
+    const [masterForm,setMasterForm]=React.useState({code:'',procedure_name:''});
+    const [editingMaster,setEditingMaster]=React.useState(null);
+
+    const load=React.useCallback(async()=>{
+      const [m,r]=await Promise.all([
+        client.from('nursing_procedure_master').select('*').order('display_order').order('procedure_name'),
+        client.from('nursing_procedure_requests').select('*').order('requested_at',{ascending:false}).limit(300)
+      ]);
+      if(!m.error)setMaster(m.data||[]);else console.warn(m.error);
+      if(!r.error)setRequests(r.data||[]);else console.warn(r.error);
+    },[]);
+    React.useEffect(()=>{
+      load();
+      const ch=client.channel('nursing-procedures-live')
+        .on('postgres_changes',{event:'*',schema:'public',table:'nursing_procedure_requests'},load)
+        .on('postgres_changes',{event:'*',schema:'public',table:'nursing_procedure_master'},load)
+        .subscribe();
+      return()=>client.removeChannel(ch);
+    },[load]);
+
+    const activeMaster=master.filter(x=>x.is_active!==false);
+    const patientName=id=>{const p=patients.find(x=>x.id===id);return p?(formalName(p)||p.full_name||p.patient_id||'Patient'):'—'};
+
+    async function submitRequest(e){
+      e.preventDefault();
+      if(!canRequest||busy)return;
+      if(!form.patient_id||!form.procedure_id)return showSamaraActionToast('error','Nursing Procedure','Select a patient and a procedure.');
+      setBusy(true);
+      const res=await client.rpc('request_nursing_procedure',{
+        p_patient_id:form.patient_id,p_procedure_id:form.procedure_id,
+        p_scheduled_at:form.scheduled_at?new Date(form.scheduled_at).toISOString():null,
+        p_remarks:form.remarks.trim()||null
+      });
+      setBusy(false);
+      if(res.error)return showSamaraActionToast('error','Nursing Procedure',res.error.message);
+      await writeAuditEvent('Request Nursing Procedure','NursingProcedureRequest',res.data,{patient_id:form.patient_id});
+      showSamaraActionToast('success','Request sent','Sent to the Nursing Manager for approval.');
+      setForm({patient_id:'',procedure_id:'',scheduled_at:'',remarks:''});
+      load();
+    }
+
+    async function decide(row,decision){
+      if(!canDecide||busy)return;
+      let remarks=null;
+      if(decision==='Declined'){remarks=prompt('Reason for declining (optional):','');if(remarks===null)return;}
+      setBusy(true);
+      const res=await client.rpc('decide_nursing_procedure_request',{p_request_id:row.id,p_decision:decision,p_remarks:remarks||null});
+      setBusy(false);
+      if(res.error)return showSamaraActionToast('error','Nursing Procedure',res.error.message);
+      await writeAuditEvent(decision==='Approved'?'Approve Nursing Procedure':'Decline Nursing Procedure','NursingProcedureRequest',row.id,{patient_id:row.patient_id});
+      showSamaraActionToast('success','Nursing Procedure',`Request ${decision.toLowerCase()}.`);
+      load();
+    }
+
+    async function startProcedure(row){
+      if(!canStart||busy)return;
+      if(!confirm(`Confirm and start "${row.procedure_name}" for ${patientName(row.patient_id)}? This raises the matching Nursing Procedures charge for Accounts to verify.`))return;
+      setBusy(true);
+      const res=await client.rpc('start_nursing_procedure',{p_request_id:row.id});
+      setBusy(false);
+      if(res.error)return showSamaraActionToast('error','Nursing Procedure',res.error.message);
+      await writeAuditEvent('Start Nursing Procedure','NursingProcedureRequest',row.id,{patient_id:row.patient_id,charge_request_id:res.data?.charge_request_id});
+      showSamaraActionToast('success','Procedure started',`${row.procedure_name} started. The charge has been raised for Accounts verification.`);
+      load();
+    }
+
+    async function saveMasterItem(e){
+      e.preventDefault();
+      if(!canManageMaster||busy)return;
+      if(!masterForm.code.trim()||!masterForm.procedure_name.trim())return showSamaraActionToast('error','Nursing Procedure Code','Code and procedure name are required.');
+      setBusy(true);
+      const res=editingMaster
+        ?await client.from('nursing_procedure_master').update({code:masterForm.code.trim(),procedure_name:masterForm.procedure_name.trim(),updated_at:new Date().toISOString()}).eq('id',editingMaster.id)
+        :await client.from('nursing_procedure_master').insert({code:masterForm.code.trim(),procedure_name:masterForm.procedure_name.trim(),created_by:profile.id});
+      setBusy(false);
+      if(res.error)return showSamaraActionToast('error','Nursing Procedure Code',res.error.message);
+      showSamaraActionToast('success','Nursing Procedure Code',editingMaster?'Updated.':'Added.');
+      setShowMasterForm(false);setEditingMaster(null);setMasterForm({code:'',procedure_name:''});
+      load();
+    }
+
+    async function toggleMasterActive(row){
+      if(!canManageMaster||busy)return;
+      if(!confirm(row.is_active===false?`Reactivate ${row.procedure_name}?`:`Deactivate ${row.procedure_name}? Existing requests keep their history.`))return;
+      setBusy(true);
+      const res=await client.from('nursing_procedure_master').update({is_active:row.is_active===false,updated_at:new Date().toISOString()}).eq('id',row.id);
+      setBusy(false);
+      if(res.error)return showSamaraActionToast('error','Nursing Procedure Code',res.error.message);
+      load();
+    }
+
+    const pending=requests.filter(x=>x.status==='Requested');
+    const readyToStart=requests.filter(x=>x.status==='Approved');
+    const statusPill=status=>h('span',{style:{fontWeight:800,fontSize:'12px',padding:'4px 8px',borderRadius:'999px',display:'inline-block',
+      background:status==='Requested'?'#fff4dc':status==='Approved'?'#e3f2ff':status==='Started'?'#e7f6ef':status==='Declined'?'#fdebec':'#f1f1f1',
+      color:'#5d3146'}},status);
+
+    return h('div',null,
+      canRequest&&h(Section,{title:'Request a Nursing Procedure',subtitle:'Sent to the Nursing Manager for approval before it can be started.'},
+        h('form',{onSubmit:submitRequest},
+          h('div',{className:'grid two'},
+            patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v})),
+            h('div',{className:'field'},h('label',null,'Procedure *'),h('select',{value:form.procedure_id,onChange:e=>setForm({...form,procedure_id:e.target.value}),required:true},
+              h('option',{value:''},'Select procedure'),
+              activeMaster.map(p=>h('option',{key:p.id,value:p.id},`${p.code} · ${p.procedure_name}`)))),
+            h('div',{className:'field'},h('label',null,'Scheduled Date / Time'),h('input',{type:'datetime-local',value:form.scheduled_at,onChange:e=>setForm({...form,scheduled_at:e.target.value})})),
+            h('div',{className:'field span-2'},h('label',null,'Remarks'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value}),placeholder:'Any additional notes for the Nursing Manager'}))
+          ),
+          h('button',{className:'btn btn-primary',disabled:busy},busy?'Sending…':'Send Request')
+        )
+      ),
+      canDecide&&h(Section,{title:`Pending Approval (${pending.length})`,subtitle:'Approve or decline each request. Once approved, the requesting nurse confirms and starts it.'},
+        pending.length?h('div',{className:'stores-ledger-mobile'},pending.map(r=>h('article',{className:'stores-ledger-card',key:r.id},
+          h('div',{className:'stores-ledger-card-head'},h('strong',null,`${r.procedure_code||''} · ${r.procedure_name}`),statusPill(r.status)),
+          h('p',null,`${patientName(r.patient_id)} · Requested by ${r.requested_by_name||'—'} at ${formatDateTimeIN(r.requested_at)}`),
+          r.scheduled_at&&h('p',null,`Scheduled: ${formatDateTimeIN(r.scheduled_at)}`),
+          r.remarks&&h('p',null,`Remarks: ${r.remarks}`),
+          h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'8px'}},
+            h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>decide(r,'Approved')},'Approve'),
+            h('button',{className:'btn btn-danger',disabled:busy,onClick:()=>decide(r,'Declined')},'Decline')
+          )
+        ))):h('p',null,'No pending requests.')
+      ),
+      canStart&&h(Section,{title:`Approved — Ready to Start (${readyToStart.length})`,subtitle:'Confirm you are about to perform the procedure. This raises the matching charge for Accounts.'},
+        readyToStart.length?h('div',{className:'stores-ledger-mobile'},readyToStart.map(r=>h('article',{className:'stores-ledger-card',key:r.id},
+          h('div',{className:'stores-ledger-card-head'},h('strong',null,`${r.procedure_code||''} · ${r.procedure_name}`),statusPill(r.status)),
+          h('p',null,`${patientName(r.patient_id)} · Approved by ${r.decision_by_name||'—'} at ${formatDateTimeIN(r.decision_at)}`),
+          r.scheduled_at&&h('p',null,`Scheduled: ${formatDateTimeIN(r.scheduled_at)}`),
+          h('div',{style:{marginTop:'8px'}},h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>startProcedure(r)},'Confirm & Start'))
+        ))):h('p',null,'No approved requests waiting to start.')
+      ),
+      h(LogTable,{title:'All Nursing Procedure Requests',subtitle:'Complete history: request, approval and start.',
+        heads:['Patient','Procedure','Requested By / At','Scheduled','Status','Decision By / At','Started By / At'],
+        rows:requests.map(r=>[
+          patientName(r.patient_id),
+          `${r.procedure_code||''} · ${r.procedure_name}`,
+          `${r.requested_by_name||'—'} · ${formatDateTimeIN(r.requested_at)}`,
+          r.scheduled_at?formatDateTimeIN(r.scheduled_at):'—',
+          statusPill(r.status),
+          r.decision_by_name?`${r.decision_by_name} · ${formatDateTimeIN(r.decision_at)}${r.decision_remarks?` · ${r.decision_remarks}`:''}`:'—',
+          r.started_by_name?`${r.started_by_name} · ${formatDateTimeIN(r.started_at)}`:'—'
+        ])
+      }),
+      canManageMaster&&h(Section,{title:'Nursing Procedure Codes',subtitle:'Maintain the list nurses choose from when raising a request.',
+        actions:h('button',{className:'btn btn-primary',onClick:()=>{setEditingMaster(null);setMasterForm({code:'',procedure_name:''});setShowMasterForm(true)}},'+ Add Procedure Code')},
+        h(LogTable,{heads:['Code','Procedure','Status','Action'],rows:master.map(r=>[r.code,r.procedure_name,r.is_active===false?'Inactive':'Active',
+          h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
+            h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>{setEditingMaster(r);setMasterForm({code:r.code,procedure_name:r.procedure_name});setShowMasterForm(true)}},'Edit'),
+            h('button',{className:r.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggleMasterActive(r)},r.is_active===false?'Reactivate':'Deactivate')
+          )
+        ])})
+      ),
+      showMasterForm&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:saveMasterItem},
+        h('h3',null,editingMaster?'Edit Procedure Code':'Add Procedure Code'),
+        h('div',{className:'field'},h('label',null,'Code *'),h('input',{value:masterForm.code,onChange:e=>setMasterForm({...masterForm,code:e.target.value}),required:true,placeholder:'Example: NP-016'})),
+        h('div',{className:'field'},h('label',null,'Procedure Name *'),h('input',{value:masterForm.procedure_name,onChange:e=>setMasterForm({...masterForm,procedure_name:e.target.value}),required:true})),
+        h('small',null,'For the automatic charge to work smoothly, use the same procedure name already listed under Nursing Procedures in Charge Master, or ask Admin to add a matching tariff there.'),
+        h('div',{className:'modal-actions'},
+          h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>{setShowMasterForm(false);setEditingMaster(null)}},'Cancel'),
+          h('button',{type:'submit',className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save')
+        )
+      ))
+    );
+  }
 function ShiftManagement({profile}){
     const key='samara_shift_configuration_v1';
     const defaults={effective_from:todayISOIndia(),nursing_pattern:'2-shift',general_start:'09:00',general_end:'18:00'};
@@ -29417,6 +29593,18 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       setBusy(true); const res=await client.rpc('store_incharge_set_store_item_charge_rate',{p_item_id:master.id,p_charge_rate:rate}); setBusy(false);
       if(res.error)notifyStore('error',res.error.message); else {notifyStore('success','Charge rate updated for future patient charges. Previous patient charges are unchanged.');await load()}
     }
+    async function removeItem(row){
+      if(!oversight||busy)return;
+      const master=masterById.get(row.item_id); if(!master)return notifyStore('error','Stores Master record not found. Refresh and try again.');
+      if(!confirm(`Remove ${displayStoreItemName(row.item_name)} from the store list? If it has never been received or issued it will be deleted; otherwise it will be deactivated and its history kept.`))return;
+      setBusy(true);
+      const res=await client.rpc('store_item_remove',{p_item_id:master.id});
+      setBusy(false);
+      if(res.error){notifyStore('error',res.error.message);return}
+      await writeAuditEvent('Remove Store Item','ConsumableStoreItem',master.id,{item_name:row.item_name,mode:res.data?.mode});
+      notifyStore('success',res.data?.mode==='deleted'?`${row.item_name} removed.`:`${row.item_name} deactivated and removed from active stock (history kept).`);
+      await load();
+    }
     const low=categoryStock.filter(x=>Number(x.balance_qty)>0&&Number(x.reorder_level)>0&&Number(x.balance_qty)<=Number(x.reorder_level));
     const out=categoryStock.filter(x=>Number(x.balance_qty)<=0);
     const inStock=categoryStock.filter(x=>Number(x.balance_qty)>0).length;
@@ -29476,13 +29664,17 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
           controller?h('div',{className:'stores-stock-card-actions'},
             h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),
             oversight?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openItemHistory(r)},'History'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null
-          ):h('small',{className:'stores-view-only'},'View only')
+          ):h('small',{className:'stores-view-only'},'View only'),
+          oversight?h('div',{className:'stores-stock-card-actions',style:{marginTop:'6px'}},h('button',{className:'btn btn-danger',disabled:busy,onClick:()=>removeItem(r)},'Remove Item')):null
         )):h('div',{className:'stores-stock-empty'},'No store items found.')),
         h('div',{className:'table-wrap stores-stock-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Item ID','Item','Unit','Total In','Total Out','Balance','Reorder Level','Status','Action'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,displayStock.length?displayStock.map(r=>h('tr',{key:r.item_id},
             h('td',null,masterById.get(r.item_id)?.item_code||'—'),h('td',null,h('strong',null,displayStoreItemName(r.item_name))),h('td',null,r.unit),h('td',null,r.total_in),h('td',null,r.total_out),h('td',null,h('strong',null,r.balance_qty)),h('td',null,r.reorder_level),h('td',null,h('span',{style:statusStyle(r)},stockStatus(r))),
-            h('td',null,controller?h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),oversight?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openItemHistory(r)},'History'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null):'View only')
+            h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap',alignItems:'center'}},
+              controller?h('div',{key:'controller-actions',style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),oversight?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openItemHistory(r)},'History'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null):h('span',{key:'view-only'},'View only'),
+              oversight?h('button',{key:'remove',className:'btn btn-danger',disabled:busy,onClick:()=>removeItem(r)},'Remove'):null
+            ))
           )):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},'No store items found.'))
         ))
       )),
