@@ -274,7 +274,12 @@
   {
    "file": "nursing/nursing-procedures.js",
    "about": "Nursing Procedures: Nurse request -> Nursing Manager approve -> Nurse confirm & start; procedure code master",
-   "lines": 175
+   "lines": 204
+  },
+  {
+   "file": "nursing/nursing-charge-register.js",
+   "about": "Charge Register: view-only charges register for Admin / Nursing Manager (filters by status, category, patient, raised-by, period)",
+   "lines": 111
   },
   {
    "file": "nursing/duty-assignment.js",
@@ -334,7 +339,7 @@
   {
    "file": "stores/store-authority-items.js",
    "about": "Store in-charge, item master, pharmacy stock",
-   "lines": 202
+   "lines": 236
   },
   {
    "file": "stores/consumables-stores.js",

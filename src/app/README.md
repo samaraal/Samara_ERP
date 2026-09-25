@@ -1,6 +1,6 @@
 # Samara ERP – app.js source files
 
-`app.js` (about 30,900 lines) is now split into the 76 small files in this folder.
+`app.js` (about 31,000 lines) is now split into the 77 small files in this folder.
 The live site still loads **one** `app.js`. It is rebuilt by joining these files, in the order in
 `manifest.json`, into a file that is byte-for-byte identical to the old app.js.
 
@@ -106,7 +106,8 @@ helper it uses, before `z-end/...`). The build refuses to run if a file is missi
 | 52 | `clinical/food.js` | 87 | Food / diet / resident food intake |
 | 53 | `clinical/physiotherapy.js` | 244 | Physiotherapy |
 | 54 | `nursing/special-nurse.js` | 268 | Special nurse management |
-| 54a | `nursing/nursing-procedures.js` | 175 | Nursing Procedures: Nurse request → Nursing Manager approve → Nurse confirm & start; procedure code master |
+| 54a | `nursing/nursing-procedures.js` | 204 | Nursing Procedures: Nurse request → Nursing Manager approve → Nurse confirm & start; procedure code master; duplicate-billing guard vs Consumables/Pharmacy |
+| 54b | `nursing/nursing-charge-register.js` | 111 | Charge Register: view-only charges register for Admin / Nursing Manager (status, category, patient, raised-by, period filters) |
 | 55 | `nursing/duty-assignment.js` | 892 | Shift management + Duty Assignment (duty roster) |
 | 56 | `nursing/shift-handover.js` | 157 | Shift handover |
 | 57 | `clinical/incidents-documents.js` | 222 | Incidents, documents |
@@ -118,7 +119,7 @@ helper it uses, before `z-end/...`). The build refuses to run if a file is missi
 | 63 | `accounts/06-patient-ledger.js` | 322 | Patient ledger |
 | 64 | `accounts/07-charge-readiness.js` | 56 | Unposted charge checks |
 | 65 | `accounts/08-billing-payments.js` | 1172 | Billing & payments |
-| 66 | `stores/store-authority-items.js` | 202 | Store in-charge, item master, pharmacy stock |
+| 66 | `stores/store-authority-items.js` | 236 | Store in-charge, item master, pharmacy stock; duplicate-billing guard vs Nursing Procedure Codes |
 | 67 | `stores/consumables-stores.js` | 254 | Consumables stores |
 | 68 | `stores/patient-consumables.js` | 131 | Patient consumables |
 | 69 | `accounts/09-clinical-charges.js` | 689 | Charge master, clinical charges |

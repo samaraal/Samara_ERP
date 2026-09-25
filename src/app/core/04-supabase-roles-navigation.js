@@ -98,7 +98,7 @@
     { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiries & Feedback'] },
     { title:'ADMISSION', items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
-    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Nursing Procedures','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
+    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Nursing Procedures','Charge Register','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'PHARMACY & STORES', items:['Consumables','Pharmacy'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
@@ -147,7 +147,7 @@
     if(profile?.__paymentsTrial&&!profile.__paymentsNavResolved){const a=profile.__paymentsTrial;return [...allowedPagesForProfile({...profile,__paymentsNavResolved:true}).filter(x=>!['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(x)),...(a.full?['Payments & Vouchers']:[]),'Payment Requests',...(a.pay?['Approved—Ready to Pay']:[]),'Payment Vouchers','Payment Statements'];}
     if(isNursingManagerProfile(profile))return [
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
-      'Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Nursing Procedures',
+      'Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Nursing Procedures','Charge Register',
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
       'Patient Consumables','Stores','Stores In-charge Assignment','Consumables','Pharmacy','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
     ];
@@ -203,7 +203,7 @@
     if(role==='Manager'&&allowed.includes('My To-Do List')&&allowed.includes('Employees')&&!allowed.includes('Accounts Dashboard')){
       return [
         {title:"DIRECTOR'S OFFICE",items:["Director's Office",'Enquiries & Feedback','Feedback'].filter(item=>allowed.includes(item))},
-        {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','Nursing Procedures','My To-Do List'].filter(item=>allowed.includes(item))},
+        {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','Nursing Procedures','Charge Register','My To-Do List'].filter(item=>allowed.includes(item))},
         {title:'DUTY ROSTER & LEAVE',items:['Duty Assignment','My Leave & Permission'].filter(item=>allowed.includes(item))},
         {title:'NURSING STAFF',items:['Staff Duty Assignment','Duty Calendar','Staff Leave Calendar','Employees'].filter(item=>allowed.includes(item))},
         {title:'ADMISSION',items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},

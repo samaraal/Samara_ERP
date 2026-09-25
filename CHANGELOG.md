@@ -3,6 +3,22 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.48 — Charge Register (view-only) for the Nursing Manager
+- New "Charge Register" page (NURSING section) for Admin and the Nursing Manager: every charge raised by Nursing, with Accounts' decision and the approved tariff/rate, in one table.
+- Filters: Status (All / Pending / Approved / Partially Approved / Returned — "Returned" is the existing "Rejected" decision, shown in plain language), Category, Patient, Raised By, and a date range with Today / This Week / This Month quick buttons. Summary cards at the top (All, Pending, Approved, Returned, Approved Value) double as one-click filters.
+- Strictly view-only: no raise, edit, approve or reject action exists on this page — those stay on the existing Charge Approvals page, unchanged. No database changes — `bill_charge_requests` already grants SELECT to the Manager role, so this reuses existing data with no new tables, RLS or RPCs.
+
+## 2.14.47 — Duplicate-billing guard between Nursing Procedures and Consumables/Pharmacy
+- Adding or editing a Nursing Procedure Code now checks its name against both other procedure codes and every active Consumables/Pharmacy item; a close match (e.g. "Glucose Monitoring" vs "Glucose Strips") is blocked with a message naming the existing entry, instead of silently creating a second billable item for the same thing.
+- Adding or editing a Consumables/Pharmacy store item now also checks against Nursing Procedure Codes, not just other store items, with a matching warning ("Already listed as a Nursing Procedure Code") when the same real thing could be charged from two catalogs.
+- No database changes; both checks run in the app before saving, using the existing catalog tables. Names that carry their own distinguishing detail (a size, strength, gauge — or, for the strips vs. the procedure itself, a note like "for glucose monitoring") are still accepted as genuine, separate entries.
+
+## 2.14.46 — Nursing Procedures workflow + Remove Item in Stores
+- New "Nursing Procedures" page (NURSING section): Nurse requests a procedure from a maintained code list → Admin/Nursing Manager approves or declines → the requesting-shift Nurse confirms and starts it. Starting a procedure automatically raises the matching "Nursing Procedures" charge in the existing Charge Approvals pipeline (category, service name, quantity 1), so Accounts verifies and posts it exactly as before — nothing on the billing side changed.
+- Procedure Code master (e.g. NP-001 · Dressing) maintained by Admin/Nursing Manager on the same page; seeded from the procedure names already used under Charge Master's "Nursing Procedures" category so tariffs line up from day one.
+- Consumables/Pharmacy stock page: new "Remove Item" button (Admin and Nursing Manager only). An item never received or issued is deleted outright; an item with any stock history is deactivated instead, keeping past receipts/issues/charges intact.
+- Database: `144_nursing_procedures_workflow.sql`, `145_stores_remove_item.sql`.
+
 ## 2.14.43 — Food Orders: period is visible and upcoming orders are listed
 - Orders / History always show the period in view ("Showing 01-09-2026 to 24-09-2026 + upcoming 7 days"); the button is now "Change period".
 - When the period reaches today, the list also includes the next 7 days, so tomorrow's orders appear without changing the period.

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.46';
+  const APP_VERSION = '2.14.48';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1630,7 +1630,7 @@ function initSamaraInaugurationInvitation(){
     { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiries & Feedback'] },
     { title:'ADMISSION', items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
-    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Nursing Procedures','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
+    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Nursing Procedures','Charge Register','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'PHARMACY & STORES', items:['Consumables','Pharmacy'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
@@ -1679,7 +1679,7 @@ function initSamaraInaugurationInvitation(){
     if(profile?.__paymentsTrial&&!profile.__paymentsNavResolved){const a=profile.__paymentsTrial;return [...allowedPagesForProfile({...profile,__paymentsNavResolved:true}).filter(x=>!['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(x)),...(a.full?['Payments & Vouchers']:[]),'Payment Requests',...(a.pay?['Approved—Ready to Pay']:[]),'Payment Vouchers','Payment Statements'];}
     if(isNursingManagerProfile(profile))return [
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
-      'Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Nursing Procedures',
+      'Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Nursing Procedures','Charge Register',
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
       'Patient Consumables','Stores','Stores In-charge Assignment','Consumables','Pharmacy','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
     ];
@@ -1735,7 +1735,7 @@ function initSamaraInaugurationInvitation(){
     if(role==='Manager'&&allowed.includes('My To-Do List')&&allowed.includes('Employees')&&!allowed.includes('Accounts Dashboard')){
       return [
         {title:"DIRECTOR'S OFFICE",items:["Director's Office",'Enquiries & Feedback','Feedback'].filter(item=>allowed.includes(item))},
-        {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','Nursing Procedures','My To-Do List'].filter(item=>allowed.includes(item))},
+        {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','Nursing Procedures','Charge Register','My To-Do List'].filter(item=>allowed.includes(item))},
         {title:'DUTY ROSTER & LEAVE',items:['Duty Assignment','My Leave & Permission'].filter(item=>allowed.includes(item))},
         {title:'NURSING STAFF',items:['Staff Duty Assignment','Duty Calendar','Staff Leave Calendar','Employees'].filter(item=>allowed.includes(item))},
         {title:'ADMISSION',items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},
@@ -7630,6 +7630,7 @@ https://samaraassistedliving.com/`;
           page==='Staff Duty Assignment'&&h(DutyAssignment,{profile,viewMode:'team'}),
           page==='Special Nurse'&&h(SpecialNurseManagement,{profile}),
           page==='Nursing Procedures'&&h(NursingProcedures,{profile}),
+          page==='Charge Register'&&h(NursingChargeRegister,{profile}),
           page==='Shift Handover'&&h(ShiftHandover,{profile,onNavigate:setPage}),
           page==='Incidents'&&h(Incidents,{profile,onNavigate:setPage}),
           page==='Documents'&&h(Documents,{profile}),
@@ -24710,6 +24711,7 @@ function RoomsBeds({profile,onNavigate}){
     const [patients]=usePatients();
     const [master,setMaster]=React.useState([]);
     const [requests,setRequests]=React.useState([]);
+    const [storeItems,setStoreItems]=React.useState([]);
     const [busy,setBusy]=React.useState(false);
     const [form,setForm]=React.useState({patient_id:'',procedure_id:'',scheduled_at:'',remarks:''});
     const [showMasterForm,setShowMasterForm]=React.useState(false);
@@ -24717,13 +24719,39 @@ function RoomsBeds({profile,onNavigate}){
     const [editingMaster,setEditingMaster]=React.useState(null);
 
     const load=React.useCallback(async()=>{
-      const [m,r]=await Promise.all([
+      const [m,r,s]=await Promise.all([
         client.from('nursing_procedure_master').select('*').order('display_order').order('procedure_name'),
-        client.from('nursing_procedure_requests').select('*').order('requested_at',{ascending:false}).limit(300)
+        client.from('nursing_procedure_requests').select('*').order('requested_at',{ascending:false}).limit(300),
+        client.from('consumable_store_items').select('id,item_name,item_category').eq('active',true)
       ]);
       if(!m.error)setMaster(m.data||[]);else console.warn(m.error);
       if(!r.error)setRequests(r.data||[]);else console.warn(r.error);
+      if(!s.error)setStoreItems(s.data||[]);
     },[]);
+
+    // Checks a new/edited procedure name against other active procedure codes AND
+    // against Consumables/Pharmacy item names, so the same real thing (e.g. "Blood
+    // Glucose Monitoring" vs "Glucose Strips") is not billed twice from two catalogs.
+    const normalizeName=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+    const nameTokens=value=>new Set(normalizeName(value).split(' ').filter(Boolean).map(x=>x.length>3&&x.endsWith('s')?x.slice(0,-1):x));
+    const findCatalogDuplicate=(name,excludeId='')=>{
+      const n=normalizeName(name);if(!n)return null;const a=nameTokens(name);
+      let best=null,bestScore=0;
+      for(const p of master){
+        if(String(p.id)===String(excludeId))continue;
+        const pn=normalizeName(p.procedure_name);if(!pn)continue;
+        if(pn===n)return {label:p.procedure_name,source:'Nursing Procedure Code',code:p.code,match:'exact'};
+        const b=nameTokens(p.procedure_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;
+        if(score>bestScore){bestScore=score;best={label:p.procedure_name,source:'Nursing Procedure Code',code:p.code}}
+      }
+      for(const s of storeItems){
+        const sn=normalizeName(s.item_name);if(!sn)continue;
+        if(sn===n)return {label:s.item_name,source:s.item_category||'Consumables/Pharmacy',match:'exact'};
+        const b=nameTokens(s.item_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;
+        if(score>bestScore){bestScore=score;best={label:s.item_name,source:s.item_category||'Consumables/Pharmacy'}}
+      }
+      return bestScore>=0.72?{...best,match:best.match||'similar'}:null;
+    };
     React.useEffect(()=>{
       load();
       const ch=client.channel('nursing-procedures-live')
@@ -24783,6 +24811,8 @@ function RoomsBeds({profile,onNavigate}){
       e.preventDefault();
       if(!canManageMaster||busy)return;
       if(!masterForm.code.trim()||!masterForm.procedure_name.trim())return showSamaraActionToast('error','Nursing Procedure Code','Code and procedure name are required.');
+      const duplicate=findCatalogDuplicate(masterForm.procedure_name,editingMaster?.id);
+      if(duplicate)return showSamaraActionToast('error','Possible duplicate',`"${masterForm.procedure_name}" looks similar to the existing ${duplicate.source}${duplicate.code?` (${duplicate.code})`:''}: "${duplicate.label}". Use/edit that entry instead, or include a distinguishing detail in the procedure name.`);
       setBusy(true);
       const res=editingMaster
         ?await client.from('nursing_procedure_master').update({code:masterForm.code.trim(),procedure_name:masterForm.procedure_name.trim(),updated_at:new Date().toISOString()}).eq('id',editingMaster.id)
@@ -24875,6 +24905,117 @@ function RoomsBeds({profile,onNavigate}){
           h('button',{type:'submit',className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save')
         )
       ))
+    );
+  }
+  // v2.14.48: view-only Charge Register for the Nursing Manager (and Admin).
+  // Shows every charge raised by Nursing with Accounts' decision and the
+  // approved rate, with filters. No raise / approve / reject actions live
+  // here — that stays on the existing Charge Approvals page. Read-only, so
+  // it needs no new RLS: bill_charge_requests already grants SELECT to the
+  // 'Manager' role (see 41_bills_charges_workflow.sql).
+  function NursingChargeRegister({profile}){
+    const canView=profile?.role==='Admin'||isNursingManagerProfile(profile);
+    const [patients]=usePatients();
+    const [rows,setRows]=React.useState([]);
+    const [filter,setFilter]=React.useState({status:'All',category:'All',patient_id:'',raised_by:'All',from:'',to:''});
+
+    const load=React.useCallback(async()=>{
+      const r=await client.from('bill_charge_requests').select('*').order('charge_date',{ascending:false}).order('created_at',{ascending:false}).limit(2000);
+      if(!r.error)setRows(r.data||[]);else console.warn(r.error);
+    },[]);
+
+    React.useEffect(()=>{
+      if(!canView)return;
+      load();
+      const ch=client.channel('nursing-charge-register-live')
+        .on('postgres_changes',{event:'*',schema:'public',table:'bill_charge_requests'},load)
+        .subscribe();
+      return()=>client.removeChannel(ch);
+    },[load,canView]);
+
+    if(!canView)return h(Section,{title:'Charge Register'},h('p',null,'Admin / Nursing Manager access only.'));
+
+    const pFor=id=>patients.find(p=>p.id===id)||{};
+    const pLabel=id=>{const p=pFor(id);return p.id?`${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}-${p.bed_no||'—'}`:'—'};
+    const money=v=>v!==null&&v!==undefined&&v!==''?`₹${Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'—';
+    const statusOf=r=>r.approval_status||'Pending';
+    const statusLabel=s=>s==='Rejected'?'Returned':s;
+    const today=todayISOIndia();
+
+    const categories=React.useMemo(()=>[...new Set(rows.map(r=>r.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b)),[rows]);
+    const raisers=React.useMemo(()=>[...new Set(rows.map(r=>r.raised_by_name).filter(Boolean))].sort((a,b)=>a.localeCompare(b)),[rows]);
+    const patientsWithCharges=React.useMemo(()=>{
+      const ids=new Set(rows.map(r=>r.patient_id).filter(Boolean));
+      return patients.filter(p=>ids.has(p.id)).sort((a,b)=>String(formalName(a)||'').localeCompare(String(formalName(b)||'')));
+    },[rows,patients]);
+
+    const setPeriod=(from,to)=>setFilter(current=>({...current,from,to}));
+    const clearFilters=()=>setFilter({status:'All',category:'All',patient_id:'',raised_by:'All',from:'',to:''});
+
+    const filtered=rows.filter(r=>
+      (filter.status==='All'||statusOf(r)===filter.status)&&
+      (filter.category==='All'||r.category===filter.category)&&
+      (!filter.patient_id||r.patient_id===filter.patient_id)&&
+      (filter.raised_by==='All'||r.raised_by_name===filter.raised_by)&&
+      (!filter.from||r.charge_date>=filter.from)&&
+      (!filter.to||r.charge_date<=filter.to)
+    );
+
+    const pending=rows.filter(r=>statusOf(r)==='Pending').length;
+    const approvedCount=rows.filter(r=>['Approved','Partially Approved'].includes(statusOf(r))).length;
+    const returnedCount=rows.filter(r=>statusOf(r)==='Rejected').length;
+    const approvedValue=rows.filter(r=>['Approved','Partially Approved'].includes(statusOf(r)))
+      .reduce((sum,r)=>sum+(Number(r.approved_amount??r.final_amount)||0),0);
+
+    const statCard=(label,value,active,onClick)=>h('button',{type:'button',className:'card stat',onClick,style:{
+      textAlign:'left',cursor:'pointer',width:'100%',border:'1px solid #e8c3d2',
+      background:active?'linear-gradient(135deg,#f9dce8,#fff7fa)':'linear-gradient(145deg,#fffafd,#fdf1f6)',
+      boxShadow:active?'0 8px 20px rgba(166,16,78,.12)':'0 4px 12px rgba(109,24,61,.05)'
+    }},h('span',null,label),h('strong',null,value));
+
+    const heads=['Date','Patient','Category','Service','Qty','Status','Requested Amount','Approved Amount','Raised By','Decision By','Decision Time','Remarks'];
+    const tableRows=filtered.map(r=>[
+      formatDateIN(r.charge_date),pLabel(r.patient_id),r.category||'—',
+      `${r.charge_item_code?`${r.charge_item_code} · `:''}${r.service_name||r.description||'—'}`,
+      `${r.quantity||1} ${r.unit||''}`,
+      h('span',{className:'badge'},statusLabel(statusOf(r))),
+      money(r.requested_amount??r.unit_cost),
+      money(r.approved_amount??r.final_amount),
+      r.raised_by_name||'—',
+      r.decision_by_name||'—',
+      r.decision_at?fmt(r.decision_at):'—',
+      r.decision_remarks||r.approval_remarks||r.remarks||'—'
+    ]);
+
+    return h(React.Fragment,null,
+      h(Section,{title:'Charge Register',subtitle:"View only — every charge Nursing has raised, with Accounts' decision and the approved rate. Charges cannot be raised, edited or decided from this page."},
+        h('div',{className:'grid stats',style:{marginBottom:'14px'}},
+          statCard('All Charges',rows.length,filter.status==='All',()=>setFilter(f=>({...f,status:'All'}))),
+          statCard('Pending',pending,filter.status==='Pending',()=>setFilter(f=>({...f,status:'Pending'}))),
+          statCard('Approved',approvedCount,filter.status==='Approved',()=>setFilter(f=>({...f,status:'Approved'}))),
+          statCard('Returned',returnedCount,filter.status==='Rejected',()=>setFilter(f=>({...f,status:'Rejected'}))),
+          statCard('Approved Value',money(approvedValue),false,()=>{})
+        ),
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'10px',marginBottom:'12px'}},
+          h('div',{className:'field',style:{margin:0}},h('label',null,'Status'),h('select',{value:filter.status,onChange:e=>setFilter({...filter,status:e.target.value})},
+            ['All','Pending','Approved','Partially Approved','Rejected'].map(s=>h('option',{key:s,value:s},statusLabel(s))))),
+          h('div',{className:'field',style:{margin:0}},h('label',null,'Category'),h('select',{value:filter.category,onChange:e=>setFilter({...filter,category:e.target.value})},
+            h('option',{value:'All'},'All'),categories.map(c=>h('option',{key:c,value:c},c)))),
+          h('div',{className:'field',style:{margin:0}},h('label',null,'Patient'),h('select',{value:filter.patient_id,onChange:e=>setFilter({...filter,patient_id:e.target.value})},
+            h('option',{value:''},'All'),patientsWithCharges.map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)} · ${p.patient_id||'—'}`)))),
+          h('div',{className:'field',style:{margin:0}},h('label',null,'Raised By'),h('select',{value:filter.raised_by,onChange:e=>setFilter({...filter,raised_by:e.target.value})},
+            h('option',{value:'All'},'All'),raisers.map(n=>h('option',{key:n,value:n},n)))),
+          h('div',{className:'field',style:{margin:0}},h('label',null,'From'),h('input',{type:'date',value:filter.from,max:filter.to||today,onChange:e=>setFilter({...filter,from:e.target.value})})),
+          h('div',{className:'field',style:{margin:0}},h('label',null,'To'),h('input',{type:'date',value:filter.to,min:filter.from||undefined,max:today,onChange:e=>setFilter({...filter,to:e.target.value})}))
+        ),
+        h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPeriod(today,today)},'Today'),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPeriod(mondayOfWeek(today),today)},'This Week'),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPeriod(`${today.slice(0,7)}-01`,today)},'This Month'),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:clearFilters},'Clear Filters')
+        )
+      ),
+      h(LogTable,{title:`Charges (${filtered.length})`,heads,rows:tableRows})
     );
   }
 function ShiftManagement({profile}){
@@ -29414,13 +29555,43 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
 
 
   function StoreItemMaster({profile}){
-    const [rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('All'),[search,setSearch]=React.useState(''),[editing,setEditing]=React.useState(null),[adding,setAdding]=React.useState(null),[moveTargets,setMoveTargets]=React.useState({}),[duplicateAlert,setDuplicateAlert]=React.useState(null);
-    const load=React.useCallback(async()=>{const r=await client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate').order('item_name');if(r.error)showSamaraActionToast('error','Stores Master','Run 132_store_item_master.sql first. '+r.error.message);else setRows(r.data||[])},[]);
+    const [rows,setRows]=React.useState([]),[procedureRows,setProcedureRows]=React.useState([]),[busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('All'),[search,setSearch]=React.useState(''),[editing,setEditing]=React.useState(null),[adding,setAdding]=React.useState(null),[moveTargets,setMoveTargets]=React.useState({}),[duplicateAlert,setDuplicateAlert]=React.useState(null);
+    const load=React.useCallback(async()=>{
+      const [r,p]=await Promise.all([
+        client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate').order('item_name'),
+        client.from('nursing_procedure_master').select('id,code,procedure_name').eq('is_active',true)
+      ]);
+      if(r.error)showSamaraActionToast('error','Stores Master','Run 132_store_item_master.sql first. '+r.error.message);else setRows(r.data||[]);
+      if(!p.error)setProcedureRows(p.data||[]);
+    },[]);
     React.useEffect(()=>{load()},[load]);
     const visible=rows.filter(r=>{const c=r.item_category||'Consumables',q=search.trim().toLowerCase();return (filter==='All'||filter===c||(filter==='Inactive'&&r.active===false))&&(q.length<3||`${r.item_code||''} ${r.item_name||''}`.toLowerCase().includes(q))});
     const normalizeMasterName=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\b(ml|mg|gm|g|iu|fr)\b/g,' $1 ').replace(/\s+/g,' ').trim();
     const masterTokens=value=>new Set(normalizeMasterName(value).split(' ').filter(Boolean).map(x=>x.length>3&&x.endsWith('s')?x.slice(0,-1):x));
-    const similarMasterItem=(name,excludeId='')=>{const n=normalizeMasterName(name);if(!n)return null;const a=masterTokens(name);let best=null,bestScore=0;for(const r of rows){if(String(r.id)===String(excludeId))continue;const rn=normalizeMasterName(r.item_name);if(!rn)continue;if(rn===n)return {...r,_match:'exact',_score:1};const b=masterTokens(r.item_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;const numsA=[...a].filter(x=>/^\d+(?:\.\d+)?$/.test(x)).sort().join('|'),numsB=[...b].filter(x=>/^\d+(?:\.\d+)?$/.test(x)).sort().join('|');if(numsA!==numsB)continue;if(score>bestScore){bestScore=score;best=r}}return bestScore>=0.72?{...best,_match:'similar',_score:bestScore}:null};
+    // Checks both other store items AND active Nursing Procedure codes, so a new
+    // Consumables/Pharmacy item that really means the same thing as an existing
+    // procedure (e.g. "Glucose Strips" vs the "Blood Glucose Monitoring" procedure)
+    // is caught before it can create a confusing, possibly double-billed, entry.
+    const similarMasterItem=(name,excludeId='')=>{
+      const n=normalizeMasterName(name);if(!n)return null;const a=masterTokens(name);
+      let best=null,bestScore=0;
+      for(const r of rows){
+        if(String(r.id)===String(excludeId))continue;
+        const rn=normalizeMasterName(r.item_name);if(!rn)continue;
+        if(rn===n)return {...r,_source:'store',_match:'exact',_score:1};
+        const b=masterTokens(r.item_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;
+        const numsA=[...a].filter(x=>/^\d+(?:\.\d+)?$/.test(x)).sort().join('|'),numsB=[...b].filter(x=>/^\d+(?:\.\d+)?$/.test(x)).sort().join('|');
+        if(numsA!==numsB)continue;
+        if(score>bestScore){bestScore=score;best={...r,_source:'store'}}
+      }
+      for(const p of procedureRows){
+        const pn=normalizeMasterName(p.procedure_name);if(!pn)continue;
+        if(pn===n)return {item_name:p.procedure_name,item_code:p.code,_source:'procedure',_match:'exact',_score:1};
+        const b=masterTokens(p.procedure_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;
+        if(score>bestScore){bestScore=score;best={item_name:p.procedure_name,item_code:p.code,_source:'procedure'}}
+      }
+      return bestScore>=0.72?{...best,_match:'similar',_score:bestScore}:null;
+    };
     const duplicateWarning=(candidate,excludeId='')=>{const hit=similarMasterItem(candidate,excludeId);if(!hit)return false;setDuplicateAlert({entered:String(candidate||'').trim(),...hit});return true};
     const save=async()=>{if(!editing?.item_name?.trim())return showSamaraActionToast('error','Stores Master','Item name is required.');if(duplicateWarning(editing.item_name,editing.id))return;setBusy(true);const r=await client.rpc('admin_update_store_item',{p_item_id:editing.id,p_item_name:editing.item_name.trim(),p_category:editing.item_category||'Consumables',p_unit:editing.unit,p_strength:editing.strength||null,p_dosage_form:editing.dosage_form||null});setBusy(false);if(r.error)showSamaraActionToast('error','Stores Master',r.error.message);else{showSamaraActionToast('success','Stores Master','Item details updated.');setEditing(null);load()}};
     const savePrice=async(itemId,value)=>{const rate=Number(value);if(!Number.isFinite(rate)||rate<0)return showSamaraActionToast('error','Stores Master','Enter a valid charge rate of zero or more.');setBusy(true);const r=await client.rpc('admin_set_store_item_charge_rate',{p_item_id:itemId,p_charge_rate:rate});if(r.error){setBusy(false);return showSamaraActionToast('error','Stores Master',r.error.message)}const verify=await client.from('consumable_store_items').select('charge_rate').eq('id',itemId).maybeSingle();setBusy(false);if(verify.error||!verify.data||Math.abs(Number(verify.data.charge_rate)-rate)>0.009)return showSamaraActionToast('error','Rate not saved','The database did not confirm the new charge rate. No success has been recorded. Please check Stores permissions.');showSamaraActionToast('success','Stores Master','Charge rate saved and verified for future patient charges.');load()};
@@ -29451,7 +29622,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         h('td',null,r.active===false?'Inactive':'Active'),
         h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},editButton(r),h('button',{className:'btn btn-secondary',onClick:()=>active(r,r.active===false)},r.active===false?'Reactivate':'Deactivate'),h('button',{className:'btn btn-secondary',onClick:()=>remove(r)},'Delete'))
       )))))
-    ),duplicateAlert&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.58)',backdropFilter:'blur(2px)',zIndex:10050}},h('div',{className:'modal-card',style:{width:'min(92vw,760px)',maxWidth:'760px',background:'#fffafd',border:'2px solid #d92f4b',borderRadius:'24px',boxShadow:'0 26px 80px rgba(55,18,35,.35)',padding:'30px 32px'}},h('div',{style:{fontSize:'30px',fontWeight:900,color:'#a71936',marginBottom:'14px'}},duplicateAlert._match==='exact'?'Item Already Exists':'Possible Duplicate Item'),h('div',{style:{fontSize:'21px',lineHeight:1.55,color:'#402936'}},h('p',{style:{margin:'0 0 14px'}},'The item you entered cannot be added because a matching item is already available.'),h('div',{style:{background:'#fff1f5',border:'1px solid #efb8c7',borderRadius:'16px',padding:'18px 20px',marginBottom:'16px'}},h('div',{style:{fontSize:'24px',fontWeight:900,color:'#7f1230'}},`${duplicateAlert.item_code?duplicateAlert.item_code+' · ':''}${duplicateAlert.item_name}`),h('div',{style:{fontSize:'20px',fontWeight:800,marginTop:'7px'}},`Already available under: ${duplicateAlert.item_category||'Stores / Pharmacy'}`),duplicateAlert.unit&&h('div',{style:{fontSize:'18px',marginTop:'5px'}},`Unit: ${duplicateAlert.unit}`)),h('p',{style:{margin:'0'}},'Please use or edit the existing master item. If this is genuinely different, include the distinguishing size, strength, gauge or dosage form in the item name.')),h('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:'24px'}},h('button',{className:'btn btn-primary',style:{fontSize:'19px',padding:'12px 30px',minWidth:'120px'},onClick:()=>setDuplicateAlert(null)},'OK')))),adding&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)',backdropFilter:'blur(1px)'}},h('div',{className:'modal-card',style:{maxWidth:'620px',background:'#fffafd',opacity:1,border:'1px solid #e7bfd1',borderRadius:'18px',boxShadow:'0 22px 60px rgba(55,18,35,.28)',padding:'22px'}},h('h3',null,'Add New Item'),h('div',{className:'form-grid'},
+    ),duplicateAlert&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.58)',backdropFilter:'blur(2px)',zIndex:10050}},h('div',{className:'modal-card',style:{width:'min(92vw,760px)',maxWidth:'760px',background:'#fffafd',border:'2px solid #d92f4b',borderRadius:'24px',boxShadow:'0 26px 80px rgba(55,18,35,.35)',padding:'30px 32px'}},h('div',{style:{fontSize:'30px',fontWeight:900,color:'#a71936',marginBottom:'14px'}},duplicateAlert._match==='exact'?'Item Already Exists':'Possible Duplicate Item'),h('div',{style:{fontSize:'21px',lineHeight:1.55,color:'#402936'}},h('p',{style:{margin:'0 0 14px'}},'The item you entered cannot be added because a matching item is already available.'),h('div',{style:{background:'#fff1f5',border:'1px solid #efb8c7',borderRadius:'16px',padding:'18px 20px',marginBottom:'16px'}},h('div',{style:{fontSize:'24px',fontWeight:900,color:'#7f1230'}},`${duplicateAlert.item_code?duplicateAlert.item_code+' · ':''}${duplicateAlert.item_name}`),h('div',{style:{fontSize:'20px',fontWeight:800,marginTop:'7px'}},duplicateAlert._source==='procedure'?'Already listed as a Nursing Procedure Code':`Already available under: ${duplicateAlert.item_category||'Stores / Pharmacy'}`),duplicateAlert.unit&&h('div',{style:{fontSize:'18px',marginTop:'5px'}},`Unit: ${duplicateAlert.unit}`)),h('p',{style:{margin:'0'}},duplicateAlert._source==='procedure'?'A Nursing Procedure with this name already exists. Adding the same thing again as a Stores/Pharmacy item risks charging the patient twice for it. If this consumable is genuinely different from the procedure (for example, the strips used to perform it), include a distinguishing detail in the item name.':'Please use or edit the existing master item. If this is genuinely different, include the distinguishing size, strength, gauge or dosage form in the item name.')),h('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:'24px'}},h('button',{className:'btn btn-primary',style:{fontSize:'19px',padding:'12px 30px',minWidth:'120px'},onClick:()=>setDuplicateAlert(null)},'OK')))),adding&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)',backdropFilter:'blur(1px)'}},h('div',{className:'modal-card',style:{maxWidth:'620px',background:'#fffafd',opacity:1,border:'1px solid #e7bfd1',borderRadius:'18px',boxShadow:'0 22px 60px rgba(55,18,35,.28)',padding:'22px'}},h('h3',null,'Add New Item'),h('div',{className:'form-grid'},
       h('div',{className:'field span-2'},h('label',null,'Item Name *'),h('input',{value:adding.item_name||'',onChange:e=>setAdding({...adding,item_name:e.target.value})})),
       h('div',{className:'field'},h('label',null,'Currently Under *'),h('select',{value:adding.item_category||'Consumables',onChange:e=>setAdding({...adding,item_category:e.target.value})},h('option',{value:'Consumables'},'Consumables'),h('option',{value:'Pharmacy'},'Pharmacy'))),
       h('div',{className:'field'},h('label',null,'Unit *'),h('input',{value:adding.unit||'',onChange:e=>setAdding({...adding,unit:e.target.value})})),
