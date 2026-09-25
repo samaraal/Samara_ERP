@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.55';
-const CACHE = 'samara-erp-2.14.55-family-portal-consent';
+const APP_VERSION = '2.14.56';
+const CACHE = 'samara-erp-2.14.56-admission-delegate-family-portal';
 const SHELL = [
   './',
   './index.html',
