@@ -122,7 +122,7 @@ helper it uses, before `z-end/...`). The build refuses to run if a file is missi
 | 66 | `stores/store-authority-items.js` | 236 | Store in-charge, item master, pharmacy stock; duplicate-billing guard vs Nursing Procedure Codes |
 | 67 | `stores/consumables-stores.js` | 254 | Consumables stores |
 | 68 | `stores/patient-consumables.js` | 131 | Patient consumables |
-| 69 | `accounts/09-clinical-charges.js` | 689 | Charge master, clinical charges |
+| 69 | `accounts/09-clinical-charges.js` | 815 | Charge master (category filter + auto-generated IDs), clinical charges |
 | 70 | `reports/whatsapp-delivery-logs.js` | 51 | WhatsApp delivery logs |
 | 71 | `reports/intelligent-reports.js` | 644 | Intelligent reports |
 | 72 | `reports/reports.js` | 314 | Reports |

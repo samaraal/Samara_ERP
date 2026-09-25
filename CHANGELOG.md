@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.49 — Charge Master: category filter + auto-generated IDs
+- Charge Master (Admin) now has a Category dropdown next to the search box, with a live count per category (e.g. "Nursing Procedures (24)"), so items can be found instantly instead of scrolling through the full list — covers Consumables, Pharmacy, Nursing Procedures and every other category in one place.
+- New Charge Master service items now get an ID automatically — one short prefix per category (NUR- Nursing Procedures, DOC- Doctor Services, DIA- Diagnostic/Imaging, LAB- Laboratory, BIO- Biomedical Equipment, and so on, same idea as the Stores Master CON-/PHA- codes). Admin no longer types a code when adding one.
+- New "Assign Codes to All" button backfills a code onto every existing Charge Master item that was still showing "—", in one click.
+- No database changes — IDs are generated in the app and saved to the existing `charge_code` column.
+
 ## 2.14.48 — Charge Register (view-only) for the Nursing Manager
 - New "Charge Register" page (NURSING section) for Admin and the Nursing Manager: every charge raised by Nursing, with Accounts' decision and the approved tariff/rate, in one table.
 - Filters: Status (All / Pending / Approved / Partially Approved / Returned — "Returned" is the existing "Rejected" decision, shown in plain language), Category, Patient, Raised By, and a date range with Today / This Week / This Month quick buttons. Summary cards at the top (All, Pending, Approved, Returned, Approved Value) double as one-click filters.

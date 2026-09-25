@@ -1,5 +1,5 @@
   function ChargeMasterPage({profile}){
-    const [serviceRows,setServiceRows]=React.useState([]),[storeRows,setStoreRows]=React.useState([]),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState('');
+    const [serviceRows,setServiceRows]=React.useState([]),[storeRows,setStoreRows]=React.useState([]),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState(''),[categoryFilter,setCategoryFilter]=React.useState('All');
     const notify=(type,text)=>showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
     const stockCategories=['Consumables','Pharmacy','Pharmacy & Basic Supplies'];
     async function load(){
@@ -16,6 +16,12 @@
     const normalizeChargeName=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
     const chargeNameTokens=value=>new Set(normalizeChargeName(value).split(' ').filter(Boolean).map(x=>x.length>3&&x.endsWith('s')?x.slice(0,-1):x));
     const findSimilarService=(category,name,excludeId='')=>{const n=normalizeChargeName(name),a=chargeNameTokens(name);let best=null,bestScore=0;for(const x of serviceRows){if(String(x.id)===String(excludeId)||String(x.category)!==String(category))continue;const xn=normalizeChargeName(x.service_name);if(xn===n)return {...x,_score:1};const b=chargeNameTokens(x.service_name),intersection=[...a].filter(t=>b.has(t)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;const numsA=[...a].filter(t=>/^\d+(?:\.\d+)?$/.test(t)).sort().join('|'),numsB=[...b].filter(t=>/^\d+(?:\.\d+)?$/.test(t)).sort().join('|');if(numsA!==numsB)continue;const onlyA=[...a].filter(t=>!b.has(t)),onlyB=[...b].filter(t=>!a.has(t));if(onlyA.length&&onlyB.length)continue;if(score>bestScore){bestScore=score;best=x}}return bestScore>=0.72?best:null};
+    // v2.14.49: auto-generated Charge Master IDs, one short prefix per category
+    // (same idea as the Stores Master CON-/PHA- codes). No manual entry needed.
+    const CATEGORY_CODE_PREFIX={'Doctor Services':'DOC','Nursing Procedures':'NUR','Physiotherapy':'PHY','Laboratory Services':'LAB','Diagnostic / Imaging':'DIA','Hospital Visits':'HOS','Transport':'TRN','Special Care':'SPC','Food & Nutrition':'FNT','Miscellaneous':'MSC','Biomedical Equipment':'BIO'};
+    const prefixForCategory=category=>{const known=CATEGORY_CODE_PREFIX[String(category||'').trim()];if(known)return known;const letters=String(category||'').toUpperCase().replace(/[^A-Z]/g,'');return (letters.slice(0,3)||'SVC').padEnd(3,'X')};
+    const maxCodeNumberForPrefix=(prefix,rows)=>{let max=0;(rows||[]).forEach(r=>{const code=String(r.charge_code||'').toUpperCase();const m=code.match(new RegExp('^'+prefix+'-(\\d+)$'));if(m)max=Math.max(max,parseInt(m[1],10))});return max};
+    const nextCodeForCategory=(category,rows)=>{const prefix=prefixForCategory(category);return `${prefix}-${String(maxCodeNumberForPrefix(prefix,rows)+1).padStart(4,'0')}`};
     async function saveService(row){
       const category=prompt('Charge category:',row?.category||'Nursing Procedures'); if(category===null||!String(category).trim())return;
       if(stockCategories.includes(String(category).trim())){notify('error','Consumables and Pharmacy items are controlled only from Stores Master. Add or edit the item there so the same item name, ID and rate are used everywhere.');return}
@@ -23,11 +29,34 @@
       const duplicate=findSimilarService(String(category).trim(),String(serviceName).trim(),row?.id||'');if(duplicate){notify('error',`${duplicate.charge_code?duplicate.charge_code+' · ':''}Possible duplicate: ${duplicate.service_name} is already in ${duplicate.category}. Use/edit the existing procedure instead; genuine variants must include their distinguishing detail.`);return}
       const entered=prompt('Admin-fixed tariff when no external bill is available (leave blank to set later):',row?.amount!=null?String(row.amount):''); if(entered===null)return;
       const amount=String(entered).trim()===''?null:Number(entered); if(amount!==null&&(!Number.isFinite(amount)||amount<=0)){notify('error','Enter a valid tariff greater than zero, or leave it blank.');return}
-      setBusy(true); const payload={category:String(category).trim(),service_name:String(serviceName).trim(),amount,is_active:row?.is_active!==false,updated_by:profile.id,updated_at:new Date().toISOString()};
+      setBusy(true); const trimmedCategory=String(category).trim(); const payload={category:trimmedCategory,service_name:String(serviceName).trim(),amount,is_active:row?.is_active!==false,updated_by:profile.id,updated_at:new Date().toISOString()};
+      if(!row?.charge_code)payload.charge_code=nextCodeForCategory(trimmedCategory,serviceRows);
       const result=row?.id?await client.from('charge_tariff_master').update(payload).eq('id',row.id):await client.from('charge_tariff_master').insert(payload); setBusy(false);
-      if(result.error)notify('error',result.error.message); else {notify('success',row?.id?'Charge Master service updated.':'Charge Master service added.');load()}
+      if(result.error)notify('error',result.error.message); else {notify('success',row?.id?'Charge Master service updated.':`Charge Master service added${payload.charge_code?` as ${payload.charge_code}`:''}.`);load()}
     }
     async function toggleService(row){setBusy(true);const {error}=await client.from('charge_tariff_master').update({is_active:row.is_active===false,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',row.id);setBusy(false);if(error)notify('error',error.message);else load()}
+    async function autoCodeAllServices(){
+      const missing=serviceRows.filter(r=>!r.charge_code).slice().sort((a,b)=>String(a.category||'').localeCompare(String(b.category||''))||String(a.service_name||'').localeCompare(String(b.service_name||'')));
+      if(!missing.length){notify('success','Every Charge Master item already has a code.');return}
+      setBusy(true);
+      const counters={};
+      const updates=missing.map(row=>{
+        const prefix=prefixForCategory(row.category);
+        if(counters[prefix]===undefined)counters[prefix]=maxCodeNumberForPrefix(prefix,serviceRows);
+        counters[prefix]+=1;
+        return {id:row.id,charge_code:`${prefix}-${String(counters[prefix]).padStart(4,'0')}`};
+      });
+      let failed=0;
+      for(let i=0;i<updates.length;i+=20){
+        const batch=updates.slice(i,i+20);
+        const results=await Promise.all(batch.map(u=>client.from('charge_tariff_master').update({charge_code:u.charge_code,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',u.id)));
+        failed+=results.filter(r=>r.error).length;
+      }
+      setBusy(false);
+      if(failed)notify('error',`${failed} item(s) could not be updated. Please check and retry.`);
+      else notify('success',`Assigned codes to ${updates.length} Charge Master item(s).`);
+      load();
+    }
     async function editStoreRate(row){
       const entered=prompt(`Fixed patient charge rate for ${row.item_name}:`,row?.charge_rate!=null?String(row.charge_rate):'');
       if(entered===null)return;
@@ -40,15 +69,30 @@
       if(verify.error||!verify.data||((rate===null)!=(verify.data.charge_rate===null))||(rate!==null&&Math.abs(Number(verify.data.charge_rate)-rate)>0.009)){notify('error','The database did not confirm the new rate. No success has been recorded.');return}
       notify('success','Stores / Pharmacy charge rate saved and verified.');load()
     }
+    const categoryOf=row=>row.category||row.item_category||'Consumables';
+    const categoryCounts=React.useMemo(()=>{const counts={};serviceRows.forEach(r=>{const c=categoryOf(r);counts[c]=(counts[c]||0)+1});storeRows.forEach(r=>{const c=categoryOf(r);counts[c]=(counts[c]||0)+1});return counts},[serviceRows,storeRows]);
+    const allCategories=React.useMemo(()=>Object.keys(categoryCounts).sort((a,b)=>a.localeCompare(b)),[categoryCounts]);
     if(profile?.role!=='Admin')return h(Section,{title:'Charge Master'},h('p',null,'Administrator access only.'));
     const q=String(search||'').trim().toLowerCase();
-    const match=row=>q.length<3||`${row.category||row.item_category||''} ${row.service_name||row.item_name||''}`.toLowerCase().includes(q);
+    const match=row=>{
+      if(categoryFilter!=='All'&&categoryOf(row)!==categoryFilter)return false;
+      return q.length<3||`${categoryOf(row)} ${row.service_name||row.item_name||''}`.toLowerCase().includes(q);
+    };
     const visibleStores=storeRows.filter(match),visibleServices=serviceRows.filter(match);
+    const missingCodeCount=serviceRows.filter(r=>!r.charge_code).length;
     return h(React.Fragment,null,
-      h(Section,{title:'Charge Master',subtitle:'Stores / Pharmacy items use the exact live Stores Master item name, ID and charge rate. Separate aliases are not permitted. Non-stock service tariffs remain controlled here.'},
+      h(Section,{title:'Charge Master',subtitle:"Stores / Pharmacy items use the exact live Stores Master item name, ID and charge rate. Non-stock service tariffs remain controlled here. IDs are generated automatically, one short prefix per category (NUR- Nursing Procedures, DOC- Doctor Services, DIA- Diagnostic/Imaging, LAB- Laboratory, BIO- Biomedical Equipment, and so on) — you never need to type one."},
         h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'end',gap:'12px',marginBottom:'10px',flexWrap:'wrap'}},
-          h('div',{className:'field',style:{minWidth:'280px',margin:0}},h('label',null,'Search Charge Items'),h('input',{type:'search',value:search,onChange:e=>setSearch(e.target.value),placeholder:'Type at least 3 letters...'}),q.length>0&&q.length<3?h('small',null,'Enter at least 3 letters to filter.'):null),
-          h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>saveService(null)},'+ Add Service Charge')
+          h('div',{style:{display:'flex',gap:'12px',flexWrap:'wrap',alignItems:'end'}},
+            h('div',{className:'field',style:{minWidth:'220px',margin:0}},h('label',null,'Category'),h('select',{value:categoryFilter,onChange:e=>setCategoryFilter(e.target.value)},
+              h('option',{value:'All'},`All Categories (${serviceRows.length+storeRows.length})`),
+              allCategories.map(c=>h('option',{key:c,value:c},`${c} (${categoryCounts[c]||0})`)))),
+            h('div',{className:'field',style:{minWidth:'260px',margin:0}},h('label',null,'Search Charge Items'),h('input',{type:'search',value:search,onChange:e=>setSearch(e.target.value),placeholder:'Type at least 3 letters...'}),q.length>0&&q.length<3?h('small',null,'Enter at least 3 letters to filter.'):null)
+          ),
+          h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
+            missingCodeCount>0&&h('button',{className:'btn btn-secondary',disabled:busy,onClick:autoCodeAllServices},`Assign Codes to All (${missingCodeCount})`),
+            h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>saveService(null)},'+ Add Service Charge')
+          )
         ),
         h(LogTable,{title:`Stores / Pharmacy Items (${visibleStores.length})`,heads:['Item ID','Category','Exact Stores Item','Unit','Fixed Charge Rate','Status','Action'],rows:visibleStores.map(row=>[row.item_code||'—',row.item_category||'Consumables',row.item_name,row.unit||'—',row.charge_rate!=null?`₹${Number(row.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.active===false?'Inactive':'Active',h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreRate(row)},'Edit Rate')])}),
         h(LogTable,{title:`Non-stock Service Charges (${visibleServices.length})`,heads:['ID','Category','Service','Fixed Tariff (No Bill)','Status','Action'],rows:visibleServices.map(row=>[row.charge_code||'—',row.category,row.service_name,row.amount!=null?`₹${Number(row.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveService(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggleService(row)},row.is_active===false?'Activate':'Deactivate'))])})

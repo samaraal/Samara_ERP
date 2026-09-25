@@ -354,7 +354,7 @@
   {
    "file": "accounts/09-clinical-charges.js",
    "about": "Charge master, clinical charges",
-   "lines": 689
+   "lines": 815
   },
   {
    "file": "reports/whatsapp-delivery-logs.js",

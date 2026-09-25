@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.48';
+  const APP_VERSION = '2.14.49';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -24711,6 +24711,7 @@ function RoomsBeds({profile,onNavigate}){
     const [patients]=usePatients();
     const [master,setMaster]=React.useState([]);
     const [requests,setRequests]=React.useState([]);
+    const [storeItems,setStoreItems]=React.useState([]);
     const [busy,setBusy]=React.useState(false);
     const [form,setForm]=React.useState({patient_id:'',procedure_id:'',scheduled_at:'',remarks:''});
     const [showMasterForm,setShowMasterForm]=React.useState(false);
@@ -24718,13 +24719,39 @@ function RoomsBeds({profile,onNavigate}){
     const [editingMaster,setEditingMaster]=React.useState(null);
 
     const load=React.useCallback(async()=>{
-      const [m,r]=await Promise.all([
+      const [m,r,s]=await Promise.all([
         client.from('nursing_procedure_master').select('*').order('display_order').order('procedure_name'),
-        client.from('nursing_procedure_requests').select('*').order('requested_at',{ascending:false}).limit(300)
+        client.from('nursing_procedure_requests').select('*').order('requested_at',{ascending:false}).limit(300),
+        client.from('consumable_store_items').select('id,item_name,item_category').eq('active',true)
       ]);
       if(!m.error)setMaster(m.data||[]);else console.warn(m.error);
       if(!r.error)setRequests(r.data||[]);else console.warn(r.error);
+      if(!s.error)setStoreItems(s.data||[]);
     },[]);
+
+    // Checks a new/edited procedure name against other active procedure codes AND
+    // against Consumables/Pharmacy item names, so the same real thing (e.g. "Blood
+    // Glucose Monitoring" vs "Glucose Strips") is not billed twice from two catalogs.
+    const normalizeName=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+    const nameTokens=value=>new Set(normalizeName(value).split(' ').filter(Boolean).map(x=>x.length>3&&x.endsWith('s')?x.slice(0,-1):x));
+    const findCatalogDuplicate=(name,excludeId='')=>{
+      const n=normalizeName(name);if(!n)return null;const a=nameTokens(name);
+      let best=null,bestScore=0;
+      for(const p of master){
+        if(String(p.id)===String(excludeId))continue;
+        const pn=normalizeName(p.procedure_name);if(!pn)continue;
+        if(pn===n)return {label:p.procedure_name,source:'Nursing Procedure Code',code:p.code,match:'exact'};
+        const b=nameTokens(p.procedure_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;
+        if(score>bestScore){bestScore=score;best={label:p.procedure_name,source:'Nursing Procedure Code',code:p.code}}
+      }
+      for(const s of storeItems){
+        const sn=normalizeName(s.item_name);if(!sn)continue;
+        if(sn===n)return {label:s.item_name,source:s.item_category||'Consumables/Pharmacy',match:'exact'};
+        const b=nameTokens(s.item_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;
+        if(score>bestScore){bestScore=score;best={label:s.item_name,source:s.item_category||'Consumables/Pharmacy'}}
+      }
+      return bestScore>=0.72?{...best,match:best.match||'similar'}:null;
+    };
     React.useEffect(()=>{
       load();
       const ch=client.channel('nursing-procedures-live')
@@ -24784,6 +24811,8 @@ function RoomsBeds({profile,onNavigate}){
       e.preventDefault();
       if(!canManageMaster||busy)return;
       if(!masterForm.code.trim()||!masterForm.procedure_name.trim())return showSamaraActionToast('error','Nursing Procedure Code','Code and procedure name are required.');
+      const duplicate=findCatalogDuplicate(masterForm.procedure_name,editingMaster?.id);
+      if(duplicate)return showSamaraActionToast('error','Possible duplicate',`"${masterForm.procedure_name}" looks similar to the existing ${duplicate.source}${duplicate.code?` (${duplicate.code})`:''}: "${duplicate.label}". Use/edit that entry instead, or include a distinguishing detail in the procedure name.`);
       setBusy(true);
       const res=editingMaster
         ?await client.from('nursing_procedure_master').update({code:masterForm.code.trim(),procedure_name:masterForm.procedure_name.trim(),updated_at:new Date().toISOString()}).eq('id',editingMaster.id)
@@ -29526,13 +29555,43 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
 
 
   function StoreItemMaster({profile}){
-    const [rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('All'),[search,setSearch]=React.useState(''),[editing,setEditing]=React.useState(null),[adding,setAdding]=React.useState(null),[moveTargets,setMoveTargets]=React.useState({}),[duplicateAlert,setDuplicateAlert]=React.useState(null);
-    const load=React.useCallback(async()=>{const r=await client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate').order('item_name');if(r.error)showSamaraActionToast('error','Stores Master','Run 132_store_item_master.sql first. '+r.error.message);else setRows(r.data||[])},[]);
+    const [rows,setRows]=React.useState([]),[procedureRows,setProcedureRows]=React.useState([]),[busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('All'),[search,setSearch]=React.useState(''),[editing,setEditing]=React.useState(null),[adding,setAdding]=React.useState(null),[moveTargets,setMoveTargets]=React.useState({}),[duplicateAlert,setDuplicateAlert]=React.useState(null);
+    const load=React.useCallback(async()=>{
+      const [r,p]=await Promise.all([
+        client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate').order('item_name'),
+        client.from('nursing_procedure_master').select('id,code,procedure_name').eq('is_active',true)
+      ]);
+      if(r.error)showSamaraActionToast('error','Stores Master','Run 132_store_item_master.sql first. '+r.error.message);else setRows(r.data||[]);
+      if(!p.error)setProcedureRows(p.data||[]);
+    },[]);
     React.useEffect(()=>{load()},[load]);
     const visible=rows.filter(r=>{const c=r.item_category||'Consumables',q=search.trim().toLowerCase();return (filter==='All'||filter===c||(filter==='Inactive'&&r.active===false))&&(q.length<3||`${r.item_code||''} ${r.item_name||''}`.toLowerCase().includes(q))});
     const normalizeMasterName=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\b(ml|mg|gm|g|iu|fr)\b/g,' $1 ').replace(/\s+/g,' ').trim();
     const masterTokens=value=>new Set(normalizeMasterName(value).split(' ').filter(Boolean).map(x=>x.length>3&&x.endsWith('s')?x.slice(0,-1):x));
-    const similarMasterItem=(name,excludeId='')=>{const n=normalizeMasterName(name);if(!n)return null;const a=masterTokens(name);let best=null,bestScore=0;for(const r of rows){if(String(r.id)===String(excludeId))continue;const rn=normalizeMasterName(r.item_name);if(!rn)continue;if(rn===n)return {...r,_match:'exact',_score:1};const b=masterTokens(r.item_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;const numsA=[...a].filter(x=>/^\d+(?:\.\d+)?$/.test(x)).sort().join('|'),numsB=[...b].filter(x=>/^\d+(?:\.\d+)?$/.test(x)).sort().join('|');if(numsA!==numsB)continue;if(score>bestScore){bestScore=score;best=r}}return bestScore>=0.72?{...best,_match:'similar',_score:bestScore}:null};
+    // Checks both other store items AND active Nursing Procedure codes, so a new
+    // Consumables/Pharmacy item that really means the same thing as an existing
+    // procedure (e.g. "Glucose Strips" vs the "Blood Glucose Monitoring" procedure)
+    // is caught before it can create a confusing, possibly double-billed, entry.
+    const similarMasterItem=(name,excludeId='')=>{
+      const n=normalizeMasterName(name);if(!n)return null;const a=masterTokens(name);
+      let best=null,bestScore=0;
+      for(const r of rows){
+        if(String(r.id)===String(excludeId))continue;
+        const rn=normalizeMasterName(r.item_name);if(!rn)continue;
+        if(rn===n)return {...r,_source:'store',_match:'exact',_score:1};
+        const b=masterTokens(r.item_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;
+        const numsA=[...a].filter(x=>/^\d+(?:\.\d+)?$/.test(x)).sort().join('|'),numsB=[...b].filter(x=>/^\d+(?:\.\d+)?$/.test(x)).sort().join('|');
+        if(numsA!==numsB)continue;
+        if(score>bestScore){bestScore=score;best={...r,_source:'store'}}
+      }
+      for(const p of procedureRows){
+        const pn=normalizeMasterName(p.procedure_name);if(!pn)continue;
+        if(pn===n)return {item_name:p.procedure_name,item_code:p.code,_source:'procedure',_match:'exact',_score:1};
+        const b=masterTokens(p.procedure_name),intersection=[...a].filter(x=>b.has(x)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;
+        if(score>bestScore){bestScore=score;best={item_name:p.procedure_name,item_code:p.code,_source:'procedure'}}
+      }
+      return bestScore>=0.72?{...best,_match:'similar',_score:bestScore}:null;
+    };
     const duplicateWarning=(candidate,excludeId='')=>{const hit=similarMasterItem(candidate,excludeId);if(!hit)return false;setDuplicateAlert({entered:String(candidate||'').trim(),...hit});return true};
     const save=async()=>{if(!editing?.item_name?.trim())return showSamaraActionToast('error','Stores Master','Item name is required.');if(duplicateWarning(editing.item_name,editing.id))return;setBusy(true);const r=await client.rpc('admin_update_store_item',{p_item_id:editing.id,p_item_name:editing.item_name.trim(),p_category:editing.item_category||'Consumables',p_unit:editing.unit,p_strength:editing.strength||null,p_dosage_form:editing.dosage_form||null});setBusy(false);if(r.error)showSamaraActionToast('error','Stores Master',r.error.message);else{showSamaraActionToast('success','Stores Master','Item details updated.');setEditing(null);load()}};
     const savePrice=async(itemId,value)=>{const rate=Number(value);if(!Number.isFinite(rate)||rate<0)return showSamaraActionToast('error','Stores Master','Enter a valid charge rate of zero or more.');setBusy(true);const r=await client.rpc('admin_set_store_item_charge_rate',{p_item_id:itemId,p_charge_rate:rate});if(r.error){setBusy(false);return showSamaraActionToast('error','Stores Master',r.error.message)}const verify=await client.from('consumable_store_items').select('charge_rate').eq('id',itemId).maybeSingle();setBusy(false);if(verify.error||!verify.data||Math.abs(Number(verify.data.charge_rate)-rate)>0.009)return showSamaraActionToast('error','Rate not saved','The database did not confirm the new charge rate. No success has been recorded. Please check Stores permissions.');showSamaraActionToast('success','Stores Master','Charge rate saved and verified for future patient charges.');load()};
@@ -29563,7 +29622,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         h('td',null,r.active===false?'Inactive':'Active'),
         h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},editButton(r),h('button',{className:'btn btn-secondary',onClick:()=>active(r,r.active===false)},r.active===false?'Reactivate':'Deactivate'),h('button',{className:'btn btn-secondary',onClick:()=>remove(r)},'Delete'))
       )))))
-    ),duplicateAlert&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.58)',backdropFilter:'blur(2px)',zIndex:10050}},h('div',{className:'modal-card',style:{width:'min(92vw,760px)',maxWidth:'760px',background:'#fffafd',border:'2px solid #d92f4b',borderRadius:'24px',boxShadow:'0 26px 80px rgba(55,18,35,.35)',padding:'30px 32px'}},h('div',{style:{fontSize:'30px',fontWeight:900,color:'#a71936',marginBottom:'14px'}},duplicateAlert._match==='exact'?'Item Already Exists':'Possible Duplicate Item'),h('div',{style:{fontSize:'21px',lineHeight:1.55,color:'#402936'}},h('p',{style:{margin:'0 0 14px'}},'The item you entered cannot be added because a matching item is already available.'),h('div',{style:{background:'#fff1f5',border:'1px solid #efb8c7',borderRadius:'16px',padding:'18px 20px',marginBottom:'16px'}},h('div',{style:{fontSize:'24px',fontWeight:900,color:'#7f1230'}},`${duplicateAlert.item_code?duplicateAlert.item_code+' · ':''}${duplicateAlert.item_name}`),h('div',{style:{fontSize:'20px',fontWeight:800,marginTop:'7px'}},`Already available under: ${duplicateAlert.item_category||'Stores / Pharmacy'}`),duplicateAlert.unit&&h('div',{style:{fontSize:'18px',marginTop:'5px'}},`Unit: ${duplicateAlert.unit}`)),h('p',{style:{margin:'0'}},'Please use or edit the existing master item. If this is genuinely different, include the distinguishing size, strength, gauge or dosage form in the item name.')),h('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:'24px'}},h('button',{className:'btn btn-primary',style:{fontSize:'19px',padding:'12px 30px',minWidth:'120px'},onClick:()=>setDuplicateAlert(null)},'OK')))),adding&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)',backdropFilter:'blur(1px)'}},h('div',{className:'modal-card',style:{maxWidth:'620px',background:'#fffafd',opacity:1,border:'1px solid #e7bfd1',borderRadius:'18px',boxShadow:'0 22px 60px rgba(55,18,35,.28)',padding:'22px'}},h('h3',null,'Add New Item'),h('div',{className:'form-grid'},
+    ),duplicateAlert&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.58)',backdropFilter:'blur(2px)',zIndex:10050}},h('div',{className:'modal-card',style:{width:'min(92vw,760px)',maxWidth:'760px',background:'#fffafd',border:'2px solid #d92f4b',borderRadius:'24px',boxShadow:'0 26px 80px rgba(55,18,35,.35)',padding:'30px 32px'}},h('div',{style:{fontSize:'30px',fontWeight:900,color:'#a71936',marginBottom:'14px'}},duplicateAlert._match==='exact'?'Item Already Exists':'Possible Duplicate Item'),h('div',{style:{fontSize:'21px',lineHeight:1.55,color:'#402936'}},h('p',{style:{margin:'0 0 14px'}},'The item you entered cannot be added because a matching item is already available.'),h('div',{style:{background:'#fff1f5',border:'1px solid #efb8c7',borderRadius:'16px',padding:'18px 20px',marginBottom:'16px'}},h('div',{style:{fontSize:'24px',fontWeight:900,color:'#7f1230'}},`${duplicateAlert.item_code?duplicateAlert.item_code+' · ':''}${duplicateAlert.item_name}`),h('div',{style:{fontSize:'20px',fontWeight:800,marginTop:'7px'}},duplicateAlert._source==='procedure'?'Already listed as a Nursing Procedure Code':`Already available under: ${duplicateAlert.item_category||'Stores / Pharmacy'}`),duplicateAlert.unit&&h('div',{style:{fontSize:'18px',marginTop:'5px'}},`Unit: ${duplicateAlert.unit}`)),h('p',{style:{margin:'0'}},duplicateAlert._source==='procedure'?'A Nursing Procedure with this name already exists. Adding the same thing again as a Stores/Pharmacy item risks charging the patient twice for it. If this consumable is genuinely different from the procedure (for example, the strips used to perform it), include a distinguishing detail in the item name.':'Please use or edit the existing master item. If this is genuinely different, include the distinguishing size, strength, gauge or dosage form in the item name.')),h('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:'24px'}},h('button',{className:'btn btn-primary',style:{fontSize:'19px',padding:'12px 30px',minWidth:'120px'},onClick:()=>setDuplicateAlert(null)},'OK')))),adding&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)',backdropFilter:'blur(1px)'}},h('div',{className:'modal-card',style:{maxWidth:'620px',background:'#fffafd',opacity:1,border:'1px solid #e7bfd1',borderRadius:'18px',boxShadow:'0 22px 60px rgba(55,18,35,.28)',padding:'22px'}},h('h3',null,'Add New Item'),h('div',{className:'form-grid'},
       h('div',{className:'field span-2'},h('label',null,'Item Name *'),h('input',{value:adding.item_name||'',onChange:e=>setAdding({...adding,item_name:e.target.value})})),
       h('div',{className:'field'},h('label',null,'Currently Under *'),h('select',{value:adding.item_category||'Consumables',onChange:e=>setAdding({...adding,item_category:e.target.value})},h('option',{value:'Consumables'},'Consumables'),h('option',{value:'Pharmacy'},'Pharmacy'))),
       h('div',{className:'field'},h('label',null,'Unit *'),h('input',{value:adding.unit||'',onChange:e=>setAdding({...adding,unit:e.target.value})})),
@@ -29985,7 +30044,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
   }
 
   function ChargeMasterPage({profile}){
-    const [serviceRows,setServiceRows]=React.useState([]),[storeRows,setStoreRows]=React.useState([]),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState('');
+    const [serviceRows,setServiceRows]=React.useState([]),[storeRows,setStoreRows]=React.useState([]),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState(''),[categoryFilter,setCategoryFilter]=React.useState('All');
     const notify=(type,text)=>showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
     const stockCategories=['Consumables','Pharmacy','Pharmacy & Basic Supplies'];
     async function load(){
@@ -30002,6 +30061,12 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const normalizeChargeName=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
     const chargeNameTokens=value=>new Set(normalizeChargeName(value).split(' ').filter(Boolean).map(x=>x.length>3&&x.endsWith('s')?x.slice(0,-1):x));
     const findSimilarService=(category,name,excludeId='')=>{const n=normalizeChargeName(name),a=chargeNameTokens(name);let best=null,bestScore=0;for(const x of serviceRows){if(String(x.id)===String(excludeId)||String(x.category)!==String(category))continue;const xn=normalizeChargeName(x.service_name);if(xn===n)return {...x,_score:1};const b=chargeNameTokens(x.service_name),intersection=[...a].filter(t=>b.has(t)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;const numsA=[...a].filter(t=>/^\d+(?:\.\d+)?$/.test(t)).sort().join('|'),numsB=[...b].filter(t=>/^\d+(?:\.\d+)?$/.test(t)).sort().join('|');if(numsA!==numsB)continue;const onlyA=[...a].filter(t=>!b.has(t)),onlyB=[...b].filter(t=>!a.has(t));if(onlyA.length&&onlyB.length)continue;if(score>bestScore){bestScore=score;best=x}}return bestScore>=0.72?best:null};
+    // v2.14.49: auto-generated Charge Master IDs, one short prefix per category
+    // (same idea as the Stores Master CON-/PHA- codes). No manual entry needed.
+    const CATEGORY_CODE_PREFIX={'Doctor Services':'DOC','Nursing Procedures':'NUR','Physiotherapy':'PHY','Laboratory Services':'LAB','Diagnostic / Imaging':'DIA','Hospital Visits':'HOS','Transport':'TRN','Special Care':'SPC','Food & Nutrition':'FNT','Miscellaneous':'MSC','Biomedical Equipment':'BIO'};
+    const prefixForCategory=category=>{const known=CATEGORY_CODE_PREFIX[String(category||'').trim()];if(known)return known;const letters=String(category||'').toUpperCase().replace(/[^A-Z]/g,'');return (letters.slice(0,3)||'SVC').padEnd(3,'X')};
+    const maxCodeNumberForPrefix=(prefix,rows)=>{let max=0;(rows||[]).forEach(r=>{const code=String(r.charge_code||'').toUpperCase();const m=code.match(new RegExp('^'+prefix+'-(\\d+)$'));if(m)max=Math.max(max,parseInt(m[1],10))});return max};
+    const nextCodeForCategory=(category,rows)=>{const prefix=prefixForCategory(category);return `${prefix}-${String(maxCodeNumberForPrefix(prefix,rows)+1).padStart(4,'0')}`};
     async function saveService(row){
       const category=prompt('Charge category:',row?.category||'Nursing Procedures'); if(category===null||!String(category).trim())return;
       if(stockCategories.includes(String(category).trim())){notify('error','Consumables and Pharmacy items are controlled only from Stores Master. Add or edit the item there so the same item name, ID and rate are used everywhere.');return}
@@ -30009,11 +30074,34 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       const duplicate=findSimilarService(String(category).trim(),String(serviceName).trim(),row?.id||'');if(duplicate){notify('error',`${duplicate.charge_code?duplicate.charge_code+' · ':''}Possible duplicate: ${duplicate.service_name} is already in ${duplicate.category}. Use/edit the existing procedure instead; genuine variants must include their distinguishing detail.`);return}
       const entered=prompt('Admin-fixed tariff when no external bill is available (leave blank to set later):',row?.amount!=null?String(row.amount):''); if(entered===null)return;
       const amount=String(entered).trim()===''?null:Number(entered); if(amount!==null&&(!Number.isFinite(amount)||amount<=0)){notify('error','Enter a valid tariff greater than zero, or leave it blank.');return}
-      setBusy(true); const payload={category:String(category).trim(),service_name:String(serviceName).trim(),amount,is_active:row?.is_active!==false,updated_by:profile.id,updated_at:new Date().toISOString()};
+      setBusy(true); const trimmedCategory=String(category).trim(); const payload={category:trimmedCategory,service_name:String(serviceName).trim(),amount,is_active:row?.is_active!==false,updated_by:profile.id,updated_at:new Date().toISOString()};
+      if(!row?.charge_code)payload.charge_code=nextCodeForCategory(trimmedCategory,serviceRows);
       const result=row?.id?await client.from('charge_tariff_master').update(payload).eq('id',row.id):await client.from('charge_tariff_master').insert(payload); setBusy(false);
-      if(result.error)notify('error',result.error.message); else {notify('success',row?.id?'Charge Master service updated.':'Charge Master service added.');load()}
+      if(result.error)notify('error',result.error.message); else {notify('success',row?.id?'Charge Master service updated.':`Charge Master service added${payload.charge_code?` as ${payload.charge_code}`:''}.`);load()}
     }
     async function toggleService(row){setBusy(true);const {error}=await client.from('charge_tariff_master').update({is_active:row.is_active===false,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',row.id);setBusy(false);if(error)notify('error',error.message);else load()}
+    async function autoCodeAllServices(){
+      const missing=serviceRows.filter(r=>!r.charge_code).slice().sort((a,b)=>String(a.category||'').localeCompare(String(b.category||''))||String(a.service_name||'').localeCompare(String(b.service_name||'')));
+      if(!missing.length){notify('success','Every Charge Master item already has a code.');return}
+      setBusy(true);
+      const counters={};
+      const updates=missing.map(row=>{
+        const prefix=prefixForCategory(row.category);
+        if(counters[prefix]===undefined)counters[prefix]=maxCodeNumberForPrefix(prefix,serviceRows);
+        counters[prefix]+=1;
+        return {id:row.id,charge_code:`${prefix}-${String(counters[prefix]).padStart(4,'0')}`};
+      });
+      let failed=0;
+      for(let i=0;i<updates.length;i+=20){
+        const batch=updates.slice(i,i+20);
+        const results=await Promise.all(batch.map(u=>client.from('charge_tariff_master').update({charge_code:u.charge_code,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',u.id)));
+        failed+=results.filter(r=>r.error).length;
+      }
+      setBusy(false);
+      if(failed)notify('error',`${failed} item(s) could not be updated. Please check and retry.`);
+      else notify('success',`Assigned codes to ${updates.length} Charge Master item(s).`);
+      load();
+    }
     async function editStoreRate(row){
       const entered=prompt(`Fixed patient charge rate for ${row.item_name}:`,row?.charge_rate!=null?String(row.charge_rate):'');
       if(entered===null)return;
@@ -30026,15 +30114,30 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       if(verify.error||!verify.data||((rate===null)!=(verify.data.charge_rate===null))||(rate!==null&&Math.abs(Number(verify.data.charge_rate)-rate)>0.009)){notify('error','The database did not confirm the new rate. No success has been recorded.');return}
       notify('success','Stores / Pharmacy charge rate saved and verified.');load()
     }
+    const categoryOf=row=>row.category||row.item_category||'Consumables';
+    const categoryCounts=React.useMemo(()=>{const counts={};serviceRows.forEach(r=>{const c=categoryOf(r);counts[c]=(counts[c]||0)+1});storeRows.forEach(r=>{const c=categoryOf(r);counts[c]=(counts[c]||0)+1});return counts},[serviceRows,storeRows]);
+    const allCategories=React.useMemo(()=>Object.keys(categoryCounts).sort((a,b)=>a.localeCompare(b)),[categoryCounts]);
     if(profile?.role!=='Admin')return h(Section,{title:'Charge Master'},h('p',null,'Administrator access only.'));
     const q=String(search||'').trim().toLowerCase();
-    const match=row=>q.length<3||`${row.category||row.item_category||''} ${row.service_name||row.item_name||''}`.toLowerCase().includes(q);
+    const match=row=>{
+      if(categoryFilter!=='All'&&categoryOf(row)!==categoryFilter)return false;
+      return q.length<3||`${categoryOf(row)} ${row.service_name||row.item_name||''}`.toLowerCase().includes(q);
+    };
     const visibleStores=storeRows.filter(match),visibleServices=serviceRows.filter(match);
+    const missingCodeCount=serviceRows.filter(r=>!r.charge_code).length;
     return h(React.Fragment,null,
-      h(Section,{title:'Charge Master',subtitle:'Stores / Pharmacy items use the exact live Stores Master item name, ID and charge rate. Separate aliases are not permitted. Non-stock service tariffs remain controlled here.'},
+      h(Section,{title:'Charge Master',subtitle:"Stores / Pharmacy items use the exact live Stores Master item name, ID and charge rate. Non-stock service tariffs remain controlled here. IDs are generated automatically, one short prefix per category (NUR- Nursing Procedures, DOC- Doctor Services, DIA- Diagnostic/Imaging, LAB- Laboratory, BIO- Biomedical Equipment, and so on) — you never need to type one."},
         h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'end',gap:'12px',marginBottom:'10px',flexWrap:'wrap'}},
-          h('div',{className:'field',style:{minWidth:'280px',margin:0}},h('label',null,'Search Charge Items'),h('input',{type:'search',value:search,onChange:e=>setSearch(e.target.value),placeholder:'Type at least 3 letters...'}),q.length>0&&q.length<3?h('small',null,'Enter at least 3 letters to filter.'):null),
-          h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>saveService(null)},'+ Add Service Charge')
+          h('div',{style:{display:'flex',gap:'12px',flexWrap:'wrap',alignItems:'end'}},
+            h('div',{className:'field',style:{minWidth:'220px',margin:0}},h('label',null,'Category'),h('select',{value:categoryFilter,onChange:e=>setCategoryFilter(e.target.value)},
+              h('option',{value:'All'},`All Categories (${serviceRows.length+storeRows.length})`),
+              allCategories.map(c=>h('option',{key:c,value:c},`${c} (${categoryCounts[c]||0})`)))),
+            h('div',{className:'field',style:{minWidth:'260px',margin:0}},h('label',null,'Search Charge Items'),h('input',{type:'search',value:search,onChange:e=>setSearch(e.target.value),placeholder:'Type at least 3 letters...'}),q.length>0&&q.length<3?h('small',null,'Enter at least 3 letters to filter.'):null)
+          ),
+          h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
+            missingCodeCount>0&&h('button',{className:'btn btn-secondary',disabled:busy,onClick:autoCodeAllServices},`Assign Codes to All (${missingCodeCount})`),
+            h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>saveService(null)},'+ Add Service Charge')
+          )
         ),
         h(LogTable,{title:`Stores / Pharmacy Items (${visibleStores.length})`,heads:['Item ID','Category','Exact Stores Item','Unit','Fixed Charge Rate','Status','Action'],rows:visibleStores.map(row=>[row.item_code||'—',row.item_category||'Consumables',row.item_name,row.unit||'—',row.charge_rate!=null?`₹${Number(row.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.active===false?'Inactive':'Active',h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreRate(row)},'Edit Rate')])}),
         h(LogTable,{title:`Non-stock Service Charges (${visibleServices.length})`,heads:['ID','Category','Service','Fixed Tariff (No Bill)','Status','Action'],rows:visibleServices.map(row=>[row.charge_code||'—',row.category,row.service_name,row.amount!=null?`₹${Number(row.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveService(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggleService(row)},row.is_active===false?'Activate':'Deactivate'))])})
