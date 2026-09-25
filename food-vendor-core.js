@@ -161,5 +161,17 @@ function orderCutoff(order,now=Date.now(),configured={}){
  return {deadline,closed,text:closed?'Cutoff passed for '+rule.label+' ('+date+' at '+time+' IST). No new orders or modifications are allowed.':'Order and modification cutoff: '+date+' at '+time+' IST.'};
 }
 
-const api={rateFor,orderCutoff,cutoffRules,dateText,orderProgress,orderFilterFacts,matchesOrderFilter,logo,statementLogo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary,label,amountWords,pdfFromJpegs,statementPdf};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+// Receipt entry deadline: staff have 2 hours after the delivery time to record what
+// arrived, then a 1-hour grace period, then the order auto-closes as not received
+// (see fv_auto_close_overdue_receipts, which runs every minute in Postgres and is
+// the source of truth -- this is only used client-side to show the same window).
+function receiptDeadline(order,now=Date.now()){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(order?.date||'')||!/^\d{2}:\d{2}$/.test(order?.delivery||''))return null;
+ const delivered=Date.parse(order.date+'T'+order.delivery+':00+05:30');
+ if(!Number.isFinite(delivered))return null;
+ const remindAt=delivered+2*3600000,closeAt=delivered+3*3600000,overdueMinutes=Math.max(0,Math.floor((now-delivered)/60000));
+ return {delivered,remindAt,closeAt,due:now>=remindAt&&now<closeAt,overdueMinutes};
+}
+
+const api={rateFor,orderCutoff,cutoffRules,receiptDeadline,dateText,orderProgress,orderFilterFacts,matchesOrderFilter,logo,statementLogo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary,label,amountWords,pdfFromJpegs,statementPdf};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(globalThis);

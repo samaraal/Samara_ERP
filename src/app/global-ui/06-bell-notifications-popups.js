@@ -36,6 +36,18 @@
     const [cutoffAttempts,setCutoffAttempts]=React.useState([]);
     async function loadCutoffAttempts(){if(!cutoffAdmin)return;const {data,error}=await client.from('fv_cutoff_attempts').select('id,actor_name,actor_role,operation,supply_date,meal_slot,deadline,attempted_at').order('attempted_at',{ascending:false}).limit(100);if(error)throw error;setCutoffAttempts(data||[])}
     const nursingManager=profile?.role==='Manager'&&(isNursingManagerProfile(profile)||employeeDepartment(profile)==='Nursing');
+    const [foodReceiptDue,setFoodReceiptDue]=React.useState([]);
+    async function loadFoodReceiptDue(){
+      if(!(nursingManager||cutoffAdmin))return;
+      try{
+        const now=Date.now(),core=window.SamaraFoodCore;
+        const from=new Date(now-2*86400000).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'}),to=new Date(now).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});
+        const {data,error}=await client.rpc('fv_rpc',{action:'load',p:{from,to}});
+        if(error)throw error;
+        const due=(data?.orders||[]).filter(o=>['Ordered','Partial'].includes(o.status)).map(o=>({order:o,deadline:core?.receiptDeadline?.(o.data,now)})).filter(x=>x.deadline?.due);
+        setFoodReceiptDue(due);
+      }catch(_error){/* Secondary nudge only; a failed refresh should not disrupt the rest of Notifications. */}
+    }
     async function loadNotifications(){
       setLoading(true);setMessage('');
       try{
@@ -57,6 +69,7 @@
       return()=>{if(channel)client.removeChannel(channel)};
     },[profile?.id,nursingManager]);
     React.useEffect(()=>{if(!cutoffAdmin)return;const refresh=()=>loadCutoffAttempts().catch(error=>setMessage(error.message||'Unable to load food cutoff attempts.'));const timer=setInterval(refresh,15000);window.addEventListener('focus',refresh);return()=>{clearInterval(timer);window.removeEventListener('focus',refresh)}},[profile?.id,cutoffAdmin]);
+    React.useEffect(()=>{if(!(nursingManager||cutoffAdmin))return;loadFoodReceiptDue();const timer=setInterval(loadFoodReceiptDue,60000);window.addEventListener('focus',loadFoodReceiptDue);return()=>{clearInterval(timer);window.removeEventListener('focus',loadFoodReceiptDue)}},[profile?.id,nursingManager,cutoffAdmin]);
     const overdueClinical=(engine?.alerts||[]).filter(a=>{
       if(Number(a.overdue_minutes||0)<30)return false;
       return /medic|medicine|care/.test(`${a.alert_type||''} ${a.title||''} ${a.description||''}`.toLowerCase());
@@ -73,6 +86,7 @@
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(165px,1fr))',gap:'12px',marginBottom:'18px'}},nursingManager?metric('Store Requests',awaitingApproval.length,'Patient Consumables'):null,nursingManager?metric('Awaiting Handover',awaitingHandover.length,'Patient Consumables'):null,metric('Medication > 30 min',medicineAlerts.length,'Clinical Escalations','#efb6b6'),metric('Care > 30 min',careAlerts.length,'Clinical Escalations','#efcf9c'),nursingManager?metric('Store Discrepancies',discrepancies.length,'Patient Consumables','#efb6b6'):null),
       nursingManager?h('section',{style:{marginBottom:'20px'}},h('h4',null,'Pharmacy & Stores Requests'),h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Item','Quantity','Status','Requested'].map(x=>h('th',{key:x},x)))),h('tbody',null,storeRequests.map(r=>h('tr',{key:r.id,role:'button',tabIndex:0,onClick:()=>navigate('Patient Consumables'),style:{cursor:'pointer',touchAction:'manipulation'}},h('td',null,patientName(r)),h('td',null,r.item_name||'Consumable'),h('td',null,`${r.requested_qty||'—'} ${r.unit||''}`),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)))),storeRequests.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No open Pharmacy & Stores requests.')):null)))):null,
       cutoffAdmin?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Food Order Cutoff Attempts'),h('small',null,'Latest 100 blocked attempts. India time. Viewing an expired form alone does not create an alert.'),cutoffAttempts.length?cutoffAttempts.map(a=>h('article',{key:a.id,style:{border:'1px solid #efd3d3',borderRadius:'12px',padding:'12px',marginTop:'10px',background:'#fff8f8'}},h('strong',null,`${a.meal_slot} · ${formatDateIN(a.supply_date)} · Blocked`),h('p',null,`${a.actor_name} (${a.actor_role}) attempted ${a.operation==='modify'?'a modification':a.operation==='save'?'to save a draft':'a new order'}.`),h('p',null,`Attempt: ${fmt(a.attempted_at)} · Cutoff: ${fmt(a.deadline)}`))):h('p',{className:'empty'},'No blocked food order attempts.')):null,
+      (nursingManager||cutoffAdmin)?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Food Receipts Overdue'),h('small',null,'Delivered orders past their 2-hour receipt entry window. Record what actually arrived now — an order left open past the 1-hour grace period auto-closes as not received and is not billed.'),foodReceiptDue.length?foodReceiptDue.map(({order:o,deadline:d})=>h('article',{key:o.id,style:{border:'1px solid #efd3d3',borderRadius:'12px',padding:'12px',marginTop:'10px',background:'#fff8f8'}},h('strong',null,`${o.data.slot==='Tiffin'?'Breakfast':o.data.slot} · ${formatDateIN(o.data.date)} · ${o.status}`),h('p',null,`Delivery time: ${o.data.delivery} IST · Overdue by ${Math.floor(d.overdueMinutes/60)}h ${d.overdueMinutes%60}m · Auto-closes as not received at ${new Date(d.closeAt).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit',hour12:true})} IST if not recorded.`),h('button',{type:'button',className:'btn btn-primary',onClick:()=>{try{sessionStorage.setItem('samara_food_view','Food Vendor Management')}catch(_error){}navigate('Food & Diet')}},'Record receipt now'))):h('p',{className:'empty'},'No food orders are currently overdue for receipt entry.')):null,
       h('section',null,h('h4',null,'Medication & Care Escalations — Over 30 Minutes'),h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Room','Type','Details','Overdue'].map(x=>h('th',{key:x},x)))),h('tbody',null,overdueClinical.map(a=>h('tr',{key:a.key||`${a.alert_type}-${a.source_id}`,role:'button',tabIndex:0,onClick:()=>navigate('Clinical Escalations'),style:{cursor:'pointer',touchAction:'manipulation'}},h('td',null,a.patient_name||'Patient'),h('td',null,a.room_label||'—'),h('td',null,/medic|medicine/.test(`${a.alert_type||''} ${a.title||''}`.toLowerCase())?'Medication':'Care'),h('td',null,a.description||a.title||'Pending clinical action'),h('td',null,englishOverdueLabel(a.overdue_minutes)))),overdueClinical.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No medication or care escalation is currently overdue by 30 minutes.')):null))))
     );
   }
