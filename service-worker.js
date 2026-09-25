@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.56';
-const CACHE = 'samara-erp-2.14.56-admission-delegate-family-portal';
+const APP_VERSION = '2.14.57';
+const CACHE = 'samara-erp-2.14.57-food-vendor-confirmation';
 const SHELL = [
   './',
   './index.html',

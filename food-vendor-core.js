@@ -23,12 +23,15 @@ function message(kind,s){
  const lines=s.receipt.items.map((i,n)=>({...i,name:s.items[n].name}));
  values=[...common,total(s.items),'Residents: '+summary(lines,'residents')+'; Employees: '+summary(lines,'employees'),summary(lines,'rejected'),String(s.outstanding)+' portions',clean(s.receipt.remarks)];
  body=`Dear {{1}},\nSamara Assisted Living has recorded a food delivery against your order.\n\nOrder and receipt: {{2}}\nDate and meal: {{3}}\nReceived at: {{4}}\nOrdered quantities: {{5}}\nAccepted this delivery: {{6}}\nRejected this delivery: {{7}}\nOutstanding quantities: {{8}}\nRemarks / instructions: {{9}}\n\nPlease review any discrepancy and acknowledge.\nThank you, Samara Assisted Living.`;
+ }else if(kind==='confirm_request'){
+ values=[...common.slice(0,3)];
+ body=`Dear {{1}},\nPlease confirm the food order below for Samara Assisted Living.\n\nOrder: {{2}}\nDate and meal: {{3}}\n\nTap a button below to reply.\nThank you, Samara Assisted Living.`;
  }else throw Error('Unknown food message type');
  values=values.map(v=>label(clean(v)));const text=body.replace(/\{\{(\d+)\}\}/g,(_,i)=>values[Number(i)-1]);
  return {name:'samara_food_'+kind,values,text,logo,tooLong:text.length>3500};
 }
 function payload(kind,s){const m=message(kind,s);if(!/^[1-9][0-9]{7,14}$/.test(s.phone))throw Error('Invalid vendor phone');if(m.tooLong)throw Error('Message exceeds 3500 characters; use manual WhatsApp or shorten instructions before finalising');return {messaging_product:'whatsapp',to:s.phone,type:'template',template:{name:m.name,language:{code:'en'},components:[{type:'header',parameters:[{type:'image',image:{link:logo}}]},{type:'body',parameters:m.values.map(text=>({type:'text',text}))}]}}}
-function manual(kind,s){return 'https://wa.me/'+s.phone+'?text='+encodeURIComponent(message(kind,s).text+'\n\nSamara Assisted Living: https://samaraassistedliving.com/')}
+function manual(kind,s){const ask=kind==='confirm_request'?'\n\nPlease reply with one word: Acknowledged, Returned, or Modification Requested.':'';return 'https://wa.me/'+s.phone+'?text='+encodeURIComponent(message(kind,s).text+ask+'\n\nSamara Assisted Living: https://samaraassistedliving.com/')}
 function balance(report){const entries=report.entries||[];return {opening:Number(report.opening||0),closing:Number(report.opening||0)+entries.reduce((n,e)=>n+Number(e.amount||0),0),unpriced:Number(report.unpriced_before||0)+entries.filter(e=>e.amount===null).length}}
 function workbook(sheets){
  const enc=new TextEncoder(),xml=v=>String(v??'').replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c])).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,'');
