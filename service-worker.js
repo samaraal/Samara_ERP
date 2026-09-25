@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.57';
-const CACHE = 'samara-erp-2.14.57-food-vendor-confirmation';
+const APP_VERSION = '2.14.58';
+const CACHE = 'samara-erp-2.14.58-nursing-duplicate-check';
 const SHELL = [
   './',
   './index.html',

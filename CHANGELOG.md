@@ -3,6 +3,11 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.58 — Fix: Nursing Procedure Codes weren't checked against Consumables/Pharmacy for duplicates
+- Bug: v2.14.47 added a duplicate-catalog check so the same real thing can't quietly get billed twice under two different names (e.g. "Glucose Monitoring" as a Nursing Procedure and "Glucose Strips" as a separate Pharmacy item). It was only ever wired up in one direction — adding/editing a Consumables/Pharmacy item correctly warned about a matching Nursing Procedure Code, but adding/editing a Nursing Procedure Code never checked the other way, so a duplicate could still be created from that side without warning.
+- Fix: adding or editing a Nursing Procedure Code now also checks against active Consumables/Pharmacy items, using the same close-name matching already used everywhere else (exact match, or ≥0.72 word-overlap similarity), and blocks with the same kind of warning shown on the Stores Master side.
+- Frontend-only (`src/app/nursing/nursing-procedures.js`), no database changes.
+
 ## 2.14.57 — Food Vendor: Acknowledged / Returned / Modification Requested vendor reply
 - Every order/modification/receipt/confirmation message in Food Vendor Management → Messages now shows "Vendor reply: ..." with Mark Acknowledged / Mark Returned / Mark Modification Requested buttons, so staff can record what the vendor actually said (a WhatsApp delivered/read tick only means Meta delivered it, never that the vendor agreed). Works immediately — no Meta approval needed.
 - New "Request WhatsApp Confirmation" action (Orders and Messages) sends a message asking the vendor to tap Acknowledged / Returned / Modification Requested. Automatic capture of the vendor's tap (via a new WhatsApp quick-reply-button template, `samara_food_confirm_request`) needs a one-time Meta template approval — see `docs/META_TEMPLATE_samara_food_confirm_request.md` for the exact text to submit. Until it's approved, the same request goes out over the existing manual WhatsApp fallback and staff record the reply themselves with the buttons above — exactly like `samara_food_order`/`modification`/`receipt` already work today.
