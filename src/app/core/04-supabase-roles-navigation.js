@@ -185,6 +185,8 @@
     'Received Indents / Used Balance':'Received Indents / Used Balance'
   };
   const displayNavLabel=(item,role)=>{
+    // v2.14.66: the Nursing Manager (store keeper) sees every patient indent here.
+    if(item==='Patient Consumables'&&role==='Manager')return 'Indent Register';
     if(item==='Duty Assignment'&&(CLINICAL_ROLES.includes(role)||role==='Manager'))return 'My Duty';
     return CLINICAL_ROLES.includes(role)?(ROLE_LABELS[item]||item):item;
   };
@@ -208,7 +210,7 @@
         {title:'NURSING STAFF',items:['Staff Duty Assignment','Duty Calendar','Staff Leave Calendar','Employees'].filter(item=>allowed.includes(item))},
         {title:'ADMISSION',items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},
         {title:'ROOMS & PACKAGES',items:['Rooms','Care Packages'].filter(item=>allowed.includes(item))},
-        {title:'PHARMACY & STORES',items:['Consumables','Pharmacy'].filter(item=>allowed.includes(item))},
+        {title:'PHARMACY & STORES',items:['Patient Consumables','Consumables','Pharmacy'].filter(item=>allowed.includes(item))},
         {title:'FOOD & DIET',items:['Food & Diet'].filter(item=>allowed.includes(item))},
         {title:'COMMUNICATION',items:['WhatsApp Inbox'].filter(item=>allowed.includes(item))},
         {title:'CLINICAL REVIEW',items:['Reports','Intelligent Reports','Medication Errors','Recovery Timeline'].filter(item=>allowed.includes(item))},

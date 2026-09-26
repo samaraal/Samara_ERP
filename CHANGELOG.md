@@ -3,6 +3,10 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.66 — "Indent Register" menu item for the Nursing Manager (store keeper)
+- The Nursing Manager's PHARMACY & STORES menu now has "Indent Register" (the Patient Consumables page: every patient indent, Consumables and Pharmacy, with Approve / Hand Over / returns). Before, it was only reachable at the bottom of the long Consumables stock page.
+- Frontend only. File: `src/app/core/04-supabase-roles-navigation.js`.
+
 ## 2.14.65 — "Raise Indent" link in Bills & Charges; Nurses see only Resident Food Intake
 - Bills & Charges (Nurse): when nothing has been received for the patient in Consumables / Pharmacy, a "＋ Raise Indent for this patient" button opens the Raise Indent page (after confirming the unsaved charge form can close).
 - Food & Diet: Nurses now see only Resident Food Intake (Food Vendor Management removed from their menu and page). Nursing Manager / STD keep Food Vendor Management; Admin and others keep both.
