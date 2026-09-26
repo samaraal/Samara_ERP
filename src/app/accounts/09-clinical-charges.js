@@ -2,6 +2,24 @@
     const [serviceRows,setServiceRows]=React.useState([]),[storeRows,setStoreRows]=React.useState([]),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState(''),[categoryFilter,setCategoryFilter]=React.useState('All');
     const notify=(type,text)=>showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
     const stockCategories=['Consumables','Pharmacy','Pharmacy & Basic Supplies'];
+    const [approvalSettings,setApprovalSettings]=React.useState({}),[approvalSettingsError,setApprovalSettingsError]=React.useState('');
+    async function loadApprovalSettings(){
+      const {data,error}=await client.from('charge_category_settings').select('category,requires_approval');
+      if(error){setApprovalSettingsError(/charge_category_settings/i.test(error.message||'')?'Database update pending: run 152_charge_category_approval_routing.sql in Supabase.':error.message);return}
+      setApprovalSettingsError('');setApprovalSettings(Object.fromEntries((data||[]).map(r=>[r.category,r.requires_approval===true])));
+    }
+    async function toggleApproval(category){
+      const next=!approvalSettings[category];
+      if(!confirm(next
+        ?`Turn ON Nursing Manager approval for "${category}"?\n\nFrom now on nobody can raise ${category} in Bills & Charges. Nurses request it on NURSING → Approval Requests; after approval they Confirm & Start, and the charge goes to Accounts.`
+        :`Turn OFF approval for "${category}"?\n\n${category} will be raised directly from Bills & Charges again. Requests already waiting on Approval Requests can still be approved and started.`))return;
+      setBusy(true);
+      const {error}=await client.from('charge_category_settings').upsert({category,requires_approval:next,updated_by:profile.id,updated_at:new Date().toISOString()},{onConflict:'category'});
+      setBusy(false);
+      if(error){notify('error',error.message);return}
+      notify('success',`${category}: approval ${next?'ON':'OFF'}.`);loadApprovalSettings();
+    }
+    React.useEffect(()=>{loadApprovalSettings()},[]);
     async function load(){
       const [services,stores]=await Promise.all([
         client.from('charge_tariff_master').select('*').order('category').order('display_order').order('service_name'),
@@ -94,6 +112,14 @@
             h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>saveService(null)},'+ Add Service Charge')
           )
         ),
+        h(LogTable,{title:'Approval Routing by Category',subtitle:'Switch ON for a category whose items must be approved by the Nursing Manager before they are done and charged (like Nursing Procedures). ON: raised only from NURSING → Approval Requests (request → approval → Confirm & Start), for everyone. OFF: raised directly from Bills & Charges. Stores / Pharmacy categories always stay in Bills & Charges.',
+          heads:['Category','Active Items','Needs Nursing Manager Approval','Action'],
+          rows:approvalSettingsError?[[approvalSettingsError,'','','']]:[...new Set(serviceRows.map(r=>String(r.category||'').trim()).filter(c=>c&&!stockCategories.includes(c)))].sort((a,b)=>a.localeCompare(b)).map(c=>[
+            c,
+            serviceRows.filter(r=>r.category===c&&r.is_active!==false).length,
+            h('span',{style:{fontWeight:800,fontSize:'12px',padding:'4px 10px',borderRadius:'999px',display:'inline-block',background:approvalSettings[c]?'#e7f6ef':'#f1f1f1',color:approvalSettings[c]?'#0b5a40':'#5a5055'}},approvalSettings[c]?'ON — Approval Requests':'OFF — Bills & Charges'),
+            h('button',{className:approvalSettings[c]?'btn btn-secondary':'btn btn-primary',disabled:busy,onClick:()=>toggleApproval(c)},approvalSettings[c]?'Turn OFF':'Turn ON')
+          ])}),
         h(LogTable,{title:`Stores / Pharmacy Items (${visibleStores.length})`,heads:['Item ID','Category','Exact Stores Item','Unit','Fixed Charge Rate','Status','Action'],rows:visibleStores.map(row=>[row.item_code||'—',row.item_category||'Consumables',row.item_name,row.unit||'—',row.charge_rate!=null?`₹${Number(row.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.active===false?'Inactive':'Active',h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreRate(row)},'Edit Rate')])}),
         h(LogTable,{title:`Non-stock Service Charges (${visibleServices.length})`,heads:['ID','Category','Service','Fixed Tariff (No Bill)','Status','Action'],rows:visibleServices.map(row=>[row.charge_code||'—',row.category,row.service_name,row.amount!=null?`₹${Number(row.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveService(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggleService(row)},row.is_active===false?'Activate':'Deactivate'))])})
       )
@@ -128,6 +154,7 @@
     const [batchItems,setBatchItems]=React.useState([]);
     const [tariffs,setTariffs]=React.useState([]);
     const [catalog,setCatalog]=React.useState([]);
+    const [approvalCategories,setApprovalCategories]=React.useState(()=>new Set(['Nursing Procedures']));
     const [storeMaster,setStoreMaster]=React.useState([]);
     const [receivedIndents,setReceivedIndents]=React.useState([]);
     const [patientReturns,setPatientReturns]=React.useState([]);
@@ -166,12 +193,19 @@
     },[catalog]);
     const fallbackCategories=Object.fromEntries(Object.entries(defaultCategories).map(([category,services])=>[category,services.includes('Others')?services:[...services,'Others']]));
     const categories=React.useMemo(()=>{
-      // v2.14.60: Nursing Procedures are NOT raised here any more — only from
-      // NURSING → Nursing Procedures (request → approval → Confirm & Start),
-      // which raises the charge itself. Nurses raise only patient-specific
-      // Consumables/Pharmacy charges here, from the live Stores master.
+      // v2.14.61: every Charge Master category is raised here (nurses
+      // included), EXCEPT categories Admin marked "Needs Nursing Manager
+      // approval" in Charge Master — those are raised only from
+      // NURSING → Approval Requests (request → approval → Confirm & Start).
+      // Consumables/Pharmacy always come from the live Stores master.
       if(profile?.role==='Nurse'){
+        const serviceBase=Object.keys(catalogCategories).length?catalogCategories:fallbackCategories;
         const nurseCategories={};
+        Object.entries(serviceBase).forEach(([cat,services])=>{
+          if(storeCategories.includes(cat)||approvalCategories.has(cat))return;
+          const names=(services||[]).filter(Boolean);
+          if(names.length)nurseCategories[cat]=[...new Set(names)];
+        });
         ['Consumables','Pharmacy'].forEach(cat=>{
           const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false&&Number(x.charge_rate)>0).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
           if(names.length)nurseCategories[cat]=[...new Set(names)];
@@ -179,13 +213,13 @@
         return nurseCategories;
       }
       const base=Object.keys(catalogCategories).length?{...catalogCategories}:{...fallbackCategories};
-      delete base['Nursing Procedures'];
+      approvalCategories.forEach(cat=>{delete base[cat]});
       ['Consumables','Pharmacy'].forEach(cat=>{
         const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false&&Number(x.charge_rate)>0).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
         if(names.length)base[cat]=[...new Set([...names,'Others'])];
       });
       return base;
-    },[catalogCategories,storeMaster,profile?.role]);
+    },[catalogCategories,storeMaster,profile?.role,approvalCategories]);
 
     const fresh=()=>({
       patient_id:'',store_item_id:'',charge_item_code:'',charge_date:todayISOIndia(),service_datetime:localDateTimeValue(),
@@ -273,6 +307,8 @@
       ]);
 
       if(a.error)notify('error',a.error.message);
+      const approvalResult=await client.from('charge_category_settings').select('category,requires_approval');
+      if(!approvalResult.error)setApprovalCategories(new Set((approvalResult.data||[]).filter(r=>r.requires_approval===true).map(r=>r.category)));
 
       const allRequests=a.data||[];
       const visibleRequests=profile?.role==='Nurse'
@@ -314,7 +350,7 @@
       return()=>{clearInterval(refreshTimer);window.removeEventListener('focus',load);client.removeChannel(ch)};
     },[]);
 
-    function openNew(){const base=fresh();const availableCategories=Object.keys(categories);if(profile?.role==='Nurse'&&!availableCategories.length){notify('error','No active Stores / Pharmacy items are available. Add or activate an item in Stores before raising a charge.');return}const firstCategory=availableCategories[0]||base.category;const firstService=(categories[firstCategory]||[])[0]||base.service_name;setFiles([]);setBatchItems([]);setForm({...base,category:firstCategory,service_name:firstService,description:firstService,...stockDefaults(firstCategory,firstService)});setShow(true)}
+    function openNew(){const base=fresh();const availableCategories=Object.keys(categories);if(profile?.role==='Nurse'&&!availableCategories.length){notify('error','No charge categories are available. Ask Admin to check Charge Master and Stores.');return}const firstCategory=availableCategories[0]||base.category;const firstService=(categories[firstCategory]||[])[0]||base.service_name;setFiles([]);setBatchItems([]);setForm({...base,category:firstCategory,service_name:firstService,description:firstService,...stockDefaults(firstCategory,firstService)});setShow(true)}
     function changeCategory(value){
       const first=(categories[value]||[])[0]||'Others';
       setForm(current=>({...current,category:value,service_name:first,...stockDefaults(value,first),other_service_name:'',description:first==='Others'?'':first,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(value)&&first!=='Others'?first:''}));
@@ -332,8 +368,8 @@
     }
     function validateDraft(draft,draftFiles){
       if(!draft.patient_id)return 'Select the patient.';
-      if(draft.category==='Nursing Procedures')return 'Nursing Procedures are raised only from NURSING → Nursing Procedures (request, approval, Confirm & Start).';
-      if(profile?.role==='Nurse'&&!['Consumables','Pharmacy'].includes(draft.category))return 'Nursing Bills & Charges can use active patient-received items from Stores / Pharmacy. Nursing Procedures are raised from NURSING → Nursing Procedures.';
+      if(approvalCategories.has(draft.category))return `${draft.category} needs Nursing Manager approval. Raise it from NURSING → Approval Requests (request, approval, Confirm & Start).`;
+      if(profile?.role==='Nurse'&&!Object.keys(categories).includes(draft.category))return 'Select a category from the list.';
       if(!Number.isFinite(Number(draft.quantity))||Number(draft.quantity)<=0)return 'Enter a valid positive quantity.';
       if(draft.store_item_id){const item=chargeStock.items.find(x=>String(x.item_id)===String(draft.store_item_id));if(!item)return 'Selected stock item is no longer available. Refresh and select again.';if(item.unit!==draft.unit)return 'Use the selected stock item unit.';}
       if(profile?.role==='Nurse'&&storeCategories.includes(draft.category)){
@@ -733,7 +769,7 @@
         ),
         h('div',{className:'modal-grid'},
           profile?.role==='Nurse'&&h('div',{className:'clinical-charge-note'},
-            'Nursing staff record only the service/expense occurrence. Financial amounts are not visible here. Pharmacy / Consumable charges can be raised only after the item has been handed over and the Nurse has confirmed Received for that patient, and the Stores item has a fixed charge rate. If a bill is available, upload it; Accounts will verify it.'
+            'Nursing staff record only the service/expense occurrence. Financial amounts are not visible here. Pharmacy / Consumable charges can be raised only after the item has been handed over and the Nurse has confirmed Received for that patient, and the Stores item has a fixed charge rate. If a bill is available, upload it; Accounts will verify it. Items that need Nursing Manager approval are not listed here — raise them from NURSING → Approval Requests.'
           ),
           ...basicFields.filter(Boolean)
         ),

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.60';
+  const APP_VERSION = '2.14.61';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1630,7 +1630,7 @@ function initSamaraInaugurationInvitation(){
     { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiries & Feedback'] },
     { title:'ADMISSION', items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
-    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Nursing Procedures','Charge Register','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
+    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Approval Requests','Charge Register','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
     { title:'PHARMACY & STORES', items:['Consumables','Pharmacy'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
@@ -1643,7 +1643,7 @@ function initSamaraInaugurationInvitation(){
     Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&!NURSING_ENTRY_NAV.includes(item)),
     Manager:ALL_NAV.filter(item=>!['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements',"Director's Office",'Enquiries & Feedback','System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
 
-    Nurse:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Nursing Procedures','Raise Indent','Received Indents / Used Balance','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
+    Nurse:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Approval Requests','Raise Indent','Received Indents / Used Balance','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
     Accounts:['Accounts Dashboard','Duty Assignment','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
     Kitchen:['Notifications','Duty Assignment','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission'],
@@ -1679,7 +1679,7 @@ function initSamaraInaugurationInvitation(){
     if(profile?.__paymentsTrial&&!profile.__paymentsNavResolved){const a=profile.__paymentsTrial;return [...allowedPagesForProfile({...profile,__paymentsNavResolved:true}).filter(x=>!['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(x)),...(a.full?['Payments & Vouchers']:[]),'Payment Requests',...(a.pay?['Approved—Ready to Pay']:[]),'Payment Vouchers','Payment Statements'];}
     if(isNursingManagerProfile(profile))return [
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
-      'Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Nursing Procedures','Charge Register',
+      'Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Approval Requests','Charge Register',
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
       'Patient Consumables','Stores','Stores In-charge Assignment','Consumables','Pharmacy','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
     ];
@@ -1726,7 +1726,7 @@ function initSamaraInaugurationInvitation(){
     if(CLINICAL_ROLES.includes(role)){
       return [
         {title:'ADMISSION',items:['Spot Assessment','Admissions'].filter(item=>allowed.includes(item))},
-        {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Nursing Procedures','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My To-Do List','Notifications'].filter(item=>allowed.includes(item))},
+        {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Approval Requests','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My To-Do List','Notifications'].filter(item=>allowed.includes(item))},
         {title:'DUTY ROSTER & LEAVE',items:['Duty Assignment','Staff Leave Calendar','My Leave & Permission','Leave Approvals'].filter(item=>allowed.includes(item))},
         {title:'PHARMACY & STORES',items:['Raise Indent','Received Indents / Used Balance'].filter(item=>allowed.includes(item))},
         {title:'MY ACCOUNT',items:['My Profile'].filter(item=>allowed.includes(item))}
@@ -1735,7 +1735,7 @@ function initSamaraInaugurationInvitation(){
     if(role==='Manager'&&allowed.includes('My To-Do List')&&allowed.includes('Employees')&&!allowed.includes('Accounts Dashboard')){
       return [
         {title:"DIRECTOR'S OFFICE",items:["Director's Office",'Enquiries & Feedback','Feedback'].filter(item=>allowed.includes(item))},
-        {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','Nursing Procedures','Charge Register','My To-Do List'].filter(item=>allowed.includes(item))},
+        {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','Approval Requests','Charge Register','My To-Do List'].filter(item=>allowed.includes(item))},
         {title:'DUTY ROSTER & LEAVE',items:['Duty Assignment','My Leave & Permission'].filter(item=>allowed.includes(item))},
         {title:'NURSING STAFF',items:['Staff Duty Assignment','Duty Calendar','Staff Leave Calendar','Employees'].filter(item=>allowed.includes(item))},
         {title:'ADMISSION',items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},
@@ -7643,7 +7643,7 @@ https://samaraassistedliving.com/`;
           page==='Duty Calendar'&&h(DutyAssignment,{profile,viewMode:'team'}),
           page==='Staff Duty Assignment'&&h(DutyAssignment,{profile,viewMode:'team'}),
           page==='Special Nurse'&&h(SpecialNurseManagement,{profile}),
-          page==='Nursing Procedures'&&h(NursingProcedures,{profile}),
+          (page==='Approval Requests'||page==='Nursing Procedures')&&h(NursingProcedures,{profile}),
           page==='Charge Register'&&h(NursingChargeRegister,{profile}),
           page==='Shift Handover'&&h(ShiftHandover,{profile,onNavigate:setPage}),
           page==='Incidents'&&h(Incidents,{profile,onNavigate:setPage}),
@@ -24738,6 +24738,12 @@ function RoomsBeds({profile,onNavigate}){
     );
   }
 
+  // v2.14.61: "Approval Requests" (formerly Nursing Procedures).
+  // Covers every Charge Master category that Admin has marked
+  // "Needs Nursing Manager approval" (Nursing Procedures by default).
+  // Nurse requests -> Admin / Nursing Manager approves or declines ->
+  // Nurse confirms & starts -> the charge is raised for Accounts.
+  // Nurses see code and name only, never the tariff amount.
   function NursingProcedures({profile}){
     const canRequest=profile?.role==='Nurse';
     const canDecide=['Admin','Manager'].includes(profile?.role);
@@ -24748,51 +24754,55 @@ function RoomsBeds({profile,onNavigate}){
     const [catalogError,setCatalogError]=React.useState('');
     const [requests,setRequests]=React.useState([]);
     const [busy,setBusy]=React.useState(false);
-    const [form,setForm]=React.useState({patient_id:'',tariff_id:'',scheduled_at:'',remarks:''});
+    const emptyForm={patient_id:'',category:'',tariff_id:'',scheduled_at:'',remarks:''};
+    const [form,setForm]=React.useState(emptyForm);
 
-    // v2.14.60: the procedure list comes straight from Charge Master
-    // (category "Nursing Procedures", active items, with their NUR- codes).
-    // Code and name only — the tariff amount is never sent to Nursing.
     const load=React.useCallback(async()=>{
       const [c,r]=await Promise.all([
-        client.rpc('get_nursing_procedure_catalog'),
+        client.rpc('get_approval_catalog'),
         client.from('nursing_procedure_requests').select('*').order('requested_at',{ascending:false}).limit(300)
       ]);
       if(!c.error){setCatalog(c.data||[]);setCatalogError('')}
-      else{console.warn(c.error);setCatalogError(/get_nursing_procedure_catalog/i.test(c.error.message||'')?'Database update pending: run 151_nursing_procedures_from_charge_master.sql in Supabase.':c.error.message)}
+      else{console.warn(c.error);setCatalogError(/get_approval_catalog/i.test(c.error.message||'')?'Database update pending: run 152_charge_category_approval_routing.sql in Supabase.':c.error.message)}
       if(!r.error)setRequests(r.data||[]);else console.warn(r.error);
     },[]);
 
     React.useEffect(()=>{
       load();
-      const ch=client.channel('nursing-procedures-live')
+      const ch=client.channel('approval-requests-live')
         .on('postgres_changes',{event:'*',schema:'public',table:'nursing_procedure_requests'},load)
         .subscribe();
       return()=>client.removeChannel(ch);
     },[load]);
 
+    const categories=React.useMemo(()=>[...new Set(catalog.map(x=>x.category).filter(Boolean))],[catalog]);
+    React.useEffect(()=>{
+      if(categories.length===1&&!form.category)setForm(f=>({...f,category:categories[0]}));
+    },[categories]);
+    const itemsForCategory=catalog.filter(x=>x.category===form.category);
     const codeLabel=p=>`${p.charge_code?`${p.charge_code} · `:''}${p.service_name}`;
     const selectedItem=catalog.find(x=>String(x.id)===String(form.tariff_id));
     const selectedIsOther=String(selectedItem?.service_name||'').trim().toLowerCase()==='others';
     const patientName=id=>{const p=patients.find(x=>x.id===id);return p?(formalName(p)||p.full_name||p.patient_id||'Patient'):'—'};
-    const procLabel=r=>`${r.procedure_code?`${r.procedure_code} · `:''}${r.procedure_name}`;
+    const itemLabel=r=>`${r.procedure_code?`${r.procedure_code} · `:''}${r.procedure_name}`;
+    const categoryOf=r=>r.category||'Nursing Procedures';
 
     async function submitRequest(e){
       e.preventDefault();
       if(!canRequest||busy)return;
-      if(!form.patient_id||!form.tariff_id)return showSamaraActionToast('error','Nursing Procedure','Select a patient and a procedure.');
-      if(selectedIsOther&&!form.remarks.trim())return showSamaraActionToast('error','Nursing Procedure','For "Others", write the procedure name in Remarks.');
+      if(!form.patient_id||!form.tariff_id)return showSamaraActionToast('error','Approval Request','Select the patient, category and item.');
+      if(selectedIsOther&&!form.remarks.trim())return showSamaraActionToast('error','Approval Request','For "Others", write the item name in Remarks.');
       setBusy(true);
-      const res=await client.rpc('request_nursing_procedure_v2',{
+      const res=await client.rpc('request_approval_item',{
         p_patient_id:form.patient_id,p_tariff_id:form.tariff_id,
         p_scheduled_at:form.scheduled_at?new Date(form.scheduled_at).toISOString():null,
         p_remarks:form.remarks.trim()||null
       });
       setBusy(false);
-      if(res.error)return showSamaraActionToast('error','Nursing Procedure',res.error.message);
-      await writeAuditEvent('Request Nursing Procedure','NursingProcedureRequest',res.data,{patient_id:form.patient_id,charge_code:selectedItem?.charge_code||null});
+      if(res.error)return showSamaraActionToast('error','Approval Request',res.error.message);
+      await writeAuditEvent('Request Approval Item','NursingProcedureRequest',res.data,{patient_id:form.patient_id,category:selectedItem?.category||null,charge_code:selectedItem?.charge_code||null});
       showSamaraActionToast('success','Request sent','Sent to the Nursing Manager for approval.');
-      setForm({patient_id:'',tariff_id:'',scheduled_at:'',remarks:''});
+      setForm({...emptyForm,category:categories.length===1?categories[0]:''});
       load();
     }
 
@@ -24803,21 +24813,21 @@ function RoomsBeds({profile,onNavigate}){
       setBusy(true);
       const res=await client.rpc('decide_nursing_procedure_request',{p_request_id:row.id,p_decision:decision,p_remarks:remarks||null});
       setBusy(false);
-      if(res.error)return showSamaraActionToast('error','Nursing Procedure',res.error.message);
-      await writeAuditEvent(decision==='Approved'?'Approve Nursing Procedure':'Decline Nursing Procedure','NursingProcedureRequest',row.id,{patient_id:row.patient_id});
-      showSamaraActionToast('success','Nursing Procedure',`Request ${decision.toLowerCase()}.`);
+      if(res.error)return showSamaraActionToast('error','Approval Request',res.error.message);
+      await writeAuditEvent(decision==='Approved'?'Approve Approval Request':'Decline Approval Request','NursingProcedureRequest',row.id,{patient_id:row.patient_id,category:categoryOf(row)});
+      showSamaraActionToast('success','Approval Request',`Request ${decision.toLowerCase()}.`);
       load();
     }
 
-    async function startProcedure(row){
+    async function startItem(row){
       if(!canStart||busy)return;
-      if(!confirm(`Confirm and start "${procLabel(row)}" for ${patientName(row.patient_id)}? This raises the matching Nursing Procedures charge for Accounts to verify.`))return;
+      if(!confirm(`Confirm and start "${itemLabel(row)}" (${categoryOf(row)}) for ${patientName(row.patient_id)}? This raises the matching charge for Accounts to verify.`))return;
       setBusy(true);
       const res=await client.rpc('start_nursing_procedure',{p_request_id:row.id});
       setBusy(false);
-      if(res.error)return showSamaraActionToast('error','Nursing Procedure',res.error.message);
-      await writeAuditEvent('Start Nursing Procedure','NursingProcedureRequest',row.id,{patient_id:row.patient_id,charge_request_id:res.data?.charge_request_id});
-      showSamaraActionToast('success','Procedure started',`${row.procedure_name} started. The charge has been raised for Accounts verification.`);
+      if(res.error)return showSamaraActionToast('error','Approval Request',res.error.message);
+      await writeAuditEvent('Start Approved Item','NursingProcedureRequest',row.id,{patient_id:row.patient_id,category:categoryOf(row),charge_request_id:res.data?.charge_request_id});
+      showSamaraActionToast('success','Started',`${row.procedure_name} started. The charge has been raised for Accounts verification.`);
       load();
     }
 
@@ -24826,26 +24836,30 @@ function RoomsBeds({profile,onNavigate}){
     const statusPill=status=>h('span',{style:{fontWeight:800,fontSize:'12px',padding:'4px 8px',borderRadius:'999px',display:'inline-block',
       background:status==='Requested'?'#fff4dc':status==='Approved'?'#e3f2ff':status==='Started'?'#e7f6ef':status==='Declined'?'#fdebec':'#f1f1f1',
       color:'#5d3146'}},status);
+    const cardHead=r=>h('div',{className:'stores-ledger-card-head'},h('strong',null,`${categoryOf(r)} · ${itemLabel(r)}`),statusPill(r.status));
 
     return h('div',null,
-      canRequest&&h(Section,{title:'Request a Nursing Procedure',subtitle:'Sent to the Nursing Manager for approval before it can be started.'},
+      canRequest&&h(Section,{title:'Request Approval',subtitle:'For items that need Nursing Manager approval before they are done and charged. Everything else is raised from Bills & Charges.'},
         h('form',{onSubmit:submitRequest},
           h('div',{className:'grid two'},
             patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v})),
-            h('div',{className:'field'},h('label',null,'Procedure'),h('select',{value:form.tariff_id,onChange:e=>setForm({...form,tariff_id:e.target.value}),required:true,disabled:!catalog.length},
-              h('option',{value:''},catalog.length?`Select procedure (${catalog.length})`:'No procedures available'),
-              catalog.map(p=>h('option',{key:p.id,value:p.id},codeLabel(p)))),
+            h('div',{className:'field'},h('label',null,'Category'),h('select',{value:form.category,onChange:e=>setForm({...form,category:e.target.value,tariff_id:''}),required:true,disabled:!categories.length},
+              h('option',{value:''},categories.length?'Select category':'No approval categories'),
+              categories.map(c=>h('option',{key:c,value:c},`${c} (${catalog.filter(x=>x.category===c).length})`))),
               catalogError?h('small',{style:{color:'#b42318'}},catalogError)
-                :!catalog.length&&h('small',{style:{color:'#b42318'}},'No active Nursing Procedures in Charge Master. Ask Admin to add them in Charge Master.')),
+                :!categories.length&&h('small',{style:{color:'#b42318'}},'No category currently needs approval, or it has no active items in Charge Master.')),
+            h('div',{className:'field'},h('label',null,'Item'),h('select',{value:form.tariff_id,onChange:e=>setForm({...form,tariff_id:e.target.value}),required:true,disabled:!form.category},
+              h('option',{value:''},form.category?`Select item (${itemsForCategory.length})`:'Select a category first'),
+              itemsForCategory.map(p=>h('option',{key:p.id,value:p.id},codeLabel(p))))),
             h('div',{className:'field'},h('label',null,'Scheduled Date / Time'),h('input',{type:'datetime-local',value:form.scheduled_at,onChange:e=>setForm({...form,scheduled_at:e.target.value})})),
-            h('div',{className:'field span-2'},h('label',null,'Remarks'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value}),placeholder:selectedIsOther?'Required for "Others": write the procedure name':'Any additional notes for the Nursing Manager'}))
+            h('div',{className:'field span-2'},h('label',null,'Remarks'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value}),placeholder:selectedIsOther?'Required for "Others": write the item name':'Any additional notes for the Nursing Manager'}))
           ),
           h('button',{className:'btn btn-primary',disabled:busy},busy?'Sending…':'Send Request')
         )
       ),
-      canDecide&&h(Section,{title:`Pending Approval (${pending.length})`,subtitle:'Approve or decline each request. Once approved, the requesting nurse confirms and starts it.'},
+      canDecide&&h(Section,{title:`Pending Approval (${pending.length})`,subtitle:'Approve or decline each request. Once approved, the nurse confirms and starts it.'},
         pending.length?h('div',{className:'stores-ledger-mobile'},pending.map(r=>h('article',{className:'stores-ledger-card',key:r.id},
-          h('div',{className:'stores-ledger-card-head'},h('strong',null,procLabel(r)),statusPill(r.status)),
+          cardHead(r),
           h('p',null,`${patientName(r.patient_id)} · Requested by ${r.requested_by_name||'—'} at ${formatDateTimeIN(r.requested_at)}`),
           r.scheduled_at&&h('p',null,`Scheduled: ${formatDateTimeIN(r.scheduled_at)}`),
           r.remarks&&h('p',null,`Remarks: ${r.remarks}`),
@@ -24855,19 +24869,20 @@ function RoomsBeds({profile,onNavigate}){
           )
         ))):h('p',null,'No pending requests.')
       ),
-      canStart&&h(Section,{title:`Approved — Ready to Start (${readyToStart.length})`,subtitle:'Confirm you are about to perform the procedure. This raises the matching charge for Accounts.'},
+      canStart&&h(Section,{title:`Approved — Ready to Start (${readyToStart.length})`,subtitle:'Confirm you are about to do it. This raises the matching charge for Accounts.'},
         readyToStart.length?h('div',{className:'stores-ledger-mobile'},readyToStart.map(r=>h('article',{className:'stores-ledger-card',key:r.id},
-          h('div',{className:'stores-ledger-card-head'},h('strong',null,procLabel(r)),statusPill(r.status)),
+          cardHead(r),
           h('p',null,`${patientName(r.patient_id)} · Approved by ${r.decision_by_name||'—'} at ${formatDateTimeIN(r.decision_at)}`),
           r.scheduled_at&&h('p',null,`Scheduled: ${formatDateTimeIN(r.scheduled_at)}`),
-          h('div',{style:{marginTop:'8px'}},h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>startProcedure(r)},'Confirm & Start'))
+          h('div',{style:{marginTop:'8px'}},h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>startItem(r)},'Confirm & Start'))
         ))):h('p',null,'No approved requests waiting to start.')
       ),
-      h(LogTable,{title:'All Nursing Procedure Requests',subtitle:'Complete history: request, approval and start.',
-        heads:['Patient','Procedure','Requested By / At','Scheduled','Status','Decision By / At','Started By / At'],
+      h(LogTable,{title:'All Approval Requests',subtitle:'Complete history: request, approval and start.',
+        heads:['Patient','Category','Item','Requested By / At','Scheduled','Status','Decision By / At','Started By / At'],
         rows:requests.map(r=>[
           patientName(r.patient_id),
-          procLabel(r),
+          categoryOf(r),
+          itemLabel(r),
           `${r.requested_by_name||'—'} · ${formatDateTimeIN(r.requested_at)}`,
           r.scheduled_at?formatDateTimeIN(r.scheduled_at):'—',
           statusPill(r.status),
@@ -24875,9 +24890,9 @@ function RoomsBeds({profile,onNavigate}){
           r.started_by_name?`${r.started_by_name} · ${formatDateTimeIN(r.started_at)}`:'—'
         ])
       }),
-      canSeeList&&h(Section,{title:`Nursing Procedure List (${catalog.length})`,subtitle:'This is the list nurses choose from. It comes from Charge Master (category "Nursing Procedures", active items). To add, rename, deactivate or set the rate of a procedure, Admin edits it in Charge Master.'},
+      canSeeList&&h(Section,{title:`Items Needing Approval (${catalog.length})`,subtitle:'Comes from Charge Master: every active item in a category Admin has marked "Needs Nursing Manager approval". Admin changes items and categories in Charge Master.'},
         catalogError?h('p',{style:{color:'#b42318'}},catalogError)
-          :h(LogTable,{heads:['Code','Procedure'],rows:catalog.map(p=>[p.charge_code||'— (no code yet)',p.service_name])})
+          :h(LogTable,{heads:['Category','Code','Item'],rows:catalog.map(p=>[p.category,p.charge_code||'— (no code yet)',p.service_name])})
       )
     );
   }
@@ -30132,6 +30147,24 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const [serviceRows,setServiceRows]=React.useState([]),[storeRows,setStoreRows]=React.useState([]),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState(''),[categoryFilter,setCategoryFilter]=React.useState('All');
     const notify=(type,text)=>showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
     const stockCategories=['Consumables','Pharmacy','Pharmacy & Basic Supplies'];
+    const [approvalSettings,setApprovalSettings]=React.useState({}),[approvalSettingsError,setApprovalSettingsError]=React.useState('');
+    async function loadApprovalSettings(){
+      const {data,error}=await client.from('charge_category_settings').select('category,requires_approval');
+      if(error){setApprovalSettingsError(/charge_category_settings/i.test(error.message||'')?'Database update pending: run 152_charge_category_approval_routing.sql in Supabase.':error.message);return}
+      setApprovalSettingsError('');setApprovalSettings(Object.fromEntries((data||[]).map(r=>[r.category,r.requires_approval===true])));
+    }
+    async function toggleApproval(category){
+      const next=!approvalSettings[category];
+      if(!confirm(next
+        ?`Turn ON Nursing Manager approval for "${category}"?\n\nFrom now on nobody can raise ${category} in Bills & Charges. Nurses request it on NURSING → Approval Requests; after approval they Confirm & Start, and the charge goes to Accounts.`
+        :`Turn OFF approval for "${category}"?\n\n${category} will be raised directly from Bills & Charges again. Requests already waiting on Approval Requests can still be approved and started.`))return;
+      setBusy(true);
+      const {error}=await client.from('charge_category_settings').upsert({category,requires_approval:next,updated_by:profile.id,updated_at:new Date().toISOString()},{onConflict:'category'});
+      setBusy(false);
+      if(error){notify('error',error.message);return}
+      notify('success',`${category}: approval ${next?'ON':'OFF'}.`);loadApprovalSettings();
+    }
+    React.useEffect(()=>{loadApprovalSettings()},[]);
     async function load(){
       const [services,stores]=await Promise.all([
         client.from('charge_tariff_master').select('*').order('category').order('display_order').order('service_name'),
@@ -30224,6 +30257,14 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
             h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>saveService(null)},'+ Add Service Charge')
           )
         ),
+        h(LogTable,{title:'Approval Routing by Category',subtitle:'Switch ON for a category whose items must be approved by the Nursing Manager before they are done and charged (like Nursing Procedures). ON: raised only from NURSING → Approval Requests (request → approval → Confirm & Start), for everyone. OFF: raised directly from Bills & Charges. Stores / Pharmacy categories always stay in Bills & Charges.',
+          heads:['Category','Active Items','Needs Nursing Manager Approval','Action'],
+          rows:approvalSettingsError?[[approvalSettingsError,'','','']]:[...new Set(serviceRows.map(r=>String(r.category||'').trim()).filter(c=>c&&!stockCategories.includes(c)))].sort((a,b)=>a.localeCompare(b)).map(c=>[
+            c,
+            serviceRows.filter(r=>r.category===c&&r.is_active!==false).length,
+            h('span',{style:{fontWeight:800,fontSize:'12px',padding:'4px 10px',borderRadius:'999px',display:'inline-block',background:approvalSettings[c]?'#e7f6ef':'#f1f1f1',color:approvalSettings[c]?'#0b5a40':'#5a5055'}},approvalSettings[c]?'ON — Approval Requests':'OFF — Bills & Charges'),
+            h('button',{className:approvalSettings[c]?'btn btn-secondary':'btn btn-primary',disabled:busy,onClick:()=>toggleApproval(c)},approvalSettings[c]?'Turn OFF':'Turn ON')
+          ])}),
         h(LogTable,{title:`Stores / Pharmacy Items (${visibleStores.length})`,heads:['Item ID','Category','Exact Stores Item','Unit','Fixed Charge Rate','Status','Action'],rows:visibleStores.map(row=>[row.item_code||'—',row.item_category||'Consumables',row.item_name,row.unit||'—',row.charge_rate!=null?`₹${Number(row.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.active===false?'Inactive':'Active',h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreRate(row)},'Edit Rate')])}),
         h(LogTable,{title:`Non-stock Service Charges (${visibleServices.length})`,heads:['ID','Category','Service','Fixed Tariff (No Bill)','Status','Action'],rows:visibleServices.map(row=>[row.charge_code||'—',row.category,row.service_name,row.amount!=null?`₹${Number(row.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveService(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggleService(row)},row.is_active===false?'Activate':'Deactivate'))])})
       )
@@ -30258,6 +30299,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const [batchItems,setBatchItems]=React.useState([]);
     const [tariffs,setTariffs]=React.useState([]);
     const [catalog,setCatalog]=React.useState([]);
+    const [approvalCategories,setApprovalCategories]=React.useState(()=>new Set(['Nursing Procedures']));
     const [storeMaster,setStoreMaster]=React.useState([]);
     const [receivedIndents,setReceivedIndents]=React.useState([]);
     const [patientReturns,setPatientReturns]=React.useState([]);
@@ -30296,12 +30338,19 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     },[catalog]);
     const fallbackCategories=Object.fromEntries(Object.entries(defaultCategories).map(([category,services])=>[category,services.includes('Others')?services:[...services,'Others']]));
     const categories=React.useMemo(()=>{
-      // v2.14.60: Nursing Procedures are NOT raised here any more — only from
-      // NURSING → Nursing Procedures (request → approval → Confirm & Start),
-      // which raises the charge itself. Nurses raise only patient-specific
-      // Consumables/Pharmacy charges here, from the live Stores master.
+      // v2.14.61: every Charge Master category is raised here (nurses
+      // included), EXCEPT categories Admin marked "Needs Nursing Manager
+      // approval" in Charge Master — those are raised only from
+      // NURSING → Approval Requests (request → approval → Confirm & Start).
+      // Consumables/Pharmacy always come from the live Stores master.
       if(profile?.role==='Nurse'){
+        const serviceBase=Object.keys(catalogCategories).length?catalogCategories:fallbackCategories;
         const nurseCategories={};
+        Object.entries(serviceBase).forEach(([cat,services])=>{
+          if(storeCategories.includes(cat)||approvalCategories.has(cat))return;
+          const names=(services||[]).filter(Boolean);
+          if(names.length)nurseCategories[cat]=[...new Set(names)];
+        });
         ['Consumables','Pharmacy'].forEach(cat=>{
           const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false&&Number(x.charge_rate)>0).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
           if(names.length)nurseCategories[cat]=[...new Set(names)];
@@ -30309,13 +30358,13 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         return nurseCategories;
       }
       const base=Object.keys(catalogCategories).length?{...catalogCategories}:{...fallbackCategories};
-      delete base['Nursing Procedures'];
+      approvalCategories.forEach(cat=>{delete base[cat]});
       ['Consumables','Pharmacy'].forEach(cat=>{
         const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false&&Number(x.charge_rate)>0).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
         if(names.length)base[cat]=[...new Set([...names,'Others'])];
       });
       return base;
-    },[catalogCategories,storeMaster,profile?.role]);
+    },[catalogCategories,storeMaster,profile?.role,approvalCategories]);
 
     const fresh=()=>({
       patient_id:'',store_item_id:'',charge_item_code:'',charge_date:todayISOIndia(),service_datetime:localDateTimeValue(),
@@ -30403,6 +30452,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       ]);
 
       if(a.error)notify('error',a.error.message);
+      const approvalResult=await client.from('charge_category_settings').select('category,requires_approval');
+      if(!approvalResult.error)setApprovalCategories(new Set((approvalResult.data||[]).filter(r=>r.requires_approval===true).map(r=>r.category)));
 
       const allRequests=a.data||[];
       const visibleRequests=profile?.role==='Nurse'
@@ -30444,7 +30495,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       return()=>{clearInterval(refreshTimer);window.removeEventListener('focus',load);client.removeChannel(ch)};
     },[]);
 
-    function openNew(){const base=fresh();const availableCategories=Object.keys(categories);if(profile?.role==='Nurse'&&!availableCategories.length){notify('error','No active Stores / Pharmacy items are available. Add or activate an item in Stores before raising a charge.');return}const firstCategory=availableCategories[0]||base.category;const firstService=(categories[firstCategory]||[])[0]||base.service_name;setFiles([]);setBatchItems([]);setForm({...base,category:firstCategory,service_name:firstService,description:firstService,...stockDefaults(firstCategory,firstService)});setShow(true)}
+    function openNew(){const base=fresh();const availableCategories=Object.keys(categories);if(profile?.role==='Nurse'&&!availableCategories.length){notify('error','No charge categories are available. Ask Admin to check Charge Master and Stores.');return}const firstCategory=availableCategories[0]||base.category;const firstService=(categories[firstCategory]||[])[0]||base.service_name;setFiles([]);setBatchItems([]);setForm({...base,category:firstCategory,service_name:firstService,description:firstService,...stockDefaults(firstCategory,firstService)});setShow(true)}
     function changeCategory(value){
       const first=(categories[value]||[])[0]||'Others';
       setForm(current=>({...current,category:value,service_name:first,...stockDefaults(value,first),other_service_name:'',description:first==='Others'?'':first,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(value)&&first!=='Others'?first:''}));
@@ -30462,8 +30513,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     }
     function validateDraft(draft,draftFiles){
       if(!draft.patient_id)return 'Select the patient.';
-      if(draft.category==='Nursing Procedures')return 'Nursing Procedures are raised only from NURSING → Nursing Procedures (request, approval, Confirm & Start).';
-      if(profile?.role==='Nurse'&&!['Consumables','Pharmacy'].includes(draft.category))return 'Nursing Bills & Charges can use active patient-received items from Stores / Pharmacy. Nursing Procedures are raised from NURSING → Nursing Procedures.';
+      if(approvalCategories.has(draft.category))return `${draft.category} needs Nursing Manager approval. Raise it from NURSING → Approval Requests (request, approval, Confirm & Start).`;
+      if(profile?.role==='Nurse'&&!Object.keys(categories).includes(draft.category))return 'Select a category from the list.';
       if(!Number.isFinite(Number(draft.quantity))||Number(draft.quantity)<=0)return 'Enter a valid positive quantity.';
       if(draft.store_item_id){const item=chargeStock.items.find(x=>String(x.item_id)===String(draft.store_item_id));if(!item)return 'Selected stock item is no longer available. Refresh and select again.';if(item.unit!==draft.unit)return 'Use the selected stock item unit.';}
       if(profile?.role==='Nurse'&&storeCategories.includes(draft.category)){
@@ -30863,7 +30914,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         ),
         h('div',{className:'modal-grid'},
           profile?.role==='Nurse'&&h('div',{className:'clinical-charge-note'},
-            'Nursing staff record only the service/expense occurrence. Financial amounts are not visible here. Pharmacy / Consumable charges can be raised only after the item has been handed over and the Nurse has confirmed Received for that patient, and the Stores item has a fixed charge rate. If a bill is available, upload it; Accounts will verify it.'
+            'Nursing staff record only the service/expense occurrence. Financial amounts are not visible here. Pharmacy / Consumable charges can be raised only after the item has been handed over and the Nurse has confirmed Received for that patient, and the Stores item has a fixed charge rate. If a bill is available, upload it; Accounts will verify it. Items that need Nursing Manager approval are not listed here — raise them from NURSING → Approval Requests.'
           ),
           ...basicFields.filter(Boolean)
         ),

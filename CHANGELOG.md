@@ -3,6 +3,13 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.61 — Approval routing per Charge Master category; all categories back in Bills & Charges
+- Charge Master (Admin): new "Approval Routing by Category" table. Admin can turn "Needs Nursing Manager approval" ON/OFF for any non-stock category (Nursing Procedures is ON by default; Stores / Pharmacy categories can't be switched).
+- ON: that category is raised only from NURSING → Approval Requests (request → Admin/Nursing Manager approval → nurse Confirm & Start → charge to Accounts), for everyone; the database blocks it in Bills & Charges. OFF: raised directly from Bills & Charges.
+- Bills & Charges: nurses again see every Charge Master category (Doctor Services, Physiotherapy, Lab, Transport, etc.) plus Consumables/Pharmacy from Stores — except categories switched ON for approval.
+- The "Nursing Procedures" menu item is renamed "Approval Requests": Category → Item (with Charge Master code), for every approval category.
+- Database: `152_charge_category_approval_routing.sql` (run after 151). Files: `src/app/nursing/nursing-procedures.js`, `src/app/accounts/09-clinical-charges.js`, `src/app/core/04-supabase-roles-navigation.js`, `src/app/shell/01-app-main.js`.
+
 ## 2.14.60 — Nursing Procedures now come only from Charge Master; removed from Bills & Charges
 - Nursing → Nursing Procedures: the procedure dropdown now lists exactly the active "Nursing Procedures" items in Charge Master, with their Charge Master code (e.g. NUR-0001 · Catheterization). The separate NP-xxx code list (and its Add/Edit/Deactivate screen) is retired; Admin maintains the list in Charge Master only. Admin / Nursing Manager see a read-only "Nursing Procedure List" on the page. Nurses see code and name only, never the rate. "Others" needs the procedure name in Remarks.
 - Bills & Charges: "Nursing Procedures" removed as a category for everyone. The database also blocks any Nursing Procedures charge that doesn't come from Confirm & Start, so the same procedure can't be billed twice. Existing Nursing Procedures charges and Accounts' verify/post step are unchanged; the register filter still lists older Nursing Procedures charges.

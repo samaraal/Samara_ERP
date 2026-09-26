@@ -684,7 +684,7 @@
           page==='Duty Calendar'&&h(DutyAssignment,{profile,viewMode:'team'}),
           page==='Staff Duty Assignment'&&h(DutyAssignment,{profile,viewMode:'team'}),
           page==='Special Nurse'&&h(SpecialNurseManagement,{profile}),
-          page==='Nursing Procedures'&&h(NursingProcedures,{profile}),
+          (page==='Approval Requests'||page==='Nursing Procedures')&&h(NursingProcedures,{profile}),
           page==='Charge Register'&&h(NursingChargeRegister,{profile}),
           page==='Shift Handover'&&h(ShiftHandover,{profile,onNavigate:setPage}),
           page==='Incidents'&&h(Incidents,{profile,onNavigate:setPage}),
