@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.63 — Bills & Charges item list matches Stores and Charge Master exactly
+- Consumables / Pharmacy: the Service / Item dropdown now lists exactly the Stores Master items, with the same Stores code (e.g. CON-0017 · Disposable Syringe - 10 mL). For Nurses it lists ONLY items received for the selected patient (Indent → Hand Over → Received) and not yet charged, with the quantity available; anything not received for that patient is not shown at all (previously every rated Stores item was listed and the rule was only checked on Save).
+- Other categories show the Charge Master code beside each item, for Nurses too (code only, never the rate).
+- Changing the patient refreshes the item list; saving re-checks the rule.
+- Database: `153_charge_catalog_codes_for_nursing.sql`. Files: `src/app/accounts/09-clinical-charges.js`.
+
 ## 2.14.62 — Alphabetical lists everywhere for charges
 - Charge Master, Bills & Charges and Approval Requests: every Category dropdown and every Service / Item dropdown is now A→Z (case-insensitive), with "Others" always last. Consumables / Pharmacy now sit in their alphabetical place instead of at the end. Charge Master's item tables and category filter are sorted the same way.
 - Frontend only. Files: `src/app/accounts/09-clinical-charges.js`, `src/app/nursing/nursing-procedures.js`.

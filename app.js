@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.62';
+  const APP_VERSION = '2.14.63';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -30499,10 +30499,40 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       return()=>{clearInterval(refreshTimer);window.removeEventListener('focus',load);client.removeChannel(ch)};
     },[]);
 
-    function openNew(){const base=fresh();const availableCategories=Object.keys(categories);if(profile?.role==='Nurse'&&!availableCategories.length){notify('error','No charge categories are available. Ask Admin to check Charge Master and Stores.');return}const firstCategory=availableCategories[0]||base.category;const firstService=(categories[firstCategory]||[])[0]||base.service_name;setFiles([]);setBatchItems([]);setForm({...base,category:firstCategory,service_name:firstService,description:firstService,...stockDefaults(firstCategory,firstService)});setShow(true)}
+    // v2.14.63: one source of truth for the Service / Item dropdown.
+    // Consumables / Pharmacy: exactly the Stores Master items (same item code, same
+    // name, active, fixed charge rate). For Nurses, ONLY items received for the
+    // selected patient (Indent → Hand Over → Received) and not yet charged — an item
+    // not available for that patient is not listed at all.
+    // Other categories: Charge Master items, with their Charge Master code.
+    const nurseUser=profile?.role==='Nurse';
+    function serviceOptions(category,patientId){
+      if(storeCategories.includes(category)){
+        let items=(storeMaster||[]).filter(x=>(x.item_category||'Consumables')===category&&x.active!==false&&Number(x.charge_rate)>0);
+        if(nurseUser)items=items.filter(x=>patientId&&receivedUnchargedAvailability(patientId,x.id)>0);
+        const opts=items.sort((a,b)=>samaraAlpha(a.item_name,b.item_name)).map(x=>({value:x.item_name,label:`${x.item_code?`${x.item_code} · `:''}${x.item_name}${nurseUser?` (${receivedUnchargedAvailability(patientId,x.id)} ${x.unit||''} received)`:''}`,itemId:x.id}));
+        if(!nurseUser)opts.push({value:'Others',label:'Others'});
+        return opts;
+      }
+      return (categories[category]||['Others']).map(name=>{
+        const row=(catalog||[]).find(x=>x.category===category&&x.service_name===name&&x.is_active!==false);
+        return {value:name,label:`${row?.charge_code?`${row.charge_code} · `:''}${name}`};
+      });
+    }
+    function firstServiceFor(category,patientId){return (serviceOptions(category,patientId)[0]||{}).value||''}
+    function changePatient(value){
+      setForm(current=>{
+        const next={...current,patient_id:value};
+        if(!storeCategories.includes(current.category))return next;
+        const opts=serviceOptions(current.category,value);
+        if(opts.some(o=>o.value===current.service_name))return next;
+        const first=(opts[0]||{}).value||'';
+        return {...next,service_name:first,...stockDefaults(current.category,first),description:first};
+      });
+    }
+    function openNew(){const base=fresh();const availableCategories=Object.keys(categories);if(profile?.role==='Nurse'&&!availableCategories.length){notify('error','No charge categories are available. Ask Admin to check Charge Master and Stores.');return}const firstCategory=availableCategories[0]||base.category;const firstService=storeCategories.includes(firstCategory)?firstServiceFor(firstCategory,base.patient_id):((categories[firstCategory]||[])[0]||base.service_name);setFiles([]);setBatchItems([]);setForm({...base,category:firstCategory,service_name:firstService,description:firstService,...stockDefaults(firstCategory,firstService)});setShow(true)}
     function changeCategory(value){
-      const first=(categories[value]||[])[0]||'Others';
-      setForm(current=>({...current,category:value,service_name:first,...stockDefaults(value,first),other_service_name:'',description:first==='Others'?'':first,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(value)&&first!=='Others'?first:''}));
+      setForm(current=>{const first=storeCategories.includes(value)?firstServiceFor(value,current.patient_id):((categories[value]||[])[0]||'Others');return {...current,category:value,service_name:first,...stockDefaults(value,first),other_service_name:'',description:first==='Others'?'':first,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(value)&&first!=='Others'?first:''}});
     }
     function changeService(value){
       setForm(current=>({...current,service_name:value,...stockDefaults(current.category,value),other_service_name:value==='Others'?current.other_service_name:'',description:value==='Others'?current.other_service_name:value,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(current.category)&&value!=='Others'?value:current.test_name}));
@@ -30519,6 +30549,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       if(!draft.patient_id)return 'Select the patient.';
       if(approvalCategories.has(draft.category))return `${draft.category} needs Nursing Manager approval. Raise it from NURSING → Approval Requests (request, approval, Confirm & Start).`;
       if(profile?.role==='Nurse'&&!Object.keys(categories).includes(draft.category))return 'Select a category from the list.';
+      if(storeCategories.includes(draft.category)&&!serviceOptions(draft.category,draft.patient_id).some(o=>o.value===draft.service_name))return nurseUser?'This item has not been received for this patient, or is already fully charged. Only received items can be charged.':'Select an item from the Stores list.';
       if(!Number.isFinite(Number(draft.quantity))||Number(draft.quantity)<=0)return 'Enter a valid positive quantity.';
       if(draft.store_item_id){const item=chargeStock.items.find(x=>String(x.item_id)===String(draft.store_item_id));if(!item)return 'Selected stock item is no longer available. Refresh and select again.';if(item.unit!==draft.unit)return 'Use the selected stock item unit.';}
       if(profile?.role==='Nurse'&&storeCategories.includes(draft.category)){
@@ -30856,9 +30887,9 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     });
 
     const basicFields=[
-      patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v})),
+      patientSelect(patients,form.patient_id,changePatient),
       h('div',{className:'field'},h('label',null,'Category'),h('select',{value:form.category,onChange:e=>changeCategory(e.target.value)},Object.keys(categories).map(x=>h('option',{key:x,value:x},x)))),
-      h('div',{className:'field'},h('label',null,'Service / Item'),h('select',{value:form.service_name,onChange:e=>changeService(e.target.value)},(categories[form.category]||['Others']).map(x=>h('option',{key:x,value:x},x)))),
+      h('div',{className:'field'},h('label',null,'Service / Item'),(()=>{const opts=serviceOptions(form.category,form.patient_id);const empty=!opts.length;return h(React.Fragment,null,h('select',{value:empty?'':form.service_name,onChange:e=>changeService(e.target.value),disabled:empty},empty?h('option',{value:''},nurseUser&&!form.patient_id?'Select the patient first':'No items received for this patient'):opts.map(o=>h('option',{key:o.value,value:o.value},o.label))),empty&&nurseUser&&h('small',{style:{color:'#b42318'}},form.patient_id?'Only items received for this patient (Indent → Hand Over → Received) and not yet charged are listed.':'Pick the patient to see the items received for them.'))})()),
       form.service_name==='Others'&&miniInput('Other Charge / Service Item',form.other_service_name,v=>setForm({...form,other_service_name:v,description:v}),true),
       miniInput('Service Date',form.charge_date,v=>setForm({...form,charge_date:v}),true,'date'),
       miniInput('Service Date & Time',form.service_datetime,v=>setForm({...form,service_datetime:v}),true,'datetime-local'),
