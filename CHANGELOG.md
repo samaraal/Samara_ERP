@@ -3,6 +3,10 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.62 — Alphabetical lists everywhere for charges
+- Charge Master, Bills & Charges and Approval Requests: every Category dropdown and every Service / Item dropdown is now A→Z (case-insensitive), with "Others" always last. Consumables / Pharmacy now sit in their alphabetical place instead of at the end. Charge Master's item tables and category filter are sorted the same way.
+- Frontend only. Files: `src/app/accounts/09-clinical-charges.js`, `src/app/nursing/nursing-procedures.js`.
+
 ## 2.14.61 — Approval routing per Charge Master category; all categories back in Bills & Charges
 - Charge Master (Admin): new "Approval Routing by Category" table. Admin can turn "Needs Nursing Manager approval" ON/OFF for any non-stock category (Nursing Procedures is ON by default; Stores / Pharmacy categories can't be switched).
 - ON: that category is raised only from NURSING → Approval Requests (request → Admin/Nursing Manager approval → nurse Confirm & Start → charge to Accounts), for everyone; the database blocks it in Bills & Charges. OFF: raised directly from Bills & Charges.

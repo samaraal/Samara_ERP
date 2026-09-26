@@ -35,11 +35,12 @@
       return()=>client.removeChannel(ch);
     },[load]);
 
-    const categories=React.useMemo(()=>[...new Set(catalog.map(x=>x.category).filter(Boolean))],[catalog]);
+    const alpha=(a,b)=>{const x=String(a||'').trim(),y=String(b||'').trim();const xo=x.toLowerCase()==='others',yo=y.toLowerCase()==='others';if(xo!==yo)return xo?1:-1;return x.localeCompare(y,'en',{sensitivity:'base',numeric:true})};
+    const categories=React.useMemo(()=>[...new Set(catalog.map(x=>x.category).filter(Boolean))].sort(alpha),[catalog]);
     React.useEffect(()=>{
       if(categories.length===1&&!form.category)setForm(f=>({...f,category:categories[0]}));
     },[categories]);
-    const itemsForCategory=catalog.filter(x=>x.category===form.category);
+    const itemsForCategory=catalog.filter(x=>x.category===form.category).sort((a,b)=>alpha(a.service_name,b.service_name));
     const codeLabel=p=>`${p.charge_code?`${p.charge_code} · `:''}${p.service_name}`;
     const selectedItem=catalog.find(x=>String(x.id)===String(form.tariff_id));
     const selectedIsOther=String(selectedItem?.service_name||'').trim().toLowerCase()==='others';
@@ -152,7 +153,7 @@
       }),
       canSeeList&&h(Section,{title:`Items Needing Approval (${catalog.length})`,subtitle:'Comes from Charge Master: every active item in a category Admin has marked "Needs Nursing Manager approval". Admin changes items and categories in Charge Master.'},
         catalogError?h('p',{style:{color:'#b42318'}},catalogError)
-          :h(LogTable,{heads:['Category','Code','Item'],rows:catalog.map(p=>[p.category,p.charge_code||'— (no code yet)',p.service_name])})
+          :h(LogTable,{heads:['Category','Code','Item'],rows:[...catalog].sort((a,b)=>alpha(a.category,b.category)||alpha(a.service_name,b.service_name)).map(p=>[p.category,p.charge_code||'— (no code yet)',p.service_name])})
       )
     );
   }

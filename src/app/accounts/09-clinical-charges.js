@@ -1,3 +1,6 @@
+  // v2.14.62: every Charge Master / Bills & Charges list is alphabetical (A→Z, case-insensitive), with "Others" always last.
+  const samaraAlpha=(a,b)=>{const x=String(a||'').trim(),y=String(b||'').trim();const xo=x.toLowerCase()==='others',yo=y.toLowerCase()==='others';if(xo!==yo)return xo?1:-1;return x.localeCompare(y,'en',{sensitivity:'base',numeric:true})};
+  const samaraSortCategoryMap=map=>Object.fromEntries(Object.keys(map||{}).sort(samaraAlpha).map(k=>[k,[...new Set(map[k]||[])].sort(samaraAlpha)]));
   function ChargeMasterPage({profile}){
     const [serviceRows,setServiceRows]=React.useState([]),[storeRows,setStoreRows]=React.useState([]),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState(''),[categoryFilter,setCategoryFilter]=React.useState('All');
     const notify=(type,text)=>showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
@@ -89,14 +92,14 @@
     }
     const categoryOf=row=>row.category||row.item_category||'Consumables';
     const categoryCounts=React.useMemo(()=>{const counts={};serviceRows.forEach(r=>{const c=categoryOf(r);counts[c]=(counts[c]||0)+1});storeRows.forEach(r=>{const c=categoryOf(r);counts[c]=(counts[c]||0)+1});return counts},[serviceRows,storeRows]);
-    const allCategories=React.useMemo(()=>Object.keys(categoryCounts).sort((a,b)=>a.localeCompare(b)),[categoryCounts]);
+    const allCategories=React.useMemo(()=>Object.keys(categoryCounts).sort(samaraAlpha),[categoryCounts]);
     if(profile?.role!=='Admin')return h(Section,{title:'Charge Master'},h('p',null,'Administrator access only.'));
     const q=String(search||'').trim().toLowerCase();
     const match=row=>{
       if(categoryFilter!=='All'&&categoryOf(row)!==categoryFilter)return false;
       return q.length<3||`${categoryOf(row)} ${row.service_name||row.item_name||''}`.toLowerCase().includes(q);
     };
-    const visibleStores=storeRows.filter(match),visibleServices=serviceRows.filter(match);
+    const visibleStores=storeRows.filter(match).sort((a,b)=>samaraAlpha(a.item_category||'Consumables',b.item_category||'Consumables')||samaraAlpha(a.item_name,b.item_name)),visibleServices=serviceRows.filter(match).sort((a,b)=>samaraAlpha(a.category,b.category)||samaraAlpha(a.service_name,b.service_name));
     const missingCodeCount=serviceRows.filter(r=>!r.charge_code).length;
     return h(React.Fragment,null,
       h(Section,{title:'Charge Master',subtitle:"Stores / Pharmacy items use the exact live Stores Master item name, ID and charge rate. Non-stock service tariffs remain controlled here. IDs are generated automatically, one short prefix per category (NUR- Nursing Procedures, DOC- Doctor Services, DIA- Diagnostic/Imaging, LAB- Laboratory, BIO- Biomedical Equipment, and so on) — you never need to type one."},
@@ -210,7 +213,7 @@
           const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false&&Number(x.charge_rate)>0).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
           if(names.length)nurseCategories[cat]=[...new Set(names)];
         });
-        return nurseCategories;
+        return samaraSortCategoryMap(nurseCategories);
       }
       const base=Object.keys(catalogCategories).length?{...catalogCategories}:{...fallbackCategories};
       approvalCategories.forEach(cat=>{delete base[cat]});
@@ -218,7 +221,7 @@
         const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false&&Number(x.charge_rate)>0).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
         if(names.length)base[cat]=[...new Set([...names,'Others'])];
       });
-      return base;
+      return samaraSortCategoryMap(base);
     },[catalogCategories,storeMaster,profile?.role,approvalCategories]);
 
     const fresh=()=>({
@@ -837,7 +840,7 @@
         h('div',{className:'clinical-charge-filters'},
           patientSelect(patients,filter.patient_id,v=>setFilter({...filter,patient_id:v})),
           miniSelect('Status',filter.status,['All','Pending','Approved','Partially Approved','Rejected'],v=>{setQuickView('All');setFilter({...filter,status:v})}),
-          miniSelect('Category',filter.category,['All',...new Set([...Object.keys(categories),...rows.map(r=>r.category).filter(Boolean)])],v=>{setQuickView('All');setFilter({...filter,category:v})})
+          miniSelect('Category',filter.category,['All',...[...new Set([...Object.keys(categories),...rows.map(r=>r.category).filter(Boolean)])].sort(samaraAlpha)],v=>{setQuickView('All');setFilter({...filter,category:v})})
         )
       ),
       h('div',{id:'bill-charge-register',style:{scrollMarginTop:'90px'}},

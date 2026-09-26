@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.61';
+  const APP_VERSION = '2.14.62';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -24775,11 +24775,12 @@ function RoomsBeds({profile,onNavigate}){
       return()=>client.removeChannel(ch);
     },[load]);
 
-    const categories=React.useMemo(()=>[...new Set(catalog.map(x=>x.category).filter(Boolean))],[catalog]);
+    const alpha=(a,b)=>{const x=String(a||'').trim(),y=String(b||'').trim();const xo=x.toLowerCase()==='others',yo=y.toLowerCase()==='others';if(xo!==yo)return xo?1:-1;return x.localeCompare(y,'en',{sensitivity:'base',numeric:true})};
+    const categories=React.useMemo(()=>[...new Set(catalog.map(x=>x.category).filter(Boolean))].sort(alpha),[catalog]);
     React.useEffect(()=>{
       if(categories.length===1&&!form.category)setForm(f=>({...f,category:categories[0]}));
     },[categories]);
-    const itemsForCategory=catalog.filter(x=>x.category===form.category);
+    const itemsForCategory=catalog.filter(x=>x.category===form.category).sort((a,b)=>alpha(a.service_name,b.service_name));
     const codeLabel=p=>`${p.charge_code?`${p.charge_code} · `:''}${p.service_name}`;
     const selectedItem=catalog.find(x=>String(x.id)===String(form.tariff_id));
     const selectedIsOther=String(selectedItem?.service_name||'').trim().toLowerCase()==='others';
@@ -24892,7 +24893,7 @@ function RoomsBeds({profile,onNavigate}){
       }),
       canSeeList&&h(Section,{title:`Items Needing Approval (${catalog.length})`,subtitle:'Comes from Charge Master: every active item in a category Admin has marked "Needs Nursing Manager approval". Admin changes items and categories in Charge Master.'},
         catalogError?h('p',{style:{color:'#b42318'}},catalogError)
-          :h(LogTable,{heads:['Category','Code','Item'],rows:catalog.map(p=>[p.category,p.charge_code||'— (no code yet)',p.service_name])})
+          :h(LogTable,{heads:['Category','Code','Item'],rows:[...catalog].sort((a,b)=>alpha(a.category,b.category)||alpha(a.service_name,b.service_name)).map(p=>[p.category,p.charge_code||'— (no code yet)',p.service_name])})
       )
     );
   }
@@ -30143,6 +30144,9 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     );
   }
 
+  // v2.14.62: every Charge Master / Bills & Charges list is alphabetical (A→Z, case-insensitive), with "Others" always last.
+  const samaraAlpha=(a,b)=>{const x=String(a||'').trim(),y=String(b||'').trim();const xo=x.toLowerCase()==='others',yo=y.toLowerCase()==='others';if(xo!==yo)return xo?1:-1;return x.localeCompare(y,'en',{sensitivity:'base',numeric:true})};
+  const samaraSortCategoryMap=map=>Object.fromEntries(Object.keys(map||{}).sort(samaraAlpha).map(k=>[k,[...new Set(map[k]||[])].sort(samaraAlpha)]));
   function ChargeMasterPage({profile}){
     const [serviceRows,setServiceRows]=React.useState([]),[storeRows,setStoreRows]=React.useState([]),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState(''),[categoryFilter,setCategoryFilter]=React.useState('All');
     const notify=(type,text)=>showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
@@ -30234,14 +30238,14 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     }
     const categoryOf=row=>row.category||row.item_category||'Consumables';
     const categoryCounts=React.useMemo(()=>{const counts={};serviceRows.forEach(r=>{const c=categoryOf(r);counts[c]=(counts[c]||0)+1});storeRows.forEach(r=>{const c=categoryOf(r);counts[c]=(counts[c]||0)+1});return counts},[serviceRows,storeRows]);
-    const allCategories=React.useMemo(()=>Object.keys(categoryCounts).sort((a,b)=>a.localeCompare(b)),[categoryCounts]);
+    const allCategories=React.useMemo(()=>Object.keys(categoryCounts).sort(samaraAlpha),[categoryCounts]);
     if(profile?.role!=='Admin')return h(Section,{title:'Charge Master'},h('p',null,'Administrator access only.'));
     const q=String(search||'').trim().toLowerCase();
     const match=row=>{
       if(categoryFilter!=='All'&&categoryOf(row)!==categoryFilter)return false;
       return q.length<3||`${categoryOf(row)} ${row.service_name||row.item_name||''}`.toLowerCase().includes(q);
     };
-    const visibleStores=storeRows.filter(match),visibleServices=serviceRows.filter(match);
+    const visibleStores=storeRows.filter(match).sort((a,b)=>samaraAlpha(a.item_category||'Consumables',b.item_category||'Consumables')||samaraAlpha(a.item_name,b.item_name)),visibleServices=serviceRows.filter(match).sort((a,b)=>samaraAlpha(a.category,b.category)||samaraAlpha(a.service_name,b.service_name));
     const missingCodeCount=serviceRows.filter(r=>!r.charge_code).length;
     return h(React.Fragment,null,
       h(Section,{title:'Charge Master',subtitle:"Stores / Pharmacy items use the exact live Stores Master item name, ID and charge rate. Non-stock service tariffs remain controlled here. IDs are generated automatically, one short prefix per category (NUR- Nursing Procedures, DOC- Doctor Services, DIA- Diagnostic/Imaging, LAB- Laboratory, BIO- Biomedical Equipment, and so on) — you never need to type one."},
@@ -30355,7 +30359,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
           const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false&&Number(x.charge_rate)>0).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
           if(names.length)nurseCategories[cat]=[...new Set(names)];
         });
-        return nurseCategories;
+        return samaraSortCategoryMap(nurseCategories);
       }
       const base=Object.keys(catalogCategories).length?{...catalogCategories}:{...fallbackCategories};
       approvalCategories.forEach(cat=>{delete base[cat]});
@@ -30363,7 +30367,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false&&Number(x.charge_rate)>0).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
         if(names.length)base[cat]=[...new Set([...names,'Others'])];
       });
-      return base;
+      return samaraSortCategoryMap(base);
     },[catalogCategories,storeMaster,profile?.role,approvalCategories]);
 
     const fresh=()=>({
@@ -30982,7 +30986,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         h('div',{className:'clinical-charge-filters'},
           patientSelect(patients,filter.patient_id,v=>setFilter({...filter,patient_id:v})),
           miniSelect('Status',filter.status,['All','Pending','Approved','Partially Approved','Rejected'],v=>{setQuickView('All');setFilter({...filter,status:v})}),
-          miniSelect('Category',filter.category,['All',...new Set([...Object.keys(categories),...rows.map(r=>r.category).filter(Boolean)])],v=>{setQuickView('All');setFilter({...filter,category:v})})
+          miniSelect('Category',filter.category,['All',...[...new Set([...Object.keys(categories),...rows.map(r=>r.category).filter(Boolean)])].sort(samaraAlpha)],v=>{setQuickView('All');setFilter({...filter,category:v})})
         )
       ),
       h('div',{id:'bill-charge-register',style:{scrollMarginTop:'90px'}},
