@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.66';
+  const APP_VERSION = '2.14.67';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -30038,7 +30038,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const stockInfo=usePharmacyStock(),stock=stockInfo.items;
     const [busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('Open');
     const [allocations,setAllocations]=React.useState([]),[returns,setReturns]=React.useState([]);
-    const [form,setForm]=React.useState({patient_id:'',store_item_id:'',item_name:'',requested_qty:'1',unit:'Nos',request_remarks:''});
+    const [form,setForm]=React.useState({patient_id:'',category:'',store_item_id:'',item_name:'',requested_qty:'1',unit:'Nos',request_remarks:''});
+    const [masterItems,setMasterItems]=React.useState([]);
     const storeController=authority.controller,nurse=profile?.role==='Nurse'&&!isNursingManagerProfile(profile);
     const fallbackItems=['Adult Diapers','Examination Gloves','Sterile Gloves','Syringes','Dressing Materials','PPE','Feeding Tubes','Catheters','Oxygen Consumables','Underpads','Cotton / Gauze','Other Consumables'];
     const actorName=formalName(profile)||profile?.full_name||profile?.login_id||profile?.role||'Staff';
@@ -30058,6 +30059,9 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         client.from('patient_store_returns').select('*').order('requested_at',{ascending:false}),
         stockInfo.reload()
       ]);
+      // v2.14.67: Stores Master (code + category) so the indent form matches Stores & Pharmacy.
+      const mRes=await client.from('consumable_store_items').select('id,item_code,item_name,item_category,unit,active').eq('active',true);
+      if(!mRes.error)setMasterItems(mRes.data||[]);
       if(!pRes.error)setPatients(pRes.data||[]);
       if(iRes.error){console.warn(iRes.error);notify('error','Consumables workflow database is not installed yet.')} else setRows(iRes.data||[]);
       if(!aRes.error)setAllocations(aRes.data||[]);
@@ -30125,7 +30129,14 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const openStatuses=['Initiated','Approved','Partially Approved','Handed Over','Receipt Discrepancy'];
     const visible=rows.filter(r=>filter==='All'||(filter==='Open'?openStatuses.includes(r.status):filter==='Awaiting Handover'?['Approved','Partially Approved'].includes(r.status):r.status===filter));
     const counts={initiated:rows.filter(r=>r.status==='Initiated').length,handover:rows.filter(r=>['Approved','Partially Approved'].includes(r.status)).length,receipt:rows.filter(r=>r.status==='Handed Over').length,discrepancy:rows.filter(r=>r.status==='Receipt Discrepancy').length};
-    const options=stock;
+    // v2.14.67: Category (Consumables / Pharmacy) first, then the item with its Stores code
+    // and live store balance — the same code, name and category as Stores & Pharmacy.
+    const masterById=new Map((masterItems||[]).map(m=>[String(m.id),m]));
+    const categoryOfStock=x=>masterById.get(String(x.item_id))?.item_category||'Consumables';
+    const codeOfStock=x=>masterById.get(String(x.item_id))?.item_code||'';
+    const alphaSort=(a,b)=>String(a||'').localeCompare(String(b||''),'en',{sensitivity:'base',numeric:true});
+    const indentCategories=[...new Set(stock.map(categoryOfStock))].sort(alphaSort);
+    const options=stock.filter(x=>!form.category||categoryOfStock(x)===form.category).slice().sort((a,b)=>alphaSort(a.item_name,b.item_name));
     return h('div',null,
       h(Section,{title:'Patient Consumables',subtitle:'Nurse initiates for a patient → Store In-charge approves and hands over → Nurse confirms actual receipt.'},
         h('div',{className:'grid stats'},
@@ -30135,7 +30146,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       nurse&&h('div',{id:'patient-raise-indent',style:{scrollMarginTop:'90px'}},h(Section,{title:'New Patient Indent',subtitle:'Select an active patient and a consumable or pharmacy item. Available store balance refreshes automatically; stock is issued at handover.'},
         h('form',{onSubmit:initiate},h('div',{className:'grid two'},
           h('div',{className:'field'},h('label',null,'Patient *'),h('select',{value:form.patient_id,onChange:e=>setForm({...form,patient_id:e.target.value}),required:true},h('option',{value:''},'Select active patient'),patients.map(p=>h('option',{key:p.id,value:p.id},patientLabel(p.id))))),
-          h('div',{className:'field'},h('label',null,'Consumable / Pharmacy Item *'),h('select',{'aria-label':'Consumable / Pharmacy Item',value:form.store_item_id,onChange:e=>chooseItem(e.target.value),required:stock.length>0},h('option',{value:''},'Select consumable / pharmacy item'),options.map(x=>h('option',{key:x.item_id,value:x.item_id},`${x.item_name}${stock.length?` · Store balance ${x.balance_qty} ${x.unit}`:''}`)))),
+          h('div',{className:'field'},h('label',null,'Category *'),h('select',{'aria-label':'Category',value:form.category,onChange:e=>setForm(f=>({...f,category:e.target.value,store_item_id:'',item_name:''})),required:true},h('option',{value:''},'Select category'),indentCategories.map(c=>h('option',{key:c,value:c},`${c} (${stock.filter(x=>categoryOfStock(x)===c).length})`)))),
+          h('div',{className:'field'},h('label',null,'Item *'),h('select',{'aria-label':'Consumable / Pharmacy Item',value:form.store_item_id,onChange:e=>chooseItem(e.target.value),required:stock.length>0,disabled:!form.category},h('option',{value:''},form.category?`Select ${form.category} item (${options.length})`:'Select a category first'),options.map(x=>h('option',{key:x.item_id,value:x.item_id},`${codeOfStock(x)?`${codeOfStock(x)} · `:''}${x.item_name} · Store balance ${x.balance_qty} ${x.unit}`)))),
           h('div',{className:'field'},h('label',null,'Quantity *'),h('input',{type:'number',min:'0.01',step:'0.01',value:form.requested_qty,onChange:e=>setForm({...form,requested_qty:e.target.value}),required:true})),
           h('div',{className:'field'},h('label',null,'Unit'),h('input',{value:form.unit,readOnly:true}))
         ),h(PharmacyStockPanel,{stock:stockInfo,itemId:form.store_item_id,quantity:form.requested_qty,unit:form.unit,showSelector:false}),h('div',{className:'field'},h('label',null,'Reason / Remarks'),h('textarea',{rows:2,value:form.request_remarks,onChange:e=>setForm({...form,request_remarks:e.target.value}),placeholder:'Optional clinical/use note'})),h('button',{className:'btn btn-primary',disabled:busy||!form.item_name},busy?'Saving…':'Initiate Indent'))

@@ -3,6 +3,10 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.67 — Raise Indent shows Category and Stores codes
+- Raise Indent: pick Category first (Consumables / Pharmacy, as in Stores Master), then the item — each shown with its Stores code and live balance, e.g. "CON-0017 · Disposable Syringe - 10 mL · Store balance 5 Nos", A→Z. Same code, name and category as Stores & Pharmacy and Bills & Charges.
+- Frontend only. File: `src/app/stores/patient-consumables.js`.
+
 ## 2.14.66 — "Indent Register" menu item for the Nursing Manager (store keeper)
 - The Nursing Manager's PHARMACY & STORES menu now has "Indent Register" (the Patient Consumables page: every patient indent, Consumables and Pharmacy, with Approve / Hand Over / returns). Before, it was only reachable at the bottom of the long Consumables stock page.
 - Frontend only. File: `src/app/core/04-supabase-roles-navigation.js`.
