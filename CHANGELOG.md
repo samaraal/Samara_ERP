@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.64 — Fix: nurse's Consumables / Pharmacy list showed items already charged
+- Cause: "already charged" was counted only from the nurse-raised charge links (bill_charge_store_allocations). Charges raised by Admin / Accounts, or older charges without that link, were never subtracted, so items already billed still showed as chargeable.
+- Now: chargeable = received for the patient (Indent → Nursing Manager approval → Hand Over → Received) − returned − every non-rejected Consumables / Pharmacy charge for that patient and item, whoever raised it (older charges without an item link are matched by item name). Rejected charges don't count, so the item can be re-raised.
+- The nurse's list shows only items with something left to charge, as "CON-0017 · Disposable Syringe - 10 mL — 2 Nos to charge". Admin / Accounts see all active Stores items with their codes.
+- Read-only check: `supabase/sql/check_patient_items_to_charge.sql`. Files: `src/app/accounts/09-clinical-charges.js`.
+
 ## 2.14.63 — Bills & Charges item list matches Stores and Charge Master exactly
 - Consumables / Pharmacy: the Service / Item dropdown now lists exactly the Stores Master items, with the same Stores code (e.g. CON-0017 · Disposable Syringe - 10 mL). For Nurses it lists ONLY items received for the selected patient (Indent → Hand Over → Received) and not yet charged, with the quantity available; anything not received for that patient is not shown at all (previously every rated Stores item was listed and the rule was only checked on Save).
 - Other categories show the Charge Master code beside each item, for Nurses too (code only, never the rate).

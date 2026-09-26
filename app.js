@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.63';
+  const APP_VERSION = '2.14.64';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -30294,6 +30294,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const canManageTariffs=profile?.role==='Admin';
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
+    const [storeCharges,setStoreCharges]=React.useState([]);
     const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [diagnostics,setDiagnostics]=React.useState([]);
     const [show,setShow]=React.useState(false);
@@ -30454,6 +30455,10 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         client.from('bill_charge_store_allocations').select('id,charge_request_id,indent_id,patient_id,store_item_id,allocated_qty').order('created_at',{ascending:true}),
         client.from('patient_store_returns').select('id,indent_id,patient_id,store_item_id,quantity,status').neq('status','Rejected')
       ]);
+      // v2.14.64: every Consumables / Pharmacy charge for every patient (any raiser),
+      // so "already charged" is counted from the real charges, not only nurse links.
+      const sc=await client.from('bill_charge_requests').select('id,patient_id,category,store_item_id,service_name,quantity,approval_status,status').in('category',storeCategories).limit(10000);
+      if(!sc.error)setStoreCharges(sc.data||[]);
 
       if(a.error)notify('error',a.error.message);
       const approvalResult=await client.from('charge_category_settings').select('category,requires_approval');
@@ -30499,18 +30504,19 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       return()=>{clearInterval(refreshTimer);window.removeEventListener('focus',load);client.removeChannel(ch)};
     },[]);
 
-    // v2.14.63: one source of truth for the Service / Item dropdown.
-    // Consumables / Pharmacy: exactly the Stores Master items (same item code, same
-    // name, active, fixed charge rate). For Nurses, ONLY items received for the
-    // selected patient (Indent → Hand Over → Received) and not yet charged — an item
-    // not available for that patient is not listed at all.
+    // v2.14.64: one source of truth for the Service / Item dropdown.
+    // Consumables / Pharmacy: exactly the Stores Master items (same code and name
+    // as Stores & Pharmacy). For Nurses, ONLY items received for the selected
+    // patient through Indent → approval → Hand Over → Received that are not yet
+    // charged or returned, with the quantity still chargeable.
     // Other categories: Charge Master items, with their Charge Master code.
     const nurseUser=profile?.role==='Nurse';
     function serviceOptions(category,patientId){
       if(storeCategories.includes(category)){
-        let items=(storeMaster||[]).filter(x=>(x.item_category||'Consumables')===category&&x.active!==false&&Number(x.charge_rate)>0);
-        if(nurseUser)items=items.filter(x=>patientId&&receivedUnchargedAvailability(patientId,x.id)>0);
-        const opts=items.sort((a,b)=>samaraAlpha(a.item_name,b.item_name)).map(x=>({value:x.item_name,label:`${x.item_code?`${x.item_code} · `:''}${x.item_name}${nurseUser?` (${receivedUnchargedAvailability(patientId,x.id)} ${x.unit||''} received)`:''}`,itemId:x.id}));
+        let items=(storeMaster||[]).filter(x=>(x.item_category||'Consumables')===category&&x.active!==false);
+        if(nurseUser)items=items.filter(x=>receivedUnchargedAvailability(patientId,x.id)>0);
+        const opts=items.sort((a,b)=>samaraAlpha(a.item_name,b.item_name)).map(x=>({value:x.item_name,
+          label:`${x.item_code?`${x.item_code} · `:''}${x.item_name}${nurseUser?` — ${receivedUnchargedAvailability(patientId,x.id)} ${x.unit||''} to charge`:''}`,itemId:x.id}));
         if(!nurseUser)opts.push({value:'Others',label:'Others'});
         return opts;
       }
@@ -30537,19 +30543,27 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     function changeService(value){
       setForm(current=>({...current,service_name:value,...stockDefaults(current.category,value),other_service_name:value==='Others'?current.other_service_name:'',description:value==='Others'?current.other_service_name:value,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(current.category)&&value!=='Others'?value:current.test_name}));
     }
+    // v2.14.64: Indent → Nursing Manager approval → Hand Over → Received → used → return.
+    // Chargeable now = received for this patient − returned − already charged
+    // (every non-rejected Consumables / Pharmacy charge for this patient and item,
+    // whoever raised it; older charges without an item link are matched by name).
     function receivedUnchargedAvailability(patientId,itemId){
-      const matching=(receivedIndents||[]).filter(r=>String(r.patient_id)===String(patientId)&&String(r.store_item_id)===String(itemId)&&r.status==='Received');
-      const received=matching.reduce((sum,r)=>sum+Number(r.received_qty||0),0);
-      const indentIds=new Set(matching.map(r=>String(r.id)));
-      const allocated=(storeAllocations||[]).filter(a=>String(a.patient_id)===String(patientId)&&String(a.store_item_id)===String(itemId)&&indentIds.has(String(a.indent_id))).reduce((sum,a)=>sum+Number(a.allocated_qty||0),0);
-      const returning=(patientReturns||[]).filter(r=>String(r.patient_id)===String(patientId)&&String(r.store_item_id)===String(itemId)&&indentIds.has(String(r.indent_id))&&r.status!=='Rejected').reduce((sum,r)=>sum+Number(r.quantity||0),0);
-      return Math.max(0,received-allocated-returning);
+      if(!patientId||!itemId)return 0;
+      const received=(receivedIndents||[]).filter(r=>String(r.patient_id)===String(patientId)&&String(r.store_item_id)===String(itemId)&&r.status==='Received').reduce((sum,r)=>sum+Number(r.received_qty||0),0);
+      const returned=(patientReturns||[]).filter(r=>String(r.patient_id)===String(patientId)&&String(r.store_item_id)===String(itemId)&&r.status!=='Rejected').reduce((sum,r)=>sum+Number(r.quantity||0),0);
+      const master=(storeMaster||[]).find(x=>String(x.id)===String(itemId));
+      const masterName=normalStoreName(master?.item_name);
+      const charged=(storeCharges||[]).filter(r=>String(r.patient_id)===String(patientId)&&
+        (r.approval_status||'Pending')!=='Rejected'&&r.status!=='Rejected'&&
+        (r.store_item_id?String(r.store_item_id)===String(itemId):(masterName&&normalStoreName(r.service_name)===masterName)))
+        .reduce((sum,r)=>sum+Number(r.quantity||0),0);
+      return Math.max(0,received-returned-charged);
     }
     function validateDraft(draft,draftFiles){
       if(!draft.patient_id)return 'Select the patient.';
       if(approvalCategories.has(draft.category))return `${draft.category} needs Nursing Manager approval. Raise it from NURSING → Approval Requests (request, approval, Confirm & Start).`;
       if(profile?.role==='Nurse'&&!Object.keys(categories).includes(draft.category))return 'Select a category from the list.';
-      if(storeCategories.includes(draft.category)&&!serviceOptions(draft.category,draft.patient_id).some(o=>o.value===draft.service_name))return nurseUser?'This item has not been received for this patient, or is already fully charged. Only received items can be charged.':'Select an item from the Stores list.';
+      if(storeCategories.includes(draft.category)&&!serviceOptions(draft.category,draft.patient_id).some(o=>o.value===draft.service_name))return nurseUser?'This item has nothing left to charge for this patient (not received, already charged, or returned). Select from the list.':'Select an item from the Stores list.';
       if(!Number.isFinite(Number(draft.quantity))||Number(draft.quantity)<=0)return 'Enter a valid positive quantity.';
       if(draft.store_item_id){const item=chargeStock.items.find(x=>String(x.item_id)===String(draft.store_item_id));if(!item)return 'Selected stock item is no longer available. Refresh and select again.';if(item.unit!==draft.unit)return 'Use the selected stock item unit.';}
       if(profile?.role==='Nurse'&&storeCategories.includes(draft.category)){
@@ -30640,7 +30654,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         const eligible=(receivedIndents||[]).filter(r=>String(r.patient_id)===String(draft.patient_id)&&String(r.store_item_id)===String(draft.store_item_id)&&r.status==='Received').sort((x,y)=>new Date(x.received_at||0)-new Date(y.received_at||0));
         for(const indent of eligible){
           if(remaining<=0)break;
-          const already=(storeAllocations||[]).filter(a=>String(a.indent_id)===String(indent.id)).reduce((sum,a)=>sum+Number(a.allocated_qty||0),0);
+          const rejectedIds=new Set((storeCharges||[]).filter(r=>(r.approval_status||'')==='Rejected'||r.status==='Rejected').map(r=>String(r.id)));
+          const already=(storeAllocations||[]).filter(a=>String(a.indent_id)===String(indent.id)&&!rejectedIds.has(String(a.charge_request_id))).reduce((sum,a)=>sum+Number(a.allocated_qty||0),0);
           const available=Math.max(0,Number(indent.received_qty||0)-already);
           if(available<=0)continue;
           const useQty=Math.min(available,remaining);
@@ -30889,7 +30904,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const basicFields=[
       patientSelect(patients,form.patient_id,changePatient),
       h('div',{className:'field'},h('label',null,'Category'),h('select',{value:form.category,onChange:e=>changeCategory(e.target.value)},Object.keys(categories).map(x=>h('option',{key:x,value:x},x)))),
-      h('div',{className:'field'},h('label',null,'Service / Item'),(()=>{const opts=serviceOptions(form.category,form.patient_id);const empty=!opts.length;return h(React.Fragment,null,h('select',{value:empty?'':form.service_name,onChange:e=>changeService(e.target.value),disabled:empty},empty?h('option',{value:''},nurseUser&&!form.patient_id?'Select the patient first':'No items received for this patient'):opts.map(o=>h('option',{key:o.value,value:o.value},o.label))),empty&&nurseUser&&h('small',{style:{color:'#b42318'}},form.patient_id?'Only items received for this patient (Indent → Hand Over → Received) and not yet charged are listed.':'Pick the patient to see the items received for them.'))})()),
+      h('div',{className:'field'},h('label',null,'Service / Item'),(()=>{const opts=serviceOptions(form.category,form.patient_id);const empty=!opts.length;return h(React.Fragment,null,h('select',{value:empty?'':form.service_name,onChange:e=>changeService(e.target.value),disabled:empty},empty?h('option',{value:''},nurseUser&&!form.patient_id?'Select the patient first':'Nothing received for this patient to charge'):opts.map(o=>h('option',{key:o.value,value:o.value},o.label))),empty&&nurseUser&&h('small',{style:{color:'#b42318'}},form.patient_id?'Only items indented, handed over and received for this patient — and not yet charged or returned — are listed.':'Pick the patient to see the items received for them.'))})()),
       form.service_name==='Others'&&miniInput('Other Charge / Service Item',form.other_service_name,v=>setForm({...form,other_service_name:v,description:v}),true),
       miniInput('Service Date',form.charge_date,v=>setForm({...form,charge_date:v}),true,'date'),
       miniInput('Service Date & Time',form.service_datetime,v=>setForm({...form,service_datetime:v}),true,'datetime-local'),
