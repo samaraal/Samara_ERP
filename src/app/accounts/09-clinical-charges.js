@@ -166,14 +166,12 @@
     },[catalog]);
     const fallbackCategories=Object.fromEntries(Object.entries(defaultCategories).map(([category,services])=>[category,services.includes('Others')?services:[...services,'Others']]));
     const categories=React.useMemo(()=>{
-      // Nurses may raise Nursing Procedure service charges plus patient-specific
-      // Consumables/Pharmacy charges. Inventory categories must still come only
-      // from the live Stores master; Nursing Procedures are services and do not
-      // require an indent/received stock balance.
+      // v2.14.60: Nursing Procedures are NOT raised here any more — only from
+      // NURSING → Nursing Procedures (request → approval → Confirm & Start),
+      // which raises the charge itself. Nurses raise only patient-specific
+      // Consumables/Pharmacy charges here, from the live Stores master.
       if(profile?.role==='Nurse'){
         const nurseCategories={};
-        const nursingProcedures=(catalogCategories['Nursing Procedures']||fallbackCategories['Nursing Procedures']||[]).filter(Boolean);
-        if(nursingProcedures.length)nurseCategories['Nursing Procedures']=[...new Set(nursingProcedures)];
         ['Consumables','Pharmacy'].forEach(cat=>{
           const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false&&Number(x.charge_rate)>0).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
           if(names.length)nurseCategories[cat]=[...new Set(names)];
@@ -181,6 +179,7 @@
         return nurseCategories;
       }
       const base=Object.keys(catalogCategories).length?{...catalogCategories}:{...fallbackCategories};
+      delete base['Nursing Procedures'];
       ['Consumables','Pharmacy'].forEach(cat=>{
         const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false&&Number(x.charge_rate)>0).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
         if(names.length)base[cat]=[...new Set([...names,'Others'])];
@@ -333,7 +332,8 @@
     }
     function validateDraft(draft,draftFiles){
       if(!draft.patient_id)return 'Select the patient.';
-      if(profile?.role==='Nurse'&&!['Nursing Procedures','Consumables','Pharmacy'].includes(draft.category))return 'Nursing Bills & Charges can use Nursing Procedures and active patient-received items from Stores / Pharmacy.';
+      if(draft.category==='Nursing Procedures')return 'Nursing Procedures are raised only from NURSING → Nursing Procedures (request, approval, Confirm & Start).';
+      if(profile?.role==='Nurse'&&!['Consumables','Pharmacy'].includes(draft.category))return 'Nursing Bills & Charges can use active patient-received items from Stores / Pharmacy. Nursing Procedures are raised from NURSING → Nursing Procedures.';
       if(!Number.isFinite(Number(draft.quantity))||Number(draft.quantity)<=0)return 'Enter a valid positive quantity.';
       if(draft.store_item_id){const item=chargeStock.items.find(x=>String(x.item_id)===String(draft.store_item_id));if(!item)return 'Selected stock item is no longer available. Refresh and select again.';if(item.unit!==draft.unit)return 'Use the selected stock item unit.';}
       if(profile?.role==='Nurse'&&storeCategories.includes(draft.category)){
@@ -801,7 +801,7 @@
         h('div',{className:'clinical-charge-filters'},
           patientSelect(patients,filter.patient_id,v=>setFilter({...filter,patient_id:v})),
           miniSelect('Status',filter.status,['All','Pending','Approved','Partially Approved','Rejected'],v=>{setQuickView('All');setFilter({...filter,status:v})}),
-          miniSelect('Category',filter.category,['All',...Object.keys(categories)],v=>{setQuickView('All');setFilter({...filter,category:v})})
+          miniSelect('Category',filter.category,['All',...new Set([...Object.keys(categories),...rows.map(r=>r.category).filter(Boolean)])],v=>{setQuickView('All');setFilter({...filter,category:v})})
         )
       ),
       h('div',{id:'bill-charge-register',style:{scrollMarginTop:'90px'}},

@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.60 — Nursing Procedures now come only from Charge Master; removed from Bills & Charges
+- Nursing → Nursing Procedures: the procedure dropdown now lists exactly the active "Nursing Procedures" items in Charge Master, with their Charge Master code (e.g. NUR-0001 · Catheterization). The separate NP-xxx code list (and its Add/Edit/Deactivate screen) is retired; Admin maintains the list in Charge Master only. Admin / Nursing Manager see a read-only "Nursing Procedure List" on the page. Nurses see code and name only, never the rate. "Others" needs the procedure name in Remarks.
+- Bills & Charges: "Nursing Procedures" removed as a category for everyone. The database also blocks any Nursing Procedures charge that doesn't come from Confirm & Start, so the same procedure can't be billed twice. Existing Nursing Procedures charges and Accounts' verify/post step are unchanged; the register filter still lists older Nursing Procedures charges.
+- Repair: procedures already marked Started whose charge was missing (e.g. 26-09-2026 Pressure Sore Care / Catheterization) get their charge raised now, Pending for Accounts.
+- Database: `151_nursing_procedures_from_charge_master.sql` (run once; safe to re-run). Files: `src/app/nursing/nursing-procedures.js`, `src/app/accounts/09-clinical-charges.js`.
+
 ## 2.14.59 — Food & Diet: receipt reminder + auto-close, and vendor reply buttons on the order message
 - A delivered order could sit at "Pending receipt" indefinitely if nobody happened to open it and log what arrived — nothing ever nudged staff, and nothing ever closed it out.
 - New fixed window, timed from each order's own delivery time: 0–2h normal, 2–3h a "Food Receipts Overdue" reminder now shows in Notifications for the Nurse Manager (the normal food order in-charge) and Admin/Director, with a "Record receipt now" button straight to Food Vendor Management. Past 3h (2h entry window + 1h grace), the order automatically closes as not received — no vendor WhatsApp message, no billing (a Closed order with nothing recorded stays excluded from the vendor statement, exactly like a manual "Close" already works today).
