@@ -178,6 +178,13 @@
       window.addEventListener('samara-return-discharge-clearance',handler);
       return()=>window.removeEventListener('samara-return-discharge-clearance',handler);
     },[]);
+    // v2.14.65: generic in-app link to another page (e.g. Bills & Charges → Raise Indent).
+    // Pages the user may not open are ignored by the existing allowed-page check.
+    React.useEffect(()=>{
+      const handler=event=>{const target=event.detail?.page;if(typeof target==='string'&&target)setPage(target)};
+      window.addEventListener('samara-open-page',handler);
+      return()=>window.removeEventListener('samara-open-page',handler);
+    },[]);
 
     React.useEffect(()=>{
       const root=document.getElementById('root');

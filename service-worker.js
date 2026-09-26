@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.64';
-const CACHE = 'samara-erp-2.14.64-food-receipt-autoclose';
+const APP_VERSION = '2.14.65';
+const CACHE = 'samara-erp-2.14.65-food-receipt-autoclose';
 const SHELL = [
   './',
   './index.html',

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.64';
+  const APP_VERSION = '2.14.65';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -7136,6 +7136,13 @@ https://samaraassistedliving.com/`;
       const handler=()=>setPage('Discharge Clearance');
       window.addEventListener('samara-return-discharge-clearance',handler);
       return()=>window.removeEventListener('samara-return-discharge-clearance',handler);
+    },[]);
+    // v2.14.65: generic in-app link to another page (e.g. Bills & Charges → Raise Indent).
+    // Pages the user may not open are ignored by the existing allowed-page check.
+    React.useEffect(()=>{
+      const handler=event=>{const target=event.detail?.page;if(typeof target==='string'&&target)setPage(target)};
+      window.addEventListener('samara-open-page',handler);
+      return()=>window.removeEventListener('samara-open-page',handler);
     },[]);
 
     React.useEffect(()=>{
@@ -24135,26 +24142,36 @@ function RoomsBeds({profile,onNavigate}){
       )
     );
   }
-  function foodViewPreference(){
-    try{return sessionStorage.getItem('samara_food_view')==='Resident Food Intake'?'Resident Food Intake':'Food Vendor Management'}catch(_error){return 'Food Vendor Management'}
+  // v2.14.65: Nurses see only Resident Food Intake (Food Vendor Management is not
+  // needed for them). Nursing Manager / STD keep Food Vendor Management; others see both.
+  function foodViewsFor(profile){
+    if(profile?.role==='STD'||isNursingManagerProfile(profile))return ['Food Vendor Management'];
+    if(profile?.role==='Nurse')return ['Resident Food Intake'];
+    return ['Food Vendor Management','Resident Food Intake'];
+  }
+  function foodViewPreference(profile){
+    let saved='';try{saved=sessionStorage.getItem('samara_food_view')||''}catch(_error){}
+    const views=foodViewsFor(profile);
+    return views.includes(saved)?saved:views[0];
   }
   function FoodNavigationLinks({profile,page,onNavigate,mobile=false}){
-    const [view,setView]=React.useState(foodViewPreference);
-    React.useEffect(()=>{const update=()=>setView(foodViewPreference());window.addEventListener('samara-food-view',update);return()=>window.removeEventListener('samara-food-view',update)},[]);
-    const labels=profile?.role!=='STD'&&!isNursingManagerProfile(profile)?['Food Vendor Management','Resident Food Intake']:['Food Vendor Management'];
+    const [view,setView]=React.useState(()=>foodViewPreference(profile));
+    React.useEffect(()=>{const update=()=>setView(foodViewPreference(profile));window.addEventListener('samara-food-view',update);return()=>window.removeEventListener('samara-food-view',update)},[]);
+    const labels=foodViewsFor(profile);
     return h(React.Fragment,null,labels.map(label=>h('button',{key:label,type:'button','data-nav':'Food & Diet',className:page==='Food & Diet'&&view===label?'active':'',onClick:()=>{
       try{sessionStorage.setItem('samara_food_view',label)}catch(_error){}
       setView(label);window.dispatchEvent(new CustomEvent('samara-food-view',{detail:label}));onNavigate('Food & Diet');
     }},mobile?h('span',{className:'mobile-drawer-item-icon'},'♨'):null,h('span',null,label),mobile?h('span',{className:'mobile-drawer-item-arrow'},'›'):null)));
   }
   function FoodDiet({profile}){
-    const [foodView,setFoodView]=React.useState(foodViewPreference);
-    React.useEffect(()=>{const update=e=>setFoodView(e.detail||foodViewPreference());window.addEventListener('samara-food-view',update);return()=>window.removeEventListener('samara-food-view',update)},[]);
-    const canViewIntake=profile?.role!=='STD'&&!isNursingManagerProfile(profile);
+    const views=foodViewsFor(profile);
+    const [foodView,setFoodView]=React.useState(()=>foodViewPreference(profile));
+    React.useEffect(()=>{const update=e=>setFoodView(views.includes(e.detail)?e.detail:foodViewPreference(profile));window.addEventListener('samara-food-view',update);return()=>window.removeEventListener('samara-food-view',update)},[]);
+    const canViewIntake=views.includes('Resident Food Intake');
     return h(React.Fragment,null,
       h('style',null,'@media(max-width:950px){.food-view-tabs{display:none!important}}'),
-      h('div',{className:'employee-actions food-view-tabs'},(canViewIntake?['Food Vendor Management','Resident Food Intake']:['Food Vendor Management']).map(name=>h('button',{type:'button',key:name,className:foodView===name?'btn btn-primary':'btn btn-secondary',onClick:()=>{setFoodView(name);try{sessionStorage.setItem('samara_food_view',name)}catch(_error){}window.dispatchEvent(new CustomEvent('samara-food-view',{detail:name}))}},name))),
-      canViewIntake&&foodView==='Resident Food Intake'?h(ResidentFoodIntake,{profile}):window.SamaraFoodVendor?h(window.SamaraFoodVendor,{client,profile}):h('p',null,'Food Vendor files are updating. Refresh the ERP to load the module.')
+      h('div',{className:'employee-actions food-view-tabs'},(views.length>1?views:[]).map(name=>h('button',{type:'button',key:name,className:foodView===name?'btn btn-primary':'btn btn-secondary',onClick:()=>{setFoodView(name);try{sessionStorage.setItem('samara_food_view',name)}catch(_error){}window.dispatchEvent(new CustomEvent('samara-food-view',{detail:name}))}},name))),
+      canViewIntake&&(foodView==='Resident Food Intake'||!views.includes('Food Vendor Management'))?h(ResidentFoodIntake,{profile}):window.SamaraFoodVendor?h(window.SamaraFoodVendor,{client,profile}):h('p',null,'Food Vendor files are updating. Refresh the ERP to load the module.')
     );
   }
   function ResidentFoodIntake({profile}){
@@ -30904,7 +30921,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const basicFields=[
       patientSelect(patients,form.patient_id,changePatient),
       h('div',{className:'field'},h('label',null,'Category'),h('select',{value:form.category,onChange:e=>changeCategory(e.target.value)},Object.keys(categories).map(x=>h('option',{key:x,value:x},x)))),
-      h('div',{className:'field'},h('label',null,'Service / Item'),(()=>{const opts=serviceOptions(form.category,form.patient_id);const empty=!opts.length;return h(React.Fragment,null,h('select',{value:empty?'':form.service_name,onChange:e=>changeService(e.target.value),disabled:empty},empty?h('option',{value:''},nurseUser&&!form.patient_id?'Select the patient first':'Nothing received for this patient to charge'):opts.map(o=>h('option',{key:o.value,value:o.value},o.label))),empty&&nurseUser&&h('small',{style:{color:'#b42318'}},form.patient_id?'Only items indented, handed over and received for this patient — and not yet charged or returned — are listed.':'Pick the patient to see the items received for them.'))})()),
+      h('div',{className:'field'},h('label',null,'Service / Item'),(()=>{const opts=serviceOptions(form.category,form.patient_id);const empty=!opts.length;return h(React.Fragment,null,h('select',{value:empty?'':form.service_name,onChange:e=>changeService(e.target.value),disabled:empty},empty?h('option',{value:''},nurseUser&&!form.patient_id?'Select the patient first':'Nothing received for this patient to charge'):opts.map(o=>h('option',{key:o.value,value:o.value},o.label))),empty&&nurseUser&&h('small',{style:{color:'#b42318'}},form.patient_id?'Only items indented, handed over and received for this patient — and not yet charged or returned — are listed.':'Pick the patient to see the items received for them.'),
+        empty&&nurseUser&&form.patient_id&&h('button',{type:'button',className:'btn btn-primary',style:{marginTop:'8px'},onClick:()=>{if(!confirm('Open Raise Indent? This Bill / Charge form will close without saving.'))return;setShow(false);window.dispatchEvent(new CustomEvent('samara-open-page',{detail:{page:'Raise Indent',patientId:form.patient_id}}))}},'＋ Raise Indent for this patient'))})()),
       form.service_name==='Others'&&miniInput('Other Charge / Service Item',form.other_service_name,v=>setForm({...form,other_service_name:v,description:v}),true),
       miniInput('Service Date',form.charge_date,v=>setForm({...form,charge_date:v}),true,'date'),
       miniInput('Service Date & Time',form.service_datetime,v=>setForm({...form,service_datetime:v}),true,'datetime-local'),

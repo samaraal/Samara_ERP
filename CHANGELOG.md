@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.65 — "Raise Indent" link in Bills & Charges; Nurses see only Resident Food Intake
+- Bills & Charges (Nurse): when nothing has been received for the patient in Consumables / Pharmacy, a "＋ Raise Indent for this patient" button opens the Raise Indent page (after confirming the unsaved charge form can close).
+- Food & Diet: Nurses now see only Resident Food Intake (Food Vendor Management removed from their menu and page). Nursing Manager / STD keep Food Vendor Management; Admin and others keep both.
+- New in-app page-link event (`samara-open-page`) in the app shell; pages the user can't open are still blocked by the existing permission check.
+- Frontend only. Files: `src/app/accounts/09-clinical-charges.js`, `src/app/clinical/food.js`, `src/app/shell/01-app-main.js`.
+
 ## 2.14.64 — Fix: nurse's Consumables / Pharmacy list showed items already charged
 - Cause: "already charged" was counted only from the nurse-raised charge links (bill_charge_store_allocations). Charges raised by Admin / Accounts, or older charges without that link, were never subtracted, so items already billed still showed as chargeable.
 - Now: chargeable = received for the patient (Indent → Nursing Manager approval → Hand Over → Received) − returned − every non-rejected Consumables / Pharmacy charge for that patient and item, whoever raised it (older charges without an item link are matched by item name). Rejected charges don't count, so the item can be re-raised.

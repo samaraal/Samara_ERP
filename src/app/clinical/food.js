@@ -1,23 +1,33 @@
-  function foodViewPreference(){
-    try{return sessionStorage.getItem('samara_food_view')==='Resident Food Intake'?'Resident Food Intake':'Food Vendor Management'}catch(_error){return 'Food Vendor Management'}
+  // v2.14.65: Nurses see only Resident Food Intake (Food Vendor Management is not
+  // needed for them). Nursing Manager / STD keep Food Vendor Management; others see both.
+  function foodViewsFor(profile){
+    if(profile?.role==='STD'||isNursingManagerProfile(profile))return ['Food Vendor Management'];
+    if(profile?.role==='Nurse')return ['Resident Food Intake'];
+    return ['Food Vendor Management','Resident Food Intake'];
+  }
+  function foodViewPreference(profile){
+    let saved='';try{saved=sessionStorage.getItem('samara_food_view')||''}catch(_error){}
+    const views=foodViewsFor(profile);
+    return views.includes(saved)?saved:views[0];
   }
   function FoodNavigationLinks({profile,page,onNavigate,mobile=false}){
-    const [view,setView]=React.useState(foodViewPreference);
-    React.useEffect(()=>{const update=()=>setView(foodViewPreference());window.addEventListener('samara-food-view',update);return()=>window.removeEventListener('samara-food-view',update)},[]);
-    const labels=profile?.role!=='STD'&&!isNursingManagerProfile(profile)?['Food Vendor Management','Resident Food Intake']:['Food Vendor Management'];
+    const [view,setView]=React.useState(()=>foodViewPreference(profile));
+    React.useEffect(()=>{const update=()=>setView(foodViewPreference(profile));window.addEventListener('samara-food-view',update);return()=>window.removeEventListener('samara-food-view',update)},[]);
+    const labels=foodViewsFor(profile);
     return h(React.Fragment,null,labels.map(label=>h('button',{key:label,type:'button','data-nav':'Food & Diet',className:page==='Food & Diet'&&view===label?'active':'',onClick:()=>{
       try{sessionStorage.setItem('samara_food_view',label)}catch(_error){}
       setView(label);window.dispatchEvent(new CustomEvent('samara-food-view',{detail:label}));onNavigate('Food & Diet');
     }},mobile?h('span',{className:'mobile-drawer-item-icon'},'♨'):null,h('span',null,label),mobile?h('span',{className:'mobile-drawer-item-arrow'},'›'):null)));
   }
   function FoodDiet({profile}){
-    const [foodView,setFoodView]=React.useState(foodViewPreference);
-    React.useEffect(()=>{const update=e=>setFoodView(e.detail||foodViewPreference());window.addEventListener('samara-food-view',update);return()=>window.removeEventListener('samara-food-view',update)},[]);
-    const canViewIntake=profile?.role!=='STD'&&!isNursingManagerProfile(profile);
+    const views=foodViewsFor(profile);
+    const [foodView,setFoodView]=React.useState(()=>foodViewPreference(profile));
+    React.useEffect(()=>{const update=e=>setFoodView(views.includes(e.detail)?e.detail:foodViewPreference(profile));window.addEventListener('samara-food-view',update);return()=>window.removeEventListener('samara-food-view',update)},[]);
+    const canViewIntake=views.includes('Resident Food Intake');
     return h(React.Fragment,null,
       h('style',null,'@media(max-width:950px){.food-view-tabs{display:none!important}}'),
-      h('div',{className:'employee-actions food-view-tabs'},(canViewIntake?['Food Vendor Management','Resident Food Intake']:['Food Vendor Management']).map(name=>h('button',{type:'button',key:name,className:foodView===name?'btn btn-primary':'btn btn-secondary',onClick:()=>{setFoodView(name);try{sessionStorage.setItem('samara_food_view',name)}catch(_error){}window.dispatchEvent(new CustomEvent('samara-food-view',{detail:name}))}},name))),
-      canViewIntake&&foodView==='Resident Food Intake'?h(ResidentFoodIntake,{profile}):window.SamaraFoodVendor?h(window.SamaraFoodVendor,{client,profile}):h('p',null,'Food Vendor files are updating. Refresh the ERP to load the module.')
+      h('div',{className:'employee-actions food-view-tabs'},(views.length>1?views:[]).map(name=>h('button',{type:'button',key:name,className:foodView===name?'btn btn-primary':'btn btn-secondary',onClick:()=>{setFoodView(name);try{sessionStorage.setItem('samara_food_view',name)}catch(_error){}window.dispatchEvent(new CustomEvent('samara-food-view',{detail:name}))}},name))),
+      canViewIntake&&(foodView==='Resident Food Intake'||!views.includes('Food Vendor Management'))?h(ResidentFoodIntake,{profile}):window.SamaraFoodVendor?h(window.SamaraFoodVendor,{client,profile}):h('p',null,'Food Vendor files are updating. Refresh the ERP to load the module.')
     );
   }
   function ResidentFoodIntake({profile}){
