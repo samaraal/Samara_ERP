@@ -17276,7 +17276,7 @@ Please keep these login details confidential.`;
     async function load(){
       setLoading(true);
       const [m,ml,c,cl,p,pl,v]=await Promise.all([
-        client.from('medication_orders').select(`*,patients(${patientFields})`).eq('is_active',true),
+        client.from('medication_orders').select(`*,patients(${patientFields})`).or(`is_active.eq.true,stopped_at.gt.${new Date().toISOString()}`), // 2.14.73: include orders whose doctor-ordered stop is still ahead
         // Yesterday is included so a late-night dose rescheduled past midnight still appears today.
         client.from('medication_administrations').select('*').in('scheduled_date',[addDaysISODate(today,-1),today]),
         client.from('care_orders').select(`*,patients(${patientFields})`).eq('is_active',true),
@@ -22790,7 +22790,7 @@ function RoomsBeds({profile,onNavigate}){
     async function load(){
       const results=await Promise.all([
         client.from('patients').select('*').eq('is_active',true),
-        client.from('medication_orders').select('*').eq('is_active',true),
+        client.from('medication_orders').select('*').or(`is_active.eq.true,stopped_at.gt.${new Date().toISOString()}`), // 2.14.73: include orders whose doctor-ordered stop is still ahead
         client.from('medication_administrations').select('*').eq('scheduled_date',today),
         client.from('care_orders').select('*,patients(full_name,title,patient_id,room_no,bed_no)').eq('is_active',true),
         client.from('care_logs').select('*').eq('care_date',today),
@@ -22816,12 +22816,14 @@ function RoomsBeds({profile,onNavigate}){
       const seenMedicationOrders=new Set();
       const validMedicationOrders=(data[1]||[]).filter(order=>{
         if(!activePatientIds.has(order.patient_id))return false;
-        if(order.is_active===false)return false;
+        // 2.14.73: an order stopped by a doctor review that takes effect later stays current until its stop time.
+        const stopAhead=order.stopped_at&&new Date(order.stopped_at).getTime()>Date.now();
+        if(order.is_active===false&&!stopAhead)return false;
         const orderStatus=String(order.status||'').trim().toLowerCase();
-        if(['completed','discontinued','stopped','inactive'].includes(orderStatus))return false;
+        if(['completed','discontinued','stopped','inactive'].includes(orderStatus)&&!stopAhead)return false;
         if(order.end_date&&String(order.end_date)<today)return false;
         const schedule=Array.isArray(order.scheduled_times)?order.scheduled_times.map(normalizeMedicationTime).filter(Boolean).sort().join('|'):String(order.scheduled_times||'');
-        const key=[order.patient_id,String(order.medicine_name||order.medicine||'').trim().toLowerCase(),String(order.strength||order.dose||'').trim().toLowerCase(),String(order.frequency||'').trim().toLowerCase(),String(order.route||'').trim().toLowerCase(),schedule].join('::');
+        const key=[order.patient_id,String(order.medicine_name||order.medicine||'').trim().toLowerCase(),String(order.strength||order.dose||'').trim().toLowerCase(),String(order.frequency||'').trim().toLowerCase(),String(order.route||'').trim().toLowerCase(),schedule,stopAhead?`until:${order.stopped_at}`:''].join('::');
         if(seenMedicationOrders.has(key))return false;
         seenMedicationOrders.add(key);
         return true;
@@ -23258,12 +23260,22 @@ function RoomsBeds({profile,onNavigate}){
       if(Array.isArray(value))return value.filter(Boolean).map(normalizeMedicationTime).filter(Boolean);
       return String(value||'').split(',').map(normalizeMedicationTime).filter(Boolean);
     }
+    // 2.14.73: a doctor's change can take effect later. The old order is saved as Stopped with stopped_at = that later time,
+    // so it stays current until then; the new order is 'upcoming' until its effective_from.
+    function stopIsScheduled(order){const s=order?.stopped_at?new Date(order.stopped_at).getTime():NaN;return Number.isFinite(s)&&s>Date.now()}
+    function orderUpcoming(order){
+      if(!order||order.is_active===false||stopIsScheduled(order)||order.stopped_at)return false;
+      const patient=patientFor(order);if(!patient?.id||patient.is_active===false||patient.admission_status==='Discharged')return false;
+      if(['completed','discontinued','stopped','inactive'].includes(String(order.status||'').trim().toLowerCase()))return false;
+      const e=order.effective_from?new Date(order.effective_from).getTime():NaN;return Number.isFinite(e)&&e>Date.now();
+    }
     function orderActive(order){
-      if(order.is_active===false)return false;
+      const scheduledStop=stopIsScheduled(order);
+      if(order.is_active===false&&!scheduledStop)return false;
       const patient=patientFor(order);
       if(!patient?.id||patient.is_active===false||patient.admission_status==='Discharged')return false;
       const status=String(order.status||'').trim().toLowerCase();
-      if(['completed','discontinued','stopped','inactive'].includes(status))return false;
+      if(['completed','discontinued','stopped','inactive'].includes(status)&&!scheduledStop)return false;
       const end=order.end_date||'';
       if(end&&end<today)return false;
       const now=Date.now();
@@ -23281,7 +23293,7 @@ function RoomsBeds({profile,onNavigate}){
     }
     function initializeReviewPatient(patientId){
       const p=state.patients.find(row=>row.id===patientId)||{};
-      const current=state.orders.filter(o=>o.patient_id===patientId&&orderActive(o)).map(orderToReviewChange);
+      const current=state.orders.filter(o=>o.patient_id===patientId&&(orderActive(o)||orderUpcoming(o))).map(orderToReviewChange);
       const nowValue=localDateTimeValue();
       setReviewForm(currentForm=>({...currentForm,patient_id:patientId,reviewed_at:nowValue,effective_from:nowValue,doctor_name:p.treating_doctor||p.referring_doctor||'',doctor_contact:p.doctor_phone||'',changes:current}));
     }
@@ -23561,7 +23573,7 @@ function RoomsBeds({profile,onNavigate}){
       return true;
     }
     function orderDate(order){return order.effective_from||order.start_date||order.created_at||'';}
-    const activeOrders=state.orders.filter(orderActive);
+    const activeOrders=state.orders.filter(o=>orderActive(o)||orderUpcoming(o));
     const todayRows=[];
     state.orders.forEach(order=>parseTimes(order.scheduled_times).forEach(time=>{
       const patient=patientFor(order);if(!patient.id||patient.is_active===false||patient.admission_status==='Discharged')return;
@@ -23584,7 +23596,7 @@ function RoomsBeds({profile,onNavigate}){
       return pendingDoseState(x).minutes>=15;
     });
     const completedOrders=state.orders.filter(o=>String(o.status||'').toLowerCase()==='completed'||(o.end_date&&o.end_date<today&&o.is_active!==false));
-    const discontinuedOrders=state.orders.filter(o=>o.is_active===false||['discontinued','stopped','inactive'].includes(String(o.status||'').toLowerCase()));
+    const discontinuedOrders=state.orders.filter(o=>!stopIsScheduled(o)&&(o.is_active===false||['discontinued','stopped','inactive'].includes(String(o.status||'').toLowerCase())));
     const patientMatches=item=>!patientFilter||(item.order||item).patient_id===patientFilter;
     const filtered=rows=>rows.filter(patientMatches);
     const periodOrders=rows=>filtered(rows).filter(order=>dateInSelectedPeriod(orderDate(order)));
@@ -23654,8 +23666,8 @@ function RoomsBeds({profile,onNavigate}){
       const eligibleTimes=parseTimes(order.scheduled_times).filter(time=>!doseWasBeforeAdmission(order,time));
       const allTodayDone=eligibleTimes.length>0&&!pendingTime;
       return [
-        patientLabel(order),medicineLabel(order),order.route||'—',order.frequency||'—',order.duration||'—',parseTimes(order.scheduled_times).map(medicationTimeLabel).join(', ')||'—',order.food_instruction||'—',h('div',null,order.special_instruction||order.special_instructions||'—',h(TamilAssist,{text:order.special_instruction||order.special_instructions,context:'Medication Special Instruction'})),latestMar(order)?.status||'No MAR yet',
-        h('button',{type:'button',className:`btn ${allTodayDone?'btn-secondary clinical-action-done':'btn-primary'}`,disabled:allTodayDone,onClick:()=>openMar(order,pendingTime)},allTodayDone?'Done Today ✓':'Administer')
+        patientLabel(order),orderUpcoming(order)?h('div',null,medicineLabel(order),h('small',{className:'badge',style:{display:'inline-block',marginTop:'4px'}},`Starts ${fmt(order.effective_from)}`)):stopIsScheduled(order)?h('div',null,medicineLabel(order),h('small',{className:'badge off',style:{display:'inline-block',marginTop:'4px'}},`Until ${fmt(order.stopped_at)} (doctor review)`)):medicineLabel(order),order.route||'—',order.frequency||'—',order.duration||'—',parseTimes(order.scheduled_times).map(medicationTimeLabel).join(', ')||'—',order.food_instruction||'—',h('div',null,order.special_instruction||order.special_instructions||'—',h(TamilAssist,{text:order.special_instruction||order.special_instructions,context:'Medication Special Instruction'})),latestMar(order)?.status||'No MAR yet',
+        orderUpcoming(order)?h('button',{type:'button',className:'btn btn-secondary',disabled:true},'Starts later'):h('button',{type:'button',className:`btn ${allTodayDone?'btn-secondary clinical-action-done':'btn-primary'}`,disabled:allTodayDone,onClick:()=>openMar(order,pendingTime)},allTodayDone?'Done Today ✓':'Administer')
       ];
     });
     const marRows=items=>filtered(items).map(item=>{

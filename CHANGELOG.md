@@ -7,7 +7,9 @@ The full original notes for older releases are kept in [`docs/release-notes/`](d
 - A doctor's change can now be ordered to start later (up to 30 days ahead). The current prescription continues until that moment; no dose of the new order is scheduled before it. The form shows "Future start: the new order begins …" when a later time is chosen.
 - Doctor Review Date & Time still cannot be in the future.
 - Fix: a filled date that was outside the allowed range showed "… is required". The message now says what is wrong (e.g. "later than allowed"); "required" is shown only for an empty field. This applies to all forms.
-- Frontend only. Files: `src/app/clinical/medicines.js`, `src/app/global-ui/03-form-requirements.js`.
+- Active Prescriptions shows the old medicine as "Until <time> (doctor review)" and the new one as "Starts <time>" (button "Starts later"). Shift Tasks and the Clinical Dashboard keep giving the old medicine's doses until the change time.
+- **SQL required (run once, before or with this upload):** `supabase/sql/154_medication_review_future_start.sql` — changes one line in `apply_medication_review` (future limit 1 minute → 30 days). The review date/time is still not allowed in the future.
+- Files: `src/app/clinical/medicines.js`, `src/app/clinical/clinical-dashboard.js`, `src/app/nursing/shift-tasks.js`, `src/app/global-ui/03-form-requirements.js`, `supabase/sql/154_medication_review_future_start.sql`.
 
 ## 2.14.72 — Patient record › Medicines: "Add / Modify Medicines" button for nurses
 - Nurses saw the patient record as "View only" and had no way to change medicines from it (the only shortcut was inside Edit Patient, which is Admin / Manager only).

@@ -20,7 +20,7 @@
     async function load(){
       setLoading(true);
       const [m,ml,c,cl,p,pl,v]=await Promise.all([
-        client.from('medication_orders').select(`*,patients(${patientFields})`).eq('is_active',true),
+        client.from('medication_orders').select(`*,patients(${patientFields})`).or(`is_active.eq.true,stopped_at.gt.${new Date().toISOString()}`), // 2.14.73: include orders whose doctor-ordered stop is still ahead
         // Yesterday is included so a late-night dose rescheduled past midnight still appears today.
         client.from('medication_administrations').select('*').in('scheduled_date',[addDaysISODate(today,-1),today]),
         client.from('care_orders').select(`*,patients(${patientFields})`).eq('is_active',true),

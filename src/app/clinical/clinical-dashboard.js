@@ -38,7 +38,7 @@
     async function load(){
       const results=await Promise.all([
         client.from('patients').select('*').eq('is_active',true),
-        client.from('medication_orders').select('*').eq('is_active',true),
+        client.from('medication_orders').select('*').or(`is_active.eq.true,stopped_at.gt.${new Date().toISOString()}`), // 2.14.73: include orders whose doctor-ordered stop is still ahead
         client.from('medication_administrations').select('*').eq('scheduled_date',today),
         client.from('care_orders').select('*,patients(full_name,title,patient_id,room_no,bed_no)').eq('is_active',true),
         client.from('care_logs').select('*').eq('care_date',today),
@@ -64,12 +64,14 @@
       const seenMedicationOrders=new Set();
       const validMedicationOrders=(data[1]||[]).filter(order=>{
         if(!activePatientIds.has(order.patient_id))return false;
-        if(order.is_active===false)return false;
+        // 2.14.73: an order stopped by a doctor review that takes effect later stays current until its stop time.
+        const stopAhead=order.stopped_at&&new Date(order.stopped_at).getTime()>Date.now();
+        if(order.is_active===false&&!stopAhead)return false;
         const orderStatus=String(order.status||'').trim().toLowerCase();
-        if(['completed','discontinued','stopped','inactive'].includes(orderStatus))return false;
+        if(['completed','discontinued','stopped','inactive'].includes(orderStatus)&&!stopAhead)return false;
         if(order.end_date&&String(order.end_date)<today)return false;
         const schedule=Array.isArray(order.scheduled_times)?order.scheduled_times.map(normalizeMedicationTime).filter(Boolean).sort().join('|'):String(order.scheduled_times||'');
-        const key=[order.patient_id,String(order.medicine_name||order.medicine||'').trim().toLowerCase(),String(order.strength||order.dose||'').trim().toLowerCase(),String(order.frequency||'').trim().toLowerCase(),String(order.route||'').trim().toLowerCase(),schedule].join('::');
+        const key=[order.patient_id,String(order.medicine_name||order.medicine||'').trim().toLowerCase(),String(order.strength||order.dose||'').trim().toLowerCase(),String(order.frequency||'').trim().toLowerCase(),String(order.route||'').trim().toLowerCase(),schedule,stopAhead?`until:${order.stopped_at}`:''].join('::');
         if(seenMedicationOrders.has(key))return false;
         seenMedicationOrders.add(key);
         return true;
