@@ -41,6 +41,39 @@ Deno.serve(async(req)=>{
     }
    }
   }
-  return json({ok:true,attempts:events?.length||0,sent,failed});
+  // 2.14.77: vendor reply alerts (Returned -> Nursing Manager + Admin/Director; Needs Modification and
+  // No reply after 30 min -> Nursing Manager). Who gets what is decided in fv_claim_reply_push (SQL 156),
+  // which also makes sure each phone gets each alert only once.
+  let replyAlerts=0;
+  const {data:alerts,error:ae}=await db.rpc('fv_vendor_reply_alert_rows',{p_now:new Date().toISOString()});
+  if(ae)console.error('Food vendor reply alerts unavailable:',ae.message);
+  for(const alert of alerts||[]){
+   replyAlerts++;
+   const day=/^\d{4}-\d{2}-\d{2}$/.test(alert.order_date||'')?alert.order_date.split('-').reverse().join('-'):alert.order_date;
+   const meal=alert.meal+' '+day+(alert.delivery?', delivery '+alert.delivery:'');
+   const text=alert.alert_type==='Returned'
+    ?{title:'SAMARA · Vendor RETURNED food order',body:alert.vendor_name+' returned '+alert.order_ref+', '+meal+'. Arrange other food now.'}
+    :alert.alert_type==='Modification Requested'
+    ?{title:'SAMARA · Vendor asks to modify food order',body:alert.vendor_name+' tapped Needs Modification for '+alert.order_ref+', '+meal+'. Check their WhatsApp message and send a revised order.'}
+    :{title:'SAMARA · No reply from food vendor',body:'No reply for '+alert.order_ref+', '+meal+', '+alert.minutes+' minutes after sending. Please call the vendor.'};
+   const payload=JSON.stringify({...text,tag:'samara-food-reply-'+alert.message_id,event_kind:'food_vendor_reply',url:'./?push_page=Notifications',renotify:true,requireInteraction:true,icon:'./icons/icon-192.png',badge:'./icons/icon-192.png'});
+   for(const sub of subs||[]){
+    const {data:claimed,error:ce}=await db.rpc('fv_claim_reply_push',{p_alert_key:alert.alert_key,p_subscription:sub.id,p_alert_type:alert.alert_type,p_event_at:alert.event_at});
+    if(ce){console.error('Food reply push claim failed:',ce.message);continue;}
+    if(!claimed)continue;
+    let accepted=false;
+    try{
+     await webpush.sendNotification({endpoint:sub.endpoint,keys:{p256dh:sub.p256dh,auth:sub.auth_key}},payload,{TTL:600,urgency:'high'});
+     accepted=true;sent++;
+     await db.from('fv_reply_push_receipts').update({state:'sent',sent_at:new Date().toISOString(),detail:null}).eq('alert_key',alert.alert_key).eq('subscription_id',sub.id);
+    }catch(error:any){
+     failed++;const status=Number(error?.statusCode)||0;
+     const retry=!accepted&&(status===429||status>=500);
+     await db.from('fv_reply_push_receipts').update({state:retry?'retry':'failed',retry_after:retry?new Date(Date.now()+300000).toISOString():null,detail:accepted?'Push accepted; receipt update failed':status?'Push provider HTTP '+status:'Delivery uncertain; automatic retry suppressed'}).eq('alert_key',alert.alert_key).eq('subscription_id',sub.id);
+     if(status===404||status===410)await db.from('push_subscriptions').update({is_active:false,updated_at:new Date().toISOString()}).eq('id',sub.id);
+    }
+   }
+  }
+  return json({ok:true,attempts:events?.length||0,reply_alerts:replyAlerts,sent,failed});
  }catch(error:any){console.error('Food cutoff dispatch failed:',error?.message||'Unknown error');return json({error:'Food cutoff dispatch failed'},500)}
 });

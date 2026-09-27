@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.76';
+  const APP_VERSION = '2.14.77';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6432,6 +6432,30 @@ https://samaraassistedliving.com/`;
     return null;
   }
 
+  // 2.14.77: food vendor WhatsApp reply alerts (Returned / Needs Modification / No reply after 30 min). See SQL 156.
+  function foodVendorAlertText(a){
+    const day=/^\d{4}-\d{2}-\d{2}$/.test(a?.order_date||'')?a.order_date.split('-').reverse().join('-'):(a?.order_date||'');
+    const meal=`${a?.meal||'Meal'} ${day}${a?.delivery?`, delivery ${a.delivery}`:''}`;
+    if(a?.alert_type==='Returned')return {title:'Vendor RETURNED the food order',detail:`${a.vendor_name||'The vendor'} returned ${a.order_ref} (${meal}). The food will not come from this vendor. Arrange other food now, then mark it handled.`,tone:'#c63d3d',label:'Returned'};
+    if(a?.alert_type==='Modification Requested')return {title:'Vendor asks to change the food order',detail:`${a.vendor_name||'The vendor'} tapped "Needs Modification" for ${a.order_ref} (${meal}). Read their WhatsApp message, then send a revised order or call them.`,tone:'#c77700',label:'Needs Modification'};
+    return {title:'No reply from the food vendor',detail:`No reply for ${a?.order_ref} (${meal}) ${a?.minutes||30} minutes after the order was sent. Please call the vendor to confirm.`,tone:'#7a5b00',label:'No reply'};
+  }
+  function openFoodVendorMessage(a,onNavigate){
+    const target={tab:'Messages',message_id:a?.message_id||'',order_date:a?.order_date||'',at:Date.now()};
+    try{sessionStorage.setItem('samara_food_view','Food Vendor Management');sessionStorage.setItem('samara_food_vendor_target',JSON.stringify(target));}catch(_error){}
+    if(typeof onNavigate==='function')onNavigate('Food & Diet');
+    setTimeout(()=>window.dispatchEvent(new CustomEvent('samara-food-vendor-target',{detail:target})),0);
+  }
+  async function markFoodVendorAlertHandled(a){
+    const note=window.prompt('What was done? (for example: called vendor, arranged other food, sent revised order)','');
+    if(note===null)return false;
+    if(!String(note).trim()){showSamaraActionToast('error','Note required','Enter what was done before marking it handled.');return false;}
+    const {error}=await client.rpc('fv_mark_vendor_reply_handled',{p_message_id:a.message_id,p_note:String(note).trim()});
+    if(error){showSamaraActionToast('error','Could not mark handled',error.message);return false;}
+    showSamaraActionToast('success','Marked handled',`${a.order_ref}: ${String(note).trim()}`);
+    return true;
+  }
+
   function ClinicalAlertBell({engine,onOpen}){
     const [preview,setPreview]=React.useState(false);
     const rows=(engine?.alerts||[]).slice().sort((a,b)=>{
@@ -6471,6 +6495,12 @@ https://samaraassistedliving.com/`;
     async function loadCutoffAttempts(){if(!cutoffAdmin)return;const {data,error}=await client.from('fv_cutoff_attempts').select('id,actor_name,actor_role,operation,supply_date,meal_slot,deadline,attempted_at').order('attempted_at',{ascending:false}).limit(100);if(error)throw error;setCutoffAttempts(data||[])}
     const nursingManager=profile?.role==='Manager'&&(isNursingManagerProfile(profile)||employeeDepartment(profile)==='Nursing');
     const [foodReceiptDue,setFoodReceiptDue]=React.useState([]);
+    const [foodReplyAlerts,setFoodReplyAlerts]=React.useState([]);
+    async function loadFoodReplyAlerts(){
+      if(!(nursingManager||cutoffAdmin))return;
+      try{const {data,error}=await client.rpc('fv_vendor_reply_alerts');if(error)throw error;setFoodReplyAlerts(Array.isArray(data)?data:[]);}
+      catch(_error){/* Needs SQL 156; until then this section simply stays empty. */}
+    }
     async function loadFoodReceiptDue(){
       if(!(nursingManager||cutoffAdmin))return;
       try{
@@ -6503,6 +6533,7 @@ https://samaraassistedliving.com/`;
       return()=>{if(channel)client.removeChannel(channel)};
     },[profile?.id,nursingManager]);
     React.useEffect(()=>{if(!cutoffAdmin)return;const refresh=()=>loadCutoffAttempts().catch(error=>setMessage(error.message||'Unable to load food cutoff attempts.'));const timer=setInterval(refresh,15000);window.addEventListener('focus',refresh);return()=>{clearInterval(timer);window.removeEventListener('focus',refresh)}},[profile?.id,cutoffAdmin]);
+    React.useEffect(()=>{if(!(nursingManager||cutoffAdmin))return;loadFoodReplyAlerts();const timer=setInterval(loadFoodReplyAlerts,30000);window.addEventListener('focus',loadFoodReplyAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadFoodReplyAlerts)}},[profile?.id,nursingManager,cutoffAdmin]);
     React.useEffect(()=>{if(!(nursingManager||cutoffAdmin))return;loadFoodReceiptDue();const timer=setInterval(loadFoodReceiptDue,60000);window.addEventListener('focus',loadFoodReceiptDue);return()=>{clearInterval(timer);window.removeEventListener('focus',loadFoodReceiptDue)}},[profile?.id,nursingManager,cutoffAdmin]);
     const overdueClinical=(engine?.alerts||[]).filter(a=>{
       if(Number(a.overdue_minutes||0)<30)return false;
@@ -6520,6 +6551,13 @@ https://samaraassistedliving.com/`;
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(165px,1fr))',gap:'12px',marginBottom:'18px'}},nursingManager?metric('Store Requests',awaitingApproval.length,'Patient Consumables'):null,nursingManager?metric('Awaiting Handover',awaitingHandover.length,'Patient Consumables'):null,metric('Medication > 30 min',medicineAlerts.length,'Clinical Escalations','#efb6b6'),metric('Care > 30 min',careAlerts.length,'Clinical Escalations','#efcf9c'),nursingManager?metric('Store Discrepancies',discrepancies.length,'Patient Consumables','#efb6b6'):null),
       nursingManager?h('section',{style:{marginBottom:'20px'}},h('h4',null,'Pharmacy & Stores Requests'),h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Item','Quantity','Status','Requested'].map(x=>h('th',{key:x},x)))),h('tbody',null,storeRequests.map(r=>h('tr',{key:r.id,role:'button',tabIndex:0,onClick:()=>navigate('Patient Consumables'),style:{cursor:'pointer',touchAction:'manipulation'}},h('td',null,patientName(r)),h('td',null,r.item_name||'Consumable'),h('td',null,`${r.requested_qty||'—'} ${r.unit||''}`),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)))),storeRequests.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No open Pharmacy & Stores requests.')):null)))):null,
       cutoffAdmin?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Food Order Cutoff Attempts'),h('small',null,'Latest 100 blocked attempts. India time. Viewing an expired form alone does not create an alert.'),cutoffAttempts.length?cutoffAttempts.map(a=>h('article',{key:a.id,style:{border:'1px solid #efd3d3',borderRadius:'12px',padding:'12px',marginTop:'10px',background:'#fff8f8'}},h('strong',null,`${a.meal_slot} · ${formatDateIN(a.supply_date)} · Blocked`),h('p',null,`${a.actor_name} (${a.actor_role}) attempted ${a.operation==='modify'?'a modification':a.operation==='save'?'to save a draft':'a new order'}.`),h('p',null,`Attempt: ${fmt(a.attempted_at)} · Cutoff: ${fmt(a.deadline)}`))):h('p',{className:'empty'},'No blocked food order attempts.')):null,
+      (nursingManager||cutoffAdmin)?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Food Vendor Replies — Action Needed'),h('small',null,'From the vendor\'s WhatsApp buttons. Returned = the vendor will not supply this order. No reply = nothing tapped 30 minutes after sending.'),
+        foodReplyAlerts.length?foodReplyAlerts.map(a=>{const t=foodVendorAlertText(a);return h('article',{key:a.alert_key,style:{border:`1px solid ${t.tone}`,borderLeft:`6px solid ${t.tone}`,borderRadius:'12px',padding:'12px',marginTop:'10px',background:'#fff'}},
+          h('strong',{style:{color:t.tone}},t.label+' · '+(a.order_ref||'')),
+          h('p',{style:{margin:'6px 0'}},t.detail),
+          h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
+            h('button',{type:'button',className:'btn btn-primary',onClick:()=>openFoodVendorMessage(a,onNavigate)},'Open order message'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{if(await markFoodVendorAlertHandled(a))loadFoodReplyAlerts()}},'Mark handled')))}):h('p',{className:'small-note'},'No food vendor replies need action.')):null,
       (nursingManager||cutoffAdmin)?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Food Receipts Overdue'),h('small',null,'Delivered orders past their 2-hour receipt entry window. Record what actually arrived now — an order left open past the 1-hour grace period auto-closes as not received and is not billed.'),foodReceiptDue.length?foodReceiptDue.map(({order:o,deadline:d})=>h('article',{key:o.id,style:{border:'1px solid #efd3d3',borderRadius:'12px',padding:'12px',marginTop:'10px',background:'#fff8f8'}},h('strong',null,`${o.data.slot==='Tiffin'?'Breakfast':o.data.slot} · ${formatDateIN(o.data.date)} · ${o.status}`),h('p',null,`Delivery time: ${o.data.delivery} IST · Overdue by ${Math.floor(d.overdueMinutes/60)}h ${d.overdueMinutes%60}m · Auto-closes as not received at ${new Date(d.closeAt).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit',hour12:true})} IST if not recorded.`),h('button',{type:'button',className:'btn btn-primary',onClick:()=>{try{sessionStorage.setItem('samara_food_view','Food Vendor Management')}catch(_error){}navigate('Food & Diet')}},'Record receipt now'))):h('p',{className:'empty'},'No food orders are currently overdue for receipt entry.')):null,
       h('section',null,h('h4',null,'Medication & Care Escalations — Over 30 Minutes'),h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Room','Type','Details','Overdue'].map(x=>h('th',{key:x},x)))),h('tbody',null,overdueClinical.map(a=>h('tr',{key:a.key||`${a.alert_type}-${a.source_id}`,role:'button',tabIndex:0,onClick:()=>navigate('Clinical Escalations'),style:{cursor:'pointer',touchAction:'manipulation'}},h('td',null,a.patient_name||'Patient'),h('td',null,a.room_label||'—'),h('td',null,/medic|medicine/.test(`${a.alert_type||''} ${a.title||''}`.toLowerCase())?'Medication':'Care'),h('td',null,a.description||a.title||'Pending clinical action'),h('td',null,englishOverdueLabel(a.overdue_minutes)))),overdueClinical.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No medication or care escalation is currently overdue by 30 minutes.')):null))))
     );
@@ -6532,7 +6570,9 @@ https://samaraassistedliving.com/`;
     const isManagement=['admin','administrator','director'].includes(role)||(role==='manager'&&!isNursingManagerProfile(profile));
     const isAccounts=role==='accounts';
     const isNursing=role==='nurse'||(role==='manager'&&isNursingManagerProfile(profile));
-    const canReceive=isManagement||isAccounts||isNursing;
+    const foodAdmin=['admin','administrator','director'].includes(role);
+    const foodManager=role==='manager'&&isNursingManagerProfile(profile);
+    const canReceive=isManagement||isAccounts||isNursing||foodAdmin;
     const dismiss=current=>{if(current?.key)closed.current.add(current.key);setItem(null)};
     const load=React.useCallback(async()=>{
       if(!canReceive){setItem(null);return}
@@ -6542,7 +6582,10 @@ https://samaraassistedliving.com/`;
         else jobs.push(Promise.resolve({data:[],error:null}));
         if(isAccounts)jobs.push(client.from('bill_charge_requests').select('id,patient_id,service_name,description,approval_status,created_at').eq('approval_status','Pending').order('created_at',{ascending:false}).limit(100));
         else jobs.push(Promise.resolve({data:[],error:null}));
-        const [dis,charges]=await Promise.all(jobs);
+        // 2.14.77: food vendor reply alerts. Returned -> Nursing Manager + Admin/Director; Needs Modification / No reply -> Nursing Manager.
+        if(foodManager||foodAdmin)jobs.push(client.rpc('fv_vendor_reply_alerts'));
+        else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges,food]=await Promise.all(jobs);
         const candidates=[];
         (dis.data||[]).forEach(row=>{
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
@@ -6554,7 +6597,12 @@ https://samaraassistedliving.com/`;
           if(isNursing&&accounts==='cleared')candidates.push({key:`discharge-nursing-${row.id}-${status}`,kind:'Discharge',title:'Accounts cleared — Nursing action required',detail:'Accounts clearance is complete. Please complete Final Discharge Clearance and patient handover.',page:'Discharge',target:{type:'nursing-discharge',discharge_id:row.id,patient_id:row.patient_id},at:row.created_at});
         });
         if(isAccounts)(charges.data||[]).forEach(row=>candidates.push({key:`charge-${row.id}-${row.approval_status}`,kind:'Charge Request',title:'New charge request',detail:row.service_name||row.description||'A charge has been raised and is waiting for Accounts review.',page:'Charge Approvals',target:{type:'charge-request',request_id:row.id,patient_id:row.patient_id},at:row.created_at}));
-        candidates.sort((a,b)=>new Date(b.at||0)-new Date(a.at||0));
+        if(!food?.error&&Array.isArray(food?.data))food.data.forEach(a=>{
+          if(a.alert_type!=='Returned'&&!foodManager)return;
+          const t=foodVendorAlertText(a);
+          candidates.push({key:`food-${a.alert_key}`,kind:'Food Vendor',title:t.title,detail:t.detail,page:'Food & Diet',food:a,urgent:a.alert_type==='Returned',at:a.event_at});
+        });
+        candidates.sort((a,b)=>Number(!!b.urgent)-Number(!!a.urgent)||new Date(b.at||0)-new Date(a.at||0));
         const next=candidates.find(x=>!closed.current.has(x.key));
         setItem(current=>current&&candidates.some(x=>x.key===current.key)?current:(next||null));
       }catch(error){console.warn('Workflow action pop-up unavailable:',error)}
@@ -6570,6 +6618,8 @@ https://samaraassistedliving.com/`;
       h('div',{className:'samara-workflow-popup-detail'},item.detail),
       h('div',{className:'samara-workflow-popup-actions'},
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dismiss(item)},'Close'),
+        item.food?h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{if(await markFoodVendorAlertHandled(item.food)){dismiss(item);load();}}},'Mark handled'):null,
+        item.food?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{dismiss(item);openFoodVendorMessage(item.food,onNavigate)}},'Open order message'):
         h('button',{type:'button',className:'btn btn-primary',onClick:()=>{const target=item.target?{...item.target,at:Date.now()}:null;try{if(target)sessionStorage.setItem('samara-workflow-target',JSON.stringify(target));}catch(_error){} dismiss(item);onNavigate(item.page);/* v2.14.45: tell an already-open page to show this exact item now */if(target)setTimeout(()=>window.dispatchEvent(new CustomEvent('samara-workflow-target',{detail:target})),0)}},'Open & Take Action'))
     ));
   }

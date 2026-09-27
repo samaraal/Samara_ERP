@@ -3,6 +3,20 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.77 — Food vendor WhatsApp replies now raise alerts
+- The vendor's button reply on the food order WhatsApp (Acknowledged / Returned / Needs Modification) used to be recorded silently in Messages only. Now:
+  - **Returned** (vendor will not supply): urgent pop-up + phone push to the Nursing Manager and Admin / Director.
+  - **Needs Modification**: pop-up + phone push to the Nursing Manager.
+  - **No reply** 30 minutes after an order was sent by WhatsApp (and before its delivery time): pop-up + phone push to the Nursing Manager.
+  - **Acknowledged**: no alert; a green "✓ Vendor acknowledged" badge on the order.
+- Notifications has a new "Food Vendor Replies — Action Needed" section (Nursing Manager, Admin / Director) with "Open order message" and "Mark handled". Mark handled needs a short note (e.g. "called vendor, arranged other food"). A new vendor reply re-opens the alert; a later Acknowledged clears an earlier Returned / Needs Modification.
+- Food Vendor Management › Orders and History show the vendor's reply as a coloured badge (Acknowledged / RETURNED / Asks changes / Awaiting reply). Messages shows "Mark handled" and the handled note.
+- The old "Request WhatsApp Confirmation" button is removed: the order message itself now carries the reply buttons, and its separate template was never submitted to Meta.
+- **SQL required:** `supabase/sql/156_food_vendor_reply_alerts.sql` (new columns on fv_messages + alert, handled and push functions; fv_rpc / fv_access / the webhook reply function are unchanged).
+- **Edge Function redeploy required for phone pushes:** `food-cutoff-push` (copy: `supabase/function-copies/food-cutoff-push.ts`). It keeps sending the cutoff pushes exactly as before and now also sends the vendor-reply pushes; each phone gets each alert once. The existing every-minute schedule is reused. Pop-ups and Notifications work without this redeploy.
+- Files: `food-vendor.js`, `src/app/global-ui/06-bell-notifications-popups.js`, `supabase/sql/156_food_vendor_reply_alerts.sql`, `supabase/function-copies/food-cutoff-push.ts`, version files, `app.js` (rebuilt).
+- This package also contains everything from 2.14.74, 2.14.75 and 2.14.76.
+
 ## 2.14.76 — Doctor Review: "Add New Medicine" opens its own popup; several medicines at once
 - "Add New Medicine" now opens a separate popup. Enter one medicine, or press "+ Add another medicine" to enter several on the same page; each has Remove.
 - "Save" checks every medicine (name, strength number + unit, frequency, route, time, start date & time), closes the popup and shows a confirmation: "N new medicines added … Press Apply Doctor Review & Update Medication to save to the patient record."

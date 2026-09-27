@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.76';
-const CACHE = 'samara-erp-2.14.76-add-medicines-popup';
+const APP_VERSION = '2.14.77';
+const CACHE = 'samara-erp-2.14.77-food-vendor-reply-alerts';
 const SHELL = [
   './',
   './index.html',
