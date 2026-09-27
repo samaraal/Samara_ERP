@@ -3,6 +3,13 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.69 — Pharmacy & Stores: stock search, separate Receive / Edit buttons, Remove Item fixed
+- Stock list has its own "Search stock" box (item name or code, e.g. "diaper" or "CON-0017"); it no longer shares the Receive from Vendor search.
+- "Receive from Vendor" now opens from its own button (closed by default); every item also has a "Receive Stock" button that opens the form with that item already selected.
+- "Edit Item" opens an on-page form (name, unit, strength, dosage form) instead of four browser pop-ups.
+- "Remove Item" fixed: it asks in an on-page box (browser pop-ups can be blocked) and a removed item now disappears from the stock list, counts and item pickers. Items with history are still only deactivated, so their receipts, issues and charges are kept.
+- Frontend only. File: `src/app/stores/consumables-stores.js`.
+
 ## 2.14.68 — Fix: Medication Administration date filter was one day early
 - Picking From 24-09 To 27-09 searched 23-09 to 26-09, and the Period choices (Today / 7 Days / 30 Days) also started one day early. Cause: the day list was built with a UTC conversion, which in India (UTC+5:30) turns local midnight into the previous day.
 - Now the dates are worked out as plain calendar dates with the existing `addDaysISODate` helper, so the dates shown and searched are exactly the dates chosen.

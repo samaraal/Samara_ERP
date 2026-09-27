@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.68';
-const CACHE = 'samara-erp-2.14.68-mar-date-filter-fix';
+const APP_VERSION = '2.14.69';
+const CACHE = 'samara-erp-2.14.69-stores-search-receive-remove';
 const SHELL = [
   './',
   './index.html',
