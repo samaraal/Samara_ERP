@@ -3,6 +3,15 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.76 — Doctor Review: "Add New Medicine" opens its own popup; several medicines at once
+- "Add New Medicine" now opens a separate popup. Enter one medicine, or press "+ Add another medicine" to enter several on the same page; each has Remove.
+- "Save" checks every medicine (name, strength number + unit, frequency, route, time, start date & time), closes the popup and shows a confirmation: "N new medicines added … Press Apply Doctor Review & Update Medication to save to the patient record."
+- The added medicines appear in the review list as short cards (name, strength, schedule, start time) with Edit (reopens the popup for that medicine) and Remove.
+- Nothing is saved to the patient record until "Apply Doctor Review & Update Medication", which keeps the rule that medicines change only through a doctor review (doctor name and prescription / verbal-order details).
+- Modify and Stop for existing medicines work as before.
+- Files: `src/app/clinical/medicines.js`, `styles.css`, version files, `app.js` (rebuilt).
+- This package also contains everything from 2.14.74 and 2.14.75.
+
 ## 2.14.75 — Medicine Strength: number + unit from a list
 - Admission form and Doctor Review / Modify: Strength is now a number box plus a Unit dropdown (mg, mcg, g, ml, mg/ml, mg/5 ml, IU, units, %, drops, tablet, capsule, puff, sachet, patch). Letters cannot be typed in the number box, so mistakes like "500ma" are no longer possible. Combination strengths such as 50/500 mg still work.
 - Saved exactly as before, as one text value (e.g. "500 mg"). No SQL needed for this part.

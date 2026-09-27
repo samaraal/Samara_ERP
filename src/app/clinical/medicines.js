@@ -39,6 +39,11 @@
     const taskNavigationHandled=React.useRef(false);
     const canReviseMedication=['Admin','Manager','Nurse'].includes(profile?.role);
     const [reviewOpen,setReviewOpen]=React.useState(false);
+    // 2.14.76: "Add New Medicine" popup — several new medicines entered together, then added to the review.
+    const [addMedOpen,setAddMedOpen]=React.useState(false);
+    const [addMedRows,setAddMedRows]=React.useState([]);
+    const [addMedEditIndex,setAddMedEditIndex]=React.useState(null);
+    const [addMedMessage,setAddMedMessage]=React.useState('');
     const [reviewBusy,setReviewBusy]=React.useState(false);
     const [reviewMessage,setReviewMessage]=React.useState('');
     const [reviewFile,setReviewFile]=React.useState(null);
@@ -102,6 +107,39 @@
       if(patientId)setTimeout(()=>initializeReviewPatient(patientId),0);
     }
     function updateReviewChange(index,patch){setReviewForm(current=>({...current,changes:current.changes.map((row,i)=>i===index?{...row,...patch}:row)}));}
+    function openAddMedicines(editIndex=null){
+      setAddMedMessage('');
+      setAddMedEditIndex(editIndex);
+      setAddMedRows(editIndex===null?[blankReviewMedicine('Add')]:[{...reviewForm.changes[editIndex]}]);
+      setAddMedOpen(true);
+    }
+    React.useEffect(()=>{if(!reviewOpen)setAddMedOpen(false)},[reviewOpen]);
+    function updateAddMedRow(index,patch){setAddMedRows(rows=>rows.map((row,i)=>i===index?{...row,...patch}:row));}
+    function addMedRowProblem(row){
+      const name=String(row.medicine_name||'').trim()||'this medicine';
+      if(!String(row.medicine_name||'').trim())return 'Enter the medicine name.';
+      if(!medicationStrengthValid(row.strength))return `Enter the Strength (number and unit) for ${name}.`;
+      if(!row.frequency||!row.route||!parseTimes(row.times).length)return `Complete Frequency, Route and Time for ${name}.`;
+      if(row.duration==='Custom'&&Number(row.custom_duration_days||0)<=0)return `Enter valid custom duration days for ${name}.`;
+      const t=new Date(String(row.effective_from||'').trim()||reviewForm.effective_from).getTime();
+      if(!Number.isFinite(t))return `Enter a valid start date & time for ${name}.`;
+      if(t>Date.now()+REVIEW_EFFECTIVE_MAX_DAYS*86400000)return `Start date & time for ${name} can be at most ${REVIEW_EFFECTIVE_MAX_DAYS} days ahead.`;
+      return '';
+    }
+    function saveAddMedicines(){
+      const rows=addMedRows.filter(row=>String(row.medicine_name||'').trim()||String(row.strength||'').trim());
+      if(!rows.length)return setAddMedMessage('Enter at least one medicine, or press Cancel.');
+      for(const row of rows){const problem=addMedRowProblem(row);if(problem)return setAddMedMessage(problem);}
+      const names=rows.map(row=>`${row.medicine_name} ${row.strength}`.trim());
+      if(addMedEditIndex!==null){
+        setReviewForm(current=>({...current,changes:current.changes.map((row,i)=>i===addMedEditIndex?{...rows[0],action:'Add'}:row)}));
+      }else{
+        setReviewForm(current=>({...current,changes:[...current.changes,...rows.map(row=>({...row,action:'Add'}))]}));
+      }
+      setAddMedOpen(false);setAddMedRows([]);setAddMedEditIndex(null);setAddMedMessage('');
+      showSamaraActionToast('success',addMedEditIndex!==null?'Medicine updated':`${rows.length} new medicine${rows.length>1?'s':''} added`,
+        `${names.join(', ')}. Press "Apply Doctor Review & Update Medication" to save to the patient record.`);
+    }
     const REVIEW_EFFECTIVE_MAX_DAYS=30; // 2.14.73: a doctor's change may be ordered to start up to 30 days ahead
     function durationEndDate(change,effectiveAt){
       const start=String(effectiveAt||'').slice(0,10)||today;
@@ -117,6 +155,43 @@
       const uploaded=await client.storage.from('patient-documents').upload(path,reviewFile,{contentType:reviewFile.type||undefined});
       if(uploaded.error)throw uploaded.error;
       return {path,name:reviewFile.name};
+    }
+    // Editable fields of a new / modified medicine (used in the review list and in the Add New Medicine popup).
+    function reviewMedicineFields(row,patch){
+      return h(React.Fragment,null,
+        h('div',{className:'medication-review-fields'},
+
+                miniInput('Medicine',row.medicine_name,v=>patch({medicine_name:v}),true),
+                h(MedicationStrengthInput,{label:'Strength',value:row.strength,onChange:v=>patch({strength:v}),required:true}),
+                miniSelect('Frequency',row.frequency,medicationFrequencies,v=>patch({frequency:v,times:(MEDICATION_FREQUENCY_TIMES[v]||parseTimes(row.times)).join(', ') })),
+                miniSelect('Route',row.route,medicationRoutes,v=>patch({route:v})),
+                h(MedicationTimeSelector,{label:'Time',value:row.times,onChange:v=>patch({times:v}),required:true}),
+                miniSelect('Food',row.food_instruction,medicationFood,v=>patch({food_instruction:v})),
+                miniSelect('Duration',row.duration,medicationDurations,v=>patch({duration:v})),
+                row.duration==='Custom'&&miniInput('Custom days',row.custom_duration_days,v=>patch({custom_duration_days:v}),true,'number'),
+                miniInput('Special instruction',row.special_instruction,v=>patch({special_instruction:v}))
+        ),
+(()=>{
+                // 2.14.74: start / stop date & time for this medicine only (defaults to the review's Effective From).
+                const own=String(row.effective_from||'').trim();const value=own||reviewForm.effective_from;
+                const t=new Date(value).getTime();const isStop=row.action==='Stop';
+                return h('div',{className:'field medication-review-row-effective',style:{marginTop:'8px'}},
+                  h('label',null,isStop?'Stop from (date & time)':'Starts from (date & time)'),
+                  h('input',{type:'datetime-local',required:true,max:localDateTimeValue(new Date(Date.now()+REVIEW_EFFECTIVE_MAX_DAYS*86400000)),value,onChange:e=>patch({effective_from:e.target.value})}),
+                  Number.isFinite(t)&&t>Date.now()+60000
+                    ?h('small',{style:{display:'block',marginTop:'4px',color:'#7a1247',fontWeight:700}},isStop?`Stops ${fmt(new Date(t).toISOString())}. Doses continue until then.`:`Future start: first dose from ${fmt(new Date(t).toISOString())}. No dose before that.`)
+                    :h('small',{style:{display:'block',marginTop:'4px'}},own?'Set for this medicine only.':'Same as Effective From above. Change it to give this medicine its own time.'),
+                  own&&own!==reviewForm.effective_from?h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'6px'},onClick:()=>patch({effective_from:''})},'Use review Effective From'):null
+                );
+              })()
+      );
+    }
+    function reviewStopTime(row,index){
+      const own=String(row.effective_from||'').trim();const value=own||reviewForm.effective_from;const t=new Date(value).getTime();
+      return h('div',{className:'field medication-review-row-effective',style:{marginTop:'8px'}},
+        h('label',null,'Stop from (date & time)'),
+        h('input',{type:'datetime-local',required:true,max:localDateTimeValue(new Date(Date.now()+REVIEW_EFFECTIVE_MAX_DAYS*86400000)),value,onChange:e=>updateReviewChange(index,{effective_from:e.target.value})}),
+        Number.isFinite(t)&&t>Date.now()+60000?h('small',{style:{display:'block',marginTop:'4px',color:'#7a1247',fontWeight:700}},`Stops ${fmt(new Date(t).toISOString())}. Doses continue until then.`):h('small',{style:{display:'block',marginTop:'4px'}},own?'Set for this medicine only.':'Same as Effective From above.'));
     }
     async function saveMedicationReview(e){
       e.preventDefault();setReviewMessage('');
@@ -667,38 +742,41 @@
             h('div',{className:'field span-2'},h('label',null,'Doctor Review / Clinical Notes'),h('textarea',{rows:3,value:reviewForm.clinical_notes,onChange:e=>setReviewForm({...reviewForm,clinical_notes:e.target.value}),placeholder:'Reason for review, diagnosis update, relevant advice or monitoring instructions'}))
           ),
           reviewForm.patient_id&&h('div',{className:'medication-review-change-list'},
-            h('div',{className:'section-title'},h('div',null,h('h4',null,'Medication Changes'),h('small',null,'For each existing medicine select Continue, Modify or Stop. Add new medicines separately.')),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setReviewForm(current=>({...current,changes:[...current.changes,blankReviewMedicine('Add')]}))},'Add New Medicine')),
+            h('div',{className:'section-title'},h('div',null,h('h4',null,'Medication Changes'),h('small',null,'For each existing medicine select Continue, Modify or Stop. Use Add New Medicine to enter one or more new medicines.')),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openAddMedicines()},'Add New Medicine')),
             reviewForm.changes.length?reviewForm.changes.map((row,index)=>h('div',{className:`medication-review-change ${String(row.action).toLowerCase()}`,key:row.client_id||index},
-              h('div',{className:'medication-review-change-head'},h('strong',null,row.original_order_id?`${row.medicine_name||'Medicine'} ${row.strength||''}`:'New Medicine'),h('select',{value:row.action,onChange:e=>updateReviewChange(index,{action:e.target.value})},row.original_order_id?['Continue','Modify','Stop'].map(x=>h('option',{key:x,value:x},x)):h('option',{value:'Add'},'Add New'))),
-              ['Continue','Stop'].includes(row.action)?h('div',{className:'medication-review-readonly'},h('span',null,`${row.frequency} · ${row.route} · ${parseTimes(row.times).map(medicationTimeLabel).join(', ')}`),row.special_instruction&&h('small',null,row.special_instruction)):h('div',{className:'medication-review-fields'},
-                miniInput('Medicine',row.medicine_name,v=>updateReviewChange(index,{medicine_name:v}),true),
-                h(MedicationStrengthInput,{label:'Strength',value:row.strength,onChange:v=>updateReviewChange(index,{strength:v}),required:true}),
-                miniSelect('Frequency',row.frequency,medicationFrequencies,v=>updateReviewChange(index,{frequency:v,times:(MEDICATION_FREQUENCY_TIMES[v]||parseTimes(row.times)).join(', ') })),
-                miniSelect('Route',row.route,medicationRoutes,v=>updateReviewChange(index,{route:v})),
-                h(MedicationTimeSelector,{label:'Time',value:row.times,onChange:v=>updateReviewChange(index,{times:v}),required:true}),
-                miniSelect('Food',row.food_instruction,medicationFood,v=>updateReviewChange(index,{food_instruction:v})),
-                miniSelect('Duration',row.duration,medicationDurations,v=>updateReviewChange(index,{duration:v})),
-                row.duration==='Custom'&&miniInput('Custom days',row.custom_duration_days,v=>updateReviewChange(index,{custom_duration_days:v}),true,'number'),
-                miniInput('Special instruction',row.special_instruction,v=>updateReviewChange(index,{special_instruction:v}))
-              ),
-              row.action!=='Continue'&&(()=>{
-                // 2.14.74: start / stop date & time for this medicine only (defaults to the review's Effective From).
-                const own=String(row.effective_from||'').trim();const value=own||reviewForm.effective_from;
-                const t=new Date(value).getTime();const isStop=row.action==='Stop';
-                return h('div',{className:'field medication-review-row-effective',style:{marginTop:'8px'}},
-                  h('label',null,isStop?'Stop from (date & time)':'Starts from (date & time)'),
-                  h('input',{type:'datetime-local',required:true,max:localDateTimeValue(new Date(Date.now()+REVIEW_EFFECTIVE_MAX_DAYS*86400000)),value,onChange:e=>updateReviewChange(index,{effective_from:e.target.value})}),
-                  Number.isFinite(t)&&t>Date.now()+60000
-                    ?h('small',{style:{display:'block',marginTop:'4px',color:'#7a1247',fontWeight:700}},isStop?`Stops ${fmt(new Date(t).toISOString())}. Doses continue until then.`:`Future start: first dose from ${fmt(new Date(t).toISOString())}. No dose before that.`)
-                    :h('small',{style:{display:'block',marginTop:'4px'}},own?'Set for this medicine only.':'Same as Effective From above. Change it to give this medicine its own time.'),
-                  own&&own!==reviewForm.effective_from?h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'6px'},onClick:()=>updateReviewChange(index,{effective_from:''})},'Use review Effective From'):null
-                );
-              })(),
-              row.action!=='Continue'&&h('div',{className:'field',style:{marginTop:'8px'}},h('label',null,'Change / Stop Note'),h('input',{value:row.change_note||'',onChange:e=>updateReviewChange(index,{change_note:e.target.value}),placeholder:'Optional medicine-specific reason / instruction'})),
-              !row.original_order_id&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setReviewForm(current=>({...current,changes:current.changes.filter((_,i)=>i!==index)}))},'Remove New Medicine')
+              h('div',{className:'medication-review-change-head'},h('strong',null,row.original_order_id?`${row.medicine_name||'Medicine'} ${row.strength||''}`:`${row.medicine_name||'New Medicine'} ${row.strength||''}`.trim()),row.original_order_id?h('select',{value:row.action,onChange:e=>updateReviewChange(index,{action:e.target.value})},['Continue','Modify','Stop'].map(x=>h('option',{key:x,value:x},x))):h('span',{className:'badge'},'New')),
+              ['Continue','Stop'].includes(row.action)?h('div',{className:'medication-review-readonly'},h('span',null,`${row.frequency} · ${row.route} · ${parseTimes(row.times).map(medicationTimeLabel).join(', ')}`),row.special_instruction&&h('small',null,row.special_instruction),row.action==='Stop'?reviewStopTime(row,index):null)
+                :row.action==='Add'?h('div',{className:'medication-review-readonly'},
+                  h('span',null,[row.frequency,row.route,parseTimes(row.times).map(medicationTimeLabel).join(', '),row.food_instruction,row.duration].filter(Boolean).join(' · ')),
+                  h('small',{style:{display:'block'}},(()=>{const v=String(row.effective_from||'').trim()||reviewForm.effective_from;const t=new Date(v).getTime();return Number.isFinite(t)?`Starts ${fmt(new Date(t).toISOString())}`:''})()),
+                  row.special_instruction&&h('small',{style:{display:'block'}},row.special_instruction),
+                  h('div',{style:{display:'flex',gap:'8px',marginTop:'8px',flexWrap:'wrap'}},
+                    h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openAddMedicines(index)},'Edit'),
+                    h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setReviewForm(current=>({...current,changes:current.changes.filter((_,i)=>i!==index)}))},'Remove')))
+                :reviewMedicineFields(row,p=>updateReviewChange(index,p)),
+              ['Modify','Stop'].includes(row.action)&&h('div',{className:'field',style:{marginTop:'8px'}},h('label',null,'Change / Stop Note'),h('input',{value:row.change_note||'',onChange:e=>updateReviewChange(index,{change_note:e.target.value}),placeholder:'Optional medicine-specific reason / instruction'})),
             )):h('p',{className:'small-note'},'No active medicines. Use Add New Medicine if the doctor has prescribed treatment.')
           ),
           h('div',{className:'modal-actions medication-review-actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:reviewBusy,onClick:()=>setReviewOpen(false)},'Close'),h('button',{className:'btn btn-primary',disabled:reviewBusy||!reviewForm.patient_id},reviewBusy?'Applying Review…':'Apply Doctor Review & Update Medication'))
+        )
+      ),
+      reviewOpen&&addMedOpen&&h('div',{className:'medication-add-backdrop',onMouseDown:e=>{if(e.target===e.currentTarget)setAddMedOpen(false)}},
+        h('div',{className:'card medication-add-modal',role:'dialog','aria-modal':'true','aria-label':'Add new medicines'},
+          h('div',{className:'panel-head'},
+            h('div',null,h('h3',null,addMedEditIndex!==null?'Edit New Medicine':'Add New Medicines'),h('small',null,addMedEditIndex!==null?'Change the details and press Save.':'Enter each medicine. Use "+ Add another medicine" for more, then press Save.')),
+            h('button',{type:'button',className:'close',onClick:()=>setAddMedOpen(false)},'×')),
+          addMedMessage&&h('div',{className:'message error'},addMedMessage),
+          addMedRows.map((row,index)=>h('div',{className:'medication-review-change add',key:row.client_id||index},
+            h('div',{className:'medication-review-change-head'},
+              h('strong',null,addMedEditIndex!==null?'New Medicine':`New Medicine ${index+1}`),
+              addMedRows.length>1&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setAddMedRows(rows=>rows.filter((_,i)=>i!==index))},'Remove')),
+            reviewMedicineFields(row,p=>updateAddMedRow(index,p)),
+            h('div',{className:'field',style:{marginTop:'8px'}},h('label',null,'Note (optional)'),h('input',{value:row.change_note||'',onChange:e=>updateAddMedRow(index,{change_note:e.target.value}),placeholder:'Reason / instruction for this medicine'}))
+          )),
+          addMedEditIndex===null&&h('button',{type:'button',className:'btn btn-secondary medication-add-another',onClick:()=>setAddMedRows(rows=>[...rows,blankReviewMedicine('Add')])},'+ Add another medicine'),
+          h('div',{className:'modal-actions medication-review-actions'},
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setAddMedOpen(false)},'Cancel'),
+            h('button',{type:'button',className:'btn btn-primary',onClick:saveAddMedicines},addMedEditIndex!==null?'Save':`Save ${addMedRows.length>1?`${addMedRows.length} Medicines`:'Medicine'}`))
         )
       ),
       marTarget&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)closeMar()}},

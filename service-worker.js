@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.75';
-const CACHE = 'samara-erp-2.14.75-strength-unit';
+const APP_VERSION = '2.14.76';
+const CACHE = 'samara-erp-2.14.76-add-medicines-popup';
 const SHELL = [
   './',
   './index.html',

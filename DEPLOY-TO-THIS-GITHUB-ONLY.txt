@@ -1,8 +1,8 @@
-Samara Care ERP 2.14.75 (includes 2.14.74) — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
+Samara Care ERP 2.14.76 (includes 2.14.74 and 2.14.75) — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
 
-1. Supabase > SQL Editor: run supabase/sql/155_medicine_alerts_start_stop_weekly.sql once (skip if already run for 2.14.74).
+1. Supabase > SQL Editor: run supabase/sql/155_medicine_alerts_start_stop_weekly.sql once (skip if already run).
    The check at the bottom must show one line containing "2.14.74 dose-day filter".
-2. Upload the other files to repo Samara_ERP keeping the same folders:
+2. Upload these 10 files to repo Samara_ERP keeping the same folders:
    src/app/patients/medication-helpers.js, src/app/patients/admissions.js, src/app/clinical/medicines.js,
-   src/app/0-start/01-app-constants.js, app.js, index.html, service-worker.js, bootstrap-error.js, CHANGELOG.md
-3. Open the app and confirm the splash shows Version 2.14.75.
+   src/app/0-start/01-app-constants.js, app.js, styles.css, index.html, service-worker.js, bootstrap-error.js, CHANGELOG.md
+3. Open the app and confirm the splash shows Version 2.14.76.
