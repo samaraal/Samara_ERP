@@ -3,6 +3,13 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.70 — Pharmacy & Stores: move an item to an approved category instead of removing it
+- "Remove Item" now opens "Remove or Move Item". First choice: move the item to an approved Standard Item List category; it keeps its item code, stock balance and full history.
+- Within the same section (e.g. Consumables → Urine Bags): store in-charge (Nursing Manager / STD).
+- To the other section (Consumables ↔ Pharmacy): Admin only — same call as Stores Master › Move Item. Reminder shown that Pharmacy is only for medicines.
+- Remove works as in 2.14.69. Every move is written to the audit trail ("Move Store Item").
+- Frontend only. File: `src/app/stores/consumables-stores.js`.
+
 ## 2.14.69 — Pharmacy & Stores: stock search, separate Receive / Edit buttons, Remove Item fixed
 - Stock list has its own "Search stock" box (item name or code, e.g. "diaper" or "CON-0017"); it no longer shares the Receive from Vendor search.
 - "Receive from Vendor" now opens from its own button (closed by default); every item also has a "Receive Stock" button that opens the form with that item already selected.

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.69';
+  const APP_VERSION = '2.14.70';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -29629,7 +29629,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const [listSearch,setListSearch]=React.useState('');
     const [showReceive,setShowReceive]=React.useState(false);
     const [editItem,setEditItem]=React.useState(null),[editForm,setEditForm]=React.useState({item_name:'',unit:'Nos',strength:'',dosage_form:''});
-    const [removeTarget,setRemoveTarget]=React.useState(null);
+    const [removeTarget,setRemoveTarget]=React.useState(null),[moveChoice,setMoveChoice]=React.useState('');
+    const isAdminProfile=profile?.role==='Admin';
     const [stockView,setStockView]=React.useState('All');
     const [movementPeriod,setMovementPeriod]=React.useState('month'),[movementItem,setMovementItem]=React.useState('All'),[movementFrom,setMovementFrom]=React.useState(todayISOIndia().slice(0,8)+'01'),[movementTo,setMovementTo]=React.useState(todayISOIndia());
     const [historyItem,setHistoryItem]=React.useState(null),[historyLedger,setHistoryLedger]=React.useState([]),[historyReceipts,setHistoryReceipts]=React.useState([]),[historyBusy,setHistoryBusy]=React.useState(false);
@@ -29868,7 +29869,29 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     function removeItem(row){
       if(!oversight||busy)return;
       if(!masterById.get(row.item_id))return notifyStore('error','Stores Master record not found. Refresh and try again.');
-      setRemoveTarget(row);
+      setMoveChoice('');setRemoveTarget(row);
+    }
+    // 2.14.70: instead of removing, move the item to an approved category (Standard Item List).
+    // Same section -> store in-charge sets the standard category; other section (Consumables <-> Pharmacy) -> Admin only,
+    // using the same admin_update_store_item call as Stores Master > Move Item. Stock and history stay with the item.
+    async function moveRemoveTarget(){
+      const row=removeTarget; if(!row||busy||!moveChoice)return;
+      const master=masterById.get(row.item_id); if(!master)return notifyStore('error','Stores Master record not found. Refresh and try again.');
+      const [kind,...rest]=moveChoice.split('|'); const category=rest.join('|');
+      const currentSection=master.item_category==='Pharmacy'?'Pharmacy':'Consumables';
+      const targetSection=kind==='other'?(currentSection==='Pharmacy'?'Consumables':'Pharmacy'):currentSection;
+      setBusy(true);
+      if(kind==='other'){
+        const moved=await client.rpc('admin_update_store_item',{p_item_id:master.id,p_item_name:master.item_name,p_category:targetSection,p_unit:master.unit||row.unit||'Nos',p_strength:master.strength||null,p_dosage_form:master.dosage_form||null});
+        if(moved.error){setBusy(false);notifyStore('error',moved.error.message);return}
+      }
+      const tagged=await client.rpc('store_incharge_set_standard_category',{p_item_id:master.id,p_standard_category:category||null});
+      setBusy(false);
+      await writeAuditEvent('Move Store Item','ConsumableStoreItem',master.id,{item_name:row.item_name,from_section:currentSection,to_section:targetSection,to_category:category||null});
+      const label=`${targetSection}${category?` → ${category}`:''}`;
+      if(tagged.error&&kind!=='other'){notifyStore('error',tagged.error.message);return}
+      notifyStore('success',tagged.error?`${displayStoreItemName(row.item_name)} moved to ${targetSection}. Set its category there with the Category button (${tagged.error.message}).`:`${displayStoreItemName(row.item_name)} moved to ${label}. Stock and history are kept.`);
+      setRemoveTarget(null);setMoveChoice('');await load();
     }
     async function confirmRemoveItem(){
       const row=removeTarget; if(!oversight||busy||!row)return;
@@ -29985,11 +30008,29 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       ),
       removeTarget&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)'}},
         h('div',{className:'modal-card',role:'alertdialog','aria-modal':'true',style:{maxWidth:'520px',background:'#fffafd',opacity:1,padding:'22px'}},
-          h('h3',null,'Remove Item?'),
+          h('h3',null,'Remove or Move Item'),
           h('p',null,h('strong',null,`${masterById.get(removeTarget.item_id)?.item_code?`${masterById.get(removeTarget.item_id).item_code} · `:''}${displayStoreItemName(removeTarget.item_name)}`),` — balance ${removeTarget.balance_qty} ${removeTarget.unit}.`),
+          (controller||isAdminProfile)&&(()=>{
+            const m=masterById.get(removeTarget.item_id)||{};const cur=m.item_category==='Pharmacy'?'Pharmacy':'Consumables';const other=cur==='Pharmacy'?'Consumables':'Pharmacy';
+            const sameList=(cur==='Pharmacy'?pharmacyCatalog:storesCatalog).filter(x=>x!==m.standard_category);const otherList=other==='Pharmacy'?pharmacyCatalog:storesCatalog;
+            return h('div',{style:{border:'1px solid #ead2dd',borderRadius:'12px',padding:'12px',margin:'4px 0 14px',background:'#fff'}},
+              h('strong',{style:{display:'block',marginBottom:'4px'}},'Move to another category instead'),
+              h('small',{style:{display:'block',marginBottom:'8px'}},`Currently: ${cur}${m.standard_category?` → ${m.standard_category}`:' (no category)'}. Moving keeps the item code, stock balance and history.`),
+              h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}},
+                h('select',{value:moveChoice,onChange:e=>setMoveChoice(e.target.value),style:{flex:'1 1 240px',minWidth:0}},
+                  h('option',{value:''},'Select approved category…'),
+                  controller&&h('optgroup',{label:`Within ${cur}`},sameList.map(x=>h('option',{key:`s-${x}`,value:`same|${x}`},x))),
+                  isAdminProfile&&h('optgroup',{label:`Move to ${other} (Admin)`},otherList.map(x=>h('option',{key:`o-${x}`,value:`other|${x}`},x)))
+                ),
+                h('button',{type:'button',className:'btn btn-primary',disabled:busy||!moveChoice,onClick:moveRemoveTarget},busy?'Moving…':'Move Item')
+              ),
+              other==='Pharmacy'&&isAdminProfile&&h('small',{style:{display:'block',marginTop:'6px'}},'Pharmacy is only for medicines; clinical supplies stay in Consumables.')
+            );
+          })(),
+          h('strong',{style:{display:'block',marginBottom:'2px'}},'Or remove it'),
           h('p',null,Number(removeTarget.total_in)>0||Number(removeTarget.total_out)>0?'This item has stock history, so it will be removed from the active stock list and its past receipts, issues and charges will be kept.':'This item has never been received or issued, so it will be deleted.'),
           Number(removeTarget.balance_qty)>0&&h('p',{style:{color:'#a12f29',fontWeight:700}},`Note: ${removeTarget.balance_qty} ${removeTarget.unit} is still shown in stock. Use Physical Tally first if this stock no longer exists.`),
-          h('div',{style:{display:'flex',gap:'8px',justifyContent:'flex-end',flexWrap:'wrap',marginTop:'8px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>setRemoveTarget(null)},'Cancel'),h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:confirmRemoveItem},busy?'Removing…':'Remove Item'))
+          h('div',{style:{display:'flex',gap:'8px',justifyContent:'flex-end',flexWrap:'wrap',marginTop:'8px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>{setRemoveTarget(null);setMoveChoice('')}},'Cancel'),h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:confirmRemoveItem},busy?'Removing…':'Remove Item'))
         )
       ),
       historyItem&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)'}},
