@@ -3,6 +3,11 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.68 — Fix: Medication Administration date filter was one day early
+- Picking From 24-09 To 27-09 searched 23-09 to 26-09, and the Period choices (Today / 7 Days / 30 Days) also started one day early. Cause: the day list was built with a UTC conversion, which in India (UTC+5:30) turns local midnight into the previous day.
+- Now the dates are worked out as plain calendar dates with the existing `addDaysISODate` helper, so the dates shown and searched are exactly the dates chosen.
+- Frontend only. File: `src/app/clinical/medicines.js`.
+
 ## 2.14.67 — Raise Indent shows Category and Stores codes
 - Raise Indent: pick Category first (Consumables / Pharmacy, as in Stores Master), then the item — each shown with its Stores code and live balance, e.g. "CON-0017 · Disposable Syringe - 10 mL · Store balance 5 Nos", A→Z. Same code, name and category as Stores & Pharmacy and Bills & Charges.
 - Frontend only. File: `src/app/stores/patient-consumables.js`.

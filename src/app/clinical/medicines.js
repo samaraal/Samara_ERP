@@ -346,9 +346,9 @@
       const day=String(value).slice(0,10);
       if(period!=='All'){
         const end=today;
-        const start=new Date(`${today}T00:00:00`);
         const days=period==='Today'?0:period==='7 Days'?6:period==='30 Days'?29:null;
-        if(days!==null){start.setDate(start.getDate()-days);from=start.toISOString().slice(0,10);to=end;}
+        // 2.14.68: date arithmetic in plain ISO dates (no IST→UTC shift of one day)
+        if(days!==null){from=addDaysISODate(today,-days);to=end;}
       }
       if(from&&day<from)return false;
       if(to&&day>to)return false;
@@ -388,11 +388,12 @@
       if(!historicalMarFilter)return [today];
       let from=appliedMedicationFilter.from||'',to=appliedMedicationFilter.to||'';
       if(appliedMedicationFilter.period!=='All'){
-        to=today;const d=new Date(`${today}T00:00:00`);const days=appliedMedicationFilter.period==='Today'?0:appliedMedicationFilter.period==='7 Days'?6:29;d.setDate(d.getDate()-days);from=d.toISOString().slice(0,10);
+        to=today;const days=appliedMedicationFilter.period==='Today'?0:appliedMedicationFilter.period==='7 Days'?6:29;from=addDaysISODate(today,-days);
       }
       from=from||to||today;to=to||from;
-      const out=[];let d=new Date(`${from}T00:00:00`),end=new Date(`${to}T00:00:00`);
-      while(d<=end&&out.length<366){out.push(d.toISOString().slice(0,10));d.setDate(d.getDate()+1)}
+      // 2.14.68: build the day list from ISO date strings so 24-09 stays 24-09 in India (was shifted to 23-09)
+      const out=[];let d=String(from).slice(0,10);const end=String(to).slice(0,10);
+      while(d&&d<=end&&out.length<366){out.push(d);d=addDaysISODate(d,1)}
       return out;
     }
     const periodMarRows=historicalMarFilter?(()=>{
