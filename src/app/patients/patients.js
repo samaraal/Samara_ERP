@@ -2404,7 +2404,12 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
           })(),
           tab==='Medicines'&&h('div',{className:'patient-medication-tab'},
             h('div',{className:'section-card'},
-              h('h4',null,'Current Prescription'),
+              // 2.14.72: nurses (and Admin / Manager) can open Doctor Review / Modify straight from the patient's Medicines tab.
+              // Personal details stay view-only for nurses; medicines are changed only through Doctor Review (history kept).
+              h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',flexWrap:'wrap'}},
+                h('h4',{style:{margin:0}},'Current Prescription'),
+                ['Admin','Manager','Nurse'].includes(profile?.role)&&h('button',{type:'button',className:'btn btn-primary',onClick:()=>{saveTaskNavigationContext({page:'Medicines',patient_id:selected.id,return_page:'Patients',doctor_review:true});onNavigate?.('Medicines')}},'Add / Modify Medicines')
+              ),
               details.meds.length?h('div',{className:'patient-med-table-wrap'},h('table',{className:'patient-med-table'},
                 h('thead',null,h('tr',null,['Medicine','Dose / Strength','Frequency','Route','Time','Food / Instruction'].map(x=>h('th',{key:x},x)))),
                 h('tbody',null,details.meds.map(m=>h('tr',{key:m.id},

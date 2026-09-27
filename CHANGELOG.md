@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.72 — Patient record › Medicines: "Add / Modify Medicines" button for nurses
+- Nurses saw the patient record as "View only" and had no way to change medicines from it (the only shortcut was inside Edit Patient, which is Admin / Manager only).
+- The Medicines tab now has "Add / Modify Medicines" for Admin, Manager and Nurse. It opens Medication Administration › Doctor Review / Modify for that resident (doctor's prescription required, previous orders kept in history).
+- Personal details remain view-only for nurses.
+- Frontend only. File: `src/app/patients/patients.js`.
+
 ## 2.14.71 — Admission medicines: Effective From date & time; end-date fix
 - Admission form › Medication: "Start date" is replaced by "Effective from (date & time)". It is pre-filled with the admission date and time and can be changed per medicine; saved to medication_orders.effective_from (the same field Doctor Review / Modify uses), so no dose is scheduled before that moment. Saved rows show "Effective from: dd-mm-yyyy h:mm AM/PM".
 - Fix: the end date of fixed-duration admission medicines was one day early in India (UTC conversion) — a "1 Day" medicine ended the day before it started and never appeared in the MAR; "3 Days" from 27-09 ended 28-09 instead of 29-09. Dates are now calculated as plain calendar dates.
