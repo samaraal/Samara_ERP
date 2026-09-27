@@ -533,7 +533,7 @@
       return Boolean(
         String(row.prescribed_by_doctor||'').trim()&&
         String(row.medicine_name||'').trim()&&
-        String(row.strength||'').trim()&&
+        medicationStrengthValid(row.strength)&&
         String(row.times||'').trim()
       );
     }
@@ -1677,10 +1677,13 @@ Please keep these login details confidential.`;
       const effectiveMeds=form.undergoing_prescribed_medication==='Yes'?meds.filter(m=>String(m.medicine_name||'').trim()||String(m.strength||'').trim()||String(m.prescribed_by_doctor||'').trim()):[];
       const effectiveCare=care.filter(c=>String(c.care_type||'').trim());
       if(form.undergoing_prescribed_medication==='Yes'&&(!effectiveMeds.length||effectiveMeds.some(m=>!medicineRowComplete(m)))){
-        setMsg('Enter and complete every prescribed medicine, including Prescribed Doctor, Strength and Time.');
+        setMsg('Enter and complete every prescribed medicine, including Prescribed Doctor, Strength (number and unit) and Time.');
         setBusy(false);
         return;
       }
+      // 2.14.74: a medicine may start later (e.g. next weekly dose), but not more than 30 days ahead.
+      {const tooFar=effectiveMeds.find(m=>{const t=new Date(medicationEffectiveValue(m)).getTime();return !Number.isFinite(t)||t>Date.now()+30*86400000;});
+       if(tooFar){setMsg(`Check the Starts from date & time for ${tooFar.medicine_name||'a medicine'}: it must be a valid date within 30 days from now.`);setBusy(false);return;}}
       if(form.special_nurse_required&&!form.special_nurse_name){setMsg('Assign or enter the special nurse name.');setBusy(false);return}
       const {data:{user}}=await client.auth.getUser();
       let patient=null;
@@ -2177,14 +2180,26 @@ Please keep these login details confidential.`;
             h('span',{className:'admission-row-number'},i+1),
             miniInput('Prescribed Doctor',m.prescribed_by_doctor,v=>updateRow(setMeds,meds,i,'prescribed_by_doctor',v),true),
             miniInput('Medicine',m.medicine_name,v=>updateRow(setMeds,meds,i,'medicine_name',v),true),
-            miniInput('Strength',m.strength,v=>updateRow(setMeds,meds,i,'strength',v),true),
+            h(MedicationStrengthInput,{label:'Strength',value:m.strength,onChange:v=>updateRow(setMeds,meds,i,'strength',v),required:true}),
             miniSelect('Frequency',m.frequency,['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'],v=>{const next=meds.map((row,n)=>n===i?{...row,frequency:v,times:(MEDICATION_FREQUENCY_TIMES[v]||String(row.times||'').split(',').map(normalizeMedicationTime).filter(Boolean)).join(', ')}:row);setMeds(next)}),
             miniSelect('Route',m.route,['Oral','IV','IM','Subcutaneous','Topical','Inhalation','Other'],v=>updateRow(setMeds,meds,i,'route',v)),
             h(MedicationTimeSelector,{label:'Time',value:m.times,onChange:v=>updateRow(setMeds,meds,i,'times',v),required:true}),
             miniSelect('Food',m.food_instruction,['Before food','After food','With food','No restriction'],v=>updateRow(setMeds,meds,i,'food_instruction',v)),
             miniSelect('Duration',m.duration,['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','30 Days','Until Doctor Review','Long Term','Custom'],v=>updateRow(setMeds,meds,i,'duration',v)),
             m.duration==='Custom'&&miniInput('Custom days',m.custom_duration_days,v=>updateRow(setMeds,meds,i,'custom_duration_days',v),true,'number'),
-            miniInput('Effective from (date & time)',medicationEffectiveValue(m),v=>updateRow(setMeds,meds,i,'effective_from',v),true,'datetime-local'),
+            (()=>{
+              // 2.14.74: per-medicine start (e.g. a weekly tablet already taken before admission starts on its next due date).
+              const value=medicationEffectiveValue(m);const t=new Date(value).getTime();
+              const freq=String(m.frequency||'').toLowerCase();const periodic=freq==='weekly'||freq==='monthly';
+              const hint=Number.isFinite(t)&&t>Date.now()+60000
+                ?`Future start: first dose ${formatDateIN(value.slice(0,10))} ${medicationTimeLabel(value.slice(11,16))}. No dose before that.`
+                :periodic?`${m.frequency}: set this to the NEXT due date & time (not the admission time if the last dose was taken before admission).`:'Defaults to the admission date & time.';
+              return h('div',{className:'field'},
+                h('label',null,'Starts from / Effective from (date & time)'),
+                h('input',{type:'datetime-local',required:true,max:localDateTimeValue(new Date(Date.now()+30*86400000)),value,onChange:e=>updateRow(setMeds,meds,i,'effective_from',e.target.value)}),
+                h('small',{style:{display:'block',marginTop:'4px',color:Number.isFinite(t)&&t>Date.now()+60000||periodic?'#7a1247':undefined,fontWeight:Number.isFinite(t)&&t>Date.now()+60000||periodic?700:undefined}},hint)
+              );
+            })(),
             miniInput('Special instruction',m.special_instruction,v=>updateRow(setMeds,meds,i,'special_instruction',v)),
             h('button',{type:'button',className:'btn btn-danger',onClick:()=>removeMedicineEntry(i),disabled:meds.length===1&&!m.medicine_name},'Remove')
           )

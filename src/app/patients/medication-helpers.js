@@ -58,7 +58,82 @@
     if(order.is_active===false&&!stopped)return false;
     const status=String(order.status||'').trim().toLowerCase();
     if(['completed','discontinued','stopped','inactive'].includes(status)&&!stopped)return false;
+    if(!medicationOrderDueOnDate(order,dateISO))return false;
     return true;
+  }
+  // 2.14.74: Weekly / Monthly medicines are due only on their own day, counted from the first dose
+  // (Effective From date in India time, else start date). Weekly = every 7 days; Monthly = the same date
+  // each month (the last day of a shorter month). All other frequencies are due every day as before.
+  function medicationOrderAnchorDate(order){
+    const eff=order?.effective_from?new Date(order.effective_from):null;
+    if(eff&&!Number.isNaN(eff.getTime())){
+      try{return eff.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'}).slice(0,10);}catch(_e){}
+    }
+    return String(order?.start_date||'').slice(0,10);
+  }
+  function medicationOrderDueOnDate(order,dateISO){
+    const freq=String(order?.frequency||'').trim().toLowerCase();
+    if(freq!=='weekly'&&freq!=='monthly')return true;
+    const anchor=medicationOrderAnchorDate(order);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(anchor)||!/^\d{4}-\d{2}-\d{2}$/.test(String(dateISO||'')))return true;
+    const a=Date.UTC(+anchor.slice(0,4),+anchor.slice(5,7)-1,+anchor.slice(8,10));
+    const d=Date.UTC(+dateISO.slice(0,4),+dateISO.slice(5,7)-1,+dateISO.slice(8,10));
+    if(d<a)return false;
+    if(freq==='weekly')return Math.round((d-a)/86400000)%7===0;
+    const anchorDay=+anchor.slice(8,10),y=+dateISO.slice(0,4),m=+dateISO.slice(5,7),day=+dateISO.slice(8,10);
+    const lastDay=new Date(Date.UTC(y,m,0)).getUTCDate();
+    return day===Math.min(anchorDay,lastDay);
+  }
+  function medicationOrderNextDueDate(order,fromISO){
+    let d=String(fromISO||'').slice(0,10);
+    for(let i=0;i<62&&d;i++){if(medicationOrderDueOnDate(order,d))return d;d=addDaysISODate(d,1);}
+    return '';
+  }
+  // 2.14.75: Strength = amount + unit chosen from a list (avoids typing mistakes such as "500ma").
+  // Saved as one text value, e.g. "500 mg", "2.5 mg/5 ml", "50/500 mg" — the same column as before.
+  const MEDICATION_STRENGTH_UNITS=['mg','mcg','g','ml','mg/ml','mg/5 ml','IU','units','%','drops','tablet','capsule','puff','sachet','patch'];
+  const MEDICATION_UNIT_ALIASES={'mgs':'mg','milligram':'mg','milligrams':'mg','µg':'mcg','ug':'mcg','microgram':'mcg','micrograms':'mcg','gm':'g','gram':'g','grams':'g','gms':'g','mls':'ml','millilitre':'ml','milliliter':'ml','iu':'IU','u':'units','unit':'units','drop':'drops','tab':'tablet','tabs':'tablet','tablets':'tablet','cap':'capsule','caps':'capsule','capsules':'capsule','puffs':'puff','sachets':'sachet','patches':'patch','mg/5ml':'mg/5 ml','mg / 5 ml':'mg/5 ml','mg/ml':'mg/ml'};
+  function parseMedicationStrength(value){
+    const text=String(value||'').trim();
+    if(!text)return {amount:'',unit:'',raw:''};
+    const m=text.match(/^([\d.,/+\-\s]*\d[\d.,/+\-]*)\s*(.*)$/);
+    if(!m)return {amount:'',unit:'',raw:text};
+    const amount=m[1].replace(/\s+/g,'');const rest=m[2].trim();
+    if(!rest)return {amount,unit:'',raw:text};
+    const key=rest.toLowerCase().replace(/\s+/g,' ');
+    const exact=MEDICATION_STRENGTH_UNITS.find(u=>u.toLowerCase()===key)||MEDICATION_UNIT_ALIASES[key]||MEDICATION_UNIT_ALIASES[key.replace(/\s+/g,'')];
+    return exact?{amount,unit:exact,raw:text}:{amount,unit:'',raw:text,unknownUnit:rest};
+  }
+  function composeMedicationStrength(amount,unit){
+    const a=String(amount||'').trim();const u=String(unit||'').trim();
+    return [a,u].filter(Boolean).join(' ');
+  }
+  function medicationStrengthValid(value){
+    const p=parseMedicationStrength(value);
+    return Boolean(p.amount&&p.unit);
+  }
+  function MedicationStrengthInput({label='Strength',value,onChange,required=false}){
+    const parsed=parseMedicationStrength(value);
+    const [amount,setAmount]=React.useState(parsed.amount);
+    const [unit,setUnit]=React.useState(parsed.unit);
+    React.useEffect(()=>{
+      const p=parseMedicationStrength(value);
+      if(composeMedicationStrength(amount,unit)!==String(value||'').trim()){setAmount(p.amount);setUnit(p.unit);}
+    },[value]);
+    function push(nextAmount,nextUnit){setAmount(nextAmount);setUnit(nextUnit);onChange(composeMedicationStrength(nextAmount,nextUnit));}
+    const current=String(value||'').trim();const oldText=current&&!(parsed.amount&&parsed.unit)&&current!==composeMedicationStrength(amount,unit)?current:'';
+    return h('div',{className:'field medication-strength-field'},
+      h('label',null,label),
+      h('div',{style:{display:'flex',gap:'6px'}},
+        h('input',{type:'text',inputMode:'decimal',required,value:amount,placeholder:'e.g. 500',style:{flex:'1 1 55%',minWidth:0},
+          onChange:e=>push(e.target.value.replace(/[^\d.,/+\-]/g,''),unit)}),
+        h('select',{required,value:unit,style:{flex:'1 1 45%',minWidth:0},onChange:e=>push(amount,e.target.value)},
+          h('option',{value:''},'Unit'),
+          MEDICATION_STRENGTH_UNITS.map(u=>h('option',{key:u,value:u},u)))
+      ),
+      oldText?h('small',{className:'field-hint error-text',style:{display:'block',marginTop:'4px'}},`Previously entered as "${oldText}" — enter the number and choose the unit.`)
+        :required&&amount&&!unit?h('small',{className:'field-hint error-text',style:{display:'block',marginTop:'4px'}},'Choose the unit'):null
+    );
   }
   function MedicationTimeSelector({label,value,onChange,required=false}){
     const selected=String(value||'').split(',').map(normalizeMedicationTime).filter(Boolean);

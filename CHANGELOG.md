@@ -3,6 +3,23 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.75 — Medicine Strength: number + unit from a list
+- Admission form and Doctor Review / Modify: Strength is now a number box plus a Unit dropdown (mg, mcg, g, ml, mg/ml, mg/5 ml, IU, units, %, drops, tablet, capsule, puff, sachet, patch). Letters cannot be typed in the number box, so mistakes like "500ma" are no longer possible. Combination strengths such as 50/500 mg still work.
+- Saved exactly as before, as one text value (e.g. "500 mg"). No SQL needed for this part.
+- Existing entries such as "500mg", "1 tab" or "2.5 mg/5ml" are read automatically. An unreadable old entry shows "Previously entered as … — enter the number and choose the unit" when that medicine is modified.
+- Saving is blocked until every new or modified medicine has both a number and a unit.
+- Files: `src/app/patients/medication-helpers.js`, `src/app/patients/admissions.js`, `src/app/clinical/medicines.js`, version files, `app.js` (rebuilt).
+- This package also contains everything from 2.14.74. If 2.14.74 is not uploaded yet, upload only this package, and run SQL 155 if not already done.
+
+## 2.14.74 — Doctor Review: separate start / stop time per medicine; Weekly & Monthly medicines due only on their day
+- Doctor Review / Modify: every added, modified or stopped medicine now has its own "Starts from" / "Stop from" date & time. It defaults to the review's Effective From (now labelled "default for all changes"), so nothing changes unless you set it. Example: a weekly tablet last taken before admission can be added to start on its next due date while other changes start now.
+- When medicines in one review have different times, each time is saved as its own doctor-review record (same doctor and prescription document; notes say "Part 1 of 2 …"). With one common time, the save is exactly as before. If a later part fails, the message lists which medicines were saved and which were not.
+- Weekly medicines are now due only every 7 days from the first dose (Effective From date); Monthly medicines on the same date each month (last day of a shorter month). Before this, both showed a dose every day. MAR, Shift Tasks and Clinical Dashboard follow this. Active Prescriptions shows "Next due <date>" and Administer is disabled on other days.
+- **Existing Weekly / Monthly orders:** their day is now counted from their Effective From (or start) date. Check them in Active Prescriptions after upload.
+- **SQL required (run once):** `supabase/sql/155_medicine_alerts_start_stop_weekly.sql` — the server alerts / escalations raised "Medicine Due" every day for every active medicine, including orders starting later (2.14.73), stopped or ended orders and Weekly / Monthly days. Now they follow the same rules as the screens. Only the regular medicine-dose part of `get_current_clinical_alerts` is changed.
+- Admission form: each medicine's date & time box is now labelled "Starts from / Effective from", shows "Future start …" for a later start, reminds you to enter the NEXT due date for Weekly / Monthly medicines, and is limited to 30 days ahead.
+- Files: `src/app/patients/admissions.js`, `src/app/clinical/medicines.js`, `src/app/patients/medication-helpers.js`, `src/app/0-start/01-app-constants.js`, `app.js` (rebuilt), `index.html`, `service-worker.js`, `bootstrap-error.js`, `supabase/sql/155_medicine_alerts_start_stop_weekly.sql`.
+
 ## 2.14.73 — Doctor Review / Modify: Effective From can be a future date & time
 - A doctor's change can now be ordered to start later (up to 30 days ahead). The current prescription continues until that moment; no dose of the new order is scheduled before it. The form shows "Future start: the new order begins …" when a later time is chosen.
 - Doctor Review Date & Time still cannot be in the future.
