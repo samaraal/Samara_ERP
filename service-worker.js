@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.70';
-const CACHE = 'samara-erp-2.14.70-stores-move-item';
+const APP_VERSION = '2.14.71';
+const CACHE = 'samara-erp-2.14.71-admission-med-effective-from';
 const SHELL = [
   './',
   './index.html',

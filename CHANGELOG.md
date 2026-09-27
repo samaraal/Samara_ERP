@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.71 — Admission medicines: Effective From date & time; end-date fix
+- Admission form › Medication: "Start date" is replaced by "Effective from (date & time)". It is pre-filled with the admission date and time and can be changed per medicine; saved to medication_orders.effective_from (the same field Doctor Review / Modify uses), so no dose is scheduled before that moment. Saved rows show "Effective from: dd-mm-yyyy h:mm AM/PM".
+- Fix: the end date of fixed-duration admission medicines was one day early in India (UTC conversion) — a "1 Day" medicine ended the day before it started and never appeared in the MAR; "3 Days" from 27-09 ended 28-09 instead of 29-09. Dates are now calculated as plain calendar dates.
+- New medicine rows use the India date (not UTC) as their default date.
+- Frontend only. Files: `src/app/patients/admissions.js`, `src/app/patients/medication-helpers.js`.
+
 ## 2.14.70 — Pharmacy & Stores: move an item to an approved category instead of removing it
 - "Remove Item" now opens "Remove or Move Item". First choice: move the item to an approved Standard Item List category; it keeps its item code, stock balance and full history.
 - Within the same section (e.g. Consumables → Urine Bags): store in-charge (Nursing Manager / STD).

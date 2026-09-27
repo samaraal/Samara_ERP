@@ -100,7 +100,8 @@
       frequency:'Once Daily (OD)',
       duration:'Long Term',
       custom_duration_days:'',
-      start_date:new Date().toISOString().slice(0,10),
+      start_date:todayISOIndia(),
+      effective_from:'', // 2.14.71: date & time the medicine starts (defaults to the admission date & time)
       special_instruction:'',
       is_locked:false
     };
