@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.72';
+  const APP_VERSION = '2.14.73';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5781,15 +5781,15 @@ https://samaraassistedliving.com/`;
         field?.querySelector('.samara-field-error-text')?.remove();
       }
 
-      function showRequiredPopup(label){
+      function showRequiredPopup(label,problem){
         document.querySelector('.samara-required-popup')?.remove();
         const popup=document.createElement('div');
         popup.className='samara-required-popup';
         popup.innerHTML=`
           <span class="samara-required-popup-icon">!</span>
           <span>
-            <strong>Please complete the mandatory field</strong>
-            <small>${String(label||'This field').replace(/[<>]/g,'')} is required before saving.</small>
+            <strong>${problem?'Please correct this field':'Please complete the mandatory field'}</strong>
+            <small>${problem?String(problem).replace(/[<>]/g,''):`${String(label||'This field').replace(/[<>]/g,'')} is required before saving.`}</small>
           </span>
         `;
         document.body.appendChild(popup);
@@ -5803,15 +5803,19 @@ https://samaraassistedliving.com/`;
 
         const field=invalid.closest('.field');
         const label=normaliseFieldLabel(field?.querySelector('label')?.textContent)||'This field';
+        // 2.14.73: a filled field that fails max/min/format is not "missing" — say what is actually wrong.
+        const v=invalid.validity||{};
+        const problem=v.valueMissing||!v.badInput&&!String(invalid.value||'').trim()?`${label} is required`:v.rangeOverflow?`${label} is later than allowed${invalid.max?` (latest ${String(invalid.max).replace('T',' ')})`:''}`:v.rangeUnderflow?`${label} is earlier than allowed${invalid.min?` (earliest ${String(invalid.min).replace('T',' ')})`:''}`:`${label} is not valid`;
+        const missing=problem.endsWith(' is required');
 
         if(field&&!field.querySelector('.samara-field-error-text')){
           const error=document.createElement('small');
           error.className='samara-field-error-text';
-          error.textContent=`${label} is required`;
+          error.textContent=problem;
           field.appendChild(error);
         }
 
-        showRequiredPopup(label);
+        showRequiredPopup(label,missing?null:problem);
         invalid.scrollIntoView({behavior:'smooth',block:'center'});
         setTimeout(()=>{
           try{invalid.focus({preventScroll:true})}catch(_error){invalid.focus()}
@@ -23290,6 +23294,7 @@ function RoomsBeds({profile,onNavigate}){
       if(patientId)setTimeout(()=>initializeReviewPatient(patientId),0);
     }
     function updateReviewChange(index,patch){setReviewForm(current=>({...current,changes:current.changes.map((row,i)=>i===index?{...row,...patch}:row)}));}
+    const REVIEW_EFFECTIVE_MAX_DAYS=30; // 2.14.73: a doctor's change may be ordered to start up to 30 days ahead
     function durationEndDate(change,effectiveAt){
       const start=String(effectiveAt||'').slice(0,10)||today;
       const days=change.duration==='Custom'?Number(change.custom_duration_days||0):({'Single Dose':0,'1 Day':1,'3 Days':3,'5 Days':5,'7 Days':7,'10 Days':10,'14 Days':14,'21 Days':21,'30 Days':30}[change.duration]??null);
@@ -23311,7 +23316,10 @@ function RoomsBeds({profile,onNavigate}){
       if(!String(reviewForm.doctor_name||'').trim())return setReviewMessage('Doctor name is required.');
       const reviewedAt=new Date(reviewForm.reviewed_at),effectiveAt=new Date(reviewForm.effective_from),now=new Date();
       if(Number.isNaN(reviewedAt.getTime())||Number.isNaN(effectiveAt.getTime()))return setReviewMessage('Enter valid review and effective date/time.');
-      if(reviewedAt.getTime()>now.getTime()+60000||effectiveAt.getTime()>now.getTime()+60000)return setReviewMessage('Future review/effective date and time are not permitted.');
+      // 2.14.73: the review itself cannot be in the future, but the doctor may order the change to start later (up to 30 days).
+      // No dose is scheduled under the new order before Effective From; the current prescription continues until then.
+      if(reviewedAt.getTime()>now.getTime()+60000)return setReviewMessage('Doctor Review Date & Time cannot be in the future.');
+      if(effectiveAt.getTime()>now.getTime()+REVIEW_EFFECTIVE_MAX_DAYS*86400000)return setReviewMessage(`Effective From can be at most ${REVIEW_EFFECTIVE_MAX_DAYS} days ahead.`);
       if(reviewForm.order_mode==='Written Prescription'&&!reviewFile)return setReviewMessage('Upload the doctor’s written prescription / order before applying the medication change.');
       if(reviewForm.order_mode!=='Written Prescription'){
         if(!String(reviewForm.received_by_name||'').trim())return setReviewMessage('Enter the staff member who received the verbal / telephone order.');
@@ -23796,7 +23804,8 @@ function RoomsBeds({profile,onNavigate}){
           h('div',{className:'modal-grid'},
             h('div',{className:'field span-2'},h('label',null,'Patient'),h('select',{required:true,value:reviewForm.patient_id,onChange:e=>initializeReviewPatient(e.target.value)},h('option',{value:''},'Select patient'),state.patients.filter(p=>p.is_active!==false).map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)||p.full_name} · ${p.patient_id||'No ID'} · Room ${p.room_no||'—'}`)))),
             h('div',{className:'field'},h('label',null,'Doctor Review Date & Time'),h('input',{type:'datetime-local',required:true,max:localDateTimeValue(),value:reviewForm.reviewed_at,onChange:e=>setReviewForm({...reviewForm,reviewed_at:e.target.value})})),
-            h('div',{className:'field'},h('label',null,'Effective From Date & Time'),h('input',{type:'datetime-local',required:true,max:localDateTimeValue(),value:reviewForm.effective_from,onChange:e=>setReviewForm({...reviewForm,effective_from:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Effective From Date & Time'),h('input',{type:'datetime-local',required:true,max:localDateTimeValue(new Date(Date.now()+REVIEW_EFFECTIVE_MAX_DAYS*86400000)),value:reviewForm.effective_from,onChange:e=>setReviewForm({...reviewForm,effective_from:e.target.value})}),
+              (()=>{const t=new Date(reviewForm.effective_from).getTime();return Number.isFinite(t)&&t>Date.now()+60000?h('small',{style:{display:'block',marginTop:'4px',color:'#7a1247',fontWeight:700}},`Future start: the new order begins ${fmt(new Date(t).toISOString())}. The current prescription continues until then.`):null})()),
             h('div',{className:'field'},h('label',null,'Doctor Name'),h('input',{required:true,value:reviewForm.doctor_name,onChange:e=>setReviewForm({...reviewForm,doctor_name:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Doctor Contact'),h('input',{value:reviewForm.doctor_contact,onChange:e=>setReviewForm({...reviewForm,doctor_contact:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Review Type'),h('select',{value:reviewForm.review_type,onChange:e=>setReviewForm({...reviewForm,review_type:e.target.value})},['Routine Doctor Review','Specialist Review','Hospital Review / Discharge Advice','Emergency Review','Other'].map(x=>h('option',{key:x,value:x},x)))),

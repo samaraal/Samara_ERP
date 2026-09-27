@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.72';
-const CACHE = 'samara-erp-2.14.72-patient-medicines-modify';
+const APP_VERSION = '2.14.73';
+const CACHE = 'samara-erp-2.14.73-review-future-start';
 const SHELL = [
   './',
   './index.html',

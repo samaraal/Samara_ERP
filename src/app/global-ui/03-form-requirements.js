@@ -193,15 +193,15 @@
         field?.querySelector('.samara-field-error-text')?.remove();
       }
 
-      function showRequiredPopup(label){
+      function showRequiredPopup(label,problem){
         document.querySelector('.samara-required-popup')?.remove();
         const popup=document.createElement('div');
         popup.className='samara-required-popup';
         popup.innerHTML=`
           <span class="samara-required-popup-icon">!</span>
           <span>
-            <strong>Please complete the mandatory field</strong>
-            <small>${String(label||'This field').replace(/[<>]/g,'')} is required before saving.</small>
+            <strong>${problem?'Please correct this field':'Please complete the mandatory field'}</strong>
+            <small>${problem?String(problem).replace(/[<>]/g,''):`${String(label||'This field').replace(/[<>]/g,'')} is required before saving.`}</small>
           </span>
         `;
         document.body.appendChild(popup);
@@ -215,15 +215,19 @@
 
         const field=invalid.closest('.field');
         const label=normaliseFieldLabel(field?.querySelector('label')?.textContent)||'This field';
+        // 2.14.73: a filled field that fails max/min/format is not "missing" — say what is actually wrong.
+        const v=invalid.validity||{};
+        const problem=v.valueMissing||!v.badInput&&!String(invalid.value||'').trim()?`${label} is required`:v.rangeOverflow?`${label} is later than allowed${invalid.max?` (latest ${String(invalid.max).replace('T',' ')})`:''}`:v.rangeUnderflow?`${label} is earlier than allowed${invalid.min?` (earliest ${String(invalid.min).replace('T',' ')})`:''}`:`${label} is not valid`;
+        const missing=problem.endsWith(' is required');
 
         if(field&&!field.querySelector('.samara-field-error-text')){
           const error=document.createElement('small');
           error.className='samara-field-error-text';
-          error.textContent=`${label} is required`;
+          error.textContent=problem;
           field.appendChild(error);
         }
 
-        showRequiredPopup(label);
+        showRequiredPopup(label,missing?null:problem);
         invalid.scrollIntoView({behavior:'smooth',block:'center'});
         setTimeout(()=>{
           try{invalid.focus({preventScroll:true})}catch(_error){invalid.focus()}

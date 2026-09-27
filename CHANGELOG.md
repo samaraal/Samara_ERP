@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.73 — Doctor Review / Modify: Effective From can be a future date & time
+- A doctor's change can now be ordered to start later (up to 30 days ahead). The current prescription continues until that moment; no dose of the new order is scheduled before it. The form shows "Future start: the new order begins …" when a later time is chosen.
+- Doctor Review Date & Time still cannot be in the future.
+- Fix: a filled date that was outside the allowed range showed "… is required". The message now says what is wrong (e.g. "later than allowed"); "required" is shown only for an empty field. This applies to all forms.
+- Frontend only. Files: `src/app/clinical/medicines.js`, `src/app/global-ui/03-form-requirements.js`.
+
 ## 2.14.72 — Patient record › Medicines: "Add / Modify Medicines" button for nurses
 - Nurses saw the patient record as "View only" and had no way to change medicines from it (the only shortcut was inside Edit Patient, which is Admin / Manager only).
 - The Medicines tab now has "Add / Modify Medicines" for Admin, Manager and Nurse. It opens Medication Administration › Doctor Review / Modify for that resident (doctor's prescription required, previous orders kept in history).
