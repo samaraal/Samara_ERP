@@ -51,7 +51,7 @@
   }
   const indiaInput=date=>new Date(date.getTime()+330*60000).toISOString().slice(0,16);
   const indiaISO=value=>value?new Date(value+':00+05:30').toISOString():null;
-  const display=value=>value?new Intl.DateTimeFormat('en-IN',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Kolkata'}).format(new Date(value))+' IST':'—';
+  const display=value=>value?window.SamaraDateTime.dateTime(value):'—';
   function useDailyNotice({client,profile,ready=true}){
     const [notice,setNotice]=React.useState(null);
     const context=profile?.__dutyContext;

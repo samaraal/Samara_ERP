@@ -26,7 +26,7 @@
     return h('div',{style:{position:'relative',width:'100%'}},
       h('input',{type:'text',readOnly:true,value:value?formatDateIN(value):'',placeholder:'DD-MM-YYYY',style:{...(style||{}),width:'100%',paddingRight:'48px',cursor:'pointer'}}),
       h('span',{'aria-hidden':'true',style:{position:'absolute',right:'15px',top:'50%',transform:'translateY(-50%)',pointerEvents:'none',fontSize:'18px'}},'▾'),
-      h('input',{...nativeProps,type:'date',value:value||'',onChange,tabIndex:-1,'aria-label':nativeProps['aria-label']||'Choose date',style:{position:'absolute',inset:0,width:'100%',height:'100%',opacity:0,cursor:'pointer'}})
+      h('input',{...nativeProps,'data-samara-native':'1',type:'date',value:value||'',onChange,tabIndex:-1,'aria-label':nativeProps['aria-label']||'Choose date',style:{position:'absolute',inset:0,width:'100%',height:'100%',opacity:0,cursor:'pointer'}})
     );
   };
   const StrictDateTimeInput = props => {
@@ -40,7 +40,7 @@
     return h('div',{style:{position:'relative',width:'100%'}},
       h('input',{type:'text',readOnly:true,value:shown,placeholder:'DD-MM-YYYY, hh:mm AM/PM IST',style:{...(style||{}),width:'100%',paddingRight:'48px',cursor:'pointer'}}),
       h('span',{'aria-hidden':'true',style:{position:'absolute',right:'15px',top:'50%',transform:'translateY(-50%)',pointerEvents:'none',fontSize:'18px'}},'▾'),
-      h('input',{...nativeProps,type:'datetime-local',value:value||'',onChange,tabIndex:-1,'aria-label':nativeProps['aria-label']||'Choose date and time',style:{position:'absolute',inset:0,width:'100%',height:'100%',opacity:0,cursor:'pointer'}})
+      h('input',{...nativeProps,'data-samara-native':'1',type:'datetime-local',value:value||'',onChange,tabIndex:-1,'aria-label':nativeProps['aria-label']||'Choose date and time',style:{position:'absolute',inset:0,width:'100%',height:'100%',opacity:0,cursor:'pointer'}})
     );
   };
 

@@ -19,7 +19,7 @@ Deno.serve(async(req)=>{
   if(ee||se)throw ee||se;
   let sent=0,failed=0;
   for(const event of events||[]){
-   const when=new Date(event.attempted_at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',hour:'numeric',minute:'2-digit',hour12:true});
+   const when=(v=>{const p=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true}).formatToParts(new Date(v)).map(x=>[x.type,x.value]));return `${p.day}-${p.month}-${p.year}, ${p.hour}:${p.minute} ${String(p.dayPeriod||'').toUpperCase()} IST`})(event.attempted_at);
    const operation=event.operation==='modify'?'modification':event.operation==='save'?'draft order':'new order';
    const payload=JSON.stringify({title:'SAMARA · Food cutoff attempt blocked',body:event.actor_name+' attempted a '+operation+' for '+event.meal_slot+' ('+event.supply_date+') at '+when+' IST. The order was blocked.',tag:'samara-food-cutoff-'+event.id,event_kind:'food_cutoff',url:'./?push_page=Notifications',renotify:false,requireInteraction:true,icon:'./icons/icon-192.png',badge:'./icons/icon-192.png'});
    for(const sub of subs||[]){

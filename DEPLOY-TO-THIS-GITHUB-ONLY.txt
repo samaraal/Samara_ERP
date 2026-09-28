@@ -1,17 +1,17 @@
-Samara Care ERP 2.14.77 (includes 2.14.74, 2.14.75, 2.14.76) — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
+Samara Care ERP 2.14.78 — DD-MM-YYYY everywhere — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
 
-1. Supabase > SQL Editor: run once each (skip 155 if already done)
-   a) supabase/sql/155_medicine_alerts_start_stop_weekly.sql   -> check shows "2.14.74 dose-day filter"
-   b) supabase/sql/156_food_vendor_reply_alerts.sql            -> check lists 4 function names
+No SQL needed.
 
-2. Supabase > Edge Functions > food-cutoff-push > Code:
-   replace ALL the code with supabase/function-copies/food-cutoff-push.ts and press Deploy.
-   Do not change its settings (keep "Verify JWT" as it is now). Needed only for phone pushes.
+1. Upload these 14 files to repo Samara_ERP keeping the same folders:
+   date-time.js, discharge-workflow.js, duty-swap.js, food-vendor.js, food-vendor-core.js,
+   src/app/core/06-date-format-task-navigation.js, src/app/pages/director-office.js,
+   src/app/0-start/01-app-constants.js, app.js, index.html, service-worker.js, bootstrap-error.js,
+   CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
 
-3. Upload these 12 files to repo Samara_ERP keeping the same folders:
-   src/app/patients/medication-helpers.js, src/app/patients/admissions.js, src/app/clinical/medicines.js,
-   src/app/global-ui/06-bell-notifications-popups.js, src/app/0-start/01-app-constants.js,
-   app.js, styles.css, food-vendor.js, index.html, service-worker.js, bootstrap-error.js, CHANGELOG.md
-   (the supabase/ folder files may also be uploaded for record; they do nothing on the website)
+2. Open the app and confirm the splash shows Version 2.14.78.
+   Check: Discharge > "Discharge timeline & departure follow-up": each patient row shows 🕒 date & time (e.g. Initiated: 26-09-2026, 09:40 AM IST · Last update: ...).
 
-4. Open the app and confirm the splash shows Version 2.14.77.
+3. OPTIONAL (only for dates inside phone pushes / food WhatsApp Inbox text):
+   Supabase > Edge Functions > food-cutoff-push > Code: replace ALL with supabase/function-copies/food-cutoff-push.ts > Deploy.
+   Supabase > Edge Functions > food-whatsapp-inbox > Code: replace ALL with supabase/function-copies/food-whatsapp-inbox.ts > Deploy.
+   Do not change their settings.

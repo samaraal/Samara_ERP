@@ -155,7 +155,7 @@ function orderCutoff(order,now=Date.now(),configured={}){
  const rule=base?{...base,...(saved&&typeof saved==='object'?saved:{})}:null;if(!rule||!/^\d{4}-\d{2}-\d{2}$/.test(order?.date||''))return null;
  const deadline=Date.parse(order.date+'T'+rule.time+':00+05:30')-rule.days*86400000;
  if(!Number.isFinite(deadline))return null;
- const date=new Date(deadline).toLocaleDateString('en-GB',{timeZone:'Asia/Kolkata'});
+ const date=new Date(deadline).toLocaleDateString('en-GB',{timeZone:'Asia/Kolkata',day:'2-digit',month:'2-digit',year:'numeric'}).replace(/\//g,'-');
  const time=new Date(deadline).toLocaleTimeString('en-US',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit',hour12:true});
  const closed=now>=deadline;
  return {deadline,closed,text:closed?'Cutoff passed for '+rule.label+' ('+date+' at '+time+' IST). No new orders or modifications are allowed.':'Order and modification cutoff: '+date+' at '+time+' IST.'};

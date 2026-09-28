@@ -1,7 +1,7 @@
 (function(){
  'use strict';
  const R=React,h=R.createElement;
- const time=value=>value?new Date(value).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',dateStyle:'medium',timeStyle:'short'})+' IST':'Not recorded';
+ const time=value=>value?window.SamaraDateTime.dateTime(value):'Not recorded';
  const money=value=>'₹'+Number(value||0).toLocaleString('en-IN');
  const allowed=p=>['Admin','Manager','Nurse','Accounts'].includes(p?.role)||(p?.__dutyContext?.roles||[]).some(r=>['Admin','Manager','Nurse','Accounts'].includes(r));
  const changed=()=>window.dispatchEvent(new Event('samara-discharge-workflow-changed'));
@@ -99,7 +99,15 @@
    data?.cases.map(c=>{
     const pending=c.reviews.find(r=>r.status==='Pending'),approved=c.reviews.find(r=>r.status==='Approved');
     return h('details',{key:c.id,'data-discharge-id':c.id,style:{padding:'12px 0',borderBottom:'1px solid #9995'}},
-     h('summary',{style:{cursor:'pointer',fontWeight:700,padding:'8px 0',scrollMarginTop:'120px'}},`${c.patient_name} · ${c.patient_code} — ${c.status==='Completed'?'Completed':pending?'Departure review pending':c.accounts_status==='Cleared'?'Accounts cleared; Nursing departure pending':c.accounts_recheck_at||c.legacy_reset?'Accounts recheck required':c.management_status==='Rejected'?'Returned by Management':c.management_status!=='Approved'?'Awaiting Management Approval':'Awaiting Accounts'}`),
+     h('summary',{style:{cursor:'pointer',fontWeight:700,padding:'8px 0',scrollMarginTop:'120px'}},`${c.patient_name} · ${c.patient_code} — ${c.status==='Completed'?'Completed':pending?'Departure review pending':c.accounts_status==='Cleared'?'Accounts cleared; Nursing departure pending':c.accounts_recheck_at||c.legacy_reset?'Accounts recheck required':c.management_status==='Rejected'?'Returned by Management':c.management_status!=='Approved'?'Awaiting Management Approval':'Awaiting Accounts'}`,
+      // 2.14.78: date & time stamps visible without opening the row.
+      (()=>{const stamps=[c.initiated_at,c.management_approved_at,c.accounts_cleared_at,c.actual_departure_at,c.departure_recorded_at,...(c.events||[]).map(e=>e.occurred_at)].filter(Boolean).map(v=>new Date(v)).filter(d=>Number.isFinite(d.getTime()));
+       const last=stamps.length?new Date(Math.max(...stamps)):null;
+       const parts=c.status==='Completed'
+        ?[c.actual_departure_at?'Departed: '+time(c.actual_departure_at):(last?'Completed: '+time(last.toISOString()):null),c.initiated_at?'Initiated: '+time(c.initiated_at):null]
+        :[c.initiated_at?'Initiated: '+time(c.initiated_at):null,last?'Last update: '+time(last.toISOString()):null];
+       const text=parts.filter(Boolean).join(' · ');
+       return text?h('small',{className:'discharge-timeline-stamp',style:{display:'block',fontWeight:500,color:'#7b5a69',marginTop:'4px',marginLeft:'18px',fontSize:'14px'}},'🕒 '+text):null})()),
      pending&&c.status!=='Completed'&&h('p',{className:'message warning'},'Final Nursing discharge is blocked until an authorised reviewer resolves the pending departure report below.'),
      c.overdue&&h('p',{className:'message warning'},'Waiting over 2 hours. Nursing Manager / Admin attention required.'),
      h('p',null,`Initiated: ${time(c.initiated_at)} · Management approved: ${time(c.management_approved_at)}`),

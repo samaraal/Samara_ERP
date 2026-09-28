@@ -3,6 +3,15 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.78 — DD-MM-YYYY everywhere (one global standard)
+- **Every date box** in the ERP (forms, filters, popups, on phone and Windows) now shows **DD-MM-YYYY**, and date-time boxes show **DD-MM-YYYY, hh:mm AM/PM**. Before, 35 date boxes used the phone's / Windows' own format (often MM/DD/YYYY). This is done once, centrally in `date-time.js`, so any new date box added later is automatically DD-MM-YYYY too. Tapping the box still opens the normal calendar; saved values are unchanged.
+- **All dates written on screen** are now DD-MM-YYYY. The automatic on-screen check now also converts "28 Sept 2026", "28/09/2026", "Sep 28, 2026" and "24-Sep-2026" styles (it previously caught only 2026-09-28).
+- **Discharge timeline & departure follow-up:** every patient row now shows its date & time stamps without opening it — open cases: "Initiated … · Last update …"; completed cases: "Departed …" (or "Completed …") · "Initiated …". No database change.
+- Fixed at source: Discharge timeline & departure follow-up (showed "28 Sept 2026, 10:49 am"), Temporary Duty Swap, Food vendor receipt-window messages and order cutoff text, Director's Office selected date ("28-09-2026 – Monday").
+- Phone push / WhatsApp Inbox texts from `food-cutoff-push` and `food-whatsapp-inbox` Edge Functions now use DD-MM-YYYY (optional redeploy; in-app screens are already fixed without it).
+- No SQL required. No database change.
+- Files: `date-time.js`, `discharge-workflow.js`, `duty-swap.js`, `food-vendor.js`, `food-vendor-core.js`, `src/app/core/06-date-format-task-navigation.js`, `src/app/pages/director-office.js`, version files, `app.js` (rebuilt); optional `supabase/function-copies/food-cutoff-push.ts`, `supabase/function-copies/food-whatsapp-inbox.ts`.
+
 ## 2.14.77 — Food vendor WhatsApp replies now raise alerts
 - The vendor's button reply on the food order WhatsApp (Acknowledged / Returned / Needs Modification) used to be recorded silently in Messages only. Now:
   - **Returned** (vendor will not supply): urgent pop-up + phone push to the Nursing Manager and Admin / Director.
