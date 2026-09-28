@@ -1,0 +1,57 @@
+/* Samara Care ERP — Help / உதவி assistant (2.14.79). Self-contained styles, prefixed .sh- */
+.sh-root[hidden]{display:none!important}
+.sh-launch{position:fixed;right:20px;bottom:20px;z-index:1200;display:flex;align-items:center;gap:8px;min-height:48px;padding:0 18px 0 14px;border:0;border-radius:999px;background:linear-gradient(135deg,#9c0040,#c3025a);color:#fff;font-family:inherit;font-weight:800;font-size:15px;line-height:1;box-shadow:0 10px 26px rgba(93,16,57,.32);cursor:pointer}
+.sh-launch-ic{font-size:20px}
+.sh-launch-short{display:none}
+.sh-launch.open{opacity:.0;pointer-events:none}
+.sh-launch:focus-visible{outline:3px solid #f9a800;outline-offset:3px}
+.sh-panel{position:fixed;right:20px;bottom:20px;z-index:1201;width:min(420px,calc(100vw - 24px));height:min(640px,calc(100dvh - 40px));display:flex;flex-direction:column;background:#fff;border:1px solid #ecc9da;border-radius:20px;box-shadow:0 24px 60px rgba(54,13,34,.3);overflow:hidden;font-size:15px;color:#3c2731}
+.sh-panel[hidden]{display:none}
+.sh-head{display:flex;align-items:flex-start;gap:8px;padding:14px 14px 12px 18px;background:linear-gradient(120deg,#9c0040,#c3025a);color:#fff}
+.sh-head>div{flex:1;min-width:0}
+.sh-head strong{display:block;font-size:17px}
+.sh-head small{display:block;margin-top:3px;font-size:12px;line-height:1.35;opacity:.92}
+.sh-x{width:34px;height:34px;border:0;border-radius:50%;background:rgba(255,255,255,.22);color:#fff;font-size:22px;line-height:1;cursor:pointer;flex:0 0 auto}
+.sh-log-btn{border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.14);color:#fff;border-radius:999px;padding:6px 10px;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap}
+.sh-page{padding:6px 18px;background:#fff4f9;border-bottom:1px solid #f3dbe7;color:#8c0f4f;font-size:12px;font-weight:700}
+.sh-msgs{flex:1;overflow:auto;padding:14px;background:linear-gradient(160deg,#fffafd,#fff2f8)}
+.sh-msg{max-width:88%;margin:0 0 10px;padding:10px 12px;border-radius:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.sh-bot{background:#fbe7f1;border:1px solid #f3c5dc;color:#4a1233;border-bottom-left-radius:5px}
+.sh-user{margin-left:auto;background:linear-gradient(135deg,#9c0040,#c3025a);color:#fff;border-bottom-right-radius:5px}
+.sh-user img{display:block;max-width:100%;max-height:120px;margin-top:6px;border-radius:8px;border:2px solid rgba(255,255,255,.6)}
+.sh-tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px;white-space:normal}
+.sh-tool{border:1px solid #e4a3c4;background:#fff;color:#9c0040;border-radius:999px;padding:5px 11px;font-weight:800;font-size:12.5px;cursor:pointer}
+.sh-tool.playing{background:#9c0040;color:#fff}
+.sh-q{font-size:12px;color:#8b5a73;font-weight:700}
+.sh-thinking{display:flex;align-items:center;gap:8px;color:#8c0f4f;font-weight:700}
+.sh-dots{display:inline-flex;gap:3px}.sh-dots i{width:6px;height:6px;border-radius:50%;background:#c3025a;animation:shDot 1s infinite ease-in-out}.sh-dots i:nth-child(2){animation-delay:.15s}.sh-dots i:nth-child(3){animation-delay:.3s}
+@keyframes shDot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+.sh-shot{display:grid;grid-template-columns:72px 1fr auto;gap:8px;align-items:center;padding:8px 12px;border-top:1px solid #f3dbe7;background:#fff8e8}
+.sh-shot[hidden]{display:none}
+.sh-shot img{width:72px;height:54px;object-fit:cover;border-radius:8px;border:1px solid #eed0df}
+.sh-shot p{margin:0;font-size:12px;line-height:1.35;color:#6b4200;font-weight:600}
+.sh-compose{display:flex;align-items:flex-end;gap:6px;padding:10px;border-top:1px solid #f3dbe7;background:#fff}
+.sh-mic,.sh-attach,.sh-send{flex:0 0 auto;width:44px;height:44px;border-radius:14px;border:1px solid #eeb3d5;background:#fff0f8;color:#9c0040;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.sh-mic.rec{background:#c3025a;color:#fff;border-color:#c3025a;animation:shPulse 1.2s infinite}
+@keyframes shPulse{0%,100%{box-shadow:0 0 0 0 rgba(195,2,90,.45)}50%{box-shadow:0 0 0 8px rgba(195,2,90,0)}}
+.sh-send{background:linear-gradient(135deg,#9c0040,#c3025a);color:#fff;border:0;font-size:18px}
+.sh-input{flex:1;min-width:0;min-height:44px;max-height:110px;resize:none;border:1px solid #e3b4cb;border-radius:14px;padding:11px 12px;font:inherit;font-size:15px;line-height:1.35;color:#2e1a24;background:#fff;box-sizing:border-box}
+.sh-input:focus{outline:2px solid #e4a3c4;border-color:#c3025a}
+.sh-compose button:disabled,.sh-input:disabled{opacity:.55;cursor:default}
+.sh-mic:focus-visible,.sh-attach:focus-within,.sh-send:focus-visible,.sh-x:focus-visible,.sh-tool:focus-visible{outline:3px solid #f9a800;outline-offset:2px}
+.sh-log-mode .sh-msgs,.sh-log-mode .sh-shot,.sh-log-mode .sh-compose,.sh-log-mode .sh-page{display:none}
+.sh-log{flex:1;overflow:auto;padding:12px 14px}
+.sh-log h4{margin:0 0 8px;color:#9c0040}
+.sh-log-row{border:1px solid #f0d0e0;border-radius:12px;padding:8px 10px;margin-bottom:8px;background:#fffafd}
+.sh-log-row summary{cursor:pointer;list-style:none;display:grid;gap:3px}
+.sh-log-meta{font-size:11.5px;color:#8b5a73;font-weight:700}
+.sh-log-q{font-weight:700;color:#4a1233}
+.sh-log-row p{margin:8px 0 0;white-space:pre-wrap;font-size:13.5px;line-height:1.45}
+@media(max-width:760px){
+ .sh-launch{right:12px;bottom:calc(84px + env(safe-area-inset-bottom));min-height:46px;padding:0 14px 0 11px;gap:6px}
+ .sh-launch-tx{display:none}
+ .sh-launch-short{display:inline;font-size:15px}
+ .sh-panel{right:0;left:0;bottom:0;width:100%;height:calc(100dvh - 56px);border-radius:20px 20px 0 0}
+ .sh-msg{max-width:92%}
+}
+@media(prefers-reduced-motion:reduce){.sh-dots i,.sh-mic.rec{animation:none}}
