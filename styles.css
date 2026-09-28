@@ -2402,3 +2402,10 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 .medication-add-modal .medication-review-actions{position:sticky;bottom:0;background:#fff;padding:12px 0;margin-top:12px;border-top:1px solid #ead0de}
 .medication-add-another{margin-top:6px}
 @media(max-width:760px){.medication-add-backdrop{align-items:flex-start;padding:8px}.medication-add-modal{width:98vw;max-height:96vh}}
+/* v2.14.80 — Approval Requests cards (Pending Approval / Ready to Start): visible on phone AND Windows/desktop */
+.approval-request-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;width:100%;min-width:0}
+.approval-request-cards .stores-ledger-card{display:grid;gap:8px;min-width:0;padding:14px;border:1px solid #ead2dd;border-radius:14px;background:#fff;box-shadow:0 3px 10px rgba(83,25,54,.06)}
+.approval-request-cards .stores-ledger-card p{margin:0;color:#412c36;font-size:14px;line-height:1.4}
+.approval-request-cards .stores-ledger-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;min-width:0;padding-bottom:8px;border-bottom:1px solid #f0dce5}
+.approval-request-cards .stores-ledger-card-head strong{color:#7a1247;font-size:15px;overflow-wrap:anywhere}
+@media(max-width:760px){.approval-request-cards{grid-template-columns:1fr;gap:10px}}
