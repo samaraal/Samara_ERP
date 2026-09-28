@@ -1,59 +1,109 @@
-/* Samara Care ERP — Help / உதவி assistant (2.14.79). Self-contained styles, prefixed .sh- */
+/* Samara Care ERP — Help / உதவி assistant. Self-contained styles, prefixed .sh-
+   2.14.84: Samara brand look (logo, magenta + feather-orange accent), formatted answers, bigger window + Enlarge. */
+.sh-root{--sh-brand:#a0154f;--sh-brand-2:#c21867;--sh-brand-dark:#7a1247;--sh-accent:#f0642a;--sh-ink:#2b1622;--sh-muted:#7d5f6e;--sh-line:#f0d6e3;--sh-soft:#fff6fa;--sh-chip:#fbe4ef}
 .sh-root[hidden]{display:none!important}
-.sh-launch{position:fixed;right:20px;bottom:20px;z-index:1200;display:flex;align-items:center;gap:8px;min-height:48px;padding:0 18px 0 14px;border:0;border-radius:999px;background:linear-gradient(135deg,#9c0040,#c3025a);color:#fff;font-family:inherit;font-weight:800;font-size:15px;line-height:1;box-shadow:0 10px 26px rgba(93,16,57,.32);cursor:pointer}
+.sh-launch{position:fixed;right:20px;bottom:20px;z-index:1200;display:flex;align-items:center;gap:8px;min-height:50px;padding:0 20px 0 15px;border:0;border-radius:999px;background:linear-gradient(135deg,var(--sh-brand),var(--sh-brand-2));color:#fff;font-family:inherit;font-weight:800;font-size:15.5px;line-height:1;box-shadow:0 10px 26px rgba(160,21,79,.34);cursor:pointer}
+.sh-launch::after{content:"";position:absolute;inset:auto 18px 6px 18px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--sh-accent),transparent);opacity:.85}
 .sh-launch-ic{font-size:20px}
 .sh-launch-short{display:none}
-.sh-launch.open{opacity:.0;pointer-events:none}
+.sh-launch.open{opacity:0;pointer-events:none}
 .sh-launch:focus-visible{outline:3px solid #f9a800;outline-offset:3px}
-.sh-panel{position:fixed;right:20px;bottom:20px;z-index:1201;width:min(420px,calc(100vw - 24px));height:min(640px,calc(100dvh - 40px));display:flex;flex-direction:column;background:#fff;border:1px solid #ecc9da;border-radius:20px;box-shadow:0 24px 60px rgba(54,13,34,.3);overflow:hidden;font-size:15px;color:#3c2731}
+
+.sh-panel{position:fixed;right:20px;bottom:20px;z-index:1201;width:min(500px,calc(100vw - 32px));height:min(780px,calc(100dvh - 40px));display:flex;flex-direction:column;background:#fff;border:1px solid var(--sh-line);border-radius:22px;box-shadow:0 28px 70px rgba(80,14,44,.28),0 2px 8px rgba(80,14,44,.08);overflow:hidden;font-size:15.5px;color:var(--sh-ink);transition:width .18s ease,height .18s ease}
+.sh-panel.sh-big{width:min(900px,calc(100vw - 40px));height:calc(100dvh - 40px)}
 .sh-panel[hidden]{display:none}
-.sh-head{display:flex;align-items:flex-start;gap:8px;padding:14px 14px 12px 18px;background:linear-gradient(120deg,#9c0040,#c3025a);color:#fff}
-.sh-head>div{flex:1;min-width:0}
-.sh-head strong{display:block;font-size:17px}
-.sh-head small{display:block;margin-top:3px;font-size:12px;line-height:1.35;opacity:.92}
-.sh-x{width:34px;height:34px;border:0;border-radius:50%;background:rgba(255,255,255,.22);color:#fff;font-size:22px;line-height:1;cursor:pointer;flex:0 0 auto}
-.sh-log-btn{border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.14);color:#fff;border-radius:999px;padding:6px 10px;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap}
-.sh-page{padding:6px 18px;background:#fff4f9;border-bottom:1px solid #f3dbe7;color:#8c0f4f;font-size:12px;font-weight:700}
-.sh-msgs{flex:1;overflow:auto;padding:14px;background:linear-gradient(160deg,#fffafd,#fff2f8)}
-.sh-msg{max-width:88%;margin:0 0 10px;padding:10px 12px;border-radius:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
-.sh-bot{background:#fbe7f1;border:1px solid #f3c5dc;color:#4a1233;border-bottom-left-radius:5px}
-.sh-user{margin-left:auto;background:linear-gradient(135deg,#9c0040,#c3025a);color:#fff;border-bottom-right-radius:5px}
-.sh-user img{display:block;max-width:100%;max-height:120px;margin-top:6px;border-radius:8px;border:2px solid rgba(255,255,255,.6)}
-.sh-tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px;white-space:normal}
-.sh-tool{border:1px solid #e4a3c4;background:#fff;color:#9c0040;border-radius:999px;padding:5px 11px;font-weight:800;font-size:12.5px;cursor:pointer}
-.sh-tool.playing{background:#9c0040;color:#fff}
-.sh-q{font-size:12px;color:#8b5a73;font-weight:700}
-.sh-thinking{display:flex;align-items:center;gap:8px;color:#8c0f4f;font-weight:700}
-.sh-dots{display:inline-flex;gap:3px}.sh-dots i{width:6px;height:6px;border-radius:50%;background:#c3025a;animation:shDot 1s infinite ease-in-out}.sh-dots i:nth-child(2){animation-delay:.15s}.sh-dots i:nth-child(3){animation-delay:.3s}
+
+/* header: white with the real logo, brand title, feather-coloured underline */
+.sh-head{position:relative;display:flex;align-items:center;gap:12px;padding:12px 12px 12px 16px;background:#fff;border-bottom:1px solid var(--sh-line)}
+.sh-head::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;background:linear-gradient(90deg,var(--sh-brand-dark),var(--sh-brand-2) 55%,var(--sh-accent))}
+.sh-logo{height:48px;width:auto;flex:0 0 auto;display:block}
+.sh-title{flex:1;min-width:0;padding-left:12px;border-left:1px solid var(--sh-line)}
+.sh-title strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:18px;font-weight:800;color:var(--sh-brand);letter-spacing:.1px}
+.sh-title small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;font-size:12px;line-height:1.35;color:var(--sh-muted);font-weight:600}
+.sh-x,.sh-size{width:36px;height:36px;border:1px solid var(--sh-line);border-radius:50%;background:var(--sh-soft);color:var(--sh-brand-dark);font-size:20px;line-height:1;cursor:pointer;flex:0 0 auto;display:flex;align-items:center;justify-content:center}
+.sh-x{font-size:24px}
+.sh-x:hover,.sh-size:hover{background:var(--sh-chip)}
+.sh-log-btn{border:1px solid #e3a9c6;background:#fff;color:var(--sh-brand);border-radius:999px;padding:7px 11px;font-weight:800;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.sh-log-btn:hover{background:var(--sh-soft)}
+.sh-log-ic{margin-right:4px}
+
+.sh-page{display:flex;align-items:center;gap:6px;padding:8px 16px;background:var(--sh-soft);border-bottom:1px solid var(--sh-line);color:var(--sh-brand-dark);font-size:12.5px;font-weight:700}
+.sh-page::before{content:"📍";font-size:12px}
+
+.sh-msgs{flex:1;overflow:auto;padding:16px 16px 8px;background:linear-gradient(180deg,#fffafd,#fff5f9)}
+.sh-msg{max-width:90%;margin:0 0 12px;padding:12px 14px;border-radius:16px;line-height:1.65;overflow-wrap:anywhere}
+.sh-bot{background:#fff;border:1px solid var(--sh-line);border-left:4px solid var(--sh-brand-2);color:var(--sh-ink);border-bottom-left-radius:6px;box-shadow:0 2px 8px rgba(122,18,71,.05)}
+.sh-user{margin-left:auto;max-width:82%;background:linear-gradient(135deg,var(--sh-brand),var(--sh-brand-2));color:#fff;border-bottom-right-radius:6px;font-weight:600;white-space:pre-wrap}
+.sh-user img{display:block;max-width:100%;max-height:140px;margin-top:6px;border-radius:8px;border:2px solid rgba(255,255,255,.6)}
+
+/* formatted answer */
+.sh-body p{margin:0 0 8px}
+.sh-body p:last-child{margin-bottom:0}
+.sh-body strong{font-weight:800;color:var(--sh-brand-dark)}
+.sh-body .sh-h{font-weight:800;color:var(--sh-brand-dark);font-size:16px}
+.sh-body .sh-ui{display:inline;padding:1px 7px;border-radius:6px;background:var(--sh-chip);border:1px solid #efc3d9;color:var(--sh-brand-dark);font-weight:800;font-size:.94em;white-space:normal;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.sh-steps,.sh-bullets{margin:4px 0 8px;padding:0;list-style:none;counter-reset:none}
+.sh-steps li,.sh-bullets li{position:relative;padding:0 0 0 34px;margin:0 0 9px}
+.sh-steps li::before{content:attr(value);position:absolute;left:0;top:1px;width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--sh-brand),var(--sh-brand-2));color:#fff;font-weight:800;font-size:12.5px;line-height:24px;text-align:center}
+.sh-bullets li{padding-left:22px}
+.sh-bullets li::before{content:"";position:absolute;left:7px;top:.62em;width:7px;height:7px;border-radius:50%;background:var(--sh-accent)}
+.sh-steps li:last-child,.sh-bullets li:last-child{margin-bottom:0}
+
+.sh-tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;padding-top:9px;border-top:1px dashed var(--sh-line)}
+.sh-tool{border:1px solid #e3a9c6;background:#fff;color:var(--sh-brand);border-radius:999px;padding:6px 12px;font-weight:800;font-size:13px;cursor:pointer}
+.sh-tool:hover{background:var(--sh-soft)}
+.sh-tool.playing{background:var(--sh-brand);border-color:var(--sh-brand);color:#fff}
+.sh-q{font-size:12.5px;color:var(--sh-muted);font-weight:700}
+.sh-thinking{display:flex;align-items:center;gap:8px;color:var(--sh-brand-dark);font-weight:700}
+.sh-dots{display:inline-flex;gap:3px}.sh-dots i{width:7px;height:7px;border-radius:50%;background:var(--sh-brand-2);animation:shDot 1s infinite ease-in-out}.sh-dots i:nth-child(2){animation-delay:.15s;background:#e04a7a}.sh-dots i:nth-child(3){animation-delay:.3s;background:var(--sh-accent)}
 @keyframes shDot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
-.sh-shot{display:grid;grid-template-columns:72px 1fr auto;gap:8px;align-items:center;padding:8px 12px;border-top:1px solid #f3dbe7;background:#fff8e8}
+
+.sh-shot{display:grid;grid-template-columns:72px 1fr auto;gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--sh-line);background:#fff8e8}
 .sh-shot[hidden]{display:none}
 .sh-shot img{width:72px;height:54px;object-fit:cover;border-radius:8px;border:1px solid #eed0df}
 .sh-shot p{margin:0;font-size:12px;line-height:1.35;color:#6b4200;font-weight:600}
-.sh-compose{display:flex;align-items:flex-end;gap:6px;padding:10px;border-top:1px solid #f3dbe7;background:#fff}
-.sh-mic,.sh-attach,.sh-send{flex:0 0 auto;width:44px;height:44px;border-radius:14px;border:1px solid #eeb3d5;background:#fff0f8;color:#9c0040;font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
-.sh-mic.rec{background:#c3025a;color:#fff;border-color:#c3025a;animation:shPulse 1.2s infinite}
-@keyframes shPulse{0%,100%{box-shadow:0 0 0 0 rgba(195,2,90,.45)}50%{box-shadow:0 0 0 8px rgba(195,2,90,0)}}
-.sh-send{background:linear-gradient(135deg,#9c0040,#c3025a);color:#fff;border:0;font-size:18px}
-.sh-input{flex:1;min-width:0;min-height:44px;max-height:110px;resize:none;border:1px solid #e3b4cb;border-radius:14px;padding:11px 12px;font:inherit;font-size:15px;line-height:1.35;color:#2e1a24;background:#fff;box-sizing:border-box}
-.sh-input:focus{outline:2px solid #e4a3c4;border-color:#c3025a}
+
+.sh-compose{display:flex;align-items:flex-end;gap:8px;padding:12px;border-top:1px solid var(--sh-line);background:#fff}
+.sh-mic,.sh-attach,.sh-send{flex:0 0 auto;width:46px;height:46px;border-radius:14px;border:1px solid #efc3d9;background:var(--sh-soft);color:var(--sh-brand);font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.sh-mic:hover,.sh-attach:hover{background:var(--sh-chip)}
+.sh-mic.rec{background:var(--sh-brand-2);color:#fff;border-color:var(--sh-brand-2);animation:shPulse 1.2s infinite}
+@keyframes shPulse{0%,100%{box-shadow:0 0 0 0 rgba(194,24,103,.45)}50%{box-shadow:0 0 0 8px rgba(194,24,103,0)}}
+.sh-send{background:linear-gradient(135deg,var(--sh-brand),var(--sh-brand-2));color:#fff;border:0;font-size:18px;box-shadow:0 4px 12px rgba(160,21,79,.28)}
+.sh-panel textarea.sh-input{flex:1;min-width:0;min-height:46px!important;height:46px;max-height:130px;resize:none;border:1.5px solid #e8bcd2;border-radius:14px;padding:12px 13px;font:inherit;font-size:15.5px;line-height:1.4;color:var(--sh-ink);background:#fff;box-sizing:border-box}
+.sh-input::placeholder{color:#a88597}
+.sh-input:focus{outline:3px solid rgba(194,24,103,.15);border-color:var(--sh-brand-2)}
 .sh-compose button:disabled,.sh-input:disabled{opacity:.55;cursor:default}
-.sh-mic:focus-visible,.sh-attach:focus-within,.sh-send:focus-visible,.sh-x:focus-visible,.sh-tool:focus-visible{outline:3px solid #f9a800;outline-offset:2px}
+.sh-mic:focus-visible,.sh-attach:focus-within,.sh-send:focus-visible,.sh-x:focus-visible,.sh-size:focus-visible,.sh-tool:focus-visible,.sh-log-btn:focus-visible{outline:3px solid #f9a800;outline-offset:2px}
+
+/* Admin: staff questions */
 .sh-log-mode .sh-msgs,.sh-log-mode .sh-shot,.sh-log-mode .sh-compose,.sh-log-mode .sh-page{display:none}
-.sh-log{flex:1;overflow:auto;padding:12px 14px}
-.sh-log h4{margin:0 0 8px;color:#9c0040}
-.sh-log-row{border:1px solid #f0d0e0;border-radius:12px;padding:8px 10px;margin-bottom:8px;background:#fffafd}
+.sh-log{flex:1;overflow:auto;padding:14px 16px;background:#fffafd}
+.sh-log h4{margin:0 0 10px;color:var(--sh-brand);font-size:16px}
+.sh-log-row{border:1px solid var(--sh-line);border-left:4px solid var(--sh-brand-2);border-radius:12px;padding:9px 11px;margin-bottom:9px;background:#fff}
 .sh-log-row summary{cursor:pointer;list-style:none;display:grid;gap:3px}
-.sh-log-meta{font-size:11.5px;color:#8b5a73;font-weight:700}
-.sh-log-q{font-weight:700;color:#4a1233}
-.sh-log-row p{margin:8px 0 0;white-space:pre-wrap;font-size:13.5px;line-height:1.45}
+.sh-log-meta{font-size:12px;color:var(--sh-muted);font-weight:700}
+.sh-log-q{font-weight:800;color:var(--sh-ink)}
+.sh-log-row p{margin:8px 0 0;white-space:pre-wrap;font-size:14px;line-height:1.55}
+
+/* Never show the ERP-wide Voice / Dictate controls inside Help (Help has its own 🎙) */
+.sh-panel .samara-global-voice-btn,.sh-panel .samara-dictation-tools{display:none!important}
+
 @media(max-width:760px){
- .sh-launch{right:12px;bottom:calc(84px + env(safe-area-inset-bottom));min-height:46px;padding:0 14px 0 11px;gap:6px}
+ .sh-launch{right:12px;bottom:calc(84px + env(safe-area-inset-bottom));min-height:46px;padding:0 15px 0 12px;gap:6px}
  .sh-launch-tx{display:none}
  .sh-launch-short{display:inline;font-size:15px}
- .sh-panel{right:0;left:0;bottom:0;width:100%;height:calc(100dvh - 56px);border-radius:20px 20px 0 0}
- .sh-msg{max-width:92%}
+ .sh-panel,.sh-panel.sh-big{right:0;left:0;bottom:0;width:100%;height:calc(100dvh - 48px);border-radius:22px 22px 0 0;font-size:16px}
+ .sh-size{display:none}
+ .sh-logo{height:40px}
+ .sh-title{padding-left:10px}
+ .sh-title strong{font-size:17px}
+ .sh-title small{font-size:11.5px}
+ .sh-log-btn{padding:0;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:17px}
+ .sh-log-tx{display:none}
+ .sh-log-ic{margin:0}
+ .sh-msg{max-width:95%}
+ .sh-user{max-width:88%}
+ .sh-compose{padding:10px 10px calc(10px + env(safe-area-inset-bottom))}
 }
-@media(prefers-reduced-motion:reduce){.sh-dots i,.sh-mic.rec{animation:none}}
-/* 2.14.81: safety net — never show the ERP-wide Voice / Dictate controls inside the Help panel */
-.sh-panel .samara-global-voice-btn,.sh-panel .samara-dictation-tools{display:none!important}
+@media(max-width:380px){.sh-title small{display:none}.sh-logo{height:34px}}
+@media(prefers-reduced-motion:reduce){.sh-dots i,.sh-mic.rec{animation:none}.sh-panel{transition:none}}

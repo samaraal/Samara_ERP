@@ -1,4 +1,4 @@
-/* Samara Care ERP — Help / உதவி assistant (2.14.79, 28-09-2026; 2.14.81: typing box opts out of the ERP-wide 🎤 Voice / Dictate bar — Help has its own 🎙).
+/* Samara Care ERP — Help / உதவி assistant (2.14.79, 28-09-2026; 2.14.84: Samara logo + brand colours, formatted answers, bigger / enlarge; 2.14.81: typing box opts out of the ERP-wide 🎤 Voice / Dictate bar — Help has its own 🎙).
    A separate, self-contained file (not part of app.js) so it cannot break other pages.
    Staff ask how to use the ERP by Tamil/English voice, typing, or a screenshot; answers come from the
    erp-help-ai Supabase Edge Function. Screenshots and recordings are sent only to get the answer and are never stored. */
@@ -10,9 +10,9 @@ var FN=CFG.supabaseUrl.replace(/\/$/,'')+'/functions/v1/erp-help-ai';
 var REF=(CFG.supabaseUrl.match(/https:\/\/([^.]+)\./)||[])[1]||'';
 var TOKEN_KEY='sb-'+REF+'-auth-token';
 var T={
- title:'Samara Help · உதவி',sub:'ERP பயன்பாட்டில் உதவி — பேசுங்கள், தட்டச்சு செய்யுங்கள் அல்லது screenshot இணைக்கவும்',
+ title:'Help · உதவி',sub:'ERP பயன்பாட்டு உதவி',bigger:'பெரிதாக்கு / Enlarge',smaller:'சிறிதாக்கு / Smaller',
  hello:'வணக்கம்! ERP-ஐப் பயன்படுத்துவதில் ஏதாவது சந்தேகமா? 🎙 அழுத்தி தமிழில் பேசுங்கள், கேள்வியைத் தட்டச்சு செய்யுங்கள், அல்லது 📷 மூலம் திரைப் படத்தை (screenshot) இணைக்கவும். ERP பயன்பாடு பற்றிய கேள்விகளுக்கு மட்டுமே உதவுவேன்.',
- ph:'உங்கள் கேள்வி… / Your question…',page:'இப்போதைய பக்கம்',
+ ph:'உங்கள் கேள்வி… / Question',page:'இப்போதைய பக்கம்',
  rec:'கேட்கிறேன்… முடிந்ததும் ■ அழுத்துங்கள்',thinking:'பதில் தயாராகிறது…',listen:'🔊 கேட்க',stop:'■ நிறுத்து',
  shotNote:'Screenshot-ல் நோயாளியின் பெயர் / விவரங்கள் இருந்தால் முடிந்தவரை crop செய்யுங்கள். படம் சேமிக்கப்படாது.',
  remove:'நீக்கு',helpful:'உதவியதா?',yes:'👍 ஆம்',no:'👎 இல்லை',thanks:'நன்றி!',
@@ -29,6 +29,26 @@ function esc(s){var d=document.createElement('div');d.textContent=String(s==null
 function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
 function dmy(v){var d=new Date(v);if(isNaN(d))return '';var p=function(n){return('0'+n).slice(-2)};var h=d.getHours();return p(d.getDate())+'-'+p(d.getMonth()+1)+'-'+d.getFullYear()+', '+p(h%12||12)+':'+p(d.getMinutes())+' '+(h>=12?'PM':'AM')}
 
+// 2.14.84: show the AI's **bold**, numbered steps and "Button names" nicely (text is escaped first — no raw HTML).
+function inline(t){
+ return t.replace(/\*\*([^*]+?)\*\*/g,'<strong>$1</strong>')
+  .replace(/`([^`]+?)`/g,'<span class="sh-ui">$1</span>')
+  .replace(/(?:"|“)([^"“”<>\n]{1,48}?)(?:"|”)/g,'<span class="sh-ui">$1</span>');
+}
+function fmt(text){
+ var lines=esc(text).split(/\n/),html='',list='';
+ var close=function(){if(list){html+='</'+list+'>';list=''}};
+ lines.forEach(function(raw){
+  var l=raw.trim(),m;
+  if(!l){close();return}
+  if((m=l.match(/^(\d{1,2})[.)]\s+(.*)$/))){if(list!=='ol'){close();html+='<ol class="sh-steps">';list='ol'}html+='<li value="'+m[1]+'">'+inline(m[2])+'</li>';return}
+  if((m=l.match(/^[-*•]\s+(.*)$/))){if(list!=='ul'){close();html+='<ul class="sh-bullets">';list='ul'}html+='<li>'+inline(m[1])+'</li>';return}
+  close();
+  if((m=l.match(/^#{1,4}\s+(.*)$/)))html+='<p class="sh-h">'+inline(m[1])+'</p>';else html+='<p>'+inline(l)+'</p>';
+ });
+ close();return html;
+}
+
 // ---------- UI ----------
 var root,btn,panel,msgs,input,shotBox,micBtn,pageChip,logBtn;
 function build(){
@@ -36,7 +56,7 @@ function build(){
  btn=el('button','sh-launch');btn.type='button';btn.setAttribute('aria-label','Samara Help — உதவி');btn.innerHTML='<span class="sh-launch-ic" aria-hidden="true">💬</span><span class="sh-launch-tx">'+esc(T.open)+'</span><span class="sh-launch-short">உதவி</span>';
  btn.onclick=toggle;
  panel=el('section','sh-panel');panel.setAttribute('role','dialog');panel.setAttribute('aria-label',T.title);panel.hidden=true;
- panel.innerHTML='<header class="sh-head"><div><strong>'+esc(T.title)+'</strong><small>'+esc(T.sub)+'</small></div><button type="button" class="sh-log-btn" hidden>'+esc(T.log)+'</button><button type="button" class="sh-x" aria-label="Close">×</button></header>'+
+ panel.innerHTML='<header class="sh-head"><img class="sh-logo" src="./assets/samara-help-logo.png?v=2.14.84" alt="Samara" width="92" height="48"><div class="sh-title"><strong>'+esc(T.title)+'</strong><small>'+esc(T.sub)+'</small></div><button type="button" class="sh-log-btn" hidden title="Staff questions" aria-label="Staff questions"><span class="sh-log-ic">📋</span><span class="sh-log-tx">Staff questions</span></button><button type="button" class="sh-size" aria-label="'+esc(T.bigger)+'" title="'+esc(T.bigger)+'">⤢</button><button type="button" class="sh-x" aria-label="Close">×</button></header>'+
   '<div class="sh-page"></div><div class="sh-msgs" aria-live="polite"></div><div class="sh-shot" hidden></div>'+
   '<form class="sh-compose"><button type="button" class="sh-mic" aria-label="Tamil voice / பேசுங்கள்" title="பேசுங்கள் (Tamil / English)">🎙</button>'+
   '<label class="sh-attach" title="Screenshot இணைக்க" aria-label="Attach screenshot">📷<input type="file" accept="image/*" hidden></label>'+
@@ -44,6 +64,9 @@ function build(){
  root.appendChild(btn);root.appendChild(panel);document.body.appendChild(root);
  msgs=panel.querySelector('.sh-msgs');input=panel.querySelector('.sh-input');shotBox=panel.querySelector('.sh-shot');micBtn=panel.querySelector('.sh-mic');pageChip=panel.querySelector('.sh-page');logBtn=panel.querySelector('.sh-log-btn');
  panel.querySelector('.sh-x').onclick=toggle;
+ var sizeBtn=panel.querySelector('.sh-size');var setSize=function(big){panel.classList.toggle('sh-big',big);sizeBtn.textContent=big?'⤡':'⤢';sizeBtn.title=sizeBtn.ariaLabel=big?T.smaller:T.bigger;try{localStorage.setItem('samara-help-big',big?'1':'0')}catch(e){}};
+ var wasBig=false;try{wasBig=localStorage.getItem('samara-help-big')==='1'}catch(e){}setSize(wasBig);
+ sizeBtn.onclick=function(){setSize(!panel.classList.contains('sh-big'));scroll()};
  logBtn.onclick=function(){state.tab==='log'?showChat():showLog()};
  micBtn.onclick=function(){state.rec?stopRec():startRec()};
  panel.querySelector('.sh-attach input').onchange=function(e){var f=e.target.files&&e.target.files[0];e.target.value='';if(f)attach(f)};
@@ -62,7 +85,7 @@ function toggle(){
 function scroll(){msgs.scrollTop=msgs.scrollHeight}
 function user(text,img){var d=el('div','sh-msg sh-user');if(text)d.appendChild(el('div',null,text));if(img){var i=el('img');i.src=img;i.alt='screenshot';d.appendChild(i)}msgs.appendChild(d);scroll()}
 function bot(text,opts){
- opts=opts||{};var d=el('div','sh-msg sh-bot');var body=el('div','sh-body');body.textContent=text;d.appendChild(body);
+ opts=opts||{};var d=el('div','sh-msg sh-bot');var body=el('div','sh-body');body.innerHTML=fmt(text);d.appendChild(body);
  if(opts.speakable){var row=el('div','sh-tools');var l=el('button','sh-tool',T.listen);l.type='button';l.onclick=function(){speak(text,opts.language,l)};row.appendChild(l);
   if(opts.id){var q=el('span','sh-q',T.helpful);row.appendChild(q);[['yes',true],['no',false]].forEach(function(p){var b=el('button','sh-tool',T[p[0]]);b.type='button';b.onclick=function(){feedback(opts.id,p[1],row)};row.appendChild(b)})}
   d.appendChild(row);opts.speakBtn=l}
@@ -150,9 +173,9 @@ function whoami(){
  if(state.role)return;
  fresh().then(function(tok){if(!tok)return;return fetch(FN,{method:'POST',headers:{apikey:CFG.supabasePublishableKey,Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({mode:'whoami'})}).then(function(r){return r.json()}).then(function(j){state.role=j&&j.role||'';logBtn.hidden=state.role!=='Admin'})}).catch(function(){});
 }
-function showChat(){state.tab='chat';logBtn.textContent=T.log;panel.classList.remove('sh-log-mode');var l=panel.querySelector('.sh-log');if(l)l.remove()}
+function showChat(){state.tab='chat';logBtn.querySelector('.sh-log-tx').textContent='Staff questions';logBtn.querySelector('.sh-log-ic').textContent='📋';panel.classList.remove('sh-log-mode');var l=panel.querySelector('.sh-log');if(l)l.remove()}
 function showLog(){
- state.tab='log';logBtn.textContent=T.back;panel.classList.add('sh-log-mode');
+ state.tab='log';logBtn.querySelector('.sh-log-tx').textContent='Help';logBtn.querySelector('.sh-log-ic').textContent='←';panel.classList.add('sh-log-mode');
  var box=el('div','sh-log');box.appendChild(el('h4',null,T.logTitle));var list=el('div','sh-log-list','…');box.appendChild(list);panel.insertBefore(box,panel.querySelector('.sh-msgs'));
  fresh().then(function(tok){return fetch(CFG.supabaseUrl.replace(/\/$/,'')+'/rest/v1/erp_help_questions?select=created_at,staff_name,staff_role,page,question,answer,via_voice,had_screenshot,helpful&order=created_at.desc&limit=100',{headers:{apikey:CFG.supabasePublishableKey,Authorization:'Bearer '+tok}})})
  .then(function(r){return r.json()}).then(function(rows){

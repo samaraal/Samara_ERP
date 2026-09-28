@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.84 — Help / உதவி: Samara look, clearer answers, bigger window
+- Header is now white with the **Samara logo**; colours taken from the logo (Samara magenta, with the feather's orange as a thin accent line) instead of the dark maroon ribbon.
+- Answers are **formatted**: bold headings show as bold (no more `**` marks), numbered steps get round step numbers, and ERP button / page names in quotes are highlighted (e.g. Confirm & Start) so staff can spot them on screen.
+- **Bigger window** on Windows (500 × 780) plus a ⤢ **Enlarge** button for a near full-screen view (remembered on that computer). Larger text (15.5 px, 16 px on phones). Phones keep the full-screen sheet; "Staff questions" becomes a 📋 icon there.
+- No SQL, no Edge Function change. Files: `erp-help.js`, `erp-help.css`, new `assets/samara-help-logo.png`, version files, `app.js` (rebuilt, version only).
+
 ## 2.14.83 — Help / உதவி: Tamil answers and "tell it in Tamil"
 - "tell it in tamil" / "தமிழில் சொல்லுங்கள்" / "in English" now repeats the previous answer in that language (before, a short English follow-up was answered in English or failed).
 - Long Tamil answers that the AI cut off, or returned in slightly broken format, are recovered instead of showing "Help is temporarily unavailable"; a cut-off answer is asked for again with more room.
