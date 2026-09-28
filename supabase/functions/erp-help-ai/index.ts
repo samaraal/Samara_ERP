@@ -1,4 +1,4 @@
-// Samara Care ERP — Help / உதவி assistant (Edge Function: erp-help-ai), 2.14.79, 28-09-2026; 2.14.82: current Gemini models with automatic fallback.
+// Samara Care ERP — Help / உதவி assistant (Edge Function: erp-help-ai), 2.14.79, 28-09-2026; 2.14.82: current Gemini models with automatic fallback; 2.14.83: Tamil answers not lost when cut off, "tell it in tamil" honoured.
 // Staff ask how to use the ERP by Tamil/English voice, text and/or a screenshot. Answers are about using the ERP only.
 // Requires a logged-in staff member. Screenshots and recordings are never stored; only the question text,
 // page, role and answer are logged in public.erp_help_questions (Admin can read).
@@ -41,7 +41,23 @@ function b64(bytes: Uint8Array) {
   let s = ""; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(s);
 }
-function parseJson(t: string) { try { return JSON.parse(String(t).replace(/^```json\s*|```$/g, "").trim()); } catch { return null; } }
+function parseJson(t: string) {
+  const raw = String(t || "").replace(/^\s*```(?:json)?\s*|```\s*$/g, "").trim();
+  try { return JSON.parse(raw); } catch { /* try the {...} part only */ }
+  const a = raw.indexOf("{"), b = raw.lastIndexOf("}");
+  if (a >= 0 && b > a) { try { return JSON.parse(raw.slice(a, b + 1)); } catch { /* fall through */ } }
+  return null;
+}
+// 2.14.83: if the model's JSON is broken (long Tamil answers), still recover the reply text.
+function salvage(t: string) {
+  const raw = String(t || "");
+  const m = raw.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)/);
+  let reply = m ? m[1] : "";
+  if (reply) { try { reply = JSON.parse('"' + reply.replace(/\\?$/, "") + '"'); } catch { reply = reply.replace(/\\n/g, "\n").replace(/\\"/g, '"'); } }
+  else if (!/^\s*[{\[]/.test(raw)) reply = raw.trim();
+  const lg = (raw.match(/"language"\s*:\s*"([a-z]{2})"/) || [])[1];
+  return reply ? { reply, language: lg, transcript: reply, english: reply } : null;
+}
 function lang(x: unknown) { const v = String(x || "").toLowerCase().slice(0, 2); return ["ta", "en", "te", "hi", "kn", "ml"].includes(v) ? v : "ta"; }
 // 2.14.82: Google retired gemini-2.5-flash for new users (404 NOT_FOUND). Try current models in order;
 // on 404 (model not available to this key) move to the next one and remember the one that works.
@@ -73,8 +89,15 @@ async function gemini(system: string, parts: unknown[], maxTokens = 900) {
     if (r.status === 400 && /thinking/i.test(String(j?.error?.message || ""))) ({ r, j } = await callGemini(key, model, system, parts, maxTokens, false));
     if (r.status === 404) { console.error("erp-help gemini model not available", model); last = model + " 404"; continue; }
     if (!r.ok) { console.error("erp-help gemini", model, r.status, String(j?.error?.status || ""), String(j?.error?.message || "").slice(0, 160)); throw new Error("Gemini HTTP " + r.status); }
-    const x = parseJson((j?.candidates?.[0]?.content?.parts || []).filter((p: any) => !p.thought).map((p: any) => p.text || "").join(""));
-    if (!x) { console.error("erp-help gemini unreadable", model, String(j?.candidates?.[0]?.finishReason || "")); throw new Error("Gemini returned unreadable output"); }
+    const textOf = (jj: any) => (jj?.candidates?.[0]?.content?.parts || []).filter((p: any) => !p.thought).map((p: any) => p.text || "").join("");
+    let x = parseJson(textOf(j));
+    if (!x && String(j?.candidates?.[0]?.finishReason || "") === "MAX_TOKENS") {
+      // Answer was cut off (Tamil uses many tokens): ask again with more room and no extra thinking.
+      ({ r, j } = await callGemini(key, model, system, parts, maxTokens * 3, false));
+      if (r.ok) x = parseJson(textOf(j));
+    }
+    if (!x) x = salvage(textOf(j));
+    if (!x) { console.error("erp-help gemini unreadable", model, String(j?.candidates?.[0]?.finishReason || ""), textOf(j).slice(0, 80)); throw new Error("Gemini returned unreadable output"); }
     if (helpModel !== model) { helpModel = model; console.log("erp-help using model", model); }
     return x;
   }
@@ -176,17 +199,23 @@ Deno.serve(async (req) => {
 
     // Step 1: understand the question (needed for voice, Tamil text or screenshots).
     let transcript = message, english = message, language = /[஀-௿]/.test(message) ? "ta" : /^[\x00-\x7F\s]*$/.test(message) && message ? "en" : "ta";
+    // 2.14.83: "tell it in tamil" / "தமிழில் சொல்லுங்கள்" / "in english" — answer in the language asked for.
+    const askedLang = /தமிழ|\btamil\b|\bthamizh|\btamizh/i.test(message) ? "ta" : /ஆங்கில|\benglish\b/i.test(message) ? "en" : "";
     if (audio || image || language !== "en") {
       const u = await gemini(UNDERSTAND, [{ text: `ERP page open now: ${page || "unknown"}\nTyped text: ${message || "(none)"}` }, ...media], 400);
       transcript = String(u.transcript || message || "").trim(); english = String(u.english || transcript).trim(); language = lang(u.language || language);
       if (audio && !transcript && !image) return out({ error: "I could not hear a question. Please try again.", code: "NO_SPEECH" }, 422);
     }
 
+    if (askedLang) language = askedLang;
+    const followUp = askedLang && message.length < 60 && history.length > 0;
+
     // Step 2: answer from the ERP guide.
     const kb = await excerpts(english + " " + transcript, page, role);
     const hist = history.slice(-6).filter((h: any) => h && typeof h.content === "string").map((h: any) => `${h.role === "assistant" ? "Help" : "Staff"}: ${String(h.content).slice(0, 800)}`).join("\n");
     const ctx = `STAFF: ${name} — role ${role}${prof?.designation ? ", " + prof.designation : ""}${prof?.department ? ", " + prof.department : ""}\nERP PAGE OPEN NOW: ${page || "unknown"}\n` +
-      (hist ? `RECENT CONVERSATION:\n${hist}\n` : "") + `\nERP GUIDE EXCERPTS:\n${kb || "(none found)"}\n\nQUESTION (${language}): ${transcript || "(see screenshot)"}\nMEANING IN ENGLISH: ${english}\nReply in language: ${language}.`;
+      (hist ? `RECENT CONVERSATION:\n${hist}\n` : "") + `\nERP GUIDE EXCERPTS:\n${kb || "(none found)"}\n\nQUESTION (${language}): ${transcript || "(see screenshot)"}\nMEANING IN ENGLISH: ${english}\nReply in language: ${language}.` +
+      (followUp ? `\nThe staff member is asking you to repeat your previous answer (see RECENT CONVERSATION) in ${language === "ta" ? "Tamil" : "English"}. Give that same answer again in that language.` : "");
     const a = await gemini(SYSTEM, [{ text: ctx }, ...(image ? [{ inlineData: { mimeType: image.mime, data: image.data } }] : [])], 1100);
     const reply = String(a.reply || "").trim(); language = lang(a.language || language);
     if (!reply) throw new Error("Empty reply");

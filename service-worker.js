@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.82';
-const CACHE = 'samara-erp-2.14.82-help-gemini-model';
+const APP_VERSION = '2.14.83';
+const CACHE = 'samara-erp-2.14.83-help-tamil-reply';
 const SHELL = [
   './',
   './index.html',
