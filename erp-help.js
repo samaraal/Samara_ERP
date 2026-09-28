@@ -1,4 +1,4 @@
-/* Samara Care ERP — Help / உதவி assistant (2.14.79, 28-09-2026).
+/* Samara Care ERP — Help / உதவி assistant (2.14.79, 28-09-2026; 2.14.81: typing box opts out of the ERP-wide 🎤 Voice / Dictate bar — Help has its own 🎙).
    A separate, self-contained file (not part of app.js) so it cannot break other pages.
    Staff ask how to use the ERP by Tamil/English voice, typing, or a screenshot; answers come from the
    erp-help-ai Supabase Edge Function. Screenshots and recordings are sent only to get the answer and are never stored. */
@@ -40,7 +40,7 @@ function build(){
   '<div class="sh-page"></div><div class="sh-msgs" aria-live="polite"></div><div class="sh-shot" hidden></div>'+
   '<form class="sh-compose"><button type="button" class="sh-mic" aria-label="Tamil voice / பேசுங்கள்" title="பேசுங்கள் (Tamil / English)">🎙</button>'+
   '<label class="sh-attach" title="Screenshot இணைக்க" aria-label="Attach screenshot">📷<input type="file" accept="image/*" hidden></label>'+
-  '<textarea rows="1" class="sh-input" placeholder="'+esc(T.ph)+'"></textarea><button class="sh-send" aria-label="Send">➤</button></form>';
+  '<textarea rows="1" class="sh-input" data-samara-voice="off" placeholder="'+esc(T.ph)+'"></textarea><button class="sh-send" aria-label="Send">➤</button></form>';
  root.appendChild(btn);root.appendChild(panel);document.body.appendChild(root);
  msgs=panel.querySelector('.sh-msgs');input=panel.querySelector('.sh-input');shotBox=panel.querySelector('.sh-shot');micBtn=panel.querySelector('.sh-mic');pageChip=panel.querySelector('.sh-page');logBtn=panel.querySelector('.sh-log-btn');
  panel.querySelector('.sh-x').onclick=toggle;

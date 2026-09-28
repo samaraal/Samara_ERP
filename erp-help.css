@@ -55,3 +55,5 @@
  .sh-msg{max-width:92%}
 }
 @media(prefers-reduced-motion:reduce){.sh-dots i,.sh-mic.rec{animation:none}}
+/* 2.14.81: safety net — never show the ERP-wide Voice / Dictate controls inside the Help panel */
+.sh-panel .samara-global-voice-btn,.sh-panel .samara-dictation-tools{display:none!important}

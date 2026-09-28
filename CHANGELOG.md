@@ -3,6 +3,11 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.81 — Help / உதவி: typing box fixed on phones
+- The ERP-wide "🎤 Voice" + "Dictate / Language" bar was being added to the Help typing box, squeezing it into a thin vertical strip on phones. The Help box now opts out (Help already has its own 🎙 button).
+- **"உதவி தற்போது கிடைக்கவில்லை" (Help not available) on every question:** Supabase → Edge Functions → `erp-help-ai` → Settings → turn **Verify JWT with legacy secret OFF** → Save. The function checks the staff login itself (same as the other ERP functions). Also make sure `supabase/sql/157_erp_help_assistant.sql` has been run.
+- No SQL change. Files: `erp-help.js`, `erp-help.css`, version files, `app.js` (rebuilt, version only).
+
 ## 2.14.80 — Approval Requests: "Confirm & Start" now shows on Windows / desktop
 - NURSING → Approval Requests: the **Approved — Ready to Start** cards (nurse's **Confirm & Start** button) and the **Pending Approval** cards (Nursing Manager's **Approve / Decline** buttons) were visible only on phones — they used a phone-only card style hidden above 760px width, so on Windows the section showed a count, e.g. "(2)", but no cards. They now show on every screen size.
 - No SQL required. No database change. Workflow unchanged. Includes everything in 2.14.79 (Help assistant).
