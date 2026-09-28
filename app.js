@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.79';
+  const APP_VERSION = '2.14.80';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -25062,6 +25062,10 @@ function RoomsBeds({profile,onNavigate}){
     );
   }
 
+  // v2.14.80: cards use 'approval-request-cards' (visible on every screen size).
+  // They used 'stores-ledger-mobile', which is hidden above 760px, so on
+  // Windows / desktop the Nurse's 'Confirm & Start' and the Nursing Manager's
+  // Approve / Decline buttons were not shown.
   // v2.14.61: "Approval Requests" (formerly Nursing Procedures).
   // Covers every Charge Master category that Admin has marked
   // "Needs Nursing Manager approval" (Nursing Procedures by default).
@@ -25183,7 +25187,7 @@ function RoomsBeds({profile,onNavigate}){
         )
       ),
       canDecide&&h(Section,{title:`Pending Approval (${pending.length})`,subtitle:'Approve or decline each request. Once approved, the nurse confirms and starts it.'},
-        pending.length?h('div',{className:'stores-ledger-mobile'},pending.map(r=>h('article',{className:'stores-ledger-card',key:r.id},
+        pending.length?h('div',{className:'approval-request-cards'},pending.map(r=>h('article',{className:'stores-ledger-card',key:r.id},
           cardHead(r),
           h('p',null,`${patientName(r.patient_id)} · Requested by ${r.requested_by_name||'—'} at ${formatDateTimeIN(r.requested_at)}`),
           r.scheduled_at&&h('p',null,`Scheduled: ${formatDateTimeIN(r.scheduled_at)}`),
@@ -25195,7 +25199,7 @@ function RoomsBeds({profile,onNavigate}){
         ))):h('p',null,'No pending requests.')
       ),
       canStart&&h(Section,{title:`Approved — Ready to Start (${readyToStart.length})`,subtitle:'Confirm you are about to do it. This raises the matching charge for Accounts.'},
-        readyToStart.length?h('div',{className:'stores-ledger-mobile'},readyToStart.map(r=>h('article',{className:'stores-ledger-card',key:r.id},
+        readyToStart.length?h('div',{className:'approval-request-cards'},readyToStart.map(r=>h('article',{className:'stores-ledger-card',key:r.id},
           cardHead(r),
           h('p',null,`${patientName(r.patient_id)} · Approved by ${r.decision_by_name||'—'} at ${formatDateTimeIN(r.decision_at)}`),
           r.scheduled_at&&h('p',null,`Scheduled: ${formatDateTimeIN(r.scheduled_at)}`),

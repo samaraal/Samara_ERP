@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.79';
-const CACHE = 'samara-erp-2.14.79-help-assistant';
+const APP_VERSION = '2.14.80';
+const CACHE = 'samara-erp-2.14.80-approval-start-desktop';
 const SHELL = [
   './',
   './index.html',

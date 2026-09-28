@@ -3,6 +3,11 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.80 — Approval Requests: "Confirm & Start" now shows on Windows / desktop
+- NURSING → Approval Requests: the **Approved — Ready to Start** cards (nurse's **Confirm & Start** button) and the **Pending Approval** cards (Nursing Manager's **Approve / Decline** buttons) were visible only on phones — they used a phone-only card style hidden above 760px width, so on Windows the section showed a count, e.g. "(2)", but no cards. They now show on every screen size.
+- No SQL required. No database change. Workflow unchanged. Includes everything in 2.14.79 (Help assistant).
+- Files: `src/app/nursing/nursing-procedures.js`, `styles.css`, version files (`index.html`, `service-worker.js`, `bootstrap-error.js`, `src/app/0-start/01-app-constants.js`), `app.js` (rebuilt).
+
 ## 2.14.79 — Help / உதவி assistant for staff (Tamil voice, text or screenshot)
 - New **Help / உதவி** button (bottom right; on phones "💬 உதவி" above the bottom menu) for every logged-in staff member. It opens a help chat that answers **only questions about using the ERP**: where a page is, which button to press, how a workflow goes, what an error message means.
 - Staff can **speak in Tamil** (🎙, up to 1 minute), **type**, or **attach / paste a screenshot** (📷 or Ctrl+V). The page they are on is sent automatically. Answers come as short numbered steps in simple Tamil (button names kept in English exactly as on screen) and are **read aloud** when the question was spoken (🔊 to replay). 👍 / 👎 feedback on each answer.
