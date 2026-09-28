@@ -1,4 +1,4 @@
-// Samara Care ERP — Help / உதவி assistant (Edge Function: erp-help-ai), 2.14.79, 28-09-2026.
+// Samara Care ERP — Help / உதவி assistant (Edge Function: erp-help-ai), 2.14.79, 28-09-2026; 2.14.82: current Gemini models with automatic fallback.
 // Staff ask how to use the ERP by Tamil/English voice, text and/or a screenshot. Answers are about using the ERP only.
 // Requires a logged-in staff member. Screenshots and recordings are never stored; only the question text,
 // page, role and answer are logged in public.erp_help_questions (Admin can read).
@@ -43,24 +43,42 @@ function b64(bytes: Uint8Array) {
 }
 function parseJson(t: string) { try { return JSON.parse(String(t).replace(/^```json\s*|```$/g, "").trim()); } catch { return null; } }
 function lang(x: unknown) { const v = String(x || "").toLowerCase().slice(0, 2); return ["ta", "en", "te", "hi", "kn", "ml"].includes(v) ? v : "ta"; }
-async function gemini(system: string, parts: unknown[], maxTokens = 900) {
-  const key = Deno.env.get("GEMINI_API_KEY"); if (!key) throw new Error("Gemini key missing");
-  const model = Deno.env.get("GEMINI_HELP_MODEL") || "gemini-2.5-flash";
+// 2.14.82: Google retired gemini-2.5-flash for new users (404 NOT_FOUND). Try current models in order;
+// on 404 (model not available to this key) move to the next one and remember the one that works.
+let helpModel = "";
+function modelList() {
+  const want = [Deno.env.get("GEMINI_HELP_MODEL"), helpModel, "gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash"];
+  return [...new Set(want.filter((m): m is string => !!m && !!m.trim()).map((m) => m.trim()))];
+}
+async function callGemini(key: string, model: string, system: string, parts: unknown[], maxTokens: number, thinking: boolean) {
+  const cfg: Record<string, unknown> = { responseMimeType: "application/json", temperature: 0.2, maxOutputTokens: maxTokens };
+  // Older 2.x Flash: switch thinking off. Newer models: leave their default, allow room for it.
+  if (/^gemini-2\./i.test(model) && /flash/i.test(model)) cfg.thinkingConfig = { thinkingBudget: 0 };
+  else if (thinking) cfg.thinkingConfig = { thinkingLevel: "low" };
+  if (!/^gemini-2\./i.test(model)) cfg.maxOutputTokens = Math.max(maxTokens * 4, 4096);
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-    method: "POST", signal: AbortSignal.timeout(30000),
+    method: "POST", signal: AbortSignal.timeout(40000),
     headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents: [{ role: "user", parts }],
-      generationConfig: { responseMimeType: "application/json", temperature: 0.2, maxOutputTokens: maxTokens,
-        ...(/flash/i.test(model) ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
-    }),
+    body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: "user", parts }], generationConfig: cfg }),
   });
   const j = await r.json().catch(() => null);
-  if (!r.ok) { console.error("erp-help gemini", r.status, String(j?.error?.status || "")); throw new Error("Gemini HTTP " + r.status); }
-  const x = parseJson((j?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || "").join(""));
-  if (!x) throw new Error("Gemini returned unreadable output");
-  return x;
+  return { r, j };
+}
+async function gemini(system: string, parts: unknown[], maxTokens = 900) {
+  const key = Deno.env.get("GEMINI_API_KEY"); if (!key) throw new Error("Gemini key missing");
+  let last = "no model";
+  for (const model of modelList()) {
+    let { r, j } = await callGemini(key, model, system, parts, maxTokens, true);
+    // If this model rejects the thinking setting, retry once without it.
+    if (r.status === 400 && /thinking/i.test(String(j?.error?.message || ""))) ({ r, j } = await callGemini(key, model, system, parts, maxTokens, false));
+    if (r.status === 404) { console.error("erp-help gemini model not available", model); last = model + " 404"; continue; }
+    if (!r.ok) { console.error("erp-help gemini", model, r.status, String(j?.error?.status || ""), String(j?.error?.message || "").slice(0, 160)); throw new Error("Gemini HTTP " + r.status); }
+    const x = parseJson((j?.candidates?.[0]?.content?.parts || []).filter((p: any) => !p.thought).map((p: any) => p.text || "").join(""));
+    if (!x) { console.error("erp-help gemini unreadable", model, String(j?.candidates?.[0]?.finishReason || "")); throw new Error("Gemini returned unreadable output"); }
+    if (helpModel !== model) { helpModel = model; console.log("erp-help using model", model); }
+    return x;
+  }
+  throw new Error("No Gemini model available (" + last + ")");
 }
 
 // ---------- knowledge ----------

@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.81';
-const CACHE = 'samara-erp-2.14.81-help-compose-fix';
+const APP_VERSION = '2.14.82';
+const CACHE = 'samara-erp-2.14.82-help-gemini-model';
 const SHELL = [
   './',
   './index.html',

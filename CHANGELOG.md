@@ -3,6 +3,11 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.82 — Help / உதவி: fixed "Help is temporarily unavailable" (Gemini model retired)
+- The Help function asked Google for `gemini-2.5-flash`, which Google no longer gives to new users (log: `erp-help gemini 404 NOT_FOUND`). It now uses current models in order — `gemini-3.8-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, then `gemini-2.5-flash` — and moves to the next one automatically if a model is ever retired again. Optional secret `GEMINI_HELP_MODEL` still overrides the first choice.
+- **Edge Function redeploy required:** `erp-help-ai` (paste `supabase/functions/erp-help-ai/index.ts` into Dashboard → erp-help-ai → Code → Deploy). Keep **Verify JWT with legacy secret OFF**.
+- No SQL. Files: `supabase/functions/erp-help-ai/index.ts`, version files, `app.js` (rebuilt, version only).
+
 ## 2.14.81 — Help / உதவி: typing box fixed on phones
 - The ERP-wide "🎤 Voice" + "Dictate / Language" bar was being added to the Help typing box, squeezing it into a thin vertical strip on phones. The Help box now opts out (Help already has its own 🎙 button).
 - **"உதவி தற்போது கிடைக்கவில்லை" (Help not available) on every question:** Supabase → Edge Functions → `erp-help-ai` → Settings → turn **Verify JWT with legacy secret OFF** → Save. The function checks the staff login itself (same as the other ERP functions). Also make sure `supabase/sql/157_erp_help_assistant.sql` has been run.
