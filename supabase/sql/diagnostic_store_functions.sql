@@ -48,7 +48,7 @@ cats as (
   from public.consumable_store_items group by 1
 )
 select concat_ws(E'\n\n',
-  '=== RELATIONS ===', (select string_agg(relname||' kind='||relkind||coalesce(E'\n'||viewdef,''),E'\n') from rel),
+  '=== RELATIONS ===', (select string_agg(relname||' kind='||relkind::text||coalesce(E'\n'||viewdef,''),E'\n') from rel),
   '=== COLUMNS ===', (select string_agg(table_name||': '||cols,E'\n') from cols),
   '=== CONSTRAINTS ===', (select string_agg(tbl||' '||conname||': '||def,E'\n') from cons),
   '=== TRIGGERS ===', (select string_agg(relname||' '||tgname||' -> '||proname,E'\n') from trg),
