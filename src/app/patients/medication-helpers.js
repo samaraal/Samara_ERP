@@ -218,12 +218,17 @@
       });
   }
 
+  // v2.14.87: optional preferred time window for a care task (e.g. 10:00 AM – 12:00 PM).
+  const careTimeValue = v => { const m=String(v||'').match(/^(\d{1,2}):(\d{2})/); return m?`${m[1].padStart(2,'0')}:${m[2]}`:''; };
+  const careWindowLabel = c => { const a=careTimeValue(c?.preferred_from),b=careTimeValue(c?.preferred_to); if(!a&&!b)return 'Any time in shift'; const fmt12=t=>{const [hh,mm]=t.split(':').map(Number);return `${String(hh%12||12).padStart(2,'0')}:${String(mm).padStart(2,'0')} ${hh>=12?'PM':'AM'}`}; return a&&b?`Preferred ${fmt12(a)} – ${fmt12(b)}`:`Preferred ${a?'from '+fmt12(a):'by '+fmt12(b)}`; };
   function blankCare(){
     return {
       care_type:'',
       shift:'Both shifts',
       frequency:'Daily',
       instruction:'',
+      preferred_from:'',
+      preferred_to:'',
       is_locked:false
     };
   }

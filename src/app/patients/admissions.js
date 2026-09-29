@@ -1788,7 +1788,7 @@ Please keep these login details confidential.`;
           const {error:medicationInsertError}=await client.from('medication_orders').insert(medRows);
           if(medicationInsertError)throw medicationInsertError;
         }
-        const careRows=effectiveCare.map(c=>({...c,is_locked:undefined,patient_id:patient.id,entered_by:user.id}));if(careRows.length)await client.from('care_orders').insert(careRows);
+        const careRows=effectiveCare.map(c=>({...c,is_locked:undefined,preferred_from:careTimeValue(c.preferred_from)||null,preferred_to:careTimeValue(c.preferred_to)||null,patient_id:patient.id,entered_by:user.id}));if(careRows.length)await client.from('care_orders').insert(careRows);
         if(form.physio_required&&form.therapy_type)await client.from('physiotherapy_plans').insert({patient_id:patient.id,advised_by:form.treating_doctor||form.referring_doctor,therapy_type:form.therapy_type,physiotherapist_name:form.physiotherapist_name||null,frequency:form.physio_frequency,preferred_time:form.physio_time,precautions:form.physio_precautions,start_date:form.admission_date,entered_by:user.id});
         // Final admission commit. For a NEW resident, only now allot the room and
         // activate the patient. This prevents validation/setup errors from leaving a
@@ -2225,7 +2225,7 @@ Please keep these login details confidential.`;
             h('span',{className:'number'},i+1),
             h('div',{className:'summary'},
               h('strong',null,c.care_type),
-              h('small',null,`${c.shift} · ${c.frequency}${c.instruction?` · ${c.instruction}`:''}`)
+              h('small',null,`${c.shift} · ${c.frequency} · ${careWindowLabel(c)}${c.instruction?` · ${c.instruction}`:''}`)
             ),
             h('div',{className:'admission-row-actions'},
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>editCareEntry(i)},'Edit'),
@@ -2238,6 +2238,8 @@ Please keep these login details confidential.`;
             miniSelect('Shift',c.shift,['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Both shifts'],v=>updateRow(setCare,care,i,'shift',v)),
             miniSelect('Frequency',c.frequency,['Daily','Each shift','Twice daily','As required'],v=>updateRow(setCare,care,i,'frequency',v)),
             miniInput('Instruction',c.instruction,v=>updateRow(setCare,care,i,'instruction',v)),
+            miniInput('Preferred from (optional)',careTimeValue(c.preferred_from),v=>updateRow(setCare,care,i,'preferred_from',v),false,'time'),
+            miniInput('Preferred to (optional)',careTimeValue(c.preferred_to),v=>updateRow(setCare,care,i,'preferred_to',v),false,'time'),
             h('button',{type:'button',className:'btn btn-danger',onClick:()=>removeCareEntry(i)},'Remove')
           )
         ),

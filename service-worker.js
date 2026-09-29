@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.86';
-const CACHE = 'samara-erp-2.14.86-daily-care-alert-fix';
+const APP_VERSION = '2.14.87';
+const CACHE = 'samara-erp-2.14.87-daily-care-shift-timing';
 const SHELL = [
   './',
   './index.html',

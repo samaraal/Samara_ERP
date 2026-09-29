@@ -134,7 +134,9 @@
       ...a,
       // Engine status is authoritative; legacy alert_key lookup remains fallback only.
       isEscalated:Boolean(a.is_escalated)||escalatedKeys.has(String(a.key||'')),
-      isOverdue:Number(a.overdue_minutes||0)>0
+      // v2.14.87: Daily Care due_at is 30 min before its escalation time (shift end − 1 h, or the end of the
+      // preferred window), so it counts as overdue only after that escalation time.
+      isOverdue:Number(a.overdue_minutes||0)>(String(a.alert_type||'')==='Daily Care'?30:0)
     }));
 
     const rows=allRows.filter(a=>{
@@ -362,8 +364,10 @@
             a.patient_name||'—',
             a.room_label||'—',
             a.title,
-            fmt(a.due_at),
-            Number(a.overdue_minutes)>0?englishOverdueLabel(a.overdue_minutes):'Due now',
+            String(a.alert_type||'')==='Daily Care'&&a.due_at?`By ${fmt(new Date(new Date(a.due_at).getTime()+30*60000))}`:fmt(a.due_at),
+            String(a.alert_type||'')==='Daily Care'
+              ?(Number(a.overdue_minutes)>30?englishOverdueLabel(Number(a.overdue_minutes)-30):'Pending this shift')
+              :(Number(a.overdue_minutes)>0?englishOverdueLabel(a.overdue_minutes):'Due now'),
             a.description||'—',
             h('div',{className:'employee-actions'},
               h('button',{className:'btn btn-primary',onClick:()=>openClinicalTask(a)},a.alert_type==='Regularisation'?'Review':'Complete / Record'),

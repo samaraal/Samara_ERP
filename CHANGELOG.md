@@ -3,6 +3,13 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.87 — Daily Care: whole-shift timing and optional preferred time
+- **No more 7 AM / 7 PM alerts for Daily Care.** A care task without a preferred time can be given any time in the shift: nurse reminder 2 hours before the shift ends (5 PM / 5 AM, only if not yet recorded), Managers + Admins escalation 1 hour before the shift ends (6 PM / 6 AM), WhatsApp "Critical pending" at 6:30 PM / 6:30 AM.
+- **Optional preferred time** on each care task (admission and Edit Patient → Master care plan: "Preferred from" / "Preferred to", e.g. 10:00 AM – 12:00 PM): reminder at the start of the window, escalation at its end, "Critical pending" 30 min later. The care plan shows "Any time in shift" or the preferred window.
+- Clinical Alerts shows Daily Care as "By 6:00 PM" / "Pending this shift" instead of an early due time.
+- **SQL — run `supabase/sql/158_daily_care_alert_matching_autoresolve.sql` (this version; it replaces the 2.14.86 file, which should NOT be run)** — adds the preferred time columns, the new timing, the care matching by shift + activity, and automatic closing of escalations (including past ones whose care was recorded in that shift).
+- Files: `src/app/patients/medication-helpers.js`, `src/app/patients/admissions.js`, `src/app/patients/patients.js`, `src/app/clinical-alerts/02-alert-pages.js`, `supabase/sql/158_daily_care_alert_matching_autoresolve.sql`, version files, `app.js` (rebuilt).
+
 ## 2.14.86 — Daily Care alerts: care given is counted, escalations close by themselves
 - **Problem (Mrs. Kasthuri, 29-09-2026):** Daily Care alerts / WhatsApp escalations kept coming although the care was recorded. Causes: (1) an entry made directly on the Daily Care page was saved with no link to the care order, so the alert never cleared (Bathing assistance 06:26 AM); (2) an entry opened from an alert kept that alert's link even when the nurse changed the activity (Walking/mobility saved against the Bathing order); (3) the server matched care by date, not by shift, so every night-shift task re-appeared at 12:00 midnight and escalated at once; (4) Daily Care escalations never closed after the care was recorded.
 - **App:** Daily Care entry now links itself to the patient's order for the chosen activity and shift; changing patient or activity drops the old link.
