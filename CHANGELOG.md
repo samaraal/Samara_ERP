@@ -3,6 +3,10 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.8 — No false "Default package names" alert on New Admission
+- The red "Action failed — Default package names are shown temporarily…" popup appeared every time New Admission opened, for a split second before the real Care Packages loaded. It now appears only if the packages have loaded and none are set up, only to Admin / Manager, and as a notice rather than an error.
+- No SQL. Files: `src/app/patients/admissions.js`, version files, `app.js` (rebuilt).
+
 ## 2.15.7 — Known allergies: Yes / No, then details
 - **Known allergies** now starts with a simple choice: **No — no known allergies** or **Yes — has allergies**. Choosing No needs nothing typed.
 - For **Yes**, add each allergy (e.g. "Penicillin — skin rash"); every entry can be deleted with ×. Completing the admission with Yes but no allergy added, or with an allergy typed but not added, shows a clear message.

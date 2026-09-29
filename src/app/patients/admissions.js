@@ -100,6 +100,7 @@
       }
     ];
     const [carePackages,setCarePackages]=React.useState(defaultCarePackages);
+    const [carePackagesLoaded,setCarePackagesLoaded]=React.useState(false); // 2.15.8
     const [previousPatients,setPreviousPatients]=React.useState([]);
     const [returningPatient,setReturningPatient]=React.useState(null);
     const [draftPatientId,setDraftPatientId]=React.useState('');
@@ -334,11 +335,13 @@
         if(error){
           console.warn('Unable to load care packages:',error.message);
           setCarePackages(defaultCarePackages);
+          setCarePackagesLoaded(true);
           return;
         }
 
         const configured=(data||[]).filter(pkg=>pkg.is_active!==false);
         setCarePackages(configured.length?configured:defaultCarePackages);
+        setCarePackagesLoaded(true);
       }
       loadPackages();
       const channel=client.channel('admission-care-packages-live')
@@ -2395,8 +2398,10 @@ Please keep these login details confidential.`;
           className:'message success',
           style:{marginTop:'10px'}
         },'Daily Billing selected. Room rent and routine nursing charges will continue as system-generated daily charges. No fixed package fee will be created.'),
-        !noPackageSelected&&carePackages.some(pkg=>pkg.is_fallback)&&h('div',{
-          className:'message error',
+        // 2.15.8: shown only after the real packages have loaded and none exist, only to Admin / Manager,
+        // and as a notice (not a red "Action failed" error).
+        !noPackageSelected&&carePackagesLoaded&&carePackages.some(pkg=>pkg.is_fallback)&&['Admin','Manager'].includes(profile?.role)&&h('div',{
+          className:'message warning',
           style:{marginTop:'10px'}
         },'Default package names are shown temporarily. Admin should open Admin → Care Packages and enter the room-wise package fees.'),
         selectedPackage&&h('div',{className:'accounts-dashboard-grid',style:{marginTop:'10px'}},

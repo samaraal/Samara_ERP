@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.7';
-const CACHE = 'samara-erp-2.15.7-known-allergies-yes-no';
+const APP_VERSION = '2.15.8';
+const CACHE = 'samara-erp-2.15.8-package-notice';
 const SHELL = [
   './',
   './index.html',
