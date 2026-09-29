@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.87';
-const CACHE = 'samara-erp-2.14.87-daily-care-shift-timing';
+const APP_VERSION = '2.14.88';
+const CACHE = 'samara-erp-2.14.88-saved-button-lock';
 const SHELL = [
   './',
   './index.html',

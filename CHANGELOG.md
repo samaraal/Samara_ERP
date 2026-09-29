@@ -3,6 +3,11 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.88 — Save buttons lock after a successful save (whole ERP)
+- After the green "saved" confirmation, the Save / Submit / Update / Record button that was pressed turns grey with a **"✓ Saved"** tag and cannot be pressed again (no duplicate entries). It unlocks as soon as anything is changed in the same form or window (typing, choosing another patient, uploading / removing a document, adding / removing a row). Close / Cancel keep it locked.
+- Works on every page and popup (e.g. Edit Patient → "Save Patient Information & Documents", Daily Care, admissions, HR, stores), because it follows the ERP's shared success confirmation. A failed save does not lock the button.
+- No SQL. Files: `button-feedback.js`, version files, `app.js` (rebuilt, version only).
+
 ## 2.14.87 — Daily Care: whole-shift timing and optional preferred time
 - **No more 7 AM / 7 PM alerts for Daily Care.** A care task without a preferred time can be given any time in the shift: nurse reminder 2 hours before the shift ends (5 PM / 5 AM, only if not yet recorded), Managers + Admins escalation 1 hour before the shift ends (6 PM / 6 AM), WhatsApp "Critical pending" at 6:30 PM / 6:30 AM.
 - **Optional preferred time** on each care task (admission and Edit Patient → Master care plan: "Preferred from" / "Preferred to", e.g. 10:00 AM – 12:00 PM): reminder at the start of the window, escalation at its end, "Critical pending" 30 min later. The care plan shows "Any time in shift" or the preferred window.
