@@ -3,6 +3,11 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.92 — Sidebar section icons
+- Each sidebar section now has its own icon: Food & Diet 🍽, Accounts / Billing ₹, Communication ✉, My Account ☺, Duty Roster & Leave ◷, Director's Office ★, Nursing / Clinical ✚ (previously Food & Diet showed ₹ and several sections shared the ⚙ gear).
+- Added `supabase/sql/diagnostic_store_functions.sql` — READ-ONLY check (changes nothing) of the existing stock / charge database functions, needed before adding the Housekeeping & General and Kitchen / Food Stores sections.
+- No SQL to install. Files: `src/app/shell/04-navigation-menus.js`, `supabase/sql/diagnostic_store_functions.sql`, version files, `app.js` (rebuilt).
+
 ## 2.14.91 — Pharmacy & Stores: category dashboards
 - **Consumables** and **Pharmacy** (sidebar → Pharmacy & Stores) now each open a Samara-colour **dashboard** instead of one very long page. It has eight boxes with live numbers: **Indents — Action Needed**, **Indent Register**, **Received / Used Balance**, **Current Stock**, **Receive from Vendor** (store in-charge only), **Vendor Receipt Register**, **Stock Movement Register** and **Expiry Watch**. Boxes needing attention are highlighted red / amber.
 - Tapping a box opens only that section, with a **← Back to Dashboard** bar (stays at the top while scrolling) and **×** Close. The phone / browser back button also returns to the dashboard.

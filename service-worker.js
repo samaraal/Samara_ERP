@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.91';
-const CACHE = 'samara-erp-2.14.91-stores-dashboards';
+const APP_VERSION = '2.14.92';
+const CACHE = 'samara-erp-2.14.92-sidebar-icons';
 const SHELL = [
   './',
   './index.html',

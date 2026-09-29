@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.91';
+  const APP_VERSION = '2.14.92';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '29-Sep-2026 Pharmacy & Stores dashboards';
+  const APP_BUILD_DATE = '29-Sep-2026 Sidebar section icons';
   const APP_SCHEMA_VERSION = '38';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -8489,7 +8489,7 @@ https://samaraassistedliving.com/`;
     const activeSection=sections.find(section=>section.items.includes(page))?.title||sections[0]?.title||'';
     const [openSection,setOpenSection]=React.useState(activeSection);
     React.useEffect(()=>{const next=sections.find(section=>section.items.includes(page))?.title;if(next)setOpenSection(next)},[page]);
-    const sectionIcon=title=>/OVERVIEW/.test(title)?'⌂':/HR/.test(title)?'♙':/ADMISSION/.test(title)?'♥':/ROOM/.test(title)?'▦':/PHARMACY|STORE/.test(title)?'♨':/FOOD/.test(title)?'₹':/CLINICAL/.test(title)?'✚':'⚙';
+    const sectionIcon=title=>/OVERVIEW/.test(title)?'⌂':/HR|STAFF/.test(title)?'♙':/ADMISSION/.test(title)?'♥':/ROOM/.test(title)?'▦':/PHARMACY|STORE/.test(title)?'♨':/FOOD/.test(title)?'🍽\uFE0E':/ACCOUNT.*BILL|BILLING|PAYMENT|FINANCE/.test(title)?'₹':/COMMUNICATION|WHATSAPP/.test(title)?'✉\uFE0E':/MY ACCOUNT|PROFILE/.test(title)?'☺\uFE0E':/DUTY|ROSTER|LEAVE/.test(title)?'◷':/DIRECTOR/.test(title)?'★':/CLINICAL|NURSING/.test(title)?'✚':'⚙\uFE0E';
     const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Consumables'?'▤':item==='Pharmacy'?'✚':item==='Stores'?'▥':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My To-Do List'?'✓':'›';
     React.useEffect(()=>{
       const onKey=e=>{if(e.key==='Escape')onClose()};
