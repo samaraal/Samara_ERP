@@ -20,6 +20,11 @@
     const [issueForm,setIssueForm]=React.useState({item_id:'',quantity:'1',department:'',issued_to:'',remarks:''});
     const [issuePeriod,setIssuePeriod]=React.useState('month');
     const [movementPeriod,setMovementPeriod]=React.useState('month'),[movementItem,setMovementItem]=React.useState('All'),[movementFrom,setMovementFrom]=React.useState(todayISOIndia().slice(0,8)+'01'),[movementTo,setMovementTo]=React.useState(todayISOIndia());
+    // 2.14.96: Movement Register filters apply only when "Apply" is pressed
+    const movementApply=useAppliedFilters({period:movementPeriod,item:movementItem,from:movementFrom,to:movementTo});const MA=movementApply.applied;
+    const [rowDetail,setRowDetail]=React.useState(null);
+    const [loadedOnce,setLoadedOnce]=React.useState(false);
+    const rowClick=fn=>e=>{if(e&&e.target&&e.target.closest&&e.target.closest('button,a,input,select,textarea,label'))return;fn()};
     const [historyItem,setHistoryItem]=React.useState(null),[historyLedger,setHistoryLedger]=React.useState([]),[historyReceipts,setHistoryReceipts]=React.useState([]),[historyBusy,setHistoryBusy]=React.useState(false);
     const [categoryEditItem,setCategoryEditItem]=React.useState(null),[categoryEditValue,setCategoryEditValue]=React.useState('');
     const [cleanupCandidates,setCleanupCandidates]=React.useState(null);
@@ -83,6 +88,7 @@
       if(!rRes.error)setReceipts(rRes.data||[]);
       if(!lRes.error)setLedger(lRes.data||[]);
       if(!pRes.error)setPatients(pRes.data||[]); if(!mRes.error)setItemMaster(mRes.data||[]);
+      setLoadedOnce(true);
     }
     React.useEffect(()=>{load()},[]);
     function selectItem(id){const row=itemById(id);setForm(f=>({...f,item_id:id,catalog_item:'',new_item_name:'',unit:row?.unit||f.unit}))}
@@ -219,17 +225,17 @@
     function movementDateOnly(value){return String(value||'').slice(0,10)}
     function periodBounds(){
       const today=todayISOIndia(); const d=new Date(`${today}T12:00:00`); let from=today,to=today;
-      if(movementPeriod==='yesterday'){d.setDate(d.getDate()-1);from=to=d.toISOString().slice(0,10)}
-      else if(movementPeriod==='week'){const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);from=d.toISOString().slice(0,10)}
-      else if(movementPeriod==='month'){from=today.slice(0,8)+'01'}
-      else if(movementPeriod==='lastmonth'){const first=new Date(`${today.slice(0,8)}01T12:00:00`);first.setMonth(first.getMonth()-1);from=first.toISOString().slice(0,10);const last=new Date(first);last.setMonth(last.getMonth()+1);last.setDate(0);to=last.toISOString().slice(0,10)}
-      else if(movementPeriod==='custom'){from=movementFrom||today;to=movementTo||today}
+      if(MA.period==='yesterday'){d.setDate(d.getDate()-1);from=to=d.toISOString().slice(0,10)}
+      else if(MA.period==='week'){const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);from=d.toISOString().slice(0,10)}
+      else if(MA.period==='month'){from=today.slice(0,8)+'01'}
+      else if(MA.period==='lastmonth'){const first=new Date(`${today.slice(0,8)}01T12:00:00`);first.setMonth(first.getMonth()-1);from=first.toISOString().slice(0,10);const last=new Date(first);last.setMonth(last.getMonth()+1);last.setDate(0);to=last.toISOString().slice(0,10)}
+      else if(MA.period==='custom'){from=MA.from||today;to=MA.to||today}
       return {from,to};
     }
     const movementBounds=periodBounds();
     const movementCategoryLedger=displayLedger;
-    const movementSelectedLedger=movementCategoryLedger.filter(r=>(movementItem==='All'||String(r.item_id)===String(movementItem))&&movementDateOnly(r.movement_at)>=movementBounds.from&&movementDateOnly(r.movement_at)<=movementBounds.to);
-    const movementSummaryItems=(movementItem==='All'?categoryStock:categoryStock.filter(x=>String(x.item_id)===String(movementItem))).map(item=>{
+    const movementSelectedLedger=movementCategoryLedger.filter(r=>(MA.item==='All'||String(r.item_id)===String(MA.item))&&movementDateOnly(r.movement_at)>=movementBounds.from&&movementDateOnly(r.movement_at)<=movementBounds.to);
+    const movementSummaryItems=(MA.item==='All'?categoryStock:categoryStock.filter(x=>String(x.item_id)===String(MA.item))).map(item=>{
       const before=movementCategoryLedger.filter(r=>String(r.item_id)===String(item.item_id)&&movementDateOnly(r.movement_at)<movementBounds.from).sort((a,b)=>String(b.movement_at||'').localeCompare(String(a.movement_at||'')))[0];
       const rows=movementSelectedLedger.filter(r=>String(r.item_id)===String(item.item_id));
       const first=[...rows].sort((a,b)=>String(a.movement_at||'').localeCompare(String(b.movement_at||'')))[0];
@@ -289,6 +295,36 @@
     function openIssueFor(row){setIssueForm(f=>({...f,item_id:row.item_id,quantity:'1'}));if(typeof onOpenSection==='function')onOpenSection('issue')}
     const storesSummaryKey=JSON.stringify(storesSummary);
     React.useEffect(()=>{if(typeof onSummary==='function')onSummary(storesSummary)},[storesSummaryKey]);
+    // 2.14.96: full details of any register row (click a row)
+    const receiptById=id=>receipts.find(x=>String(x.id)===String(id));
+    const itemLabel=id=>{const m=masterById.get(id);const it=itemById(id);return `${m?.item_code?m.item_code+' · ':''}${displayStoreItemName(it?.item_name||m?.item_name||'Item')}`};
+    function ledgerDetail(r){
+      const it=itemById(r.item_id)||{};const rc=r.receipt_id?receiptById(r.receipt_id):null;
+      return {title:`SM-${String(r.movement_no||'').padStart(6,'0')} · ${r.movement_type||'Stock movement'}`,subtitle:itemLabel(r.item_id),fields:[
+        ['Date & time',formatDateTimeIN(r.movement_at)],['Item',itemLabel(r.item_id)],['Movement type',r.movement_type],
+        ['Stock in',Number(r.qty_in)>0?`${r.qty_in} ${it.unit||''}`:''],['Stock out',Number(r.qty_out)>0?`${r.qty_out} ${it.unit||''}`:''],
+        ['Balance after',`${r.balance_after} ${it.unit||''}`],['Resident',r.patient_id?patientName(r.patient_id):''],
+        ['Reference',r.reference_text],['Vendor receipt',rc?`SR-${String(rc.receipt_no||'').padStart(5,'0')} · ${rc.vendor_name||''}${rc.invoice_no?' · Invoice '+rc.invoice_no:''}`:''],
+        ['Batch / expiry',rc?[rc.batch_no&&`Batch ${rc.batch_no}`,rc.expiry_date&&`Exp ${formatDateIN(rc.expiry_date)}`].filter(Boolean).join(' · '):''],
+        ['Recorded by',r.actor_name],['Remarks',r.remarks]]};
+    }
+    function receiptDetail(r){
+      const it=receiptItemRow(r);
+      return {title:`SR-${String(r.receipt_no||'').padStart(5,'0')} · Vendor receipt`,subtitle:itemLabel(r.item_id),fields:[
+        ['Received date',formatDateIN(r.received_date)],['Entered at',r.received_at?formatDateTimeIN(r.received_at):''],['Item',itemLabel(r.item_id)],
+        ['Quantity',`${r.quantity} ${r.unit||it.unit||''}`],['Vendor',r.vendor_name],['Invoice',[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')],
+        ['Batch No.',r.batch_no],['Expiry',r.expiry_date?formatDateIN(r.expiry_date):'Not entered'],['Unit cost',r.unit_cost!=null&&r.unit_cost!==''?`₹${r.unit_cost}`:''],
+        ['Received by',r.received_by_name],['Expiry last changed',r.expiry_updated_at?`${formatDateTimeIN(r.expiry_updated_at)}${r.expiry_updated_by_name?' · '+r.expiry_updated_by_name:''}`:''],
+        ['Item balance now',`${it.balance_qty} ${it.unit||''}`],['Remarks',r.remarks]]};
+    }
+    function summaryDetail(r){
+      const rows=movementSelectedLedger.filter(x=>String(x.item_id)===String(r.item_id));
+      return {title:itemLabel(r.item_id),subtitle:`${formatDateIN(movementBounds.from)} to ${formatDateIN(movementBounds.to)}`,fields:[
+        ['Opening balance',`${r.opening} ${r.unit}`],['Vendor received',`${r.received} ${r.unit}`],['Handed over / issued',`${r.handed} ${r.unit}`],
+        ['Return received',`${r.returned} ${r.unit}`],['Closing balance',`${r.closing} ${r.unit}`],['Movements in period',String(rows.length)]],
+        list:rows};
+    }
+    function openDetail(d){setRowDetail(d)}
     async function openItemHistory(row){
       setHistoryItem(row);setHistoryBusy(true);setHistoryLedger([]);setHistoryReceipts([]);
       const [l,r]=await Promise.all([
@@ -475,7 +511,7 @@
             oversight?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openItemHistory(r)},'History'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(r)},'Expiry'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openCategoryEdit(r)},masterById.get(r.item_id)?.standard_category?`Category: ${masterById.get(r.item_id).standard_category}`:'Set Category'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null
           ):h('small',{className:'stores-view-only'},'View only'),
           oversight?h('div',{className:'stores-stock-card-actions',style:{marginTop:'6px'}},h('button',{className:'btn btn-danger',disabled:busy,onClick:()=>removeItem(r)},'Remove Item')):null
-        )):h('div',{className:'stores-stock-empty'},'No store items found.')),
+        )):h('div',{className:'stores-stock-empty'},(loadedOnce?'No store items found.':'Loading…'))),
         h('div',{className:'table-wrap stores-stock-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Item ID','Item','Unit','Total In','Total Out','Balance','Reorder Level','Status','Action'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,displayStock.length?displayStock.map(r=>h('tr',{key:r.item_id},
@@ -484,19 +520,19 @@
               controller?h('div',{key:'controller-actions',style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>openReceiveFor(r)},'Receive Stock'),thisSection.departmentIssue&&typeof onOpenSection==='function'&&Number(r.balance_qty)>0?h('button',{key:'issue',className:'btn btn-secondary',disabled:busy,onClick:()=>openIssueFor(r)},'Issue to Dept'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),oversight?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openItemHistory(r)},'History'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(r)},'Expiry'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openCategoryEdit(r)},masterById.get(r.item_id)?.standard_category?`Category: ${masterById.get(r.item_id).standard_category}`:'Set Category'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null):h('span',{key:'view-only'},'View only'),
               oversight?h('button',{key:'remove',className:'btn btn-danger',disabled:busy,onClick:()=>removeItem(r)},'Remove'):null
             ))
-          )):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},'No store items found.'))
+          )):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},(loadedOnce?'No store items found.':'Loading…')))
         ))
       )),
       show('receipts')&&h(Section,{title:`${categoryFilter?categoryFilter+' — ':''}Vendor Receipt Register`},
-        h('div',{className:'stores-register-mobile'},displayReceipts.length?displayReceipts.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card',key:`mobile-receipt-${r.id}`},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('span',null,formatDateIN(r.received_date))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Quantity'),h('strong',null,`${r.quantity} ${r.unit}`)),h('div',null,h('small',null,'Vendor'),h('strong',null,r.vendor_name||'—')),h('div',null,h('small',null,'Invoice'),h('strong',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'Batch / Expiry'),h('strong',null,batchExpiryCell(r))),h('div',null,h('small',null,'Received By'),h('strong',null,r.received_by_name||'—'))),controller&&h('div',{style:{marginTop:'8px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(receiptItemRow(r),r.id)},r.expiry_date?'Edit Expiry':'Add Expiry')))}):h('div',{className:'stores-view-only'},'No vendor receipts recorded.')),
+        h('div',{className:'stores-register-mobile'},displayReceipts.length?displayReceipts.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card row-clickable',key:`mobile-receipt-${r.id}`,onClick:rowClick(()=>openDetail(receiptDetail(r)))},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('span',null,formatDateIN(r.received_date))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Quantity'),h('strong',null,`${r.quantity} ${r.unit}`)),h('div',null,h('small',null,'Vendor'),h('strong',null,r.vendor_name||'—')),h('div',null,h('small',null,'Invoice'),h('strong',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'Batch / Expiry'),h('strong',null,batchExpiryCell(r))),h('div',null,h('small',null,'Received By'),h('strong',null,r.received_by_name||'—'))),controller&&h('div',{style:{marginTop:'8px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(receiptItemRow(r),r.id)},r.expiry_date?'Edit Expiry':'Add Expiry')))}):h('div',{className:'stores-view-only'},(loadedOnce?'No vendor receipts recorded.':'Loading…'))),
         h('div',{className:'table-wrap stores-register-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Receipt','Date','Item','Qty','Vendor','Invoice','Batch / Expiry','Received By',...(controller?['Action']:[])].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,displayReceipts.length?displayReceipts.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('td',null,formatDateIN(r.received_date)),h('td',null,item?.item_name||'—'),h('td',null,`${r.quantity} ${r.unit}`),h('td',null,r.vendor_name),h('td',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—'),h('td',null,batchExpiryCell(r)),h('td',null,r.received_by_name||'—'),controller&&h('td',null,h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(receiptItemRow(r),r.id)},r.expiry_date?'Edit Expiry':'Add Expiry')))}):h('tr',null,h('td',{colSpan:controller?9:8,style:{textAlign:'center',padding:'24px'}},'No vendor receipts recorded.')))
+          h('tbody',null,displayReceipts.length?displayReceipts.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id,className:'row-clickable',onClick:rowClick(()=>openDetail(receiptDetail(r)))},h('td',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('td',null,formatDateIN(r.received_date)),h('td',null,item?.item_name||'—'),h('td',null,`${r.quantity} ${r.unit}`),h('td',null,r.vendor_name),h('td',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—'),h('td',null,batchExpiryCell(r)),h('td',null,r.received_by_name||'—'),controller&&h('td',null,h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(receiptItemRow(r),r.id)},r.expiry_date?'Edit Expiry':'Add Expiry')))}):h('tr',null,h('td',{colSpan:controller?9:8,style:{textAlign:'center',padding:'24px'}},(loadedOnce?'No vendor receipts recorded.':'Loading…'))))
         ))
       ),
       section==='expiry'&&h(Section,{title:`${categoryFilter?categoryFilter+' — ':''}Expiry Watch`,subtitle:'Vendor receipts of items still in stock that are expired, expire within 90 days, or have no expiry date entered. Most urgent first.'},
         h('div',{className:'stores-mode-switch',role:'tablist',style:{marginBottom:'12px'}},[['All',`All (${expiryWatch.length})`],['expired',`Expired (${storesSummary.expired})`],['soon',`Within 90 days (${storesSummary.soon})`],['missing',`Expiry not entered (${storesSummary.missing})`]].map(([k,l])=>h('button',{key:k,type:'button',role:'tab','aria-selected':expiryWatchFilter===k,className:expiryWatchFilter===k?'active':'',onClick:()=>setExpiryWatchFilter(k)},l))),
-        expiryWatchVisible.length?h('div',{className:'stores-expiry-list'},expiryWatchVisible.map(r=>{const item=receiptItemRow(r);return h('article',{key:`expiry-${r.id}`,className:`stores-ledger-card stores-expiry-${r._state}`},
+        expiryWatchVisible.length?h('div',{className:'stores-expiry-list'},expiryWatchVisible.map(r=>{const item=receiptItemRow(r);return h('article',{key:`expiry-${r.id}`,className:`stores-ledger-card row-clickable stores-expiry-${r._state}`,onClick:rowClick(()=>openDetail(receiptDetail(r)))},
           h('div',{className:'stores-ledger-card-head'},h('strong',null,`${masterById.get(r.item_id)?.item_code?masterById.get(r.item_id).item_code+' · ':''}${displayStoreItemName(item.item_name)}`),h('span',null,r._state==='expired'?'EXPIRED':r._state==='soon'?'Expires within 90 days':'Expiry not entered')),
           h('div',{className:'stores-ledger-card-fields'},
             h('div',null,h('small',null,'Batch / Expiry'),h('strong',null,batchExpiryCell(r))),
@@ -506,7 +542,7 @@
             h('div',null,h('small',null,'Vendor'),h('strong',null,r.vendor_name||'—'))
           ),
           controller&&h('div',{style:{marginTop:'8px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(item,r.id)},r.expiry_date?'Edit Expiry':'Add Expiry'))
-        )})):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},expiryWatch.length?'Nothing in this filter.':'All good — no expired, soon-to-expire or missing expiry dates for items in stock.')
+        )})):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},!loadedOnce?'Loading…':expiryWatch.length?'Nothing in this filter.':'All good — no expired, soon-to-expire or missing expiry dates for items in stock.')
       ),
       section==='issue'&&h('div',null,
         controller&&h(Section,{title:`${categoryFilter} — Issue to Department`,subtitle:'Stock issued to a floor, the kitchen / pantry or another department (not charged to a resident). The stock balance reduces at once and the issue is recorded in the Stock Movement Register.'},
@@ -522,7 +558,7 @@
           )
         ),
         h(Section,{title:`${categoryFilter} — Department Issue Register`,actions:h('div',{className:'stores-mode-switch',role:'tablist'},[['today','Today'],['month','This Month'],['lastmonth','Last Month'],['all','All']].map(([k,l])=>h('button',{key:k,type:'button',role:'tab','aria-selected':issuePeriod===k,className:issuePeriod===k?'active':'',onClick:()=>setIssuePeriod(k)},l)))},
-          deptIssuesVisible.length?h('div',{className:'stores-expiry-list'},deptIssuesVisible.map(r=>{const item=itemById(r.item_id);return h('article',{key:`dept-${r.id}`,className:'stores-ledger-card'},
+          deptIssuesVisible.length?h('div',{className:'stores-expiry-list'},deptIssuesVisible.map(r=>{const item=itemById(r.item_id);return h('article',{key:`dept-${r.id}`,className:'stores-ledger-card row-clickable',onClick:rowClick(()=>openDetail(ledgerDetail(r)))},
             h('div',{className:'stores-ledger-card-head'},h('strong',null,`${masterById.get(r.item_id)?.item_code?masterById.get(r.item_id).item_code+' · ':''}${displayStoreItemName(item?.item_name||'Item')}`),h('span',null,formatDateTimeIN(r.movement_at))),
             h('div',{className:'stores-ledger-card-fields'},
               h('div',null,h('small',null,'Quantity'),h('strong',null,`${r.qty_out} ${item?.unit||''}`)),
@@ -530,8 +566,13 @@
               h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),
               h('div',null,h('small',null,'Issued by'),h('strong',null,r.actor_name||'—')),
               r.remarks&&h('div',null,h('small',null,'Remarks'),h('strong',null,r.remarks))
-            ))})):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},'No department issues in this period.')
+            ))})):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},(loadedOnce?'No department issues in this period.':'Loading…'))
         )
+      ),
+      rowDetail&&h(RowDetailModal,{title:rowDetail.title,subtitle:rowDetail.subtitle,fields:rowDetail.fields,onClose:()=>setRowDetail(null)},
+        rowDetail.list&&h('div',null,h('h4',{style:{margin:'6px 0'}},'Movements — tap one for full details'),rowDetail.list.length?rowDetail.list.map(m=>h('div',{key:m.id,className:'stores-ledger-card row-clickable',style:{marginBottom:'6px'},onClick:()=>openDetail(ledgerDetail(m))},
+          h('div',{className:'stores-ledger-card-head'},h('strong',null,m.movement_type||'Movement'),h('span',null,formatDateTimeIN(m.movement_at))),
+          h('small',null,[Number(m.qty_in)>0?`+${m.qty_in}`:`−${m.qty_out}`,`balance ${m.balance_after}`,m.patient_id&&patientName(m.patient_id),m.reference_text,m.actor_name&&`by ${m.actor_name}`].filter(Boolean).join(' · ')))):h('p',null,'No movements in this period.'))
       ),
       editItem&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)'}},
         h('form',{className:'modal-card',onSubmit:saveEditItem,style:{maxWidth:'560px',background:'#fffafd',opacity:1,padding:'22px'}},
@@ -672,21 +713,22 @@
         h('div',{className:'form-grid',style:{marginBottom:'12px'}},
           h('div',{className:'field'},h('label',null,'Period'),h('select',{value:movementPeriod,onChange:e=>setMovementPeriod(e.target.value)},[['today','Today'],['yesterday','Yesterday'],['week','This Week'],['month','This Month'],['lastmonth','Last Month'],['custom','Custom Date Range']].map(([v,l])=>h('option',{key:v,value:v},l)))),
           h('div',{className:'field'},h('label',null,'Stock Item'),h('select',{value:movementItem,onChange:e=>setMovementItem(e.target.value)},h('option',{value:'All'},'All Items'),categoryStock.map(x=>h('option',{key:x.item_id,value:x.item_id},displayStoreItemName(x.item_name))))),
-          movementPeriod==='custom'&&h('div',{className:'field'},h('label',null,'From'),h('input',{type:'date',value:movementFrom,onChange:e=>setMovementFrom(e.target.value)})),
-          movementPeriod==='custom'&&h('div',{className:'field'},h('label',null,'To'),h('input',{type:'date',value:movementTo,onChange:e=>setMovementTo(e.target.value)}))
+          movementPeriod==='custom'&&h('div',{className:'field'},h('label',null,'From'),h(StrictDateInput,{value:movementFrom,onChange:e=>setMovementFrom(e.target.value)})),
+          movementPeriod==='custom'&&h('div',{className:'field'},h('label',null,'To'),h(StrictDateInput,{value:movementTo,onChange:e=>setMovementTo(e.target.value)})),
+          h(ApplyFilterButton,{dirty:movementApply.dirty,onApply:movementApply.apply})
         ),
-        h('p',{className:'small-note'},`Period: ${formatDateIN(movementBounds.from)} to ${formatDateIN(movementBounds.to)} · ${movementItem==='All'?'All stock items':displayStoreItemName(categoryStock.find(x=>String(x.item_id)===String(movementItem))?.item_name||'Selected item')}`),
+        h('p',{className:'small-note'},`Period: ${formatDateIN(movementBounds.from)} to ${formatDateIN(movementBounds.to)} · ${MA.item==='All'?'All stock items':displayStoreItemName(categoryStock.find(x=>String(x.item_id)===String(MA.item))?.item_name||'Selected item')}`),
         (!section||movementMode==='summary')&&h('div',{className:'table-wrap'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Item','Opening Balance','Vendor Received',thisSection.departmentIssue?'Handed Over / Issued':'Handed Over','Return Received','Closing Balance'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,movementSummaryItems.length?movementSummaryItems.map(r=>h('tr',{key:`movement-summary-${r.item_id}`},h('td',null,displayStoreItemName(r.item_name)),h('td',null,`${r.opening} ${r.unit}`),h('td',null,`${r.received} ${r.unit}`),h('td',null,`${r.handed} ${r.unit}`),h('td',null,`${r.returned} ${r.unit}`),h('td',null,h('strong',null,`${r.closing} ${r.unit}`)))):h('tr',null,h('td',{colSpan:6,style:{textAlign:'center',padding:'20px'}},'No stock items for this filter.')))
+          h('tbody',null,movementSummaryItems.length?movementSummaryItems.map(r=>h('tr',{key:`movement-summary-${r.item_id}`,className:'row-clickable',onClick:rowClick(()=>openDetail(summaryDetail(r)))},h('td',null,displayStoreItemName(r.item_name)),h('td',null,`${r.opening} ${r.unit}`),h('td',null,`${r.received} ${r.unit}`),h('td',null,`${r.handed} ${r.unit}`),h('td',null,`${r.returned} ${r.unit}`),h('td',null,h('strong',null,`${r.closing} ${r.unit}`)))):h('tr',null,h('td',{colSpan:6,style:{textAlign:'center',padding:'20px'}},(loadedOnce?'No stock items for this filter.':'Loading…'))))
         )),
-        (!section||movementMode==='summary')&&movementItem!=='All'&&h('div',{style:{marginTop:'16px'}},h('h4',null,'Selected Item — Movement Details'),movementSelectedLedger.length?movementSelectedLedger.map(r=>{const item=itemById(r.item_id);return h('div',{key:`movement-detail-${r.id}`,className:'stores-ledger-card',style:{marginBottom:'8px'}},h('div',{className:'stores-ledger-card-head'},h('strong',null,r.movement_type||'Stock Movement'),h('span',null,formatDateTimeIN(r.movement_at))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Stock In'),h('strong',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Stock Out'),h('strong',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),h('div',null,h('small',null,'Patient / Reference'),h('strong',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'By'),h('strong',null,r.actor_name||'—'))))}):h('p',null,'No movements for this item in the selected period.'))
+        (!section||movementMode==='summary')&&MA.item!=='All'&&h('div',{style:{marginTop:'16px'}},h('h4',null,'Selected Item — Movement Details'),movementSelectedLedger.length?movementSelectedLedger.map(r=>{const item=itemById(r.item_id);return h('div',{key:`movement-detail-${r.id}`,className:'stores-ledger-card row-clickable',onClick:rowClick(()=>openDetail(ledgerDetail(r))),style:{marginBottom:'8px'}},h('div',{className:'stores-ledger-card-head'},h('strong',null,r.movement_type||'Stock Movement'),h('span',null,formatDateTimeIN(r.movement_at))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Stock In'),h('strong',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Stock Out'),h('strong',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),h('div',null,h('small',null,'Patient / Reference'),h('strong',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'By'),h('strong',null,r.actor_name||'—'))))}):h('p',null,'No movements for this item in the selected period.'))
       ),
       (!section||(section==='movement'&&movementMode==='every'))&&h(Section,{title:`${categoryFilter||'Pharmacy & Stores'} Stock Ledger${section?` · ${ledgerList.length} movement(s)`:''}`,subtitle:'Every vendor receipt, patient handover/issue, confirmed return and physical adjustment is retained here. Use an item’s History button for its complete stock-wise trail.'},
-        h('div',{className:'stores-ledger-mobile'},ledgerList.length?ledgerList.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card',key:`mobile-ledger-${r.id}`},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('span',null,formatDateTimeIN(r.movement_at))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Movement Type'),h('strong',null,r.movement_type||'—')),h('div',null,h('small',null,'Stock In'),h('strong',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Stock Out'),h('strong',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),h('div',null,h('small',null,'Patient / Reference'),h('strong',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'By'),h('strong',null,r.actor_name||'—'))))}):h('div',{className:'stores-view-only'},'No stock movements recorded.')),
+        h('div',{className:'stores-ledger-mobile'},ledgerList.length?ledgerList.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card row-clickable',key:`mobile-ledger-${r.id}`,onClick:rowClick(()=>openDetail(ledgerDetail(r)))},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('span',null,formatDateTimeIN(r.movement_at))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Movement Type'),h('strong',null,r.movement_type||'—')),h('div',null,h('small',null,'Stock In'),h('strong',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Stock Out'),h('strong',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),h('div',null,h('small',null,'Patient / Reference'),h('strong',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'By'),h('strong',null,r.actor_name||'—'))))}):h('div',{className:'stores-view-only'},(loadedOnce?'No stock movements recorded.':'Loading…'))),
         h('div',{className:'table-wrap stores-ledger-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Movement','Date / Time','Item','Type','Stock In','Stock Out','Balance After','Patient / Reference','By'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,ledgerList.length?ledgerList.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('td',null,formatDateTimeIN(r.movement_at)),h('td',null,item?.item_name||'—'),h('td',null,r.movement_type),h('td',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—'),h('td',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—'),h('td',null,h('strong',null,r.balance_after)),h('td',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—'),h('td',null,r.actor_name||'—'))}):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},'No stock movements recorded.')))
+          h('tbody',null,ledgerList.length?ledgerList.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id,className:'row-clickable',onClick:rowClick(()=>openDetail(ledgerDetail(r)))},h('td',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('td',null,formatDateTimeIN(r.movement_at)),h('td',null,item?.item_name||'—'),h('td',null,r.movement_type),h('td',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—'),h('td',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—'),h('td',null,h('strong',null,r.balance_after)),h('td',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—'),h('td',null,r.actor_name||'—'))}):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},(loadedOnce?'No stock movements recorded.':'Loading…'))))
         ))
       )
     ));

@@ -3,6 +3,7 @@
     const [state,setState]=React.useState({loading:true,errors:[],orders:[],mar:[],patients:[],profiles:[],message:''});
     const [fromDate,setFromDate]=React.useState(today);
     const [toDate,setToDate]=React.useState(today);
+    const medErrApply=useAppliedFilters({from:fromDate,to:toDate});const medErrApplyA=medErrApply.applied; // 2.14.96: filters apply on "Apply"
     const [patientFilter,setPatientFilter]=React.useState('');
     const [typeFilter,setTypeFilter]=React.useState('All');
     const [statusFilter,setStatusFilter]=React.useState('All');
@@ -23,7 +24,7 @@
     const patientName=id=>{const p=patientById(id);return formalName(p)||p.full_name||'Unknown patient';};
     const medicineName=orderId=>{const o=orderById(orderId);return [o.medicine_name,o.strength||o.dose].filter(Boolean).join(' ')||'Medicine not specified';};
     const dateOnly=value=>String(value||'').slice(0,10);
-    const isBetween=value=>{const d=dateOnly(value);return d&&d>=fromDate&&d<=toDate;};
+    const isBetween=value=>{const d=dateOnly(value);return d&&d>=medErrApplyA.from&&d<=medErrApplyA.to;};
     const minutesDifference=(a,b)=>Math.round((new Date(a)-new Date(b))/60000);
 
     async function load(){
@@ -143,7 +144,7 @@
         patientName(r.patient_id),medicineName(r.order_id),r.error_type,r.severity||'',r.description||'',r.source,fmt(r.occurred_at||r.created_at),r.status||'Detected',r.root_cause||'',r.corrective_action||'',r.preventive_action||''
       ])].map(row=>row.map(value=>`"${String(value??'').replace(/"/g,'""')}"`).join(',')).join('\n');
       const blob=new Blob([lines],{type:'text/csv;charset=utf-8'});
-      const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`Medication_Safety_${fromDate}_to_${toDate}.csv`;a.click();URL.revokeObjectURL(url);
+      const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`Medication_Safety_${medErrApplyA.from}_to_${medErrApplyA.to}.csv`;a.click();URL.revokeObjectURL(url);
     }
 
     function printCurrentReport(){
@@ -224,6 +225,7 @@
         h('div',{className:'modal-grid'},
           h('div',{className:'field'},h('label',null,'From date'),h(StrictDateInput,{value:fromDate,onChange:e=>setFromDate(e.target.value)})),
           h('div',{className:'field'},h('label',null,'To date'),h(StrictDateInput,{value:toDate,onChange:e=>setToDate(e.target.value)})),
+          h(ApplyFilterButton,{dirty:medErrApply.dirty,onApply:medErrApply.apply}),
           h('div',{className:'field'},h('label',null,'Patient'),h('select',{value:patientFilter,onChange:e=>setPatientFilter(e.target.value)},h('option',{value:''},'All patients'),state.patients.map(p=>h('option',{key:p.id,value:p.id},formalName(p)||p.full_name)))),
           h('div',{className:'field'},h('label',null,'Error type'),h('select',{value:typeFilter,onChange:e=>setTypeFilter(e.target.value)},h('option',{value:'All'},'All error types'),ERROR_TYPES.map(t=>h('option',{key:t,value:t},t)))),
           h('div',{className:'field'},h('label',null,'Workflow status'),h('select',{value:statusFilter,onChange:e=>setStatusFilter(e.target.value)},['All','Detected',...WORKFLOW,'Reviewed'].map(t=>h('option',{key:t,value:t},t)))),
@@ -274,7 +276,7 @@
       showReport&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setShowReport(false)}},
         h('div',{className:'card modal',style:{width:'min(1500px,97vw)',maxHeight:'95vh',overflow:'auto'}},
           h('div',{className:'panel-head no-print'},
-            h('div',null,h('h3',null,'Medication Safety Management Report'),h('small',null,`${formatDateIN(fromDate)} to ${formatDateIN(toDate)}`)),
+            h('div',null,h('h3',null,'Medication Safety Management Report'),h('small',null,`${formatDateIN(medErrApplyA.from)} to ${formatDateIN(medErrApplyA.to)}`)),
             h('div',{className:'actions'},
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowReport(false)},'← Back to Safety Centre'),
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setShowReport(false);onNavigate&&onNavigate(ROLE_HOME[profile.role]||'Dashboard')}},'⌂ Dashboard'),
@@ -286,7 +288,7 @@
           h('div',{id:'medication-safety-report'},
             h('h1',null,'Samara Care ERP'),
             h('h2',null,'Medication Safety Management Report'),
-            h('p',null,`Period: ${formatDateIN(fromDate)} to ${formatDateIN(toDate)} · Prepared: ${formatDateTimeIN(new Date())} · Prepared by: ${formalName(profile)}`),
+            h('p',null,`Period: ${formatDateIN(medErrApplyA.from)} to ${formatDateIN(medErrApplyA.to)} · Prepared: ${formatDateTimeIN(new Date())} · Prepared by: ${formalName(profile)}`),
             h('div',{className:'grid stats'},[['Safety Score',`${safetyScore}%`],['Total Events',total],['Open Review',openCount],['Major / Critical',high],['Residents Affected',affectedPatients]].map(([label,value])=>h('div',{className:'card stat',key:label},h('span',null,label),h('strong',null,value)))),
             h('div',{className:'card panel'},h('h3',null,'AI-assisted executive summary'),h('p',null,aiSummary())),
             h('div',{className:'card panel'},h('h3',null,'Category analysis'),h('p',null,ERROR_TYPES.filter(t=>counts[t]).map(t=>`${t}: ${counts[t]}`).join(' · ')||'No events')),

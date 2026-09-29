@@ -26,6 +26,7 @@
     const [waFolder,setWaFolder]=React.useState(()=>{const folder=sessionStorage.getItem('samara_whatsapp_folder');sessionStorage.removeItem('samara_whatsapp_folder');return foodOnly?'All':folder==='Admission Enquiries'||String(profile?.role||'')==='STD'?'Admission Enquiries':'All';});
     const [dateFrom,setDateFrom]=React.useState('');
     const [dateTo,setDateTo]=React.useState('');
+    const waDateApply=useAppliedFilters({from:dateFrom,to:dateTo});const waDateA=waDateApply.applied; // 2.14.96: dates apply on "Apply"
     const isSTD=String(profile?.role||'')==='STD';
     const WA_REOPEN_TEMPLATES=foodOnly?[{name:'samara_callback_request',label:'Food Vendor Callback',regarding:'food supply and delivery'}]:[
       {name:'samara_general_followup',label:'General Follow-up',regarding:'your assisted living enquiry'},
@@ -309,12 +310,12 @@ Samara Assisted Living`;
       if(showUnread&&!c.unread)return false;
       if(isSTD&&subjectFilter!=='All Subjects'&&c.subject!==subjectFilter)return false;
       const lastDate=new Date(c.lastAt);
-      if(isSTD&&dateFrom){
-        const from=new Date(`${dateFrom}T00:00:00`);
+      if(isSTD&&waDateA.from){
+        const from=new Date(`${waDateA.from}T00:00:00`);
         if(lastDate<from)return false;
       }
-      if(isSTD&&dateTo){
-        const to=new Date(`${dateTo}T23:59:59`);
+      if(isSTD&&waDateA.to){
+        const to=new Date(`${waDateA.to}T23:59:59`);
         if(lastDate>to)return false;
       }
       const hay=`${c.name} ${c.phone} ${c.source} ${c.subject} ${c.msgs.map(r=>`${r.message_content||''} ${r.communication_type||''} ${r.template_name||''}`).join(' ')}`.toLowerCase();
@@ -610,6 +611,7 @@ Thank you.`;
           ):null,
           isSTD?h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'From',h(StrictDateInput,{value:dateFrom,onChange:e=>{setDateFrom(e.target.value);setSelectedPhone('')}})):null,
           isSTD?h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'To',h(StrictDateInput,{value:dateTo,onChange:e=>{setDateTo(e.target.value);setSelectedPhone('')}})):null,
+          isSTD?h(ApplyFilterButton,{dirty:waDateApply.dirty,onApply:()=>{waDateApply.apply();setSelectedPhone('')}}):null,
           h('button',{type:'button',className:`btn ${showUnread?'btn-primary':'btn-secondary'}`,onClick:()=>{
             const next=!showUnread;
             setShowUnread(next);

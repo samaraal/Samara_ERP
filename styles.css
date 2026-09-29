@@ -2462,3 +2462,15 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 .equip-pill{display:inline-block;padding:4px 10px;border-radius:999px;font-weight:900;font-size:12px;color:#3b1d2c}
 .equip-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .equip-inline-form{margin-top:10px;padding:12px;border:1px solid #e3cfe0;border-radius:12px;background:#fbf6fd}
+/* 2.14.96 Apply filter + row details */
+.apply-filter-wrap{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}
+.apply-filter-dirty{box-shadow:0 0 0 3px rgba(179,11,93,.18)}
+.apply-filter-note{color:#9b1456;font-weight:800;font-size:.78rem;align-self:center}
+.row-detail-modal{width:min(720px,94vw);max-height:90vh;overflow:auto}
+.row-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 18px;margin:12px 0}
+.row-detail-field{border-bottom:1px solid #f0e2ea;padding-bottom:6px}
+.row-detail-field small{display:block;color:#7a6070;font-weight:700;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em}
+.row-detail-field strong{display:block;word-break:break-word}
+.row-clickable{cursor:pointer}
+.row-clickable:hover{background:#fbf2f7}
+@media (max-width:640px){.row-detail-grid{grid-template-columns:1fr}}

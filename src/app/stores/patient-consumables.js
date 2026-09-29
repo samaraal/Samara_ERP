@@ -15,6 +15,21 @@
     const notify=(type,text)=>showSamaraActionToast(type,type==='success'?'Consumables updated':'Consumables action failed',text);
     const patientLabel=id=>{const p=patients.find(x=>x.id===id);return p?[formalName(p),p.patient_id&&`(${p.patient_id})`,p.room_no&&`Room ${p.room_no}${p.bed_no?`/${p.bed_no}`:''}`].filter(Boolean).join(' · '):'—'};
     const stockFor=r=>stock.find(x=>x.item_id===r.store_item_id)||stock.find(x=>String(x.item_name).toLowerCase()===String(r.item_name).toLowerCase());
+    // 2.14.96: click an indent row for its full details (who, when, every step)
+    const [indentDetail,setIndentDetail]=React.useState(null);
+    const rowClick=fn=>e=>{if(e&&e.target&&e.target.closest&&e.target.closest('button,a,input,select,textarea,label'))return;fn()};
+    function indentFields(r){
+      const u=indentUsage(r);const m=(masterItems||[]).find(x=>String(x.id)===String(r.store_item_id));const when=v=>v?formatDateTimeIN(v):'';
+      const rel=returns.filter(x=>String(x.indent_id)===String(r.id));
+      return {title:`CI-${String(r.indent_no||'').padStart(5,'0')} · ${r.status}`,subtitle:patientLabel(r.patient_id),fields:[
+        ['Resident',patientLabel(r.patient_id)],['Item',`${m?.item_code?m.item_code+' · ':''}${r.item_name}`],['Section',m?.item_category||''],
+        ['Requested',`${r.requested_qty} ${r.unit}`],['Raised by (nurse)',[r.initiated_by_name,when(r.initiated_at||r.created_at)].filter(Boolean).join(' · ')],['Request remarks',r.request_remarks],
+        ['Approved',r.approved_qty!=null?`${r.approved_qty} ${r.unit}`:''],['Approved by',[r.approved_by_name,when(r.approved_at)].filter(Boolean).join(' · ')],['Approval remarks',r.approval_remarks],
+        ['Handed over',r.handed_over_qty!=null?`${r.handed_over_qty} ${r.unit}`:''],['Handed over by',[r.handed_over_by_name,when(r.handed_over_at)].filter(Boolean).join(' · ')],['Handover remarks',r.handover_remarks],
+        ['Received',r.received_qty!=null?`${r.received_qty} ${r.unit}`:''],['Received by (nurse)',[r.received_by_name,when(r.received_at)].filter(Boolean).join(' · ')],['Receipt remarks',r.receipt_remarks],
+        ['Charged',r.status==='Received'?`${u.charged} ${r.unit}`:''],['Returned / return pending',rel.length?rel.map(x=>`${x.quantity} ${x.unit||r.unit} ${x.status}${x.requested_by_name?' · by '+x.requested_by_name:''}${x.confirmed_by_name?' · confirmed '+x.confirmed_by_name:''}`).join('; '):''],
+        ['Unused balance',r.status==='Received'?`${u.balance} ${r.unit}`:'']]};
+    }
     const stageStyle=status=>({display:'inline-block',padding:'5px 9px',borderRadius:'999px',fontWeight:800,fontSize:'12px',background:status==='Received'?'#e7f6ef':status==='Rejected'||status==='Receipt Discrepancy'?'#fdebec':status==='Handed Over'?'#eaf2ff':'#fff4dc',color:'#5d3146'});
     function navigateIndentFilter(target){
       setFilter(target);
@@ -126,6 +141,7 @@
     const options=stock.filter(x=>!form.category||categoryOfStock(x)===form.category).slice().sort((a,b)=>alphaSort(a.item_name,b.item_name));
     if(section==='none')return null;
     return h('div',null,
+      indentDetail&&h(RowDetailModal,{title:indentDetail.title,subtitle:indentDetail.subtitle,fields:indentDetail.fields,onClose:()=>setIndentDetail(null)}),
       !section&&h(Section,{title:'Patient Consumables',subtitle:'Nurse initiates for a patient → Store In-charge approves and hands over → Nurse confirms actual receipt.'},
         h('div',{className:'grid stats'},
           [['Awaiting Approval',counts.initiated,'Initiated'],['Awaiting Handover',counts.handover,'Awaiting Handover'],['Awaiting Receipt',counts.receipt,'Handed Over'],['Discrepancies',counts.discrepancy,'Receipt Discrepancy']].map(([label,count,target])=>h('button',{key:label,type:'button',className:'card stat',onClick:()=>navigateIndentFilter(target),style:{width:'100%',textAlign:'left',cursor:'pointer',border:filter===target?'2px solid #b30b5d':'1px solid #ead2dd',fontFamily:'inherit'}},h('span',null,label),h('strong',null,count),h('small',{style:{display:'block',marginTop:'7px',color:'#9b1456',fontWeight:800}},'Tap to view →')))
@@ -142,7 +158,7 @@
       )),
       (!section||section==='balance')&&h('div',{id:'patient-received-balance',style:{scrollMarginTop:'90px'}},h(Section,{title:`${categoryFilter?categoryFilter+' — ':''}Received Indents / Used Balance`,subtitle:'Patient-specific received stock. Charge Raised automatically reduces this balance; unused items can be returned only after Stores Manager confirms physical receipt.'},
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Indent','Item','Received','Charged','Return Pending / Returned','Balance','Action'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,rows.filter(r=>r.status==='Received').map(r=>{const u=indentUsage(r);const related=returns.filter(x=>String(x.indent_id)===String(r.id));const pending=related.filter(x=>x.status==='Pending').reduce((n,x)=>n+Number(x.quantity||0),0);const confirmed=related.filter(x=>x.status==='Confirmed').reduce((n,x)=>n+Number(x.quantity||0),0);return h('tr',{key:`balance-${r.id}`},
+          h('tbody',null,rows.filter(r=>r.status==='Received').map(r=>{const u=indentUsage(r);const related=returns.filter(x=>String(x.indent_id)===String(r.id));const pending=related.filter(x=>x.status==='Pending').reduce((n,x)=>n+Number(x.quantity||0),0);const confirmed=related.filter(x=>x.status==='Confirmed').reduce((n,x)=>n+Number(x.quantity||0),0);return h('tr',{key:`balance-${r.id}`,className:'row-clickable',onClick:rowClick(()=>setIndentDetail(indentFields(r)))},
             h('td',null,patientLabel(r.patient_id)),h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),h('td',null,r.item_name),h('td',null,`${r.received_qty||0} ${r.unit}`),h('td',null,`${u.charged} ${r.unit}`),h('td',null,`${pending} pending / ${confirmed} returned`),h('td',null,h('strong',null,`${u.balance} ${r.unit}`)),
             h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},nurse&&u.balance>0&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>requestUnusedReturn(r)},'Return Unused'),storeController&&related.filter(x=>x.status==='Pending').map(ret=>h('button',{type:'button',key:ret.id,className:'btn btn-primary',disabled:busy,onClick:()=>confirmUnusedReturn(ret)},`Confirm Return ${ret.quantity}`)),(!nurse&&!related.some(x=>x.status==='Pending'))&&h('span',null,'—')))
           )}),rows.filter(r=>r.status==='Received').length===0?h('tr',null,h('td',{colSpan:8,style:{textAlign:'center',padding:'24px'}},'No received patient indents yet.')):null)
@@ -150,7 +166,7 @@
       )),
       (!section||section==='register')&&h('div',{id:'consumables-indent-register',style:{scrollMarginTop:'90px'}},h(Section,{title:categoryFilter?`${categoryFilter} Indent Register`:'Consumables Indent Register',actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:refreshIndents},busy?'Refreshing…':'↻ Refresh'),['Open','Initiated','Awaiting Handover','Handed Over','Receipt Discrepancy','Received','Rejected','All'].map(x=>h('button',{type:'button',key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>navigateIndentFilter(x),'aria-pressed':filter===x},x)))},
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Indent','Patient','Item / Store Balance','Requested','Approved','Handed Over','Received','Status','Initiated By / Time','Approval / Handover','Receipt','Action'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,visible.length?visible.map(r=>{const st=stockFor(r);return h('tr',{key:r.id},
+          h('tbody',null,visible.length?visible.map(r=>{const st=stockFor(r);return h('tr',{key:r.id,className:'row-clickable',onClick:rowClick(()=>setIndentDetail(indentFields(r)))},
             h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),h('td',null,patientLabel(r.patient_id)),h('td',null,h('strong',null,r.item_name),h('small',{style:{display:'block'}},`Store: ${st?.balance_qty??'—'} ${st?.unit||r.unit}`),r.request_remarks&&h('small',{style:{display:'block'}},r.request_remarks)),
             h('td',null,`${r.requested_qty} ${r.unit}`),h('td',null,r.approved_qty!=null?`${r.approved_qty} ${r.unit}`:'—'),h('td',null,r.handed_over_qty!=null?`${r.handed_over_qty} ${r.unit}`:'—'),h('td',null,r.received_qty!=null?`${r.received_qty} ${r.unit}`:'—'),h('td',null,h('span',{style:stageStyle(r.status)},r.status)),
             h('td',null,h('strong',null,r.initiated_by_name||'—'),h('small',{style:{display:'block'}},r.initiated_at?formatDateTimeIN(r.initiated_at):'—')),

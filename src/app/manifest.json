@@ -62,6 +62,11 @@
    "lines": 87
   },
   {
+   "file": "shared/02-apply-filter-row-details.js",
+   "about": "Apply-filter helper (draft vs applied), Apply button, row details popup",
+   "lines": 29
+  },
+  {
    "file": "clinical-alerts/01-alert-engine.js",
    "about": "Clinical alert popup + the background clinical alert engine",
    "lines": 1210
@@ -69,7 +74,7 @@
   {
    "file": "clinical-alerts/02-alert-pages.js",
    "about": "Clinical Alerts page, Escalations dashboard, Alert Settings",
-   "lines": 509
+   "lines": 511
   },
   {
    "file": "global-ui/01-smooth-refresh-splash.js",
@@ -154,7 +159,7 @@
   {
    "file": "pages/whatsapp-inbox.js",
    "about": "WhatsApp Inbox",
-   "lines": 754
+   "lines": 756
   },
   {
    "file": "hr/hr-dashboard.js",
@@ -214,7 +219,7 @@
   {
    "file": "patients/patients.js",
    "about": "Patients page",
-   "lines": 2800
+   "lines": 2801
   },
   {
    "file": "patients/patient-select-helpers.js",
@@ -254,7 +259,7 @@
   {
    "file": "clinical/medication-errors.js",
    "about": "Medication errors",
-   "lines": 299
+   "lines": 301
   },
   {
    "file": "clinical/food.js",
@@ -279,12 +284,12 @@
   {
    "file": "nursing/nursing-charge-register.js",
    "about": "Charge Register: view-only charges register for Admin / Nursing Manager (filters by status, category, patient, raised-by, period)",
-   "lines": 111
+   "lines": 116
   },
   {
    "file": "nursing/duty-assignment.js",
    "about": "Shift management + Duty Assignment (duty roster)",
-   "lines": 892
+   "lines": 898
   },
   {
    "file": "nursing/shift-handover.js",
@@ -344,12 +349,12 @@
   {
    "file": "stores/consumables-stores.js",
    "about": "Consumables stores",
-   "lines": 694
+   "lines": 736
   },
   {
    "file": "stores/patient-consumables.js",
    "about": "Patient consumables",
-   "lines": 165
+   "lines": 181
   },
   {
    "file": "stores/stores-dashboard.js",
@@ -384,7 +389,7 @@
   {
    "file": "reports/audit-trail.js",
    "about": "Audit trail",
-   "lines": 109
+   "lines": 111
   },
   {
    "file": "z-end/01-form-helpers-and-start-app.js",

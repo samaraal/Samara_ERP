@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.95';
-const CACHE = 'samara-erp-2.14.95-biomedical-oxygen';
+const APP_VERSION = '2.14.96';
+const CACHE = 'samara-erp-2.14.96-apply-filters-row-details';
 const SHELL = [
   './',
   './index.html',

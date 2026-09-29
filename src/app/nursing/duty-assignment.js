@@ -61,6 +61,11 @@ function ShiftManagement({profile}){
     }
     const [rangeStart,setRangeStart]=React.useState(()=>mondayOfWeek(todayISOIndia()));
     const [rangeEnd,setRangeEnd]=React.useState(()=>addDaysISO(mondayOfWeek(todayISOIndia()),6));
+    // 2.14.96: the From / To date boxes are a draft; the schedule changes only on "Apply" (week buttons stay instant)
+    const [rangeDraft,setRangeDraft]=React.useState({from:rangeStart,to:rangeEnd});
+    React.useEffect(()=>{setRangeDraft({from:rangeStart,to:rangeEnd})},[rangeStart,rangeEnd]);
+    const rangeDirty=rangeDraft.from!==rangeStart||rangeDraft.to!==rangeEnd;
+    function applyRangeDraft(){if(!rangeDraft.from||!rangeDraft.to)return;setRangeStart(rangeDraft.from);setRangeEnd(rangeDraft.to<rangeDraft.from?rangeDraft.from:rangeDraft.to)}
     const [calendarDate,setCalendarDate]=React.useState(()=>todayISOIndia());
     const dayCalendar=viewMode==='team';
     function showDutyWeek(start){
@@ -766,9 +771,10 @@ function ShiftManagement({profile}){
         subtitle:scheduleSubtitle,
         actions:h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
           !dayCalendar&&dutyWeekControls(),
-          !dayCalendar&&h(StrictDateInput,{value:rangeStart,onChange:e=>setRangeStart(e.target.value)}),
+          !dayCalendar&&h(StrictDateInput,{value:rangeDraft.from,onChange:e=>setRangeDraft(d=>({...d,from:e.target.value}))}),
           !dayCalendar&&h('span',{style:{opacity:.65,fontSize:'12px'}},'to'),
-          !dayCalendar&&h(StrictDateInput,{value:rangeEnd,onChange:e=>setRangeEnd(e.target.value)}),
+          !dayCalendar&&h(StrictDateInput,{value:rangeDraft.to,onChange:e=>setRangeDraft(d=>({...d,to:e.target.value}))}),
+          !dayCalendar&&h(ApplyFilterButton,{dirty:rangeDirty,onApply:applyRangeDraft}),
           dayCalendar&&h('strong',null,`Selected date: ${formatDateWithDayIN(calendarDate)}`),
           canManage&&h('button',{type:'button',className:'btn btn-secondary',disabled:copyBusy||loading||!!loadError||!isWholeWeek,onClick:()=>prepareCopy()},copyBusy?'Preparing…':'Copy Previous Week'),
           canManage&&h('button',{type:'button',className:'btn duty-create-button',style:{background:'#167347',color:'#fff',border:'1px solid #105b37',boxShadow:'0 4px 12px rgba(22,115,71,.20)'},onClick:openCreate},'＋ Assign Duty')

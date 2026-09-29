@@ -9,6 +9,10 @@
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
     const [filter,setFilter]=React.useState({status:'All',category:'All',patient_id:'',raised_by:'All',from:'',to:''});
+    // 2.14.96: From / To boxes are a draft; the list changes on "Apply" (period buttons stay instant)
+    const [dateDraft,setDateDraft]=React.useState({from:'',to:''});
+    React.useEffect(()=>{setDateDraft({from:filter.from,to:filter.to})},[filter.from,filter.to]);
+    const dateDirty=dateDraft.from!==filter.from||dateDraft.to!==filter.to;
 
     const load=React.useCallback(async()=>{
       const r=await client.from('bill_charge_requests').select('*').order('charge_date',{ascending:false}).order('created_at',{ascending:false}).limit(2000);
@@ -96,8 +100,9 @@
             h('option',{value:''},'All'),patientsWithCharges.map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)} · ${p.patient_id||'—'}`)))),
           h('div',{className:'field',style:{margin:0}},h('label',null,'Raised By'),h('select',{value:filter.raised_by,onChange:e=>setFilter({...filter,raised_by:e.target.value})},
             h('option',{value:'All'},'All'),raisers.map(n=>h('option',{key:n,value:n},n)))),
-          h('div',{className:'field',style:{margin:0}},h('label',null,'From'),h('input',{type:'date',value:filter.from,max:filter.to||today,onChange:e=>setFilter({...filter,from:e.target.value})})),
-          h('div',{className:'field',style:{margin:0}},h('label',null,'To'),h('input',{type:'date',value:filter.to,min:filter.from||undefined,max:today,onChange:e=>setFilter({...filter,to:e.target.value})}))
+          h('div',{className:'field',style:{margin:0}},h('label',null,'From'),h(StrictDateInput,{value:dateDraft.from,max:dateDraft.to||today,onChange:e=>setDateDraft(d=>({...d,from:e.target.value}))})),
+          h('div',{className:'field',style:{margin:0}},h('label',null,'To'),h(StrictDateInput,{value:dateDraft.to,min:dateDraft.from||undefined,max:today,onChange:e=>setDateDraft(d=>({...d,to:e.target.value}))})),
+          h(ApplyFilterButton,{dirty:dateDirty,onApply:()=>setFilter(f=>({...f,from:dateDraft.from,to:dateDraft.to}))})
         ),
         h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPeriod(today,today)},'Today'),

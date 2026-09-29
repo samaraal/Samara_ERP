@@ -6,6 +6,7 @@ function AuditTrail(){
     const [message,setMessage]=React.useState('');
     const [fromDate,setFromDate]=React.useState('');
     const [toDate,setToDate]=React.useState('');
+    const auditApply=useAppliedFilters({from:fromDate,to:toDate});const auditApplyA=auditApply.applied; // 2.14.96: filters apply on "Apply"
     const [entityFilter,setEntityFilter]=React.useState('All');
     const [resultFilter,setResultFilter]=React.useState('All');
     const [userFilter,setUserFilter]=React.useState('All');
@@ -30,7 +31,7 @@ function AuditTrail(){
     const filtered=rows.filter(r=>{
       const date=dateOnly(r.created_at);
       const text=[r.action,r.entity,r.entity_id,r.result,r.user_name,JSON.stringify(r.details||{}),JSON.stringify(r.new_data||{})].join(' ').toLowerCase();
-      return (!fromDate||date>=fromDate)&&(!toDate||date<=toDate)&&
+      return (!auditApplyA.from||date>=auditApplyA.from)&&(!auditApplyA.to||date<=auditApplyA.to)&&
         (entityFilter==='All'||r.entity===entityFilter)&&
         (resultFilter==='All'||String(r.result||'Success')===resultFilter)&&
         (userFilter==='All'||String(r.user_id||'')===userFilter)&&
@@ -63,6 +64,7 @@ function AuditTrail(){
         h('div',{className:'modal-grid'},
           h('div',{className:'field'},h('label',null,'From date'),h(StrictDateInput,{value:fromDate,max:todayISOIndia(),onChange:e=>setFromDate(e.target.value)})),
           h('div',{className:'field'},h('label',null,'To date'),h(StrictDateInput,{value:toDate,max:todayISOIndia(),onChange:e=>setToDate(e.target.value)})),
+          h(ApplyFilterButton,{dirty:auditApply.dirty,onApply:auditApply.apply}),
           h('div',{className:'field'},h('label',null,'Module'),h('select',{value:entityFilter,onChange:e=>setEntityFilter(e.target.value)},h('option',{value:'All'},'All modules'),entities.map(x=>h('option',{key:x,value:x},x)))),
           h('div',{className:'field'},h('label',null,'User'),h('select',{value:userFilter,onChange:e=>setUserFilter(e.target.value)},h('option',{value:'All'},'All users'),users.map(id=>h('option',{key:id,value:id},userName({user_id:id}))))),
           h('div',{className:'field'},h('label',null,'Result'),h('select',{value:resultFilter,onChange:e=>setResultFilter(e.target.value)},['All','Success','Failed'].map(x=>h('option',{key:x,value:x},x)))),

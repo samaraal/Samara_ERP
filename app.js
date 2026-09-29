@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.95';
+  const APP_VERSION = '2.14.96';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,10 +283,10 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '29-Sep-2026 Biomedical & Oxygen registers';
+  const APP_BUILD_DATE = '29-Sep-2026 Apply filters + row details';
   const APP_SCHEMA_VERSION = '38';
 
-  // 2.14.95: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
+  // 2.14.96: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
   // receiving, nurse indents, Charge Master, Bills & Charges). Must match public.store_section_names() in SQL 160.
   const STORE_SECTIONS=[
     {name:'Consumables',page:'Consumables',code:'CON',icon:'▤',departmentIssue:false,blurb:'Clinical consumables — indents, stock, receipts, movements and expiry at a glance.'},
@@ -298,7 +298,7 @@ function initSamaraInaugurationInvitation(){
   // Charge categories that are Stores items (live Store Master rate); 'Pharmacy & Basic Supplies' is the older Charge Master name for Pharmacy.
   const STORE_CHARGE_CATEGORIES=[...STORE_SECTION_NAMES,'Pharmacy & Basic Supplies'];
   const STORE_DEPARTMENTS=['Nursing Floor','Housekeeping','Kitchen / Pantry','Laundry','Office / Admin','Maintenance','Front Desk / Reception','Other'];
-  // 2.14.95: Accounts → Manual Billing & Payment Entry may post a "Charge" only in these categories; everything else goes through Bills & Charges.
+  // 2.14.96: Accounts → Manual Billing & Payment Entry may post a "Charge" only in these categories; everything else goes through Bills & Charges.
   const MANUAL_CHARGE_CATEGORIES=['Room Charges','Final Settlement','Other'];
   const storeSectionInfo=name=>STORE_SECTIONS.find(x=>x.name===name)||STORE_SECTIONS[0];
 
@@ -2666,6 +2666,35 @@ https://samaraassistedliving.com/`;
   }
 
 
+  // 2.14.96: shared "Apply filter" and row-details helpers.
+  // useAppliedFilters: the filter controls change a DRAFT; lists and reports use the APPLIED values,
+  // which change only when the user presses Apply (so a half-chosen period / date never blanks a list).
+  function useAppliedFilters(values){
+    const [applied,setApplied]=React.useState(values);
+    const draftKey=JSON.stringify(values),appliedKey=JSON.stringify(applied);
+    const dirty=draftKey!==appliedKey;
+    const apply=()=>setApplied(JSON.parse(draftKey));
+    return {applied,apply,dirty};
+  }
+  function ApplyFilterButton({dirty,onApply,style}){
+    return h('div',{className:'apply-filter-wrap',style},
+      h('button',{type:'button',className:`btn ${dirty?'btn-primary apply-filter-dirty':'btn-secondary'}`,onClick:onApply,'aria-label':'Apply filter'},dirty?'✓ Apply':'✓ Applied'),
+      dirty&&h('small',{className:'apply-filter-note'},'Filter changed — press Apply')
+    );
+  }
+  // RowDetailModal: full details of one register row. fields = [[label, value], …] (empty values are skipped).
+  function RowDetailModal({title,subtitle,fields,children,onClose}){
+    React.useEffect(()=>{const k=e=>{if(e.key==='Escape')onClose()};window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k)},[]);
+    const shown=(fields||[]).filter(([,v])=>v!==null&&v!==undefined&&v!==''&&v!==false);
+    return h('div',{className:'modal-backdrop row-detail-backdrop',onClick:e=>{if(e.target===e.currentTarget)onClose()}},
+      h('div',{className:'card modal row-detail-modal',role:'dialog','aria-modal':'true'},
+        h('div',{className:'panel-head'},h('div',null,h('h3',null,title),subtitle&&h('small',null,subtitle)),h('button',{type:'button',className:'close',onClick:onClose,'aria-label':'Close'},'×')),
+        h('div',{className:'row-detail-grid'},shown.map(([label,value],i)=>h('div',{key:i,className:'row-detail-field'},h('small',null,label),h('strong',null,value)))),
+        children,
+        h('div',{className:'modal-bottom-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:onClose},'Close'))
+      )
+    );
+  }
   function showClinicalAlertPopup({
     heading='CLINICAL ALERT',
     patient='Patient',
@@ -3920,22 +3949,23 @@ https://samaraassistedliving.com/`;
     const [period,setPeriod]=React.useState('Now (live)');
     const [customFrom,setCustomFrom]=React.useState(()=>addDaysISO(todayISOIndia(),-6));
     const [customTo,setCustomTo]=React.useState(()=>todayISOIndia());
+    const alertPeriodApply=useAppliedFilters({period:period,from:customFrom,to:customTo});const alertPeriodApplyA=alertPeriodApply.applied; // 2.14.96: filters apply on "Apply"
     const [historyRows,setHistoryRows]=React.useState([]);
     const [historyPatients,setHistoryPatients]=React.useState({});
     const [historyBusy,setHistoryBusy]=React.useState(false);
     const [historyMessage,setHistoryMessage]=React.useState('');
     const [historyStatus,setHistoryStatus]=React.useState('All');
     const [historyType,setHistoryType]=React.useState('All');
-    const isLive=period==='Now (live)';
+    const isLive=alertPeriodApplyA.period==='Now (live)';
 
     function periodRange(){
       const today=todayISOIndia();
-      if(period==='Today')return [today,today];
-      if(period==='Yesterday'){const y=addDaysISO(today,-1);return [y,y];}
-      if(period==='Last 7 days')return [addDaysISO(today,-6),today];
-      if(period==='Last 30 days')return [addDaysISO(today,-29),today];
-      if(period==='This month')return [`${today.slice(0,8)}01`,today];
-      const a=customFrom||today,b=customTo||today;
+      if(alertPeriodApplyA.period==='Today')return [today,today];
+      if(alertPeriodApplyA.period==='Yesterday'){const y=addDaysISO(today,-1);return [y,y];}
+      if(alertPeriodApplyA.period==='Last 7 days')return [addDaysISO(today,-6),today];
+      if(alertPeriodApplyA.period==='Last 30 days')return [addDaysISO(today,-29),today];
+      if(alertPeriodApplyA.period==='This month')return [`${today.slice(0,8)}01`,today];
+      const a=alertPeriodApplyA.from||today,b=alertPeriodApplyA.to||today;
       return a<=b?[a,b]:[b,a];
     }
 
@@ -3965,7 +3995,7 @@ https://samaraassistedliving.com/`;
       }finally{setHistoryBusy(false)}
     }
 
-    React.useEffect(()=>{loadHistory()},[period,customFrom,customTo]);
+    React.useEffect(()=>{loadHistory()},[alertPeriodApplyA.period,alertPeriodApplyA.from,alertPeriodApplyA.to]);
 
     async function refreshAll(){
       if(!isLive){await loadHistory();return;}
@@ -4187,6 +4217,7 @@ https://samaraassistedliving.com/`;
             h('label',null,'To'),
             h(StrictDateInput,{value:customTo,max:todayISOIndia(),onChange:e=>setCustomTo(e.target.value)})
           ),
+          h(ApplyFilterButton,{dirty:alertPeriodApply.dirty,onApply:alertPeriodApply.apply}),
           isLive&&h('div',{className:'field',style:{width:'220px',margin:0}},
             h('label',null,'View'),
             h('select',{value:filter,onChange:e=>setFilter(e.target.value)},
@@ -9960,6 +9991,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
     const [waFolder,setWaFolder]=React.useState(()=>{const folder=sessionStorage.getItem('samara_whatsapp_folder');sessionStorage.removeItem('samara_whatsapp_folder');return foodOnly?'All':folder==='Admission Enquiries'||String(profile?.role||'')==='STD'?'Admission Enquiries':'All';});
     const [dateFrom,setDateFrom]=React.useState('');
     const [dateTo,setDateTo]=React.useState('');
+    const waDateApply=useAppliedFilters({from:dateFrom,to:dateTo});const waDateA=waDateApply.applied; // 2.14.96: dates apply on "Apply"
     const isSTD=String(profile?.role||'')==='STD';
     const WA_REOPEN_TEMPLATES=foodOnly?[{name:'samara_callback_request',label:'Food Vendor Callback',regarding:'food supply and delivery'}]:[
       {name:'samara_general_followup',label:'General Follow-up',regarding:'your assisted living enquiry'},
@@ -10243,12 +10275,12 @@ Samara Assisted Living`;
       if(showUnread&&!c.unread)return false;
       if(isSTD&&subjectFilter!=='All Subjects'&&c.subject!==subjectFilter)return false;
       const lastDate=new Date(c.lastAt);
-      if(isSTD&&dateFrom){
-        const from=new Date(`${dateFrom}T00:00:00`);
+      if(isSTD&&waDateA.from){
+        const from=new Date(`${waDateA.from}T00:00:00`);
         if(lastDate<from)return false;
       }
-      if(isSTD&&dateTo){
-        const to=new Date(`${dateTo}T23:59:59`);
+      if(isSTD&&waDateA.to){
+        const to=new Date(`${waDateA.to}T23:59:59`);
         if(lastDate>to)return false;
       }
       const hay=`${c.name} ${c.phone} ${c.source} ${c.subject} ${c.msgs.map(r=>`${r.message_content||''} ${r.communication_type||''} ${r.template_name||''}`).join(' ')}`.toLowerCase();
@@ -10544,6 +10576,7 @@ Thank you.`;
           ):null,
           isSTD?h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'From',h(StrictDateInput,{value:dateFrom,onChange:e=>{setDateFrom(e.target.value);setSelectedPhone('')}})):null,
           isSTD?h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'To',h(StrictDateInput,{value:dateTo,onChange:e=>{setDateTo(e.target.value);setSelectedPhone('')}})):null,
+          isSTD?h(ApplyFilterButton,{dirty:waDateApply.dirty,onApply:()=>{waDateApply.apply();setSelectedPhone('')}}):null,
           h('button',{type:'button',className:`btn ${showUnread?'btn-primary':'btn-secondary'}`,onClick:()=>{
             const next=!showUnread;
             setShowUnread(next);
@@ -18007,6 +18040,7 @@ Please keep these login details confidential.`;
     const [rows,setRows]=React.useState([]),[selected,setSelected]=React.useState(null),[details,setDetails]=React.useState(null),[photoUrl,setPhotoUrl]=React.useState(''),[tab,setTab]=React.useState('Overview');
     const [clinicalHistoryRange,setClinicalHistoryRange]=React.useState('7');
     const [clinicalHistoryDate,setClinicalHistoryDate]=React.useState(todayISOIndia());
+    const [clinicalHistoryDateDraft,setClinicalHistoryDateDraft]=React.useState(todayISOIndia()); // 2.14.96: custom date applies on "Apply"
     const consentResidentRef=React.useRef(null);consentResidentRef.current=selected?.id;
     const [patientSearch,setPatientSearch]=React.useState('');
     const [diagnosisDraft,setDiagnosisDraft]=React.useState('');
@@ -20385,7 +20419,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
             const handoverRows=(details.handovers||[]).filter(x=>keep(x,['handover_date','created_at']));
             const medName=x=>{const order=(details.medHistory||[]).find(m=>String(m.id)===String(x.order_id||x.medication_order_id));return x.medicine_name||order?.medicine_name||'Medicine'};
             return h('div',{className:'clinical-history-tab'},
-              h('div',{className:'section-card'},h('div',{className:'panel-head'},h('div',null,h('h4',null,'Clinical History'),h('small',null,'Read-only resident-wise clinical record for Nursing Manager / Admin / Director. Historical entries cannot be edited here.'))),h('div',{className:'actions',style:{flexWrap:'wrap',gap:'8px'}},[['today','Today'],['yesterday','Yesterday'],['7','Last 7 Days'],['custom','Custom Date']].map(([value,label])=>h('button',{type:'button',key:value,className:`btn ${clinicalHistoryRange===value?'btn-primary':'btn-secondary'}`,onClick:()=>setClinicalHistoryRange(value)},label)),clinicalHistoryRange==='custom'&&h('input',{type:'date',value:clinicalHistoryDate,max:todayISOIndia(),onChange:e=>setClinicalHistoryDate(e.target.value),style:{minHeight:'42px'}}))),
+              h('div',{className:'section-card'},h('div',{className:'panel-head'},h('div',null,h('h4',null,'Clinical History'),h('small',null,'Read-only resident-wise clinical record for Nursing Manager / Admin / Director. Historical entries cannot be edited here.'))),h('div',{className:'actions',style:{flexWrap:'wrap',gap:'8px'}},[['today','Today'],['yesterday','Yesterday'],['7','Last 7 Days'],['custom','Custom Date']].map(([value,label])=>h('button',{type:'button',key:value,className:`btn ${clinicalHistoryRange===value?'btn-primary':'btn-secondary'}`,onClick:()=>setClinicalHistoryRange(value)},label)),clinicalHistoryRange==='custom'&&h(StrictDateInput,{value:clinicalHistoryDateDraft,max:todayISOIndia(),onChange:e=>setClinicalHistoryDateDraft(e.target.value)}),clinicalHistoryRange==='custom'&&h(ApplyFilterButton,{dirty:clinicalHistoryDateDraft!==clinicalHistoryDate,onApply:()=>setClinicalHistoryDate(clinicalHistoryDateDraft||todayISOIndia())}))),
               h('div',{className:'section-card'},h('h4',null,`Medication Administration (${medRows.length})`),medRows.length?medRows.map(x=>h('div',{className:'timeline-item',key:`ch-med-${x.id}`},h('strong',null,`${formatDateIN(x.scheduled_date||dateOnly(x.administered_at||x.created_at))} · ${medName(x)} · ${x.status||'Recorded'}`),h('span',{className:'patient-file-detail'},`Scheduled: ${medicationTimeLabel(x.scheduled_time)||'—'} · Actually given: ${x.administered_at?fmt(x.administered_at):'—'} · Entry recorded: ${x.entry_recorded_at?fmt(x.entry_recorded_at):(x.created_at?fmt(x.created_at):'—')} · ${x.remarks||x.exception_reason||'No remarks'}${x.late_entry_justification?` · Late entry justification: ${x.late_entry_justification}`:''}`))):sectionEmpty('No medication administration records for the selected period.')),
               h('div',{className:'section-card'},h('h4',null,`Nursing Procedures (${procedureRows.length})`),procedureRows.length?procedureRows.map(x=>h('div',{className:'timeline-item',key:`ch-proc-${x.id}`},h('strong',null,`${x.service_datetime?fmt(x.service_datetime):formatDateIN(x.charge_date||dateOnly(x.created_at))} · ${x.service_name||'Nursing Procedure'}`),h('span',{className:'patient-file-detail'},`${x.status||'Recorded'}${x.quantity?` · Qty ${x.quantity}${x.unit?` ${x.unit}`:''}`:''}${x.raised_by_name?` · Recorded by ${x.raised_by_name}`:''} · ${x.remarks||x.description||'No remarks'}`))):sectionEmpty('No nursing procedures for the selected period.')),
               h('div',{className:'section-card'},h('h4',null,`Care History (${careRows.length})`),careRows.length?careRows.map(x=>h('div',{className:'timeline-item',key:`ch-care-${x.id}`},h('strong',null,`${formatDateIN(x.care_date||dateOnly(x.created_at))} · ${x.care_type||'Care'} · ${x.shift||'—'} · ${x.status||'Recorded'}`),h('span',{className:'patient-file-detail'},x.remarks||'No remarks'))):sectionEmpty('No care records for the selected period.')),
@@ -24351,6 +24385,7 @@ function RoomsBeds({profile,onNavigate}){
     const [state,setState]=React.useState({loading:true,errors:[],orders:[],mar:[],patients:[],profiles:[],message:''});
     const [fromDate,setFromDate]=React.useState(today);
     const [toDate,setToDate]=React.useState(today);
+    const medErrApply=useAppliedFilters({from:fromDate,to:toDate});const medErrApplyA=medErrApply.applied; // 2.14.96: filters apply on "Apply"
     const [patientFilter,setPatientFilter]=React.useState('');
     const [typeFilter,setTypeFilter]=React.useState('All');
     const [statusFilter,setStatusFilter]=React.useState('All');
@@ -24371,7 +24406,7 @@ function RoomsBeds({profile,onNavigate}){
     const patientName=id=>{const p=patientById(id);return formalName(p)||p.full_name||'Unknown patient';};
     const medicineName=orderId=>{const o=orderById(orderId);return [o.medicine_name,o.strength||o.dose].filter(Boolean).join(' ')||'Medicine not specified';};
     const dateOnly=value=>String(value||'').slice(0,10);
-    const isBetween=value=>{const d=dateOnly(value);return d&&d>=fromDate&&d<=toDate;};
+    const isBetween=value=>{const d=dateOnly(value);return d&&d>=medErrApplyA.from&&d<=medErrApplyA.to;};
     const minutesDifference=(a,b)=>Math.round((new Date(a)-new Date(b))/60000);
 
     async function load(){
@@ -24491,7 +24526,7 @@ function RoomsBeds({profile,onNavigate}){
         patientName(r.patient_id),medicineName(r.order_id),r.error_type,r.severity||'',r.description||'',r.source,fmt(r.occurred_at||r.created_at),r.status||'Detected',r.root_cause||'',r.corrective_action||'',r.preventive_action||''
       ])].map(row=>row.map(value=>`"${String(value??'').replace(/"/g,'""')}"`).join(',')).join('\n');
       const blob=new Blob([lines],{type:'text/csv;charset=utf-8'});
-      const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`Medication_Safety_${fromDate}_to_${toDate}.csv`;a.click();URL.revokeObjectURL(url);
+      const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`Medication_Safety_${medErrApplyA.from}_to_${medErrApplyA.to}.csv`;a.click();URL.revokeObjectURL(url);
     }
 
     function printCurrentReport(){
@@ -24572,6 +24607,7 @@ function RoomsBeds({profile,onNavigate}){
         h('div',{className:'modal-grid'},
           h('div',{className:'field'},h('label',null,'From date'),h(StrictDateInput,{value:fromDate,onChange:e=>setFromDate(e.target.value)})),
           h('div',{className:'field'},h('label',null,'To date'),h(StrictDateInput,{value:toDate,onChange:e=>setToDate(e.target.value)})),
+          h(ApplyFilterButton,{dirty:medErrApply.dirty,onApply:medErrApply.apply}),
           h('div',{className:'field'},h('label',null,'Patient'),h('select',{value:patientFilter,onChange:e=>setPatientFilter(e.target.value)},h('option',{value:''},'All patients'),state.patients.map(p=>h('option',{key:p.id,value:p.id},formalName(p)||p.full_name)))),
           h('div',{className:'field'},h('label',null,'Error type'),h('select',{value:typeFilter,onChange:e=>setTypeFilter(e.target.value)},h('option',{value:'All'},'All error types'),ERROR_TYPES.map(t=>h('option',{key:t,value:t},t)))),
           h('div',{className:'field'},h('label',null,'Workflow status'),h('select',{value:statusFilter,onChange:e=>setStatusFilter(e.target.value)},['All','Detected',...WORKFLOW,'Reviewed'].map(t=>h('option',{key:t,value:t},t)))),
@@ -24622,7 +24658,7 @@ function RoomsBeds({profile,onNavigate}){
       showReport&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setShowReport(false)}},
         h('div',{className:'card modal',style:{width:'min(1500px,97vw)',maxHeight:'95vh',overflow:'auto'}},
           h('div',{className:'panel-head no-print'},
-            h('div',null,h('h3',null,'Medication Safety Management Report'),h('small',null,`${formatDateIN(fromDate)} to ${formatDateIN(toDate)}`)),
+            h('div',null,h('h3',null,'Medication Safety Management Report'),h('small',null,`${formatDateIN(medErrApplyA.from)} to ${formatDateIN(medErrApplyA.to)}`)),
             h('div',{className:'actions'},
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowReport(false)},'← Back to Safety Centre'),
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setShowReport(false);onNavigate&&onNavigate(ROLE_HOME[profile.role]||'Dashboard')}},'⌂ Dashboard'),
@@ -24634,7 +24670,7 @@ function RoomsBeds({profile,onNavigate}){
           h('div',{id:'medication-safety-report'},
             h('h1',null,'Samara Care ERP'),
             h('h2',null,'Medication Safety Management Report'),
-            h('p',null,`Period: ${formatDateIN(fromDate)} to ${formatDateIN(toDate)} · Prepared: ${formatDateTimeIN(new Date())} · Prepared by: ${formalName(profile)}`),
+            h('p',null,`Period: ${formatDateIN(medErrApplyA.from)} to ${formatDateIN(medErrApplyA.to)} · Prepared: ${formatDateTimeIN(new Date())} · Prepared by: ${formalName(profile)}`),
             h('div',{className:'grid stats'},[['Safety Score',`${safetyScore}%`],['Total Events',total],['Open Review',openCount],['Major / Critical',high],['Residents Affected',affectedPatients]].map(([label,value])=>h('div',{className:'card stat',key:label},h('span',null,label),h('strong',null,value)))),
             h('div',{className:'card panel'},h('h3',null,'AI-assisted executive summary'),h('p',null,aiSummary())),
             h('div',{className:'card panel'},h('h3',null,'Category analysis'),h('p',null,ERROR_TYPES.filter(t=>counts[t]).map(t=>`${t}: ${counts[t]}`).join(' · ')||'No events')),
@@ -25432,6 +25468,10 @@ function RoomsBeds({profile,onNavigate}){
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
     const [filter,setFilter]=React.useState({status:'All',category:'All',patient_id:'',raised_by:'All',from:'',to:''});
+    // 2.14.96: From / To boxes are a draft; the list changes on "Apply" (period buttons stay instant)
+    const [dateDraft,setDateDraft]=React.useState({from:'',to:''});
+    React.useEffect(()=>{setDateDraft({from:filter.from,to:filter.to})},[filter.from,filter.to]);
+    const dateDirty=dateDraft.from!==filter.from||dateDraft.to!==filter.to;
 
     const load=React.useCallback(async()=>{
       const r=await client.from('bill_charge_requests').select('*').order('charge_date',{ascending:false}).order('created_at',{ascending:false}).limit(2000);
@@ -25519,8 +25559,9 @@ function RoomsBeds({profile,onNavigate}){
             h('option',{value:''},'All'),patientsWithCharges.map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)} · ${p.patient_id||'—'}`)))),
           h('div',{className:'field',style:{margin:0}},h('label',null,'Raised By'),h('select',{value:filter.raised_by,onChange:e=>setFilter({...filter,raised_by:e.target.value})},
             h('option',{value:'All'},'All'),raisers.map(n=>h('option',{key:n,value:n},n)))),
-          h('div',{className:'field',style:{margin:0}},h('label',null,'From'),h('input',{type:'date',value:filter.from,max:filter.to||today,onChange:e=>setFilter({...filter,from:e.target.value})})),
-          h('div',{className:'field',style:{margin:0}},h('label',null,'To'),h('input',{type:'date',value:filter.to,min:filter.from||undefined,max:today,onChange:e=>setFilter({...filter,to:e.target.value})}))
+          h('div',{className:'field',style:{margin:0}},h('label',null,'From'),h(StrictDateInput,{value:dateDraft.from,max:dateDraft.to||today,onChange:e=>setDateDraft(d=>({...d,from:e.target.value}))})),
+          h('div',{className:'field',style:{margin:0}},h('label',null,'To'),h(StrictDateInput,{value:dateDraft.to,min:dateDraft.from||undefined,max:today,onChange:e=>setDateDraft(d=>({...d,to:e.target.value}))})),
+          h(ApplyFilterButton,{dirty:dateDirty,onApply:()=>setFilter(f=>({...f,from:dateDraft.from,to:dateDraft.to}))})
         ),
         h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPeriod(today,today)},'Today'),
@@ -25595,6 +25636,11 @@ function ShiftManagement({profile}){
     }
     const [rangeStart,setRangeStart]=React.useState(()=>mondayOfWeek(todayISOIndia()));
     const [rangeEnd,setRangeEnd]=React.useState(()=>addDaysISO(mondayOfWeek(todayISOIndia()),6));
+    // 2.14.96: the From / To date boxes are a draft; the schedule changes only on "Apply" (week buttons stay instant)
+    const [rangeDraft,setRangeDraft]=React.useState({from:rangeStart,to:rangeEnd});
+    React.useEffect(()=>{setRangeDraft({from:rangeStart,to:rangeEnd})},[rangeStart,rangeEnd]);
+    const rangeDirty=rangeDraft.from!==rangeStart||rangeDraft.to!==rangeEnd;
+    function applyRangeDraft(){if(!rangeDraft.from||!rangeDraft.to)return;setRangeStart(rangeDraft.from);setRangeEnd(rangeDraft.to<rangeDraft.from?rangeDraft.from:rangeDraft.to)}
     const [calendarDate,setCalendarDate]=React.useState(()=>todayISOIndia());
     const dayCalendar=viewMode==='team';
     function showDutyWeek(start){
@@ -26300,9 +26346,10 @@ function ShiftManagement({profile}){
         subtitle:scheduleSubtitle,
         actions:h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
           !dayCalendar&&dutyWeekControls(),
-          !dayCalendar&&h(StrictDateInput,{value:rangeStart,onChange:e=>setRangeStart(e.target.value)}),
+          !dayCalendar&&h(StrictDateInput,{value:rangeDraft.from,onChange:e=>setRangeDraft(d=>({...d,from:e.target.value}))}),
           !dayCalendar&&h('span',{style:{opacity:.65,fontSize:'12px'}},'to'),
-          !dayCalendar&&h(StrictDateInput,{value:rangeEnd,onChange:e=>setRangeEnd(e.target.value)}),
+          !dayCalendar&&h(StrictDateInput,{value:rangeDraft.to,onChange:e=>setRangeDraft(d=>({...d,to:e.target.value}))}),
+          !dayCalendar&&h(ApplyFilterButton,{dirty:rangeDirty,onApply:applyRangeDraft}),
           dayCalendar&&h('strong',null,`Selected date: ${formatDateWithDayIN(calendarDate)}`),
           canManage&&h('button',{type:'button',className:'btn btn-secondary',disabled:copyBusy||loading||!!loadError||!isWholeWeek,onClick:()=>prepareCopy()},copyBusy?'Preparing…':'Copy Previous Week'),
           canManage&&h('button',{type:'button',className:'btn duty-create-button',style:{background:'#167347',color:'#fff',border:'1px solid #105b37',boxShadow:'0 4px 12px rgba(22,115,71,.20)'},onClick:openCreate},'＋ Assign Duty')
@@ -30155,6 +30202,11 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const [issueForm,setIssueForm]=React.useState({item_id:'',quantity:'1',department:'',issued_to:'',remarks:''});
     const [issuePeriod,setIssuePeriod]=React.useState('month');
     const [movementPeriod,setMovementPeriod]=React.useState('month'),[movementItem,setMovementItem]=React.useState('All'),[movementFrom,setMovementFrom]=React.useState(todayISOIndia().slice(0,8)+'01'),[movementTo,setMovementTo]=React.useState(todayISOIndia());
+    // 2.14.96: Movement Register filters apply only when "Apply" is pressed
+    const movementApply=useAppliedFilters({period:movementPeriod,item:movementItem,from:movementFrom,to:movementTo});const MA=movementApply.applied;
+    const [rowDetail,setRowDetail]=React.useState(null);
+    const [loadedOnce,setLoadedOnce]=React.useState(false);
+    const rowClick=fn=>e=>{if(e&&e.target&&e.target.closest&&e.target.closest('button,a,input,select,textarea,label'))return;fn()};
     const [historyItem,setHistoryItem]=React.useState(null),[historyLedger,setHistoryLedger]=React.useState([]),[historyReceipts,setHistoryReceipts]=React.useState([]),[historyBusy,setHistoryBusy]=React.useState(false);
     const [categoryEditItem,setCategoryEditItem]=React.useState(null),[categoryEditValue,setCategoryEditValue]=React.useState('');
     const [cleanupCandidates,setCleanupCandidates]=React.useState(null);
@@ -30218,6 +30270,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       if(!rRes.error)setReceipts(rRes.data||[]);
       if(!lRes.error)setLedger(lRes.data||[]);
       if(!pRes.error)setPatients(pRes.data||[]); if(!mRes.error)setItemMaster(mRes.data||[]);
+      setLoadedOnce(true);
     }
     React.useEffect(()=>{load()},[]);
     function selectItem(id){const row=itemById(id);setForm(f=>({...f,item_id:id,catalog_item:'',new_item_name:'',unit:row?.unit||f.unit}))}
@@ -30354,17 +30407,17 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     function movementDateOnly(value){return String(value||'').slice(0,10)}
     function periodBounds(){
       const today=todayISOIndia(); const d=new Date(`${today}T12:00:00`); let from=today,to=today;
-      if(movementPeriod==='yesterday'){d.setDate(d.getDate()-1);from=to=d.toISOString().slice(0,10)}
-      else if(movementPeriod==='week'){const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);from=d.toISOString().slice(0,10)}
-      else if(movementPeriod==='month'){from=today.slice(0,8)+'01'}
-      else if(movementPeriod==='lastmonth'){const first=new Date(`${today.slice(0,8)}01T12:00:00`);first.setMonth(first.getMonth()-1);from=first.toISOString().slice(0,10);const last=new Date(first);last.setMonth(last.getMonth()+1);last.setDate(0);to=last.toISOString().slice(0,10)}
-      else if(movementPeriod==='custom'){from=movementFrom||today;to=movementTo||today}
+      if(MA.period==='yesterday'){d.setDate(d.getDate()-1);from=to=d.toISOString().slice(0,10)}
+      else if(MA.period==='week'){const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);from=d.toISOString().slice(0,10)}
+      else if(MA.period==='month'){from=today.slice(0,8)+'01'}
+      else if(MA.period==='lastmonth'){const first=new Date(`${today.slice(0,8)}01T12:00:00`);first.setMonth(first.getMonth()-1);from=first.toISOString().slice(0,10);const last=new Date(first);last.setMonth(last.getMonth()+1);last.setDate(0);to=last.toISOString().slice(0,10)}
+      else if(MA.period==='custom'){from=MA.from||today;to=MA.to||today}
       return {from,to};
     }
     const movementBounds=periodBounds();
     const movementCategoryLedger=displayLedger;
-    const movementSelectedLedger=movementCategoryLedger.filter(r=>(movementItem==='All'||String(r.item_id)===String(movementItem))&&movementDateOnly(r.movement_at)>=movementBounds.from&&movementDateOnly(r.movement_at)<=movementBounds.to);
-    const movementSummaryItems=(movementItem==='All'?categoryStock:categoryStock.filter(x=>String(x.item_id)===String(movementItem))).map(item=>{
+    const movementSelectedLedger=movementCategoryLedger.filter(r=>(MA.item==='All'||String(r.item_id)===String(MA.item))&&movementDateOnly(r.movement_at)>=movementBounds.from&&movementDateOnly(r.movement_at)<=movementBounds.to);
+    const movementSummaryItems=(MA.item==='All'?categoryStock:categoryStock.filter(x=>String(x.item_id)===String(MA.item))).map(item=>{
       const before=movementCategoryLedger.filter(r=>String(r.item_id)===String(item.item_id)&&movementDateOnly(r.movement_at)<movementBounds.from).sort((a,b)=>String(b.movement_at||'').localeCompare(String(a.movement_at||'')))[0];
       const rows=movementSelectedLedger.filter(r=>String(r.item_id)===String(item.item_id));
       const first=[...rows].sort((a,b)=>String(a.movement_at||'').localeCompare(String(b.movement_at||'')))[0];
@@ -30424,6 +30477,36 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     function openIssueFor(row){setIssueForm(f=>({...f,item_id:row.item_id,quantity:'1'}));if(typeof onOpenSection==='function')onOpenSection('issue')}
     const storesSummaryKey=JSON.stringify(storesSummary);
     React.useEffect(()=>{if(typeof onSummary==='function')onSummary(storesSummary)},[storesSummaryKey]);
+    // 2.14.96: full details of any register row (click a row)
+    const receiptById=id=>receipts.find(x=>String(x.id)===String(id));
+    const itemLabel=id=>{const m=masterById.get(id);const it=itemById(id);return `${m?.item_code?m.item_code+' · ':''}${displayStoreItemName(it?.item_name||m?.item_name||'Item')}`};
+    function ledgerDetail(r){
+      const it=itemById(r.item_id)||{};const rc=r.receipt_id?receiptById(r.receipt_id):null;
+      return {title:`SM-${String(r.movement_no||'').padStart(6,'0')} · ${r.movement_type||'Stock movement'}`,subtitle:itemLabel(r.item_id),fields:[
+        ['Date & time',formatDateTimeIN(r.movement_at)],['Item',itemLabel(r.item_id)],['Movement type',r.movement_type],
+        ['Stock in',Number(r.qty_in)>0?`${r.qty_in} ${it.unit||''}`:''],['Stock out',Number(r.qty_out)>0?`${r.qty_out} ${it.unit||''}`:''],
+        ['Balance after',`${r.balance_after} ${it.unit||''}`],['Resident',r.patient_id?patientName(r.patient_id):''],
+        ['Reference',r.reference_text],['Vendor receipt',rc?`SR-${String(rc.receipt_no||'').padStart(5,'0')} · ${rc.vendor_name||''}${rc.invoice_no?' · Invoice '+rc.invoice_no:''}`:''],
+        ['Batch / expiry',rc?[rc.batch_no&&`Batch ${rc.batch_no}`,rc.expiry_date&&`Exp ${formatDateIN(rc.expiry_date)}`].filter(Boolean).join(' · '):''],
+        ['Recorded by',r.actor_name],['Remarks',r.remarks]]};
+    }
+    function receiptDetail(r){
+      const it=receiptItemRow(r);
+      return {title:`SR-${String(r.receipt_no||'').padStart(5,'0')} · Vendor receipt`,subtitle:itemLabel(r.item_id),fields:[
+        ['Received date',formatDateIN(r.received_date)],['Entered at',r.received_at?formatDateTimeIN(r.received_at):''],['Item',itemLabel(r.item_id)],
+        ['Quantity',`${r.quantity} ${r.unit||it.unit||''}`],['Vendor',r.vendor_name],['Invoice',[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')],
+        ['Batch No.',r.batch_no],['Expiry',r.expiry_date?formatDateIN(r.expiry_date):'Not entered'],['Unit cost',r.unit_cost!=null&&r.unit_cost!==''?`₹${r.unit_cost}`:''],
+        ['Received by',r.received_by_name],['Expiry last changed',r.expiry_updated_at?`${formatDateTimeIN(r.expiry_updated_at)}${r.expiry_updated_by_name?' · '+r.expiry_updated_by_name:''}`:''],
+        ['Item balance now',`${it.balance_qty} ${it.unit||''}`],['Remarks',r.remarks]]};
+    }
+    function summaryDetail(r){
+      const rows=movementSelectedLedger.filter(x=>String(x.item_id)===String(r.item_id));
+      return {title:itemLabel(r.item_id),subtitle:`${formatDateIN(movementBounds.from)} to ${formatDateIN(movementBounds.to)}`,fields:[
+        ['Opening balance',`${r.opening} ${r.unit}`],['Vendor received',`${r.received} ${r.unit}`],['Handed over / issued',`${r.handed} ${r.unit}`],
+        ['Return received',`${r.returned} ${r.unit}`],['Closing balance',`${r.closing} ${r.unit}`],['Movements in period',String(rows.length)]],
+        list:rows};
+    }
+    function openDetail(d){setRowDetail(d)}
     async function openItemHistory(row){
       setHistoryItem(row);setHistoryBusy(true);setHistoryLedger([]);setHistoryReceipts([]);
       const [l,r]=await Promise.all([
@@ -30610,7 +30693,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
             oversight?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openItemHistory(r)},'History'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(r)},'Expiry'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openCategoryEdit(r)},masterById.get(r.item_id)?.standard_category?`Category: ${masterById.get(r.item_id).standard_category}`:'Set Category'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null
           ):h('small',{className:'stores-view-only'},'View only'),
           oversight?h('div',{className:'stores-stock-card-actions',style:{marginTop:'6px'}},h('button',{className:'btn btn-danger',disabled:busy,onClick:()=>removeItem(r)},'Remove Item')):null
-        )):h('div',{className:'stores-stock-empty'},'No store items found.')),
+        )):h('div',{className:'stores-stock-empty'},(loadedOnce?'No store items found.':'Loading…'))),
         h('div',{className:'table-wrap stores-stock-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Item ID','Item','Unit','Total In','Total Out','Balance','Reorder Level','Status','Action'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,displayStock.length?displayStock.map(r=>h('tr',{key:r.item_id},
@@ -30619,19 +30702,19 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
               controller?h('div',{key:'controller-actions',style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>openReceiveFor(r)},'Receive Stock'),thisSection.departmentIssue&&typeof onOpenSection==='function'&&Number(r.balance_qty)>0?h('button',{key:'issue',className:'btn btn-secondary',disabled:busy,onClick:()=>openIssueFor(r)},'Issue to Dept'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),oversight?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openItemHistory(r)},'History'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(r)},'Expiry'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openCategoryEdit(r)},masterById.get(r.item_id)?.standard_category?`Category: ${masterById.get(r.item_id).standard_category}`:'Set Category'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null):h('span',{key:'view-only'},'View only'),
               oversight?h('button',{key:'remove',className:'btn btn-danger',disabled:busy,onClick:()=>removeItem(r)},'Remove'):null
             ))
-          )):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},'No store items found.'))
+          )):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},(loadedOnce?'No store items found.':'Loading…')))
         ))
       )),
       show('receipts')&&h(Section,{title:`${categoryFilter?categoryFilter+' — ':''}Vendor Receipt Register`},
-        h('div',{className:'stores-register-mobile'},displayReceipts.length?displayReceipts.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card',key:`mobile-receipt-${r.id}`},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('span',null,formatDateIN(r.received_date))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Quantity'),h('strong',null,`${r.quantity} ${r.unit}`)),h('div',null,h('small',null,'Vendor'),h('strong',null,r.vendor_name||'—')),h('div',null,h('small',null,'Invoice'),h('strong',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'Batch / Expiry'),h('strong',null,batchExpiryCell(r))),h('div',null,h('small',null,'Received By'),h('strong',null,r.received_by_name||'—'))),controller&&h('div',{style:{marginTop:'8px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(receiptItemRow(r),r.id)},r.expiry_date?'Edit Expiry':'Add Expiry')))}):h('div',{className:'stores-view-only'},'No vendor receipts recorded.')),
+        h('div',{className:'stores-register-mobile'},displayReceipts.length?displayReceipts.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card row-clickable',key:`mobile-receipt-${r.id}`,onClick:rowClick(()=>openDetail(receiptDetail(r)))},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('span',null,formatDateIN(r.received_date))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Quantity'),h('strong',null,`${r.quantity} ${r.unit}`)),h('div',null,h('small',null,'Vendor'),h('strong',null,r.vendor_name||'—')),h('div',null,h('small',null,'Invoice'),h('strong',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'Batch / Expiry'),h('strong',null,batchExpiryCell(r))),h('div',null,h('small',null,'Received By'),h('strong',null,r.received_by_name||'—'))),controller&&h('div',{style:{marginTop:'8px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(receiptItemRow(r),r.id)},r.expiry_date?'Edit Expiry':'Add Expiry')))}):h('div',{className:'stores-view-only'},(loadedOnce?'No vendor receipts recorded.':'Loading…'))),
         h('div',{className:'table-wrap stores-register-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Receipt','Date','Item','Qty','Vendor','Invoice','Batch / Expiry','Received By',...(controller?['Action']:[])].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,displayReceipts.length?displayReceipts.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('td',null,formatDateIN(r.received_date)),h('td',null,item?.item_name||'—'),h('td',null,`${r.quantity} ${r.unit}`),h('td',null,r.vendor_name),h('td',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—'),h('td',null,batchExpiryCell(r)),h('td',null,r.received_by_name||'—'),controller&&h('td',null,h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(receiptItemRow(r),r.id)},r.expiry_date?'Edit Expiry':'Add Expiry')))}):h('tr',null,h('td',{colSpan:controller?9:8,style:{textAlign:'center',padding:'24px'}},'No vendor receipts recorded.')))
+          h('tbody',null,displayReceipts.length?displayReceipts.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id,className:'row-clickable',onClick:rowClick(()=>openDetail(receiptDetail(r)))},h('td',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('td',null,formatDateIN(r.received_date)),h('td',null,item?.item_name||'—'),h('td',null,`${r.quantity} ${r.unit}`),h('td',null,r.vendor_name),h('td',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—'),h('td',null,batchExpiryCell(r)),h('td',null,r.received_by_name||'—'),controller&&h('td',null,h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(receiptItemRow(r),r.id)},r.expiry_date?'Edit Expiry':'Add Expiry')))}):h('tr',null,h('td',{colSpan:controller?9:8,style:{textAlign:'center',padding:'24px'}},(loadedOnce?'No vendor receipts recorded.':'Loading…'))))
         ))
       ),
       section==='expiry'&&h(Section,{title:`${categoryFilter?categoryFilter+' — ':''}Expiry Watch`,subtitle:'Vendor receipts of items still in stock that are expired, expire within 90 days, or have no expiry date entered. Most urgent first.'},
         h('div',{className:'stores-mode-switch',role:'tablist',style:{marginBottom:'12px'}},[['All',`All (${expiryWatch.length})`],['expired',`Expired (${storesSummary.expired})`],['soon',`Within 90 days (${storesSummary.soon})`],['missing',`Expiry not entered (${storesSummary.missing})`]].map(([k,l])=>h('button',{key:k,type:'button',role:'tab','aria-selected':expiryWatchFilter===k,className:expiryWatchFilter===k?'active':'',onClick:()=>setExpiryWatchFilter(k)},l))),
-        expiryWatchVisible.length?h('div',{className:'stores-expiry-list'},expiryWatchVisible.map(r=>{const item=receiptItemRow(r);return h('article',{key:`expiry-${r.id}`,className:`stores-ledger-card stores-expiry-${r._state}`},
+        expiryWatchVisible.length?h('div',{className:'stores-expiry-list'},expiryWatchVisible.map(r=>{const item=receiptItemRow(r);return h('article',{key:`expiry-${r.id}`,className:`stores-ledger-card row-clickable stores-expiry-${r._state}`,onClick:rowClick(()=>openDetail(receiptDetail(r)))},
           h('div',{className:'stores-ledger-card-head'},h('strong',null,`${masterById.get(r.item_id)?.item_code?masterById.get(r.item_id).item_code+' · ':''}${displayStoreItemName(item.item_name)}`),h('span',null,r._state==='expired'?'EXPIRED':r._state==='soon'?'Expires within 90 days':'Expiry not entered')),
           h('div',{className:'stores-ledger-card-fields'},
             h('div',null,h('small',null,'Batch / Expiry'),h('strong',null,batchExpiryCell(r))),
@@ -30641,7 +30724,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
             h('div',null,h('small',null,'Vendor'),h('strong',null,r.vendor_name||'—'))
           ),
           controller&&h('div',{style:{marginTop:'8px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(item,r.id)},r.expiry_date?'Edit Expiry':'Add Expiry'))
-        )})):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},expiryWatch.length?'Nothing in this filter.':'All good — no expired, soon-to-expire or missing expiry dates for items in stock.')
+        )})):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},!loadedOnce?'Loading…':expiryWatch.length?'Nothing in this filter.':'All good — no expired, soon-to-expire or missing expiry dates for items in stock.')
       ),
       section==='issue'&&h('div',null,
         controller&&h(Section,{title:`${categoryFilter} — Issue to Department`,subtitle:'Stock issued to a floor, the kitchen / pantry or another department (not charged to a resident). The stock balance reduces at once and the issue is recorded in the Stock Movement Register.'},
@@ -30657,7 +30740,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
           )
         ),
         h(Section,{title:`${categoryFilter} — Department Issue Register`,actions:h('div',{className:'stores-mode-switch',role:'tablist'},[['today','Today'],['month','This Month'],['lastmonth','Last Month'],['all','All']].map(([k,l])=>h('button',{key:k,type:'button',role:'tab','aria-selected':issuePeriod===k,className:issuePeriod===k?'active':'',onClick:()=>setIssuePeriod(k)},l)))},
-          deptIssuesVisible.length?h('div',{className:'stores-expiry-list'},deptIssuesVisible.map(r=>{const item=itemById(r.item_id);return h('article',{key:`dept-${r.id}`,className:'stores-ledger-card'},
+          deptIssuesVisible.length?h('div',{className:'stores-expiry-list'},deptIssuesVisible.map(r=>{const item=itemById(r.item_id);return h('article',{key:`dept-${r.id}`,className:'stores-ledger-card row-clickable',onClick:rowClick(()=>openDetail(ledgerDetail(r)))},
             h('div',{className:'stores-ledger-card-head'},h('strong',null,`${masterById.get(r.item_id)?.item_code?masterById.get(r.item_id).item_code+' · ':''}${displayStoreItemName(item?.item_name||'Item')}`),h('span',null,formatDateTimeIN(r.movement_at))),
             h('div',{className:'stores-ledger-card-fields'},
               h('div',null,h('small',null,'Quantity'),h('strong',null,`${r.qty_out} ${item?.unit||''}`)),
@@ -30665,8 +30748,13 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
               h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),
               h('div',null,h('small',null,'Issued by'),h('strong',null,r.actor_name||'—')),
               r.remarks&&h('div',null,h('small',null,'Remarks'),h('strong',null,r.remarks))
-            ))})):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},'No department issues in this period.')
+            ))})):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},(loadedOnce?'No department issues in this period.':'Loading…'))
         )
+      ),
+      rowDetail&&h(RowDetailModal,{title:rowDetail.title,subtitle:rowDetail.subtitle,fields:rowDetail.fields,onClose:()=>setRowDetail(null)},
+        rowDetail.list&&h('div',null,h('h4',{style:{margin:'6px 0'}},'Movements — tap one for full details'),rowDetail.list.length?rowDetail.list.map(m=>h('div',{key:m.id,className:'stores-ledger-card row-clickable',style:{marginBottom:'6px'},onClick:()=>openDetail(ledgerDetail(m))},
+          h('div',{className:'stores-ledger-card-head'},h('strong',null,m.movement_type||'Movement'),h('span',null,formatDateTimeIN(m.movement_at))),
+          h('small',null,[Number(m.qty_in)>0?`+${m.qty_in}`:`−${m.qty_out}`,`balance ${m.balance_after}`,m.patient_id&&patientName(m.patient_id),m.reference_text,m.actor_name&&`by ${m.actor_name}`].filter(Boolean).join(' · ')))):h('p',null,'No movements in this period.'))
       ),
       editItem&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)'}},
         h('form',{className:'modal-card',onSubmit:saveEditItem,style:{maxWidth:'560px',background:'#fffafd',opacity:1,padding:'22px'}},
@@ -30807,21 +30895,22 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         h('div',{className:'form-grid',style:{marginBottom:'12px'}},
           h('div',{className:'field'},h('label',null,'Period'),h('select',{value:movementPeriod,onChange:e=>setMovementPeriod(e.target.value)},[['today','Today'],['yesterday','Yesterday'],['week','This Week'],['month','This Month'],['lastmonth','Last Month'],['custom','Custom Date Range']].map(([v,l])=>h('option',{key:v,value:v},l)))),
           h('div',{className:'field'},h('label',null,'Stock Item'),h('select',{value:movementItem,onChange:e=>setMovementItem(e.target.value)},h('option',{value:'All'},'All Items'),categoryStock.map(x=>h('option',{key:x.item_id,value:x.item_id},displayStoreItemName(x.item_name))))),
-          movementPeriod==='custom'&&h('div',{className:'field'},h('label',null,'From'),h('input',{type:'date',value:movementFrom,onChange:e=>setMovementFrom(e.target.value)})),
-          movementPeriod==='custom'&&h('div',{className:'field'},h('label',null,'To'),h('input',{type:'date',value:movementTo,onChange:e=>setMovementTo(e.target.value)}))
+          movementPeriod==='custom'&&h('div',{className:'field'},h('label',null,'From'),h(StrictDateInput,{value:movementFrom,onChange:e=>setMovementFrom(e.target.value)})),
+          movementPeriod==='custom'&&h('div',{className:'field'},h('label',null,'To'),h(StrictDateInput,{value:movementTo,onChange:e=>setMovementTo(e.target.value)})),
+          h(ApplyFilterButton,{dirty:movementApply.dirty,onApply:movementApply.apply})
         ),
-        h('p',{className:'small-note'},`Period: ${formatDateIN(movementBounds.from)} to ${formatDateIN(movementBounds.to)} · ${movementItem==='All'?'All stock items':displayStoreItemName(categoryStock.find(x=>String(x.item_id)===String(movementItem))?.item_name||'Selected item')}`),
+        h('p',{className:'small-note'},`Period: ${formatDateIN(movementBounds.from)} to ${formatDateIN(movementBounds.to)} · ${MA.item==='All'?'All stock items':displayStoreItemName(categoryStock.find(x=>String(x.item_id)===String(MA.item))?.item_name||'Selected item')}`),
         (!section||movementMode==='summary')&&h('div',{className:'table-wrap'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Item','Opening Balance','Vendor Received',thisSection.departmentIssue?'Handed Over / Issued':'Handed Over','Return Received','Closing Balance'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,movementSummaryItems.length?movementSummaryItems.map(r=>h('tr',{key:`movement-summary-${r.item_id}`},h('td',null,displayStoreItemName(r.item_name)),h('td',null,`${r.opening} ${r.unit}`),h('td',null,`${r.received} ${r.unit}`),h('td',null,`${r.handed} ${r.unit}`),h('td',null,`${r.returned} ${r.unit}`),h('td',null,h('strong',null,`${r.closing} ${r.unit}`)))):h('tr',null,h('td',{colSpan:6,style:{textAlign:'center',padding:'20px'}},'No stock items for this filter.')))
+          h('tbody',null,movementSummaryItems.length?movementSummaryItems.map(r=>h('tr',{key:`movement-summary-${r.item_id}`,className:'row-clickable',onClick:rowClick(()=>openDetail(summaryDetail(r)))},h('td',null,displayStoreItemName(r.item_name)),h('td',null,`${r.opening} ${r.unit}`),h('td',null,`${r.received} ${r.unit}`),h('td',null,`${r.handed} ${r.unit}`),h('td',null,`${r.returned} ${r.unit}`),h('td',null,h('strong',null,`${r.closing} ${r.unit}`)))):h('tr',null,h('td',{colSpan:6,style:{textAlign:'center',padding:'20px'}},(loadedOnce?'No stock items for this filter.':'Loading…'))))
         )),
-        (!section||movementMode==='summary')&&movementItem!=='All'&&h('div',{style:{marginTop:'16px'}},h('h4',null,'Selected Item — Movement Details'),movementSelectedLedger.length?movementSelectedLedger.map(r=>{const item=itemById(r.item_id);return h('div',{key:`movement-detail-${r.id}`,className:'stores-ledger-card',style:{marginBottom:'8px'}},h('div',{className:'stores-ledger-card-head'},h('strong',null,r.movement_type||'Stock Movement'),h('span',null,formatDateTimeIN(r.movement_at))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Stock In'),h('strong',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Stock Out'),h('strong',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),h('div',null,h('small',null,'Patient / Reference'),h('strong',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'By'),h('strong',null,r.actor_name||'—'))))}):h('p',null,'No movements for this item in the selected period.'))
+        (!section||movementMode==='summary')&&MA.item!=='All'&&h('div',{style:{marginTop:'16px'}},h('h4',null,'Selected Item — Movement Details'),movementSelectedLedger.length?movementSelectedLedger.map(r=>{const item=itemById(r.item_id);return h('div',{key:`movement-detail-${r.id}`,className:'stores-ledger-card row-clickable',onClick:rowClick(()=>openDetail(ledgerDetail(r))),style:{marginBottom:'8px'}},h('div',{className:'stores-ledger-card-head'},h('strong',null,r.movement_type||'Stock Movement'),h('span',null,formatDateTimeIN(r.movement_at))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Stock In'),h('strong',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Stock Out'),h('strong',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),h('div',null,h('small',null,'Patient / Reference'),h('strong',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'By'),h('strong',null,r.actor_name||'—'))))}):h('p',null,'No movements for this item in the selected period.'))
       ),
       (!section||(section==='movement'&&movementMode==='every'))&&h(Section,{title:`${categoryFilter||'Pharmacy & Stores'} Stock Ledger${section?` · ${ledgerList.length} movement(s)`:''}`,subtitle:'Every vendor receipt, patient handover/issue, confirmed return and physical adjustment is retained here. Use an item’s History button for its complete stock-wise trail.'},
-        h('div',{className:'stores-ledger-mobile'},ledgerList.length?ledgerList.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card',key:`mobile-ledger-${r.id}`},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('span',null,formatDateTimeIN(r.movement_at))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Movement Type'),h('strong',null,r.movement_type||'—')),h('div',null,h('small',null,'Stock In'),h('strong',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Stock Out'),h('strong',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),h('div',null,h('small',null,'Patient / Reference'),h('strong',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'By'),h('strong',null,r.actor_name||'—'))))}):h('div',{className:'stores-view-only'},'No stock movements recorded.')),
+        h('div',{className:'stores-ledger-mobile'},ledgerList.length?ledgerList.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card row-clickable',key:`mobile-ledger-${r.id}`,onClick:rowClick(()=>openDetail(ledgerDetail(r)))},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('span',null,formatDateTimeIN(r.movement_at))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Movement Type'),h('strong',null,r.movement_type||'—')),h('div',null,h('small',null,'Stock In'),h('strong',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Stock Out'),h('strong',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),h('div',null,h('small',null,'Patient / Reference'),h('strong',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'By'),h('strong',null,r.actor_name||'—'))))}):h('div',{className:'stores-view-only'},(loadedOnce?'No stock movements recorded.':'Loading…'))),
         h('div',{className:'table-wrap stores-ledger-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Movement','Date / Time','Item','Type','Stock In','Stock Out','Balance After','Patient / Reference','By'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,ledgerList.length?ledgerList.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('td',null,formatDateTimeIN(r.movement_at)),h('td',null,item?.item_name||'—'),h('td',null,r.movement_type),h('td',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—'),h('td',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—'),h('td',null,h('strong',null,r.balance_after)),h('td',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—'),h('td',null,r.actor_name||'—'))}):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},'No stock movements recorded.')))
+          h('tbody',null,ledgerList.length?ledgerList.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id,className:'row-clickable',onClick:rowClick(()=>openDetail(ledgerDetail(r)))},h('td',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('td',null,formatDateTimeIN(r.movement_at)),h('td',null,item?.item_name||'—'),h('td',null,r.movement_type),h('td',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—'),h('td',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—'),h('td',null,h('strong',null,r.balance_after)),h('td',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—'),h('td',null,r.actor_name||'—'))}):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},(loadedOnce?'No stock movements recorded.':'Loading…'))))
         ))
       )
     ));
@@ -30844,6 +30933,21 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const notify=(type,text)=>showSamaraActionToast(type,type==='success'?'Consumables updated':'Consumables action failed',text);
     const patientLabel=id=>{const p=patients.find(x=>x.id===id);return p?[formalName(p),p.patient_id&&`(${p.patient_id})`,p.room_no&&`Room ${p.room_no}${p.bed_no?`/${p.bed_no}`:''}`].filter(Boolean).join(' · '):'—'};
     const stockFor=r=>stock.find(x=>x.item_id===r.store_item_id)||stock.find(x=>String(x.item_name).toLowerCase()===String(r.item_name).toLowerCase());
+    // 2.14.96: click an indent row for its full details (who, when, every step)
+    const [indentDetail,setIndentDetail]=React.useState(null);
+    const rowClick=fn=>e=>{if(e&&e.target&&e.target.closest&&e.target.closest('button,a,input,select,textarea,label'))return;fn()};
+    function indentFields(r){
+      const u=indentUsage(r);const m=(masterItems||[]).find(x=>String(x.id)===String(r.store_item_id));const when=v=>v?formatDateTimeIN(v):'';
+      const rel=returns.filter(x=>String(x.indent_id)===String(r.id));
+      return {title:`CI-${String(r.indent_no||'').padStart(5,'0')} · ${r.status}`,subtitle:patientLabel(r.patient_id),fields:[
+        ['Resident',patientLabel(r.patient_id)],['Item',`${m?.item_code?m.item_code+' · ':''}${r.item_name}`],['Section',m?.item_category||''],
+        ['Requested',`${r.requested_qty} ${r.unit}`],['Raised by (nurse)',[r.initiated_by_name,when(r.initiated_at||r.created_at)].filter(Boolean).join(' · ')],['Request remarks',r.request_remarks],
+        ['Approved',r.approved_qty!=null?`${r.approved_qty} ${r.unit}`:''],['Approved by',[r.approved_by_name,when(r.approved_at)].filter(Boolean).join(' · ')],['Approval remarks',r.approval_remarks],
+        ['Handed over',r.handed_over_qty!=null?`${r.handed_over_qty} ${r.unit}`:''],['Handed over by',[r.handed_over_by_name,when(r.handed_over_at)].filter(Boolean).join(' · ')],['Handover remarks',r.handover_remarks],
+        ['Received',r.received_qty!=null?`${r.received_qty} ${r.unit}`:''],['Received by (nurse)',[r.received_by_name,when(r.received_at)].filter(Boolean).join(' · ')],['Receipt remarks',r.receipt_remarks],
+        ['Charged',r.status==='Received'?`${u.charged} ${r.unit}`:''],['Returned / return pending',rel.length?rel.map(x=>`${x.quantity} ${x.unit||r.unit} ${x.status}${x.requested_by_name?' · by '+x.requested_by_name:''}${x.confirmed_by_name?' · confirmed '+x.confirmed_by_name:''}`).join('; '):''],
+        ['Unused balance',r.status==='Received'?`${u.balance} ${r.unit}`:'']]};
+    }
     const stageStyle=status=>({display:'inline-block',padding:'5px 9px',borderRadius:'999px',fontWeight:800,fontSize:'12px',background:status==='Received'?'#e7f6ef':status==='Rejected'||status==='Receipt Discrepancy'?'#fdebec':status==='Handed Over'?'#eaf2ff':'#fff4dc',color:'#5d3146'});
     function navigateIndentFilter(target){
       setFilter(target);
@@ -30955,6 +31059,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const options=stock.filter(x=>!form.category||categoryOfStock(x)===form.category).slice().sort((a,b)=>alphaSort(a.item_name,b.item_name));
     if(section==='none')return null;
     return h('div',null,
+      indentDetail&&h(RowDetailModal,{title:indentDetail.title,subtitle:indentDetail.subtitle,fields:indentDetail.fields,onClose:()=>setIndentDetail(null)}),
       !section&&h(Section,{title:'Patient Consumables',subtitle:'Nurse initiates for a patient → Store In-charge approves and hands over → Nurse confirms actual receipt.'},
         h('div',{className:'grid stats'},
           [['Awaiting Approval',counts.initiated,'Initiated'],['Awaiting Handover',counts.handover,'Awaiting Handover'],['Awaiting Receipt',counts.receipt,'Handed Over'],['Discrepancies',counts.discrepancy,'Receipt Discrepancy']].map(([label,count,target])=>h('button',{key:label,type:'button',className:'card stat',onClick:()=>navigateIndentFilter(target),style:{width:'100%',textAlign:'left',cursor:'pointer',border:filter===target?'2px solid #b30b5d':'1px solid #ead2dd',fontFamily:'inherit'}},h('span',null,label),h('strong',null,count),h('small',{style:{display:'block',marginTop:'7px',color:'#9b1456',fontWeight:800}},'Tap to view →')))
@@ -30971,7 +31076,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       )),
       (!section||section==='balance')&&h('div',{id:'patient-received-balance',style:{scrollMarginTop:'90px'}},h(Section,{title:`${categoryFilter?categoryFilter+' — ':''}Received Indents / Used Balance`,subtitle:'Patient-specific received stock. Charge Raised automatically reduces this balance; unused items can be returned only after Stores Manager confirms physical receipt.'},
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Indent','Item','Received','Charged','Return Pending / Returned','Balance','Action'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,rows.filter(r=>r.status==='Received').map(r=>{const u=indentUsage(r);const related=returns.filter(x=>String(x.indent_id)===String(r.id));const pending=related.filter(x=>x.status==='Pending').reduce((n,x)=>n+Number(x.quantity||0),0);const confirmed=related.filter(x=>x.status==='Confirmed').reduce((n,x)=>n+Number(x.quantity||0),0);return h('tr',{key:`balance-${r.id}`},
+          h('tbody',null,rows.filter(r=>r.status==='Received').map(r=>{const u=indentUsage(r);const related=returns.filter(x=>String(x.indent_id)===String(r.id));const pending=related.filter(x=>x.status==='Pending').reduce((n,x)=>n+Number(x.quantity||0),0);const confirmed=related.filter(x=>x.status==='Confirmed').reduce((n,x)=>n+Number(x.quantity||0),0);return h('tr',{key:`balance-${r.id}`,className:'row-clickable',onClick:rowClick(()=>setIndentDetail(indentFields(r)))},
             h('td',null,patientLabel(r.patient_id)),h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),h('td',null,r.item_name),h('td',null,`${r.received_qty||0} ${r.unit}`),h('td',null,`${u.charged} ${r.unit}`),h('td',null,`${pending} pending / ${confirmed} returned`),h('td',null,h('strong',null,`${u.balance} ${r.unit}`)),
             h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},nurse&&u.balance>0&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>requestUnusedReturn(r)},'Return Unused'),storeController&&related.filter(x=>x.status==='Pending').map(ret=>h('button',{type:'button',key:ret.id,className:'btn btn-primary',disabled:busy,onClick:()=>confirmUnusedReturn(ret)},`Confirm Return ${ret.quantity}`)),(!nurse&&!related.some(x=>x.status==='Pending'))&&h('span',null,'—')))
           )}),rows.filter(r=>r.status==='Received').length===0?h('tr',null,h('td',{colSpan:8,style:{textAlign:'center',padding:'24px'}},'No received patient indents yet.')):null)
@@ -30979,7 +31084,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       )),
       (!section||section==='register')&&h('div',{id:'consumables-indent-register',style:{scrollMarginTop:'90px'}},h(Section,{title:categoryFilter?`${categoryFilter} Indent Register`:'Consumables Indent Register',actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:refreshIndents},busy?'Refreshing…':'↻ Refresh'),['Open','Initiated','Awaiting Handover','Handed Over','Receipt Discrepancy','Received','Rejected','All'].map(x=>h('button',{type:'button',key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>navigateIndentFilter(x),'aria-pressed':filter===x},x)))},
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Indent','Patient','Item / Store Balance','Requested','Approved','Handed Over','Received','Status','Initiated By / Time','Approval / Handover','Receipt','Action'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,visible.length?visible.map(r=>{const st=stockFor(r);return h('tr',{key:r.id},
+          h('tbody',null,visible.length?visible.map(r=>{const st=stockFor(r);return h('tr',{key:r.id,className:'row-clickable',onClick:rowClick(()=>setIndentDetail(indentFields(r)))},
             h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),h('td',null,patientLabel(r.patient_id)),h('td',null,h('strong',null,r.item_name),h('small',{style:{display:'block'}},`Store: ${st?.balance_qty??'—'} ${st?.unit||r.unit}`),r.request_remarks&&h('small',{style:{display:'block'}},r.request_remarks)),
             h('td',null,`${r.requested_qty} ${r.unit}`),h('td',null,r.approved_qty!=null?`${r.approved_qty} ${r.unit}`:'—'),h('td',null,r.handed_over_qty!=null?`${r.handed_over_qty} ${r.unit}`:'—'),h('td',null,r.received_qty!=null?`${r.received_qty} ${r.unit}`:'—'),h('td',null,h('span',{style:stageStyle(r.status)},r.status)),
             h('td',null,h('strong',null,r.initiated_by_name||'—'),h('small',{style:{display:'block'}},r.initiated_at?formatDateTimeIN(r.initiated_at):'—')),
@@ -33340,6 +33445,7 @@ function AuditTrail(){
     const [message,setMessage]=React.useState('');
     const [fromDate,setFromDate]=React.useState('');
     const [toDate,setToDate]=React.useState('');
+    const auditApply=useAppliedFilters({from:fromDate,to:toDate});const auditApplyA=auditApply.applied; // 2.14.96: filters apply on "Apply"
     const [entityFilter,setEntityFilter]=React.useState('All');
     const [resultFilter,setResultFilter]=React.useState('All');
     const [userFilter,setUserFilter]=React.useState('All');
@@ -33364,7 +33470,7 @@ function AuditTrail(){
     const filtered=rows.filter(r=>{
       const date=dateOnly(r.created_at);
       const text=[r.action,r.entity,r.entity_id,r.result,r.user_name,JSON.stringify(r.details||{}),JSON.stringify(r.new_data||{})].join(' ').toLowerCase();
-      return (!fromDate||date>=fromDate)&&(!toDate||date<=toDate)&&
+      return (!auditApplyA.from||date>=auditApplyA.from)&&(!auditApplyA.to||date<=auditApplyA.to)&&
         (entityFilter==='All'||r.entity===entityFilter)&&
         (resultFilter==='All'||String(r.result||'Success')===resultFilter)&&
         (userFilter==='All'||String(r.user_id||'')===userFilter)&&
@@ -33397,6 +33503,7 @@ function AuditTrail(){
         h('div',{className:'modal-grid'},
           h('div',{className:'field'},h('label',null,'From date'),h(StrictDateInput,{value:fromDate,max:todayISOIndia(),onChange:e=>setFromDate(e.target.value)})),
           h('div',{className:'field'},h('label',null,'To date'),h(StrictDateInput,{value:toDate,max:todayISOIndia(),onChange:e=>setToDate(e.target.value)})),
+          h(ApplyFilterButton,{dirty:auditApply.dirty,onApply:auditApply.apply}),
           h('div',{className:'field'},h('label',null,'Module'),h('select',{value:entityFilter,onChange:e=>setEntityFilter(e.target.value)},h('option',{value:'All'},'All modules'),entities.map(x=>h('option',{key:x,value:x},x)))),
           h('div',{className:'field'},h('label',null,'User'),h('select',{value:userFilter,onChange:e=>setUserFilter(e.target.value)},h('option',{value:'All'},'All users'),users.map(id=>h('option',{key:id,value:id},userName({user_id:id}))))),
           h('div',{className:'field'},h('label',null,'Result'),h('select',{value:resultFilter,onChange:e=>setResultFilter(e.target.value)},['All','Success','Failed'].map(x=>h('option',{key:x,value:x},x)))),

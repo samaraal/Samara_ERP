@@ -42,22 +42,23 @@
     const [period,setPeriod]=React.useState('Now (live)');
     const [customFrom,setCustomFrom]=React.useState(()=>addDaysISO(todayISOIndia(),-6));
     const [customTo,setCustomTo]=React.useState(()=>todayISOIndia());
+    const alertPeriodApply=useAppliedFilters({period:period,from:customFrom,to:customTo});const alertPeriodApplyA=alertPeriodApply.applied; // 2.14.96: filters apply on "Apply"
     const [historyRows,setHistoryRows]=React.useState([]);
     const [historyPatients,setHistoryPatients]=React.useState({});
     const [historyBusy,setHistoryBusy]=React.useState(false);
     const [historyMessage,setHistoryMessage]=React.useState('');
     const [historyStatus,setHistoryStatus]=React.useState('All');
     const [historyType,setHistoryType]=React.useState('All');
-    const isLive=period==='Now (live)';
+    const isLive=alertPeriodApplyA.period==='Now (live)';
 
     function periodRange(){
       const today=todayISOIndia();
-      if(period==='Today')return [today,today];
-      if(period==='Yesterday'){const y=addDaysISO(today,-1);return [y,y];}
-      if(period==='Last 7 days')return [addDaysISO(today,-6),today];
-      if(period==='Last 30 days')return [addDaysISO(today,-29),today];
-      if(period==='This month')return [`${today.slice(0,8)}01`,today];
-      const a=customFrom||today,b=customTo||today;
+      if(alertPeriodApplyA.period==='Today')return [today,today];
+      if(alertPeriodApplyA.period==='Yesterday'){const y=addDaysISO(today,-1);return [y,y];}
+      if(alertPeriodApplyA.period==='Last 7 days')return [addDaysISO(today,-6),today];
+      if(alertPeriodApplyA.period==='Last 30 days')return [addDaysISO(today,-29),today];
+      if(alertPeriodApplyA.period==='This month')return [`${today.slice(0,8)}01`,today];
+      const a=alertPeriodApplyA.from||today,b=alertPeriodApplyA.to||today;
       return a<=b?[a,b]:[b,a];
     }
 
@@ -87,7 +88,7 @@
       }finally{setHistoryBusy(false)}
     }
 
-    React.useEffect(()=>{loadHistory()},[period,customFrom,customTo]);
+    React.useEffect(()=>{loadHistory()},[alertPeriodApplyA.period,alertPeriodApplyA.from,alertPeriodApplyA.to]);
 
     async function refreshAll(){
       if(!isLive){await loadHistory();return;}
@@ -309,6 +310,7 @@
             h('label',null,'To'),
             h(StrictDateInput,{value:customTo,max:todayISOIndia(),onChange:e=>setCustomTo(e.target.value)})
           ),
+          h(ApplyFilterButton,{dirty:alertPeriodApply.dirty,onApply:alertPeriodApply.apply}),
           isLive&&h('div',{className:'field',style:{width:'220px',margin:0}},
             h('label',null,'View'),
             h('select',{value:filter,onChange:e=>setFilter(e.target.value)},
