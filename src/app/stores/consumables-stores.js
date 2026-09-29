@@ -72,7 +72,14 @@
         client.from('patients').select('id,title,full_name,patient_id').order('full_name').limit(1000),
         client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate,standard_category').order('item_name')
       ]);
-      if(sRes.error){console.warn(sRes.error);notifyStore('error','Stores database is not installed yet. Please run 91_consumables_store_inventory.sql once in Supabase.')} else setStock(sRes.data||[]);
+      // 2.14.94: retry once (Supabase briefly refuses requests while it reloads after an SQL update), then show the real reason
+      let stockRes=sRes;
+      if(stockRes.error){await new Promise(r=>setTimeout(r,1500));stockRes=await client.from('consumable_store_stock').select('*').order('item_name')}
+      if(stockRes.error){
+        console.warn(stockRes.error);
+        const missing=stockRes.error.code==='42P01'||/relation .* does not exist/i.test(stockRes.error.message||'');
+        notifyStore('error',missing?'Stores database is not installed yet. Please run 91_consumables_store_inventory.sql once in Supabase.':`Stock list could not be loaded just now (${stockRes.error.message||stockRes.error.code||'network'}). Tap ↻ Refresh in a moment.`);
+      } else setStock(stockRes.data||[]);
       if(!rRes.error)setReceipts(rRes.data||[]);
       if(!lRes.error)setLedger(lRes.data||[]);
       if(!pRes.error)setPatients(pRes.data||[]); if(!mRes.error)setItemMaster(mRes.data||[]);

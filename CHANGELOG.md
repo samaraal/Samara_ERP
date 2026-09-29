@@ -3,6 +3,10 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.94 — Stores: stock list load retry and real error message
+- Pharmacy & Stores pages showed "Stores database is not installed yet. Please run 91_consumables_store_inventory.sql" whenever the stock list failed to load for any reason (for example the few seconds Supabase reloads after an SQL file is run). It now retries once automatically and, if it still fails, shows the real reason with "Tap ↻ Refresh". The "run 91" message appears only when the stock table really does not exist.
+- No SQL. Files: `src/app/stores/consumables-stores.js`, version files, `app.js` (rebuilt).
+
 ## 2.14.93 — Pharmacy & Stores: Housekeeping & General and Kitchen / Food Stores
 - **Two new sidebar sections** under Pharmacy & Stores, each with its own dashboard (same boxes as Consumables / Pharmacy): **Housekeeping & General** (linen, gowns, tissue, cleaning, general supplies — codes HKG-0001…) and **Kitchen / Food Stores** (pantry, kitchen items, snacks — codes KIT-0001…). Separate from Food Vendor Management.
 - **Issue to Department** (new box on these two dashboards, and an "Issue to Dept" button on each stock item): issue stock to Nursing Floor, Housekeeping, Kitchen / Pantry, Laundry, Office / Admin, Maintenance, Front Desk or Other, with who received it. Stock reduces at once. **Department Issue Register** (Today / This Month / Last Month / All).

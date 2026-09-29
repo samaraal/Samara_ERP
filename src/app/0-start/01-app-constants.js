@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.93';
+  const APP_VERSION = '2.14.94';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -45,10 +45,10 @@
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '29-Sep-2026 Housekeeping & Kitchen stores';
+  const APP_BUILD_DATE = '29-Sep-2026 Stores load retry';
   const APP_SCHEMA_VERSION = '38';
 
-  // 2.14.93: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
+  // 2.14.94: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
   // receiving, nurse indents, Charge Master, Bills & Charges). Must match public.store_section_names() in SQL 160.
   const STORE_SECTIONS=[
     {name:'Consumables',page:'Consumables',code:'CON',icon:'▤',departmentIssue:false,blurb:'Clinical consumables — indents, stock, receipts, movements and expiry at a glance.'},

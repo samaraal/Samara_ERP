@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.93';
-const CACHE = 'samara-erp-2.14.93-store-sections';
+const APP_VERSION = '2.14.94';
+const CACHE = 'samara-erp-2.14.94-stores-load-retry';
 const SHELL = [
   './',
   './index.html',
