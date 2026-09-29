@@ -82,6 +82,8 @@
     const [editDocs,setEditDocs]=React.useState([]),[editPhotoUrl,setEditPhotoUrl]=React.useState(''),[editCameraConfig,setEditCameraConfig]=React.useState(null);
     const [editUploads,setEditUploads]=React.useState({photo:[],identity:[],prescription:[],discharge:[],reports:[],other:[]});
     async function load(){const {data,error}=await client.from('patients').select('*').order('created_at',{ascending:false});if(error)console.error(error);setRows(data||[])}
+    // 2.15.1: open a specific resident's card when arriving from the Admission Register
+    React.useEffect(()=>{if(!rows||!rows.length)return;let id='';try{id=sessionStorage.getItem('samara-open-patient-id')||'';if(id)sessionStorage.removeItem('samara-open-patient-id')}catch(_){}if(!id)return;const p=rows.find(x=>String(x.id)===String(id));if(p)openPatient(p)},[rows]);
     React.useEffect(()=>{const loadRooms=async()=>{const {data}=await client.from('room_beds').select('*').order('room_no').order('bed_no');setRoomBeds(data||[])};load();loadRooms();const timer=setInterval(load,30000);window.addEventListener('focus',load);const ch=client.channel('patients-live').on('postgres_changes',{event:'*',schema:'public',table:'patients'},load).on('postgres_changes',{event:'*',schema:'public',table:'room_beds'},loadRooms).subscribe();return()=>{clearInterval(timer);window.removeEventListener('focus',load);client.removeChannel(ch)}},[]);
     async function resolvePatientPhoto(p){
       let path=p.photo_storage_path||'';

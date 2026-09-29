@@ -3,6 +3,14 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.1 — ADMISSION and PATIENTS menus; Admission Register
+- **ADMISSION** menu (before / at admission): Enquiries, Spot Assessment, **New Admission** (the admission form), and the new **Admission Register**.
+- **PATIENTS** menu (after admission, every day): Patients, Discharge, Documents, Recovery Timeline, Intelligent Reports, Family Communication, Incidents, Medication Errors, Patient Ledger, Final Billing (Patient Ledger and Final Billing also stay under Accounts / Billing). Same for the Nursing Manager's menu. Nurses' menus unchanged; role access unchanged.
+- **Admission Register:** every admission (active and discharged) with admission date, Resident ID, name, type, category, room / bed, status, consent and discharge date. Period filter with **Apply** (Today, This Week, This Month, Last Month, This Year, All, Custom), quick filters All / Active / Discharged / Consent pending, search. Tap a row for full details and **Open Patient Card** (opens that resident's card).
+- Names no longer show the title twice (e.g. "Mrs. Mrs.Lakshmi" → "Mrs.Lakshmi"; the saved name is unchanged and can be tidied in Edit Patient).
+- Sidebar icons for Spot Assessment (was a plain square), Admission Register and Family Communication.
+- No SQL. Files: `src/app/patients/admission-register.js` (new), `src/app/patients/patients.js`, `src/app/core/04-supabase-roles-navigation.js`, `src/app/core/03-brand-theme-css.js`, `src/app/shell/01-app-main.js`, `src/app/shell/04-navigation-menus.js`, `src/app/manifest.json`, version files, `app.js` (rebuilt).
+
 ## 2.15.0 — Charge Master back in the ADMIN menu
 - **Charge Master** is listed again under **ADMIN** (as before 2.14.99) and also at the top of the **CHARGE MASTER** section; both open All Categories. Nursing Procedures and every other non-store category are under CHARGE MASTER (one item each), and **All Categories → Full List** is the classic single Charge Master table.
 - No SQL. Files: `src/app/core/04-supabase-roles-navigation.js`, version files, `app.js` (rebuilt).

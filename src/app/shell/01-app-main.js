@@ -667,6 +667,7 @@
           page==='Clinical Escalations'&&h(ClinicalEscalationsDashboard,{profile,onNavigate:setPage}),
           page==='Shift Tasks'&&h(ShiftTasks,{profile,onNavigate:setPage}),
           page==='Patients'&&h(Patients,{profile,onNavigate:setPage}),
+          page==='Admission Register'&&h(AdmissionRegister,{profile,onNavigate:setPage}),
           page==='Discharge'&&h(DischargeManagement,{profile}),
           page==='Rooms'&&h(RoomsBeds,{profile,onNavigate:setPage}),
           page==='Shift Management'&&h(ShiftManagement,{profile}),

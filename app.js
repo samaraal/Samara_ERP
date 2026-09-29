@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.0';
+  const APP_VERSION = '2.15.1';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,10 +283,10 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '29-Sep-2026 Charge Master back in Admin';
+  const APP_BUILD_DATE = '29-Sep-2026 Admission + Patients menus';
   const APP_SCHEMA_VERSION = '38';
 
-  // 2.15.0: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
+  // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
   // receiving, nurse indents, Charge Master, Bills & Charges). Must match public.store_section_names() in SQL 160.
   const STORE_SECTIONS=[
     {name:'Consumables',page:'Consumables',code:'CON',icon:'▤',departmentIssue:false,blurb:'Clinical consumables — indents, stock, receipts, movements and expiry at a glance.'},
@@ -298,14 +298,14 @@ function initSamaraInaugurationInvitation(){
   // Charge categories that are Stores items (live Store Master rate); 'Pharmacy & Basic Supplies' is the older Charge Master name for Pharmacy.
   const STORE_CHARGE_CATEGORIES=[...STORE_SECTION_NAMES,'Pharmacy & Basic Supplies'];
   const STORE_DEPARTMENTS=['Nursing Floor','Housekeeping','Kitchen / Pantry','Laundry','Office / Admin','Maintenance','Front Desk / Reception','Other'];
-  // 2.15.0: Accounts → Manual Billing & Payment Entry may post a "Charge" only in these categories; everything else goes through Bills & Charges.
+  // 2.15.1: Accounts → Manual Billing & Payment Entry may post a "Charge" only in these categories; everything else goes through Bills & Charges.
   const MANUAL_CHARGE_CATEGORIES=['Room Charges','Final Settlement','Other'];
-  // 2.15.0: ONE standard list of units for every Stores item (Receive, Edit Item, Store Master). A number is never a unit.
+  // 2.15.1: ONE standard list of units for every Stores item (Receive, Edit Item, Store Master). A number is never a unit.
   const STORE_UNITS=['Nos','Pieces','Pairs','Sets','Packs','Packets','Boxes','Rolls','Bottles','Strips','Tablets','Capsules','Vials','Ampoules','Tubes','Sachets','Inhalers','Kg','Grams','Litres','ml','Dozens','Cans','Cylinders'];
   const isNumericUnit=u=>/^\s*\d+(\.\d+)?\s*$/.test(String(u??''));
   // options for a unit dropdown: the standard list, plus the item's current unit if it is a (non-numeric) word not in the list
   const storeUnitOptions=current=>[...new Set([...(current&&!isNumericUnit(current)&&!STORE_UNITS.includes(current)?[current]:[]),...STORE_UNITS])];
-  // 2.15.0: Charge Master categories — one sidebar item + dashboard each (page id "Charge Master · <category>")
+  // 2.15.1: Charge Master categories — one sidebar item + dashboard each (page id "Charge Master · <category>")
   const CHARGE_MASTER_CATEGORIES=['Biomedical Equipment','Diagnostic / Imaging','Doctor Services','Food & Nutrition','Hospital Visits','Laboratory Services','Miscellaneous','Nursing Procedures','Physiotherapy','Special Care','Transport'];
   const CM_PAGE_PREFIX='Charge Master · ';
   const CM_STORES_PAGE=CM_PAGE_PREFIX+'Stores Item Rates';
@@ -914,6 +914,9 @@ function initSamaraInaugurationInvitation(){
       .sidebar .nav-submenu button[data-nav='Stores Master']::before{content:''!important;color:#d08a19!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7l9-4 9 4-9 4-9-4Z'/%3E%3Cpath d='M3 7v10l9 4 9-4V7M12 11v10'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7l9-4 9 4-9 4-9-4Z'/%3E%3Cpath d='M3 7v10l9 4 9-4V7M12 11v10'/%3E%3C/svg%3E")!important}
       .sidebar .nav-submenu button[data-nav='Charge Master']::before{content:''!important;color:#2eaa72!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='14' rx='2'/%3E%3Cpath d='M3 10h18M7 15h4'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='14' rx='2'/%3E%3Cpath d='M3 10h18M7 15h4'/%3E%3C/svg%3E")!important}
       .sidebar .nav-submenu button[data-nav^='Charge Master · ']::before{content:''!important;color:#b30b5d!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2H2v10l9.3 9.3a2.4 2.4 0 0 0 3.4 0l6.6-6.6a2.4 2.4 0 0 0 0-3.4Z'/%3E%3Ccircle cx='7' cy='7' r='1.5'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2H2v10l9.3 9.3a2.4 2.4 0 0 0 3.4 0l6.6-6.6a2.4 2.4 0 0 0 0-3.4Z'/%3E%3Ccircle cx='7' cy='7' r='1.5'/%3E%3C/svg%3E")!important}
+      .sidebar .nav-submenu button[data-nav='Spot Assessment']::before{content:''!important;color:#d91b72!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 4h6'/%3E%3Cpath d='M9 2h6v4H9Z'/%3E%3Cpath d='M6 4H5a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-1'/%3E%3Cpath d='M8 13l3 3 5-6'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 4h6'/%3E%3Cpath d='M9 2h6v4H9Z'/%3E%3Cpath d='M6 4H5a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-1'/%3E%3Cpath d='M8 13l3 3 5-6'/%3E%3C/svg%3E")!important}
+      .sidebar .nav-submenu button[data-nav='Admission Register']::before{content:''!important;color:#b30b5d!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 4h16v16H4Z'/%3E%3Cpath d='M8 8h8'/%3E%3Cpath d='M8 12h8'/%3E%3Cpath d='M8 16h5'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 4h16v16H4Z'/%3E%3Cpath d='M8 8h8'/%3E%3Cpath d='M8 12h8'/%3E%3Cpath d='M8 16h5'/%3E%3C/svg%3E")!important}
+      .sidebar .nav-submenu button[data-nav='Family Communication']::before{content:''!important;color:#8f4bc1!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12Z'/%3E%3Cpath d='M8 11h8'/%3E%3Cpath d='M8 15h5'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12Z'/%3E%3Cpath d='M8 11h8'/%3E%3Cpath d='M8 15h5'/%3E%3C/svg%3E")!important}
       .sidebar .nav-submenu button[data-nav='Temporary Duty Swap']::before{content:''!important;color:#5d78d6!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 7h11l-3-3M17 17H6l3 3M18 7v4M6 17v-4'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 7h11l-3-3M17 17H6l3 3M18 7v4M6 17v-4'/%3E%3C/svg%3E")!important}
       .sidebar .nav-submenu button[data-nav='Additional Duty Assignment']::before{content:''!important;color:#7b61c9!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3C/svg%3E")!important}
       .sidebar .nav-submenu button[data-nav='Leave Cover']::before{content:''!important;color:#e07a2f!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M8 3v4M16 3v4M3 10h18M8 15l2 2 5-5'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M8 3v4M16 3v4M3 10h18M8 15l2 2 5-5'/%3E%3C/svg%3E")!important}
@@ -1652,7 +1655,8 @@ function initSamaraInaugurationInvitation(){
   };
   const EMPLOYEE_TITLES = ['Dr.','Prof.','Mr.','Mrs.','Ms.','Miss','Shri','Smt.','Rev.','Fr.','Br.','Sr.','Other'];
   const PATIENT_TITLES = ['Dr.','Mr.','Mrs.','Ms.','Miss','Shri','Smt.','Master','Baby','Kumari','Late','Other'];
-  const formalName = row => [String(row?.title||'').trim(),String(row?.full_name||'').trim()].filter(Boolean).join(' ');
+  // 2.15.1: don't double the title when the name already starts with it ("Mrs." + "Mrs.Lakshmi" → "Mrs.Lakshmi")
+  const formalName = row => {const t=String(row?.title||'').trim(),n=String(row?.full_name||'').trim();const tn=t.replace(/\.+$/,'');if(tn&&new RegExp('^'+tn.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(\\.|\\s)','i').test(n))return n;return [t,n].filter(Boolean).join(' ');};
   const displayName = row => formalName(row);
   const ROOM_NUMBER_OPTIONS = Array.from({length:26},(_,i)=>String(100+i));
   const BED_CODE_OPTIONS = ['A','B','C','D'];
@@ -1662,13 +1666,14 @@ function initSamaraInaugurationInvitation(){
     { title:'CHARGE MASTER', items:['Charge Master',...CHARGE_MASTER_PAGES] },
     { title:'HR', items:['HR Dashboard','Employees','Duty Assignment','Duty Calendar','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiries & Feedback'] },
-    { title:'ADMISSION', items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'] },
-    { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
-    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Approval Requests','Charge Register','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
+    { title:'ADMISSION', items:['Enquiries','Spot Assessment','Admissions','Admission Register'] },
+    { title:'PATIENTS', items:['Patients','Discharge','Documents','Recovery Timeline','Intelligent Reports','Family Communication','Incidents','Medication Errors','Patient Ledger','Final Billing'] },
+    { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports'] },
+    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Approval Requests','Charge Register','Physiotherapy','Special Nurse','Shift Handover'] },
     { title:'PHARMACY & STORES', items:['Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
-    { title:'COMMUNICATION', items:['WhatsApp Inbox','WhatsApp Logs','Family Communication','Feedback','Mail Dashboard'] },
+    { title:'COMMUNICATION', items:['WhatsApp Inbox','WhatsApp Logs','Feedback','Mail Dashboard'] },
     { title:'MY ACCOUNT', items:['My Profile'] }
   ];
   const ALL_NAV = NAV_SECTIONS.flatMap(section=>section.items);
@@ -1712,6 +1717,7 @@ function initSamaraInaugurationInvitation(){
     if(profile?.__dutyContext?.leave_cover&&!profile.__leaveNavResolved){const c=profile.__dutyContext;return [...new Set([...allowedPagesForProfile({...profile,__leaveNavResolved:true}),...allowedPagesForProfile({...profile,__leaveNavResolved:true,role:c.regular_role,designation:c.regular_designation,department:c.regular_department}),...allowedPagesForProfile({...profile,__leaveNavResolved:true,role:c.leave_cover.covering_role,designation:c.leave_cover.covering_designation})])];}
     if(profile?.__paymentsTrial&&!profile.__paymentsNavResolved){const a=profile.__paymentsTrial;return [...allowedPagesForProfile({...profile,__paymentsNavResolved:true}).filter(x=>!['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(x)),...(a.full?['Payments & Vouchers']:[]),'Payment Requests',...(a.pay?['Approved—Ready to Pay']:[]),'Payment Vouchers','Payment Statements'];}
     if(isNursingManagerProfile(profile))return [
+      'Admission Register',
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Approval Requests','Charge Register',
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
@@ -1722,6 +1728,7 @@ function initSamaraInaugurationInvitation(){
     if(isAdmissionDelegateProfile(profile)&&!pages.includes('Admissions'))pages.push('Admissions');
     if(profile?.role==='Manager'&&employeeDepartment(profile)&&!pages.includes('Employees'))pages.push('Employees');
     if(isNursingManagerProfile(profile)){ if(!pages.includes('My To-Do List'))pages.push('My To-Do List'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Consumables'))pages.push('Consumables'); if(!pages.includes('Pharmacy'))pages.push('Pharmacy'); STORE_SECTIONS.forEach(x=>{if(!pages.includes(x.page))pages.push(x.page)}); ['Biomedical Equipment','Oxygen Cylinders'].forEach(x=>{if(!pages.includes(x))pages.push(x)}); if(!pages.includes('Stores In-charge Assignment'))pages.push('Stores In-charge Assignment'); if(!pages.includes('Employees'))pages.push('Employees'); }
+    if(pages.includes('Admissions')&&!pages.includes('Admission Register'))pages.push('Admission Register'); // 2.15.1
     return pages;
   };
   const CLINICAL_ROLES=['Nurse','Caregiver'];
@@ -1751,6 +1758,7 @@ function initSamaraInaugurationInvitation(){
     'Received Indents / Used Balance':'Received Indents / Used Balance'
   };
   const displayNavLabel=(item,role)=>{
+    if(item==='Admissions')return 'New Admission';
     if(String(item).startsWith(CM_PAGE_PREFIX))return String(item).slice(CM_PAGE_PREFIX.length);
     // v2.14.66: the Nursing Manager (store keeper) sees every patient indent here.
     if(item==='Patient Consumables'&&role==='Manager')return 'Indent Register';
@@ -1775,12 +1783,13 @@ function initSamaraInaugurationInvitation(){
         {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','Approval Requests','Charge Register','My To-Do List'].filter(item=>allowed.includes(item))},
         {title:'DUTY ROSTER & LEAVE',items:['Duty Assignment','My Leave & Permission'].filter(item=>allowed.includes(item))},
         {title:'NURSING STAFF',items:['Staff Duty Assignment','Duty Calendar','Staff Leave Calendar','Employees'].filter(item=>allowed.includes(item))},
-        {title:'ADMISSION',items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},
+        {title:'ADMISSION',items:['Enquiries','Spot Assessment','Admissions','Admission Register'].filter(item=>allowed.includes(item))},
+        {title:'PATIENTS',items:['Patients','Discharge','Documents','Recovery Timeline','Intelligent Reports','Family Communication','Incidents','Medication Errors','Patient Ledger','Final Billing'].filter(item=>allowed.includes(item))},
         {title:'ROOMS & PACKAGES',items:['Rooms','Care Packages'].filter(item=>allowed.includes(item))},
         {title:'PHARMACY & STORES',items:['Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'].filter(item=>allowed.includes(item))},
         {title:'FOOD & DIET',items:['Food & Diet'].filter(item=>allowed.includes(item))},
         {title:'COMMUNICATION',items:['WhatsApp Inbox'].filter(item=>allowed.includes(item))},
-        {title:'CLINICAL REVIEW',items:['Reports','Intelligent Reports','Medication Errors','Recovery Timeline'].filter(item=>allowed.includes(item))},
+        {title:'CLINICAL REVIEW',items:['Reports'].filter(item=>allowed.includes(item))},
         {title:'MY ACCOUNT',items:['My Profile'].filter(item=>allowed.includes(item))}
       ].filter(section=>section.items.length);
     }
@@ -7885,6 +7894,7 @@ https://samaraassistedliving.com/`;
           page==='Clinical Escalations'&&h(ClinicalEscalationsDashboard,{profile,onNavigate:setPage}),
           page==='Shift Tasks'&&h(ShiftTasks,{profile,onNavigate:setPage}),
           page==='Patients'&&h(Patients,{profile,onNavigate:setPage}),
+          page==='Admission Register'&&h(AdmissionRegister,{profile,onNavigate:setPage}),
           page==='Discharge'&&h(DischargeManagement,{profile}),
           page==='Rooms'&&h(RoomsBeds,{profile,onNavigate:setPage}),
           page==='Shift Management'&&h(ShiftManagement,{profile}),
@@ -8560,7 +8570,7 @@ https://samaraassistedliving.com/`;
     const activeSection=sections.find(section=>section.items.includes(page))?.title||sections[0]?.title||'';
     const [openSection,setOpenSection]=React.useState(activeSection);
     React.useEffect(()=>{const next=sections.find(section=>section.items.includes(page))?.title;if(next)setOpenSection(next)},[page]);
-    const sectionIcon=title=>/OVERVIEW/.test(title)?'⌂':/HR|STAFF/.test(title)?'♙':/ADMISSION/.test(title)?'♥':/ROOM/.test(title)?'▦':/PHARMACY|STORE/.test(title)?'♨':/FOOD/.test(title)?'🍽\uFE0E':/CHARGE/.test(title)?'₹':/ACCOUNT.*BILL|BILLING|PAYMENT|FINANCE/.test(title)?'₹':/COMMUNICATION|WHATSAPP/.test(title)?'✉\uFE0E':/MY ACCOUNT|PROFILE/.test(title)?'☺\uFE0E':/DUTY|ROSTER|LEAVE/.test(title)?'◷':/DIRECTOR/.test(title)?'★':/CLINICAL|NURSING/.test(title)?'✚':'⚙\uFE0E';
+    const sectionIcon=title=>/OVERVIEW/.test(title)?'⌂':/HR|STAFF/.test(title)?'♙':/ADMISSION/.test(title)?'♥':/PATIENT/.test(title)?'⚕\uFE0E':/ROOM/.test(title)?'▦':/PHARMACY|STORE/.test(title)?'♨':/FOOD/.test(title)?'🍽\uFE0E':/CHARGE/.test(title)?'₹':/ACCOUNT.*BILL|BILLING|PAYMENT|FINANCE/.test(title)?'₹':/COMMUNICATION|WHATSAPP/.test(title)?'✉\uFE0E':/MY ACCOUNT|PROFILE/.test(title)?'☺\uFE0E':/DUTY|ROSTER|LEAVE/.test(title)?'◷':/DIRECTOR/.test(title)?'★':/CLINICAL|NURSING/.test(title)?'✚':'⚙\uFE0E';
     const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Consumables'?'▤':item==='Pharmacy'?'✚':item==='Housekeeping & General'?'🧺\uFE0E':item==='Kitchen / Food Stores'?'🍽\uFE0E':item==='Biomedical Equipment'?'⚕\uFE0E':item==='Oxygen Cylinders'?'◉':item==='Stores'?'▥':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My To-Do List'?'✓':'›';
     React.useEffect(()=>{
       const onKey=e=>{if(e.key==='Escape')onClose()};
@@ -18123,6 +18133,8 @@ Please keep these login details confidential.`;
     const [editDocs,setEditDocs]=React.useState([]),[editPhotoUrl,setEditPhotoUrl]=React.useState(''),[editCameraConfig,setEditCameraConfig]=React.useState(null);
     const [editUploads,setEditUploads]=React.useState({photo:[],identity:[],prescription:[],discharge:[],reports:[],other:[]});
     async function load(){const {data,error}=await client.from('patients').select('*').order('created_at',{ascending:false});if(error)console.error(error);setRows(data||[])}
+    // 2.15.1: open a specific resident's card when arriving from the Admission Register
+    React.useEffect(()=>{if(!rows||!rows.length)return;let id='';try{id=sessionStorage.getItem('samara-open-patient-id')||'';if(id)sessionStorage.removeItem('samara-open-patient-id')}catch(_){}if(!id)return;const p=rows.find(x=>String(x.id)===String(id));if(p)openPatient(p)},[rows]);
     React.useEffect(()=>{const loadRooms=async()=>{const {data}=await client.from('room_beds').select('*').order('room_no').order('bed_no');setRoomBeds(data||[])};load();loadRooms();const timer=setInterval(load,30000);window.addEventListener('focus',load);const ch=client.channel('patients-live').on('postgres_changes',{event:'*',schema:'public',table:'patients'},load).on('postgres_changes',{event:'*',schema:'public',table:'room_beds'},loadRooms).subscribe();return()=>{clearInterval(timer);window.removeEventListener('focus',load);client.removeChannel(ch)}},[]);
     async function resolvePatientPhoto(p){
       let path=p.photo_storage_path||'';
@@ -31531,6 +31543,77 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         moves.length?h('div',{className:'stores-expiry-list'},moves.slice(0,300).map(m=>{const c=list.find(x=>String(x.id)===String(m.cylinder_id));return h('article',{key:m.id,className:'stores-ledger-card'},
           h('div',{className:'stores-ledger-card-head'},h('strong',null,`${c?.cylinder_no||''} · ${c?.cylinder_size||''}`),h('span',null,formatDateTimeIN(m.moved_at))),
           h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Action'),h('strong',null,m.action)),m.patient_id&&h('div',null,h('small',null,'Resident'),h('strong',null,equipmentPatientName(patients,m.patient_id))),m.vendor&&h('div',null,h('small',null,'Vendor'),h('strong',null,m.vendor)),h('div',null,h('small',null,'By'),h('strong',null,m.actor_name||'—')),m.remarks&&h('div',null,h('small',null,'Remarks'),h('strong',null,m.remarks))))})):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},'No movements yet.')
+      )
+    );
+  }
+  // 2.15.1: Admission Register — every admission (active and discharged), with period filter + Apply,
+  // quick status filters, search, and full details per row. "Open Patient Card" opens that resident's card.
+  function AdmissionRegister({profile,onNavigate}){
+    const [rows,setRows]=React.useState(null),[discharges,setDischarges]=React.useState([]),[detail,setDetail]=React.useState(null);
+    const [status,setStatus]=React.useState('All'),[search,setSearch]=React.useState('');
+    const [period,setPeriod]=React.useState('month'),[from,setFrom]=React.useState(''),[to,setTo]=React.useState('');
+    const pa=useAppliedFilters({period,from,to});const PA=pa.applied;
+    React.useEffect(()=>{(async()=>{
+      const [p,d]=await Promise.all([
+        client.from('patients').select('*').order('admission_date',{ascending:false}),
+        client.from('patient_discharges').select('*')
+      ]);
+      setRows(p.error?[]:(p.data||[]));if(!d.error)setDischarges(d.data||[]);
+    })()},[]);
+    const today=todayISOIndia();
+    const bounds=(()=>{
+      if(PA.period==='today')return [today,today];
+      if(PA.period==='week')return [mondayOfWeek(today),today];
+      if(PA.period==='lastmonth'){const d=new Date(`${today.slice(0,8)}01T12:00:00`);d.setMonth(d.getMonth()-1);const f=d.toISOString().slice(0,10);const e=new Date(`${today.slice(0,8)}01T12:00:00`);e.setDate(0);return [f,e.toISOString().slice(0,10)]}
+      if(PA.period==='year')return [today.slice(0,4)+'-01-01',today];
+      if(PA.period==='all')return ['0000-01-01','9999-12-31'];
+      if(PA.period==='custom')return [PA.from||today,PA.to||today];
+      return [today.slice(0,8)+'01',today];
+    })();
+    const dischargeOf=p=>discharges.filter(d=>String(d.patient_id)===String(p.id)).sort((a,b)=>String(b.discharge_date||b.created_at||'').localeCompare(String(a.discharge_date||a.created_at||'')))[0]||null;
+    const consentPending=p=>/awaiting|pending/i.test(String(p.admission_consent_status||''));
+    const stateOf=p=>p.is_active?'Active':(dischargeOf(p)||/discharg/i.test(String(p.admission_status||''))?'Discharged':(p.admission_status||'Inactive'));
+    const list=(rows||[]).filter(p=>p.admission_date);
+    const inPeriod=list.filter(p=>String(p.admission_date).slice(0,10)>=bounds[0]&&String(p.admission_date).slice(0,10)<=bounds[1]);
+    const q=search.trim().toLowerCase();
+    const shown=inPeriod.filter(p=>(status==='All'||(status==='Consent pending'?consentPending(p):stateOf(p)===status))&&(q.length<2||[p.patient_id,p.title,p.full_name,p.room_no,p.admission_type,p.patient_category,p.mobile].join(' ').toLowerCase().includes(q)));
+    const counts={all:inPeriod.length,active:inPeriod.filter(p=>stateOf(p)==='Active').length,discharged:inPeriod.filter(p=>stateOf(p)==='Discharged').length,consent:inPeriod.filter(consentPending).length};
+    function openCard(p){try{sessionStorage.setItem('samara-open-patient-id',p.id)}catch(_){}if(typeof onNavigate==='function')onNavigate('Patients')}
+    function details(p){
+      const d=dischargeOf(p);
+      return {title:formalName(p)||p.full_name,subtitle:`${p.patient_id||''} · Admitted ${formatDateIN(p.admission_date)}`,patient:p,fields:[
+        ['Resident ID',p.patient_id],['Name',formalName(p)||p.full_name],['Gender / Age',[p.gender,p.age].filter(Boolean).join(' / ')],
+        ['Admission date',formatDateIN(p.admission_date)],['Admission time',p.admission_time],['Admission type',p.admission_type],['Category',p.patient_category],
+        ['Room / Bed',[p.room_no,p.bed_no].filter(Boolean).join(' / ')],['Status',stateOf(p)],['Consent',p.admission_consent_status],
+        ['Hospital / Source',p.hospital_name||p.referral_source],['Treating doctor',p.treating_doctor],['Care package',p.billing_package],['Package ends',p.package_end_date?formatDateIN(p.package_end_date):''],
+        ['Mobile',p.mobile],['Attendant',[p.attendant_name,p.attendant_phone].filter(Boolean).join(' · ')],
+        ['Discharge date',d?.discharge_date?formatDateIN(d.discharge_date):''],['Discharge type',d?.discharge_type],['Discharge status',d?.status],
+        ['Record created',p.created_at?formatDateTimeIN(p.created_at):'']]};
+    }
+    const chip=(k,label,n)=>h('button',{key:k,type:'button',role:'tab','aria-selected':status===k,className:status===k?'active':'',onClick:()=>setStatus(k)},`${label} (${n})`);
+    return h('div',null,
+      detail&&h(RowDetailModal,{title:detail.title,subtitle:detail.subtitle,fields:detail.fields,onClose:()=>setDetail(null)},
+        h('div',{className:'equip-actions'},h('button',{type:'button',className:'btn btn-primary',onClick:()=>openCard(detail.patient)},'Open Patient Card'))),
+      h('div',{className:'stores-dash'},h(DashboardHero,{kicker:'ADMISSION',title:'Admission Register',blurb:'Every admission — active and discharged — with type, room, consent and discharge. Tap a row for full details or to open the Patient Card.'})),
+      h(Section,{title:`Admissions · ${PA.period==='all'?'All dates':`${formatDateIN(bounds[0])} – ${formatDateIN(bounds[1])}`}`,subtitle:`${shown.length} shown`},
+        h('div',{className:'cm-period-bar'},
+          h('div',{className:'field'},h('label',null,'Admission period'),h('select',{value:period,onChange:e=>setPeriod(e.target.value)},[['today','Today'],['week','This Week'],['month','This Month'],['lastmonth','Last Month'],['year','This Year'],['all','All Admissions'],['custom','Custom Date Range']].map(([v,l])=>h('option',{key:v,value:v},l)))),
+          period==='custom'&&h('div',{className:'field'},h('label',null,'From'),h(StrictDateInput,{value:from,onChange:e=>setFrom(e.target.value)})),
+          period==='custom'&&h('div',{className:'field'},h('label',null,'To'),h(StrictDateInput,{value:to,onChange:e=>setTo(e.target.value)})),
+          h(ApplyFilterButton,{dirty:pa.dirty,onApply:pa.apply}),
+          h('div',{className:'field',style:{flex:'1 1 220px'}},h('label',null,'Search'),h('input',{type:'search',value:search,onChange:e=>setSearch(e.target.value),placeholder:'Name, Resident ID, room, type'}))
+        ),
+        h('div',{className:'stores-mode-switch',role:'tablist',style:{marginBottom:'12px'}},chip('All','All',counts.all),chip('Active','Active',counts.active),chip('Discharged','Discharged',counts.discharged),chip('Consent pending','Consent pending',counts.consent)),
+        rows===null?h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},'Loading…'):
+        shown.length?h('div',{className:'table-wrap'},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['Admitted','Resident ID','Name','Type','Category','Room / Bed','Status','Consent','Discharged'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,shown.map(p=>{const d=dischargeOf(p);return h('tr',{key:p.id,className:'row-clickable',onClick:()=>setDetail(details(p))},
+            h('td',null,formatDateIN(p.admission_date)),h('td',null,p.patient_id||'—'),h('td',null,h('strong',null,formalName(p)||p.full_name)),
+            h('td',null,p.admission_type||'—'),h('td',null,p.patient_category||'—'),h('td',null,[p.room_no,p.bed_no].filter(Boolean).join(' / ')||'—'),
+            h('td',null,h('span',{className:'equip-pill',style:{background:stateOf(p)==='Active'?'#e7f6ef':stateOf(p)==='Discharged'?'#eef1f0':'#fff1d6'}},stateOf(p))),
+            h('td',null,consentPending(p)?h('span',{className:'unit-warn'},p.admission_consent_status):(p.admission_consent_status||'—')),
+            h('td',null,d?.discharge_date?formatDateIN(d.discharge_date):'—'))}))
+        )):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},'No admissions in this period / filter.')
       )
     );
   }

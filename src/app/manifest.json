@@ -24,12 +24,12 @@
   {
    "file": "core/03-brand-theme-css.js",
    "about": "Global brand colour theme (CSS injected at start)",
-   "lines": 983
+   "lines": 986
   },
   {
    "file": "core/04-supabase-roles-navigation.js",
    "about": "Supabase client, audit log writer, roles, departments, menu per role, page permissions",
-   "lines": 224
+   "lines": 229
   },
   {
    "file": "core/05-whatsapp-phone-helpers.js",
@@ -119,7 +119,7 @@
   {
    "file": "shell/01-app-main.js",
    "about": "App() - the main shell: login state, page switching, global watchers switched on here",
-   "lines": 787
+   "lines": 788
   },
   {
    "file": "shell/02-login-password.js",
@@ -219,7 +219,7 @@
   {
    "file": "patients/patients.js",
    "about": "Patients page",
-   "lines": 2801
+   "lines": 2803
   },
   {
    "file": "patients/patient-select-helpers.js",
@@ -365,6 +365,11 @@
    "file": "stores/equipment-oxygen.js",
    "about": "Biomedical Equipment register + Oxygen Cylinders register dashboards (SQL 161)",
    "lines": 281
+  },
+  {
+   "file": "patients/admission-register.js",
+   "about": "Admission Register (ADMISSION menu)",
+   "lines": 71
   },
   {
    "file": "accounts/09-clinical-charges.js",

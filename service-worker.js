@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.0';
-const CACHE = 'samara-erp-2.15.0-charge-master-in-admin';
+const APP_VERSION = '2.15.1';
+const CACHE = 'samara-erp-2.15.1-admission-patients-menus';
 const SHELL = [
   './',
   './index.html',
