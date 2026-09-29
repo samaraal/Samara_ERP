@@ -3,6 +3,13 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.7 — Known allergies: Yes / No, then details
+- **Known allergies** now starts with a simple choice: **No — no known allergies** or **Yes — has allergies**. Choosing No needs nothing typed.
+- For **Yes**, add each allergy (e.g. "Penicillin — skin rash"); every entry can be deleted with ×. Completing the admission with Yes but no allergy added, or with an allergy typed but not added, shows a clear message.
+- Fixed: after adding an item with **Add**, the mandatory-field check still said the field was empty (it looked at the cleared typing box). The check now reads the added items — also for Diagnosis / condition.
+- Older entries such as "None", "Nil", "NKDA" are read as No.
+- No SQL. Files: `src/app/patients/admissions.js`, version files, `app.js` (rebuilt).
+
 ## 2.15.6 — Admission room allotment: no more "room/bed no longer available" after an interrupted save (SQL 166)
 - **Cause fixed:** when an admission save was interrupted (network drop, server busy), the bed could stay linked to that half-finished admission. The screen showed the bed as Available, but every retry was refused with "Selected room/bed is no longer available."
 - **One rule, on the server:** a bed is taken only if another **admitted** resident holds it, or another admission is still in progress on it (last 30 minutes). A link to the same resident, or to a discharged / abandoned admission, is treated as stale and replaced. Maintenance beds are never allotted; reserved beds only through the reservation.

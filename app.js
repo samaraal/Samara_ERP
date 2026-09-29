@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.6';
+  const APP_VERSION = '2.15.7';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -15360,6 +15360,7 @@ Thank you.`;
     const [patientSearch,setPatientSearch]=React.useState('');
     const [diagnosisDraft,setDiagnosisDraft]=React.useState('');
     const [allergyDraft,setAllergyDraft]=React.useState('');
+    const [allergyChoice,setAllergyChoice]=React.useState(''); // 2.15.7: Known allergies Yes / No
     const [matchList,setMatchList]=React.useState([]);
     const ADMISSION_DRAFT_KEY=`samara_admission_draft_${profile?.id||'current'}`;
     const [draftRestored,setDraftRestored]=React.useState(false);
@@ -15385,7 +15386,7 @@ Thank you.`;
     function draftSnapshot(){return {form,meds,care,familyAccess,familyAccess2,returningPatient,patient_id:draftPatientId||null}}
     function applyDraftPayload(payload,{id='',no=null,files=[],lastField=null}={}){
       const d=payload||{};
-      setForm({...initial,...(d.form||{})});
+      setForm({...initial,...(d.form||{})});setAllergyChoice('');
       setMeds(Array.isArray(d.meds)&&d.meds.length?d.meds:[blankMedicine()]);
       setCare(Array.isArray(d.care)&&d.care.length?d.care:[blankCare()]);
       if(d.familyAccess)setFamilyAccess(current=>({...current,...d.familyAccess}));
@@ -15418,7 +15419,7 @@ Thank you.`;
       setShowDraftList(false);
     }
     function startNewAdmission(){
-      setForm(initial);setMeds([blankMedicine()]);setCare([blankCare()]);setReturningPatient(null);setMatchList([]);setPatientSearch('');
+      setForm(initial);setAllergyChoice('');setMeds([blankMedicine()]);setCare([blankCare()]);setReturningPatient(null);setMatchList([]);setPatientSearch('');
       setPhotoFiles([]);setIdFiles([]);setDischargeFiles([]);setPrescriptionFiles([]);setReportFiles([]);
       setDraftId('');setDraftNo(null);setDraftFiles([]);setDraftPatientId('');setDraftRestored(false);setLastAutoSavedAt(null);setServerDraftSaved(false);setServerDraftError('');
       try{localStorage.removeItem(ADMISSION_DRAFT_KEY);sessionStorage.removeItem(ADMISSION_DRAFT_SESSION_STATE)}catch(_){}
@@ -15642,6 +15643,8 @@ Thank you.`;
     };
     const numberedItems=value=>String(value||'').split(/\n+/).map(x=>x.replace(/^\s*\d+[.)]\s*/, '').trim()).filter(Boolean);
     const numberedText=items=>items.map((item,index)=>`${index+1}. ${item}`).join('\n');
+    // 2.15.7: "None", "Nil", "No known allergies" etc. all mean the answer No.
+    const NO_KNOWN_ALLERGY_RE=/^(none|nil|nill|no|na|n\/a|nka|nkda|not known|nothing|no allerg(y|ies)|no known allerg(y|ies)|no known drug allerg(y|ies))\.?$/i;
     function addNumberedClinicalItem(key,draft,setDraft){
       const item=String(draft||'').trim();
       if(!item)return;
@@ -15671,12 +15674,45 @@ Thank you.`;
     }
     function numberedClinicalField(label,key,draft,setDraft,required=false){
       const items=numberedItems(form[key]);
+      const proxyId=`admission-list-${key}`;
       return h('div',{className:'field clinical-list-field'},
-        h('label',null,`${label}${required?' *':''}`),
+        h('label',{htmlFor:proxyId},`${label}${required?' *':''}`),
+        // 2.15.7: the mandatory-field check reads this (the added items), not the empty typing box
+        h('input',{id:proxyId,value:numberedText(items),readOnly:true,tabIndex:-1,'aria-hidden':'true',style:{position:'absolute',width:'1px',height:'1px',opacity:0,pointerEvents:'none'}}),
         items.length?h('ol',{className:'clinical-numbered-list'},items.map((item,index)=>h('li',{key:`${key}-${index}`},h('span',null,item),h('button',{type:'button',className:'clinical-list-remove',title:'Remove',onClick:()=>removeNumberedClinicalItem(key,index)},'×')))):h('div',{className:'small-note clinical-empty'},'No item added yet.'),
         h('div',{className:'clinical-add-row'},
           h('input',{value:draft,placeholder:`Enter ${label.toLowerCase()} and click Add`,onChange:e=>setDraft(e.target.value),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();addNumberedClinicalItem(key,draft,setDraft)}}}),
           h('button',{type:'button',className:'btn btn-secondary clinical-add-button',onClick:()=>addNumberedClinicalItem(key,draft,setDraft)},'Add')
+        )
+      );
+    }
+    // 2.15.7: Known allergies — answer Yes / No first; details (each deletable) only for Yes.
+    function allergyField(){
+      const items=numberedItems(form.allergies);
+      const noKnown=items.length===1&&NO_KNOWN_ALLERGY_RE.test(items[0]);
+      const answer=noKnown?'No':(items.length?'Yes':allergyChoice);
+      const choose=value=>{
+        setAllergyChoice(value);
+        if(value==='No'){setForm(current=>({...current,allergies:'No known allergies'}));setAllergyDraft('')}
+        else if(value==='Yes')setForm(current=>({...current,allergies:noKnown?'':current.allergies}));
+        else{setForm(current=>({...current,allergies:''}));setAllergyDraft('')}
+      };
+      return h('div',{className:'field clinical-list-field'},
+        h('label',{htmlFor:'admission-known-allergies'},'Known allergies'),
+        h('select',{id:'admission-known-allergies',value:answer,onChange:e=>choose(e.target.value)},
+          h('option',{value:''},'Select Yes / No'),
+          h('option',{value:'No'},'No — no known allergies'),
+          h('option',{value:'Yes'},'Yes — has allergies')
+        ),
+        answer==='Yes'&&h(React.Fragment,null,
+          h('div',{className:'small-note',style:{margin:'8px 0 4px'}},'Add each allergy (medicine / food / other) with the reaction. Use × to delete.'),
+          items.length&&!noKnown
+            ?h('ol',{className:'clinical-numbered-list'},items.map((item,index)=>h('li',{key:`allergy-${index}`},h('span',null,item),h('button',{type:'button',className:'clinical-list-remove',title:'Delete',onClick:()=>removeNumberedClinicalItem('allergies',index)},'×'))))
+            :h('div',{className:'small-note clinical-empty'},'No allergy added yet.'),
+          h('div',{className:'clinical-add-row'},
+            h('input',{value:allergyDraft,placeholder:'Example: Penicillin — skin rash',onChange:e=>setAllergyDraft(e.target.value),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();addNumberedClinicalItem('allergies',allergyDraft,setAllergyDraft)}}}),
+            h('button',{type:'button',className:'btn btn-secondary clinical-add-button',onClick:()=>addNumberedClinicalItem('allergies',allergyDraft,setAllergyDraft)},'Add')
+          )
         )
       );
     }
@@ -15762,7 +15798,7 @@ Thank you.`;
       setReturningPatient(null);
       setMatchList([]);
       setPatientSearch('');
-      setForm(initial);
+      setForm(initial);setAllergyChoice('');
       setMsg('');
     }
 
@@ -16067,7 +16103,7 @@ Thank you.`;
 
     function cleanAdmissionAfterConsent(){
       clearAdmissionDraft(consentRecord?.patient?.id);
-      setForm(initial);
+      setForm(initial);setAllergyChoice('');
       setReturningPatient(null);
       setMatchList([]);
       setPatientSearch('');
@@ -16949,6 +16985,12 @@ Please keep these login details confidential.`;
         setBusy(false);
         return;
       }
+      {
+        const allergyItems=numberedItems(form.allergies);
+        const allergyNone=allergyItems.length===1&&NO_KNOWN_ALLERGY_RE.test(allergyItems[0]);
+        if(String(allergyDraft||'').trim()){setMsg('Known allergies: you typed an allergy but did not click Add. Click Add, or clear the box.');setBusy(false);return}
+        if(allergyChoice==='Yes'&&(!allergyItems.length||allergyNone)){setMsg('Known allergies is "Yes" — add at least one allergy, or choose "No — no known allergies".');setBusy(false);return}
+      }
       if(isFutureDateIndia(form.admission_date)){setMsg(`Admission date cannot be later than today (${formatDateIN(todayISOIndia())}). Please correct the date.`);setBusy(false);return}
       if(!idFiles.length&&!returningPatient){
         const continueWithoutId=window.confirm(
@@ -17448,7 +17490,7 @@ Please keep these login details confidential.`;
           ),
           field(needsHospital?'Treating doctor':'Doctor / family physician (if any)','treating_doctor',form,setForm,false),
           mobileField('Doctor contact','doctor_phone',false),
-          numberedClinicalField('Known allergies','allergies',allergyDraft,setAllergyDraft,false),
+          allergyField(),
           textareaField(
             isDirectElderlyCare?'Daily care needs / family instructions':'Instructions / precautions',
             'special_instructions',form,setForm,'span-2'

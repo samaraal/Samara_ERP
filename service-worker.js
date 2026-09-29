@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.6';
-const CACHE = 'samara-erp-2.15.6-room-allotment-retry-safe';
+const APP_VERSION = '2.15.7';
+const CACHE = 'samara-erp-2.15.7-known-allergies-yes-no';
 const SHELL = [
   './',
   './index.html',
