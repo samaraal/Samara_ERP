@@ -3,6 +3,13 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.2 — Patient File opens instantly
+- Tapping a patient row (or Open Patient File) now shows the card **at once** with an "Opening Patient File…" panel and a Cancel button, instead of nothing happening until every section has loaded.
+- If loading fails, the panel says why, with **Try again** — no more silent clicks.
+- Faster opening: medication review items are now fetched only for that resident (it used to fetch 2,000 rows for all residents each time).
+- If you tap a second patient while the first is still loading, only the second one opens.
+- No SQL. Files: `src/app/patients/patients.js`, `styles.css`, version files, `app.js` (rebuilt).
+
 ## 2.15.1 — ADMISSION and PATIENTS menus; Admission Register
 - **ADMISSION** menu (before / at admission): Enquiries, Spot Assessment, **New Admission** (the admission form), and the new **Admission Register**.
 - **PATIENTS** menu (after admission, every day): Patients, Discharge, Documents, Recovery Timeline, Intelligent Reports, Family Communication, Incidents, Medication Errors, Patient Ledger, Final Billing (Patient Ledger and Final Billing also stay under Accounts / Billing). Same for the Nursing Manager's menu. Nurses' menus unchanged; role access unchanged.

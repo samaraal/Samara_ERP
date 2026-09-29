@@ -102,13 +102,21 @@
       return ranked.filter(row=>{const mobile=String(row?.mobile||'').replace(/\D/g,'').slice(-10);const name=String(row?.relative_name||'').trim().toLowerCase().replace(/\s+/g,' ');const key=`${mobile}|${name}`;if(!mobile)return true;if(seen.has(key))return false;seen.add(key);return true;});
     }
     function displayDailyReportTime(value){if(!value)return 'Not scheduled';const parts=String(value).slice(0,5).split(':');const hh=Number(parts[0]),mm=parts[1]||'00';if(!Number.isFinite(hh))return String(value);const suffix=hh>=12?'PM':'AM';const hour=hh%12||12;return `${hour}:${mm} ${suffix}`;}
+    // 2.15.2: the card opens at once with a "Loading…" panel; a slow or failed load shows a message instead of silence.
+    const openPatientSeqRef=React.useRef(0);
+    const [patientOpenError,setPatientOpenError]=React.useState('');
     async function openPatient(p,desiredTab='Overview'){
-      setSelected(p);setPhotoUrl('');setTab(desiredTab);
+      const seq=++openPatientSeqRef.current;
+      if(String(consentResidentRef.current||'')!==String(p?.id||''))setDetails(null);
+      setPatientOpenError('');setSelected(p);setPhotoUrl('');setTab(desiredTab);
+      try{await loadPatientCard(p,seq)}catch(error){console.error('[Samara] Patient file load failed',error);if(seq===openPatientSeqRef.current)setPatientOpenError(error?.message||String(error))}
+    }
+    async function loadPatientCard(p,seq){
       const [m,ma,mr,mri,c,cl,v,ph,ps,d,meal,bill,rec,inc,fam,mom,wa,pref,reportWa,proc,hand,discharges,url]=await Promise.all([
         client.from('medication_orders').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}),
         client.from('medication_administrations').select('*').eq('patient_id',p.id).order('scheduled_date',{ascending:false}).limit(100),
         client.from('medication_reviews').select('*').eq('patient_id',p.id).order('reviewed_at',{ascending:false}),
-        client.from('medication_review_items').select('*').order('created_at',{ascending:false}).limit(2000),
+        Promise.resolve({data:[]}), // 2.15.2: review items are fetched below for THIS resident's reviews only (was 2000 rows of every resident)
         client.from('care_orders').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}),
         client.from('care_logs').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}).limit(100),
         client.from('vital_signs').select('*').eq('patient_id',p.id).order('recorded_at',{ascending:false}).limit(100),
@@ -129,10 +137,14 @@
         canEdit?client.from('patient_discharges').select('*').eq('patient_id',p.id).order('updated_at',{ascending:false}).limit(20):Promise.resolve({data:[]}),
         resolvePatientPhoto(p)
       ]);
+      if(seq!==openPatientSeqRef.current)return; // another patient was opened meanwhile
+      const reviewIds=(mr?.data||[]).map(x=>x.id).filter(Boolean);
+      if(reviewIds.length){const r=await client.from('medication_review_items').select('*').in('review_id',reviewIds).order('created_at',{ascending:false});mri.data=r.data||[];mri.error=r.error||null}
       const momentRows=await Promise.all((mom?.data||[]).map(async row=>{
         const {data:signed}=await client.storage.from('patient-daily-moments').createSignedUrl(row.storage_path,900);
         return {...row,signed_url:signed?.signedUrl||''};
       }));
+      if(seq!==openPatientSeqRef.current)return;
       const allMedicationOrders=m.data||[];
       const todayMar=(ma.data||[]).filter(row=>String(row.scheduled_date||'')===todayISOIndia());
       setDetails({
@@ -1736,6 +1748,14 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
           )
         )
       ),
+      selected&&!details&&h('div',{className:'modal-backdrop patient-file-loading-backdrop',onClick:e=>{if(e.target===e.currentTarget){setSelected(null);setPatientOpenError('')}}},h('div',{className:'card modal',role:'status','aria-live':'polite',style:{maxWidth:'460px',width:'92vw',textAlign:'center',padding:'28px 22px'}},
+        h('h3',{style:{margin:'0 0 6px'}},formalName(selected)||'Patient File'),
+        h('small',{style:{display:'block',marginBottom:'16px'}},selected.patient_id||''),
+        patientOpenError?h('div',{className:'message error',style:{textAlign:'left'}},`Could not open the Patient File: ${patientOpenError}`):h('div',{className:'patient-file-loading'},h('span',{className:'patient-file-spinner','aria-hidden':'true'}),h('strong',null,'Opening Patient File…')),
+        h('div',{style:{display:'flex',gap:'10px',justifyContent:'center',marginTop:'18px',flexWrap:'wrap'}},
+          patientOpenError&&h('button',{type:'button',className:'btn btn-primary',onClick:()=>openPatient(selected)},'Try again'),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{openPatientSeqRef.current++;setSelected(null);setPatientOpenError('')}},'Cancel'))
+      )),
       selected&&details&&h('div',{className:'modal-backdrop patient-file-backdrop'},h('div',{className:'card modal patient-master-modal'},
         h('style',{id:'samara-patient-file-layout-v21067'},`
 /* v2.10.67 — Patient File layout and section-heading restoration. Scoped only to Patient File. */

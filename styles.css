@@ -2478,3 +2478,7 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 /* 2.14.99 Charge Master dashboards */
 .cm-period-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:0 0 14px}
 .cm-period-bar .field{margin:0;min-width:180px}
+/* 2.15.2 Patient File opens at once with a loading panel */
+.patient-file-loading{display:flex;align-items:center;justify-content:center;gap:12px;color:#7a1247;font-size:1.05rem}
+.patient-file-spinner{width:26px;height:26px;border-radius:50%;border:3px solid #f0cadb;border-top-color:#b30b5d;animation:samaraSpin .8s linear infinite}
+@keyframes samaraSpin{to{transform:rotate(360deg)}}

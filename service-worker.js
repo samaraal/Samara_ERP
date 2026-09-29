@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.1';
-const CACHE = 'samara-erp-2.15.1-admission-patients-menus';
+const APP_VERSION = '2.15.2';
+const CACHE = 'samara-erp-2.15.2-patient-file-instant-open';
 const SHELL = [
   './',
   './index.html',
