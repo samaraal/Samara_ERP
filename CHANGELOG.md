@@ -3,6 +3,10 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.0 — Charge Master back in the ADMIN menu
+- **Charge Master** is listed again under **ADMIN** (as before 2.14.99) and also at the top of the **CHARGE MASTER** section; both open All Categories. Nursing Procedures and every other non-store category are under CHARGE MASTER (one item each), and **All Categories → Full List** is the classic single Charge Master table.
+- No SQL. Files: `src/app/core/04-supabase-roles-navigation.js`, version files, `app.js` (rebuilt).
+
 ## 2.14.99 — Charge Master: category menu + dashboards; Biomedical charges register-controlled
 - New sidebar section **CHARGE MASTER** (Admin): **All Categories** (one box per category — new categories appear here automatically; also the full classic list) and one item per category: Biomedical Equipment, Diagnostic / Imaging, Doctor Services, Food & Nutrition, Hospital Visits, Laboratory Services, Miscellaneous, Nursing Procedures, Physiotherapy, Special Care, Transport, and **Stores Item Rates** (Consumables, Pharmacy, Housekeeping, Kitchen rates).
 - Each category opens a Samara dashboard: **Items & Rates** (add / edit / rate / turn off), **Rates Not Set** (red), **Inactive Items** (turn back ON → reappears in Bills & Charges / Approval Requests at once), **Approval Routing**, **Charges Posted** in the period (count + ₹), **Awaiting Accounts**, and for Biomedical **Equipment Linked**. Period filter with **Apply**; every charge row opens full details (resident, item & code, quantity, raised by & when, Accounts decision, amount, remarks). Same Back to Dashboard / Close / phone back.
