@@ -349,7 +349,7 @@
   {
    "file": "stores/consumables-stores.js",
    "about": "Consumables stores",
-   "lines": 736
+   "lines": 768
   },
   {
    "file": "stores/patient-consumables.js",

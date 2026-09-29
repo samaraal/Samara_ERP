@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.97 — Stock details pop-up: full resident story; wrong units flagged
+- **Stock Movement Register → click an item:** besides the period totals and movements, a **Residents** list shows every indent for that item in the period: resident (name, ID, room), indent no. and status, requested, **raised by (nurse) with date & time**, approved by, handed over by, **received by (nurse)**, **used (charged to resident)**, **returned to Stores** (who, when, confirmed by) and **unused balance with the resident**.
+- **Click a movement:** a Patient Issue / handover now also shows that same resident indent story.
+- **Units saved as a number** (e.g. DNS 500 ML unit "2", BIFILAC unit "10", which showed as "4 2" / "9 10") are shown as `(unit "2" ⚠ fix in Edit Item)` in Current Stock and the Movement Register so they can be corrected; the quantities themselves were correct.
+- No SQL. Files: `src/app/stores/consumables-stores.js`, version files, `app.js` (rebuilt).
+
 ## 2.14.96 — "Apply" button on period / date filters; click any register row for full details
 - **Apply filter** (whole ERP): changing a Period / From / To (and Stock Item in the Movement Register) no longer reloads the list at once — press **✓ Apply** (it turns pink with "Filter changed — press Apply"). Pages: Pharmacy & Stores Stock Movement Register, Clinical Alerts, Medication Errors, Duty Assignment (custom dates; week buttons stay instant), Nursing Charge Register (From / To; period buttons stay instant), WhatsApp Inbox (STD dates), Patients → Clinical History (custom date), Audit Trail. Medicines (MAR) already had Apply.
 - Date boxes that used the browser picker (Stock Movement Register, Nursing Charge Register, Clinical History) now use the ERP's DD-MM-YYYY date input.

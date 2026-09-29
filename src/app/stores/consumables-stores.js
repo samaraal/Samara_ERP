@@ -24,6 +24,10 @@
     const movementApply=useAppliedFilters({period:movementPeriod,item:movementItem,from:movementFrom,to:movementTo});const MA=movementApply.applied;
     const [rowDetail,setRowDetail]=React.useState(null);
     const [loadedOnce,setLoadedOnce]=React.useState(false);
+    // 2.14.97: resident indents for the detail pop-ups (raised by, used / charged, returned, balance)
+    const [indents,setIndents]=React.useState([]),[allocations,setAllocations]=React.useState([]),[storeReturns,setStoreReturns]=React.useState([]);
+    // a unit saved as a number (e.g. "2") is a data error — show it clearly so it gets corrected
+    const unitLabel=u=>/^\s*\d+(\.\d+)?\s*$/.test(String(u??''))?`(unit "${u}" ⚠ fix in Edit Item)`:(u||'');
     const rowClick=fn=>e=>{if(e&&e.target&&e.target.closest&&e.target.closest('button,a,input,select,textarea,label'))return;fn()};
     const [historyItem,setHistoryItem]=React.useState(null),[historyLedger,setHistoryLedger]=React.useState([]),[historyReceipts,setHistoryReceipts]=React.useState([]),[historyBusy,setHistoryBusy]=React.useState(false);
     const [categoryEditItem,setCategoryEditItem]=React.useState(null),[categoryEditValue,setCategoryEditValue]=React.useState('');
@@ -69,12 +73,16 @@
     const notifyStore=(type,text)=>showSamaraActionToast(type,type==='success'?'Stores updated':'Stores action failed',text);
     const itemById=id=>stock.find(x=>x.item_id===id);
     const patientName=id=>{const p=patients.find(x=>x.id===id);return p?(formalName(p)||p.full_name||p.patient_id||'Patient'):'—'};
+    const patientFull=id=>{const p=patients.find(x=>x.id===id);return p?[formalName(p)||p.full_name,p.patient_id&&`(${p.patient_id})`,p.room_no&&`Room ${p.room_no}${p.bed_no?'/'+p.bed_no:''}`].filter(Boolean).join(' · '):'—'};
     async function load(){
-      const [sRes,rRes,lRes,pRes,mRes]=await Promise.all([
+      const [sRes,rRes,lRes,pRes,iRes,aRes,tRes,mRes]=await Promise.all([
         client.from('consumable_store_stock').select('*').order('item_name'),
         client.from('consumable_store_receipts').select('*').order('received_at',{ascending:false}).limit(1000),
         client.from('consumable_store_ledger').select('*').order('movement_at',{ascending:false}).limit(5000),
-        client.from('patients').select('id,title,full_name,patient_id').order('full_name').limit(1000),
+        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no').order('full_name').limit(1000),
+        client.from('patient_consumable_indents').select('*').order('created_at',{ascending:false}).limit(3000),
+        client.from('bill_charge_store_allocations').select('indent_id,allocated_qty,charge_request_id'),
+        client.from('patient_store_returns').select('*'),
         client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate,standard_category').order('item_name')
       ]);
       // 2.14.94: retry once (Supabase briefly refuses requests while it reloads after an SQL update), then show the real reason
@@ -88,6 +96,7 @@
       if(!rRes.error)setReceipts(rRes.data||[]);
       if(!lRes.error)setLedger(lRes.data||[]);
       if(!pRes.error)setPatients(pRes.data||[]); if(!mRes.error)setItemMaster(mRes.data||[]);
+      if(!iRes.error)setIndents(iRes.data||[]);if(!aRes.error)setAllocations(aRes.data||[]);if(!tRes.error)setStoreReturns(tRes.data||[]);
       setLoadedOnce(true);
     }
     React.useEffect(()=>{load()},[]);
@@ -243,7 +252,7 @@
       const received=rows.filter(r=>Number(r.qty_in)>0&&!/return/i.test(String(r.movement_type||''))).reduce((a,r)=>a+Number(r.qty_in||0),0);
       const returned=rows.filter(r=>Number(r.qty_in)>0&&/return/i.test(String(r.movement_type||''))).reduce((a,r)=>a+Number(r.qty_in||0),0);
       const handed=rows.reduce((a,r)=>a+Number(r.qty_out||0),0);
-      return {...item,opening,received,handed,returned,closing:opening+received+returned-handed};
+      return {...item,unit:unitLabel(item.unit),opening,received,handed,returned,closing:opening+received+returned-handed};
     });
     // 2.14.91: data for the Pharmacy & Stores dashboard boxes
     const ledgerList=section==='movement'?movementSelectedLedger:displayLedger;
@@ -298,15 +307,35 @@
     // 2.14.96: full details of any register row (click a row)
     const receiptById=id=>receipts.find(x=>String(x.id)===String(id));
     const itemLabel=id=>{const m=masterById.get(id);const it=itemById(id);return `${m?.item_code?m.item_code+' · ':''}${displayStoreItemName(it?.item_name||m?.item_name||'Item')}`};
+    const whenBy=(name,at)=>[name,at?formatDateTimeIN(at):''].filter(Boolean).join(' · ');
+    function indentStory(ind){
+      if(!ind)return [];
+      const u=ind.unit||'';
+      const charged=allocations.filter(a=>String(a.indent_id)===String(ind.id)).reduce((n,a)=>n+Number(a.allocated_qty||0),0);
+      const rets=storeReturns.filter(x=>String(x.indent_id)===String(ind.id)&&x.status!=='Rejected');
+      const returned=rets.reduce((n,x)=>n+Number(x.quantity||0),0);
+      const bal=Math.max(0,Number(ind.received_qty||0)-charged-returned);
+      return [
+        ['Resident',patientFull(ind.patient_id)],['Indent',`CI-${String(ind.indent_no||'').padStart(5,'0')} · ${ind.status}`],
+        ['Requested',`${ind.requested_qty} ${u}`],['Raised by (nurse)',whenBy(ind.initiated_by_name,ind.initiated_at||ind.created_at)],['Request remarks',ind.request_remarks],
+        ['Approved',ind.approved_qty!=null?`${ind.approved_qty} ${u} · ${whenBy(ind.approved_by_name,ind.approved_at)}`:''],
+        ['Handed over',ind.handed_over_qty!=null?`${ind.handed_over_qty} ${u} · ${whenBy(ind.handed_over_by_name,ind.handed_over_at)}`:''],
+        ['Received by (nurse)',ind.received_qty!=null?`${ind.received_qty} ${u} · ${whenBy(ind.received_by_name,ind.received_at)}`:''],
+        ['Used (charged to resident)',ind.received_qty!=null?`${charged} ${u}`:''],
+        ['Returned to Stores',rets.length?rets.map(x=>`${x.quantity} ${x.unit||u} ${x.status} · ${whenBy(x.requested_by_name,x.requested_at)}${x.confirmed_by_name?' · confirmed by '+x.confirmed_by_name:''}`).join('; '):(ind.received_qty!=null?`0 ${u}`:'')],
+        ['Unused balance with resident',ind.received_qty!=null?`${bal} ${u}`:'']
+      ];
+    }
+    const indentFor=r=>indents.find(x=>String(x.id)===String(r.indent_id||r.reference_id||''));
     function ledgerDetail(r){
       const it=itemById(r.item_id)||{};const rc=r.receipt_id?receiptById(r.receipt_id):null;
       return {title:`SM-${String(r.movement_no||'').padStart(6,'0')} · ${r.movement_type||'Stock movement'}`,subtitle:itemLabel(r.item_id),fields:[
         ['Date & time',formatDateTimeIN(r.movement_at)],['Item',itemLabel(r.item_id)],['Movement type',r.movement_type],
         ['Stock in',Number(r.qty_in)>0?`${r.qty_in} ${it.unit||''}`:''],['Stock out',Number(r.qty_out)>0?`${r.qty_out} ${it.unit||''}`:''],
-        ['Balance after',`${r.balance_after} ${it.unit||''}`],['Resident',r.patient_id?patientName(r.patient_id):''],
+        ['Balance after',`${r.balance_after} ${unitLabel(it.unit)}`],['Resident',r.patient_id?patientFull(r.patient_id):''],
         ['Reference',r.reference_text],['Vendor receipt',rc?`SR-${String(rc.receipt_no||'').padStart(5,'0')} · ${rc.vendor_name||''}${rc.invoice_no?' · Invoice '+rc.invoice_no:''}`:''],
         ['Batch / expiry',rc?[rc.batch_no&&`Batch ${rc.batch_no}`,rc.expiry_date&&`Exp ${formatDateIN(rc.expiry_date)}`].filter(Boolean).join(' · '):''],
-        ['Recorded by',r.actor_name],['Remarks',r.remarks]]};
+        ['Recorded by',r.actor_name],['Remarks',r.remarks],...indentStory(indentFor(r))]};
     }
     function receiptDetail(r){
       const it=receiptItemRow(r);
@@ -322,7 +351,8 @@
       return {title:itemLabel(r.item_id),subtitle:`${formatDateIN(movementBounds.from)} to ${formatDateIN(movementBounds.to)}`,fields:[
         ['Opening balance',`${r.opening} ${r.unit}`],['Vendor received',`${r.received} ${r.unit}`],['Handed over / issued',`${r.handed} ${r.unit}`],
         ['Return received',`${r.returned} ${r.unit}`],['Closing balance',`${r.closing} ${r.unit}`],['Movements in period',String(rows.length)]],
-        list:rows};
+        list:rows,
+        residents:indents.filter(ind=>String(ind.store_item_id)===String(r.item_id)&&[ind.created_at,ind.initiated_at,ind.approved_at,ind.handed_over_at,ind.received_at].some(t=>t&&movementDateOnly(t)>=movementBounds.from&&movementDateOnly(t)<=movementBounds.to))};
     }
     function openDetail(d){setRowDetail(d)}
     async function openItemHistory(row){
@@ -500,7 +530,7 @@
         h('div',{className:'stores-stock-mobile'},displayStock.length?displayStock.map(r=>h('article',{className:'stores-stock-card',key:`mobile-${r.item_id}`},
           h('div',{className:'stores-stock-card-head'},h('strong',null,`${masterById.get(r.item_id)?.item_code?`${masterById.get(r.item_id).item_code} · `:''}${displayStoreItemName(r.item_name)}`),h('span',{style:statusStyle(r)},stockStatus(r))),
           h('div',{className:'stores-stock-card-values'},
-            h('span',null,h('small',null,'Unit'),h('b',null,r.unit)),
+            h('span',null,h('small',null,'Unit'),h('b',null,unitLabel(r.unit))),
             h('span',null,h('small',null,'Total In'),h('b',null,r.total_in)),
             h('span',null,h('small',null,'Total Out'),h('b',null,r.total_out)),
             h('span',null,h('small',null,'Balance'),h('b',null,r.balance_qty)),
@@ -515,7 +545,7 @@
         h('div',{className:'table-wrap stores-stock-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Item ID','Item','Unit','Total In','Total Out','Balance','Reorder Level','Status','Action'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,displayStock.length?displayStock.map(r=>h('tr',{key:r.item_id},
-            h('td',null,masterById.get(r.item_id)?.item_code||'—'),h('td',null,h('strong',null,displayStoreItemName(r.item_name))),h('td',null,r.unit),h('td',null,r.total_in),h('td',null,r.total_out),h('td',null,h('strong',null,r.balance_qty)),h('td',null,r.reorder_level),h('td',null,h('span',{style:statusStyle(r)},stockStatus(r))),
+            h('td',null,masterById.get(r.item_id)?.item_code||'—'),h('td',null,h('strong',null,displayStoreItemName(r.item_name))),h('td',null,unitLabel(r.unit)),h('td',null,r.total_in),h('td',null,r.total_out),h('td',null,h('strong',null,r.balance_qty)),h('td',null,r.reorder_level),h('td',null,h('span',{style:statusStyle(r)},stockStatus(r))),
             h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap',alignItems:'center'}},
               controller?h('div',{key:'controller-actions',style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>openReceiveFor(r)},'Receive Stock'),thisSection.departmentIssue&&typeof onOpenSection==='function'&&Number(r.balance_qty)>0?h('button',{key:'issue',className:'btn btn-secondary',disabled:busy,onClick:()=>openIssueFor(r)},'Issue to Dept'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),oversight?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openItemHistory(r)},'History'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(r)},'Expiry'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openCategoryEdit(r)},masterById.get(r.item_id)?.standard_category?`Category: ${masterById.get(r.item_id).standard_category}`:'Set Category'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null):h('span',{key:'view-only'},'View only'),
               oversight?h('button',{key:'remove',className:'btn btn-danger',disabled:busy,onClick:()=>removeItem(r)},'Remove'):null
@@ -570,6 +600,8 @@
         )
       ),
       rowDetail&&h(RowDetailModal,{title:rowDetail.title,subtitle:rowDetail.subtitle,fields:rowDetail.fields,onClose:()=>setRowDetail(null)},
+        rowDetail.residents&&h('div',null,h('h4',{style:{margin:'6px 0'}},`Residents — indents in this period (${rowDetail.residents.length})`),rowDetail.residents.length?rowDetail.residents.map(ind=>h('div',{key:ind.id,className:'stores-ledger-card',style:{marginBottom:'8px'}},
+          h('div',{className:'row-detail-grid',style:{margin:0}},indentStory(ind).filter(([,v])=>v).map(([k,v],i)=>h('div',{key:i,className:'row-detail-field'},h('small',null,k),h('strong',null,v)))))):h('p',null,'No resident indents for this item in this period.')),
         rowDetail.list&&h('div',null,h('h4',{style:{margin:'6px 0'}},'Movements — tap one for full details'),rowDetail.list.length?rowDetail.list.map(m=>h('div',{key:m.id,className:'stores-ledger-card row-clickable',style:{marginBottom:'6px'},onClick:()=>openDetail(ledgerDetail(m))},
           h('div',{className:'stores-ledger-card-head'},h('strong',null,m.movement_type||'Movement'),h('span',null,formatDateTimeIN(m.movement_at))),
           h('small',null,[Number(m.qty_in)>0?`+${m.qty_in}`:`−${m.qty_out}`,`balance ${m.balance_after}`,m.patient_id&&patientName(m.patient_id),m.reference_text,m.actor_name&&`by ${m.actor_name}`].filter(Boolean).join(' · ')))):h('p',null,'No movements in this period.'))
