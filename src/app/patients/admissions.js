@@ -1984,7 +1984,7 @@ Please keep these login details confidential.`;
     const timeAgo=ts=>{const m=Math.round((Date.now()-new Date(ts).getTime())/60000);return m<1?'just now':m<60?`${m} min ago`:m<1440?`${Math.round(m/60)} h ago`:formatDateTimeIN(ts)};
     const draftRows=[...(localDraft?[{key:'local',local:localDraft,patient_name:[localDraft.form?.title,localDraft.form?.full_name].filter(Boolean).join(' ')||'(name not entered yet)',mobile:localDraft.form?.mobile,updated_at:localDraft.saved_at,updated_by_name:'this device only',updated_device:admissionDevice}]:[]),...(openDrafts||[]).map(d=>({...d,key:d.id}))];
     const otherDrafts=draftRows.filter(d=>!(d.id&&String(d.id)===String(draftId)));
-    return h('form',{className:'card panel',onSubmit:submit,ref:formRef,onFocusCapture:e=>{try{const i=Array.from(formRef.current.querySelectorAll('input,select,textarea')).indexOf(e.target);if(i>=0)lastFieldRef.current=i}catch(_){}}},
+    return h('form',{className:'card panel admission-form',onSubmit:submit,ref:formRef,onFocusCapture:e=>{try{const i=Array.from(formRef.current.querySelectorAll('input,select,textarea')).indexOf(e.target);if(i>=0)lastFieldRef.current=i}catch(_){}}},
       h('div',{className:'panel-head'},h('div',null,h('h3',null,'Unified Patient Admission'),h('small',null,'Hospital discharge, direct admission, doctor referral or transfer'))),
       // 2.15.5: Unfinished Admissions — continue any admission in progress, on any device
       (otherDrafts.length>0||draftsMissing)&&h('div',{className:'admission-drafts-panel'},

@@ -3,6 +3,13 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.9 — New Admission form: compact and even
+- All fields in a row now line up at the top (no more inputs pushed down by a taller neighbour), with tighter spacing and smaller, cleaner inputs.
+- **Voice** is a small chip beside each field's label instead of a full-width bar under the field.
+- **Language / Dictate** appear only on the field being typed in (and stay visible while dictating), instead of under every field.
+- Diagnosis / Allergies lists: slim "No item added yet" line and tighter rows.
+- Only the New Admission form is changed; other screens keep their current look. No SQL. Files: `src/app/patients/admissions.js`, `styles.css`, version files, `app.js` (rebuilt).
+
 ## 2.15.8 — No false "Default package names" alert on New Admission
 - The red "Action failed — Default package names are shown temporarily…" popup appeared every time New Admission opened, for a split second before the real Care Packages loaded. It now appears only if the packages have loaded and none are set up, only to Admin / Manager, and as a notice rather than an error.
 - No SQL. Files: `src/app/patients/admissions.js`, version files, `app.js` (rebuilt).

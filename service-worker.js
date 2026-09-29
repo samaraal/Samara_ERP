@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.8';
-const CACHE = 'samara-erp-2.15.8-package-notice';
+const APP_VERSION = '2.15.9';
+const CACHE = 'samara-erp-2.15.9-compact-admission-form';
 const SHELL = [
   './',
   './index.html',
