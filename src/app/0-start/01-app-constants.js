@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.90';
+  const APP_VERSION = '2.14.91';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -45,7 +45,7 @@
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '29-Sep-2026 Admission daily report option';
+  const APP_BUILD_DATE = '29-Sep-2026 Pharmacy & Stores dashboards';
   const APP_SCHEMA_VERSION = '38';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];

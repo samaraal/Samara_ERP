@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.90';
-const CACHE = 'samara-erp-2.14.90-admission-daily-report';
+const APP_VERSION = '2.14.91';
+const CACHE = 'samara-erp-2.14.91-stores-dashboards';
 const SHELL = [
   './',
   './index.html',

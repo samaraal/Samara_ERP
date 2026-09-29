@@ -1,4 +1,6 @@
-  function ConsumablesStores({profile,categoryFilter=''}){
+  function ConsumablesStores({profile,categoryFilter='',section='',onSummary=null}){
+    // 2.14.91: section = '' (full page, as before) | 'none' | 'stock' | 'receive' | 'receipts' | 'movement' | 'expiry' — used by the Pharmacy & Stores dashboard
+    const show=key=>!section||section===key;
     const authority=useStoreAuthority(profile);
     const controller=authority.controller;
     const canEditChargeRate=isNursingManagerProfile(profile)||profile?.role==='Admin'||profile?.role==='Manager';
@@ -13,6 +15,7 @@
     const [removeTarget,setRemoveTarget]=React.useState(null),[moveChoice,setMoveChoice]=React.useState('');
     const isAdminProfile=profile?.role==='Admin';
     const [stockView,setStockView]=React.useState('All');
+    const [movementMode,setMovementMode]=React.useState('summary');
     const [movementPeriod,setMovementPeriod]=React.useState('month'),[movementItem,setMovementItem]=React.useState('All'),[movementFrom,setMovementFrom]=React.useState(todayISOIndia().slice(0,8)+'01'),[movementTo,setMovementTo]=React.useState(todayISOIndia());
     const [historyItem,setHistoryItem]=React.useState(null),[historyLedger,setHistoryLedger]=React.useState([]),[historyReceipts,setHistoryReceipts]=React.useState([]),[historyBusy,setHistoryBusy]=React.useState(false);
     const [categoryEditItem,setCategoryEditItem]=React.useState(null),[categoryEditValue,setCategoryEditValue]=React.useState('');
@@ -53,7 +56,7 @@
     async function load(){
       const [sRes,rRes,lRes,pRes,mRes]=await Promise.all([
         client.from('consumable_store_stock').select('*').order('item_name'),
-        client.from('consumable_store_receipts').select('*').order('received_at',{ascending:false}).limit(150),
+        client.from('consumable_store_receipts').select('*').order('received_at',{ascending:false}).limit(1000),
         client.from('consumable_store_ledger').select('*').order('movement_at',{ascending:false}).limit(5000),
         client.from('patients').select('id,title,full_name,patient_id').order('full_name').limit(1000),
         client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate,standard_category').order('item_name')
@@ -212,6 +215,34 @@
       const handed=rows.reduce((a,r)=>a+Number(r.qty_out||0),0);
       return {...item,opening,received,handed,returned,closing:opening+received+returned-handed};
     });
+    // 2.14.91: data for the Pharmacy & Stores dashboard boxes
+    const ledgerList=section==='movement'?movementSelectedLedger:displayLedger;
+    const expiryToday=todayISOIndia(),expirySoonLimit=addDaysISO(todayISOIndia(),90);
+    const expiryStateOf=r=>!r.expiry_date?'missing':String(r.expiry_date).slice(0,10)<expiryToday?'expired':String(r.expiry_date).slice(0,10)<=expirySoonLimit?'soon':'ok';
+    const expiryWatch=displayReceipts.filter(r=>Number(itemById(r.item_id)?.balance_qty||0)>0).map(r=>({...r,_state:expiryStateOf(r)})).filter(r=>r._state!=='ok')
+      .sort((a,b)=>({expired:0,soon:1,missing:2}[a._state]-{expired:0,soon:1,missing:2}[b._state])||String(a.expiry_date||a.received_date||'').localeCompare(String(b.expiry_date||b.received_date||'')));
+    const [expiryWatchFilter,setExpiryWatchFilter]=React.useState('All');
+    const expiryWatchVisible=expiryWatch.filter(r=>expiryWatchFilter==='All'||r._state===expiryWatchFilter);
+    const todayMoves=displayLedger.filter(r=>movementDateOnly(r.movement_at)===expiryToday);
+    const storesSummary={
+      loaded:stock.length>0||itemMaster.length>0,
+      items:categoryStock.length,
+      inStock:categoryStock.filter(x=>Number(x.balance_qty)>0).length,
+      low:categoryStock.filter(x=>Number(x.balance_qty)>0&&Number(x.reorder_level)>0&&Number(x.balance_qty)<=Number(x.reorder_level)).length,
+      out:categoryStock.filter(x=>Number(x.balance_qty)<=0).length,
+      receipts:displayReceipts.length,
+      lastReceipt:displayReceipts[0]?.received_date||'',
+      expired:expiryWatch.filter(r=>r._state==='expired').length,
+      soon:expiryWatch.filter(r=>r._state==='soon').length,
+      missing:expiryWatch.filter(r=>r._state==='missing').length,
+      todayIn:todayMoves.reduce((a,r)=>a+Number(r.qty_in||0),0),
+      todayOut:todayMoves.reduce((a,r)=>a+Number(r.qty_out||0),0),
+      monthMoves:displayLedger.filter(r=>movementDateOnly(r.movement_at)>=expiryToday.slice(0,8)+'01').length,
+      controller:!!controller,
+      access:!!(controller||oversight)
+    };
+    const storesSummaryKey=JSON.stringify(storesSummary);
+    React.useEffect(()=>{if(typeof onSummary==='function')onSummary(storesSummary)},[storesSummaryKey]);
     async function openItemHistory(row){
       setHistoryItem(row);setHistoryBusy(true);setHistoryLedger([]);setHistoryReceipts([]);
       const [l,r]=await Promise.all([
@@ -330,9 +361,10 @@
     const inStock=categoryStock.filter(x=>Number(x.balance_qty)>0).length;
     const stockStatus=row=>Number(row.balance_qty)<=0?'OUT OF STOCK':(Number(row.reorder_level)>0&&Number(row.balance_qty)<=Number(row.reorder_level)?'LOW STOCK':'IN STOCK');
     const statusStyle=row=>({fontWeight:900,fontSize:'12px',padding:'5px 8px',borderRadius:'999px',display:'inline-block',background:Number(row.balance_qty)<=0?'#fdebec':(Number(row.reorder_level)>0&&Number(row.balance_qty)<=Number(row.reorder_level)?'#fff4dc':'#e7f6ef'),color:'#5d3146'});
+    if(section==='none')return null;
     if(!controller&&!oversight)return h('div',null,h(Section,{title:'Pharmacy & Stores'},h('p',null,authority.active?'Pharmacy & Stores is presently assigned to the STD.':'Pharmacy & Stores access is assigned to the Nurse Manager.')));
     return h('div',null,
-      h(Section,{title:categoryFilter||'Pharmacy & Stores',subtitle:`${categoryFilter==='Pharmacy'?'Medicines and pharmacy stock':categoryFilter==='Consumables'?'Patient consumables and general store stock':'Medicines, consumables, vendor receipts, stock issues and balances'}. Current In-charge: ${authority.active?'STD (temporary assignment)':'Nurse Manager'}.`},
+      show('stock')&&h(Section,{title:categoryFilter||'Pharmacy & Stores',subtitle:`${categoryFilter==='Pharmacy'?'Medicines and pharmacy stock':categoryFilter==='Consumables'?'Patient consumables and general store stock':'Medicines, consumables, vendor receipts, stock issues and balances'}. Current In-charge: ${authority.active?'STD (temporary assignment)':'Nurse Manager'}.`},
         h('div',{className:'grid stats'},
           h('button',{type:'button',className:'card stat',onClick:()=>showStockView('In Stock'),style:{width:'100%',textAlign:'left',cursor:'pointer',fontFamily:'inherit',border:stockView==='In Stock'?'2px solid #b30b5d':'1px solid #ead2dd'}},h('span',null,'Items in Stock'),h('strong',null,inStock),h('small',{style:{display:'block',marginTop:'6px',fontWeight:800,color:'#9b1456'}},'Tap to view →')),
           h('button',{type:'button',className:'card stat',onClick:()=>showStockView('Low Stock'),style:{width:'100%',textAlign:'left',cursor:'pointer',fontFamily:'inherit',border:stockView==='Low Stock'?'2px solid #b30b5d':'1px solid #ead2dd'}},h('span',null,'Low Stock'),h('strong',null,low.length),h('small',{style:{display:'block',marginTop:'6px',fontWeight:800,color:'#9b1456'}},'Tap to view →')),
@@ -340,11 +372,11 @@
           h('button',{type:'button',className:'card stat',onClick:()=>showStockView('All'),style:{width:'100%',textAlign:'left',cursor:'pointer',fontFamily:'inherit',border:stockView==='All'?'2px solid #b30b5d':'1px solid #ead2dd'}},h('span',null,'Store Items'),h('strong',null,categoryStock.length),h('small',{style:{display:'block',marginTop:'6px',fontWeight:800,color:'#9b1456'}},'Tap to view →'))
         )
       ),
-      controller&&h('div',{className:'stores-action-bar',style:{display:'flex',gap:'8px',flexWrap:'wrap',margin:'0 0 16px'}},
+      !section&&controller&&h('div',{className:'stores-action-bar',style:{display:'flex',gap:'8px',flexWrap:'wrap',margin:'0 0 16px'}},
         h('button',{type:'button',className:showReceive?'btn btn-secondary':'btn btn-primary',onClick:()=>{const next=!showReceive;setShowReceive(next);if(next)setTimeout(()=>document.getElementById('stores-receive-form')?.scrollIntoView({behavior:'smooth',block:'start'}),60);}},showReceive?'✕ Close Receive from Vendor':'＋ Receive from Vendor'),
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>document.getElementById('stores-current-stock')?.scrollIntoView({behavior:'smooth',block:'start'})},'⌕ Search / Edit Stock')
       ),
-      controller&&showReceive&&h('div',{id:'stores-receive-form',style:{scrollMarginTop:'90px'}},h(Section,{title:'Receive from Vendor',subtitle:'Every pharmacy or Stores item received from a vendor must first be entered here before issue.'},
+      controller&&(section==='receive'||((!section||section==='stock')&&showReceive))&&h('div',{id:'stores-receive-form',style:{scrollMarginTop:'90px'}},h(Section,{title:'Receive from Vendor',subtitle:'Every pharmacy or Stores item received from a vendor must first be entered here before issue.'},
         h('div',{className:'field',style:{marginBottom:'12px'}},h('label',null,'Find item to receive (minimum 3 characters)'),h('input',{value:stockSearch,onChange:e=>setStockSearch(e.target.value),placeholder:categoryFilter==='Pharmacy'?'Example: dispo, syr, para':'Example: dia, glo, syr'}),h('small',null,stockSearch.trim().length>0&&stockSearch.trim().length<3?'Enter at least 3 characters.':'Matching items appear below — tap one to select.'),stockSearchText.length>=3&&h('div',{style:{marginTop:'8px',border:'1px solid #ead2dd',borderRadius:'10px',padding:'6px',maxHeight:'220px',overflowY:'auto',background:'#fff'}},(()=>{const master=(form.item_category==='Pharmacy'?pharmacyCatalog:storesCatalog).filter(x=>String(x||'').toLowerCase().includes(stockSearchText)).map(x=>({kind:'catalog',name:x,label:x}));const existing=categoryStock.filter(x=>String(x.item_name||'').toLowerCase().includes(stockSearchText)).map(x=>({kind:'existing',id:x.item_id,name:x.item_name,label:`${masterById.get(x.item_id)?.item_code?`${masterById.get(x.item_id).item_code} · `:''}${displayStoreItemName(x.item_name)} · Balance ${x.balance_qty} ${x.unit}`}));const seen=new Set();const matches=[...existing,...master].filter(x=>{const k=String(x.name||'').toLowerCase();if(seen.has(k))return false;seen.add(k);return true}).slice(0,30);return matches.length?matches.map((x,i)=>h('button',{key:`search-${x.kind}-${x.id||i}`,type:'button',className:'btn btn-secondary',style:{display:'block',width:'100%',textAlign:'left',margin:'3px 0'},onClick:()=>{x.kind==='existing'?selectItem(x.id):selectCatalogItem(x.name);setStockSearch('')}},x.label)):h('div',{style:{padding:'8px',color:'#7b6570'}},'No matching item found in this section.');})())),
         h('form',{onSubmit:receiveStock},
           h('div',{className:'grid two'},
@@ -375,7 +407,7 @@
           h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Receive into Stores')
         )
       )),
-      h('div',{id:'stores-current-stock',style:{scrollMarginTop:'90px'}},h(Section,{title:`Current ${categoryFilter||'Pharmacy & Stores'} Stock${stockView!=='All'?` — ${stockView}`:''}`,subtitle:'Tap History on any item to see its complete stock-wise movement trail: vendor receipts, patient handovers/issues, confirmed returns and balance after every movement. Use Category to tag an item so it appears when that Standard Item List category is chosen above.'},
+      h('div',{id:'stores-current-stock',style:{scrollMarginTop:'90px'}},show('stock')&&h(Section,{title:`Current ${categoryFilter||'Pharmacy & Stores'} Stock${stockView!=='All'?` — ${stockView}`:''}`,subtitle:'Tap History on any item to see its complete stock-wise movement trail: vendor receipts, patient handovers/issues, confirmed returns and balance after every movement. Use Category to tag an item so it appears when that Standard Item List category is chosen above.'},
         h('div',{className:'field',style:{marginBottom:'12px'}},h('label',null,'Search stock'),h('input',{type:'search',value:listSearch,onChange:e=>setListSearch(e.target.value),placeholder:'Item name or code — e.g. diaper or CON-0017'}),listSearchText?h('small',null,`${displayStock.length} matching item${displayStock.length===1?'':'s'}${stockView!=='All'?` in ${stockView}`:''}`):null),
         controller&&h('div',{style:{marginBottom:'12px',display:'flex',gap:'8px',flexWrap:'wrap'}},
           untaggedGuessableCount>0&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:autoAssignCategories},`Assign Category to All (${untaggedGuessableCount})`),
@@ -407,12 +439,26 @@
           )):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},'No store items found.'))
         ))
       )),
-      h(Section,{title:'Vendor Receipt Register'},
+      show('receipts')&&h(Section,{title:`${categoryFilter?categoryFilter+' — ':''}Vendor Receipt Register`},
         h('div',{className:'stores-register-mobile'},displayReceipts.length?displayReceipts.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card',key:`mobile-receipt-${r.id}`},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('span',null,formatDateIN(r.received_date))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Quantity'),h('strong',null,`${r.quantity} ${r.unit}`)),h('div',null,h('small',null,'Vendor'),h('strong',null,r.vendor_name||'—')),h('div',null,h('small',null,'Invoice'),h('strong',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'Batch / Expiry'),h('strong',null,batchExpiryCell(r))),h('div',null,h('small',null,'Received By'),h('strong',null,r.received_by_name||'—'))),controller&&h('div',{style:{marginTop:'8px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(receiptItemRow(r),r.id)},r.expiry_date?'Edit Expiry':'Add Expiry')))}):h('div',{className:'stores-view-only'},'No vendor receipts recorded.')),
         h('div',{className:'table-wrap stores-register-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Receipt','Date','Item','Qty','Vendor','Invoice','Batch / Expiry','Received By',...(controller?['Action']:[])].map(x=>h('th',{key:x},x)))),
           h('tbody',null,displayReceipts.length?displayReceipts.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('td',null,formatDateIN(r.received_date)),h('td',null,item?.item_name||'—'),h('td',null,`${r.quantity} ${r.unit}`),h('td',null,r.vendor_name),h('td',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—'),h('td',null,batchExpiryCell(r)),h('td',null,r.received_by_name||'—'),controller&&h('td',null,h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(receiptItemRow(r),r.id)},r.expiry_date?'Edit Expiry':'Add Expiry')))}):h('tr',null,h('td',{colSpan:controller?9:8,style:{textAlign:'center',padding:'24px'}},'No vendor receipts recorded.')))
         ))
+      ),
+      section==='expiry'&&h(Section,{title:`${categoryFilter?categoryFilter+' — ':''}Expiry Watch`,subtitle:'Vendor receipts of items still in stock that are expired, expire within 90 days, or have no expiry date entered. Most urgent first.'},
+        h('div',{className:'stores-mode-switch',role:'tablist',style:{marginBottom:'12px'}},[['All',`All (${expiryWatch.length})`],['expired',`Expired (${storesSummary.expired})`],['soon',`Within 90 days (${storesSummary.soon})`],['missing',`Expiry not entered (${storesSummary.missing})`]].map(([k,l])=>h('button',{key:k,type:'button',role:'tab','aria-selected':expiryWatchFilter===k,className:expiryWatchFilter===k?'active':'',onClick:()=>setExpiryWatchFilter(k)},l))),
+        expiryWatchVisible.length?h('div',{className:'stores-expiry-list'},expiryWatchVisible.map(r=>{const item=receiptItemRow(r);return h('article',{key:`expiry-${r.id}`,className:`stores-ledger-card stores-expiry-${r._state}`},
+          h('div',{className:'stores-ledger-card-head'},h('strong',null,`${masterById.get(r.item_id)?.item_code?masterById.get(r.item_id).item_code+' · ':''}${displayStoreItemName(item.item_name)}`),h('span',null,r._state==='expired'?'EXPIRED':r._state==='soon'?'Expires within 90 days':'Expiry not entered')),
+          h('div',{className:'stores-ledger-card-fields'},
+            h('div',null,h('small',null,'Batch / Expiry'),h('strong',null,batchExpiryCell(r))),
+            h('div',null,h('small',null,'Receipt'),h('strong',null,`SR-${String(r.receipt_no||'').padStart(5,'0')} · ${formatDateIN(r.received_date)}`)),
+            h('div',null,h('small',null,'Received Qty'),h('strong',null,`${r.quantity} ${r.unit||item.unit||''}`)),
+            h('div',null,h('small',null,'Item Balance Now'),h('strong',null,`${item.balance_qty} ${item.unit||''}`)),
+            h('div',null,h('small',null,'Vendor'),h('strong',null,r.vendor_name||'—'))
+          ),
+          controller&&h('div',{style:{marginTop:'8px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(item,r.id)},r.expiry_date?'Edit Expiry':'Add Expiry'))
+        )})):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},expiryWatch.length?'Nothing in this filter.':'All good — no expired, soon-to-expire or missing expiry dates for items in stock.')
       ),
       editItem&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)'}},
         h('form',{className:'modal-card',onSubmit:saveEditItem,style:{maxWidth:'560px',background:'#fffafd',opacity:1,padding:'22px'}},
@@ -549,7 +595,7 @@
           )
         )
       ),
-      h(Section,{title:`${categoryFilter||'Pharmacy & Stores'} Stock Movement Register`,subtitle:'Read-only period-wise reconciliation. Opening + Vendor Received + Return Received − Handed Over = Closing Balance.'},
+      show('movement')&&h(Section,{title:`${categoryFilter||'Pharmacy & Stores'} Stock Movement Register`,subtitle:section&&movementMode==='every'?'Every stock movement in the selected period and item, with the balance after each movement.':'Read-only period-wise reconciliation. Opening + Vendor Received + Return Received − Handed Over = Closing Balance.',actions:section?h('div',{className:'stores-mode-switch',role:'tablist'},[['summary','Summary'],['every','Every Movement']].map(([k,l])=>h('button',{key:k,type:'button',role:'tab','aria-selected':movementMode===k,className:movementMode===k?'active':'',onClick:()=>setMovementMode(k)},l))):null},
         h('div',{className:'form-grid',style:{marginBottom:'12px'}},
           h('div',{className:'field'},h('label',null,'Period'),h('select',{value:movementPeriod,onChange:e=>setMovementPeriod(e.target.value)},[['today','Today'],['yesterday','Yesterday'],['week','This Week'],['month','This Month'],['lastmonth','Last Month'],['custom','Custom Date Range']].map(([v,l])=>h('option',{key:v,value:v},l)))),
           h('div',{className:'field'},h('label',null,'Stock Item'),h('select',{value:movementItem,onChange:e=>setMovementItem(e.target.value)},h('option',{value:'All'},'All Items'),categoryStock.map(x=>h('option',{key:x.item_id,value:x.item_id},displayStoreItemName(x.item_name))))),
@@ -557,17 +603,17 @@
           movementPeriod==='custom'&&h('div',{className:'field'},h('label',null,'To'),h('input',{type:'date',value:movementTo,onChange:e=>setMovementTo(e.target.value)}))
         ),
         h('p',{className:'small-note'},`Period: ${formatDateIN(movementBounds.from)} to ${formatDateIN(movementBounds.to)} · ${movementItem==='All'?'All stock items':displayStoreItemName(categoryStock.find(x=>String(x.item_id)===String(movementItem))?.item_name||'Selected item')}`),
-        h('div',{className:'table-wrap'},h('table',{className:'table'},
+        (!section||movementMode==='summary')&&h('div',{className:'table-wrap'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Item','Opening Balance','Vendor Received','Handed Over','Return Received','Closing Balance'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,movementSummaryItems.length?movementSummaryItems.map(r=>h('tr',{key:`movement-summary-${r.item_id}`},h('td',null,displayStoreItemName(r.item_name)),h('td',null,`${r.opening} ${r.unit}`),h('td',null,`${r.received} ${r.unit}`),h('td',null,`${r.handed} ${r.unit}`),h('td',null,`${r.returned} ${r.unit}`),h('td',null,h('strong',null,`${r.closing} ${r.unit}`)))):h('tr',null,h('td',{colSpan:6,style:{textAlign:'center',padding:'20px'}},'No stock items for this filter.')))
         )),
-        movementItem!=='All'&&h('div',{style:{marginTop:'16px'}},h('h4',null,'Selected Item — Movement Details'),movementSelectedLedger.length?movementSelectedLedger.map(r=>{const item=itemById(r.item_id);return h('div',{key:`movement-detail-${r.id}`,className:'stores-ledger-card',style:{marginBottom:'8px'}},h('div',{className:'stores-ledger-card-head'},h('strong',null,r.movement_type||'Stock Movement'),h('span',null,formatDateTimeIN(r.movement_at))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Stock In'),h('strong',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Stock Out'),h('strong',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),h('div',null,h('small',null,'Patient / Reference'),h('strong',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'By'),h('strong',null,r.actor_name||'—'))))}):h('p',null,'No movements for this item in the selected period.'))
+        (!section||movementMode==='summary')&&movementItem!=='All'&&h('div',{style:{marginTop:'16px'}},h('h4',null,'Selected Item — Movement Details'),movementSelectedLedger.length?movementSelectedLedger.map(r=>{const item=itemById(r.item_id);return h('div',{key:`movement-detail-${r.id}`,className:'stores-ledger-card',style:{marginBottom:'8px'}},h('div',{className:'stores-ledger-card-head'},h('strong',null,r.movement_type||'Stock Movement'),h('span',null,formatDateTimeIN(r.movement_at))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Stock In'),h('strong',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Stock Out'),h('strong',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),h('div',null,h('small',null,'Patient / Reference'),h('strong',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'By'),h('strong',null,r.actor_name||'—'))))}):h('p',null,'No movements for this item in the selected period.'))
       ),
-      h(Section,{title:`${categoryFilter||'Pharmacy & Stores'} Stock Ledger`,subtitle:'Every vendor receipt, patient handover/issue, confirmed return and physical adjustment is retained here. Use an item’s History button for its complete stock-wise trail.'},
-        h('div',{className:'stores-ledger-mobile'},displayLedger.length?displayLedger.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card',key:`mobile-ledger-${r.id}`},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('span',null,formatDateTimeIN(r.movement_at))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Movement Type'),h('strong',null,r.movement_type||'—')),h('div',null,h('small',null,'Stock In'),h('strong',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Stock Out'),h('strong',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),h('div',null,h('small',null,'Patient / Reference'),h('strong',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'By'),h('strong',null,r.actor_name||'—'))))}):h('div',{className:'stores-view-only'},'No stock movements recorded.')),
+      (!section||(section==='movement'&&movementMode==='every'))&&h(Section,{title:`${categoryFilter||'Pharmacy & Stores'} Stock Ledger${section?` · ${ledgerList.length} movement(s)`:''}`,subtitle:'Every vendor receipt, patient handover/issue, confirmed return and physical adjustment is retained here. Use an item’s History button for its complete stock-wise trail.'},
+        h('div',{className:'stores-ledger-mobile'},ledgerList.length?ledgerList.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card',key:`mobile-ledger-${r.id}`},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('span',null,formatDateTimeIN(r.movement_at))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Movement Type'),h('strong',null,r.movement_type||'—')),h('div',null,h('small',null,'Stock In'),h('strong',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Stock Out'),h('strong',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),h('div',null,h('small',null,'Patient / Reference'),h('strong',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'By'),h('strong',null,r.actor_name||'—'))))}):h('div',{className:'stores-view-only'},'No stock movements recorded.')),
         h('div',{className:'table-wrap stores-ledger-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Movement','Date / Time','Item','Type','Stock In','Stock Out','Balance After','Patient / Reference','By'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,displayLedger.length?displayLedger.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('td',null,formatDateTimeIN(r.movement_at)),h('td',null,item?.item_name||'—'),h('td',null,r.movement_type),h('td',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—'),h('td',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—'),h('td',null,h('strong',null,r.balance_after)),h('td',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—'),h('td',null,r.actor_name||'—'))}):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},'No stock movements recorded.')))
+          h('tbody',null,ledgerList.length?ledgerList.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SM-${String(r.movement_no||'').padStart(6,'0')}`),h('td',null,formatDateTimeIN(r.movement_at)),h('td',null,item?.item_name||'—'),h('td',null,r.movement_type),h('td',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—'),h('td',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—'),h('td',null,h('strong',null,r.balance_after)),h('td',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—'),h('td',null,r.actor_name||'—'))}):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},'No stock movements recorded.')))
         ))
       )
     ));

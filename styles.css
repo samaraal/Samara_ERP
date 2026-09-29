@@ -2421,3 +2421,40 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 .admission-family-comm-choice .check-card.portal b::after{content:' ★ Samara Family Portal';font-size:.72rem;font-weight:800;color:#8f4bc1;margin-left:4px}
 .admission-family-comm-choice .check-card.selected{border-color:#8f4bc1;background:#f3e8fa;box-shadow:0 0 0 1px #8f4bc1 inset}
 @media (max-width:760px){.admission-family-comm-choice{grid-template-columns:1fr}.admission-family-comm .form-grid{grid-template-columns:1fr}.admission-family-comm .span-2,.admission-family-comm .span-3{grid-column:1/-1}}
+/* 2.14.91 Pharmacy & Stores dashboard (Consumables / Pharmacy) */
+.stores-dash{margin:0 0 18px}
+.stores-dash-hero{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:22px 24px;border-radius:18px;color:#fff;background:linear-gradient(125deg,#9b1456 0%,#b30b5d 45%,#8f4bc1 100%);box-shadow:0 10px 26px rgba(143,20,86,.22);margin-bottom:18px}
+.stores-dash-hero small{letter-spacing:.14em;font-weight:800;font-size:.72rem;opacity:.85}
+.stores-dash-hero h2{margin:4px 0 6px;font-size:1.7rem;color:#fff}
+.stores-dash-hero p{margin:0;max-width:620px;opacity:.92;font-size:.92rem}
+.stores-dash-refresh{flex:0 0 auto;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.14);color:#fff;border-radius:10px;padding:9px 14px;font-weight:800;cursor:pointer;font-family:inherit}
+.stores-dash-refresh:hover{background:rgba(255,255,255,.26)}
+.stores-dash-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.stores-dash-tile{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;padding:16px 16px 14px;border:1px solid #ead2dd;border-top:4px solid #b30b5d;border-radius:16px;background:#fff;cursor:pointer;font-family:inherit;color:#3b1d2c;box-shadow:0 3px 12px rgba(92,23,58,.06);transition:transform .12s ease,box-shadow .12s ease}
+.stores-dash-tile:nth-child(even){border-top-color:#8f4bc1}
+.stores-dash-tile:hover,.stores-dash-tile:focus-visible{transform:translateY(-2px);box-shadow:0 10px 22px rgba(92,23,58,.14);outline:none}
+.stores-dash-tile.alert{background:linear-gradient(180deg,#fff4f8 0%,#fff 60%);border-color:#e7a9c6;border-top-color:#b42336}
+.stores-dash-tile.warn{background:linear-gradient(180deg,#fff9ec 0%,#fff 60%);border-top-color:#c98a00}
+.stores-dash-icon{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:1.15rem;font-weight:900;color:#fff;background:linear-gradient(135deg,#b30b5d,#8f4bc1)}
+.stores-dash-tile.alert .stores-dash-icon{background:linear-gradient(135deg,#b42336,#b30b5d)}
+.stores-dash-title{font-weight:900;font-size:.98rem;line-height:1.25}
+.stores-dash-value{display:flex;align-items:baseline;gap:6px}
+.stores-dash-value b{font-size:1.9rem;line-height:1;color:#9b1456}
+.stores-dash-tile.alert .stores-dash-value b{color:#b42336}
+.stores-dash-value small{color:#7a6070;font-weight:700;font-size:.78rem}
+.stores-dash-lines{display:flex;flex-direction:column;gap:2px;font-size:.8rem;color:#66566a}
+.stores-dash-open{margin-top:auto;padding-top:6px;font-size:.8rem;font-weight:900;color:#8f4bc1}
+.stores-dash-backbar{position:sticky;top:74px;z-index:4;display:flex;align-items:center;gap:12px;margin:0 0 14px;padding:10px 12px;border-radius:14px;background:linear-gradient(125deg,#9b1456,#b30b5d 55%,#8f4bc1);color:#fff;box-shadow:0 6px 16px rgba(143,20,86,.2)}
+.stores-dash-backbar strong{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.95rem}
+.stores-dash-back{border:0;background:#fff;color:#9b1456;font-weight:900;border-radius:10px;padding:9px 14px;cursor:pointer;font-family:inherit;white-space:nowrap}
+.stores-dash-close{border:1px solid rgba(255,255,255,.6);background:transparent;color:#fff;font-size:1.3rem;line-height:1;width:38px;height:38px;border-radius:10px;cursor:pointer}
+.stores-mode-switch{display:inline-flex;flex-wrap:wrap;gap:4px;padding:4px;border-radius:12px;background:#f6e9f0;border:1px solid #ead2dd}
+.stores-mode-switch button{border:0;background:transparent;padding:8px 12px;border-radius:9px;font-weight:800;color:#7a3a5a;cursor:pointer;font-family:inherit}
+.stores-mode-switch button.active{background:#b30b5d;color:#fff}
+.stores-expiry-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.stores-expiry-list .stores-expiry-expired{border-left:5px solid #b42318}
+.stores-expiry-list .stores-expiry-soon{border-left:5px solid #c98a00}
+.stores-expiry-list .stores-expiry-missing{border-left:5px solid #b9a2b1}
+@media (max-width:1100px){.stores-dash-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:900px){.stores-dash-backbar{top:0;z-index:6;border-radius:0 0 14px 14px}.stores-expiry-list{grid-template-columns:1fr}}
+@media (max-width:760px){.stores-dash-backbar-cat{display:none}.stores-dash-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.stores-dash-hero{padding:18px;flex-direction:column}.stores-dash-hero h2{font-size:1.4rem}.stores-dash-tile{padding:13px}.stores-dash-value b{font-size:1.55rem}.stores-dash-back{padding:8px 10px}.stores-dash-backbar strong{font-size:.85rem}}

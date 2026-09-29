@@ -3,6 +3,15 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.91 — Pharmacy & Stores: category dashboards
+- **Consumables** and **Pharmacy** (sidebar → Pharmacy & Stores) now each open a Samara-colour **dashboard** instead of one very long page. It has eight boxes with live numbers: **Indents — Action Needed**, **Indent Register**, **Received / Used Balance**, **Current Stock**, **Receive from Vendor** (store in-charge only), **Vendor Receipt Register**, **Stock Movement Register** and **Expiry Watch**. Boxes needing attention are highlighted red / amber.
+- Tapping a box opens only that section, with a **← Back to Dashboard** bar (stays at the top while scrolling) and **×** Close. The phone / browser back button also returns to the dashboard.
+- **Pharmacy now shows its own indents** (Pharmacy Indent Register, Received / Used Balance); Consumables shows only consumable indents.
+- **Stock Movement Register** has a **Summary / Every Movement** switch; Every Movement lists each movement for the chosen period and item (no more endless ledger).
+- New **Expiry Watch**: receipts of items still in stock that are expired, expire within 90 days, or have no expiry entered, with Add / Edit Expiry.
+- "Patient Consumables" (Indent Register) removed from the Manager sidebar; its work is now inside the two dashboards. The page itself stays for the indent alert badge. Nurses' Raise Indent / Received Indents pages and the STD "Stores" page are unchanged.
+- No SQL. Files: `src/app/stores/stores-dashboard.js` (new), `src/app/stores/consumables-stores.js`, `src/app/stores/patient-consumables.js`, `src/app/shell/01-app-main.js`, `src/app/core/04-supabase-roles-navigation.js`, `src/app/manifest.json`, `styles.css`, version files, `app.js` (rebuilt).
+
 ## 2.14.90 — Admission: Family Portal / Daily Intelligent Report / Both
 - Admission → Family Communication now offers three clear choices: **Family Portal Access** (Samara's highlight, shown first), **Daily Intelligent Report on WhatsApp**, or **Both**. The family can choose either one or both. Family Portal Access is no longer forced on every admission.
 - When the Daily Intelligent Report is included, the admission form shows **Daily Report Time** (default 8:00 PM) and "Report will be sent to" (Family Contact 1's name, relationship and WhatsApp number). From admission day the Intelligent Patient Report (PDF) goes out daily at that time through the approved WhatsApp template.

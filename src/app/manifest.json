@@ -344,12 +344,17 @@
   {
    "file": "stores/consumables-stores.js",
    "about": "Consumables stores",
-   "lines": 254
+   "lines": 621
   },
   {
    "file": "stores/patient-consumables.js",
    "about": "Patient consumables",
-   "lines": 131
+   "lines": 165
+  },
+  {
+   "file": "stores/stores-dashboard.js",
+   "about": "Pharmacy & Stores dashboard (Consumables / Pharmacy): navigable boxes, Back to Dashboard",
+   "lines": 92
   },
   {
    "file": "accounts/09-clinical-charges.js",

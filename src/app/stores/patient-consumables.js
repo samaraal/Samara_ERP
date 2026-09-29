@@ -1,11 +1,14 @@
-  function PatientConsumables({profile,initialView=null}){
+  function PatientConsumables({profile,initialView=null,categoryFilter='',section='',registerFilter='',onSummary=null}){
+    // 2.14.91: categoryFilter = 'Consumables' | 'Pharmacy' (indents of that section only); section = '' (full page) | 'none' | 'register' | 'balance' — used by the Pharmacy & Stores dashboard
     const authority=useStoreAuthority(profile);
-    const [patients,setPatients]=React.useState([]),[rows,setRows]=React.useState([]);
+    const [patients,setPatients]=React.useState([]),[allIndentRows,setRows]=React.useState([]);
     const stockInfo=usePharmacyStock(),stock=stockInfo.items;
     const [busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('Open');
     const [allocations,setAllocations]=React.useState([]),[returns,setReturns]=React.useState([]);
     const [form,setForm]=React.useState({patient_id:'',category:'',store_item_id:'',item_name:'',requested_qty:'1',unit:'Nos',request_remarks:''});
     const [masterItems,setMasterItems]=React.useState([]);
+    const indentCategoryOf=r=>{const m=(masterItems||[]).find(x=>String(x.id)===String(r.store_item_id));return m?.item_category||'Consumables'};
+    const rows=categoryFilter?(masterItems.length?allIndentRows.filter(r=>indentCategoryOf(r)===categoryFilter):[]):allIndentRows;
     const storeController=authority.controller,nurse=profile?.role==='Nurse'&&!isNursingManagerProfile(profile);
     const fallbackItems=['Adult Diapers','Examination Gloves','Sterile Gloves','Syringes','Dressing Materials','PPE','Feeding Tubes','Catheters','Oxygen Consumables','Underpads','Cotton / Gauze','Other Consumables'];
     const actorName=formalName(profile)||profile?.full_name||profile?.login_id||profile?.role||'Staff';
@@ -42,6 +45,7 @@
       notify('success','Patient Consumables refreshed.');
     }
     React.useEffect(()=>{load()},[]);
+    React.useEffect(()=>{if(registerFilter)setFilter(registerFilter)},[registerFilter,section]);
     function chooseItem(id){const st=stock.find(x=>x.item_id===id);setForm(f=>({...f,store_item_id:id,item_name:displayStoreItemName(st?.item_name)||'',unit:st?.unit||'Nos'}))}
     async function initiate(e){
       e.preventDefault();if(!nurse||busy)return;
@@ -95,6 +99,23 @@
     const openStatuses=['Initiated','Approved','Partially Approved','Handed Over','Receipt Discrepancy'];
     const visible=rows.filter(r=>filter==='All'||(filter==='Open'?openStatuses.includes(r.status):filter==='Awaiting Handover'?['Approved','Partially Approved'].includes(r.status):r.status===filter));
     const counts={initiated:rows.filter(r=>r.status==='Initiated').length,handover:rows.filter(r=>['Approved','Partially Approved'].includes(r.status)).length,receipt:rows.filter(r=>r.status==='Handed Over').length,discrepancy:rows.filter(r=>r.status==='Receipt Discrepancy').length};
+    // 2.14.91: numbers for the Pharmacy & Stores dashboard boxes
+    const indentToday=todayISOIndia();
+    const indentWeekStart=(()=>{const d=new Date(`${indentToday}T12:00:00`);d.setDate(d.getDate()-((d.getDay()+6)%7));return d.toISOString().slice(0,10)})();
+    const indentDay=r=>{try{return r.initiated_at||r.created_at?new Date(r.initiated_at||r.created_at).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'}):''}catch(_){return String(r.created_at||'').slice(0,10)}};
+    const indentRowIds=new Set(rows.map(r=>String(r.id)));
+    const indentSummary={
+      loaded:!categoryFilter||masterItems.length>0,
+      ...counts,
+      open:rows.filter(r=>openStatuses.includes(r.status)).length,
+      total:rows.length,
+      today:rows.filter(r=>indentDay(r)===indentToday).length,
+      week:rows.filter(r=>indentDay(r)>=indentWeekStart).length,
+      withBalance:rows.filter(r=>r.status==='Received'&&indentUsage(r).balance>0).length,
+      returnsPending:returns.filter(x=>x.status==='Pending'&&indentRowIds.has(String(x.indent_id))).length
+    };
+    const indentSummaryKey=JSON.stringify(indentSummary);
+    React.useEffect(()=>{if(typeof onSummary==='function')onSummary(indentSummary)},[indentSummaryKey]);
     // v2.14.67: Category (Consumables / Pharmacy) first, then the item with its Stores code
     // and live store balance — the same code, name and category as Stores & Pharmacy.
     const masterById=new Map((masterItems||[]).map(m=>[String(m.id),m]));
@@ -103,13 +124,14 @@
     const alphaSort=(a,b)=>String(a||'').localeCompare(String(b||''),'en',{sensitivity:'base',numeric:true});
     const indentCategories=[...new Set(stock.map(categoryOfStock))].sort(alphaSort);
     const options=stock.filter(x=>!form.category||categoryOfStock(x)===form.category).slice().sort((a,b)=>alphaSort(a.item_name,b.item_name));
+    if(section==='none')return null;
     return h('div',null,
-      h(Section,{title:'Patient Consumables',subtitle:'Nurse initiates for a patient → Store In-charge approves and hands over → Nurse confirms actual receipt.'},
+      !section&&h(Section,{title:'Patient Consumables',subtitle:'Nurse initiates for a patient → Store In-charge approves and hands over → Nurse confirms actual receipt.'},
         h('div',{className:'grid stats'},
           [['Awaiting Approval',counts.initiated,'Initiated'],['Awaiting Handover',counts.handover,'Awaiting Handover'],['Awaiting Receipt',counts.receipt,'Handed Over'],['Discrepancies',counts.discrepancy,'Receipt Discrepancy']].map(([label,count,target])=>h('button',{key:label,type:'button',className:'card stat',onClick:()=>navigateIndentFilter(target),style:{width:'100%',textAlign:'left',cursor:'pointer',border:filter===target?'2px solid #b30b5d':'1px solid #ead2dd',fontFamily:'inherit'}},h('span',null,label),h('strong',null,count),h('small',{style:{display:'block',marginTop:'7px',color:'#9b1456',fontWeight:800}},'Tap to view →')))
         )
       ),
-      nurse&&h('div',{id:'patient-raise-indent',style:{scrollMarginTop:'90px'}},h(Section,{title:'New Patient Indent',subtitle:'Select an active patient and a consumable or pharmacy item. Available store balance refreshes automatically; stock is issued at handover.'},
+      !section&&nurse&&h('div',{id:'patient-raise-indent',style:{scrollMarginTop:'90px'}},h(Section,{title:'New Patient Indent',subtitle:'Select an active patient and a consumable or pharmacy item. Available store balance refreshes automatically; stock is issued at handover.'},
         h('form',{onSubmit:initiate},h('div',{className:'grid two'},
           h('div',{className:'field'},h('label',null,'Patient *'),h('select',{value:form.patient_id,onChange:e=>setForm({...form,patient_id:e.target.value}),required:true},h('option',{value:''},'Select active patient'),patients.map(p=>h('option',{key:p.id,value:p.id},patientLabel(p.id))))),
           h('div',{className:'field'},h('label',null,'Category *'),h('select',{'aria-label':'Category',value:form.category,onChange:e=>setForm(f=>({...f,category:e.target.value,store_item_id:'',item_name:''})),required:true},h('option',{value:''},'Select category'),indentCategories.map(c=>h('option',{key:c,value:c},`${c} (${stock.filter(x=>categoryOfStock(x)===c).length})`)))),
@@ -118,7 +140,7 @@
           h('div',{className:'field'},h('label',null,'Unit'),h('input',{value:form.unit,readOnly:true}))
         ),h(PharmacyStockPanel,{stock:stockInfo,itemId:form.store_item_id,quantity:form.requested_qty,unit:form.unit,showSelector:false}),h('div',{className:'field'},h('label',null,'Reason / Remarks'),h('textarea',{rows:2,value:form.request_remarks,onChange:e=>setForm({...form,request_remarks:e.target.value}),placeholder:'Optional clinical/use note'})),h('button',{className:'btn btn-primary',disabled:busy||!form.item_name},busy?'Saving…':'Initiate Indent'))
       )),
-      h('div',{id:'patient-received-balance',style:{scrollMarginTop:'90px'}},h(Section,{title:'Received Indents / Used Balance',subtitle:'Patient-specific received stock. Charge Raised automatically reduces this balance; unused items can be returned only after Stores Manager confirms physical receipt.'},
+      (!section||section==='balance')&&h('div',{id:'patient-received-balance',style:{scrollMarginTop:'90px'}},h(Section,{title:`${categoryFilter?categoryFilter+' — ':''}Received Indents / Used Balance`,subtitle:'Patient-specific received stock. Charge Raised automatically reduces this balance; unused items can be returned only after Stores Manager confirms physical receipt.'},
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Indent','Item','Received','Charged','Return Pending / Returned','Balance','Action'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,rows.filter(r=>r.status==='Received').map(r=>{const u=indentUsage(r);const related=returns.filter(x=>String(x.indent_id)===String(r.id));const pending=related.filter(x=>x.status==='Pending').reduce((n,x)=>n+Number(x.quantity||0),0);const confirmed=related.filter(x=>x.status==='Confirmed').reduce((n,x)=>n+Number(x.quantity||0),0);return h('tr',{key:`balance-${r.id}`},
             h('td',null,patientLabel(r.patient_id)),h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),h('td',null,r.item_name),h('td',null,`${r.received_qty||0} ${r.unit}`),h('td',null,`${u.charged} ${r.unit}`),h('td',null,`${pending} pending / ${confirmed} returned`),h('td',null,h('strong',null,`${u.balance} ${r.unit}`)),
@@ -126,7 +148,7 @@
           )}),rows.filter(r=>r.status==='Received').length===0?h('tr',null,h('td',{colSpan:8,style:{textAlign:'center',padding:'24px'}},'No received patient indents yet.')):null)
         ))
       )),
-      h('div',{id:'consumables-indent-register',style:{scrollMarginTop:'90px'}},h(Section,{title:'Consumables Indent Register',actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:refreshIndents},busy?'Refreshing…':'↻ Refresh'),['Open','Initiated','Awaiting Handover','Handed Over','Receipt Discrepancy','Received','Rejected','All'].map(x=>h('button',{type:'button',key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>navigateIndentFilter(x),'aria-pressed':filter===x},x)))},
+      (!section||section==='register')&&h('div',{id:'consumables-indent-register',style:{scrollMarginTop:'90px'}},h(Section,{title:categoryFilter?`${categoryFilter} Indent Register`:'Consumables Indent Register',actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:refreshIndents},busy?'Refreshing…':'↻ Refresh'),['Open','Initiated','Awaiting Handover','Handed Over','Receipt Discrepancy','Received','Rejected','All'].map(x=>h('button',{type:'button',key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>navigateIndentFilter(x),'aria-pressed':filter===x},x)))},
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Indent','Patient','Item / Store Balance','Requested','Approved','Handed Over','Received','Status','Initiated By / Time','Approval / Handover','Receipt','Action'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,visible.length?visible.map(r=>{const st=stockFor(r);return h('tr',{key:r.id},
             h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),h('td',null,patientLabel(r.patient_id)),h('td',null,h('strong',null,r.item_name),h('small',{style:{display:'block'}},`Store: ${st?.balance_qty??'—'} ${st?.unit||r.unit}`),r.request_remarks&&h('small',{style:{display:'block'}},r.request_remarks)),
