@@ -3,6 +3,13 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.6 — Admission room allotment: no more "room/bed no longer available" after an interrupted save (SQL 166)
+- **Cause fixed:** when an admission save was interrupted (network drop, server busy), the bed could stay linked to that half-finished admission. The screen showed the bed as Available, but every retry was refused with "Selected room/bed is no longer available."
+- **One rule, on the server:** a bed is taken only if another **admitted** resident holds it, or another admission is still in progress on it (last 30 minutes). A link to the same resident, or to a discharged / abandoned admission, is treated as stale and replaced. Maintenance beds are never allotted; reserved beds only through the reservation.
+- The message now says **who** holds the bed (name, Resident ID, admitted / admission in progress).
+- **Safe to press "Complete Admission" again:** on a retry, anything already saved for the resident (package charge, medicines, care orders, physiotherapy, draft documents) is kept and never saved twice.
+- **Run SQL 166 once.** Files: `src/app/patients/admissions.js`, version files, `app.js` (rebuilt).
+
 ## 2.15.5 — Unfinished Admissions: auto-save and continue on any device (SQL 165)
 - **Unfinished Admissions** list at the top of New Admission (desktop, tablet and phone): patient name, draft no. (AD-0001 …), room, type, last saved time, by whom and on which device, documents saved. **Continue** or **Discard** (with reason).
 - Every admission in progress is its own server draft — several can be in progress at once, and **any Admission staff / Nursing Manager / Admin can continue** it (e.g. at shift change), on any device. A warning is shown if someone else was working on it in the last 3 minutes.

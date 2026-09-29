@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.5';
-const CACHE = 'samara-erp-2.15.5-unfinished-admissions';
+const APP_VERSION = '2.15.6';
+const CACHE = 'samara-erp-2.15.6-room-allotment-retry-safe';
 const SHELL = [
   './',
   './index.html',

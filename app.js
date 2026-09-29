@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.5';
+  const APP_VERSION = '2.15.6';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -16937,7 +16937,9 @@ Please keep these login details confidential.`;
         !selectedBed||
         !isPatientBed(selectedBed)||
         selectedBedOccupiedByOther||
-        (!selectedBedIsCurrentPatient&&!selectedBedIsReservedForThisAdmission&&selectedBedStatus!=='Available')
+        (!selectedBedIsCurrentPatient&&!selectedBedIsReservedForThisAdmission&&selectedBedStatus!=='Available'
+          // 2.15.6: an 'Occupied' mark with no admitted resident is a stale hold — the server decides
+          &&!(selectedBedStatus==='Occupied'&&!selectedBed.occupant_id))
       ){
         setMsg(
           selectedBedOccupiedByOther
@@ -17049,8 +17051,21 @@ Please keep these login details confidential.`;
         // 2.15.5: documents already saved with the draft are attached as they are (no second upload)
         const draftDocType={photo:'Patient Photo',identity:'Identity Proof',discharge:needsHospital?'Discharge / Transfer Summary':'Medical History',prescription:'Current Prescription',report:'Medical / Test Report'};
         const attachedDraftPaths=new Set();
+        // 2.15.6: retry-safe admission — when an interrupted admission is completed again,
+        // anything already saved for this resident (package charge, medicines, care, physio,
+        // draft documents) is kept as it is and never saved a second time.
+        const retryingAdmission=Boolean(pendingAdmissionResume);
+        const alreadySaved=async(table,apply)=>{
+          if(!retryingAdmission)return false;
+          let q=client.from(table).select('id',{count:'exact',head:true}).eq('patient_id',patient.id);
+          if(apply)q=apply(q);
+          const {count,error}=await q;
+          if(error)throw error;
+          return (count||0)>0;
+        };
         for(const meta of draftFiles){
           if(!draftDocType[meta.kind]||attachedDraftPaths.has(meta.path))continue;
+          if(await alreadySaved('patient_documents',q=>q.eq('storage_path',meta.path))){attachedDraftPaths.add(meta.path);continue}
           const {error:dd}=await client.from('patient_documents').insert({patient_id:patient.id,document_type:draftDocType[meta.kind],document_name:meta.name||draftDocType[meta.kind],storage_path:meta.path,mime_type:meta.mime||null,file_size:meta.size||null,uploaded_by:profile.id,is_verified:true});
           if(dd)throw dd;
           attachedDraftPaths.add(meta.path);
@@ -17064,7 +17079,7 @@ Please keep these login details confidential.`;
         for(const f of notYetSaved(prescriptionFiles))await uploadPatientFile(patient.id,f,'Current Prescription');
         for(const f of notYetSaved(reportFiles))await uploadPatientFile(patient.id,f,'Medical / Test Report');
         setDraftFiles([]);
-        if(selectedPackage&&!selectedPackage.is_fallback&&selectedPackageFee()>0){
+        if(selectedPackage&&!selectedPackage.is_fallback&&selectedPackageFee()>0&&!(await alreadySaved('billing_transactions',q=>q.eq('category','Assisted Living Package')))){
           const {error:packageChargeError}=await client.from('billing_transactions').insert({
             patient_id:patient.id,transaction_type:'Charge',category:'Assisted Living Package',
             amount:selectedPackageFee(),payment_mode:'Not applicable',
@@ -17075,13 +17090,13 @@ Please keep these login details confidential.`;
           });
           if(packageChargeError)throw packageChargeError;
         }
-        if(effectiveMeds.length){
+        if(effectiveMeds.length&&!(await alreadySaved('medication_orders',q=>q.eq('is_active',true)))){
           const medRows=effectiveMeds.map(m=>{const effectiveLocal=medicationEffectiveValue(m);const effectiveAt=new Date(effectiveLocal);const start=effectiveLocal.slice(0,10)||todayISOIndia();const durationDays=m.duration==='Custom'?Number(m.custom_duration_days||0):({'Single Dose':0,'1 Day':1,'3 Days':3,'5 Days':5,'7 Days':7,'10 Days':10,'14 Days':14,'21 Days':21,'30 Days':30}[m.duration]??null);let endDate=null;if(durationDays!==null)endDate=addDaysISODate(start,Math.max(durationDays-1,0));return {effective_from:Number.isNaN(effectiveAt.getTime())?null:effectiveAt.toISOString(),patient_id:patient.id,prescribed_by_doctor:m.prescribed_by_doctor,medicine_name:m.medicine_name,strength:m.strength,dose:m.strength,route:m.route,food_instruction:m.food_instruction,special_instruction:m.special_instruction,scheduled_times:m.times.split(',').map(x=>x.trim()).filter(Boolean),frequency:m.frequency,duration:m.duration,duration_days:m.duration==='Custom'?Number(m.custom_duration_days||0):durationDays,start_date:start,end_date:endDate,is_active:true,version_no:1,change_action:'Admission Prescription',status:'Active',entered_by:user.id,verified_by:user.id}});
           const {error:medicationInsertError}=await client.from('medication_orders').insert(medRows);
           if(medicationInsertError)throw medicationInsertError;
         }
-        const careRows=effectiveCare.map(c=>({...c,is_locked:undefined,preferred_from:careTimeValue(c.preferred_from)||null,preferred_to:careTimeValue(c.preferred_to)||null,patient_id:patient.id,entered_by:user.id}));if(careRows.length)await client.from('care_orders').insert(careRows);
-        if(form.physio_required&&form.therapy_type)await client.from('physiotherapy_plans').insert({patient_id:patient.id,advised_by:form.treating_doctor||form.referring_doctor,therapy_type:form.therapy_type,physiotherapist_name:form.physiotherapist_name||null,frequency:form.physio_frequency,preferred_time:form.physio_time,precautions:form.physio_precautions,start_date:form.admission_date,entered_by:user.id});
+        const careRows=effectiveCare.map(c=>({...c,is_locked:undefined,preferred_from:careTimeValue(c.preferred_from)||null,preferred_to:careTimeValue(c.preferred_to)||null,patient_id:patient.id,entered_by:user.id}));if(careRows.length&&!(await alreadySaved('care_orders',q=>q.eq('is_active',true))))await client.from('care_orders').insert(careRows);
+        if(form.physio_required&&form.therapy_type&&!(await alreadySaved('physiotherapy_plans',q=>q.eq('is_active',true))))await client.from('physiotherapy_plans').insert({patient_id:patient.id,advised_by:form.treating_doctor||form.referring_doctor,therapy_type:form.therapy_type,physiotherapist_name:form.physiotherapist_name||null,frequency:form.physio_frequency,preferred_time:form.physio_time,precautions:form.physio_precautions,start_date:form.admission_date,entered_by:user.id});
         // Final admission commit. For a NEW resident, only now allot the room and
         // activate the patient. This prevents validation/setup errors from leaving a
         // patient shown as admitted or a bed shown as occupied.
