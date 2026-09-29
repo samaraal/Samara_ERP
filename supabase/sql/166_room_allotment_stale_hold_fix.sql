@@ -16,12 +16,13 @@
 --     and is simply replaced.
 --   * The error now names who holds the bed.
 --
--- Patched in place (same safe method as SQL 141 / 148): only the exact availability
--- check text is replaced; if that text is not found, nothing changes and it says so.
+-- Patched in place (same safe method as SQL 141 / 148): only the old availability
+-- IF-block is replaced (spacing / message wording may differ); if it is not found,
+-- nothing changes and the live text is shown for the developer.
 -- Safe to run more than once.
 
 do $mig$
-declare d text; d2 text;
+declare d text; d2 text; v_old text;
 begin
   d := pg_get_functiondef('public.assign_patient_room(uuid,uuid,text)'::regprocedure);
   if position('v_bed_guard_2_15_6' in d) > 0 then
@@ -29,11 +30,14 @@ begin
     return;
   end if;
 
-  d2 := replace(d,
-$o$  if v_bed.status<>'Available' or v_bed.patient_id is not null then
-    raise exception 'Selected room/bed is no longer available.';
-  end if;$o$,
-$n$  -- v_bed_guard_2_15_6: one availability rule, stale holds ignored
+  -- Find the old availability check, tolerant of spacing / line breaks / wording of
+  -- the message. Only the IF ... END IF block that checks v_bed.status is replaced.
+  v_old := substring(d from '(?is)(if\s+v_bed\.status\s*(?:<>|!=)\s*''Available''.*?end\s+if\s*;)');
+  if v_old is null or position('v_bed.patient_id' in v_old) = 0 or length(v_old) > 400 then
+    raise exception E'assign_patient_room: availability check not found -- nothing changed. Share this with the developer:\n%',
+      coalesce(substring(d from position('into v_bed' in d) for 900), left(d, 900));
+  end if;
+  d2 := replace(d, v_old, $n$  -- v_bed_guard_2_15_6: one availability rule, stale holds ignored
   declare v_holder text;
   begin
     if v_bed.status = 'Maintenance' then
@@ -62,7 +66,7 @@ $n$  -- v_bed_guard_2_15_6: one availability rule, stale holds ignored
   end;$n$);
 
   if d2 = d or (length(d2)-length(replace(d2,'v_bed_guard_2_15_6','')))/18 <> 1 then
-    raise exception 'assign_patient_room: availability check text not found exactly once -- nothing changed. Share this message with the developer.';
+    raise exception 'assign_patient_room: availability check matched more than once -- nothing changed. Share this message with the developer.';
   end if;
   execute d2;
 end
