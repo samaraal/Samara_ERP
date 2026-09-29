@@ -115,49 +115,107 @@
     const draftReadyRef=React.useRef(false);
     const ADMISSION_FILE_PICKER_GUARD='samara_admission_file_picker_guard';
     const ADMISSION_DRAFT_SESSION_STATE=`samara_admission_draft_session_${profile?.id||'current'}`;
+    // 2.15.5: Unfinished Admissions — every admission in progress is its own server draft (SQL 165), listed at the top
+    // with Continue / Discard, so it can be continued after any interruption, on any device (desktop / tablet / phone),
+    // by any Admission staff member. The browser copy is kept as a fallback when the network is down.
+    const [draftId,setDraftIdState]=React.useState('');const draftIdRef=React.useRef('');
+    const setDraftId=id=>{draftIdRef.current=id||'';setDraftIdState(id||'')};
+    const [draftNo,setDraftNo]=React.useState(null);
+    const [draftFiles,setDraftFiles]=React.useState([]);
+    const [openDrafts,setOpenDrafts]=React.useState(null),[draftsMissing,setDraftsMissing]=React.useState(false),[localDraft,setLocalDraft]=React.useState(null);
+    const [showDraftList,setShowDraftList]=React.useState(true);
+    const formRef=React.useRef(null),lastFieldRef=React.useRef(null),[pendingFocus,setPendingFocus]=React.useState(null);
+    const admissionDevice=(()=>{const ua=navigator.userAgent||'';return /iPad|Tablet/i.test(ua)?'Tablet':/Mobi|Android|iPhone/i.test(ua)?'Phone':'Desktop'})();
+    const newDraftUuid=()=>{try{if(crypto?.randomUUID)return crypto.randomUUID()}catch(_){}return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&0x3|0x8)).toString(16)})};
+    function ensureDraftId(){if(!draftIdRef.current)setDraftId(newDraftUuid());return draftIdRef.current}
+    function draftSnapshot(){return {form,meds,care,familyAccess,familyAccess2,returningPatient,patient_id:draftPatientId||null}}
+    function applyDraftPayload(payload,{id='',no=null,files=[],lastField=null}={}){
+      const d=payload||{};
+      setForm({...initial,...(d.form||{})});
+      setMeds(Array.isArray(d.meds)&&d.meds.length?d.meds:[blankMedicine()]);
+      setCare(Array.isArray(d.care)&&d.care.length?d.care:[blankCare()]);
+      if(d.familyAccess)setFamilyAccess(current=>({...current,...d.familyAccess}));
+      if(d.familyAccess2)setFamilyAccess2(current=>({...current,...d.familyAccess2}));
+      setReturningPatient(d.returningPatient||null);
+      setDraftPatientId(d.patient_id||'');
+      setPhotoFiles([]);setIdFiles([]);setDischargeFiles([]);setPrescriptionFiles([]);setReportFiles([]);
+      setDraftId(id);setDraftNo(no);setDraftFiles(Array.isArray(files)?files:[]);
+      setDraftRestored(true);
+      if(lastField!==null&&lastField!==undefined)setPendingFocus(Number(lastField));
+      try{sessionStorage.setItem(ADMISSION_DRAFT_SESSION_STATE,id||'local')}catch(_){}
+    }
+    function readLocalDraft(){try{const raw=localStorage.getItem(ADMISSION_DRAFT_KEY);if(!raw)return null;const d=JSON.parse(raw);return d&&d.form?d:null}catch(_){return null}}
+    async function loadOpenDrafts(){
+      const {data,error}=await client.from('admission_draft_forms').select('id,draft_no,patient_name,mobile,address,room_no,admission_type,files,last_field,linked_patient_id,created_by_name,updated_by,updated_by_name,updated_device,created_at,updated_at').eq('status','Open').order('updated_at',{ascending:false}).limit(50);
+      if(error){setDraftsMissing(/does not exist|schema cache|could not find/i.test(String(error.message||'')));setOpenDrafts([]);return []}
+      setDraftsMissing(false);setOpenDrafts(data||[]);return data||[];
+    }
+    async function continueDraft(d){
+      if(busy)return;
+      if(d.local){applyDraftPayload(d.local,{id:d.local.draft_id||'',no:d.local.draft_no||null,files:d.local.draft_files||[],lastField:d.local.last_field});setMsg('Unfinished admission restored from this device. Continue from where you left.');setShowDraftList(false);return}
+      const recentOther=d.updated_by&&String(d.updated_by)!==String(profile?.id)&&(Date.now()-new Date(d.updated_at).getTime())<3*60000;
+      if(recentOther&&!window.confirm(`${d.updated_by_name||'Another staff member'} was working on this admission ${Math.max(1,Math.round((Date.now()-new Date(d.updated_at).getTime())/60000))} minute(s) ago. Continue it here anyway?`))return;
+      const {data,error}=await client.from('admission_draft_forms').select('*').eq('id',d.id).maybeSingle();
+      if(error||!data){setMsg(`Unable to open the draft: ${error?.message||'not found'}`);return}
+      if(data.status!=='Open'){setMsg(`This admission draft was already ${String(data.status).toLowerCase()}.`);loadOpenDrafts();return}
+      applyDraftPayload(data.payload,{id:data.id,no:data.draft_no,files:data.files,lastField:data.last_field});
+      setServerDraftSaved(true);setLastAutoSavedAt(new Date(data.updated_at));
+      setMsg(`Unfinished admission AD-${String(data.draft_no).padStart(4,'0')} restored${data.updated_by_name?` (last saved by ${data.updated_by_name})`:''}. Continue from where you left.`);
+      setShowDraftList(false);
+    }
+    function startNewAdmission(){
+      setForm(initial);setMeds([blankMedicine()]);setCare([blankCare()]);setReturningPatient(null);setMatchList([]);setPatientSearch('');
+      setPhotoFiles([]);setIdFiles([]);setDischargeFiles([]);setPrescriptionFiles([]);setReportFiles([]);
+      setDraftId('');setDraftNo(null);setDraftFiles([]);setDraftPatientId('');setDraftRestored(false);setLastAutoSavedAt(null);setServerDraftSaved(false);setServerDraftError('');
+      try{localStorage.removeItem(ADMISSION_DRAFT_KEY);sessionStorage.removeItem(ADMISSION_DRAFT_SESSION_STATE)}catch(_){}
+      setLocalDraft(null);setMsg('');setShowDraftList(false);try{window.scrollTo({top:0,behavior:'smooth'})}catch(_){}
+    }
+    async function discardDraft(d){
+      const who=d.patient_name||(d.local?.form?.full_name)||'this admission';
+      const reason=window.prompt(`Discard the unfinished admission of ${who}? It cannot be continued after this. Reason:`,'Not admitted / duplicate');
+      if(reason===null)return;
+      if(d.local&&!d.id){try{localStorage.removeItem(ADMISSION_DRAFT_KEY)}catch(_){}setLocalDraft(null);setMsg('Draft on this device discarded.');return}
+      const {error}=await client.rpc('admission_draft_close',{p_id:d.id,p_status:'Discarded',p_reason:reason||null,p_patient_id:null});
+      if(error){setMsg(error.message);return}
+      const paths=(d.files||[]).map(f=>f.path).filter(Boolean);if(paths.length){try{await client.storage.from('patient-documents').remove(paths)}catch(_){}}
+      if(String(d.id)===String(draftIdRef.current))startNewAdmission();
+      try{const l=readLocalDraft();if(l&&String(l.draft_id)===String(d.id))localStorage.removeItem(ADMISSION_DRAFT_KEY)}catch(_){}
+      setMsg(`Unfinished admission of ${who} discarded.`);loadOpenDrafts();
+    }
     React.useEffect(()=>{
-      try{
-        const raw=localStorage.getItem(ADMISSION_DRAFT_KEY);
-        if(raw){
-          const draft=JSON.parse(raw);
+      (async()=>{
+        try{
+          const local=readLocalDraft();
           const guardAt=Number(sessionStorage.getItem(ADMISSION_FILE_PICKER_GUARD)||0);
           const returningFromDocumentPicker=guardAt>0&&(Date.now()-guardAt)<120000;
-          const sessionState=sessionStorage.getItem(ADMISSION_DRAFT_SESSION_STATE)||'';
-          let shouldRestore=false;
-          if(Boolean(draft?.form)){
-            if(returningFromDocumentPicker||sessionState==='restore'){
-              shouldRestore=true;
-            }else if(sessionState!=='skip'){
-              shouldRestore=window.confirm('An unfinished Admission form was found. Restore the saved draft?');
-              sessionStorage.setItem(ADMISSION_DRAFT_SESSION_STATE,shouldRestore?'restore':'skip');
-            }
+          const sessionDraft=sessionStorage.getItem(ADMISSION_DRAFT_SESSION_STATE)||'';
+          const list=await loadOpenDrafts();
+          // Same browser tab reloaded (phone camera / file picker, network drop, accidental refresh) → continue automatically.
+          if(local&&(returningFromDocumentPicker||(sessionDraft&&(sessionDraft==='local'||sessionDraft===String(local.draft_id||''))))){
+            applyDraftPayload(local,{id:local.draft_id||'',no:local.draft_no||null,files:local.draft_files||[],lastField:local.last_field});
+            sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD);
+            setMsg(returningFromDocumentPicker?'Admission draft preserved after document selection.':'Your unfinished admission was restored. Continue from where you left.');
+            setShowDraftList(false);
+          }else if(sessionDraft&&sessionDraft!=='local'){
+            const d=list.find(x=>String(x.id)===sessionDraft);if(d)await continueDraft(d);
           }
-          if(shouldRestore){
-            sessionStorage.setItem(ADMISSION_DRAFT_SESSION_STATE,'restore');
-            setForm({...initial,...draft.form});
-            setMeds(Array.isArray(draft.meds)&&draft.meds.length?draft.meds:[blankMedicine()]);
-            setCare(Array.isArray(draft.care)&&draft.care.length?draft.care:[blankCare()]);
-            if(draft.familyAccess)setFamilyAccess(current=>({...current,...draft.familyAccess}));
-            if(draft.familyAccess2)setFamilyAccess2(current=>({...current,...draft.familyAccess2}));
-            setReturningPatient(draft.returningPatient||null);
-            setDraftPatientId(draft.patient_id||'');
-            setDraftRestored(true);
-            if(returningFromDocumentPicker){
-              sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD);
-              setMsg('Admission draft preserved after document selection.');
-            }else{
-              setMsg('Saved Admission draft restored. Uploaded files must be selected again for browser security.');
-            }
-          }
-          // Never delete a valid draft merely because Restore was declined.
-          // Starting a new admission must be an explicit action, not a side-effect of Cancel.
+          // A browser copy that never reached the server (no network / no name yet) is offered in the list too.
+          if(local&&!list.some(x=>String(x.id)===String(local.draft_id||'')))setLocalDraft(local);
+        }catch(error){
+          console.warn('Unable to load unfinished admissions:',error);
+        }finally{
+          setTimeout(()=>{draftReadyRef.current=true},0);
         }
-      }catch(error){
-        console.warn('Unable to restore Admission draft:',error);
-      }finally{
-        setTimeout(()=>{draftReadyRef.current=true},0);
-      }
+      })();
+      const onFocus=()=>loadOpenDrafts();window.addEventListener('focus',onFocus);
+      return()=>window.removeEventListener('focus',onFocus);
     },[]);
+    // after a restore, go back to the field the staff member was on
+    React.useEffect(()=>{
+      if(pendingFocus===null||!formRef.current)return;
+      const t=setTimeout(()=>{try{const el=Array.from(formRef.current.querySelectorAll('input,select,textarea'))[pendingFocus];if(el){el.scrollIntoView({behavior:'smooth',block:'center'});if(el.type!=='file')el.focus({preventScroll:true});el.classList.add('admission-resume-field');setTimeout(()=>el.classList.remove('admission-resume-field'),4000)}}catch(_){}setPendingFocus(null)},450);
+      return()=>clearTimeout(t);
+    },[pendingFocus]);
 
     React.useEffect(()=>{
       try{
@@ -175,117 +233,58 @@
       }catch(error){console.warn('Unable to open reserved bed in Admission:',error)}
     },[]);
 
+    const hasMeaningfulData=Boolean(
+      form.full_name||String(form.mobile||'').replace(/\D/g,'').length>2||form.district||form.village_town||form.street_name||form.house_no||form.attendant_name||
+      form.diagnosis||form.room_no||form.billing_package||meds.some(m=>m.medicine_name)||care.some(c=>c.task_name)||draftFiles.length
+    );
+    function writeLocalDraft(){
+      localStorage.setItem(ADMISSION_DRAFT_KEY,JSON.stringify({...draftSnapshot(),draft_id:draftIdRef.current||null,draft_no:draftNo,draft_files:draftFiles,last_field:lastFieldRef.current,saved_at:new Date().toISOString()}));
+      try{sessionStorage.setItem(ADMISSION_DRAFT_SESSION_STATE,draftIdRef.current||'local')}catch(_){}
+    }
+    // 1) this device, 0.7 s after every change
     React.useEffect(()=>{
       if(!draftReadyRef.current||busy)return;
       const timer=setTimeout(()=>{
         try{
-          const hasMeaningfulData=Boolean(
-            form.full_name||form.mobile||form.district||form.village_town||form.street_name||form.house_no||form.attendant_name||
-            form.diagnosis||form.room_no||form.billing_package||
-            meds.some(m=>m.medicine_name)||care.some(c=>c.task_name)
-          );
-          if(!hasMeaningfulData){
-            localStorage.removeItem(ADMISSION_DRAFT_KEY);
-            return;
-          }
-          localStorage.setItem(ADMISSION_DRAFT_KEY,JSON.stringify({
-            form,
-            meds,
-            care,
-            familyAccess,
-            returningPatient,
-            patient_id:draftPatientId||null,
-            saved_at:new Date().toISOString()
-          }));
-          setLastAutoSavedAt(new Date());
-        }catch(error){
-          console.warn('Unable to auto-save Admission draft:',error);
-        }
+          if(!hasMeaningfulData)return;
+          ensureDraftId();writeLocalDraft();setLastAutoSavedAt(new Date());
+        }catch(error){console.warn('Unable to auto-save Admission draft:',error)}
       },700);
       return()=>clearTimeout(timer);
-    },[form,meds,care,familyAccess,returningPatient,draftPatientId,busy]);
-
-    // Persistent Admission draft: once the minimum identity details are present,
-    // keep the whole form in Supabase as well as in browser storage. This is a
-    // DRAFT only; it does not create an active patient, occupy a bed, start billing,
-    // or activate medication/vitals/care alerts.
+    },[form,meds,care,familyAccess,familyAccess2,returningPatient,draftPatientId,draftFiles,busy]);
+    // 2) the server, as soon as the patient's name is entered — any device / any Admission staff can continue it
     React.useEffect(()=>{
-      if(!draftReadyRef.current||busy||returningPatient)return;
+      if(!draftReadyRef.current||busy)return;
       const name=String(form.full_name||'').trim();
-      const phoneOk=validInternationalMobile(form.mobile);
-      const addressParts=[form.house_no,form.street_name,form.locality_area,form.village_town,form.district,form.pincode]
-        .map(value=>String(value||'').trim()).filter(Boolean);
-      const addressOk=addressParts.length>=2 && Boolean(form.village_town||form.street_name||form.house_no||form.locality_area);
-      if(!name||!phoneOk||!addressOk){setServerDraftSaved(false);return}
+      if(name.length<2){setServerDraftSaved(false);return}
       const timer=setTimeout(async()=>{
         try{
-          const {data:{user}}=await client.auth.getUser();
-          if(!user?.id)return;
-          const draftPayload={form,meds,care,familyAccess,patient_id:draftPatientId||null,saved_at:new Date().toISOString()};
-          const {error}=await client.from('admission_drafts').upsert({
-            created_by:user.id,
-            patient_name:name,
-            mobile:String(form.mobile||'').trim(),
-            address:addressParts.join(', '),
-            draft_payload:draftPayload,
-            updated_at:new Date().toISOString()
-          },{onConflict:'created_by'});
+          const id=ensureDraftId();
+          const addressParts=[form.house_no,form.street_name,form.locality_area,form.village_town,form.district].map(v=>String(v||'').trim()).filter(Boolean);
+          const {data,error}=await client.rpc('admission_draft_save',{p_id:id,p_payload:draftSnapshot(),p_files:draftFiles,p_last_field:lastFieldRef.current,
+            p_patient_name:[form.title,name].filter(Boolean).join(' '),p_mobile:String(form.mobile||'').replace(/\D/g,'').length>4?String(form.mobile).trim():null,p_address:addressParts.join(', ')||null,
+            p_room_no:form.room_no?`${form.room_no}${form.bed_no?`-${form.bed_no}`:''}`:null,p_admission_type:form.admission_type||null,p_linked_patient_id:draftPatientId||null,p_device:admissionDevice});
           if(error)throw error;
+          if(data?.draft_no)setDraftNo(data.draft_no);
           setServerDraftSaved(true);setServerDraftError('');setLastAutoSavedAt(new Date());
         }catch(error){
+          const m=String(error?.message||error||'');
           console.warn('Unable to save Admission draft to server:',error);
-          setServerDraftSaved(false);setServerDraftError(error?.message||'Server draft save failed');
+          setServerDraftSaved(false);
+          if(/already (completed|discarded)/i.test(m)){setServerDraftError('');setDraftId('');setDraftNo(null);setMsg(`${m} Your entries are kept on this screen as a new draft.`)}
+          else setServerDraftError(/does not exist|schema cache|could not find/i.test(m)?'run supabase/sql/165_admission_drafts_shared.sql once in Supabase':m);
         }
-      },900);
+      },1200);
       return()=>clearTimeout(timer);
-    },[form,meds,care,familyAccess,draftPatientId,busy,returningPatient]);
+    },[form,meds,care,familyAccess,familyAccess2,returningPatient,draftPatientId,draftFiles,busy]);
 
-    // If this browser has no local draft, recover the staff member's latest
-    // server draft. This makes interrupted mobile/desktop admission entry recoverable.
-    React.useEffect(()=>{
-      let active=true;
-      (async()=>{
-        try{
-          if(localStorage.getItem(ADMISSION_DRAFT_KEY))return;
-          const {data:{user}}=await client.auth.getUser();
-          if(!user?.id)return;
-          const {data,error}=await client.from('admission_drafts').select('draft_payload,updated_at').eq('created_by',user.id).maybeSingle();
-          if(error||!data?.draft_payload?.form||!active)return;
-          const draft=data.draft_payload;
-          const sessionState=sessionStorage.getItem(ADMISSION_DRAFT_SESSION_STATE)||'';
-          if(sessionState==='skip')return;
-          const shouldRestore=sessionState==='restore'||window.confirm('An unfinished Admission draft saved on the server was found. Restore it?');
-          sessionStorage.setItem(ADMISSION_DRAFT_SESSION_STATE,shouldRestore?'restore':'skip');
-          if(shouldRestore){
-            setForm({...initial,...draft.form});
-            setMeds(Array.isArray(draft.meds)&&draft.meds.length?draft.meds:[blankMedicine()]);
-            setCare(Array.isArray(draft.care)&&draft.care.length?draft.care:[blankCare()]);
-            if(draft.familyAccess)setFamilyAccess(current=>({...current,...draft.familyAccess}));
-            if(draft.familyAccess2)setFamilyAccess2(current=>({...current,...draft.familyAccess2}));
-            setDraftPatientId(draft.patient_id||'');
-            setDraftRestored(true);setServerDraftSaved(true);
-            setMsg('Saved Admission draft restored from the server. Uploaded files must be selected again for browser security.');
-          }
-        }catch(error){console.warn('Unable to restore server Admission draft:',error)}
-      })();
-      return()=>{active=false};
-    },[]);
-
-    async function removeServerAdmissionDraft(){
-      try{
-        const {data:{user}}=await client.auth.getUser();
-        if(user?.id)await client.from('admission_drafts').delete().eq('created_by',user.id);
-      }catch(error){console.warn('Unable to remove server Admission draft:',error)}
-      setServerDraftSaved(false);setServerDraftError('');
-    }
-
-    function clearAdmissionDraft(){
+    function clearAdmissionDraft(patientId){
+      const id=draftIdRef.current;
+      if(id)client.rpc('admission_draft_close',{p_id:id,p_status:'Completed',p_reason:null,p_patient_id:patientId||draftPatientId||null}).then(()=>loadOpenDrafts(),()=>{});
       try{localStorage.removeItem(ADMISSION_DRAFT_KEY)}catch(_error){}
       try{sessionStorage.removeItem(ADMISSION_DRAFT_SESSION_STATE);sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD)}catch(_error){}
-      setDraftRestored(false);
-      setLastAutoSavedAt(null);
-      setDraftPatientId('');
-      removeServerAdmissionDraft();
+      setDraftRestored(false);setLastAutoSavedAt(null);setDraftPatientId('');setServerDraftSaved(false);setServerDraftError('');
+      setDraftId('');setDraftNo(null);setDraftFiles([]);setLocalDraft(null);
     }
 
     React.useEffect(()=>{
@@ -607,16 +606,39 @@
     }
     function saveAdmissionDraftBeforeDocumentPicker(){
       try{
-        localStorage.setItem(ADMISSION_DRAFT_KEY,JSON.stringify({
-          form,meds,care,familyAccess,familyAccess2,returningPatient,patient_id:draftPatientId||null,saved_at:new Date().toISOString()
-        }));
+        ensureDraftId();writeLocalDraft();
         sessionStorage.setItem(ADMISSION_FILE_PICKER_GUARD,String(Date.now()));
         setLastAutoSavedAt(new Date());
       }catch(error){
         console.warn('Unable to preserve Admission before document selection:',error);
       }
     }
+    // 2.15.5: every picked document is uploaded at once into the draft's folder, so it is never lost
+    const draftKindOf=setter=>setter===setPhotoFiles?'photo':setter===setIdFiles?'identity':setter===setDischargeFiles?'discharge':setter===setPrescriptionFiles?'prescription':setter===setReportFiles?'report':'other';
+    const [draftUploadBusy,setDraftUploadBusy]=React.useState(0);
+    async function keepDraftFiles(setter,files,replace){
+      const kind=draftKindOf(setter);const list=Array.from(files||[]);if(!list.length)return;
+      const id=ensureDraftId();setDraftUploadBusy(n=>n+1);
+      const saved=[];
+      for(const file of list){
+        try{
+          const safe=String(file.name||kind).replace(/[^a-zA-Z0-9._-]/g,'_');
+          const path=`admission-drafts/${id}/${Date.now()}-${Math.random().toString(36).slice(2,8)}-${safe}`;
+          const {error}=await client.storage.from('patient-documents').upload(path,file,{upsert:false,contentType:file.type||undefined});
+          if(error)throw error;
+          try{file.__draftPath=path}catch(_){}
+          saved.push({kind,name:file.name||kind,path,mime:file.type||null,size:file.size||null,uploaded_at:new Date().toISOString()});
+        }catch(error){console.warn('Draft document upload failed; it will be uploaded when the admission is saved.',error)}
+      }
+      setDraftUploadBusy(n=>Math.max(0,n-1));
+      if(saved.length)setDraftFiles(prev=>[...(replace||kind==='photo'?prev.filter(f=>f.kind!==kind):prev),...saved]);
+    }
+    function removeDraftFile(meta){
+      setDraftFiles(prev=>prev.filter(f=>f.path!==meta.path));
+      try{client.storage.from('patient-documents').remove([meta.path])}catch(_){}
+    }
     function setCapturedFiles(setter,isPhoto,file){
+      keepDraftFiles(setter,[file],isPhoto);
       setter(prev=>isPhoto?[file]:[...(prev||[]),file]);
       if(isPhoto){
         if(patientPhotoPreview)URL.revokeObjectURL(patientPhotoPreview);
@@ -627,12 +649,16 @@
       return h('div',{className:'field capture-field'},
         h('label',null,label),
         h('div',{className:'capture-actions'},
-          h('label',{className:'btn btn-secondary file-button'},'Upload File',h('input',{type:'file',multiple:!isPhoto,accept,onClick:saveAdmissionDraftBeforeDocumentPicker,onChange:e=>{sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD);const picked=Array.from(e.target.files||[]);setter(isPhoto?picked.slice(0,1):picked);if(isPhoto&&picked[0]){if(patientPhotoPreview)URL.revokeObjectURL(patientPhotoPreview);setPatientPhotoPreview(URL.createObjectURL(picked[0]))}if(picked.length)setMsg(`${label} selected. Admission draft preserved.`)}})),
-          h('label',{className:'btn btn-secondary file-button'},'Mobile Camera',h('input',{type:'file',multiple:!isPhoto,accept:'image/*',capture:isPhoto?'user':'environment',onClick:saveAdmissionDraftBeforeDocumentPicker,onChange:e=>{sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD);const picked=Array.from(e.target.files||[]);setter(prev=>isPhoto?picked.slice(0,1):[...(prev||[]),...picked]);if(isPhoto&&picked[0]){if(patientPhotoPreview)URL.revokeObjectURL(patientPhotoPreview);setPatientPhotoPreview(URL.createObjectURL(picked[0]))}if(picked.length)setMsg(`${label} captured. Admission draft preserved.`)}})),
+          h('label',{className:'btn btn-secondary file-button'},'Upload File',h('input',{type:'file',multiple:!isPhoto,accept,onClick:saveAdmissionDraftBeforeDocumentPicker,onChange:e=>{sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD);const picked=Array.from(e.target.files||[]);setter(isPhoto?picked.slice(0,1):picked);keepDraftFiles(setter,isPhoto?picked.slice(0,1):picked,true);if(isPhoto&&picked[0]){if(patientPhotoPreview)URL.revokeObjectURL(patientPhotoPreview);setPatientPhotoPreview(URL.createObjectURL(picked[0]))}if(picked.length)setMsg(`${label} selected. Admission draft preserved.`)}})),
+          h('label',{className:'btn btn-secondary file-button'},'Mobile Camera',h('input',{type:'file',multiple:!isPhoto,accept:'image/*',capture:isPhoto?'user':'environment',onClick:saveAdmissionDraftBeforeDocumentPicker,onChange:e=>{sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD);const picked=Array.from(e.target.files||[]);setter(prev=>isPhoto?picked.slice(0,1):[...(prev||[]),...picked]);keepDraftFiles(setter,isPhoto?picked.slice(0,1):picked,isPhoto);if(isPhoto&&picked[0]){if(patientPhotoPreview)URL.revokeObjectURL(patientPhotoPreview);setPatientPhotoPreview(URL.createObjectURL(picked[0]))}if(picked.length)setMsg(`${label} captured. Admission draft preserved.`)}})),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{saveAdmissionDraftBeforeDocumentPicker();setCameraConfig({title:label,facingMode:isPhoto?'user':'environment',filePrefix:isPhoto?'patient-photo':'patient-document',onCapture:file=>{sessionStorage.removeItem(ADMISSION_FILE_PICKER_GUARD);setCapturedFiles(setter,isPhoto,file);setMsg(`${label} captured. Admission draft preserved.`)}})}},'Webcam')
         ),
         isPhoto&&patientPhotoPreview?h('img',{src:patientPhotoPreview,className:'patient-capture-preview',alt:'Patient preview'}):null,
-        h('small',null,files?.length?`${files.length} file(s) selected`:'Choose an existing file, use the mobile camera, or open the webcam.')
+        (()=>{const kept=draftFiles.filter(f=>f.kind===draftKindOf(setter));const pending=(files||[]).filter(f=>!f.__draftPath).length;
+          return kept.length?h('div',{className:'admission-draft-files'},
+            h('small',null,`✓ ${kept.length} file(s) saved with this admission draft${pending?` · ${pending} more will upload on Save`:''}`),
+            kept.map(f=>h('span',{key:f.path,className:'admission-draft-file'},f.name,h('button',{type:'button','aria-label':`Remove ${f.name}`,title:'Remove',onClick:()=>removeDraftFile(f)},'✕'))))
+          :h('small',null,draftUploadBusy?'Saving the file with the draft…':files?.length?`${files.length} file(s) selected`:'Choose an existing file, use the mobile camera, or open the webcam.')})()
       );
     }
     async function uploadPatientFile(patientId,file,type,isPhoto=false){
@@ -786,7 +812,7 @@
     }
 
     function cleanAdmissionAfterConsent(){
-      clearAdmissionDraft();
+      clearAdmissionDraft(consentRecord?.patient?.id);
       setForm(initial);
       setReturningPatient(null);
       setMatchList([]);
@@ -1753,7 +1779,7 @@ Please keep these login details confidential.`;
           const rawDraft=localStorage.getItem(ADMISSION_DRAFT_KEY);
           const currentDraft=rawDraft?JSON.parse(rawDraft):{};
           localStorage.setItem(ADMISSION_DRAFT_KEY,JSON.stringify({
-            ...currentDraft,form,meds,care,familyAccess,familyAccess2,returningPatient,patient_id:patient.id,saved_at:new Date().toISOString()
+            ...currentDraft,...draftSnapshot(),draft_id:draftIdRef.current||null,draft_no:draftNo,draft_files:draftFiles,patient_id:patient.id,saved_at:new Date().toISOString()
           }));
         }catch(draftLinkError){
           console.warn('Unable to link Admission draft to created patient:',draftLinkError);
@@ -1766,12 +1792,24 @@ Please keep these login details confidential.`;
         const admissionCredential=admissionWhatsAppCredential(patient,portalCredential);
         const admissionCredential2=portalCredential2?admissionWhatsAppCredential(patient,portalCredential2):null;
         let admissionPhotoPath=patient.photo_storage_path||'';
-        if(photoFiles[0])admissionPhotoPath=await uploadPatientFile(patient.id,photoFiles[0],'Patient Photo',true);
+        // 2.15.5: documents already saved with the draft are attached as they are (no second upload)
+        const draftDocType={photo:'Patient Photo',identity:'Identity Proof',discharge:needsHospital?'Discharge / Transfer Summary':'Medical History',prescription:'Current Prescription',report:'Medical / Test Report'};
+        const attachedDraftPaths=new Set();
+        for(const meta of draftFiles){
+          if(!draftDocType[meta.kind]||attachedDraftPaths.has(meta.path))continue;
+          const {error:dd}=await client.from('patient_documents').insert({patient_id:patient.id,document_type:draftDocType[meta.kind],document_name:meta.name||draftDocType[meta.kind],storage_path:meta.path,mime_type:meta.mime||null,file_size:meta.size||null,uploaded_by:profile.id,is_verified:true});
+          if(dd)throw dd;
+          attachedDraftPaths.add(meta.path);
+          if(meta.kind==='photo'){const {error:pe}=await client.from('patients').update({photo_storage_path:meta.path}).eq('id',patient.id);if(pe)throw pe;admissionPhotoPath=meta.path}
+        }
+        const notYetSaved=list=>(list||[]).filter(f=>!f.__draftPath||!attachedDraftPaths.has(f.__draftPath));
+        if(notYetSaved(photoFiles)[0])admissionPhotoPath=await uploadPatientFile(patient.id,notYetSaved(photoFiles)[0],'Patient Photo',true);
         if(admissionPhotoPath)patient={...patient,photo_storage_path:admissionPhotoPath};
-        for(const f of idFiles)await uploadPatientFile(patient.id,f,'Identity Proof');
-        for(const f of dischargeFiles)await uploadPatientFile(patient.id,f,needsHospital?'Discharge / Transfer Summary':'Medical History');
-        for(const f of prescriptionFiles)await uploadPatientFile(patient.id,f,'Current Prescription');
-        for(const f of reportFiles)await uploadPatientFile(patient.id,f,'Medical / Test Report');
+        for(const f of notYetSaved(idFiles))await uploadPatientFile(patient.id,f,'Identity Proof');
+        for(const f of notYetSaved(dischargeFiles))await uploadPatientFile(patient.id,f,needsHospital?'Discharge / Transfer Summary':'Medical History');
+        for(const f of notYetSaved(prescriptionFiles))await uploadPatientFile(patient.id,f,'Current Prescription');
+        for(const f of notYetSaved(reportFiles))await uploadPatientFile(patient.id,f,'Medical / Test Report');
+        setDraftFiles([]);
         if(selectedPackage&&!selectedPackage.is_fallback&&selectedPackageFee()>0){
           const {error:packageChargeError}=await client.from('billing_transactions').insert({
             patient_id:patient.id,transaction_type:'Charge',category:'Assisted Living Package',
@@ -1883,27 +1921,41 @@ Please keep these login details confidential.`;
       }catch(err){setMsg(`${admissionExistingPatient?'Existing patient admission resumed':'Patient created'}, but document or care setup failed: ${err.message}`)}
       setBusy(false);
     }
-    return h('form',{className:'card panel',onSubmit:submit},
+    const timeAgo=ts=>{const m=Math.round((Date.now()-new Date(ts).getTime())/60000);return m<1?'just now':m<60?`${m} min ago`:m<1440?`${Math.round(m/60)} h ago`:formatDateTimeIN(ts)};
+    const draftRows=[...(localDraft?[{key:'local',local:localDraft,patient_name:[localDraft.form?.title,localDraft.form?.full_name].filter(Boolean).join(' ')||'(name not entered yet)',mobile:localDraft.form?.mobile,updated_at:localDraft.saved_at,updated_by_name:'this device only',updated_device:admissionDevice}]:[]),...(openDrafts||[]).map(d=>({...d,key:d.id}))];
+    const otherDrafts=draftRows.filter(d=>!(d.id&&String(d.id)===String(draftId)));
+    return h('form',{className:'card panel',onSubmit:submit,ref:formRef,onFocusCapture:e=>{try{const i=Array.from(formRef.current.querySelectorAll('input,select,textarea')).indexOf(e.target);if(i>=0)lastFieldRef.current=i}catch(_){}}},
       h('div',{className:'panel-head'},h('div',null,h('h3',null,'Unified Patient Admission'),h('small',null,'Hospital discharge, direct admission, doctor referral or transfer'))),
-      h('div',{className:'small-note',style:{display:'flex',justifyContent:'space-between',gap:'12px',alignItems:'center',marginBottom:'8px'}},
+      // 2.15.5: Unfinished Admissions — continue any admission in progress, on any device
+      (otherDrafts.length>0||draftsMissing)&&h('div',{className:'admission-drafts-panel'},
+        h('button',{type:'button',className:'admission-drafts-head',onClick:()=>setShowDraftList(v=>!v),'aria-expanded':showDraftList},
+          h('strong',null,`Unfinished Admissions (${otherDrafts.length})`),h('span',null,showDraftList?'Hide ▲':'Show ▼')),
+        draftsMissing&&h('p',{className:'small-note',style:{margin:'6px 0'}},'Shared drafts are not installed yet — please run supabase/sql/165_admission_drafts_shared.sql once in Supabase. Until then drafts are kept on this device only.'),
+        showDraftList&&h('div',{className:'admission-drafts-list'},otherDrafts.map(d=>h('article',{key:d.key,className:'admission-draft-card'},
+          h('div',{className:'admission-draft-main'},
+            h('strong',null,d.patient_name||'(name not entered yet)'),
+            h('small',null,[d.draft_no&&`AD-${String(d.draft_no).padStart(4,'0')}`,d.mobile,d.room_no&&`Room ${d.room_no}`,d.admission_type].filter(Boolean).join(' · ')),
+            h('small',null,`Saved ${timeAgo(d.updated_at)}${d.updated_by_name?` · ${d.updated_by_name}`:''}${d.updated_device?` · ${d.updated_device}`:''}${(d.files||[]).length?` · ${(d.files||[]).length} document(s)`:''}${d.linked_patient_id?' · admission saved, consent pending':''}`)
+          ),
+          h('div',{className:'admission-draft-actions'},
+            h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>continueDraft(d)},'Continue'),
+            h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>discardDraft(d)},'Discard'))
+        )))
+      ),
+      h('div',{className:'small-note admission-draft-status'},
         h('span',null,serverDraftError
-          ?`Browser draft saved; server auto-save needs attention: ${serverDraftError}`
+          ?`Saved on this device; server auto-save needs attention: ${serverDraftError}`
           :lastAutoSavedAt
-            ?`${serverDraftSaved?'Draft safely auto-saved':'Draft auto-saved in this device'} at ${formatTimeIN(lastAutoSavedAt)}`
-            :'Enter Patient Name, Mobile and Address to start automatic draft saving. The draft will not activate clinical alerts or billing.'
+            ?`${serverDraftSaved?`✓ Draft${draftNo?` AD-${String(draftNo).padStart(4,'0')}`:''} safely auto-saved — can be continued on any device`:'Draft auto-saved on this device'} at ${formatTimeIN(lastAutoSavedAt)}`
+            :'Auto-save starts as soon as you type. Once the patient name is entered, the draft can be continued on any device. A draft does not activate clinical alerts or billing.'
         ),
-        (draftRestored||lastAutoSavedAt)&&h('button',{
-          type:'button',
-          className:'btn btn-secondary',
-          onClick:()=>{
-            if(window.confirm('Discard the saved Admission draft and clear this form?')){
-              clearAdmissionDraft();
-              setForm(initial);setMeds([blankMedicine()]);setCare([blankCare()]);
-              setReturningPatient(null);setMatchList([]);setPatientSearch('');
-              setMsg('Saved Admission draft discarded.');
-            }
-          }
-        },'Discard Draft')
+        h('span',{className:'admission-draft-buttons'},
+          (draftRestored||lastAutoSavedAt||hasMeaningfulData)&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{if(window.confirm('Start a new admission? This one stays in Unfinished Admissions so it can be continued later.')){startNewAdmission();loadOpenDrafts()}}},'＋ Start New'),
+          (draftRestored||lastAutoSavedAt)&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{
+            const current=(openDrafts||[]).find(x=>String(x.id)===String(draftId));
+            if(current)discardDraft(current);
+            else if(window.confirm('Discard this draft and clear the form?')){startNewAdmission();setMsg('Draft discarded.')}
+          }},'Discard Draft'))
       ),
       msg&&(
         msg.includes('completed')||

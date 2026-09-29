@@ -3,6 +3,17 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.5 — Unfinished Admissions: auto-save and continue on any device (SQL 165)
+- **Unfinished Admissions** list at the top of New Admission (desktop, tablet and phone): patient name, draft no. (AD-0001 …), room, type, last saved time, by whom and on which device, documents saved. **Continue** or **Discard** (with reason).
+- Every admission in progress is its own server draft — several can be in progress at once, and **any Admission staff / Nursing Manager / Admin can continue** it (e.g. at shift change), on any device. A warning is shown if someone else was working on it in the last 3 minutes.
+- Auto-save starts as soon as typing starts (this device), and on the server as soon as the patient name is entered (was: name + mobile + address).
+- Same browser tab reloaded (phone camera / file picker, network drop, accidental refresh) → the admission continues automatically.
+- **Documents are no longer lost:** photo, ID proof, discharge summary, prescription and reports are saved with the draft the moment they are picked and attached to the resident on admission (no second upload). Each saved file can be removed (✕).
+- After Continue, the form scrolls back to the field the staff member was on (highlighted).
+- "＋ Start New" keeps the current admission in the list; the draft closes automatically when the admission formalities are complete.
+- Older one-per-user drafts are copied into the new list once. A draft never creates a patient, occupies a bed, starts billing or triggers clinical alerts.
+- **Run SQL 165 once.** Files: `src/app/patients/admissions.js`, `styles.css`, version files, `app.js` (rebuilt).
+
 ## 2.15.4 — Biomedical Equipment: Item Master + Receive / Purchase (SQL 164)
 - **Equipment Items** (new box): each kind of equipment is created once and gets an **item code** — BME-001 Pulse Oximeter, BME-002 Air Mattress … — linked to its Charge Master rate (BIO- code) or "Not charged". Edit renames all its pieces; Inactive stops new pieces; Delete only when it has no pieces. Duplicate names are blocked.
 - **Receive / Purchase** (replaces "Add Equipment"): choose the item → **Purchase from vendor** (vendor, bill no., bill date, cost per piece, warranty, serial numbers) or **Already owned (opening stock)**. Pieces are created automatically with codes **after the item code: BME-001-01, BME-001-02 …**
