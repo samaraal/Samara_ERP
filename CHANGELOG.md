@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.86 — Daily Care alerts: care given is counted, escalations close by themselves
+- **Problem (Mrs. Kasthuri, 29-09-2026):** Daily Care alerts / WhatsApp escalations kept coming although the care was recorded. Causes: (1) an entry made directly on the Daily Care page was saved with no link to the care order, so the alert never cleared (Bathing assistance 06:26 AM); (2) an entry opened from an alert kept that alert's link even when the nurse changed the activity (Walking/mobility saved against the Bathing order); (3) the server matched care by date, not by shift, so every night-shift task re-appeared at 12:00 midnight and escalated at once; (4) Daily Care escalations never closed after the care was recorded.
+- **App:** Daily Care entry now links itself to the patient's order for the chosen activity and shift; changing patient or activity drops the old link.
+- **SQL — run `supabase/sql/158_daily_care_alert_matching_autoresolve.sql` once** (Supabase → SQL Editor; safe to run again): care counts when the same patient + same activity is recorded in the current shift (linked or not); open Daily Care escalations close automatically when the care is recorded, and past ones whose care was recorded in that shift are closed now. Medicines, vitals and physiotherapy unchanged.
+- Files: `src/app/clinical/daily-care-vitals.js`, `supabase/sql/158_daily_care_alert_matching_autoresolve.sql`, version files, `app.js` (rebuilt).
+
 ## 2.14.85 — Clinical Alerts: Period filter
 - NURSING → Clinical Alerts looked empty because it lists only tasks due **at this moment**; when nothing is due, all counts show 0. The empty table now says so and points to the new Period filter.
 - New **Period** filter: Now (live) (default, unchanged), Today, Yesterday, Last 7 days, Last 30 days, This month, Custom (From / To, DD-MM-YYYY). A past period shows alerts from the escalation register with Status (Open / Resolved), Type, Priority, Patient, Room, Due, Alert Raised, Sent To, Reason, Resolution and an **Open Task** button; counts show total, still open, resolved and by type; Status and Type filters narrow the list.

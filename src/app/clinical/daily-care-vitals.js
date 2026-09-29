@@ -85,9 +85,24 @@
         return;
       }
       setSaving(true);
+      // v2.14.86: always link the entry to the patient's care order for this activity and shift,
+      // so the Clinical Alert clears. A link carried over from an alert is kept only if it is
+      // for the same patient and the same activity (it was wrong when the nurse changed the activity).
+      const chosenActivity=normaliseDailyCareActivity(form.care_type).toLowerCase();
+      let linkedOrderId=null;
+      try{
+        const {data:orders}=await client.from('care_orders')
+          .select('id,patient_id,care_type,shift,is_active')
+          .eq('patient_id',form.patient_id).eq('is_active',true);
+        const sameActivity=(orders||[]).filter(o=>normaliseDailyCareActivity(o.care_type).toLowerCase()===chosenActivity);
+        const forShift=sameActivity.filter(o=>o.shift===form.shift||o.shift==='Both shifts');
+        linkedOrderId=(sameActivity.find(o=>o.id===form.care_order_id)||forShift[0]||sameActivity[0]||{}).id||null;
+      }catch(linkError){
+        console.warn('Daily Care order link:',linkError?.message||linkError);
+      }
       const now=new Date();
       const payload={
-        care_order_id:form.care_order_id||null,
+        care_order_id:linkedOrderId,
         patient_id:form.patient_id,
         care_date:todayISOIndia(),
         shift:form.shift,
@@ -115,7 +130,7 @@
         data?.id||form.patient_id,
         {
           patient_id:form.patient_id,
-          care_order_id:form.care_order_id||null,
+          care_order_id:linkedOrderId,
           care_activity:normaliseDailyCareActivity(form.care_type),
           shift:form.shift,
           status:form.status,
@@ -134,12 +149,12 @@
           `After saving, this care task will be marked against the current shift and the system will return automatically to ${returnPage}.`
         ),
         h('form',{className:'modal-grid',onSubmit:save},
-          patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v})),
+          patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v,care_order_id:v===form.patient_id?form.care_order_id:''})),
           h('div',{className:'field'},
             h('label',null,'Care activity'),
             h('select',{
               value:normaliseDailyCareActivity(form.care_type),
-              onChange:e=>setForm({...form,care_type:e.target.value})
+              onChange:e=>setForm({...form,care_type:e.target.value,care_order_id:''})
             },
               [...new Set([
                 normaliseDailyCareActivity(form.care_type),
