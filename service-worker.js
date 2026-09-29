@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.94';
-const CACHE = 'samara-erp-2.14.94-stores-load-retry';
+const APP_VERSION = '2.14.95';
+const CACHE = 'samara-erp-2.14.95-biomedical-oxygen';
 const SHELL = [
   './',
   './index.html',

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.94';
+  const APP_VERSION = '2.14.95';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,10 +283,10 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '29-Sep-2026 Stores load retry';
+  const APP_BUILD_DATE = '29-Sep-2026 Biomedical & Oxygen registers';
   const APP_SCHEMA_VERSION = '38';
 
-  // 2.14.94: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
+  // 2.14.95: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
   // receiving, nurse indents, Charge Master, Bills & Charges). Must match public.store_section_names() in SQL 160.
   const STORE_SECTIONS=[
     {name:'Consumables',page:'Consumables',code:'CON',icon:'▤',departmentIssue:false,blurb:'Clinical consumables — indents, stock, receipts, movements and expiry at a glance.'},
@@ -298,6 +298,8 @@ function initSamaraInaugurationInvitation(){
   // Charge categories that are Stores items (live Store Master rate); 'Pharmacy & Basic Supplies' is the older Charge Master name for Pharmacy.
   const STORE_CHARGE_CATEGORIES=[...STORE_SECTION_NAMES,'Pharmacy & Basic Supplies'];
   const STORE_DEPARTMENTS=['Nursing Floor','Housekeeping','Kitchen / Pantry','Laundry','Office / Admin','Maintenance','Front Desk / Reception','Other'];
+  // 2.14.95: Accounts → Manual Billing & Payment Entry may post a "Charge" only in these categories; everything else goes through Bills & Charges.
+  const MANUAL_CHARGE_CATEGORIES=['Room Charges','Final Settlement','Other'];
   const storeSectionInfo=name=>STORE_SECTIONS.find(x=>x.name===name)||STORE_SECTIONS[0];
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -906,6 +908,8 @@ function initSamaraInaugurationInvitation(){
       .sidebar .nav-submenu button[data-nav='Pharmacy']::before{content:''!important;color:#25a98b!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m10.5 20.5 10-10a4.24 4.24 0 0 0-6-6l-10 10a4.24 4.24 0 0 0 6 6Z'/%3E%3Cpath d='m8.5 8.5 7 7'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m10.5 20.5 10-10a4.24 4.24 0 0 0-6-6l-10 10a4.24 4.24 0 0 0 6 6Z'/%3E%3Cpath d='m8.5 8.5 7 7'/%3E%3C/svg%3E")!important}
       .sidebar .nav-submenu button[data-nav='Housekeeping & General']::before{content:''!important;color:#c0508a!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 10h16l-1.6 9.2a2 2 0 0 1-2 1.8H7.6a2 2 0 0 1-2-1.8Z'/%3E%3Cpath d='M8 10l3-6'/%3E%3Cpath d='M16 10l-3-6'/%3E%3Cpath d='M9 14v3'/%3E%3Cpath d='M12 14v3'/%3E%3Cpath d='M15 14v3'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 10h16l-1.6 9.2a2 2 0 0 1-2 1.8H7.6a2 2 0 0 1-2-1.8Z'/%3E%3Cpath d='M8 10l3-6'/%3E%3Cpath d='M16 10l-3-6'/%3E%3Cpath d='M9 14v3'/%3E%3Cpath d='M12 14v3'/%3E%3Cpath d='M15 14v3'/%3E%3C/svg%3E")!important}
       .sidebar .nav-submenu button[data-nav='Kitchen / Food Stores']::before{content:''!important;color:#d98a1f!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2'/%3E%3Cpath d='M7 2v20'/%3E%3Cpath d='M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2'/%3E%3Cpath d='M7 2v20'/%3E%3Cpath d='M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7'/%3E%3C/svg%3E")!important}
+      .sidebar .nav-submenu button[data-nav='Biomedical Equipment']::before{content:''!important;color:#2f7fb8!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12h4l3-8 4 16 3-8h4'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12h4l3-8 4 16 3-8h4'/%3E%3C/svg%3E")!important}
+      .sidebar .nav-submenu button[data-nav='Oxygen Cylinders']::before{content:''!important;color:#1f9d7a!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 3h6'/%3E%3Cpath d='M12 3v3'/%3E%3Cpath d='M8 8a4 4 0 0 1 8 0v11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2Z'/%3E%3Cpath d='M10 13h4'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 3h6'/%3E%3Cpath d='M12 3v3'/%3E%3Cpath d='M8 8a4 4 0 0 1 8 0v11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2Z'/%3E%3Cpath d='M10 13h4'/%3E%3C/svg%3E")!important}
       .sidebar .nav-heading-button::before{content:''!important;width:22px!important;height:22px!important;min-width:22px!important;background-color:currentColor!important;-webkit-mask-repeat:no-repeat!important;mask-repeat:no-repeat!important;-webkit-mask-position:center!important;mask-position:center!important;-webkit-mask-size:21px 21px!important;mask-size:21px 21px!important}
       .sidebar .nav-section:nth-of-type(1)>.nav-heading-button::before{color:#d62b78!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 11 12 3l9 8'/%3E%3Cpath d='M5 10v10h14V10M9 20v-6h6v6'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 11 12 3l9 8'/%3E%3Cpath d='M5 10v10h14V10M9 20v-6h6v6'/%3E%3C/svg%3E")!important}
       .sidebar .nav-section:nth-of-type(2)>.nav-heading-button::before{color:#b41461!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1V21H9.6v-.09a1.7 1.7 0 0 0-1.1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.1 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1-.4H2.4V9.6h.09A1.7 1.7 0 0 0 4 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 8.4 4.1a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1V2.4h4v.09A1.7 1.7 0 0 0 15 4a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 8.4a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1 .4h.09v4h-.09a1.7 1.7 0 0 0-1.6 1.2Z'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1V21H9.6v-.09a1.7 1.7 0 0 0-1.1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.1 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1-.4H2.4V9.6h.09A1.7 1.7 0 0 0 4 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 8.4 4.1a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1V2.4h4v.09A1.7 1.7 0 0 0 15 4a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 8.4a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1 .4h.09v4h-.09a1.7 1.7 0 0 0-1.6 1.2Z'/%3E%3C/svg%3E")!important}
@@ -1647,7 +1651,7 @@ function initSamaraInaugurationInvitation(){
     { title:'ADMISSION', items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Approval Requests','Charge Register','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
-    { title:'PHARMACY & STORES', items:['Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores'] },
+    { title:'PHARMACY & STORES', items:['Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
     { title:'COMMUNICATION', items:['WhatsApp Inbox','WhatsApp Logs','Family Communication','Feedback','Mail Dashboard'] },
@@ -1659,11 +1663,11 @@ function initSamaraInaugurationInvitation(){
     Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&!NURSING_ENTRY_NAV.includes(item)),
     Manager:ALL_NAV.filter(item=>!['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements',"Director's Office",'Enquiries & Feedback','System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
 
-    Nurse:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Approval Requests','Raise Indent','Received Indents / Used Balance','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
+    Nurse:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Medicines','Approval Requests','Raise Indent','Received Indents / Used Balance','Oxygen Cylinders','Biomedical Equipment','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
     Accounts:['Accounts Dashboard','Duty Assignment','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
     Kitchen:['Notifications','Duty Assignment','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission'],
-    STD:["Director's Office",'Enquiries & Feedback','Food & Diet','Duty Assignment','Patient Consumables','Stores','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','WhatsApp Inbox','Feedback','My Leave & Permission']
+    STD:["Director's Office",'Enquiries & Feedback','Food & Diet','Duty Assignment','Patient Consumables','Stores','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders','WhatsApp Inbox','Feedback','My Leave & Permission']
   };
   Object.keys(ROLE_NAV).forEach(role=>{
     if(!ROLE_NAV[role].includes('Temporary Duty Swap'))ROLE_NAV[role].push('Temporary Duty Swap');
@@ -1697,13 +1701,13 @@ function initSamaraInaugurationInvitation(){
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Approval Requests','Charge Register',
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
-      'Patient Consumables','Stores','Stores In-charge Assignment','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
+      'Patient Consumables','Stores','Stores In-charge Assignment','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
     if(!pages.includes('Spot Assessment'))pages.push('Spot Assessment');
     if(isAdmissionDelegateProfile(profile)&&!pages.includes('Admissions'))pages.push('Admissions');
     if(profile?.role==='Manager'&&employeeDepartment(profile)&&!pages.includes('Employees'))pages.push('Employees');
-    if(isNursingManagerProfile(profile)){ if(!pages.includes('My To-Do List'))pages.push('My To-Do List'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Consumables'))pages.push('Consumables'); if(!pages.includes('Pharmacy'))pages.push('Pharmacy'); STORE_SECTIONS.forEach(x=>{if(!pages.includes(x.page))pages.push(x.page)}); if(!pages.includes('Stores In-charge Assignment'))pages.push('Stores In-charge Assignment'); if(!pages.includes('Employees'))pages.push('Employees'); }
+    if(isNursingManagerProfile(profile)){ if(!pages.includes('My To-Do List'))pages.push('My To-Do List'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Consumables'))pages.push('Consumables'); if(!pages.includes('Pharmacy'))pages.push('Pharmacy'); STORE_SECTIONS.forEach(x=>{if(!pages.includes(x.page))pages.push(x.page)}); ['Biomedical Equipment','Oxygen Cylinders'].forEach(x=>{if(!pages.includes(x))pages.push(x)}); if(!pages.includes('Stores In-charge Assignment'))pages.push('Stores In-charge Assignment'); if(!pages.includes('Employees'))pages.push('Employees'); }
     return pages;
   };
   const CLINICAL_ROLES=['Nurse','Caregiver'];
@@ -1746,7 +1750,7 @@ function initSamaraInaugurationInvitation(){
         {title:'ADMISSION',items:['Spot Assessment','Admissions'].filter(item=>allowed.includes(item))},
         {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Approval Requests','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My To-Do List','Notifications'].filter(item=>allowed.includes(item))},
         {title:'DUTY ROSTER & LEAVE',items:['Duty Assignment','Staff Leave Calendar','My Leave & Permission','Leave Approvals'].filter(item=>allowed.includes(item))},
-        {title:'PHARMACY & STORES',items:['Raise Indent','Received Indents / Used Balance'].filter(item=>allowed.includes(item))},
+        {title:'PHARMACY & STORES',items:['Raise Indent','Received Indents / Used Balance','Oxygen Cylinders','Biomedical Equipment'].filter(item=>allowed.includes(item))},
         {title:'MY ACCOUNT',items:['My Profile'].filter(item=>allowed.includes(item))}
       ];
     }
@@ -1758,7 +1762,7 @@ function initSamaraInaugurationInvitation(){
         {title:'NURSING STAFF',items:['Staff Duty Assignment','Duty Calendar','Staff Leave Calendar','Employees'].filter(item=>allowed.includes(item))},
         {title:'ADMISSION',items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},
         {title:'ROOMS & PACKAGES',items:['Rooms','Care Packages'].filter(item=>allowed.includes(item))},
-        {title:'PHARMACY & STORES',items:['Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores'].filter(item=>allowed.includes(item))},
+        {title:'PHARMACY & STORES',items:['Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'].filter(item=>allowed.includes(item))},
         {title:'FOOD & DIET',items:['Food & Diet'].filter(item=>allowed.includes(item))},
         {title:'COMMUNICATION',items:['WhatsApp Inbox'].filter(item=>allowed.includes(item))},
         {title:'CLINICAL REVIEW',items:['Reports','Intelligent Reports','Medication Errors','Recovery Timeline'].filter(item=>allowed.includes(item))},
@@ -7853,6 +7857,8 @@ https://samaraassistedliving.com/`;
           page==='Pharmacy'&&h(StoresDashboard,{profile,categoryFilter:'Pharmacy'}),
           page==='Housekeeping & General'&&h(StoresDashboard,{profile,categoryFilter:'Housekeeping & General'}),
           page==='Kitchen / Food Stores'&&h(StoresDashboard,{profile,categoryFilter:'Kitchen / Food Stores'}),
+          page==='Biomedical Equipment'&&h(BiomedicalEquipmentDashboard,{profile}),
+          page==='Oxygen Cylinders'&&h(OxygenCylindersDashboard,{profile}),
           page==='Stores In-charge Assignment'&&h(StoresInchargeAssignmentPage,{profile}),
           page==='Food & Diet'&&h(FoodDiet,{profile}),
           ['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(page)&&allowed.includes(page)&&window.SamaraOutgoingPayments&&h(window.SamaraOutgoingPayments,{key:page,client,profile,CameraCaptureModal,initialView:page==='Payment Statements'?'Statements':page==='Payment Vouchers'?'Vouchers':page==='Approved—Ready to Pay'?'Ready':'Requests'}),
@@ -8508,7 +8514,7 @@ https://samaraassistedliving.com/`;
     const [openSection,setOpenSection]=React.useState(activeSection);
     React.useEffect(()=>{const next=sections.find(section=>section.items.includes(page))?.title;if(next)setOpenSection(next)},[page]);
     const sectionIcon=title=>/OVERVIEW/.test(title)?'⌂':/HR|STAFF/.test(title)?'♙':/ADMISSION/.test(title)?'♥':/ROOM/.test(title)?'▦':/PHARMACY|STORE/.test(title)?'♨':/FOOD/.test(title)?'🍽\uFE0E':/ACCOUNT.*BILL|BILLING|PAYMENT|FINANCE/.test(title)?'₹':/COMMUNICATION|WHATSAPP/.test(title)?'✉\uFE0E':/MY ACCOUNT|PROFILE/.test(title)?'☺\uFE0E':/DUTY|ROSTER|LEAVE/.test(title)?'◷':/DIRECTOR/.test(title)?'★':/CLINICAL|NURSING/.test(title)?'✚':'⚙\uFE0E';
-    const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Consumables'?'▤':item==='Pharmacy'?'✚':item==='Housekeeping & General'?'🧺\uFE0E':item==='Kitchen / Food Stores'?'🍽\uFE0E':item==='Stores'?'▥':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My To-Do List'?'✓':'›';
+    const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Consumables'?'▤':item==='Pharmacy'?'✚':item==='Housekeeping & General'?'🧺\uFE0E':item==='Kitchen / Food Stores'?'🍽\uFE0E':item==='Biomedical Equipment'?'⚕\uFE0E':item==='Oxygen Cylinders'?'◉':item==='Stores'?'▥':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My To-Do List'?'✓':'›';
     React.useEffect(()=>{
       const onKey=e=>{if(e.key==='Escape')onClose()};
       document.addEventListener('keydown',onKey);
@@ -29333,6 +29339,18 @@ Please access the Samara Family Portal for detailed account information.`;
         setMessage(text);notify('error','Amount required',text);return;
       }
 
+      // 2.14.95: a manual "Charge" is allowed only where no other route exists. Items and services in
+      // Charge Master / Pharmacy & Stores are charged only through Bills & Charges (then Accounts approval),
+      // so nothing can be charged twice or charged without being issued.
+      if(form.transaction_type==='Charge'&&!MANUAL_CHARGE_CATEGORIES.includes(form.category)){
+        const text=`"${form.category}" is charged only through Bills & Charges (Charge Master / Pharmacy & Stores), then Accounts approval. Manual Charge is allowed only for: ${MANUAL_CHARGE_CATEGORIES.join(', ')}.`;
+        setMessage(text);notify('error','Use Bills & Charges',text);return;
+      }
+      if(form.transaction_type==='Charge'&&form.category==='Other'&&String(form.description||'').trim().length<5){
+        const text='For a manual "Other" charge, write the reason in the description.';
+        setMessage(text);notify('error','Reason required',text);return;
+      }
+
       if(form.transaction_type==='Discount'&&!canDiscount){
         const text='Discount can be entered only by the Admin.';
         setMessage(text);notify('error','Not permitted',text);return;
@@ -29760,7 +29778,7 @@ Please access the Samara Family Portal for detailed account information.`;
             h('select',{
               value:form.transaction_type,
               disabled:!!dischargeTarget,
-              onChange:e=>setForm({...form,transaction_type:e.target.value})
+              onChange:e=>{const t=e.target.value;setForm({...form,transaction_type:t,category:t==='Charge'&&!MANUAL_CHARGE_CATEGORIES.includes(form.category)?'Room Charges':form.category})}
             },
               (canDiscount?['Payment','Advance','Charge','Discount','Refund']:['Payment','Advance','Charge','Refund'])
                 .map(option=>h('option',{key:option,value:option},option))
@@ -29772,12 +29790,12 @@ Please access the Samara Family Portal for detailed account information.`;
               value:form.category,
               onChange:e=>setForm({...form,category:e.target.value})
             },
-              [
+              (form.transaction_type==='Charge'?MANUAL_CHARGE_CATEGORIES:[
                 'Final Settlement','Advance','Room Charges','Nursing Charges',
                 'Special Nurse Charges','Food Charges','Medicine Charges',
                 'Physiotherapy','Consumables','Doctor Visit','Lab Charges',
                 'Hospital Charges','Ambulance / Transport','Equipment','Other'
-              ].map(option=>h('option',{key:option,value:option},option))
+              ]).map(option=>h('option',{key:option,value:option},option))
             )
           ),
           h('div',{className:'field'},
@@ -30979,10 +30997,9 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
   // with a "← Back to Dashboard" bar and Close. The phone / browser back button also returns
   // to the dashboard. The sections themselves are the existing ConsumablesStores and
   // PatientConsumables screens, shown one part at a time (no change to how they work).
-  function StoresDashboard({profile,categoryFilter}){
+  // 2.14.95: shared dashboard shell (used by Stores, Biomedical Equipment and Oxygen Cylinders)
+  function useDashboardView(){
     const [view,setView]=React.useState('');
-    const [refreshKey,setRefreshKey]=React.useState(0);
-    const [stats,setStats]=React.useState(null),[indents,setIndents]=React.useState(null);
     const viewRef=React.useRef('');
     React.useEffect(()=>{viewRef.current=view},[view]);
     React.useEffect(()=>{
@@ -31008,10 +31025,40 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       try{if(history.state&&history.state.samaraStoresView){history.back();usedHistory=true}}catch(_){}
       if(!usedHistory){viewRef.current='';setView('');window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}})}
     }
+    return {view,openView,backToDashboard};
+  }
+  const dashNum=value=>value==null?'…':value;
+  function DashboardHero({kicker='PHARMACY & STORES',title,blurb,onRefresh}){
+    return h('div',{className:'stores-dash-hero'},
+      h('div',null,h('small',null,kicker),h('h2',null,title),h('p',null,blurb)),
+      onRefresh&&h('button',{type:'button',className:'stores-dash-refresh',onClick:onRefresh},'↻ Refresh')
+    );
+  }
+  function DashboardTiles({tiles,onOpen}){
+    return h('div',{className:'stores-dash-grid'},tiles.map(t=>h('button',{key:t.key,type:'button',className:`stores-dash-tile${t.alert?' alert':t.warn?' warn':''}`,onClick:()=>onOpen(t.key)},
+      h('span',{className:'stores-dash-icon','aria-hidden':'true'},t.icon),
+      h('span',{className:'stores-dash-title'},t.title),
+      h('span',{className:'stores-dash-value'},h('b',null,t.valueText||dashNum(t.value)),h('small',null,t.unit)),
+      h('span',{className:'stores-dash-lines'},(t.lines||[]).map((line,i)=>h('span',{key:i},line))),
+      h('span',{className:'stores-dash-open'},'Open →')
+    )));
+  }
+  function DashboardBackBar({title,viewTitle,onBack}){
+    return h('div',{className:'stores-dash-backbar'},
+      h('button',{type:'button',className:'stores-dash-back',onClick:onBack},'← Back to Dashboard'),
+      h('strong',null,h('span',{className:'stores-dash-backbar-cat'},`${title} · `),viewTitle),
+      h('button',{type:'button',className:'stores-dash-close','aria-label':'Close and return to dashboard',onClick:onBack},'×')
+    );
+  }
+
+  function StoresDashboard({profile,categoryFilter}){
+    const {view,openView,backToDashboard}=useDashboardView();
+    const [refreshKey,setRefreshKey]=React.useState(0);
+    const [stats,setStats]=React.useState(null),[indents,setIndents]=React.useState(null);
     const cat=categoryFilter||'Pharmacy & Stores';
     const isPharmacy=categoryFilter==='Pharmacy';
     const info=storeSectionInfo(categoryFilter||'Consumables');
-    const n=value=>value==null?'…':value;
+    const n=dashNum;
     const ready=!!(stats&&indents);
     const s=stats||{},ind=indents||{};
     const indentAction=Number(ind.initiated||0)+Number(ind.handover||0);
@@ -31041,30 +31088,294 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     if(stats&&stats.access===false)return h(ConsumablesStores,{profile,categoryFilter});
     return h('div',{className:'stores-dash-wrap'},
       !view&&h('div',{className:'stores-dash'},
-        h('div',{className:'stores-dash-hero'},
-          h('div',null,
-            h('small',null,'PHARMACY & STORES'),
-            h('h2',null,cat),
-            h('p',null,info.blurb)
-          ),
-          h('button',{type:'button',className:'stores-dash-refresh',onClick:()=>{setStats(null);setIndents(null);setRefreshKey(k=>k+1)}},'↻ Refresh')
-        ),
-        h('div',{className:'stores-dash-grid'},tiles.map(t=>h('button',{key:t.key,type:'button',className:`stores-dash-tile${t.alert?' alert':t.warn?' warn':''}`,onClick:()=>openView(t.key)},
-          h('span',{className:'stores-dash-icon','aria-hidden':'true'},t.icon),
-          h('span',{className:'stores-dash-title'},t.title),
-          h('span',{className:'stores-dash-value'},h('b',null,t.valueText||n(t.value)),h('small',null,t.unit)),
-          h('span',{className:'stores-dash-lines'},t.lines.map((line,i)=>h('span',{key:i},line))),
-          h('span',{className:'stores-dash-open'},'Open →')
-        )))
+        h(DashboardHero,{title:cat,blurb:info.blurb,onRefresh:()=>{setStats(null);setIndents(null);setRefreshKey(k=>k+1)}}),
+        h(DashboardTiles,{tiles,onOpen:openView})
       ),
-      view&&h('div',{className:'stores-dash-backbar'},
-        h('button',{type:'button',className:'stores-dash-back',onClick:backToDashboard},'← Back to Dashboard'),
-        h('strong',null,h('span',{className:'stores-dash-backbar-cat'},`${cat} · `),viewTitle),
-        h('button',{type:'button',className:'stores-dash-close','aria-label':'Close and return to dashboard',onClick:backToDashboard},'×')
-      ),
+      view&&h(DashboardBackBar,{title:cat,viewTitle,onBack:backToDashboard}),
       h(React.Fragment,{key:`stores-dash-data-${refreshKey}`},
         h(ConsumablesStores,{profile,categoryFilter,section:storeSection,onSummary:setStats,onOpenSection:openView}),
         h(PatientConsumables,{profile,categoryFilter,section:indentSection,registerFilter,onSummary:setIndents})
+      )
+    );
+  }
+  // 2.14.95: Biomedical Equipment register and Oxygen Cylinders register (SQL 161).
+  // Same dashboard shell as Pharmacy & Stores: navigable boxes → one section at a time,
+  // "← Back to Dashboard" / Close, phone back button returns to the dashboard.
+  // Equipment pieces are linked to their Charge Master "Biomedical Equipment" item (BIO- code), so the
+  // same item, code and rate are used in Bills & Charges, Accounts approval and the Patient Ledger.
+  // Oxygen is tracked here; it is still charged through Approval Requests (Oxygen Therapy – B/D-type).
+  function equipmentPatientName(patients,id){
+    const p=(patients||[]).find(x=>String(x.id)===String(id));
+    return p?[formalName(p)||p.full_name,p.patient_id&&`(${p.patient_id})`,p.room_no&&`Room ${p.room_no}${p.bed_no?`/${p.bed_no}`:''}`].filter(Boolean).join(' · '):'—';
+  }
+  function equipmentDaysSince(ts){if(!ts)return null;return Math.max(1,Math.ceil((Date.now()-new Date(ts).getTime())/86400000))}
+  function equipmentHoursSince(ts){if(!ts)return null;return Math.round((Date.now()-new Date(ts).getTime())/360000)/10}
+  const EQUIP_NOT_INSTALLED='The Biomedical Equipment / Oxygen registers are not installed yet. Please run supabase/sql/161_biomedical_equipment_oxygen_cylinders.sql once in Supabase.';
+  function equipmentNotify(type,text){showSamaraActionToast(type,type==='success'?'Register updated':'Action not completed',text)}
+  function equipmentErrorText(error){const m=String(error?.message||error||'');return /does not exist|schema cache|could not find/i.test(m)?EQUIP_NOT_INSTALLED:m}
+  function useEquipmentPeople(profile){
+    const authority=useStoreAuthority(profile);
+    const controller=!!authority.controller||profile?.role==='Admin';
+    const nurse=profile?.role==='Nurse'&&!isNursingManagerProfile(profile);
+    return {controller,nurse,canView:controller||nurse||['Admin','Manager','STD'].includes(profile?.role)};
+  }
+  function EquipmentStatusPill({status}){
+    const tone={'Available':'#e7f6ef','Full':'#e7f6ef','In Use':'#eaf2ff','Empty':'#fff1d6','At Refill':'#f3e8fa','Under Repair':'#fff1d6','Out of Service':'#fdebec'}[status]||'#eef1f0';
+    return h('span',{className:'equip-pill',style:{background:tone}},status);
+  }
+  function PatientPicker({patients,value,onChange,required=true}){
+    return h('select',{value:value||'',required,onChange:e=>onChange(e.target.value)},h('option',{value:''},'Select resident'),
+      (patients||[]).map(p=>h('option',{key:p.id,value:p.id},equipmentPatientName(patients,p.id))));
+  }
+
+  // ------------------------------------------------------------------ Biomedical Equipment
+  function BiomedicalEquipmentDashboard({profile}){
+    const {view,openView,backToDashboard}=useDashboardView();
+    const who=useEquipmentPeople(profile);
+    const [rows,setRows]=React.useState(null),[moves,setMoves]=React.useState([]),[patients,setPatients]=React.useState([]),[bio,setBio]=React.useState([]);
+    const [error,setError]=React.useState(''),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState('');
+    const [issueFor,setIssueFor]=React.useState(null),[issueForm,setIssueForm]=React.useState({patient_id:'',location:'',remarks:''});
+    const blankAdd={charge_key:'',equipment_name:'',serial_no:'',next_service_due:'',location:'Stores',notes:'',count:'1'};
+    const [addForm,setAddForm]=React.useState(blankAdd);
+    async function load(){
+      const [e,m,p,c]=await Promise.all([
+        client.from('biomedical_equipment').select('*').order('asset_no'),
+        client.from('biomedical_equipment_movements').select('*').order('moved_at',{ascending:false}).limit(1000),
+        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').eq('is_active',true).order('full_name'),
+        client.rpc('get_charge_service_catalog')
+      ]);
+      if(e.error){setError(equipmentErrorText(e.error));setRows([]);return}
+      setError('');setRows(e.data||[]);if(!m.error)setMoves(m.data||[]);if(!p.error)setPatients(p.data||[]);
+      if(!c.error)setBio((c.data||[]).filter(x=>x.category==='Biomedical Equipment'&&x.is_active!==false));
+    }
+    React.useEffect(()=>{load()},[]);
+    async function run(fn,args,ok){
+      if(busy)return false;setBusy(true);const res=await client.rpc(fn,args);setBusy(false);
+      if(res.error){equipmentNotify('error',equipmentErrorText(res.error));return false}
+      equipmentNotify('success',ok);await load();return true;
+    }
+    const list=rows||[];
+    const active=list.filter(x=>x.status!=='Out of Service');
+    const today=todayISOIndia(),soonLimit=addDaysISO(today,7);
+    const serviceDue=active.filter(x=>x.next_service_due&&String(x.next_service_due).slice(0,10)<=soonLimit);
+    const monthStart=today.slice(0,8)+'01';
+    const monthMoves=moves.filter(m=>String(m.moved_at).slice(0,10)>=monthStart);
+    const counts={inuse:list.filter(x=>x.status==='In Use').length,available:list.filter(x=>x.status==='Available').length,repair:list.filter(x=>x.status==='Under Repair').length,overdue:serviceDue.filter(x=>String(x.next_service_due).slice(0,10)<today).length};
+    const ready=rows!==null;
+    const tiles=[
+      {key:'inuse',icon:'♿︎',title:'In Use',value:ready?counts.inuse:null,unit:'with residents',lines:[`${new Set(list.filter(x=>x.status==='In Use').map(x=>x.current_patient_id).filter(Boolean)).size} resident(s)`,'Return from here']},
+      {key:'available',icon:'✓',title:'Available',value:ready?counts.available:null,unit:'ready to issue',lines:[who.controller?'Issue to a resident / room':'In Stores']},
+      {key:'service',icon:'🛠︎',title:'Service Due',value:ready?serviceDue.length:null,unit:'within 7 days',lines:[`${counts.overdue} overdue`],alert:counts.overdue>0,warn:serviceDue.length>0},
+      {key:'repair',icon:'⚠︎',title:'Under Repair',value:ready?counts.repair:null,unit:'pieces',lines:['Back in service from here'],warn:counts.repair>0},
+      {key:'register',icon:'▤',title:'Equipment Register',value:ready?active.length:null,unit:'pieces',lines:[`${bio.length} Charge Master Biomedical item(s)`,'Search by asset no., name, serial']},
+      ...(who.controller?[{key:'add',icon:'＋',title:'Add Equipment',valueText:'New',unit:'piece(s)',lines:['Linked to its Charge Master item and BIO code']}]:[]),
+      {key:'history',icon:'↕',title:'Movement History',value:ready?monthMoves.length:null,unit:'movements this month',lines:['Issued, returned, repair, service']}
+    ];
+    const viewTitle=(tiles.find(t=>t.key===view)||{}).title||'';
+    const q=search.trim().toLowerCase();
+    const shown=(view==='inuse'?list.filter(x=>x.status==='In Use'):view==='available'?list.filter(x=>x.status==='Available'):view==='service'?serviceDue:view==='repair'?list.filter(x=>x.status==='Under Repair'):list)
+      .filter(x=>q.length<2||`${x.asset_no} ${x.equipment_name} ${x.serial_no||''} ${x.charge_code||''} ${equipmentPatientName(patients,x.current_patient_id)}`.toLowerCase().includes(q));
+    async function doIssue(e){
+      e.preventDefault();if(!issueFor)return;
+      const ok=await run('bme_issue',{p_equipment_id:issueFor.id,p_patient_id:issueForm.patient_id||null,p_location:issueForm.location||null,p_remarks:issueForm.remarks||null},`${issueFor.asset_no} ${issueFor.equipment_name} issued.`);
+      if(ok){setIssueFor(null);setIssueForm({patient_id:'',location:'',remarks:''})}
+    }
+    function doReturn(x){const r=prompt(`Return ${x.asset_no} ${x.equipment_name} from ${equipmentPatientName(patients,x.current_patient_id)}? Remarks (optional):`,'');if(r===null)return;run('bme_return',{p_equipment_id:x.id,p_remarks:r||null},`${x.asset_no} returned to Stores.`)}
+    function askDate(label,current){const v=prompt(`${label} (DD-MM-YYYY), or leave blank:`,current?formatDateIN(current):'');if(v===null)return undefined;const t=v.trim();if(!t)return null;const m=t.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);if(!m){alert('Please enter the date as DD-MM-YYYY.');return undefined}return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`}
+    function doStatus(x,status){
+      let due=null;
+      if(status==='Serviced'){due=askDate('Next service due date',x.next_service_due);if(due===undefined)return}
+      const r=prompt(`${status==='Under Repair'?'Send for repair':status==='Out of Service'?'Mark out of service':status==='Serviced'?'Mark serviced':'Back in service'}: ${x.asset_no} ${x.equipment_name}. Remarks:`,'');if(r===null)return;
+      run('bme_set_status',{p_equipment_id:x.id,p_status:status,p_next_service_due:due,p_remarks:r||null},`${x.asset_no} updated.`);
+    }
+    async function doAdd(e){
+      e.preventDefault();if(busy)return;
+      const item=bio.find(b=>`${b.charge_code||''}|${b.service_name}`===addForm.charge_key);
+      const name=String(addForm.equipment_name||item?.service_name||'').trim();
+      if(!name)return equipmentNotify('error','Enter the equipment name or choose its Charge Master item.');
+      const n=Math.min(50,Math.max(1,parseInt(addForm.count,10)||1));
+      setBusy(true);let done=0,err=null;
+      for(let i=0;i<n;i++){
+        const res=await client.rpc('bme_add',{p_equipment_name:name,p_charge_code:item?.charge_code||null,p_charge_service_name:item?.service_name||null,p_serial_no:n===1?(addForm.serial_no||null):null,p_next_service_due:addForm.next_service_due||null,p_notes:addForm.notes||null,p_location:addForm.location||null});
+        if(res.error){err=res.error;break}done++;
+      }
+      setBusy(false);
+      if(err)equipmentNotify('error',equipmentErrorText(err));
+      if(done){equipmentNotify('success',`${done} × ${name} added to the register.`);setAddForm(blankAdd);await load()}
+    }
+    function EquipmentCard(x){
+      const days=x.status==='In Use'?equipmentDaysSince(x.issued_at):null;
+      const due=x.next_service_due?String(x.next_service_due).slice(0,10):'';
+      return h('article',{key:x.id,className:'stores-ledger-card equip-card'},
+        h('div',{className:'stores-ledger-card-head'},h('strong',null,`${x.asset_no} · ${x.equipment_name}`),h(EquipmentStatusPill,{status:x.status})),
+        h('div',{className:'stores-ledger-card-fields'},
+          h('div',null,h('small',null,'Charge Master'),h('strong',null,x.charge_code?`${x.charge_code} · ${x.charge_service_name||''}`:'Not charged to residents')),
+          x.serial_no&&h('div',null,h('small',null,'Serial No.'),h('strong',null,x.serial_no)),
+          x.status==='In Use'&&h('div',null,h('small',null,'With'),h('strong',null,x.current_patient_id?equipmentPatientName(patients,x.current_patient_id):(x.current_location||'—'))),
+          x.status==='In Use'&&h('div',null,h('small',null,'Since'),h('strong',null,`${formatDateIN(String(x.issued_at).slice(0,10))} · ${days} day(s)`)),
+          x.status!=='In Use'&&h('div',null,h('small',null,'Location'),h('strong',null,x.current_location||'Stores')),
+          h('div',null,h('small',null,'Next Service'),h('strong',{style:due&&due<today?{color:'#b42318'}:due&&due<=soonLimit?{color:'#9a6700'}:null},due?formatDateIN(due):'Not set'))
+        ),
+        h('div',{className:'equip-actions'},
+          who.controller&&x.status==='Available'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>{setIssueFor(x);setIssueForm({patient_id:'',location:'',remarks:''})}},'Issue'),
+          (who.controller||who.nurse)&&x.status==='In Use'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>doReturn(x)},'Return'),
+          who.controller&&x.status==='Available'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>doStatus(x,'Serviced')},'Mark Serviced'),
+          who.controller&&x.status==='Available'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>doStatus(x,'Under Repair')},'Send for Repair'),
+          who.controller&&x.status==='Under Repair'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>doStatus(x,'Available')},'Back in Service'),
+          who.controller&&['Available','Under Repair'].includes(x.status)&&h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:()=>doStatus(x,'Out of Service')},'Out of Service')
+        ),
+        issueFor&&issueFor.id===x.id&&h('form',{className:'equip-inline-form',onSubmit:doIssue},
+          h('div',{className:'grid two'},
+            h('div',{className:'field'},h('label',null,'Resident'),h(PatientPicker,{patients,value:issueForm.patient_id,required:false,onChange:v=>setIssueForm({...issueForm,patient_id:v})})),
+            h('div',{className:'field'},h('label',null,'Room / Location (if not for one resident)'),h('input',{value:issueForm.location,onChange:e=>setIssueForm({...issueForm,location:e.target.value}),placeholder:'Blank = resident’s room'}))
+          ),
+          h('div',{className:'field'},h('label',null,'Remarks'),h('input',{value:issueForm.remarks,onChange:e=>setIssueForm({...issueForm,remarks:e.target.value})})),
+          h('div',{className:'equip-actions'},h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Issue Equipment'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setIssueFor(null)},'Cancel'))
+        )
+      );
+    }
+    if(!who.canView)return h(Section,{title:'Biomedical Equipment'},h('p',null,'Access is for Nursing, the Nursing Manager / Store In-charge and Admin.'));
+    return h('div',{className:'stores-dash-wrap'},
+      error&&h('div',{className:'message error',style:{marginBottom:'12px'}},error),
+      !view&&h('div',{className:'stores-dash'},
+        h(DashboardHero,{title:'Biomedical Equipment',blurb:'Air mattresses, oxygen concentrators, suction machines, nebulizers, BP apparatus, pulse oximeters, wheelchairs — every piece tracked: who has it, since when, service due.',onRefresh:()=>{setRows(null);load()}}),
+        h(DashboardTiles,{tiles,onOpen:openView})
+      ),
+      view&&h(DashboardBackBar,{title:'Biomedical Equipment',viewTitle,onBack:backToDashboard}),
+      view==='add'&&who.controller&&h(Section,{title:'Add Equipment',subtitle:'Choose the Charge Master "Biomedical Equipment" item this piece is charged as (same item, BIO code and rate in Bills & Charges and Accounts). Add several identical pieces at once with "How many".'},
+        !bio.length&&h('p',{className:'message',style:{marginBottom:'10px'}},'No Biomedical Equipment items in Charge Master yet. Admin can add them in Charge Master (category "Biomedical Equipment", daily rate). Equipment that is never charged can still be added.'),
+        h('form',{onSubmit:doAdd},
+          h('div',{className:'grid two'},
+            h('div',{className:'field'},h('label',null,'Charge Master item'),h('select',{value:addForm.charge_key,onChange:e=>{const it=bio.find(b=>`${b.charge_code||''}|${b.service_name}`===e.target.value);setAddForm({...addForm,charge_key:e.target.value,equipment_name:addForm.equipment_name||it?.service_name||''})}},h('option',{value:''},'Not charged to residents'),bio.map(b=>h('option',{key:`${b.charge_code}|${b.service_name}`,value:`${b.charge_code||''}|${b.service_name}`},`${b.charge_code?b.charge_code+' · ':''}${b.service_name}`)))),
+            h('div',{className:'field'},h('label',null,'Equipment name *'),h('input',{required:true,value:addForm.equipment_name,onChange:e=>setAddForm({...addForm,equipment_name:e.target.value}),placeholder:'e.g. Air Mattress, Pulse Oximeter'})),
+            h('div',{className:'field'},h('label',null,'How many pieces'),h('input',{type:'number',min:'1',max:'50',value:addForm.count,onChange:e=>setAddForm({...addForm,count:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Serial No. (single piece only)'),h('input',{value:addForm.serial_no,disabled:(parseInt(addForm.count,10)||1)>1,onChange:e=>setAddForm({...addForm,serial_no:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Next service due'),h(StrictDateInput,{value:addForm.next_service_due,onChange:e=>setAddForm({...addForm,next_service_due:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Location'),h('input',{value:addForm.location,onChange:e=>setAddForm({...addForm,location:e.target.value})}))
+          ),
+          h('div',{className:'field'},h('label',null,'Notes'),h('textarea',{rows:2,value:addForm.notes,onChange:e=>setAddForm({...addForm,notes:e.target.value})})),
+          h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Add to Register')
+        )
+      ),
+      ['inuse','available','service','repair','register'].includes(view)&&h(Section,{title:viewTitle,subtitle:view==='inuse'?'Charge in Bills & Charges → Biomedical Equipment: quantity = days in use.':null},
+        h('div',{className:'field',style:{marginBottom:'12px'}},h('input',{type:'search',value:search,onChange:e=>setSearch(e.target.value),placeholder:'Search asset no., name, serial, resident'})),
+        shown.length?h('div',{className:'stores-expiry-list'},shown.map(EquipmentCard)):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},list.length?'Nothing here.':'No equipment in the register yet.')
+      ),
+      view==='history'&&h(Section,{title:'Movement History'},
+        moves.length?h('div',{className:'stores-expiry-list'},moves.slice(0,300).map(m=>{const x=list.find(e=>String(e.id)===String(m.equipment_id));return h('article',{key:m.id,className:'stores-ledger-card'},
+          h('div',{className:'stores-ledger-card-head'},h('strong',null,`${x?.asset_no||''} · ${x?.equipment_name||'Equipment'}`),h('span',null,formatDateTimeIN(m.moved_at))),
+          h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Action'),h('strong',null,m.action)),m.patient_id&&h('div',null,h('small',null,'Resident'),h('strong',null,equipmentPatientName(patients,m.patient_id))),m.location&&h('div',null,h('small',null,'Location'),h('strong',null,m.location)),h('div',null,h('small',null,'By'),h('strong',null,m.actor_name||'—')),m.remarks&&h('div',null,h('small',null,'Remarks'),h('strong',null,m.remarks))))})):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},'No movements yet.')
+      )
+    );
+  }
+
+  // ------------------------------------------------------------------ Oxygen Cylinders
+  function OxygenCylindersDashboard({profile}){
+    const {view,openView,backToDashboard}=useDashboardView();
+    const who=useEquipmentPeople(profile);
+    const [rows,setRows]=React.useState(null),[moves,setMoves]=React.useState([]),[patients,setPatients]=React.useState([]);
+    const [error,setError]=React.useState(''),[busy,setBusy]=React.useState(false),[sizeFilter,setSizeFilter]=React.useState('All');
+    const [putOn,setPutOn]=React.useState(null),[putForm,setPutForm]=React.useState({patient_id:'',location:'',remarks:''});
+    const [addForm,setAddForm]=React.useState({size:'D-type',status:'Full',count:'1',serial_no:'',vendor:'',notes:''});
+    async function load(){
+      const [c,m,p]=await Promise.all([
+        client.from('oxygen_cylinders').select('*').order('cylinder_no'),
+        client.from('oxygen_cylinder_movements').select('*').order('moved_at',{ascending:false}).limit(1000),
+        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').eq('is_active',true).order('full_name')
+      ]);
+      if(c.error){setError(equipmentErrorText(c.error));setRows([]);return}
+      setError('');setRows(c.data||[]);if(!m.error)setMoves(m.data||[]);if(!p.error)setPatients(p.data||[]);
+    }
+    React.useEffect(()=>{load()},[]);
+    async function move(c,action,extra,ok){
+      if(busy)return false;setBusy(true);
+      const res=await client.rpc('oxy_move',{p_cylinder_id:c.id,p_action:action,p_patient_id:extra?.patient_id||null,p_location:extra?.location||null,p_vendor:extra?.vendor||null,p_remarks:extra?.remarks||null});
+      setBusy(false);
+      if(res.error){equipmentNotify('error',equipmentErrorText(res.error));return false}
+      equipmentNotify('success',ok);await load();return true;
+    }
+    const list=rows||[];const ready=rows!==null;
+    const by=(st,size)=>list.filter(x=>x.status===st&&(!size||x.cylinder_size===size));
+    const fullB=by('Full','B-type').length,fullD=by('Full','D-type').length;
+    const tiles=[
+      {key:'full',icon:'◉',title:'Full — Ready',value:ready?fullB+fullD:null,unit:'cylinders',lines:[`B-type: ${ready?fullB:'…'} · D-type: ${ready?fullD:'…'}`,fullB<2||fullD<2?'Low — arrange refill':'Put on a resident from here'],alert:ready&&list.length>0&&(fullB+fullD===0),warn:ready&&list.length>0&&(fullB<2||fullD<2)},
+      {key:'inuse',icon:'🫁︎',title:'In Use',value:ready?by('In Use').length:null,unit:'on residents',lines:['Hours in use shown for Oxygen Therapy charge','Take off (empty / still full)']},
+      {key:'empty',icon:'○',title:'Empty',value:ready?by('Empty').length:null,unit:'to refill',lines:[who.controller?'Send for refill from here':'Waiting for refill'],warn:by('Empty').length>0},
+      {key:'refill',icon:'⟳',title:'At Refill',value:ready?by('At Refill').length:null,unit:'with vendor',lines:['Mark received back full']},
+      {key:'register',icon:'▤',title:'Cylinder Register',value:ready?list.filter(x=>x.status!=='Out of Service').length:null,unit:'cylinders',lines:[`B-type: ${list.filter(x=>x.cylinder_size==='B-type').length} · D-type: ${list.filter(x=>x.cylinder_size==='D-type').length}`]},
+      ...(who.controller?[{key:'add',icon:'＋',title:'Add Cylinders',valueText:'New',unit:'cylinder(s)',lines:['B-type (OXB-…) or D-type (OXD-…)']}]:[]),
+      {key:'history',icon:'↕',title:'Movement History',value:ready?moves.filter(m=>String(m.moved_at).slice(0,10)>=todayISOIndia().slice(0,8)+'01').length:null,unit:'movements this month',lines:['Put on, taken off, refill']}
+    ];
+    const viewTitle=(tiles.find(t=>t.key===view)||{}).title||'';
+    const statusFor={full:'Full',inuse:'In Use',empty:'Empty',refill:'At Refill'};
+    const shown=(statusFor[view]?list.filter(x=>x.status===statusFor[view]):list).filter(x=>sizeFilter==='All'||x.cylinder_size===sizeFilter);
+    async function doPutOn(e){e.preventDefault();if(!putOn)return;const ok=await move(putOn,'put_on',putForm,`${putOn.cylinder_no} put on ${equipmentPatientName(patients,putForm.patient_id)}.`);if(ok){setPutOn(null);setPutForm({patient_id:'',location:'',remarks:''})}}
+    async function doAdd(e){
+      e.preventDefault();if(busy)return;const n=Math.min(50,Math.max(1,parseInt(addForm.count,10)||1));setBusy(true);let done=0,err=null;
+      for(let i=0;i<n;i++){const r=await client.rpc('oxy_add',{p_size:addForm.size,p_status:addForm.status,p_serial_no:n===1?(addForm.serial_no||null):null,p_vendor:addForm.vendor||null,p_notes:addForm.notes||null});if(r.error){err=r.error;break}done++}
+      setBusy(false);if(err)equipmentNotify('error',equipmentErrorText(err));
+      if(done){equipmentNotify('success',`${done} ${addForm.size} cylinder(s) added.`);setAddForm({...addForm,count:'1',serial_no:'',notes:''});await load()}
+    }
+    function CylinderCard(c){
+      const hrs=c.status==='In Use'?equipmentHoursSince(c.status_since):null;
+      return h('article',{key:c.id,className:'stores-ledger-card equip-card'},
+        h('div',{className:'stores-ledger-card-head'},h('strong',null,`${c.cylinder_no} · ${c.cylinder_size}`),h(EquipmentStatusPill,{status:c.status})),
+        h('div',{className:'stores-ledger-card-fields'},
+          c.status==='In Use'&&h('div',null,h('small',null,'Resident'),h('strong',null,equipmentPatientName(patients,c.current_patient_id))),
+          c.status==='In Use'&&h('div',null,h('small',null,'In use since'),h('strong',null,`${formatDateTimeIN(c.status_since)} · ${hrs} h`)),
+          c.status!=='In Use'&&h('div',null,h('small',null,'Location'),h('strong',null,c.current_location||'Stores')),
+          c.status!=='In Use'&&h('div',null,h('small',null,`${c.status} since`),h('strong',null,formatDateTimeIN(c.status_since))),
+          c.serial_no&&h('div',null,h('small',null,'Serial No.'),h('strong',null,c.serial_no)),
+          c.refill_vendor&&h('div',null,h('small',null,'Refill vendor'),h('strong',null,c.refill_vendor))
+        ),
+        c.status==='In Use'&&h('p',{className:'small-note',style:{margin:'6px 0 0'}},`Charge through Approval Requests → Oxygen Therapy – ${c.cylinder_size} Cylinder – 6 / 12 / 24 Hours.`),
+        h('div',{className:'equip-actions'},
+          (who.controller||who.nurse)&&c.status==='Full'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>{setPutOn(c);setPutForm({patient_id:'',location:'',remarks:''})}},'Put on Resident'),
+          (who.controller||who.nurse)&&c.status==='In Use'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>{const r=prompt(`Take ${c.cylinder_no} off — it is EMPTY. Remarks (optional):`,'');if(r!==null)move(c,'take_off_empty',{remarks:r},`${c.cylinder_no} marked Empty.`)}},'Take Off — Empty'),
+          (who.controller||who.nurse)&&c.status==='In Use'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>{const r=prompt(`Take ${c.cylinder_no} off — still FULL / not used. Remarks:`,'');if(r!==null)move(c,'take_off_unused',{remarks:r},`${c.cylinder_no} back to Full.`)}},'Take Off — Still Full'),
+          who.controller&&c.status==='Empty'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>{const v=prompt(`Send ${c.cylinder_no} for refill. Vendor name:`,c.refill_vendor||'');if(v!==null)move(c,'send_refill',{vendor:v},`${c.cylinder_no} sent for refill.`)}},'Send for Refill'),
+          who.controller&&c.status==='At Refill'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>{const r=prompt(`${c.cylinder_no} received back FULL from ${c.refill_vendor||'vendor'}? Remarks (bill no. etc.):`,'');if(r!==null)move(c,'receive_full',{remarks:r},`${c.cylinder_no} is Full again.`)}},'Received Back Full'),
+          who.controller&&['Full','Empty'].includes(c.status)&&h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:()=>{const r=prompt(`Mark ${c.cylinder_no} OUT OF SERVICE (damaged / test due). Reason:`,'');if(r)move(c,'out_of_service',{remarks:r},`${c.cylinder_no} out of service.`)}},'Out of Service'),
+          who.controller&&c.status==='Out of Service'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>move(c,'back_in_service',{},`${c.cylinder_no} back in service (Empty).`)},'Back in Service')
+        ),
+        putOn&&putOn.id===c.id&&h('form',{className:'equip-inline-form',onSubmit:doPutOn},
+          h('div',{className:'grid two'},
+            h('div',{className:'field'},h('label',null,'Resident *'),h(PatientPicker,{patients,value:putForm.patient_id,onChange:v=>setPutForm({...putForm,patient_id:v})})),
+            h('div',{className:'field'},h('label',null,'Room / Location'),h('input',{value:putForm.location,onChange:e=>setPutForm({...putForm,location:e.target.value}),placeholder:'Blank = resident’s room'}))
+          ),
+          h('div',{className:'field'},h('label',null,'Remarks (flow rate, doctor advice)'),h('input',{value:putForm.remarks,onChange:e=>setPutForm({...putForm,remarks:e.target.value})})),
+          h('div',{className:'equip-actions'},h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Put on Resident'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPutOn(null)},'Cancel'))
+        )
+      );
+    }
+    if(!who.canView)return h(Section,{title:'Oxygen Cylinders'},h('p',null,'Access is for Nursing, the Nursing Manager / Store In-charge and Admin.'));
+    return h('div',{className:'stores-dash-wrap'},
+      error&&h('div',{className:'message error',style:{marginBottom:'12px'}},error),
+      !view&&h('div',{className:'stores-dash'},
+        h(DashboardHero,{title:'Oxygen Cylinders',blurb:'B-type and D-type cylinders: Full → In use (resident / room) → Empty → At refill → Full. Oxygen is charged through Approval Requests (Oxygen Therapy).',onRefresh:()=>{setRows(null);load()}}),
+        h(DashboardTiles,{tiles,onOpen:openView})
+      ),
+      view&&h(DashboardBackBar,{title:'Oxygen Cylinders',viewTitle,onBack:backToDashboard}),
+      view==='add'&&who.controller&&h(Section,{title:'Add Cylinders',subtitle:'Each cylinder gets its own number (OXB-001 for B-type, OXD-001 for D-type) — paint or tag it on the cylinder.'},
+        h('form',{onSubmit:doAdd},
+          h('div',{className:'grid two'},
+            h('div',{className:'field'},h('label',null,'Size *'),h('select',{value:addForm.size,onChange:e=>setAddForm({...addForm,size:e.target.value})},['B-type','D-type'].map(x=>h('option',{key:x,value:x},x)))),
+            h('div',{className:'field'},h('label',null,'Condition now'),h('select',{value:addForm.status,onChange:e=>setAddForm({...addForm,status:e.target.value})},['Full','Empty'].map(x=>h('option',{key:x,value:x},x)))),
+            h('div',{className:'field'},h('label',null,'How many'),h('input',{type:'number',min:'1',max:'50',value:addForm.count,onChange:e=>setAddForm({...addForm,count:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Serial No. (single cylinder only)'),h('input',{value:addForm.serial_no,disabled:(parseInt(addForm.count,10)||1)>1,onChange:e=>setAddForm({...addForm,serial_no:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Refill vendor'),h('input',{value:addForm.vendor,onChange:e=>setAddForm({...addForm,vendor:e.target.value})}))
+          ),
+          h('div',{className:'field'},h('label',null,'Notes'),h('textarea',{rows:2,value:addForm.notes,onChange:e=>setAddForm({...addForm,notes:e.target.value})})),
+          h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Add Cylinders')
+        )
+      ),
+      ['full','inuse','empty','refill','register'].includes(view)&&h(Section,{title:viewTitle,actions:h('div',{className:'stores-mode-switch',role:'tablist'},['All','B-type','D-type'].map(k=>h('button',{key:k,type:'button',role:'tab','aria-selected':sizeFilter===k,className:sizeFilter===k?'active':'',onClick:()=>setSizeFilter(k)},k)))},
+        shown.length?h('div',{className:'stores-expiry-list'},shown.map(CylinderCard)):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},list.length?'Nothing here.':'No cylinders in the register yet.')
+      ),
+      view==='history'&&h(Section,{title:'Movement History'},
+        moves.length?h('div',{className:'stores-expiry-list'},moves.slice(0,300).map(m=>{const c=list.find(x=>String(x.id)===String(m.cylinder_id));return h('article',{key:m.id,className:'stores-ledger-card'},
+          h('div',{className:'stores-ledger-card-head'},h('strong',null,`${c?.cylinder_no||''} · ${c?.cylinder_size||''}`),h('span',null,formatDateTimeIN(m.moved_at))),
+          h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Action'),h('strong',null,m.action)),m.patient_id&&h('div',null,h('small',null,'Resident'),h('strong',null,equipmentPatientName(patients,m.patient_id))),m.vendor&&h('div',null,h('small',null,'Vendor'),h('strong',null,m.vendor)),h('div',null,h('small',null,'By'),h('strong',null,m.actor_name||'—')),m.remarks&&h('div',null,h('small',null,'Remarks'),h('strong',null,m.remarks))))})):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},'No movements yet.')
       )
     );
   }
@@ -31231,6 +31542,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const [approvalCategories,setApprovalCategories]=React.useState(()=>new Set(['Nursing Procedures']));
     const [storeMaster,setStoreMaster]=React.useState([]);
     const [receivedIndents,setReceivedIndents]=React.useState([]);
+    // 2.14.95: Biomedical Equipment register link — equipment issued to each resident (null = register not installed yet)
+    const [equipmentLinks,setEquipmentLinks]=React.useState(null);
     const [patientReturns,setPatientReturns]=React.useState([]);
     const [storeAllocations,setStoreAllocations]=React.useState([]);
     const [tariffBusy,setTariffBusy]=React.useState(false);
@@ -31403,6 +31716,26 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       if(!e?.error)setReceivedIndents(e.data||[]);
       if(!f?.error)setStoreAllocations(f.data||[]);
       if(!g?.error)setPatientReturns(g.data||[]);
+      {
+        const since=new Date(Date.now()-14*86400000).toISOString();
+        const [eq,mv]=await Promise.all([
+          client.from('biomedical_equipment').select('id,asset_no,equipment_name,charge_code,charge_service_name,status,current_patient_id,issued_at'),
+          client.from('biomedical_equipment_movements').select('equipment_id,patient_id,action,moved_at').in('action',['Issued','Returned']).gte('moved_at',since).order('moved_at',{ascending:true})
+        ]);
+        if(eq.error){setEquipmentLinks(null)}
+        else{
+          const byId=new Map((eq.data||[]).map(x=>[String(x.id),x]));
+          const links=[];
+          (eq.data||[]).filter(x=>x.status==='In Use'&&x.current_patient_id).forEach(x=>links.push({patient_id:x.current_patient_id,equipment:x,state:'in_use',since:x.issued_at}));
+          // returned in the last 14 days — can still be charged for the days used
+          const lastIssue=new Map();
+          (mv.data||[]).forEach(m=>{
+            if(m.action==='Issued')lastIssue.set(String(m.equipment_id),m.moved_at);
+            if(m.action==='Returned'&&m.patient_id&&byId.get(String(m.equipment_id)))links.push({patient_id:m.patient_id,equipment:byId.get(String(m.equipment_id)),state:'returned',since:lastIssue.get(String(m.equipment_id))||null,returned_at:m.moved_at});
+          });
+          setEquipmentLinks(links);
+        }
+      }
       if(!c.error){
         const masterRows=(c.data||[]).map(row=>({...row,is_active:row.is_active!==false}));
         setCatalog(masterRows);
@@ -31444,10 +31777,22 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         if(!nurseUser)opts.push({value:'Others',label:'Others'});
         return opts;
       }
-      return (categories[category]||['Others']).map(name=>{
+      let names=categories[category]||['Others'];
+      // 2.14.95: Biomedical Equipment is charged only for equipment issued to this resident (register link)
+      if(category==='Biomedical Equipment'&&equipmentLinks&&nurseUser)names=names.filter(name=>equipmentFor(patientId,name).length>0);
+      return names.map(name=>{
         const row=(catalog||[]).find(x=>x.category===category&&x.service_name===name&&x.is_active!==false);
-        return {value:name,label:`${row?.charge_code?`${row.charge_code} · `:''}${name}`};
+        const eq=category==='Biomedical Equipment'&&equipmentLinks?equipmentFor(patientId,name):[];
+        return {value:name,label:`${row?.charge_code?`${row.charge_code} · `:''}${name}${eq.length?` — ${eq.map(equipmentNote).join('; ')}`:''}`};
       });
+    }
+    function equipmentFor(patientId,serviceName){
+      return (equipmentLinks||[]).filter(l=>String(l.patient_id)===String(patientId)&&(!serviceName||String(l.equipment.charge_service_name||'').trim().toLowerCase()===String(serviceName).trim().toLowerCase()));
+    }
+    function equipmentNote(l){
+      const start=l.since?new Date(l.since):null;const end=l.returned_at?new Date(l.returned_at):new Date();
+      const days=start?Math.max(1,Math.ceil((end-start)/86400000)):null;
+      return `${l.equipment.asset_no} ${l.state==='in_use'?'in use':'returned '+formatDateIN(String(l.returned_at).slice(0,10))}${start?` · since ${formatDateIN(String(l.since).slice(0,10))} · ${days} day(s)`:''}`;
     }
     function firstServiceFor(category,patientId){return (serviceOptions(category,patientId)[0]||{}).value||''}
     function changePatient(value){
@@ -31488,6 +31833,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       if(approvalCategories.has(draft.category))return `${draft.category} needs Nursing Manager approval. Raise it from NURSING → Approval Requests (request, approval, Confirm & Start).`;
       if(profile?.role==='Nurse'&&!Object.keys(categories).includes(draft.category))return 'Select a category from the list.';
       if(storeCategories.includes(draft.category)&&!serviceOptions(draft.category,draft.patient_id).some(o=>o.value===draft.service_name))return nurseUser?'This item has nothing left to charge for this patient (not received, already charged, or returned). Select from the list.':'Select an item from the Stores list.';
+      if(draft.category==='Biomedical Equipment'&&equipmentLinks&&nurseUser&&!equipmentFor(draft.patient_id,draft.service_name).length)return 'This equipment is not issued to this resident in the Biomedical Equipment register (or was returned more than 14 days ago). Ask the Nursing Manager to issue it first.';
       if(!Number.isFinite(Number(draft.quantity))||Number(draft.quantity)<=0)return 'Enter a valid positive quantity.';
       if(draft.store_item_id){const item=chargeStock.items.find(x=>String(x.item_id)===String(draft.store_item_id));if(!item)return 'Selected stock item is no longer available. Refresh and select again.';if(item.unit!==draft.unit)return 'Use the selected stock item unit.';}
       if(profile?.role==='Nurse'&&storeCategories.includes(draft.category)){
@@ -31839,6 +32185,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       form.store_item_id?h('div',{className:'field'},h('label',null,'Unit'),h('input',{value:form.unit,readOnly:true})):miniInput('Unit',form.unit,v=>setForm({...form,unit:v})),
       STORE_CHARGE_CATEGORIES.includes(form.category)&&h(PharmacyStockPanel,{stock:chargeStock,itemId:form.store_item_id,quantity:form.quantity,unit:form.unit,onSelect:id=>{const item=chargeStock.items.find(x=>x.item_id===id);setForm(current=>({...current,store_item_id:id,unit:item?.unit||current.unit}))}}),
       STORE_CHARGE_CATEGORIES.includes(form.category)&&h('p',{className:'span-2'},'Only the quantity already Received for this patient and not yet charged can be raised here. Stores stock was already deducted at Hand Over; raising the charge will not deduct Stores again.'),
+      form.category==='Biomedical Equipment'&&h('p',{className:'span-2'},'Biomedical Equipment: enter the number of days as Quantity (charge = Charge Master daily rate × days). Only equipment issued to this resident in the Biomedical Equipment register is listed.'),
       form.category==='Pharmacy & Basic Supplies'&&h('p',{className:'span-2'},'Record the exact brand, size, concentration or pack size in Remarks where applicable. Reusable equipment and general supplies are subject to Accounts review before patient billing.'),
       profile?.role==='Accounts'&&miniInput('Unit Cost',form.unit_cost,v=>setForm({...form,unit_cost:v}),false,'number'),
       profile?.role==='Accounts'&&miniInput('Total Amount',form.requested_amount,v=>setForm({...form,requested_amount:v}),false,'number'),

@@ -3,10 +3,9 @@
   // with a "← Back to Dashboard" bar and Close. The phone / browser back button also returns
   // to the dashboard. The sections themselves are the existing ConsumablesStores and
   // PatientConsumables screens, shown one part at a time (no change to how they work).
-  function StoresDashboard({profile,categoryFilter}){
+  // 2.14.95: shared dashboard shell (used by Stores, Biomedical Equipment and Oxygen Cylinders)
+  function useDashboardView(){
     const [view,setView]=React.useState('');
-    const [refreshKey,setRefreshKey]=React.useState(0);
-    const [stats,setStats]=React.useState(null),[indents,setIndents]=React.useState(null);
     const viewRef=React.useRef('');
     React.useEffect(()=>{viewRef.current=view},[view]);
     React.useEffect(()=>{
@@ -32,10 +31,40 @@
       try{if(history.state&&history.state.samaraStoresView){history.back();usedHistory=true}}catch(_){}
       if(!usedHistory){viewRef.current='';setView('');window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}})}
     }
+    return {view,openView,backToDashboard};
+  }
+  const dashNum=value=>value==null?'…':value;
+  function DashboardHero({kicker='PHARMACY & STORES',title,blurb,onRefresh}){
+    return h('div',{className:'stores-dash-hero'},
+      h('div',null,h('small',null,kicker),h('h2',null,title),h('p',null,blurb)),
+      onRefresh&&h('button',{type:'button',className:'stores-dash-refresh',onClick:onRefresh},'↻ Refresh')
+    );
+  }
+  function DashboardTiles({tiles,onOpen}){
+    return h('div',{className:'stores-dash-grid'},tiles.map(t=>h('button',{key:t.key,type:'button',className:`stores-dash-tile${t.alert?' alert':t.warn?' warn':''}`,onClick:()=>onOpen(t.key)},
+      h('span',{className:'stores-dash-icon','aria-hidden':'true'},t.icon),
+      h('span',{className:'stores-dash-title'},t.title),
+      h('span',{className:'stores-dash-value'},h('b',null,t.valueText||dashNum(t.value)),h('small',null,t.unit)),
+      h('span',{className:'stores-dash-lines'},(t.lines||[]).map((line,i)=>h('span',{key:i},line))),
+      h('span',{className:'stores-dash-open'},'Open →')
+    )));
+  }
+  function DashboardBackBar({title,viewTitle,onBack}){
+    return h('div',{className:'stores-dash-backbar'},
+      h('button',{type:'button',className:'stores-dash-back',onClick:onBack},'← Back to Dashboard'),
+      h('strong',null,h('span',{className:'stores-dash-backbar-cat'},`${title} · `),viewTitle),
+      h('button',{type:'button',className:'stores-dash-close','aria-label':'Close and return to dashboard',onClick:onBack},'×')
+    );
+  }
+
+  function StoresDashboard({profile,categoryFilter}){
+    const {view,openView,backToDashboard}=useDashboardView();
+    const [refreshKey,setRefreshKey]=React.useState(0);
+    const [stats,setStats]=React.useState(null),[indents,setIndents]=React.useState(null);
     const cat=categoryFilter||'Pharmacy & Stores';
     const isPharmacy=categoryFilter==='Pharmacy';
     const info=storeSectionInfo(categoryFilter||'Consumables');
-    const n=value=>value==null?'…':value;
+    const n=dashNum;
     const ready=!!(stats&&indents);
     const s=stats||{},ind=indents||{};
     const indentAction=Number(ind.initiated||0)+Number(ind.handover||0);
@@ -65,27 +94,10 @@
     if(stats&&stats.access===false)return h(ConsumablesStores,{profile,categoryFilter});
     return h('div',{className:'stores-dash-wrap'},
       !view&&h('div',{className:'stores-dash'},
-        h('div',{className:'stores-dash-hero'},
-          h('div',null,
-            h('small',null,'PHARMACY & STORES'),
-            h('h2',null,cat),
-            h('p',null,info.blurb)
-          ),
-          h('button',{type:'button',className:'stores-dash-refresh',onClick:()=>{setStats(null);setIndents(null);setRefreshKey(k=>k+1)}},'↻ Refresh')
-        ),
-        h('div',{className:'stores-dash-grid'},tiles.map(t=>h('button',{key:t.key,type:'button',className:`stores-dash-tile${t.alert?' alert':t.warn?' warn':''}`,onClick:()=>openView(t.key)},
-          h('span',{className:'stores-dash-icon','aria-hidden':'true'},t.icon),
-          h('span',{className:'stores-dash-title'},t.title),
-          h('span',{className:'stores-dash-value'},h('b',null,t.valueText||n(t.value)),h('small',null,t.unit)),
-          h('span',{className:'stores-dash-lines'},t.lines.map((line,i)=>h('span',{key:i},line))),
-          h('span',{className:'stores-dash-open'},'Open →')
-        )))
+        h(DashboardHero,{title:cat,blurb:info.blurb,onRefresh:()=>{setStats(null);setIndents(null);setRefreshKey(k=>k+1)}}),
+        h(DashboardTiles,{tiles,onOpen:openView})
       ),
-      view&&h('div',{className:'stores-dash-backbar'},
-        h('button',{type:'button',className:'stores-dash-back',onClick:backToDashboard},'← Back to Dashboard'),
-        h('strong',null,h('span',{className:'stores-dash-backbar-cat'},`${cat} · `),viewTitle),
-        h('button',{type:'button',className:'stores-dash-close','aria-label':'Close and return to dashboard',onClick:backToDashboard},'×')
-      ),
+      view&&h(DashboardBackBar,{title:cat,viewTitle,onBack:backToDashboard}),
       h(React.Fragment,{key:`stores-dash-data-${refreshKey}`},
         h(ConsumablesStores,{profile,categoryFilter,section:storeSection,onSummary:setStats,onOpenSection:openView}),
         h(PatientConsumables,{profile,categoryFilter,section:indentSection,registerFilter,onSummary:setIndents})

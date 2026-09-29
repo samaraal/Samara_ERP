@@ -2458,3 +2458,7 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 @media (max-width:1100px){.stores-dash-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:900px){.stores-dash-backbar{top:0;z-index:6;border-radius:0 0 14px 14px}.stores-expiry-list{grid-template-columns:1fr}}
 @media (max-width:760px){.stores-dash-backbar-cat{display:none}.stores-dash-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.stores-dash-hero{padding:18px;flex-direction:column}.stores-dash-hero h2{font-size:1.4rem}.stores-dash-tile{padding:13px}.stores-dash-value b{font-size:1.55rem}.stores-dash-back{padding:8px 10px}.stores-dash-backbar strong{font-size:.85rem}}
+/* 2.14.95 Biomedical Equipment + Oxygen Cylinders */
+.equip-pill{display:inline-block;padding:4px 10px;border-radius:999px;font-weight:900;font-size:12px;color:#3b1d2c}
+.equip-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.equip-inline-form{margin-top:10px;padding:12px;border:1px solid #e3cfe0;border-radius:12px;background:#fbf6fd}

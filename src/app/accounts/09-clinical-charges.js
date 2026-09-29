@@ -161,6 +161,8 @@
     const [approvalCategories,setApprovalCategories]=React.useState(()=>new Set(['Nursing Procedures']));
     const [storeMaster,setStoreMaster]=React.useState([]);
     const [receivedIndents,setReceivedIndents]=React.useState([]);
+    // 2.14.95: Biomedical Equipment register link — equipment issued to each resident (null = register not installed yet)
+    const [equipmentLinks,setEquipmentLinks]=React.useState(null);
     const [patientReturns,setPatientReturns]=React.useState([]);
     const [storeAllocations,setStoreAllocations]=React.useState([]);
     const [tariffBusy,setTariffBusy]=React.useState(false);
@@ -333,6 +335,26 @@
       if(!e?.error)setReceivedIndents(e.data||[]);
       if(!f?.error)setStoreAllocations(f.data||[]);
       if(!g?.error)setPatientReturns(g.data||[]);
+      {
+        const since=new Date(Date.now()-14*86400000).toISOString();
+        const [eq,mv]=await Promise.all([
+          client.from('biomedical_equipment').select('id,asset_no,equipment_name,charge_code,charge_service_name,status,current_patient_id,issued_at'),
+          client.from('biomedical_equipment_movements').select('equipment_id,patient_id,action,moved_at').in('action',['Issued','Returned']).gte('moved_at',since).order('moved_at',{ascending:true})
+        ]);
+        if(eq.error){setEquipmentLinks(null)}
+        else{
+          const byId=new Map((eq.data||[]).map(x=>[String(x.id),x]));
+          const links=[];
+          (eq.data||[]).filter(x=>x.status==='In Use'&&x.current_patient_id).forEach(x=>links.push({patient_id:x.current_patient_id,equipment:x,state:'in_use',since:x.issued_at}));
+          // returned in the last 14 days — can still be charged for the days used
+          const lastIssue=new Map();
+          (mv.data||[]).forEach(m=>{
+            if(m.action==='Issued')lastIssue.set(String(m.equipment_id),m.moved_at);
+            if(m.action==='Returned'&&m.patient_id&&byId.get(String(m.equipment_id)))links.push({patient_id:m.patient_id,equipment:byId.get(String(m.equipment_id)),state:'returned',since:lastIssue.get(String(m.equipment_id))||null,returned_at:m.moved_at});
+          });
+          setEquipmentLinks(links);
+        }
+      }
       if(!c.error){
         const masterRows=(c.data||[]).map(row=>({...row,is_active:row.is_active!==false}));
         setCatalog(masterRows);
@@ -374,10 +396,22 @@
         if(!nurseUser)opts.push({value:'Others',label:'Others'});
         return opts;
       }
-      return (categories[category]||['Others']).map(name=>{
+      let names=categories[category]||['Others'];
+      // 2.14.95: Biomedical Equipment is charged only for equipment issued to this resident (register link)
+      if(category==='Biomedical Equipment'&&equipmentLinks&&nurseUser)names=names.filter(name=>equipmentFor(patientId,name).length>0);
+      return names.map(name=>{
         const row=(catalog||[]).find(x=>x.category===category&&x.service_name===name&&x.is_active!==false);
-        return {value:name,label:`${row?.charge_code?`${row.charge_code} · `:''}${name}`};
+        const eq=category==='Biomedical Equipment'&&equipmentLinks?equipmentFor(patientId,name):[];
+        return {value:name,label:`${row?.charge_code?`${row.charge_code} · `:''}${name}${eq.length?` — ${eq.map(equipmentNote).join('; ')}`:''}`};
       });
+    }
+    function equipmentFor(patientId,serviceName){
+      return (equipmentLinks||[]).filter(l=>String(l.patient_id)===String(patientId)&&(!serviceName||String(l.equipment.charge_service_name||'').trim().toLowerCase()===String(serviceName).trim().toLowerCase()));
+    }
+    function equipmentNote(l){
+      const start=l.since?new Date(l.since):null;const end=l.returned_at?new Date(l.returned_at):new Date();
+      const days=start?Math.max(1,Math.ceil((end-start)/86400000)):null;
+      return `${l.equipment.asset_no} ${l.state==='in_use'?'in use':'returned '+formatDateIN(String(l.returned_at).slice(0,10))}${start?` · since ${formatDateIN(String(l.since).slice(0,10))} · ${days} day(s)`:''}`;
     }
     function firstServiceFor(category,patientId){return (serviceOptions(category,patientId)[0]||{}).value||''}
     function changePatient(value){
@@ -418,6 +452,7 @@
       if(approvalCategories.has(draft.category))return `${draft.category} needs Nursing Manager approval. Raise it from NURSING → Approval Requests (request, approval, Confirm & Start).`;
       if(profile?.role==='Nurse'&&!Object.keys(categories).includes(draft.category))return 'Select a category from the list.';
       if(storeCategories.includes(draft.category)&&!serviceOptions(draft.category,draft.patient_id).some(o=>o.value===draft.service_name))return nurseUser?'This item has nothing left to charge for this patient (not received, already charged, or returned). Select from the list.':'Select an item from the Stores list.';
+      if(draft.category==='Biomedical Equipment'&&equipmentLinks&&nurseUser&&!equipmentFor(draft.patient_id,draft.service_name).length)return 'This equipment is not issued to this resident in the Biomedical Equipment register (or was returned more than 14 days ago). Ask the Nursing Manager to issue it first.';
       if(!Number.isFinite(Number(draft.quantity))||Number(draft.quantity)<=0)return 'Enter a valid positive quantity.';
       if(draft.store_item_id){const item=chargeStock.items.find(x=>String(x.item_id)===String(draft.store_item_id));if(!item)return 'Selected stock item is no longer available. Refresh and select again.';if(item.unit!==draft.unit)return 'Use the selected stock item unit.';}
       if(profile?.role==='Nurse'&&storeCategories.includes(draft.category)){
@@ -769,6 +804,7 @@
       form.store_item_id?h('div',{className:'field'},h('label',null,'Unit'),h('input',{value:form.unit,readOnly:true})):miniInput('Unit',form.unit,v=>setForm({...form,unit:v})),
       STORE_CHARGE_CATEGORIES.includes(form.category)&&h(PharmacyStockPanel,{stock:chargeStock,itemId:form.store_item_id,quantity:form.quantity,unit:form.unit,onSelect:id=>{const item=chargeStock.items.find(x=>x.item_id===id);setForm(current=>({...current,store_item_id:id,unit:item?.unit||current.unit}))}}),
       STORE_CHARGE_CATEGORIES.includes(form.category)&&h('p',{className:'span-2'},'Only the quantity already Received for this patient and not yet charged can be raised here. Stores stock was already deducted at Hand Over; raising the charge will not deduct Stores again.'),
+      form.category==='Biomedical Equipment'&&h('p',{className:'span-2'},'Biomedical Equipment: enter the number of days as Quantity (charge = Charge Master daily rate × days). Only equipment issued to this resident in the Biomedical Equipment register is listed.'),
       form.category==='Pharmacy & Basic Supplies'&&h('p',{className:'span-2'},'Record the exact brand, size, concentration or pack size in Remarks where applicable. Reusable equipment and general supplies are subject to Accounts review before patient billing.'),
       profile?.role==='Accounts'&&miniInput('Unit Cost',form.unit_cost,v=>setForm({...form,unit_cost:v}),false,'number'),
       profile?.role==='Accounts'&&miniInput('Total Amount',form.requested_amount,v=>setForm({...form,requested_amount:v}),false,'number'),

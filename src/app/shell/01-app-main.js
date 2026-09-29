@@ -685,6 +685,8 @@
           page==='Pharmacy'&&h(StoresDashboard,{profile,categoryFilter:'Pharmacy'}),
           page==='Housekeeping & General'&&h(StoresDashboard,{profile,categoryFilter:'Housekeeping & General'}),
           page==='Kitchen / Food Stores'&&h(StoresDashboard,{profile,categoryFilter:'Kitchen / Food Stores'}),
+          page==='Biomedical Equipment'&&h(BiomedicalEquipmentDashboard,{profile}),
+          page==='Oxygen Cylinders'&&h(OxygenCylindersDashboard,{profile}),
           page==='Stores In-charge Assignment'&&h(StoresInchargeAssignmentPage,{profile}),
           page==='Food & Diet'&&h(FoodDiet,{profile}),
           ['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(page)&&allowed.includes(page)&&window.SamaraOutgoingPayments&&h(window.SamaraOutgoingPayments,{key:page,client,profile,CameraCaptureModal,initialView:page==='Payment Statements'?'Statements':page==='Payment Vouchers'?'Vouchers':page==='Approved—Ready to Pay'?'Ready':'Requests'}),

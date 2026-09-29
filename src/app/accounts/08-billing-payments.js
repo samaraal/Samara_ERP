@@ -800,6 +800,18 @@ Please access the Samara Family Portal for detailed account information.`;
         setMessage(text);notify('error','Amount required',text);return;
       }
 
+      // 2.14.95: a manual "Charge" is allowed only where no other route exists. Items and services in
+      // Charge Master / Pharmacy & Stores are charged only through Bills & Charges (then Accounts approval),
+      // so nothing can be charged twice or charged without being issued.
+      if(form.transaction_type==='Charge'&&!MANUAL_CHARGE_CATEGORIES.includes(form.category)){
+        const text=`"${form.category}" is charged only through Bills & Charges (Charge Master / Pharmacy & Stores), then Accounts approval. Manual Charge is allowed only for: ${MANUAL_CHARGE_CATEGORIES.join(', ')}.`;
+        setMessage(text);notify('error','Use Bills & Charges',text);return;
+      }
+      if(form.transaction_type==='Charge'&&form.category==='Other'&&String(form.description||'').trim().length<5){
+        const text='For a manual "Other" charge, write the reason in the description.';
+        setMessage(text);notify('error','Reason required',text);return;
+      }
+
       if(form.transaction_type==='Discount'&&!canDiscount){
         const text='Discount can be entered only by the Admin.';
         setMessage(text);notify('error','Not permitted',text);return;
@@ -1227,7 +1239,7 @@ Please access the Samara Family Portal for detailed account information.`;
             h('select',{
               value:form.transaction_type,
               disabled:!!dischargeTarget,
-              onChange:e=>setForm({...form,transaction_type:e.target.value})
+              onChange:e=>{const t=e.target.value;setForm({...form,transaction_type:t,category:t==='Charge'&&!MANUAL_CHARGE_CATEGORIES.includes(form.category)?'Room Charges':form.category})}
             },
               (canDiscount?['Payment','Advance','Charge','Discount','Refund']:['Payment','Advance','Charge','Refund'])
                 .map(option=>h('option',{key:option,value:option},option))
@@ -1239,12 +1251,12 @@ Please access the Samara Family Portal for detailed account information.`;
               value:form.category,
               onChange:e=>setForm({...form,category:e.target.value})
             },
-              [
+              (form.transaction_type==='Charge'?MANUAL_CHARGE_CATEGORIES:[
                 'Final Settlement','Advance','Room Charges','Nursing Charges',
                 'Special Nurse Charges','Food Charges','Medicine Charges',
                 'Physiotherapy','Consumables','Doctor Visit','Lab Charges',
                 'Hospital Charges','Ambulance / Transport','Equipment','Other'
-              ].map(option=>h('option',{key:option,value:option},option))
+              ]).map(option=>h('option',{key:option,value:option},option))
             )
           ),
           h('div',{className:'field'},

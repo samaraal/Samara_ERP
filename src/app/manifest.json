@@ -9,7 +9,7 @@
   {
    "file": "0-start/01-app-constants.js",
    "about": "OPENS the main app closure. Version, build date, fixed lists (blood groups, professions, centre)",
-   "lines": 107
+   "lines": 109
   },
   {
    "file": "core/01-app-help-repair-popups.js",
@@ -24,7 +24,7 @@
   {
    "file": "core/03-brand-theme-css.js",
    "about": "Global brand colour theme (CSS injected at start)",
-   "lines": 980
+   "lines": 982
   },
   {
    "file": "core/04-supabase-roles-navigation.js",
@@ -114,7 +114,7 @@
   {
    "file": "shell/01-app-main.js",
    "about": "App() - the main shell: login state, page switching, global watchers switched on here",
-   "lines": 784
+   "lines": 786
   },
   {
    "file": "shell/02-login-password.js",
@@ -334,7 +334,7 @@
   {
    "file": "accounts/08-billing-payments.js",
    "about": "Billing & payments",
-   "lines": 1378
+   "lines": 1390
   },
   {
    "file": "stores/store-authority-items.js",
@@ -344,7 +344,7 @@
   {
    "file": "stores/consumables-stores.js",
    "about": "Consumables stores",
-   "lines": 687
+   "lines": 694
   },
   {
    "file": "stores/patient-consumables.js",
@@ -354,12 +354,17 @@
   {
    "file": "stores/stores-dashboard.js",
    "about": "Pharmacy & Stores dashboard (Consumables / Pharmacy): navigable boxes, Back to Dashboard",
-   "lines": 94
+   "lines": 106
+  },
+  {
+   "file": "stores/equipment-oxygen.js",
+   "about": "Biomedical Equipment register + Oxygen Cylinders register dashboards (SQL 161)",
+   "lines": 281
   },
   {
    "file": "accounts/09-clinical-charges.js",
    "about": "Charge master, clinical charges",
-   "lines": 908
+   "lines": 944
   },
   {
    "file": "reports/whatsapp-delivery-logs.js",
