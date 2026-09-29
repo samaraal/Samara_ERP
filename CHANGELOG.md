@@ -3,6 +3,13 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.89 — Pharmacy & Stores: add / edit Expiry Date later
+- New **Expiry** button on every stock item, and **Add Expiry / Edit Expiry** on each row of the Vendor Receipt Register (Stores / Pharmacy in-charge only). It opens that item's vendor receipts, where the **Batch No.** and **Expiry Date** (DD-MM-YYYY) of each receipt can be added or corrected; each receipt has its own Save Expiry. Quantities, stock balance, vendor, invoice and charges are not changed. Who changed it and when is kept.
+- Registers and item history now show **"Expiry not entered"** (amber), **"Expires soon"** (within 90 days, amber) or **"EXPIRED"** (red).
+- Receive from Vendor: Expiry Date stays optional, with a note that it can be added later.
+- **SQL — run `supabase/sql/159_store_receipt_expiry_edit.sql` once** (Supabase → SQL Editor; safe to run again).
+- Files: `src/app/stores/consumables-stores.js`, `supabase/sql/159_store_receipt_expiry_edit.sql`, version files, `app.js` (rebuilt).
+
 ## 2.14.88 — Save buttons lock after a successful save (whole ERP)
 - After the green "saved" confirmation, the Save / Submit / Update / Record button that was pressed turns grey with a **"✓ Saved"** tag and cannot be pressed again (no duplicate entries). It unlocks as soon as anything is changed in the same form or window (typing, choosing another patient, uploading / removing a document, adding / removing a row). Close / Cancel keep it locked.
 - Works on every page and popup (e.g. Edit Patient → "Save Patient Information & Documents", Daily Care, admissions, HR, stores), because it follows the ERP's shared success confirmation. A failed save does not lock the button.

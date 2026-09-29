@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.88';
+  const APP_VERSION = '2.14.89';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '29-Sep-2026 Save button locks after saving';
+  const APP_BUILD_DATE = '29-Sep-2026 Stores expiry edit';
   const APP_SCHEMA_VERSION = '38';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -30103,6 +30103,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const [historyItem,setHistoryItem]=React.useState(null),[historyLedger,setHistoryLedger]=React.useState([]),[historyReceipts,setHistoryReceipts]=React.useState([]),[historyBusy,setHistoryBusy]=React.useState(false);
     const [categoryEditItem,setCategoryEditItem]=React.useState(null),[categoryEditValue,setCategoryEditValue]=React.useState('');
     const [cleanupCandidates,setCleanupCandidates]=React.useState(null);
+    // 2.14.89: add / edit Batch No. and Expiry Date on stock already received (expiry is often not known on receipt)
+    const [expiryItem,setExpiryItem]=React.useState(null),[expiryRows,setExpiryRows]=React.useState([]),[expiryEdits,setExpiryEdits]=React.useState({}),[expiryLoading,setExpiryLoading]=React.useState(false),[expiryFocus,setExpiryFocus]=React.useState('');
     const [form,setForm]=React.useState({item_category:categoryFilter==='Pharmacy'?'Pharmacy':'Stores / Consumables',catalog_item:'',item_id:'',new_item_name:'',unit:'Nos',vendor_name:'',invoice_no:'',invoice_date:'',received_date:todayISOIndia(),quantity:'1',batch_no:'',expiry_date:'',unit_cost:'',remarks:'',generic_name:'',brand_name:'',strength:'',dosage_form:'Tablet',manufacturer:'',pack_size:''});
     const units=['Nos','Pairs','Packs','Boxes','Pieces','Rolls','Sets','Bottles'];
     const basicPharmacyUnits={"Glucometer Strips": "Nos", "Lancets": "Nos", "Alcohol Swabs": "Nos", "Digital Thermometer": "Nos", "Thermometer Probe Covers": "Nos", "Pulse Oximeter": "Nos", "BP Cuff / Spare Cuff": "Nos", "Sterile Gauze Pads - 2 x 2": "Nos", "Sterile Gauze Pads - 4 x 4": "Nos", "Cotton Rolls": "Rolls", "Cotton Balls": "Nos", "Micropore Adhesive Tape": "Rolls", "Sterile Dressing Pads": "Nos", "Crepe Bandage - 2 inch": "Rolls", "Crepe Bandage - 4 inch": "Rolls", "Crepe Bandage - 6 inch": "Rolls", "Roller / Gauze Bandages": "Rolls", "Disposable Examination Gloves - S": "Pieces", "Disposable Examination Gloves - M": "Pieces", "Disposable Examination Gloves - L": "Pieces", "Surgical Masks": "Nos", "Disposable Syringe - 1 mL": "Nos", "Disposable Syringe - 2 mL": "Nos", "Disposable Syringe - 3 mL": "Nos", "Disposable Syringe - 5 mL": "Nos", "Disposable Syringe - 10 mL": "Nos", "Disposable Syringe - 20 mL": "Nos", "Needle - 18G": "Nos", "Needle - 20G": "Nos", "Needle - 21G": "Nos", "Needle - 22G": "Nos", "Needle - 23G": "Nos", "Needle - 24G": "Nos", "Needle - 25G": "Nos", "Needle - 26G": "Nos", "Insulin Syringe - U-40": "Nos", "Insulin Syringe - U-100": "Nos", "Insulin Pen Needle - 4 mm": "Nos", "Insulin Pen Needle - 5 mm": "Nos", "Insulin Pen Needle - 6 mm": "Nos", "Insulin Pen Needle - 8 mm": "Nos", "IV Cannula - 18G": "Nos", "IV Cannula - 20G": "Nos", "IV Cannula - 22G": "Nos", "IV Cannula - 24G": "Nos", "IV Sets": "Nos", "IV Extension Lines": "Nos", "Normal Saline Flush Syringes": "Nos", "Urine Specimen Containers": "Nos", "Disposable Urine Measuring Containers": "Nos", "Adult Urine Bags": "Nos", "Nebulizer Mask / Kit - Adult": "Nos", "Oxygen Nasal Cannula": "Nos", "Oxygen Masks": "Nos", "Suction Catheter - 10 Fr": "Nos", "Suction Catheter - 12 Fr": "Nos", "Suction Catheter - 14 Fr": "Nos", "Suction Catheter - 16 Fr": "Nos", "Feeding Syringe - 50 mL": "Nos", "Feeding Syringe - 60 mL": "Nos", "Disposable Underpads": "Nos", "Tongue Depressors": "Nos", "Hand Sanitizer": "Bottles", "Povidone-iodine Solution": "Bottles", "Chlorhexidine Antiseptic - As per Samara Protocol": "Bottles", "Normal Saline for Wound Cleansing": "Bottles", "Sharps Disposal Containers": "Nos", "Biomedical-waste Bags": "Nos"};
@@ -30304,6 +30306,43 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       ]);
       if(!l.error)setHistoryLedger(l.data||[]);if(!r.error)setHistoryReceipts(r.data||[]);setHistoryBusy(false);
     }
+    async function openExpiryEdit(row,focusReceiptId=''){
+      if(!controller||!row)return;
+      setExpiryItem(row);setExpiryFocus(focusReceiptId);setExpiryLoading(true);setExpiryRows([]);setExpiryEdits({});
+      const r=await client.from('consumable_store_receipts').select('*').eq('item_id',row.item_id).order('received_at',{ascending:false}).limit(300);
+      const list=r.error?[]:(r.data||[]);
+      setExpiryRows(list);
+      setExpiryEdits(Object.fromEntries(list.map(x=>[x.id,{batch_no:x.batch_no||'',expiry_date:x.expiry_date||''}])));
+      setExpiryLoading(false);
+      if(r.error)notifyStore('error',r.error.message);
+      if(focusReceiptId)setTimeout(()=>document.getElementById(`expiry-receipt-${focusReceiptId}`)?.scrollIntoView({behavior:'smooth',block:'center'}),120);
+    }
+    function setExpiryEdit(id,key,value){setExpiryEdits(all=>({...all,[id]:{...(all[id]||{}),[key]:value}}))}
+    async function saveReceiptExpiry(e,rec){
+      e.preventDefault();
+      if(!controller||busy)return;
+      const edit=expiryEdits[rec.id]||{};
+      const batch=String(edit.batch_no||'').trim()||null,expiry=edit.expiry_date||null;
+      setBusy(true);
+      const res=await client.rpc('store_incharge_update_receipt_expiry',{p_receipt_id:rec.id,p_batch_no:batch,p_expiry_date:expiry,p_actor_name:actor});
+      setBusy(false);
+      if(res.error){
+        notifyStore('error',/does not exist|schema cache|could not find the function/i.test(res.error.message)?'Expiry editing is not installed yet. Please run supabase/sql/159_store_receipt_expiry_edit.sql once in Supabase.':res.error.message);
+        return;
+      }
+      const receiptNo=`SR-${String(rec.receipt_no||'').padStart(5,'0')}`;
+      notifyStore('success',expiry?`Expiry date ${formatDateIN(expiry)} saved for ${receiptNo}.`:`Batch / expiry updated for ${receiptNo} (expiry left blank).`);
+      const patch=x=>x.id===rec.id?{...x,batch_no:batch,expiry_date:expiry}:x;
+      setExpiryRows(rows=>rows.map(patch));setReceipts(rows=>rows.map(patch));setHistoryReceipts(rows=>rows.map(patch));
+    }
+    function batchExpiryCell(r){
+      const batch=r.batch_no?`Batch ${r.batch_no}`:'';
+      if(!r.expiry_date)return h('span',null,batch?`${batch} · `:'',h('span',{style:{color:'#9a6700',fontWeight:700}},'Expiry not entered'));
+      const expired=String(r.expiry_date).slice(0,10)<todayISOIndia();
+      const soon=!expired&&String(r.expiry_date).slice(0,10)<=addDaysISO(todayISOIndia(),90);
+      return h('span',null,batch?`${batch} · `:'',h('span',{style:expired?{color:'#b42318',fontWeight:800}:soon?{color:'#9a6700',fontWeight:700}:null},`${expired?'EXPIRED ':soon?'Expires soon · ':'Exp '}${formatDateIN(r.expiry_date)}`));
+    }
+    const receiptItemRow=r=>itemById(r.item_id)||{item_id:r.item_id,item_name:'Item',unit:r.unit,balance_qty:'—'};
     function showStockView(view){setStockView(view);setTimeout(()=>document.getElementById('stores-current-stock')?.scrollIntoView({behavior:'smooth',block:'start'}),50)}
     function editStoreItem(row){
       if(!controller)return;
@@ -30406,7 +30445,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
             h('div',{className:'field'},h('label',null,'Invoice Date'),h(StrictDateInput,{value:form.invoice_date,onChange:e=>setForm({...form,invoice_date:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Received Date *'),h(StrictDateInput,{value:form.received_date,onChange:e=>setForm({...form,received_date:e.target.value}),required:true})),
             h('div',{className:'field'},h('label',null,'Batch / Lot No.'),h('input',{value:form.batch_no,onChange:e=>setForm({...form,batch_no:e.target.value})})),
-            h('div',{className:'field'},h('label',null,'Expiry Date'),h(StrictDateInput,{value:form.expiry_date,onChange:e=>setForm({...form,expiry_date:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Expiry Date'),h(StrictDateInput,{value:form.expiry_date,onChange:e=>setForm({...form,expiry_date:e.target.value})}),h('small',null,'Optional now — can be added later with the item\'s Expiry button.')),
             h('div',{className:'field'},h('label',null,'Unit Cost (optional)'),h('input',{type:'number',min:'0',step:'0.01',value:form.unit_cost,onChange:e=>setForm({...form,unit_cost:e.target.value}),placeholder:'₹'})),
             h('div',{className:'field'},h('label',null,'Received By'),h('input',{value:actor,readOnly:true}))
           ),
@@ -30439,7 +30478,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
           ),
           controller?h('div',{className:'stores-stock-card-actions'},
             h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>openReceiveFor(r)},'Receive Stock'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),
-            oversight?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openItemHistory(r)},'History'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openCategoryEdit(r)},masterById.get(r.item_id)?.standard_category?`Category: ${masterById.get(r.item_id).standard_category}`:'Set Category'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null
+            oversight?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openItemHistory(r)},'History'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(r)},'Expiry'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openCategoryEdit(r)},masterById.get(r.item_id)?.standard_category?`Category: ${masterById.get(r.item_id).standard_category}`:'Set Category'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null
           ):h('small',{className:'stores-view-only'},'View only'),
           oversight?h('div',{className:'stores-stock-card-actions',style:{marginTop:'6px'}},h('button',{className:'btn btn-danger',disabled:busy,onClick:()=>removeItem(r)},'Remove Item')):null
         )):h('div',{className:'stores-stock-empty'},'No store items found.')),
@@ -30448,17 +30487,17 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
           h('tbody',null,displayStock.length?displayStock.map(r=>h('tr',{key:r.item_id},
             h('td',null,masterById.get(r.item_id)?.item_code||'—'),h('td',null,h('strong',null,displayStoreItemName(r.item_name))),h('td',null,r.unit),h('td',null,r.total_in),h('td',null,r.total_out),h('td',null,h('strong',null,r.balance_qty)),h('td',null,r.reorder_level),h('td',null,h('span',{style:statusStyle(r)},stockStatus(r))),
             h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap',alignItems:'center'}},
-              controller?h('div',{key:'controller-actions',style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>openReceiveFor(r)},'Receive Stock'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),oversight?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openItemHistory(r)},'History'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openCategoryEdit(r)},masterById.get(r.item_id)?.standard_category?`Category: ${masterById.get(r.item_id).standard_category}`:'Set Category'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null):h('span',{key:'view-only'},'View only'),
+              controller?h('div',{key:'controller-actions',style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>openReceiveFor(r)},'Receive Stock'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),oversight?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openItemHistory(r)},'History'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(r)},'Expiry'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openCategoryEdit(r)},masterById.get(r.item_id)?.standard_category?`Category: ${masterById.get(r.item_id).standard_category}`:'Set Category'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null):h('span',{key:'view-only'},'View only'),
               oversight?h('button',{key:'remove',className:'btn btn-danger',disabled:busy,onClick:()=>removeItem(r)},'Remove'):null
             ))
           )):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},'No store items found.'))
         ))
       )),
       h(Section,{title:'Vendor Receipt Register'},
-        h('div',{className:'stores-register-mobile'},displayReceipts.length?displayReceipts.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card',key:`mobile-receipt-${r.id}`},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('span',null,formatDateIN(r.received_date))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Quantity'),h('strong',null,`${r.quantity} ${r.unit}`)),h('div',null,h('small',null,'Vendor'),h('strong',null,r.vendor_name||'—')),h('div',null,h('small',null,'Invoice'),h('strong',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'Batch / Expiry'),h('strong',null,[r.batch_no,r.expiry_date&&`Exp ${formatDateIN(r.expiry_date)}`].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'Received By'),h('strong',null,r.received_by_name||'—'))))}):h('div',{className:'stores-view-only'},'No vendor receipts recorded.')),
+        h('div',{className:'stores-register-mobile'},displayReceipts.length?displayReceipts.map(r=>{const item=itemById(r.item_id);return h('article',{className:'stores-ledger-card',key:`mobile-receipt-${r.id}`},h('div',{className:'stores-ledger-card-head'},h('strong',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('span',null,formatDateIN(r.received_date))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Item'),h('strong',null,item?.item_name||'—')),h('div',null,h('small',null,'Quantity'),h('strong',null,`${r.quantity} ${r.unit}`)),h('div',null,h('small',null,'Vendor'),h('strong',null,r.vendor_name||'—')),h('div',null,h('small',null,'Invoice'),h('strong',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'Batch / Expiry'),h('strong',null,batchExpiryCell(r))),h('div',null,h('small',null,'Received By'),h('strong',null,r.received_by_name||'—'))),controller&&h('div',{style:{marginTop:'8px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(receiptItemRow(r),r.id)},r.expiry_date?'Edit Expiry':'Add Expiry')))}):h('div',{className:'stores-view-only'},'No vendor receipts recorded.')),
         h('div',{className:'table-wrap stores-register-desktop'},h('table',{className:'table'},
-          h('thead',null,h('tr',null,['Receipt','Date','Item','Qty','Vendor','Invoice','Batch / Expiry','Received By'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,displayReceipts.length?displayReceipts.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('td',null,formatDateIN(r.received_date)),h('td',null,item?.item_name||'—'),h('td',null,`${r.quantity} ${r.unit}`),h('td',null,r.vendor_name),h('td',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—'),h('td',null,[r.batch_no,r.expiry_date&&`Exp ${formatDateIN(r.expiry_date)}`].filter(Boolean).join(' · ')||'—'),h('td',null,r.received_by_name||'—'))}):h('tr',null,h('td',{colSpan:8,style:{textAlign:'center',padding:'24px'}},'No vendor receipts recorded.')))
+          h('thead',null,h('tr',null,['Receipt','Date','Item','Qty','Vendor','Invoice','Batch / Expiry','Received By',...(controller?['Action']:[])].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,displayReceipts.length?displayReceipts.map(r=>{const item=itemById(r.item_id);return h('tr',{key:r.id},h('td',null,`SR-${String(r.receipt_no||'').padStart(5,'0')}`),h('td',null,formatDateIN(r.received_date)),h('td',null,item?.item_name||'—'),h('td',null,`${r.quantity} ${r.unit}`),h('td',null,r.vendor_name),h('td',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—'),h('td',null,batchExpiryCell(r)),h('td',null,r.received_by_name||'—'),controller&&h('td',null,h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(receiptItemRow(r),r.id)},r.expiry_date?'Edit Expiry':'Add Expiry')))}):h('tr',null,h('td',{colSpan:controller?9:8,style:{textAlign:'center',padding:'24px'}},'No vendor receipts recorded.')))
         ))
       ),
       editItem&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)'}},
@@ -30525,11 +30564,41 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
                 h('div',null,h('small',null,'Quantity'),h('strong',null,`${r.quantity} ${r.unit}`)),
                 h('div',null,h('small',null,'Vendor'),h('strong',null,r.vendor_name||'—')),
                 h('div',null,h('small',null,'Invoice'),h('strong',null,[r.invoice_no,r.invoice_date&&formatDateIN(r.invoice_date)].filter(Boolean).join(' · ')||'—')),
-                h('div',null,h('small',null,'Batch / Expiry'),h('strong',null,[r.batch_no,r.expiry_date&&`Exp ${formatDateIN(r.expiry_date)}`].filter(Boolean).join(' · ')||'—')),
+                h('div',null,h('small',null,'Batch / Expiry'),h('strong',null,batchExpiryCell(r))),
                 h('div',null,h('small',null,'Received By'),h('strong',null,r.received_by_name||'—'))
               )
             )):h('p',null,'No vendor receipts recorded for this item.')
           )
+        )
+      ),
+      expiryItem&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)'}},
+        h('div',{className:'modal-card',style:{maxWidth:'860px',maxHeight:'88vh',overflowY:'auto',background:'#fffafd',opacity:1,padding:'22px'}},
+          h('div',{style:{display:'flex',justifyContent:'space-between',gap:'12px',flexWrap:'wrap',alignItems:'flex-start'}},
+            h('div',null,
+              h('h3',null,`${displayStoreItemName(expiryItem.item_name)} — Batch & Expiry`),
+              h('p',{className:'small-note'},'Add or correct the batch number and expiry date for each vendor receipt of this item. Quantities, stock balance, vendor and invoice are not changed.')
+            ),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setExpiryItem(null)},'Close')
+          ),
+          expiryLoading?h('p',null,'Loading vendor receipts…'):expiryRows.length?expiryRows.map(rec=>{
+            const edit=expiryEdits[rec.id]||{batch_no:'',expiry_date:''};
+            return h('form',{key:rec.id,id:`expiry-receipt-${rec.id}`,className:'stores-ledger-card',onSubmit:e=>saveReceiptExpiry(e,rec),
+                style:{marginBottom:'10px',border:expiryFocus===rec.id?'2px solid #b3136a':undefined}},
+              h('div',{className:'stores-ledger-card-head'},
+                h('strong',null,`SR-${String(rec.receipt_no||'').padStart(5,'0')}`),
+                h('span',null,`Received ${formatDateIN(rec.received_date)} · ${rec.quantity} ${rec.unit} · ${rec.vendor_name||'—'}${rec.invoice_no?` · Inv ${rec.invoice_no}`:''}`)
+              ),
+              h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:'10px',alignItems:'end',marginTop:'8px'}},
+                h('div',{className:'field',style:{margin:0}},h('label',null,'Batch No.'),h('input',{value:edit.batch_no,onChange:e=>setExpiryEdit(rec.id,'batch_no',e.target.value),placeholder:'As printed on the pack'})),
+                h('div',{className:'field',style:{margin:0}},h('label',null,'Expiry Date'),h(StrictDateInput,{value:edit.expiry_date,onChange:e=>setExpiryEdit(rec.id,'expiry_date',e.target.value)})),
+                h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
+                  h('button',{type:'submit',className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save Expiry'),
+                  edit.expiry_date&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>setExpiryEdit(rec.id,'expiry_date','')},'Clear date')
+                )
+              ),
+              h('small',{style:{display:'block',marginTop:'6px'}},'Now: ',batchExpiryCell(rec),rec.expiry_updated_at?` · last changed ${formatDateTimeIN(rec.expiry_updated_at)}${rec.expiry_updated_by_name?` by ${rec.expiry_updated_by_name}`:''}`:'')
+            );
+          }):h('p',null,'No vendor receipts recorded for this item yet. The expiry date is entered when stock is received.')
         )
       ),
       categoryEditItem&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)'}},

@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.88';
-const CACHE = 'samara-erp-2.14.88-saved-button-lock';
+const APP_VERSION = '2.14.89';
+const CACHE = 'samara-erp-2.14.89-store-expiry-edit';
 const SHELL = [
   './',
   './index.html',
