@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.3';
+  const APP_VERSION = '2.15.4';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '29-Sep-2026 Equipment register filter + delete';
+  const APP_BUILD_DATE = '29-Sep-2026 Equipment items + purchases';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -7337,7 +7337,10 @@ https://samaraassistedliving.com/`;
       setNavDepth(nav.stack.length);
     },[page]);
     React.useEffect(()=>{
-      const onPop=()=>{
+      const onPop=e=>{
+        // 2.15.4: a dashboard section (Stores / Equipment / Charge Master …) is open → Back closes that section only
+        if(e&&e.__samaraDashHandled)return;
+        try{const reg=window.__samaraDashViews;if(reg&&[...reg].some(r=>r&&r.current))return}catch(_){}
         const nav=navHistoryRef.current;
         if(!nav.stack.length)return;
         if(pageEditedRef.current&&!window.confirm('Go back? Any entries you have not saved on this page will be lost.')){
@@ -31192,15 +31195,18 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     React.useEffect(()=>{
       // Runs before the app's own page-back handler (capture phase) and stops it, so Back
       // closes the open section instead of leaving the page.
+      // 2.15.4: the browser may run the app's page-back handler first, so both check this shared registry /
+      // the event mark: whichever runs, an open section is closed and the page does NOT go back.
+      const reg=(window.__samaraDashViews=window.__samaraDashViews||new Set());reg.add(viewRef);
       const onPop=e=>{
         if(!viewRef.current)return;
-        try{e.stopImmediatePropagation()}catch(_){}
+        try{e.__samaraDashHandled=true;e.stopImmediatePropagation()}catch(_){}
         viewRef.current='';
         setView('');
         window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}});
       };
       window.addEventListener('popstate',onPop,true);
-      return()=>window.removeEventListener('popstate',onPop,true);
+      return()=>{window.removeEventListener('popstate',onPop,true);reg.delete(viewRef)};
     },[]);
     function openView(key){
       if(viewRef.current){viewRef.current=key;setView(key)}
@@ -31323,18 +31329,29 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const [error,setError]=React.useState(''),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState('');
     const [regStatus,setRegStatus]=React.useState('All'); // 2.15.3: Equipment Register status filter
     const [issueFor,setIssueFor]=React.useState(null),[issueForm,setIssueForm]=React.useState({patient_id:'',location:'',remarks:''});
-    const blankAdd={charge_key:'',equipment_name:'',serial_no:'',next_service_due:'',location:'Stores',notes:'',count:'1'};
-    const [addForm,setAddForm]=React.useState(blankAdd);
+    // 2.15.4: Item Master (BME-001 …) + Receive / Purchase from vendor; pieces are numbered after their item (BME-001-01 …). SQL 164.
+    const [items,setItems]=React.useState([]),[purchases,setPurchases]=React.useState([]),[itemsMissing,setItemsMissing]=React.useState(false);
+    const [itemFilter,setItemFilter]=React.useState('All');
+    const blankItem={id:null,item_name:'',charge_key:'',notes:'',active:true};
+    const [itemForm,setItemForm]=React.useState(blankItem);
+    const blankRecv={item_id:'',source:'Purchase',quantity:'1',vendor_name:'',bill_no:'',bill_date:'',unit_cost:'',warranty_until:'',serials:'',next_service_due:'',location:'Stores',remarks:''};
+    const [recv,setRecv]=React.useState(blankRecv),[recvDone,setRecvDone]=React.useState(null);
+    const [pPeriod,setPPeriod]=React.useState('month'),[pFrom,setPFrom]=React.useState(''),[pTo,setPTo]=React.useState('');
+    const pf=useAppliedFilters({period:pPeriod,from:pFrom,to:pTo});
+    const [purchaseDetail,setPurchaseDetail]=React.useState(null);
     async function load(){
-      const [e,m,p,c]=await Promise.all([
+      const [e,m,p,c,it,pu]=await Promise.all([
         client.from('biomedical_equipment').select('*').order('asset_no'),
         client.from('biomedical_equipment_movements').select('*').order('moved_at',{ascending:false}).limit(1000),
         client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').eq('is_active',true).order('full_name'),
-        client.rpc('get_charge_service_catalog')
+        client.rpc('get_charge_service_catalog'),
+        client.from('biomedical_equipment_items').select('*').order('item_code'),
+        client.from('biomedical_equipment_purchases').select('*').order('received_at',{ascending:false}).limit(1000)
       ]);
       if(e.error){setError(equipmentErrorText(e.error));setRows([]);return}
       setError('');setRows(e.data||[]);if(!m.error)setMoves(m.data||[]);if(!p.error)setPatients(p.data||[]);
       if(!c.error)setBio((c.data||[]).filter(x=>x.category==='Biomedical Equipment'&&x.is_active!==false));
+      setItemsMissing(!!it.error);if(!it.error)setItems(it.data||[]);if(!pu.error)setPurchases(pu.data||[]);
     }
     React.useEffect(()=>{load()},[]);
     async function run(fn,args,ok){
@@ -31355,14 +31372,16 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       {key:'available',icon:'✓',title:'Available',value:ready?counts.available:null,unit:'ready to issue',lines:[who.controller?'Issue to a resident / room':'In Stores']},
       {key:'service',icon:'🛠︎',title:'Service Due',value:ready?serviceDue.length:null,unit:'within 7 days',lines:[`${counts.overdue} overdue`],alert:counts.overdue>0,warn:serviceDue.length>0},
       {key:'repair',icon:'⚠︎',title:'Under Repair',value:ready?counts.repair:null,unit:'pieces',lines:['Back in service from here'],warn:counts.repair>0},
-      {key:'register',icon:'▤',title:'Equipment Register',value:ready?list.length:null,unit:'pieces',lines:[`${active.length} in service · ${list.length-active.length} out of service`,'Every piece — search, filter, delete wrong entries']},
-      ...(who.controller?[{key:'add',icon:'＋',title:'Add Equipment',valueText:'New',unit:'piece(s)',lines:['Linked to its Charge Master item and BIO code']}]:[]),
+      {key:'register',icon:'▤',title:'Equipment Register',value:ready?list.length:null,unit:'pieces',lines:[`${active.length} in service · ${list.length-active.length} out of service`,'Every piece, grouped by item']},
+      {key:'items',icon:'🏷︎',title:'Equipment Items',value:ready?items.filter(x=>x.active).length:null,unit:'items',lines:['Item codes BME-001, BME-002 …','Create a name once, link its Charge Master rate']},
+      ...(who.controller?[{key:'receive',icon:'＋',title:'Receive / Purchase',valueText:'New',unit:'piece(s)',lines:['From a vendor, or already owned','Piece codes BME-001-01, -02 …']}]:[]),
+      {key:'purchases',icon:'₹',title:'Purchase Register',value:ready?purchases.filter(x=>String(x.received_at).slice(0,10)>=monthStart).length:null,unit:'receipts this month',lines:[`₹${purchases.filter(x=>String(x.received_at).slice(0,10)>=monthStart).reduce((a,x)=>a+Number(x.unit_cost||0)*Number(x.quantity||0),0).toLocaleString('en-IN')} this month`,'Vendor, bill, cost, warranty']},
       {key:'history',icon:'↕',title:'Movement History',value:ready?monthMoves.length:null,unit:'movements this month',lines:['Issued, returned, repair, service']}
     ];
     const viewTitle=(tiles.find(t=>t.key===view)||{}).title||'';
     const q=search.trim().toLowerCase();
-    const shown=(view==='inuse'?list.filter(x=>x.status==='In Use'):view==='available'?list.filter(x=>x.status==='Available'):view==='service'?serviceDue:view==='repair'?list.filter(x=>x.status==='Under Repair'):list.filter(x=>regStatus==='All'||x.status===regStatus))
-      .filter(x=>q.length<2||`${x.asset_no} ${x.equipment_name} ${x.serial_no||''} ${x.charge_code||''} ${equipmentPatientName(patients,x.current_patient_id)}`.toLowerCase().includes(q));
+    const shown=(view==='inuse'?list.filter(x=>x.status==='In Use'):view==='available'?list.filter(x=>x.status==='Available'):view==='service'?serviceDue:view==='repair'?list.filter(x=>x.status==='Under Repair'):list.filter(x=>(regStatus==='All'||x.status===regStatus)&&(itemFilter==='All'||String(x.item_id)===String(itemFilter))))
+      .filter(x=>q.length<2||`${x.asset_no} ${x.equipment_name} ${x.serial_no||''} ${x.charge_code||''} ${x.vendor_name||''} ${x.bill_no||''} ${equipmentPatientName(patients,x.current_patient_id)}`.toLowerCase().includes(q));
     async function doIssue(e){
       e.preventDefault();if(!issueFor)return;
       const ok=await run('bme_issue',{p_equipment_id:issueFor.id,p_patient_id:issueForm.patient_id||null,p_location:issueForm.location||null,p_remarks:issueForm.remarks||null},`${issueFor.asset_no} ${issueFor.equipment_name} issued.`);
@@ -31383,21 +31402,45 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       const r=prompt(`${status==='Under Repair'?'Send for repair':status==='Out of Service'?'Mark out of service':status==='Serviced'?'Mark serviced':'Back in service'}: ${x.asset_no} ${x.equipment_name}. Remarks:`,'');if(r===null)return;
       run('bme_set_status',{p_equipment_id:x.id,p_status:status,p_next_service_due:due,p_remarks:r||null},`${x.asset_no} updated.`);
     }
-    async function doAdd(e){
+    const itemOf=x=>items.find(i=>String(i.id)===String(x.item_id));
+    const piecesOf=i=>list.filter(x=>String(x.item_id)===String(i.id));
+    async function saveItem(e){
       e.preventDefault();if(busy)return;
-      const item=bio.find(b=>`${b.charge_code||''}|${b.service_name}`===addForm.charge_key);
-      const name=String(addForm.equipment_name||item?.service_name||'').trim();
-      if(!name)return equipmentNotify('error','Enter the equipment name or choose its Charge Master item.');
-      const n=Math.min(50,Math.max(1,parseInt(addForm.count,10)||1));
-      setBusy(true);let done=0,err=null;
-      for(let i=0;i<n;i++){
-        const res=await client.rpc('bme_add',{p_equipment_name:name,p_charge_code:item?.charge_code||null,p_charge_service_name:item?.service_name||null,p_serial_no:n===1?(addForm.serial_no||null):null,p_next_service_due:addForm.next_service_due||null,p_notes:addForm.notes||null,p_location:addForm.location||null});
-        if(res.error){err=res.error;break}done++;
-      }
-      setBusy(false);
-      if(err)equipmentNotify('error',equipmentErrorText(err));
-      if(done){equipmentNotify('success',`${done} × ${name} added to the register.`);setAddForm(blankAdd);await load()}
+      const ch=bio.find(b=>`${b.charge_code||''}|${b.service_name}`===itemForm.charge_key);
+      const name=String(itemForm.item_name||'').trim();
+      if(!name)return equipmentNotify('error','Enter the equipment name.');
+      setBusy(true);const res=await client.rpc('bme_item_save',{p_id:itemForm.id,p_item_name:name,p_charge_code:ch?.charge_code||null,p_charge_service_name:ch?.service_name||null,p_notes:itemForm.notes||null,p_active:itemForm.active!==false});setBusy(false);
+      if(res.error)return equipmentNotify('error',equipmentErrorText(res.error));
+      equipmentNotify('success',`${res.data?.item_code||''} · ${res.data?.item_name||name} ${itemForm.id?'updated':'created'}.`);setItemForm(blankItem);await load();
     }
+    function editItem(i){setItemForm({id:i.id,item_name:i.item_name,charge_key:i.charge_code||i.charge_service_name?`${i.charge_code||''}|${i.charge_service_name||''}`:'',notes:i.notes||'',active:i.active!==false});try{window.scrollTo({top:0,behavior:'smooth'})}catch(_){}}
+    function deleteItem(i){if(!confirm(`Delete ${i.item_code} · ${i.item_name}? (Only possible when it has no pieces.)`))return;run('bme_item_delete',{p_id:i.id},`${i.item_code} deleted.`)}
+    async function doReceive(e){
+      e.preventDefault();if(busy)return;
+      const item=items.find(i=>String(i.id)===String(recv.item_id));
+      if(!item)return equipmentNotify('error','Choose the equipment item (create it first in Equipment Items if it is new).');
+      const n=parseInt(recv.quantity,10)||0;if(n<1||n>100)return equipmentNotify('error','Quantity must be between 1 and 100.');
+      if(recv.source==='Purchase'&&!recv.vendor_name.trim())return equipmentNotify('error','Enter the vendor name.');
+      const serials=String(recv.serials||'').split(/[\n,]+/).map(x=>x.trim()).filter(Boolean);
+      if(serials.length&&serials.length!==n)return equipmentNotify('error',`You entered ${serials.length} serial number(s) for ${n} piece(s). Enter one per piece, or leave it blank.`);
+      setBusy(true);
+      const res=await client.rpc('bme_receive',{p_item_id:item.id,p_source:recv.source,p_quantity:n,p_vendor_name:recv.vendor_name||null,p_bill_no:recv.bill_no||null,p_bill_date:recv.bill_date||null,
+        p_unit_cost:recv.unit_cost===''?null:Number(recv.unit_cost),p_warranty_until:recv.warranty_until||null,p_serials:serials.length?serials:null,p_next_service_due:recv.next_service_due||null,p_location:recv.location||null,p_remarks:recv.remarks||null});
+      setBusy(false);
+      if(res.error)return equipmentNotify('error',equipmentErrorText(res.error));
+      const nos=res.data?.asset_nos||[];setRecvDone({item,nos});
+      equipmentNotify('success',`${n} × ${item.item_name} received: ${nos.join(', ')}`);setRecv(blankRecv);await load();
+    }
+    const PA=pf.applied;
+    const pBounds=(()=>{const t=today;if(PA.period==='today')return [t,t];if(PA.period==='week')return [mondayOfWeek(t),t];if(PA.period==='lastmonth'){const d=new Date(`${t.slice(0,8)}01T12:00:00`);d.setMonth(d.getMonth()-1);const f=d.toISOString().slice(0,10);const x=new Date(`${t.slice(0,8)}01T12:00:00`);x.setDate(0);return [f,x.toISOString().slice(0,10)]}if(PA.period==='year')return [t.slice(0,4)+'-01-01',t];if(PA.period==='all')return ['0000-01-01','9999-12-31'];if(PA.period==='custom')return [PA.from||t,PA.to||t];return [monthStart,t]})();
+    const purchaseDate=x=>String(x.bill_date||x.received_at||'').slice(0,10);
+    const shownPurchases=purchases.filter(x=>{const d=String(x.received_at).slice(0,10);return d>=pBounds[0]&&d<=pBounds[1]});
+    const money=v=>v===null||v===undefined||v===''?'—':`₹${Number(v).toLocaleString('en-IN',{maximumFractionDigits:2})}`;
+    function purchaseFields(x){const it=items.find(i=>String(i.id)===String(x.item_id));return [
+      ['Receipt No.',`BMR-${String(x.receipt_no).padStart(4,'0')}`],['Item',it?`${it.item_code} · ${it.item_name}`:''],['Type',x.source==='Purchase'?'Purchase from vendor':'Already owned (opening stock)'],
+      ['Quantity',`${x.quantity} piece(s)`],['Piece codes',(x.asset_nos||[]).join(', ')],['Vendor',x.vendor_name],['Bill No.',x.bill_no],['Bill date',x.bill_date?formatDateIN(x.bill_date):''],
+      ['Cost per piece',x.unit_cost!=null?money(x.unit_cost):''],['Total cost',x.unit_cost!=null?money(Number(x.unit_cost)*Number(x.quantity)):''],['Warranty until',x.warranty_until?formatDateIN(x.warranty_until):''],
+      ['Remarks',x.remarks],['Received by',x.received_by_name],['Entered on',formatDateTimeIN(x.received_at)]]}
     function EquipmentCard(x){
       const days=x.status==='In Use'?equipmentDaysSince(x.issued_at):null;
       const due=x.next_service_due?String(x.next_service_due).slice(0,10):'';
@@ -31406,6 +31449,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         h('div',{className:'stores-ledger-card-fields'},
           h('div',null,h('small',null,'Charge Master'),h('strong',null,x.charge_code?`${x.charge_code} · ${x.charge_service_name||''}`:'Not charged to residents')),
           x.serial_no&&h('div',null,h('small',null,'Serial No.'),h('strong',null,x.serial_no)),
+          x.vendor_name&&h('div',null,h('small',null,'Vendor'),h('strong',null,[x.vendor_name,x.bill_no&&`Bill ${x.bill_no}`,x.bill_date&&formatDateIN(x.bill_date)].filter(Boolean).join(' · '))),
+          x.warranty_until&&h('div',null,h('small',null,'Warranty until'),h('strong',{style:String(x.warranty_until).slice(0,10)<today?{color:'#b42318'}:null},formatDateIN(x.warranty_until))),
           x.status==='In Use'&&h('div',null,h('small',null,'With'),h('strong',null,x.current_patient_id?equipmentPatientName(patients,x.current_patient_id):(x.current_location||'—'))),
           x.status==='In Use'&&h('div',null,h('small',null,'Since'),h('strong',null,`${formatDateIN(String(x.issued_at).slice(0,10))} · ${days} day(s)`)),
           x.status!=='In Use'&&h('div',null,h('small',null,'Location'),h('strong',null,x.current_location||'Stores')),
@@ -31439,24 +31484,73 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         h(DashboardTiles,{tiles,onOpen:openView})
       ),
       view&&h(DashboardBackBar,{title:'Biomedical Equipment',viewTitle,onBack:backToDashboard}),
-      view==='add'&&who.controller&&h(Section,{title:'Add Equipment',subtitle:'Choose the Charge Master "Biomedical Equipment" item this piece is charged as (same item, BIO code and rate in Bills & Charges and Accounts). Add several identical pieces at once with "How many".'},
-        !bio.length&&h('p',{className:'message',style:{marginBottom:'10px'}},'No Biomedical Equipment items in Charge Master yet. Admin can add them in Charge Master (category "Biomedical Equipment", daily rate). Equipment that is never charged can still be added.'),
-        h('form',{onSubmit:doAdd},
+      view&&itemsMissing&&['items','receive','purchases','register'].includes(view)&&h('div',{className:'message warning',style:{marginBottom:'12px'}},'Equipment Items and Receive / Purchase are not installed yet. Please run supabase/sql/164_equipment_item_master_purchases.sql once in Supabase.'),
+      view==='items'&&h(Section,{title:'Equipment Items',subtitle:'Each kind of equipment is created ONCE and gets its item code (BME-001, BME-002 …). Its pieces are numbered after it (BME-001-01, BME-001-02 …). Link the Charge Master rate if residents are charged for it.'},
+        who.controller&&h('form',{onSubmit:saveItem,className:'equip-inline-form',style:{marginTop:0,marginBottom:'14px'}},
+          h('h4',{style:{margin:'0 0 10px'}},itemForm.id?`Edit ${(items.find(i=>i.id===itemForm.id)||{}).item_code||''}`:'New equipment item'),
           h('div',{className:'grid two'},
-            h('div',{className:'field'},h('label',null,'Charge Master item'),h('select',{value:addForm.charge_key,onChange:e=>{const it=bio.find(b=>`${b.charge_code||''}|${b.service_name}`===e.target.value);setAddForm({...addForm,charge_key:e.target.value,equipment_name:addForm.equipment_name||it?.service_name||''})}},h('option',{value:''},'Not charged to residents'),bio.map(b=>h('option',{key:`${b.charge_code}|${b.service_name}`,value:`${b.charge_code||''}|${b.service_name}`},`${b.charge_code?b.charge_code+' · ':''}${b.service_name}`)))),
-            h('div',{className:'field'},h('label',null,'Equipment name *'),h('input',{required:true,value:addForm.equipment_name,onChange:e=>setAddForm({...addForm,equipment_name:e.target.value}),placeholder:'e.g. Air Mattress, Pulse Oximeter'})),
-            h('div',{className:'field'},h('label',null,'How many pieces'),h('input',{type:'number',min:'1',max:'50',value:addForm.count,onChange:e=>setAddForm({...addForm,count:e.target.value})})),
-            h('div',{className:'field'},h('label',null,'Serial No. (single piece only)'),h('input',{value:addForm.serial_no,disabled:(parseInt(addForm.count,10)||1)>1,onChange:e=>setAddForm({...addForm,serial_no:e.target.value})})),
-            h('div',{className:'field'},h('label',null,'Next service due'),h(StrictDateInput,{value:addForm.next_service_due,onChange:e=>setAddForm({...addForm,next_service_due:e.target.value})})),
-            h('div',{className:'field'},h('label',null,'Location'),h('input',{value:addForm.location,onChange:e=>setAddForm({...addForm,location:e.target.value})}))
+            h('div',{className:'field'},h('label',null,'Equipment name *'),h('input',{required:true,value:itemForm.item_name,onChange:e=>setItemForm({...itemForm,item_name:e.target.value}),placeholder:'e.g. Pulse Oximeter, Air Mattress'})),
+            h('div',{className:'field'},h('label',null,'Charge Master rate'),h('select',{value:itemForm.charge_key,onChange:e=>{const it=bio.find(b=>`${b.charge_code||''}|${b.service_name}`===e.target.value);setItemForm({...itemForm,charge_key:e.target.value,item_name:itemForm.item_name||String(it?.service_name||'').replace(/\s*\(per day\)\s*$/i,'')})}},h('option',{value:''},'Not charged to residents'),bio.map(b=>h('option',{key:`${b.charge_code}|${b.service_name}`,value:`${b.charge_code||''}|${b.service_name}`},`${b.charge_code?b.charge_code+' · ':''}${b.service_name}`)))),
+            h('div',{className:'field'},h('label',null,'Notes'),h('input',{value:itemForm.notes,onChange:e=>setItemForm({...itemForm,notes:e.target.value}),placeholder:'Model, size, etc. (optional)'})),
+            itemForm.id&&h('div',{className:'field'},h('label',null,'Status'),h('select',{value:itemForm.active?'1':'0',onChange:e=>setItemForm({...itemForm,active:e.target.value==='1'})},h('option',{value:'1'},'Active'),h('option',{value:'0'},'Inactive (no new pieces)')))
           ),
-          h('div',{className:'field'},h('label',null,'Notes'),h('textarea',{rows:2,value:addForm.notes,onChange:e=>setAddForm({...addForm,notes:e.target.value})})),
-          h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Add to Register')
+          h('div',{className:'equip-actions'},h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':itemForm.id?'Save Changes':'Create Item'),itemForm.id&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setItemForm(blankItem)},'Cancel'))
+        ),
+        items.length?h('div',{className:'table-wrap'},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['Item code','Equipment','Charge Master','Pieces','Available','In use','Status',''].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,items.map(i=>{const ps=piecesOf(i);return h('tr',{key:i.id,className:'row-clickable',onClick:()=>{setItemFilter(i.id);setRegStatus('All');openView('register')}},
+            h('td',null,h('strong',null,i.item_code)),h('td',null,i.item_name),h('td',null,i.charge_code?`${i.charge_code} · ${i.charge_service_name||''}`:'Not charged'),
+            h('td',null,ps.length),h('td',null,ps.filter(x=>x.status==='Available').length),h('td',null,ps.filter(x=>x.status==='In Use').length),
+            h('td',null,h('span',{className:'equip-pill',style:{background:i.active?'#e7f6ef':'#eef1f0'}},i.active?'Active':'Inactive')),
+            h('td',{onClick:e=>e.stopPropagation()},who.controller&&h('div',{className:'equip-actions',style:{marginTop:0}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>editItem(i)},'Edit'),!ps.length&&!purchases.some(x=>String(x.item_id)===String(i.id))&&h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:()=>deleteItem(i)},'Delete'))))}))
+        )):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},'No equipment items yet. Create the first one above.'),
+        h('p',{className:'small-note',style:{marginTop:'8px'}},'Tap an item to see its pieces in the Equipment Register.')
+      ),
+      view==='receive'&&who.controller&&h(Section,{title:'Receive / Purchase',subtitle:'Pieces come into the register only from here. Each piece gets its code automatically after the item code (BME-001-01, BME-001-02 …).'},
+        recvDone&&h('div',{className:'message success',style:{marginBottom:'12px'}},`Received ${recvDone.nos.length} × ${recvDone.item.item_name}: `,h('strong',null,recvDone.nos.join(', ')),'. Write these codes on the pieces.'),
+        !items.filter(i=>i.active).length&&h('p',{className:'message',style:{marginBottom:'10px'}},'Create the equipment item first in ',h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openView('items')},'Equipment Items'),'.'),
+        h('form',{onSubmit:doReceive},
+          h('div',{className:'stores-mode-switch',role:'tablist',style:{marginBottom:'12px'}},[['Purchase','Purchase from vendor'],['Opening stock','Already owned (opening stock)']].map(([k,l])=>h('button',{key:k,type:'button',role:'tab','aria-selected':recv.source===k,className:recv.source===k?'active':'',onClick:()=>setRecv({...recv,source:k})},l))),
+          h('div',{className:'grid two'},
+            h('div',{className:'field'},h('label',null,'Equipment item *'),h('select',{required:true,value:recv.item_id,onChange:e=>setRecv({...recv,item_id:e.target.value})},h('option',{value:''},'Select item'),items.filter(i=>i.active).map(i=>h('option',{key:i.id,value:i.id},`${i.item_code} · ${i.item_name}${i.charge_code?'':' (not charged)'}`)))),
+            h('div',{className:'field'},h('label',null,'Quantity (pieces) *'),h('input',{type:'number',min:'1',max:'100',required:true,value:recv.quantity,onChange:e=>setRecv({...recv,quantity:e.target.value})})),
+            h('div',{className:'field'},h('label',null,recv.source==='Purchase'?'Vendor *':'Vendor (if known)'),h('input',{required:recv.source==='Purchase',value:recv.vendor_name,onChange:e=>setRecv({...recv,vendor_name:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Bill / Invoice No.'),h('input',{value:recv.bill_no,onChange:e=>setRecv({...recv,bill_no:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Bill date'),h(StrictDateInput,{value:recv.bill_date,onChange:e=>setRecv({...recv,bill_date:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Cost per piece (₹)'),h('input',{type:'number',min:'0',step:'0.01',value:recv.unit_cost,onChange:e=>setRecv({...recv,unit_cost:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Warranty until'),h(StrictDateInput,{value:recv.warranty_until,onChange:e=>setRecv({...recv,warranty_until:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Next service due'),h(StrictDateInput,{value:recv.next_service_due,onChange:e=>setRecv({...recv,next_service_due:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Keep at (location)'),h('input',{value:recv.location,onChange:e=>setRecv({...recv,location:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Serial numbers (one per line, optional)'),h('textarea',{rows:3,value:recv.serials,onChange:e=>setRecv({...recv,serials:e.target.value}),placeholder:'Leave blank, or one per piece in order'}))
+          ),
+          recv.unit_cost!==''&&(parseInt(recv.quantity,10)||0)>0&&h('p',{className:'small-note'},`Total: ${money(Number(recv.unit_cost||0)*(parseInt(recv.quantity,10)||0))}`),
+          h('div',{className:'field'},h('label',null,'Remarks'),h('input',{value:recv.remarks,onChange:e=>setRecv({...recv,remarks:e.target.value})})),
+          h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Receive into Register')
         )
       ),
+      purchaseDetail&&h(RowDetailModal,{title:`BMR-${String(purchaseDetail.receipt_no).padStart(4,'0')} · ${(items.find(i=>String(i.id)===String(purchaseDetail.item_id))||{}).item_name||'Equipment'}`,subtitle:purchaseDetail.source==='Purchase'?'Purchase from vendor':'Already owned (opening stock)',fields:purchaseFields(purchaseDetail),onClose:()=>setPurchaseDetail(null)}),
+      view==='purchases'&&h(Section,{title:'Purchase Register',subtitle:`${shownPurchases.length} receipt(s) · ${money(shownPurchases.reduce((a,x)=>a+Number(x.unit_cost||0)*Number(x.quantity||0),0))}`},
+        h('div',{className:'cm-period-bar'},
+          h('div',{className:'field'},h('label',null,'Period'),h('select',{value:pPeriod,onChange:e=>setPPeriod(e.target.value)},[['today','Today'],['week','This Week'],['month','This Month'],['lastmonth','Last Month'],['year','This Year'],['all','All'],['custom','Custom Date Range']].map(([v,l])=>h('option',{key:v,value:v},l)))),
+          pPeriod==='custom'&&h('div',{className:'field'},h('label',null,'From'),h(StrictDateInput,{value:pFrom,onChange:e=>setPFrom(e.target.value)})),
+          pPeriod==='custom'&&h('div',{className:'field'},h('label',null,'To'),h(StrictDateInput,{value:pTo,onChange:e=>setPTo(e.target.value)})),
+          h(ApplyFilterButton,{dirty:pf.dirty,onApply:pf.apply})
+        ),
+        shownPurchases.length?h('div',{className:'table-wrap'},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['Receipt','Date','Item','Type','Qty','Vendor / Bill','Cost / piece','Total','Pieces'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,shownPurchases.map(x=>{const it=items.find(i=>String(i.id)===String(x.item_id));return h('tr',{key:x.id,className:'row-clickable',onClick:()=>setPurchaseDetail(x)},
+            h('td',null,h('strong',null,`BMR-${String(x.receipt_no).padStart(4,'0')}`)),h('td',null,formatDateIN(purchaseDate(x))),h('td',null,it?`${it.item_code} · ${it.item_name}`:'—'),
+            h('td',null,x.source==='Purchase'?'Purchase':'Opening stock'),h('td',null,x.quantity),h('td',null,[x.vendor_name,x.bill_no&&`Bill ${x.bill_no}`].filter(Boolean).join(' · ')||'—'),
+            h('td',null,money(x.unit_cost)),h('td',null,x.unit_cost!=null?money(Number(x.unit_cost)*Number(x.quantity)):'—'),h('td',null,(x.asset_nos||[]).join(', ')||'—'))}))
+        )):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},'No receipts in this period.')
+      ),
       ['inuse','available','service','repair','register'].includes(view)&&h(Section,{title:viewTitle,subtitle:view==='inuse'?'Charge in Bills & Charges → Biomedical Equipment: quantity = days in use.':null},
-        view==='register'&&h('div',{className:'stores-mode-switch',role:'tablist',style:{marginBottom:'10px',flexWrap:'wrap'}},['All','Available','In Use','Under Repair','Out of Service'].map(k=>h('button',{key:k,type:'button',role:'tab','aria-selected':regStatus===k,className:regStatus===k?'active':'',onClick:()=>setRegStatus(k)},`${k} (${k==='All'?list.length:list.filter(x=>x.status===k).length})`))),
-        h('div',{className:'field',style:{marginBottom:'12px'}},h('input',{type:'search',value:search,onChange:e=>setSearch(e.target.value),placeholder:'Search asset no., name, serial, resident'})),
+        view==='register'&&items.length>0&&h('div',{className:'equip-item-summary'},
+          h('button',{type:'button',className:itemFilter==='All'?'active':'',onClick:()=>setItemFilter('All')},h('strong',null,'All items'),h('small',null,`${list.length} piece(s)`)),
+          items.filter(i=>piecesOf(i).length||i.active).map(i=>{const ps=piecesOf(i);return h('button',{key:i.id,type:'button',className:String(itemFilter)===String(i.id)?'active':'',onClick:()=>setItemFilter(i.id)},
+            h('strong',null,`${i.item_code} · ${i.item_name}`),h('small',null,`${ps.length} piece(s) · ${ps.filter(x=>x.status==='Available').length} available · ${ps.filter(x=>x.status==='In Use').length} in use${ps.filter(x=>x.status==='Out of Service').length?` · ${ps.filter(x=>x.status==='Out of Service').length} out of service`:''}`))})),
+        view==='register'&&h('div',{className:'stores-mode-switch',role:'tablist',style:{marginBottom:'10px',flexWrap:'wrap'}},['All','Available','In Use','Under Repair','Out of Service'].map(k=>h('button',{key:k,type:'button',role:'tab','aria-selected':regStatus===k,className:regStatus===k?'active':'',onClick:()=>setRegStatus(k)},`${k} (${(itemFilter==='All'?list:list.filter(x=>String(x.item_id)===String(itemFilter))).filter(x=>k==='All'||x.status===k).length})`))),
+        h('div',{className:'field',style:{marginBottom:'12px'}},h('input',{type:'search',value:search,onChange:e=>setSearch(e.target.value),placeholder:'Search piece code, name, serial, vendor, resident'})),
         shown.length?h('div',{className:'stores-expiry-list'},shown.map(EquipmentCard)):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},list.length?'Nothing here.':'No equipment in the register yet.')
       ),
       view==='history'&&h(Section,{title:'Movement History'},

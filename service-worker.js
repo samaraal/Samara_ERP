@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.3';
-const CACHE = 'samara-erp-2.15.3-equipment-register-delete';
+const APP_VERSION = '2.15.4';
+const CACHE = 'samara-erp-2.15.4-equipment-items-purchases';
 const SHELL = [
   './',
   './index.html',

@@ -110,7 +110,10 @@
       setNavDepth(nav.stack.length);
     },[page]);
     React.useEffect(()=>{
-      const onPop=()=>{
+      const onPop=e=>{
+        // 2.15.4: a dashboard section (Stores / Equipment / Charge Master …) is open → Back closes that section only
+        if(e&&e.__samaraDashHandled)return;
+        try{const reg=window.__samaraDashViews;if(reg&&[...reg].some(r=>r&&r.current))return}catch(_){}
         const nav=navHistoryRef.current;
         if(!nav.stack.length)return;
         if(pageEditedRef.current&&!window.confirm('Go back? Any entries you have not saved on this page will be lost.')){

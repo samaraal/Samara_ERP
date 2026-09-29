@@ -3,6 +3,15 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.4 — Biomedical Equipment: Item Master + Receive / Purchase (SQL 164)
+- **Equipment Items** (new box): each kind of equipment is created once and gets an **item code** — BME-001 Pulse Oximeter, BME-002 Air Mattress … — linked to its Charge Master rate (BIO- code) or "Not charged". Edit renames all its pieces; Inactive stops new pieces; Delete only when it has no pieces. Duplicate names are blocked.
+- **Receive / Purchase** (replaces "Add Equipment"): choose the item → **Purchase from vendor** (vendor, bill no., bill date, cost per piece, warranty, serial numbers) or **Already owned (opening stock)**. Pieces are created automatically with codes **after the item code: BME-001-01, BME-001-02 …**
+- **Purchase Register** (new box): every receipt (BMR-0001 …) with period filter + Apply; tap a row for full details (vendor, bill, cost, total, warranty, piece codes, who received).
+- **Equipment Register** is grouped by item (e.g. "BME-001 · Pulse Oximeter — 3 pieces · 2 available · 0 in use"); cards show vendor / bill and warranty.
+- Existing pieces are grouped into items by name and renumbered to the new style by SQL 164 (history stays linked).
+- Fix: "← Back to Dashboard" / phone Back on Stores, Equipment, Oxygen and Charge Master dashboards sometimes left the page instead of returning to the dashboard.
+- **Run SQL 164 once** (after 163). Files: `src/app/stores/equipment-oxygen.js`, `src/app/stores/stores-dashboard.js`, `src/app/shell/01-app-main.js`, `styles.css`, version files, `app.js` (rebuilt).
+
 ## 2.15.3 — Equipment / Cylinder Register: see every piece, delete wrong entries (SQL 163)
 - **Equipment Register** tile now counts **every** piece (it used to skip Out of Service pieces, so it showed 0) and says how many are in / out of service.
 - Register filter chips: All / Available / In Use / Under Repair / Out of Service (with counts). Same for the **Cylinder Register** (All / Full / In Use / Empty / At Refill / Out of Service).

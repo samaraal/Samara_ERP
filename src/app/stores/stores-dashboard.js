@@ -11,15 +11,18 @@
     React.useEffect(()=>{
       // Runs before the app's own page-back handler (capture phase) and stops it, so Back
       // closes the open section instead of leaving the page.
+      // 2.15.4: the browser may run the app's page-back handler first, so both check this shared registry /
+      // the event mark: whichever runs, an open section is closed and the page does NOT go back.
+      const reg=(window.__samaraDashViews=window.__samaraDashViews||new Set());reg.add(viewRef);
       const onPop=e=>{
         if(!viewRef.current)return;
-        try{e.stopImmediatePropagation()}catch(_){}
+        try{e.__samaraDashHandled=true;e.stopImmediatePropagation()}catch(_){}
         viewRef.current='';
         setView('');
         window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}});
       };
       window.addEventListener('popstate',onPop,true);
-      return()=>window.removeEventListener('popstate',onPop,true);
+      return()=>{window.removeEventListener('popstate',onPop,true);reg.delete(viewRef)};
     },[]);
     function openView(key){
       if(viewRef.current){viewRef.current=key;setView(key)}
