@@ -1617,9 +1617,9 @@ Please keep these login details confidential.`;
       setBusy(true);
       setMsg('');
       if(!['Admin','Manager'].includes(profile?.role)&&!isAdmissionDelegateProfile(profile)){setMsg('Only Admin, Nursing Manager, Jaya or Saranya can complete patient admission.');setBusy(false);return}
-      if(!familyPortalEnabled){setMsg('Family Portal Access is mandatory for every admission. Select Family Portal Access or Both.');setBusy(false);return}
-      if(!String(familyAccess.relative_name||'').trim()||!String(familyAccess.relationship||'').trim()||String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10).length!==10){setMsg('Complete the mandatory Family Portal Contact 1 details: authorised relative name, relationship and valid mobile number.');setBusy(false);return}
-      if(familyAccess2.enabled){
+      if(!familyPortalEnabled&&!dailyWhatsAppEnabled){setMsg('Choose the family communication option: Family Portal Access, Daily Intelligent Report, or Both.');setBusy(false);return}
+      if(!String(familyAccess.relative_name||'').trim()||!String(familyAccess.relationship||'').trim()||String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10).length!==10){setMsg('Complete the mandatory Family Contact 1 details: authorised relative name, relationship and valid mobile number.');setBusy(false);return}
+      if(familyPortalEnabled&&familyAccess2.enabled){
         const mobile2=String(familyAccess2.mobile||'').replace(/\D/g,'').slice(-10);
         const mobile1=String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10);
         if(!String(familyAccess2.relative_name||'').trim()||!String(familyAccess2.relationship||'').trim()||mobile2.length!==10){setMsg('Complete Family Portal Contact 2 details or turn off Contact 2.');setBusy(false);return}
@@ -2045,30 +2045,36 @@ Please keep these login details confidential.`;
       h('div',{className:'section-card'},
         h('div',{className:'section-title'},h('div',null,h('h4',null,'Family Communication Preference'),h('small',null,'Choose how the authorised family member will receive resident updates after admission.'))),
         h('div',{className:'form-grid'},
+          h('div',{className:'span-3 admission-family-comm'},
+            h('div',{className:'admission-family-comm-head'},h('strong',null,'Family Communication Option *'),h('small',null,'The family can choose the Family Portal, the Daily Intelligent Report, or both.')),
+            h('div',{className:'admission-family-comm-choice',role:'radiogroup','aria-label':'Family Communication Option'},
+              ...[
+                ['Family Portal Access','Family Portal Access','Family logs in any time to follow the resident\'s care, vitals, medicines and updates.'],
+                ['Daily WhatsApp Update','Daily Intelligent Report on WhatsApp','The Intelligent Patient Report (PDF) is sent to the family on WhatsApp every day at a chosen time.'],
+                ['Both','Both','Family Portal Access plus the Daily Intelligent Report on WhatsApp.']
+              ].map(([mode,title,note])=>h('label',{key:mode,className:`check-card${familyAccess.delivery_mode===mode?' selected':''}${mode==='Family Portal Access'?' portal':''}`},
+                h('input',{type:'radio',name:'admission-family-comm',checked:familyAccess.delivery_mode===mode,onChange:()=>setFamilyAccess({...familyAccess,delivery_mode:mode,enabled:['Family Portal Access','Both'].includes(mode),daily_whatsapp_time:familyAccess.daily_whatsapp_time||'20:00'})}),
+                h('span',null,h('b',null,title),h('small',null,note))
+              ))
+            ),
+            dailyWhatsAppEnabled&&h('div',{className:'form-grid',style:{marginTop:'10px'}},
+              h('div',{className:'field'},h('label',null,'Daily Report Time *'),h('input',{type:'time',step:'300',required:true,value:familyAccess.daily_whatsapp_time||'20:00',onChange:e=>setFamilyAccess({...familyAccess,daily_whatsapp_time:e.target.value})})),
+              h('div',{className:'field span-2'},h('label',null,'Report will be sent to'),h('input',{readOnly:true,value:[String(familyAccess.relative_name||'').trim()||'Contact 1 (enter name below)',String(familyAccess.relationship||'').trim()&&`(${String(familyAccess.relationship).trim()})`,internationalLocalPart(familyAccess.mobile)?`· WhatsApp ${familyAccess.mobile}`:'· WhatsApp number not entered'].filter(Boolean).join(' ')})),
+              h('div',{className:'small-note span-3'},'Sent every day at this time (India time) through the approved WhatsApp template, to Family Contact 1. Can be changed later from Patients → Edit Recipient / Time.')
+            )
+          ),
           h('div',{className:'field'},h('label',null,'Authorised Relative Name'),h('input',{required:true,value:familyAccess.relative_name,onChange:e=>setFamilyAccess({...familyAccess,relative_name:e.target.value})})),
           h('div',{className:'field'},h('label',null,'Relationship'),h('select',{required:true,value:familyAccess.relationship||'',onChange:e=>setFamilyAccess({...familyAccess,relationship:e.target.value})},h('option',{value:''},'Select relationship'),...['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].map(x=>h('option',{key:x,value:x},x)))),
           h('div',{className:'field'},h('label',null,'Family WhatsApp Number'),h('div',{style:{display:'grid',gridTemplateColumns:'minmax(118px,42%) 1fr',gap:'6px'}},h('select',{value:admissionDialCode(familyAccess.mobile),'aria-label':'Family WhatsApp country code',onChange:e=>setFamilyAccess({...familyAccess,mobile:formatInternationalMobile(e.target.value,internationalLocalPart(familyAccess.mobile))})},ADMISSION_COUNTRY_CODES.map(([country,dial])=>h('option',{key:`wa-${country}-${dial}`,value:dial},`${country} (${dial})`))),h('input',{required:true,type:'tel',inputMode:'tel',value:internationalLocalPart(familyAccess.mobile),placeholder:'Mobile number',onChange:e=>setFamilyAccess({...familyAccess,mobile:formatInternationalMobile(admissionDialCode(familyAccess.mobile),e.target.value)})}))),
           h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:familyAccess.email,onChange:e=>setFamilyAccess({...familyAccess,email:e.target.value})})),
-          h('div',{className:'span-3 admission-daily-report'},
-            h('div',{className:'admission-daily-report-head'},h('strong',null,'Daily Intelligent Report on WhatsApp *'),h('small',null,'Send the resident\'s Intelligent Patient Report (PDF) to the family automatically every day, starting from admission.')),
-            h('div',{className:'admission-daily-report-choice',role:'radiogroup','aria-label':'Daily Intelligent Report on WhatsApp'},
-              h('label',{className:`check-card${dailyWhatsAppEnabled?' selected':''}`},h('input',{type:'radio',name:'admission-daily-report',checked:dailyWhatsAppEnabled,onChange:()=>setFamilyAccess({...familyAccess,delivery_mode:'Both',enabled:true,daily_whatsapp_time:familyAccess.daily_whatsapp_time||'20:00'})}),h('span',null,h('b',null,'Yes'),' — send the report every day')),
-              h('label',{className:`check-card${!dailyWhatsAppEnabled?' selected':''}`},h('input',{type:'radio',name:'admission-daily-report',checked:!dailyWhatsAppEnabled,onChange:()=>setFamilyAccess({...familyAccess,delivery_mode:'Family Portal Access',enabled:true})}),h('span',null,h('b',null,'No'),' — Family Portal only (can be switched on later in Patients)'))
-            ),
-            dailyWhatsAppEnabled&&h('div',{className:'form-grid',style:{marginTop:'10px'}},
-              h('div',{className:'field'},h('label',null,'Daily Report Time *'),h('input',{type:'time',step:'300',required:true,value:familyAccess.daily_whatsapp_time||'20:00',onChange:e=>setFamilyAccess({...familyAccess,daily_whatsapp_time:e.target.value})})),
-              h('div',{className:'field span-2'},h('label',null,'Report will be sent to'),h('input',{readOnly:true,value:[String(familyAccess.relative_name||'').trim()||'Contact 1 (enter name above)',String(familyAccess.relationship||'').trim()&&`(${String(familyAccess.relationship).trim()})`,internationalLocalPart(familyAccess.mobile)?`· WhatsApp ${familyAccess.mobile}`:'· WhatsApp number not entered'].filter(Boolean).join(' ')})),
-              h('div',{className:'small-note span-3'},'Sent every day at this time (India time) through the approved WhatsApp template, to Family Contact 1. Recipient and time can be changed later from Patients → Daily Patient Report → Edit Recipient / Time.')
-            )
-          ),
-          familyPortalEnabled&&h('label',{className:'check-card span-2'},h('input',{type:'checkbox',checked:true,disabled:true}),h('span',null,'Family Portal Access mandatory · Contact 1 is Primary Family Contact')),
-          h('div',{className:'span-2',style:{borderTop:'1px solid #ecd6e2',marginTop:'8px',paddingTop:'12px'}},
+          h('div',{className:'small-note span-3'},'Contact 1 is the Primary Family Contact'+(familyPortalEnabled?' and receives the Family Portal login.':'.')),
+          familyPortalEnabled&&h('div',{className:'span-2',style:{borderTop:'1px solid #ecd6e2',marginTop:'8px',paddingTop:'12px'}},
             h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!familyAccess2.enabled,onChange:e=>setFamilyAccess2({...familyAccess2,enabled:e.target.checked})}),h('span',null,'Enable Family Contact 2 — separate Family Portal login + automatic WhatsApp messages'))
           ),
-          familyAccess2.enabled&&h('div',{className:'field'},h('label',null,'Contact 2 Authorised Relative Name *'),h('input',{required:true,value:familyAccess2.relative_name,onChange:e=>setFamilyAccess2({...familyAccess2,relative_name:e.target.value})})),
-          familyAccess2.enabled&&h('div',{className:'field'},h('label',null,'Contact 2 Relationship *'),h('select',{required:true,value:familyAccess2.relationship||'',onChange:e=>setFamilyAccess2({...familyAccess2,relationship:e.target.value})},h('option',{value:''},'Select relationship'),...['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].map(x=>h('option',{key:`fam2-${x}`,value:x},x)))),
-          familyAccess2.enabled&&h('div',{className:'field'},h('label',null,'Contact 2 WhatsApp Number *'),h('div',{style:{display:'grid',gridTemplateColumns:'minmax(118px,42%) 1fr',gap:'6px'}},h('select',{value:admissionDialCode(familyAccess2.mobile),'aria-label':'Family Contact 2 country code',onChange:e=>setFamilyAccess2({...familyAccess2,mobile:formatInternationalMobile(e.target.value,internationalLocalPart(familyAccess2.mobile))})},ADMISSION_COUNTRY_CODES.map(([country,dial])=>h('option',{key:`wa2-${country}-${dial}`,value:dial},`${country} (${dial})`))),h('input',{required:true,type:'tel',inputMode:'tel',value:internationalLocalPart(familyAccess2.mobile),placeholder:'Mobile number',onChange:e=>setFamilyAccess2({...familyAccess2,mobile:formatInternationalMobile(admissionDialCode(familyAccess2.mobile),e.target.value)})}))),
-          familyAccess2.enabled&&h('div',{className:'field'},h('label',null,'Contact 2 Email (optional)'),h('input',{type:'email',value:familyAccess2.email,onChange:e=>setFamilyAccess2({...familyAccess2,email:e.target.value})}))
+          familyPortalEnabled&&familyAccess2.enabled&&h('div',{className:'field'},h('label',null,'Contact 2 Authorised Relative Name *'),h('input',{required:true,value:familyAccess2.relative_name,onChange:e=>setFamilyAccess2({...familyAccess2,relative_name:e.target.value})})),
+          familyPortalEnabled&&familyAccess2.enabled&&h('div',{className:'field'},h('label',null,'Contact 2 Relationship *'),h('select',{required:true,value:familyAccess2.relationship||'',onChange:e=>setFamilyAccess2({...familyAccess2,relationship:e.target.value})},h('option',{value:''},'Select relationship'),...['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].map(x=>h('option',{key:`fam2-${x}`,value:x},x)))),
+          familyPortalEnabled&&familyAccess2.enabled&&h('div',{className:'field'},h('label',null,'Contact 2 WhatsApp Number *'),h('div',{style:{display:'grid',gridTemplateColumns:'minmax(118px,42%) 1fr',gap:'6px'}},h('select',{value:admissionDialCode(familyAccess2.mobile),'aria-label':'Family Contact 2 country code',onChange:e=>setFamilyAccess2({...familyAccess2,mobile:formatInternationalMobile(e.target.value,internationalLocalPart(familyAccess2.mobile))})},ADMISSION_COUNTRY_CODES.map(([country,dial])=>h('option',{key:`wa2-${country}-${dial}`,value:dial},`${country} (${dial})`))),h('input',{required:true,type:'tel',inputMode:'tel',value:internationalLocalPart(familyAccess2.mobile),placeholder:'Mobile number',onChange:e=>setFamilyAccess2({...familyAccess2,mobile:formatInternationalMobile(admissionDialCode(familyAccess2.mobile),e.target.value)})}))),
+          familyPortalEnabled&&familyAccess2.enabled&&h('div',{className:'field'},h('label',null,'Contact 2 Email (optional)'),h('input',{type:'email',value:familyAccess2.email,onChange:e=>setFamilyAccess2({...familyAccess2,email:e.target.value})}))
         ),
       familyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},
           h('strong',null,'Family Portal login created'),

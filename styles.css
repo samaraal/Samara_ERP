@@ -2409,11 +2409,15 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 .approval-request-cards .stores-ledger-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;min-width:0;padding-bottom:8px;border-bottom:1px solid #f0dce5}
 .approval-request-cards .stores-ledger-card-head strong{color:#7a1247;font-size:15px;overflow-wrap:anywhere}
 @media(max-width:760px){.approval-request-cards{grid-template-columns:1fr;gap:10px}}
-/* 2.14.90 Admission: Daily Intelligent Report on WhatsApp */
-.admission-daily-report{border:1px solid #e3cfe0;border-left:5px solid #8f4bc1;border-radius:12px;padding:12px 14px;background:#fbf6fd}
-.admission-daily-report-head{display:flex;flex-direction:column;gap:3px;margin-bottom:10px}
-.admission-daily-report-head small{color:#66756f}
-.admission-daily-report-choice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.admission-daily-report-choice .check-card{cursor:pointer}
-.admission-daily-report-choice .check-card.selected{border-color:#8f4bc1;background:#f3e8fa;box-shadow:0 0 0 1px #8f4bc1 inset}
-@media (max-width:760px){.admission-daily-report-choice{grid-template-columns:1fr}.admission-daily-report .form-grid{grid-template-columns:1fr}.admission-daily-report .span-2,.admission-daily-report .span-3{grid-column:1/-1}}
+/* 2.14.90 Admission: Family Communication Option (Portal / Daily Intelligent Report / Both) */
+.admission-family-comm{border:1px solid #e3cfe0;border-radius:12px;padding:12px 14px;background:#fbf6fd}
+.admission-family-comm-head{display:flex;flex-direction:column;gap:3px;margin-bottom:10px}
+.admission-family-comm-head small{color:#66756f}
+.admission-family-comm-choice{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.admission-family-comm-choice .check-card{cursor:pointer}
+.admission-family-comm-choice .check-card span{display:flex;flex-direction:column;gap:3px}
+.admission-family-comm-choice .check-card small{color:#66756f;font-size:.8rem;line-height:1.35}
+.admission-family-comm-choice .check-card.portal{border-left:5px solid #8f4bc1}
+.admission-family-comm-choice .check-card.portal b::after{content:' ★ Samara Family Portal';font-size:.72rem;font-weight:800;color:#8f4bc1;margin-left:4px}
+.admission-family-comm-choice .check-card.selected{border-color:#8f4bc1;background:#f3e8fa;box-shadow:0 0 0 1px #8f4bc1 inset}
+@media (max-width:760px){.admission-family-comm-choice{grid-template-columns:1fr}.admission-family-comm .form-grid{grid-template-columns:1fr}.admission-family-comm .span-2,.admission-family-comm .span-3{grid-column:1/-1}}
