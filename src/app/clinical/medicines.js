@@ -31,7 +31,12 @@
     const [dateTo,setDateTo]=React.useState('');
     const [appliedMedicationFilter,setAppliedMedicationFilter]=React.useState({period:'All',from:'',to:''});
     const [marTarget,setMarTarget]=React.useState(null);
-    const [marForm,setMarForm]=React.useState({scheduled_time:'',status:'Given',administered_at:'',remarks:'',late_entry_reason:'',late_entry_justification:'',reschedule:false,rescheduled_time:''});
+    const [marForm,setMarForm]=React.useState({scheduled_time:'',status:'Given',administered_at:'',remarks:'',late_entry_reason:'',late_entry_justification:'',reschedule:false,rescheduled_time:'',withhold_reason:'',withhold_reading:'',doctor_informed_name:'',doctor_informed_via:'Phone call',doctor_informed_at:''});
+    // 2.15.11: withheld dose → doctor's instruction
+    const [instructionTarget,setInstructionTarget]=React.useState(null);
+    const [instructionForm,setInstructionForm]=React.useState({instruction:'',notes:'',give_at:''});
+    const [instructionBusy,setInstructionBusy]=React.useState(false);
+    const [instructionMessage,setInstructionMessage]=React.useState('');
     const [marBusy,setMarBusy]=React.useState(false);
     const [marMessage,setMarMessage]=React.useState('');
     const [showShiftMedication,setShowShiftMedication]=React.useState(false);
@@ -352,7 +357,9 @@
         remarks:existing?.remarks||'',
         late_entry_reason:existing?.late_entry_reason||'',
         late_entry_justification:existing?.late_entry_justification||'',
-        reschedule:false,rescheduled_time:''
+        reschedule:false,rescheduled_time:'',
+        withhold_reason:'',withhold_reading:'',
+        doctor_informed_name:String(p.treating_doctor||'').trim(),doctor_informed_via:'Phone call',doctor_informed_at:localDateTimeValue()
       });
       setMarMessage('');
     }
@@ -364,6 +371,13 @@
       const fresh=await client.from('patients').select('is_active,admission_status').eq('id',marTarget.patient_id).single();
       if(fresh.error||!fresh.data||fresh.data.is_active===false||fresh.data.admission_status==='Discharged'){setMarMessage('Patient is discharged or status could not be verified. Refresh the medication list.');await load();return}
       if(!marForm.scheduled_time){const text='Please select the scheduled medicine time.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;}
+      if(marForm.status==='Withheld'){
+        const need=(ok,text)=>{if(ok)return false;setMarMessage(text);showSamaraActionToast('error','Cannot withhold medicine',text);return true;};
+        if(need(marForm.withhold_reason,'Select the reason for withholding this dose.'))return;
+        if(need(String(marForm.withhold_reading||'').trim(),'Enter the reading / observation that led to withholding (e.g. BP 90/58 mmHg).'))return;
+        if(need(String(marForm.doctor_informed_name||'').trim(),'Enter the name of the treating doctor who was / will be informed.'))return;
+        if(need(marForm.doctor_informed_via,'Select how the doctor was informed.'))return;
+      }
       if(['Refused','Missed','Delayed'].includes(marForm.status)&&!String(marForm.remarks||'').trim()){
         const text=`Please enter the reason for medicine status “${marForm.status}”.`;setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;
       }
@@ -404,11 +418,20 @@
         late_entry_reason:isLateEntry?String(marForm.late_entry_reason||'').trim():null,
         late_entry_justification:isLateEntry?String(marForm.late_entry_justification||'').trim():null,
         rescheduled_time:canReschedule?normalizeMedicationTime(marForm.rescheduled_time):null,
-        reschedule_reason:canReschedule?String(marForm.remarks||'').trim():null
+        reschedule_reason:canReschedule?String(marForm.remarks||'').trim():null,
+        ...(marForm.status==='Withheld'?{
+          withhold_reason:marForm.withhold_reason,
+          withhold_reading:String(marForm.withhold_reading||'').trim(),
+          doctor_informed_name:String(marForm.doctor_informed_name||'').trim(),
+          doctor_informed_via:marForm.doctor_informed_via,
+          doctor_informed_at:marForm.doctor_informed_via==='Not reachable yet — will retry'?null:(marForm.doctor_informed_at?new Date(marForm.doctor_informed_at).toISOString():new Date().toISOString())
+        }:{})
       };
       const {error}=await client.from('medication_administrations').insert(payload);
+      if(error&&marForm.status==='Withheld'&&/withhold_|doctor_informed|column/i.test(error.message||'')){const text='Withholding needs the database update SQL 167. Please ask Admin to run it, then try again.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
       if(error){const text=error.message||'Unable to save the Medication Administration Record.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
-      showSamaraActionToast('success','Medication saved','Medication administration has been recorded successfully.');setMarBusy(false);setTab('Today’s MAR');await load();
+      if(marForm.status==='Withheld')showSamaraActionToast('success','Dose withheld','Recorded. Nursing Manager and Admin are alerted. Record the doctor\'s instruction as soon as it is received.');
+      else showSamaraActionToast('success','Medication saved','Medication administration has been recorded successfully.');setMarBusy(false);setTab('Today’s MAR');await load();
       finishSuccessfulAction({
         close:()=>setMarTarget(null),
         returnPage,
@@ -418,16 +441,17 @@
 
     async function load(){
       setState(current=>({...current,loading:true,error:''}));
-      const [ordersResult,marResult,patientsResult,reviewsResult,reviewItemsResult]=await Promise.all([
+      const [ordersResult,marResult,patientsResult,reviewsResult,reviewItemsResult,vitalsResult]=await Promise.all([
         client.from('medication_orders').select('*').order('created_at',{ascending:false}),
         client.from('medication_administrations').select('*').order('scheduled_date',{ascending:false}).order('scheduled_time',{ascending:false}).limit(1000),
         client.from('patients').select('*').order('full_name'),
         client.from('medication_reviews').select('*').order('reviewed_at',{ascending:false}).limit(500),
-        client.from('medication_review_items').select('*').order('created_at',{ascending:false}).limit(2000)
+        client.from('medication_review_items').select('*').order('created_at',{ascending:false}).limit(2000),
+        client.from('vital_signs').select('patient_id,systolic,diastolic,pulse,blood_sugar,blood_sugar_type,recorded_at').gte('recorded_at',new Date(Date.now()-12*3600*1000).toISOString()).order('recorded_at',{ascending:false}).limit(1000)
       ]);
       const errors=[ordersResult.error,marResult.error,patientsResult.error].filter(Boolean);
       const reviewSetupError=[reviewsResult.error,reviewItemsResult.error].filter(Boolean).map(e=>e.message).join(' | ');
-      setState({loading:false,orders:ordersResult.data||[],mar:marResult.data||[],patients:patientsResult.data||[],reviews:reviewsResult.data||[],reviewItems:reviewItemsResult.data||[],error:errors.map(e=>e.message).join(' | '),reviewSetupError});
+      setState({loading:false,orders:ordersResult.data||[],mar:marResult.data||[],patients:patientsResult.data||[],reviews:reviewsResult.data||[],reviewItems:reviewItemsResult.data||[],vitals:vitalsResult?.error?[]:(vitalsResult?.data||[]),error:errors.map(e=>e.message).join(' | '),reviewSetupError});
     }
     React.useEffect(()=>{
       load();
@@ -559,6 +583,7 @@
       return Number.isNaN(d.getTime())?null:d;
     }
     function pendingDoseState(item){
+      if(item.log&&item.log.status==='Withheld')return {status:medicationWithholdOpen(item.log)?'Withheld · awaiting doctor':'Withheld',audit:[item.log.withhold_reason,item.log.withhold_reading,item.log.doctor_instruction?`Dr: ${item.log.doctor_instruction}`:'Doctor\'s instruction pending'].filter(Boolean).join(' · '),minutes:0};
       if(item.log)return {status:item.log.status||'Recorded',audit:item.log.late_entry?`Late entry (${item.log.entry_delay_minutes||0} min) · ${item.log.late_entry_reason||'Justification recorded'}`:'On-time entry',minutes:0};
       const due=scheduledDoseDate(item.time,item.date||today);if(!due)return {status:'Pending',audit:'Not recorded',minutes:0};
       const minutes=Math.floor((Date.now()-due.getTime())/60000);
@@ -698,6 +723,33 @@
       );
     }
 
+    // 2.15.11: warn-only suggestion from today's latest vitals; open withheld doses awaiting the doctor
+    const withholdSuggestion=marTarget&&marForm.status!=='Withheld'?medicationWithholdSuggestion(marTarget,(state.vitals||[]).find(v=>v.patient_id===marTarget.patient_id)):null;
+    const openWithheld=(state.mar||[]).filter(medicationWithholdOpen).filter(log=>{const pt=state.patients.find(x=>x.id===log.patient_id);return pt&&pt.is_active!==false&&(!patientFilter||log.patient_id===patientFilter)});
+    function openInstruction(log){
+      const plus30=new Date(Date.now()+30*60000);
+      setInstructionTarget(log);
+      setInstructionForm({instruction:'',notes:'',give_at:`${String(plus30.getHours()).padStart(2,'0')}:${String(plus30.getMinutes()).padStart(2,'0')}`});
+      setInstructionMessage('');
+    }
+    async function saveInstruction(e){
+      e.preventDefault();
+      if(!instructionTarget)return;
+      const f=instructionForm;
+      const fail=text=>{setInstructionMessage(text);showSamaraActionToast('error','Cannot save instruction',text)};
+      if(!f.instruction)return fail('Select the doctor\'s instruction.');
+      if(!String(f.notes||'').trim())return fail('Enter what the doctor said (the instruction in the doctor\'s words).');
+      if(f.instruction==='Give at a later time'&&!f.give_at)return fail('Choose the time to give the dose.');
+      setInstructionBusy(true);
+      const {error}=await client.rpc('record_withheld_dose_instruction',{p_id:instructionTarget.id,p_instruction:f.instruction,p_notes:String(f.notes).trim(),p_give_at:f.instruction==='Give at a later time'?`${f.give_at}:00`:null});
+      setInstructionBusy(false);
+      if(error)return fail(error.message||'Unable to save the doctor\'s instruction.');
+      const patientId=instructionTarget.patient_id;
+      setInstructionTarget(null);
+      showSamaraActionToast('success','Doctor\'s instruction recorded',f.instruction==='Give now'?'The dose now appears as due in Today\'s MAR. Record it when given.':f.instruction==='Give at a later time'?`The dose will appear again at ${medicationTimeLabel(f.give_at)} in Today\'s MAR.`:f.instruction==='Skip this dose'?'This dose is closed as skipped on the doctor\'s instruction.':'Now record the prescription change in Doctor Review / Modify.');
+      await load();
+      if(f.instruction==='Change prescription (Doctor Review)'&&canReviseMedication&&!state.reviewSetupError){setTab('Prescription History');openMedicationReview(patientId);}
+    }
     const targetTimes=marTarget?Array.from(new Set([...parseTimes(marTarget.scheduled_times),marForm.scheduled_time].filter(Boolean))):[];
     const currentEntryDelay=marForm.administered_at?Math.max(0,Math.round((Date.now()-new Date(marForm.administered_at).getTime())/60000)):0;
     const currentIsLateEntry=currentEntryDelay>30;
@@ -706,6 +758,22 @@
       h(Section,{title:'Medication Administration & Prescription Register',subtitle:'Unified prescription history and MAR status from the patient record'},
         state.error&&h('div',{className:'message error'},`Unable to load part of the medication register: ${state.error}`),
         state.reviewSetupError&&h('div',{className:'message error'},'Medication Review database upgrade is not yet installed. Run MEDICATION_REVIEW_MIGRATION_v2.11.26.sql in Supabase SQL Editor before using Doctor Review / Modify.'),
+        // 2.15.11: withheld doses stay here until the doctor's instruction is recorded
+        openWithheld.length>0&&h('div',{className:'section-card',style:{border:'1px solid #f0b4b4',borderLeft:'6px solid #b42318',background:'#fff7f7',marginBottom:'14px'}},
+          h('div',{className:'panel-head'},h('div',null,h('h3',{style:{color:'#b42318',margin:0}},`Withheld doses — awaiting doctor's instruction (${openWithheld.length})`),h('small',null,'Record the doctor\'s instruction as soon as it is received. Nursing Manager and Admin are alerted until then.'))),
+          h('div',{style:{display:'grid',gap:'8px'}},openWithheld.map(log=>{
+            const order=state.orders.find(o=>o.id===log.order_id)||{};
+            const pt=state.patients.find(x=>x.id===log.patient_id)||{};
+            const since=Math.max(0,Math.round((Date.now()-new Date(log.administered_at||log.entry_recorded_at||Date.now()).getTime())/60000));
+            return h('div',{key:log.id,style:{display:'flex',gap:'10px',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',padding:'10px 12px',border:'1px solid #f3cccc',borderRadius:'10px',background:'#fff'}},
+              h('div',{style:{minWidth:'240px',flex:'1 1 320px'}},
+                h('strong',null,`${formalName(pt)||pt.full_name||'Resident'}${pt.room_no?` · Room ${pt.room_no}${pt.bed_no?'-'+pt.bed_no:''}`:''}`),
+                h('div',null,`${medicineLabel(order)} · dose ${medicationTimeLabel(log.scheduled_time)}${log.scheduled_date&&log.scheduled_date!==today?` (${formatDateIN(log.scheduled_date)})`:''}`),
+                h('small',{style:{display:'block',color:'#7a2a2a'}},[log.withhold_reason,log.withhold_reading].filter(Boolean).join(' · ')),
+                h('small',{style:{display:'block',color:'#5f5f5f'}},`Doctor: ${log.doctor_informed_name||'—'} · ${log.doctor_informed_via||'—'}${log.doctor_informed_at?` at ${fmt(log.doctor_informed_at)}`:''} · withheld ${since<60?`${since} min`:`${Math.floor(since/60)} h ${since%60} min`} ago`)),
+              canReviseMedication&&h('button',{type:'button',className:'btn btn-primary',onClick:()=>openInstruction(log)},'Record doctor\'s instruction'));
+          }))
+        ),
         !useFrontlinePriority&&h('div',{className:'panel-head'},
           h('div',{className:'field',style:{minWidth:'260px',marginBottom:0}},h('label',null,'Patient filter'),h('select',{value:patientFilter,onChange:e=>setPatientFilter(e.target.value)},h('option',{value:''},'All patients'),state.patients.filter(p=>p.is_active!==false).map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)||p.full_name} · ${p.patient_id||'No ID'}`)))),
           h('div',{className:'actions'},canReviseMedication&&h('button',{type:'button',className:'btn btn-primary',disabled:Boolean(state.reviewSetupError),onClick:()=>openMedicationReview(patientFilter)},'Doctor Review / Modify'),h('button',{type:'button',className:'btn btn-secondary',onClick:load},state.loading?'Loading…':'Refresh'))
@@ -789,7 +857,16 @@
             h('div',{className:'field'},h('label',null,'Route'),h('input',{value:marTarget.route||'—',readOnly:true})),
             h('div',{className:'field'},h('label',null,'Frequency'),h('input',{value:marTarget.frequency||'—',readOnly:true})),
             h('div',{className:'field'},h('label',null,'Scheduled Time'),h('select',{value:marForm.scheduled_time,onChange:e=>setMarForm({...marForm,scheduled_time:e.target.value})},(targetTimes.length?targetTimes:[marForm.scheduled_time]).filter(Boolean).map(time=>h('option',{key:time,value:time},medicationTimeLabel(time))))),
-            h('div',{className:'field'},h('label',null,'Status'),h('select',{value:marForm.status,onChange:e=>setMarForm({...marForm,status:e.target.value})},['Given','Delayed','Refused','Missed'].map(status=>h('option',{key:status,value:status},status)))),
+            withholdSuggestion&&h('div',{className:'message warning span-2',style:{display:'flex',gap:'10px',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
+              h('span',null,h('strong',null,'Check before giving: '),withholdSuggestion.text),
+              h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setMarForm(current=>({...current,status:'Withheld',withhold_reason:withholdSuggestion.reason,withhold_reading:withholdSuggestion.reading}))},'Withhold this dose')),
+            h('div',{className:'field'},h('label',null,'Status'),h('select',{value:marForm.status,onChange:e=>setMarForm({...marForm,status:e.target.value})},['Given','Delayed','Refused','Missed','Withheld'].map(status=>h('option',{key:status,value:status},status==='Withheld'?'Withheld (clinical — inform doctor)':status)))),
+            marForm.status==='Withheld'&&h('div',{className:'message warning span-2'},'Withholding: record the reason and the reading, inform the treating doctor, then record the doctor\'s instruction when received. Nursing Manager and Admin are alerted immediately.'),
+            marForm.status==='Withheld'&&h('div',{className:'field'},h('label',null,'Reason for withholding'),h('select',{required:true,value:marForm.withhold_reason,onChange:e=>setMarForm({...marForm,withhold_reason:e.target.value})},h('option',{value:''},'Select reason'),MEDICATION_WITHHOLD_REASONS.map(r=>h('option',{key:r,value:r},r)))),
+            marForm.status==='Withheld'&&h('div',{className:'field'},h('label',null,'Reading / observation'),h('input',{required:true,value:marForm.withhold_reading,placeholder:MEDICATION_WITHHOLD_READING_HINT[marForm.withhold_reason]||'Example: BP 90/58 mmHg at 7:50 AM',onChange:e=>setMarForm({...marForm,withhold_reading:e.target.value})})),
+            marForm.status==='Withheld'&&h('div',{className:'field'},h('label',null,'Treating doctor informed'),h('input',{required:true,value:marForm.doctor_informed_name,placeholder:'Doctor name',onChange:e=>setMarForm({...marForm,doctor_informed_name:e.target.value})})),
+            marForm.status==='Withheld'&&h('div',{className:'field'},h('label',null,'Informed by'),h('select',{value:marForm.doctor_informed_via,onChange:e=>setMarForm({...marForm,doctor_informed_via:e.target.value})},MEDICATION_DOCTOR_CONTACT_MODES.map(m=>h('option',{key:m,value:m},m)))),
+            marForm.status==='Withheld'&&marForm.doctor_informed_via!=='Not reachable yet — will retry'&&h('div',{className:'field span-2'},h('label',null,'Doctor informed at'),h(StrictDateTimeInput,{value:marForm.doctor_informed_at,onChange:e=>setMarForm({...marForm,doctor_informed_at:e.target.value})})),
             MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&h('label',{className:'checkbox span-2'},h('input',{type:'checkbox',checked:!!marForm.reschedule,onChange:e=>setMarForm({...marForm,reschedule:e.target.checked,rescheduled_time:e.target.checked?(marForm.rescheduled_time||''):''})}),' Re-medication required — reschedule this dose (e.g. patient sleeping / refused now)'),
             MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule&&h('div',{className:'field span-2'},h('label',null,'Re-medication Time'),h('input',{type:'time',required:true,value:marForm.rescheduled_time,onChange:e=>setMarForm({...marForm,rescheduled_time:e.target.value})}),h('small',null,'The dose will appear again at this time in Today’s MAR and Shift Tasks (a time after midnight falls on the next day). The original entry remains permanently in MAR history.')),
             h('div',{className:'field span-2'},h('label',null,'Actual Administration Time'),h(StrictDateTimeInput,{value:marForm.administered_at,onChange:e=>setMarForm({...marForm,administered_at:e.target.value}),required:true}),h('small',null,'The system records the MAR entry time automatically and staff cannot edit it.')),
@@ -797,9 +874,24 @@
             currentIsLateEntry&&h('div',{className:'field'},h('label',null,'Late Entry Reason'),h('select',{value:marForm.late_entry_reason,onChange:e=>setMarForm({...marForm,late_entry_reason:e.target.value}),required:true},h('option',{value:''},'Select reason'),lateEntryReasons.map(reason=>h('option',{key:reason,value:reason},reason)))),
             currentIsLateEntry&&h('div',{className:'field'},h('label',null,'Entry Delay'),h('input',{value:`${currentEntryDelay} minutes`,readOnly:true})),
             currentIsLateEntry&&h('div',{className:'field span-2'},h('label',null,'Detailed Late Entry Justification'),h('textarea',{rows:3,value:marForm.late_entry_justification,onChange:e=>setMarForm({...marForm,late_entry_justification:e.target.value}),placeholder:'Explain why the medicine was not documented immediately, who administered it, and any verification performed.',required:true})),
-            h('div',{className:'field span-2'},h('label',null,marForm.status==='Given'?'Clinical Remarks (optional)':'Reason / Clinical Remarks (required)'),h('textarea',{rows:4,value:marForm.remarks,onChange:e=>setMarForm({...marForm,remarks:e.target.value}),placeholder:marForm.status==='Given'?'Any observation after administration':'Enter the medicine exception reason and action taken',required:marForm.status!=='Given'}))
+            h('div',{className:'field span-2'},h('label',null,['Given','Withheld'].includes(marForm.status)?'Clinical Remarks (optional)':'Reason / Clinical Remarks (required)'),h('textarea',{rows:4,value:marForm.remarks,onChange:e=>setMarForm({...marForm,remarks:e.target.value}),placeholder:marForm.status==='Given'?'Any observation after administration':marForm.status==='Withheld'?'Any further observation / action taken':'Enter the medicine exception reason and action taken',required:!['Given','Withheld'].includes(marForm.status)}))
           ),
           h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:closeMar,disabled:marBusy},'Cancel'),h('button',{className:'btn btn-primary',disabled:marBusy},marBusy?'Saving MAR…':'Save MAR'))
+        )
+      ),
+      instructionTarget&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget&&!instructionBusy)setInstructionTarget(null)}},
+        h('form',{className:'card modal',onSubmit:saveInstruction},
+          h('div',{className:'panel-head'},h('div',null,h('h3',null,'Doctor\'s instruction — withheld dose'),h('small',null,'Recorded permanently with the withheld dose')),h('button',{type:'button',className:'close',onClick:()=>!instructionBusy&&setInstructionTarget(null)},'×')),
+          instructionMessage&&h('div',{className:'message error'},instructionMessage),
+          (()=>{const order=state.orders.find(o=>o.id===instructionTarget.order_id)||{};const pt=state.patients.find(x=>x.id===instructionTarget.patient_id)||{};
+            return h('div',{className:'message warning'},`${formalName(pt)||pt.full_name||'Resident'} · ${medicineLabel(order)} · dose ${medicationTimeLabel(instructionTarget.scheduled_time)} — withheld: ${[instructionTarget.withhold_reason,instructionTarget.withhold_reading].filter(Boolean).join(' · ')}`)})(),
+          h('div',{className:'modal-grid'},
+            h('div',{className:'field span-2'},h('label',null,'Doctor\'s instruction'),h('select',{required:true,value:instructionForm.instruction,onChange:e=>setInstructionForm({...instructionForm,instruction:e.target.value})},h('option',{value:''},'Select instruction'),MEDICATION_WITHHOLD_INSTRUCTIONS.map(x=>h('option',{key:x,value:x},x)))),
+            instructionForm.instruction==='Give at a later time'&&h('div',{className:'field span-2'},h('label',null,'Give the dose at'),h('input',{type:'time',required:true,value:instructionForm.give_at,onChange:e=>setInstructionForm({...instructionForm,give_at:e.target.value})}),h('small',null,'The dose appears again at this time in Today\'s MAR and Shift Tasks.')),
+            instructionForm.instruction==='Change prescription (Doctor Review)'&&h('div',{className:'message warning span-2'},'After saving, Doctor Review / Modify opens so the prescription change is recorded properly (medicines are changed only through Doctor Review).'),
+            h('div',{className:'field span-2'},h('label',null,'What the doctor said'),h('textarea',{rows:3,required:true,value:instructionForm.notes,placeholder:'Example: Dr. Kumar (phone, 8:10 AM): skip this morning dose, recheck BP at 12 PM and inform',onChange:e=>setInstructionForm({...instructionForm,notes:e.target.value})}))
+          ),
+          h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:instructionBusy,onClick:()=>setInstructionTarget(null)},'Cancel'),h('button',{className:'btn btn-primary',disabled:instructionBusy},instructionBusy?'Saving…':'Save instruction'))
         )
       )
     );

@@ -3,6 +3,15 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.11 — Medicines: nurse may WITHHOLD a dose on clinical assessment; doctor's instruction follow-up (SQL 167)
+- New status **Withheld (clinical — inform doctor)** in the medicine record. The nurse records the **reason** (Low BP, Low blood sugar, Low pulse, Drowsy / unwell, Nil by mouth, Vomiting, Other), the **reading** that led to it (e.g. BP 90/58 mmHg), and the **treating doctor informed** — name (pre-filled), how (phone / WhatsApp / in person / not reachable yet) and when.
+- **Immediate alert** to Nurses, Nursing Manager, Managers and Admin / Directors until the doctor's instruction is recorded.
+- **Withheld doses — awaiting doctor's instruction** panel at the top of Medicines. **Record doctor's instruction** (Nurse on duty / Manager / Admin): Give now · Give at a later time · Skip this dose · Change prescription (opens Doctor Review / Modify — medicines are still changed only through Doctor Review). What the doctor said is recorded permanently.
+- "Give now / later" puts the dose back in Today's MAR and Shift Tasks at that time (and in the clinical alert engine).
+- **Warn-only check:** opening a BP / diabetes / heart-rate medicine shows a warning when today's latest vitals are low (BP below 100/60, blood sugar below 100 mg/dL, pulse below 55) with a one-tap "Withhold this dose". The nurse decides.
+- Internal only — not shown in the Family Portal.
+- **Run SQL 167 once.** Files: `src/app/clinical/medicines.js`, `src/app/patients/medication-helpers.js`, `src/app/global-ui/06-bell-notifications-popups.js`, version files, `app.js` (rebuilt).
+
 ## 2.15.10 — An admission cannot be completed again for a resident who is already admitted
 - Completing an old unfinished admission of a resident who was meanwhile admitted (e.g. draft AD-0001 for Mrs. Lakshmi) stopped the resident's medicines and care orders and wrote the draft's list in their place — without Doctor Review. This is now blocked with a clear message: discard the draft; change details from the Patient file and medicines through Doctor Review / Modify.
 - No SQL. Files: `src/app/patients/admissions.js`, version files, `app.js` (rebuilt).

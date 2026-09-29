@@ -234,3 +234,41 @@
   }
 
 
+
+  // 2.15.11: clinical withholding of a dose (nurse's assessment) + doctor's instruction follow-up
+  const MEDICATION_WITHHOLD_REASONS=['Low blood pressure','Low blood sugar','Low pulse / heart rate','Drowsy / unwell','Nil by mouth (NPO)','Vomiting / cannot swallow','Other clinical reason'];
+  const MEDICATION_WITHHOLD_READING_HINT={
+    'Low blood pressure':'Example: BP 90/58 mmHg at 7:50 AM',
+    'Low blood sugar':'Example: RBS 68 mg/dL (glucometer) at 7:45 AM',
+    'Low pulse / heart rate':'Example: Pulse 50/min at 8:00 AM',
+    'Drowsy / unwell':'Example: Drowsy, responds to voice; BP 110/70, SpO₂ 96%',
+    'Nil by mouth (NPO)':'Example: NPO for procedure from 6 AM (doctor order)',
+    'Vomiting / cannot swallow':'Example: Vomited twice since 7 AM',
+    'Other clinical reason':'Enter the observation / reading'
+  };
+  const MEDICATION_DOCTOR_CONTACT_MODES=['Phone call','WhatsApp','In person','Not reachable yet — will retry'];
+  const MEDICATION_WITHHOLD_INSTRUCTIONS=['Give now','Give at a later time','Skip this dose','Change prescription (Doctor Review)'];
+  const MEDICATION_BP_RE=/amlodipine|telmisartan|losartan|olmesartan|valsartan|irbesartan|azilsartan|ramipril|enalapril|lisinopril|perindopril|metoprolol|atenolol|bisoprolol|carvedilol|nebivolol|propranolol|labetalol|cilnidipine|nifedipine|felodipine|benidipine|hydrochlorothiazide|chlorthalidone|indapamide|furosemide|frusemide|torsemide|spironolactone|clonidine|prazosin|methyldopa|\btelma\b|\bamlong\b|\bstamlo\b/i;
+  const MEDICATION_RATE_RE=/metoprolol|atenolol|bisoprolol|carvedilol|nebivolol|propranolol|labetalol|diltiazem|verapamil|digoxin|ivabradine/i;
+  const MEDICATION_SUGAR_RE=/metformin|glimepiride|gliclazide|glipizide|glibenclamide|insulin|sitagliptin|vildagliptin|teneligliptin|linagliptin|saxagliptin|dapagliflozin|empagliflozin|canagliflozin|pioglitazone|voglibose|acarbose|repaglinide|\bglycomet\b|\bamaryl\b|\bjanuvia\b|\bgalvus\b|\bhuman mixtard\b|\blantus\b|\bnovorapid\b/i;
+  function medicationWithholdOpen(log){return String(log?.status||'')==='Withheld'&&!log?.doctor_instruction}
+  // Warn-only: returns a suggestion when today's latest reading is low for this kind of medicine. The nurse decides.
+  function medicationWithholdSuggestion(order,latestVitals){
+    const name=`${order?.medicine_name||''} ${order?.generic_name||''}`;
+    const v=latestVitals||{};
+    const at=v.recorded_at?new Date(v.recorded_at).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}):'';
+    const s=Number(v.systolic),d=Number(v.diastolic),pulse=Number(v.pulse),sugar=Number(v.blood_sugar);
+    if(MEDICATION_SUGAR_RE.test(name)&&v.blood_sugar!==null&&v.blood_sugar!==undefined&&Number.isFinite(sugar)&&sugar<100){
+      const reading=`Blood sugar ${sugar} mg/dL${v.blood_sugar_type&&v.blood_sugar_type!=='Not Taken'?` (${v.blood_sugar_type})`:''}${at?` at ${at}`:''}`;
+      return {reason:'Low blood sugar',reading,text:`${sugar<70?'Low blood sugar (below 70 mg/dL)':'Blood sugar is already in the normal range'}: ${reading}. This diabetes medicine may lower it further — consider withholding and informing the treating doctor.`};
+    }
+    if(MEDICATION_BP_RE.test(name)&&v.systolic!==null&&v.systolic!==undefined&&Number.isFinite(s)&&(s<100||(Number.isFinite(d)&&d<60))){
+      const reading=`BP ${s}/${Number.isFinite(d)?d:'—'} mmHg${at?` at ${at}`:''}`;
+      return {reason:'Low blood pressure',reading,text:`Low blood pressure: ${reading}. This BP medicine may lower it further — consider withholding and informing the treating doctor.`};
+    }
+    if(MEDICATION_RATE_RE.test(name)&&v.pulse!==null&&v.pulse!==undefined&&Number.isFinite(pulse)&&pulse<55){
+      const reading=`Pulse ${pulse}/min${at?` at ${at}`:''}`;
+      return {reason:'Low pulse / heart rate',reading,text:`Low pulse: ${reading}. This medicine slows the heart rate — consider withholding and informing the treating doctor.`};
+    }
+    return null;
+  }

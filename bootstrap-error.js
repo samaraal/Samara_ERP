@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '2.15.10';
+  const VERSION = '2.15.11';
   let rendering = false;
 
   const escapeHtml = value => String(value ?? '')

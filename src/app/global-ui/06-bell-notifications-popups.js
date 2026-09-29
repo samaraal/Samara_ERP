@@ -151,7 +151,12 @@
         // 2.14.77: food vendor reply alerts. Returned -> Nursing Manager + Admin/Director; Needs Modification / No reply -> Nursing Manager.
         if(foodManager||foodAdmin)jobs.push(client.rpc('fv_vendor_reply_alerts'));
         else jobs.push(Promise.resolve({data:[],error:null}));
-        const [dis,charges,food]=await Promise.all(jobs);
+        // 2.15.11: withheld doses awaiting the doctor's instruction -> Nurses, Nursing Manager, Managers, Admin/Directors
+        if(isManagement||isNursing||foodAdmin){
+          const since=new Date(Date.now()-2*86400000).toISOString().slice(0,10);
+          jobs.push(client.from('medication_administrations').select('id,patient_id,order_id,scheduled_date,scheduled_time,withhold_reason,withhold_reading,doctor_informed_name,administered_at').eq('status','Withheld').is('doctor_instruction',null).gte('scheduled_date',since).limit(50));
+        }else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges,food,withheld]=await Promise.all(jobs);
         const candidates=[];
         (dis.data||[]).forEach(row=>{
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
@@ -168,6 +173,19 @@
           const t=foodVendorAlertText(a);
           candidates.push({key:`food-${a.alert_key}`,kind:'Food Vendor',title:t.title,detail:t.detail,page:'Food & Diet',food:a,urgent:a.alert_type==='Returned',at:a.event_at});
         });
+        if(!withheld?.error&&Array.isArray(withheld?.data)&&withheld.data.length){
+          const ids=[...new Set(withheld.data.map(x=>x.patient_id))],orderIds=[...new Set(withheld.data.map(x=>x.order_id))];
+          const [pts,ords]=await Promise.all([
+            client.from('patients').select('id,title,full_name,room_no,bed_no,is_active').in('id',ids),
+            client.from('medication_orders').select('id,medicine_name,strength').in('id',orderIds)
+          ]);
+          withheld.data.forEach(w=>{
+            const pt=(pts.data||[]).find(x=>x.id===w.patient_id);if(pt&&pt.is_active===false)return;
+            const od=(ords.data||[]).find(x=>x.id===w.order_id)||{};
+            const who=pt?`${formalName(pt)||pt.full_name}${pt.room_no?` (Room ${pt.room_no}${pt.bed_no?'-'+pt.bed_no:''})`:''}`:'A resident';
+            candidates.push({key:`withheld-${w.id}`,kind:'Medication',title:'Dose withheld — doctor\'s instruction needed',detail:`${who}: ${[od.medicine_name,od.strength].filter(Boolean).join(' ')||'medicine'} (${String(w.scheduled_time||'').slice(0,5)}) was withheld — ${[w.withhold_reason,w.withhold_reading].filter(Boolean).join(', ')}. Doctor informed: ${w.doctor_informed_name||'—'}. Record the doctor's instruction in Medicines.`,page:'Medicines',urgent:true,at:w.administered_at});
+          });
+        }
         candidates.sort((a,b)=>Number(!!b.urgent)-Number(!!a.urgent)||new Date(b.at||0)-new Date(a.at||0));
         const next=candidates.find(x=>!closed.current.has(x.key));
         setItem(current=>current&&candidates.some(x=>x.key===current.key)?current:(next||null));
