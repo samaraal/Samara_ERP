@@ -9,7 +9,7 @@
   {
    "file": "0-start/01-app-constants.js",
    "about": "OPENS the main app closure. Version, build date, fixed lists (blood groups, professions, centre)",
-   "lines": 109
+   "lines": 114
   },
   {
    "file": "core/01-app-help-repair-popups.js",
@@ -349,7 +349,7 @@
   {
    "file": "stores/consumables-stores.js",
    "about": "Consumables stores",
-   "lines": 768
+   "lines": 770
   },
   {
    "file": "stores/patient-consumables.js",

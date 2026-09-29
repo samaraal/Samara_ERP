@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.97';
+  const APP_VERSION = '2.14.98';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -45,10 +45,10 @@
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '29-Sep-2026 Stores resident details';
+  const APP_BUILD_DATE = '29-Sep-2026 Unit dropdown everywhere';
   const APP_SCHEMA_VERSION = '38';
 
-  // 2.14.97: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
+  // 2.14.98: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
   // receiving, nurse indents, Charge Master, Bills & Charges). Must match public.store_section_names() in SQL 160.
   const STORE_SECTIONS=[
     {name:'Consumables',page:'Consumables',code:'CON',icon:'▤',departmentIssue:false,blurb:'Clinical consumables — indents, stock, receipts, movements and expiry at a glance.'},
@@ -60,8 +60,13 @@
   // Charge categories that are Stores items (live Store Master rate); 'Pharmacy & Basic Supplies' is the older Charge Master name for Pharmacy.
   const STORE_CHARGE_CATEGORIES=[...STORE_SECTION_NAMES,'Pharmacy & Basic Supplies'];
   const STORE_DEPARTMENTS=['Nursing Floor','Housekeeping','Kitchen / Pantry','Laundry','Office / Admin','Maintenance','Front Desk / Reception','Other'];
-  // 2.14.97: Accounts → Manual Billing & Payment Entry may post a "Charge" only in these categories; everything else goes through Bills & Charges.
+  // 2.14.98: Accounts → Manual Billing & Payment Entry may post a "Charge" only in these categories; everything else goes through Bills & Charges.
   const MANUAL_CHARGE_CATEGORIES=['Room Charges','Final Settlement','Other'];
+  // 2.14.98: ONE standard list of units for every Stores item (Receive, Edit Item, Store Master). A number is never a unit.
+  const STORE_UNITS=['Nos','Pieces','Pairs','Sets','Packs','Packets','Boxes','Rolls','Bottles','Strips','Tablets','Capsules','Vials','Ampoules','Tubes','Sachets','Inhalers','Kg','Grams','Litres','ml','Dozens','Cans','Cylinders'];
+  const isNumericUnit=u=>/^\s*\d+(\.\d+)?\s*$/.test(String(u??''));
+  // options for a unit dropdown: the standard list, plus the item's current unit if it is a (non-numeric) word not in the list
+  const storeUnitOptions=current=>[...new Set([...(current&&!isNumericUnit(current)&&!STORE_UNITS.includes(current)?[current]:[]),...STORE_UNITS])];
   const storeSectionInfo=name=>STORE_SECTIONS.find(x=>x.name===name)||STORE_SECTIONS[0];
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];

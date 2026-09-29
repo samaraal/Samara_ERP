@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.98 — Unit is a dropdown everywhere (no more "2" / "10" as a unit)
+- One standard **Unit** list for every Stores item: Nos, Pieces, Pairs, Sets, Packs, Packets, Boxes, Rolls, Bottles, Strips, Tablets, Capsules, Vials, Ampoules, Tubes, Sachets, Inhalers, Kg, Grams, Litres, ml, Dozens, Cans, Cylinders.
+- Used in Receive from Vendor, Pharmacy & Stores → Edit Item, and **Store Master → Add / Edit Item (Admin), which was free typing** (the likely source of the wrong units). A number can never be saved as a unit; editing an item that has one asks to choose a proper unit.
+- Items that still have a number as unit show **⚠ unit "2" — Edit Item** once, next to the item name; quantities are shown plainly.
+- No SQL. Files: `src/app/0-start/01-app-constants.js`, `src/app/stores/consumables-stores.js`, `src/app/stores/store-authority-items.js`, `styles.css`, version files, `app.js` (rebuilt).
+
 ## 2.14.97 — Stock details pop-up: full resident story; wrong units flagged
 - **Stock Movement Register → click an item:** besides the period totals and movements, a **Residents** list shows every indent for that item in the period: resident (name, ID, room), indent no. and status, requested, **raised by (nurse) with date & time**, approved by, handed over by, **received by (nurse)**, **used (charged to resident)**, **returned to Stores** (who, when, confirmed by) and **unused balance with the resident**.
 - **Click a movement:** a Patient Issue / handover now also shows that same resident indent story.

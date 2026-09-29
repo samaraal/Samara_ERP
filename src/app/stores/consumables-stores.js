@@ -27,7 +27,8 @@
     // 2.14.97: resident indents for the detail pop-ups (raised by, used / charged, returned, balance)
     const [indents,setIndents]=React.useState([]),[allocations,setAllocations]=React.useState([]),[storeReturns,setStoreReturns]=React.useState([]);
     // a unit saved as a number (e.g. "2") is a data error — show it clearly so it gets corrected
-    const unitLabel=u=>/^\s*\d+(\.\d+)?\s*$/.test(String(u??''))?`(unit "${u}" ⚠ fix in Edit Item)`:(u||'');
+    const unitLabel=u=>isNumericUnit(u)?'':(u||'');
+    const unitWarn=u=>isNumericUnit(u)?h('span',{className:'unit-warn',title:`Unit is saved as "${u}" — open Edit Item and choose the unit`},` ⚠ unit "${u}" — Edit Item`):null;
     const rowClick=fn=>e=>{if(e&&e.target&&e.target.closest&&e.target.closest('button,a,input,select,textarea,label'))return;fn()};
     const [historyItem,setHistoryItem]=React.useState(null),[historyLedger,setHistoryLedger]=React.useState([]),[historyReceipts,setHistoryReceipts]=React.useState([]),[historyBusy,setHistoryBusy]=React.useState(false);
     const [categoryEditItem,setCategoryEditItem]=React.useState(null),[categoryEditValue,setCategoryEditValue]=React.useState('');
@@ -38,7 +39,7 @@
     const sectionToForm=sec=>!sec||sec==='Consumables'?'Stores / Consumables':sec;
     const formToSection=val=>val==='Stores / Consumables'?'Consumables':(val||'Consumables');
     const [form,setForm]=React.useState({item_category:sectionToForm(categoryFilter),catalog_item:'',item_id:'',new_item_name:'',unit:'Nos',vendor_name:'',invoice_no:'',invoice_date:'',received_date:todayISOIndia(),quantity:'1',batch_no:'',expiry_date:'',unit_cost:'',remarks:'',generic_name:'',brand_name:'',strength:'',dosage_form:'Tablet',manufacturer:'',pack_size:''});
-    const units=['Nos','Pairs','Packs','Boxes','Pieces','Rolls','Sets','Bottles'];
+    const units=STORE_UNITS;
     const basicPharmacyUnits={"Glucometer Strips": "Nos", "Lancets": "Nos", "Alcohol Swabs": "Nos", "Digital Thermometer": "Nos", "Thermometer Probe Covers": "Nos", "Pulse Oximeter": "Nos", "BP Cuff / Spare Cuff": "Nos", "Sterile Gauze Pads - 2 x 2": "Nos", "Sterile Gauze Pads - 4 x 4": "Nos", "Cotton Rolls": "Rolls", "Cotton Balls": "Nos", "Micropore Adhesive Tape": "Rolls", "Sterile Dressing Pads": "Nos", "Crepe Bandage - 2 inch": "Rolls", "Crepe Bandage - 4 inch": "Rolls", "Crepe Bandage - 6 inch": "Rolls", "Roller / Gauze Bandages": "Rolls", "Disposable Examination Gloves - S": "Pieces", "Disposable Examination Gloves - M": "Pieces", "Disposable Examination Gloves - L": "Pieces", "Surgical Masks": "Nos", "Disposable Syringe - 1 mL": "Nos", "Disposable Syringe - 2 mL": "Nos", "Disposable Syringe - 3 mL": "Nos", "Disposable Syringe - 5 mL": "Nos", "Disposable Syringe - 10 mL": "Nos", "Disposable Syringe - 20 mL": "Nos", "Needle - 18G": "Nos", "Needle - 20G": "Nos", "Needle - 21G": "Nos", "Needle - 22G": "Nos", "Needle - 23G": "Nos", "Needle - 24G": "Nos", "Needle - 25G": "Nos", "Needle - 26G": "Nos", "Insulin Syringe - U-40": "Nos", "Insulin Syringe - U-100": "Nos", "Insulin Pen Needle - 4 mm": "Nos", "Insulin Pen Needle - 5 mm": "Nos", "Insulin Pen Needle - 6 mm": "Nos", "Insulin Pen Needle - 8 mm": "Nos", "IV Cannula - 18G": "Nos", "IV Cannula - 20G": "Nos", "IV Cannula - 22G": "Nos", "IV Cannula - 24G": "Nos", "IV Sets": "Nos", "IV Extension Lines": "Nos", "Normal Saline Flush Syringes": "Nos", "Urine Specimen Containers": "Nos", "Disposable Urine Measuring Containers": "Nos", "Adult Urine Bags": "Nos", "Nebulizer Mask / Kit - Adult": "Nos", "Oxygen Nasal Cannula": "Nos", "Oxygen Masks": "Nos", "Suction Catheter - 10 Fr": "Nos", "Suction Catheter - 12 Fr": "Nos", "Suction Catheter - 14 Fr": "Nos", "Suction Catheter - 16 Fr": "Nos", "Feeding Syringe - 50 mL": "Nos", "Feeding Syringe - 60 mL": "Nos", "Disposable Underpads": "Nos", "Tongue Depressors": "Nos", "Hand Sanitizer": "Bottles", "Povidone-iodine Solution": "Bottles", "Chlorhexidine Antiseptic - As per Samara Protocol": "Bottles", "Normal Saline for Wound Cleansing": "Bottles", "Sharps Disposal Containers": "Nos", "Biomedical-waste Bags": "Nos"};
     // Master-data rule: non-medicinal clinical supplies belong only to Consumables.
     // Pharmacy is reserved for medicines / medicinal preparations. Keeping these
@@ -252,7 +253,7 @@
       const received=rows.filter(r=>Number(r.qty_in)>0&&!/return/i.test(String(r.movement_type||''))).reduce((a,r)=>a+Number(r.qty_in||0),0);
       const returned=rows.filter(r=>Number(r.qty_in)>0&&/return/i.test(String(r.movement_type||''))).reduce((a,r)=>a+Number(r.qty_in||0),0);
       const handed=rows.reduce((a,r)=>a+Number(r.qty_out||0),0);
-      return {...item,unit:unitLabel(item.unit),opening,received,handed,returned,closing:opening+received+returned-handed};
+      return {...item,rawUnit:item.unit,unit:unitLabel(item.unit),opening,received,handed,returned,closing:opening+received+returned-handed};
     });
     // 2.14.91: data for the Pharmacy & Stores dashboard boxes
     const ledgerList=section==='movement'?movementSelectedLedger:displayLedger;
@@ -348,7 +349,7 @@
     }
     function summaryDetail(r){
       const rows=movementSelectedLedger.filter(x=>String(x.item_id)===String(r.item_id));
-      return {title:itemLabel(r.item_id),subtitle:`${formatDateIN(movementBounds.from)} to ${formatDateIN(movementBounds.to)}`,fields:[
+      return {title:itemLabel(r.item_id),subtitle:`${formatDateIN(movementBounds.from)} to ${formatDateIN(movementBounds.to)}${isNumericUnit(r.rawUnit)?` · ⚠ unit saved as "${r.rawUnit}" — Edit Item → choose the unit`:''}`,fields:[
         ['Opening balance',`${r.opening} ${r.unit}`],['Vendor received',`${r.received} ${r.unit}`],['Handed over / issued',`${r.handed} ${r.unit}`],
         ['Return received',`${r.returned} ${r.unit}`],['Closing balance',`${r.closing} ${r.unit}`],['Movements in period',String(rows.length)]],
         list:rows,
@@ -411,6 +412,7 @@
       const master=masterById.get(editItem.item_id); if(!master)return notifyStore('error','Stores Master record not found. Refresh and try again.');
       const name=String(editForm.item_name||'').trim(),unit=String(editForm.unit||'').trim();
       if(!name||!unit)return notifyStore('error','Item name and unit are required.');
+      if(isNumericUnit(unit))return notifyStore('error','Choose the unit from the list (a number cannot be a unit).');
       setBusy(true); const res=await client.rpc('store_incharge_edit_item',{p_item_id:master.id,p_item_name:name,p_unit:unit,p_strength:String(editForm.strength||'').trim()||null,p_dosage_form:String(editForm.dosage_form||'').trim()||null}); setBusy(false);
       if(res.error)notifyStore('error',res.error.message); else {notifyStore('success','Item details updated.');setEditItem(null);await load()}
     }
@@ -530,7 +532,7 @@
         h('div',{className:'stores-stock-mobile'},displayStock.length?displayStock.map(r=>h('article',{className:'stores-stock-card',key:`mobile-${r.item_id}`},
           h('div',{className:'stores-stock-card-head'},h('strong',null,`${masterById.get(r.item_id)?.item_code?`${masterById.get(r.item_id).item_code} · `:''}${displayStoreItemName(r.item_name)}`),h('span',{style:statusStyle(r)},stockStatus(r))),
           h('div',{className:'stores-stock-card-values'},
-            h('span',null,h('small',null,'Unit'),h('b',null,unitLabel(r.unit))),
+            h('span',null,h('small',null,'Unit'),h('b',null,unitLabel(r.unit)||'—',unitWarn(r.unit))),
             h('span',null,h('small',null,'Total In'),h('b',null,r.total_in)),
             h('span',null,h('small',null,'Total Out'),h('b',null,r.total_out)),
             h('span',null,h('small',null,'Balance'),h('b',null,r.balance_qty)),
@@ -545,7 +547,7 @@
         h('div',{className:'table-wrap stores-stock-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Item ID','Item','Unit','Total In','Total Out','Balance','Reorder Level','Status','Action'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,displayStock.length?displayStock.map(r=>h('tr',{key:r.item_id},
-            h('td',null,masterById.get(r.item_id)?.item_code||'—'),h('td',null,h('strong',null,displayStoreItemName(r.item_name))),h('td',null,unitLabel(r.unit)),h('td',null,r.total_in),h('td',null,r.total_out),h('td',null,h('strong',null,r.balance_qty)),h('td',null,r.reorder_level),h('td',null,h('span',{style:statusStyle(r)},stockStatus(r))),
+            h('td',null,masterById.get(r.item_id)?.item_code||'—'),h('td',null,h('strong',null,displayStoreItemName(r.item_name)),unitWarn(r.unit)),h('td',null,unitLabel(r.unit)||'—'),h('td',null,r.total_in),h('td',null,r.total_out),h('td',null,h('strong',null,r.balance_qty)),h('td',null,r.reorder_level),h('td',null,h('span',{style:statusStyle(r)},stockStatus(r))),
             h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap',alignItems:'center'}},
               controller?h('div',{key:'controller-actions',style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>openReceiveFor(r)},'Receive Stock'),thisSection.departmentIssue&&typeof onOpenSection==='function'&&Number(r.balance_qty)>0?h('button',{key:'issue',className:'btn btn-secondary',disabled:busy,onClick:()=>openIssueFor(r)},'Issue to Dept'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),oversight?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openItemHistory(r)},'History'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(r)},'Expiry'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openCategoryEdit(r)},masterById.get(r.item_id)?.standard_category?`Category: ${masterById.get(r.item_id).standard_category}`:'Set Category'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null):h('span',{key:'view-only'},'View only'),
               oversight?h('button',{key:'remove',className:'btn btn-danger',disabled:busy,onClick:()=>removeItem(r)},'Remove'):null
@@ -611,7 +613,7 @@
           h('h3',null,'Edit Item'),h('p',null,`${masterById.get(editItem.item_id)?.item_code?`${masterById.get(editItem.item_id).item_code} · `:''}Balance ${editItem.balance_qty} ${editItem.unit}. Stock quantities are not changed here.`),
           h('div',{className:'grid two'},
             h('div',{className:'field'},h('label',null,'Item name *'),h('input',{value:editForm.item_name,onChange:e=>setEditForm({...editForm,item_name:e.target.value}),required:true})),
-            h('div',{className:'field'},h('label',null,'Unit *'),h('select',{value:editForm.unit,onChange:e=>setEditForm({...editForm,unit:e.target.value})},[...new Set([editForm.unit,...units].filter(Boolean))].map(x=>h('option',{key:x,value:x},x)))),
+            h('div',{className:'field'},h('label',null,'Unit *'),h('select',{value:isNumericUnit(editForm.unit)?'':editForm.unit,required:true,onChange:e=>setEditForm({...editForm,unit:e.target.value})},isNumericUnit(editForm.unit)&&h('option',{value:''},`Choose unit (saved as "${editForm.unit}" — wrong)`),storeUnitOptions(editForm.unit).map(x=>h('option',{key:x,value:x},x)))),
             h('div',{className:'field'},h('label',null,'Strength / specification'),h('input',{value:editForm.strength,onChange:e=>setEditForm({...editForm,strength:e.target.value}),placeholder:'Example: 500 mg or 10 mL'})),
             h('div',{className:'field'},h('label',null,'Dosage form'),h('input',{value:editForm.dosage_form,onChange:e=>setEditForm({...editForm,dosage_form:e.target.value}),placeholder:'Example: Tablet (pharmacy items)'}))
           ),
@@ -752,7 +754,7 @@
         h('p',{className:'small-note'},`Period: ${formatDateIN(movementBounds.from)} to ${formatDateIN(movementBounds.to)} · ${MA.item==='All'?'All stock items':displayStoreItemName(categoryStock.find(x=>String(x.item_id)===String(MA.item))?.item_name||'Selected item')}`),
         (!section||movementMode==='summary')&&h('div',{className:'table-wrap'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Item','Opening Balance','Vendor Received',thisSection.departmentIssue?'Handed Over / Issued':'Handed Over','Return Received','Closing Balance'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,movementSummaryItems.length?movementSummaryItems.map(r=>h('tr',{key:`movement-summary-${r.item_id}`,className:'row-clickable',onClick:rowClick(()=>openDetail(summaryDetail(r)))},h('td',null,displayStoreItemName(r.item_name)),h('td',null,`${r.opening} ${r.unit}`),h('td',null,`${r.received} ${r.unit}`),h('td',null,`${r.handed} ${r.unit}`),h('td',null,`${r.returned} ${r.unit}`),h('td',null,h('strong',null,`${r.closing} ${r.unit}`)))):h('tr',null,h('td',{colSpan:6,style:{textAlign:'center',padding:'20px'}},(loadedOnce?'No stock items for this filter.':'Loading…'))))
+          h('tbody',null,movementSummaryItems.length?movementSummaryItems.map(r=>h('tr',{key:`movement-summary-${r.item_id}`,className:'row-clickable',onClick:rowClick(()=>openDetail(summaryDetail(r)))},h('td',null,displayStoreItemName(r.item_name),unitWarn(r.rawUnit)),h('td',null,`${r.opening} ${r.unit}`),h('td',null,`${r.received} ${r.unit}`),h('td',null,`${r.handed} ${r.unit}`),h('td',null,`${r.returned} ${r.unit}`),h('td',null,h('strong',null,`${r.closing} ${r.unit}`)))):h('tr',null,h('td',{colSpan:6,style:{textAlign:'center',padding:'20px'}},(loadedOnce?'No stock items for this filter.':'Loading…'))))
         )),
         (!section||movementMode==='summary')&&MA.item!=='All'&&h('div',{style:{marginTop:'16px'}},h('h4',null,'Selected Item — Movement Details'),movementSelectedLedger.length?movementSelectedLedger.map(r=>{const item=itemById(r.item_id);return h('div',{key:`movement-detail-${r.id}`,className:'stores-ledger-card row-clickable',onClick:rowClick(()=>openDetail(ledgerDetail(r))),style:{marginBottom:'8px'}},h('div',{className:'stores-ledger-card-head'},h('strong',null,r.movement_type||'Stock Movement'),h('span',null,formatDateTimeIN(r.movement_at))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Stock In'),h('strong',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Stock Out'),h('strong',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),h('div',null,h('small',null,'Patient / Reference'),h('strong',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'By'),h('strong',null,r.actor_name||'—'))))}):h('p',null,'No movements for this item in the selected period.'))
       ),
