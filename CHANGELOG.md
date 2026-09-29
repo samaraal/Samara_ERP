@@ -3,6 +3,13 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.99 — Charge Master: category menu + dashboards; Biomedical charges register-controlled
+- New sidebar section **CHARGE MASTER** (Admin): **All Categories** (one box per category — new categories appear here automatically; also the full classic list) and one item per category: Biomedical Equipment, Diagnostic / Imaging, Doctor Services, Food & Nutrition, Hospital Visits, Laboratory Services, Miscellaneous, Nursing Procedures, Physiotherapy, Special Care, Transport, and **Stores Item Rates** (Consumables, Pharmacy, Housekeeping, Kitchen rates).
+- Each category opens a Samara dashboard: **Items & Rates** (add / edit / rate / turn off), **Rates Not Set** (red), **Inactive Items** (turn back ON → reappears in Bills & Charges / Approval Requests at once), **Approval Routing**, **Charges Posted** in the period (count + ₹), **Awaiting Accounts**, and for Biomedical **Equipment Linked**. Period filter with **Apply**; every charge row opens full details (resident, item & code, quantity, raised by & when, Accounts decision, amount, remarks). Same Back to Dashboard / Close / phone back.
+- **Biomedical Equipment (decision A):** charged only from Bills & Charges, controlled by the equipment register (only equipment issued to that resident, quantity = days). Approval routing for it is switched OFF and cannot be turned ON.
+- **SQL — run `supabase/sql/162_biomedical_charges_register_controlled.sql` once** (turns Biomedical approval OFF and locks it; safe to run again).
+- Files: `src/app/accounts/10-charge-master-dashboard.js` (new), `src/app/accounts/09-clinical-charges.js`, `src/app/0-start/01-app-constants.js`, `src/app/core/03-brand-theme-css.js`, `src/app/core/04-supabase-roles-navigation.js`, `src/app/shell/01-app-main.js`, `src/app/shell/04-navigation-menus.js`, `src/app/manifest.json`, `styles.css`, `supabase/sql/162_biomedical_charges_register_controlled.sql`, version files, `app.js` (rebuilt).
+
 ## 2.14.98 — Unit is a dropdown everywhere (no more "2" / "10" as a unit)
 - One standard **Unit** list for every Stores item: Nos, Pieces, Pairs, Sets, Packs, Packets, Boxes, Rolls, Bottles, Strips, Tablets, Capsules, Vials, Ampoules, Tubes, Sachets, Inhalers, Kg, Grams, Litres, ml, Dozens, Cans, Cylinders.
 - Used in Receive from Vendor, Pharmacy & Stores → Edit Item, and **Store Master → Add / Edit Item (Admin), which was free typing** (the likely source of the wrong units). A number can never be saved as a unit; editing an item that has one asks to choose a proper unit.

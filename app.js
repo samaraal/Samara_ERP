@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.98';
+  const APP_VERSION = '2.14.99';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,10 +283,10 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '29-Sep-2026 Unit dropdown everywhere';
+  const APP_BUILD_DATE = '29-Sep-2026 Charge Master dashboards';
   const APP_SCHEMA_VERSION = '38';
 
-  // 2.14.98: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
+  // 2.14.99: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
   // receiving, nurse indents, Charge Master, Bills & Charges). Must match public.store_section_names() in SQL 160.
   const STORE_SECTIONS=[
     {name:'Consumables',page:'Consumables',code:'CON',icon:'▤',departmentIssue:false,blurb:'Clinical consumables — indents, stock, receipts, movements and expiry at a glance.'},
@@ -298,13 +298,20 @@ function initSamaraInaugurationInvitation(){
   // Charge categories that are Stores items (live Store Master rate); 'Pharmacy & Basic Supplies' is the older Charge Master name for Pharmacy.
   const STORE_CHARGE_CATEGORIES=[...STORE_SECTION_NAMES,'Pharmacy & Basic Supplies'];
   const STORE_DEPARTMENTS=['Nursing Floor','Housekeeping','Kitchen / Pantry','Laundry','Office / Admin','Maintenance','Front Desk / Reception','Other'];
-  // 2.14.98: Accounts → Manual Billing & Payment Entry may post a "Charge" only in these categories; everything else goes through Bills & Charges.
+  // 2.14.99: Accounts → Manual Billing & Payment Entry may post a "Charge" only in these categories; everything else goes through Bills & Charges.
   const MANUAL_CHARGE_CATEGORIES=['Room Charges','Final Settlement','Other'];
-  // 2.14.98: ONE standard list of units for every Stores item (Receive, Edit Item, Store Master). A number is never a unit.
+  // 2.14.99: ONE standard list of units for every Stores item (Receive, Edit Item, Store Master). A number is never a unit.
   const STORE_UNITS=['Nos','Pieces','Pairs','Sets','Packs','Packets','Boxes','Rolls','Bottles','Strips','Tablets','Capsules','Vials','Ampoules','Tubes','Sachets','Inhalers','Kg','Grams','Litres','ml','Dozens','Cans','Cylinders'];
   const isNumericUnit=u=>/^\s*\d+(\.\d+)?\s*$/.test(String(u??''));
   // options for a unit dropdown: the standard list, plus the item's current unit if it is a (non-numeric) word not in the list
   const storeUnitOptions=current=>[...new Set([...(current&&!isNumericUnit(current)&&!STORE_UNITS.includes(current)?[current]:[]),...STORE_UNITS])];
+  // 2.14.99: Charge Master categories — one sidebar item + dashboard each (page id "Charge Master · <category>")
+  const CHARGE_MASTER_CATEGORIES=['Biomedical Equipment','Diagnostic / Imaging','Doctor Services','Food & Nutrition','Hospital Visits','Laboratory Services','Miscellaneous','Nursing Procedures','Physiotherapy','Special Care','Transport'];
+  const CM_PAGE_PREFIX='Charge Master · ';
+  const CM_STORES_PAGE=CM_PAGE_PREFIX+'Stores Item Rates';
+  const CHARGE_MASTER_PAGES=[...CHARGE_MASTER_CATEGORIES.map(c=>CM_PAGE_PREFIX+c),CM_STORES_PAGE];
+  // categories whose charges are controlled by a register and must never be routed through Approval Requests
+  const REGISTER_CONTROLLED_CHARGE_CATEGORIES=['Biomedical Equipment'];
   const storeSectionInfo=name=>STORE_SECTIONS.find(x=>x.name===name)||STORE_SECTIONS[0];
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -906,6 +913,7 @@ function initSamaraInaugurationInvitation(){
       .sidebar .nav-submenu button[data-nav='Shift Management']::before{content:''!important;color:#7b61d1!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E")!important}
       .sidebar .nav-submenu button[data-nav='Stores Master']::before{content:''!important;color:#d08a19!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7l9-4 9 4-9 4-9-4Z'/%3E%3Cpath d='M3 7v10l9 4 9-4V7M12 11v10'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7l9-4 9 4-9 4-9-4Z'/%3E%3Cpath d='M3 7v10l9 4 9-4V7M12 11v10'/%3E%3C/svg%3E")!important}
       .sidebar .nav-submenu button[data-nav='Charge Master']::before{content:''!important;color:#2eaa72!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='14' rx='2'/%3E%3Cpath d='M3 10h18M7 15h4'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='14' rx='2'/%3E%3Cpath d='M3 10h18M7 15h4'/%3E%3C/svg%3E")!important}
+      .sidebar .nav-submenu button[data-nav^='Charge Master · ']::before{content:''!important;color:#b30b5d!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2H2v10l9.3 9.3a2.4 2.4 0 0 0 3.4 0l6.6-6.6a2.4 2.4 0 0 0 0-3.4Z'/%3E%3Ccircle cx='7' cy='7' r='1.5'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2H2v10l9.3 9.3a2.4 2.4 0 0 0 3.4 0l6.6-6.6a2.4 2.4 0 0 0 0-3.4Z'/%3E%3Ccircle cx='7' cy='7' r='1.5'/%3E%3C/svg%3E")!important}
       .sidebar .nav-submenu button[data-nav='Temporary Duty Swap']::before{content:''!important;color:#5d78d6!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 7h11l-3-3M17 17H6l3 3M18 7v4M6 17v-4'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 7h11l-3-3M17 17H6l3 3M18 7v4M6 17v-4'/%3E%3C/svg%3E")!important}
       .sidebar .nav-submenu button[data-nav='Additional Duty Assignment']::before{content:''!important;color:#7b61c9!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3C/svg%3E")!important}
       .sidebar .nav-submenu button[data-nav='Leave Cover']::before{content:''!important;color:#e07a2f!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M8 3v4M16 3v4M3 10h18M8 15l2 2 5-5'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M8 3v4M16 3v4M3 10h18M8 15l2 2 5-5'/%3E%3C/svg%3E")!important}
@@ -1650,7 +1658,8 @@ function initSamaraInaugurationInvitation(){
   const BED_CODE_OPTIONS = ['A','B','C','D'];
   const NAV_SECTIONS = [
     { title:'OVERVIEW', items:['Dashboard','Notifications'] },
-    { title:'ADMIN', items:['Temporary Duty Swap','Additional Duty Assignment','Rooms','Care Packages','Shift Management','Stores Master','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
+    { title:'ADMIN', items:['Temporary Duty Swap','Additional Duty Assignment','Rooms','Care Packages','Shift Management','Stores Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
+    { title:'CHARGE MASTER', items:['Charge Master',...CHARGE_MASTER_PAGES] },
     { title:'HR', items:['HR Dashboard','Employees','Duty Assignment','Duty Calendar','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiries & Feedback'] },
     { title:'ADMISSION', items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'] },
@@ -1742,6 +1751,8 @@ function initSamaraInaugurationInvitation(){
     'Received Indents / Used Balance':'Received Indents / Used Balance'
   };
   const displayNavLabel=(item,role)=>{
+    if(item==='Charge Master')return 'All Categories';
+    if(String(item).startsWith(CM_PAGE_PREFIX))return String(item).slice(CM_PAGE_PREFIX.length);
     // v2.14.66: the Nursing Manager (store keeper) sees every patient indent here.
     if(item==='Patient Consumables'&&role==='Manager')return 'Indent Register';
     if(item==='Duty Assignment'&&(CLINICAL_ROLES.includes(role)||role==='Manager'))return 'My Duty';
@@ -1774,7 +1785,7 @@ function initSamaraInaugurationInvitation(){
         {title:'MY ACCOUNT',items:['My Profile'].filter(item=>allowed.includes(item))}
       ].filter(section=>section.items.length);
     }
-    return NAV_SECTIONS.map(section=>({...section,items:section.items.filter(item=>allowed.includes(item))})).filter(section=>section.items.length);
+    return NAV_SECTIONS.map(section=>({...section,items:section.items.filter(item=>allowed.includes(item)&&(role==='Admin'||!String(item).startsWith('Charge Master')))})).filter(section=>section.items.length);
   };
   const normalizeLogin = value => value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,'');
   const loginEmail = value => `${normalizeLogin(value)}@${cfg.employeeEmailDomain}`;
@@ -7880,7 +7891,8 @@ https://samaraassistedliving.com/`;
           page==='Shift Management'&&h(ShiftManagement,{profile}),
           page==='Care Packages'&&h(CarePackages,{profile}),
           page==='Stores Master'&&h(StoreItemMaster,{profile}),
-          page==='Charge Master'&&h(ChargeMasterPage,{profile}),
+          page==='Charge Master'&&h(ChargeMasterOverview,{profile,onNavigate:setPage}),
+          String(page||'').startsWith(CM_PAGE_PREFIX)&&h(ChargeMasterDashboard,{key:page,profile,category:String(page).slice(CM_PAGE_PREFIX.length),onNavigate:setPage}),
           page==='Form Field Settings'&&h(FormFieldSettings,{profile}),
           page==='Daily Care'&&h(DailyCare,{profile,onNavigate:setPage}),
           page==='Vital Signs'&&h(VitalSigns,{profile,onNavigate:setPage}),
@@ -8549,7 +8561,7 @@ https://samaraassistedliving.com/`;
     const activeSection=sections.find(section=>section.items.includes(page))?.title||sections[0]?.title||'';
     const [openSection,setOpenSection]=React.useState(activeSection);
     React.useEffect(()=>{const next=sections.find(section=>section.items.includes(page))?.title;if(next)setOpenSection(next)},[page]);
-    const sectionIcon=title=>/OVERVIEW/.test(title)?'⌂':/HR|STAFF/.test(title)?'♙':/ADMISSION/.test(title)?'♥':/ROOM/.test(title)?'▦':/PHARMACY|STORE/.test(title)?'♨':/FOOD/.test(title)?'🍽\uFE0E':/ACCOUNT.*BILL|BILLING|PAYMENT|FINANCE/.test(title)?'₹':/COMMUNICATION|WHATSAPP/.test(title)?'✉\uFE0E':/MY ACCOUNT|PROFILE/.test(title)?'☺\uFE0E':/DUTY|ROSTER|LEAVE/.test(title)?'◷':/DIRECTOR/.test(title)?'★':/CLINICAL|NURSING/.test(title)?'✚':'⚙\uFE0E';
+    const sectionIcon=title=>/OVERVIEW/.test(title)?'⌂':/HR|STAFF/.test(title)?'♙':/ADMISSION/.test(title)?'♥':/ROOM/.test(title)?'▦':/PHARMACY|STORE/.test(title)?'♨':/FOOD/.test(title)?'🍽\uFE0E':/CHARGE/.test(title)?'₹':/ACCOUNT.*BILL|BILLING|PAYMENT|FINANCE/.test(title)?'₹':/COMMUNICATION|WHATSAPP/.test(title)?'✉\uFE0E':/MY ACCOUNT|PROFILE/.test(title)?'☺\uFE0E':/DUTY|ROSTER|LEAVE/.test(title)?'◷':/DIRECTOR/.test(title)?'★':/CLINICAL|NURSING/.test(title)?'✚':'⚙\uFE0E';
     const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Consumables'?'▤':item==='Pharmacy'?'✚':item==='Housekeeping & General'?'🧺\uFE0E':item==='Kitchen / Food Stores'?'🍽\uFE0E':item==='Biomedical Equipment'?'⚕\uFE0E':item==='Oxygen Cylinders'?'◉':item==='Stores'?'▥':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My To-Do List'?'✓':'›';
     React.useEffect(()=>{
       const onKey=e=>{if(e.key==='Escape')onClose()};
@@ -31526,7 +31538,10 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
   // v2.14.62: every Charge Master / Bills & Charges list is alphabetical (A→Z, case-insensitive), with "Others" always last.
   const samaraAlpha=(a,b)=>{const x=String(a||'').trim(),y=String(b||'').trim();const xo=x.toLowerCase()==='others',yo=y.toLowerCase()==='others';if(xo!==yo)return xo?1:-1;return x.localeCompare(y,'en',{sensitivity:'base',numeric:true})};
   const samaraSortCategoryMap=map=>Object.fromEntries(Object.keys(map||{}).sort(samaraAlpha).map(k=>[k,[...new Set(map[k]||[])].sort(samaraAlpha)]));
-  function ChargeMasterPage({profile}){
+  function ChargeMasterPage({profile,lockedCategory='',section='',onSummary=null}){
+    // 2.14.99: lockedCategory = one Charge Master category (or 'Stores Item Rates'); section = '' (full page) | 'none' | 'items' | 'inactive' | 'approval' | 'missing'
+    const storesMode=lockedCategory==='Stores Item Rates';
+    const show=key=>!section||section===key;
     const [serviceRows,setServiceRows]=React.useState([]),[storeRows,setStoreRows]=React.useState([]),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState(''),[categoryFilter,setCategoryFilter]=React.useState('All');
     const notify=(type,text)=>showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
     const stockCategories=STORE_CHARGE_CATEGORIES;
@@ -31538,6 +31553,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     }
     async function toggleApproval(category){
       const next=!approvalSettings[category];
+      if(next&&REGISTER_CONTROLLED_CHARGE_CATEGORIES.includes(category)){notify('error',`${category} is charged only from Bills & Charges, controlled by its register (only equipment issued to the resident, with days). Approval routing stays OFF.`);return}
       if(!confirm(next
         ?`Turn ON Nursing Manager approval for "${category}"?\n\nFrom now on nobody can raise ${category} in Bills & Charges. Nurses request it on NURSING → Approval Requests; after approval they Confirm & Start, and the charge goes to Accounts.`
         :`Turn OFF approval for "${category}"?\n\n${category} will be raised directly from Bills & Charges again. Requests already waiting on Approval Requests can still be approved and started.`))return;
@@ -31569,7 +31585,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const maxCodeNumberForPrefix=(prefix,rows)=>{let max=0;(rows||[]).forEach(r=>{const code=String(r.charge_code||'').toUpperCase();const m=code.match(new RegExp('^'+prefix+'-(\\d+)$'));if(m)max=Math.max(max,parseInt(m[1],10))});return max};
     const nextCodeForCategory=(category,rows)=>{const prefix=prefixForCategory(category);return `${prefix}-${String(maxCodeNumberForPrefix(prefix,rows)+1).padStart(4,'0')}`};
     async function saveService(row){
-      const category=prompt('Charge category:',row?.category||'Nursing Procedures'); if(category===null||!String(category).trim())return;
+      const category=(!row&&lockedCategory&&!storesMode)?lockedCategory:prompt('Charge category:',row?.category||lockedCategory||'Nursing Procedures'); if(category===null||!String(category).trim())return;
       if(stockCategories.includes(String(category).trim())){notify('error','Consumables and Pharmacy items are controlled only from Stores Master. Add or edit the item there so the same item name, ID and rate are used everywhere.');return}
       const serviceName=prompt('Chargeable service / item:',row?.service_name||''); if(serviceName===null||!String(serviceName).trim())return;
       const duplicate=findSimilarService(String(category).trim(),String(serviceName).trim(),row?.id||'');if(duplicate){notify('error',`${duplicate.charge_code?duplicate.charge_code+' · ':''}Possible duplicate: ${duplicate.service_name} is already in ${duplicate.category}. Use/edit the existing procedure instead; genuine variants must include their distinguishing detail.`);return}
@@ -31618,38 +31634,49 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const categoryOf=row=>row.category||row.item_category||'Consumables';
     const categoryCounts=React.useMemo(()=>{const counts={};serviceRows.forEach(r=>{const c=categoryOf(r);counts[c]=(counts[c]||0)+1});storeRows.forEach(r=>{const c=categoryOf(r);counts[c]=(counts[c]||0)+1});return counts},[serviceRows,storeRows]);
     const allCategories=React.useMemo(()=>Object.keys(categoryCounts).sort(samaraAlpha),[categoryCounts]);
+    const catServices=lockedCategory&&!storesMode?serviceRows.filter(r=>String(r.category||'').trim()===lockedCategory):serviceRows;
+    const cmSummary=storesMode
+      ?{loaded:storeRows.length>0,active:storeRows.filter(r=>r.active!==false).length,inactive:storeRows.filter(r=>r.active===false).length,missing:storeRows.filter(r=>r.active!==false&&!(Number(r.charge_rate)>0)).length,approvalOn:false}
+      :{loaded:serviceRows.length>0,active:catServices.filter(r=>r.is_active!==false).length,inactive:catServices.filter(r=>r.is_active===false).length,missing:catServices.filter(r=>r.is_active!==false&&!(Number(r.amount)>0)).length,approvalOn:!!approvalSettings[lockedCategory],registerControlled:REGISTER_CONTROLLED_CHARGE_CATEGORIES.includes(lockedCategory)};
+    const cmSummaryKey=JSON.stringify(cmSummary);
+    React.useEffect(()=>{if(typeof onSummary==='function')onSummary(cmSummary)},[cmSummaryKey]);
     if(profile?.role!=='Admin')return h(Section,{title:'Charge Master'},h('p',null,'Administrator access only.'));
+    if(section==='none')return null;
     const q=String(search||'').trim().toLowerCase();
+    const statusOk=(row,activeFlag)=>section==='inactive'?activeFlag===false:(section==='items'||section==='missing')?activeFlag!==false:true;
     const match=row=>{
-      if(categoryFilter!=='All'&&categoryOf(row)!==categoryFilter)return false;
+      if(lockedCategory&&!storesMode&&categoryOf(row)!==lockedCategory)return false;
+      if(!lockedCategory&&categoryFilter!=='All'&&categoryOf(row)!==categoryFilter)return false;
+      if(section==='missing'&&(Number(row.amount??row.charge_rate)>0))return false;
+      if(!statusOk(row,row.is_active!==undefined?row.is_active:row.active))return false;
       return q.length<3||`${categoryOf(row)} ${row.service_name||row.item_name||''}`.toLowerCase().includes(q);
     };
     const visibleStores=storeRows.filter(match).sort((a,b)=>samaraAlpha(a.item_category||'Consumables',b.item_category||'Consumables')||samaraAlpha(a.item_name,b.item_name)),visibleServices=serviceRows.filter(match).sort((a,b)=>samaraAlpha(a.category,b.category)||samaraAlpha(a.service_name,b.service_name));
     const missingCodeCount=serviceRows.filter(r=>!r.charge_code).length;
     return h(React.Fragment,null,
-      h(Section,{title:'Charge Master',subtitle:"Stores / Pharmacy items use the exact live Stores Master item name, ID and charge rate. Non-stock service tariffs remain controlled here. IDs are generated automatically, one short prefix per category (NUR- Nursing Procedures, DOC- Doctor Services, DIA- Diagnostic/Imaging, LAB- Laboratory, BIO- Biomedical Equipment, and so on) — you never need to type one."},
-        h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'end',gap:'12px',marginBottom:'10px',flexWrap:'wrap'}},
+      h(Section,{title:lockedCategory?`${lockedCategory} — ${section==='inactive'?'Inactive Items':section==='missing'?'Rates Not Set':section==='approval'?'Approval Routing':'Items & Rates'}`:'Charge Master',subtitle:lockedCategory?(storesMode?'Stores / Pharmacy / Housekeeping / Kitchen items: name, code and rate come from Stores Master; the rate is edited here.':'Items, codes (auto) and Admin-fixed rates for this category. Turned-off items can be turned back ON here — they reappear in Bills & Charges / Approval Requests at once.'):"Stores / Pharmacy items use the exact live Stores Master item name, ID and charge rate. Non-stock service tariffs remain controlled here. IDs are generated automatically, one short prefix per category (NUR- Nursing Procedures, DOC- Doctor Services, DIA- Diagnostic/Imaging, LAB- Laboratory, BIO- Biomedical Equipment, and so on) — you never need to type one."},
+        section!=='approval'&&h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'end',gap:'12px',marginBottom:'10px',flexWrap:'wrap'}},
           h('div',{style:{display:'flex',gap:'12px',flexWrap:'wrap',alignItems:'end'}},
-            h('div',{className:'field',style:{minWidth:'220px',margin:0}},h('label',null,'Category'),h('select',{value:categoryFilter,onChange:e=>setCategoryFilter(e.target.value)},
+            !lockedCategory&&h('div',{className:'field',style:{minWidth:'220px',margin:0}},h('label',null,'Category'),h('select',{value:categoryFilter,onChange:e=>setCategoryFilter(e.target.value)},
               h('option',{value:'All'},`All Categories (${serviceRows.length+storeRows.length})`),
               allCategories.map(c=>h('option',{key:c,value:c},`${c} (${categoryCounts[c]||0})`)))),
             h('div',{className:'field',style:{minWidth:'260px',margin:0}},h('label',null,'Search Charge Items'),h('input',{type:'search',value:search,onChange:e=>setSearch(e.target.value),placeholder:'Type at least 3 letters...'}),q.length>0&&q.length<3?h('small',null,'Enter at least 3 letters to filter.'):null)
           ),
           h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
             missingCodeCount>0&&h('button',{className:'btn btn-secondary',disabled:busy,onClick:autoCodeAllServices},`Assign Codes to All (${missingCodeCount})`),
-            h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>saveService(null)},'+ Add Service Charge')
+            !storesMode&&(!section||section==='items')&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>saveService(null)},lockedCategory?`+ Add ${lockedCategory} Item`:'+ Add Service Charge')
           )
         ),
-        h(LogTable,{title:'Approval Routing by Category',subtitle:'Switch ON for a category whose items must be approved by the Nursing Manager before they are done and charged (like Nursing Procedures). ON: raised only from NURSING → Approval Requests (request → approval → Confirm & Start), for everyone. OFF: raised directly from Bills & Charges. Stores / Pharmacy categories always stay in Bills & Charges.',
+        show('approval')&&!storesMode&&h(LogTable,{title:'Approval Routing by Category',subtitle:'Switch ON for a category whose items must be approved by the Nursing Manager before they are done and charged (like Nursing Procedures). ON: raised only from NURSING → Approval Requests (request → approval → Confirm & Start), for everyone. OFF: raised directly from Bills & Charges. Stores / Pharmacy categories always stay in Bills & Charges.',
           heads:['Category','Active Items','Needs Nursing Manager Approval','Action'],
-          rows:approvalSettingsError?[[approvalSettingsError,'','','']]:[...new Set(serviceRows.map(r=>String(r.category||'').trim()).filter(c=>c&&!stockCategories.includes(c)))].sort((a,b)=>a.localeCompare(b)).map(c=>[
+          rows:approvalSettingsError?[[approvalSettingsError,'','','']]:[...new Set(serviceRows.map(r=>String(r.category||'').trim()).filter(c=>c&&!stockCategories.includes(c)&&(!lockedCategory||c===lockedCategory)))].sort((a,b)=>a.localeCompare(b)).map(c=>[
             c,
             serviceRows.filter(r=>r.category===c&&r.is_active!==false).length,
             h('span',{style:{fontWeight:800,fontSize:'12px',padding:'4px 10px',borderRadius:'999px',display:'inline-block',background:approvalSettings[c]?'#e7f6ef':'#f1f1f1',color:approvalSettings[c]?'#0b5a40':'#5a5055'}},approvalSettings[c]?'ON — Approval Requests':'OFF — Bills & Charges'),
-            h('button',{className:approvalSettings[c]?'btn btn-secondary':'btn btn-primary',disabled:busy,onClick:()=>toggleApproval(c)},approvalSettings[c]?'Turn OFF':'Turn ON')
+            REGISTER_CONTROLLED_CHARGE_CATEGORIES.includes(c)&&!approvalSettings[c]?h('small',{style:{fontWeight:700,color:'#5a5055'}},'Always OFF — controlled by the Biomedical Equipment register'):h('button',{className:approvalSettings[c]?'btn btn-secondary':'btn btn-primary',disabled:busy,onClick:()=>toggleApproval(c)},approvalSettings[c]?'Turn OFF':'Turn ON')
           ])}),
-        h(LogTable,{title:`Stores / Pharmacy Items (${visibleStores.length})`,heads:['Item ID','Category','Exact Stores Item','Unit','Fixed Charge Rate','Status','Action'],rows:visibleStores.map(row=>[row.item_code||'—',row.item_category||'Consumables',row.item_name,row.unit||'—',row.charge_rate!=null?`₹${Number(row.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.active===false?'Inactive':'Active',h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreRate(row)},'Edit Rate')])}),
-        h(LogTable,{title:`Non-stock Service Charges (${visibleServices.length})`,heads:['ID','Category','Service','Fixed Tariff (No Bill)','Status','Action'],rows:visibleServices.map(row=>[row.charge_code||'—',row.category,row.service_name,row.amount!=null?`₹${Number(row.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveService(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggleService(row)},row.is_active===false?'Activate':'Deactivate'))])})
+        (!lockedCategory||storesMode)&&(!section||['items','inactive','missing'].includes(section))&&h(LogTable,{title:`Stores / Pharmacy Items (${visibleStores.length})`,heads:['Item ID','Category','Exact Stores Item','Unit','Fixed Charge Rate','Status','Action'],rows:visibleStores.map(row=>[row.item_code||'—',row.item_category||'Consumables',row.item_name,row.unit||'—',row.charge_rate!=null?`₹${Number(row.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.active===false?'Inactive':'Active',h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreRate(row)},'Edit Rate')])}),
+        !storesMode&&(!section||['items','inactive','missing'].includes(section))&&h(LogTable,{title:`${lockedCategory||'Non-stock Service'} Charges (${visibleServices.length})`,heads:['ID','Category','Service','Fixed Tariff (No Bill)','Status','Action'],rows:visibleServices.map(row=>[row.charge_code||'—',row.category,row.service_name,row.amount!=null?`₹${Number(row.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveService(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggleService(row)},row.is_active===false?'Activate':'Deactivate'))])})
       )
     );
   }
@@ -32466,6 +32493,129 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         h('button',{onClick:()=>setToast(null)},'×')
       )
     );
+  }
+  // 2.14.99: Charge Master — one dashboard per category (sidebar → CHARGE MASTER → category), same pattern as
+  // Pharmacy & Stores: navigable boxes → one section at a time, "← Back to Dashboard" / Close, period filter with
+  // Apply, and every charge row opens its full details (resident, raised by, when, amount, approval).
+  // Items, codes and rates are still edited with the existing Charge Master screen (ChargeMasterPage), shown one
+  // section at a time, so there is ONE place where rates are kept.
+  function cmPeriodBounds(f){
+    const today=todayISOIndia();
+    if(f.period==='today')return [today,today];
+    if(f.period==='week')return [mondayOfWeek(today),today];
+    if(f.period==='lastmonth'){const d=new Date(`${today.slice(0,8)}01T12:00:00`);d.setMonth(d.getMonth()-1);const from=d.toISOString().slice(0,10);const e=new Date(`${today.slice(0,8)}01T12:00:00`);e.setDate(0);return [from,e.toISOString().slice(0,10)]}
+    if(f.period==='custom')return [f.from||today,f.to||today];
+    return [today.slice(0,8)+'01',today];
+  }
+  const cmMoney=v=>`₹${Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+  function ChargeMasterDashboard({profile,category,onNavigate}){
+    const {view,openView,backToDashboard}=useDashboardView();
+    const storesMode=category==='Stores Item Rates';
+    const [summary,setSummary]=React.useState(null),[refreshKey,setRefreshKey]=React.useState(0);
+    const [charges,setCharges]=React.useState(null),[patients,setPatients]=React.useState([]),[equipment,setEquipment]=React.useState([]);
+    const [detail,setDetail]=React.useState(null);
+    const [period,setPeriod]=React.useState('month'),[from,setFrom]=React.useState(''),[to,setTo]=React.useState('');
+    const periodApply=useAppliedFilters({period,from,to});const PA=periodApply.applied;
+    async function load(){
+      let q=client.from('bill_charge_requests').select('*').order('created_at',{ascending:false}).limit(3000);
+      q=storesMode?q.in('category',STORE_CHARGE_CATEGORIES):q.eq('category',category);
+      const [c,p,e]=await Promise.all([
+        q,
+        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no').limit(2000),
+        category==='Biomedical Equipment'?client.from('biomedical_equipment').select('id,asset_no,equipment_name,charge_code,charge_service_name,status,current_patient_id,issued_at'):Promise.resolve({data:[]})
+      ]);
+      setCharges(c.error?[]:(c.data||[]));if(!p.error)setPatients(p.data||[]);if(!e.error)setEquipment(e.data||[]);
+    }
+    React.useEffect(()=>{load()},[refreshKey]);
+    const patientText=id=>{const x=patients.find(p=>String(p.id)===String(id));return x?[formalName(x)||x.full_name,x.patient_id&&`(${x.patient_id})`,x.room_no&&`Room ${x.room_no}${x.bed_no?'/'+x.bed_no:''}`].filter(Boolean).join(' · '):'—'};
+    const [pFrom,pTo]=cmPeriodBounds(PA);
+    const dayOf=r=>String(r.charge_date||r.raised_at||r.created_at||'').slice(0,10);
+    const list=charges||[];
+    const posted=list.filter(r=>['Approved','Partially Approved'].includes(r.approval_status)&&dayOf(r)>=pFrom&&dayOf(r)<=pTo);
+    const pending=list.filter(r=>(r.approval_status||'Pending')==='Pending'&&r.status!=='Rejected');
+    const s=summary||{};const ready=!!summary&&charges!==null;
+    const tiles=[
+      {key:'items',icon:'▤',title:'Items & Rates',value:ready?s.active:null,unit:'active items',lines:[storesMode?'Rates of Stores items (edit rate here)':'Add, edit, rate, turn off',`${dashNum(summary?.missing)} without a rate`],alert:Number(s.missing||0)>0},
+      {key:'missing',icon:'⚠︎',title:'Rates Not Set',value:ready?s.missing:null,unit:'items',lines:['Cannot be approved by Accounts until a rate is set'],alert:Number(s.missing||0)>0},
+      {key:'inactive',icon:'⏻',title:'Inactive Items',value:ready?s.inactive:null,unit:'turned off',lines:['Turn ON → reappears in Bills & Charges at once']},
+      ...(!storesMode?[{key:'approval',icon:'✓',title:'Approval Routing',valueText:ready?(s.approvalOn?'ON':'OFF'):'…',unit:s.approvalOn?'Approval Requests':'Bills & Charges',lines:[s.registerControlled?'Always OFF — equipment register controls charges':s.approvalOn?'Nursing Manager approves first':'Raised directly by nurses']}]:[]),
+      {key:'charges',icon:'₹',title:'Charges Posted',value:ready?posted.length:null,unit:`this period`,lines:[ready?cmMoney(posted.reduce((n,r)=>n+Number(r.final_amount||r.approved_amount||0),0)):'…',`${formatDateIN(pFrom)} – ${formatDateIN(pTo)}`]},
+      {key:'awaiting',icon:'⏳',title:'Awaiting Accounts',value:ready?pending.length:null,unit:'charges',lines:['Raised, not yet approved by Accounts'],warn:pending.length>0},
+      ...(category==='Biomedical Equipment'?[{key:'equipment',icon:'⚕︎',title:'Equipment Linked',value:ready?equipment.filter(x=>x.charge_code).length:null,unit:'pieces',lines:[`${equipment.filter(x=>x.status==='In Use').length} in use now`,'Pieces per Charge Master item']}]:[])
+    ];
+    const viewTitle=(tiles.find(t=>t.key===view)||{}).title||'';
+    const cmSection=['items','missing','inactive','approval'].includes(view)?view:'none';
+    function chargeDetail(r){
+      return {title:`${r.service_name||'Charge'}${r.quantity?` × ${r.quantity}${r.unit?' '+r.unit:''}`:''}`,subtitle:patientText(r.patient_id),fields:[
+        ['Resident',patientText(r.patient_id)],['Category',r.category],['Item / service',[r.charge_item_code||r.service_code,r.service_name].filter(Boolean).join(' · ')],
+        ['Quantity',r.quantity!=null?`${r.quantity} ${r.unit||''}`:''],['Charge date',r.charge_date?formatDateIN(r.charge_date):''],['Service time',r.service_datetime?formatDateTimeIN(r.service_datetime):''],
+        ['Raised by',[r.raised_by_name,r.raised_at?formatDateTimeIN(r.raised_at):''].filter(Boolean).join(' · ')],['Status',[r.status,r.approval_status].filter(Boolean).join(' · ')],
+        ['Amount approved',r.final_amount!=null||r.approved_amount!=null?cmMoney(r.final_amount??r.approved_amount):''],
+        ['Decided by (Accounts)',[r.decision_by_name,r.decision_date||r.approved_at?formatDateTimeIN(r.decision_date||r.approved_at):''].filter(Boolean).join(' · ')],
+        ['Approval remarks',r.approval_remarks],['Bill',[r.bill_number,r.bill_date&&formatDateIN(r.bill_date)].filter(Boolean).join(' · ')],
+        ['Description',r.description],['Remarks',r.remarks]]};
+    }
+    function ChargeRows({rows}){
+      return rows.length?h('div',{className:'stores-expiry-list'},rows.map(r=>h('article',{key:r.id,className:'stores-ledger-card row-clickable',onClick:()=>setDetail(chargeDetail(r))},
+        h('div',{className:'stores-ledger-card-head'},h('strong',null,`${r.service_name||'Charge'}${r.quantity?` × ${r.quantity}`:''}`),h('span',null,r.charge_date?formatDateIN(r.charge_date):formatDateTimeIN(r.created_at))),
+        h('div',{className:'stores-ledger-card-fields'},
+          h('div',null,h('small',null,'Resident'),h('strong',null,patientText(r.patient_id))),
+          h('div',null,h('small',null,'Raised by'),h('strong',null,r.raised_by_name||'—')),
+          h('div',null,h('small',null,'Status'),h('strong',null,r.approval_status||r.status||'—')),
+          h('div',null,h('small',null,'Amount'),h('strong',null,r.final_amount!=null||r.approved_amount!=null?cmMoney(r.final_amount??r.approved_amount):'—'))
+        )))):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},charges===null?'Loading…':'Nothing in this list.');
+    }
+    const byCode=React.useMemo(()=>{const m={};equipment.forEach(x=>{const k=x.charge_code||'(not charged)';(m[k]=m[k]||[]).push(x)});return m},[equipment]);
+    if(profile?.role!=='Admin')return h(Section,{title:'Charge Master'},h('p',null,'Administrator access only.'));
+    return h('div',{className:'stores-dash-wrap'},
+      detail&&h(RowDetailModal,{title:detail.title,subtitle:detail.subtitle,fields:detail.fields,onClose:()=>setDetail(null)}),
+      !view&&h('div',{className:'stores-dash'},
+        h(DashboardHero,{kicker:'CHARGE MASTER',title:category,blurb:storesMode?'Charge rates of Consumables, Pharmacy, Housekeeping and Kitchen items — same item and code as Stores Master, used in Bills & Charges and Accounts approval.':`Items, codes and Admin-fixed rates for ${category}, and the charges raised with them — one source for Bills & Charges, Accounts approval and the Patient Ledger.`,onRefresh:()=>{setSummary(null);setCharges(null);setRefreshKey(k=>k+1)}}),
+        h('div',{className:'cm-period-bar'},
+          h('div',{className:'field'},h('label',null,'Period (charges)'),h('select',{value:period,onChange:e=>setPeriod(e.target.value)},[['today','Today'],['week','This Week'],['month','This Month'],['lastmonth','Last Month'],['custom','Custom Date Range']].map(([v,l])=>h('option',{key:v,value:v},l)))),
+          period==='custom'&&h('div',{className:'field'},h('label',null,'From'),h(StrictDateInput,{value:from,onChange:e=>setFrom(e.target.value)})),
+          period==='custom'&&h('div',{className:'field'},h('label',null,'To'),h(StrictDateInput,{value:to,onChange:e=>setTo(e.target.value)})),
+          h(ApplyFilterButton,{dirty:periodApply.dirty,onApply:periodApply.apply})
+        ),
+        h(DashboardTiles,{tiles,onOpen:openView})
+      ),
+      view&&h(DashboardBackBar,{title:category,viewTitle,onBack:backToDashboard}),
+      view==='charges'&&h(Section,{title:`Charges Posted · ${formatDateIN(pFrom)} – ${formatDateIN(pTo)}`,subtitle:`${posted.length} charge(s) · ${cmMoney(posted.reduce((n,r)=>n+Number(r.final_amount||r.approved_amount||0),0))}. Tap a row for full details.`},h(ChargeRows,{rows:posted})),
+      view==='awaiting'&&h(Section,{title:'Awaiting Accounts approval',subtitle:'Tap a row for full details.'},h(ChargeRows,{rows:pending})),
+      view==='equipment'&&h(Section,{title:'Equipment linked to Charge Master items',subtitle:'Pieces in the Biomedical Equipment register, grouped by their Charge Master code.'},
+        Object.keys(byCode).length?h('div',{className:'stores-expiry-list'},Object.keys(byCode).sort().map(code=>h('article',{key:code,className:'stores-ledger-card'},
+          h('div',{className:'stores-ledger-card-head'},h('strong',null,code==='(not charged)'?'Not charged to residents':`${code} · ${byCode[code][0].charge_service_name||''}`),h('span',null,`${byCode[code].length} piece(s)`)),
+          h('small',null,byCode[code].map(x=>`${x.asset_no} ${x.status}${x.status==='In Use'?' · '+patientText(x.current_patient_id):''}`).join(' · '))))):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},'No equipment in the register yet.'),
+        h('div',{className:'equip-actions'},typeof onNavigate==='function'&&h('button',{type:'button',className:'btn btn-primary',onClick:()=>onNavigate('Biomedical Equipment')},'Open Biomedical Equipment register'))
+      ),
+      h(React.Fragment,{key:`cm-${category}-${refreshKey}`},h(ChargeMasterPage,{profile,lockedCategory:category,section:cmSection,onSummary:setSummary}))
+    );
+  }
+
+  // All Categories: one box per Charge Master category (new categories appear here automatically)
+  function ChargeMasterOverview({profile,onNavigate}){
+    const [rows,setRows]=React.useState(null),[stores,setStores]=React.useState([]),[settings,setSettings]=React.useState({}),[openCat,setOpenCat]=React.useState(''),[classic,setClassic]=React.useState(false);
+    React.useEffect(()=>{(async()=>{
+      const [t,s,a]=await Promise.all([
+        client.from('charge_tariff_master').select('category,is_active,amount'),
+        client.from('consumable_store_items').select('active,charge_rate'),
+        client.from('charge_category_settings').select('category,requires_approval')
+      ]);
+      setRows(t.error?[]:(t.data||[]).filter(r=>!STORE_CHARGE_CATEGORIES.includes(String(r.category||'').trim())));if(!s.error)setStores(s.data||[]);
+      if(!a.error)setSettings(Object.fromEntries((a.data||[]).map(r=>[r.category,r.requires_approval===true])));
+    })()},[]);
+    if(profile?.role!=='Admin')return h(Section,{title:'Charge Master'},h('p',null,'Administrator access only.'));
+    if(classic)return h('div',null,h('div',{className:'equip-actions',style:{marginBottom:'10px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setClassic(false)},'← All Categories')),h(ChargeMasterPage,{profile}));
+    if(openCat)return h('div',null,h('div',{className:'equip-actions',style:{marginBottom:'10px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setOpenCat('')},'← All Categories')),h(ChargeMasterDashboard,{profile,category:openCat,onNavigate}));
+    const cats=[...new Set([...CHARGE_MASTER_CATEGORIES,...(rows||[]).map(r=>String(r.category||'').trim()).filter(Boolean)])].sort(samaraAlpha);
+    const tiles=[...cats.map(c=>{const r=(rows||[]).filter(x=>String(x.category||'').trim()===c);const active=r.filter(x=>x.is_active!==false);const missing=active.filter(x=>!(Number(x.amount)>0)).length;
+        return {key:c,icon:'₹',title:c,value:rows?active.length:null,unit:'active items',lines:[`${missing} without a rate`,settings[c]?'Approval Requests':'Bills & Charges'],alert:missing>0}}),
+      {key:'Stores Item Rates',icon:'▦',title:'Stores Item Rates',value:stores.filter(x=>x.active!==false).length,unit:'items',lines:[`${stores.filter(x=>x.active!==false&&!(Number(x.charge_rate)>0)).length} without a rate`,'Consumables · Pharmacy · Housekeeping · Kitchen']},
+      {key:'__classic',icon:'☰',title:'Full List (all categories)',valueText:'All',unit:'items',lines:['The complete Charge Master table, Assign Codes']}];
+    return h('div',{className:'stores-dash-wrap'},h('div',{className:'stores-dash'},
+      h(DashboardHero,{kicker:'CHARGE MASTER',title:'All Categories',blurb:'Every chargeable item, code and Admin-fixed rate — the single source for Bills & Charges, Approval Requests, Accounts approval and the Patient Ledger. Tap a category.'}),
+      h(DashboardTiles,{tiles,onOpen:key=>{if(key==='__classic')return setClassic(true);const page=CM_PAGE_PREFIX+key;if(CHARGE_MASTER_PAGES.includes(page)&&typeof onNavigate==='function')onNavigate(page);else setOpenCat(key)}})
+    ));
   }
   function WhatsAppDeliveryLogs({profile}){
     const [rows,setRows]=React.useState([]),[patients,setPatients]=React.useState([]),[busy,setBusy]=React.useState(false),[status,setStatus]=React.useState('All'),[search,setSearch]=React.useState('');

@@ -9,7 +9,7 @@
   {
    "file": "0-start/01-app-constants.js",
    "about": "OPENS the main app closure. Version, build date, fixed lists (blood groups, professions, centre)",
-   "lines": 114
+   "lines": 121
   },
   {
    "file": "core/01-app-help-repair-popups.js",
@@ -24,12 +24,12 @@
   {
    "file": "core/03-brand-theme-css.js",
    "about": "Global brand colour theme (CSS injected at start)",
-   "lines": 982
+   "lines": 983
   },
   {
    "file": "core/04-supabase-roles-navigation.js",
    "about": "Supabase client, audit log writer, roles, departments, menu per role, page permissions",
-   "lines": 221
+   "lines": 224
   },
   {
    "file": "core/05-whatsapp-phone-helpers.js",
@@ -119,7 +119,7 @@
   {
    "file": "shell/01-app-main.js",
    "about": "App() - the main shell: login state, page switching, global watchers switched on here",
-   "lines": 786
+   "lines": 787
   },
   {
    "file": "shell/02-login-password.js",
@@ -369,7 +369,12 @@
   {
    "file": "accounts/09-clinical-charges.js",
    "about": "Charge master, clinical charges",
-   "lines": 944
+   "lines": 959
+  },
+  {
+   "file": "accounts/10-charge-master-dashboard.js",
+   "about": "Charge Master category dashboards + All Categories overview",
+   "lines": 123
   },
   {
    "file": "reports/whatsapp-delivery-logs.js",

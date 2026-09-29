@@ -1,7 +1,10 @@
   // v2.14.62: every Charge Master / Bills & Charges list is alphabetical (A→Z, case-insensitive), with "Others" always last.
   const samaraAlpha=(a,b)=>{const x=String(a||'').trim(),y=String(b||'').trim();const xo=x.toLowerCase()==='others',yo=y.toLowerCase()==='others';if(xo!==yo)return xo?1:-1;return x.localeCompare(y,'en',{sensitivity:'base',numeric:true})};
   const samaraSortCategoryMap=map=>Object.fromEntries(Object.keys(map||{}).sort(samaraAlpha).map(k=>[k,[...new Set(map[k]||[])].sort(samaraAlpha)]));
-  function ChargeMasterPage({profile}){
+  function ChargeMasterPage({profile,lockedCategory='',section='',onSummary=null}){
+    // 2.14.99: lockedCategory = one Charge Master category (or 'Stores Item Rates'); section = '' (full page) | 'none' | 'items' | 'inactive' | 'approval' | 'missing'
+    const storesMode=lockedCategory==='Stores Item Rates';
+    const show=key=>!section||section===key;
     const [serviceRows,setServiceRows]=React.useState([]),[storeRows,setStoreRows]=React.useState([]),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState(''),[categoryFilter,setCategoryFilter]=React.useState('All');
     const notify=(type,text)=>showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
     const stockCategories=STORE_CHARGE_CATEGORIES;
@@ -13,6 +16,7 @@
     }
     async function toggleApproval(category){
       const next=!approvalSettings[category];
+      if(next&&REGISTER_CONTROLLED_CHARGE_CATEGORIES.includes(category)){notify('error',`${category} is charged only from Bills & Charges, controlled by its register (only equipment issued to the resident, with days). Approval routing stays OFF.`);return}
       if(!confirm(next
         ?`Turn ON Nursing Manager approval for "${category}"?\n\nFrom now on nobody can raise ${category} in Bills & Charges. Nurses request it on NURSING → Approval Requests; after approval they Confirm & Start, and the charge goes to Accounts.`
         :`Turn OFF approval for "${category}"?\n\n${category} will be raised directly from Bills & Charges again. Requests already waiting on Approval Requests can still be approved and started.`))return;
@@ -44,7 +48,7 @@
     const maxCodeNumberForPrefix=(prefix,rows)=>{let max=0;(rows||[]).forEach(r=>{const code=String(r.charge_code||'').toUpperCase();const m=code.match(new RegExp('^'+prefix+'-(\\d+)$'));if(m)max=Math.max(max,parseInt(m[1],10))});return max};
     const nextCodeForCategory=(category,rows)=>{const prefix=prefixForCategory(category);return `${prefix}-${String(maxCodeNumberForPrefix(prefix,rows)+1).padStart(4,'0')}`};
     async function saveService(row){
-      const category=prompt('Charge category:',row?.category||'Nursing Procedures'); if(category===null||!String(category).trim())return;
+      const category=(!row&&lockedCategory&&!storesMode)?lockedCategory:prompt('Charge category:',row?.category||lockedCategory||'Nursing Procedures'); if(category===null||!String(category).trim())return;
       if(stockCategories.includes(String(category).trim())){notify('error','Consumables and Pharmacy items are controlled only from Stores Master. Add or edit the item there so the same item name, ID and rate are used everywhere.');return}
       const serviceName=prompt('Chargeable service / item:',row?.service_name||''); if(serviceName===null||!String(serviceName).trim())return;
       const duplicate=findSimilarService(String(category).trim(),String(serviceName).trim(),row?.id||'');if(duplicate){notify('error',`${duplicate.charge_code?duplicate.charge_code+' · ':''}Possible duplicate: ${duplicate.service_name} is already in ${duplicate.category}. Use/edit the existing procedure instead; genuine variants must include their distinguishing detail.`);return}
@@ -93,38 +97,49 @@
     const categoryOf=row=>row.category||row.item_category||'Consumables';
     const categoryCounts=React.useMemo(()=>{const counts={};serviceRows.forEach(r=>{const c=categoryOf(r);counts[c]=(counts[c]||0)+1});storeRows.forEach(r=>{const c=categoryOf(r);counts[c]=(counts[c]||0)+1});return counts},[serviceRows,storeRows]);
     const allCategories=React.useMemo(()=>Object.keys(categoryCounts).sort(samaraAlpha),[categoryCounts]);
+    const catServices=lockedCategory&&!storesMode?serviceRows.filter(r=>String(r.category||'').trim()===lockedCategory):serviceRows;
+    const cmSummary=storesMode
+      ?{loaded:storeRows.length>0,active:storeRows.filter(r=>r.active!==false).length,inactive:storeRows.filter(r=>r.active===false).length,missing:storeRows.filter(r=>r.active!==false&&!(Number(r.charge_rate)>0)).length,approvalOn:false}
+      :{loaded:serviceRows.length>0,active:catServices.filter(r=>r.is_active!==false).length,inactive:catServices.filter(r=>r.is_active===false).length,missing:catServices.filter(r=>r.is_active!==false&&!(Number(r.amount)>0)).length,approvalOn:!!approvalSettings[lockedCategory],registerControlled:REGISTER_CONTROLLED_CHARGE_CATEGORIES.includes(lockedCategory)};
+    const cmSummaryKey=JSON.stringify(cmSummary);
+    React.useEffect(()=>{if(typeof onSummary==='function')onSummary(cmSummary)},[cmSummaryKey]);
     if(profile?.role!=='Admin')return h(Section,{title:'Charge Master'},h('p',null,'Administrator access only.'));
+    if(section==='none')return null;
     const q=String(search||'').trim().toLowerCase();
+    const statusOk=(row,activeFlag)=>section==='inactive'?activeFlag===false:(section==='items'||section==='missing')?activeFlag!==false:true;
     const match=row=>{
-      if(categoryFilter!=='All'&&categoryOf(row)!==categoryFilter)return false;
+      if(lockedCategory&&!storesMode&&categoryOf(row)!==lockedCategory)return false;
+      if(!lockedCategory&&categoryFilter!=='All'&&categoryOf(row)!==categoryFilter)return false;
+      if(section==='missing'&&(Number(row.amount??row.charge_rate)>0))return false;
+      if(!statusOk(row,row.is_active!==undefined?row.is_active:row.active))return false;
       return q.length<3||`${categoryOf(row)} ${row.service_name||row.item_name||''}`.toLowerCase().includes(q);
     };
     const visibleStores=storeRows.filter(match).sort((a,b)=>samaraAlpha(a.item_category||'Consumables',b.item_category||'Consumables')||samaraAlpha(a.item_name,b.item_name)),visibleServices=serviceRows.filter(match).sort((a,b)=>samaraAlpha(a.category,b.category)||samaraAlpha(a.service_name,b.service_name));
     const missingCodeCount=serviceRows.filter(r=>!r.charge_code).length;
     return h(React.Fragment,null,
-      h(Section,{title:'Charge Master',subtitle:"Stores / Pharmacy items use the exact live Stores Master item name, ID and charge rate. Non-stock service tariffs remain controlled here. IDs are generated automatically, one short prefix per category (NUR- Nursing Procedures, DOC- Doctor Services, DIA- Diagnostic/Imaging, LAB- Laboratory, BIO- Biomedical Equipment, and so on) — you never need to type one."},
-        h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'end',gap:'12px',marginBottom:'10px',flexWrap:'wrap'}},
+      h(Section,{title:lockedCategory?`${lockedCategory} — ${section==='inactive'?'Inactive Items':section==='missing'?'Rates Not Set':section==='approval'?'Approval Routing':'Items & Rates'}`:'Charge Master',subtitle:lockedCategory?(storesMode?'Stores / Pharmacy / Housekeeping / Kitchen items: name, code and rate come from Stores Master; the rate is edited here.':'Items, codes (auto) and Admin-fixed rates for this category. Turned-off items can be turned back ON here — they reappear in Bills & Charges / Approval Requests at once.'):"Stores / Pharmacy items use the exact live Stores Master item name, ID and charge rate. Non-stock service tariffs remain controlled here. IDs are generated automatically, one short prefix per category (NUR- Nursing Procedures, DOC- Doctor Services, DIA- Diagnostic/Imaging, LAB- Laboratory, BIO- Biomedical Equipment, and so on) — you never need to type one."},
+        section!=='approval'&&h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'end',gap:'12px',marginBottom:'10px',flexWrap:'wrap'}},
           h('div',{style:{display:'flex',gap:'12px',flexWrap:'wrap',alignItems:'end'}},
-            h('div',{className:'field',style:{minWidth:'220px',margin:0}},h('label',null,'Category'),h('select',{value:categoryFilter,onChange:e=>setCategoryFilter(e.target.value)},
+            !lockedCategory&&h('div',{className:'field',style:{minWidth:'220px',margin:0}},h('label',null,'Category'),h('select',{value:categoryFilter,onChange:e=>setCategoryFilter(e.target.value)},
               h('option',{value:'All'},`All Categories (${serviceRows.length+storeRows.length})`),
               allCategories.map(c=>h('option',{key:c,value:c},`${c} (${categoryCounts[c]||0})`)))),
             h('div',{className:'field',style:{minWidth:'260px',margin:0}},h('label',null,'Search Charge Items'),h('input',{type:'search',value:search,onChange:e=>setSearch(e.target.value),placeholder:'Type at least 3 letters...'}),q.length>0&&q.length<3?h('small',null,'Enter at least 3 letters to filter.'):null)
           ),
           h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
             missingCodeCount>0&&h('button',{className:'btn btn-secondary',disabled:busy,onClick:autoCodeAllServices},`Assign Codes to All (${missingCodeCount})`),
-            h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>saveService(null)},'+ Add Service Charge')
+            !storesMode&&(!section||section==='items')&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>saveService(null)},lockedCategory?`+ Add ${lockedCategory} Item`:'+ Add Service Charge')
           )
         ),
-        h(LogTable,{title:'Approval Routing by Category',subtitle:'Switch ON for a category whose items must be approved by the Nursing Manager before they are done and charged (like Nursing Procedures). ON: raised only from NURSING → Approval Requests (request → approval → Confirm & Start), for everyone. OFF: raised directly from Bills & Charges. Stores / Pharmacy categories always stay in Bills & Charges.',
+        show('approval')&&!storesMode&&h(LogTable,{title:'Approval Routing by Category',subtitle:'Switch ON for a category whose items must be approved by the Nursing Manager before they are done and charged (like Nursing Procedures). ON: raised only from NURSING → Approval Requests (request → approval → Confirm & Start), for everyone. OFF: raised directly from Bills & Charges. Stores / Pharmacy categories always stay in Bills & Charges.',
           heads:['Category','Active Items','Needs Nursing Manager Approval','Action'],
-          rows:approvalSettingsError?[[approvalSettingsError,'','','']]:[...new Set(serviceRows.map(r=>String(r.category||'').trim()).filter(c=>c&&!stockCategories.includes(c)))].sort((a,b)=>a.localeCompare(b)).map(c=>[
+          rows:approvalSettingsError?[[approvalSettingsError,'','','']]:[...new Set(serviceRows.map(r=>String(r.category||'').trim()).filter(c=>c&&!stockCategories.includes(c)&&(!lockedCategory||c===lockedCategory)))].sort((a,b)=>a.localeCompare(b)).map(c=>[
             c,
             serviceRows.filter(r=>r.category===c&&r.is_active!==false).length,
             h('span',{style:{fontWeight:800,fontSize:'12px',padding:'4px 10px',borderRadius:'999px',display:'inline-block',background:approvalSettings[c]?'#e7f6ef':'#f1f1f1',color:approvalSettings[c]?'#0b5a40':'#5a5055'}},approvalSettings[c]?'ON — Approval Requests':'OFF — Bills & Charges'),
-            h('button',{className:approvalSettings[c]?'btn btn-secondary':'btn btn-primary',disabled:busy,onClick:()=>toggleApproval(c)},approvalSettings[c]?'Turn OFF':'Turn ON')
+            REGISTER_CONTROLLED_CHARGE_CATEGORIES.includes(c)&&!approvalSettings[c]?h('small',{style:{fontWeight:700,color:'#5a5055'}},'Always OFF — controlled by the Biomedical Equipment register'):h('button',{className:approvalSettings[c]?'btn btn-secondary':'btn btn-primary',disabled:busy,onClick:()=>toggleApproval(c)},approvalSettings[c]?'Turn OFF':'Turn ON')
           ])}),
-        h(LogTable,{title:`Stores / Pharmacy Items (${visibleStores.length})`,heads:['Item ID','Category','Exact Stores Item','Unit','Fixed Charge Rate','Status','Action'],rows:visibleStores.map(row=>[row.item_code||'—',row.item_category||'Consumables',row.item_name,row.unit||'—',row.charge_rate!=null?`₹${Number(row.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.active===false?'Inactive':'Active',h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreRate(row)},'Edit Rate')])}),
-        h(LogTable,{title:`Non-stock Service Charges (${visibleServices.length})`,heads:['ID','Category','Service','Fixed Tariff (No Bill)','Status','Action'],rows:visibleServices.map(row=>[row.charge_code||'—',row.category,row.service_name,row.amount!=null?`₹${Number(row.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveService(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggleService(row)},row.is_active===false?'Activate':'Deactivate'))])})
+        (!lockedCategory||storesMode)&&(!section||['items','inactive','missing'].includes(section))&&h(LogTable,{title:`Stores / Pharmacy Items (${visibleStores.length})`,heads:['Item ID','Category','Exact Stores Item','Unit','Fixed Charge Rate','Status','Action'],rows:visibleStores.map(row=>[row.item_code||'—',row.item_category||'Consumables',row.item_name,row.unit||'—',row.charge_rate!=null?`₹${Number(row.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.active===false?'Inactive':'Active',h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreRate(row)},'Edit Rate')])}),
+        !storesMode&&(!section||['items','inactive','missing'].includes(section))&&h(LogTable,{title:`${lockedCategory||'Non-stock Service'} Charges (${visibleServices.length})`,heads:['ID','Category','Service','Fixed Tariff (No Bill)','Status','Action'],rows:visibleServices.map(row=>[row.charge_code||'—',row.category,row.service_name,row.amount!=null?`₹${Number(row.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveService(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggleService(row)},row.is_active===false?'Activate':'Deactivate'))])})
       )
     );
   }

@@ -2475,3 +2475,6 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 .row-clickable:hover{background:#fbf2f7}
 @media (max-width:640px){.row-detail-grid{grid-template-columns:1fr}}
 .unit-warn{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:#fff1d6;color:#8a5a00;font-size:.72rem;font-weight:800;white-space:nowrap}
+/* 2.14.99 Charge Master dashboards */
+.cm-period-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:0 0 14px}
+.cm-period-bar .field{margin:0;min-width:180px}
