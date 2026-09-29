@@ -32,8 +32,13 @@ begin
 
   -- Find the old availability check, tolerant of spacing / line breaks / wording of
   -- the message. Only the IF ... END IF block that checks v_bed.status is replaced.
+  -- Two known forms: 49 (status first) and the later form (patient_id first, with the
+  -- reserved-room exception).
   v_old := substring(d from '(?is)(if\s+v_bed\.status\s*(?:<>|!=)\s*''Available''.*?end\s+if\s*;)');
-  if v_old is null or position('v_bed.patient_id' in v_old) = 0 or length(v_old) > 400 then
+  if v_old is null or position('no longer available' in v_old) = 0 then
+    v_old := substring(d from '(?is)(if\s+v_bed\.patient_id\s+is\s+not\s+null.*?end\s+if\s*;)');
+  end if;
+  if v_old is null or position('v_bed.patient_id' in v_old) = 0 or position('no longer available' in v_old) = 0 or length(v_old) > 600 then
     raise exception E'assign_patient_room: availability check not found -- nothing changed. Share this with the developer:\n%',
       coalesce(substring(d from position('into v_bed' in d) for 900), left(d, 900));
   end if;
