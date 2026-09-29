@@ -3,6 +3,13 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.90 — Admission: Daily Intelligent Report option
+- New Admission → Family Communication box **"Daily Intelligent Report on WhatsApp *"** with a clear **Yes / No** choice (replaces the old "Communication Option: Family Portal Access / Both" dropdown, which was easy to miss). Family Portal Access stays mandatory as before.
+- **Yes** shows **Daily Report Time** (default 8:00 PM) and "Report will be sent to" — Family Contact 1's name, relationship and WhatsApp number — so staff can check it before saving. From admission day the Intelligent Patient Report (PDF) goes out daily at that time through the approved WhatsApp template.
+- **No** = Family Portal only; it can be switched on later from Patients → Daily Patient Report → Edit Recipient / Time.
+- Saves to the same settings as before (no SQL, no change to the daily sending job).
+- Files: `src/app/patients/admissions.js`, `styles.css`, version files, `app.js` (rebuilt).
+
 ## 2.14.89 — Pharmacy & Stores: add / edit Expiry Date later
 - New **Expiry** button on every stock item, and **Add Expiry / Edit Expiry** on each row of the Vendor Receipt Register (Stores / Pharmacy in-charge only). It opens that item's vendor receipts, where the **Batch No.** and **Expiry Date** (DD-MM-YYYY) of each receipt can be added or corrected; each receipt has its own Save Expiry. Quantities, stock balance, vendor, invoice and charges are not changed. Who changed it and when is kept.
 - Registers and item history now show **"Expiry not entered"** (amber), **"Expires soon"** (within 90 days, amber) or **"EXPIRED"** (red).

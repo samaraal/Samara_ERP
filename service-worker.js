@@ -1,5 +1,5 @@
-const APP_VERSION = '2.14.89';
-const CACHE = 'samara-erp-2.14.89-store-expiry-edit';
+const APP_VERSION = '2.14.90';
+const CACHE = 'samara-erp-2.14.90-admission-daily-report';
 const SHELL = [
   './',
   './index.html',
