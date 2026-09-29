@@ -9,7 +9,7 @@
   {
    "file": "0-start/01-app-constants.js",
    "about": "OPENS the main app closure. Version, build date, fixed lists (blood groups, professions, centre)",
-   "lines": 60
+   "lines": 107
   },
   {
    "file": "core/01-app-help-repair-popups.js",
@@ -24,12 +24,12 @@
   {
    "file": "core/03-brand-theme-css.js",
    "about": "Global brand colour theme (CSS injected at start)",
-   "lines": 978
+   "lines": 980
   },
   {
    "file": "core/04-supabase-roles-navigation.js",
    "about": "Supabase client, audit log writer, roles, departments, menu per role, page permissions",
-   "lines": 219
+   "lines": 221
   },
   {
    "file": "core/05-whatsapp-phone-helpers.js",
@@ -44,7 +44,7 @@
   {
    "file": "core/07-action-success-toasts.js",
    "about": "After-save behaviour, success/failure toasts and their CSS",
-   "lines": 400
+   "lines": 422
   },
   {
    "file": "core/08-date-utils.js",
@@ -64,12 +64,12 @@
   {
    "file": "clinical-alerts/01-alert-engine.js",
    "about": "Clinical alert popup + the background clinical alert engine",
-   "lines": 1205
+   "lines": 1210
   },
   {
    "file": "clinical-alerts/02-alert-pages.js",
    "about": "Clinical Alerts page, Escalations dashboard, Alert Settings",
-   "lines": 372
+   "lines": 509
   },
   {
    "file": "global-ui/01-smooth-refresh-splash.js",
@@ -79,12 +79,12 @@
   {
    "file": "global-ui/02-workspace-layout-css.js",
    "about": "Big global layout CSS (ensureCleanWorkspaceLayout)",
-   "lines": 1262
+   "lines": 1267
   },
   {
    "file": "global-ui/03-form-requirements.js",
    "about": "GLOBAL WATCHER: required-field rules + Form Field Settings page",
-   "lines": 490
+   "lines": 494
   },
   {
    "file": "global-ui/04-compact-data-entry-css.js",
@@ -99,7 +99,7 @@
   {
    "file": "global-ui/06-bell-notifications-popups.js",
    "about": "Alert bell, notifications, workflow popups, store indent alerts",
-   "lines": 177
+   "lines": 247
   },
   {
    "file": "global-ui/07-voice-input-tamil-assist.js",
@@ -114,12 +114,12 @@
   {
    "file": "shell/01-app-main.js",
    "about": "App() - the main shell: login state, page switching, global watchers switched on here",
-   "lines": 676
+   "lines": 784
   },
   {
    "file": "shell/02-login-password.js",
    "about": "Login, first-login password change, password recovery",
-   "lines": 237
+   "lines": 251
   },
   {
    "file": "shell/03-my-profile.js",
@@ -144,7 +144,7 @@
   {
    "file": "pages/dashboard.js",
    "about": "Home Dashboard and its navigation helpers",
-   "lines": 388
+   "lines": 391
   },
   {
    "file": "pages/manager-personal-todo.js",
@@ -199,22 +199,22 @@
   {
    "file": "patients/medication-helpers.js",
    "about": "Medication time/frequency helpers shared by Admissions & Medicines",
-   "lines": 135
+   "lines": 236
   },
   {
    "file": "patients/admissions.js",
    "about": "Admissions page (+ Tamil Nadu districts list)",
-   "lines": 2350
+   "lines": 2385
   },
   {
    "file": "nursing/shift-tasks.js",
    "about": "Shift tasks",
-   "lines": 397
+   "lines": 415
   },
   {
    "file": "patients/patients.js",
    "about": "Patients page",
-   "lines": 2777
+   "lines": 2800
   },
   {
    "file": "patients/patient-select-helpers.js",
@@ -239,17 +239,17 @@
   {
    "file": "clinical/clinical-dashboard.js",
    "about": "Clinical dashboard",
-   "lines": 230
+   "lines": 232
   },
   {
    "file": "clinical/daily-care-vitals.js",
    "about": "Daily care, vital signs",
-   "lines": 220
+   "lines": 235
   },
   {
    "file": "clinical/medicines.js",
    "about": "Medicines (+ discharge medication review)",
-   "lines": 643
+   "lines": 808
   },
   {
    "file": "clinical/medication-errors.js",
@@ -259,12 +259,12 @@
   {
    "file": "clinical/food.js",
    "about": "Food / diet / resident food intake",
-   "lines": 87
+   "lines": 97
   },
   {
    "file": "clinical/physiotherapy.js",
    "about": "Physiotherapy",
-   "lines": 244
+   "lines": 248
   },
   {
    "file": "nursing/special-nurse.js",
@@ -274,7 +274,7 @@
   {
    "file": "nursing/nursing-procedures.js",
    "about": "Nursing Procedures: Nurse request -> Nursing Manager approve -> Nurse confirm & start; procedure code master",
-   "lines": 204
+   "lines": 163
   },
   {
    "file": "nursing/nursing-charge-register.js",
@@ -309,7 +309,7 @@
   {
    "file": "accounts/03-accounts-dashboard.js",
    "about": "Accounts dashboard",
-   "lines": 199
+   "lines": 258
   },
   {
    "file": "accounts/04-final-billing-refunds.js",
@@ -319,7 +319,7 @@
   {
    "file": "accounts/05-payment-settlement-css.js",
    "about": "Payment settlement CSS",
-   "lines": 214
+   "lines": 231
   },
   {
    "file": "accounts/06-patient-ledger.js",
@@ -329,22 +329,22 @@
   {
    "file": "accounts/07-charge-readiness.js",
    "about": "Unposted charge checks",
-   "lines": 56
+   "lines": 55
   },
   {
    "file": "accounts/08-billing-payments.js",
    "about": "Billing & payments",
-   "lines": 1172
+   "lines": 1378
   },
   {
    "file": "stores/store-authority-items.js",
    "about": "Store in-charge, item master, pharmacy stock",
-   "lines": 236
+   "lines": 206
   },
   {
    "file": "stores/consumables-stores.js",
    "about": "Consumables stores",
-   "lines": 621
+   "lines": 687
   },
   {
    "file": "stores/patient-consumables.js",
@@ -354,12 +354,12 @@
   {
    "file": "stores/stores-dashboard.js",
    "about": "Pharmacy & Stores dashboard (Consumables / Pharmacy): navigable boxes, Back to Dashboard",
-   "lines": 92
+   "lines": 94
   },
   {
    "file": "accounts/09-clinical-charges.js",
    "about": "Charge master, clinical charges",
-   "lines": 815
+   "lines": 908
   },
   {
    "file": "reports/whatsapp-delivery-logs.js",
@@ -384,12 +384,12 @@
   {
    "file": "z-end/01-form-helpers-and-start-app.js",
    "about": "Small form helpers, then STARTS the app and CLOSES the main closure",
-   "lines": 12
+   "lines": 13
   },
   {
    "file": "z-end/02-mail-mobile-css-and-notes.js",
    "about": "Mail mobile CSS + old version notes",
-   "lines": 18
+   "lines": 17
   }
  ]
 }

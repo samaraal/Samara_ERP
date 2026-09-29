@@ -3,6 +3,16 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.93 — Pharmacy & Stores: Housekeeping & General and Kitchen / Food Stores
+- **Two new sidebar sections** under Pharmacy & Stores, each with its own dashboard (same boxes as Consumables / Pharmacy): **Housekeeping & General** (linen, gowns, tissue, cleaning, general supplies — codes HKG-0001…) and **Kitchen / Food Stores** (pantry, kitchen items, snacks — codes KIT-0001…). Separate from Food Vendor Management.
+- **Issue to Department** (new box on these two dashboards, and an "Issue to Dept" button on each stock item): issue stock to Nursing Floor, Housekeeping, Kitchen / Pantry, Laundry, Office / Admin, Maintenance, Front Desk or Other, with who received it. Stock reduces at once. **Department Issue Register** (Today / This Month / Last Month / All).
+- Items in these sections can **also be charged to a resident** through the normal indent → approval → handover → nurse received → Bills & Charges flow; Accounts approves at the live Store Master rate.
+- **One shared list of sections** now drives the sidebar, dashboards, Store Master (Add / Filter / Move), receiving, the nurses' Raise Indent category list, Charge Master and Bills & Charges — a new section appears everywhere together.
+- **Move Item** (Admin) can now move an item to any section, e.g. existing Bed Linens / Garbage Bags from Consumables to Housekeeping & General (code, stock and history stay with the item).
+- **Fix:** a brand-new item received from a vendor under Pharmacy was saved as Consumables (CON- code). It is now created in the section it was received into.
+- **SQL — run `supabase/sql/160_store_sections_housekeeping_kitchen.sql` once** (Supabase → SQL Editor; safe to run again). Until it is run, Consumables / Pharmacy work exactly as before; the new sections show a message asking for it.
+- Files: `src/app/0-start/01-app-constants.js`, `src/app/stores/consumables-stores.js`, `src/app/stores/stores-dashboard.js`, `src/app/stores/store-authority-items.js`, `src/app/accounts/09-clinical-charges.js`, `src/app/core/04-supabase-roles-navigation.js`, `src/app/core/03-brand-theme-css.js`, `src/app/shell/01-app-main.js`, `src/app/shell/04-navigation-menus.js`, `supabase/sql/160_store_sections_housekeeping_kitchen.sql`, version files, `app.js` (rebuilt).
+
 ## 2.14.92 — Sidebar section icons
 - Each sidebar section now has its own icon: Food & Diet 🍽, Accounts / Billing ₹, Communication ✉, My Account ☺, Duty Roster & Leave ◷, Director's Office ★, Nursing / Clinical ✚ (previously Food & Diet showed ₹ and several sections shared the ⚙ gear).
 - Added `supabase/sql/diagnostic_store_functions.sql` — READ-ONLY check (changes nothing) of the existing stock / charge database functions, needed before adding the Housekeeping & General and Kitchen / Food Stores sections.

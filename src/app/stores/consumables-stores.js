@@ -1,4 +1,4 @@
-  function ConsumablesStores({profile,categoryFilter='',section='',onSummary=null}){
+  function ConsumablesStores({profile,categoryFilter='',section='',onSummary=null,onOpenSection=null}){
     // 2.14.91: section = '' (full page, as before) | 'none' | 'stock' | 'receive' | 'receipts' | 'movement' | 'expiry' — used by the Pharmacy & Stores dashboard
     const show=key=>!section||section===key;
     const authority=useStoreAuthority(profile);
@@ -16,13 +16,19 @@
     const isAdminProfile=profile?.role==='Admin';
     const [stockView,setStockView]=React.useState('All');
     const [movementMode,setMovementMode]=React.useState('summary');
+    // 2.14.93: Issue to Department (Housekeeping & General, Kitchen / Food Stores)
+    const [issueForm,setIssueForm]=React.useState({item_id:'',quantity:'1',department:'',issued_to:'',remarks:''});
+    const [issuePeriod,setIssuePeriod]=React.useState('month');
     const [movementPeriod,setMovementPeriod]=React.useState('month'),[movementItem,setMovementItem]=React.useState('All'),[movementFrom,setMovementFrom]=React.useState(todayISOIndia().slice(0,8)+'01'),[movementTo,setMovementTo]=React.useState(todayISOIndia());
     const [historyItem,setHistoryItem]=React.useState(null),[historyLedger,setHistoryLedger]=React.useState([]),[historyReceipts,setHistoryReceipts]=React.useState([]),[historyBusy,setHistoryBusy]=React.useState(false);
     const [categoryEditItem,setCategoryEditItem]=React.useState(null),[categoryEditValue,setCategoryEditValue]=React.useState('');
     const [cleanupCandidates,setCleanupCandidates]=React.useState(null);
     // 2.14.89: add / edit Batch No. and Expiry Date on stock already received (expiry is often not known on receipt)
     const [expiryItem,setExpiryItem]=React.useState(null),[expiryRows,setExpiryRows]=React.useState([]),[expiryEdits,setExpiryEdits]=React.useState({}),[expiryLoading,setExpiryLoading]=React.useState(false),[expiryFocus,setExpiryFocus]=React.useState('');
-    const [form,setForm]=React.useState({item_category:categoryFilter==='Pharmacy'?'Pharmacy':'Stores / Consumables',catalog_item:'',item_id:'',new_item_name:'',unit:'Nos',vendor_name:'',invoice_no:'',invoice_date:'',received_date:todayISOIndia(),quantity:'1',batch_no:'',expiry_date:'',unit_cost:'',remarks:'',generic_name:'',brand_name:'',strength:'',dosage_form:'Tablet',manufacturer:'',pack_size:''});
+    // 2.14.93: receive-form section value — 'Stores / Consumables' is the Consumables label; other sections use their own name
+    const sectionToForm=sec=>!sec||sec==='Consumables'?'Stores / Consumables':sec;
+    const formToSection=val=>val==='Stores / Consumables'?'Consumables':(val||'Consumables');
+    const [form,setForm]=React.useState({item_category:sectionToForm(categoryFilter),catalog_item:'',item_id:'',new_item_name:'',unit:'Nos',vendor_name:'',invoice_no:'',invoice_date:'',received_date:todayISOIndia(),quantity:'1',batch_no:'',expiry_date:'',unit_cost:'',remarks:'',generic_name:'',brand_name:'',strength:'',dosage_form:'Tablet',manufacturer:'',pack_size:''});
     const units=['Nos','Pairs','Packs','Boxes','Pieces','Rolls','Sets','Bottles'];
     const basicPharmacyUnits={"Glucometer Strips": "Nos", "Lancets": "Nos", "Alcohol Swabs": "Nos", "Digital Thermometer": "Nos", "Thermometer Probe Covers": "Nos", "Pulse Oximeter": "Nos", "BP Cuff / Spare Cuff": "Nos", "Sterile Gauze Pads - 2 x 2": "Nos", "Sterile Gauze Pads - 4 x 4": "Nos", "Cotton Rolls": "Rolls", "Cotton Balls": "Nos", "Micropore Adhesive Tape": "Rolls", "Sterile Dressing Pads": "Nos", "Crepe Bandage - 2 inch": "Rolls", "Crepe Bandage - 4 inch": "Rolls", "Crepe Bandage - 6 inch": "Rolls", "Roller / Gauze Bandages": "Rolls", "Disposable Examination Gloves - S": "Pieces", "Disposable Examination Gloves - M": "Pieces", "Disposable Examination Gloves - L": "Pieces", "Surgical Masks": "Nos", "Disposable Syringe - 1 mL": "Nos", "Disposable Syringe - 2 mL": "Nos", "Disposable Syringe - 3 mL": "Nos", "Disposable Syringe - 5 mL": "Nos", "Disposable Syringe - 10 mL": "Nos", "Disposable Syringe - 20 mL": "Nos", "Needle - 18G": "Nos", "Needle - 20G": "Nos", "Needle - 21G": "Nos", "Needle - 22G": "Nos", "Needle - 23G": "Nos", "Needle - 24G": "Nos", "Needle - 25G": "Nos", "Needle - 26G": "Nos", "Insulin Syringe - U-40": "Nos", "Insulin Syringe - U-100": "Nos", "Insulin Pen Needle - 4 mm": "Nos", "Insulin Pen Needle - 5 mm": "Nos", "Insulin Pen Needle - 6 mm": "Nos", "Insulin Pen Needle - 8 mm": "Nos", "IV Cannula - 18G": "Nos", "IV Cannula - 20G": "Nos", "IV Cannula - 22G": "Nos", "IV Cannula - 24G": "Nos", "IV Sets": "Nos", "IV Extension Lines": "Nos", "Normal Saline Flush Syringes": "Nos", "Urine Specimen Containers": "Nos", "Disposable Urine Measuring Containers": "Nos", "Adult Urine Bags": "Nos", "Nebulizer Mask / Kit - Adult": "Nos", "Oxygen Nasal Cannula": "Nos", "Oxygen Masks": "Nos", "Suction Catheter - 10 Fr": "Nos", "Suction Catheter - 12 Fr": "Nos", "Suction Catheter - 14 Fr": "Nos", "Suction Catheter - 16 Fr": "Nos", "Feeding Syringe - 50 mL": "Nos", "Feeding Syringe - 60 mL": "Nos", "Disposable Underpads": "Nos", "Tongue Depressors": "Nos", "Hand Sanitizer": "Bottles", "Povidone-iodine Solution": "Bottles", "Chlorhexidine Antiseptic - As per Samara Protocol": "Bottles", "Normal Saline for Wound Cleansing": "Bottles", "Sharps Disposal Containers": "Nos", "Biomedical-waste Bags": "Nos"};
     // Master-data rule: non-medicinal clinical supplies belong only to Consumables.
@@ -32,6 +38,11 @@
     const clinicalSupplyCatalog=["Glucometer Strips","Lancets","Alcohol Swabs","Digital Thermometer","Thermometer Probe Covers","Pulse Oximeter","BP Cuff / Spare Cuff","Sterile Gauze Pads - 2 x 2","Sterile Gauze Pads - 4 x 4","Cotton Rolls","Cotton Balls","Micropore Adhesive Tape","Sterile Dressing Pads","Crepe Bandage - 2 inch","Crepe Bandage - 4 inch","Crepe Bandage - 6 inch","Roller / Gauze Bandages","Disposable Examination Gloves - S","Disposable Examination Gloves - M","Disposable Examination Gloves - L","Surgical Masks","Disposable Syringe - 1 mL","Disposable Syringe - 2 mL","Disposable Syringe - 3 mL","Disposable Syringe - 5 mL","Disposable Syringe - 10 mL","Disposable Syringe - 20 mL","Needle - 18G","Needle - 20G","Needle - 21G","Needle - 22G","Needle - 23G","Needle - 24G","Needle - 25G","Needle - 26G","Insulin Syringe - U-40","Insulin Syringe - U-100","Insulin Pen Needle - 4 mm","Insulin Pen Needle - 5 mm","Insulin Pen Needle - 6 mm","Insulin Pen Needle - 8 mm","IV Cannula - 18G","IV Cannula - 20G","IV Cannula - 22G","IV Cannula - 24G","IV Sets","IV Extension Lines","Normal Saline Flush Syringes","Urine Specimen Containers","Disposable Urine Measuring Containers","Adult Urine Bags","Nebulizer Mask / Kit - Adult","Oxygen Nasal Cannula","Oxygen Masks","Suction Catheter - 10 Fr","Suction Catheter - 12 Fr","Suction Catheter - 14 Fr","Suction Catheter - 16 Fr","Feeding Syringe - 50 mL","Feeding Syringe - 60 mL","Disposable Underpads","Tongue Depressors","Hand Sanitizer","Sharps Disposal Containers","Biomedical-waste Bags"];
     const storesCatalog=[...new Set(['Adult Diapers','Underpads','Examination Gloves','Sterile Gloves','N95 Masks','PPE Kits','Cotton','Gauze','Gauze Rolls','Adhesive Plaster','Micropore Tape','Dressing Pads','Bandages','Crepe Bandages','Syringes','Needles','IV Cannulas','IV Sets','Three-Way Cannulas','Urine Bags','Urinary Catheters','Ryle’s / NG Tubes','Feeding Tubes','Feeding Syringes','Suction Catheters','Tracheostomy Tubes','Tracheostomy Masks','Oxygen Masks','Nasal Cannulas','Nebulizer Masks','Disposable Aprons','Disinfectant Solution','Bed Linens','Patient Gowns','Tissue Paper','Wet Wipes','Garbage Bags','Cleaning Materials','Other Consumables',...clinicalSupplyCatalog])];
     const pharmacyCatalog=['Tablets','Capsules','Syrups','Oral Drops','Injections','IV Fluids','Antibiotics','Analgesics / Pain Medicines','Antipyretics / Fever Medicines','Antacids','Antiemetics','Antihypertensives','Antidiabetic Medicines','Insulin','Anticoagulants','Respiratory Medicines','Nebulization Medicines','Antiseptic Solutions','Ointments','Creams','Eye Drops','Ear Drops','Nasal Drops / Sprays','Laxatives','Nutritional Supplements','Electrolyte Preparations','Emergency Medicines','Other Pharmacy Items'];
+    // 2.14.93: standard item lists for the new sections
+    const housekeepingCatalog=['Bed Linens','Bed Sheets','Pillow Covers','Blankets','Towels','Patient Gowns','Tissue Paper','Toilet Rolls','Wet Wipes','Garbage Bags','Biomedical-waste Bags (Colour Coded)','Floor Cleaner','Toilet Cleaner','Disinfectant Solution','Hand Wash','Hand Sanitizer','Detergent / Laundry','Brooms & Mops','Cleaning Materials','Air Freshener','Stationery','Batteries','Light Bulbs / Tubes','Other General Items'];
+    const kitchenCatalog=['Rice','Wheat / Atta','Dal / Pulses','Cooking Oil','Sugar','Salt','Spices & Masala','Tea','Coffee','Milk / Milk Powder','Health Drinks','Biscuits','Snacks','Bread','Eggs','Vegetables','Fruits','Dry Fruits','Nutrition Supplements (Food)','Drinking Water','Disposable Cups / Plates','Kitchen Utensils','Gas Cylinder (LPG)','Other Kitchen Items'];
+    const catalogFor=section=>section==='Pharmacy'?pharmacyCatalog:section==='Housekeeping & General'?housekeepingCatalog:section==='Kitchen / Food Stores'?kitchenCatalog:storesCatalog;
+    const thisSection=storeSectionInfo(categoryFilter||'Consumables');
     // Standard Item List category -> 3-letter name prefix (Tablets -> TAB, matching
     // the CAP./INJ. style already used in the existing catalog), and the reverse
     // map (Dosage Form -> category) used by the auto-match backfill below.
@@ -40,7 +51,7 @@
     function prefixForPharmacyCategory(category){return PHARMACY_CATEGORY_PREFIX[category]||'ITM'}
     function guessStandardCategory(masterRow){
       if(masterRow.standard_category)return masterRow.standard_category;
-      const list=masterRow.item_category==='Pharmacy'?pharmacyCatalog:storesCatalog;
+      const list=catalogFor(masterRow.item_category||'Consumables');
       if(masterRow.item_category==='Pharmacy'&&DOSAGE_FORM_TO_CATEGORY[masterRow.dosage_form])return DOSAGE_FORM_TO_CATEGORY[masterRow.dosage_form];
       const name=String(masterRow.item_name||'').trim().toLowerCase();
       if(!name)return null;
@@ -139,11 +150,17 @@
       if(!form.item_id&&!String(form.new_item_name||'').trim()){notifyStore('error','Select an item or enter a new item name.');return}
       if(!String(form.vendor_name||'').trim()||Number(form.quantity)<=0){notifyStore('error','Vendor and valid received quantity are required.');return}
       setBusy(true);
-      const res=await client.rpc('receive_consumable_store_stock',{
+      const receiveArgs={
         p_item_id:form.item_id||null,p_item_name:String(form.new_item_name||'').trim()||null,p_unit:form.unit||'Nos',p_vendor_name:String(form.vendor_name||'').trim(),
         p_invoice_no:String(form.invoice_no||'').trim()||null,p_invoice_date:form.invoice_date||null,p_received_date:form.received_date||todayISOIndia(),p_quantity:Number(form.quantity),
-        p_batch_no:String(form.batch_no||'').trim()||null,p_expiry_date:form.expiry_date||null,p_unit_cost:String(form.unit_cost).trim()===''?null:Number(form.unit_cost),p_remarks:[form.item_category==='Pharmacy'?'Category: Pharmacy':'Category: Stores / Consumables',form.generic_name&&`Generic: ${form.generic_name}`,form.brand_name&&`Brand: ${form.brand_name}`,form.strength&&`Strength: ${form.strength}`,form.dosage_form&&form.item_category==='Pharmacy'&&`Dosage form: ${form.dosage_form}`,form.manufacturer&&`Manufacturer: ${form.manufacturer}`,form.pack_size&&`Pack size: ${form.pack_size}`,String(form.remarks||'').trim()].filter(Boolean).join(' | ')||null
-      });
+        p_batch_no:String(form.batch_no||'').trim()||null,p_expiry_date:form.expiry_date||null,p_unit_cost:String(form.unit_cost).trim()===''?null:Number(form.unit_cost),p_remarks:[`Category: ${form.item_category}`,form.generic_name&&`Generic: ${form.generic_name}`,form.brand_name&&`Brand: ${form.brand_name}`,form.strength&&`Strength: ${form.strength}`,form.dosage_form&&form.item_category==='Pharmacy'&&`Dosage form: ${form.dosage_form}`,form.manufacturer&&`Manufacturer: ${form.manufacturer}`,form.pack_size&&`Pack size: ${form.pack_size}`,String(form.remarks||'').trim()].filter(Boolean).join(' | ')||null
+      };
+      // 2.14.93: receive into the chosen section (a new item is created there, so it gets the right code). Before SQL 160 is run, Consumables/Pharmacy fall back to the old function.
+      let res=await client.rpc('store_receive_into_section',{p_section:formToSection(form.item_category),...receiveArgs});
+      if(res.error&&/store_receive_into_section|schema cache|could not find the function/i.test(res.error.message||'')){
+        if(['Consumables','Pharmacy'].includes(formToSection(form.item_category)))res=await client.rpc('receive_consumable_store_stock',receiveArgs);
+        else res={error:{message:'The new Stores sections are not installed yet. Please run supabase/sql/160_store_sections_housekeeping_kitchen.sql once in Supabase.'}};
+      }
       setBusy(false);
       if(res.error)notifyStore('error',res.error.message);else{
         notifyStore('success',`${form.item_category} item received from ${form.vendor_name}.`);
@@ -241,6 +258,28 @@
       controller:!!controller,
       access:!!(controller||oversight)
     };
+    const deptIssues=displayLedger.filter(r=>r.movement_type==='Department Issue');
+    storesSummary.deptMonth=deptIssues.filter(r=>movementDateOnly(r.movement_at)>=expiryToday.slice(0,8)+'01').length;
+    storesSummary.deptToday=deptIssues.filter(r=>movementDateOnly(r.movement_at)===expiryToday).length;
+    const issueMonthStart=expiryToday.slice(0,8)+'01';
+    const lastMonthStart=(()=>{const d=new Date(`${issueMonthStart}T12:00:00`);d.setMonth(d.getMonth()-1);return d.toISOString().slice(0,10)})();
+    const deptIssuesVisible=deptIssues.filter(r=>{const d=movementDateOnly(r.movement_at);return issuePeriod==='all'||(issuePeriod==='month'?d>=issueMonthStart:issuePeriod==='lastmonth'?(d>=lastMonthStart&&d<issueMonthStart):d===expiryToday)});
+    async function issueToDepartment(e){
+      e.preventDefault();if(!controller||busy)return;
+      const item=itemById(issueForm.item_id);const qty=Number(issueForm.quantity);
+      if(!item)return notifyStore('error','Select the item to issue.');
+      if(!issueForm.department)return notifyStore('error','Select the department.');
+      if(!(qty>0))return notifyStore('error','Enter a valid quantity.');
+      if(qty>Number(item.balance_qty||0))return notifyStore('error',`Only ${item.balance_qty} ${item.unit} is in stock.`);
+      setBusy(true);
+      const res=await client.rpc('store_issue_to_department',{p_item_id:item.item_id,p_quantity:qty,p_department:issueForm.department,p_issued_to:String(issueForm.issued_to||'').trim()||null,p_remarks:String(issueForm.remarks||'').trim()||null});
+      setBusy(false);
+      if(res.error){notifyStore('error',/store_issue_to_department|schema cache|could not find the function/i.test(res.error.message||'')?'Issue to Department is not installed yet. Please run supabase/sql/160_store_sections_housekeeping_kitchen.sql once in Supabase.':res.error.message);return}
+      notifyStore('success',`${qty} ${item.unit} ${displayStoreItemName(item.item_name)} issued to ${issueForm.department}.`);
+      setIssueForm(f=>({...f,item_id:'',quantity:'1',issued_to:'',remarks:''}));
+      await load();
+    }
+    function openIssueFor(row){setIssueForm(f=>({...f,item_id:row.item_id,quantity:'1'}));if(typeof onOpenSection==='function')onOpenSection('issue')}
     const storesSummaryKey=JSON.stringify(storesSummary);
     React.useEffect(()=>{if(typeof onSummary==='function')onSummary(storesSummary)},[storesSummaryKey]);
     async function openItemHistory(row){
@@ -305,7 +344,7 @@
     function openReceiveFor(row){
       if(!controller)return;
       const master=masterById.get(row.item_id);
-      setForm(f=>({...f,item_category:master?.item_category==='Pharmacy'?'Pharmacy':'Stores / Consumables',catalog_item:'',item_id:row.item_id,new_item_name:'',unit:row.unit||f.unit}));
+      setForm(f=>({...f,item_category:sectionToForm(master?.item_category),catalog_item:'',item_id:row.item_id,new_item_name:'',unit:row.unit||f.unit}));
       setShowReceive(true);
       setTimeout(()=>document.getElementById('stores-receive-form')?.scrollIntoView({behavior:'smooth',block:'start'}),60);
     }
@@ -328,9 +367,11 @@
     async function moveRemoveTarget(){
       const row=removeTarget; if(!row||busy||!moveChoice)return;
       const master=masterById.get(row.item_id); if(!master)return notifyStore('error','Stores Master record not found. Refresh and try again.');
-      const [kind,...rest]=moveChoice.split('|'); const category=rest.join('|');
-      const currentSection=master.item_category==='Pharmacy'?'Pharmacy':'Consumables';
-      const targetSection=kind==='other'?(currentSection==='Pharmacy'?'Consumables':'Pharmacy'):currentSection;
+      // 2.14.93: 'same|<category>' or 'other|<section>|<category>' (any of the Stores sections)
+      const parts=moveChoice.split('|'); const kind=parts[0];
+      const currentSection=master.item_category||'Consumables';
+      const targetSection=kind==='other'?parts[1]:currentSection;
+      const category=(kind==='other'?parts.slice(2):parts.slice(1)).join('|');
       setBusy(true);
       if(kind==='other'){
         const moved=await client.rpc('admin_update_store_item',{p_item_id:master.id,p_item_name:master.item_name,p_category:targetSection,p_unit:master.unit||row.unit||'Nos',p_strength:master.strength||null,p_dosage_form:master.dosage_form||null});
@@ -364,7 +405,7 @@
     if(section==='none')return null;
     if(!controller&&!oversight)return h('div',null,h(Section,{title:'Pharmacy & Stores'},h('p',null,authority.active?'Pharmacy & Stores is presently assigned to the STD.':'Pharmacy & Stores access is assigned to the Nurse Manager.')));
     return h('div',null,
-      show('stock')&&h(Section,{title:categoryFilter||'Pharmacy & Stores',subtitle:`${categoryFilter==='Pharmacy'?'Medicines and pharmacy stock':categoryFilter==='Consumables'?'Patient consumables and general store stock':'Medicines, consumables, vendor receipts, stock issues and balances'}. Current In-charge: ${authority.active?'STD (temporary assignment)':'Nurse Manager'}.`},
+      show('stock')&&h(Section,{title:categoryFilter||'Pharmacy & Stores',subtitle:`${categoryFilter==='Pharmacy'?'Medicines and pharmacy stock':categoryFilter==='Consumables'?'Patient consumables and general store stock':categoryFilter?`${categoryFilter} stock`:'Medicines, consumables, vendor receipts, stock issues and balances'}. Current In-charge: ${authority.active?'STD (temporary assignment)':'Nurse Manager'}.`},
         h('div',{className:'grid stats'},
           h('button',{type:'button',className:'card stat',onClick:()=>showStockView('In Stock'),style:{width:'100%',textAlign:'left',cursor:'pointer',fontFamily:'inherit',border:stockView==='In Stock'?'2px solid #b30b5d':'1px solid #ead2dd'}},h('span',null,'Items in Stock'),h('strong',null,inStock),h('small',{style:{display:'block',marginTop:'6px',fontWeight:800,color:'#9b1456'}},'Tap to view →')),
           h('button',{type:'button',className:'card stat',onClick:()=>showStockView('Low Stock'),style:{width:'100%',textAlign:'left',cursor:'pointer',fontFamily:'inherit',border:stockView==='Low Stock'?'2px solid #b30b5d':'1px solid #ead2dd'}},h('span',null,'Low Stock'),h('strong',null,low.length),h('small',{style:{display:'block',marginTop:'6px',fontWeight:800,color:'#9b1456'}},'Tap to view →')),
@@ -377,11 +418,11 @@
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>document.getElementById('stores-current-stock')?.scrollIntoView({behavior:'smooth',block:'start'})},'⌕ Search / Edit Stock')
       ),
       controller&&(section==='receive'||((!section||section==='stock')&&showReceive))&&h('div',{id:'stores-receive-form',style:{scrollMarginTop:'90px'}},h(Section,{title:'Receive from Vendor',subtitle:'Every pharmacy or Stores item received from a vendor must first be entered here before issue.'},
-        h('div',{className:'field',style:{marginBottom:'12px'}},h('label',null,'Find item to receive (minimum 3 characters)'),h('input',{value:stockSearch,onChange:e=>setStockSearch(e.target.value),placeholder:categoryFilter==='Pharmacy'?'Example: dispo, syr, para':'Example: dia, glo, syr'}),h('small',null,stockSearch.trim().length>0&&stockSearch.trim().length<3?'Enter at least 3 characters.':'Matching items appear below — tap one to select.'),stockSearchText.length>=3&&h('div',{style:{marginTop:'8px',border:'1px solid #ead2dd',borderRadius:'10px',padding:'6px',maxHeight:'220px',overflowY:'auto',background:'#fff'}},(()=>{const master=(form.item_category==='Pharmacy'?pharmacyCatalog:storesCatalog).filter(x=>String(x||'').toLowerCase().includes(stockSearchText)).map(x=>({kind:'catalog',name:x,label:x}));const existing=categoryStock.filter(x=>String(x.item_name||'').toLowerCase().includes(stockSearchText)).map(x=>({kind:'existing',id:x.item_id,name:x.item_name,label:`${masterById.get(x.item_id)?.item_code?`${masterById.get(x.item_id).item_code} · `:''}${displayStoreItemName(x.item_name)} · Balance ${x.balance_qty} ${x.unit}`}));const seen=new Set();const matches=[...existing,...master].filter(x=>{const k=String(x.name||'').toLowerCase();if(seen.has(k))return false;seen.add(k);return true}).slice(0,30);return matches.length?matches.map((x,i)=>h('button',{key:`search-${x.kind}-${x.id||i}`,type:'button',className:'btn btn-secondary',style:{display:'block',width:'100%',textAlign:'left',margin:'3px 0'},onClick:()=>{x.kind==='existing'?selectItem(x.id):selectCatalogItem(x.name);setStockSearch('')}},x.label)):h('div',{style:{padding:'8px',color:'#7b6570'}},'No matching item found in this section.');})())),
+        h('div',{className:'field',style:{marginBottom:'12px'}},h('label',null,'Find item to receive (minimum 3 characters)'),h('input',{value:stockSearch,onChange:e=>setStockSearch(e.target.value),placeholder:categoryFilter==='Pharmacy'?'Example: dispo, syr, para':categoryFilter==='Kitchen / Food Stores'?'Example: ric, tea, bis':categoryFilter==='Housekeeping & General'?'Example: lin, tis, cle':'Example: dia, glo, syr'}),h('small',null,stockSearch.trim().length>0&&stockSearch.trim().length<3?'Enter at least 3 characters.':'Matching items appear below — tap one to select.'),stockSearchText.length>=3&&h('div',{style:{marginTop:'8px',border:'1px solid #ead2dd',borderRadius:'10px',padding:'6px',maxHeight:'220px',overflowY:'auto',background:'#fff'}},(()=>{const master=catalogFor(formToSection(form.item_category)).filter(x=>String(x||'').toLowerCase().includes(stockSearchText)).map(x=>({kind:'catalog',name:x,label:x}));const existing=categoryStock.filter(x=>String(x.item_name||'').toLowerCase().includes(stockSearchText)).map(x=>({kind:'existing',id:x.item_id,name:x.item_name,label:`${masterById.get(x.item_id)?.item_code?`${masterById.get(x.item_id).item_code} · `:''}${displayStoreItemName(x.item_name)} · Balance ${x.balance_qty} ${x.unit}`}));const seen=new Set();const matches=[...existing,...master].filter(x=>{const k=String(x.name||'').toLowerCase();if(seen.has(k))return false;seen.add(k);return true}).slice(0,30);return matches.length?matches.map((x,i)=>h('button',{key:`search-${x.kind}-${x.id||i}`,type:'button',className:'btn btn-secondary',style:{display:'block',width:'100%',textAlign:'left',margin:'3px 0'},onClick:()=>{x.kind==='existing'?selectItem(x.id):selectCatalogItem(x.name);setStockSearch('')}},x.label)):h('div',{style:{padding:'8px',color:'#7b6570'}},'No matching item found in this section.');})())),
         h('form',{onSubmit:receiveStock},
           h('div',{className:'grid two'},
-            h('div',{className:'field'},h('label',null,'Section *'),h('select',{value:form.item_category,onChange:e=>setForm({...form,item_category:e.target.value,catalog_item:'',item_id:'',new_item_name:'',unit:e.target.value==='Pharmacy'?'Packs':'Nos'})},['Stores / Consumables','Pharmacy'].map(x=>h('option',{key:x,value:x},x)))),
-            h('div',{className:'field'},h('label',null,'Standard Item List'),h('select',{value:form.catalog_item,onChange:e=>selectCatalogItem(e.target.value)},h('option',{value:''},'Select from standard list'),((form.item_category==='Pharmacy'?pharmacyCatalog:storesCatalog).filter(x=>stockSearchText.length<3||String(x||'').toLowerCase().includes(stockSearchText))).map(x=>h('option',{key:x,value:x},x)))),
+            h('div',{className:'field'},h('label',null,'Section *'),h('select',{value:form.item_category,disabled:!!categoryFilter,onChange:e=>setForm({...form,item_category:e.target.value,catalog_item:'',item_id:'',new_item_name:'',unit:e.target.value==='Pharmacy'?'Packs':'Nos'})},STORE_SECTION_NAMES.map(sectionToForm).map(x=>h('option',{key:x,value:x},x)))),
+            h('div',{className:'field'},h('label',null,'Standard Item List'),h('select',{value:form.catalog_item,onChange:e=>selectCatalogItem(e.target.value)},h('option',{value:''},'Select from standard list'),(catalogFor(formToSection(form.item_category)).filter(x=>stockSearchText.length<3||String(x||'').toLowerCase().includes(stockSearchText))).map(x=>h('option',{key:x,value:x},x)))),
             h('div',{className:'field'},h('label',null,'Existing Inventory Item'),h('select',{value:form.item_id,onChange:e=>selectItem(e.target.value)},h('option',{value:''},'Select existing item'),((stockSearchText.length>=3?standardCategoryStock.filter(x=>String(x.item_name||'').toLowerCase().includes(stockSearchText)):standardCategoryStock)).map(x=>h('option',{key:x.item_id,value:x.item_id},`${masterById.get(x.item_id)?.item_code?`${masterById.get(x.item_id).item_code} · `:''}${displayStoreItemName(x.item_name)} · Balance ${x.balance_qty} ${x.unit}`))),form.catalog_item&&h('small',null,standardCategoryFilterActive?`Showing only items tagged "${form.catalog_item}".`:`No items are tagged "${form.catalog_item}" yet, so every ${form.item_category} item is shown below — use the Category button on an item, or Assign Category to All, to start filtering.`)),
             h('div',{className:'field'},h('label',null,'Add Item Manually'),h('input',{value:form.new_item_name,onChange:e=>setForm({...form,new_item_name:e.target.value,catalog_item:'',item_id:''}),placeholder:form.item_category==='Pharmacy'?'Enter medicine / pharmacy item':'Enter Stores item'})),
             h('div',{className:'field'},h('label',null,'Unit'),h('select',{value:form.unit,onChange:e=>setForm({...form,unit:e.target.value}),disabled:Boolean(form.item_id)},units.map(x=>h('option',{key:x,value:x},x)))),
@@ -423,7 +464,7 @@
             h('span',null,h('small',null,'Minimum'),h('b',null,r.reorder_level))
           ),
           controller?h('div',{className:'stores-stock-card-actions'},
-            h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>openReceiveFor(r)},'Receive Stock'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),
+            h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>openReceiveFor(r)},'Receive Stock'),thisSection.departmentIssue&&typeof onOpenSection==='function'&&Number(r.balance_qty)>0?h('button',{key:'issue',className:'btn btn-secondary',disabled:busy,onClick:()=>openIssueFor(r)},'Issue to Dept'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),
             oversight?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openItemHistory(r)},'History'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(r)},'Expiry'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openCategoryEdit(r)},masterById.get(r.item_id)?.standard_category?`Category: ${masterById.get(r.item_id).standard_category}`:'Set Category'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null
           ):h('small',{className:'stores-view-only'},'View only'),
           oversight?h('div',{className:'stores-stock-card-actions',style:{marginTop:'6px'}},h('button',{className:'btn btn-danger',disabled:busy,onClick:()=>removeItem(r)},'Remove Item')):null
@@ -433,7 +474,7 @@
           h('tbody',null,displayStock.length?displayStock.map(r=>h('tr',{key:r.item_id},
             h('td',null,masterById.get(r.item_id)?.item_code||'—'),h('td',null,h('strong',null,displayStoreItemName(r.item_name))),h('td',null,r.unit),h('td',null,r.total_in),h('td',null,r.total_out),h('td',null,h('strong',null,r.balance_qty)),h('td',null,r.reorder_level),h('td',null,h('span',{style:statusStyle(r)},stockStatus(r))),
             h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap',alignItems:'center'}},
-              controller?h('div',{key:'controller-actions',style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>openReceiveFor(r)},'Receive Stock'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),oversight?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openItemHistory(r)},'History'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(r)},'Expiry'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openCategoryEdit(r)},masterById.get(r.item_id)?.standard_category?`Category: ${masterById.get(r.item_id).standard_category}`:'Set Category'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null):h('span',{key:'view-only'},'View only'),
+              controller?h('div',{key:'controller-actions',style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>openReceiveFor(r)},'Receive Stock'),thisSection.departmentIssue&&typeof onOpenSection==='function'&&Number(r.balance_qty)>0?h('button',{key:'issue',className:'btn btn-secondary',disabled:busy,onClick:()=>openIssueFor(r)},'Issue to Dept'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),oversight?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openItemHistory(r)},'History'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(r)},'Expiry'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openCategoryEdit(r)},masterById.get(r.item_id)?.standard_category?`Category: ${masterById.get(r.item_id).standard_category}`:'Set Category'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null):h('span',{key:'view-only'},'View only'),
               oversight?h('button',{key:'remove',className:'btn btn-danger',disabled:busy,onClick:()=>removeItem(r)},'Remove'):null
             ))
           )):h('tr',null,h('td',{colSpan:9,style:{textAlign:'center',padding:'24px'}},'No store items found.'))
@@ -460,6 +501,31 @@
           controller&&h('div',{style:{marginTop:'8px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(item,r.id)},r.expiry_date?'Edit Expiry':'Add Expiry'))
         )})):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},expiryWatch.length?'Nothing in this filter.':'All good — no expired, soon-to-expire or missing expiry dates for items in stock.')
       ),
+      section==='issue'&&h('div',null,
+        controller&&h(Section,{title:`${categoryFilter} — Issue to Department`,subtitle:'Stock issued to a floor, the kitchen / pantry or another department (not charged to a resident). The stock balance reduces at once and the issue is recorded in the Stock Movement Register.'},
+          h('form',{onSubmit:issueToDepartment},
+            h('div',{className:'grid two'},
+              h('div',{className:'field'},h('label',null,'Item *'),h('select',{value:issueForm.item_id,required:true,onChange:e=>setIssueForm({...issueForm,item_id:e.target.value})},h('option',{value:''},'Select item in stock'),categoryStock.filter(x=>Number(x.balance_qty)>0).map(x=>h('option',{key:x.item_id,value:x.item_id},`${masterById.get(x.item_id)?.item_code?masterById.get(x.item_id).item_code+' · ':''}${displayStoreItemName(x.item_name)} — ${x.balance_qty} ${x.unit} in stock`)))),
+              h('div',{className:'field'},h('label',null,`Quantity *${issueForm.item_id&&itemById(issueForm.item_id)?` (${itemById(issueForm.item_id).unit})`:''}`),h('input',{type:'number',min:'0.01',step:'0.01',required:true,value:issueForm.quantity,onChange:e=>setIssueForm({...issueForm,quantity:e.target.value})})),
+              h('div',{className:'field'},h('label',null,'Issue to Department *'),h('select',{value:issueForm.department,required:true,onChange:e=>setIssueForm({...issueForm,department:e.target.value})},h('option',{value:''},'Select department'),STORE_DEPARTMENTS.map(x=>h('option',{key:x,value:x},x)))),
+              h('div',{className:'field'},h('label',null,'Received by (staff name)'),h('input',{value:issueForm.issued_to,onChange:e=>setIssueForm({...issueForm,issued_to:e.target.value}),placeholder:'Who took the items'}))
+            ),
+            h('div',{className:'field'},h('label',null,'Remarks'),h('textarea',{rows:2,value:issueForm.remarks,onChange:e=>setIssueForm({...issueForm,remarks:e.target.value}),placeholder:'Purpose / floor / room (optional)'})),
+            h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Issue to Department')
+          )
+        ),
+        h(Section,{title:`${categoryFilter} — Department Issue Register`,actions:h('div',{className:'stores-mode-switch',role:'tablist'},[['today','Today'],['month','This Month'],['lastmonth','Last Month'],['all','All']].map(([k,l])=>h('button',{key:k,type:'button',role:'tab','aria-selected':issuePeriod===k,className:issuePeriod===k?'active':'',onClick:()=>setIssuePeriod(k)},l)))},
+          deptIssuesVisible.length?h('div',{className:'stores-expiry-list'},deptIssuesVisible.map(r=>{const item=itemById(r.item_id);return h('article',{key:`dept-${r.id}`,className:'stores-ledger-card'},
+            h('div',{className:'stores-ledger-card-head'},h('strong',null,`${masterById.get(r.item_id)?.item_code?masterById.get(r.item_id).item_code+' · ':''}${displayStoreItemName(item?.item_name||'Item')}`),h('span',null,formatDateTimeIN(r.movement_at))),
+            h('div',{className:'stores-ledger-card-fields'},
+              h('div',null,h('small',null,'Quantity'),h('strong',null,`${r.qty_out} ${item?.unit||''}`)),
+              h('div',null,h('small',null,'Issued to'),h('strong',null,String(r.reference_text||'').replace(/^Issued to /,'')||'—')),
+              h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),
+              h('div',null,h('small',null,'Issued by'),h('strong',null,r.actor_name||'—')),
+              r.remarks&&h('div',null,h('small',null,'Remarks'),h('strong',null,r.remarks))
+            ))})):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},'No department issues in this period.')
+        )
+      ),
       editItem&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)'}},
         h('form',{className:'modal-card',onSubmit:saveEditItem,style:{maxWidth:'560px',background:'#fffafd',opacity:1,padding:'22px'}},
           h('h3',null,'Edit Item'),h('p',null,`${masterById.get(editItem.item_id)?.item_code?`${masterById.get(editItem.item_id).item_code} · `:''}Balance ${editItem.balance_qty} ${editItem.unit}. Stock quantities are not changed here.`),
@@ -477,8 +543,8 @@
           h('h3',null,'Remove or Move Item'),
           h('p',null,h('strong',null,`${masterById.get(removeTarget.item_id)?.item_code?`${masterById.get(removeTarget.item_id).item_code} · `:''}${displayStoreItemName(removeTarget.item_name)}`),` — balance ${removeTarget.balance_qty} ${removeTarget.unit}.`),
           (controller||isAdminProfile)&&(()=>{
-            const m=masterById.get(removeTarget.item_id)||{};const cur=m.item_category==='Pharmacy'?'Pharmacy':'Consumables';const other=cur==='Pharmacy'?'Consumables':'Pharmacy';
-            const sameList=(cur==='Pharmacy'?pharmacyCatalog:storesCatalog).filter(x=>x!==m.standard_category);const otherList=other==='Pharmacy'?pharmacyCatalog:storesCatalog;
+            const m=masterById.get(removeTarget.item_id)||{};const cur=m.item_category||'Consumables';const others=STORE_SECTION_NAMES.filter(x=>x!==cur);
+            const sameList=catalogFor(cur).filter(x=>x!==m.standard_category);
             return h('div',{style:{border:'1px solid #ead2dd',borderRadius:'12px',padding:'12px',margin:'4px 0 14px',background:'#fff'}},
               h('strong',{style:{display:'block',marginBottom:'4px'}},'Move to another category instead'),
               h('small',{style:{display:'block',marginBottom:'8px'}},`Currently: ${cur}${m.standard_category?` → ${m.standard_category}`:' (no category)'}. Moving keeps the item code, stock balance and history.`),
@@ -486,11 +552,11 @@
                 h('select',{value:moveChoice,onChange:e=>setMoveChoice(e.target.value),style:{flex:'1 1 240px',minWidth:0}},
                   h('option',{value:''},'Select approved category…'),
                   controller&&h('optgroup',{label:`Within ${cur}`},sameList.map(x=>h('option',{key:`s-${x}`,value:`same|${x}`},x))),
-                  isAdminProfile&&h('optgroup',{label:`Move to ${other} (Admin)`},otherList.map(x=>h('option',{key:`o-${x}`,value:`other|${x}`},x)))
+                  ...(isAdminProfile?others.map(sec=>h('optgroup',{key:`g-${sec}`,label:`Move to ${sec} (Admin)`},catalogFor(sec).map(x=>h('option',{key:`o-${sec}-${x}`,value:`other|${sec}|${x}`},x)))):[])
                 ),
                 h('button',{type:'button',className:'btn btn-primary',disabled:busy||!moveChoice,onClick:moveRemoveTarget},busy?'Moving…':'Move Item')
               ),
-              other==='Pharmacy'&&isAdminProfile&&h('small',{style:{display:'block',marginTop:'6px'}},'Pharmacy is only for medicines; clinical supplies stay in Consumables.')
+              isAdminProfile&&h('small',{style:{display:'block',marginTop:'6px'}},'Pharmacy is only for medicines; clinical supplies stay in Consumables.')
             );
           })(),
           h('strong',{style:{display:'block',marginBottom:'2px'}},'Or remove it'),
@@ -568,7 +634,7 @@
           h('div',{className:'field'},h('label',null,'Category'),
             h('select',{value:categoryEditValue,onChange:e=>setCategoryEditValue(e.target.value)},
               h('option',{value:''},'— None —'),
-              (masterById.get(categoryEditItem.item_id)?.item_category==='Pharmacy'?pharmacyCatalog:storesCatalog).map(x=>h('option',{key:x,value:x},x))
+              catalogFor(masterById.get(categoryEditItem.item_id)?.item_category||'Consumables').map(x=>h('option',{key:x,value:x},x))
             )
           ),
           h('div',{style:{display:'flex',gap:'8px',marginTop:'14px',flexWrap:'wrap'}},
@@ -604,7 +670,7 @@
         ),
         h('p',{className:'small-note'},`Period: ${formatDateIN(movementBounds.from)} to ${formatDateIN(movementBounds.to)} · ${movementItem==='All'?'All stock items':displayStoreItemName(categoryStock.find(x=>String(x.item_id)===String(movementItem))?.item_name||'Selected item')}`),
         (!section||movementMode==='summary')&&h('div',{className:'table-wrap'},h('table',{className:'table'},
-          h('thead',null,h('tr',null,['Item','Opening Balance','Vendor Received','Handed Over','Return Received','Closing Balance'].map(x=>h('th',{key:x},x)))),
+          h('thead',null,h('tr',null,['Item','Opening Balance','Vendor Received',thisSection.departmentIssue?'Handed Over / Issued':'Handed Over','Return Received','Closing Balance'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,movementSummaryItems.length?movementSummaryItems.map(r=>h('tr',{key:`movement-summary-${r.item_id}`},h('td',null,displayStoreItemName(r.item_name)),h('td',null,`${r.opening} ${r.unit}`),h('td',null,`${r.received} ${r.unit}`),h('td',null,`${r.handed} ${r.unit}`),h('td',null,`${r.returned} ${r.unit}`),h('td',null,h('strong',null,`${r.closing} ${r.unit}`)))):h('tr',null,h('td',{colSpan:6,style:{textAlign:'center',padding:'20px'}},'No stock items for this filter.')))
         )),
         (!section||movementMode==='summary')&&movementItem!=='All'&&h('div',{style:{marginTop:'16px'}},h('h4',null,'Selected Item — Movement Details'),movementSelectedLedger.length?movementSelectedLedger.map(r=>{const item=itemById(r.item_id);return h('div',{key:`movement-detail-${r.id}`,className:'stores-ledger-card',style:{marginBottom:'8px'}},h('div',{className:'stores-ledger-card-head'},h('strong',null,r.movement_type||'Stock Movement'),h('span',null,formatDateTimeIN(r.movement_at))),h('div',{className:'stores-ledger-card-fields'},h('div',null,h('small',null,'Stock In'),h('strong',null,Number(r.qty_in)>0?`${r.qty_in} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Stock Out'),h('strong',null,Number(r.qty_out)>0?`${r.qty_out} ${item?.unit||''}`:'—')),h('div',null,h('small',null,'Balance After'),h('strong',null,r.balance_after)),h('div',null,h('small',null,'Patient / Reference'),h('strong',null,[r.patient_id&&patientName(r.patient_id),r.reference_text].filter(Boolean).join(' · ')||'—')),h('div',null,h('small',null,'By'),h('strong',null,r.actor_name||'—'))))}):h('p',null,'No movements for this item in the selected period.'))

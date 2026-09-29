@@ -4,7 +4,7 @@
   function ChargeMasterPage({profile}){
     const [serviceRows,setServiceRows]=React.useState([]),[storeRows,setStoreRows]=React.useState([]),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState(''),[categoryFilter,setCategoryFilter]=React.useState('All');
     const notify=(type,text)=>showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);
-    const stockCategories=['Consumables','Pharmacy','Pharmacy & Basic Supplies'];
+    const stockCategories=STORE_CHARGE_CATEGORIES;
     const [approvalSettings,setApprovalSettings]=React.useState({}),[approvalSettingsError,setApprovalSettingsError]=React.useState('');
     async function loadApprovalSettings(){
       const {data,error}=await client.from('charge_category_settings').select('category,requires_approval');
@@ -130,7 +130,7 @@
   }
   function ClinicalCharges({profile,initialPatientId=''}){
     const chargeStock=usePharmacyStock();
-    const storeCategories=['Consumables','Pharmacy','Pharmacy & Basic Supplies'];
+    const storeCategories=STORE_CHARGE_CATEGORIES;
     const normalStoreName=value=>String(value||'').trim().toLowerCase().replace(/\s+/g,' ');
     const matchingStock=name=>{const wanted=normalStoreName(name);const matches=chargeStock.items.filter(x=>normalStoreName(x.item_name)===wanted);return matches.length===1?matches[0]:null};
     const matchingStoreMaster=(category,name,itemId)=>{
@@ -210,7 +210,7 @@
           const names=(services||[]).filter(Boolean);
           if(names.length)nurseCategories[cat]=[...new Set(names)];
         });
-        ['Consumables','Pharmacy'].forEach(cat=>{
+        STORE_SECTION_NAMES.forEach(cat=>{
           const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false&&Number(x.charge_rate)>0).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
           if(names.length)nurseCategories[cat]=[...new Set(names)];
         });
@@ -218,7 +218,7 @@
       }
       const base=Object.keys(catalogCategories).length?{...catalogCategories}:{...fallbackCategories};
       approvalCategories.forEach(cat=>{delete base[cat]});
-      ['Consumables','Pharmacy'].forEach(cat=>{
+      STORE_SECTION_NAMES.forEach(cat=>{
         const names=storeMaster.filter(x=>(x.item_category||'Consumables')===cat&&x.active!==false&&Number(x.charge_rate)>0).map(x=>x.item_name).filter(Boolean).sort((a,b)=>a.localeCompare(b));
         if(names.length)base[cat]=[...new Set([...names,'Others'])];
       });
@@ -767,8 +767,8 @@
       miniInput('Doctor / Consultant',form.doctor_name,v=>setForm({...form,doctor_name:v})),
       miniInput('Quantity',form.quantity,v=>setForm({...form,quantity:v}),true,'number'),
       form.store_item_id?h('div',{className:'field'},h('label',null,'Unit'),h('input',{value:form.unit,readOnly:true})):miniInput('Unit',form.unit,v=>setForm({...form,unit:v})),
-      ['Consumables','Pharmacy','Pharmacy & Basic Supplies'].includes(form.category)&&h(PharmacyStockPanel,{stock:chargeStock,itemId:form.store_item_id,quantity:form.quantity,unit:form.unit,onSelect:id=>{const item=chargeStock.items.find(x=>x.item_id===id);setForm(current=>({...current,store_item_id:id,unit:item?.unit||current.unit}))}}),
-      ['Consumables','Pharmacy','Pharmacy & Basic Supplies'].includes(form.category)&&h('p',{className:'span-2'},'Only the quantity already Received for this patient and not yet charged can be raised here. Stores stock was already deducted at Hand Over; raising the charge will not deduct Stores again.'),
+      STORE_CHARGE_CATEGORIES.includes(form.category)&&h(PharmacyStockPanel,{stock:chargeStock,itemId:form.store_item_id,quantity:form.quantity,unit:form.unit,onSelect:id=>{const item=chargeStock.items.find(x=>x.item_id===id);setForm(current=>({...current,store_item_id:id,unit:item?.unit||current.unit}))}}),
+      STORE_CHARGE_CATEGORIES.includes(form.category)&&h('p',{className:'span-2'},'Only the quantity already Received for this patient and not yet charged can be raised here. Stores stock was already deducted at Hand Over; raising the charge will not deduct Stores again.'),
       form.category==='Pharmacy & Basic Supplies'&&h('p',{className:'span-2'},'Record the exact brand, size, concentration or pack size in Remarks where applicable. Reusable equipment and general supplies are subject to Accounts review before patient billing.'),
       profile?.role==='Accounts'&&miniInput('Unit Cost',form.unit_cost,v=>setForm({...form,unit_cost:v}),false,'number'),
       profile?.role==='Accounts'&&miniInput('Total Amount',form.requested_amount,v=>setForm({...form,requested_amount:v}),false,'number'),

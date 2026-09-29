@@ -99,7 +99,7 @@
     { title:'ADMISSION', items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'] },
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Approval Requests','Charge Register','Physiotherapy','Special Nurse','Shift Handover','Incidents'] },
-    { title:'PHARMACY & STORES', items:['Consumables','Pharmacy'] },
+    { title:'PHARMACY & STORES', items:['Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
     { title:'COMMUNICATION', items:['WhatsApp Inbox','WhatsApp Logs','Family Communication','Feedback','Mail Dashboard'] },
@@ -115,7 +115,7 @@
     Caregiver:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
     Accounts:['Accounts Dashboard','Duty Assignment','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
     Kitchen:['Notifications','Duty Assignment','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission'],
-    STD:["Director's Office",'Enquiries & Feedback','Food & Diet','Duty Assignment','Patient Consumables','Stores','Consumables','Pharmacy','WhatsApp Inbox','Feedback','My Leave & Permission']
+    STD:["Director's Office",'Enquiries & Feedback','Food & Diet','Duty Assignment','Patient Consumables','Stores','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','WhatsApp Inbox','Feedback','My Leave & Permission']
   };
   Object.keys(ROLE_NAV).forEach(role=>{
     if(!ROLE_NAV[role].includes('Temporary Duty Swap'))ROLE_NAV[role].push('Temporary Duty Swap');
@@ -149,13 +149,13 @@
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Approval Requests','Charge Register',
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
-      'Patient Consumables','Stores','Stores In-charge Assignment','Consumables','Pharmacy','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
+      'Patient Consumables','Stores','Stores In-charge Assignment','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
     if(!pages.includes('Spot Assessment'))pages.push('Spot Assessment');
     if(isAdmissionDelegateProfile(profile)&&!pages.includes('Admissions'))pages.push('Admissions');
     if(profile?.role==='Manager'&&employeeDepartment(profile)&&!pages.includes('Employees'))pages.push('Employees');
-    if(isNursingManagerProfile(profile)){ if(!pages.includes('My To-Do List'))pages.push('My To-Do List'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Consumables'))pages.push('Consumables'); if(!pages.includes('Pharmacy'))pages.push('Pharmacy'); if(!pages.includes('Stores In-charge Assignment'))pages.push('Stores In-charge Assignment'); if(!pages.includes('Employees'))pages.push('Employees'); }
+    if(isNursingManagerProfile(profile)){ if(!pages.includes('My To-Do List'))pages.push('My To-Do List'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Consumables'))pages.push('Consumables'); if(!pages.includes('Pharmacy'))pages.push('Pharmacy'); STORE_SECTIONS.forEach(x=>{if(!pages.includes(x.page))pages.push(x.page)}); if(!pages.includes('Stores In-charge Assignment'))pages.push('Stores In-charge Assignment'); if(!pages.includes('Employees'))pages.push('Employees'); }
     return pages;
   };
   const CLINICAL_ROLES=['Nurse','Caregiver'];
@@ -210,7 +210,7 @@
         {title:'NURSING STAFF',items:['Staff Duty Assignment','Duty Calendar','Staff Leave Calendar','Employees'].filter(item=>allowed.includes(item))},
         {title:'ADMISSION',items:['Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents'].filter(item=>allowed.includes(item))},
         {title:'ROOMS & PACKAGES',items:['Rooms','Care Packages'].filter(item=>allowed.includes(item))},
-        {title:'PHARMACY & STORES',items:['Consumables','Pharmacy'].filter(item=>allowed.includes(item))},
+        {title:'PHARMACY & STORES',items:['Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores'].filter(item=>allowed.includes(item))},
         {title:'FOOD & DIET',items:['Food & Diet'].filter(item=>allowed.includes(item))},
         {title:'COMMUNICATION',items:['WhatsApp Inbox'].filter(item=>allowed.includes(item))},
         {title:'CLINICAL REVIEW',items:['Reports','Intelligent Reports','Medication Errors','Recovery Timeline'].filter(item=>allowed.includes(item))},

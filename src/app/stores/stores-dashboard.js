@@ -34,6 +34,7 @@
     }
     const cat=categoryFilter||'Pharmacy & Stores';
     const isPharmacy=categoryFilter==='Pharmacy';
+    const info=storeSectionInfo(categoryFilter||'Consumables');
     const n=value=>value==null?'…':value;
     const ready=!!(stats&&indents);
     const s=stats||{},ind=indents||{};
@@ -42,12 +43,13 @@
       {key:'action',icon:'⚑',title:'Indents — Action Needed',value:ready?indentAction:null,unit:'to act on',
         lines:[`${n(ind.initiated)} awaiting approval`,`${n(ind.handover)} awaiting handover`,`${n(ind.receipt)} awaiting nurse receipt`,...(Number(ind.discrepancy||0)>0?[`${ind.discrepancy} receipt discrepancy`]:[])],
         alert:indentAction>0||Number(ind.discrepancy||0)>0},
-      {key:'register',icon:'▤',title:`${isPharmacy?'Pharmacy':'Consumables'} Indent Register`,value:ready?ind.total:null,unit:'indents',
+      {key:'register',icon:'▤',title:`${isPharmacy?'Pharmacy':categoryFilter==='Consumables'||!categoryFilter?'Consumables':'Resident'} Indent Register`,value:ready?ind.total:null,unit:'indents',
         lines:[`${n(ind.today)} raised today`,`${n(ind.week)} this week`,`${n(ind.open)} still open`]},
       {key:'balance',icon:'⇄',title:'Received / Used Balance',value:ready?ind.withBalance:null,unit:'with unused balance',
         lines:[`${n(ind.returnsPending)} return(s) awaiting confirmation`],alert:Number(ind.returnsPending||0)>0},
-      {key:'stock',icon:isPharmacy?'℞':'▦',title:'Current Stock',value:ready?s.items:null,unit:'items',
+      {key:'stock',icon:isPharmacy?'℞':info.departmentIssue?info.icon:'▦',title:'Current Stock',value:ready?s.items:null,unit:'items',
         lines:[`${n(s.inStock)} in stock`,`${n(s.low)} low stock`,`${n(s.out)} out of stock`],alert:Number(s.low||0)+Number(s.out||0)>0},
+      ...(info.departmentIssue?[{key:'issue',icon:'➜',title:'Issue to Department',value:ready?s.deptMonth:null,unit:'issues this month',lines:[`${n(s.deptToday)} issued today`,'Floor, kitchen / pantry, laundry and other departments']}]:[]),
       ...(s.controller?[{key:'receive',icon:'＋',title:'Receive from Vendor',value:null,valueText:'New',unit:'receipt',lines:['Enter stock received from a vendor, with batch and expiry']}]:[]),
       {key:'receipts',icon:'🧾',title:'Vendor Receipt Register',value:ready?s.receipts:null,unit:'receipts',
         lines:[s.lastReceipt?`Last received ${formatDateIN(s.lastReceipt)}`:'No receipts yet']},
@@ -57,7 +59,7 @@
         lines:[`${n(s.expired)} expired`,`${n(s.soon)} within 90 days`,`${n(s.missing)} expiry not entered`],alert:Number(s.expired||0)>0,warn:Number(s.soon||0)>0}
     ];
     const viewTitle=(tiles.find(t=>t.key===view)||{}).title||'';
-    const storeSection=['stock','receive','receipts','movement','expiry'].includes(view)?view:'none';
+    const storeSection=['stock','receive','receipts','movement','expiry','issue'].includes(view)?view:'none';
     const indentSection=view==='action'||view==='register'?'register':view==='balance'?'balance':'none';
     const registerFilter=view==='action'?'Open':view==='register'?'All':'';
     if(stats&&stats.access===false)return h(ConsumablesStores,{profile,categoryFilter});
@@ -67,7 +69,7 @@
           h('div',null,
             h('small',null,'PHARMACY & STORES'),
             h('h2',null,cat),
-            h('p',null,isPharmacy?'Medicines and pharmacy stock — indents, stock, receipts, movements and expiry at a glance.':'Clinical consumables — indents, stock, receipts, movements and expiry at a glance.')
+            h('p',null,info.blurb)
           ),
           h('button',{type:'button',className:'stores-dash-refresh',onClick:()=>{setStats(null);setIndents(null);setRefreshKey(k=>k+1)}},'↻ Refresh')
         ),
@@ -85,7 +87,7 @@
         h('button',{type:'button',className:'stores-dash-close','aria-label':'Close and return to dashboard',onClick:backToDashboard},'×')
       ),
       h(React.Fragment,{key:`stores-dash-data-${refreshKey}`},
-        h(ConsumablesStores,{profile,categoryFilter,section:storeSection,onSummary:setStats}),
+        h(ConsumablesStores,{profile,categoryFilter,section:storeSection,onSummary:setStats,onOpenSection:openView}),
         h(PatientConsumables,{profile,categoryFilter,section:indentSection,registerFilter,onSummary:setIndents})
       )
     );
