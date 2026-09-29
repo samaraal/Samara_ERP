@@ -3,6 +3,11 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.14.85 — Clinical Alerts: Period filter
+- NURSING → Clinical Alerts looked empty because it lists only tasks due **at this moment**; when nothing is due, all counts show 0. The empty table now says so and points to the new Period filter.
+- New **Period** filter: Now (live) (default, unchanged), Today, Yesterday, Last 7 days, Last 30 days, This month, Custom (From / To, DD-MM-YYYY). A past period shows alerts from the escalation register with Status (Open / Resolved), Type, Priority, Patient, Room, Due, Alert Raised, Sent To, Reason, Resolution and an **Open Task** button; counts show total, still open, resolved and by type; Status and Type filters narrow the list.
+- No SQL, no Edge Function change. Files: `src/app/clinical-alerts/02-alert-pages.js`, version files, `app.js` (rebuilt).
+
 ## 2.14.84 — Help / உதவி: Samara look, clearer answers, bigger window
 - Header is now white with the **Samara logo**; colours taken from the logo (Samara magenta, with the feather's orange as a thin accent line) instead of the dark maroon ribbon.
 - Answers are **formatted**: bold headings show as bold (no more `**` marks), numbered steps get round step numbers, and ERP button / page names in quotes are highlighted (e.g. Confirm & Start) so staff can spot them on screen.

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.14.84';
+  const APP_VERSION = '2.14.85';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '28-Sep-2026 Help assistant (Tamil voice + screenshot)';
+  const APP_BUILD_DATE = '29-Sep-2026 Clinical Alerts period filter';
   const APP_SCHEMA_VERSION = '38';
 
   const BLOOD_GROUPS=['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'];
@@ -3894,10 +3894,73 @@ https://samaraassistedliving.com/`;
 
     React.useEffect(()=>{refreshEscalations()},[]);
 
+    // v2.14.85: Period filter. "Now (live)" = tasks due at this moment (unchanged behaviour).
+    // Any other period shows past alerts from the escalation register for that date range (IST).
+    const PERIODS=['Now (live)','Today','Yesterday','Last 7 days','Last 30 days','This month','Custom'];
+    const [period,setPeriod]=React.useState('Now (live)');
+    const [customFrom,setCustomFrom]=React.useState(()=>addDaysISO(todayISOIndia(),-6));
+    const [customTo,setCustomTo]=React.useState(()=>todayISOIndia());
+    const [historyRows,setHistoryRows]=React.useState([]);
+    const [historyPatients,setHistoryPatients]=React.useState({});
+    const [historyBusy,setHistoryBusy]=React.useState(false);
+    const [historyMessage,setHistoryMessage]=React.useState('');
+    const [historyStatus,setHistoryStatus]=React.useState('All');
+    const [historyType,setHistoryType]=React.useState('All');
+    const isLive=period==='Now (live)';
+
+    function periodRange(){
+      const today=todayISOIndia();
+      if(period==='Today')return [today,today];
+      if(period==='Yesterday'){const y=addDaysISO(today,-1);return [y,y];}
+      if(period==='Last 7 days')return [addDaysISO(today,-6),today];
+      if(period==='Last 30 days')return [addDaysISO(today,-29),today];
+      if(period==='This month')return [`${today.slice(0,8)}01`,today];
+      const a=customFrom||today,b=customTo||today;
+      return a<=b?[a,b]:[b,a];
+    }
+
+    async function loadHistory(){
+      if(isLive)return;
+      const [from,to]=periodRange();
+      setHistoryBusy(true);setHistoryMessage('');
+      try{
+        const {data,error}=await client.from('clinical_alert_escalations')
+          .select('id,alert_key,alert_type,priority,patient_id,source_id,due_at,created_at,escalated_to_role,escalation_reason,resolved_at,resolution_action,resolution_remarks')
+          .gte('created_at',`${from}T00:00:00+05:30`)
+          .lt('created_at',`${addDaysISO(to,1)}T00:00:00+05:30`)
+          .order('created_at',{ascending:false})
+          .limit(1000);
+        if(error)throw error;
+        const list=data||[];
+        const ids=[...new Set(list.map(r=>r.patient_id).filter(Boolean))];
+        const map={};
+        if(ids.length){
+          const {data:pat,error:patError}=await client.from('patients').select('id,title,full_name,room_no,bed_no').in('id',ids);
+          if(patError)console.warn('Clinical alert history patients:',patError.message);
+          (pat||[]).forEach(p=>{map[String(p.id)]=p});
+        }
+        setHistoryPatients(map);setHistoryRows(list);
+      }catch(e){
+        setHistoryRows([]);setHistoryMessage(e?.message||String(e));
+      }finally{setHistoryBusy(false)}
+    }
+
+    React.useEffect(()=>{loadHistory()},[period,customFrom,customTo]);
+
     async function refreshAll(){
+      if(!isLive){await loadHistory();return;}
       await engine.refresh();
       await refreshEscalations();
     }
+
+    const historyTarget=type=>{
+      const t=String(type||'').toLowerCase();
+      if(t.includes('med'))return 'Medicines';
+      if(t.includes('vital'))return 'Vital Signs';
+      if(t.includes('care'))return 'Daily Care';
+      if(t.includes('physio'))return 'Physiotherapy';
+      return 'Clinical Alerts';
+    };
 
     function openClinicalTask(a){
       const page=a.target_page||'Clinical Alerts';
@@ -3955,6 +4018,19 @@ https://samaraassistedliving.com/`;
     const dueNowCount=allRows.filter(a=>!a.isOverdue&&!a.isEscalated).length;
     const regularisationCount=allRows.filter(a=>String(a.alert_type||'').toLowerCase()==='regularisation').length;
 
+    const historyTypes=[...new Set(historyRows.map(r=>r.alert_type||'Clinical'))].sort();
+    const historyVisible=historyRows.filter(r=>{
+      if(historyStatus==='Open'&&r.resolved_at)return false;
+      if(historyStatus==='Resolved'&&!r.resolved_at)return false;
+      if(historyType!=='All'&&(r.alert_type||'Clinical')!==historyType)return false;
+      return true;
+    });
+    const historyOpen=historyRows.filter(r=>!r.resolved_at).length;
+    const historyResolved=historyRows.length-historyOpen;
+    const historyTypeSummary=historyTypes.map(t=>`${t} ${historyRows.filter(r=>(r.alert_type||'Clinical')===t).length}`).join(' · ')||'No alerts';
+    const [rangeFrom,rangeTo]=isLive?['','']:periodRange();
+    const rangeLabel=isLive?'':(rangeFrom===rangeTo?formatDateIN(rangeFrom):`${formatDateIN(rangeFrom)} to ${formatDateIN(rangeTo)}`);
+
     return h('div',{className:'director-office-theme'},
       h('style',null,`
         .director-office-theme{
@@ -3998,7 +4074,7 @@ https://samaraassistedliving.com/`;
       h(Section,{title:dashboardFocus?`${dashboardFocus} Actions`:'Clinical Alerts',subtitle:dashboardFocus?`Dashboard view · ${dashboardFocus} actions currently due / pending`:'Nursing action dashboard — escalated items first, then overdue and due items',
         actions:h('div',{className:'employee-actions'},
           dashboardFocus&&h('button',{className:'btn btn-secondary',onClick:()=>setDashboardFocus('')},'Show All Clinical Alerts'),
-          h('button',{className:'btn btn-secondary',onClick:refreshAll},loadingEscalations?'Refreshing…':'Refresh'),
+          h('button',{className:'btn btn-secondary',onClick:refreshAll},(loadingEscalations||historyBusy)?'Refreshing…':'Refresh'),
           !mobileClinicalDevice&&h('button',{
           className:'btn btn-secondary',
           style:{
@@ -4063,20 +4139,77 @@ https://samaraassistedliving.com/`;
           !mobileClinicalDevice&&h('button',{className:'btn btn-secondary',onClick:engine.testSampleEscalationVoice},'▶ Sample Escalation Voice'),
           !mobileClinicalDevice&&h('button',{className:'btn btn-primary',onClick:engine.playCurrentLiveEscalation},'▶ Play Current Live Escalation')
         )},
-        h('div',{className:'grid stats'},
+        isLive?h('div',{className:'grid stats'},
           h('button',{type:'button',className:'card stat clinical-red',onClick:()=>setFilter('Escalated'),title:'Show escalated alerts'},h('span',null,'Escalated'),h('strong',null,escalatedCount),h('small',null,'Requires immediate nursing action')),
           h('button',{type:'button',className:'card stat clinical-amber',onClick:()=>setFilter('Overdue'),title:'Show overdue alerts'},h('span',null,'Overdue'),h('strong',null,overdueCount),h('small',null,'Not yet escalated')),
           h('button',{type:'button',className:'card stat clinical-blue',onClick:()=>setFilter('Due now'),title:'Show due-now alerts'},h('span',null,'Due now'),h('strong',null,dueNowCount),h('small',null,'Current actionable items')),
           h('button',{type:'button',className:'card stat',onClick:()=>setFilter('All'),title:'Show all alerts including regularisation'},h('span',null,'Regularisation'),h('strong',null,regularisationCount),h('small',null,'One consolidated historical backlog'))
+        ):h('div',{className:'grid stats'},
+          h('button',{type:'button',className:'card stat clinical-blue',onClick:()=>setHistoryStatus('All'),title:'Show all alerts in this period'},h('span',null,'Alerts in period'),h('strong',null,historyRows.length),h('small',null,rangeLabel)),
+          h('button',{type:'button',className:'card stat clinical-red',onClick:()=>setHistoryStatus('Open'),title:'Show alerts still open'},h('span',null,'Still open'),h('strong',null,historyOpen),h('small',null,'Not yet resolved by management')),
+          h('button',{type:'button',className:'card stat clinical-amber',onClick:()=>setHistoryStatus('Resolved'),title:'Show resolved alerts'},h('span',null,'Resolved'),h('strong',null,historyResolved),h('small',null,'Closed with remarks')),
+          h('div',{className:'card stat'},h('span',null,'By type'),h('strong',null,historyTypes.length),h('small',null,historyTypeSummary))
         ),
-        h('div',{className:'field',style:{maxWidth:'300px',marginTop:'14px'}},
-          h('label',null,'View'),
-          h('select',{value:filter,onChange:e=>setFilter(e.target.value)},
-            ['All','Escalated','Overdue','Due now','Critical','Urgent','Routine'].map(x=>h('option',{key:x,value:x},x))
+        h('div',{style:{display:'flex',flexWrap:'wrap',gap:'12px',alignItems:'flex-end',marginTop:'14px'}},
+          h('div',{className:'field',style:{width:'220px',margin:0}},
+            h('label',null,'Period'),
+            h('select',{value:period,onChange:e=>setPeriod(e.target.value)},
+              PERIODS.map(x=>h('option',{key:x,value:x},x))
+            )
+          ),
+          period==='Custom'&&h('div',{className:'field',style:{width:'190px',margin:0}},
+            h('label',null,'From'),
+            h(StrictDateInput,{value:customFrom,max:todayISOIndia(),onChange:e=>setCustomFrom(e.target.value)})
+          ),
+          period==='Custom'&&h('div',{className:'field',style:{width:'190px',margin:0}},
+            h('label',null,'To'),
+            h(StrictDateInput,{value:customTo,max:todayISOIndia(),onChange:e=>setCustomTo(e.target.value)})
+          ),
+          isLive&&h('div',{className:'field',style:{width:'220px',margin:0}},
+            h('label',null,'View'),
+            h('select',{value:filter,onChange:e=>setFilter(e.target.value)},
+              ['All','Escalated','Overdue','Due now','Critical','Urgent','Routine'].map(x=>h('option',{key:x,value:x},x))
+            )
+          ),
+          !isLive&&h('div',{className:'field',style:{width:'180px',margin:0}},
+            h('label',null,'Status'),
+            h('select',{value:historyStatus,onChange:e=>setHistoryStatus(e.target.value)},
+              ['All','Open','Resolved'].map(x=>h('option',{key:x,value:x},x))
+            )
+          ),
+          !isLive&&h('div',{className:'field',style:{width:'200px',margin:0}},
+            h('label',null,'Type'),
+            h('select',{value:historyType,onChange:e=>setHistoryType(e.target.value)},
+              ['All',...historyTypes].map(x=>h('option',{key:x,value:x},x))
+            )
           )
-        )
+        ),
+        !isLive&&historyMessage&&h('div',{className:'message error',style:{marginTop:'12px'}},historyMessage)
       ),
-      h(LogTable,{title:`Active Alerts (${rows.length})`,subtitle:'Complete the underlying clinical task; management resolution is not available to Nursing',
+      !isLive&&h(LogTable,{title:`Alerts · ${rangeLabel} (${historyBusy?'…':historyVisible.length})`,subtitle:historyBusy?'Loading alerts for this period…':'Past clinical alerts from the escalation register. Choose "Now (live)" to see tasks due at this moment.',
+        heads:['Status','Type','Priority','Patient','Room','Due','Alert Raised','Sent To','Reason','Resolution','Action'],
+        rows:historyVisible.map(r=>{
+          const p=historyPatients[String(r.patient_id||'')]||null;
+          const name=p?[p.title,p.full_name].filter(Boolean).join(' ').trim():(String(r.alert_type||'').toLowerCase()==='regularisation'?'All current patients':'—');
+          const room=p?[p.room_no,p.bed_no].filter(Boolean).join('-'):'—';
+          return [
+            h('span',{className:'badge',style:r.resolved_at?{background:'#eef5f2',color:'#17624b'}:{background:'#fdecec',color:'#b42318'}},r.resolved_at?'RESOLVED':'OPEN'),
+            r.alert_type||'Clinical',
+            h('span',{className:'badge',style:r.priority==='Critical'?{background:'#fdecec',color:'#b42318'}:r.priority==='Urgent'?{background:'#fff4dd',color:'#9a6700'}:{background:'#eef5ff',color:'#175cd3'}},r.priority||'—'),
+            name||'—',
+            room||'—',
+            r.due_at?fmt(r.due_at):'—',
+            fmt(r.created_at),
+            r.escalated_to_role||'—',
+            r.escalation_reason||'—',
+            r.resolved_at?`${r.resolution_action||'Resolved'} · ${r.resolution_remarks||'—'} · ${fmt(r.resolved_at)}`:'Pending',
+            h('div',{className:'employee-actions'},
+              h('button',{className:'btn btn-secondary',onClick:()=>openClinicalTask({target_page:historyTarget(r.alert_type),patient_id:r.patient_id,source_id:r.source_id,key:r.alert_key,alert_type:r.alert_type,due_at:r.due_at,title:'',isEscalated:!r.resolved_at})},'Open Task')
+            )
+          ];
+        })
+      }),
+      isLive&&h(LogTable,{title:`Active Alerts (${rows.length})`,subtitle:rows.length?'Complete the underlying clinical task; management resolution is not available to Nursing':'Nothing is due right now. Choose a Period above (Today, Yesterday, Last 7 days…) to see earlier alerts.',
         heads:['Status','Priority','Patient','Room','Alert','Due','Overdue','Details','Action'],
         rows:rows
           .sort((a,b)=>(Number(b.isEscalated)-Number(a.isEscalated))||(Number(b.overdue_minutes||0)-Number(a.overdue_minutes||0)))
