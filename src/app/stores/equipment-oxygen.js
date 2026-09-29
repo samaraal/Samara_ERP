@@ -12,7 +12,7 @@
   function equipmentHoursSince(ts){if(!ts)return null;return Math.round((Date.now()-new Date(ts).getTime())/360000)/10}
   const EQUIP_NOT_INSTALLED='The Biomedical Equipment / Oxygen registers are not installed yet. Please run supabase/sql/161_biomedical_equipment_oxygen_cylinders.sql once in Supabase.';
   function equipmentNotify(type,text){showSamaraActionToast(type,type==='success'?'Register updated':'Action not completed',text)}
-  function equipmentErrorText(error){const m=String(error?.message||error||'');return /does not exist|schema cache|could not find/i.test(m)?EQUIP_NOT_INSTALLED:m}
+  function equipmentErrorText(error){const m=String(error?.message||error||'');if(/bme_delete|oxy_delete/i.test(m)&&/does not exist|schema cache|could not find/i.test(m))return 'Delete is not installed yet. Please run supabase/sql/163_equipment_cylinder_delete_wrong_entry.sql once in Supabase.';return /does not exist|schema cache|could not find/i.test(m)?EQUIP_NOT_INSTALLED:m}
   function useEquipmentPeople(profile){
     const authority=useStoreAuthority(profile);
     const controller=!!authority.controller||profile?.role==='Admin';
@@ -34,6 +34,7 @@
     const who=useEquipmentPeople(profile);
     const [rows,setRows]=React.useState(null),[moves,setMoves]=React.useState([]),[patients,setPatients]=React.useState([]),[bio,setBio]=React.useState([]);
     const [error,setError]=React.useState(''),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState('');
+    const [regStatus,setRegStatus]=React.useState('All'); // 2.15.3: Equipment Register status filter
     const [issueFor,setIssueFor]=React.useState(null),[issueForm,setIssueForm]=React.useState({patient_id:'',location:'',remarks:''});
     const blankAdd={charge_key:'',equipment_name:'',serial_no:'',next_service_due:'',location:'Stores',notes:'',count:'1'};
     const [addForm,setAddForm]=React.useState(blankAdd);
@@ -67,13 +68,13 @@
       {key:'available',icon:'✓',title:'Available',value:ready?counts.available:null,unit:'ready to issue',lines:[who.controller?'Issue to a resident / room':'In Stores']},
       {key:'service',icon:'🛠︎',title:'Service Due',value:ready?serviceDue.length:null,unit:'within 7 days',lines:[`${counts.overdue} overdue`],alert:counts.overdue>0,warn:serviceDue.length>0},
       {key:'repair',icon:'⚠︎',title:'Under Repair',value:ready?counts.repair:null,unit:'pieces',lines:['Back in service from here'],warn:counts.repair>0},
-      {key:'register',icon:'▤',title:'Equipment Register',value:ready?active.length:null,unit:'pieces',lines:[`${bio.length} Charge Master Biomedical item(s)`,'Search by asset no., name, serial']},
+      {key:'register',icon:'▤',title:'Equipment Register',value:ready?list.length:null,unit:'pieces',lines:[`${active.length} in service · ${list.length-active.length} out of service`,'Every piece — search, filter, delete wrong entries']},
       ...(who.controller?[{key:'add',icon:'＋',title:'Add Equipment',valueText:'New',unit:'piece(s)',lines:['Linked to its Charge Master item and BIO code']}]:[]),
       {key:'history',icon:'↕',title:'Movement History',value:ready?monthMoves.length:null,unit:'movements this month',lines:['Issued, returned, repair, service']}
     ];
     const viewTitle=(tiles.find(t=>t.key===view)||{}).title||'';
     const q=search.trim().toLowerCase();
-    const shown=(view==='inuse'?list.filter(x=>x.status==='In Use'):view==='available'?list.filter(x=>x.status==='Available'):view==='service'?serviceDue:view==='repair'?list.filter(x=>x.status==='Under Repair'):list)
+    const shown=(view==='inuse'?list.filter(x=>x.status==='In Use'):view==='available'?list.filter(x=>x.status==='Available'):view==='service'?serviceDue:view==='repair'?list.filter(x=>x.status==='Under Repair'):list.filter(x=>regStatus==='All'||x.status===regStatus))
       .filter(x=>q.length<2||`${x.asset_no} ${x.equipment_name} ${x.serial_no||''} ${x.charge_code||''} ${equipmentPatientName(patients,x.current_patient_id)}`.toLowerCase().includes(q));
     async function doIssue(e){
       e.preventDefault();if(!issueFor)return;
@@ -82,6 +83,13 @@
     }
     function doReturn(x){const r=prompt(`Return ${x.asset_no} ${x.equipment_name} from ${equipmentPatientName(patients,x.current_patient_id)}? Remarks (optional):`,'');if(r===null)return;run('bme_return',{p_equipment_id:x.id,p_remarks:r||null},`${x.asset_no} returned to Stores.`)}
     function askDate(label,current){const v=prompt(`${label} (DD-MM-YYYY), or leave blank:`,current?formatDateIN(current):'');if(v===null)return undefined;const t=v.trim();if(!t)return null;const m=t.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);if(!m){alert('Please enter the date as DD-MM-YYYY.');return undefined}return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`}
+    // 2.15.3: a piece that was never given to a resident can be deleted (wrong entry); the server keeps an audit copy.
+    const everIssued=x=>moves.some(m=>String(m.equipment_id)===String(x.id)&&(m.patient_id||m.action==='Issued'));
+    function doDelete(x){
+      const r=prompt(`DELETE ${x.asset_no} · ${x.equipment_name} from the register?\nUse this only for a wrong / duplicate entry. Reason:`,'Wrong entry');
+      if(r===null)return;if(!r.trim())return equipmentNotify('error','Please give a reason for deleting.');
+      run('bme_delete',{p_equipment_id:x.id,p_reason:r.trim()},`${x.asset_no} deleted from the register.`);
+    }
     function doStatus(x,status){
       let due=null;
       if(status==='Serviced'){due=askDate('Next service due date',x.next_service_due);if(due===undefined)return}
@@ -122,7 +130,9 @@
           who.controller&&x.status==='Available'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>doStatus(x,'Serviced')},'Mark Serviced'),
           who.controller&&x.status==='Available'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>doStatus(x,'Under Repair')},'Send for Repair'),
           who.controller&&x.status==='Under Repair'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>doStatus(x,'Available')},'Back in Service'),
-          who.controller&&['Available','Under Repair'].includes(x.status)&&h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:()=>doStatus(x,'Out of Service')},'Out of Service')
+          who.controller&&['Available','Under Repair'].includes(x.status)&&h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:()=>doStatus(x,'Out of Service')},'Out of Service'),
+          who.controller&&x.status==='Out of Service'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>doStatus(x,'Available')},'Back in Service'),
+          who.controller&&x.status!=='In Use'&&!everIssued(x)&&h('button',{type:'button',className:'btn btn-danger',disabled:busy,title:'Only for a wrong / duplicate entry — never issued to a resident',onClick:()=>doDelete(x)},'🗑︎ Delete (wrong entry)')
         ),
         issueFor&&issueFor.id===x.id&&h('form',{className:'equip-inline-form',onSubmit:doIssue},
           h('div',{className:'grid two'},
@@ -158,6 +168,7 @@
         )
       ),
       ['inuse','available','service','repair','register'].includes(view)&&h(Section,{title:viewTitle,subtitle:view==='inuse'?'Charge in Bills & Charges → Biomedical Equipment: quantity = days in use.':null},
+        view==='register'&&h('div',{className:'stores-mode-switch',role:'tablist',style:{marginBottom:'10px',flexWrap:'wrap'}},['All','Available','In Use','Under Repair','Out of Service'].map(k=>h('button',{key:k,type:'button',role:'tab','aria-selected':regStatus===k,className:regStatus===k?'active':'',onClick:()=>setRegStatus(k)},`${k} (${k==='All'?list.length:list.filter(x=>x.status===k).length})`))),
         h('div',{className:'field',style:{marginBottom:'12px'}},h('input',{type:'search',value:search,onChange:e=>setSearch(e.target.value),placeholder:'Search asset no., name, serial, resident'})),
         shown.length?h('div',{className:'stores-expiry-list'},shown.map(EquipmentCard)):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},list.length?'Nothing here.':'No equipment in the register yet.')
       ),
@@ -175,6 +186,7 @@
     const who=useEquipmentPeople(profile);
     const [rows,setRows]=React.useState(null),[moves,setMoves]=React.useState([]),[patients,setPatients]=React.useState([]);
     const [error,setError]=React.useState(''),[busy,setBusy]=React.useState(false),[sizeFilter,setSizeFilter]=React.useState('All');
+    const [regStatus,setRegStatus]=React.useState('All'); // 2.15.3
     const [putOn,setPutOn]=React.useState(null),[putForm,setPutForm]=React.useState({patient_id:'',location:'',remarks:''});
     const [addForm,setAddForm]=React.useState({size:'D-type',status:'Full',count:'1',serial_no:'',vendor:'',notes:''});
     async function load(){
@@ -202,13 +214,21 @@
       {key:'inuse',icon:'🫁︎',title:'In Use',value:ready?by('In Use').length:null,unit:'on residents',lines:['Hours in use shown for Oxygen Therapy charge','Take off (empty / still full)']},
       {key:'empty',icon:'○',title:'Empty',value:ready?by('Empty').length:null,unit:'to refill',lines:[who.controller?'Send for refill from here':'Waiting for refill'],warn:by('Empty').length>0},
       {key:'refill',icon:'⟳',title:'At Refill',value:ready?by('At Refill').length:null,unit:'with vendor',lines:['Mark received back full']},
-      {key:'register',icon:'▤',title:'Cylinder Register',value:ready?list.filter(x=>x.status!=='Out of Service').length:null,unit:'cylinders',lines:[`B-type: ${list.filter(x=>x.cylinder_size==='B-type').length} · D-type: ${list.filter(x=>x.cylinder_size==='D-type').length}`]},
+      {key:'register',icon:'▤',title:'Cylinder Register',value:ready?list.length:null,unit:'cylinders',lines:[`${list.filter(x=>x.status==='Out of Service').length} out of service`,`B-type: ${list.filter(x=>x.cylinder_size==='B-type').length} · D-type: ${list.filter(x=>x.cylinder_size==='D-type').length}`]},
       ...(who.controller?[{key:'add',icon:'＋',title:'Add Cylinders',valueText:'New',unit:'cylinder(s)',lines:['B-type (OXB-…) or D-type (OXD-…)']}]:[]),
       {key:'history',icon:'↕',title:'Movement History',value:ready?moves.filter(m=>String(m.moved_at).slice(0,10)>=todayISOIndia().slice(0,8)+'01').length:null,unit:'movements this month',lines:['Put on, taken off, refill']}
     ];
     const viewTitle=(tiles.find(t=>t.key===view)||{}).title||'';
     const statusFor={full:'Full',inuse:'In Use',empty:'Empty',refill:'At Refill'};
-    const shown=(statusFor[view]?list.filter(x=>x.status===statusFor[view]):list).filter(x=>sizeFilter==='All'||x.cylinder_size===sizeFilter);
+    const shown=(statusFor[view]?list.filter(x=>x.status===statusFor[view]):list.filter(x=>regStatus==='All'||x.status===regStatus)).filter(x=>sizeFilter==='All'||x.cylinder_size===sizeFilter);
+    const cylEverUsed=c=>moves.some(m=>String(m.cylinder_id)===String(c.id)&&m.patient_id);
+    async function doDeleteCyl(c){
+      const r=prompt(`DELETE ${c.cylinder_no} (${c.cylinder_size}) from the register?\nUse this only for a wrong / duplicate entry. Reason:`,'Wrong entry');
+      if(r===null)return;if(!r.trim())return equipmentNotify('error','Please give a reason for deleting.');
+      if(busy)return;setBusy(true);const res=await client.rpc('oxy_delete',{p_cylinder_id:c.id,p_reason:r.trim()});setBusy(false);
+      if(res.error)return equipmentNotify('error',equipmentErrorText(res.error));
+      equipmentNotify('success',`${c.cylinder_no} deleted from the register.`);await load();
+    }
     async function doPutOn(e){e.preventDefault();if(!putOn)return;const ok=await move(putOn,'put_on',putForm,`${putOn.cylinder_no} put on ${equipmentPatientName(patients,putForm.patient_id)}.`);if(ok){setPutOn(null);setPutForm({patient_id:'',location:'',remarks:''})}}
     async function doAdd(e){
       e.preventDefault();if(busy)return;const n=Math.min(50,Math.max(1,parseInt(addForm.count,10)||1));setBusy(true);let done=0,err=null;
@@ -236,7 +256,8 @@
           who.controller&&c.status==='Empty'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>{const v=prompt(`Send ${c.cylinder_no} for refill. Vendor name:`,c.refill_vendor||'');if(v!==null)move(c,'send_refill',{vendor:v},`${c.cylinder_no} sent for refill.`)}},'Send for Refill'),
           who.controller&&c.status==='At Refill'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>{const r=prompt(`${c.cylinder_no} received back FULL from ${c.refill_vendor||'vendor'}? Remarks (bill no. etc.):`,'');if(r!==null)move(c,'receive_full',{remarks:r},`${c.cylinder_no} is Full again.`)}},'Received Back Full'),
           who.controller&&['Full','Empty'].includes(c.status)&&h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:()=>{const r=prompt(`Mark ${c.cylinder_no} OUT OF SERVICE (damaged / test due). Reason:`,'');if(r)move(c,'out_of_service',{remarks:r},`${c.cylinder_no} out of service.`)}},'Out of Service'),
-          who.controller&&c.status==='Out of Service'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>move(c,'back_in_service',{},`${c.cylinder_no} back in service (Empty).`)},'Back in Service')
+          who.controller&&c.status==='Out of Service'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>move(c,'back_in_service',{},`${c.cylinder_no} back in service (Empty).`)},'Back in Service'),
+          who.controller&&c.status!=='In Use'&&!cylEverUsed(c)&&h('button',{type:'button',className:'btn btn-danger',disabled:busy,title:'Only for a wrong / duplicate entry — never used for a resident',onClick:()=>doDeleteCyl(c)},'🗑︎ Delete (wrong entry)')
         ),
         putOn&&putOn.id===c.id&&h('form',{className:'equip-inline-form',onSubmit:doPutOn},
           h('div',{className:'grid two'},
@@ -270,6 +291,7 @@
         )
       ),
       ['full','inuse','empty','refill','register'].includes(view)&&h(Section,{title:viewTitle,actions:h('div',{className:'stores-mode-switch',role:'tablist'},['All','B-type','D-type'].map(k=>h('button',{key:k,type:'button',role:'tab','aria-selected':sizeFilter===k,className:sizeFilter===k?'active':'',onClick:()=>setSizeFilter(k)},k)))},
+        view==='register'&&h('div',{className:'stores-mode-switch',role:'tablist',style:{marginBottom:'10px',flexWrap:'wrap'}},['All','Full','In Use','Empty','At Refill','Out of Service'].map(k=>h('button',{key:k,type:'button',role:'tab','aria-selected':regStatus===k,className:regStatus===k?'active':'',onClick:()=>setRegStatus(k)},`${k} (${k==='All'?list.length:list.filter(x=>x.status===k).length})`))),
         shown.length?h('div',{className:'stores-expiry-list'},shown.map(CylinderCard)):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},list.length?'Nothing here.':'No cylinders in the register yet.')
       ),
       view==='history'&&h(Section,{title:'Movement History'},

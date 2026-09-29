@@ -2482,3 +2482,5 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 .patient-file-loading{display:flex;align-items:center;justify-content:center;gap:12px;color:#7a1247;font-size:1.05rem}
 .patient-file-spinner{width:26px;height:26px;border-radius:50%;border:3px solid #f0cadb;border-top-color:#b30b5d;animation:samaraSpin .8s linear infinite}
 @keyframes samaraSpin{to{transform:rotate(360deg)}}
+/* 2.15.3 equipment cards: space between label and value */
+.equip-card .stores-ledger-card-fields small{margin-right:6px}

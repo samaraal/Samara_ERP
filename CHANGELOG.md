@@ -3,6 +3,13 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.3 — Equipment / Cylinder Register: see every piece, delete wrong entries (SQL 163)
+- **Equipment Register** tile now counts **every** piece (it used to skip Out of Service pieces, so it showed 0) and says how many are in / out of service.
+- Register filter chips: All / Available / In Use / Under Repair / Out of Service (with counts). Same for the **Cylinder Register** (All / Full / In Use / Empty / At Refill / Out of Service).
+- **Back in Service** button for Out of Service equipment.
+- **🗑 Delete (wrong entry)** for equipment and cylinders — Store In-charge / Admin only, reason required, and only if the piece was **never given to a resident** (otherwise use Out of Service, so history stays). The deleted record, its movements and the reason are kept in `equipment_register_deletions`.
+- **Run SQL 163 once** (`supabase/sql/163_equipment_cylinder_delete_wrong_entry.sql`). Files: `src/app/stores/equipment-oxygen.js`, `styles.css`, version files, `app.js` (rebuilt).
+
 ## 2.15.2 — Patient File opens instantly
 - Tapping a patient row (or Open Patient File) now shows the card **at once** with an "Opening Patient File…" panel and a Cancel button, instead of nothing happening until every section has loaded.
 - If loading fails, the panel says why, with **Try again** — no more silent clicks.

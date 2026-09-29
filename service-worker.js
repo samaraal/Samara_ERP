@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.2';
-const CACHE = 'samara-erp-2.15.2-patient-file-instant-open';
+const APP_VERSION = '2.15.3';
+const CACHE = 'samara-erp-2.15.3-equipment-register-delete';
 const SHELL = [
   './',
   './index.html',
