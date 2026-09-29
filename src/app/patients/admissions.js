@@ -1734,6 +1734,13 @@ Please keep these login details confidential.`;
         setBusy(false);
         return;
       }
+      // 2.15.10: an admission form can never be completed for a resident who is already admitted —
+      // it would replace their medicines / care orders without Doctor Review.
+      if(effectiveExistingPatient&&effectiveExistingPatient.is_active===true){
+        setMsg(`${formalName(effectiveExistingPatient)||effectiveExistingPatient.full_name} (${effectiveExistingPatient.patient_code||effectiveExistingPatient.patient_id||'resident'}) is already admitted. This admission form cannot be completed again, because it would replace the resident's medicines and care orders without Doctor Review. Discard this unfinished admission. To change details use Patients → Patient file; to change medicines use Doctor Review / Modify.`);
+        setBusy(false);
+        return;
+      }
       {
         const allergyItems=numberedItems(form.allergies);
         const allergyNone=allergyItems.length===1&&NO_KNOWN_ALLERGY_RE.test(allergyItems[0]);

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.9';
+  const APP_VERSION = '2.15.10';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -16985,6 +16985,13 @@ Please keep these login details confidential.`;
             ?'This room/bed is occupied by another patient. Please choose an available room/bed.'
             :'The selected room/bed is no longer available. Please choose another available bed.'
         );
+        setBusy(false);
+        return;
+      }
+      // 2.15.10: an admission form can never be completed for a resident who is already admitted —
+      // it would replace their medicines / care orders without Doctor Review.
+      if(effectiveExistingPatient&&effectiveExistingPatient.is_active===true){
+        setMsg(`${formalName(effectiveExistingPatient)||effectiveExistingPatient.full_name} (${effectiveExistingPatient.patient_code||effectiveExistingPatient.patient_id||'resident'}) is already admitted. This admission form cannot be completed again, because it would replace the resident's medicines and care orders without Doctor Review. Discard this unfinished admission. To change details use Patients → Patient file; to change medicines use Doctor Review / Modify.`);
         setBusy(false);
         return;
       }

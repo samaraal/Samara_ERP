@@ -3,6 +3,10 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.10 — An admission cannot be completed again for a resident who is already admitted
+- Completing an old unfinished admission of a resident who was meanwhile admitted (e.g. draft AD-0001 for Mrs. Lakshmi) stopped the resident's medicines and care orders and wrote the draft's list in their place — without Doctor Review. This is now blocked with a clear message: discard the draft; change details from the Patient file and medicines through Doctor Review / Modify.
+- No SQL. Files: `src/app/patients/admissions.js`, version files, `app.js` (rebuilt).
+
 ## 2.15.9 — New Admission form: compact and even
 - All fields in a row now line up at the top (no more inputs pushed down by a taller neighbour), with tighter spacing and smaller, cleaner inputs.
 - **Voice** is a small chip beside each field's label instead of a full-width bar under the field.
