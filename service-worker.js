@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.19';
-const CACHE = 'samara-erp-2.15.19-record-focus';
+const APP_VERSION = '2.15.20';
+const CACHE = 'samara-erp-2.15.20-guest-call';
 const SHELL = [
   './',
   './index.html',

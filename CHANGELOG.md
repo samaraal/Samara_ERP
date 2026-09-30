@@ -3,6 +3,11 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.20 — One-tap "📞 Call" on the Guest Overview
+- Top of the Guest's Overview: a Call block with every number on file as a tap-to-call button — family contacts (primary first), attendant + alternative, emergency contact, the Guest's own mobile and the treating doctor. Duplicates and blank "+91" placeholders are skipped; overseas and landline numbers dial correctly.
+- Nurses can see relatives' numbers via the new read-only guest_call_contacts() (Admin, Manager, Nurse, Accounts; name, relationship, mobile only — no PIN / e-mail).
+- SQL: supabase/sql/173_guest_call_contacts.sql (run once). Before it is run, family numbers show only for users who could already read them.
+
 ## 2.15.19 — Global "open this record only" + Erase Trial Guest on the timeline
 - New shared helper (src/app/shared/03-record-focus.js): openRecord(page,{id,patient_id,label}) opens a page focused on one record; the page shows only that record with a yellow "Showing only: … — Show all" bar, scrolls to it and highlights it. Rule: every link to one record should use it.
 - Discharge / Discharge Clearance: register can be focused on one Guest. Timeline entries get one-click buttons on the entry itself — "Show in register" and, for Admin on a Trial Guest, "🧪 Erase Trial Guest" (no scrolling to find the row).

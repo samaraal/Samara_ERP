@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.19';
+  const APP_VERSION = '2.15.20';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -20664,6 +20664,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
         h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Admission Details'),tabButton('Documents',details.docs.length),tabButton('Consent',details.docs.filter(window.SamaraConsent.isConsent).length),(canEdit||nursingManagerView)?tabButton('Clinical History',(details.allMar||[]).length+(details.nursingProcedures||[]).length+(details.careLogs||[]).length+(details.vitals||[]).length+(details.physioSessions||[]).length):null,tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),tabButton('Daily Moments',(details.dailyMoments||[]).length),!clinicalView?tabButton('Billing',details.billing.length,nursingManagerView?'Pending Dues':'Billing'):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
         h('div',{className:'patient-tab-content'},
           tab==='Overview'&&h('div',{className:'tabs-grid'},
+            h(GuestCallPanel,{patient:selected}),
             h('div',{className:'section-card'},
               h('h4',null,'Identity & Contacts'),
               h('div',{className:'patient-overview-fields'},
@@ -21168,6 +21169,51 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
     );
   }
 
+
+  // 2.15.20: one-tap calling from the Guest's Overview — every number on file, relatives first.
+  // Family contacts come from guest_call_contacts() (supabase/sql/173_guest_call_contacts.sql;
+  // Admin, Manager, Nurse, Accounts); before that SQL is run it falls back to a direct read.
+  function guestTelHref(value){
+    const raw=String(value||'').trim();let d=raw.replace(/\D/g,'');
+    if(d.length<8)return null;
+    if(raw.startsWith('+'))return 'tel:+'+d;
+    if(d.startsWith('0'))return 'tel:'+d;               // landline with STD code
+    if(d.length===10)return 'tel:+91'+d;
+    if(d.length===12&&d.startsWith('91'))return 'tel:+'+d;
+    return 'tel:'+d;
+  }
+  function GuestCallPanel({patient}){
+    const [family,setFamily]=React.useState(null);
+    React.useEffect(()=>{
+      if(!patient?.id)return;
+      let off=false;
+      (async()=>{
+        let r=await client.rpc('guest_call_contacts',{p_patient:patient.id});
+        if(r.error)r=await client.from('family_portal_access').select('relative_name,relationship,mobile,primary_contact').eq('patient_id',patient.id).eq('is_active',true).order('primary_contact',{ascending:false});
+        if(!off)setFamily(r.error?[]:(r.data||[]));
+      })();
+      return()=>{off=true};
+    },[patient?.id]);
+    const p=patient||{};
+    const entries=[
+      ...(family||[]).map(f=>({name:f.relative_name||'Family member',role:`${f.relationship||'Family'}${f.primary_contact?' · Primary':''}`,number:f.mobile,kind:'family'})),
+      {name:p.attendant_name||'Attendant',role:'Attendant',number:p.attendant_phone,kind:'attendant'},
+      {name:p.attendant_name||'Attendant',role:'Attendant · alternative',number:p.attendant_alternative_phone,kind:'attendant'},
+      {name:p.emergency_contact_name||p.emergency_contact||'Emergency contact',role:'Emergency contact',number:p.emergency_contact_phone||p.emergency_phone||p.emergency_contact_number,kind:'family'},
+      {name:formalName(p)||'Guest',role:'Guest · own mobile',number:p.mobile,kind:'guest'},
+      {name:p.treating_doctor||'Treating doctor',role:'Treating doctor',number:p.doctor_phone,kind:'doctor'}
+    ];
+    const seen=new Set();
+    const calls=entries.filter(e=>{const href=guestTelHref(e.number);if(!href)return false;const key=String(e.number).replace(/\D/g,'').slice(-10);if(seen.has(key))return false;seen.add(key);e.href=href;return true});
+    return h('div',{className:'section-card guest-call-card'},
+      h('h4',null,'📞 Call'),
+      calls.length
+        ?h('div',{className:'guest-call-grid'},calls.map((c,i)=>h('a',{key:i,href:c.href,className:`guest-call-btn ${c.kind}`,'aria-label':`Call ${c.name}, ${c.role}, ${c.number}`},
+            h('span',{className:'guest-call-icon','aria-hidden':'true'},'📞'),
+            h('span',{className:'guest-call-text'},h('strong',null,c.name),h('small',null,`${c.role} · ${String(c.number).trim()}`)))))
+        :h('p',{className:'small-note'},family===null?'Loading contact numbers…':'No contact numbers recorded. Add them in Family Details or Edit Patient.'),
+      family===null&&calls.length>0&&h('small',{className:'small-note'},'Loading family contacts…'));
+  }
   function usePatients(){
     const [rows,setRows]=React.useState([]);
     const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
