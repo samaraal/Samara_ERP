@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.15';
-const CACHE = 'samara-erp-2.15.15-no-duplicate-package-charge';
+const APP_VERSION = '2.15.16';
+const CACHE = 'samara-erp-2.15.16-discharge-timeline-links';
 const SHELL = [
   './',
   './index.html',

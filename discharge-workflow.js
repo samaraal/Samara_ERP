@@ -39,7 +39,7 @@
    waiting.length>0&&h('div',null,waiting.map(c=>c.patient_name).join(', ')),
    h('button',{className:'btn btn-secondary',type:'button',onClick:()=>openFollowUp(onNavigate,profile,data.cases)},'Open discharge follow-up'));
  }
- function Panel({client,profile,onChanged}){
+ function Panel({client,profile,onChanged,caseAction}){
   const {data,error,load}=useWorkspace(client,profile);
   const [selected,setSelected]=R.useState(null),[actual,setActual]=R.useState(''),[reason,setReason]=R.useState('');
   const [review,setReview]=R.useState(null),[note,setNote]=R.useState(''),[confirmed,setConfirmed]=R.useState(false);
@@ -99,7 +99,9 @@
    data?.cases.map(c=>{
     const pending=c.reviews.find(r=>r.status==='Pending'),approved=c.reviews.find(r=>r.status==='Approved');
     return h('details',{key:c.id,'data-discharge-id':c.id,style:{padding:'12px 0',borderBottom:'1px solid #9995'}},
-     h('summary',{style:{cursor:'pointer',fontWeight:700,padding:'8px 0',scrollMarginTop:'120px'}},`${c.patient_name} · ${c.patient_code} — ${c.status==='Completed'?'Completed':pending?'Departure review pending':c.accounts_status==='Cleared'?'Accounts cleared; Nursing departure pending':c.accounts_recheck_at||c.legacy_reset?'Accounts recheck required':c.management_status==='Rejected'?'Returned by Management':c.management_status!=='Approved'?'Awaiting Management Approval':'Awaiting Accounts'}`,
+     h('summary',{style:{cursor:'pointer',fontWeight:700,padding:'8px 0',scrollMarginTop:'120px'},
+      // 2.15.16: clicking the entry goes straight to where this Guest's current step is done.
+      onClick:e=>{const a=caseAction?caseAction(c.id):null;if(!a)return;e.preventDefault();a.run()}},`${c.patient_name} · ${c.patient_code} — ${c.status==='Completed'?'Completed':pending?'Departure review pending':c.accounts_status==='Cleared'?'Accounts cleared; Nursing departure pending':c.accounts_recheck_at||c.legacy_reset?'Accounts recheck required':c.management_status==='Rejected'?'Returned by Management':c.management_status!=='Approved'?'Awaiting Management Approval':'Awaiting Accounts'}`,
       // 2.14.78: date & time stamps visible without opening the row.
       (()=>{const stamps=[c.initiated_at,c.management_approved_at,c.accounts_cleared_at,c.actual_departure_at,c.departure_recorded_at,...(c.events||[]).map(e=>e.occurred_at)].filter(Boolean).map(v=>new Date(v)).filter(d=>Number.isFinite(d.getTime()));
        const last=stamps.length?new Date(Math.max(...stamps)):null;
@@ -107,7 +109,12 @@
         ?[c.actual_departure_at?'Departed: '+time(c.actual_departure_at):(last?'Completed: '+time(last.toISOString()):null),c.initiated_at?'Initiated: '+time(c.initiated_at):null]
         :[c.initiated_at?'Initiated: '+time(c.initiated_at):null,last?'Last update: '+time(last.toISOString()):null];
        const text=parts.filter(Boolean).join(' · ');
-       return text?h('small',{className:'discharge-timeline-stamp',style:{display:'block',fontWeight:500,color:'#7b5a69',marginTop:'4px',marginLeft:'18px',fontSize:'14px'}},'🕒 '+text):null})()),
+       return text?h('small',{className:'discharge-timeline-stamp',style:{display:'block',fontWeight:500,color:'#7b5a69',marginTop:'4px',marginLeft:'18px',fontSize:'14px'}},'🕒 '+text):null})(),
+      (()=>{const a=caseAction?caseAction(c.id):null;if(!a)return null;
+       return h('span',{style:{display:'flex',flexWrap:'wrap',gap:'8px',marginTop:'6px',marginLeft:'18px'}},
+        h('span',{className:'badge',style:{background:'#a91360',color:'#fff',fontWeight:700}},'Click to open: '+a.label+' →'),
+        h('button',{type:'button',className:'btn btn-secondary',style:{padding:'2px 10px',fontSize:'13px',minHeight:0},
+         onClick:e=>{e.preventDefault();e.stopPropagation();const d=e.currentTarget.closest('details');if(d)d.open=!d.open}},'History ▾'))})()),
      pending&&c.status!=='Completed'&&h('p',{className:'message warning'},'Final Nursing discharge is blocked until an authorised reviewer resolves the pending departure report below.'),
      c.overdue&&h('p',{className:'message warning'},'Waiting over 2 hours. Nursing Manager / Admin attention required.'),
      h('p',null,`Initiated: ${time(c.initiated_at)} · Management approved: ${time(c.management_approved_at)}`),

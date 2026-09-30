@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.15';
+  const APP_VERSION = '2.15.16';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -21869,7 +21869,28 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
       try{
         sessionStorage.setItem('samara_discharge_payment_target',JSON.stringify(target));
       }catch(_error){}
-      onNavigate?.('Payments');
+      // 2.15.16: the Patient Discharge page has no onNavigate — use the generic in-app page link.
+      if(onNavigate)onNavigate('Payments');
+      else window.dispatchEvent(new CustomEvent('samara-open-page',{detail:{page:'Payments'}}));
+    }
+
+    // 2.15.16: clicking a Discharge timeline entry does the same thing as that Guest's
+    // action button in the register, for the current user's role. null = just show history.
+    function timelineAction(caseId){
+      const row=rows.find(r=>String(r.id)===String(caseId));
+      if(!row)return null;
+      const st=v=>String(v||'').trim().toLowerCase();
+      if(st(row.status)==='completed'||isHistoricalDuplicate(row))return null;
+      const mgmt=st(row.management_status||'Pending');
+      const recheck=!!row.accounts_recheck_at||String(row.accounts_remarks||'').includes('Financial activity changed after clearance');
+      if(!isAccountsClearance&&(mgmt==='rejected'||st(row.status)==='returned to nursing')&&['Nurse','Manager'].includes(profile?.role)&&!isAssignedDirector)
+        return {label:'Rectify & Re-initiate',run:()=>openEdit(row)};
+      if(mgmt==='pending'&&canApprove)return {label:'Review & Decide',run:()=>openManagementReview(row)};
+      if(mgmt==='approved'&&row.discount_request_status==='Pending'&&canDecideDiscount)return {label:'Review Discount Request',run:()=>decideDiscountRequest(row)};
+      if(mgmt==='approved'&&(st(row.accounts_status)!=='cleared'||recheck)&&['Admin','Accounts'].includes(profile?.role))
+        return {label:'Open Payments',run:()=>openPayments(row)};
+      if(st(row.accounts_status)==='cleared'&&isNurse&&!isAssignedDirector)return {label:'Final Discharge Clearance',run:()=>setTimeout(()=>openFinalDischarge(row),0)};
+      return null;
     }
 
     async function requestDiscountApproval(row){
@@ -22387,7 +22408,7 @@ Doctor / Hospital: ${doctorHospital}`;
         )
       ),
       !isAccountsClearance&&h(DischargeMedicationReview),
-      h(window.SamaraDischargeWorkflow.Panel,{client,profile,onChanged:load}),
+      h(window.SamaraDischargeWorkflow.Panel,{client,profile,onChanged:load,caseAction:timelineAction}),
       h(LogTable,{title:isAccountsClearance?`Pending Financial Clearance (${tableRows.length})`:`Discharge Workflow Register (${tableRows.length})`,
         heads:['Patient','Initiation Basis','Instruction / Request','Date','Initiated By','Management','Decision By','Decision Time','Accounts','Last Cleared By','Last Clearance Time','Current Status','Completed By','Action'],
         rows:tableRows
