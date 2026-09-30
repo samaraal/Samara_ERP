@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.25';
-const CACHE = 'samara-erp-2.15.25-whatsapp-reply';
+const APP_VERSION = '2.15.26';
+const CACHE = 'samara-erp-2.15.26-food-bill-received-only';
 const SHELL = [
   './',
   './index.html',

@@ -3,6 +3,10 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.26 — Food Vendor Statement charges received portions only
+- The statement's Meal summary counted ORDERED portions, so an order not yet received (e.g. the next day's breakfast) was added to "Food charges" and the closing balance. It now counts RECEIVED portions only (0 until received; received quantity, not ordered, once received), using the receipt's own priced amount where recorded. Heading now "Meal summary · received portions". Screen, PDF and Excel all use this.
+- The opening balance and vendor ledger were already receipt-based (unchanged). No SQL.
+
 ## 2.15.25 — WhatsApp Inbox: Reply to a specific message
 - "↩ Reply" on every message (inside the 24-hour window): the message is quoted above the typing box; the text / photo / document sent arrives on the recipient's phone as a WhatsApp reply to that message (Meta "context").
 - Quotes shown inside bubbles for Samara's replies and for the relative's replies to a specific message; tap a quote to jump to the original.

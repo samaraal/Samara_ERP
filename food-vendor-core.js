@@ -108,9 +108,14 @@ function compactRows(report){
 }
 function mealSummary(report){
  const groups=['Tiffin','Lunch','Dinner','Tea/Coffee'].map(meal=>({meal,quantity:0,amount:0,missing:false,prices:new Set()}));
- for(const row of compactRows(report)){const category=/Tea|Coffee/.test(row[1])?'Coffee/Tea':row[1],g=groups.find(g=>g.meal===(category==='Coffee/Tea'?'Tea/Coffee':category));if(!g)continue;g.quantity+=row[4];
+ // ERP 2.15.26: bill RECEIVED portions only. An order that is not yet received (e.g. tomorrow's breakfast)
+ // counts 0 and adds nothing to Food charges; a receipt's own priced amount is used when recorded.
+ for(const row of compactRows(report)){const category=/Tea|Coffee/.test(row[1])?'Coffee/Tea':row[1],g=groups.find(g=>g.meal===(category==='Coffee/Tea'?'Tea/Coffee':category));if(!g)continue;
+ const received=row[7]==null?0:Number(row[7]||0);g.quantity+=received;
+ if(received<=0)continue;
+ if(row[8]!=null){g.amount+=Number(row[8]);g.prices.add(typeof row[6]==='number'?row[6]:'Varies');continue}
  const rates=(report.rates||[]).filter(r=>r.item===category&&r.effective<=row[0]).sort((a,b)=>b.effective.localeCompare(a.effective)||String(b.created_at||'').localeCompare(String(a.created_at||'')));
- const price=rates[0]?.price;if(row[4]>0){if(price==null){g.missing=true}else{g.prices.add(Number(price));g.amount+=row[4]*Number(price)}}
+ const price=rates[0]?.price;if(price==null){g.missing=true}else{g.prices.add(Number(price));g.amount+=received*Number(price)}
  }
  const rows=groups.map(g=>[g.meal,g.quantity,g.prices.size===1&&!g.missing?[...g.prices][0]:g.prices.size>1&&!g.missing?'Varies':null,g.missing?null:Math.round(g.amount*100)/100]);
  return [...rows,['Grand total',rows.reduce((n,r)=>n+r[1],0),null,rows.some(r=>r[3]==null)?null:Math.round(rows.reduce((n,r)=>n+r[3],0)*100)/100]];
@@ -142,7 +147,7 @@ function statementPdf(model){
  const drawRow=(row,widths,header=false,bold=false)=>{const lines=row.map((v,i)=>wrap(v,widths[i]-10,11,header||bold));const height=Math.max(...lines.map(v=>v.length))*15+12;let x=M;row.forEach((_,i)=>{ctx.fillStyle=header?'#eee':'#fff';ctx.fillRect(x,y,widths[i],height);ctx.strokeStyle='#999';ctx.lineWidth=.6;ctx.strokeRect(x,y,widths[i],height);lines[i].forEach((l,j)=>text(l,x+5,y+17+j*15,11,header||bold));x+=widths[i]});y+=height};
  const table=(heads,rows,widths,groupDates=false)=>{const header=()=>drawRow(heads,widths,true);if(y>H-180)newPage();header();let previousDate=null;rows.forEach((row,i)=>{const height=Math.max(...row.map((v,j)=>wrap(v,widths[j]-10).length))*15+12;if(y+height>H-50){newPage();header();previousDate=null}const shown=row.slice();if(groupDates&&row[0]===previousDate)shown[0]='';previousDate=row[0];drawRow(shown,widths,false,row[0]==='Grand total'||row[0]==='Total')})};
  newPage();table(model.heads,model.rows,model.heads.length===9?[88,112,72,72,72,72,72,72,72]:[100,160,111,111,111,111],true);
- if(y>H-300)newPage();y+=24;text('Meal summary - ordered portions',M,y,12,true);y+=12;table(model.summaryHeads,model.summary,model.summaryHeads.length===4?[140,80,110,150]:[230,130]);
+ if(y>H-300)newPage();y+=24;text('Meal summary - received portions',M,y,12,true);y+=12;table(model.summaryHeads,model.summary,model.summaryHeads.length===4?[140,80,110,150]:[230,130]);
  if(model.ledgerHeads){if(y>H-260)newPage();y+=24;text('Payments & adjustments',M,y,12,true);y+=12;if(model.ledgerRows?.length)table(model.ledgerHeads,model.ledgerRows,[100,100,330,120]);else {text('No payments or adjustments in this period.',M,y+18,11);y+=32}const f=model.finance||{};if(y>H-260)newPage();y+=24;text('Account summary',M,y,12,true);y+=12;table(['Particulars','Amount INR'],[['Opening balance',Number(f.opening||0).toFixed(2)],['Food charges',Number(f.charges||0).toFixed(2)],['Payments received','- '+Number(f.payments||0).toFixed(2)],['Adjustments',Number(f.adjustments||0).toFixed(2)],['Closing balance',Number(f.closing||0).toFixed(2)]],[330,180]);}
  for(const note of model.notes||[]){const lines=wrap(note,W-2*M,11);if(y+lines.length*15+20>H-50)newPage();y+=20;lines.forEach(l=>{text(l,M,y,11);y+=15})}finish();return pdfFromJpegs(pages);
 }
