@@ -17480,13 +17480,13 @@ Please keep these login details confidential.`;
           placeholder:'6-digit PIN'
         })),
         h('div',{className:'small-note span-2'},composePatientAddress(form)||'The complete residential address will be assembled automatically from the above fields.'),
-        h('div',{className:'field'},h('label',null,'Is an attendant staying with the Guest? *'),h('select',{
-          value:form.attendant_staying||'',
+        h('div',{className:'field'},h('label',null,'Is an attendant staying with the Guest?'),h('select',{
+          required:true,value:form.attendant_staying||'',
           onChange:e=>{const v=e.target.value;setForm(current=>v==='No'
             ?{...current,attendant_staying:'No',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 '}
             :{...current,attendant_staying:v})}
         },h('option',{value:''},'Select Yes / No'),h('option',{value:'Yes'},'Yes — attendant staying'),h('option',{value:'No'},'No — no attendant'))),
-        form.attendant_staying==='Yes'?field('Attendant name *','attendant_name',form,setForm,true):null,
+        form.attendant_staying==='Yes'?field('Attendant name','attendant_name',form,setForm,true):null,
         form.attendant_staying==='Yes'?mobileField('Attendant Mobile No.','attendant_phone',true):null,
         form.attendant_staying==='Yes'?mobileField('Alternative Mobile No.','attendant_alternative_phone',false):null
       ),
