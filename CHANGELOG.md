@@ -3,6 +3,9 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.23 — WhatsApp button shows the WhatsApp logo (from icons/)
+- Uses the WhatsApp icon uploaded to icons/whatsapp-logo-png-icon.png, resized to icons/whatsapp-96.png (7.5 KB instead of 200 KB) so the page stays fast on phones. Button: white with green border, logo on top, "WhatsApp" below. No SQL.
+
 ## 2.15.22 — WhatsApp button: plain green button with the word "WhatsApp"
 - Guest Overview → 📞 Call: the WhatsApp button is now a plain green text button (no icon); the ERP's pink theme can no longer recolour it. No SQL.
 

@@ -2875,7 +2875,7 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
               h('span',{className:'guest-call-icon','aria-hidden':'true'},'📞'),
               h('span',{className:'guest-call-text'},h('strong',null,c.name),h('small',null,`${c.role} · ${String(c.number).trim()}`))),
             c.wa&&h('a',{href:c.wa,target:'_blank',rel:'noopener noreferrer',className:'guest-wa-btn',title:'Opens WhatsApp chat — tap the 📞 call icon there','aria-label':`WhatsApp ${c.name} — opens chat, then tap call`},
-              'WhatsApp'))))
+              h('img',{src:'./icons/whatsapp-96.png?v=1',alt:'',width:30,height:30,className:'guest-wa-logo',loading:'lazy'}),h('span',null,'WhatsApp')))))
         :h('p',{className:'small-note'},family===null?'Loading contact numbers…':'No contact numbers recorded. Add them in Family Details or Edit Patient.'),
       family===null&&calls.length>0&&h('small',{className:'small-note'},'Loading family contacts…'));
   }
