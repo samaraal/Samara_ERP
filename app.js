@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.12';
+  const APP_VERSION = '2.15.13';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -21243,6 +21243,7 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
     });
     const [paymentTarget,setPaymentTarget]=React.useState(null);
     const [managementReviewRow,setManagementReviewRow]=React.useState(null);
+    const [managementReviewFull,setManagementReviewFull]=React.useState(false); // 2.15.13: simple view first
     const [managementBilling,setManagementBilling]=React.useState([]);
     const [managementSnapshot,setManagementSnapshot]=React.useState(null);
     const [managementReviewError,setManagementReviewError]=React.useState('');
@@ -21687,6 +21688,7 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
       if(!canApprove)return;
       const sequence=++managementReviewSequence.current;
       setManagementReviewRow(row);
+      if(!managementReviewRow||managementReviewRow.id!==row?.id)setManagementReviewFull(false);
       setManagementBilling([]);
       setManagementSnapshot(null);
       setManagementReviewError('');
@@ -22479,35 +22481,56 @@ Doctor / Hospital: ${doctorHospital}`;
         'data-manual-close':'true'
       },
         h('div',{
-          className:'card modal',
-          style:{width:'min(1180px,97vw)',maxHeight:'94vh',overflow:'auto'}
+          className:'card modal mdr-modal',
+          style:{width:'min(860px,97vw)',maxHeight:'94vh',overflow:'auto'}
         },
           h('div',{className:'panel-head'},
             h('div',null,
-              h('h3',null,'Management Discharge Review'),
+              h('h3',null,'Discharge Approval'),
               h('small',null,patientLabel(managementReviewRow.patient_id))
             ),
             h('button',{type:'button',className:'close',onClick:()=>setManagementReviewRow(null)},'×')
           ),
 
-          h('div',{className:'accounts-kpi-grid'},
-            (()=>{
-              const totals=managementBillingTotals(managementBilling);
-              const paid=Number(totals.Payment||0)+Number(totals.Advance||0);
-              const outstanding=Math.max(0,Number(totals.Charge||0)-paid-Number(totals.Discount||0)+Number(totals.Refund||0));
-              return [
-                ['Total Charges',totals.Charge||0,'blue'],
-                ['Payments / Advance',paid,'green'],
-                ['Discount History',totals.Discount||0,'pink'],
-                ['Current Outstanding',outstanding,'red']
-              ].map(([label,value,tone])=>h('div',{className:`accounts-kpi ${tone}`,key:label},
-                h('span',null,label),
-                h('strong',null,`₹${Number(value||0).toLocaleString('en-IN')}`),
-                h('small',null,'Posted account at review; pending requests listed below')
-              ));
-            })()
-          ),
-
+          // 2.15.13: simple review — Patient, Payment, Discount first; everything else behind "View full details".
+          (()=>{
+            const p=patientFor(managementReviewRow.patient_id)||{};
+            const totals=managementBillingTotals(managementBilling);
+            const paid=Number(totals.Payment||0)+Number(totals.Advance||0);
+            const outstanding=Math.max(0,Number(totals.Charge||0)-paid-Number(totals.Discount||0)+Number(totals.Refund||0));
+            const money=v=>`₹${Number(v||0).toLocaleString('en-IN')}`;
+            const pending=Number(managementSnapshot?.pending_count||0);
+            const voluntary=managementReviewRow.initiation_basis==='Voluntary Discharge';
+            const line=(label,value)=>h('div',{className:'mdr-line',key:label},h('span',null,label),h('b',null,value||'—'));
+            return h('div',{className:'mdr-simple'},
+              h('div',{className:'mdr-card'},
+                h('div',{className:'mdr-card-title'},'Patient'),
+                h('div',{className:'mdr-patient-name'},formalName(p)||p.full_name||'—'),
+                line('Resident ID',p.patient_id||p.patient_code),
+                line('Room / Bed',[p.room_no,p.bed_no].filter(Boolean).join(' - ')),
+                line('Discharge',[managementReviewRow.discharge_type,`${formatDateIN(managementReviewRow.proposed_discharge_date)} · ${String(managementReviewRow.proposed_discharge_time||'').slice(0,5)}`].filter(Boolean).join(' · ')),
+                line('Condition',managementReviewRow.condition_at_discharge),
+                line('Destination',[managementReviewRow.destination,managementReviewRow.destination_details].filter(Boolean).join(' · ')),
+                line(voluntary?'Requested by':'Doctor',voluntary?managementReviewRow.voluntary_requester_name:managementReviewRow.instructed_by_name)
+              ),
+              h('div',{className:'mdr-card'},
+                h('div',{className:'mdr-card-title'},'Payment'),
+                managementReviewLoading
+                  ?h('div',{className:'small-note'},'Loading account…')
+                  :h('div',{className:'mdr-money'},
+                    h('div',null,h('span',null,'Charges'),h('b',null,money(totals.Charge))),
+                    h('div',null,h('span',null,'Paid / Advance'),h('b',{className:'good'},money(paid))),
+                    h('div',null,h('span',null,'Discount given'),h('b',null,money(totals.Discount))),
+                    h('div',{className:'mdr-due'},h('span',null,'Outstanding'),h('b',{className:outstanding>0?'bad':'good'},money(outstanding)))
+                  ),
+                managementReviewError?h('div',{className:'mdr-note bad'},managementReviewError):null,
+                !managementReviewLoading&&pending>0?h('div',{className:'mdr-note warn'},`${pending} charge request(s) awaiting Accounts — not included above. A discount can be given only after Accounts resolves them.`):null
+              )
+            );
+          })(),
+          h('button',{type:'button',className:'btn btn-secondary mdr-full-btn',onClick:()=>setManagementReviewFull(v=>!v)},
+            managementReviewFull?'▲ Hide full details':'▼ View full details (charge requests, nursing request, all transactions)'),
+          managementReviewFull&&h('div',{className:'mdr-full'},
           h('div',{className:'message '+(managementReviewError||managementSnapshot?.pending_count?'warning':'info'),role:'status'},
             managementReviewLoading?'Loading the complete account and charge requests…':managementReviewError||
               (managementSnapshot?.pending_count
@@ -22566,28 +22589,29 @@ Doctor / Hospital: ${doctorHospital}`;
               row.description||'—',
               `₹${Number(row.amount||0).toLocaleString('en-IN')}`
             ])
-          }),
+          })
+          ),
 
-          h(Section,{title:'Management Decision',subtitle:profile?.role==='Admin'
-            ?'The Administrator may approve a discharge discount. Every discount is saved in the permanent billing history.'
-            :'Review the clinical and account information before approval or rejection.'
+          h(Section,{title:profile?.role==='Admin'?'Discount & Decision':'Decision',subtitle:profile?.role==='Admin'
+            ?'Discount is optional. Every discount is saved permanently in the billing history.'
+            :'Approve or return to Nursing.'
           },
             h('div',{className:'modal-grid'},
               h('div',{className:'field span-2'},
-                h('label',null,'Management Remarks'),
+                h('label',null,'Remarks'),
                 h('textarea',{
-                  rows:3,
+                  rows:2,
                   value:managementRemarks,
                   onChange:e=>setManagementRemarks(e.target.value),
                   placeholder:'Clinical review, management instructions or reason for rejection.'
                 })
               ),
               profile?.role==='Admin'&&h(React.Fragment,null,
-                miniInput('Discount Amount',managementDiscount,v=>setManagementDiscount(v),false,'number'),
+                miniInput('Discount Amount (₹)',managementDiscount,v=>setManagementDiscount(v),false,'number'),
                 miniInput('Discount Reason',managementDiscountReason,v=>setManagementDiscountReason(v))
               )
             ),
-            h('div',{className:'actions'},
+            h('div',{className:'actions mdr-actions'},
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setManagementReviewRow(null)},'Cancel'),
               h('button',{
                 type:'button',

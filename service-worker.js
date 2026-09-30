@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.12';
-const CACHE = 'samara-erp-2.15.12-admission-guest-fields';
+const APP_VERSION = '2.15.13';
+const CACHE = 'samara-erp-2.15.13-simple-discharge-approval';
 const SHELL = [
   './',
   './index.html',

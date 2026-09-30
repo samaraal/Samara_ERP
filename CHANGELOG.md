@@ -3,6 +3,11 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.13 — Discharge Approval (management review) made simple, mobile-friendly
+- Opens with only three things: **Patient** (name, Resident ID, room, discharge type/date, condition, destination, doctor), **Payment** (charges, paid/advance, discount given, outstanding) and **Discount & Decision** (remarks, discount amount/reason for Admin, Reject / Approve).
+- **View full details** button shows everything else (raised charge requests, full nursing discharge request, all account transactions, Refresh account review).
+- Phone: full-screen window, one column, big Approve / Reject buttons that stay visible at the bottom. No change to the approval rules. No SQL.
+
 ## 2.15.12 — Admission form: optional attendant, Guest name in CAPITALS, Date of Birth → Age (SQL 170)
 - **Is an attendant staying with the Guest?** Yes / No (must choose). Yes → attendant name (mandatory), attendant mobile (mandatory) and alternative mobile. No → attendant fields hidden, nothing saved, no mobile required. Consent form prints "Attendant staying: No".
 - **Patient name** is typed and saved in CAPITAL letters automatically, even if entered in lower case (re-admissions are shown in capitals too).
