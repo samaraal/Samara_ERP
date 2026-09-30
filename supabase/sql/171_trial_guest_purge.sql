@@ -1,4 +1,4 @@
--- SAMARA CARE ERP 2.15.17
+-- SAMARA CARE ERP 2.15.17 (revised 2.15.18)
 -- TRIAL (TEST) GUEST — admit as Trial, then erase permanently after discharge.
 --
 -- 1. patients.is_trial  — chosen at Admission (Real / Trial). Real Guests are never erasable.
@@ -10,8 +10,11 @@
 --        patients) — including tables created directly in Supabase — and removes the rows,
 --        children first. Protected tables are never deleted from:
 --          room_beds                          -> bed released (patient_id null, status Available)
---          payment_vouchers,
---          staff_payment_requests             -> detached (patient_id null) — Samara's own cash records
+--          profiles, employees                -> detached only
+--      * The Guest's own receipt vouchers (payment_vouchers) and online payment links
+--        (staff_payment_requests) are erased with the Guest; their voucher numbers and any PAID
+--        Razorpay payment IDs are copied into the permanent audit entry first.
+-- 2.15.18: payment_vouchers / staff_payment_requests are Guest-owned (patient_id NOT NULL), not protected.
 --      * ALL-OR-NOTHING: any error cancels the whole erase; nothing is half-deleted.
 --      * dry_run = true (default) changes nothing and returns what WOULD be removed.
 --      * audit_log is kept, plus one 'TRIAL_GUEST_PURGED' entry.
@@ -28,10 +31,6 @@ returns text language sql stable as $$
   select case p_table::text
     when 'room_beds' then 'release'
     when 'public.room_beds' then 'release'
-    when 'payment_vouchers' then 'detach'
-    when 'public.payment_vouchers' then 'detach'
-    when 'staff_payment_requests' then 'detach'
-    when 'public.staff_payment_requests' then 'detach'
     when 'profiles' then 'detach'
     when 'public.profiles' then 'detach'
     when 'employees' then 'detach'
@@ -92,10 +91,12 @@ returns jsonb language plpgsql security definer set search_path=public,pg_temp a
 declare
   p public.patients%rowtype;
   report jsonb:='{}'::jsonb;
+  money_trail jsonb:='{}'::jsonb;
   err text:=null;
   t record; n bigint; w text; mode text;
   has_discharge boolean:=false;
   guard_off boolean:=false;
+  n_trail jsonb;
 begin
   if not public.current_user_has_role(array['Admin']) then raise exception 'Only Admin can erase a Trial Guest.'; end if;
   select * into p from public.patients where id=p_patient for update;
@@ -117,6 +118,21 @@ begin
   if to_regclass('public.oxygen_cylinders') is not null then
     execute 'select count(*) from public.oxygen_cylinders where current_patient_id=$1' into n using p.id;
     if n>0 then raise exception 'Return the % oxygen cylinder(s) still issued to this Guest first.',n; end if;
+  end if;
+
+  -- Keep a permanent trail of receipt vouchers and PAID online payments before they are erased.
+  if to_regclass('public.payment_vouchers') is not null then
+    execute 'select coalesce(jsonb_agg(jsonb_build_object(''voucher_no'',voucher_no,''mode'',payment_mode,''type'',transaction_type,''amount'',amount,''at'',created_at) order by created_at),''[]''::jsonb) from public.payment_vouchers where patient_id=$1'
+      into n_trail using p.id;
+    money_trail:=money_trail||jsonb_build_object('receipt_vouchers',n_trail);
+  end if;
+  if to_regclass('public.staff_payment_requests') is not null then
+    execute 'select coalesce(jsonb_agg(jsonb_build_object(''request_code'',request_code,''amount'',amount,''razorpay_payment_id'',razorpay_payment_id,''paid_at'',paid_at)),''[]''::jsonb) from public.staff_payment_requests where patient_id=$1 and status=''Paid'''
+      into n_trail using p.id;
+    money_trail:=money_trail||jsonb_build_object('paid_online_payments',n_trail);
+    if jsonb_array_length(n_trail)>0 then
+      report:=public.samara_trial_purge_add(report,'NOTE: paid online (Razorpay) payments — IDs kept in audit log',jsonb_array_length(n_trail));
+    end if;
   end if;
 
   begin
@@ -176,7 +192,7 @@ begin
   if not p_dry_run then
     insert into public.audit_log(user_id,action,entity,entity_id,details)
     values(auth.uid(),'TRIAL_GUEST_PURGED','patients',p.id,
-      jsonb_build_object('resident_id',p.patient_id,'name',p.full_name,'removed',report,'at',now()));
+      jsonb_build_object('resident_id',p.patient_id,'name',p.full_name,'removed',report,'money_trail',money_trail,'at',now()));
   end if;
   return jsonb_build_object('dry_run',p_dry_run,'resident_id',p.patient_id,'name',p.full_name,
     'ok',err is null,'error',err,'removed',report);
