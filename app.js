@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.20';
+  const APP_VERSION = '2.15.21';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -21182,6 +21182,15 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
     if(d.length===12&&d.startsWith('91'))return 'tel:+'+d;
     return 'tel:'+d;
   }
+  // 2.15.21: WhatsApp link (opens the chat; the staff member taps WhatsApp's call icon there).
+  // Mobiles only — a landline (STD code with leading 0) has no WhatsApp.
+  function guestWhatsAppHref(value){
+    const raw=String(value||'').trim();let d=raw.replace(/\D/g,'');
+    if(d.length<8||(!raw.startsWith('+')&&d.startsWith('0')))return null;
+    if(!raw.startsWith('+')&&d.length===10)d='91'+d;
+    if(d.startsWith('91')&&d.length===12&&!/^[6-9]/.test(d.slice(2)))return null; // Indian landline
+    return 'https://wa.me/'+d;
+  }
   function GuestCallPanel({patient}){
     const [family,setFamily]=React.useState(null);
     React.useEffect(()=>{
@@ -21204,13 +21213,17 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
       {name:p.treating_doctor||'Treating doctor',role:'Treating doctor',number:p.doctor_phone,kind:'doctor'}
     ];
     const seen=new Set();
-    const calls=entries.filter(e=>{const href=guestTelHref(e.number);if(!href)return false;const key=String(e.number).replace(/\D/g,'').slice(-10);if(seen.has(key))return false;seen.add(key);e.href=href;return true});
+    const calls=entries.filter(e=>{const href=guestTelHref(e.number);if(!href)return false;const key=String(e.number).replace(/\D/g,'').slice(-10);if(seen.has(key))return false;seen.add(key);e.href=href;e.wa=guestWhatsAppHref(e.number);return true});
     return h('div',{className:'section-card guest-call-card'},
       h('h4',null,'📞 Call'),
       calls.length
-        ?h('div',{className:'guest-call-grid'},calls.map((c,i)=>h('a',{key:i,href:c.href,className:`guest-call-btn ${c.kind}`,'aria-label':`Call ${c.name}, ${c.role}, ${c.number}`},
-            h('span',{className:'guest-call-icon','aria-hidden':'true'},'📞'),
-            h('span',{className:'guest-call-text'},h('strong',null,c.name),h('small',null,`${c.role} · ${String(c.number).trim()}`)))))
+        ?h('div',{className:'guest-call-grid'},calls.map((c,i)=>h('div',{key:i,className:'guest-call-row'},
+            h('a',{href:c.href,className:`guest-call-btn ${c.kind}`,'aria-label':`Call ${c.name}, ${c.role}, ${c.number}`},
+              h('span',{className:'guest-call-icon','aria-hidden':'true'},'📞'),
+              h('span',{className:'guest-call-text'},h('strong',null,c.name),h('small',null,`${c.role} · ${String(c.number).trim()}`))),
+            c.wa&&h('a',{href:c.wa,target:'_blank',rel:'noopener noreferrer',className:'guest-wa-btn',title:'Opens WhatsApp chat — tap the 📞 call icon there','aria-label':`WhatsApp ${c.name} — opens chat, then tap call`},
+              h('svg',{viewBox:'0 0 24 24',width:22,height:22,'aria-hidden':'true',fill:'currentColor'},h('path',{d:'M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91C21.96 6.45 17.5 2 12.04 2zm5.8 14.03c-.25.69-1.44 1.32-1.99 1.36-.51.05-.99.24-3.33-.69-2.81-1.1-4.6-3.97-4.74-4.16-.14-.18-1.13-1.5-1.13-2.86s.71-2.03.97-2.31c.25-.28.55-.35.73-.35h.53c.17 0 .4-.06.62.48.23.55.78 1.9.85 2.04.07.14.11.3.02.48-.09.18-.14.3-.27.46-.14.16-.29.36-.41.48-.14.14-.28.29-.12.57.16.28.71 1.17 1.53 1.9 1.05.94 1.94 1.23 2.22 1.37.28.14.44.12.6-.07.17-.19.69-.81.88-1.09.18-.28.37-.23.62-.14.25.09 1.6.76 1.87.9.28.14.46.2.53.32.07.12.07.69-.18 1.37z'})),
+              h('span',null,'WhatsApp')))))
         :h('p',{className:'small-note'},family===null?'Loading contact numbers…':'No contact numbers recorded. Add them in Family Details or Edit Patient.'),
       family===null&&calls.length>0&&h('small',{className:'small-note'},'Loading family contacts…'));
   }

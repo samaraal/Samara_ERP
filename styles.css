@@ -2603,3 +2603,11 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 .guest-call-text{display:grid;gap:2px;min-width:0}
 .guest-call-text strong{overflow-wrap:anywhere}
 .guest-call-text small{opacity:.85;overflow-wrap:anywhere}
+
+/* 2.15.21: WhatsApp button beside each Call button */
+.guest-call-row{display:flex;gap:8px;align-items:stretch;min-width:0}
+.guest-call-row .guest-call-btn{flex:1 1 auto;min-width:0}
+.guest-wa-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:72px;padding:6px 8px;border-radius:14px;background:#25d366;color:#fff;text-decoration:none;font-size:12px;font-weight:700}
+.guest-wa-btn:hover,.guest-wa-btn:focus-visible{background:#1ebe5a;outline:2px solid #128c4a;outline-offset:1px}
+.guest-call-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+@media (max-width:420px){.guest-call-grid{grid-template-columns:1fr}}

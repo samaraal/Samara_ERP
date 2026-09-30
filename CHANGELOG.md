@@ -3,6 +3,9 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.21 — WhatsApp button beside each Call button
+- Guest Overview → 📞 Call: every mobile number also gets a green WhatsApp button (opens that person's WhatsApp chat; tap WhatsApp's 📞 icon to call). WhatsApp has no link that starts a call directly. Landlines get no WhatsApp button. No SQL.
+
 ## 2.15.20 — One-tap "📞 Call" on the Guest Overview
 - Top of the Guest's Overview: a Call block with every number on file as a tap-to-call button — family contacts (primary first), attendant + alternative, emergency contact, the Guest's own mobile and the treating doctor. Duplicates and blank "+91" placeholders are skipped; overseas and landline numbers dial correctly.
 - Nurses can see relatives' numbers via the new read-only guest_call_contacts() (Admin, Manager, Nurse, Accounts; name, relationship, mobile only — no PIN / e-mail).

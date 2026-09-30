@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.20';
-const CACHE = 'samara-erp-2.15.20-guest-call';
+const APP_VERSION = '2.15.21';
+const CACHE = 'samara-erp-2.15.21-guest-whatsapp';
 const SHELL = [
   './',
   './index.html',
