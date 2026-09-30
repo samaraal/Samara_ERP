@@ -42,7 +42,7 @@
 
   function Admissions({profile,onNavigate}){
     const today=new Date().toISOString().slice(0,10);
-    const initial={admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',date_of_birth:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,admission_time:localDateTimeValue().slice(11,16),vitals_time_1:'06:00',vitals_time_2:'14:00',vitals_time_3:'22:00',hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_staying:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
+    const initial={record_type:'',admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',date_of_birth:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,admission_time:localDateTimeValue().slice(11,16),vitals_time_1:'06:00',vitals_time_2:'14:00',vitals_time_3:'22:00',hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_staying:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
     const [form,setForm]=React.useState(initial),[meds,setMeds]=React.useState([blankMedicine()]),[care,setCare]=React.useState([blankCare()]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [familyAccess,setFamilyAccess]=React.useState({delivery_mode:'Family Portal Access',enabled:true,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:true,daily_whatsapp_time:'20:00'});
     const [familyAccess2,setFamilyAccess2]=React.useState({enabled:false,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:false});
@@ -1684,6 +1684,8 @@ Please keep these login details confidential.`;
       setBusy(true);
       setMsg('');
       if(!['Admin','Manager'].includes(profile?.role)&&!isAdmissionDelegateProfile(profile)){setMsg('Only Admin, Nursing Manager, Jaya or Saranya can complete patient admission.');setBusy(false);return}
+      // 2.15.17: Real / Trial must be chosen for a new Guest (an existing record keeps its type).
+      if(!effectiveExistingPatient&&!['Real','Trial'].includes(form.record_type)){setMsg('Choose at the top of the form: Real Guest or Trial (test) Guest.');setBusy(false);return}
       if(!familyPortalEnabled&&!dailyWhatsAppEnabled){setMsg('Choose the family communication option: Family Portal Access, Daily Intelligent Report, or Both.');setBusy(false);return}
       if(!String(familyAccess.relative_name||'').trim()||!String(familyAccess.relationship||'').trim()||String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10).length!==10){setMsg('Complete the mandatory Family Contact 1 details: authorised relative name, relationship and valid mobile number.');setBusy(false);return}
       if(familyPortalEnabled&&familyAccess2.enabled){
@@ -1794,6 +1796,10 @@ Please keep these login details confidential.`;
         admission_time:form.admission_time||localDateTimeValue().slice(11,16),
         vitals_schedule:[form.vitals_time_1||'06:00',form.vitals_time_2||'14:00',form.vitals_time_3||'22:00']};
       ['physio_required','therapy_type','physiotherapist_name','physio_frequency','physio_time','physio_precautions','vitals_time_1','vitals_time_2','vitals_time_3'].forEach(k=>delete payload[k]);
+      // 2.15.17: record_type is not a column. is_trial is written only when a NEW Guest is created as Trial —
+      // an existing / returning Guest's record never changes type, so a real Guest can never become erasable.
+      delete payload.record_type;delete payload.is_trial;
+      const newGuestTrialFlag=form.record_type==='Trial'?{is_trial:true}:{};
 
       if(admissionExistingPatient){
         // v2.14.35: a pending admission gets its room only once, in the final commit below.
@@ -1835,10 +1841,10 @@ Please keep these login details confidential.`;
         // is not considered admitted, and the bed is not occupied, until every
         // admission setup step below succeeds.
         const {data:created,error:createError}=await client.from('patients')
-          .insert({...payload,is_active:false,admission_status:'Admission Pending',patient_id:patientCode,patient_code:patientCode,created_by:user.id})
+          .insert({...payload,...newGuestTrialFlag,is_active:false,admission_status:'Admission Pending',patient_id:patientCode,patient_code:patientCode,created_by:user.id})
           .select()
           .single();
-        if(createError){setMsg(createError.message);setBusy(false);return}
+        if(createError){setMsg(/is_trial/.test(createError.message||'')?'Trial Guests need a one-time database update: run supabase/sql/171_trial_guest_purge.sql in Supabase, then save again.':createError.message);setBusy(false);return}
         patient=created;
         // Link the browser draft to the newly created patient immediately. If a
         // clinical escalation or navigation interrupts the remaining admission setup,
@@ -2048,6 +2054,20 @@ Please keep these login details confidential.`;
             if(current)discardDraft(current);
             else if(window.confirm('Discard this draft and clear the form?')){startNewAdmission();setMsg('Draft discarded.')}
           }},'Discard Draft'))
+      ),
+      // 2.15.17: Real / Trial (test) Guest — chosen first.
+      h('div',{className:`guest-record-type ${form.record_type==='Trial'||effectiveExistingPatient?.is_trial?'is-trial':''}`},
+        h('strong',null,'Guest record *'),
+        effectiveExistingPatient
+          ?h('span',{className:'guest-record-locked'},effectiveExistingPatient.is_trial
+            ?'🧪 Trial (test) Guest — fixed for this record'
+            :'✓ Real Guest — an existing Guest record always stays Real')
+          :h('div',{className:'guest-record-options',role:'radiogroup','aria-label':'Guest record'},
+            [['Real','✓ Real Guest','Live resident — kept permanently'],['Trial','🧪 Trial (test) Guest','For testing / training — Admin erases all records after discharge']].map(([value,label,hint])=>
+              h('label',{key:value,className:`guest-record-option ${form.record_type===value?'selected':''}`},
+                h('input',{type:'radio',name:'guest_record_type',value,checked:form.record_type===value,onChange:()=>setForm(f=>({...f,record_type:value}))}),
+                h('span',null,h('b',null,label),h('small',null,hint))))),
+        form.record_type==='Trial'&&!effectiveExistingPatient&&h('small',{className:'guest-record-warning'},'Trial Guests behave exactly like real ones (alerts, billing, WhatsApp). After discharge an Admin permanently erases everything about them. Never use for a real resident.')
       ),
       msg&&(
         msg.includes('completed')||

@@ -20,7 +20,7 @@
         const found={};
         for(let i=0;i<missing.length;i+=100){
           const chunk=missing.slice(i,i+100);
-          const r=await client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').in('id',chunk);
+          const r=await client.from('patients').select('*').in('id',chunk);
           if(r.error){console.warn('Guest lookup failed',r.error);return}
           chunk.forEach(id=>{found[id]=null});
           (r.data||[]).forEach(p=>{found[String(p.id)]=p});
@@ -33,12 +33,13 @@
     const pLabel=id=>{
       const p=pFor(id);
       if(!p.id)return '—';
-      if(p.is_active===false)return `${formalName(p)} · ${p.patient_id||'—'} · Discharged`;
-      return `${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}-${p.bed_no||'—'}`;
+      const trial=p.is_trial?' · 🧪 TRIAL':'';
+      if(p.is_active===false)return `${formalName(p)} · ${p.patient_id||'—'} · Discharged${trial}`;
+      return `${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}-${p.bed_no||'—'}${trial}`;
     };
     return {pFor,pLabel};
   }
-  function patientSelect(rows,value,onChange,label='Patient'){return h('div',{className:'field'},h('label',null,label),h('select',{value,onChange:e=>onChange(e.target.value),required:true},h('option',{value:''},'Select patient'),rows.map(p=>h('option',{key:p.id,value:p.id},`${p.patient_id||'NO-ID'} · ${formalName(p)} · ${p.room_no&&p.bed_no?`Room ${p.room_no}-${p.bed_no}`:'Room unassigned'}`))))}
+  function patientSelect(rows,value,onChange,label='Patient'){return h('div',{className:'field'},h('label',null,label),h('select',{value,onChange:e=>onChange(e.target.value),required:true},h('option',{value:''},'Select patient'),rows.map(p=>h('option',{key:p.id,value:p.id},`${p.patient_id||'NO-ID'} · ${formalName(p)} · ${p.room_no&&p.bed_no?`Room ${p.room_no}-${p.bed_no}`:'Room unassigned'}${p.is_trial?' · 🧪 TRIAL':''}`))))}
   function roomBedSelect(rows,roomNo,bedNo,onChange,required=false,currentPatientId=''){
     const value=roomNo&&bedNo?`${roomNo}|||${bedNo}`:'';
     const sorted=[...(rows||[])].filter(isPatientBed).sort((a,b)=>

@@ -2574,3 +2574,15 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
   .mdr-modal .mdr-actions .btn-secondary{grid-column:1/-1;order:3;min-height:40px}
   .mdr-modal .field input,.mdr-modal .field textarea{font-size:16px}
 }
+
+/* 2.15.17: Real / Trial Guest choice at the top of Admission */
+.guest-record-type{border:2px solid #e7c3d5;border-radius:14px;padding:12px 14px;margin:8px 0 14px;background:#fff7fb;display:grid;gap:8px}
+.guest-record-type.is-trial{border-color:#d97706;background:#fff8eb}
+.guest-record-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.guest-record-option{display:flex;gap:10px;align-items:flex-start;border:1.5px solid #e2c7d4;border-radius:12px;padding:10px 12px;background:#fff;cursor:pointer}
+.guest-record-option.selected{border-color:#a91360;box-shadow:0 0 0 2px #a9136033}
+.guest-record-option input{margin-top:3px;width:auto}
+.guest-record-option span{display:grid;gap:2px}
+.guest-record-option small,.guest-record-locked{color:#6b4a5a}
+.guest-record-warning{color:#9a3412;font-weight:600}
+.trial-tag{display:inline-block;background:#d97706;color:#fff;border-radius:999px;padding:1px 8px;font-size:12px;font-weight:700;margin-left:6px;vertical-align:middle}

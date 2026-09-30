@@ -3,6 +3,13 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.17 — Real / Trial (test) Guests; Admin can permanently erase a Trial Guest
+- Admission: "Guest record" at the top of the form — ✓ Real Guest or 🧪 Trial (test) Guest — must be chosen for a new Guest. An existing / returning Guest's record never changes type (a real Guest can never become erasable).
+- Trial Guests behave like real ones (alerts, billing, WhatsApp) and show "🧪 TRIAL" in patient lists.
+- Patient Discharge / Discharge Clearance register: Admin-only "🧪 Erase Trial Guest" (after discharge is initiated). Shows a dry-run list of everything to be removed, asks for the Resident ID, then erases in one all-or-nothing step and deletes the Guest's stored documents / videos.
+- Erase keeps: audit log (+ a TRIAL_GUEST_PURGED entry), Samara payment vouchers / staff payment requests (unlinked), stock movements (unlinked); the bed is released. Refused while equipment / oxygen cylinders are still issued.
+- SQL: supabase/sql/171_trial_guest_purge.sql (required); 172_mark_chandran_trial.sql (one-off, marks CHANDRAN MOG-2026-09-0015 as Trial). Tested on a local copy of the schema (real Guest untouched, all-or-nothing on errors).
+
 ## 2.15.16 — Discharge timeline entries open the Guest's current step directly
 - Clicking an entry in "Discharge timeline & departure follow-up" now does what that Guest's register button does for your role: Awaiting Management → Review & Decide; Discount pending → Review Discount Request; Awaiting Accounts / recheck (Admin, Accounts) → Payments opened on that Guest's discharge settlement; Accounts cleared (Nurse) → Final Discharge Clearance; Returned (Nurse / Manager) → Rectify & Re-initiate.
 - Each such entry shows "Click to open: … →" and a "History ▾" button to see the timeline. Completed / no-action entries expand as before.

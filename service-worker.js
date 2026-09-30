@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.16';
-const CACHE = 'samara-erp-2.15.16-discharge-timeline-links';
+const APP_VERSION = '2.15.17';
+const CACHE = 'samara-erp-2.15.17-trial-guests';
 const SHELL = [
   './',
   './index.html',

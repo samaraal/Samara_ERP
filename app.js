@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.16';
+  const APP_VERSION = '2.15.17';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -15360,7 +15360,7 @@ Thank you.`;
 
   function Admissions({profile,onNavigate}){
     const today=new Date().toISOString().slice(0,10);
-    const initial={admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',date_of_birth:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,admission_time:localDateTimeValue().slice(11,16),vitals_time_1:'06:00',vitals_time_2:'14:00',vitals_time_3:'22:00',hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_staying:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
+    const initial={record_type:'',admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',date_of_birth:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,admission_time:localDateTimeValue().slice(11,16),vitals_time_1:'06:00',vitals_time_2:'14:00',vitals_time_3:'22:00',hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_staying:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
     const [form,setForm]=React.useState(initial),[meds,setMeds]=React.useState([blankMedicine()]),[care,setCare]=React.useState([blankCare()]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [familyAccess,setFamilyAccess]=React.useState({delivery_mode:'Family Portal Access',enabled:true,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:true,daily_whatsapp_time:'20:00'});
     const [familyAccess2,setFamilyAccess2]=React.useState({enabled:false,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:false});
@@ -17002,6 +17002,8 @@ Please keep these login details confidential.`;
       setBusy(true);
       setMsg('');
       if(!['Admin','Manager'].includes(profile?.role)&&!isAdmissionDelegateProfile(profile)){setMsg('Only Admin, Nursing Manager, Jaya or Saranya can complete patient admission.');setBusy(false);return}
+      // 2.15.17: Real / Trial must be chosen for a new Guest (an existing record keeps its type).
+      if(!effectiveExistingPatient&&!['Real','Trial'].includes(form.record_type)){setMsg('Choose at the top of the form: Real Guest or Trial (test) Guest.');setBusy(false);return}
       if(!familyPortalEnabled&&!dailyWhatsAppEnabled){setMsg('Choose the family communication option: Family Portal Access, Daily Intelligent Report, or Both.');setBusy(false);return}
       if(!String(familyAccess.relative_name||'').trim()||!String(familyAccess.relationship||'').trim()||String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10).length!==10){setMsg('Complete the mandatory Family Contact 1 details: authorised relative name, relationship and valid mobile number.');setBusy(false);return}
       if(familyPortalEnabled&&familyAccess2.enabled){
@@ -17112,6 +17114,10 @@ Please keep these login details confidential.`;
         admission_time:form.admission_time||localDateTimeValue().slice(11,16),
         vitals_schedule:[form.vitals_time_1||'06:00',form.vitals_time_2||'14:00',form.vitals_time_3||'22:00']};
       ['physio_required','therapy_type','physiotherapist_name','physio_frequency','physio_time','physio_precautions','vitals_time_1','vitals_time_2','vitals_time_3'].forEach(k=>delete payload[k]);
+      // 2.15.17: record_type is not a column. is_trial is written only when a NEW Guest is created as Trial —
+      // an existing / returning Guest's record never changes type, so a real Guest can never become erasable.
+      delete payload.record_type;delete payload.is_trial;
+      const newGuestTrialFlag=form.record_type==='Trial'?{is_trial:true}:{};
 
       if(admissionExistingPatient){
         // v2.14.35: a pending admission gets its room only once, in the final commit below.
@@ -17153,10 +17159,10 @@ Please keep these login details confidential.`;
         // is not considered admitted, and the bed is not occupied, until every
         // admission setup step below succeeds.
         const {data:created,error:createError}=await client.from('patients')
-          .insert({...payload,is_active:false,admission_status:'Admission Pending',patient_id:patientCode,patient_code:patientCode,created_by:user.id})
+          .insert({...payload,...newGuestTrialFlag,is_active:false,admission_status:'Admission Pending',patient_id:patientCode,patient_code:patientCode,created_by:user.id})
           .select()
           .single();
-        if(createError){setMsg(createError.message);setBusy(false);return}
+        if(createError){setMsg(/is_trial/.test(createError.message||'')?'Trial Guests need a one-time database update: run supabase/sql/171_trial_guest_purge.sql in Supabase, then save again.':createError.message);setBusy(false);return}
         patient=created;
         // Link the browser draft to the newly created patient immediately. If a
         // clinical escalation or navigation interrupts the remaining admission setup,
@@ -17366,6 +17372,20 @@ Please keep these login details confidential.`;
             if(current)discardDraft(current);
             else if(window.confirm('Discard this draft and clear the form?')){startNewAdmission();setMsg('Draft discarded.')}
           }},'Discard Draft'))
+      ),
+      // 2.15.17: Real / Trial (test) Guest — chosen first.
+      h('div',{className:`guest-record-type ${form.record_type==='Trial'||effectiveExistingPatient?.is_trial?'is-trial':''}`},
+        h('strong',null,'Guest record *'),
+        effectiveExistingPatient
+          ?h('span',{className:'guest-record-locked'},effectiveExistingPatient.is_trial
+            ?'🧪 Trial (test) Guest — fixed for this record'
+            :'✓ Real Guest — an existing Guest record always stays Real')
+          :h('div',{className:'guest-record-options',role:'radiogroup','aria-label':'Guest record'},
+            [['Real','✓ Real Guest','Live resident — kept permanently'],['Trial','🧪 Trial (test) Guest','For testing / training — Admin erases all records after discharge']].map(([value,label,hint])=>
+              h('label',{key:value,className:`guest-record-option ${form.record_type===value?'selected':''}`},
+                h('input',{type:'radio',name:'guest_record_type',value,checked:form.record_type===value,onChange:()=>setForm(f=>({...f,record_type:value}))}),
+                h('span',null,h('b',null,label),h('small',null,hint))))),
+        form.record_type==='Trial'&&!effectiveExistingPatient&&h('small',{className:'guest-record-warning'},'Trial Guests behave exactly like real ones (alerts, billing, WhatsApp). After discharge an Admin permanently erases everything about them. Never use for a real resident.')
       ),
       msg&&(
         msg.includes('completed')||
@@ -21122,7 +21142,7 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
         const found={};
         for(let i=0;i<missing.length;i+=100){
           const chunk=missing.slice(i,i+100);
-          const r=await client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').in('id',chunk);
+          const r=await client.from('patients').select('*').in('id',chunk);
           if(r.error){console.warn('Guest lookup failed',r.error);return}
           chunk.forEach(id=>{found[id]=null});
           (r.data||[]).forEach(p=>{found[String(p.id)]=p});
@@ -21135,12 +21155,13 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
     const pLabel=id=>{
       const p=pFor(id);
       if(!p.id)return '—';
-      if(p.is_active===false)return `${formalName(p)} · ${p.patient_id||'—'} · Discharged`;
-      return `${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}-${p.bed_no||'—'}`;
+      const trial=p.is_trial?' · 🧪 TRIAL':'';
+      if(p.is_active===false)return `${formalName(p)} · ${p.patient_id||'—'} · Discharged${trial}`;
+      return `${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}-${p.bed_no||'—'}${trial}`;
     };
     return {pFor,pLabel};
   }
-  function patientSelect(rows,value,onChange,label='Patient'){return h('div',{className:'field'},h('label',null,label),h('select',{value,onChange:e=>onChange(e.target.value),required:true},h('option',{value:''},'Select patient'),rows.map(p=>h('option',{key:p.id,value:p.id},`${p.patient_id||'NO-ID'} · ${formalName(p)} · ${p.room_no&&p.bed_no?`Room ${p.room_no}-${p.bed_no}`:'Room unassigned'}`))))}
+  function patientSelect(rows,value,onChange,label='Patient'){return h('div',{className:'field'},h('label',null,label),h('select',{value,onChange:e=>onChange(e.target.value),required:true},h('option',{value:''},'Select patient'),rows.map(p=>h('option',{key:p.id,value:p.id},`${p.patient_id||'NO-ID'} · ${formalName(p)} · ${p.room_no&&p.bed_no?`Room ${p.room_no}-${p.bed_no}`:'Room unassigned'}${p.is_trial?' · 🧪 TRIAL':''}`))))}
   function roomBedSelect(rows,roomNo,bedNo,onChange,required=false,currentPatientId=''){
     const value=roomNo&&bedNo?`${roomNo}|||${bedNo}`:'';
     const sorted=[...(rows||[])].filter(isPatientBed).sort((a,b)=>
@@ -21399,7 +21420,7 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
     const patientFor=id=>patients.find(p=>p.id===id)||{};
     const patientLabel=id=>{
       const p=patientFor(id);
-      return p.id?`${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}${p.bed_no?`-${p.bed_no}`:''}`:'—';
+      return p.id?`${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}${p.bed_no?`-${p.bed_no}`:''}${p.is_trial?' · 🧪 TRIAL':''}`:'—';
     };
     const isOpenDischarge=row=>!['completed','cancelled','closed'].includes(
       String(row?.status||'').trim().toLowerCase()
@@ -21422,7 +21443,7 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
     async function load(){
       const [d,p]=await Promise.all([
         client.from('patient_discharges').select('*').order('created_at',{ascending:false}),
-        client.from('patients').select('id,title,full_name,patient_id,mobile,room_no,bed_no,is_active,attendant_name,attendant_phone,treating_doctor,doctor_phone,hospital_name').order('full_name')
+        client.from('patients').select('*').order('full_name')
       ]);
       if(d.error){
         setMessage(d.error.message);
@@ -21874,6 +21895,46 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
       else window.dispatchEvent(new CustomEvent('samara-open-page',{detail:{page:'Payments'}}));
     }
 
+    // 2.15.17: permanently erase a Trial (test) Guest — Admin only. Dry run first, then the
+    // Resident ID must be typed. The database removes everything in one all-or-nothing step
+    // (supabase/sql/171_trial_guest_purge.sql); stored files are removed afterwards.
+    async function eraseTrialGuest(row){
+      const p=patientFor(row.patient_id);
+      if(profile?.role!=='Admin'||!p.id||!p.is_trial||busy)return;
+      setBusy(true);
+      try{
+        const dry=await client.rpc('purge_trial_guest',{p_patient:p.id,p_resident_code:p.patient_id,p_dry_run:true});
+        if(dry.error){
+          const missing=/purge_trial_guest|function .* does not exist|schema cache/i.test(dry.error.message||'');
+          notify('error','Cannot erase',missing?'Run supabase/sql/171_trial_guest_purge.sql in Supabase first.':dry.error.message);return;
+        }
+        if(!dry.data?.ok){notify('error','Cannot erase yet',`The database refused: ${dry.data?.error||'unknown reason'}. Nothing was changed.`);return}
+        const removed=dry.data.removed||{};
+        const lines=Object.keys(removed).sort().map(k=>`• ${k.replace(/^deleted: /,'').replace(/_/g,' ')} — ${removed[k]}${k.startsWith('detached')?' (kept, unlinked)':k.startsWith('bed')?' (bed becomes Available)':''}`);
+        const files={'patient-documents':[],'patient-daily-moments':[]};
+        const docs=await client.from('patient_documents').select('storage_path').eq('patient_id',p.id);
+        (docs.data||[]).forEach(d=>d.storage_path&&files['patient-documents'].push(d.storage_path));
+        const vids=await client.from('patient_daily_moments').select('storage_path').eq('patient_id',p.id);
+        if(!vids.error)(vids.data||[]).forEach(d=>d.storage_path&&files['patient-daily-moments'].push(d.storage_path));
+        const fileCount=files['patient-documents'].length+files['patient-daily-moments'].length;
+        const typed=window.prompt(
+          `PERMANENTLY ERASE Trial Guest ${formalName(p)} (${p.patient_id})?\n\n`+
+          `Will be removed:\n${lines.join('\n')||'• the Guest record'}\n• ${fileCount} stored file(s)\n\n`+
+          `Kept: audit log, Samara payment vouchers (unlinked), stock history.\nThis CANNOT be undone.\n\nType the Resident ID ${p.patient_id} to confirm:`,'');
+        if(typed===null)return;
+        if(String(typed).trim().toUpperCase()!==String(p.patient_id||'').trim().toUpperCase()){notify('error','Not erased','Resident ID did not match. Nothing was changed.');return}
+        const res=await client.rpc('purge_trial_guest',{p_patient:p.id,p_resident_code:String(typed).trim(),p_dry_run:false});
+        if(res.error){notify('error','Not erased',`${res.error.message} — nothing was changed.`);return}
+        let fileErrors=0;
+        for(const [bucket,paths] of Object.entries(files)){
+          for(let i=0;i<paths.length;i+=100){const r=await client.storage.from(bucket).remove(paths.slice(i,i+100));if(r.error)fileErrors++;}
+        }
+        notify(fileErrors?'error':'success','Trial Guest erased',`${formalName(p)} (${p.patient_id}) and all related records were removed.${fileErrors?' Some stored files could not be deleted — remove them from Supabase Storage.':''}`);
+        await load();
+      }catch(e){notify('error','Not erased',e.message||String(e))}
+      finally{setBusy(false)}
+    }
+
     // 2.15.16: clicking a Discharge timeline entry does the same thing as that Guest's
     // action button in the register, for the current user's role. null = just show history.
     function timelineAction(caseId){
@@ -22316,6 +22377,7 @@ Doctor / Hospital: ${doctorHospital}`;
       h('span',{className:`badge ${row.status==='Completed'?'':'off'}`},row.status!=='Completed'&&row.discount_request_status==='Pending'?'Discount Approval Pending — Admin / Director':row.status!=='Completed'&&(row.accounts_recheck_at||String(row.accounts_remarks||'').includes('Financial activity changed after clearance'))&&row.accounts_status!=='Cleared'?'Accounts recheck required':row.status||'Initiated'),
       row.status==='Completed'?(row.completed_by_name||'—'):'—',
       h('div',{className:'employee-actions'},
+        profile?.role==='Admin'&&patientFor(row.patient_id).is_trial&&h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:()=>eraseTrialGuest(row)},'🧪 Erase Trial Guest'),
         isHistoricalDuplicate(row)&&['Admin','Manager','Nurse'].includes(profile?.role)&&h('button',{
           type:'button',
           className:'btn btn-danger',

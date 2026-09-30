@@ -167,7 +167,7 @@
     const patientFor=id=>patients.find(p=>p.id===id)||{};
     const patientLabel=id=>{
       const p=patientFor(id);
-      return p.id?`${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}${p.bed_no?`-${p.bed_no}`:''}`:'—';
+      return p.id?`${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}${p.bed_no?`-${p.bed_no}`:''}${p.is_trial?' · 🧪 TRIAL':''}`:'—';
     };
     const isOpenDischarge=row=>!['completed','cancelled','closed'].includes(
       String(row?.status||'').trim().toLowerCase()
@@ -190,7 +190,7 @@
     async function load(){
       const [d,p]=await Promise.all([
         client.from('patient_discharges').select('*').order('created_at',{ascending:false}),
-        client.from('patients').select('id,title,full_name,patient_id,mobile,room_no,bed_no,is_active,attendant_name,attendant_phone,treating_doctor,doctor_phone,hospital_name').order('full_name')
+        client.from('patients').select('*').order('full_name')
       ]);
       if(d.error){
         setMessage(d.error.message);
@@ -642,6 +642,46 @@
       else window.dispatchEvent(new CustomEvent('samara-open-page',{detail:{page:'Payments'}}));
     }
 
+    // 2.15.17: permanently erase a Trial (test) Guest — Admin only. Dry run first, then the
+    // Resident ID must be typed. The database removes everything in one all-or-nothing step
+    // (supabase/sql/171_trial_guest_purge.sql); stored files are removed afterwards.
+    async function eraseTrialGuest(row){
+      const p=patientFor(row.patient_id);
+      if(profile?.role!=='Admin'||!p.id||!p.is_trial||busy)return;
+      setBusy(true);
+      try{
+        const dry=await client.rpc('purge_trial_guest',{p_patient:p.id,p_resident_code:p.patient_id,p_dry_run:true});
+        if(dry.error){
+          const missing=/purge_trial_guest|function .* does not exist|schema cache/i.test(dry.error.message||'');
+          notify('error','Cannot erase',missing?'Run supabase/sql/171_trial_guest_purge.sql in Supabase first.':dry.error.message);return;
+        }
+        if(!dry.data?.ok){notify('error','Cannot erase yet',`The database refused: ${dry.data?.error||'unknown reason'}. Nothing was changed.`);return}
+        const removed=dry.data.removed||{};
+        const lines=Object.keys(removed).sort().map(k=>`• ${k.replace(/^deleted: /,'').replace(/_/g,' ')} — ${removed[k]}${k.startsWith('detached')?' (kept, unlinked)':k.startsWith('bed')?' (bed becomes Available)':''}`);
+        const files={'patient-documents':[],'patient-daily-moments':[]};
+        const docs=await client.from('patient_documents').select('storage_path').eq('patient_id',p.id);
+        (docs.data||[]).forEach(d=>d.storage_path&&files['patient-documents'].push(d.storage_path));
+        const vids=await client.from('patient_daily_moments').select('storage_path').eq('patient_id',p.id);
+        if(!vids.error)(vids.data||[]).forEach(d=>d.storage_path&&files['patient-daily-moments'].push(d.storage_path));
+        const fileCount=files['patient-documents'].length+files['patient-daily-moments'].length;
+        const typed=window.prompt(
+          `PERMANENTLY ERASE Trial Guest ${formalName(p)} (${p.patient_id})?\n\n`+
+          `Will be removed:\n${lines.join('\n')||'• the Guest record'}\n• ${fileCount} stored file(s)\n\n`+
+          `Kept: audit log, Samara payment vouchers (unlinked), stock history.\nThis CANNOT be undone.\n\nType the Resident ID ${p.patient_id} to confirm:`,'');
+        if(typed===null)return;
+        if(String(typed).trim().toUpperCase()!==String(p.patient_id||'').trim().toUpperCase()){notify('error','Not erased','Resident ID did not match. Nothing was changed.');return}
+        const res=await client.rpc('purge_trial_guest',{p_patient:p.id,p_resident_code:String(typed).trim(),p_dry_run:false});
+        if(res.error){notify('error','Not erased',`${res.error.message} — nothing was changed.`);return}
+        let fileErrors=0;
+        for(const [bucket,paths] of Object.entries(files)){
+          for(let i=0;i<paths.length;i+=100){const r=await client.storage.from(bucket).remove(paths.slice(i,i+100));if(r.error)fileErrors++;}
+        }
+        notify(fileErrors?'error':'success','Trial Guest erased',`${formalName(p)} (${p.patient_id}) and all related records were removed.${fileErrors?' Some stored files could not be deleted — remove them from Supabase Storage.':''}`);
+        await load();
+      }catch(e){notify('error','Not erased',e.message||String(e))}
+      finally{setBusy(false)}
+    }
+
     // 2.15.16: clicking a Discharge timeline entry does the same thing as that Guest's
     // action button in the register, for the current user's role. null = just show history.
     function timelineAction(caseId){
@@ -1084,6 +1124,7 @@ Doctor / Hospital: ${doctorHospital}`;
       h('span',{className:`badge ${row.status==='Completed'?'':'off'}`},row.status!=='Completed'&&row.discount_request_status==='Pending'?'Discount Approval Pending — Admin / Director':row.status!=='Completed'&&(row.accounts_recheck_at||String(row.accounts_remarks||'').includes('Financial activity changed after clearance'))&&row.accounts_status!=='Cleared'?'Accounts recheck required':row.status||'Initiated'),
       row.status==='Completed'?(row.completed_by_name||'—'):'—',
       h('div',{className:'employee-actions'},
+        profile?.role==='Admin'&&patientFor(row.patient_id).is_trial&&h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:()=>eraseTrialGuest(row)},'🧪 Erase Trial Guest'),
         isHistoricalDuplicate(row)&&['Admin','Manager','Nurse'].includes(profile?.role)&&h('button',{
           type:'button',
           className:'btn btn-danger',
