@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.11';
+  const APP_VERSION = '2.15.12';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2496,6 +2496,14 @@ function initSamaraInaugurationInvitation(){
     return d.toISOString().slice(0,10);
   };
   const isFutureDateIndia = value => Boolean(value&&String(value).slice(0,10)>todayISOIndia());
+  // 2.15.12: completed years from a Date of Birth (India date). null if empty, invalid or in the future.
+  const ageFromDateOfBirth = value => {
+    const dob=String(value||'').slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(dob)||dob>todayISOIndia())return null;
+    const [y,m,d]=dob.split('-').map(Number);const [ty,tm,td]=todayISOIndia().split('-').map(Number);
+    const years=ty-y-((tm<m||(tm===m&&td<d))?1:0);
+    return years>=0&&years<=130?years:null;
+  };
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[ch]));
   const whatsappNumber = value => { const digits=String(value||'').replace(/\D/g,''); if(!digits)return ''; if(digits.length===10)return `91${digits}`; if(digits.length===11&&digits.startsWith('0'))return `91${digits.slice(1)}`; return digits; };
   const whatsappWelcomeUrl = row => {
@@ -15352,7 +15360,7 @@ Thank you.`;
 
   function Admissions({profile,onNavigate}){
     const today=new Date().toISOString().slice(0,10);
-    const initial={admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,admission_time:localDateTimeValue().slice(11,16),vitals_time_1:'06:00',vitals_time_2:'14:00',vitals_time_3:'22:00',hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
+    const initial={admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',date_of_birth:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,admission_time:localDateTimeValue().slice(11,16),vitals_time_1:'06:00',vitals_time_2:'14:00',vitals_time_3:'22:00',hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_staying:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
     const [form,setForm]=React.useState(initial),[meds,setMeds]=React.useState([blankMedicine()]),[care,setCare]=React.useState([blankCare()]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [familyAccess,setFamilyAccess]=React.useState({delivery_mode:'Family Portal Access',enabled:true,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:true,daily_whatsapp_time:'20:00'});
     const [familyAccess2,setFamilyAccess2]=React.useState({enabled:false,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:false});
@@ -15662,7 +15670,7 @@ Thank you.`;
       let alive=true;
       async function loadPreviousPatients(){
         const {data,error}=await client.from('patients')
-          .select('id,patient_id,patient_code,title,full_name,age,gender,blood_group,profession,profession_field,employment_status,mobile,address,state,district,taluk,village_town,locality_area,street_name,house_no,apartment_name,flat_no,landmark,pincode,attendant_name,attendant_phone,attendant_alternative_phone,allergies,diagnosis,treating_doctor,doctor_phone,hospital_name,photo_storage_path,is_active,admission_date,discharge_date,patient_category,billing_package,diet_plan,feeding_instruction,special_instructions')
+          .select('id,patient_id,patient_code,title,full_name,date_of_birth,age,gender,blood_group,profession,profession_field,employment_status,mobile,address,state,district,taluk,village_town,locality_area,street_name,house_no,apartment_name,flat_no,landmark,pincode,attendant_staying,attendant_name,attendant_phone,attendant_alternative_phone,allergies,diagnosis,treating_doctor,doctor_phone,hospital_name,photo_storage_path,is_active,admission_date,discharge_date,patient_category,billing_package,diet_plan,feeding_instruction,special_instructions')
           .order('full_name',{ascending:true});
         if(!alive)return;
         if(error){
@@ -15814,8 +15822,9 @@ Thank you.`;
       setForm(current=>({
         ...current,
         title:patient.title||'',
-        full_name:patient.full_name||'',
-        age:patient.age||'',
+        full_name:String(patient.full_name||'').toUpperCase(),
+        date_of_birth:patient.date_of_birth?String(patient.date_of_birth).slice(0,10):'',
+        age:patient.date_of_birth?(ageFromDateOfBirth(patient.date_of_birth)||patient.age||''):(patient.age||''),
         gender:patient.gender||'Male',
         blood_group:patient.blood_group||'Unknown',
         profession:patient.profession||'',
@@ -15834,6 +15843,7 @@ Thank you.`;
         flat_no:patient.flat_no||'',
         landmark:patient.landmark||'',
         pincode:patient.pincode||'',
+        attendant_staying:patient.attendant_staying===true?'Yes':patient.attendant_staying===false?'No':(String(patient.attendant_name||'').trim()?'Yes':''),
         attendant_name:patient.attendant_name||'',
         attendant_phone:patient.attendant_phone||'+91 ',
         attendant_alternative_phone:patient.attendant_alternative_phone||'+91 ',
@@ -16505,8 +16515,8 @@ Thank you.`;
       <div><b>Mobile:</b> ${consentEscape(admission.mobile)}</div>
       <div><b>Room / Bed:</b> ${consentEscape(admission.room_no)} / ${consentEscape(admission.bed_no)}</div>
       <div><b>Admission Source:</b> ${consentEscape(admission.admission_type)}</div>
-      <div><b>Family / Attendant:</b> ${consentEscape(admission.attendant_name)}</div>
-      <div><b>Attendant Contact:</b> ${consentEscape(admission.attendant_phone)}</div>
+      <div><b>Attendant staying:</b> ${admission.attendant_staying===false||(!admission.attendant_name&&admission.attendant_staying!==true)?'No':consentEscape(admission.attendant_name)}</div>
+      ${admission.attendant_staying===false||(!admission.attendant_name&&admission.attendant_staying!==true)?'':`<div><b>Attendant Contact:</b> ${consentEscape(admission.attendant_phone)}</div>`}
       <div><b>Billing:</b> ${consentEscape(admission.billing_package)}</div>
       <div><b>Condition:</b> ${consentEscape(admission.diagnosis)}</div>
     </div>
@@ -17001,10 +17011,16 @@ Please keep these login details confidential.`;
         if(mobile1===mobile2){setMsg('Family Contact 2 must use a different mobile number from Family Contact 1.');setBusy(false);return}
       }
       if(!numberedItems(form.diagnosis).length){setMsg('Add at least one diagnosis / condition at admission.');setBusy(false);return}
+      // 2.15.12: attendant is optional — ask whether one stays with the Guest.
+      if(!['Yes','No'].includes(form.attendant_staying)){setMsg('Choose whether an attendant is staying with the Guest (Yes / No).');setBusy(false);return}
+      if(form.attendant_staying==='Yes'&&!String(form.attendant_name||'').trim()){setMsg('Enter the attendant name, or choose "No" if no attendant is staying with the Guest.');setBusy(false);return}
+      if(form.date_of_birth&&ageFromDateOfBirth(form.date_of_birth)===null){setMsg('Check the Date of Birth — it cannot be a future date or more than 130 years ago.');setBusy(false);return}
       const mobileChecks=[
         ['Patient mobile',form.mobile,true],
-        ['Attendant mobile',form.attendant_phone,true],
-        ['Alternative mobile',form.attendant_alternative_phone,false],
+        ...(form.attendant_staying==='Yes'?[
+          ['Attendant mobile',form.attendant_phone,true],
+          ['Alternative mobile',form.attendant_alternative_phone,false]
+        ]:[]),
         ['Doctor contact',form.doctor_phone,false]
       ];
       for(const [label,value,required] of mobileChecks){
@@ -17080,7 +17096,14 @@ Please keep these login details confidential.`;
       const admissionExistingPatient=effectiveExistingPatient;
       const pendingAdmissionResume=Boolean(admissionExistingPatient&&String(admissionExistingPatient.admission_status||'').toLowerCase()==='admission pending');
       let patientCode=admissionExistingPatient?.patient_code||admissionExistingPatient?.patient_id||null;
-      const payload={...form,address:composePatientAddress(form),age:Number(form.age)||null,is_active:pendingAdmissionResume?false:true,admission_status:pendingAdmissionResume?'Admission Pending':'Active',
+      const attendantStaying=form.attendant_staying==='Yes';
+      const payload={...form,full_name:String(form.full_name||'').trim().toUpperCase(),
+        date_of_birth:form.date_of_birth||null,
+        attendant_staying:attendantStaying,
+        attendant_name:attendantStaying?String(form.attendant_name||'').trim():'',
+        attendant_phone:attendantStaying&&internationalLocalPart(form.attendant_phone)?form.attendant_phone:'',
+        attendant_alternative_phone:attendantStaying&&internationalLocalPart(form.attendant_alternative_phone)?form.attendant_alternative_phone:'',
+        address:composePatientAddress(form),age:(form.date_of_birth?ageFromDateOfBirth(form.date_of_birth):null)??(Number(form.age)||null),is_active:pendingAdmissionResume?false:true,admission_status:pendingAdmissionResume?'Admission Pending':'Active',
         undergoing_prescribed_medication:form.undergoing_prescribed_medication==='Yes',
         prescription_verified:true,prescription_verified_by:user.id,prescription_verified_at:new Date().toISOString(),
         package_id:selectedPackage?.id||null,package_start_date:selectedPackage?form.admission_date:null,
@@ -17399,11 +17422,20 @@ Please keep these login details confidential.`;
         selectField('Title / Salutation','title',form,setForm,PATIENT_TITLES),
         h('div',{className:'field'},h('label',null,'Patient name'),h('input',{
           required:true,value:form.full_name,
-          onChange:e=>setForm({...form,full_name:e.target.value}),
+          style:{textTransform:'uppercase'},autoCapitalize:'characters',
+          onChange:e=>setForm({...form,full_name:e.target.value.toUpperCase()}),
           onBlur:autoDetectReturningPatient,
           readOnly:false
         })),
-        field('Age','age',form,setForm,false,'number'),
+        h('div',{className:'field'},h('label',null,'Date of Birth (optional)'),h('input',{
+          type:'date',value:form.date_of_birth||'',max:todayISOIndia(),
+          onChange:e=>{const dob=e.target.value;const years=ageFromDateOfBirth(dob);setForm(current=>({...current,date_of_birth:dob,age:years!==null?String(years):current.age}))}
+        }),form.date_of_birth?h('small',{className:'small-note'},formatDateIN(form.date_of_birth)):null),
+        h('div',{className:'field'},h('label',null,form.date_of_birth?'Age (from Date of Birth)':'Age'),h('input',{
+          type:'number',min:0,max:130,value:form.age,readOnly:Boolean(form.date_of_birth),
+          title:form.date_of_birth?'Calculated from Date of Birth. Clear the Date of Birth to type the age manually.':'',
+          onChange:e=>setForm(current=>({...current,age:e.target.value}))
+        })),
         selectField('Gender','gender',form,setForm,['Male','Female','Other']),
         selectField('Blood Group','blood_group',form,setForm,BLOOD_GROUPS),
         selectField('Profession / Occupation','profession',form,setForm,RESIDENT_PROFESSIONS),
@@ -17448,9 +17480,15 @@ Please keep these login details confidential.`;
           placeholder:'6-digit PIN'
         })),
         h('div',{className:'small-note span-2'},composePatientAddress(form)||'The complete residential address will be assembled automatically from the above fields.'),
-        field('Family / attendant name','attendant_name',form,setForm,true),
-        mobileField('Attendant Mobile No.','attendant_phone',true),
-        mobileField('Alternative Mobile No.','attendant_alternative_phone',false)
+        h('div',{className:'field'},h('label',null,'Is an attendant staying with the Guest? *'),h('select',{
+          value:form.attendant_staying||'',
+          onChange:e=>{const v=e.target.value;setForm(current=>v==='No'
+            ?{...current,attendant_staying:'No',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 '}
+            :{...current,attendant_staying:v})}
+        },h('option',{value:''},'Select Yes / No'),h('option',{value:'Yes'},'Yes — attendant staying'),h('option',{value:'No'},'No — no attendant'))),
+        form.attendant_staying==='Yes'?field('Attendant name *','attendant_name',form,setForm,true):null,
+        form.attendant_staying==='Yes'?mobileField('Attendant Mobile No.','attendant_phone',true):null,
+        form.attendant_staying==='Yes'?mobileField('Alternative Mobile No.','attendant_alternative_phone',false):null
       ),
       h('div',{className:'small-note',style:{marginBottom:'8px'}},
         'Only Aadhaar / Identity Card is the standard identity document. A temporary exception permits admission without it for now. Photo and all other supporting documents are optional and may be added later.'

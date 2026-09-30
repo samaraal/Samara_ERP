@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.12 — Admission form: optional attendant, Guest name in CAPITALS, Date of Birth → Age (SQL 170)
+- **Is an attendant staying with the Guest?** Yes / No (must choose). Yes → attendant name (mandatory), attendant mobile (mandatory) and alternative mobile. No → attendant fields hidden, nothing saved, no mobile required. Consent form prints "Attendant staying: No".
+- **Patient name** is typed and saved in CAPITAL letters automatically, even if entered in lower case (re-admissions are shown in capitals too).
+- **Date of Birth (optional)**: when entered, Age is filled automatically and locked (clear the DOB to type the age manually). Future dates are rejected.
+- SQL 170 adds `patients.date_of_birth` and `patients.attendant_staying`. **Run SQL 170 before uploading the frontend.**
+
 ## SQL 169 + whatsapp-send (hotfix on 2.15.11) — automatic patient / family WhatsApp for the staff who trigger them
 - Admission WhatsApp + Family Portal access failed with "limited to authorised food-vendor conversations" for the Nursing Manager (and would fail for Jaya / Saranya); review reminder (Nurse) and bill reminder (Accounts) were also blocked. Discharge confirmation and Payment receipt were already handled by their own checks in the live function and are unchanged.
 - Role rules now in one place, `wa_food_guard`: Nursing Manager → food vendors + admission / portal access / discharge / review reminder; Jaya & Saranya → admission / portal access; Nurse → discharge / review reminder; Accounts → payment receipt / bill reminder; Admin / Manager unchanged. Patient / family templates only to a number registered for a patient.

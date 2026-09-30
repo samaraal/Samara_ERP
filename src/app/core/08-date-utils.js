@@ -35,6 +35,14 @@
     return d.toISOString().slice(0,10);
   };
   const isFutureDateIndia = value => Boolean(value&&String(value).slice(0,10)>todayISOIndia());
+  // 2.15.12: completed years from a Date of Birth (India date). null if empty, invalid or in the future.
+  const ageFromDateOfBirth = value => {
+    const dob=String(value||'').slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(dob)||dob>todayISOIndia())return null;
+    const [y,m,d]=dob.split('-').map(Number);const [ty,tm,td]=todayISOIndia().split('-').map(Number);
+    const years=ty-y-((tm<m||(tm===m&&td<d))?1:0);
+    return years>=0&&years<=130?years:null;
+  };
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[ch]));
   const whatsappNumber = value => { const digits=String(value||'').replace(/\D/g,''); if(!digits)return ''; if(digits.length===10)return `91${digits}`; if(digits.length===11&&digits.startsWith('0'))return `91${digits.slice(1)}`; return digits; };
   const whatsappWelcomeUrl = row => {

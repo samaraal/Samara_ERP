@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.11';
-const CACHE = 'samara-erp-2.15.11-medication-withhold';
+const APP_VERSION = '2.15.12';
+const CACHE = 'samara-erp-2.15.12-admission-guest-fields';
 const SHELL = [
   './',
   './index.html',
