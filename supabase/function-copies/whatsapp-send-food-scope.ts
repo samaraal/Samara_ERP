@@ -1,4 +1,4 @@
-// Self-contained for Supabase Dashboard deployment. Edge Function: whatsapp-send (SQL 169 update, 30-09-2026).
+// Self-contained for Supabase Dashboard deployment. Edge Function: whatsapp-send (SQL 169 update, 30-09-2026; ERP 2.15.24 adds photo / PDF attachments).
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 async function requireWhatsAppUser(req: Request) {
@@ -68,7 +68,19 @@ Deno.serve(async (req) => {
 
     const { data: allowed, error: rateError } = await caller.db.rpc("samara_take_action_slot", { p_key: `whatsapp:${caller.user.id}`, p_limit: 30, p_seconds: 60 });
     if (rateError || !allowed) return new Response(JSON.stringify({ error: rateError ? "WhatsApp safety setup is incomplete. Contact an administrator." : "Too many messages. Please wait a minute." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    const body = await req.json();
+    // 2.15.24: attachments arrive as multipart/form-data (file + to + caption + communication_log).
+    let body: any;
+    let attachment: File | null = null;
+    if ((req.headers.get("content-type") || "").toLowerCase().includes("multipart/form-data")) {
+      const form = await req.formData();
+      const file = form.get("file");
+      attachment = file instanceof File ? file : null;
+      let log: any = {};
+      try { log = JSON.parse(String(form.get("communication_log") || "{}")); } catch { log = {}; }
+      body = { to: form.get("to"), message_type: String(form.get("message_type") || ""), caption: String(form.get("caption") || ""), communication_log: log };
+    } else {
+      body = await req.json();
+    }
     const to = String(body.to || "").replace(/\D/g, "");
     const messageType = String(body.message_type || (body.text ? "text" : "template")).trim().toLowerCase();
     if (!to) throw new Error("Recipient phone number is required");
@@ -79,7 +91,8 @@ Deno.serve(async (req) => {
     // WhatsApp traffic continues through the existing wa_food_guard unchanged.
     let verifiedDischarge = false;
     let verifiedPaymentReceipt = false;
-    const templateNameForScope = messageType === "text" ? "" : String(body.template_name || "").trim();
+    const isAttachment = messageType === "image" || messageType === "document";
+    const templateNameForScope = (messageType === "text" || isAttachment) ? "" : String(body.template_name || "").trim();
     if (messageType === "template" && templateNameForScope === "samara_discharge_confirmation") {
       const logPayload = body.communication_log?.message_payload || {};
       const dischargeId = String(logPayload.discharge_id || "").trim();
@@ -150,12 +163,48 @@ Deno.serve(async (req) => {
       // SQL 169: wa_food_guard decides by role (Admin/Manager all; Nursing Manager food vendors + admission/portal/discharge;
       // Jaya/Saranya admission + portal access; Nurse discharge + review reminder; Accounts receipt + bill reminder),
       // and patient/family templates only to a number registered for a patient.
-      const { data: scoped, error: scopeError } = await caller.db.rpc("wa_food_guard", { p_user: caller.user.id, p_phone: to, p_template: messageType === "text" ? null : templateNameForScope });
+      const { data: scoped, error: scopeError } = await caller.db.rpc("wa_food_guard", { p_user: caller.user.id, p_phone: to, p_template: (messageType === "text" || isAttachment) ? null : templateNameForScope });
       if (scopeError || !scoped) return new Response(JSON.stringify({ error: scopeError ? "WhatsApp permission check failed. Please ask the administrator to run SQL 169." : "Your role cannot send this WhatsApp message to this number. Check the family / patient mobile in the Patient File, or ask a Manager." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     let payload: Record<string, unknown>;
-    if (messageType === "text") {
+    if (isAttachment) {
+      // Photo (JPG/PNG, up to 5 MB) or document (PDF / Word / Excel, up to 15 MB). Meta accepts these
+      // only inside the 24-hour reply window; outside it Meta returns an error and nothing is sent.
+      if (!attachment) throw new Error("Attach a file to send.");
+      const mime = String(attachment.type || "").toLowerCase();
+      const imageTypes = ["image/jpeg", "image/png"];
+      const docTypes = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"];
+      if (messageType === "image" && !imageTypes.includes(mime)) return new Response(JSON.stringify({ error: "Photos must be JPG or PNG." }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (messageType === "document" && !docTypes.includes(mime)) return new Response(JSON.stringify({ error: "Documents must be PDF, Word or Excel files." }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const limit = messageType === "image" ? 5 * 1024 * 1024 : 15 * 1024 * 1024;
+      if (attachment.size > limit) return new Response(JSON.stringify({ error: `File is too large (max ${messageType === "image" ? "5" : "15"} MB).` }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const caption = String(body.caption || "").trim().slice(0, 1024);
+      const filename = String(attachment.name || (messageType === "image" ? "photo.jpg" : "document.pdf")).replace(/[\\/:*?"<>|]+/g, "_").slice(0, 120);
+      // Keep Samara's own copy so the Inbox can always reopen what was sent.
+      const storedPath = `outgoing/${new Date().toISOString().slice(0, 7)}/${crypto.randomUUID()}/${filename}`;
+      const bytes = new Uint8Array(await attachment.arrayBuffer());
+      const stored = await caller.db.storage.from("whatsapp-media").upload(storedPath, bytes, { contentType: mime, upsert: false });
+      if (stored.error) throw new Error(`Could not store the attachment (run SQL 174 first): ${stored.error.message}`);
+      const upload = new FormData();
+      upload.append("messaging_product", "whatsapp");
+      upload.append("type", mime);
+      upload.append("file", new Blob([bytes], { type: mime }), filename);
+      const mediaRes = await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/media`, { method: "POST", headers: { Authorization: `Bearer ${accessToken}` }, body: upload });
+      const mediaResult = await mediaRes.json();
+      if (!mediaRes.ok || !mediaResult?.id) {
+        await caller.db.storage.from("whatsapp-media").remove([storedPath]);
+        return new Response(JSON.stringify({ error: mediaResult?.error?.message || "Meta did not accept the file." }), { status: mediaRes.status || 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const log = body.communication_log && typeof body.communication_log === "object" ? body.communication_log : {};
+      body.communication_log = { ...log,
+        communication_type: log.communication_type || (messageType === "image" ? "WhatsApp Photo" : "WhatsApp Document"),
+        message_content: caption || filename,
+        message_payload: { ...(log.message_payload || {}), caption, _samara_media: { bucket: "whatsapp-media", path: storedPath, filename, mime_type: mime, size: attachment.size, meta_media_id: mediaResult.id } } };
+      payload = { messaging_product: "whatsapp", recipient_type: "individual", to, type: messageType,
+        [messageType]: messageType === "image" ? { id: mediaResult.id, ...(caption ? { caption } : {}) } : { id: mediaResult.id, filename, ...(caption ? { caption } : {}) } };
+    } else if (messageType === "text") {
       const text = String(body.text || "").trim();
       if (!text) throw new Error("Reply text is required");
       if ([...text].length > 1024) return new Response(JSON.stringify({ error: "Replies with the mandatory logo support up to 1024 characters. Please shorten this reply or send it as separate shorter replies." }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });

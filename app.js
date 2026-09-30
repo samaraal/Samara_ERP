@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.23';
+  const APP_VERSION = '2.15.24';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -10102,6 +10102,118 @@ function Dashboard({profile,onNavigate,alertEngine}){
       {name:'samara_callback_request',label:'Callback Request',regarding:'your enquiry'}
     ];
     const [templateName,setTemplateName]=React.useState(foodOnly?'samara_callback_request':'samara_general_followup'),[templateLanguage]=React.useState('en'),[templateRegarding,setTemplateRegarding]=React.useState(foodOnly?'food supply and delivery':'your assisted living enquiry'),[mediaBusyId,setMediaBusyId]=React.useState('');
+    // 2.15.24: real-inbox features — approved template texts, hide/restore, attachments.
+    const canDeleteMsg=['Admin','Manager'].includes(String(profile?.role||''));
+    const canRestoreMsg=String(profile?.role||'')==='Admin';
+    const [waTemplates,setWaTemplates]=React.useState({});
+    const [templateSync,setTemplateSync]=React.useState({busy:false,note:''});
+    const [showDeleted,setShowDeleted]=React.useState(false);
+    const [attachFile,setAttachFile]=React.useState(null);
+    const attachInputRef=React.useRef(null);
+    async function loadWaTemplates(){
+      const {data,error}=await client.from('whatsapp_templates').select('name,language,status,components,synced_at');
+      if(error)return null;
+      const map={};(data||[]).forEach(t=>{const k=String(t.name||'').toLowerCase();if(!map[k]||String(t.language||'').startsWith('en'))map[k]=t});
+      setWaTemplates(map);return data||[];
+    }
+    async function syncWaTemplates(silent=false){
+      if(!canDeleteMsg||templateSync.busy)return;
+      setTemplateSync({busy:true,note:silent?'':'Refreshing approved templates from Meta…'});
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        const res=await fetch(`${cfg.supabaseUrl}/functions/v1/whatsapp-templates-sync`,{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabaseAnonKey,'Authorization':`Bearer ${session?.access_token||cfg.supabaseAnonKey}`},body:'{}'});
+        const out=await res.json().catch(()=>({}));
+        if(!res.ok)throw new Error(out?.error||(res.status===404?'Deploy the whatsapp-templates-sync Edge Function first.':`Sync failed (${res.status})`));
+        await loadWaTemplates();
+        setTemplateSync({busy:false,note:silent?'':`✓ ${out.count} templates loaded from Meta (${out.approved} approved). Messages now show exactly as received.`});
+      }catch(e){setTemplateSync({busy:false,note:silent?'':`Template refresh: ${e.message||e}`})}
+    }
+    React.useEffect(()=>{(async()=>{
+      const list=await loadWaTemplates();
+      if(list===null||!canDeleteMsg)return;
+      const oldest=list.reduce((m,t)=>Math.min(m,new Date(t.synced_at||0).getTime()),Date.now());
+      let done=false;try{done=sessionStorage.getItem('samara-wa-template-sync')==='1'}catch(_e){}
+      if(!done&&(!list.length||Date.now()-oldest>24*3600*1000)){try{sessionStorage.setItem('samara-wa-template-sync','1')}catch(_e){}syncWaTemplates(true)}
+    })()},[]);
+    // Values that were filled into a template's {{…}} places when it was sent.
+    function templateParams(r){
+      const p=r?.message_payload||{};
+      if(Array.isArray(p.body_params)&&p.body_params.length)return p.body_params.map(v=>String(v??''));
+      const raw=String(r?.message_content||'');
+      const exact=raw.split(/Exact body variables submitted to Meta:\s*\n/i)[1];
+      if(exact){const out=[];exact.split('\n').forEach(line=>{const m=line.match(/^\s*(\d+)\.\s?(.*)$/);if(m)out[Number(m[1])-1]=m[2]});if(out.length)return out}
+      const braces=[...raw.matchAll(/\{\{(\d+)\}\}:\s*(.*)/g)];
+      if(braces.length){const out=[];braces.forEach(m=>{out[Number(m[1])-1]=m[2]});return out}
+      const plain=raw.match(/^Template:\s*[^\n]+\n([\s\S]*)$/);
+      if(plain)return plain[1].split('\n');
+      return [];
+    }
+    // The message exactly as WhatsApp showed it: header, body with the values, footer, buttons.
+    function renderedTemplate(r){
+      if(r?.direction==='inbound')return null;
+      const t=waTemplates[String(r?.template_name||'').toLowerCase()];
+      if(!t)return null;
+      const comps=Array.isArray(t.components)?t.components:[];
+      const find=type=>comps.find(c=>String(c.type||'').toUpperCase()===type)||null;
+      const bodyC=find('BODY');if(!bodyC)return null;
+      const params=templateParams(r);
+      const order=[];String(bodyC.text||'').replace(/\{\{\s*([^}]+?)\s*\}\}/g,(_m,key)=>{if(!order.includes(key))order.push(key);return ''});
+      if(order.length&&!params.length)return null;
+      const fill=text=>String(text||'').replace(/\{\{\s*([^}]+?)\s*\}\}/g,(m,key)=>{const i=/^\d+$/.test(key)?Number(key)-1:order.indexOf(key);const v=params[i];return v===undefined?m:v});
+      const head=find('HEADER');
+      const buttons=(find('BUTTONS')?.buttons||[]).map(b=>({type:String(b.type||'').toUpperCase(),text:b.text||'',url:String(b.url||'').replace(/\{\{\d+\}\}$/,''),phone:b.phone_number||''}));
+      return {
+        header:head?{format:String(head.format||'').toUpperCase(),text:head.text||''}:null,
+        body:window.SamaraDateTime?window.SamaraDateTime.text(fill(bodyC.text)):fill(bodyC.text),
+        footer:find('FOOTER')?.text||'',
+        buttons
+      };
+    }
+    async function hideMessage(r,hide){
+      if(hide){
+        const reason=window.prompt('Delete this message from the Samara inbox?\n\nIt will NOT be deleted from the recipient\'s phone (WhatsApp does not allow that for business messages). An Admin can restore it.\n\nReason (optional):','');
+        if(reason===null)return;
+        const {error}=await client.rpc('wa_hide_message',{p_id:r.id,p_hide:true,p_reason:reason||null});
+        setMessage(error?`Could not delete: ${/wa_hide_message|function/i.test(error.message)?'run supabase/sql/174_whatsapp_inbox_real.sql first.':error.message}`:'✓ Message deleted from the inbox. Admin can restore it from "Show deleted".');
+      }else{
+        const {error}=await client.rpc('wa_hide_message',{p_id:r.id,p_hide:false});
+        setMessage(error?`Could not restore: ${error.message}`:'✓ Message restored.');
+      }
+      await load();
+    }
+    function pickAttachment(file){
+      if(!file)return;
+      const mime=String(file.type||'').toLowerCase();
+      const isImage=['image/jpeg','image/png'].includes(mime);
+      const isDoc=['application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'].includes(mime);
+      if(!isImage&&!isDoc){setMessage('Attach a photo (JPG / PNG) or a document (PDF, Word, Excel).');return}
+      if(file.size>(isImage?5:15)*1024*1024){setMessage(`File is too large — maximum ${isImage?'5':'15'} MB.`);return}
+      setAttachFile({file,kind:isImage?'image':'document',preview:isImage?URL.createObjectURL(file):''});
+    }
+    function clearAttachment(){if(attachFile?.preview)URL.revokeObjectURL(attachFile.preview);setAttachFile(null);if(attachInputRef.current)attachInputRef.current.value=''}
+    async function sendAttachment(){
+      if(!active||!attachFile||busy)return;
+      if(!within24){setMessage('Photos and documents can be sent only within 24 hours of the recipient\'s last message. Send an approved template first.');return}
+      const caption=reply.trim();
+      setBusy(true);setMessage(attachFile.kind==='image'?'Sending photo…':'Sending document…');
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        const form=new FormData();
+        form.append('file',attachFile.file,attachFile.file.name);
+        form.append('to',active.phone);
+        form.append('message_type',attachFile.kind);
+        form.append('caption',caption);
+        form.append('communication_log',JSON.stringify({contact_name:active.name,source_type:patientContext?'Patient / Family':active.source,sent_by_name:formalName(profile),
+          message_payload:patientContext?{patient_id:patientContext.patient_id,patient_code:patientContext.patient_code,patient_name:patientContext.patient_name}:{}}));
+        const res=await fetch(`${cfg.supabaseUrl}/functions/v1/whatsapp-send`,{method:'POST',headers:{'apikey':cfg.supabaseAnonKey,'Authorization':`Bearer ${session?.access_token||cfg.supabaseAnonKey}`},body:form});
+        const out=await res.json().catch(()=>({}));
+        if(!res.ok||!out?.success){const e=out?.error;throw new Error(typeof e==='string'?e:(e?.error?.message||e?.message||`Send failed (${res.status})`))}
+        setReply('');if(replyEditorRef.current)replyEditorRef.current.value='';clearAttachment();
+        setMessage(`✓ ${attachFile.kind==='image'?'Photo':'Document'} accepted by WhatsApp.`);
+        await load();
+      }catch(e){setMessage(`Could not send the ${attachFile.kind==='image'?'photo':'document'}: ${e.message||e}`)}
+      finally{setBusy(false)}
+    }
     const [showEmergency,setShowEmergency]=React.useState(false);
     const [emergencyType,setEmergencyType]=React.useState('hospital_transfer');
     const [emergencyPatient,setEmergencyPatient]=React.useState('');
@@ -10132,6 +10244,22 @@ function Dashboard({profile,onNavigate,alertEngine}){
         .wa-template-composer{padding:10px 12px;background:#f0f2f5;border-top:1px solid #ddd}
         .wa-template-grid{display:grid;grid-template-columns:minmax(180px,.8fr) minmax(180px,1fr) auto;gap:8px;align-items:end}
         .wa-mobile-actions{display:none}
+        .wa-attach-card{display:flex;align-items:center;gap:10px;width:100%;min-width:220px;padding:9px 10px;border:1px solid #d6e3db;border-radius:9px;background:#f7faf8;color:#1f3b2d;text-align:left;cursor:pointer}
+        .wa-attach-card:disabled{cursor:wait;opacity:.7}
+        .wa-attach-icon{font-size:26px;line-height:1}
+        .wa-attach-text{display:grid;gap:2px;min-width:0}
+        .wa-attach-text strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+        .wa-attach-text small{color:#667781;font-size:11px}
+        .wa-tpl-btn{display:block;padding:8px 10px;background:#fff;border-bottom:1px solid #d8e6dc;color:#087f5b;font-weight:800;text-align:center;text-decoration:none}
+        .wa-msg-action{border:0;background:transparent;color:#8a6a78;font-size:11px;font-weight:800;cursor:pointer;padding:2px 4px;border-radius:6px}
+        .wa-msg-action:hover,.wa-msg-action:focus-visible{background:#f3e3ea;color:#a5145a}
+        .wa-msg-action.restore{color:#087f5b}
+        .wa-msg-deleted .wa-bubble{opacity:.55;outline:1px dashed #b98ca1}
+        .wa-deleted-note{margin-top:6px;font-size:11px;font-weight:700;color:#8a2c55}
+        .wa-attach-btn{flex:0 0 auto;width:46px;border:1px solid #d8c8cf;border-radius:10px;background:#fff;font-size:22px;cursor:pointer}
+        .wa-attach-btn:disabled{opacity:.45;cursor:not-allowed}
+        .wa-attach-chip{display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:8px 10px;border:1px solid #cfe3d6;border-radius:10px;background:#fff}
+        .wa-attach-thumb{width:48px;height:48px;object-fit:cover;border-radius:6px}
         @media(max-width:700px){
           .wa-inbox-shell{display:block!important;min-height:0!important;border-radius:12px!important;overflow:hidden!important}
           .wa-conversation-list{display:block!important;border-right:0!important;max-height:calc(100dvh - 250px)!important;min-height:420px!important}
@@ -10359,7 +10487,8 @@ Samara Assisted Living`;
       if(/service|facility|nursing|caregiver|physio|physiotherapy/.test(text))return 'Services';
       return 'General Enquiry';
     }
-    const visibleRows=(patientContext?rows.filter(row=>patientLinkedMessage(row,patientContext)):rows).filter(stdAllowedRow);
+    const deletedCount=rows.filter(r=>r.deleted_at).length;
+    const visibleRows=(patientContext?rows.filter(row=>patientLinkedMessage(row,patientContext)):rows).filter(stdAllowedRow).filter(r=>!r.deleted_at||(showDeleted&&canRestoreMsg));
     const groups={};
     visibleRows.forEach(r=>{const phone=phoneOf(r);if(!phone)return;(groups[phone]||(groups[phone]=[])).push(r)});
     const conversations=Object.entries(groups).map(([phone,msgs])=>{
@@ -10421,6 +10550,8 @@ Samara Assisted Living`;
 	      const reportPath=String(payload?.report_storage_path||'').trim();
 	      const dailyReportTemplate=String(r?.template_name||'').toLowerCase()==='amara_daily_patient_report';
 	      if(r?.direction!=='inbound'){
+	        const sent=payload?._samara_media;
+	        if(sent?.path)return {id:'',type:String(r?.message_type||'').toLowerCase()==='image'?'image':'document',filename:sent.filename||'',mime:sent.mime_type||'',storedPath:sent.path,storedBucket:sent.bucket||'whatsapp-media'};
 	        if(!dailyReportTemplate||!reportPath)return null;
 	        return {id:'',type:'document',filename:payload?.report_file_name||`${payload?.patient_name||'Patient'} - Intelligent Patient Report - ${payload?.report_date||''}.pdf`,mime:'application/pdf',storedPath:reportPath,storedBucket:payload?.report_storage_bucket||'patient-reports'};
 	      }
@@ -10687,8 +10818,11 @@ Thank you.`;
             if(next)setQuery('');
           }},`Unread ${unreadTotal}`),
           isSTD?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setQuery('');setSubjectFilter('All Subjects');setDateFrom('');setDateTo('');setShowUnread(false);setSelectedPhone('')}},'Clear Filters'):null,
-          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>load(true)},'Refresh')
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>load(true)},'Refresh'),
+          canDeleteMsg?h('button',{type:'button',className:'btn btn-secondary',disabled:templateSync.busy,title:'Reload approved template texts from Meta',onClick:()=>syncWaTemplates(false)},templateSync.busy?'Refreshing templates…':'Refresh templates'):null,
+          canRestoreMsg&&deletedCount?h('button',{type:'button',className:`btn ${showDeleted?'btn-primary':'btn-secondary'}`,onClick:()=>setShowDeleted(v=>!v)},showDeleted?`Hide deleted (${deletedCount})`:`Show deleted (${deletedCount})`):null
         ):null,
+        templateSync.note&&(!isMobile||!selectedPhone)?h('div',{className:'notice wa-inbox-status',style:{marginBottom:'12px'}},templateSync.note):null,
         message&&(!isMobile||!selectedPhone)?h('div',{className:'notice wa-inbox-status',style:{marginBottom:'12px'}},message):null,
         renderChatShell(h('div',{ref:chatShellRef,className:`wa-inbox-shell ${isMobile&&selectedPhone?'wa-mobile-chat-open':''}`},
           h('div',{className:'wa-conversation-list'},
@@ -10698,7 +10832,7 @@ Thank you.`;
                 h('div',{style:{minWidth:0,flex:1}},
                   h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'baseline'}},h('strong',{style:{color:'#2e252a',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},c.name),h('small',{style:{color:'#8b7c84',flex:'0 0 auto'}},fmt(c.last.created_at))),
                   isSTD?h('div',{style:{fontSize:'11px',fontWeight:850,color:'#9b124f',marginTop:'3px'}},c.subject):null,
-                  h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center',marginTop:'4px'}},h('span',{style:{fontSize:'13px',color:'#756870',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},chatText(c.last).replace(/\n/g,' ')),c.unread?h('span',{className:'badge success'},c.unread):null)
+                  h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center',marginTop:'4px'}},h('span',{style:{fontSize:'13px',color:'#756870',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},(renderedTemplate(c.last)?.body||chatText(c.last)).replace(/\n/g,' ')),c.unread?h('span',{className:'badge success'},c.unread):null)
                 )
               )
             )):h('p',{className:'empty',style:{padding:'30px'}},'No WhatsApp conversations found.')
@@ -10716,35 +10850,49 @@ Thank you.`;
                 ):null
               ),
               h('div',{className:'wa-chat-scroll',ref:chatScrollRef,onScroll:e=>{const pane=e.currentTarget;chatViewRef.current.followLatest=pane.scrollHeight-pane.scrollTop-pane.clientHeight<64;}},active.msgs.map(r=>{
-                const outgoing=r.direction!=='inbound';const media=mediaInfo(r);const text=chatText(r);
+                const outgoing=r.direction!=='inbound';const media=mediaInfo(r);
+                const tpl=renderedTemplate(r);
+                const sentAttachment=outgoing&&Boolean(r?.message_payload?._samara_media?.path);
+                const text=tpl?tpl.body:(sentAttachment?String(r?.message_payload?.caption||''):chatText(r));
                 const status=String(r.status||'Unknown');
                 const deliveryLabel=({read:'✓✓ Read',delivered:'✓✓ Delivered',sent:'✓ Sent',accepted:'✓ Accepted',failed:'Failed',unknown:'Acceptance unknown',sending:'Sending…',pending:'Pending'})[status.toLowerCase()]||status;
-                return h('div',{key:r.id,style:{display:'flex',justifyContent:outgoing?'flex-end':'flex-start',marginBottom:'8px'}},
-                  h('div',{style:{position:'relative',maxWidth:'72%',padding:'8px 10px 6px',borderRadius:outgoing?'8px 0 8px 8px':'0 8px 8px 8px',background:outgoing?'#d9fdd3':'#fff',boxShadow:'0 1px 1px rgba(0,0,0,.08)',color:'#292229'}},
-                    outgoing?h(React.Fragment,null,
-                      h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748',marginBottom:'6px',display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}},
+                const deleted=Boolean(r.deleted_at);
+                // Header exactly as sent: template IMAGE header / logo on replies = Samara logo; TEXT header = its text.
+                const showLogo=outgoing&&!sentAttachment&&(tpl?tpl.header?.format==='IMAGE':true);
+                const legacyButtons=!tpl&&outgoing?templateReplyButtons(String(r.template_name||'').toLowerCase()):[];
+                return h('div',{key:r.id,className:`wa-msg-row ${deleted?'wa-msg-deleted':''}`,style:{display:'flex',justifyContent:outgoing?'flex-end':'flex-start',marginBottom:'8px'}},
+                  h('div',{className:'wa-bubble',style:{position:'relative',maxWidth:'72%',padding:'8px 10px 6px',borderRadius:outgoing?'8px 0 8px 8px':'0 8px 8px 8px',background:outgoing?'#d9fdd3':'#fff',boxShadow:'0 1px 1px rgba(0,0,0,.08)',color:'#292229'}},
+                    outgoing?h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748',marginBottom:'6px',display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}},
                         h('span',null,String(r.communication_type||'Samara WhatsApp')),
                         /EMERGENCY/i.test(String(r.communication_type||''))
                           ?h('span',{style:{padding:'2px 7px',borderRadius:'999px',background:'#b42336',color:'#fff',fontSize:'10px',letterSpacing:'.2px'}},`URGENT · ${r.sent_by_name||'Samara Management'}`)
                           :/Automated/i.test(`${r.communication_type||''} ${r.sent_by_name||''}`)
                             ?h('span',{style:{padding:'2px 7px',borderRadius:'999px',background:'#7d1748',color:'#fff',fontSize:'10px',letterSpacing:'.2px'}},'AUTOMATED · Samara System')
                             :(r.sent_by_name?h('span',{style:{fontWeight:'700',color:'#7b6871'}},`· ${r.sent_by_name}`):null)
-                      ),
-                      h('div',{style:{background:'#fff',border:'1px solid #ecdce4',borderRadius:'8px',padding:'8px 10px',marginBottom:'9px',textAlign:'center'}},
+                      ):null,
+                    showLogo?h('div',{style:{background:'#fff',border:'1px solid #ecdce4',borderRadius:'8px',padding:'8px 10px',marginBottom:'9px',textAlign:'center'}},
                         h('img',{src:BRAND_LOGO_SRC,alt:'Samara Assisted Living',style:{display:'block',width:'128px',maxWidth:'70%',height:'auto',margin:'0 auto 5px'}}),
-                        String(r.template_name||'').toLowerCase()!=='employee_welcome_samara'?h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748'}},'Greetings from Samara Assisted Living'):null
-                      )
-                    ):null,
-                    h('div',{style:{whiteSpace:'pre-wrap',lineHeight:'1.42',fontSize:'14px',paddingRight:'4px'}},text),
-                    outgoing&&templateReplyButtons(String(r.template_name||'').toLowerCase()).length
-                      ?h('div',{style:{marginTop:'9px',borderTop:'1px solid #d8e6dc'}},templateReplyButtons(String(r.template_name||'').toLowerCase()).map(label=>h('div',{key:label,style:{display:'block',padding:'8px 10px',background:'#fff',borderBottom:'1px solid #d8e6dc',color:'#087f5b',fontWeight:'800',textAlign:'center'}},`↩ ${label}`)))
-                      :null,
-                    media?h('button',{type:'button',disabled:mediaBusyId===r.id,onClick:()=>openMedia(r),style:{display:'block',marginTop:'8px',padding:'7px 10px',border:'0',borderRadius:'7px',background:'#f0f2f5',color:'#5d1039',fontWeight:'700',cursor:mediaBusyId===r.id?'wait':'pointer',maxWidth:'100%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},mediaBusyId===r.id?'Opening…':mediaLabel(media)):null,
-                    outgoing&&['samara_bill_reminder','samara_payment_receipt','samara_family_portal_access','samara_discharge_confirmation','employee_welcome_samara'].includes(String(r.template_name||'').toLowerCase())
+                        !tpl&&String(r.template_name||'').toLowerCase()!=='employee_welcome_samara'&&String(r.message_type||'').toLowerCase()==='template'?h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748'}},'Greetings from Samara Assisted Living'):null
+                      ):null,
+                    tpl&&tpl.header?.format==='TEXT'?h('div',{style:{fontWeight:'800',marginBottom:'6px'}},tpl.header.text):null,
+                    media?h('button',{type:'button',className:'wa-attach-card',disabled:mediaBusyId===r.id,onClick:()=>openMedia(r)},
+                      h('span',{className:'wa-attach-icon','aria-hidden':'true'},media.type==='image'?'🖼':media.type==='audio'?'🎤':media.type==='video'?'🎬':'📄'),
+                      h('span',{className:'wa-attach-text'},h('strong',null,mediaBusyId===r.id?'Opening…':(media.filename||mediaLabel(media))),h('small',null,media.type==='image'?'Tap to view photo':media.type==='document'?'Tap to open document':'Tap to open'))):null,
+                    text?h('div',{style:{whiteSpace:'pre-wrap',lineHeight:'1.42',fontSize:'14px',paddingRight:'4px',marginTop:media?'6px':0}},text):null,
+                    tpl&&tpl.footer?h('div',{style:{marginTop:'6px',fontSize:'12px',color:'#667781'}},tpl.footer):null,
+                    tpl&&tpl.buttons.length?h('div',{style:{marginTop:'9px',borderTop:'1px solid #d8e6dc'}},tpl.buttons.map((b,i)=>b.type==='URL'&&b.url
+                        ?h('a',{key:i,href:b.url,target:'_blank',rel:'noopener noreferrer',className:'wa-tpl-btn'},`↗ ${b.text}`)
+                        :h('div',{key:i,className:'wa-tpl-btn'},`${b.type==='PHONE_NUMBER'?'📞':b.type==='URL'?'↗':'↩'} ${b.text}`))):null,
+                    legacyButtons.length?h('div',{style:{marginTop:'9px',borderTop:'1px solid #d8e6dc'}},legacyButtons.map(label=>h('div',{key:label,className:'wa-tpl-btn'},`↩ ${label}`))):null,
+                    !tpl&&outgoing&&['samara_bill_reminder','samara_payment_receipt','samara_family_portal_access','samara_discharge_confirmation','employee_welcome_samara'].includes(String(r.template_name||'').toLowerCase())
                       ?h('a',{href:String(r.template_name||'').toLowerCase()==='employee_welcome_samara'?'https://app.samaraassistedliving.com/':'https://family.samaraassistedliving.com/',target:'_blank',rel:'noopener noreferrer',style:{display:'block',marginTop:'9px',padding:'8px 10px',borderRadius:'7px',background:'#fff',border:'1px solid #b8d9c5',color:'#087f5b',fontWeight:'800',textAlign:'center',textDecoration:'none'}},String(r.template_name||'').toLowerCase()==='employee_welcome_samara'?'↗ Open Samara Care ERP':String(r.template_name||'').toLowerCase()==='samara_payment_receipt'?'↗ View Family Portal website':'↗ View Family Portal')
                       :null,
                     outgoing&&r.error_message?h('div',{style:{fontSize:'12px',color:'#a12335',marginTop:'6px'}},r.error_message):null,
-                    h('small',{style:{display:'block',marginTop:'4px',textAlign:'right',color:'#667781',fontSize:'11px'}},`${fmt(r.received_at||r.sent_at||r.created_at)}${outgoing?`  ${deliveryLabel}`:''}`)
+                    deleted?h('div',{className:'wa-deleted-note'},`🗑 Deleted from inbox by ${r.deleted_by_name||'staff'} · ${fmt(r.deleted_at)}${r.delete_reason?` · ${r.delete_reason}`:''}`):null,
+                    h('div',{style:{display:'flex',justifyContent:'flex-end',alignItems:'center',gap:'8px',marginTop:'4px'}},
+                      canDeleteMsg&&!deleted?h('button',{type:'button',className:'wa-msg-action',title:'Delete from Samara inbox',onClick:()=>hideMessage(r,true)},'Delete'):null,
+                      canRestoreMsg&&deleted?h('button',{type:'button',className:'wa-msg-action restore',onClick:()=>hideMessage(r,false)},'Restore'):null,
+                      h('small',{style:{color:'#667781',fontSize:'11px'}},`${fmt(r.received_at||r.sent_at||r.created_at)}${outgoing?`  ${deliveryLabel}`:''}`))
                   )
                 )
               })),
@@ -10757,9 +10905,15 @@ Thank you.`;
               (!isMobile||mobileComposer==='reply')?h('div',{className:'wa-free-composer',style:{display:'block',opacity:within24?1:.72}},
                 isMobile?h('div',{className:'wa-mobile-composer-title'},h('span',null,'Direct WhatsApp reply'),h('button',{type:'button',className:'wa-mobile-composer-close',onClick:()=>setMobileComposer(''),'aria-label':'Close reply'},'×')):
                   h('div',{style:{fontWeight:'800',color:within24?'#087f5b':'#5d1039',marginBottom:'7px'}},within24?'Direct message · reply window open':'Direct message locked · recipient has not replied within the last 24 hours'),
+                attachFile?h('div',{className:'wa-attach-chip'},
+                  attachFile.preview?h('img',{src:attachFile.preview,alt:'',className:'wa-attach-thumb'}):h('span',{className:'wa-attach-icon','aria-hidden':'true'},'📄'),
+                  h('span',{className:'wa-attach-text'},h('strong',null,attachFile.file.name),h('small',null,`${attachFile.kind==='image'?'Photo':'Document'} · ${(attachFile.file.size/1024/1024).toFixed(2)} MB · type a caption below (optional)`)),
+                  h('button',{type:'button',className:'wa-msg-action',disabled:busy,onClick:clearAttachment,'aria-label':'Remove attachment'},'✕')):null,
                 h('div',{style:{display:'flex',gap:'10px',alignItems:'stretch'}},
-                  h('textarea',{ref:replyEditorRef,value:reply,onChange:e=>setReply(e.target.value),placeholder:within24?'Type a direct message':'Direct messaging becomes available after the recipient replies',disabled:busy||!within24,rows:2,style:{flex:'1 1 auto',minWidth:0,resize:'none',borderRadius:'10px',background:'#fff',margin:0}}),
-                  h('button',{type:'button',className:'btn btn-primary',disabled:busy||!within24||!reply.trim(),onClick:sendReply,style:{minWidth:isMobile?'86px':'110px'}},busy?'Sending…':'Send')
+                  h('input',{ref:attachInputRef,type:'file',accept:'image/jpeg,image/png,application/pdf,.doc,.docx,.xls,.xlsx',style:{display:'none'},onChange:e=>pickAttachment(e.target.files?.[0])}),
+                  h('button',{type:'button',className:'wa-attach-btn',disabled:busy||!within24,title:within24?'Attach photo or document':'Attachments need the 24-hour reply window','aria-label':'Attach photo or document',onClick:()=>attachInputRef.current?.click()},'📎'),
+                  h('textarea',{ref:replyEditorRef,value:reply,onChange:e=>setReply(e.target.value),placeholder:!within24?'Direct messaging becomes available after the recipient replies':attachFile?'Add a caption (optional)':'Type a direct message',disabled:busy||!within24,rows:2,style:{flex:'1 1 auto',minWidth:0,resize:'none',borderRadius:'10px',background:'#fff',margin:0}}),
+                  h('button',{type:'button',className:'btn btn-primary',disabled:busy||!within24||(!reply.trim()&&!attachFile),onClick:attachFile?sendAttachment:sendReply,style:{minWidth:isMobile?'86px':'110px'}},busy?'Sending…':'Send')
                 )
               ):null,
               (!isMobile||mobileComposer==='template')?h('div',{className:'wa-template-composer'},

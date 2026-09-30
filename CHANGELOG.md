@@ -3,6 +3,13 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.24 — WhatsApp Inbox works like a real WhatsApp inbox
+- Original messages: templates are shown exactly as the recipient received them (image/text header, body with the values filled in, footer, buttons), using Samara's approved templates copied from Meta (new Edge Function whatsapp-templates-sync; needs secret WHATSAPP_BUSINESS_ACCOUNT_ID). Auto-refreshed daily; "Refresh templates" button for Admin / Manager. Conversation list previews use the real text too.
+- Delete: Admin and Manager can delete a message from the Samara inbox (with optional reason); Admin sees "Show deleted" and can Restore. Meta cannot delete a business message from the recipient's phone. Every delete/restore is in the audit log.
+- Attachments: 📎 sends a photo (JPG/PNG, 5 MB) or document (PDF/Word/Excel, 15 MB) with optional caption, inside the 24-hour reply window. Samara keeps its own copy; sent and received files open from a WhatsApp-style file card.
+- whatsapp-media now also serves Samara's stored copies (sent attachments, archived files, Daily Report PDFs) — only for files an Inbox message refers to.
+- SQL: supabase/sql/174_whatsapp_inbox_real.sql. Edge Functions to deploy: whatsapp-templates-sync (new), whatsapp-send and whatsapp-media (updated; source in supabase/function-copies/*-food-scope.ts, mirrored in supabase/functions/).
+
 ## 2.15.23 — WhatsApp button shows the WhatsApp logo (from icons/)
 - Uses the WhatsApp icon uploaded to icons/whatsapp-logo-png-icon.png, resized to icons/whatsapp-96.png (7.5 KB instead of 200 KB) so the page stays fast on phones. Button: white with green border, logo on top, "WhatsApp" below. No SQL.
 

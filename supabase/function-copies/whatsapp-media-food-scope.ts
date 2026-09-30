@@ -1,4 +1,4 @@
-// Self-contained for Supabase Dashboard deployment.
+// Self-contained for Supabase Dashboard deployment. Edge Function: whatsapp-media (ERP 2.15.24: also serves Samara's stored copies).
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 async function requireWhatsAppUser(req: Request) {
@@ -38,6 +38,30 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const mediaId = String(body?.media_id || "").trim();
+
+    // 2.15.24: Samara's own stored copy (photos / PDFs sent from the Inbox, archived incoming files,
+    // Daily Report PDFs). Served only when an Inbox message actually refers to that exact file.
+    const storedPath = String(body?.stored_path || "").trim();
+    const storedBucket = String(body?.stored_bucket || "whatsapp-media").trim();
+    if (storedPath) {
+      if (!["whatsapp-media", "patient-reports"].includes(storedBucket) || storedPath.includes("..")) return json({ error: "This file location is not allowed." }, 400);
+      const byMedia = await caller.db.from("hr_whatsapp_communications").select("id,recipient_number").eq("message_payload->_samara_media->>path", storedPath).limit(1);
+      const byReport = byMedia.data?.length ? { data: [] as any[] } : await caller.db.from("hr_whatsapp_communications").select("id,recipient_number").eq("message_payload->>report_storage_path", storedPath).limit(1);
+      const row = byMedia.data?.[0] || byReport.data?.[0];
+      if (row) {
+        const { data: scoped, error: scopeError } = await caller.db.rpc("wa_food_guard", { p_user: caller.user.id, p_phone: String(row.recipient_number || "").replace(/\D/g, ""), p_template: null });
+        if (scopeError || !scoped) return json({ error: "Your role cannot open this WhatsApp attachment." }, 403);
+        const file = await caller.db.storage.from(storedBucket).download(storedPath);
+        if (!file.error && file.data) {
+          const headers = new Headers(corsHeaders);
+          headers.set("Content-Type", file.data.type || "application/octet-stream");
+          headers.set("Cache-Control", "private, no-store");
+          headers.set("Content-Disposition", "inline");
+          return new Response(file.data, { status: 200, headers });
+        }
+      }
+      if (!mediaId) return json({ error: "This attachment is no longer stored in Samara ERP." }, 410);
+    }
     if (!mediaId || !/^[A-Za-z0-9_-]+$/.test(mediaId)) return json({ error: "A valid WhatsApp media ID is required" }, 400);
 
     const { data: scoped, error: scopeError } = await caller.db.rpc("wa_food_guard", { p_user: caller.user.id, p_media: mediaId });
