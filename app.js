@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.21';
+  const APP_VERSION = '2.15.22';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -21222,8 +21222,7 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
               h('span',{className:'guest-call-icon','aria-hidden':'true'},'📞'),
               h('span',{className:'guest-call-text'},h('strong',null,c.name),h('small',null,`${c.role} · ${String(c.number).trim()}`))),
             c.wa&&h('a',{href:c.wa,target:'_blank',rel:'noopener noreferrer',className:'guest-wa-btn',title:'Opens WhatsApp chat — tap the 📞 call icon there','aria-label':`WhatsApp ${c.name} — opens chat, then tap call`},
-              h('svg',{viewBox:'0 0 24 24',width:22,height:22,'aria-hidden':'true',fill:'currentColor'},h('path',{d:'M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91C21.96 6.45 17.5 2 12.04 2zm5.8 14.03c-.25.69-1.44 1.32-1.99 1.36-.51.05-.99.24-3.33-.69-2.81-1.1-4.6-3.97-4.74-4.16-.14-.18-1.13-1.5-1.13-2.86s.71-2.03.97-2.31c.25-.28.55-.35.73-.35h.53c.17 0 .4-.06.62.48.23.55.78 1.9.85 2.04.07.14.11.3.02.48-.09.18-.14.3-.27.46-.14.16-.29.36-.41.48-.14.14-.28.29-.12.57.16.28.71 1.17 1.53 1.9 1.05.94 1.94 1.23 2.22 1.37.28.14.44.12.6-.07.17-.19.69-.81.88-1.09.18-.28.37-.23.62-.14.25.09 1.6.76 1.87.9.28.14.46.2.53.32.07.12.07.69-.18 1.37z'})),
-              h('span',null,'WhatsApp')))))
+              'WhatsApp'))))
         :h('p',{className:'small-note'},family===null?'Loading contact numbers…':'No contact numbers recorded. Add them in Family Details or Edit Patient.'),
       family===null&&calls.length>0&&h('small',{className:'small-note'},'Loading family contacts…'));
   }

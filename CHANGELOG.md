@@ -3,6 +3,9 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.22 — WhatsApp button: plain green button with the word "WhatsApp"
+- Guest Overview → 📞 Call: the WhatsApp button is now a plain green text button (no icon); the ERP's pink theme can no longer recolour it. No SQL.
+
 ## 2.15.21 — WhatsApp button beside each Call button
 - Guest Overview → 📞 Call: every mobile number also gets a green WhatsApp button (opens that person's WhatsApp chat; tap WhatsApp's 📞 icon to call). WhatsApp has no link that starts a call directly. Landlines get no WhatsApp button. No SQL.
 
