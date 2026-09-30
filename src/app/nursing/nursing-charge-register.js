@@ -28,10 +28,11 @@
       return()=>client.removeChannel(ch);
     },[load,canView]);
 
+    // 2.15.14: discharged Guests' names also show (they are not in the active list)
+    const {pFor,pLabel}=usePatientLookup(patients,rows.map(r=>r.patient_id));
+
     if(!canView)return h(Section,{title:'Charge Register'},h('p',null,'Admin / Nursing Manager access only.'));
 
-    const pFor=id=>patients.find(p=>p.id===id)||{};
-    const pLabel=id=>{const p=pFor(id);return p.id?`${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}-${p.bed_no||'—'}`:'—'};
     const money=v=>v!==null&&v!==undefined&&v!==''?`₹${Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'—';
     const statusOf=r=>r.approval_status||'Pending';
     const statusLabel=s=>s==='Rejected'?'Returned':s;

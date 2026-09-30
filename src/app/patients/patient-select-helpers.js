@@ -5,6 +5,39 @@
     React.useEffect(()=>{load();const ch=client.channel(`active-patients-${Math.random()}`).on('postgres_changes',{event:'*',schema:'public',table:'patients'},load).subscribe();return()=>client.removeChannel(ch)},[load]);
     return [rows,load];
   }
+  // 2.15.14: registers / timelines list records for ALL Guests, but usePatients()
+  // loads only active ones — so a discharged Guest's charge or test showed "—".
+  // This fetches just the missing Guests by id (dropdowns stay active-only).
+  function usePatientLookup(activeRows,ids){
+    const [extra,setExtra]=React.useState({});
+    const known=new Set((activeRows||[]).map(p=>String(p.id)));
+    const missing=[...new Set((ids||[]).filter(Boolean).map(String))].filter(id=>!known.has(id)&&!(id in extra)).sort();
+    const missingKey=missing.join(',');
+    React.useEffect(()=>{
+      if(!missing.length)return;
+      let cancelled=false;
+      (async()=>{
+        const found={};
+        for(let i=0;i<missing.length;i+=100){
+          const chunk=missing.slice(i,i+100);
+          const r=await client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').in('id',chunk);
+          if(r.error){console.warn('Guest lookup failed',r.error);return}
+          chunk.forEach(id=>{found[id]=null});
+          (r.data||[]).forEach(p=>{found[String(p.id)]=p});
+        }
+        if(!cancelled)setExtra(current=>({...current,...found}));
+      })();
+      return()=>{cancelled=true};
+    },[missingKey]);
+    const pFor=id=>(activeRows||[]).find(p=>String(p.id)===String(id))||extra[String(id)]||{};
+    const pLabel=id=>{
+      const p=pFor(id);
+      if(!p.id)return '—';
+      if(p.is_active===false)return `${formalName(p)} · ${p.patient_id||'—'} · Discharged`;
+      return `${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}-${p.bed_no||'—'}`;
+    };
+    return {pFor,pLabel};
+  }
   function patientSelect(rows,value,onChange,label='Patient'){return h('div',{className:'field'},h('label',null,label),h('select',{value,onChange:e=>onChange(e.target.value),required:true},h('option',{value:''},'Select patient'),rows.map(p=>h('option',{key:p.id,value:p.id},`${p.patient_id||'NO-ID'} · ${formalName(p)} · ${p.room_no&&p.bed_no?`Room ${p.room_no}-${p.bed_no}`:'Room unassigned'}`))))}
   function roomBedSelect(rows,roomNo,bedNo,onChange,required=false,currentPatientId=''){
     const value=roomNo&&bedNo?`${roomNo}|||${bedNo}`:'';

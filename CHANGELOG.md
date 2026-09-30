@@ -3,6 +3,10 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.14 — Guest name shows on charge requests & diagnostics of discharged Guests
+- Bills & Charges / Charge Approvals (Bill & Charge Requests + Diagnostic Services Timeline) and the Nursing Charge Register showed "—" in the Patient column when the Guest had been discharged (only active Guests were loaded).
+- Missing Guests are now looked up by ID and shown as "Name · Resident ID · Discharged". Patient dropdowns still list active Guests only. No SQL.
+
 ## 2.15.13 — Discharge Approval (management review) made simple, mobile-friendly
 - Opens with only three things: **Patient** (name, Resident ID, room, discharge type/date, condition, destination, doctor), **Payment** (charges, paid/advance, discount given, outstanding) and **Discount & Decision** (remarks, discount amount/reason for Admin, Reject / Approve).
 - **View full details** button shows everything else (raised charge requests, full nursing discharge request, all account transactions, Refresh account review).

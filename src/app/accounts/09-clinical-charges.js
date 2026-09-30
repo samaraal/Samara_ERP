@@ -300,8 +300,8 @@
         if(node)node.scrollIntoView({behavior:'smooth',block:'start'});
       },60);
     }
-    const pFor=id=>patients.find(p=>p.id===id)||{};
-    const pLabel=id=>{const p=pFor(id);return p.id?`${formalName(p)} · ${p.patient_id||'—'} · Room ${p.room_no||'—'}-${p.bed_no||'—'}`:'—'};
+    // 2.15.14: discharged Guests' names also show (they are not in the active list)
+    const {pFor,pLabel}=usePatientLookup(patients,[...rows.map(r=>r.patient_id),...diagnostics.map(d=>d.patient_id)]);
     const money=v=>v!==null&&v!==undefined&&v!==''?`₹${Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'—';
 
     async function load(){
