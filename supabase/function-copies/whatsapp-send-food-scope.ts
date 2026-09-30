@@ -1,4 +1,4 @@
-// Self-contained for Supabase Dashboard deployment.
+// Self-contained for Supabase Dashboard deployment. Deploy as Edge Function: whatsapp-send (updated for SQL 169).
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 async function requireWhatsAppUser(req: Request) {
@@ -8,7 +8,7 @@ async function requireWhatsAppUser(req: Request) {
   const { data: { user }, error } = await db.auth.getUser(token);
   if (error || !user) throw new Error("Invalid ERP session");
   const { data: profile, error: profileError } = await db.from("duty_profiles").select("id,role,is_active,active").or(`id.eq.${user.id},auth_user_id.eq.${user.id}`).maybeSingle();
-  if (profileError || !profile || !(profile.is_active ?? profile.active ?? false) || !["Admin", "Manager"].includes(profile.role)) throw new Error("WhatsApp access requires an active Admin or Manager account");
+  if (profileError || !profile || !(profile.is_active ?? profile.active ?? false)) throw new Error("WhatsApp access requires an active ERP account"); // 169: wa_food_guard (SQL) decides what each role may send and to whom.
   return { db, user, profile };
 }
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
 
   let caller;
   try { caller = await requireWhatsAppUser(req); }
-  catch (_) { return new Response(JSON.stringify({ error: "An active Admin or Manager session is required." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }); }
+  catch (_) { return new Response(JSON.stringify({ error: "An active ERP session is required. Please sign in again." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }); }
   try {
     const accessToken = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
     const phoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
     if (!to) throw new Error("Recipient phone number is required");
 
     const { data: scoped, error: scopeError } = await caller.db.rpc("wa_food_guard", { p_user: caller.user.id, p_phone: to, p_template: messageType === "text" ? null : String(body.template_name || "") });
-    if (scopeError || !scoped) return new Response(JSON.stringify({ error: "WhatsApp access is limited to authorised food-vendor conversations." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (scopeError || !scoped) return new Response(JSON.stringify({ error: scopeError ? "WhatsApp permission check failed. Please ask the administrator to run SQL 169." : "Your role cannot send this WhatsApp message to this number. Check the family / patient mobile in the Patient File, or ask a Manager." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     let payload: Record<string, unknown>;
     if (messageType === "text") {
