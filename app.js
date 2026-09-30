@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.18';
+  const APP_VERSION = '2.15.19';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2726,6 +2726,54 @@ https://samaraassistedliving.com/`;
         h('div',{className:'modal-bottom-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:onClose},'Close'))
       )
     );
+  }
+  // 2.15.19: GLOBAL RULE — a click that points at one record opens that record, not a long list.
+  // openRecord(page, focus) remembers what to show and opens the page; the page calls
+  // useRecordFocus(page) to get it, shows only that record (with a "Show all" button),
+  // scrolls to it and highlights it. focus = {id?, patient_id?, label}.
+  const RECORD_FOCUS_KEY='samara-record-focus';
+  function openRecord(page,focus){
+    const payload={...(focus||{}),page,at:Date.now()};
+    try{sessionStorage.setItem(RECORD_FOCUS_KEY,JSON.stringify(payload))}catch(_e){}
+    window.dispatchEvent(new CustomEvent('samara-record-focus',{detail:payload}));
+    window.dispatchEvent(new CustomEvent('samara-open-page',{detail:{page}}));
+  }
+  function takeRecordFocus(page){
+    try{
+      const f=JSON.parse(sessionStorage.getItem(RECORD_FOCUS_KEY)||'null');
+      if(!f||f.page!==page||Date.now()-Number(f.at||0)>120000)return null;
+      sessionStorage.removeItem(RECORD_FOCUS_KEY);
+      return f;
+    }catch(_e){return null}
+  }
+  function useRecordFocus(page){
+    const [focus,setFocus]=React.useState(()=>takeRecordFocus(page));
+    React.useEffect(()=>{
+      const on=e=>{if(e.detail?.page===page){try{sessionStorage.removeItem(RECORD_FOCUS_KEY)}catch(_e){}setFocus(e.detail)}};
+      window.addEventListener('samara-record-focus',on);
+      return()=>window.removeEventListener('samara-record-focus',on);
+    },[page]);
+    return [focus,()=>setFocus(null),setFocus];
+  }
+  // Scroll to the element and flash it once the rows have rendered.
+  function useScrollToFocused(elementId,ready){
+    React.useEffect(()=>{
+      if(!elementId||!ready)return;
+      const t=setTimeout(()=>{
+        const el=document.getElementById(elementId);
+        if(!el)return;
+        el.scrollIntoView({behavior:'smooth',block:'center'});
+        el.classList.add('record-focus-flash');
+        setTimeout(()=>el.classList.remove('record-focus-flash'),2600);
+      },120);
+      return()=>clearTimeout(t);
+    },[elementId,ready]);
+  }
+  function RecordFocusBanner({focus,onShowAll}){
+    if(!focus)return null;
+    return h('div',{className:'record-focus-banner',role:'status'},
+      h('span',null,'Showing only: ',h('strong',null,focus.label||'selected record')),
+      h('button',{type:'button',className:'btn btn-secondary',onClick:onShowAll},'Show all'));
   }
   function showClinicalAlertPopup({
     heading='CLINICAL ALERT',
@@ -21306,6 +21354,8 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
       try{return JSON.parse(sessionStorage.getItem('samara-workflow-target')||'null')}catch(_error){return null}
     });
     const [paymentTarget,setPaymentTarget]=React.useState(null);
+    // 2.15.19: global record focus — a link can open this page on one Guest's discharge only.
+    const [recordFocus,clearRecordFocus,setRecordFocus]=useRecordFocus(isAccountsClearance?'Discharge Clearance':'Discharge');
     const [managementReviewRow,setManagementReviewRow]=React.useState(null);
     const [managementReviewFull,setManagementReviewFull]=React.useState(false); // 2.15.13: simple view first
     const [managementBilling,setManagementBilling]=React.useState([]);
@@ -21922,8 +21972,10 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
           `Will be removed:\n${lines.join('\n')||'• the Guest record'}\n• ${fileCount} stored file(s)\n\n`+
           `Kept: audit log (with receipt voucher numbers and any paid Razorpay IDs), stock history.\nThis CANNOT be undone.\n\nType the Resident ID ${p.patient_id} to confirm:`,'');
         if(typed===null)return;
-        if(String(typed).trim().toUpperCase()!==String(p.patient_id||'').trim().toUpperCase()){notify('error','Not erased','Resident ID did not match. Nothing was changed.');return}
-        const res=await client.rpc('purge_trial_guest',{p_patient:p.id,p_resident_code:String(typed).trim(),p_dry_run:false});
+        // 2.15.19: compare letters and digits only (spaces / dash types don't matter).
+        const norm=v=>String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+        if(!norm(typed)||norm(typed)!==norm(p.patient_id)){notify('error','Not erased',`You typed "${String(typed).trim()}" — the Resident ID is ${p.patient_id}. Nothing was changed.`);return}
+        const res=await client.rpc('purge_trial_guest',{p_patient:p.id,p_resident_code:p.patient_id,p_dry_run:false});
         if(res.error){notify('error','Not erased',`${res.error.message} — nothing was changed.`);return}
         let fileErrors=0;
         for(const [bucket,paths] of Object.entries(files)){
@@ -21952,6 +22004,18 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
         return {label:'Open Payments',run:()=>openPayments(row)};
       if(st(row.accounts_status)==='cleared'&&isNurse&&!isAssignedDirector)return {label:'Final Discharge Clearance',run:()=>setTimeout(()=>openFinalDischarge(row),0)};
       return null;
+    }
+    function focusRegisterOn(row){
+      const p=patientFor(row.patient_id);
+      setRecordFocus({id:row.id,patient_id:row.patient_id,label:`${formalName(p)||'Guest'}${p.patient_id?` · ${p.patient_id}`:''}`});
+    }
+    // Extra one-click buttons shown on the timeline entry itself.
+    function timelineExtras(caseId){
+      const row=rows.find(r=>String(r.id)===String(caseId));
+      if(!row)return [];
+      const extras=[{label:'Show in register',run:()=>focusRegisterOn(row)}];
+      if(profile?.role==='Admin'&&patientFor(row.patient_id).is_trial)extras.unshift({label:'🧪 Erase Trial Guest',danger:true,run:()=>eraseTrialGuest(row)});
+      return extras;
     }
 
     async function requestDiscountApproval(row){
@@ -22359,7 +22423,8 @@ Doctor / Hospital: ${doctorHospital}`;
 
     const visibleRows=rows.filter(row=>!['cancelled','canceled'].includes(
       String(row.status||'').trim().toLowerCase()
-    ));
+    )).filter(row=>!recordFocus||String(row.id)===String(recordFocus.id||'')||(!recordFocus.id&&String(row.patient_id)===String(recordFocus.patient_id||'')));
+    useScrollToFocused('discharge-register',!!recordFocus&&visibleRows.length>0);
     const tableRows=visibleRows.map(row=>[
       patientLabel(row.patient_id),
       row.initiation_basis||'—',
@@ -22470,11 +22535,13 @@ Doctor / Hospital: ${doctorHospital}`;
         )
       ),
       !isAccountsClearance&&h(DischargeMedicationReview),
-      h(window.SamaraDischargeWorkflow.Panel,{client,profile,onChanged:load,caseAction:timelineAction}),
+      h(window.SamaraDischargeWorkflow.Panel,{client,profile,onChanged:load,caseAction:timelineAction,caseExtras:timelineExtras}),
+      h('div',{id:'discharge-register',style:{scrollMarginTop:'120px'}},
+      h(RecordFocusBanner,{focus:recordFocus,onShowAll:clearRecordFocus}),
       h(LogTable,{title:isAccountsClearance?`Pending Financial Clearance (${tableRows.length})`:`Discharge Workflow Register (${tableRows.length})`,
         heads:['Patient','Initiation Basis','Instruction / Request','Date','Initiated By','Management','Decision By','Decision Time','Accounts','Last Cleared By','Last Clearance Time','Current Status','Completed By','Action'],
         rows:tableRows
-      }),
+      })),
       show&&h('div',{className:'modal-backdrop'},
         h('form',{className:'card modal',style:{width:'min(1100px,96vw)',maxHeight:'92vh',overflow:'auto'},onSubmit:save},
           h('div',{className:'panel-head'},h('div',null,h('h3',null,

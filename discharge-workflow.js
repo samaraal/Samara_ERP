@@ -39,7 +39,7 @@
    waiting.length>0&&h('div',null,waiting.map(c=>c.patient_name).join(', ')),
    h('button',{className:'btn btn-secondary',type:'button',onClick:()=>openFollowUp(onNavigate,profile,data.cases)},'Open discharge follow-up'));
  }
- function Panel({client,profile,onChanged,caseAction}){
+ function Panel({client,profile,onChanged,caseAction,caseExtras}){
   const {data,error,load}=useWorkspace(client,profile);
   const [selected,setSelected]=R.useState(null),[actual,setActual]=R.useState(''),[reason,setReason]=R.useState('');
   const [review,setReview]=R.useState(null),[note,setNote]=R.useState(''),[confirmed,setConfirmed]=R.useState(false);
@@ -114,7 +114,12 @@
        return h('span',{style:{display:'flex',flexWrap:'wrap',gap:'8px',marginTop:'6px',marginLeft:'18px'}},
         h('span',{className:'badge',style:{background:'#a91360',color:'#fff',fontWeight:700}},'Click to open: '+a.label+' →'),
         h('button',{type:'button',className:'btn btn-secondary',style:{padding:'2px 10px',fontSize:'13px',minHeight:0},
-         onClick:e=>{e.preventDefault();e.stopPropagation();const d=e.currentTarget.closest('details');if(d)d.open=!d.open}},'History ▾'))})()),
+         onClick:e=>{e.preventDefault();e.stopPropagation();const d=e.currentTarget.closest('details');if(d)d.open=!d.open}},'History ▾'))})(),
+      // 2.15.19: one-click extras on the entry itself (e.g. Erase Trial Guest, Show in register)
+      (()=>{const extras=caseExtras?caseExtras(c.id):[];if(!extras.length)return null;
+       return h('span',{style:{display:'flex',flexWrap:'wrap',gap:'8px',marginTop:'6px',marginLeft:'18px'}},
+        extras.map((x,i)=>h('button',{key:i,type:'button',className:x.danger?'btn btn-danger':'btn btn-secondary',style:{padding:'2px 10px',fontSize:'13px',minHeight:0},
+         onClick:e=>{e.preventDefault();e.stopPropagation();x.run()}},x.label)))})()),
      pending&&c.status!=='Completed'&&h('p',{className:'message warning'},'Final Nursing discharge is blocked until an authorised reviewer resolves the pending departure report below.'),
      c.overdue&&h('p',{className:'message warning'},'Waiting over 2 hours. Nursing Manager / Admin attention required.'),
      h('p',null,`Initiated: ${time(c.initiated_at)} · Management approved: ${time(c.management_approved_at)}`),

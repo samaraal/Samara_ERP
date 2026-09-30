@@ -67,6 +67,11 @@
    "lines": 29
   },
   {
+   "file": "shared/03-record-focus.js",
+   "about": "GLOBAL: open a page focused on one record (openRecord / useRecordFocus / Show all banner)",
+   "lines": 52
+  },
+  {
    "file": "clinical-alerts/01-alert-engine.js",
    "about": "Clinical alert popup + the background clinical alert engine",
    "lines": 1210

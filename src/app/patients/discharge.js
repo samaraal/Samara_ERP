@@ -53,6 +53,8 @@
       try{return JSON.parse(sessionStorage.getItem('samara-workflow-target')||'null')}catch(_error){return null}
     });
     const [paymentTarget,setPaymentTarget]=React.useState(null);
+    // 2.15.19: global record focus — a link can open this page on one Guest's discharge only.
+    const [recordFocus,clearRecordFocus,setRecordFocus]=useRecordFocus(isAccountsClearance?'Discharge Clearance':'Discharge');
     const [managementReviewRow,setManagementReviewRow]=React.useState(null);
     const [managementReviewFull,setManagementReviewFull]=React.useState(false); // 2.15.13: simple view first
     const [managementBilling,setManagementBilling]=React.useState([]);
@@ -669,8 +671,10 @@
           `Will be removed:\n${lines.join('\n')||'• the Guest record'}\n• ${fileCount} stored file(s)\n\n`+
           `Kept: audit log (with receipt voucher numbers and any paid Razorpay IDs), stock history.\nThis CANNOT be undone.\n\nType the Resident ID ${p.patient_id} to confirm:`,'');
         if(typed===null)return;
-        if(String(typed).trim().toUpperCase()!==String(p.patient_id||'').trim().toUpperCase()){notify('error','Not erased','Resident ID did not match. Nothing was changed.');return}
-        const res=await client.rpc('purge_trial_guest',{p_patient:p.id,p_resident_code:String(typed).trim(),p_dry_run:false});
+        // 2.15.19: compare letters and digits only (spaces / dash types don't matter).
+        const norm=v=>String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+        if(!norm(typed)||norm(typed)!==norm(p.patient_id)){notify('error','Not erased',`You typed "${String(typed).trim()}" — the Resident ID is ${p.patient_id}. Nothing was changed.`);return}
+        const res=await client.rpc('purge_trial_guest',{p_patient:p.id,p_resident_code:p.patient_id,p_dry_run:false});
         if(res.error){notify('error','Not erased',`${res.error.message} — nothing was changed.`);return}
         let fileErrors=0;
         for(const [bucket,paths] of Object.entries(files)){
@@ -699,6 +703,18 @@
         return {label:'Open Payments',run:()=>openPayments(row)};
       if(st(row.accounts_status)==='cleared'&&isNurse&&!isAssignedDirector)return {label:'Final Discharge Clearance',run:()=>setTimeout(()=>openFinalDischarge(row),0)};
       return null;
+    }
+    function focusRegisterOn(row){
+      const p=patientFor(row.patient_id);
+      setRecordFocus({id:row.id,patient_id:row.patient_id,label:`${formalName(p)||'Guest'}${p.patient_id?` · ${p.patient_id}`:''}`});
+    }
+    // Extra one-click buttons shown on the timeline entry itself.
+    function timelineExtras(caseId){
+      const row=rows.find(r=>String(r.id)===String(caseId));
+      if(!row)return [];
+      const extras=[{label:'Show in register',run:()=>focusRegisterOn(row)}];
+      if(profile?.role==='Admin'&&patientFor(row.patient_id).is_trial)extras.unshift({label:'🧪 Erase Trial Guest',danger:true,run:()=>eraseTrialGuest(row)});
+      return extras;
     }
 
     async function requestDiscountApproval(row){
@@ -1106,7 +1122,8 @@ Doctor / Hospital: ${doctorHospital}`;
 
     const visibleRows=rows.filter(row=>!['cancelled','canceled'].includes(
       String(row.status||'').trim().toLowerCase()
-    ));
+    )).filter(row=>!recordFocus||String(row.id)===String(recordFocus.id||'')||(!recordFocus.id&&String(row.patient_id)===String(recordFocus.patient_id||'')));
+    useScrollToFocused('discharge-register',!!recordFocus&&visibleRows.length>0);
     const tableRows=visibleRows.map(row=>[
       patientLabel(row.patient_id),
       row.initiation_basis||'—',
@@ -1217,11 +1234,13 @@ Doctor / Hospital: ${doctorHospital}`;
         )
       ),
       !isAccountsClearance&&h(DischargeMedicationReview),
-      h(window.SamaraDischargeWorkflow.Panel,{client,profile,onChanged:load,caseAction:timelineAction}),
+      h(window.SamaraDischargeWorkflow.Panel,{client,profile,onChanged:load,caseAction:timelineAction,caseExtras:timelineExtras}),
+      h('div',{id:'discharge-register',style:{scrollMarginTop:'120px'}},
+      h(RecordFocusBanner,{focus:recordFocus,onShowAll:clearRecordFocus}),
       h(LogTable,{title:isAccountsClearance?`Pending Financial Clearance (${tableRows.length})`:`Discharge Workflow Register (${tableRows.length})`,
         heads:['Patient','Initiation Basis','Instruction / Request','Date','Initiated By','Management','Decision By','Decision Time','Accounts','Last Cleared By','Last Clearance Time','Current Status','Completed By','Action'],
         rows:tableRows
-      }),
+      })),
       show&&h('div',{className:'modal-backdrop'},
         h('form',{className:'card modal',style:{width:'min(1100px,96vw)',maxHeight:'92vh',overflow:'auto'},onSubmit:save},
           h('div',{className:'panel-head'},h('div',null,h('h3',null,

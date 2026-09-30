@@ -3,6 +3,11 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.19 — Global "open this record only" + Erase Trial Guest on the timeline
+- New shared helper (src/app/shared/03-record-focus.js): openRecord(page,{id,patient_id,label}) opens a page focused on one record; the page shows only that record with a yellow "Showing only: … — Show all" bar, scrolls to it and highlights it. Rule: every link to one record should use it.
+- Discharge / Discharge Clearance: register can be focused on one Guest. Timeline entries get one-click buttons on the entry itself — "Show in register" and, for Admin on a Trial Guest, "🧪 Erase Trial Guest" (no scrolling to find the row).
+- Erase Trial Guest: the Resident ID check now compares letters and digits only (spaces / dash styles no longer cause "did not match"), and shows what was typed if it still differs. No SQL.
+
 ## 2.15.18 — Erase Trial Guest: receipt vouchers and payment links erased with the Guest
 - Live database: payment_vouchers.patient_id is mandatory, so "detach" was refused ("protected payment_vouchers … cannot be detached"); nothing had changed.
 - payment_vouchers (the Guest's own CV-/CARDV- receipt vouchers) and staff_payment_requests (the Guest's Razorpay payment links) are Guest-owned and are now erased with the Guest. Their voucher numbers and any PAID Razorpay payment IDs are copied into the permanent TRIAL_GUEST_PURGED audit entry first; the list step flags paid online payments.
