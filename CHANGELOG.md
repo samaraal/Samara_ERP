@@ -4,8 +4,9 @@ Newest first. From 2.14.15 onwards, add each release here (a few lines) instead 
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
 ## SQL 169 + whatsapp-send (hotfix on 2.15.11) — automatic patient / family WhatsApp for the staff who trigger them
-- Audit found automatic WhatsApp silently failing because whatsapp-send allowed only Admin / Manager (Nursing Manager only food vendors): **Admission WhatsApp + Family Portal access** (Nursing Manager, Jaya, Saranya), **Discharge confirmation** on final discharge (Nurse), **Payment receipt** after payment (Accounts).
-- Now decided in one place, `wa_food_guard`: Nursing Manager → food vendors + admission / portal access / discharge / review reminder; Jaya & Saranya → admission / portal access; Nurse → discharge confirmation / review reminder; Accounts → payment receipt / bill reminder; Admin / Manager unchanged. Patient / family templates only to a number registered for a patient.
+- Admission WhatsApp + Family Portal access failed with "limited to authorised food-vendor conversations" for the Nursing Manager (and would fail for Jaya / Saranya); review reminder (Nurse) and bill reminder (Accounts) were also blocked. Discharge confirmation and Payment receipt were already handled by their own checks in the live function and are unchanged.
+- Role rules now in one place, `wa_food_guard`: Nursing Manager → food vendors + admission / portal access / discharge / review reminder; Jaya & Saranya → admission / portal access; Nurse → discharge / review reminder; Accounts → payment receipt / bill reminder; Admin / Manager unchanged. Patient / family templates only to a number registered for a patient.
+- whatsapp-send (from the live deployed version): removed only the Admin/Manager-only line before `wa_food_guard`; clearer error messages.
 - Deploy: run `supabase/sql/169_whatsapp_send_roles_patient_family.sql` (supersedes 168), then redeploy Edge Function **whatsapp-send** from `supabase/function-copies/whatsapp-send-food-scope.ts`. Read-only check: `supabase/sql/diagnostic_whatsapp_automation.sql`.
 
 ## 2.15.11 — Medicines: nurse may WITHHOLD a dose on clinical assessment; doctor's instruction follow-up (SQL 167)

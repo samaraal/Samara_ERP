@@ -1,13 +1,11 @@
 -- 169: Automatic patient / family WhatsApp — allow the staff who actually trigger them.
 -- (Supersedes 168. Safe to run whether or not 168 was run. Safe to run more than once.)
 --
--- Audit finding (30-09-2026): every browser-triggered WhatsApp goes through the whatsapp-send
--- Edge Function, which only allowed Admin / Manager, and the Nursing Manager only for food vendors.
--- So these automatic messages were silently failing for the person who triggers them:
---   * Admission WhatsApp + Family Portal access  -> Nursing Manager, Jaya, Saranya
---   * Discharge confirmation (on final discharge) -> Nurse (only a Nurse can complete final discharge)
---   * Payment receipt (after payment is saved)    -> Accounts
---
+-- Audit finding (30-09-2026): the live whatsapp-send Edge Function already verifies Discharge
+-- confirmation and Payment receipt itself, but every other message required an Admin / Manager
+-- login and then wa_food_guard, which limited the Nursing Manager to food vendors. So:
+--   * Admission WhatsApp + Family Portal access failed for the Nursing Manager (and Jaya / Saranya)
+--   * Review-appointment reminder failed for Nurses, bill reminder failed for Accounts
 -- New rule, decided here in ONE place (wa_food_guard), used by whatsapp-send:
 --   Admin / Manager (not Nursing Manager) ...... everything, as before
 --   Nursing Manager ............................ food vendors (as before) + admission, portal access,
@@ -20,7 +18,8 @@
 -- Free-text replies and attachments keep the old rules.
 --
 -- IMPORTANT: also redeploy the whatsapp-send Edge Function from
--- supabase/function-copies/whatsapp-send-food-scope.ts (it now lets the guard decide the role).
+-- supabase/function-copies/whatsapp-send-food-scope.ts (live version; its Admin/Manager-only
+-- line is removed so this guard decides the role). Its own Discharge / Receipt checks are unchanged.
 
 begin;
 

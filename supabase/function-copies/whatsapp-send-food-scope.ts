@@ -1,4 +1,4 @@
-// Self-contained for Supabase Dashboard deployment. Deploy as Edge Function: whatsapp-send (updated for SQL 169).
+// Self-contained for Supabase Dashboard deployment. Edge Function: whatsapp-send (SQL 169 update, 30-09-2026).
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 async function requireWhatsAppUser(req: Request) {
@@ -8,7 +8,7 @@ async function requireWhatsAppUser(req: Request) {
   const { data: { user }, error } = await db.auth.getUser(token);
   if (error || !user) throw new Error("Invalid ERP session");
   const { data: profile, error: profileError } = await db.from("duty_profiles").select("id,role,is_active,active").or(`id.eq.${user.id},auth_user_id.eq.${user.id}`).maybeSingle();
-  if (profileError || !profile || !(profile.is_active ?? profile.active ?? false)) throw new Error("WhatsApp access requires an active ERP account"); // 169: wa_food_guard (SQL) decides what each role may send and to whom.
+  if (profileError || !profile || !(profile.is_active ?? profile.active ?? false)) throw new Error("WhatsApp access requires an active ERP account");
   return { db, user, profile };
 }
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -22,7 +22,7 @@ const corsHeaders = {
 // Save API outcomes in the shared Inbox; provider IDs make accepted writes idempotent.
 async function recordCommunication(caller: any, body: any, to: string, result: any, accepted: boolean, transportId?: string | null) {
   const log = body.communication_log && typeof body.communication_log === "object" ? body.communication_log : {};
-  const secret = /otp|auth|portal_access|password|pin/i.test(body.template_name || "");
+  const secret = false; // v2.14.07: do not replace the sent payload with invented/redacted text in the Admin audit Inbox.
   const params = secret ? [] : (Array.isArray(body.body_params) ? body.body_params : []);
   const content = secret ? "Authentication / portal access message. Secret values are hidden." : log.message_content || body.text || `Template: ${body.template_name || "WhatsApp"}\n${params.join("\n")}`;
   const providerId = result?.messages?.[0]?.id || null;
@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
 
   let caller;
   try { caller = await requireWhatsAppUser(req); }
-  catch (_) { return new Response(JSON.stringify({ error: "An active ERP session is required. Please sign in again." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }); }
+  catch (_) { return new Response(JSON.stringify({ error: "An active ERP session is required." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }); }
   try {
     const accessToken = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
     const phoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
@@ -73,8 +73,86 @@ Deno.serve(async (req) => {
     const messageType = String(body.message_type || (body.text ? "text" : "template")).trim().toLowerCase();
     if (!to) throw new Error("Recipient phone number is required");
 
-    const { data: scoped, error: scopeError } = await caller.db.rpc("wa_food_guard", { p_user: caller.user.id, p_phone: to, p_template: messageType === "text" ? null : String(body.template_name || "") });
-    if (scopeError || !scoped) return new Response(JSON.stringify({ error: scopeError ? "WhatsApp permission check failed. Please ask the administrator to run SQL 169." : "Your role cannot send this WhatsApp message to this number. Check the family / patient mobile in the Patient File, or ask a Manager." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    // Discharge confirmation is a clinical workflow, not a Food & Diet conversation.
+    // Permit this one approved template only after verifying the completed discharge,
+    // patient and registered family/patient number supplied by the ERP. All other
+    // WhatsApp traffic continues through the existing wa_food_guard unchanged.
+    let verifiedDischarge = false;
+    let verifiedPaymentReceipt = false;
+    const templateNameForScope = messageType === "text" ? "" : String(body.template_name || "").trim();
+    if (messageType === "template" && templateNameForScope === "samara_discharge_confirmation") {
+      const logPayload = body.communication_log?.message_payload || {};
+      const dischargeId = String(logPayload.discharge_id || "").trim();
+      const patientId = String(logPayload.patient_id || "").trim();
+      if (dischargeId && patientId) {
+        const { data: discharge } = await caller.db.from("patient_discharges")
+          .select("id,patient_id,status,actual_departure_at,relative_contact")
+          .eq("id", dischargeId).eq("patient_id", patientId).eq("status", "Completed").not("actual_departure_at", "is", null).maybeSingle();
+        const { data: patient } = discharge ? await caller.db.from("patients")
+          .select("id,attendant_phone,mobile").eq("id", patientId).maybeSingle() : { data: null };
+        const phoneKey = (value: unknown) => { const digits=String(value || "").replace(/\D/g, ""); return digits.length > 10 ? digits.slice(-10) : digits; };
+        const target = phoneKey(to);
+        const registered = [patient?.attendant_phone, discharge?.relative_contact, patient?.mobile].map(phoneKey).filter(Boolean);
+        verifiedDischarge = Boolean(discharge && patient && target && registered.includes(target));
+      }
+      if (!verifiedDischarge) return new Response(JSON.stringify({ error: "Discharge WhatsApp was blocked because the completed discharge or registered family number could not be verified." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Payment receipts are an Accounts workflow, not a Food & Diet conversation.
+    // Allow only the approved payment template after verifying a recent, genuine
+    // Payment/Advance transaction and the patient's registered family number.
+    if (messageType === "template" && templateNameForScope === "samara_payment_receipt") {
+      const logPayload = body.communication_log?.message_payload || {};
+      const patientId = String(logPayload.patient_id || "").trim();
+      const amount = Number(logPayload.amount);
+      const paymentMode = String(logPayload.payment_mode || "").trim();
+      const reference = String(logPayload.reference || "").trim();
+      const role = String(caller.profile.role || "");
+      if (patientId && Number.isFinite(amount) && amount > 0 && ["Admin", "Manager", "Accounts"].includes(role)) {
+        const { data: patient } = await caller.db.from("patients")
+          .select("id,attendant_phone,mobile").eq("id", patientId).maybeSingle();
+        const { data: familyRows, error: familyError } = await caller.db.from("family_portal_access")
+          .select("mobile,is_active").eq("patient_id", patientId).eq("is_active", true);
+        const phoneKey = (value: unknown) => { const digits=String(value || "").replace(/\D/g, ""); return digits.length > 10 ? digits.slice(-10) : digits; };
+        const target = phoneKey(to);
+        const registered = [
+          patient?.attendant_phone,
+          patient?.mobile,
+          ...((familyRows || []).map((row: any) => row?.mobile)),
+        ].map(phoneKey).filter(Boolean);
+
+        // Resend is intentionally allowed for historical Payment/Advance rows. Do not
+        // impose a 15-minute cutoff: that made valid old receipts impossible to resend.
+        // Instead verify the persisted ledger row itself (amount + mode + reference/id).
+        let txQuery = caller.db.from("billing_transactions")
+          .select("id,patient_id,transaction_type,amount,payment_mode,payment_reference,transaction_date")
+          .eq("patient_id", patientId)
+          .in("transaction_type", ["Payment", "Advance"])
+          .eq("amount", amount)
+          .order("transaction_date", { ascending: false })
+          .limit(200);
+        if (paymentMode && paymentMode !== "—") txQuery = txQuery.eq("payment_mode", paymentMode);
+        const { data: transactions, error: txError } = await txQuery;
+        const referenceMatches = (row: any) => {
+          if (!reference || reference === "—") return false;
+          const wanted = String(reference).trim();
+          return String(row?.payment_reference || "").trim() === wanted || String(row?.id || "").trim() === wanted;
+        };
+        verifiedPaymentReceipt = Boolean(
+          !txError && !familyError && patient && target && registered.includes(target) &&
+          (transactions || []).some(referenceMatches)
+        );
+      }
+      if (!verifiedPaymentReceipt) return new Response(JSON.stringify({ error: "Payment Receipt WhatsApp was blocked because the recent payment/advance or registered family number could not be verified." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (!verifiedDischarge && !verifiedPaymentReceipt) {
+      // SQL 169: wa_food_guard decides by role (Admin/Manager all; Nursing Manager food vendors + admission/portal/discharge;
+      // Jaya/Saranya admission + portal access; Nurse discharge + review reminder; Accounts receipt + bill reminder),
+      // and patient/family templates only to a number registered for a patient.
+      const { data: scoped, error: scopeError } = await caller.db.rpc("wa_food_guard", { p_user: caller.user.id, p_phone: to, p_template: messageType === "text" ? null : templateNameForScope });
+      if (scopeError || !scoped) return new Response(JSON.stringify({ error: scopeError ? "WhatsApp permission check failed. Please ask the administrator to run SQL 169." : "Your role cannot send this WhatsApp message to this number. Check the family / patient mobile in the Patient File, or ask a Manager." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     let payload: Record<string, unknown>;
     if (messageType === "text") {
@@ -140,7 +218,7 @@ async function samaraInboxFetch(input: any, init?: RequestInit): Promise<Respons
   const payload = form ? {to:form.get("To"),type:"text",text:{body:form.get("Body")}} : JSON.parse(String(init?.body || "{}"));
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {auth:{persistSession:false}});
   const template = payload.template?.name || null;
-  const privateTemplate = /otp|auth|portal_access|password|pin/i.test(template || "") || /\b(OTP|verification code|password|PIN)\b/i.test(payload.text?.body || "");
+  const privateTemplate = false; // v2.14.07 audit rule: Inbox must retain the exact outbound API payload; access remains role-restricted.
   const params = privateTemplate ? [] : (payload.template?.components || []).filter((c:any)=>c.type === "body").flatMap((c:any)=>c.parameters || []).map((p:any)=>String(p.text ?? ""));
   const content = privateTemplate ? "Authentication / portal access message. Secret values are hidden."
     : payload.text?.body || payload.image?.caption || payload.document?.caption
