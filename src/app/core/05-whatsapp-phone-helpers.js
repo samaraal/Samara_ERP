@@ -126,7 +126,7 @@
     }catch(error){return {...result,history_logged:false,history_error:error.message};}
   }
 
-  async function sendWhatsAppText({to,text}){
+  async function sendWhatsAppText({to,text,replyTo=''}){
     const recipient=normalizeWhatsAppRecipient(to);
     const clean=String(text||'').trim();
     if(!recipient)throw new Error('A valid WhatsApp number is required.');
@@ -136,7 +136,7 @@
     const response=await fetch(`${cfg.supabaseUrl}/functions/v1/whatsapp-send`,{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey},
-      body:JSON.stringify({to:recipient,message_type:'text',text:clean})
+      body:JSON.stringify({to:recipient,message_type:'text',text:clean,...(replyTo?{reply_to:replyTo}:{})})
     });
     const result=await response.json().catch(()=>({success:false,error:'Unable to read WhatsApp server response.'}));
     if(!response.ok||result?.success===false){

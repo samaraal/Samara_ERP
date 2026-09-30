@@ -3,6 +3,11 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.25 — WhatsApp Inbox: Reply to a specific message
+- "↩ Reply" on every message (inside the 24-hour window): the message is quoted above the typing box; the text / photo / document sent arrives on the recipient's phone as a WhatsApp reply to that message (Meta "context").
+- Quotes shown inside bubbles for Samara's replies and for the relative's replies to a specific message; tap a quote to jump to the original.
+- Edge Function whatsapp-send: +10 lines (reply_to → context.message_id). Redeploy it; until then replies send normally without the quote on the phone. No SQL.
+
 ## 2.15.24 — WhatsApp Inbox works like a real WhatsApp inbox
 - Original messages: templates are shown exactly as the recipient received them (image/text header, body with the values filled in, footer, buttons), using Samara's approved templates copied from Meta (new Edge Function whatsapp-templates-sync; needs secret WHATSAPP_BUSINESS_ACCOUNT_ID). Auto-refreshed daily; "Refresh templates" button for Admin / Manager. Conversation list previews use the real text too.
 - Delete: Admin and Manager can delete a message from the Samara inbox (with optional reason); Admin sees "Show deleted" and can Restore. Meta cannot delete a business message from the recipient's phone. Every delete/restore is in the audit log.

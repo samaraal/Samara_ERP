@@ -1,4 +1,4 @@
-// Self-contained for Supabase Dashboard deployment. Edge Function: whatsapp-send (SQL 169 update, 30-09-2026; ERP 2.15.24 adds photo / PDF attachments).
+// Self-contained for Supabase Dashboard deployment. Edge Function: whatsapp-send (SQL 169 update, 30-09-2026; ERP 2.15.24 adds photo / PDF attachments; 2.15.25 adds reply-to-message).
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 async function requireWhatsAppUser(req: Request) {
@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
       attachment = file instanceof File ? file : null;
       let log: any = {};
       try { log = JSON.parse(String(form.get("communication_log") || "{}")); } catch { log = {}; }
-      body = { to: form.get("to"), message_type: String(form.get("message_type") || ""), caption: String(form.get("caption") || ""), communication_log: log };
+      body = { to: form.get("to"), message_type: String(form.get("message_type") || ""), caption: String(form.get("caption") || ""), reply_to: String(form.get("reply_to") || ""), communication_log: log };
     } else {
       body = await req.json();
     }
@@ -230,6 +230,14 @@ Deno.serve(async (req) => {
         type: "template",
         template: { name: templateName, language: { code: languageCode }, ...(components.length ? { components } : {}) },
       };
+    }
+
+    // 2.15.25: WhatsApp "reply" — quote the chosen message on the recipient's phone.
+    const replyTo = String(body.reply_to || "").trim();
+    if (replyTo && messageType !== "template" && /^[A-Za-z0-9_.=+:-]{8,200}$/.test(replyTo)) {
+      payload.context = { message_id: replyTo };
+      const log = body.communication_log && typeof body.communication_log === "object" ? body.communication_log : null;
+      if (log) log.message_payload = { ...(log.message_payload || {}), reply_to: replyTo };
     }
 
     const metaResponse = await samaraInboxFetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/messages`, {

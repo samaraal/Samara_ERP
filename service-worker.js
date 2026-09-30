@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.24';
-const CACHE = 'samara-erp-2.15.24-real-whatsapp-inbox';
+const APP_VERSION = '2.15.25';
+const CACHE = 'samara-erp-2.15.25-whatsapp-reply';
 const SHELL = [
   './',
   './index.html',
