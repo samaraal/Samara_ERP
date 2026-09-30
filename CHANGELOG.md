@@ -3,6 +3,10 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.15 — Assisted Living Package no longer charged twice on a re-saved admission
+- The admission form checked for an existing package charge only when resuming an interrupted admission; saving the admission again normally posted the package a second time (seen: two ₹30,000 charges 3 minutes apart, same coverage).
+- Now every save checks for a package charge for the same Guest with the same coverage start date, and skips it if present. A readmission (new admission date) still gets its own package charge. No SQL.
+
 ## 2.15.14 — Guest name shows on charge requests & diagnostics of discharged Guests
 - Bills & Charges / Charge Approvals (Bill & Charge Requests + Diagnostic Services Timeline) and the Nursing Charge Register showed "—" in the Patient column when the Guest had been discharged (only active Guests were loaded).
 - Missing Guests are now looked up by ID and shown as "Name · Resident ID · Discharged". Patient dropdowns still list active Guests only. No SQL.

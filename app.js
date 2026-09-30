@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.14';
+  const APP_VERSION = '2.15.15';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -17210,7 +17210,17 @@ Please keep these login details confidential.`;
         for(const f of notYetSaved(prescriptionFiles))await uploadPatientFile(patient.id,f,'Current Prescription');
         for(const f of notYetSaved(reportFiles))await uploadPatientFile(patient.id,f,'Medical / Test Report');
         setDraftFiles([]);
-        if(selectedPackage&&!selectedPackage.is_fallback&&selectedPackageFee()>0&&!(await alreadySaved('billing_transactions',q=>q.eq('category','Assisted Living Package')))){
+        // 2.15.15: never charge the same admission's package twice — checked on EVERY save
+        // (not only on a resumed admission). Matched by this admission's coverage start date,
+        // so a readmission's new package still posts.
+        const packageAlreadyCharged=async()=>{
+          const {count,error}=await client.from('billing_transactions').select('id',{count:'exact',head:true})
+            .eq('patient_id',patient.id).eq('category','Assisted Living Package').eq('transaction_type','Charge')
+            .ilike('description',`%Coverage: ${form.admission_date} to %`);
+          if(error)throw error;
+          return (count||0)>0;
+        };
+        if(selectedPackage&&!selectedPackage.is_fallback&&selectedPackageFee()>0&&!(await packageAlreadyCharged())){
           const {error:packageChargeError}=await client.from('billing_transactions').insert({
             patient_id:patient.id,transaction_type:'Charge',category:'Assisted Living Package',
             amount:selectedPackageFee(),payment_mode:'Not applicable',

@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.14';
-const CACHE = 'samara-erp-2.15.14-discharged-guest-names';
+const APP_VERSION = '2.15.15';
+const CACHE = 'samara-erp-2.15.15-no-duplicate-package-charge';
 const SHELL = [
   './',
   './index.html',
