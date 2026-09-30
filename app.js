@@ -21920,7 +21920,7 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
         const typed=window.prompt(
           `PERMANENTLY ERASE Trial Guest ${formalName(p)} (${p.patient_id})?\n\n`+
           `Will be removed:\n${lines.join('\n')||'• the Guest record'}\n• ${fileCount} stored file(s)\n\n`+
-          `Kept: audit log, Samara payment vouchers (unlinked), stock history.\nThis CANNOT be undone.\n\nType the Resident ID ${p.patient_id} to confirm:`,'');
+          `Kept: audit log (with receipt voucher numbers and any paid Razorpay IDs), stock history.\nThis CANNOT be undone.\n\nType the Resident ID ${p.patient_id} to confirm:`,'');
         if(typed===null)return;
         if(String(typed).trim().toUpperCase()!==String(p.patient_id||'').trim().toUpperCase()){notify('error','Not erased','Resident ID did not match. Nothing was changed.');return}
         const res=await client.rpc('purge_trial_guest',{p_patient:p.id,p_resident_code:String(typed).trim(),p_dry_run:false});
