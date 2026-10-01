@@ -51,7 +51,7 @@
             .maybeSingle();
           if(!fallback.error)bed=fallback.data||null;
         }
-        setLedger(ledgerRes.data||[]);
+        setLedger((ledgerRes.data||[]).map(row=>({...row,description:residentTariffDescription(row,patient.admission_date)})));
         setRoomBed(bed);
         const context=await client.rpc('patient_room_tariff_context',{p_patient_id:patient.id});
         if(!context.error)setTariffContext(context.data);
@@ -282,7 +282,7 @@
           h('p',{className:'small-note'},'This section lets Accounts immediately confirm whether the latest automatic accommodation charges match the resident’s current room / bed tariff.'),
           h('div',{className:'tariff-check'},
             h('div',{className:'tariff-cell'},h('span',{className:'small-note'},'Current Room / Bed'),h('strong',null,roomBed?`${roomBed.room_no||'—'}${roomBed.bed_no?`-${roomBed.bed_no}`:''} · ${roomBed.room_type||roomBed.type||'Room'}`:'Not linked')),
-            h('div',{className:'tariff-cell'},h('span',{className:'small-note'},'Current Room Tariff'),h('strong',null,money(roomRate)),roomBed?.tariff_effective_from&&h('small',null,`Effective ${formatDateIN(roomBed.tariff_effective_from)}`),autoRoom&&roomMatches!==null&&h('div',{className:roomMatches?'tariff-ok':'tariff-warn'},roomMatches?'✓ Adjusted charge matches its dated tariff':`⚠ Latest ledger: ${money(autoRoom.amount)}`)),
+            h('div',{className:'tariff-cell'},h('span',{className:'small-note'},'Current Room Tariff'),h('strong',null,money(roomRate)),roomBed?.tariff_effective_from&&h('small',null,`Effective ${formatDateIN(residentTariffDate(roomBed.tariff_effective_from,selected?.admission_date))}`),autoRoom&&roomMatches!==null&&h('div',{className:roomMatches?'tariff-ok':'tariff-warn'},roomMatches?'✓ Adjusted charge matches its dated tariff':`⚠ Latest ledger: ${money(autoRoom.amount)}`)),
             h('div',{className:'tariff-cell'},h('span',{className:'small-note'},'Current Nursing Tariff'),h('strong',null,money(nursingRate)),autoNursing&&nursingMatches!==null&&h('div',{className:nursingMatches?'tariff-ok':'tariff-warn'},nursingMatches?'✓ Adjusted charge matches its dated tariff':`⚠ Latest ledger: ${money(autoNursing.amount)}`)),
             h('div',{className:'tariff-cell'},h('span',{className:'small-note'},'Latest Room Shift / Accounts Sync'),latestShift?h(React.Fragment,null,h('strong',null,`${latestShift.from_room_no||'—'}${latestShift.from_bed_no?`-${latestShift.from_bed_no}`:''} → ${latestShift.to_room_no||'—'}${latestShift.to_bed_no?`-${latestShift.to_bed_no}`:''}`),h('div',{className:latestShift.accounts_synced?'tariff-ok':'tariff-warn'},latestShift.accounts_synced?'✓ Accounts synchronised':'⚠ Accounts sync pending')):h('strong',null,'No room shift recorded'))
           )
