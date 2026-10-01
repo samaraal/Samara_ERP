@@ -145,6 +145,7 @@
   const homePageForProfile=profile=>isNursingManagerProfile(profile)?'Clinical Dashboard':(ROLE_HOME[profile?.role]||'Dashboard');
   const hasDutyRole=(profile,role)=>profile?.role===role||Boolean(profile?.__dutyContext?.roles?.includes(role));
   const allowedPagesForProfile=profile=>{
+    if(profile?.__kitchen?.read&&!profile.__kitchenNavResolved)return [...new Set([...allowedPagesForProfile({...profile,__kitchenNavResolved:true}),'Kitchen / Food Stores'])];
     if(profile?.__foodVendor?.read&&!profile.__foodNavResolved)return [...new Set([...allowedPagesForProfile({...profile,__foodNavResolved:true}),'Food & Diet','Notifications'])];
     if(profile?.__dutyContext?.additional_duties?.length&&!profile.__additionalNavResolved){const c=profile.__dutyContext;const base=allowedPagesForProfile({...profile,__additionalNavResolved:true});const extras=(c.additional_duties||[]).flatMap(d=>allowedPagesForProfile({...profile,__additionalNavResolved:true,role:d.covering_role,designation:d.covering_designation,department:d.covering_role==='Manager'?'Nursing':profile.department}));return [...new Set([...base,...extras])];}
     if(profile?.__dutyContext?.leave_cover&&!profile.__leaveNavResolved){const c=profile.__dutyContext;return [...new Set([...allowedPagesForProfile({...profile,__leaveNavResolved:true}),...allowedPagesForProfile({...profile,__leaveNavResolved:true,role:c.regular_role,designation:c.regular_designation,department:c.regular_department}),...allowedPagesForProfile({...profile,__leaveNavResolved:true,role:c.leave_cover.covering_role,designation:c.leave_cover.covering_designation})])];}
@@ -206,7 +207,7 @@
         {title:'ADMISSION',items:['Spot Assessment','Admissions'].filter(item=>allowed.includes(item))},
         {title:'NURSING WORKSPACE',items:['Clinical Dashboard','Clinical Alerts','Patients','Rooms','Shift Tasks','Daily Care','Vital Signs','Medicines','Approval Requests','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Discharge','Charge Approvals','My To-Do List','Notifications'].filter(item=>allowed.includes(item))},
         {title:'DUTY ROSTER & LEAVE',items:['Duty Assignment','Staff Leave Calendar','My Leave & Permission','Leave Approvals'].filter(item=>allowed.includes(item))},
-        {title:'PHARMACY & STORES',items:['Raise Indent','Received Indents / Used Balance','Oxygen Cylinders','Biomedical Equipment'].filter(item=>allowed.includes(item))},
+        {title:'PHARMACY & STORES',items:['Raise Indent','Received Indents / Used Balance','Oxygen Cylinders','Biomedical Equipment','Kitchen / Food Stores'].filter(item=>allowed.includes(item))},
         {title:'MY ACCOUNT',items:['My Profile'].filter(item=>allowed.includes(item))}
       ];
     }

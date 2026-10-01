@@ -122,6 +122,10 @@
    "lines": 108
   },
   {
+   "file": "stores/kitchen-cash.js",
+   "about": "Kitchen petty cash and custody workflow"
+  },
+  {
    "file": "shell/01-app-main.js",
    "about": "App() - the main shell: login state, page switching, global watchers switched on here",
    "lines": 788
