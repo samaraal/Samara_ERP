@@ -9,6 +9,7 @@ The full original notes for older releases are kept in [`docs/release-notes/`](d
 - WhatsApp: the place is added to the approved "Date and meal" line, e.g. "02-10-2026 / Lunch / Deliver to: AppGeo - Saidapet" — no new Meta template needed.
 - Statement / Vendor Ledger / Billing: the Vendor selector lists each place ("Mrs. Yuvashree · AppGeo - Saidapet"). AppGeo starts with the same current rates as Samara Main; change either separately in Billing → Rates.
 - All existing orders, receipts, rates and balance stay with Samara Main - Mogappair.
+- Edge Function food-whatsapp (checked line by line against the live version — only these changes): place in "Date and meal"; API messages now say "Breakfast" (not Tiffin) and show dates as DD-MM-YYYY like the manual WhatsApp; receipt time as "02-10-2026, 07:35 AM IST". Same templates and number of values.
 - SQL: supabase/sql/178_food_two_places.sql (required; all-or-nothing, stops without changes if fv_rpc is not as expected). Edge Function food-whatsapp: redeploy from supabase/function-copies/food-whatsapp-inbox.ts so API-sent messages include the place (manual WhatsApp already does).
 
 ## 2.15.35 — Resident Food Intake: Guest-wise Food & Beverage Register

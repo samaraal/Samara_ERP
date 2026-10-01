@@ -8,6 +8,8 @@ const clean=v=>String(v??'').replace(/\s+/g,' ').trim()||'None';
 const ref=id=>'FOOD-'+String(id).slice(0,8).toUpperCase();
 function summary(items,key){return (items||[]).map(i=>`${clean(i.name)}: ${Number(i[key]||0)}`).join('; ')||'None'}
 function total(items){return (items||[]).map(i=>`${clean(i.name)}: ${Number(i.residents||0)+Number(i.employees||0)}`).join('; ')||'None'}
+// 2.15.36: same wording as the ERP's manual WhatsApp — 'Breakfast' (not Tiffin) and dates as DD-MM-YYYY.
+const label=(v:any)=>String(v).replace(/\bTiffin\b/gi,'Breakfast').replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g,(_:string,y:string,m:string,d:string)=>d+'-'+m+'-'+y);
 function message(kind,s){
  const common=[clean(s.vendor_name),ref(s.id),clean(s.date)+' / '+clean(s.slot)+(s.place?' / Deliver to: '+clean(s.place):''),clean(s.delivery)]; // 2.15.36: place inside the approved 'Date and meal' value
  let values,body;
@@ -27,7 +29,7 @@ function message(kind,s){
  values=[...common.slice(0,3)];
  body=`Dear {{1}},\nPlease confirm the food order below for Samara Assisted Living.\n\nOrder: {{2}}\nDate and meal: {{3}}\n\nTap a button below to reply.\nThank you, Samara Assisted Living.`;
  }else throw Error('Unknown food message type');
- values=values.map(clean);const text=body.replace(/\{\{(\d+)\}\}/g,(_,i)=>values[Number(i)-1]);
+ values=values.map(v=>label(clean(v)));const text=body.replace(/\{\{(\d+)\}\}/g,(_,i)=>values[Number(i)-1]);
  return {name:'samara_food_'+kind,values,text,logo,tooLong:text.length>3500};
 }
 function payload(kind,s){const m=message(kind,s);if(!/^[1-9][0-9]{7,14}$/.test(s.phone))throw Error('Invalid vendor phone');if(m.tooLong)throw Error('Message exceeds 3500 characters; use manual WhatsApp or shorten instructions before finalising');return {messaging_product:'whatsapp',to:s.phone,type:'template',template:{name:m.name,language:{code:'en'},components:[{type:'header',parameters:[{type:'image',image:{link:logo}}]},{type:'body',parameters:m.values.map(text=>({type:'text',text}))}]}}}
