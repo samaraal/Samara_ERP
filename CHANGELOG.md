@@ -3,6 +3,10 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.32 — Discharge Register: filter results always visible
+- Pressing Apply (or Enter in Search) now switches to the "All discharges" box, so results are never hidden behind an empty stage box (e.g. Returned to Nursing).
+- When a period has no discharges, the register says so and lists the discharge dates on record (e.g. "No discharges in This Month … Discharge dates on record: 22-09-2026, 21-09-2026"). No SQL.
+
 ## 2.15.31 — Discharge Register: period filter + boxes follow the filter
 - "Discharge period": All dates (default), Today, This Week, This Month, Last Month, This Year, or Select period (From / To appear only then). Applied with the Apply button.
 - Discharge date used for the period = actual departure date once departed, otherwise the proposed discharge date.

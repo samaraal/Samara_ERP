@@ -1418,12 +1418,12 @@ Doctor / Hospital: ${doctorHospital}`;
           h('button',{type:'button',className:'btn btn-secondary',disabled:!registerRows.length,onClick:exportRegister},'⬇ Excel (CSV)')
         ),
         h('div',{className:'dr-filters'},
-          h('div',{className:'field dr-filter-search'},h('label',null,'Search Guest'),h('input',{type:'search',value:drSearch,placeholder:'Name, Resident ID, room, doctor / relative',onChange:e=>setDrSearch(e.target.value),onKeyDown:e=>{if(e.key==='Enter')drf.apply()}})),
+          h('div',{className:'field dr-filter-search'},h('label',null,'Search Guest'),h('input',{type:'search',value:drSearch,placeholder:'Name, Resident ID, room, doctor / relative',onChange:e=>setDrSearch(e.target.value),onKeyDown:e=>{if(e.key==='Enter'){drf.apply();setDrBox('all')}}})),
           h('div',{className:'field'},h('label',null,'Initiation basis'),h('select',{value:drBasis,onChange:e=>setDrBasis(e.target.value)},h('option',{value:''},'All'),basisOptions.map(b=>h('option',{key:b,value:b},b)))),
           h('div',{className:'field'},h('label',null,'Discharge period'),h('select',{value:drPeriod,onChange:e=>setDrPeriod(e.target.value)},DR_PERIODS.map(([v,l])=>h('option',{key:v,value:v},l)))),
           drPeriod==='custom'&&h('div',{className:'field'},h('label',null,'From'),h(StrictDateInput,{value:drFrom,onChange:e=>setDrFrom(e.target.value)})),
           drPeriod==='custom'&&h('div',{className:'field'},h('label',null,'To'),h(StrictDateInput,{value:drTo,onChange:e=>setDrTo(e.target.value)})),
-          h(ApplyFilterButton,{dirty:drf.dirty,onApply:drf.apply}),
+          h(ApplyFilterButton,{dirty:drf.dirty,onApply:()=>{drf.apply();if(recordFocus)clearRecordFocus();setDrBox('all')}}),
           filtersOn&&h('button',{type:'button',className:'btn btn-secondary dr-clear',onClick:()=>{setDrSearch('');setDrBasis('');setDrPeriod('all');setDrFrom('');setDrTo('');setDrClearReq(true)}},'Clear')
         ),
         h(RecordFocusBanner,{focus:recordFocus,onShowAll:clearRecordFocus}),
@@ -1443,7 +1443,12 @@ Doctor / Hospital: ${doctorHospital}`;
               registerRows.length===0&&h('tr',null,h('td',{colSpan:7,className:'empty'},
                 (()=>{
                   const elsewhere=boxKeys.filter(k=>k!==drBox&&k!=='all'&&k!=='open'&&stageCount(k)>0).map(k=>`${STAGES[k].label} (${stageCount(k)})`);
-                  const lead=drBox==='open'?(filtersOn?'No open cases match this filter.':'No open discharge cases right now.'):'No discharges in this box match the filter.';
+                  const dateOf=r=>r.actual_departure_at?new Date(new Date(r.actual_departure_at).getTime()+19800000).toISOString().slice(0,10):String(r.proposed_discharge_date||'').slice(0,10);
+                  const known=[...new Set(allCases.map(dateOf).filter(Boolean))].sort().reverse().slice(0,5).map(formatDateIN);
+                  const periodOn=DRF.period&&DRF.period!=='all';
+                  const lead=drBox==='open'&&!filtersOn?'No open discharge cases right now.'
+                    :periodOn&&!filteredCases.length?`No discharges in ${periodLabel}.${known.length?` Discharge dates on record: ${known.join(', ')}.`:''}`
+                    :drBox==='open'?'No open cases match this filter.':'No discharges in this box match the filter.';
                   return elsewhere.length?h(React.Fragment,null,lead,' ',h('strong',null,`Found in: ${elsewhere.join(', ')}.`),' ',
                     h('button',{type:'button',className:'btn btn-secondary',style:{marginLeft:'6px',padding:'5px 10px'},onClick:()=>setDrBox('all')},'Show all discharges')):lead;
                 })()))
