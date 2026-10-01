@@ -11,3 +11,16 @@
 .fv .fv-notice .fv-cutoff-status.is-open{color:#146c2e!important}
 
 .fv-save-success{padding:11px 12px;margin:10px 0;background:#e9f7ee;color:#146c2e;border:1px solid #b8dfc5;border-radius:8px;font-weight:700}.fv .btn:disabled{cursor:not-allowed;opacity:.55}
+/* 2.15.36: two delivery places */
+.fv-place-pick{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px;margin:4px 0 14px}
+.fv-place-label{align-self:center;font-weight:800;color:#5b3a4b;margin-right:4px}
+.fv-place-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:220px;padding:10px 14px;border:1.5px solid #e2c7d4;border-radius:14px;background:#fff;color:#5b3a4b;font:inherit;cursor:pointer;text-align:left}
+.fv-place-btn strong{font-size:15px}
+.fv-place-btn small{color:#8a6a7a;font-size:12px}
+.fv-place-btn.is-on{border-color:#a91360;background:#fbeef4;color:#8c0f4d;box-shadow:0 0 0 2px #a9136033}
+.fv-place-btn:disabled{opacity:.45;cursor:not-allowed}
+.fv-place-tag{display:block;margin-top:3px;font-size:11.5px;font-weight:800;color:#8c0f4d}
+.fv-place-tag.fv-place-appgeo{color:#1d4ed8}
+.fv-place-table{width:100%;border-collapse:collapse;margin-top:8px}
+.fv-place-table th,.fv-place-table td{padding:8px 10px;border-bottom:1px solid #f0dde6;text-align:left;vertical-align:middle}
+@media (max-width:640px){.fv-place-btn{min-width:0;flex:1 1 100%}}

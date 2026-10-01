@@ -3,6 +3,14 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.36 — Food Vendor: two delivery places (Samara Main - Mogappair, AppGeo - Saidapet)
+- Each place is its own vendor account: separate orders (one per date + meal per place), WhatsApp, receipt, cancellation, rates, statement and balance. Mrs. Yuvashree supplies both for now; Settings → Delivery places → "Change vendor" sets another vendor for AppGeo later (a new account starts; Samara Main is untouched).
+- New order: "Deliver to" buttons for the two places (fixed once an order is placed). Orders / History: place shown under each order, plus a "Place" filter (Both places / Samara Main / AppGeo). Receive and Messages show the place.
+- WhatsApp: the place is added to the approved "Date and meal" line, e.g. "02-10-2026 / Lunch / Deliver to: AppGeo - Saidapet" — no new Meta template needed.
+- Statement / Vendor Ledger / Billing: the Vendor selector lists each place ("Mrs. Yuvashree · AppGeo - Saidapet"). AppGeo starts with the same current rates as Samara Main; change either separately in Billing → Rates.
+- All existing orders, receipts, rates and balance stay with Samara Main - Mogappair.
+- SQL: supabase/sql/178_food_two_places.sql (required; all-or-nothing, stops without changes if fv_rpc is not as expected). Edge Function food-whatsapp: redeploy from supabase/function-copies/food-whatsapp-inbox.ts so API-sent messages include the place (manual WhatsApp already does).
+
 ## 2.15.35 — Resident Food Intake: Guest-wise Food & Beverage Register
 - "Recent Food & Beverage Records" is replaced by the Food & Beverage Register: choose a Guest and a Period — Today (default), Yesterday, This Week, This Month, Last Month or Select period (From / To) — and press Apply. Shows only that Guest's meals and beverages for that period, loaded from the database (no 100-row limit).
 - For a single day, a summary row shows Breakfast / Lunch / Dinner (intake, time, items — or "Not recorded") and the beverage servings.

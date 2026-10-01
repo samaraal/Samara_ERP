@@ -9,7 +9,7 @@ const ref=id=>'FOOD-'+String(id).slice(0,8).toUpperCase();
 function summary(items,key){return (items||[]).map(i=>`${clean(i.name)}: ${Number(i[key]||0)}`).join('; ')||'None'}
 function total(items){return (items||[]).map(i=>`${clean(i.name)}: ${Number(i.residents||0)+Number(i.employees||0)}`).join('; ')||'None'}
 function message(kind,s){
- const common=[clean(s.vendor_name),ref(s.id),clean(s.date)+' / '+clean(s.slot),clean(s.delivery)];
+ const common=[clean(s.vendor_name),ref(s.id),clean(s.date)+' / '+clean(s.slot)+(s.place?' / Deliver to: '+clean(s.place):''),clean(s.delivery)]; // 2.15.36: place inside the approved 'Date and meal' value
  let values,body;
  if(kind==='order'){
  values=[...common,summary(s.items,'residents'),summary(s.items,'employees'),total(s.items),clean(s.instructions)];
