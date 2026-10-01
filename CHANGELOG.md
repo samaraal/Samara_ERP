@@ -3,6 +3,13 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.42 — Backdated room tariffs with audited account adjustments
+- Edit Room / Bed & Tariff now has an Effective from date (today or earlier) and a change reason.
+- SQL 182 saves dated tariff history and posts only the difference as a linked Charge or Discount. Original automatic entries, payments and receipts are preserved. Repeat saves do not duplicate adjustments.
+- Applies by historical room occupancy and tariff date; package coverage, reviewed departure cutoffs and later dated tariffs remain respected. Room transfers preserve previously adjusted originals.
+- Automatic catch-up uses the tariff applicable on each service date, including historical nursing rates when the current rate is zero. Patient Ledger verification includes adjustments; Final Bill refreshes when entries change.
+- Apply supabase/sql/182_room_tariff_effective_dates.sql before deploying this frontend. Migration requires existing billing safeguards 131 and 132; installation itself does not reprice any ledger entries.
+
 ## Family Portal v1.0.24 (separate repo Samara_Family_Portal) — beverages in Food & Diet
 - SQL (shared database): supabase/sql/180_family_portal_beverages.sql — family_portal_beverages(session token) returns the family's own Guest's beverage servings (session checked through the existing family_portal_dashboard; no staff names).
 - Portal: beverages listed in the Care Timeline under Food & Diet ("Food & Diet: Beverage — Fresh Juice (Mosambi) — Consumed fully · 150 ml"); meals show "Breakfast" instead of "Tiffin".

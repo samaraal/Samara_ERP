@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.41';
+  const APP_VERSION = '2.15.42';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -23545,7 +23545,7 @@ function RoomsBeds({profile,onNavigate}){
     const empty={
       room_no:'100',bed_no:'A',room_type:'Twin Sharing',status:'Available',
       room_daily_rate:'2000',nursing_daily_rate:'800',special_nurse_daily_rate:'0',
-      floor:'',wing:'',notes:'',
+      floor:'',wing:'',notes:'',effective_from:todayISOIndia(),tariff_reason:'',tariff_request_id:'',
       reserved_for_name:'',reserved_for_contact:'',reserved_by_name:'',reserved_by_contact:'',
       expected_admission_date:'',expected_admission_time:'17:00',reservation_notes:''
     };
@@ -23651,7 +23651,7 @@ function RoomsBeds({profile,onNavigate}){
       setMsg('');setShow(true);
     }
     function openEdit(row){
-      if(row.duty_date<todayISOIndia()){showToast('error','Past duty dates cannot be modified.');return}
+      
       setEditing(row);
       setForm({
         room_no:row.room_no||'',bed_no:row.bed_no||'',room_type:['Private / Single','Private','Single'].includes(row.room_type)?'Single / Private':row.room_type||'Twin Sharing',
@@ -23660,6 +23660,7 @@ function RoomsBeds({profile,onNavigate}){
         nursing_daily_rate:String(row.nursing_daily_rate??''),
         special_nurse_daily_rate:String(row.special_nurse_daily_rate??''),
         floor:row.floor||'',wing:row.wing||'',notes:row.notes||'',
+        effective_from:todayISOIndia(),tariff_reason:'',tariff_request_id:window.crypto.randomUUID(),
         reserved_for_name:row.reserved_for_name||'',
         reserved_for_contact:row.reserved_for_contact||'',
         reserved_by_name:row.reserved_by_name||formalName(profile)||profile?.full_name||'',
@@ -23721,7 +23722,7 @@ function RoomsBeds({profile,onNavigate}){
 
     async function saveRoom(e){
       e.preventDefault();
-      if(!canManage)return;
+      if(!canManage||busy)return;
       setBusy(true);setMsg('');
       try{
         const payload={
@@ -23742,7 +23743,6 @@ function RoomsBeds({profile,onNavigate}){
           expected_admission_time:form.status==='Reserved'?(form.expected_admission_time||null):null,
           reservation_notes:form.status==='Reserved'?String(form.reservation_notes||'').trim()||null:null,
           reserved_at:form.status==='Reserved'?(editing?.reserved_at||new Date().toISOString()):null,
-          updated_at:new Date().toISOString()
         };
         if(!payload.room_no||!payload.bed_no)throw new Error('Room number and bed code are required.');
         const duplicate=rows.find(r=>
@@ -23751,7 +23751,7 @@ function RoomsBeds({profile,onNavigate}){
           &&r.id!==editing?.id
         );
         if(duplicate)throw new Error(`Room ${payload.room_no} / Bed ${payload.bed_no} already exists.`);
-        if(payload.room_daily_rate<0||payload.nursing_daily_rate<0||payload.special_nurse_daily_rate<0)throw new Error('Tariff amounts cannot be negative.');
+        if([payload.room_daily_rate,payload.nursing_daily_rate,payload.special_nurse_daily_rate].some(x=>!Number.isFinite(x)||x<0))throw new Error('Tariff amounts must be valid non-negative numbers.');
         if(payload.status==='Reserved'){
           if(!payload.reserved_for_name)throw new Error('Reserved for name is required.');
           if(!payload.reserved_for_contact)throw new Error('Reserved person contact number is required.');
@@ -23760,10 +23760,20 @@ function RoomsBeds({profile,onNavigate}){
           if(!payload.expected_admission_time)throw new Error('Expected admission time is required.');
         }
         let result;
-        if(editing?.id)result=await client.from('room_beds').update(payload).eq('id',editing.id);
+        if(editing?.id){
+          const day=String(form.effective_from||'');
+          if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||day>todayISOIndia()||!Number.isFinite(new Date(`${day}T12:00:00Z`).getTime()))throw new Error('Choose an Effective from date, today or earlier.');
+          if(!form.tariff_reason.trim())throw new Error('Please enter a reason for the tariff change.');
+          result=await client.rpc('save_room_tariff',{p_room_bed_id:editing.id,p_effective_from:day,p_reason:form.tariff_reason.trim(),p_room:payload,p_request_id:form.tariff_request_id});
+          if(result.error&&/PGRST202|42883/.test(result.error.code||''))throw new Error('This update needs database migration 182_room_tariff_effective_dates.sql. Ask Admin to apply it, then save again.');
+        }
         else result=await client.from('room_beds').insert(payload);
         if(result.error)throw result.error;
-        setShow(false);showToast('success','Room, bed and tariffs saved successfully.');await load();
+        const saved=result.data;
+        setShow(false);
+        showToast('success',editing?`Tariff saved from ${formatDateIN(form.effective_from)}. ${saved?.entries_posted||0} ledger entries posted for ${saved?.patients_affected||0} resident(s). Original charges and payments are preserved.`:'Room, bed and tariffs saved successfully.');
+        window.dispatchEvent(new Event('samara-refresh-charges'));
+        await load();
       }catch(error){setMsg(error.message||'Unable to save room')}
       setBusy(false);
     }
@@ -24016,6 +24026,13 @@ function RoomsBeds({profile,onNavigate}){
           miniInput('Room Rent per Day',form.room_daily_rate,v=>setForm({...form,room_daily_rate:v}),true,'number'),
           miniInput('Nursing Charge per Day',form.nursing_daily_rate,v=>setForm({...form,nursing_daily_rate:v}),true,'number'),
           miniInput('Special Nurse Charge per Day',form.special_nurse_daily_rate,v=>setForm({...form,special_nurse_daily_rate:v}),false,'number'),
+          editing&&h(React.Fragment,null,
+            h('div',{className:'field'},h('label',null,'Effective from'),h(StrictDateInput,{value:form.effective_from,max:todayISOIndia(),required:true,onChange:e=>setForm({...form,effective_from:e.target.value})}),
+              h('small',null,'Past dates are allowed. Applies from the selected date, including that day.'),
+              editing.tariff_effective_from&&h('small',null,`Current tariff effective from ${formatDateIN(editing.tariff_effective_from)}`)),
+            h('div',{className:'field'},h('label',null,'Reason for tariff change'),h('input',{value:form.tariff_reason,required:true,maxLength:500,onChange:e=>setForm({...form,tariff_reason:e.target.value}),placeholder:'Example: agreed tariff effective from admission'})),
+            h('div',{className:'small-note span-2'},'Differences for already-posted automatic charges are added as separate charges or credits. Original entries and payments remain unchanged. Package-covered days are excluded; later dated tariffs remain in effect.')
+          ),
           miniInput('Floor',form.floor,v=>setForm({...form,floor:v})),
           miniInput('Wing',form.wing,v=>setForm({...form,wing:v})),
           h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value}),disabled:editing&&!!patientFor(editing)},['Available','Reserved','Maintenance','Occupied','Samara Office','Samara Store'].map(x=>h('option',{key:x,value:x},x)))),
@@ -28888,7 +28905,15 @@ function ShiftHandover({profile,onNavigate}){
       setLoading(false);
     }
 
-    React.useEffect(()=>{if(patientId)loadBill(patientId)},[patientId]);
+    React.useEffect(()=>{
+      if(!patientId)return;
+      const refresh=()=>loadBill(patientId);refresh();
+      const timer=setInterval(refresh,15000);
+      window.addEventListener('samara-refresh-charges',refresh);
+      const channel=client.channel(`final-bill-tariffs-${patientId}`)
+        .on('postgres_changes',{event:'*',schema:'public',table:'billing_transactions',filter:`patient_id=eq.${patientId}`},refresh).subscribe();
+      return()=>{clearInterval(timer);window.removeEventListener('samara-refresh-charges',refresh);client.removeChannel(channel)};
+    },[patientId]);
 
     const groupedCharges=rows.filter(row=>row.transaction_type==='Charge').reduce((groups,row)=>{
       const key=row.category||'Other Charges';
@@ -29499,6 +29524,12 @@ function ShiftHandover({profile,onNavigate}){
     document.head.appendChild(style);
   };
 
+  function accommodationChargeWithAdjustments(row,ledger){
+    if(!row)return null;
+    const adjustment=ledger.filter(x=>x.tariff_original_source_key&&x.tariff_original_source_key===row.source_key)
+      .reduce((sum,x)=>sum+(x.transaction_type==='Charge'?1:x.transaction_type==='Discount'?-1:0)*Number(x.amount||0),0);
+    return {...row,original_amount:row.amount,amount:Number(row.amount||0)+adjustment};
+  }
   function PatientLedgerView({profile,onNavigate}){
     const patientLedgerSamaraLogo='data:image/png;base64,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';
     const [patients]=usePatients();
@@ -29507,6 +29538,7 @@ function ShiftHandover({profile,onNavigate}){
     const [ledger,setLedger]=React.useState([]);
     const [roomBed,setRoomBed]=React.useState(null);
     const [shifts,setShifts]=React.useState([]);
+    const [tariffContext,setTariffContext]=React.useState(null);
     const [loading,setLoading]=React.useState(false);
     const [message,setMessage]=React.useState('');
 
@@ -29529,7 +29561,7 @@ function ShiftHandover({profile,onNavigate}){
 
     async function loadPatientLedger(patient){
       if(!patient?.id){setLedger([]);setRoomBed(null);setShifts([]);return}
-      setLoading(true);setMessage('');
+      setLoading(true);setMessage('');setTariffContext(null);
       try{
         const [ledgerRes,bedByPatientRes,shiftRes]=await Promise.all([
           client.from('billing_transactions').select('*').eq('patient_id',patient.id).order('transaction_date',{ascending:true}),
@@ -29547,6 +29579,8 @@ function ShiftHandover({profile,onNavigate}){
         }
         setLedger(ledgerRes.data||[]);
         setRoomBed(bed);
+        const context=await client.rpc('patient_room_tariff_context',{p_patient_id:patient.id});
+        if(!context.error)setTariffContext(context.data);
         if(shiftRes.error){console.warn('Room shift history could not be loaded:',shiftRes.error);setShifts([])}
         else setShifts(shiftRes.data||[]);
       }catch(error){
@@ -29592,12 +29626,12 @@ function ShiftHandover({profile,onNavigate}){
       return {...row,_debit:debit,_credit:credit,_balance:running};
     }).reverse();
 
-    const autoRoom=[...ledger].reverse().find(row=>String(row.source_type||'').toLowerCase()==='daily room charge'||(/room/i.test(String(row.category||''))&&row.auto_generated===true));
-    const autoNursing=[...ledger].reverse().find(row=>String(row.source_type||'').toLowerCase()==='daily nursing charge'||(/nursing/i.test(String(row.category||''))&&row.auto_generated===true));
-    const roomRate=Number(roomBed?.room_daily_rate||roomBed?.daily_rate||0);
+    const autoRoom=accommodationChargeWithAdjustments([...ledger].reverse().find(row=>String(row.source_type||'').toLowerCase()==='daily room charge'||(/room/i.test(String(row.category||''))&&row.auto_generated===true)),ledger);
+    const autoNursing=accommodationChargeWithAdjustments([...ledger].reverse().find(row=>String(row.source_type||'').toLowerCase()==='daily nursing charge'||(/nursing/i.test(String(row.category||''))&&row.auto_generated===true)),ledger);
+    const roomRate=Number(roomBed?.room_daily_rate??roomBed?.daily_rate??0);
     const nursingRate=Number(roomBed?.nursing_daily_rate||0);
-    const roomMatches=!roomBed||!autoRoom?null:Math.abs(Number(autoRoom.amount||0)-roomRate)<0.01;
-    const nursingMatches=!roomBed||!autoNursing?null:Math.abs(Number(autoNursing.amount||0)-nursingRate)<0.01;
+    const roomMatches=!roomBed||!autoRoom?null:tariffContext?.room?Math.abs(Number(autoRoom.amount||0)-Number(tariffContext.room.room_rate))<0.01:null;
+    const nursingMatches=!roomBed||!autoNursing?null:tariffContext?.nursing?Math.abs(Number(autoNursing.amount||0)-Number(tariffContext.nursing.nursing_rate))<0.01:null;
     const isInitialAllotment=s=>String(s?.reason||'').toLowerCase().includes('initial admission') || (!s?.from_room_no && !s?.from_bed_no);
     const actualShifts=shifts.filter(s=>!isInitialAllotment(s));
     const latestShift=actualShifts[0]||null;
@@ -29774,8 +29808,8 @@ function ShiftHandover({profile,onNavigate}){
           h('p',{className:'small-note'},'This section lets Accounts immediately confirm whether the latest automatic accommodation charges match the resident’s current room / bed tariff.'),
           h('div',{className:'tariff-check'},
             h('div',{className:'tariff-cell'},h('span',{className:'small-note'},'Current Room / Bed'),h('strong',null,roomBed?`${roomBed.room_no||'—'}${roomBed.bed_no?`-${roomBed.bed_no}`:''} · ${roomBed.room_type||roomBed.type||'Room'}`:'Not linked')),
-            h('div',{className:'tariff-cell'},h('span',{className:'small-note'},'Current Room Tariff'),h('strong',null,money(roomRate)),autoRoom&&h('div',{className:roomMatches?'tariff-ok':'tariff-warn'},roomMatches?'✓ Latest ledger charge matches':`⚠ Latest ledger: ${money(autoRoom.amount)}`)),
-            h('div',{className:'tariff-cell'},h('span',{className:'small-note'},'Current Nursing Tariff'),h('strong',null,money(nursingRate)),autoNursing&&h('div',{className:nursingMatches?'tariff-ok':'tariff-warn'},nursingMatches?'✓ Latest ledger charge matches':`⚠ Latest ledger: ${money(autoNursing.amount)}`)),
+            h('div',{className:'tariff-cell'},h('span',{className:'small-note'},'Current Room Tariff'),h('strong',null,money(roomRate)),roomBed?.tariff_effective_from&&h('small',null,`Effective ${formatDateIN(roomBed.tariff_effective_from)}`),autoRoom&&roomMatches!==null&&h('div',{className:roomMatches?'tariff-ok':'tariff-warn'},roomMatches?'✓ Adjusted charge matches its dated tariff':`⚠ Latest ledger: ${money(autoRoom.amount)}`)),
+            h('div',{className:'tariff-cell'},h('span',{className:'small-note'},'Current Nursing Tariff'),h('strong',null,money(nursingRate)),autoNursing&&nursingMatches!==null&&h('div',{className:nursingMatches?'tariff-ok':'tariff-warn'},nursingMatches?'✓ Adjusted charge matches its dated tariff':`⚠ Latest ledger: ${money(autoNursing.amount)}`)),
             h('div',{className:'tariff-cell'},h('span',{className:'small-note'},'Latest Room Shift / Accounts Sync'),latestShift?h(React.Fragment,null,h('strong',null,`${latestShift.from_room_no||'—'}${latestShift.from_bed_no?`-${latestShift.from_bed_no}`:''} → ${latestShift.to_room_no||'—'}${latestShift.to_bed_no?`-${latestShift.to_bed_no}`:''}`),h('div',{className:latestShift.accounts_synced?'tariff-ok':'tariff-warn'},latestShift.accounts_synced?'✓ Accounts synchronised':'⚠ Accounts sync pending')):h('strong',null,'No room shift recorded'))
           )
         ),

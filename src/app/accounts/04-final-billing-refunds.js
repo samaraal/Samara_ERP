@@ -33,7 +33,15 @@
       setLoading(false);
     }
 
-    React.useEffect(()=>{if(patientId)loadBill(patientId)},[patientId]);
+    React.useEffect(()=>{
+      if(!patientId)return;
+      const refresh=()=>loadBill(patientId);refresh();
+      const timer=setInterval(refresh,15000);
+      window.addEventListener('samara-refresh-charges',refresh);
+      const channel=client.channel(`final-bill-tariffs-${patientId}`)
+        .on('postgres_changes',{event:'*',schema:'public',table:'billing_transactions',filter:`patient_id=eq.${patientId}`},refresh).subscribe();
+      return()=>{clearInterval(timer);window.removeEventListener('samara-refresh-charges',refresh);client.removeChannel(channel)};
+    },[patientId]);
 
     const groupedCharges=rows.filter(row=>row.transaction_type==='Charge').reduce((groups,row)=>{
       const key=row.category||'Other Charges';
