@@ -353,8 +353,8 @@
       {
         const since=new Date(Date.now()-14*86400000).toISOString();
         const [eq,mv]=await Promise.all([
-          client.from('biomedical_equipment').select('id,asset_no,equipment_name,charge_code,charge_service_name,status,current_patient_id,issued_at'),
-          client.from('biomedical_equipment_movements').select('equipment_id,patient_id,action,moved_at').in('action',['Issued','Returned']).gte('moved_at',since).order('moved_at',{ascending:true})
+          client.rpc('bme_clinical_equipment'),
+          client.rpc('bme_clinical_movements').gte('moved_at',since).order('moved_at',{ascending:true})
         ]);
         if(eq.error){setEquipmentLinks(null)}
         else{
