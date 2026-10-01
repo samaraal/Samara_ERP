@@ -1,3 +1,7 @@
+## 2.15.43 — Resident tariff dates and adjustment visibility
+
+Show the resident-applicable tariff date from admission or the later tariff date. Preserve original audit entries and balances. Family Portal displays discount credits, refund debits and a separate discount total. No additional SQL migration is required; migration 182 remains the billing prerequisite.
+
 # Samara Care ERP — Changelog
 
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
