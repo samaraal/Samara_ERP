@@ -19,6 +19,18 @@
     const [lastOfficeRefresh,setLastOfficeRefresh]=React.useState(null);
     const [page,setPage]=React.useState(readLastOpenPage);
     const [pageRefreshKey,setPageRefreshKey]=React.useState(0);
+    React.useEffect(()=>{
+      if(!profile?.id)return;
+      let disposed=false;const profileId=profile.id;
+      async function refreshFoodAuthority(){
+        let authority={assignment_version:1,read:false,control:false,billing:false};
+        try{const {data,error}=await client.rpc('fv_access');if(!error&&data?.assignment_version===1)authority=data;}catch(_error){}
+        if(!disposed)setProfile(current=>current?.id===profileId&&JSON.stringify(current.__foodVendor)!==JSON.stringify(authority)?{...current,__foodVendor:authority}:current);
+      }
+      refreshFoodAuthority();const timer=setInterval(refreshFoodAuthority,30000);
+      window.addEventListener('focus',refreshFoodAuthority);window.addEventListener('samara-food-authority-changed',refreshFoodAuthority);
+      return()=>{disposed=true;clearInterval(timer);window.removeEventListener('focus',refreshFoodAuthority);window.removeEventListener('samara-food-authority-changed',refreshFoodAuthority)};
+    },[profile?.id]);
     const pageEditedRef=React.useRef(false);
     React.useEffect(()=>{pageEditedRef.current=false},[page]);
     function refreshCurrentPage(){
