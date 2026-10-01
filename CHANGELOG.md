@@ -3,6 +3,11 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.29 — Patient Master shows Real / Trial clearly
+- Every Guest in the Patient Master list now carries a badge under the name: green "✓ REAL" or amber "🧪 TRIAL"; Trial rows are also lightly tinted with an amber left edge.
+- The "Showing: …" bar shows the split, e.g. "✓ REAL 1 · 🧪 TRIAL 4".
+- Patient File → Admission Details shows "Guest Record: Real Guest / Trial (test) Guest". No SQL.
+
 ## 2.15.28 — Active Trial Guests kept for testing
 - "🧪 Erase discharged Trial Guests (N)" now erases only Trial Guests who are no longer active (discharged). Active Trial Guests stay, still used for testing; discharge them when testing is over, then erase them with this button or the single "Erase Trial Guest" button.
 - For now: 175 marks all 14 test Guests as Trial (4 active stay for testing: 0012, 0013, 0014, 0016); the button erases the 10 discharged ones with confirmation "ERASE 10".

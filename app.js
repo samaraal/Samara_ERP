@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.28';
+  const APP_VERSION = '2.15.29';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '01-Oct-2026 Keep active Trial Guests';
+  const APP_BUILD_DATE = '01-Oct-2026 Real / Trial badges';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -20116,6 +20116,8 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
       },80);
     }
 
+    // 2.15.29: Real / Trial Guest shown clearly on every row (Trial = test record, erasable after discharge).
+    const guestRecordBadge=r=>h('div',{className:`guest-record-badge ${r.is_trial?'trial':'real'}`,title:r.is_trial?'Trial (test) Guest — not a real Guest; erased after discharge':'Real Guest'},r.is_trial?'🧪 TRIAL':'✓ REAL');
     const visibleRows=rows.filter(r=>{
       const q=patientSearch.trim().toLowerCase();
       const matchesSearch=!q||[
@@ -20147,6 +20149,9 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Patient Master'),h('small',null,'Single source for identity, admission, nursing, medicines, diet, documents, billing and recovery'))),
         patientQuickFilter!=='all'?h('div',{className:'message info patient-filter-summary',style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px',flexWrap:'wrap',marginBottom:'10px'}},
           h('strong',null,`Showing: ${patientQuickLabels[patientQuickFilter]||'Selected patients'} (${visibleRows.length})`),
+          visibleRows.some(r=>r.is_trial)&&h('span',{className:'guest-record-summary'},
+            h('span',{className:'guest-record-badge real'},`✓ REAL ${visibleRows.filter(r=>!r.is_trial).length}`),
+            h('span',{className:'guest-record-badge trial'},`🧪 TRIAL ${visibleRows.filter(r=>r.is_trial).length}`)),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPatientQuickFilter('active')},'Reset to active')
         ):null,
         h('div',{className:'form-grid patient-master-filters',style:{marginBottom:'10px'}},
@@ -20175,7 +20180,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
             h('tbody',null,
               visibleRows.map(r=>h('tr',{
                 key:r.id,
-                className:`patient-list-row ${duplicateCount(r)?'duplicate-row':''}`.trim(),
+                className:`patient-list-row ${duplicateCount(r)?'duplicate-row':''} ${r.is_trial?'trial-guest-row':''}`.trim(),
                 role:'button',
                 tabIndex:0,
                 title:`Open Patient File – ${formalName(r)}`,
@@ -20185,7 +20190,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
               },
                 h('td',{'data-label':'Photo'},r.photo_storage_path?h('span',{className:'photo-dot'},'Photo'):'—'),
                 h('td',{'data-label':'Resident ID'},r.patient_id||'—'),
-                h('td',{'data-label':'Patient'},h('button',{type:'button',className:'patient-name-link',onClick:e=>{e.stopPropagation();openPatient(r)}},formalName(r)),r.is_active===false?h('div',{className:'patient-inactive-label',style:{display:'block',fontSize:'12px',fontWeight:700,marginTop:'4px'}},'Inactive / discharged'):null,duplicateCount(r)?h('div',{className:'small-note danger-text'},'Possible duplicate'):null),
+                h('td',{'data-label':'Patient'},h('button',{type:'button',className:'patient-name-link',onClick:e=>{e.stopPropagation();openPatient(r)}},formalName(r)),guestRecordBadge(r),r.is_active===false?h('div',{className:'patient-inactive-label',style:{display:'block',fontSize:'12px',fontWeight:700,marginTop:'4px'}},'Inactive / discharged'):null,duplicateCount(r)?h('div',{className:'small-note danger-text'},'Possible duplicate'):null),
                 h('td',{'data-label':'District / Town'},`${r.district||'—'}${r.village_town?` / ${r.village_town}`:''}`),
                 h('td',{'data-label':'Admission Type'},r.admission_type||'—'),
                 h('td',{'data-label':'Category'},r.patient_category||'—'),
@@ -20894,6 +20899,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
             h('div',{className:'section-card'},
               h('h4',null,'Admission'),
               admissionField('Resident ID',selected.patient_id||selected.patient_code),
+              admissionField('Guest Record',selected.is_trial?'🧪 Trial (test) Guest':'✓ Real Guest'),
               admissionField('Status',selected.is_active===false?'Inactive / Discharged':'Active / Admitted'),
               admissionField('Date of Admission',admissionDateLabel(selected.admission_date)),
               admissionField('Admission Type',selected.admission_type),
