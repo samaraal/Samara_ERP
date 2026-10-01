@@ -2748,3 +2748,6 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 .fi-day-cell.fi-pending strong{color:#8a6a7a}
 .fi-day-cell.fi-bevcell{border-left-color:#1d4ed8}
 @media (max-width:900px){.fi-day-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.fi-reg-filters{grid-template-columns:1fr 1fr}.fi-reg-filters .fi-reg-guest{grid-column:1/-1}}
+/* 2.15.40: beverage quantity + unit */
+.fi-qty{display:grid;grid-template-columns:minmax(0,1fr) minmax(110px,auto);gap:8px}
+.fi-qty select{min-width:0}

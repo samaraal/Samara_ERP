@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.39';
+  const APP_VERSION = '2.15.40';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '01-Oct-2026 Beverage setup notice';
+  const APP_BUILD_DATE = '01-Oct-2026 Beverage quantity units';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -21069,7 +21069,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
             const items=[...(details.meals||[]).map(x=>({k:`m${x.id}`,at:x.served_at||x.meal_date,x,t:'meal'})),...(details.beverages||[]).map(x=>({k:`b${x.id}`,at:x.given_at,x,t:'bev'}))].sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
             return items.length?items.map(({k,x,t})=>t==='meal'
               ?h('div',{className:'timeline-item',key:k},h('strong',null,`${formatDateIN(x.meal_date)||''} · ${x.meal_type==='Tiffin'?'Breakfast':x.meal_type} · ${x.consumption_status}`),h('span',{className:'patient-file-detail'},` · ${x.menu||'—'}${x.beverage_type?` · Beverage: ${x.beverage_type}${x.beverage_time?` at ${String(x.beverage_time).slice(0,5)}`:''}`:''}${x.remarks?` · ${x.remarks}`:''}`))
-              :h('div',{className:'timeline-item',key:k},h('strong',null,`${formatDateIN(x.given_date)} · ${String(x.given_time||'').slice(0,5)} · ${x.beverage==='Fresh Juice'?`Fresh Juice (${x.juice_name||'—'})`:x.beverage} · ${x.consumption_status}`),h('span',{className:'patient-file-detail'},`${x.quantity_ml?` · ${x.quantity_ml} ml`:''}${x.remarks?` · ${x.remarks}`:''}`))
+              :h('div',{className:'timeline-item',key:k},h('strong',null,`${formatDateIN(x.given_date)} · ${String(x.given_time||'').slice(0,5)} · ${x.beverage==='Fresh Juice'?`Fresh Juice (${x.juice_name||'—'})`:x.beverage} · ${x.consumption_status}`),h('span',{className:'patient-file-detail'},`${x.quantity!=null?` · ${Number(x.quantity)} ${x.quantity_unit||'ml'}`:x.quantity_ml?` · ${x.quantity_ml} ml`:''}${x.remarks?` · ${x.remarks}`:''}`))
             ):sectionEmpty('No food or beverage records.');
           })()),
           tab==='Daily Moments'&&h('div',{className:'daily-moments-wrap'},
@@ -25819,6 +25819,9 @@ function RoomsBeds({profile,onNavigate}){
   const FOOD_GROUP_LABEL={Main:'Main item',Side:'Sides / curries',Other:'Others'};
   const BEVERAGES=[['Tea','☕'],['Coffee','☕'],['Milk','🥛'],['Boost','🥤'],['Horlicks','🥤'],['Fresh Juice','🧃']];
   const INTAKE_OPTIONS=['Consumed fully','Consumed mostly','Consumed partially','Tasted only','Refused','Vomited','Tube feed completed'];
+  // 2.15.40: quantity unit for beverages.
+  const BEV_UNITS=[['ml','ml'],['cup','cup'],['glass','glass'],['tumbler','tumbler'],['mug','mug'],['tsp','tsp (teaspoon)'],['tbsp','tbsp (tablespoon)'],['g','g (gram)'],['mg','mg']];
+  const bevQty=r=>r&&r.quantity!=null&&r.quantity!==''?`${Number(r.quantity)} ${r.quantity_unit||'ml'}`:r&&r.quantity_ml?`${r.quantity_ml} ml`:'';
   const BEVERAGE_INTAKE=['Consumed fully','Consumed partially','Refused'];
   const nowHHMM=()=>{try{return new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date())}catch(_e){return ''}};
 
@@ -25831,7 +25834,7 @@ function RoomsBeds({profile,onNavigate}){
     const [entryType,setEntryType]=React.useState('meal');
     const [patientId,setPatientId]=React.useState('');
     const blankMeal=()=>({meal_date:todayISOIndia(),meal_type:'Tiffin',items:[],custom:'',served_time:'',consumption_status:'Consumed fully',remarks:''});
-    const blankBev=()=>({given_date:todayISOIndia(),beverage:'',juice_name:'',given_time:'',quantity_ml:'',consumption_status:'Consumed fully',remarks:''});
+    const blankBev=()=>({given_date:todayISOIndia(),beverage:'',juice_name:'',given_time:'',quantity:'',quantity_unit:'ml',consumption_status:'Consumed fully',remarks:''});
     const [form,setForm]=React.useState(blankMeal);
     const [bev,setBev]=React.useState(blankBev);
     const [pick,setPick]=React.useState('');
@@ -25925,12 +25928,19 @@ function RoomsBeds({profile,onNavigate}){
       if(bev.beverage==='Fresh Juice'&&!bev.juice_name.trim())return alert('Enter which juice was given (for example Orange, Mosambi, Pomegranate).');
       if(!bev.given_time)return alert('Enter the time the beverage was given.');
       if(bev.given_date===todayISOIndia()&&bev.given_time>nowHHMM())return alert('The beverage time cannot be later than now.');
-      const qty=String(bev.quantity_ml||'').trim()===''?null:Number(bev.quantity_ml);
-      if(qty!==null&&(!Number.isFinite(qty)||qty<=0||qty>2000))return alert('Quantity must be between 1 and 2000 ml (or leave it blank).');
+      const qty=String(bev.quantity||'').trim()===''?null:Number(bev.quantity);
+      const unit=bev.quantity_unit||'ml';
+      if(qty!==null&&(!Number.isFinite(qty)||qty<=0||qty>5000))return alert('Enter a quantity above 0 (or leave it blank).');
+      if(qty!==null&&unit==='ml'&&qty>2000)return alert('Quantity must be 2000 ml or less.');
       if(saving)return;
       setSaving(true);
-      const payload={patient_id:patientId,given_date:bev.given_date,given_time:bev.given_time,given_at:`${bev.given_date}T${bev.given_time}:00+05:30`,beverage:bev.beverage,juice_name:bev.beverage==='Fresh Juice'?bev.juice_name.trim():null,quantity_ml:qty===null?null:Math.round(qty),consumption_status:bev.consumption_status,remarks:bev.remarks||null,recorded_by:profile.id,recorded_by_name:profile.full_name||null};
-      const {error}=await client.from('beverage_records').insert(payload);
+      const payload={patient_id:patientId,given_date:bev.given_date,given_time:bev.given_time,given_at:`${bev.given_date}T${bev.given_time}:00+05:30`,beverage:bev.beverage,juice_name:bev.beverage==='Fresh Juice'?bev.juice_name.trim():null,quantity_ml:qty!==null&&unit==='ml'?Math.round(qty):null,quantity:qty,quantity_unit:qty===null?null:unit,consumption_status:bev.consumption_status,remarks:bev.remarks||null,recorded_by:profile.id,recorded_by_name:profile.full_name||null};
+      let {error}=await client.from('beverage_records').insert(payload);
+      // Before 179_beverage_quantity_unit.sql is run: save without the unit columns (ml only).
+      if(error&&/quantity_unit|'quantity'|column .*quantity/i.test(error.message||'')){
+        if(qty!==null&&unit!=='ml'){setSaving(false);return alert('Units other than ml need a one-time database update: run supabase/sql/179_beverage_quantity_unit.sql in Supabase. You can save in ml now.')}
+        const {quantity:_q,quantity_unit:_u,...older}=payload;({error}=await client.from('beverage_records').insert(older));
+      }
       setSaving(false);
       if(error){
         if(/beverage_records|does not exist|schema cache/i.test(error.message||'')){setBevReady(false);return alert('Beverage entries need a one-time database update: run supabase/sql/177_beverage_records.sql in Supabase, then save again.')}
@@ -25998,7 +26008,9 @@ function RoomsBeds({profile,onNavigate}){
           h('div',{className:'fi-row'},
             h('div',{className:'field'},h('label',null,'Date'),h(StrictDateInput,{value:bev.given_date,max:todayISOIndia(),required:true,onChange:e=>setBev({...bev,given_date:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Time given'),h('input',{type:'time',value:bev.given_time,required:true,onChange:e=>setBev({...bev,given_time:e.target.value})})),
-            h('div',{className:'field'},h('label',null,'Quantity (ml, optional)'),h('input',{type:'number',min:1,max:2000,step:10,inputMode:'numeric',value:bev.quantity_ml,placeholder:'e.g. 150',onChange:e=>setBev({...bev,quantity_ml:e.target.value})}))
+            h('div',{className:'field'},h('label',null,'Quantity (optional)'),h('div',{className:'fi-qty'},
+              h('input',{type:'number',min:0,step:'any',inputMode:'decimal',value:bev.quantity,placeholder:bev.quantity_unit==='ml'?'e.g. 150':'e.g. 1','aria-label':'Quantity',onChange:e=>setBev({...bev,quantity:e.target.value})}),
+              h('select',{value:bev.quantity_unit,'aria-label':'Unit',onChange:e=>setBev({...bev,quantity_unit:e.target.value})},BEV_UNITS.map(([v,l])=>h('option',{key:v,value:v},l)))))
           ),
           h('div',{className:'fi-row'},miniSelect('Consumed',bev.consumption_status,BEVERAGE_INTAKE,v=>setBev({...bev,consumption_status:v}))),
           miniInput('Remarks',bev.remarks,v=>setBev({...bev,remarks:v})),
@@ -26038,7 +26050,7 @@ function RoomsBeds({profile,onNavigate}){
                 h('td',{'data-label':'Time'},String(fmt(kind==='meal'?r.served_at:r.given_at)).split(', ').slice(-1)[0]),
                 h('td',{'data-label':'Type'},kind==='meal'?mealLabel(canonicalMealType(r.meal_type)||r.meal_type):h('span',{className:'fi-type-bev'},'Beverage')),
                 h('td',{'data-label':'Items / Beverage'},kind==='meal'?h('span',null,r.menu||'—',r.beverage_type?h('small',{className:'fi-sub'},` · Beverage: ${r.beverage_type}${r.beverage_time?` at ${String(r.beverage_time).slice(0,5)}`:''}`):null)
-                  :`${r.beverage==='Fresh Juice'?`Fresh Juice (${r.juice_name||'—'})`:r.beverage}${r.quantity_ml?` · ${r.quantity_ml} ml`:''}`),
+                  :`${r.beverage==='Fresh Juice'?`Fresh Juice (${r.juice_name||'—'})`:r.beverage}${bevQty(r)?` · ${bevQty(r)}`:''}`),
                 h('td',{'data-label':'Intake'},h('span',{className:`fi-intake ${intakeClass(r.consumption_status)}`},r.consumption_status||'—')),
                 h('td',{'data-label':'Remarks'},r.remarks||'—'))),
               combined.length===0&&h('tr',null,h('td',{colSpan:6,className:'empty'},`No meals or beverages recorded for this Guest on ${regPeriodText}.`))
@@ -34322,7 +34334,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         ]);
         const [pats,vitals,care,careOrders,orders,mar,mealRows,physioOrders,physioSessions,incidents,billing,recovery,handovers,documents,staff,audit,medicationReviews,medicationReviewItems,nursingProcedures]=results.map(safeRows);
         // 2.15.34: separate beverage servings join the Food / Fluid Intake rows (Meal = "Beverage").
-        const beverageRows=(results[results.length-1]?.error?[]:safeRows(results[results.length-1])).map(b=>({id:`bev-${b.id}`,patient_id:b.patient_id,meal_type:'Beverage',meal_date:b.given_date,menu:b.quantity_ml?`${b.quantity_ml} ml`:'—',consumption_status:b.consumption_status,served_at:b.given_at,created_at:b.created_at,beverage_type:b.beverage==='Fresh Juice'?`Fresh Juice (${b.juice_name||'—'})`:b.beverage,beverage_time:b.given_time,remarks:b.remarks,__beverage:true}));
+        const beverageRows=(results[results.length-1]?.error?[]:safeRows(results[results.length-1])).map(b=>({id:`bev-${b.id}`,patient_id:b.patient_id,meal_type:'Beverage',meal_date:b.given_date,menu:b.quantity!=null?`${Number(b.quantity)} ${b.quantity_unit||'ml'}`:b.quantity_ml?`${b.quantity_ml} ml`:'—',consumption_status:b.consumption_status,served_at:b.given_at,created_at:b.created_at,beverage_type:b.beverage==='Fresh Juice'?`Fresh Juice (${b.juice_name||'—'})`:b.beverage,beverage_time:b.given_time,remarks:b.remarks,__beverage:true}));
         const meals=[...mealRows,...beverageRows];
         const selectedPatient=pats.find(p=>p.id===patientId)||patients.find(p=>p.id===patientId)||null;
         if(activeMode==='Resident-wise'&&selectedPatient&&isFutureDateIndia(selectedPatient.admission_date)){

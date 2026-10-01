@@ -2520,7 +2520,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
             const items=[...(details.meals||[]).map(x=>({k:`m${x.id}`,at:x.served_at||x.meal_date,x,t:'meal'})),...(details.beverages||[]).map(x=>({k:`b${x.id}`,at:x.given_at,x,t:'bev'}))].sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
             return items.length?items.map(({k,x,t})=>t==='meal'
               ?h('div',{className:'timeline-item',key:k},h('strong',null,`${formatDateIN(x.meal_date)||''} · ${x.meal_type==='Tiffin'?'Breakfast':x.meal_type} · ${x.consumption_status}`),h('span',{className:'patient-file-detail'},` · ${x.menu||'—'}${x.beverage_type?` · Beverage: ${x.beverage_type}${x.beverage_time?` at ${String(x.beverage_time).slice(0,5)}`:''}`:''}${x.remarks?` · ${x.remarks}`:''}`))
-              :h('div',{className:'timeline-item',key:k},h('strong',null,`${formatDateIN(x.given_date)} · ${String(x.given_time||'').slice(0,5)} · ${x.beverage==='Fresh Juice'?`Fresh Juice (${x.juice_name||'—'})`:x.beverage} · ${x.consumption_status}`),h('span',{className:'patient-file-detail'},`${x.quantity_ml?` · ${x.quantity_ml} ml`:''}${x.remarks?` · ${x.remarks}`:''}`))
+              :h('div',{className:'timeline-item',key:k},h('strong',null,`${formatDateIN(x.given_date)} · ${String(x.given_time||'').slice(0,5)} · ${x.beverage==='Fresh Juice'?`Fresh Juice (${x.juice_name||'—'})`:x.beverage} · ${x.consumption_status}`),h('span',{className:'patient-file-detail'},`${x.quantity!=null?` · ${Number(x.quantity)} ${x.quantity_unit||'ml'}`:x.quantity_ml?` · ${x.quantity_ml} ml`:''}${x.remarks?` · ${x.remarks}`:''}`))
             ):sectionEmpty('No food or beverage records.');
           })()),
           tab==='Daily Moments'&&h('div',{className:'daily-moments-wrap'},

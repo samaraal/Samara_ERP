@@ -3,6 +3,11 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.40 — Beverage quantity with a unit dropdown
+- Beverage entry: Quantity + Unit (ml, cup, glass, tumbler, mug, tsp, tbsp, g, mg). Any number is accepted, including decimals (e.g. 0.5 cup). Fixes the "Quantity is not valid" error for values like 100 ml (the old box only allowed 1, 11, 21 …).
+- Shown as "2 tsp", "150 ml", "1 cup" in the Food & Beverage Register, Patient File → Diet, the Intelligent Report and (after redeploy) the WhatsApp Daily Report. Earlier entries keep their ml.
+- SQL: supabase/sql/179_beverage_quantity_unit.sql (run once). Until then, ml entries still save; other units ask for the update.
+
 ## 2.15.39 — Beverage entry: clear notice when the database update is missing
 - If supabase/sql/177_beverage_records.sql has not been run, the Beverage Save button now says "Cannot save yet — database update needed" with the instruction right below it (previously only a faded button on phones). No SQL change.
 

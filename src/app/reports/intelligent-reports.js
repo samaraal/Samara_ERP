@@ -214,7 +214,7 @@
         ]);
         const [pats,vitals,care,careOrders,orders,mar,mealRows,physioOrders,physioSessions,incidents,billing,recovery,handovers,documents,staff,audit,medicationReviews,medicationReviewItems,nursingProcedures]=results.map(safeRows);
         // 2.15.34: separate beverage servings join the Food / Fluid Intake rows (Meal = "Beverage").
-        const beverageRows=(results[results.length-1]?.error?[]:safeRows(results[results.length-1])).map(b=>({id:`bev-${b.id}`,patient_id:b.patient_id,meal_type:'Beverage',meal_date:b.given_date,menu:b.quantity_ml?`${b.quantity_ml} ml`:'—',consumption_status:b.consumption_status,served_at:b.given_at,created_at:b.created_at,beverage_type:b.beverage==='Fresh Juice'?`Fresh Juice (${b.juice_name||'—'})`:b.beverage,beverage_time:b.given_time,remarks:b.remarks,__beverage:true}));
+        const beverageRows=(results[results.length-1]?.error?[]:safeRows(results[results.length-1])).map(b=>({id:`bev-${b.id}`,patient_id:b.patient_id,meal_type:'Beverage',meal_date:b.given_date,menu:b.quantity!=null?`${Number(b.quantity)} ${b.quantity_unit||'ml'}`:b.quantity_ml?`${b.quantity_ml} ml`:'—',consumption_status:b.consumption_status,served_at:b.given_at,created_at:b.created_at,beverage_type:b.beverage==='Fresh Juice'?`Fresh Juice (${b.juice_name||'—'})`:b.beverage,beverage_time:b.given_time,remarks:b.remarks,__beverage:true}));
         const meals=[...mealRows,...beverageRows];
         const selectedPatient=pats.find(p=>p.id===patientId)||patients.find(p=>p.id===patientId)||null;
         if(activeMode==='Resident-wise'&&selectedPatient&&isFutureDateIndia(selectedPatient.admission_date)){
