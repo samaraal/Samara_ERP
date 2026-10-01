@@ -1,9 +1,9 @@
-  // v2.14.65: Nurses see only Resident Food Intake (Food Vendor Management is not
-  // needed for them). Nursing Manager / STD keep Food Vendor Management; others see both.
+  // Vendor responsibility is granted by the server's named assignment only.
   function foodViewsFor(profile){
-    if(profile?.role==='STD'||isNursingManagerProfile(profile))return ['Food Vendor Management'];
-    if(profile?.role==='Nurse')return ['Resident Food Intake'];
-    return ['Food Vendor Management','Resident Food Intake'];
+    const views=[];
+    if(profile?.__foodVendor?.assignment_version===1&&profile.__foodVendor.read)views.push('Food Vendor Management');
+    if(profile?.role!=='STD')views.push('Resident Food Intake');
+    return views;
   }
   function foodViewPreference(profile){
     let saved='';try{saved=sessionStorage.getItem('samara_food_view')||''}catch(_error){}
@@ -12,7 +12,7 @@
   }
   function FoodNavigationLinks({profile,page,onNavigate,mobile=false}){
     const [view,setView]=React.useState(()=>foodViewPreference(profile));
-    React.useEffect(()=>{const update=()=>setView(foodViewPreference(profile));window.addEventListener('samara-food-view',update);return()=>window.removeEventListener('samara-food-view',update)},[]);
+    React.useEffect(()=>{const update=()=>setView(foodViewPreference(profile));window.addEventListener('samara-food-view',update);return()=>window.removeEventListener('samara-food-view',update)},[profile?.id,profile?.__foodVendor?.read]);
     const labels=foodViewsFor(profile);
     return h(React.Fragment,null,labels.map(label=>h('button',{key:label,type:'button','data-nav':'Food & Diet',className:page==='Food & Diet'&&view===label?'active':'',onClick:()=>{
       try{sessionStorage.setItem('samara_food_view',label)}catch(_error){}
@@ -22,7 +22,8 @@
   function FoodDiet({profile}){
     const views=foodViewsFor(profile);
     const [foodView,setFoodView]=React.useState(()=>foodViewPreference(profile));
-    React.useEffect(()=>{const update=e=>setFoodView(views.includes(e.detail)?e.detail:foodViewPreference(profile));window.addEventListener('samara-food-view',update);return()=>window.removeEventListener('samara-food-view',update)},[]);
+    React.useEffect(()=>{const update=e=>setFoodView(views.includes(e?.detail)?e.detail:foodViewPreference(profile));update();window.addEventListener('samara-food-view',update);return()=>window.removeEventListener('samara-food-view',update)},[profile?.id,profile?.role,profile?.__foodVendor?.read]);
+    if(!views.length)return h('p',{role:'status'},'Food Vendor Management is available only to the assigned in-charge and Admin/Director.');
     const canViewIntake=views.includes('Resident Food Intake');
     return h(React.Fragment,null,
       h('style',null,'@media(max-width:950px){.food-view-tabs{display:none!important}}'),
