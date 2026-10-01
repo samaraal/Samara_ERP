@@ -3,6 +3,11 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.37 — Food WhatsApp: quantities and place of delivery in bold
+- Food vendor WhatsApp (order, revision, receipt, confirmation, cancellation): every quantity (e.g. "Standard meal: *2*"), the outstanding portions and the place ("Deliver to: *Samara Main - Mogappair*") are sent in WhatsApp bold. Same approved templates and number of values.
+- ERP WhatsApp Inbox and the Food Vendor "Review message" preview now show WhatsApp formatting like the phone (*bold*, _italic_, ~strike~) instead of the asterisks.
+- Edge Function food-whatsapp: redeploy from supabase/function-copies/food-whatsapp-inbox.ts (includes the 2.15.36 place / DD-MM-YYYY / Breakfast changes). No SQL.
+
 ## 2.15.36 — Food Vendor: two delivery places (Samara Main - Mogappair, AppGeo - Saidapet)
 - Each place is its own vendor account: separate orders (one per date + meal per place), WhatsApp, receipt, cancellation, rates, statement and balance. Mrs. Yuvashree supplies both for now; Settings → Delivery places → "Change vendor" sets another vendor for AppGeo later (a new account starts; Samara Main is untouched).
 - New order: "Deliver to" buttons for the two places (fixed once an order is placed). Orders / History: place shown under each order, plus a "Place" filter (Both places / Samara Main / AppGeo). Receive and Messages show the place.

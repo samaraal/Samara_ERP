@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.36';
+  const APP_VERSION = '2.15.37';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '01-Oct-2026 Food two places';
+  const APP_BUILD_DATE = '01-Oct-2026 WhatsApp bold quantities';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -10066,6 +10066,19 @@ function Dashboard({profile,onNavigate,alertEngine}){
     );
   }
 
+  // 2.15.37: show WhatsApp formatting like the phone does — *bold*, _italic_, ~strike~ (single line, no spaces at the edges).
+  function waRichText(value){
+    const str=String(value??'');
+    if(!/[*_~]/.test(str))return str;
+    const out=[];let last=0,k=0;const re=/([*_~])(?!\s)([^\n*_~]*?[^\s*_~]|[^\s*_~])\1/g;let m;
+    while((m=re.exec(str))){
+      const before=str[m.index-1];if(before&&/[A-Za-z0-9]/.test(before))continue;
+      if(m.index>last)out.push(str.slice(last,m.index));
+      const tag=m[1]==='*'?'strong':m[1]==='_'?'em':'s';out.push(h(tag,{key:'w'+(k++)},m[2]));last=m.index+m[0].length;
+    }
+    if(last<str.length)out.push(str.slice(last));
+    return out;
+  }
   function WhatsAppInbox({profile}){
     const foodOnly=isNursingManagerProfile(profile);
     const leaveCover=Boolean(profile?.__dutyContext?.leave_cover);
@@ -10909,7 +10922,7 @@ Thank you.`;
                     media?h('button',{type:'button',className:'wa-attach-card',disabled:mediaBusyId===r.id,onClick:()=>openMedia(r)},
                       h('span',{className:'wa-attach-icon','aria-hidden':'true'},media.type==='image'?'🖼':media.type==='audio'?'🎤':media.type==='video'?'🎬':'📄'),
                       h('span',{className:'wa-attach-text'},h('strong',null,mediaBusyId===r.id?'Opening…':(media.filename||mediaLabel(media))),h('small',null,media.type==='image'?'Tap to view photo':media.type==='document'?'Tap to open document':'Tap to open'))):null,
-                    text?h('div',{style:{whiteSpace:'pre-wrap',lineHeight:'1.42',fontSize:'14px',paddingRight:'4px',marginTop:media?'6px':0}},text):null,
+                    text?h('div',{style:{whiteSpace:'pre-wrap',lineHeight:'1.42',fontSize:'14px',paddingRight:'4px',marginTop:media?'6px':0}},waRichText(text)):null,
                     tpl&&tpl.footer?h('div',{style:{marginTop:'6px',fontSize:'12px',color:'#667781'}},tpl.footer):null,
                     tpl&&tpl.buttons.length?h('div',{style:{marginTop:'9px',borderTop:'1px solid #d8e6dc'}},tpl.buttons.map((b,i)=>b.type==='URL'&&b.url
                         ?h('a',{key:i,href:b.url,target:'_blank',rel:'noopener noreferrer',className:'wa-tpl-btn'},`↗ ${b.text}`)

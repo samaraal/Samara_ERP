@@ -6,10 +6,10 @@ const logo='https://samaraassistedliving.com/assets/samara-logo.png';
 const slots=['Tiffin','Morning Tea / Coffee','Lunch','Evening Tea / Coffee','Dinner'];
 const clean=v=>String(v??'').replace(/\s+/g,' ').trim()||'None';
 const ref=id=>'FOOD-'+String(id).slice(0,8).toUpperCase();
-function summary(items,key){return (items||[]).map(i=>`${clean(i.name)}: ${Number(i[key]||0)}`).join('; ')||'None'}
-function total(items){return (items||[]).map(i=>`${clean(i.name)}: ${Number(i.residents||0)+Number(i.employees||0)}`).join('; ')||'None'}
+function summary(items,key){return (items||[]).map(i=>`${clean(i.name)}: *${Number(i[key]||0)}*`).join('; ')||'None'}
+function total(items){return (items||[]).map(i=>`${clean(i.name)}: *${Number(i.residents||0)+Number(i.employees||0)}*`).join('; ')||'None'}
 function message(kind,s){
- const common=[clean(s.vendor_name),ref(s.id),clean(s.date)+' / '+clean(s.slot)+(s.place?' / Deliver to: '+clean(s.place):''),clean(s.delivery)]; // 2.15.36: place inside the approved 'Date and meal' value
+ const common=[clean(s.vendor_name),ref(s.id),clean(s.date)+' / '+clean(s.slot)+(s.place?' / Deliver to: *'+clean(s.place)+'*':''),clean(s.delivery)]; // 2.15.36: place inside the approved 'Date and meal' value
  let values,body;
  if(kind==='order'){
  values=[...common,summary(s.items,'residents'),summary(s.items,'employees'),total(s.items),clean(s.instructions)];
@@ -21,7 +21,7 @@ function message(kind,s){
  }else if(kind==='receipt'){
  common[1]+=' / Receipt '+String(s.receipt_id).slice(0,8);common[3]=dates.dateTime(s.receipt.received_at);
  const lines=s.receipt.items.map((i,n)=>({...i,name:s.items[n].name}));
- values=[...common,total(s.items),'Residents: '+summary(lines,'residents')+'; Employees: '+summary(lines,'employees'),summary(lines,'rejected'),String(s.outstanding)+' portions',clean(s.receipt.remarks)];
+ values=[...common,total(s.items),'Residents: '+summary(lines,'residents')+'; Employees: '+summary(lines,'employees'),summary(lines,'rejected'),'*'+String(s.outstanding)+'* portions',clean(s.receipt.remarks)];
  body=`Dear {{1}},\nSamara Assisted Living has recorded a food delivery against your order.\n\nOrder and receipt: {{2}}\nDate and meal: {{3}}\nReceived at: {{4}}\nOrdered quantities: {{5}}\nAccepted this delivery: {{6}}\nRejected this delivery: {{7}}\nOutstanding quantities: {{8}}\nRemarks / instructions: {{9}}\n\nPlease review any discrepancy and acknowledge.\nThank you, Samara Assisted Living.`;
  }else if(kind==='confirm_request'){
  values=[...common.slice(0,3)];
