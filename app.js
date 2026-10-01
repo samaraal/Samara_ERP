@@ -25822,19 +25822,52 @@ function RoomsBeds({profile,onNavigate}){
     const [form,setForm]=React.useState(blankMeal);
     const [bev,setBev]=React.useState(blankBev);
     const [pick,setPick]=React.useState('');
+    // 2.15.35: Guest-wise Food & Beverage Register — one Guest, Today or a period (Apply).
+    const [regGuest,setRegGuest]=React.useState(''),[regPeriod,setRegPeriod]=React.useState('today'),[regFrom,setRegFrom]=React.useState(''),[regTo,setRegTo]=React.useState('');
+    const regF=useAppliedFilters({guest:regGuest,period:regPeriod,from:regFrom,to:regTo});const RF=regF.applied;
+    const [regRows,setRegRows]=React.useState(null),[regLoading,setRegLoading]=React.useState(false);
+    // Choosing a Guest for entry also shows that Guest in the register (staff can still pick another Guest there).
+    const [regFollow,setRegFollow]=React.useState(false);
+    React.useEffect(()=>{if(patientId){setRegGuest(patientId);setRegFollow(true)}},[patientId]);
+    React.useEffect(()=>{if(regFollow&&regGuest===patientId){regF.apply();setRegFollow(false)}},[regFollow,regGuest]);
     const canonicalMealType=value=>{const v=String(value||'').toLowerCase();if(v.includes('lunch'))return 'Lunch';if(v.includes('dinner'))return 'Dinner';if(v.includes('breakfast')||v.includes('tiff'))return 'Tiffin';return null};
     const mealLabel=m=>m==='Tiffin'?'Breakfast':m;
     const validMealTime=(meal,time)=>{const minutes=Number(String(time).slice(0,2))*60+Number(String(time).slice(3,5));return meal==='Tiffin'?minutes>=300&&minutes<660:meal==='Lunch'?minutes>=660&&minutes<960:minutes>=960&&minutes<=1439};
     const mealTimeGuide=meal=>meal==='Tiffin'?'05:00 AM to 10:59 AM':meal==='Lunch'?'11:00 AM to 03:59 PM':'04:00 PM to 11:59 PM';
+    const REG_PERIODS=[['today','Today'],['yesterday','Yesterday'],['week','This Week'],['month','This Month'],['lastmonth','Last Month'],['custom','Select period']];
+    const regBounds=(()=>{
+      const t=todayISOIndia();
+      switch(RF.period){
+        case 'yesterday':{const d=new Date(`${t}T12:00:00`);d.setDate(d.getDate()-1);const y=d.toISOString().slice(0,10);return [y,y];}
+        case 'week':return [mondayOfWeek(t),t];
+        case 'month':return [t.slice(0,8)+'01',t];
+        case 'lastmonth':{const d=new Date(`${t.slice(0,8)}01T12:00:00`);d.setDate(0);const e=d.toISOString().slice(0,10);return [e.slice(0,8)+'01',e];}
+        case 'custom':{const x=RF.from||t,y=RF.to||RF.from||t;return x<=y?[x,y]:[y,x];}
+        default:return [t,t];
+      }
+    })();
+    // Recent rows feed only the "Added earlier" item list; the register loads per Guest + period.
     async function load(){
-      const [m,b]=await Promise.all([
-        client.from('meal_records').select('*,patients(full_name,title,room_no,bed_no,is_trial)').order('served_at',{ascending:false}).limit(100),
-        client.from('beverage_records').select('*,patients(full_name,title,room_no,bed_no,is_trial)').order('given_at',{ascending:false}).limit(100)
-      ]);
+      const m=await client.from('meal_records').select('menu').order('served_at',{ascending:false}).limit(200);
       setRows(m.data||[]);
-      if(b.error){setBevReady(!/beverage_records|does not exist|schema cache/i.test(b.error.message||''));setBevRows([])}else{setBevReady(true);setBevRows(b.data||[])}
+      const b=await client.from('beverage_records').select('id').limit(1);
+      setBevReady(!(b.error&&/beverage_records|does not exist|schema cache/i.test(b.error.message||'')));
+      await loadRegister();
+    }
+    async function loadRegister(){
+      if(!RF.guest){setRegRows(null);return}
+      setRegLoading(true);
+      const [from,to]=regBounds;
+      const [m,b]=await Promise.all([
+        client.from('meal_records').select('*').eq('patient_id',RF.guest).gte('meal_date',from).lte('meal_date',to).order('served_at',{ascending:false}),
+        client.from('beverage_records').select('*').eq('patient_id',RF.guest).gte('given_date',from).lte('given_date',to).order('given_at',{ascending:false})
+      ]);
+      setRegLoading(false);
+      setBevRows(b.error?[]:(b.data||[]));
+      setRegRows(m.data||[]);
     }
     React.useEffect(()=>{load()},[]);
+    React.useEffect(()=>{loadRegister()},[RF.guest,RF.period,RF.from,RF.to]);
     // Items typed before (not in the standard list) are offered again under "Added earlier".
     const standardItems=new Set(Object.values(FOOD_ITEMS).flatMap(g=>Object.values(g).flat()).map(x=>x.toLowerCase()));
     const earlierItems=[...new Set(rows.flatMap(r=>String(r.menu||'').split(/\s*,\s*/)).map(x=>x.trim()).filter(x=>x&&x.length<=40&&!standardItems.has(x.toLowerCase())&&!/\bwith\b|\band\b/i.test(x)))].sort().slice(0,30);
@@ -25897,10 +25930,15 @@ function RoomsBeds({profile,onNavigate}){
     const groups=FOOD_ITEMS[form.meal_type]||FOOD_ITEMS.Lunch;
     const guestName=r=>r.patients?[r.patients.title,r.patients.full_name].filter(Boolean).join(' '):'—';
     const roomOf=r=>r.patients?`${r.patients.room_no||'—'}-${r.patients.bed_no||'—'}`:'—';
+    const regMeals=regRows||[];
     const combined=[
-      ...rows.map(r=>({key:`m-${r.id}`,at:r.served_at,kind:'meal',r})),
+      ...regMeals.map(r=>({key:`m-${r.id}`,at:r.served_at,kind:'meal',r})),
       ...bevRows.map(r=>({key:`b-${r.id}`,at:r.given_at,kind:'bev',r}))
-    ].sort((a,b)=>String(b.at||'').localeCompare(String(a.at||''))).slice(0,120);
+    ].sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
+    const regGuestRow=patients.find(p=>p.id===RF.guest);
+    const regPeriodText=regBounds[0]===regBounds[1]?formatDateIN(regBounds[0]):`${formatDateIN(regBounds[0])} – ${formatDateIN(regBounds[1])}`;
+    const singleDay=regBounds[0]===regBounds[1];
+    const mealOn=(type)=>regMeals.find(r=>canonicalMealType(r.meal_type)===type);
     const intakeClass=v=>/refused|vomit/i.test(v||'')?'fi-bad':/partial|tasted/i.test(v||'')?'fi-warn':'fi-ok';
     return h(React.Fragment,null,
       h(Section,{title:'Food, Diet & Beverages',subtitle:'Nursing entry — meals item by item, and beverages separately'},
@@ -25955,15 +25993,45 @@ function RoomsBeds({profile,onNavigate}){
           h('button',{className:'btn btn-primary fi-save',disabled:saving||!bevReady},saving?'Saving…':`Save ${bev.beverage||'Beverage'} Entry`)
         )
       ),
-      h(LogTable,{title:'Recent Food & Beverage Records',heads:['Guest / Room','Type','Items / Beverage','Intake','Time','Remarks'],rows:combined.map(({kind,r})=>[
-        h('span',null,`${guestName(r)} · ${roomOf(r)}`,r.patients?.is_trial?h('span',{className:'guest-record-badge trial',style:{marginLeft:'6px'}},'🧪 TRIAL'):null),
-        kind==='meal'?mealLabel(canonicalMealType(r.meal_type)||r.meal_type):h('span',{className:'fi-type-bev'},'Beverage'),
-        kind==='meal'?h('span',null,r.menu||'—',r.beverage_type?h('small',{className:'fi-sub'},` · Beverage: ${r.beverage_type}${r.beverage_time?` at ${String(r.beverage_time).slice(0,5)}`:''}`):null)
-          :`${r.beverage==='Fresh Juice'?`Fresh Juice (${r.juice_name||'—'})`:r.beverage}${r.quantity_ml?` · ${r.quantity_ml} ml`:''}`,
-        h('span',{className:`fi-intake ${intakeClass(r.consumption_status)}`},r.consumption_status||'—'),
-        fmt(kind==='meal'?r.served_at:r.given_at),
-        r.remarks||'—'
-      ])})
+      h('div',{className:'card panel fi-register'},
+        h('div',{className:'fi-reg-head'},
+          h('div',null,h('h3',null,'Food & Beverage Register'),
+            h('small',null,RF.guest?`${regGuestRow?formalName(regGuestRow):'Guest'}${regGuestRow?.patient_id?` · ${regGuestRow.patient_id}`:''} · ${(REG_PERIODS.find(p=>p[0]===RF.period)||[])[1]||''}: ${regPeriodText}`:'Choose a Guest and press Apply'))
+        ),
+        h('div',{className:'fi-reg-filters'},
+          h('div',{className:'field fi-reg-guest'},h('label',null,'Guest'),h('select',{value:regGuest,onChange:e=>setRegGuest(e.target.value)},
+            h('option',{value:''},'Select Guest'),
+            patients.map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)} · ${p.patient_id||''}${p.room_no?` · Room ${p.room_no}-${p.bed_no||''}`:''}${p.is_trial?' · 🧪 TRIAL':''}`)))),
+          h('div',{className:'field'},h('label',null,'Period'),h('select',{value:regPeriod,onChange:e=>setRegPeriod(e.target.value)},REG_PERIODS.map(([v,l])=>h('option',{key:v,value:v},l)))),
+          regPeriod==='custom'&&h('div',{className:'field'},h('label',null,'From'),h(StrictDateInput,{value:regFrom,max:todayISOIndia(),onChange:e=>setRegFrom(e.target.value)})),
+          regPeriod==='custom'&&h('div',{className:'field'},h('label',null,'To'),h(StrictDateInput,{value:regTo,max:todayISOIndia(),onChange:e=>setRegTo(e.target.value)})),
+          h(ApplyFilterButton,{dirty:regF.dirty,onApply:regF.apply})
+        ),
+        !RF.guest?h('div',{className:'fi-reg-empty'},'Select a Guest and press Apply to see that Guest\'s meals and beverages.')
+        :regLoading&&regRows===null?h('div',{className:'fi-reg-empty'},'Loading…')
+        :h(React.Fragment,null,
+          singleDay&&h('div',{className:'fi-day-summary'},
+            ['Tiffin','Lunch','Dinner'].map(t=>{const r=mealOn(t);return h('div',{key:t,className:`fi-day-cell ${r?intakeClass(r.consumption_status):'fi-pending'}`},
+              h('small',null,mealLabel(t)),h('strong',null,r?(r.consumption_status||'Recorded'):'Not recorded'),r&&h('span',null,`${String(fmt(r.served_at)).split(', ').slice(-1)[0]} · ${r.menu||''}`))}),
+            h('div',{className:'fi-day-cell fi-bevcell'},h('small',null,'Beverages'),h('strong',null,`${bevRows.length} serving${bevRows.length===1?'':'s'}`),
+              bevRows.length?h('span',null,bevRows.slice().reverse().map(b=>`${b.beverage==='Fresh Juice'?`Juice (${b.juice_name||''})`:b.beverage} ${String(b.given_time||'').slice(0,5)}`).join(' · ')):null)
+          ),
+          h('div',{className:'table-wrap'},h('table',{className:'table fi-reg-table'},
+            h('thead',null,h('tr',null,['Date','Time','Type','Items / Beverage','Intake','Remarks'].map(x=>h('th',{key:x},x)))),
+            h('tbody',null,
+              combined.map(({key,kind,r})=>h('tr',{key},
+                h('td',{'data-label':'Date'},formatDateIN(kind==='meal'?r.meal_date:r.given_date)),
+                h('td',{'data-label':'Time'},kind==='meal'?String(fmt(r.served_at)).split(', ').slice(-1)[0]:String(r.given_time||'').slice(0,5)),
+                h('td',{'data-label':'Type'},kind==='meal'?mealLabel(canonicalMealType(r.meal_type)||r.meal_type):h('span',{className:'fi-type-bev'},'Beverage')),
+                h('td',{'data-label':'Items / Beverage'},kind==='meal'?h('span',null,r.menu||'—',r.beverage_type?h('small',{className:'fi-sub'},` · Beverage: ${r.beverage_type}${r.beverage_time?` at ${String(r.beverage_time).slice(0,5)}`:''}`):null)
+                  :`${r.beverage==='Fresh Juice'?`Fresh Juice (${r.juice_name||'—'})`:r.beverage}${r.quantity_ml?` · ${r.quantity_ml} ml`:''}`),
+                h('td',{'data-label':'Intake'},h('span',{className:`fi-intake ${intakeClass(r.consumption_status)}`},r.consumption_status||'—')),
+                h('td',{'data-label':'Remarks'},r.remarks||'—'))),
+              combined.length===0&&h('tr',null,h('td',{colSpan:6,className:'empty'},`No meals or beverages recorded for this Guest on ${regPeriodText}.`))
+            )
+          ))
+        )
+      )
     );
   }
   function Physiotherapy({profile,onNavigate}){

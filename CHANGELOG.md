@@ -3,6 +3,11 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.35 — Resident Food Intake: Guest-wise Food & Beverage Register
+- "Recent Food & Beverage Records" is replaced by the Food & Beverage Register: choose a Guest and a Period — Today (default), Yesterday, This Week, This Month, Last Month or Select period (From / To) — and press Apply. Shows only that Guest's meals and beverages for that period, loaded from the database (no 100-row limit).
+- For a single day, a summary row shows Breakfast / Lunch / Dinner (intake, time, items — or "Not recorded") and the beverage servings.
+- Choosing a Guest in the entry form also opens that Guest in the register; a different Guest can still be picked there. Times shown the same way for meals and beverages. No SQL.
+
 ## 2.15.34 — Resident Food Intake: item-by-item meals + separate Beverage entry
 - Meal entry: food items are added one by one from a dropdown (Main item / Sides & curries / Others, per Breakfast, Lunch, Dinner — e.g. Idli, then Sambar, then Coconut Chutney), shown as chips that can be removed or moved. "✎ Other — type your own item" adds any item; items typed before appear again under "Added earlier". Saved as "Idli, Sambar, Coconut Chutney".
 - Beverage entry (☕ Beverage switch): Tea, Coffee, Milk, Boost, Horlicks, Fresh Juice (staff type which juice), time given, optional quantity (ml), consumed fully / partially / refused, remarks. Any number of servings per day, each recorded separately. Beverages are no longer part of the meal form (old meal records keep theirs).
