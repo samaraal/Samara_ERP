@@ -32,30 +32,35 @@ function Voice({value,onChange,disabled}){
 
 function FoodVendorAssignments({client,onChanged}){
  const [data,setData]=R.useState(null),[error,setError]=R.useState(''),[busy,setBusy]=R.useState(false);
+ const [success,setSuccess]=R.useState(''),[completed,setCompleted]=R.useState(false),[pending,setPending]=R.useState('');
+ const edit=setter=>value=>{setSuccess('');setError('');setCompleted(false);setter(value)};
  const [person,setPerson]=R.useState(''),[start,setStart]=R.useState(''),[end,setEnd]=R.useState(''),[reason,setReason]=R.useState('');
  const lock=R.useRef(false),request=R.useRef(null);
  const format=value=>value?new Date(value).toLocaleString('en-IN',{timeZone:'Asia/Kolkata'}):'Until revoked';
  async function load(){const r=await client.rpc('fv_assignment_manage',{action:'list',p:{}});if(r.error)throw r.error;setData(r.data);}
  R.useEffect(()=>{load().catch(e=>setError(e.message))},[]);
  async function change(action,p){
-  if(lock.current)return;lock.current=true;setBusy(true);setError('');
+  if(lock.current)return;lock.current=true;setBusy(true);setPending(action);setError('');setSuccess('');
   try{
    const signature=JSON.stringify([action,p]);if(request.current?.signature!==signature)request.current={signature,id:crypto.randomUUID()};
    const r=await client.rpc('fv_assignment_manage',{action,p:{...p,request_id:request.current.id}});if(r.error)throw r.error;
-   request.current=null;setReason('');setStart('');setEnd('');
-   window.dispatchEvent(new Event('samara-food-authority-changed'));await load();await onChanged();setError('Responsibility updated successfully.');
-  }catch(e){setError(e.message)}finally{lock.current=false;setBusy(false)}
+   request.current=null;setCompleted(true);
+   setSuccess(action==='assign'?'✓ Responsibility assigned successfully.':'✓ Responsibility revoked successfully.');
+   window.dispatchEvent(new Event('samara-food-authority-changed'));
+   try{await load();await onChanged()}catch(refreshError){setError('The change was saved, but the list could not refresh. Refresh the page to see the latest assignment.');}
+  }catch(e){setError(e.message)}finally{lock.current=false;setBusy(false);setPending('')}
  }
  const status=a=>a.revoked_at?'Revoked':new Date(a.starts_at)>new Date()?'Scheduled':a.ends_at&&new Date(a.ends_at)<=new Date()?'Ended':'Current';
  return card('Assign Food Vendor In-charge',
   h('p',null,'The assigned staff member can manage orders, vendor messages and deliveries. Admin/Director retains financial controls and assignment rights. Nursing Manager, STD and duty cover do not grant vendor access automatically.'),
-  error?h('p',{role:'status'},error):null,
+  success?h('p',{role:'status','aria-live':'polite',className:'fv-assignment-success'},success):null,
+  error?h('p',{role:'alert',className:'fv-assignment-error'},error):null,
   !data?btn('Load assignments',()=>load().catch(e=>setError(e.message)),busy):h(R.Fragment,null,
-   h('div',{className:'fv-grid'},select('Staff member',person,setPerson,[{id:'',name:'Select staff'},...data.staff.map(x=>({id:x.id,name:x.name+' · '+x.role+(x.designation?' · '+x.designation:'')}))]),field('Start (IST) · blank = now',start,setStart,'datetime-local'),field('End (IST) · optional',end,setEnd,'datetime-local')),
-   field('Reason for assignment or revocation',reason,setReason,'text',{maxLength:2000}),
+   h('fieldset',{disabled:busy,style:{border:0,padding:0,margin:0,minWidth:0}},h('div',{className:'fv-grid'},select('Staff member',person,edit(setPerson),[{id:'',name:'Select staff'},...data.staff.map(x=>({id:x.id,name:x.name+' · '+x.role+(x.designation?' · '+x.designation:'')}))]),field('Start (IST) · blank = now',start,edit(setStart),'datetime-local'),field('End (IST) · optional',end,edit(setEnd),'datetime-local')),
+   field('Reason for assignment or revocation',reason,edit(setReason),'text',{maxLength:2000})),
    h('p',null,'A new assignment ends the current assignment at its start time. Revoke any scheduled assignment before creating another. Ending or revoking an assignment does not restore an earlier one.'),
-   btn(busy?'Saving…':'Assign responsibility',()=>change('assign',{profile_id:person,starts_at:start?start+':00+05:30':null,ends_at:end?end+':00+05:30':null,reason}),busy||!person||reason.trim().length<3,true),
-   table(['Staff','Start (IST)','End (IST)','Status','Action'],data.assignments.map(a=>[a.staff_name,format(a.starts_at),format(a.ends_at),status(a),['Current','Scheduled'].includes(status(a))?btn('Revoke',()=>change('revoke',{id:a.id,reason}),busy||reason.trim().length<3):'—'])),
+   h('button',{type:'button',className:'btn btn-primary fv-assignment-submit',disabled:busy||completed||!person||reason.trim().length<3,'aria-busy':pending==='assign',onClick:()=>change('assign',{profile_id:person,starts_at:start?start+':00+05:30':null,ends_at:end?end+':00+05:30':null,reason})},pending==='assign'?'Assigning…':'Assign Responsibility'),
+   table(['Staff','Start (IST)','End (IST)','Status','Action'],data.assignments.map(a=>[a.staff_name,format(a.starts_at),format(a.ends_at),status(a),['Current','Scheduled'].includes(status(a))?btn(pending==='revoke'?'Revoking…':'Revoke',()=>change('revoke',{id:a.id,reason}),busy||reason.trim().length<3):'—'])),
    h('h4',null,'Assignment history'),table(['When (IST)','Action','Staff','Changed by','Reason'],data.history.map(x=>[format(x.created_at),x.action,x.after_data.staff_name,x.actor_name||'Initial SQL installation',x.reason]))
   ));
 }

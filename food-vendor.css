@@ -24,3 +24,7 @@
 .fv-place-table{width:100%;border-collapse:collapse;margin-top:8px}
 .fv-place-table th,.fv-place-table td{padding:8px 10px;border-bottom:1px solid #f0dde6;text-align:left;vertical-align:middle}
 @media (max-width:640px){.fv-place-btn{min-width:0;flex:1 1 100%}}
+
+.fv .fv-assignment-success{color:#166534;background:#dcfce7;border:1px solid #86efac;border-radius:10px;padding:12px 14px;font-weight:700}
+.fv .fv-assignment-error{color:#b42318}
+.fv .fv-assignment-submit:disabled{background:#d1d5db!important;background-image:none!important;color:#4b5563!important;border-color:#d1d5db!important;box-shadow:none!important;opacity:1!important;cursor:not-allowed}
