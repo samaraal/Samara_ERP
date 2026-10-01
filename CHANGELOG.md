@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.31 — Discharge Register: period filter + boxes follow the filter
+- "Discharge period": All dates (default), Today, This Week, This Month, Last Month, This Year, or Select period (From / To appear only then). Applied with the Apply button.
+- Discharge date used for the period = actual departure date once departed, otherwise the proposed discharge date.
+- Stage box counts now follow the applied search / basis / period, so you can see which box holds the results.
+- When the chosen box is empty but other boxes match, the register says where they are (e.g. "Found in: Completed (2)") with a "Show all discharges" button. No SQL.
+
 ## 2.15.30 — Patient Discharge reorganised: stage boxes + Discharge Register
 - Header: title, workflow line and the main buttons together (＋ Initiate Discharge; Admin's "Erase discharged Trial Guests" moved into a small "⋯ Admin" menu).
 - Stage boxes with live counts: Open cases (default), Awaiting Management, Discount Pending, With Accounts, Final Nursing Clearance, Returned to Nursing, Completed, All discharges. Tap a box to see only those cases. Discharge Clearance (Accounts) shows All / Discount Pending / With Accounts.

@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.30';
-const CACHE = 'samara-erp-2.15.30-discharge-register';
+const APP_VERSION = '2.15.31';
+const CACHE = 'samara-erp-2.15.31-discharge-period-filter';
 const SHELL = [
   './',
   './index.html',
