@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.26';
-const CACHE = 'samara-erp-2.15.26-food-bill-received-only';
+const APP_VERSION = '2.15.27';
+const CACHE = 'samara-erp-2.15.27-erase-all-trial-guests';
 const SHELL = [
   './',
   './index.html',

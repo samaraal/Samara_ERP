@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.27 — Erase all Trial Guests at one time
+- Patient Discharge (Admin only): "🧪 Erase all Trial Guests (N)" button. Shows one dry-run list of every Trial Guest (records per Guest, active ones flagged "bed freed", stored files, stock items issued to them by indent), then asks to type "ERASE N" and erases them all in ONE all-or-nothing step. No discharge needed for this; active Trial Guests' beds become Available. Real Guests are never touched. Refused while equipment / oxygen cylinders are still issued.
+- Stock history (consumable store ledger / receipts, equipment and oxygen movements) is now kept and unlinked on every Trial erase (single or all), never deleted. Recount the listed stock items afterwards.
+- Audit log: one TRIAL_GUEST_PURGED entry per Guest (with receipt voucher numbers and paid Razorpay IDs) + one TRIAL_GUESTS_BULK_PURGED entry.
+- SQL: supabase/sql/175_mark_test_guests_trial.sql (one-off: marks the 14 test Guests MOG-2026-09-0002…0017 as Trial; Real Guests 0001, 0006, 0018 untouched) then supabase/sql/176_erase_all_trial_guests.sql (required). Tested on a local copy: dry run changes nothing, wrong confirmation refused, real Guest untouched, a failure part-way erases nothing, single erase unchanged.
+
 ## 2.15.26 — Food Vendor Statement charges received portions only
 - The statement's Meal summary counted ORDERED portions, so an order not yet received (e.g. the next day's breakfast) was added to "Food charges" and the closing balance. It now counts RECEIVED portions only (0 until received; received quantity, not ordered, once received), using the receipt's own priced amount where recorded. Heading now "Meal summary · received portions". Screen, PDF and Excel all use this.
 - The opening balance and vendor ledger were already receipt-based (unchanged). No SQL.

@@ -686,6 +686,56 @@
       finally{setBusy(false)}
     }
 
+    // 2.15.27: erase EVERY Trial Guest at one time — Admin only. No discharge needed (active Trial
+    // Guests are included, their beds become Available). Dry run list first, then type "ERASE <n>".
+    // All-or-nothing in the database (supabase/sql/176_erase_all_trial_guests.sql).
+    async function eraseAllTrialGuests(){
+      if(profile?.role!=='Admin'||busy)return;
+      setBusy(true);
+      try{
+        const dry=await client.rpc('purge_all_trial_guests',{p_confirm:null,p_dry_run:true});
+        if(dry.error){
+          const missing=/purge_all_trial_guests|function .* does not exist|schema cache/i.test(dry.error.message||'');
+          notify('error','Cannot erase',missing?'Run supabase/sql/176_erase_all_trial_guests.sql in Supabase first.':dry.error.message);return;
+        }
+        const d=dry.data||{};
+        if(!d.count){notify('error','Nothing to erase',d.error||'There are no Trial Guests.');return}
+        if((d.blockers||[]).length){
+          notify('error','Return items first',`Nothing was changed. Still issued: ${(d.blockers||[]).map(b=>`${b.name} (${b.resident_id}) — ${b.reason}`).join('; ')}.`);return;
+        }
+        if(!d.ok){notify('error','Cannot erase yet',`The database refused: ${d.error||'unknown reason'}. Nothing was changed.`);return}
+        const guests=d.guests||[];
+        const ids=guests.map(g=>g.id).filter(Boolean);
+        const files={'patient-documents':[],'patient-daily-moments':[]};
+        if(ids.length){
+          const docs=await client.from('patient_documents').select('storage_path').in('patient_id',ids);
+          (docs.data||[]).forEach(x=>x.storage_path&&files['patient-documents'].push(x.storage_path));
+          const vids=await client.from('patient_daily_moments').select('storage_path').in('patient_id',ids);
+          if(!vids.error)(vids.data||[]).forEach(x=>x.storage_path&&files['patient-daily-moments'].push(x.storage_path));
+        }
+        const fileCount=files['patient-documents'].length+files['patient-daily-moments'].length;
+        const recs=g=>Object.entries(g.removed||{}).filter(([k])=>k.startsWith('deleted')).reduce((s,[,v])=>s+Number(v||0),0);
+        const list=guests.map(g=>`• ${g.name} (${g.resident_id})${g.was_active?' — ACTIVE, bed freed':''} — ${recs(g)} record(s)`).join('\n');
+        const stock=(d.stock_issued||[]).map(s=>`• ${s.item}: handed over ${s.handed_over}, received ${s.received}`).join('\n');
+        const confirmText=d.confirm_text||`ERASE ${d.count}`;
+        const typed=window.prompt(
+          `PERMANENTLY ERASE ALL ${d.count} TRIAL GUESTS?\n\n${list}\n• ${fileCount} stored file(s)\n\n`+
+          (stock?`Stock issued to them by indent (do a stock recount for these items afterwards):\n${stock}\n\n`:'')+
+          `Real Guests are NOT touched. Kept: audit log (with receipt voucher numbers and paid Razorpay IDs), stock history (unlinked).\nThis CANNOT be undone.\n\nType ${confirmText} to confirm:`,'');
+        if(typed===null)return;
+        if(String(typed).trim().toUpperCase().replace(/\s+/g,' ')!==confirmText){notify('error','Not erased',`You typed "${String(typed).trim()}" — type ${confirmText}. Nothing was changed.`);return}
+        const res=await client.rpc('purge_all_trial_guests',{p_confirm:confirmText,p_dry_run:false});
+        if(res.error){notify('error','Not erased',`${res.error.message} — nothing was changed.`);return}
+        let fileErrors=0;
+        for(const [bucket,paths] of Object.entries(files)){
+          for(let i=0;i<paths.length;i+=100){const r=await client.storage.from(bucket).remove(paths.slice(i,i+100));if(r.error)fileErrors++;}
+        }
+        notify(fileErrors?'error':'success','Trial Guests erased',`${d.count} Trial Guests and all their records were removed.${stock?' Recount the stock items listed.':''}${fileErrors?' Some stored files could not be deleted — remove them from Supabase Storage.':''}`);
+        await load();
+      }catch(e){notify('error','Not erased',e.message||String(e))}
+      finally{setBusy(false)}
+    }
+
     // 2.15.16: clicking a Discharge timeline entry does the same thing as that Guest's
     // action button in the register, for the current user's role. null = just show history.
     function timelineAction(caseId){
@@ -1230,7 +1280,10 @@ Doctor / Hospital: ${doctorHospital}`;
               row.accounts_status==='Cleared'&&
               row.status!=='Completed'
             )
-          )&&h('button',{className:'btn btn-primary',onClick:openNew},'Initiate Discharge')
+          )&&h('button',{className:'btn btn-primary',onClick:openNew},'Initiate Discharge'),
+          !isAccountsClearance&&profile?.role==='Admin'&&patients.some(p=>p.is_trial)&&
+            h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:eraseAllTrialGuests},
+              `🧪 Erase all Trial Guests (${patients.filter(p=>p.is_trial).length})`)
         )
       ),
       !isAccountsClearance&&h(DischargeMedicationReview),
