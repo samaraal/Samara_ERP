@@ -1468,7 +1468,7 @@ Doctor / Hospital: ${doctorHospital}`;
       h('details',{className:'card panel dr-collapse'},
         h('summary',null,h('strong',null,'Discharge timeline & departure follow-up'),h('small',null,' — full step-by-step history of every discharge')),
         h(window.SamaraDischargeWorkflow.Panel,{client,profile,onChanged:load,caseAction:timelineAction,caseExtras:timelineExtras})),
-      !isAccountsClearance&&h(DischargeMedicationReview),
+      // 2.15.38: the pre-departure medication review list lives only on the Medicines page (it is a medication task).
       drDetailRow&&h(RowDetailModal,{
         title:formalName(patientFor(drDetailRow.patient_id))||'Discharge',
         subtitle:`${patientFor(drDetailRow.patient_id).patient_id||''} · ${stageText(drDetailRow)}`,

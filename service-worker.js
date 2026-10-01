@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.37';
-const CACHE = 'samara-erp-2.15.37-whatsapp-bold';
+const APP_VERSION = '2.15.38';
+const CACHE = 'samara-erp-2.15.38-discharge-no-med-review';
 const SHELL = [
   './',
   './index.html',

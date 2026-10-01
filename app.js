@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.37';
+  const APP_VERSION = '2.15.38';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '01-Oct-2026 WhatsApp bold quantities';
+  const APP_BUILD_DATE = '01-Oct-2026 Discharge page without medication review';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -23043,7 +23043,7 @@ Doctor / Hospital: ${doctorHospital}`;
       h('details',{className:'card panel dr-collapse'},
         h('summary',null,h('strong',null,'Discharge timeline & departure follow-up'),h('small',null,' — full step-by-step history of every discharge')),
         h(window.SamaraDischargeWorkflow.Panel,{client,profile,onChanged:load,caseAction:timelineAction,caseExtras:timelineExtras})),
-      !isAccountsClearance&&h(DischargeMedicationReview),
+      // 2.15.38: the pre-departure medication review list lives only on the Medicines page (it is a medication task).
       drDetailRow&&h(RowDetailModal,{
         title:formalName(patientFor(drDetailRow.patient_id))||'Discharge',
         subtitle:`${patientFor(drDetailRow.patient_id).patient_id||''} · ${stageText(drDetailRow)}`,

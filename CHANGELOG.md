@@ -3,6 +3,9 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.38 — Discharge page: medication review list removed
+- "Discharged Patients — Medication Review" (doses still unrecorded at departure, for Nursing Manager / Admin to review) is no longer shown on Patient Discharge. It is a medication task and remains on the Medicines page. No SQL.
+
 ## 2.15.37 — Food WhatsApp: quantities and place of delivery in bold
 - Food vendor WhatsApp (order, revision, receipt, confirmation, cancellation): every quantity (e.g. "Standard meal: *2*"), the outstanding portions and the place ("Deliver to: *Samara Main - Mogappair*") are sent in WhatsApp bold. Same approved templates and number of values.
 - ERP WhatsApp Inbox and the Food Vendor "Review message" preview now show WhatsApp formatting like the phone (*bold*, _italic_, ~strike~) instead of the asterisks.
