@@ -31,6 +31,12 @@
       window.addEventListener('focus',refreshFoodAuthority);window.addEventListener('samara-food-authority-changed',refreshFoodAuthority);
       return()=>{disposed=true;clearInterval(timer);window.removeEventListener('focus',refreshFoodAuthority);window.removeEventListener('samara-food-authority-changed',refreshFoodAuthority)};
     },[profile?.id]);
+    React.useEffect(()=>{
+      if(!profile?.id)return;let disposed=false;const id=profile.id;
+      async function refreshKitchen(){let access={read:false};try{const r=await client.rpc('kitchen_access');if(!r.error)access=r.data}catch(_){}if(!disposed)setProfile(p=>p?.id===id&&JSON.stringify(p.__kitchen)!==JSON.stringify(access)?{...p,__kitchen:access}:p)}
+      refreshKitchen();const timer=setInterval(refreshKitchen,30000);window.addEventListener('focus',refreshKitchen);window.addEventListener('samara-kitchen-authority-changed',refreshKitchen);
+      return()=>{disposed=true;clearInterval(timer);window.removeEventListener('focus',refreshKitchen);window.removeEventListener('samara-kitchen-authority-changed',refreshKitchen)};
+    },[profile?.id]);
     const pageEditedRef=React.useRef(false);
     React.useEffect(()=>{pageEditedRef.current=false},[page]);
     function refreshCurrentPage(){
@@ -701,7 +707,7 @@
           page==='Consumables'&&h(StoresDashboard,{profile,categoryFilter:'Consumables'}),
           page==='Pharmacy'&&h(StoresDashboard,{profile,categoryFilter:'Pharmacy'}),
           page==='Housekeeping & General'&&h(StoresDashboard,{profile,categoryFilter:'Housekeeping & General'}),
-          page==='Kitchen / Food Stores'&&h(StoresDashboard,{profile,categoryFilter:'Kitchen / Food Stores'}),
+          page==='Kitchen / Food Stores'&&h(KitchenCashWorkspace,{profile}),
           page==='Biomedical Equipment'&&h(BiomedicalEquipmentDashboard,{profile}),
           page==='Oxygen Cylinders'&&h(OxygenCylindersDashboard,{profile}),
           page==='Stores In-charge Assignment'&&h(StoresInchargeAssignmentPage,{profile}),
