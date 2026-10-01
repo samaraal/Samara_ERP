@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.38';
-const CACHE = 'samara-erp-2.15.38-discharge-no-med-review';
+const APP_VERSION = '2.15.39';
+const CACHE = 'samara-erp-2.15.39-beverage-setup-notice';
 const SHELL = [
   './',
   './index.html',

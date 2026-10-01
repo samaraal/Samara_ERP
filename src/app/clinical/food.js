@@ -237,7 +237,8 @@
           h('div',{className:'fi-row'},miniSelect('Consumed',bev.consumption_status,BEVERAGE_INTAKE,v=>setBev({...bev,consumption_status:v}))),
           miniInput('Remarks',bev.remarks,v=>setBev({...bev,remarks:v})),
           h('div',{className:'field-help'},'Record every serving separately — any time of the day, as many times as given.'),
-          h('button',{className:'btn btn-primary fi-save',disabled:saving||!bevReady},saving?'Saving…':`Save ${bev.beverage||'Beverage'} Entry`)
+          h('button',{className:'btn btn-primary fi-save',disabled:saving||!bevReady},saving?'Saving…':!bevReady?'Cannot save yet — database update needed':`Save ${bev.beverage||'Beverage'} Entry`),
+          !bevReady&&h('div',{className:'message error'},'Admin: run supabase/sql/177_beverage_records.sql once in Supabase → SQL Editor, then refresh. Meals can still be saved.')
         )
       ),
       h('div',{className:'card panel fi-register'},

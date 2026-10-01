@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.38';
+  const APP_VERSION = '2.15.39';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '01-Oct-2026 Discharge page without medication review';
+  const APP_BUILD_DATE = '01-Oct-2026 Beverage setup notice';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -26003,7 +26003,8 @@ function RoomsBeds({profile,onNavigate}){
           h('div',{className:'fi-row'},miniSelect('Consumed',bev.consumption_status,BEVERAGE_INTAKE,v=>setBev({...bev,consumption_status:v}))),
           miniInput('Remarks',bev.remarks,v=>setBev({...bev,remarks:v})),
           h('div',{className:'field-help'},'Record every serving separately — any time of the day, as many times as given.'),
-          h('button',{className:'btn btn-primary fi-save',disabled:saving||!bevReady},saving?'Saving…':`Save ${bev.beverage||'Beverage'} Entry`)
+          h('button',{className:'btn btn-primary fi-save',disabled:saving||!bevReady},saving?'Saving…':!bevReady?'Cannot save yet — database update needed':`Save ${bev.beverage||'Beverage'} Entry`),
+          !bevReady&&h('div',{className:'message error'},'Admin: run supabase/sql/177_beverage_records.sql once in Supabase → SQL Editor, then refresh. Meals can still be saved.')
         )
       ),
       h('div',{className:'card panel fi-register'},

@@ -3,6 +3,9 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.39 — Beverage entry: clear notice when the database update is missing
+- If supabase/sql/177_beverage_records.sql has not been run, the Beverage Save button now says "Cannot save yet — database update needed" with the instruction right below it (previously only a faded button on phones). No SQL change.
+
 ## 2.15.38 — Discharge page: medication review list removed
 - "Discharged Patients — Medication Review" (doses still unrecorded at departure, for Nursing Manager / Admin to review) is no longer shown on Patient Discharge. It is a medication task and remains on the Medicines page. No SQL.
 
