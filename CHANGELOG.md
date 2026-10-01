@@ -3,6 +3,12 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.34 — Resident Food Intake: item-by-item meals + separate Beverage entry
+- Meal entry: food items are added one by one from a dropdown (Main item / Sides & curries / Others, per Breakfast, Lunch, Dinner — e.g. Idli, then Sambar, then Coconut Chutney), shown as chips that can be removed or moved. "✎ Other — type your own item" adds any item; items typed before appear again under "Added earlier". Saved as "Idli, Sambar, Coconut Chutney".
+- Beverage entry (☕ Beverage switch): Tea, Coffee, Milk, Boost, Horlicks, Fresh Juice (staff type which juice), time given, optional quantity (ml), consumed fully / partially / refused, remarks. Any number of servings per day, each recorded separately. Beverages are no longer part of the meal form (old meal records keep theirs).
+- Recent Food & Beverage Records lists meals and beverages together (intake colour-coded, 🧪 TRIAL badge). Patient File → Diet tab and the Intelligent Report (Food / Fluid Intake) include the beverage servings.
+- SQL: supabase/sql/177_beverage_records.sql (new table beverage_records). Edge Function daily-patient-report: redeploy from supabase/function-copies/daily-patient-report-inbox.ts so the WhatsApp Daily Report also lists the beverage servings (until then it shows meals only).
+
 ## 2.15.33 — Discharge Register: Guest record filter (Real only by default)
 - New "Guest record" filter: ✓ Real only (default) / 🧪 Trial only / All (Real + Trial). Box counts, the register and the Excel (CSV) export follow it, so test discharges never mix into real figures.
 - The line under "Discharge Register" shows the scope and how many Trial discharges are hidden (e.g. "Real Guests · All dates · 3 Trial hidden"). Clear resets to Real only. No SQL.

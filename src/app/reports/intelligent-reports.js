@@ -209,8 +209,13 @@
       try{
         const results=await Promise.all([
           client.from('patients').select('*'),client.from('vital_signs').select('*'),client.from('care_logs').select('*'),client.from('care_orders').select('*'),client.from('medication_orders').select('*'),client.from('medication_administrations').select('*'),client.from('meal_records').select('*'),client.from('physiotherapy_plans').select('*'),client.from('physiotherapy_sessions').select('*'),client.from('incidents').select('*'),client.from('billing_transactions').select('*'),client.from('recovery_events').select('*'),client.from('shift_handovers').select('*'),client.from('patient_documents').select('*'),client.from('profiles').select('*'),client.from('audit_log').select('*'),client.from('medication_reviews').select('*'),client.from('medication_review_items').select('*'),client.from('bill_charge_requests').select('id,patient_id,charge_date,service_datetime,category,service_name,description,quantity,unit,status,approval_status,remarks,raised_by_name,raised_at,created_at').eq('category','Nursing Procedures')
+,
+          client.from('beverage_records').select('*').then(r=>r,()=>({data:[]}))
         ]);
-        const [pats,vitals,care,careOrders,orders,mar,meals,physioOrders,physioSessions,incidents,billing,recovery,handovers,documents,staff,audit,medicationReviews,medicationReviewItems,nursingProcedures]=results.map(safeRows);
+        const [pats,vitals,care,careOrders,orders,mar,mealRows,physioOrders,physioSessions,incidents,billing,recovery,handovers,documents,staff,audit,medicationReviews,medicationReviewItems,nursingProcedures]=results.map(safeRows);
+        // 2.15.34: separate beverage servings join the Food / Fluid Intake rows (Meal = "Beverage").
+        const beverageRows=(results[results.length-1]?.error?[]:safeRows(results[results.length-1])).map(b=>({id:`bev-${b.id}`,patient_id:b.patient_id,meal_type:'Beverage',meal_date:b.given_date,menu:b.quantity_ml?`${b.quantity_ml} ml`:'—',consumption_status:b.consumption_status,served_at:b.given_at,created_at:b.created_at,beverage_type:b.beverage==='Fresh Juice'?`Fresh Juice (${b.juice_name||'—'})`:b.beverage,beverage_time:b.given_time,remarks:b.remarks,__beverage:true}));
+        const meals=[...mealRows,...beverageRows];
         const selectedPatient=pats.find(p=>p.id===patientId)||patients.find(p=>p.id===patientId)||null;
         if(activeMode==='Resident-wise'&&selectedPatient&&isFutureDateIndia(selectedPatient.admission_date)){
           throw new Error(`The Patient File contains a future Admission Date (${formatDateIN(selectedPatient.admission_date)}). Please correct it in Patient Edit before generating or sharing the report.`);

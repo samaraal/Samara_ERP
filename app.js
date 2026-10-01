@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.33';
+  const APP_VERSION = '2.15.34';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '01-Oct-2026 Discharge Real / Trial filter';
+  const APP_BUILD_DATE = '01-Oct-2026 Food items + Beverages';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -18648,7 +18648,7 @@ Please keep these login details confidential.`;
       try{await loadPatientCard(p,seq)}catch(error){console.error('[Samara] Patient file load failed',error);if(seq===openPatientSeqRef.current)setPatientOpenError(error?.message||String(error))}
     }
     async function loadPatientCard(p,seq){
-      const [m,ma,mr,mri,c,cl,v,ph,ps,d,meal,bill,rec,inc,fam,mom,wa,pref,reportWa,proc,hand,discharges,url]=await Promise.all([
+      const [m,ma,mr,mri,c,cl,v,ph,ps,d,meal,bev,bill,rec,inc,fam,mom,wa,pref,reportWa,proc,hand,discharges,url]=await Promise.all([
         client.from('medication_orders').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}),
         client.from('medication_administrations').select('*').eq('patient_id',p.id).order('scheduled_date',{ascending:false}).limit(100),
         client.from('medication_reviews').select('*').eq('patient_id',p.id).order('reviewed_at',{ascending:false}),
@@ -18660,6 +18660,7 @@ Please keep these login details confidential.`;
         client.from('physiotherapy_sessions').select('*').eq('patient_id',p.id).order('session_date',{ascending:false}).limit(100),
         client.from('patient_documents').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}),
         client.from('meal_records').select('*').eq('patient_id',p.id).order('served_at',{ascending:false}).limit(100),
+        client.from('beverage_records').select('*').eq('patient_id',p.id).order('given_at',{ascending:false}).limit(100).then(r=>r,()=>({data:[]})),
         client.from('billing_transactions').select('*').eq('patient_id',p.id).order('transaction_date',{ascending:false}).limit(200),
         client.from('recovery_events').select('*').eq('patient_id',p.id).order('event_at',{ascending:false}).limit(100),
         client.from('incidents').select('*').eq('patient_id',p.id).order('incident_at',{ascending:false}).limit(100),
@@ -18691,7 +18692,7 @@ Please keep these login details confidential.`;
         medicationReviewError:[mr?.error,mri?.error].filter(Boolean).map(error=>error.message).join(' | '),
         mar:todayMar,
         allMar:ma.data||[],
-        care:c.data||[],careLogs:cl.data||[],vitals:v.data||[],physio:ph.data||[],physioSessions:ps.data||[],docs:d.data||[],meals:meal.data||[],billing:bill.data||[],recovery:rec.data||[],incidents:inc.data||[],familyAccess:dedupeFamilyAccessRows(fam?.data||[]),dailyMoments:momentRows,familyWhatsApp:wa?.data||[],familyPreference:pref?.data||null,reportWhatsApp:reportWa?.data||[],nursingProcedures:proc?.data||[],handovers:hand?.data||[],discharges:discharges?.data||[]
+        care:c.data||[],careLogs:cl.data||[],vitals:v.data||[],physio:ph.data||[],physioSessions:ps.data||[],docs:d.data||[],meals:meal.data||[],beverages:bev?.error?[]:(bev?.data||[]),billing:bill.data||[],recovery:rec.data||[],incidents:inc.data||[],familyAccess:dedupeFamilyAccessRows(fam?.data||[]),dailyMoments:momentRows,familyWhatsApp:wa?.data||[],familyPreference:pref?.data||null,reportWhatsApp:reportWa?.data||[],nursingProcedures:proc?.data||[],handovers:hand?.data||[],discharges:discharges?.data||[]
       });
       setPhotoUrl(url);
     }
@@ -21050,7 +21051,14 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
           tab==='Nursing'&&h('div',{className:'section-card'},h('h4',null,'Master Care Plan'),details.care.length?details.care.map(c=>h('div',{className:'timeline-item',key:c.id},h('strong',null,c.care_type),h('span',null,`${c.shift} · ${c.frequency} · ${careWindowLabel(c)} · ${c.instruction||''}`),h(TamilAssist,{text:c.instruction,context:'Care Plan Instruction'}))):sectionEmpty('No care orders.'),h('h4',{style:{marginTop:'18px'}},'Recent Care Records'),details.careLogs.length?details.careLogs.slice(0,30).map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.care_date)} · ${x.shift} · ${x.status}`),h('span',{className:'patient-file-detail'},` · ${x.remarks||'—'}`),h(TamilAssist,{text:x.remarks,context:'Nursing Care Remark'}))):sectionEmpty('No care records.')),
           tab==='Vitals'&&h('div',{className:'section-card'},h('h4',null,'Vital Signs History'),details.vitals.length?details.vitals.map(v=>h('div',{className:'timeline-item',key:v.id},h('strong',null,`${fmt(v.recorded_at)} · BP ${v.systolic||'—'}/${v.diastolic||'—'}`),h('span',{className:'patient-file-detail'},` · Pulse ${v.pulse||'—'} · SpO₂ ${v.spo2||'—'} · Temp ${v.temperature||'—'} · Sugar ${v.blood_sugar_type||'Not Taken'} ${v.blood_sugar||'—'} · ${v.alert_level||'Normal'}`))):sectionEmpty('No vital signs recorded.')),
           tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${x.preferred_time||'—'} · ${x.precautions||''}`),h(TamilAssist,{text:x.precautions,context:'Physiotherapy Precaution'}))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'),h(TamilAssist,{text:x.notes,context:'Physiotherapy Note'}))):sectionEmpty('No physiotherapy sessions.')),
-          tab==='Diet'&&h('div',{className:'section-card'},h('h4',null,`Diet Plan: ${selected.diet_plan||'Not recorded'}`),h('p',null,selected.feeding_instruction||'No special feeding instruction.'),h('h4',{style:{marginTop:'18px'}},'Food & Beverage Records'),details.meals.length?details.meals.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${x.meal_date||''} · ${x.meal_type} · ${x.consumption_status}`),h('span',{className:'patient-file-detail'},` · ${x.menu||'—'}${x.beverage_type?` · Beverage: ${x.beverage_type}${x.beverage_time?` at ${String(x.beverage_time).slice(0,5)}`:''}`:''}${x.remarks?` · ${x.remarks}`:''}`))):sectionEmpty('No food or beverage records.')),
+          tab==='Diet'&&h('div',{className:'section-card'},h('h4',null,`Diet Plan: ${selected.diet_plan||'Not recorded'}`),h('p',null,selected.feeding_instruction||'No special feeding instruction.'),h('h4',{style:{marginTop:'18px'}},'Food & Beverage Records'),(()=>{
+            // 2.15.34: meals and separate beverage servings, newest first.
+            const items=[...(details.meals||[]).map(x=>({k:`m${x.id}`,at:x.served_at||x.meal_date,x,t:'meal'})),...(details.beverages||[]).map(x=>({k:`b${x.id}`,at:x.given_at,x,t:'bev'}))].sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
+            return items.length?items.map(({k,x,t})=>t==='meal'
+              ?h('div',{className:'timeline-item',key:k},h('strong',null,`${formatDateIN(x.meal_date)||''} · ${x.meal_type==='Tiffin'?'Breakfast':x.meal_type} · ${x.consumption_status}`),h('span',{className:'patient-file-detail'},` · ${x.menu||'—'}${x.beverage_type?` · Beverage: ${x.beverage_type}${x.beverage_time?` at ${String(x.beverage_time).slice(0,5)}`:''}`:''}${x.remarks?` · ${x.remarks}`:''}`))
+              :h('div',{className:'timeline-item',key:k},h('strong',null,`${formatDateIN(x.given_date)} · ${String(x.given_time||'').slice(0,5)} · ${x.beverage==='Fresh Juice'?`Fresh Juice (${x.juice_name||'—'})`:x.beverage} · ${x.consumption_status}`),h('span',{className:'patient-file-detail'},`${x.quantity_ml?` · ${x.quantity_ml} ml`:''}${x.remarks?` · ${x.remarks}`:''}`))
+            ):sectionEmpty('No food or beverage records.');
+          })()),
           tab==='Daily Moments'&&h('div',{className:'daily-moments-wrap'},
             momentRecording&&h('div',{className:'daily-moment-recorder'},h('div',{className:'daily-moment-recorder-box'},h('video',{autoPlay:true,muted:true,playsInline:true,ref:el=>{if(el&&momentStreamRef.current&&el.srcObject!==momentStreamRef.current)el.srcObject=momentStreamRef.current}}),h('strong',null,`Recording ${momentRecordSeconds}/10 sec`),h('div',{className:'record-progress'},h('span',{style:{width:`${Math.min(100,momentRecordSeconds*10)}%`}})),h('button',{type:'button',className:'btn btn-danger',onClick:stopDailyMomentRecording},'Stop now'))),
             h('div',{className:'section-card daily-moment-upload'},
@@ -25775,71 +25783,189 @@ function RoomsBeds({profile,onNavigate}){
       canViewIntake&&(foodView==='Resident Food Intake'||!views.includes('Food Vendor Management'))?h(ResidentFoodIntake,{profile}):window.SamaraFoodVendor?h(window.SamaraFoodVendor,{client,profile}):h('p',null,'Food Vendor files are updating. Refresh the ERP to load the module.')
     );
   }
+  // 2.15.34: Resident Food Intake — meals are built item by item (Idli, then Sambar, then Chutney …,
+  // or a typed item), and beverages (Tea, Coffee, Milk, Boost, Horlicks, Fresh Juice) are separate
+  // entries (table beverage_records, supabase/sql/177_beverage_records.sql), any number per day.
+  const FOOD_ITEMS={
+    'Tiffin':{
+      'Main':['Idli','Dosa','Ragi Dosa','Millet Dosa','Rava Dosa','Uthappam','Ven Pongal','Upma','Rava Kichadi','Idiyappam','Appam','Poori','Chapati','Bread','Oats Porridge','Ragi Koozh','Rice Kanji'],
+      'Side':['Sambar','Coconut Chutney','Tomato Chutney','Mint Chutney','Groundnut Chutney','Vegetable Kurma','Potato Masala','Vegetable Stew','Kadala Curry','Gothsu','Podi with Oil'],
+      'Other':['Boiled Egg','Banana','Fruit Bowl','Soft Diet (Mashed)']
+    },
+    'Lunch':{
+      'Main':['Rice','Soft Rice','Millet Rice','Brown Rice','Chapati','Phulka','Vegetable Biryani','Lemon Rice','Tamarind Rice','Curd Rice','Sambar Rice','Rasam Rice','Rice Kanji'],
+      'Side':['Sambar','Rasam','Kuzhambu','Dal','Poriyal','Kootu','Keerai','Avial','Vegetable Kurma','Raita','Curd','Buttermilk','Appalam','Pickle'],
+      'Other':['Payasam','Banana','Fruit Bowl','Soft Diet (Mashed)']
+    },
+    'Dinner':{
+      'Main':['Idli','Dosa','Ragi Dosa','Millet Dosa','Chapati','Phulka','Idiyappam','Appam','Ven Pongal','Upma','Rice','Soft Rice','Rice Kanji','Bread'],
+      'Side':['Sambar','Coconut Chutney','Tomato Chutney','Mint Chutney','Vegetable Kurma','Vegetable Stew','Potato Masala','Dal','Rasam','Curd','Buttermilk'],
+      'Other':['Banana','Milk Porridge','Fruit Bowl','Soft Diet (Mashed)']
+    }
+  };
+  const FOOD_GROUP_LABEL={Main:'Main item',Side:'Sides / curries',Other:'Others'};
+  const BEVERAGES=[['Tea','☕'],['Coffee','☕'],['Milk','🥛'],['Boost','🥤'],['Horlicks','🥤'],['Fresh Juice','🧃']];
+  const INTAKE_OPTIONS=['Consumed fully','Consumed mostly','Consumed partially','Tasted only','Refused','Vomited','Tube feed completed'];
+  const BEVERAGE_INTAKE=['Consumed fully','Consumed partially','Refused'];
+  const nowHHMM=()=>{try{return new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date())}catch(_e){return ''}};
+
   function ResidentFoodIntake({profile}){
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
+    const [bevRows,setBevRows]=React.useState([]);
+    const [bevReady,setBevReady]=React.useState(true);
     const [saving,setSaving]=React.useState(false);
-    const blank=()=>({patient_id:'',meal_date:todayISOIndia(),meal_type:'Tiffin',menu:'Idli with sambar and chutney',custom_menu:'',served_time:'',consumption_status:'Consumed fully',beverage_type:'None',beverage_time:'',remarks:''});
-    const [form,setForm]=React.useState(blank);
-    const menus={
-      'Tiffin':['Idli with sambar and chutney','Dosa with sambar and chutney','Ven pongal with sambar','Vegetable upma with chutney','Idiyappam with vegetable kurma','Appam with vegetable stew','Poori with potato masala','Chapati with vegetable kurma','Ragi dosa with chutney','Rice kanji / soft diet','Other / Custom'],
-      'Lunch':['Rice, sambar, poriyal, rasam and curd','Rice, kuzhambu, poriyal, rasam and curd','Vegetable biryani with raita','Lemon rice with curd','Tamarind rice with curd','Curd rice with vegetable','Sambar rice with vegetable','Chapati with vegetable kurma','Millet meal - diabetic diet','Soft rice / mashed diet','Other / Custom'],
-      'Dinner':['Idli with sambar and chutney','Dosa with sambar and chutney','Chapati with vegetable kurma','Idiyappam with vegetable kurma','Appam with vegetable stew','Ven pongal with sambar','Vegetable upma with chutney','Rice and rasam','Rice kanji / soft diet','Millet dosa with chutney','Other / Custom'],
-    };
-    const beverageOptions=['None','Tea','Coffee','Milk','Buttermilk','Fresh juice','Tender coconut water','Health drink','Cool drink','Soup','Other'];
+    const [entryType,setEntryType]=React.useState('meal');
+    const [patientId,setPatientId]=React.useState('');
+    const blankMeal=()=>({meal_date:todayISOIndia(),meal_type:'Tiffin',items:[],custom:'',served_time:'',consumption_status:'Consumed fully',remarks:''});
+    const blankBev=()=>({given_date:todayISOIndia(),beverage:'',juice_name:'',given_time:'',quantity_ml:'',consumption_status:'Consumed fully',remarks:''});
+    const [form,setForm]=React.useState(blankMeal);
+    const [bev,setBev]=React.useState(blankBev);
+    const [pick,setPick]=React.useState('');
     const canonicalMealType=value=>{const v=String(value||'').toLowerCase();if(v.includes('lunch'))return 'Lunch';if(v.includes('dinner'))return 'Dinner';if(v.includes('breakfast')||v.includes('tiff'))return 'Tiffin';return null};
+    const mealLabel=m=>m==='Tiffin'?'Breakfast':m;
     const validMealTime=(meal,time)=>{const minutes=Number(String(time).slice(0,2))*60+Number(String(time).slice(3,5));return meal==='Tiffin'?minutes>=300&&minutes<660:meal==='Lunch'?minutes>=660&&minutes<960:minutes>=960&&minutes<=1439};
     const mealTimeGuide=meal=>meal==='Tiffin'?'05:00 AM to 10:59 AM':meal==='Lunch'?'11:00 AM to 03:59 PM':'04:00 PM to 11:59 PM';
-    async function load(){const {data}=await client.from('meal_records').select('*,patients(full_name,room_no,bed_no)').order('served_at',{ascending:false}).limit(100);setRows(data||[])}
+    async function load(){
+      const [m,b]=await Promise.all([
+        client.from('meal_records').select('*,patients(full_name,title,room_no,bed_no,is_trial)').order('served_at',{ascending:false}).limit(100),
+        client.from('beverage_records').select('*,patients(full_name,title,room_no,bed_no,is_trial)').order('given_at',{ascending:false}).limit(100)
+      ]);
+      setRows(m.data||[]);
+      if(b.error){setBevReady(!/beverage_records|does not exist|schema cache/i.test(b.error.message||''));setBevRows([])}else{setBevReady(true);setBevRows(b.data||[])}
+    }
     React.useEffect(()=>{load()},[]);
-    async function save(e){
+    // Items typed before (not in the standard list) are offered again under "Added earlier".
+    const standardItems=new Set(Object.values(FOOD_ITEMS).flatMap(g=>Object.values(g).flat()).map(x=>x.toLowerCase()));
+    const earlierItems=[...new Set(rows.flatMap(r=>String(r.menu||'').split(/\s*,\s*/)).map(x=>x.trim()).filter(x=>x&&x.length<=40&&!standardItems.has(x.toLowerCase())&&!/\bwith\b|\band\b/i.test(x)))].sort().slice(0,30);
+    function addItem(name){
+      const item=String(name||'').trim().replace(/\s+/g,' ');
+      if(!item)return;
+      if(form.items.some(x=>x.toLowerCase()===item.toLowerCase())){setPick('');return}
+      setForm(f=>({...f,items:[...f.items,item],custom:''}));setPick('');
+    }
+    function removeItem(i){setForm(f=>({...f,items:f.items.filter((_,j)=>j!==i)}))}
+    function moveItem(i,d){setForm(f=>{const a=[...f.items];const j=i+d;if(j<0||j>=a.length)return f;[a[i],a[j]]=[a[j],a[i]];return {...f,items:a}})}
+    async function saveMeal(e){
       e.preventDefault();
-      if(!form.patient_id)return alert('Select a patient before entering food or beverage details.');
-      const menu=form.menu==='Other / Custom'?form.custom_menu.trim():form.menu;
-      if(!menu)return alert('Select the menu, or enter the custom menu.');
+      if(!patientId)return alert('Select a Guest before entering food details.');
+      const pending=form.custom.trim();
+      const items=pending&&!form.items.some(x=>x.toLowerCase()===pending.toLowerCase())?[...form.items,pending]:form.items;
+      if(!items.length)return alert('Add at least one food item (for example Idli, then Sambar, then Chutney).');
       if(!form.served_time)return alert('Enter the actual meal consumption time. The current time is not filled automatically.');
-      if(!validMealTime(form.meal_type,form.served_time))return alert(`${form.meal_type} must be recorded between ${mealTimeGuide(form.meal_type)}. Please select the correct meal and actual consumption time.`);
-      if(form.beverage_type!=='None'&&!form.beverage_time)return alert('Enter the beverage consumption time.');
+      if(!validMealTime(form.meal_type,form.served_time))return alert(`${mealLabel(form.meal_type)} must be recorded between ${mealTimeGuide(form.meal_type)}. Please select the correct meal and actual consumption time.`);
       if(saving)return;
       setSaving(true);
-      const {data:existing,error:checkError}=await client.from('meal_records').select('id,meal_type').eq('patient_id',form.patient_id).eq('meal_date',form.meal_date);
+      const {data:existing,error:checkError}=await client.from('meal_records').select('id,meal_type').eq('patient_id',patientId).eq('meal_date',form.meal_date);
       if(checkError){setSaving(false);return alert(checkError.message)}
-      if((existing||[]).some(row=>canonicalMealType(row.meal_type)===form.meal_type)){setSaving(false);return alert(`${form.meal_type==='Tiffin'?'Breakfast':form.meal_type} has already been recorded for this patient on ${formatDateIN(form.meal_date)}. Only one Breakfast, one Lunch and one Dinner entry is allowed per patient per day.`)}
-      const servedAt=`${form.meal_date}T${form.served_time||'12:00'}:00+05:30`;
-      const payload={patient_id:form.patient_id,meal_date:form.meal_date,meal_type:form.meal_type,menu,consumption_status:form.consumption_status,remarks:form.remarks,served_at:servedAt,recorded_by:profile.id,beverage_type:form.beverage_type==='None'?null:form.beverage_type,beverage_time:form.beverage_type==='None'?null:form.beverage_time};
+      if((existing||[]).some(row=>canonicalMealType(row.meal_type)===form.meal_type)){setSaving(false);return alert(`${mealLabel(form.meal_type)} has already been recorded for this Guest on ${formatDateIN(form.meal_date)}. Only one Breakfast, one Lunch and one Dinner entry is allowed per Guest per day.`)}
+      const payload={patient_id:patientId,meal_date:form.meal_date,meal_type:form.meal_type,menu:items.join(', '),consumption_status:form.consumption_status,remarks:form.remarks,served_at:`${form.meal_date}T${form.served_time}:00+05:30`,recorded_by:profile.id,beverage_type:null,beverage_time:null};
       const {error}=await client.from('meal_records').insert(payload);
       setSaving(false);
       if(error){
-        if(error.code==='23505'||/meal_records_patient_date_type_unique/i.test(error.message||''))return alert(`${form.meal_type==='Tiffin'?'Breakfast':form.meal_type} has already been recorded for this patient on ${formatDateIN(form.meal_date)}. Duplicate meal entries are not allowed.`);
-        if(error.code==='23514'||/meal_records_valid_consumption_time/i.test(error.message||''))return alert(`${form.meal_type} must be recorded between ${mealTimeGuide(form.meal_type)}.`);
+        if(error.code==='23505'||/meal_records_patient_date_type_unique/i.test(error.message||''))return alert(`${mealLabel(form.meal_type)} has already been recorded for this Guest on ${formatDateIN(form.meal_date)}. Duplicate meal entries are not allowed.`);
+        if(error.code==='23514'||/meal_records_valid_consumption_time/i.test(error.message||''))return alert(`${mealLabel(form.meal_type)} must be recorded between ${mealTimeGuide(form.meal_type)}.`);
         return alert(error.message);
       }
-      const retainedPatient=form.patient_id;
-      setForm({...blank(),patient_id:retainedPatient});
+      showSamaraActionToast('success','Meal saved',`${mealLabel(form.meal_type)} · ${items.join(', ')}`);
+      setForm(f=>({...blankMeal(),meal_date:f.meal_date,meal_type:f.meal_type}));
       load();
     }
-    const menuOptions=menus[form.meal_type]||menus.Other;
+    async function saveBeverage(e){
+      e.preventDefault();
+      if(!bevReady)return alert('Beverage entries need a one-time database update: run supabase/sql/177_beverage_records.sql in Supabase, then save again.');
+      if(!patientId)return alert('Select a Guest before entering the beverage.');
+      if(!bev.beverage)return alert('Choose the beverage: Tea, Coffee, Milk, Boost, Horlicks or Fresh Juice.');
+      if(bev.beverage==='Fresh Juice'&&!bev.juice_name.trim())return alert('Enter which juice was given (for example Orange, Mosambi, Pomegranate).');
+      if(!bev.given_time)return alert('Enter the time the beverage was given.');
+      if(bev.given_date===todayISOIndia()&&bev.given_time>nowHHMM())return alert('The beverage time cannot be later than now.');
+      const qty=String(bev.quantity_ml||'').trim()===''?null:Number(bev.quantity_ml);
+      if(qty!==null&&(!Number.isFinite(qty)||qty<=0||qty>2000))return alert('Quantity must be between 1 and 2000 ml (or leave it blank).');
+      if(saving)return;
+      setSaving(true);
+      const payload={patient_id:patientId,given_date:bev.given_date,given_time:bev.given_time,given_at:`${bev.given_date}T${bev.given_time}:00+05:30`,beverage:bev.beverage,juice_name:bev.beverage==='Fresh Juice'?bev.juice_name.trim():null,quantity_ml:qty===null?null:Math.round(qty),consumption_status:bev.consumption_status,remarks:bev.remarks||null,recorded_by:profile.id,recorded_by_name:profile.full_name||null};
+      const {error}=await client.from('beverage_records').insert(payload);
+      setSaving(false);
+      if(error){
+        if(/beverage_records|does not exist|schema cache/i.test(error.message||'')){setBevReady(false);return alert('Beverage entries need a one-time database update: run supabase/sql/177_beverage_records.sql in Supabase, then save again.')}
+        return alert(error.message);
+      }
+      showSamaraActionToast('success','Beverage saved',`${bev.beverage==='Fresh Juice'?`Fresh Juice (${bev.juice_name.trim()})`:bev.beverage} at ${bev.given_time}`);
+      setBev(b=>({...blankBev(),given_date:b.given_date}));
+      load();
+    }
+    const groups=FOOD_ITEMS[form.meal_type]||FOOD_ITEMS.Lunch;
+    const guestName=r=>r.patients?[r.patients.title,r.patients.full_name].filter(Boolean).join(' '):'—';
+    const roomOf=r=>r.patients?`${r.patients.room_no||'—'}-${r.patients.bed_no||'—'}`:'—';
+    const combined=[
+      ...rows.map(r=>({key:`m-${r.id}`,at:r.served_at,kind:'meal',r})),
+      ...bevRows.map(r=>({key:`b-${r.id}`,at:r.given_at,kind:'bev',r}))
+    ].sort((a,b)=>String(b.at||'').localeCompare(String(a.at||''))).slice(0,120);
+    const intakeClass=v=>/refused|vomit/i.test(v||'')?'fi-bad':/partial|tasted/i.test(v||'')?'fi-warn':'fi-ok';
     return h(React.Fragment,null,
-      h(Section,{title:'Food, Diet & Beverages',subtitle:'Nursing entry for patient-wise meals, intake and beverages'},
-        h('form',{className:'modal-grid food-beverage-entry',onSubmit:save},
-          patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v})),
-          h('div',{className:'field'},h('label',null,'Entry Date'),h(StrictDateInput,{value:form.meal_date,max:todayISOIndia(),required:true,onChange:e=>setForm({...form,meal_date:e.target.value})})),
-          h('div',{className:'field'},h('label',null,'Meal'),h('select',{value:form.meal_type,onChange:e=>{const v=e.target.value;setForm({...form,meal_type:v,menu:menus[v][0],custom_menu:''})}},['Tiffin','Lunch','Dinner'].map(v=>h('option',{value:v,key:v},v==='Tiffin'?'Breakfast':v)))),
-          h('div',{className:'field-help'},'Only one Breakfast, one Lunch and one Dinner entry is permitted for each patient on each date.'),
-          miniSelect('South Indian Menu',form.menu,menuOptions,v=>setForm({...form,menu:v})),
-          form.menu==='Other / Custom'&&miniInput('Custom menu / feed',form.custom_menu,v=>setForm({...form,custom_menu:v}),true),
-          miniInput(`Actual consumption time (${mealTimeGuide(form.meal_type)})`,form.served_time,v=>setForm({...form,served_time:v}),true,'time'),
-          miniSelect('Food consumed',form.consumption_status,['Consumed fully','Consumed mostly','Consumed partially','Tasted only','Refused','Vomited','Tube feed completed'],v=>setForm({...form,consumption_status:v})),
-          miniSelect('Beverage',form.beverage_type,beverageOptions,v=>setForm({...form,beverage_type:v,beverage_time:v==='None'?'':form.beverage_time})),
-          form.beverage_type!=='None'&&miniInput('Beverage consumption time',form.beverage_time,v=>setForm({...form,beverage_time:v}),true,'time'),
+      h(Section,{title:'Food, Diet & Beverages',subtitle:'Nursing entry — meals item by item, and beverages separately'},
+        h('div',{className:'fi-top'},
+          h('div',{className:'fi-guest'},patientSelect(patients,patientId,v=>setPatientId(v),'Guest')),
+          h('div',{className:'fi-switch',role:'tablist'},
+            h('button',{type:'button',role:'tab','aria-selected':entryType==='meal',className:entryType==='meal'?'active':'',onClick:()=>setEntryType('meal')},'🍛 Meal'),
+            h('button',{type:'button',role:'tab','aria-selected':entryType==='bev',className:entryType==='bev'?'active':'',onClick:()=>setEntryType('bev')},'☕ Beverage'))
+        ),
+        entryType==='meal'?h('form',{className:'fi-form',onSubmit:saveMeal},
+          h('div',{className:'fi-row'},
+            h('div',{className:'field'},h('label',null,'Entry Date'),h(StrictDateInput,{value:form.meal_date,max:todayISOIndia(),required:true,onChange:e=>setForm({...form,meal_date:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Meal'),h('select',{value:form.meal_type,onChange:e=>setForm({...form,meal_type:e.target.value})},['Tiffin','Lunch','Dinner'].map(v=>h('option',{value:v,key:v},mealLabel(v))))),
+            h('div',{className:'field'},h('label',null,`Actual consumption time (${mealTimeGuide(form.meal_type)})`),h('input',{type:'time',value:form.served_time,required:true,onChange:e=>setForm({...form,served_time:e.target.value})}))
+          ),
+          h('div',{className:'fi-items'},
+            h('label',{className:'fi-label'},`Food items served — add one by one (${form.items.length} added)`),
+            h('div',{className:'fi-chips'},
+              form.items.length?form.items.map((it,i)=>h('span',{key:it,className:'fi-chip'},
+                i>0&&h('button',{type:'button',className:'fi-chip-move',title:'Move left','aria-label':`Move ${it} left`,onClick:()=>moveItem(i,-1)},'‹'),
+                h('span',null,it),
+                h('button',{type:'button',className:'fi-chip-x',title:'Remove','aria-label':`Remove ${it}`,onClick:()=>removeItem(i)},'×'))):h('span',{className:'fi-empty'},'No items yet — choose from the list below, e.g. Idli, then Sambar, then Coconut Chutney.')),
+            h('div',{className:'fi-add'},
+              h('select',{value:pick,'aria-label':'Add food item',onChange:e=>{const v=e.target.value;if(v==='__other'){setPick(v);return}addItem(v)}},
+                h('option',{value:''},'＋ Add food item…'),
+                Object.entries(groups).map(([g,list])=>h('optgroup',{key:g,label:FOOD_GROUP_LABEL[g]},list.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x)))),
+                earlierItems.length?h('optgroup',{label:'Added earlier'},earlierItems.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x))):null,
+                h('option',{value:'__other'},'✎ Other — type your own item')),
+              pick==='__other'&&h('div',{className:'fi-other'},
+                h('input',{type:'text',autoFocus:true,maxLength:60,value:form.custom,placeholder:'Type the item, e.g. Pumpkin Kootu',onChange:e=>setForm({...form,custom:e.target.value}),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();addItem(form.custom)}}}),
+                h('button',{type:'button',className:'btn btn-secondary',onClick:()=>addItem(form.custom)},'Add'),
+                h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPick('');setForm({...form,custom:''})}},'Cancel'))
+            )
+          ),
+          h('div',{className:'fi-row'},miniSelect('Food consumed',form.consumption_status,INTAKE_OPTIONS,v=>setForm({...form,consumption_status:v}))),
           miniInput('Remarks',form.remarks,v=>setForm({...form,remarks:v})),
-          h('button',{className:'btn btn-primary',disabled:saving},saving?'Saving…':'Save Food & Beverage Entry')
+          h('div',{className:'field-help'},'Only one Breakfast, one Lunch and one Dinner entry is permitted for each Guest on each date. Record beverages in ☕ Beverage.'),
+          h('button',{className:'btn btn-primary fi-save',disabled:saving},saving?'Saving…':`Save ${mealLabel(form.meal_type)} Entry`)
+        ):h('form',{className:'fi-form',onSubmit:saveBeverage},
+          !bevReady&&h('div',{className:'message error'},'Beverage entries need a one-time database update: run supabase/sql/177_beverage_records.sql in Supabase.'),
+          h('label',{className:'fi-label'},'Beverage *'),
+          h('div',{className:'fi-bev-grid'},BEVERAGES.map(([name,icon])=>h('button',{key:name,type:'button',className:`fi-bev ${bev.beverage===name?'active':''}`,'aria-pressed':bev.beverage===name,onClick:()=>setBev({...bev,beverage:name,juice_name:name==='Fresh Juice'?bev.juice_name:''})},h('span',{'aria-hidden':'true'},icon),name))),
+          bev.beverage==='Fresh Juice'&&h('div',{className:'field'},h('label',null,'Which juice?'),h('input',{type:'text',maxLength:60,value:bev.juice_name,required:true,placeholder:'e.g. Orange, Mosambi, Pomegranate, Watermelon',onChange:e=>setBev({...bev,juice_name:e.target.value})})),
+          h('div',{className:'fi-row'},
+            h('div',{className:'field'},h('label',null,'Date'),h(StrictDateInput,{value:bev.given_date,max:todayISOIndia(),required:true,onChange:e=>setBev({...bev,given_date:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Time given'),h('input',{type:'time',value:bev.given_time,required:true,onChange:e=>setBev({...bev,given_time:e.target.value})})),
+            h('div',{className:'field'},h('label',null,'Quantity (ml, optional)'),h('input',{type:'number',min:1,max:2000,step:10,inputMode:'numeric',value:bev.quantity_ml,placeholder:'e.g. 150',onChange:e=>setBev({...bev,quantity_ml:e.target.value})}))
+          ),
+          h('div',{className:'fi-row'},miniSelect('Consumed',bev.consumption_status,BEVERAGE_INTAKE,v=>setBev({...bev,consumption_status:v}))),
+          miniInput('Remarks',bev.remarks,v=>setBev({...bev,remarks:v})),
+          h('div',{className:'field-help'},'Record every serving separately — any time of the day, as many times as given.'),
+          h('button',{className:'btn btn-primary fi-save',disabled:saving||!bevReady},saving?'Saving…':`Save ${bev.beverage||'Beverage'} Entry`)
         )
       ),
-      h(LogTable,{title:'Recent Food & Beverage Records',heads:['Patient / Room','Meal','Menu','Food Intake','Meal Time','Beverage','Beverage Time'],rows:rows.map(r=>[`${r.patients?.full_name||'—'} · ${r.patients?.room_no||'—'}-${r.patients?.bed_no||'—'}`,r.meal_type==='Tiffin'?'Breakfast':r.meal_type,r.menu,r.consumption_status,fmt(r.served_at),r.beverage_type||'—',r.beverage_time?String(r.beverage_time).slice(0,5):'—'])})
+      h(LogTable,{title:'Recent Food & Beverage Records',heads:['Guest / Room','Type','Items / Beverage','Intake','Time','Remarks'],rows:combined.map(({kind,r})=>[
+        h('span',null,`${guestName(r)} · ${roomOf(r)}`,r.patients?.is_trial?h('span',{className:'guest-record-badge trial',style:{marginLeft:'6px'}},'🧪 TRIAL'):null),
+        kind==='meal'?mealLabel(canonicalMealType(r.meal_type)||r.meal_type):h('span',{className:'fi-type-bev'},'Beverage'),
+        kind==='meal'?h('span',null,r.menu||'—',r.beverage_type?h('small',{className:'fi-sub'},` · Beverage: ${r.beverage_type}${r.beverage_time?` at ${String(r.beverage_time).slice(0,5)}`:''}`):null)
+          :`${r.beverage==='Fresh Juice'?`Fresh Juice (${r.juice_name||'—'})`:r.beverage}${r.quantity_ml?` · ${r.quantity_ml} ml`:''}`,
+        h('span',{className:`fi-intake ${intakeClass(r.consumption_status)}`},r.consumption_status||'—'),
+        fmt(kind==='meal'?r.served_at:r.given_at),
+        r.remarks||'—'
+      ])})
     );
   }
-
   function Physiotherapy({profile,onNavigate}){
     const canEnter=['Admin','Manager','Nurse','Caregiver'].includes(profile?.role);
     const [plans,setPlans]=React.useState([]);
@@ -34109,8 +34235,13 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       try{
         const results=await Promise.all([
           client.from('patients').select('*'),client.from('vital_signs').select('*'),client.from('care_logs').select('*'),client.from('care_orders').select('*'),client.from('medication_orders').select('*'),client.from('medication_administrations').select('*'),client.from('meal_records').select('*'),client.from('physiotherapy_plans').select('*'),client.from('physiotherapy_sessions').select('*'),client.from('incidents').select('*'),client.from('billing_transactions').select('*'),client.from('recovery_events').select('*'),client.from('shift_handovers').select('*'),client.from('patient_documents').select('*'),client.from('profiles').select('*'),client.from('audit_log').select('*'),client.from('medication_reviews').select('*'),client.from('medication_review_items').select('*'),client.from('bill_charge_requests').select('id,patient_id,charge_date,service_datetime,category,service_name,description,quantity,unit,status,approval_status,remarks,raised_by_name,raised_at,created_at').eq('category','Nursing Procedures')
+,
+          client.from('beverage_records').select('*').then(r=>r,()=>({data:[]}))
         ]);
-        const [pats,vitals,care,careOrders,orders,mar,meals,physioOrders,physioSessions,incidents,billing,recovery,handovers,documents,staff,audit,medicationReviews,medicationReviewItems,nursingProcedures]=results.map(safeRows);
+        const [pats,vitals,care,careOrders,orders,mar,mealRows,physioOrders,physioSessions,incidents,billing,recovery,handovers,documents,staff,audit,medicationReviews,medicationReviewItems,nursingProcedures]=results.map(safeRows);
+        // 2.15.34: separate beverage servings join the Food / Fluid Intake rows (Meal = "Beverage").
+        const beverageRows=(results[results.length-1]?.error?[]:safeRows(results[results.length-1])).map(b=>({id:`bev-${b.id}`,patient_id:b.patient_id,meal_type:'Beverage',meal_date:b.given_date,menu:b.quantity_ml?`${b.quantity_ml} ml`:'—',consumption_status:b.consumption_status,served_at:b.given_at,created_at:b.created_at,beverage_type:b.beverage==='Fresh Juice'?`Fresh Juice (${b.juice_name||'—'})`:b.beverage,beverage_time:b.given_time,remarks:b.remarks,__beverage:true}));
+        const meals=[...mealRows,...beverageRows];
         const selectedPatient=pats.find(p=>p.id===patientId)||patients.find(p=>p.id===patientId)||null;
         if(activeMode==='Resident-wise'&&selectedPatient&&isFutureDateIndia(selectedPatient.admission_date)){
           throw new Error(`The Patient File contains a future Admission Date (${formatDateIN(selectedPatient.admission_date)}). Please correct it in Patient Edit before generating or sharing the report.`);

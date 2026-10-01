@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.33';
-const CACHE = 'samara-erp-2.15.33-discharge-real-trial-filter';
+const APP_VERSION = '2.15.34';
+const CACHE = 'samara-erp-2.15.34-food-items-beverages';
 const SHELL = [
   './',
   './index.html',

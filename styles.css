@@ -2692,3 +2692,40 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 .dr-wa{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:800;background:#f3eef1;color:#6b5260}
 .dr-wa.ok{background:#e7f6ef;color:#166534}
 .dr-wa.bad{background:#ffe9ec;color:#b42336}
+
+/* 2.15.34: Resident Food Intake — item-by-item meals + separate beverages */
+.fi-top{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}
+.fi-guest{flex:1 1 320px}
+.fi-guest .field{margin:0}
+.fi-switch{display:inline-flex;border:1.5px solid #e2c7d4;border-radius:14px;overflow:hidden;background:#fff}
+.fi-switch button{border:0;background:transparent;padding:11px 20px;font:inherit;font-weight:800;color:#6b2147;cursor:pointer;min-width:130px}
+.fi-switch button.active{background:linear-gradient(135deg,#8c0f4d,#c2185b);color:#fff}
+.fi-form{display:grid;gap:12px;padding:14px;border:1px solid #f0dde6;border-radius:16px;background:#fffafc}
+.fi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:end}
+.fi-row .field{margin:0}
+.fi-label{font-weight:800;color:#3b1d2c;font-size:14px}
+.fi-items{display:grid;gap:8px}
+.fi-chips{display:flex;flex-wrap:wrap;gap:8px;min-height:44px;padding:8px;border:1.5px dashed #e2c7d4;border-radius:12px;background:#fff;align-items:center}
+.fi-empty{color:#8a6a7a;font-size:13px}
+.fi-chip{display:inline-flex;align-items:center;gap:4px;padding:5px 6px 5px 12px;border-radius:999px;background:#fbeef4;border:1.5px solid #e7b3cb;color:#6b2147;font-weight:800;font-size:14px}
+.fi-chip-x,.fi-chip-move{border:0;background:#fff;color:#a91360;width:24px;height:24px;border-radius:999px;cursor:pointer;font-weight:900;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0}
+.fi-chip-move{background:transparent;color:#b07a93;width:18px}
+.fi-chip-x:hover{background:#a91360;color:#fff}
+.fi-add{display:grid;gap:8px}
+.fi-add>select{max-width:460px;min-height:46px;font-weight:700;color:#8c0f4d;border:1.5px solid #e2c7d4;border-radius:12px;background:#fff}
+.fi-form>.field{margin:0}
+.fi-other{display:flex;gap:8px;flex-wrap:wrap}
+.fi-other input{flex:1 1 240px}
+.fi-bev-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.fi-bev{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:1.5px solid #e2c7d4;border-radius:14px;background:#fff;font:inherit;font-weight:800;color:#5b3a4b;cursor:pointer}
+.fi-bev span{font-size:24px}
+.fi-bev.active{border-color:#a91360;background:#fbeef4;color:#8c0f4d;box-shadow:0 0 0 2px #a9136033}
+.fi-save{justify-self:start;min-width:240px}
+.fi-sub{color:#8a6a7a}
+.fi-type-bev{display:inline-block;padding:2px 8px;border-radius:999px;background:#e8f0ff;color:#1d4ed8;font-weight:800;font-size:12px}
+.fi-intake{display:inline-block;padding:2px 9px;border-radius:999px;font-weight:800;font-size:12px}
+.fi-intake.fi-ok{background:#e7f6ef;color:#166534}
+.fi-intake.fi-warn{background:#fff4e0;color:#b45309}
+.fi-intake.fi-bad{background:#ffe9ec;color:#b42336}
+@media (max-width:640px){.fi-switch{width:100%}.fi-switch button{flex:1;min-width:0}.fi-save{justify-self:stretch}}
+.fi-chip button{min-height:0!important;min-width:0!important;box-shadow:none!important}

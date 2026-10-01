@@ -112,7 +112,7 @@
       try{await loadPatientCard(p,seq)}catch(error){console.error('[Samara] Patient file load failed',error);if(seq===openPatientSeqRef.current)setPatientOpenError(error?.message||String(error))}
     }
     async function loadPatientCard(p,seq){
-      const [m,ma,mr,mri,c,cl,v,ph,ps,d,meal,bill,rec,inc,fam,mom,wa,pref,reportWa,proc,hand,discharges,url]=await Promise.all([
+      const [m,ma,mr,mri,c,cl,v,ph,ps,d,meal,bev,bill,rec,inc,fam,mom,wa,pref,reportWa,proc,hand,discharges,url]=await Promise.all([
         client.from('medication_orders').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}),
         client.from('medication_administrations').select('*').eq('patient_id',p.id).order('scheduled_date',{ascending:false}).limit(100),
         client.from('medication_reviews').select('*').eq('patient_id',p.id).order('reviewed_at',{ascending:false}),
@@ -124,6 +124,7 @@
         client.from('physiotherapy_sessions').select('*').eq('patient_id',p.id).order('session_date',{ascending:false}).limit(100),
         client.from('patient_documents').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}),
         client.from('meal_records').select('*').eq('patient_id',p.id).order('served_at',{ascending:false}).limit(100),
+        client.from('beverage_records').select('*').eq('patient_id',p.id).order('given_at',{ascending:false}).limit(100).then(r=>r,()=>({data:[]})),
         client.from('billing_transactions').select('*').eq('patient_id',p.id).order('transaction_date',{ascending:false}).limit(200),
         client.from('recovery_events').select('*').eq('patient_id',p.id).order('event_at',{ascending:false}).limit(100),
         client.from('incidents').select('*').eq('patient_id',p.id).order('incident_at',{ascending:false}).limit(100),
@@ -155,7 +156,7 @@
         medicationReviewError:[mr?.error,mri?.error].filter(Boolean).map(error=>error.message).join(' | '),
         mar:todayMar,
         allMar:ma.data||[],
-        care:c.data||[],careLogs:cl.data||[],vitals:v.data||[],physio:ph.data||[],physioSessions:ps.data||[],docs:d.data||[],meals:meal.data||[],billing:bill.data||[],recovery:rec.data||[],incidents:inc.data||[],familyAccess:dedupeFamilyAccessRows(fam?.data||[]),dailyMoments:momentRows,familyWhatsApp:wa?.data||[],familyPreference:pref?.data||null,reportWhatsApp:reportWa?.data||[],nursingProcedures:proc?.data||[],handovers:hand?.data||[],discharges:discharges?.data||[]
+        care:c.data||[],careLogs:cl.data||[],vitals:v.data||[],physio:ph.data||[],physioSessions:ps.data||[],docs:d.data||[],meals:meal.data||[],beverages:bev?.error?[]:(bev?.data||[]),billing:bill.data||[],recovery:rec.data||[],incidents:inc.data||[],familyAccess:dedupeFamilyAccessRows(fam?.data||[]),dailyMoments:momentRows,familyWhatsApp:wa?.data||[],familyPreference:pref?.data||null,reportWhatsApp:reportWa?.data||[],nursingProcedures:proc?.data||[],handovers:hand?.data||[],discharges:discharges?.data||[]
       });
       setPhotoUrl(url);
     }
@@ -2514,7 +2515,14 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
           tab==='Nursing'&&h('div',{className:'section-card'},h('h4',null,'Master Care Plan'),details.care.length?details.care.map(c=>h('div',{className:'timeline-item',key:c.id},h('strong',null,c.care_type),h('span',null,`${c.shift} · ${c.frequency} · ${careWindowLabel(c)} · ${c.instruction||''}`),h(TamilAssist,{text:c.instruction,context:'Care Plan Instruction'}))):sectionEmpty('No care orders.'),h('h4',{style:{marginTop:'18px'}},'Recent Care Records'),details.careLogs.length?details.careLogs.slice(0,30).map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.care_date)} · ${x.shift} · ${x.status}`),h('span',{className:'patient-file-detail'},` · ${x.remarks||'—'}`),h(TamilAssist,{text:x.remarks,context:'Nursing Care Remark'}))):sectionEmpty('No care records.')),
           tab==='Vitals'&&h('div',{className:'section-card'},h('h4',null,'Vital Signs History'),details.vitals.length?details.vitals.map(v=>h('div',{className:'timeline-item',key:v.id},h('strong',null,`${fmt(v.recorded_at)} · BP ${v.systolic||'—'}/${v.diastolic||'—'}`),h('span',{className:'patient-file-detail'},` · Pulse ${v.pulse||'—'} · SpO₂ ${v.spo2||'—'} · Temp ${v.temperature||'—'} · Sugar ${v.blood_sugar_type||'Not Taken'} ${v.blood_sugar||'—'} · ${v.alert_level||'Normal'}`))):sectionEmpty('No vital signs recorded.')),
           tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${x.preferred_time||'—'} · ${x.precautions||''}`),h(TamilAssist,{text:x.precautions,context:'Physiotherapy Precaution'}))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'),h(TamilAssist,{text:x.notes,context:'Physiotherapy Note'}))):sectionEmpty('No physiotherapy sessions.')),
-          tab==='Diet'&&h('div',{className:'section-card'},h('h4',null,`Diet Plan: ${selected.diet_plan||'Not recorded'}`),h('p',null,selected.feeding_instruction||'No special feeding instruction.'),h('h4',{style:{marginTop:'18px'}},'Food & Beverage Records'),details.meals.length?details.meals.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${x.meal_date||''} · ${x.meal_type} · ${x.consumption_status}`),h('span',{className:'patient-file-detail'},` · ${x.menu||'—'}${x.beverage_type?` · Beverage: ${x.beverage_type}${x.beverage_time?` at ${String(x.beverage_time).slice(0,5)}`:''}`:''}${x.remarks?` · ${x.remarks}`:''}`))):sectionEmpty('No food or beverage records.')),
+          tab==='Diet'&&h('div',{className:'section-card'},h('h4',null,`Diet Plan: ${selected.diet_plan||'Not recorded'}`),h('p',null,selected.feeding_instruction||'No special feeding instruction.'),h('h4',{style:{marginTop:'18px'}},'Food & Beverage Records'),(()=>{
+            // 2.15.34: meals and separate beverage servings, newest first.
+            const items=[...(details.meals||[]).map(x=>({k:`m${x.id}`,at:x.served_at||x.meal_date,x,t:'meal'})),...(details.beverages||[]).map(x=>({k:`b${x.id}`,at:x.given_at,x,t:'bev'}))].sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
+            return items.length?items.map(({k,x,t})=>t==='meal'
+              ?h('div',{className:'timeline-item',key:k},h('strong',null,`${formatDateIN(x.meal_date)||''} · ${x.meal_type==='Tiffin'?'Breakfast':x.meal_type} · ${x.consumption_status}`),h('span',{className:'patient-file-detail'},` · ${x.menu||'—'}${x.beverage_type?` · Beverage: ${x.beverage_type}${x.beverage_time?` at ${String(x.beverage_time).slice(0,5)}`:''}`:''}${x.remarks?` · ${x.remarks}`:''}`))
+              :h('div',{className:'timeline-item',key:k},h('strong',null,`${formatDateIN(x.given_date)} · ${String(x.given_time||'').slice(0,5)} · ${x.beverage==='Fresh Juice'?`Fresh Juice (${x.juice_name||'—'})`:x.beverage} · ${x.consumption_status}`),h('span',{className:'patient-file-detail'},`${x.quantity_ml?` · ${x.quantity_ml} ml`:''}${x.remarks?` · ${x.remarks}`:''}`))
+            ):sectionEmpty('No food or beverage records.');
+          })()),
           tab==='Daily Moments'&&h('div',{className:'daily-moments-wrap'},
             momentRecording&&h('div',{className:'daily-moment-recorder'},h('div',{className:'daily-moment-recorder-box'},h('video',{autoPlay:true,muted:true,playsInline:true,ref:el=>{if(el&&momentStreamRef.current&&el.srcObject!==momentStreamRef.current)el.srcObject=momentStreamRef.current}}),h('strong',null,`Recording ${momentRecordSeconds}/10 sec`),h('div',{className:'record-progress'},h('span',{style:{width:`${Math.min(100,momentRecordSeconds*10)}%`}})),h('button',{type:'button',className:'btn btn-danger',onClick:stopDailyMomentRecording},'Stop now'))),
             h('div',{className:'section-card daily-moment-upload'},
