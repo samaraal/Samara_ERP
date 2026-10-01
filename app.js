@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.34';
+  const APP_VERSION = '2.15.35';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '01-Oct-2026 Food items + Beverages';
+  const APP_BUILD_DATE = '01-Oct-2026 Food and Beverage Register';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -26014,14 +26014,14 @@ function RoomsBeds({profile,onNavigate}){
             ['Tiffin','Lunch','Dinner'].map(t=>{const r=mealOn(t);return h('div',{key:t,className:`fi-day-cell ${r?intakeClass(r.consumption_status):'fi-pending'}`},
               h('small',null,mealLabel(t)),h('strong',null,r?(r.consumption_status||'Recorded'):'Not recorded'),r&&h('span',null,`${String(fmt(r.served_at)).split(', ').slice(-1)[0]} · ${r.menu||''}`))}),
             h('div',{className:'fi-day-cell fi-bevcell'},h('small',null,'Beverages'),h('strong',null,`${bevRows.length} serving${bevRows.length===1?'':'s'}`),
-              bevRows.length?h('span',null,bevRows.slice().reverse().map(b=>`${b.beverage==='Fresh Juice'?`Juice (${b.juice_name||''})`:b.beverage} ${String(b.given_time||'').slice(0,5)}`).join(' · ')):null)
+              bevRows.length?h('span',null,bevRows.slice().reverse().map(b=>`${b.beverage==='Fresh Juice'?`Juice (${b.juice_name||''})`:b.beverage} ${String(fmt(b.given_at)).split(', ').slice(-1)[0].replace(' IST','')}`).join(' · ')):null)
           ),
           h('div',{className:'table-wrap'},h('table',{className:'table fi-reg-table'},
             h('thead',null,h('tr',null,['Date','Time','Type','Items / Beverage','Intake','Remarks'].map(x=>h('th',{key:x},x)))),
             h('tbody',null,
               combined.map(({key,kind,r})=>h('tr',{key},
                 h('td',{'data-label':'Date'},formatDateIN(kind==='meal'?r.meal_date:r.given_date)),
-                h('td',{'data-label':'Time'},kind==='meal'?String(fmt(r.served_at)).split(', ').slice(-1)[0]:String(r.given_time||'').slice(0,5)),
+                h('td',{'data-label':'Time'},String(fmt(kind==='meal'?r.served_at:r.given_at)).split(', ').slice(-1)[0]),
                 h('td',{'data-label':'Type'},kind==='meal'?mealLabel(canonicalMealType(r.meal_type)||r.meal_type):h('span',{className:'fi-type-bev'},'Beverage')),
                 h('td',{'data-label':'Items / Beverage'},kind==='meal'?h('span',null,r.menu||'—',r.beverage_type?h('small',{className:'fi-sub'},` · Beverage: ${r.beverage_type}${r.beverage_time?` at ${String(r.beverage_time).slice(0,5)}`:''}`):null)
                   :`${r.beverage==='Fresh Juice'?`Fresh Juice (${r.juice_name||'—'})`:r.beverage}${r.quantity_ml?` · ${r.quantity_ml} ml`:''}`),

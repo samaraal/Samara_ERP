@@ -45,7 +45,7 @@
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '01-Oct-2026 Food const APP_BUILD_DATE = '01-Oct-2026 Food items + Beverages'; Beverage Register';
+  const APP_BUILD_DATE = '01-Oct-2026 Food and Beverage Register';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
