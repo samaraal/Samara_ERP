@@ -91,10 +91,11 @@
     return h('div',{className:'stores-dash-wrap'},
       error&&h('p',{className:'message error',role:'alert'},error),
       !safeView?h(React.Fragment,null,h(DashboardHero,{title:'Biomedical Equipment — Nursing',blurb:'Equipment for resident care: view availability, request equipment, return items and report faults.',onRefresh:load}),h(DashboardTiles,{tiles,onOpen:key=>{if(key==='care')change('kind','Fault');if(key==='request')change('kind','Equipment');openView(key)}})):h(DashboardBackBar,{title:'Biomedical Equipment',viewTitle:tiles.find(t=>t.key===safeView)?.title,onBack:backToDashboard}),
-      ['request','care'].includes(safeView)&&h(Section,{title:safeView==='care'?'Report an equipment fault':'Request equipment'},
+      safeView==='request'&&h(NursingProcedures,{key:form.equipment_id||'new-equipment',profile,initialCategory:'Biomedical Equipment',initialRequest:true,initialEquipment:form.equipment_id}),
+      safeView==='care'&&h(Section,{title:safeView==='care'?'Report an equipment fault':'Request equipment'},
         notice&&h('p',{className:'message success',role:'status'},notice),
         h('form',{onSubmit:submit},h('fieldset',{disabled:busy,style:{border:0,padding:0}},
-          h('div',{className:'field'},h('label',null,'Request type'),h('select',{value:form.kind,onChange:e=>change('kind',e.target.value)},h('option',{value:'Equipment'},'Equipment request'),h('option',{value:'Fault'},'Report fault'))),
+          h('div',{className:'field'},h('label',null,'Request type'),h('select',{value:form.kind,onChange:e=>change('kind',e.target.value)},h('option',{value:'Fault'},'Report fault'))),
           h('div',{className:'field'},h('label',null,'Equipment piece'+(form.kind==='Fault'?' *':'')),h('select',{required:form.kind==='Fault',value:form.equipment_id,onChange:e=>{const x=rows.find(r=>r.id===e.target.value);change('equipment_id',e.target.value);change('item_name',x?.equipment_name||'')}},h('option',{value:''},'Select a piece, or describe the equipment needed'),rows.map(x=>h('option',{key:x.id,value:x.id},x.asset_no+' · '+x.equipment_name+' · '+x.status)))),
           !form.equipment_id&&h('div',{className:'field'},h('label',null,'Equipment needed *'),h('input',{required:true,maxLength:200,value:form.item_name,onChange:e=>change('item_name',e.target.value)})),
           h('div',{className:'field'},h('label',null,'Resident (optional)'),h(PatientPicker,{patients,required:false,value:form.patient_id,onChange:v=>change('patient_id',v)})),
@@ -104,7 +105,7 @@
       ['inuse','request','care'].includes(safeView)&&h(Section,{title:safeView==='request'?'Available equipment':'Resident equipment'},
         visible.length?visible.map(x=>h('article',{key:x.id,className:'stores-ledger-card'},h('strong',null,x.asset_no+' · '+x.equipment_name),h(EquipmentStatusPill,{status:x.status}),x.fault_reported&&h('p',null,'Fault reported — awaiting Stores review'),h('p',null,x.status==='Under Repair'?'Unavailable — under repair':x.current_patient_id?equipmentPatientName(patients,x.current_patient_id):x.current_location||'Stores'),
           h('div',{className:'equip-actions'},x.status==='In Use'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>returnEquipment(x)},'Return'),x.status==='Available'&&!x.fault_reported&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>selectEquipment(x,'Equipment')},'Request'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>selectEquipment(x,'Fault')},'Report fault')))):h('p',null,'No equipment in this view.')),
-      safeView==='requests'&&h(EquipmentCareRequests,{patients}),
+      safeView==='requests'&&h(React.Fragment,null,h(NursingProcedures,{profile}),h(EquipmentCareRequests,{patients})),
       safeView==='history'&&h(Section,{title:'Issue / Return History'},moves.length?[...moves].reverse().slice(0,300).map(m=>h('article',{key:m.id,className:'stores-ledger-card'},h('strong',null,(rows.find(x=>x.id===m.equipment_id)?.asset_no||'Equipment')+' · '+m.action),h('p',null,equipmentPatientName(patients,m.patient_id)),h('small',null,formatDateTimeIN(m.moved_at)+' · '+(m.actor_name||'Staff')))):h('p',null,'No issue or return history.'))
     );
   }
@@ -256,8 +257,8 @@
         ),
         issueFor&&issueFor.id===x.id&&h('form',{className:'equip-inline-form',onSubmit:doIssue},
           h('div',{className:'grid two'},
-            h('div',{className:'field'},h('label',null,'Resident'),h(PatientPicker,{patients,value:issueForm.patient_id,required:false,onChange:v=>setIssueForm({...issueForm,patient_id:v})})),
-            h('div',{className:'field'},h('label',null,'Room / Location (if not for one resident)'),h('input',{value:issueForm.location,onChange:e=>setIssueForm({...issueForm,location:e.target.value}),placeholder:'Blank = resident’s room'}))
+            h('p',{className:'small-note'},'For resident use: Nurse makes a request in Approval Requests, Nursing Manager approves, then Nurse confirms and starts. This form moves equipment to a shared location only.'),
+            h('div',{className:'field'},h('label',null,'Shared room / location'),h('input',{value:issueForm.location,onChange:e=>setIssueForm({...issueForm,location:e.target.value}),required:true,placeholder:'Enter shared location'}))
           ),
           h('div',{className:'field'},h('label',null,'Remarks'),h('input',{value:issueForm.remarks,onChange:e=>setIssueForm({...issueForm,remarks:e.target.value})})),
           h('div',{className:'equip-actions'},h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Issue Equipment'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setIssueFor(null)},'Cancel'))
@@ -432,7 +433,7 @@
         putOn&&putOn.id===c.id&&h('form',{className:'equip-inline-form',onSubmit:doPutOn},
           h('div',{className:'grid two'},
             h('div',{className:'field'},h('label',null,'Resident *'),h(PatientPicker,{patients,value:putForm.patient_id,onChange:v=>setPutForm({...putForm,patient_id:v})})),
-            h('div',{className:'field'},h('label',null,'Room / Location'),h('input',{value:putForm.location,onChange:e=>setPutForm({...putForm,location:e.target.value}),placeholder:'Blank = resident’s room'}))
+            h('div',{className:'field'},h('label',null,'Room / Location'),h('input',{value:putForm.location,onChange:e=>setPutForm({...putForm,location:e.target.value}),required:true,placeholder:'Enter shared location'}))
           ),
           h('div',{className:'field'},h('label',null,'Remarks (flow rate, doctor advice)'),h('input',{value:putForm.remarks,onChange:e=>setPutForm({...putForm,remarks:e.target.value})})),
           h('div',{className:'equip-actions'},h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Put on Resident'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPutOn(null)},'Cancel'))

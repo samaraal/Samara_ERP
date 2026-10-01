@@ -2760,3 +2760,5 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 .approval-workspace .dr-filters{grid-template-columns:minmax(220px,2fr) minmax(150px,1fr) minmax(150px,1fr) auto}
 @media(max-width:900px){.approval-workspace .dr-filters{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.approval-workspace .dr-filters{grid-template-columns:1fr}}
+
+.approval-workspace .dr-box.selected{background:#f7eaf1!important}.approval-workspace .dr-box.selected .dr-box-count{color:var(--dr-c)!important}
