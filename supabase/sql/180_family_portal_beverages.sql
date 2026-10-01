@@ -19,10 +19,21 @@ begin
  exception when others then return '[]'::jsonb;
  end;
  if d is null or jsonb_typeof(d)<>'object' then return '[]'::jsonb;end if;
- pt:=coalesce(d->'patient','{}'::jsonb);
- begin pid:=coalesce(nullif(pt->>'id',''),nullif(pt->>'patient_uuid',''))::uuid; exception when others then pid:=null; end;
- if pid is null and nullif(pt->>'patient_id','') is not null then
-  select id into pid from public.patients where patient_id=pt->>'patient_id' limit 1;
+ pt:=coalesce(d->'patient',d->'resident',d->'guest','{}'::jsonb);
+ -- 1) a patient uuid on the dashboard's patient object
+ select p.id into pid from public.patients p
+  where p.id::text in (pt->>'id',pt->>'patient_uuid',pt->>'patient_db_id',pt->>'uuid',pt->>'patient_id') limit 1;
+ -- 2) the Resident ID (e.g. MOG-2026-09-0018)
+ if pid is null then
+  select p.id into pid from public.patients p
+   where p.patient_id in (pt->>'patient_id',pt->>'resident_id',pt->>'patient_code',pt->>'id') limit 1;
+ end if;
+ -- 3) the patient_id most used in the dashboard's own records (meals, vitals, medicines …)
+ if pid is null then
+  select p.id into pid from (
+    select v #>> '{}' as val from jsonb_path_query(d,'strict $.**.patient_id') v) x
+   join public.patients p on p.id::text=x.val or p.patient_id=x.val
+   group by p.id order by count(*) desc limit 1;
  end if;
  if pid is null then return '[]'::jsonb;end if;
  return coalesce((select jsonb_agg(jsonb_build_object(
@@ -37,5 +48,9 @@ revoke all on function public.family_portal_beverages(text) from public;
 grant execute on function public.family_portal_beverages(text) to anon, authenticated;
 notify pgrst, 'reload schema';
 
--- Check: should show beverages_ready = true
+-- Check 1: beverages_ready = true
+-- Check 2 (below): beverages recorded per Guest in the last 3 days — if Shylaja shows 0, none has been saved yet.
 select to_regprocedure('public.family_portal_beverages(text)') is not null as beverages_ready;
+select p.patient_id as resident_id, p.full_name, count(b.id) as beverages_last_3_days, max(b.given_at) as latest
+from public.patients p left join public.beverage_records b on b.patient_id=p.id and b.given_at>=now()-interval '3 days'
+where p.is_active group by p.patient_id,p.full_name order by p.full_name;
