@@ -2751,3 +2751,12 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 /* 2.15.40: beverage quantity + unit */
 .fi-qty{display:grid;grid-template-columns:minmax(0,1fr) minmax(110px,auto);gap:8px}
 .fi-qty select{min-width:0}
+
+/* Approval register shares the discharge dashboard layout. */
+.approval-table th:nth-child(1){width:17%}.approval-table th:nth-child(2){width:27%}
+.approval-table th:nth-child(3){width:19%}.approval-table th:nth-child(4){width:14%}
+.approval-table th:nth-child(5){width:13%}.approval-table th:nth-child(6){width:10%}
+.approval-table .btn{white-space:normal;padding:7px 10px}
+.approval-workspace .dr-filters{grid-template-columns:minmax(220px,2fr) minmax(150px,1fr) minmax(150px,1fr) auto}
+@media(max-width:900px){.approval-workspace .dr-filters{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.approval-workspace .dr-filters{grid-template-columns:1fr}}
