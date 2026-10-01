@@ -1174,24 +1174,14 @@ Doctor / Hospital: ${doctorHospital}`;
       String(row.status||'').trim().toLowerCase()
     )).filter(row=>!recordFocus||String(row.id)===String(recordFocus.id||'')||(!recordFocus.id&&String(row.patient_id)===String(recordFocus.patient_id||'')));
     useScrollToFocused('discharge-register',!!recordFocus&&visibleRows.length>0);
-    const tableRows=visibleRows.map(row=>[
-      patientLabel(row.patient_id),
-      row.initiation_basis||'—',
-      row.initiation_basis==='Voluntary Discharge'
-        ?`${row.voluntary_requested_by||'Voluntary'} · ${row.voluntary_requester_name||'—'} · ${row.voluntary_requester_contact||'—'}`
-        :`${row.instructed_by_name||'—'} · ${row.instructed_by_contact||'—'}`,
-      formatDateIN(row.proposed_discharge_date),
-      row.initiated_by_name||'—',
-      h('span',{className:`badge ${row.management_status==='Approved'?'':'off'}`},row.management_status||'Pending'),
-      row.management_approved_by_name||'—',
-      row.management_approved_at?fmt(row.management_approved_at):'—',
-      h('span',{className:`badge ${row.accounts_status==='Cleared'?'':'off'}`},row.accounts_status==='Cleared'?'Cleared':(row.accounts_recheck_at||String(row.accounts_remarks||'').includes('Financial activity changed after clearance'))?'Recheck required':row.accounts_status||'Pending'),
-      row.accounts_cleared_by_name||'—',
-      row.accounts_cleared_at?fmt(row.accounts_cleared_at):'—',
-      h('span',{className:`badge ${row.status==='Completed'?'':'off'}`},row.status!=='Completed'&&row.discount_request_status==='Pending'?'Discount Approval Pending — Admin / Director':row.status!=='Completed'&&(row.accounts_recheck_at||String(row.accounts_remarks||'').includes('Financial activity changed after clearance'))&&row.accounts_status!=='Cleared'?'Accounts recheck required':row.status||'Initiated'),
-      row.status==='Completed'?(row.completed_by_name||'—'):'—',
-      h('div',{className:'employee-actions'},
-        profile?.role==='Admin'&&patientFor(row.patient_id).is_trial&&h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:()=>eraseTrialGuest(row)},'🧪 Erase Trial Guest'),
+    const [drBox,setDrBox]=React.useState(isAccountsClearance?'all':'open');
+    const [drSearch,setDrSearch]=React.useState(''),[drBasis,setDrBasis]=React.useState('');
+    const [drFrom,setDrFrom]=React.useState(''),[drTo,setDrTo]=React.useState('');
+    const [drDetailId,setDrDetailId]=React.useState(null);
+    // 2.15.30: Discharge Register — stage boxes, filters (Apply), compact register, full details per row.
+    function actionsFor(row,inDetails=false){
+      return h('div',{className:'employee-actions'},
+        inDetails&&profile?.role==='Admin'&&patientFor(row.patient_id).is_trial&&h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:()=>eraseTrialGuest(row)},'🧪 Erase Trial Guest'),
         isHistoricalDuplicate(row)&&['Admin','Manager','Nurse'].includes(profile?.role)&&h('button',{
           type:'button',
           className:'btn btn-danger',
@@ -1250,18 +1240,128 @@ Doctor / Hospital: ${doctorHospital}`;
             :h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>sendDischargeConfirmationWhatsAppApi(row).catch(()=>{})},row.discharge_whatsapp_status==='Failed'?'Retry WhatsApp API':'Send Discharge WhatsApp API')
         ),
         ['Admin','Manager'].includes(profile?.role)&&String(row.status||'').trim().toLowerCase()==='completed'&&row.review_appointment_date&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>sendReviewAppointmentWhatsAppApi(row)},'Send Review Reminder API')
-      )
-    ]);
+      );
+    }
+    const lc=v=>String(v||'').trim().toLowerCase();
+    // In the register row a completed discharge shows only its WhatsApp status; the buttons are in the details popup.
+    function rowActions(row){
+      if(lc(row.status)!=='completed')return actionsFor(row);
+      const wa=row.discharge_whatsapp_status;
+      return h('div',{className:'dr-done-note'},
+        h('span',{className:`dr-wa ${wa==='Accepted'?'ok':wa==='Failed'?'bad':''}`},wa==='Accepted'?'WhatsApp sent ✓':wa==='Failed'?'WhatsApp failed':'WhatsApp not sent'),
+        h('small',null,'Tap row for details'));
+    }
+    const needsRecheck=row=>Boolean(row.accounts_recheck_at||String(row.accounts_remarks||'').includes('Financial activity changed after clearance'));
+    function stageOf(row){
+      if(lc(row.status)==='completed')return 'completed';
+      if(lc(row.management_status)==='rejected'||lc(row.status)==='returned to nursing')return 'returned';
+      if(lc(row.management_status||'pending')==='pending')return 'mgmt';
+      if(row.discount_request_status==='Pending')return 'discount';
+      if(lc(row.accounts_status)==='cleared'&&!needsRecheck(row))return 'final';
+      return 'accounts';
+    }
+    const STAGES={
+      mgmt:{label:'Awaiting Management',icon:'🩺',color:'#b45309',bg:'#fff4e0'},
+      discount:{label:'Discount Pending',icon:'🏷️',color:'#9a3412',bg:'#ffedd5'},
+      accounts:{label:'With Accounts',icon:'💳',color:'#1d4ed8',bg:'#e8f0ff'},
+      final:{label:'Final Nursing Clearance',icon:'🧾',color:'#6d28d9',bg:'#f1e9ff'},
+      returned:{label:'Returned to Nursing',icon:'↩️',color:'#b42336',bg:'#ffe9ec'},
+      completed:{label:'Completed',icon:'✅',color:'#166534',bg:'#e7f6ef'}
+    };
+    const stageText=row=>{
+      const st=stageOf(row);
+      if(st==='accounts'&&needsRecheck(row))return 'Accounts recheck required';
+      return STAGES[st].label;
+    };
+    const stagePill=row=>{const st=STAGES[stageOf(row)];return h('span',{className:'dr-stage-pill',style:{color:st.color,background:st.bg,borderColor:st.color+'55'}},stageText(row))};
+    const departedOn=row=>{
+      if(!row.actual_departure_at)return '—';
+      const [d,...t]=String(fmt(row.actual_departure_at)).split(', ');
+      return h('div',null,h('div',{style:{whiteSpace:'nowrap'}},d),t.length?h('small',{className:'dr-sub'},t.join(', ')):null);
+    };
+    const requestText=row=>row.initiation_basis==='Voluntary Discharge'
+      ?`${row.voluntary_requested_by||'Voluntary'} · ${row.voluntary_requester_name||'—'} · ${row.voluntary_requester_contact||'—'}`
+      :`${row.instructed_by_name||'—'} · ${row.instructed_by_contact||'—'}`;
+    const guestCell=row=>{
+      const p=patientFor(row.patient_id);
+      return h('div',{className:'dr-guest'},
+        h('strong',null,formalName(p)||p.full_name||'Guest'),
+        h('small',null,[p.patient_id,p.room_no?`Room ${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:''].filter(Boolean).join(' · ')||'—'),
+        p.id&&h('span',{className:`guest-record-badge ${p.is_trial?'trial':'real'}`},p.is_trial?'🧪 TRIAL':'✓ REAL'));
+    };
+    const allCases=visibleRows;
+    const stageCount=k=>allCases.filter(r=>k==='open'?stageOf(r)!=='completed':k==='all'?true:stageOf(r)===k).length;
+    const boxKeys=isAccountsClearance?['all','discount','accounts']:['open','mgmt','discount','accounts','final','returned','completed','all'];
+    const basisOptions=[...new Set(allCases.map(r=>r.initiation_basis).filter(Boolean))].sort();
+    const drf=useAppliedFilters({q:drSearch,basis:drBasis,from:drFrom,to:drTo});const DRF=drf.applied;
+    const inDate=row=>{
+      const d=String(row.proposed_discharge_date||row.created_at||'').slice(0,10);
+      return (!DRF.from||d>=DRF.from)&&(!DRF.to||d<=DRF.to);
+    };
+    const drQ=String(DRF.q||'').trim().toLowerCase();
+    const registerRows=recordFocus?allCases:allCases.filter(row=>{
+      const st=stageOf(row);
+      if(drBox==='open'&&st==='completed')return false;
+      if(!['open','all'].includes(drBox)&&st!==drBox)return false;
+      if(DRF.basis&&row.initiation_basis!==DRF.basis)return false;
+      if(!inDate(row))return false;
+      if(drQ){
+        const p=patientFor(row.patient_id);
+        const hay=[formalName(p),p.full_name,p.patient_id,p.room_no,row.initiated_by_name,row.instructed_by_name,row.voluntary_requester_name,row.voluntary_requester_contact,row.instructed_by_contact].join(' ').toLowerCase();
+        if(!hay.includes(drQ))return false;
+      }
+      return true;
+    });
+    function detailFields(row){
+      const p=patientFor(row.patient_id);
+      return [
+        ['Guest',formalName(p)||p.full_name],['Resident ID',p.patient_id],['Guest record',p.id?(p.is_trial?'🧪 Trial (test) Guest':'✓ Real Guest'):''],
+        ['Room / Bed',[p.room_no,p.bed_no].filter(Boolean).join(' / ')],['Current step',stageText(row)],
+        ['Initiation basis',row.initiation_basis],['Instruction / Request',requestText(row)],
+        ['Proposed discharge',[formatDateIN(row.proposed_discharge_date),row.proposed_discharge_time].filter(Boolean).join(' ')],
+        ['Initiated by',row.initiated_by_name],['Initiated at',row.created_at?fmt(row.created_at):''],
+        ['Management',row.management_status||'Pending'],['Decision by',row.management_approved_by_name],['Decision time',row.management_approved_at?fmt(row.management_approved_at):''],['Management remarks',row.management_remarks],
+        ['Discount request',row.discount_request_status],['Discount reason',row.discount_request_reason],['Suggested discount',row.discount_suggested_amount!=null?`₹${Number(row.discount_suggested_amount).toLocaleString('en-IN')}`:''],
+        ['Accounts',row.accounts_status],['Cleared by',row.accounts_cleared_by_name],['Cleared at',row.accounts_cleared_at?fmt(row.accounts_cleared_at):''],['Accounts remarks',row.accounts_remarks],
+        ['Departed',row.actual_departure_at?fmt(row.actual_departure_at):''],['Completed by',row.completed_by_name],['Transport',row.transport_arrangement],
+        ['Discharge summary handed over',row.discharge_summary_handed_over===true?'Yes':row.discharge_summary_handed_over===false?'No':''],
+        ['Medicines handed over',row.medicines_handed_over===true?'Yes':row.medicines_handed_over===false?'No':''],
+        ['Reports handed over',row.reports_handed_over===true?'Yes':row.reports_handed_over===false?'No':''],
+        ['Valuables handed over',row.valuables_handed_over===true?'Yes':row.valuables_handed_over===false?'No':''],
+        ['Review appointment',[row.review_appointment_date?formatDateIN(row.review_appointment_date):'',row.review_appointment_time,row.review_doctor_name,row.review_hospital_clinic].filter(Boolean).join(' · ')],
+        ['Review instructions',row.review_instructions],['Discharge WhatsApp',row.discharge_whatsapp_status],
+        ['Last updated',row.updated_at?fmt(row.updated_at):'']
+      ];
+    }
+    function exportRegister(){
+      const heads=['Resident ID','Guest','Record','Room','Basis','Instruction / Request','Proposed date','Initiated by','Initiated at','Current step','Management','Decision by','Accounts','Cleared by','Departed','Completed by'];
+      const esc=v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`;
+      const lines=[heads.map(esc).join(',')].concat(registerRows.map(row=>{const p=patientFor(row.patient_id);return [
+        p.patient_id,formalName(p)||p.full_name,p.is_trial?'Trial':'Real',[p.room_no,p.bed_no].filter(Boolean).join('-'),row.initiation_basis,requestText(row),
+        formatDateIN(row.proposed_discharge_date),row.initiated_by_name,row.created_at?fmt(row.created_at):'',stageText(row),row.management_status||'Pending',
+        row.management_approved_by_name,row.accounts_status,row.accounts_cleared_by_name,row.actual_departure_at?fmt(row.actual_departure_at):'',row.completed_by_name
+      ].map(esc).join(',')}));
+      const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`Samara_Discharge_Register_${formatDateIN(todayISOIndia())}.csv`;
+      document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
+    }
+    // "Clear" empties the filters and applies at once (no extra Apply press needed).
+    const [drClearReq,setDrClearReq]=React.useState(false);
+    React.useEffect(()=>{if(drClearReq&&!drSearch&&!drBasis&&!drFrom&&!drTo){drf.apply();setDrClearReq(false)}},[drClearReq,drSearch,drBasis,drFrom,drTo]);
+    const drDetailRow=drDetailId?allCases.find(r=>String(r.id)===String(drDetailId)):null;
 
+    const showInitiate=canInitiate&&!(isNurse&&rows.some(row=>row.accounts_status==='Cleared'&&row.status!=='Completed'));
+    const trialToErase=!isAccountsClearance&&profile?.role==='Admin'?patients.filter(p=>p.is_trial&&p.is_active===false).length:0;
+    const periodLabel=DRF.from||DRF.to?`${DRF.from?formatDateIN(DRF.from):'…'} – ${DRF.to?formatDateIN(DRF.to):'…'}`:'All dates';
     return h(React.Fragment,null,
-      h(Section,{
-        title:isAccountsClearance?'Discharge Clearance':'Patient Discharge',
-        subtitle:isAccountsClearance
-          ?'Management-approved cases only — verify final billing, receive/adjust payment and complete financial clearance'
-          :'Nursing initiation → Admin/Manager approval → Accounts payment closure → automatic return to Nursing'
-      },
-        message&&h('div',{className:'message error'},message),
-        h('div',{className:'panel-head'},
+      // 1. Header: title + main buttons
+      h('div',{className:'card panel dr-head'},
+        h('div',{className:'dr-head-text'},
+          h('h2',null,isAccountsClearance?'Discharge Clearance':'Patient Discharge'),
+          h('small',null,isAccountsClearance
+            ?'Management-approved cases — verify final billing, settle the balance and complete financial clearance'
+            :'Nursing initiation → Management approval → Accounts clearance → Nursing final clearance'),
+          message&&h('div',{className:'message error',style:{marginTop:'8px'}},message),
           h('p',{className:'small-note'},
             isAccountsClearance
               ?'Open Payments to verify all charges and settle the balance. Accounts clearance is saved there; Nursing then confirms actual departure. Earlier clearances remain in the timeline.'
@@ -1274,27 +1374,72 @@ Doctor / Hospital: ${doctorHospital}`;
                 :canApprove
                   ?'Approve or reject after clinical review.'
                   :'Review discharge status.'
-          ),
-          canInitiate&&!(
-            isNurse&&rows.some(row=>
-              row.accounts_status==='Cleared'&&
-              row.status!=='Completed'
-            )
-          )&&h('button',{className:'btn btn-primary',onClick:openNew},'Initiate Discharge'),
-          // 2.15.28: only DISCHARGED Trial Guests; active Trial Guests are kept for testing.
-          !isAccountsClearance&&profile?.role==='Admin'&&patients.some(p=>p.is_trial&&p.is_active===false)&&
-            h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:eraseAllTrialGuests},
-              `🧪 Erase discharged Trial Guests (${patients.filter(p=>p.is_trial&&p.is_active===false).length})`)
+          )
+        ),
+        h('div',{className:'dr-head-actions'},
+          showInitiate&&h('button',{type:'button',className:'btn btn-primary',onClick:openNew},'＋ Initiate Discharge'),
+          trialToErase>0&&h('details',{className:'dr-admin-menu'},
+            h('summary',null,'⋯ Admin'),
+            h('div',{className:'dr-admin-menu-body'},
+              h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:eraseAllTrialGuests},`🧪 Erase discharged Trial Guests (${trialToErase})`)))
         )
       ),
-      !isAccountsClearance&&h(DischargeMedicationReview),
-      h(window.SamaraDischargeWorkflow.Panel,{client,profile,onChanged:load,caseAction:timelineAction,caseExtras:timelineExtras}),
-      h('div',{id:'discharge-register',style:{scrollMarginTop:'120px'}},
-      h(RecordFocusBanner,{focus:recordFocus,onShowAll:clearRecordFocus}),
-      h(LogTable,{title:isAccountsClearance?`Pending Financial Clearance (${tableRows.length})`:`Discharge Workflow Register (${tableRows.length})`,
-        heads:['Patient','Initiation Basis','Instruction / Request','Date','Initiated By','Management','Decision By','Decision Time','Accounts','Last Cleared By','Last Clearance Time','Current Status','Completed By','Action'],
-        rows:tableRows
+      // 2. Stage boxes
+      h('div',{className:'dr-boxes'},boxKeys.map(k=>{
+        const meta=k==='open'?{label:'Open cases',icon:'📂',color:'#a91360'}:k==='all'?{label:'All discharges',icon:'📋',color:'#5b4a55'}:STAGES[k];
+        return h('button',{key:k,type:'button',className:`dr-box ${drBox===k&&!recordFocus?'selected':''}`,style:{'--dr-c':meta.color},
+          onClick:()=>{if(recordFocus)clearRecordFocus();setDrBox(k)}},
+          h('span',{className:'dr-box-icon','aria-hidden':'true'},meta.icon),
+          h('span',{className:'dr-box-label'},meta.label),
+          h('b',{className:'dr-box-count'},stageCount(k)));
       })),
+      // 3. Discharge Register
+      h('div',{id:'discharge-register',className:'card panel dr-register',style:{scrollMarginTop:'120px'}},
+        h('div',{className:'dr-register-head'},
+          h('div',null,
+            h('h3',null,`${isAccountsClearance?'Pending Financial Clearance':'Discharge Register'} (${registerRows.length})`),
+            h('small',null,recordFocus?'Showing one record':`${drBox==='open'?'Open cases':drBox==='all'?'All discharges':STAGES[drBox]?.label||''} · ${periodLabel} · tap a row for full details`)),
+          h('button',{type:'button',className:'btn btn-secondary',disabled:!registerRows.length,onClick:exportRegister},'⬇ Excel (CSV)')
+        ),
+        h('div',{className:'dr-filters'},
+          h('div',{className:'field dr-filter-search'},h('label',null,'Search Guest'),h('input',{type:'search',value:drSearch,placeholder:'Name, Resident ID, room, doctor / relative',onChange:e=>setDrSearch(e.target.value),onKeyDown:e=>{if(e.key==='Enter')drf.apply()}})),
+          h('div',{className:'field'},h('label',null,'Initiation basis'),h('select',{value:drBasis,onChange:e=>setDrBasis(e.target.value)},h('option',{value:''},'All'),basisOptions.map(b=>h('option',{key:b,value:b},b)))),
+          h('div',{className:'field'},h('label',null,'Discharge date from'),h(StrictDateInput,{value:drFrom,onChange:e=>setDrFrom(e.target.value)})),
+          h('div',{className:'field'},h('label',null,'To'),h(StrictDateInput,{value:drTo,onChange:e=>setDrTo(e.target.value)})),
+          h(ApplyFilterButton,{dirty:drf.dirty,onApply:drf.apply}),
+          (DRF.q||DRF.basis||DRF.from||DRF.to)&&h('button',{type:'button',className:'btn btn-secondary dr-clear',onClick:()=>{setDrSearch('');setDrBasis('');setDrFrom('');setDrTo('');setDrClearReq(true)}},'Clear')
+        ),
+        h(RecordFocusBanner,{focus:recordFocus,onShowAll:clearRecordFocus}),
+        h('div',{className:'table-wrap'},
+          h('table',{className:'table dr-table'},
+            h('thead',null,h('tr',null,['Guest','Basis','Discharge date','Initiated','Current step','Departed','Action'].map(x=>h('th',{key:x},x)))),
+            h('tbody',null,
+              registerRows.map(row=>h('tr',{key:row.id,className:'row-clickable',role:'button',tabIndex:0,title:'Tap for full details',onClick:()=>setDrDetailId(row.id),onKeyDown:e=>{if(e.target===e.currentTarget&&(e.key==='Enter'||e.key===' ')){e.preventDefault();setDrDetailId(row.id)}}},
+                h('td',{'data-label':'Guest'},guestCell(row)),
+                h('td',{'data-label':'Basis'},h('div',null,row.initiation_basis||'—'),h('small',{className:'dr-sub'},requestText(row))),
+                h('td',{'data-label':'Discharge date'},formatDateIN(row.proposed_discharge_date)||'—'),
+                h('td',{'data-label':'Initiated'},h('div',null,row.initiated_by_name||'—'),h('small',{className:'dr-sub'},row.created_at?fmt(row.created_at):'')),
+                h('td',{'data-label':'Current step'},stagePill(row)),
+                h('td',{'data-label':'Departed'},departedOn(row)),
+                h('td',{'data-label':'Action',className:'dr-actions',onClick:e=>{if(e.target.closest('button'))e.stopPropagation()}},rowActions(row))
+              )),
+              registerRows.length===0&&h('tr',null,h('td',{colSpan:7,className:'empty'},
+                drBox==='open'&&!DRF.q&&!DRF.basis&&!DRF.from&&!DRF.to?'No open discharge cases. Use the boxes above to see Completed or All discharges.':'No discharges match this box / filter.'))
+            )
+          )
+        )
+      ),
+      // 4. History and reviews (collapsed)
+      h('details',{className:'card panel dr-collapse'},
+        h('summary',null,h('strong',null,'Discharge timeline & departure follow-up'),h('small',null,' — full step-by-step history of every discharge')),
+        h(window.SamaraDischargeWorkflow.Panel,{client,profile,onChanged:load,caseAction:timelineAction,caseExtras:timelineExtras})),
+      !isAccountsClearance&&h(DischargeMedicationReview),
+      drDetailRow&&h(RowDetailModal,{
+        title:formalName(patientFor(drDetailRow.patient_id))||'Discharge',
+        subtitle:`${patientFor(drDetailRow.patient_id).patient_id||''} · ${stageText(drDetailRow)}`,
+        fields:detailFields(drDetailRow),
+        onClose:()=>setDrDetailId(null)},
+        h('div',{className:'dr-detail-actions',onClickCapture:e=>{if(e.target.closest('button'))setTimeout(()=>setDrDetailId(null),0)}},actionsFor(drDetailRow,true))),
       show&&h('div',{className:'modal-backdrop'},
         h('form',{className:'card modal',style:{width:'min(1100px,96vw)',maxHeight:'92vh',overflow:'auto'},onSubmit:save},
           h('div',{className:'panel-head'},h('div',null,h('h3',null,

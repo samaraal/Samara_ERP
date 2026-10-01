@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.29';
-const CACHE = 'samara-erp-2.15.29-real-trial-badges';
+const APP_VERSION = '2.15.30';
+const CACHE = 'samara-erp-2.15.30-discharge-register';
 const SHELL = [
   './',
   './index.html',

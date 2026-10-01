@@ -3,6 +3,14 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.30 — Patient Discharge reorganised: stage boxes + Discharge Register
+- Header: title, workflow line and the main buttons together (＋ Initiate Discharge; Admin's "Erase discharged Trial Guests" moved into a small "⋯ Admin" menu).
+- Stage boxes with live counts: Open cases (default), Awaiting Management, Discount Pending, With Accounts, Final Nursing Clearance, Returned to Nursing, Completed, All discharges. Tap a box to see only those cases. Discharge Clearance (Accounts) shows All / Discount Pending / With Accounts.
+- Discharge Register replaces the 14-column table: Guest (name, Resident ID, room, ✓ REAL / 🧪 TRIAL), Basis (+ doctor / requester), Discharge date, Initiated (by + time), Current step (coloured), Departed, Action. Tap a row → full details popup (all fields, handovers, review appointment, WhatsApp) with that case's action buttons. Completed rows show the WhatsApp status; WhatsApp buttons are in the popup.
+- Filters with Apply: Search Guest (name, ID, room, doctor / relative), Initiation basis, Discharge date from / to; Clear. ⬇ Excel (CSV) exports the rows shown (DD-MM-YYYY).
+- Discharge timeline & departure follow-up is now a collapsed section; Discharged Patients — Medication Review moved to the bottom.
+- All approval / payment / final-clearance / WhatsApp actions and rules are unchanged. No SQL.
+
 ## 2.15.29 — Patient Master shows Real / Trial clearly
 - Every Guest in the Patient Master list now carries a badge under the name: green "✓ REAL" or amber "🧪 TRIAL"; Trial rows are also lightly tinted with an amber left edge.
 - The "Showing: …" bar shows the split, e.g. "✓ REAL 1 · 🧪 TRIAL 4".

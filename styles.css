@@ -2621,3 +2621,74 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 .guest-record-summary .guest-record-badge{margin-top:0;font-size:12.5px}
 .patient-master-table tr.trial-guest-row>td{background:#fffaf0!important}
 .patient-master-table tr.trial-guest-row>td:first-child{box-shadow:inset 4px 0 0 #f59e0b}
+
+/* 2.15.30: Patient Discharge / Discharge Clearance — header, stage boxes, Discharge Register */
+.dr-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;padding:18px 22px!important}
+.dr-head-text h2{margin:0 0 4px;font-size:24px;color:#4a1430}
+.dr-head-text>small{display:block;color:#6b5260;font-size:13.5px}
+.dr-head-text .small-note{margin:8px 0 0;font-size:13px;color:#7a5a6a}
+.dr-head-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.dr-admin-menu{position:relative}
+.dr-admin-menu>summary{list-style:none;cursor:pointer;padding:9px 14px;border-radius:12px;border:1.5px solid #e2c7d4;background:#fff;font-weight:800;color:#6b2147;user-select:none}
+.dr-admin-menu>summary::-webkit-details-marker{display:none}
+.dr-admin-menu[open]>summary{background:#fbeef4}
+.dr-admin-menu-body{position:absolute;right:0;top:calc(100% + 6px);z-index:30;background:#fff;border:1px solid #ead2dd;border-radius:14px;padding:10px;box-shadow:0 12px 28px rgba(92,23,58,.18);min-width:260px}
+.dr-admin-menu-body .btn{width:100%}
+.dr-boxes{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px;margin:14px 0 16px}
+.dr-box{--dr-c:#a91360;display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:10px 12px;border:1px solid #ead2dd;border-top:4px solid var(--dr-c);border-radius:14px;background:#fff;cursor:pointer;font-family:inherit;text-align:left;color:#3b1d2c;box-shadow:0 3px 10px rgba(92,23,58,.05);transition:transform .12s ease,box-shadow .12s ease}
+.dr-box:hover,.dr-box:focus-visible{transform:translateY(-2px);box-shadow:0 8px 18px rgba(92,23,58,.13);outline:none}
+.dr-box.selected{background:color-mix(in srgb,var(--dr-c) 9%,#fff);border-color:var(--dr-c);box-shadow:0 0 0 2px color-mix(in srgb,var(--dr-c) 30%,transparent)}
+.dr-box-icon{font-size:18px;line-height:1}
+.dr-box-label{font-size:12.5px;min-height:31px;font-weight:700;color:#5b3a4b;line-height:1.25}
+.dr-box-count{font-size:24px;font-weight:900;color:var(--dr-c);line-height:1.1}
+.dr-register{padding:18px 20px!important}
+.dr-register-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.dr-register-head h3{margin:0;font-size:20px}
+.dr-register-head small{color:#7a5a6a}
+.dr-filters{display:grid;grid-template-columns:minmax(220px,2fr) minmax(170px,1.2fr) minmax(150px,1fr) minmax(150px,1fr) auto auto;gap:10px 12px;align-items:end;margin-bottom:12px;padding:12px;border:1px solid #f0dde6;border-radius:14px;background:#fffafc}
+.dr-filters .field{margin:0}
+.dr-filters .field label{font-size:12.5px}
+.dr-filters .apply-filter-wrap{margin:0}
+.dr-table{width:100%;min-width:860px;table-layout:fixed}
+.dr-table th:nth-child(1){width:20%}.dr-table th:nth-child(2){width:18%}.dr-table th:nth-child(3){width:10%}
+.dr-table th:nth-child(4){width:14%}.dr-table th:nth-child(5){width:15%}.dr-table th:nth-child(6){width:9%}.dr-table th:nth-child(7){width:14%}
+.dr-table td{white-space:normal!important;overflow-wrap:anywhere}
+.dr-actions .employee-actions .btn{white-space:normal!important;text-align:center;line-height:1.25;width:100%;max-width:100%}
+
+.dr-table td{vertical-align:middle}
+.dr-guest{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.dr-guest strong{font-size:14.5px;color:#3b1d2c}
+.dr-guest small{color:#7a5a6a;font-size:12.5px}
+.dr-guest .guest-record-badge{margin-top:3px}
+.dr-sub{display:block;color:#7a5a6a;font-size:12px;margin-top:2px}
+.dr-stage-pill{display:inline-block;padding:4px 10px;border-radius:999px;border:1.5px solid;font-size:12px;font-weight:800;line-height:1.3}
+.dr-actions .employee-actions{display:flex;flex-direction:column;align-items:stretch;gap:6px}
+.dr-actions .employee-actions .btn{padding:7px 11px;font-size:12.5px;min-height:0}
+.dr-actions .small-note{font-size:11.5px}
+.dr-detail-actions .employee-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #f0dde6}
+.dr-collapse{padding:0!important;overflow:hidden}
+.dr-collapse>summary{cursor:pointer;padding:16px 20px;list-style:none;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.dr-collapse>summary::-webkit-details-marker{display:none}
+.dr-collapse>summary::before{content:'▸';color:#a91360;font-weight:900;margin-right:4px}
+.dr-collapse[open]>summary::before{content:'▾'}
+.dr-collapse>summary small{color:#7a5a6a}
+.dr-collapse[open]>:not(summary){margin:0 12px 12px}
+@media (max-width:900px){
+  .dr-filters{grid-template-columns:1fr 1fr}
+  .dr-filters .dr-filter-search{grid-column:1/-1}
+  .dr-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .dr-table{min-width:0;table-layout:auto}
+}
+@media (max-width:560px){.dr-filters{grid-template-columns:1fr}}
+@media (max-width:900px){
+  .dr-box{flex-direction:row;align-items:center;gap:8px;padding:8px 10px}
+  .dr-box-label{min-height:0;flex:1}
+  .dr-box-count{font-size:20px}
+  .dr-actions .employee-actions{flex-direction:row;flex-wrap:wrap}
+  .dr-actions .employee-actions .btn{width:auto}
+}
+.dr-done-note{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
+.dr-done-note small{color:#8a6a7a;font-size:11.5px}
+.dr-wa{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:800;background:#f3eef1;color:#6b5260}
+.dr-wa.ok{background:#e7f6ef;color:#166534}
+.dr-wa.bad{background:#ffe9ec;color:#b42336}
