@@ -156,7 +156,7 @@
         medicationReviewError:[mr?.error,mri?.error].filter(Boolean).map(error=>error.message).join(' | '),
         mar:todayMar,
         allMar:ma.data||[],
-        care:c.data||[],careLogs:cl.data||[],vitals:v.data||[],physio:ph.data||[],physioSessions:ps.data||[],docs:d.data||[],meals:meal.data||[],beverages:bev?.error?[]:(bev?.data||[]),billing:bill.data||[],recovery:rec.data||[],incidents:inc.data||[],familyAccess:dedupeFamilyAccessRows(fam?.data||[]),dailyMoments:momentRows,familyWhatsApp:wa?.data||[],familyPreference:pref?.data||null,reportWhatsApp:reportWa?.data||[],nursingProcedures:proc?.data||[],handovers:hand?.data||[],discharges:discharges?.data||[]
+        care:c.data||[],careLogs:cl.data||[],vitals:v.data||[],physio:ph.data||[],physioSessions:ps.data||[],docs:d.data||[],meals:meal.data||[],beverages:bev?.error?[]:(bev?.data||[]),billing:(bill.data||[]).map(row=>({...row,description:residentTariffDescription(row,p.admission_date)})),recovery:rec.data||[],incidents:inc.data||[],familyAccess:dedupeFamilyAccessRows(fam?.data||[]),dailyMoments:momentRows,familyWhatsApp:wa?.data||[],familyPreference:pref?.data||null,reportWhatsApp:reportWa?.data||[],nursingProcedures:proc?.data||[],handovers:hand?.data||[],discharges:discharges?.data||[]
       });
       setPhotoUrl(url);
     }
