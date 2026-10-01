@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.27';
+  const APP_VERSION = '2.15.28';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '01-Oct-2026 Erase all Trial Guests';
+  const APP_BUILD_DATE = '01-Oct-2026 Keep active Trial Guests';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -22267,7 +22267,7 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
         const stock=(d.stock_issued||[]).map(s=>`• ${s.item}: handed over ${s.handed_over}, received ${s.received}`).join('\n');
         const confirmText=d.confirm_text||`ERASE ${d.count}`;
         const typed=window.prompt(
-          `PERMANENTLY ERASE ALL ${d.count} TRIAL GUESTS?\n\n${list}\n• ${fileCount} stored file(s)\n\n`+
+          `PERMANENTLY ERASE ${d.count} DISCHARGED TRIAL GUESTS?\n(Active Trial Guests are kept for testing.)\n\n${list}\n• ${fileCount} stored file(s)\n\n`+
           (stock?`Stock issued to them by indent (do a stock recount for these items afterwards):\n${stock}\n\n`:'')+
           `Real Guests are NOT touched. Kept: audit log (with receipt voucher numbers and paid Razorpay IDs), stock history (unlinked).\nThis CANNOT be undone.\n\nType ${confirmText} to confirm:`,'');
         if(typed===null)return;
@@ -22278,7 +22278,7 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
         for(const [bucket,paths] of Object.entries(files)){
           for(let i=0;i<paths.length;i+=100){const r=await client.storage.from(bucket).remove(paths.slice(i,i+100));if(r.error)fileErrors++;}
         }
-        notify(fileErrors?'error':'success','Trial Guests erased',`${d.count} Trial Guests and all their records were removed.${stock?' Recount the stock items listed.':''}${fileErrors?' Some stored files could not be deleted — remove them from Supabase Storage.':''}`);
+        notify(fileErrors?'error':'success','Trial Guests erased',`${d.count} discharged Trial Guests and all their records were removed.${stock?' Recount the stock items listed.':''}${fileErrors?' Some stored files could not be deleted — remove them from Supabase Storage.':''}`);
         await load();
       }catch(e){notify('error','Not erased',e.message||String(e))}
       finally{setBusy(false)}
@@ -22829,9 +22829,10 @@ Doctor / Hospital: ${doctorHospital}`;
               row.status!=='Completed'
             )
           )&&h('button',{className:'btn btn-primary',onClick:openNew},'Initiate Discharge'),
-          !isAccountsClearance&&profile?.role==='Admin'&&patients.some(p=>p.is_trial)&&
+          // 2.15.28: only DISCHARGED Trial Guests; active Trial Guests are kept for testing.
+          !isAccountsClearance&&profile?.role==='Admin'&&patients.some(p=>p.is_trial&&p.is_active===false)&&
             h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:eraseAllTrialGuests},
-              `🧪 Erase all Trial Guests (${patients.filter(p=>p.is_trial).length})`)
+              `🧪 Erase discharged Trial Guests (${patients.filter(p=>p.is_trial&&p.is_active===false).length})`)
         )
       ),
       !isAccountsClearance&&h(DischargeMedicationReview),

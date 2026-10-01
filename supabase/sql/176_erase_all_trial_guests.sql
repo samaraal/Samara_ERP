@@ -1,12 +1,12 @@
--- SAMARA CARE ERP 2.15.27
--- ERASE ALL TRIAL (TEST) GUESTS AT ONE TIME — Admin only.
+-- SAMARA CARE ERP 2.15.27 (revised 2.15.28)
+-- ERASE ALL DISCHARGED TRIAL (TEST) GUESTS AT ONE TIME — Admin only.
 -- Run AFTER 171_trial_guest_purge.sql and 175_mark_test_guests_trial.sql.
 --
 -- purge_all_trial_guests(p_confirm, p_dry_run)
---   * Erases EVERY Guest marked Trial (patients.is_trial = true) in ONE all-or-nothing step.
+--   * Erases every Trial Guest who is NO LONGER ACTIVE (discharged) in ONE all-or-nothing step.
 --     Real Guests are never touched.
---   * This one-time clean-up does NOT need a discharge first: Trial Guests still active are
---     erased too and their beds become Available.
+--   * 2.15.28: ACTIVE Trial Guests are kept (still used for testing). Discharge them when testing
+--     is over, then they are erased by this button or the single "Erase Trial Guest" button.
 --   * Refuses while biomedical equipment / an oxygen cylinder is still issued to any of them.
 --   * dry_run = true (default) changes nothing and returns, per Guest, what WOULD be removed,
 --     plus the stock items issued to them through indents (for a stock recount).
@@ -190,10 +190,10 @@ declare
 begin
   if not public.current_user_has_role(array['Admin']) then raise exception 'Only Admin can erase Trial Guests.'; end if;
 
-  select array_agg(id order by patient_id) into ids from public.patients where is_trial is true;
+  select array_agg(id order by patient_id) into ids from public.patients where is_trial is true and coalesce(is_active,true) is false;
   n:=coalesce(array_length(ids,1),0);
   if n=0 then
-    return jsonb_build_object('dry_run',p_dry_run,'ok',false,'count',0,'error','There are no Trial Guests to erase.');
+    return jsonb_build_object('dry_run',p_dry_run,'ok',false,'count',0,'error','There are no discharged Trial Guests to erase. Active Trial Guests are kept for testing.');
   end if;
   perform 1 from public.patients where id=any(ids) for update;
 
@@ -273,5 +273,6 @@ grant execute on function public.purge_trial_guest(uuid,text,boolean) to authent
 revoke all on function public.purge_all_trial_guests(text,boolean) from public,anon;
 grant execute on function public.purge_all_trial_guests(text,boolean) to authenticated;
 
--- Check: should list the Trial Guests (nothing is changed by this line)
-select patient_id as resident_id, full_name, is_active from public.patients where is_trial is true order by patient_id;
+-- Check: Trial Guests — erase_now = true will be erased by the button; false (active) are kept for testing.
+select patient_id as resident_id, full_name, is_active, not coalesce(is_active,true) as erase_now
+from public.patients where is_trial is true order by is_active, patient_id;

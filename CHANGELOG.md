@@ -3,6 +3,11 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## 2.15.28 — Active Trial Guests kept for testing
+- "🧪 Erase discharged Trial Guests (N)" now erases only Trial Guests who are no longer active (discharged). Active Trial Guests stay, still used for testing; discharge them when testing is over, then erase them with this button or the single "Erase Trial Guest" button.
+- For now: 175 marks all 14 test Guests as Trial (4 active stay for testing: 0012, 0013, 0014, 0016); the button erases the 10 discharged ones with confirmation "ERASE 10".
+- SQL: run the revised supabase/sql/176_erase_all_trial_guests.sql (instead of the 2.15.27 version). Tested on a local copy: active Trial and Real Guests and their beds untouched.
+
 ## 2.15.27 — Erase all Trial Guests at one time
 - Patient Discharge (Admin only): "🧪 Erase all Trial Guests (N)" button. Shows one dry-run list of every Trial Guest (records per Guest, active ones flagged "bed freed", stored files, stock items issued to them by indent), then asks to type "ERASE N" and erases them all in ONE all-or-nothing step. No discharge needed for this; active Trial Guests' beds become Available. Real Guests are never touched. Refused while equipment / oxygen cylinders are still issued.
 - Stock history (consumable store ledger / receipts, equipment and oxygen movements) is now kept and unlinked on every Trial erase (single or all), never deleted. Recount the listed stock items afterwards.
