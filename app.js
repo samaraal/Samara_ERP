@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.40';
+  const APP_VERSION = '2.15.41';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -18787,7 +18787,16 @@ Please keep these login details confidential.`;
         care_orders:details.care||[],care_logs:details.careLogs||[],
         vitals:(details.vitals||[]).map(x=>({...x,systolic:x.systolic??x.bp_systolic??null,diastolic:x.diastolic??x.bp_diastolic??null,temperature:x.temperature??x.temp??null})),
         physio_plans:details.physio||[],physio_sessions:details.physioSessions||[],
-        meals:details.meals||[],billing:details.billing||[],documents:details.docs||[],
+        meals:details.meals||[],
+        // Use the same family-visible beverage fields as family_portal_beverages.
+        beverages:(details.beverages||[]).map(x=>({
+          id:x.id,given_at:x.given_at,given_date:x.given_date,given_time:x.given_time,
+          beverage:x.beverage,juice_name:x.juice_name,
+          quantity:x.quantity??x.quantity_ml,
+          quantity_unit:x.quantity_unit||(x.quantity_ml!=null?'ml':null),
+          consumption_status:x.consumption_status,remarks:x.remarks
+        })),
+        billing:details.billing||[],documents:details.docs||[],
         daily_moments:details.dailyMoments||[]
       };
       const session={
