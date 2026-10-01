@@ -1,0 +1,73 @@
+SAMARA ERP 2.15.42 - BACKDATED ROOM / BED TARIFFS
+Prepared 1 October 2026
+
+STATUS
+Implemented and tested locally. This tariff update has NOT been applied to the
+live database or deployed to GitHub. Existing live balances are unchanged.
+This release includes the previously completed beverage preview fix.
+
+WHAT CHANGES
+Edit Room / Bed & Tariff now has an Effective from date accepting today or a
+past date, plus a required reason. Enter the revised rates, choose the date,
+and save. Admin and non-nursing Managers retain tariff-edit permissions.
+
+For eligible automatic accommodation charges, the server posts the difference
+as a separate Charge (increase) or Discount (reduction). Original entries and
+payments remain intact. Adjustments use the original charge date and retain
+their actual recording time in the audit trail. Repeated identical saves do
+not duplicate adjustments. All changes in one save succeed or roll back together.
+
+The patient ledger, balances, final bill, account summaries and other consumers
+of the shared billing ledger include the adjustments. The ledger verifies
+charges against their dated tariffs; the final-bill view refreshes on changes.
+
+The effective period ends before any later dated tariff already recorded for
+the bed. A tariff applies to eligible occupants of that bed during that period,
+including former occupants, not just the resident currently assigned to it.
+Room-transfer history, package-covered dates and reviewed departure cutoffs
+are respected. Special Nurse changes require an existing eligible charge;
+historical eligibility is not inferred from today's flag.
+
+INSTALL IN THIS ORDER
+1. Take a current Supabase database backup and retain the current deployed source.
+2. In the ERP's Supabase SQL Editor, run the entire file
+   182_room_tariff_effective_dates.sql using the database administrator account.
+   It requires the existing billing safeguards from migrations 131 and 132.
+   It stops and rolls back if the installed billing function is incompatible.
+   Do not bypass that check. Installation alone does not reprice any ledger.
+3. Deploy the contents of Samara_ERP_2.15.42_Tariff_Update.zip to the ERP
+   repository using its existing GitHub Pages workflow. The archive contains
+   a Samara_ERP-main folder; its contents belong at the repository root.
+4. Refresh the ERP and confirm version 2.15.42. Open Rooms > Edit Tariff,
+   enter the agreed rate, date and reason, then save. Inspect the affected
+   patient's ledger and final bill for the original charge and adjustment.
+
+HISTORICAL DATA LIMIT
+Before this feature, tariff history was not recorded. Migration 182 snapshots
+the existing master tariffs as an opening baseline. It cannot reconstruct
+unknown older tariffs or missing historical room assignments. Enter each
+known dated rate explicitly when correcting a historical period. Existing
+manual charges are not rewritten. Missing daily charges remain the normal
+billing catch-up process's responsibility and use the dated tariff rules.
+
+VALIDATION
+Passed: application bundle syntax and source consistency (83 source files),
+UI submission and validation, and executable PostgreSQL tests in PGlite.
+Database tests covered increases/reductions, inclusive effective-date boundary,
+later tariffs, zero nursing rates, duplicate requests, original-entry and
+payment preservation, authorization, package/departure exclusions, room moves,
+historical catch-up, audit immutability, atomic failure rollback, migration
+rerun, and resetting pending Accounts clearance after a financial change.
+Tests used synthetic data. The migration has not been verified against the
+live database schema or live resident accounts.
+
+REPRODUCIBLE TESTS (in extracted ERP folder)
+node tools/build-app.js --check
+cd tools/tariff-tests
+npm ci
+node test-tariff-ui.cjs
+node test-tariff.cjs
+The test database is local and disposable; it does not connect to Supabase.
+
+The Family Portal source needs no additional change for this tariff feature:
+its existing account-balance views read the shared billing ledger.
