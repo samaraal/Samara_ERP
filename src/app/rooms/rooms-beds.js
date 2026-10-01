@@ -4,7 +4,7 @@ function RoomsBeds({profile,onNavigate}){
     const empty={
       room_no:'100',bed_no:'A',room_type:'Twin Sharing',status:'Available',
       room_daily_rate:'2000',nursing_daily_rate:'800',special_nurse_daily_rate:'0',
-      floor:'',wing:'',notes:'',
+      floor:'',wing:'',notes:'',effective_from:todayISOIndia(),tariff_reason:'',tariff_request_id:'',
       reserved_for_name:'',reserved_for_contact:'',reserved_by_name:'',reserved_by_contact:'',
       expected_admission_date:'',expected_admission_time:'17:00',reservation_notes:''
     };
@@ -110,7 +110,7 @@ function RoomsBeds({profile,onNavigate}){
       setMsg('');setShow(true);
     }
     function openEdit(row){
-      if(row.duty_date<todayISOIndia()){showToast('error','Past duty dates cannot be modified.');return}
+      
       setEditing(row);
       setForm({
         room_no:row.room_no||'',bed_no:row.bed_no||'',room_type:['Private / Single','Private','Single'].includes(row.room_type)?'Single / Private':row.room_type||'Twin Sharing',
@@ -119,6 +119,7 @@ function RoomsBeds({profile,onNavigate}){
         nursing_daily_rate:String(row.nursing_daily_rate??''),
         special_nurse_daily_rate:String(row.special_nurse_daily_rate??''),
         floor:row.floor||'',wing:row.wing||'',notes:row.notes||'',
+        effective_from:todayISOIndia(),tariff_reason:'',tariff_request_id:window.crypto.randomUUID(),
         reserved_for_name:row.reserved_for_name||'',
         reserved_for_contact:row.reserved_for_contact||'',
         reserved_by_name:row.reserved_by_name||formalName(profile)||profile?.full_name||'',
@@ -180,7 +181,7 @@ function RoomsBeds({profile,onNavigate}){
 
     async function saveRoom(e){
       e.preventDefault();
-      if(!canManage)return;
+      if(!canManage||busy)return;
       setBusy(true);setMsg('');
       try{
         const payload={
@@ -201,7 +202,6 @@ function RoomsBeds({profile,onNavigate}){
           expected_admission_time:form.status==='Reserved'?(form.expected_admission_time||null):null,
           reservation_notes:form.status==='Reserved'?String(form.reservation_notes||'').trim()||null:null,
           reserved_at:form.status==='Reserved'?(editing?.reserved_at||new Date().toISOString()):null,
-          updated_at:new Date().toISOString()
         };
         if(!payload.room_no||!payload.bed_no)throw new Error('Room number and bed code are required.');
         const duplicate=rows.find(r=>
@@ -210,7 +210,7 @@ function RoomsBeds({profile,onNavigate}){
           &&r.id!==editing?.id
         );
         if(duplicate)throw new Error(`Room ${payload.room_no} / Bed ${payload.bed_no} already exists.`);
-        if(payload.room_daily_rate<0||payload.nursing_daily_rate<0||payload.special_nurse_daily_rate<0)throw new Error('Tariff amounts cannot be negative.');
+        if([payload.room_daily_rate,payload.nursing_daily_rate,payload.special_nurse_daily_rate].some(x=>!Number.isFinite(x)||x<0))throw new Error('Tariff amounts must be valid non-negative numbers.');
         if(payload.status==='Reserved'){
           if(!payload.reserved_for_name)throw new Error('Reserved for name is required.');
           if(!payload.reserved_for_contact)throw new Error('Reserved person contact number is required.');
@@ -219,10 +219,20 @@ function RoomsBeds({profile,onNavigate}){
           if(!payload.expected_admission_time)throw new Error('Expected admission time is required.');
         }
         let result;
-        if(editing?.id)result=await client.from('room_beds').update(payload).eq('id',editing.id);
+        if(editing?.id){
+          const day=String(form.effective_from||'');
+          if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||day>todayISOIndia()||!Number.isFinite(new Date(`${day}T12:00:00Z`).getTime()))throw new Error('Choose an Effective from date, today or earlier.');
+          if(!form.tariff_reason.trim())throw new Error('Please enter a reason for the tariff change.');
+          result=await client.rpc('save_room_tariff',{p_room_bed_id:editing.id,p_effective_from:day,p_reason:form.tariff_reason.trim(),p_room:payload,p_request_id:form.tariff_request_id});
+          if(result.error&&/PGRST202|42883/.test(result.error.code||''))throw new Error('This update needs database migration 182_room_tariff_effective_dates.sql. Ask Admin to apply it, then save again.');
+        }
         else result=await client.from('room_beds').insert(payload);
         if(result.error)throw result.error;
-        setShow(false);showToast('success','Room, bed and tariffs saved successfully.');await load();
+        const saved=result.data;
+        setShow(false);
+        showToast('success',editing?`Tariff saved from ${formatDateIN(form.effective_from)}. ${saved?.entries_posted||0} ledger entries posted for ${saved?.patients_affected||0} resident(s). Original charges and payments are preserved.`:'Room, bed and tariffs saved successfully.');
+        window.dispatchEvent(new Event('samara-refresh-charges'));
+        await load();
       }catch(error){setMsg(error.message||'Unable to save room')}
       setBusy(false);
     }
@@ -475,6 +485,13 @@ function RoomsBeds({profile,onNavigate}){
           miniInput('Room Rent per Day',form.room_daily_rate,v=>setForm({...form,room_daily_rate:v}),true,'number'),
           miniInput('Nursing Charge per Day',form.nursing_daily_rate,v=>setForm({...form,nursing_daily_rate:v}),true,'number'),
           miniInput('Special Nurse Charge per Day',form.special_nurse_daily_rate,v=>setForm({...form,special_nurse_daily_rate:v}),false,'number'),
+          editing&&h(React.Fragment,null,
+            h('div',{className:'field'},h('label',null,'Effective from'),h(StrictDateInput,{value:form.effective_from,max:todayISOIndia(),required:true,onChange:e=>setForm({...form,effective_from:e.target.value})}),
+              h('small',null,'Past dates are allowed. Applies from the selected date, including that day.'),
+              editing.tariff_effective_from&&h('small',null,`Current tariff effective from ${formatDateIN(editing.tariff_effective_from)}`)),
+            h('div',{className:'field'},h('label',null,'Reason for tariff change'),h('input',{value:form.tariff_reason,required:true,maxLength:500,onChange:e=>setForm({...form,tariff_reason:e.target.value}),placeholder:'Example: agreed tariff effective from admission'})),
+            h('div',{className:'small-note span-2'},'Differences for already-posted automatic charges are added as separate charges or credits. Original entries and payments remain unchanged. Package-covered days are excluded; later dated tariffs remain in effect.')
+          ),
           miniInput('Floor',form.floor,v=>setForm({...form,floor:v})),
           miniInput('Wing',form.wing,v=>setForm({...form,wing:v})),
           h('div',{className:'field'},h('label',null,'Status'),h('select',{value:form.status,onChange:e=>setForm({...form,status:e.target.value}),disabled:editing&&!!patientFor(editing)},['Available','Reserved','Maintenance','Occupied','Samara Office','Samara Store'].map(x=>h('option',{key:x,value:x},x)))),
