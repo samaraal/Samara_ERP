@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.32';
+  const APP_VERSION = '2.15.33';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '01-Oct-2026 Discharge filter clearer';
+  const APP_BUILD_DATE = '01-Oct-2026 Discharge Real / Trial filter';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -22730,6 +22730,8 @@ Doctor / Hospital: ${doctorHospital}`;
     useScrollToFocused('discharge-register',!!recordFocus&&visibleRows.length>0);
     const [drBox,setDrBox]=React.useState(isAccountsClearance?'all':'open');
     const [drSearch,setDrSearch]=React.useState(''),[drBasis,setDrBasis]=React.useState('');
+    // 2.15.33: Guest record filter — Real only by default, so test discharges never mix into counts / export.
+    const [drRecord,setDrRecord]=React.useState('real');
     const [drPeriod,setDrPeriod]=React.useState('all'),[drFrom,setDrFrom]=React.useState(''),[drTo,setDrTo]=React.useState('');
     const [drDetailId,setDrDetailId]=React.useState(null);
     // 2.15.30: Discharge Register — stage boxes, filters (Apply), compact register, full details per row.
@@ -22846,7 +22848,7 @@ Doctor / Hospital: ${doctorHospital}`;
     const allCases=visibleRows;
     const boxKeys=isAccountsClearance?['all','discount','accounts']:['open','mgmt','discount','accounts','final','returned','completed','all'];
     const basisOptions=[...new Set(allCases.map(r=>r.initiation_basis).filter(Boolean))].sort();
-    const drf=useAppliedFilters({q:drSearch,basis:drBasis,period:drPeriod,from:drFrom,to:drTo});const DRF=drf.applied;
+    const drf=useAppliedFilters({q:drSearch,basis:drBasis,record:drRecord,period:drPeriod,from:drFrom,to:drTo});const DRF=drf.applied;
     // 2.15.31: period = Today / This Week / This Month / Last Month / This Year / All dates / Select period.
     const DR_PERIODS=[['all','All dates'],['today','Today'],['week','This Week'],['month','This Month'],['lastmonth','Last Month'],['year','This Year'],['custom','Select period']];
     const drBounds=(()=>{
@@ -22869,7 +22871,10 @@ Doctor / Hospital: ${doctorHospital}`;
     const drQ=String(DRF.q||'').trim().toLowerCase();
     const inBox=(row,k)=>{const st=stageOf(row);return k==='all'||(k==='open'?st!=='completed':st===k)};
     // Rows matching search / basis / period (any box). Box counts follow these filters.
+    const isTrialRow=row=>Boolean(patientFor(row.patient_id).is_trial);
     const filteredCases=allCases.filter(row=>{
+      if(DRF.record==='real'&&isTrialRow(row))return false;
+      if(DRF.record==='trial'&&!isTrialRow(row))return false;
       if(DRF.basis&&row.initiation_basis!==DRF.basis)return false;
       if(!inDate(row))return false;
       if(drQ){
@@ -22881,7 +22886,8 @@ Doctor / Hospital: ${doctorHospital}`;
     });
     const stageCount=k=>filteredCases.filter(r=>inBox(r,k)).length;
     const registerRows=recordFocus?allCases:filteredCases.filter(row=>inBox(row,drBox));
-    const filtersOn=Boolean(DRF.q||DRF.basis||(DRF.period&&DRF.period!=='all'));
+    const filtersOn=Boolean(DRF.q||DRF.basis||DRF.record!=='real'||(DRF.period&&DRF.period!=='all'));
+    const hiddenTrial=DRF.record==='real'?allCases.filter(isTrialRow).length:0;
     function detailFields(row){
       const p=patientFor(row.patient_id);
       return [
@@ -22917,7 +22923,7 @@ Doctor / Hospital: ${doctorHospital}`;
     }
     // "Clear" empties the filters and applies at once (no extra Apply press needed).
     const [drClearReq,setDrClearReq]=React.useState(false);
-    React.useEffect(()=>{if(drClearReq&&!drSearch&&!drBasis&&drPeriod==='all'&&!drFrom&&!drTo){drf.apply();setDrClearReq(false)}},[drClearReq,drSearch,drBasis,drPeriod,drFrom,drTo]);
+    React.useEffect(()=>{if(drClearReq&&!drSearch&&!drBasis&&drRecord==='real'&&drPeriod==='all'&&!drFrom&&!drTo){drf.apply();setDrClearReq(false)}},[drClearReq,drSearch,drBasis,drRecord,drPeriod,drFrom,drTo]);
     const drDetailRow=drDetailId?allCases.find(r=>String(r.id)===String(drDetailId)):null;
 
     const showInitiate=canInitiate&&!(isNurse&&rows.some(row=>row.accounts_status==='Cleared'&&row.status!=='Completed'));
@@ -22968,17 +22974,19 @@ Doctor / Hospital: ${doctorHospital}`;
         h('div',{className:'dr-register-head'},
           h('div',null,
             h('h3',null,`${isAccountsClearance?'Pending Financial Clearance':'Discharge Register'} (${registerRows.length})`),
-            h('small',null,recordFocus?'Showing one record':`${drBox==='open'?'Open cases':drBox==='all'?'All discharges':STAGES[drBox]?.label||''} · ${periodLabel} · tap a row for full details`)),
+            h('small',null,recordFocus?'Showing one record':`${drBox==='open'?'Open cases':drBox==='all'?'All discharges':STAGES[drBox]?.label||''} · ${DRF.record==='real'?'Real Guests':DRF.record==='trial'?'Trial Guests':'Real + Trial'} · ${periodLabel}${hiddenTrial?` · ${hiddenTrial} Trial hidden`:''} · tap a row for full details`)),
           h('button',{type:'button',className:'btn btn-secondary',disabled:!registerRows.length,onClick:exportRegister},'⬇ Excel (CSV)')
         ),
         h('div',{className:'dr-filters'},
           h('div',{className:'field dr-filter-search'},h('label',null,'Search Guest'),h('input',{type:'search',value:drSearch,placeholder:'Name, Resident ID, room, doctor / relative',onChange:e=>setDrSearch(e.target.value),onKeyDown:e=>{if(e.key==='Enter'){drf.apply();setDrBox('all')}}})),
           h('div',{className:'field'},h('label',null,'Initiation basis'),h('select',{value:drBasis,onChange:e=>setDrBasis(e.target.value)},h('option',{value:''},'All'),basisOptions.map(b=>h('option',{key:b,value:b},b)))),
+          h('div',{className:'field'},h('label',null,'Guest record'),h('select',{value:drRecord,onChange:e=>setDrRecord(e.target.value)},
+            h('option',{value:'real'},'✓ Real only'),h('option',{value:'trial'},'🧪 Trial only'),h('option',{value:'all'},'All (Real + Trial)'))),
           h('div',{className:'field'},h('label',null,'Discharge period'),h('select',{value:drPeriod,onChange:e=>setDrPeriod(e.target.value)},DR_PERIODS.map(([v,l])=>h('option',{key:v,value:v},l)))),
           drPeriod==='custom'&&h('div',{className:'field'},h('label',null,'From'),h(StrictDateInput,{value:drFrom,onChange:e=>setDrFrom(e.target.value)})),
           drPeriod==='custom'&&h('div',{className:'field'},h('label',null,'To'),h(StrictDateInput,{value:drTo,onChange:e=>setDrTo(e.target.value)})),
           h(ApplyFilterButton,{dirty:drf.dirty,onApply:()=>{drf.apply();if(recordFocus)clearRecordFocus();setDrBox('all')}}),
-          filtersOn&&h('button',{type:'button',className:'btn btn-secondary dr-clear',onClick:()=>{setDrSearch('');setDrBasis('');setDrPeriod('all');setDrFrom('');setDrTo('');setDrClearReq(true)}},'Clear')
+          filtersOn&&h('button',{type:'button',className:'btn btn-secondary dr-clear',onClick:()=>{setDrSearch('');setDrBasis('');setDrRecord('real');setDrPeriod('all');setDrFrom('');setDrTo('');setDrClearReq(true)}},'Clear')
         ),
         h(RecordFocusBanner,{focus:recordFocus,onShowAll:clearRecordFocus}),
         h('div',{className:'table-wrap'},

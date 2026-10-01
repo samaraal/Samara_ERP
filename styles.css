@@ -2645,7 +2645,7 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 .dr-register-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .dr-register-head h3{margin:0;font-size:20px}
 .dr-register-head small{color:#7a5a6a}
-.dr-filters{display:grid;grid-template-columns:minmax(220px,2fr) minmax(170px,1.2fr) minmax(150px,1fr) minmax(150px,1fr) auto auto;gap:10px 12px;align-items:end;margin-bottom:12px;padding:12px;border:1px solid #f0dde6;border-radius:14px;background:#fffafc}
+.dr-filters{display:grid;grid-template-columns:minmax(200px,2fr) repeat(auto-fit,minmax(150px,1fr));gap:10px 12px;align-items:end;margin-bottom:12px;padding:12px;border:1px solid #f0dde6;border-radius:14px;background:#fffafc}
 .dr-filters .field{margin:0}
 .dr-filters .field label{font-size:12.5px}
 .dr-filters .apply-filter-wrap{margin:0}
