@@ -26,7 +26,7 @@
       const [c,p,e]=await Promise.all([
         q,
         client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no').limit(2000),
-        category==='Biomedical Equipment'?client.from('biomedical_equipment').select('id,asset_no,equipment_name,charge_code,charge_service_name,status,current_patient_id,issued_at'):Promise.resolve({data:[]})
+        category==='Biomedical Equipment'?client.rpc('bme_clinical_equipment'):Promise.resolve({data:[]})
       ]);
       setCharges(c.error?[]:(c.data||[]));if(!p.error)setPatients(p.data||[]);if(!e.error)setEquipment(e.data||[]);
     }
