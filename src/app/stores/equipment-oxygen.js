@@ -30,8 +30,88 @@
 
   // ------------------------------------------------------------------ Biomedical Equipment
   function BiomedicalEquipmentDashboard({profile}){
+    const [access,setAccess]=React.useState(null),[error,setError]=React.useState('');
+    React.useEffect(()=>{
+      let active=true;
+      async function refresh(){try{const res=await client.rpc('bme_access');if(!active)return;if(res.error||res.data?.version!==1)throw res.error||Error('Equipment permissions are updating.');setAccess(res.data);setError('')}catch(e){if(active){setAccess(null);setError('Unable to verify equipment access. Install SQL 184 before using this update. '+e.message)}}}
+      refresh();const timer=setInterval(refresh,30000);window.addEventListener('focus',refresh);
+      return()=>{active=false;clearInterval(timer);window.removeEventListener('focus',refresh)};
+    },[profile?.id]);
+    if(!access)return h(Section,{title:'Biomedical Equipment'},h('p',{role:'status'},error||'Checking equipment access…'));
+    if(access.controller)return h(BiomedicalEquipmentAdminDashboard,{profile});
+    if(access.nurse)return h(NurseEquipmentWorkspace,{profile});
+    return h(Section,{title:'Biomedical Equipment'},h('p',null,'This workspace is for Nursing and authorised Stores/Admin staff.'));
+  }
+
+  function EquipmentCareRequests({controller=false,patients=[]}){
+    const [rows,setRows]=React.useState([]),[error,setError]=React.useState(''),[busy,setBusy]=React.useState(false);
+    async function load(){const res=await client.rpc('bme_care_requests_list');if(res.error){setError(res.error.message);return}setRows(res.data||[]);setError('')}
+    React.useEffect(()=>{load()},[]);
+    async function resolve(row){const note=prompt('Record the action taken. Issue, return and maintenance actions must be recorded in the equipment register separately.','');if(note===null||!note.trim()||busy)return;setBusy(true);try{const res=await client.rpc('bme_care_resolve',{p_id:row.id,p_resolution:note.trim()});if(res.error)throw res.error;equipmentNotify('success','Request resolved.');await load()}catch(e){setError(e.message)}finally{setBusy(false)}}
+    return h(Section,{title:controller?'Nursing Equipment Requests':'My Equipment Requests'},
+      h('button',{type:'button',className:'btn btn-secondary',onClick:load,disabled:busy},'Refresh'),error&&h('p',{role:'alert'},error),
+      rows.length?rows.map(row=>h('article',{key:row.id,className:'stores-ledger-card'},
+        h('strong',null,row.kind+' · '+row.item_name+' · '+row.status),h('p',null,row.details),
+        h('p',null,equipmentPatientName(patients,row.patient_id)),h('small',null,formatDateTimeIN(row.requested_at)+' · '+row.requested_by_name),
+        row.resolution&&h('p',null,'Action taken: '+row.resolution+' · '+row.resolved_by_name),
+        controller&&row.status==='Pending'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>resolve(row)},'Resolve request')
+      )):h('p',null,'No requests yet.'));
+  }
+
+  function NurseEquipmentWorkspace({profile}){
     const {view,openView,backToDashboard}=useDashboardView();
-    const who=useEquipmentPeople(profile);
+    const [rows,setRows]=React.useState([]),[moves,setMoves]=React.useState([]),[patients,setPatients]=React.useState([]),[error,setError]=React.useState(''),[busy,setBusy]=React.useState(false);
+    const [form,setForm]=React.useState({kind:'Equipment',equipment_id:'',patient_id:'',item_name:'',details:''});
+    const [notice,setNotice]=React.useState(''),[saved,setSaved]=React.useState(false);
+    const lock=React.useRef(false),request=React.useRef(null);
+    const change=(key,value)=>{setForm(f=>({...f,[key]:value}));setSaved(false);setNotice('');setError('')};
+    async function load(){
+      const [e,m,p]=await Promise.all([client.rpc('bme_clinical_equipment'),client.rpc('bme_clinical_movements'),client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no').eq('is_active',true).order('full_name')]);
+      if(e.error||m.error||p.error){setError((e.error||m.error||p.error).message);return}
+      setRows(e.data||[]);setMoves(m.data||[]);setPatients(p.data||[]);setError('');
+    }
+    React.useEffect(()=>{load()},[]);
+    async function submit(e){e.preventDefault();if(lock.current||saved)return;lock.current=true;setBusy(true);setError('');
+      try{const signature=JSON.stringify(form);if(request.current?.signature!==signature)request.current={signature,id:crypto.randomUUID()};
+        const res=await client.rpc('bme_care_request',{p_id:request.current.id,p_kind:form.kind,p_equipment_id:form.equipment_id||null,p_patient_id:form.patient_id||null,p_item_name:form.item_name,p_details:form.details});if(res.error)throw res.error;
+        request.current=null;setSaved(true);setNotice('✓ Request sent to the Store In-charge. Track it in My Requests.');await load();
+      }catch(e){setError(e.message)}finally{lock.current=false;setBusy(false)}
+    }
+    async function returnEquipment(x){const note=prompt('Return '+x.asset_no+' to Stores? Enter any remarks.','');if(note===null||lock.current)return;lock.current=true;setBusy(true);try{const res=await client.rpc('bme_return',{p_equipment_id:x.id,p_remarks:note||null});if(res.error)throw res.error;equipmentNotify('success',x.asset_no+' returned.');await load()}catch(e){setError(e.message)}finally{lock.current=false;setBusy(false)}}
+    const tiles=[
+      {key:'inuse',icon:'♿',title:'In Use',value:rows.filter(x=>x.status==='In Use').length,unit:'with residents',lines:['View and return equipment']},
+      {key:'request',icon:'＋',title:'Request Equipment',value:rows.filter(x=>x.status==='Available'&&!x.fault_reported).length,unit:'available pieces',lines:['View availability and send a request']},
+      {key:'care',icon:'⚠',title:'Return / Report Fault',valueText:'Open',lines:['Report problems to the Store In-charge']},
+      {key:'requests',icon:'▤',title:'My Requests',valueText:'Track',lines:['Requests, faults and responses']},
+      {key:'history',icon:'↕',title:'Issue / Return History',valueText:'View',lines:['Resident equipment movements']}
+    ];
+    const safeView=tiles.some(t=>t.key===view)?view:null;
+    const visible=safeView==='inuse'?rows.filter(x=>x.status==='In Use'):safeView==='request'?rows.filter(x=>x.status==='Available'&&!x.fault_reported):rows.filter(x=>x.status!=='Out of Service');
+    function selectEquipment(x,kind){setForm({kind,equipment_id:x.id,patient_id:x.current_patient_id||'',item_name:x.equipment_name,details:''});setSaved(false);setNotice('');setError('');openView(kind==='Fault'?'care':'request')}
+    return h('div',{className:'stores-dash-wrap'},
+      error&&h('p',{className:'message error',role:'alert'},error),
+      !safeView?h(React.Fragment,null,h(DashboardHero,{title:'Biomedical Equipment — Nursing',blurb:'Equipment for resident care: view availability, request equipment, return items and report faults.',onRefresh:load}),h(DashboardTiles,{tiles,onOpen:key=>{if(key==='care')change('kind','Fault');if(key==='request')change('kind','Equipment');openView(key)}})):h(DashboardBackBar,{title:'Biomedical Equipment',viewTitle:tiles.find(t=>t.key===safeView)?.title,onBack:backToDashboard}),
+      ['request','care'].includes(safeView)&&h(Section,{title:safeView==='care'?'Report an equipment fault':'Request equipment'},
+        notice&&h('p',{className:'message success',role:'status'},notice),
+        h('form',{onSubmit:submit},h('fieldset',{disabled:busy,style:{border:0,padding:0}},
+          h('div',{className:'field'},h('label',null,'Request type'),h('select',{value:form.kind,onChange:e=>change('kind',e.target.value)},h('option',{value:'Equipment'},'Equipment request'),h('option',{value:'Fault'},'Report fault'))),
+          h('div',{className:'field'},h('label',null,'Equipment piece'+(form.kind==='Fault'?' *':'')),h('select',{required:form.kind==='Fault',value:form.equipment_id,onChange:e=>{const x=rows.find(r=>r.id===e.target.value);change('equipment_id',e.target.value);change('item_name',x?.equipment_name||'')}},h('option',{value:''},'Select a piece, or describe the equipment needed'),rows.map(x=>h('option',{key:x.id,value:x.id},x.asset_no+' · '+x.equipment_name+' · '+x.status)))),
+          !form.equipment_id&&h('div',{className:'field'},h('label',null,'Equipment needed *'),h('input',{required:true,maxLength:200,value:form.item_name,onChange:e=>change('item_name',e.target.value)})),
+          h('div',{className:'field'},h('label',null,'Resident (optional)'),h(PatientPicker,{patients,required:false,value:form.patient_id,onChange:v=>change('patient_id',v)})),
+          h('div',{className:'field'},h('label',null,'Details *'),h('textarea',{required:true,minLength:3,maxLength:2000,value:form.details,onChange:e=>change('details',e.target.value)})),
+          h('button',{className:'btn btn-primary',disabled:busy||saved},busy?'Sending…':saved?'Sent':'Send request'))),
+        form.kind==='Fault'&&h('p',null,'For an urgent problem, contact the Store In-charge directly. A report does not confirm repair or safe use.')),
+      ['inuse','request','care'].includes(safeView)&&h(Section,{title:safeView==='request'?'Available equipment':'Resident equipment'},
+        visible.length?visible.map(x=>h('article',{key:x.id,className:'stores-ledger-card'},h('strong',null,x.asset_no+' · '+x.equipment_name),h(EquipmentStatusPill,{status:x.status}),x.fault_reported&&h('p',null,'Fault reported — awaiting Stores review'),h('p',null,x.status==='Under Repair'?'Unavailable — under repair':x.current_patient_id?equipmentPatientName(patients,x.current_patient_id):x.current_location||'Stores'),
+          h('div',{className:'equip-actions'},x.status==='In Use'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>returnEquipment(x)},'Return'),x.status==='Available'&&!x.fault_reported&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>selectEquipment(x,'Equipment')},'Request'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>selectEquipment(x,'Fault')},'Report fault')))):h('p',null,'No equipment in this view.')),
+      safeView==='requests'&&h(EquipmentCareRequests,{patients}),
+      safeView==='history'&&h(Section,{title:'Issue / Return History'},moves.length?[...moves].reverse().slice(0,300).map(m=>h('article',{key:m.id,className:'stores-ledger-card'},h('strong',null,(rows.find(x=>x.id===m.equipment_id)?.asset_no||'Equipment')+' · '+m.action),h('p',null,equipmentPatientName(patients,m.patient_id)),h('small',null,formatDateTimeIN(m.moved_at)+' · '+(m.actor_name||'Staff')))):h('p',null,'No issue or return history.'))
+    );
+  }
+
+  function BiomedicalEquipmentAdminDashboard({profile}){
+    const {view,openView,backToDashboard}=useDashboardView();
+    const who={controller:true,nurse:false,canView:true};
     const [rows,setRows]=React.useState(null),[moves,setMoves]=React.useState([]),[patients,setPatients]=React.useState([]),[bio,setBio]=React.useState([]);
     const [error,setError]=React.useState(''),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState('');
     const [regStatus,setRegStatus]=React.useState('All'); // 2.15.3: Equipment Register status filter
@@ -75,6 +155,7 @@
     const counts={inuse:list.filter(x=>x.status==='In Use').length,available:list.filter(x=>x.status==='Available').length,repair:list.filter(x=>x.status==='Under Repair').length,overdue:serviceDue.filter(x=>String(x.next_service_due).slice(0,10)<today).length};
     const ready=rows!==null;
     const tiles=[
+      {key:'requests',icon:'▤',title:'Nursing Requests',valueText:'Open',lines:['Equipment requests and fault reports']},
       {key:'inuse',icon:'♿︎',title:'In Use',value:ready?counts.inuse:null,unit:'with residents',lines:[`${new Set(list.filter(x=>x.status==='In Use').map(x=>x.current_patient_id).filter(Boolean)).size} resident(s)`,'Return from here']},
       {key:'available',icon:'✓',title:'Available',value:ready?counts.available:null,unit:'ready to issue',lines:[who.controller?'Issue to a resident / room':'In Stores']},
       {key:'service',icon:'🛠︎',title:'Service Due',value:ready?serviceDue.length:null,unit:'within 7 days',lines:[`${counts.overdue} overdue`],alert:counts.overdue>0,warn:serviceDue.length>0},
@@ -192,6 +273,7 @@
       ),
       view&&h(DashboardBackBar,{title:'Biomedical Equipment',viewTitle,onBack:backToDashboard}),
       view&&itemsMissing&&['items','receive','purchases','register'].includes(view)&&h('div',{className:'message warning',style:{marginBottom:'12px'}},'Equipment Items and Receive / Purchase are not installed yet. Please run supabase/sql/164_equipment_item_master_purchases.sql once in Supabase.'),
+      view==='requests'&&h(EquipmentCareRequests,{controller:true,patients}),
       view==='items'&&h(Section,{title:'Equipment Items',subtitle:'Each kind of equipment is created ONCE and gets its item code (BME-001, BME-002 …). Its pieces are numbered after it (BME-001-01, BME-001-02 …). Link the Charge Master rate if residents are charged for it.'},
         who.controller&&h('form',{onSubmit:saveItem,className:'equip-inline-form',style:{marginTop:0,marginBottom:'14px'}},
           h('h4',{style:{margin:'0 0 10px'}},itemForm.id?`Edit ${(items.find(i=>i.id===itemForm.id)||{}).item_code||''}`:'New equipment item'),
