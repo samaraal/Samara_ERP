@@ -114,6 +114,18 @@ async function net(pid,day,prefix='ROOM'){
  await assert.rejects(()=>query('select save_room_tariff($1,$2,$3,$4,$5)',[bed,'2026-09-01','Unauthorised','{}',uid(130)]),/permission denied/);
  await assert.rejects(()=>query('select * from room_tariff_changes'),/permission denied/);
  await db.exec('reset role');
+ // A room tariff preceding a new resident's admission starts billing at admission.
+ await db.exec(`insert into patients values('${uid(301)}','RES-ADMISSION','Admission boundary test','2026-09-30',null,'104','B',true,false,null);
+ insert into room_beds values('${uid(302)}','${uid(301)}','104','B','Triple Sharing','Occupied',3200,0,0,3200,now());`);
+ await charge(uid(301),'2026-09-30','Daily Room Charge',3200);
+ await charge(uid(301),'2026-10-01','Daily Room Charge',3200);
+ await save('2026-09-29',2500,0,uid(303),uid(302));
+ assert.equal(await net(uid(301),'2026-09-30'),2500,'admission day receives the new rate');
+ assert.equal(await net(uid(301),'2026-10-01'),2500,'second day receives the new rate');
+ const admissionRun=(await query(`select run_daily_billing_automation('2026-10-01',true) result`))[0].result;
+ assert.equal(admissionRun.success,true,JSON.stringify(admissionRun));
+ assert.equal((await query('select count(*)::int n from billing_transactions where patient_id=$1 and source_date<$2',[uid(301),'2026-09-30']))[0].n,0,'no charge or adjustment before admission');
+ assert.equal(await money('select sum(amount) amount from billing_transactions where patient_id=$1 and transaction_type=$2',[uid(301),'Discount']),1400,'only two admitted days are adjusted');
  console.log('PASS: migration, original-entry preservation, date boundaries, credits/debits, duplicate saves, zero rates, later tariffs, role checks, package/departure exclusions, transfer reconciliation, immutable audit entries, atomic rollback, public-access denial and migration rerun.');
  await db.close();
 })().catch(async e=>{console.error(e);await db.close();process.exitCode=1;});

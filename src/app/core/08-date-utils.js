@@ -1,3 +1,18 @@
+// Keep the room's master effective date in the audit record, but show when it
+// applies to this resident. Presentation only: never rewrite financial entries.
+function residentTariffDate(effective,admission){
+  const valid=value=>{const day=String(value||'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(day)&&!Number.isNaN(Date.parse(day))&&new Date(day).toISOString().slice(0,10)===day?day:'';};
+  const start=valid(effective),admitted=valid(admission);
+  return start&&admitted?(start<admitted?admitted:start):start;
+}
+function residentTariffDescription(row,admission){
+  const text=String(row?.description||'');
+  if(!/^Tariff adjustment for /i.test(text))return text;
+  return text.replace(/\beffective (\d{2})-(\d{2})-(\d{4})\b/i,(match,dd,mm,yyyy)=>{
+    const day=residentTariffDate(`${yyyy}-${mm}-${dd}`,admission);
+    return day?`applicable from ${day.slice(8,10)}-${day.slice(5,7)}-${day.slice(0,4)}`:match;
+  });
+}
   const localDateTimeValue = (date=new Date()) => {
     const value=date instanceof Date?date:new Date(date);
     const safe=Number.isNaN(value.getTime())?new Date():value;
