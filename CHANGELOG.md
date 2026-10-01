@@ -3,6 +3,10 @@
 Newest first. From 2.14.15 onwards, add each release here (a few lines) instead of creating a new START_HERE / RELEASE file.
 The full original notes for older releases are kept in [`docs/release-notes/`](docs/release-notes/).
 
+## Family Portal v1.0.24 (separate repo Samara_Family_Portal) — beverages in Food & Diet
+- SQL (shared database): supabase/sql/180_family_portal_beverages.sql — family_portal_beverages(session token) returns the family's own Guest's beverage servings (session checked through the existing family_portal_dashboard; no staff names).
+- Portal: beverages listed in the Care Timeline under Food & Diet ("Food & Diet: Beverage — Fresh Juice (Mosambi) — Consumed fully · 150 ml"); meals show "Breakfast" instead of "Tiffin".
+
 ## 2.15.40 — Beverage quantity with a unit dropdown
 - Beverage entry: Quantity + Unit (ml, cup, glass, tumbler, mug, tsp, tbsp, g, mg). Any number is accepted, including decimals (e.g. 0.5 cup). Fixes the "Quantity is not valid" error for values like 100 ml (the old box only allowed 1, 11, 21 …).
 - Shown as "2 tsp", "150 ml", "1 cup" in the Food & Beverage Register, Patient File → Diet, the Intelligent Report and (after redeploy) the WhatsApp Daily Report. Earlier entries keep their ml.
