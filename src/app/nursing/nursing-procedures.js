@@ -18,6 +18,13 @@
     const [catalogError,setCatalogError]=React.useState('');
     const [requests,setRequests]=React.useState([]);
     const [busy,setBusy]=React.useState(false);
+    const [requestError,setRequestError]=React.useState('');
+    const [box,setBox]=React.useState('open');
+    const [search,setSearch]=React.useState('');
+    const [filterCategory,setFilterCategory]=React.useState('');
+    const [period,setPeriod]=React.useState('all');
+    const [detailId,setDetailId]=React.useState(null);
+    const filters=useAppliedFilters({search,category:filterCategory,period});
     const emptyForm={patient_id:'',category:'',tariff_id:'',scheduled_at:'',remarks:''};
     const [form,setForm]=React.useState(emptyForm);
 
@@ -28,7 +35,7 @@
       ]);
       if(!c.error){setCatalog(c.data||[]);setCatalogError('')}
       else{console.warn(c.error);setCatalogError(/get_approval_catalog/i.test(c.error.message||'')?'Database update pending: run 152_charge_category_approval_routing.sql in Supabase.':c.error.message)}
-      if(!r.error)setRequests(r.data||[]);else console.warn(r.error);
+      if(!r.error){setRequests(r.data||[]);setRequestError('')}else{console.warn(r.error);setRequestError(r.error.message||'Unable to load approval requests. Please refresh.')}
     },[]);
 
     React.useEffect(()=>{
@@ -96,14 +103,35 @@
       load();
     }
 
-    const pending=requests.filter(x=>x.status==='Requested');
-    const readyToStart=requests.filter(x=>x.status==='Approved');
-    const statusPill=status=>h('span',{style:{fontWeight:800,fontSize:'12px',padding:'4px 8px',borderRadius:'999px',display:'inline-block',
-      background:status==='Requested'?'#fff4dc':status==='Approved'?'#e3f2ff':status==='Started'?'#e7f6ef':status==='Declined'?'#fdebec':'#f1f1f1',
-      color:'#5d3146'}},status);
-    const cardHead=r=>h('div',{className:'stores-ledger-card-head'},h('strong',null,`${categoryOf(r)} · ${itemLabel(r)}`),statusPill(r.status));
-
-    return h('div',null,
+    const stages=[['open','Open Requests','📂','#a91360'],['Requested','Pending Approval','⏳','#bd5500'],['Approved','Ready to Start','▶','#2453d6'],['Started','Started','✅','#16733b'],['Declined','Declined','↩','#c42140'],['all','All Requests','📋','#5b4a55']];
+    const matchesBox=(r,k)=>k==='all'||(k==='open'?['Requested','Approved'].includes(r.status):r.status===k);
+    const dayIST=value=>{const d=new Date(value);return value&&!isNaN(d)?new Date(d.getTime()+19800000).toISOString().slice(0,10):''};
+    const today=dayIST(new Date());
+    const weekStart=new Date(Date.parse(today+'T00:00:00Z')-6*86400000).toISOString().slice(0,10);
+    const filtered=requests.filter(r=>{
+      const p=patients.find(p=>p.id===r.patient_id)||{};
+      const q=filters.applied.search.trim().toLowerCase();
+      const date=dayIST(r.requested_at),period=filters.applied.period;
+      return (!q||[patientName(r.patient_id),p.patient_id,p.room_number,itemLabel(r),categoryOf(r),r.requested_by_name].join(' ').toLowerCase().includes(q))
+        &&(!filters.applied.category||categoryOf(r)===filters.applied.category)
+        &&(period==='all'||(period==='today'?date===today:period==='week'?date>=weekStart&&date<=today:date.slice(0,7)===today.slice(0,7)&&date<=today));
+    });
+    const visible=filtered.filter(r=>matchesBox(r,box));
+    const detail=requests.find(r=>r.id===detailId);
+    const filterCategories=[...new Set(requests.map(categoryOf))].sort(alpha);
+    const statusPill=status=>h('span',{className:'dr-stage-pill',style:{color:stages.find(s=>s[0]===status)?.[3]||'#5b4a55'}},status==='Requested'?'Pending Approval':status==='Approved'?'Ready to Start':status);
+    const actionButtons=r=>h('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginTop:12}},
+      canDecide&&r.status==='Requested'&&h(React.Fragment,null,
+        h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>decide(r,'Approved')},busy?'Saving…':'Approve'),
+        h('button',{className:'btn btn-danger',disabled:busy,onClick:()=>decide(r,'Declined')},'Decline')),
+      canStart&&r.status==='Approved'&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>startItem(r)},busy?'Starting…':'Confirm & Start'));
+    return h('div',{className:'approval-workspace'},
+      h('div',{className:'card panel dr-head'},h('div',{className:'dr-head-text'},
+        h('h2',null,'Approval Requests'),h('small',null,'Nursing request → Management approval → Nurse confirms & starts'),
+        h('p',{className:'small-note'},canDecide?'Open a request to approve or decline. Once approved, the nurse confirms and starts it.':'Request approval and open approved items to confirm and start. Starting raises the matching charge for Accounts.'))),
+      h('div',{className:'dr-boxes'},stages.map(([key,label,icon,color])=>h('button',{key,type:'button',className:'dr-box '+(box===key?'selected':''),'aria-pressed':box===key,style:{'--dr-c':color},onClick:()=>setBox(key)},
+        h('span',{className:'dr-box-icon','aria-hidden':true},icon),h('span',{className:'dr-box-label'},label),h('b',{className:'dr-box-count'},filtered.filter(r=>matchesBox(r,key)).length)))),
+      requestError&&h('div',{className:'message error',role:'alert'},requestError),
       canRequest&&h(Section,{title:'Request Approval',subtitle:'For items that need Nursing Manager approval before they are done and charged. Everything else is raised from Bills & Charges.'},
         h('form',{onSubmit:submitRequest},
           h('div',{className:'grid two'},
@@ -122,42 +150,35 @@
           h('button',{className:'btn btn-primary',disabled:busy},busy?'Sending…':'Send Request')
         )
       ),
-      canDecide&&h(Section,{title:`Pending Approval (${pending.length})`,subtitle:'Approve or decline each request. Once approved, the nurse confirms and starts it.'},
-        pending.length?h('div',{className:'approval-request-cards'},pending.map(r=>h('article',{className:'stores-ledger-card',key:r.id},
-          cardHead(r),
-          h('p',null,`${patientName(r.patient_id)} · Requested by ${r.requested_by_name||'—'} at ${formatDateTimeIN(r.requested_at)}`),
-          r.scheduled_at&&h('p',null,`Scheduled: ${formatDateTimeIN(r.scheduled_at)}`),
-          r.remarks&&h('p',null,`Remarks: ${r.remarks}`),
-          h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'8px'}},
-            h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>decide(r,'Approved')},'Approve'),
-            h('button',{className:'btn btn-danger',disabled:busy,onClick:()=>decide(r,'Declined')},'Decline')
-          )
-        ))):h('p',null,'No pending requests.')
-      ),
-      canStart&&h(Section,{title:`Approved — Ready to Start (${readyToStart.length})`,subtitle:'Confirm you are about to do it. This raises the matching charge for Accounts.'},
-        readyToStart.length?h('div',{className:'approval-request-cards'},readyToStart.map(r=>h('article',{className:'stores-ledger-card',key:r.id},
-          cardHead(r),
-          h('p',null,`${patientName(r.patient_id)} · Approved by ${r.decision_by_name||'—'} at ${formatDateTimeIN(r.decision_at)}`),
-          r.scheduled_at&&h('p',null,`Scheduled: ${formatDateTimeIN(r.scheduled_at)}`),
-          h('div',{style:{marginTop:'8px'}},h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>startItem(r)},'Confirm & Start'))
-        ))):h('p',null,'No approved requests waiting to start.')
-      ),
-      h(LogTable,{title:'All Approval Requests',subtitle:'Complete history: request, approval and start.',
-        heads:['Patient','Category','Item','Requested By / At','Scheduled','Status','Decision By / At','Started By / At'],
-        rows:requests.map(r=>[
-          patientName(r.patient_id),
-          categoryOf(r),
-          itemLabel(r),
-          `${r.requested_by_name||'—'} · ${formatDateTimeIN(r.requested_at)}`,
-          r.scheduled_at?formatDateTimeIN(r.scheduled_at):'—',
-          statusPill(r.status),
-          r.decision_by_name?`${r.decision_by_name} · ${formatDateTimeIN(r.decision_at)}${r.decision_remarks?` · ${r.decision_remarks}`:''}`:'—',
-          r.started_by_name?`${r.started_by_name} · ${formatDateTimeIN(r.started_at)}`:'—'
-        ])
-      }),
-      canSeeList&&h(Section,{title:`Items Needing Approval (${catalog.length})`,subtitle:'Comes from Charge Master: every active item in a category Admin has marked "Needs Nursing Manager approval". Admin changes items and categories in Charge Master.'},
-        catalogError?h('p',{style:{color:'#b42318'}},catalogError)
-          :h(LogTable,{heads:['Category','Code','Item'],rows:[...catalog].sort((a,b)=>alpha(a.category,b.category)||alpha(a.service_name,b.service_name)).map(p=>[p.category,p.charge_code||'— (no code yet)',p.service_name])})
-      )
+      h('div',{className:'card panel dr-register'},
+        h('div',{className:'dr-register-head'},h('div',null,h('h3',null,`Approval Register (${visible.length})`),
+          h('small',null,`${stages.find(s=>s[0]===box)?.[1]} · ${filters.applied.period==='all'?'All dates':filters.applied.period==='today'?'Today (IST)':filters.applied.period==='week'?'Last 7 days (IST)':'This month (IST)'} · open a row for full details`),
+          requests.length===300&&h('small',{style:{display:'block'}},'Showing the latest 300 requests; counts and filters apply to these records.'))),
+        h('div',{className:'dr-filters'},
+          h('div',{className:'field dr-filter-search'},h('label',{htmlFor:'approval-search'},'Search Guest / Item'),h('input',{id:'approval-search',type:'search',value:search,placeholder:'Name, Resident ID, item or requester',onChange:e=>setSearch(e.target.value),onKeyDown:e=>{if(e.key==='Enter'){filters.apply();setBox('all')}}})),
+          h('div',{className:'field'},h('label',{htmlFor:'approval-category'},'Category'),h('select',{id:'approval-category',value:filterCategory,onChange:e=>setFilterCategory(e.target.value)},h('option',{value:''},'All categories'),filterCategories.map(c=>h('option',{key:c,value:c},c)))),
+          h('div',{className:'field'},h('label',{htmlFor:'approval-period'},'Request period'),h('select',{id:'approval-period',value:period,onChange:e=>setPeriod(e.target.value)},[['all','All dates'],['today','Today'],['week','Last 7 days'],['month','This month']].map(([v,l])=>h('option',{key:v,value:v},l)))),
+          h(ApplyFilterButton,{dirty:filters.dirty,onApply:()=>{filters.apply();setBox('all')}})),
+        h('div',{className:'table-wrap'},h('table',{className:'table dr-table approval-table'},
+          h('thead',null,h('tr',null,['Guest','Category / Item','Requested','Scheduled','Status','Action'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,visible.map(r=>h('tr',{key:r.id,className:'row-clickable',tabIndex:0,onClick:()=>setDetailId(r.id),onKeyDown:e=>{if(e.target===e.currentTarget&&['Enter',' '].includes(e.key)){e.preventDefault();setDetailId(r.id)}}},
+            h('td',{'data-label':'Guest'},h('strong',null,patientName(r.patient_id))),
+            h('td',{'data-label':'Category / Item'},itemLabel(r),h('small',{className:'dr-sub'},categoryOf(r))),
+            h('td',{'data-label':'Requested'},r.requested_by_name||'—',h('small',{className:'dr-sub'},formatDateTimeIN(r.requested_at))),
+            h('td',{'data-label':'Scheduled'},r.scheduled_at?formatDateTimeIN(r.scheduled_at):'—'),
+            h('td',{'data-label':'Status'},statusPill(r.status)),
+            h('td',{'data-label':'Action'},h('button',{className:'btn btn-secondary',onClick:e=>{e.stopPropagation();setDetailId(r.id)}},canDecide&&r.status==='Requested'?'Review':canStart&&r.status==='Approved'?'Open / Start':'View')))),
+            !visible.length&&h('tr',null,h('td',{colSpan:6,className:'empty'},requestError?'Requests could not be loaded. Please refresh.':box==='open'?'No open requests match these filters.':'No requests match these filters.',
+              box!=='all'&&filtered.length>0&&h('button',{className:'btn btn-secondary',style:{marginLeft:8},onClick:()=>setBox('all')},`Show all requests (${filtered.length})`))))))),
+      canSeeList&&h('details',{className:'card panel dr-collapse'},
+        h('summary',null,h('strong',null,`Items Needing Approval (${catalog.length})`),h('small',null,' — categories and items configured in Charge Master')),
+        catalogError?h('p',{style:{color:'#b42318'}},catalogError):h(LogTable,{heads:['Category','Code','Item'],rows:[...catalog].sort((a,b)=>alpha(a.category,b.category)||alpha(a.service_name,b.service_name)).map(p=>[p.category,p.charge_code||'—',p.service_name])})),
+      detail&&h(RowDetailModal,{title:patientName(detail.patient_id),subtitle:itemLabel(detail),onClose:()=>setDetailId(null),fields:[
+        ['Category',categoryOf(detail)],['Status',statusPill(detail.status)],['Requested by',detail.requested_by_name||'—'],['Requested at',formatDateTimeIN(detail.requested_at)],
+        ['Scheduled',detail.scheduled_at?formatDateTimeIN(detail.scheduled_at):'Not scheduled'],['Request remarks',detail.remarks],
+        ['Decision by',detail.decision_by_name],['Decision at',detail.decision_at?formatDateTimeIN(detail.decision_at):null],['Decision remarks',detail.decision_remarks],
+        ['Started by',detail.started_by_name],['Started at',detail.started_at?formatDateTimeIN(detail.started_at):null]
+      ]},actionButtons(detail))
     );
   }
+
