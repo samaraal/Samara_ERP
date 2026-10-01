@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.47';
+  const APP_VERSION = '2.15.48';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -26642,7 +26642,7 @@ function RoomsBeds({profile,onNavigate}){
   // Nurse requests -> Admin / Nursing Manager approves or declines ->
   // Nurse confirms & starts -> the charge is raised for Accounts.
   // Nurses see code and name only, never the tariff amount.
-  function NursingProcedures({profile}){
+  function NursingProcedures({profile,initialCategory="",initialRequest=false,initialEquipment=""}){
     const canRequest=profile?.role==='Nurse';
     const canDecide=['Admin','Manager'].includes(profile?.role);
     const canSeeList=['Admin','Manager'].includes(profile?.role);
@@ -26660,7 +26660,14 @@ function RoomsBeds({profile,onNavigate}){
     const [detailId,setDetailId]=React.useState(null);
     const filters=useAppliedFilters({search,category:filterCategory,period});
     const emptyForm={patient_id:'',category:'',tariff_id:'',scheduled_at:'',remarks:''};
-    const [form,setForm]=React.useState(emptyForm);
+    const [form,setForm]=React.useState({...emptyForm,category:initialCategory,tariff_id:initialEquipment});
+    const [showRequest,setShowRequest]=React.useState(initialRequest);
+    const [equipment,setEquipment]=React.useState([]);
+    const [equipmentError,setEquipmentError]=React.useState('');
+    const requestToken=React.useRef(null);
+    const submitLock=React.useRef(false);
+    const isEquipment=form.category==='Biomedical Equipment';
+    React.useEffect(()=>{if(!canRequest)return;client.rpc('bme_clinical_equipment').then(r=>{if(r.error)setEquipmentError(r.error.message);else{setEquipment(r.data||[]);setEquipmentError('')}})},[canRequest,showRequest]);
 
     const load=React.useCallback(async()=>{
       const [c,r]=await Promise.all([
@@ -26681,11 +26688,12 @@ function RoomsBeds({profile,onNavigate}){
     },[load]);
 
     const alpha=(a,b)=>{const x=String(a||'').trim(),y=String(b||'').trim();const xo=x.toLowerCase()==='others',yo=y.toLowerCase()==='others';if(xo!==yo)return xo?1:-1;return x.localeCompare(y,'en',{sensitivity:'base',numeric:true})};
-    const categories=React.useMemo(()=>[...new Set(catalog.map(x=>x.category).filter(Boolean))].sort(alpha),[catalog]);
+    const categories=React.useMemo(()=>[...new Set(['Biomedical Equipment',...catalog.map(x=>x.category).filter(Boolean)])].sort(alpha),[catalog]);
     React.useEffect(()=>{
       if(categories.length===1&&!form.category)setForm(f=>({...f,category:categories[0]}));
     },[categories]);
-    const itemsForCategory=catalog.filter(x=>x.category===form.category).sort((a,b)=>alpha(a.service_name,b.service_name));
+    const equipmentItems=equipment.filter(x=>x.status==='Available'&&!x.fault_reported).map(x=>({id:x.id,charge_code:x.asset_no,service_name:x.equipment_name}));
+    const itemsForCategory=isEquipment?equipmentItems:catalog.filter(x=>x.category===form.category).sort((a,b)=>alpha(a.service_name,b.service_name));
     const codeLabel=p=>`${p.charge_code?`${p.charge_code} · `:''}${p.service_name}`;
     const selectedItem=catalog.find(x=>String(x.id)===String(form.tariff_id));
     const selectedIsOther=String(selectedItem?.service_name||'').trim().toLowerCase()==='others';
@@ -26695,21 +26703,27 @@ function RoomsBeds({profile,onNavigate}){
 
     async function submitRequest(e){
       e.preventDefault();
-      if(!canRequest||busy)return;
+      if(!canRequest||busy||submitLock.current)return;
       if(!form.patient_id||!form.tariff_id)return showSamaraActionToast('error','Approval Request','Select the patient, category and item.');
       if(selectedIsOther&&!form.remarks.trim())return showSamaraActionToast('error','Approval Request','For "Others", write the item name in Remarks.');
-      setBusy(true);
-      const res=await client.rpc('request_approval_item',{
-        p_patient_id:form.patient_id,p_tariff_id:form.tariff_id,
-        p_scheduled_at:form.scheduled_at?new Date(form.scheduled_at).toISOString():null,
-        p_remarks:form.remarks.trim()||null
-      });
-      setBusy(false);
-      if(res.error)return showSamaraActionToast('error','Approval Request',res.error.message);
-      await writeAuditEvent('Request Approval Item','NursingProcedureRequest',res.data,{patient_id:form.patient_id,category:selectedItem?.category||null,charge_code:selectedItem?.charge_code||null});
-      showSamaraActionToast('success','Request sent','Sent to the Nursing Manager for approval.');
-      setForm({...emptyForm,category:categories.length===1?categories[0]:''});
-      load();
+      submitLock.current=true;setBusy(true);
+      try{
+        const signature=JSON.stringify(form);
+        if(requestToken.current?.signature!==signature)requestToken.current={signature,id:crypto.randomUUID()};
+        const res=isEquipment?await client.rpc('bme_request_start',{
+          p_id:requestToken.current.id,p_equipment_id:form.tariff_id,p_patient_id:form.patient_id,
+          p_scheduled_at:form.scheduled_at?new Date(form.scheduled_at).toISOString():null,p_remarks:form.remarks.trim()||null
+        }):await client.rpc('request_approval_item',{
+          p_patient_id:form.patient_id,p_tariff_id:form.tariff_id,
+          p_scheduled_at:form.scheduled_at?new Date(form.scheduled_at).toISOString():null,p_remarks:form.remarks.trim()||null
+        });
+        if(res.error)throw res.error;
+        requestToken.current=null;
+        await writeAuditEvent('Request Approval Item','NursingProcedureRequest',res.data,{patient_id:form.patient_id,category:form.category});
+        showSamaraActionToast('success','Request sent','Sent to the Nursing Manager for approval.');
+        setForm({...emptyForm});setShowRequest(false);setBox('Requested');await load();
+      }catch(error){showSamaraActionToast('error','Approval Request',/bme_request_start/.test(error.message||'')?'Install SQL 185 to enable Biomedical Equipment approval requests.':error.message)}
+      finally{submitLock.current=false;setBusy(false)}
     }
 
     async function decide(row,decision){
@@ -26727,13 +26741,13 @@ function RoomsBeds({profile,onNavigate}){
 
     async function startItem(row){
       if(!canStart||busy)return;
-      if(!confirm(`Confirm and start "${itemLabel(row)}" (${categoryOf(row)}) for ${patientName(row.patient_id)}? This raises the matching charge for Accounts to verify.`))return;
+      if(!confirm(`Confirm and start "${itemLabel(row)}" (${categoryOf(row)}) for ${patientName(row.patient_id)}? ${row.category==='Biomedical Equipment'?'This issues the approved equipment to the resident. Charges remain in the equipment billing workflow.':'This raises the matching charge for Accounts to verify.'}`))return;
       setBusy(true);
       const res=await client.rpc('start_nursing_procedure',{p_request_id:row.id});
       setBusy(false);
       if(res.error)return showSamaraActionToast('error','Approval Request',res.error.message);
       await writeAuditEvent('Start Approved Item','NursingProcedureRequest',row.id,{patient_id:row.patient_id,category:categoryOf(row),charge_request_id:res.data?.charge_request_id});
-      showSamaraActionToast('success','Started',`${row.procedure_name} started. The charge has been raised for Accounts verification.`);
+      showSamaraActionToast('success','Started',row.category==='Biomedical Equipment'?`${row.procedure_name} started and recorded in the equipment register.`:`${row.procedure_name} started. The charge has been raised for Accounts verification.`);
       load();
     }
 
@@ -26752,7 +26766,7 @@ function RoomsBeds({profile,onNavigate}){
     });
     const visible=filtered.filter(r=>matchesBox(r,box));
     const detail=requests.find(r=>r.id===detailId);
-    const filterCategories=[...new Set(requests.map(categoryOf))].sort(alpha);
+    const filterCategories=[...new Set([...categories,...requests.map(categoryOf)])].sort(alpha);
     const statusPill=status=>h('span',{className:'dr-stage-pill',style:{color:stages.find(s=>s[0]===status)?.[3]||'#5b4a55'}},status==='Requested'?'Pending Approval':status==='Approved'?'Ready to Start':status);
     const actionButtons=r=>h('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginTop:12}},
       canDecide&&r.status==='Requested'&&h(React.Fragment,null,
@@ -26762,26 +26776,28 @@ function RoomsBeds({profile,onNavigate}){
     return h('div',{className:'approval-workspace'},
       h('div',{className:'card panel dr-head'},h('div',{className:'dr-head-text'},
         h('h2',null,'Approval Requests'),h('small',null,'Nursing request → Management approval → Nurse confirms & starts'),
-        h('p',{className:'small-note'},canDecide?'Open a request to approve or decline. Once approved, the nurse confirms and starts it.':'Request approval and open approved items to confirm and start. Starting raises the matching charge for Accounts.'))),
+        h('p',{className:'small-note'},canDecide?'Open a request to approve or decline. Once approved, the nurse confirms and starts it.':'Request approval before starting care or equipment. Equipment use is recorded in its register; procedure starts raise charges for Accounts.')),
+        canRequest&&h('button',{className:'btn btn-primary',type:'button',onClick:()=>setShowRequest(v=>!v)},showRequest?'Close Request':'＋ Make a Request')),
       h('div',{className:'dr-boxes'},stages.map(([key,label,icon,color])=>h('button',{key,type:'button',className:'dr-box '+(box===key?'selected':''),'aria-pressed':box===key,style:{'--dr-c':color},onClick:()=>setBox(key)},
         h('span',{className:'dr-box-icon','aria-hidden':true},icon),h('span',{className:'dr-box-label'},label),h('b',{className:'dr-box-count'},filtered.filter(r=>matchesBox(r,key)).length)))),
       requestError&&h('div',{className:'message error',role:'alert'},requestError),
-      canRequest&&h(Section,{title:'Request Approval',subtitle:'For items that need Nursing Manager approval before they are done and charged. Everything else is raised from Bills & Charges.'},
+      canRequest&&showRequest&&h(Section,{title:'Make a Request',subtitle:'Select a resident and item. Biomedical Equipment needs Nursing Manager approval before the nurse can confirm and start it.'},
         h('form',{onSubmit:submitRequest},
           h('div',{className:'grid two'},
             patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v})),
             h('div',{className:'field'},h('label',null,'Category'),h('select',{value:form.category,onChange:e=>setForm({...form,category:e.target.value,tariff_id:''}),required:true,disabled:!categories.length},
               h('option',{value:''},categories.length?'Select category':'No approval categories'),
-              categories.map(c=>h('option',{key:c,value:c},`${c} (${catalog.filter(x=>x.category===c).length})`))),
+              categories.map(c=>h('option',{key:c,value:c},c==='Biomedical Equipment'?c:`${c} (${catalog.filter(x=>x.category===c).length})`))),
               catalogError?h('small',{style:{color:'#b42318'}},catalogError)
                 :!categories.length&&h('small',{style:{color:'#b42318'}},'No category currently needs approval, or it has no active items in Charge Master.')),
-            h('div',{className:'field'},h('label',null,'Item'),h('select',{value:form.tariff_id,onChange:e=>setForm({...form,tariff_id:e.target.value}),required:true,disabled:!form.category},
+            h('div',{className:'field'},h('label',null,isEquipment?'Equipment piece':'Item'),h('select',{value:form.tariff_id,onChange:e=>setForm({...form,tariff_id:e.target.value}),required:true,disabled:!form.category},
               h('option',{value:''},form.category?`Select item (${itemsForCategory.length})`:'Select a category first'),
               itemsForCategory.map(p=>h('option',{key:p.id,value:p.id},codeLabel(p))))),
             h('div',{className:'field'},h('label',null,'Scheduled Date / Time'),h('input',{type:'datetime-local',value:form.scheduled_at,onChange:e=>setForm({...form,scheduled_at:e.target.value})})),
             h('div',{className:'field span-2'},h('label',null,'Remarks'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value}),placeholder:selectedIsOther?'Required for "Others": write the item name':'Any additional notes for the Nursing Manager'}))
           ),
-          h('button',{className:'btn btn-primary',disabled:busy},busy?'Sending…':'Send Request')
+          isEquipment&&h('p',{className:'small-note'},equipmentError||(!equipmentItems.length?'No available equipment. Ask Stores to register or return a piece.':'Only available equipment without reported faults is listed. Approval does not reserve a piece; availability is checked again on start.')),
+          h('button',{className:'btn btn-primary',disabled:busy||(isEquipment&&!equipmentItems.length)},busy?'Sending…':'Send Request')
         )
       ),
       h('div',{className:'card panel dr-register'},
@@ -26808,7 +26824,7 @@ function RoomsBeds({profile,onNavigate}){
         h('summary',null,h('strong',null,`Items Needing Approval (${catalog.length})`),h('small',null,' — categories and items configured in Charge Master')),
         catalogError?h('p',{style:{color:'#b42318'}},catalogError):h(LogTable,{heads:['Category','Code','Item'],rows:[...catalog].sort((a,b)=>alpha(a.category,b.category)||alpha(a.service_name,b.service_name)).map(p=>[p.category,p.charge_code||'—',p.service_name])})),
       detail&&h(RowDetailModal,{title:patientName(detail.patient_id),subtitle:itemLabel(detail),onClose:()=>setDetailId(null),fields:[
-        ['Category',categoryOf(detail)],['Status',statusPill(detail.status)],['Requested by',detail.requested_by_name||'—'],['Requested at',formatDateTimeIN(detail.requested_at)],
+        ['Category',categoryOf(detail)],['Equipment asset',detail.equipment_id?detail.procedure_code:null],['Status',statusPill(detail.status)],['Requested by',detail.requested_by_name||'—'],['Requested at',formatDateTimeIN(detail.requested_at)],
         ['Scheduled',detail.scheduled_at?formatDateTimeIN(detail.scheduled_at):'Not scheduled'],['Request remarks',detail.remarks],
         ['Decision by',detail.decision_by_name],['Decision at',detail.decision_at?formatDateTimeIN(detail.decision_at):null],['Decision remarks',detail.decision_remarks],
         ['Started by',detail.started_by_name],['Started at',detail.started_at?formatDateTimeIN(detail.started_at):null]
@@ -32710,10 +32726,11 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     return h('div',{className:'stores-dash-wrap'},
       error&&h('p',{className:'message error',role:'alert'},error),
       !safeView?h(React.Fragment,null,h(DashboardHero,{title:'Biomedical Equipment — Nursing',blurb:'Equipment for resident care: view availability, request equipment, return items and report faults.',onRefresh:load}),h(DashboardTiles,{tiles,onOpen:key=>{if(key==='care')change('kind','Fault');if(key==='request')change('kind','Equipment');openView(key)}})):h(DashboardBackBar,{title:'Biomedical Equipment',viewTitle:tiles.find(t=>t.key===safeView)?.title,onBack:backToDashboard}),
-      ['request','care'].includes(safeView)&&h(Section,{title:safeView==='care'?'Report an equipment fault':'Request equipment'},
+      safeView==='request'&&h(NursingProcedures,{key:form.equipment_id||'new-equipment',profile,initialCategory:'Biomedical Equipment',initialRequest:true,initialEquipment:form.equipment_id}),
+      safeView==='care'&&h(Section,{title:safeView==='care'?'Report an equipment fault':'Request equipment'},
         notice&&h('p',{className:'message success',role:'status'},notice),
         h('form',{onSubmit:submit},h('fieldset',{disabled:busy,style:{border:0,padding:0}},
-          h('div',{className:'field'},h('label',null,'Request type'),h('select',{value:form.kind,onChange:e=>change('kind',e.target.value)},h('option',{value:'Equipment'},'Equipment request'),h('option',{value:'Fault'},'Report fault'))),
+          h('div',{className:'field'},h('label',null,'Request type'),h('select',{value:form.kind,onChange:e=>change('kind',e.target.value)},h('option',{value:'Fault'},'Report fault'))),
           h('div',{className:'field'},h('label',null,'Equipment piece'+(form.kind==='Fault'?' *':'')),h('select',{required:form.kind==='Fault',value:form.equipment_id,onChange:e=>{const x=rows.find(r=>r.id===e.target.value);change('equipment_id',e.target.value);change('item_name',x?.equipment_name||'')}},h('option',{value:''},'Select a piece, or describe the equipment needed'),rows.map(x=>h('option',{key:x.id,value:x.id},x.asset_no+' · '+x.equipment_name+' · '+x.status)))),
           !form.equipment_id&&h('div',{className:'field'},h('label',null,'Equipment needed *'),h('input',{required:true,maxLength:200,value:form.item_name,onChange:e=>change('item_name',e.target.value)})),
           h('div',{className:'field'},h('label',null,'Resident (optional)'),h(PatientPicker,{patients,required:false,value:form.patient_id,onChange:v=>change('patient_id',v)})),
@@ -32723,7 +32740,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       ['inuse','request','care'].includes(safeView)&&h(Section,{title:safeView==='request'?'Available equipment':'Resident equipment'},
         visible.length?visible.map(x=>h('article',{key:x.id,className:'stores-ledger-card'},h('strong',null,x.asset_no+' · '+x.equipment_name),h(EquipmentStatusPill,{status:x.status}),x.fault_reported&&h('p',null,'Fault reported — awaiting Stores review'),h('p',null,x.status==='Under Repair'?'Unavailable — under repair':x.current_patient_id?equipmentPatientName(patients,x.current_patient_id):x.current_location||'Stores'),
           h('div',{className:'equip-actions'},x.status==='In Use'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>returnEquipment(x)},'Return'),x.status==='Available'&&!x.fault_reported&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>selectEquipment(x,'Equipment')},'Request'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>selectEquipment(x,'Fault')},'Report fault')))):h('p',null,'No equipment in this view.')),
-      safeView==='requests'&&h(EquipmentCareRequests,{patients}),
+      safeView==='requests'&&h(React.Fragment,null,h(NursingProcedures,{profile}),h(EquipmentCareRequests,{patients})),
       safeView==='history'&&h(Section,{title:'Issue / Return History'},moves.length?[...moves].reverse().slice(0,300).map(m=>h('article',{key:m.id,className:'stores-ledger-card'},h('strong',null,(rows.find(x=>x.id===m.equipment_id)?.asset_no||'Equipment')+' · '+m.action),h('p',null,equipmentPatientName(patients,m.patient_id)),h('small',null,formatDateTimeIN(m.moved_at)+' · '+(m.actor_name||'Staff')))):h('p',null,'No issue or return history.'))
     );
   }
@@ -32875,8 +32892,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         ),
         issueFor&&issueFor.id===x.id&&h('form',{className:'equip-inline-form',onSubmit:doIssue},
           h('div',{className:'grid two'},
-            h('div',{className:'field'},h('label',null,'Resident'),h(PatientPicker,{patients,value:issueForm.patient_id,required:false,onChange:v=>setIssueForm({...issueForm,patient_id:v})})),
-            h('div',{className:'field'},h('label',null,'Room / Location (if not for one resident)'),h('input',{value:issueForm.location,onChange:e=>setIssueForm({...issueForm,location:e.target.value}),placeholder:'Blank = resident’s room'}))
+            h('p',{className:'small-note'},'For resident use: Nurse makes a request in Approval Requests, Nursing Manager approves, then Nurse confirms and starts. This form moves equipment to a shared location only.'),
+            h('div',{className:'field'},h('label',null,'Shared room / location'),h('input',{value:issueForm.location,onChange:e=>setIssueForm({...issueForm,location:e.target.value}),required:true,placeholder:'Enter shared location'}))
           ),
           h('div',{className:'field'},h('label',null,'Remarks'),h('input',{value:issueForm.remarks,onChange:e=>setIssueForm({...issueForm,remarks:e.target.value})})),
           h('div',{className:'equip-actions'},h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Issue Equipment'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setIssueFor(null)},'Cancel'))
@@ -33051,7 +33068,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         putOn&&putOn.id===c.id&&h('form',{className:'equip-inline-form',onSubmit:doPutOn},
           h('div',{className:'grid two'},
             h('div',{className:'field'},h('label',null,'Resident *'),h(PatientPicker,{patients,value:putForm.patient_id,onChange:v=>setPutForm({...putForm,patient_id:v})})),
-            h('div',{className:'field'},h('label',null,'Room / Location'),h('input',{value:putForm.location,onChange:e=>setPutForm({...putForm,location:e.target.value}),placeholder:'Blank = resident’s room'}))
+            h('div',{className:'field'},h('label',null,'Room / Location'),h('input',{value:putForm.location,onChange:e=>setPutForm({...putForm,location:e.target.value}),required:true,placeholder:'Enter shared location'}))
           ),
           h('div',{className:'field'},h('label',null,'Remarks (flow rate, doctor advice)'),h('input',{value:putForm.remarks,onChange:e=>setPutForm({...putForm,remarks:e.target.value})})),
           h('div',{className:'equip-actions'},h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Put on Resident'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPutOn(null)},'Cancel'))
