@@ -1,3 +1,7 @@
+## 2.15.50 — Mobile kitchen cash actions
+
+Move Kitchen Back to the toolbar on phones and show card actions first so navigation cannot cover cash confirmation. Explain that Admin must record actual handover after approval. No SQL change.
+
 ## 2.15.43 — Resident tariff dates and adjustment visibility
 
 Show the resident-applicable tariff date from admission or the later tariff date. Preserve original audit entries and balances. Family Portal displays discount credits, refund debits and a separate discount total. No additional SQL migration is required; migration 182 remains the billing prerequisite.
