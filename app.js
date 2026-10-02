@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.50';
+  const APP_VERSION = '2.15.51';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1686,7 +1686,7 @@ function initSamaraInaugurationInvitation(){
     Caregiver:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
     Accounts:['Accounts Dashboard','Duty Assignment','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
     Kitchen:['Notifications','Duty Assignment','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission'],
-    STD:["Director's Office",'Enquiries & Feedback','Food & Diet','Duty Assignment','Patient Consumables','Stores','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders','WhatsApp Inbox','Feedback','My Leave & Permission']
+    STD:["Director's Office",'Enquiries & Feedback','Food & Diet','Duty Assignment','Patient Consumables','Stores','Housekeeping & General','Kitchen / Food Stores','WhatsApp Inbox','Feedback','My Leave & Permission']
   };
   Object.keys(ROLE_NAV).forEach(role=>{
     if(!ROLE_NAV[role].includes('Temporary Duty Swap'))ROLE_NAV[role].push('Temporary Duty Swap');
