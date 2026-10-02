@@ -12,7 +12,7 @@
   function equipmentHoursSince(ts){if(!ts)return null;return Math.round((Date.now()-new Date(ts).getTime())/360000)/10}
   const EQUIP_NOT_INSTALLED='The Biomedical Equipment / Oxygen registers are not installed yet. Please run supabase/sql/161_biomedical_equipment_oxygen_cylinders.sql once in Supabase.';
   function equipmentNotify(type,text){showSamaraActionToast(type,type==='success'?'Register updated':'Action not completed',text)}
-  function equipmentErrorText(error){const m=String(error?.message||error||'');if(/bme_delete|oxy_delete/i.test(m)&&/does not exist|schema cache|could not find/i.test(m))return 'Delete is not installed yet. Please run supabase/sql/163_equipment_cylinder_delete_wrong_entry.sql once in Supabase.';return /does not exist|schema cache|could not find/i.test(m)?EQUIP_NOT_INSTALLED:m}
+  function equipmentErrorText(error){const m=String(error?.message||error||'');if(/bme_receive_equipment/i.test(m)&&/does not exist|schema cache|could not find/i.test(m))return 'Add Equipment is updating. Please install SQL 187 and refresh.';if(/bme_delete|oxy_delete/i.test(m)&&/does not exist|schema cache|could not find/i.test(m))return 'Delete is not installed yet. Please run supabase/sql/163_equipment_cylinder_delete_wrong_entry.sql once in Supabase.';return /does not exist|schema cache|could not find/i.test(m)?EQUIP_NOT_INSTALLED:m}
   function useEquipmentPeople(profile){
     const authority=useStoreAuthority(profile);
     const controller=!!authority.controller||profile?.role==='Admin';
@@ -113,6 +113,8 @@
   function BiomedicalEquipmentAdminDashboard({profile}){
     const {view,openView,backToDashboard}=useDashboardView();
     const who={controller:true,nurse:false,canView:true};
+    const billingAdmin=profile?.role==='Admin';
+    const receiveLock=React.useRef(false),receiveToken=React.useRef(null);
     const [rows,setRows]=React.useState(null),[moves,setMoves]=React.useState([]),[patients,setPatients]=React.useState([]),[bio,setBio]=React.useState([]);
     const [error,setError]=React.useState(''),[busy,setBusy]=React.useState(false),[search,setSearch]=React.useState('');
     const [regStatus,setRegStatus]=React.useState('All'); // 2.15.3: Equipment Register status filter
@@ -122,7 +124,7 @@
     const [itemFilter,setItemFilter]=React.useState('All');
     const blankItem={id:null,item_name:'',charge_key:'',notes:'',active:true};
     const [itemForm,setItemForm]=React.useState(blankItem);
-    const blankRecv={item_id:'',source:'Purchase',quantity:'1',vendor_name:'',bill_no:'',bill_date:'',unit_cost:'',warranty_until:'',serials:'',next_service_due:'',location:'Stores',remarks:''};
+    const blankRecv={item_id:'',item_name:'',source:'Purchase',quantity:'1',vendor_name:'',bill_no:'',bill_date:'',unit_cost:'',warranty_until:'',serials:'',next_service_due:'',location:'Stores',remarks:''};
     const [recv,setRecv]=React.useState(blankRecv),[recvDone,setRecvDone]=React.useState(null);
     const [pPeriod,setPPeriod]=React.useState('month'),[pFrom,setPFrom]=React.useState(''),[pTo,setPTo]=React.useState('');
     const pf=useAppliedFilters({period:pPeriod,from:pFrom,to:pTo});
@@ -162,8 +164,8 @@
       {key:'service',icon:'🛠︎',title:'Service Due',value:ready?serviceDue.length:null,unit:'within 7 days',lines:[`${counts.overdue} overdue`],alert:counts.overdue>0,warn:serviceDue.length>0},
       {key:'repair',icon:'⚠︎',title:'Under Repair',value:ready?counts.repair:null,unit:'pieces',lines:['Back in service from here'],warn:counts.repair>0},
       {key:'register',icon:'▤',title:'Equipment Register',value:ready?list.length:null,unit:'pieces',lines:[`${active.length} in service · ${list.length-active.length} out of service`,'Every piece, grouped by item']},
-      {key:'items',icon:'🏷︎',title:'Equipment Items',value:ready?items.filter(x=>x.active).length:null,unit:'items',lines:['Item codes BME-001, BME-002 …','Create a name once, link its Charge Master rate']},
-      ...(who.controller?[{key:'receive',icon:'＋',title:'Receive / Purchase',valueText:'New',unit:'piece(s)',lines:['From a vendor, or already owned','Piece codes BME-001-01, -02 …']}]:[]),
+      {key:'items',icon:'🏷︎',title:billingAdmin?'Equipment & Billing':'Equipment Types',value:ready?items.filter(x=>x.active).length:null,unit:'types',lines:[billingAdmin?'Manage names and resident billing':'View equipment names and details']},
+      ...(who.controller?[{key:'receive',icon:'＋',title:'Add Equipment',valueText:'New',unit:'piece(s)',lines:['New equipment or more pieces','Purchased or already owned']}]:[]),
       {key:'purchases',icon:'₹',title:'Purchase Register',value:ready?purchases.filter(x=>String(x.received_at).slice(0,10)>=monthStart).length:null,unit:'receipts this month',lines:[`₹${purchases.filter(x=>String(x.received_at).slice(0,10)>=monthStart).reduce((a,x)=>a+Number(x.unit_cost||0)*Number(x.quantity||0),0).toLocaleString('en-IN')} this month`,'Vendor, bill, cost, warranty']},
       {key:'history',icon:'↕',title:'Movement History',value:ready?monthMoves.length:null,unit:'movements this month',lines:['Issued, returned, repair, service']}
     ];
@@ -196,29 +198,34 @@
     async function saveItem(e){
       e.preventDefault();if(busy)return;
       const ch=bio.find(b=>`${b.charge_code||''}|${b.service_name}`===itemForm.charge_key);
+      const existing=items.find(i=>i.id===itemForm.id),oldKey=existing&&(existing.charge_code||existing.charge_service_name)?`${existing.charge_code||''}|${existing.charge_service_name||''}`:'';
+      const billing=billingAdmin?(ch||((itemForm.charge_key&&itemForm.charge_key===oldKey)?{charge_code:existing.charge_code,service_name:existing.charge_service_name}:null)):existing;
       const name=String(itemForm.item_name||'').trim();
       if(!name)return equipmentNotify('error','Enter the equipment name.');
-      setBusy(true);const res=await client.rpc('bme_item_save',{p_id:itemForm.id,p_item_name:name,p_charge_code:ch?.charge_code||null,p_charge_service_name:ch?.service_name||null,p_notes:itemForm.notes||null,p_active:itemForm.active!==false});setBusy(false);
+      setBusy(true);const res=await client.rpc('bme_item_save',{p_id:itemForm.id,p_item_name:name,p_charge_code:billing?.charge_code||null,p_charge_service_name:billingAdmin?(billing?.service_name||null):(billing?.charge_service_name||null),p_notes:itemForm.notes||null,p_active:itemForm.active!==false});setBusy(false);
       if(res.error)return equipmentNotify('error',equipmentErrorText(res.error));
       equipmentNotify('success',`${res.data?.item_code||''} · ${res.data?.item_name||name} ${itemForm.id?'updated':'created'}.`);setItemForm(blankItem);await load();
     }
     function editItem(i){setItemForm({id:i.id,item_name:i.item_name,charge_key:i.charge_code||i.charge_service_name?`${i.charge_code||''}|${i.charge_service_name||''}`:'',notes:i.notes||'',active:i.active!==false});try{window.scrollTo({top:0,behavior:'smooth'})}catch(_){}}
     function deleteItem(i){if(!confirm(`Delete ${i.item_code} · ${i.item_name}? (Only possible when it has no pieces.)`))return;run('bme_item_delete',{p_id:i.id},`${i.item_code} deleted.`)}
     async function doReceive(e){
-      e.preventDefault();if(busy)return;
+      e.preventDefault();if(busy||receiveLock.current)return;
       const item=items.find(i=>String(i.id)===String(recv.item_id));
-      if(!item)return equipmentNotify('error','Choose the equipment item (create it first in Equipment Items if it is new).');
+      if(!item&&!String(recv.item_name||'').trim())return equipmentNotify('error','Select existing equipment or enter the new equipment name.');
       const n=parseInt(recv.quantity,10)||0;if(n<1||n>100)return equipmentNotify('error','Quantity must be between 1 and 100.');
       if(recv.source==='Purchase'&&!recv.vendor_name.trim())return equipmentNotify('error','Enter the vendor name.');
       const serials=String(recv.serials||'').split(/[\n,]+/).map(x=>x.trim()).filter(Boolean);
       if(serials.length&&serials.length!==n)return equipmentNotify('error',`You entered ${serials.length} serial number(s) for ${n} piece(s). Enter one per piece, or leave it blank.`);
-      setBusy(true);
-      const res=await client.rpc('bme_receive',{p_item_id:item.id,p_source:recv.source,p_quantity:n,p_vendor_name:recv.vendor_name||null,p_bill_no:recv.bill_no||null,p_bill_date:recv.bill_date||null,
-        p_unit_cost:recv.unit_cost===''?null:Number(recv.unit_cost),p_warranty_until:recv.warranty_until||null,p_serials:serials.length?serials:null,p_next_service_due:recv.next_service_due||null,p_location:recv.location||null,p_remarks:recv.remarks||null});
-      setBusy(false);
-      if(res.error)return equipmentNotify('error',equipmentErrorText(res.error));
-      const nos=res.data?.asset_nos||[];setRecvDone({item,nos});
-      equipmentNotify('success',`${n} × ${item.item_name} received: ${nos.join(', ')}`);setRecv(blankRecv);await load();
+      const payload={...recv,item_name:item?.item_name||recv.item_name.trim(),quantity:n,serials};
+      const signature=JSON.stringify(payload);if(receiveToken.current?.signature!==signature)receiveToken.current={signature,id:crypto.randomUUID()};
+      receiveLock.current=true;setBusy(true);
+      try{
+        const res=await client.rpc('bme_receive_equipment',{p_operation_id:receiveToken.current.id,p_data:payload});
+        if(res.error)throw res.error;
+        const nos=res.data?.asset_nos||[],savedItem=res.data.item;
+        receiveToken.current=null;setRecvDone({item:savedItem,nos});
+        equipmentNotify('success',`${n} × ${savedItem.item_name} added: ${nos.join(', ')}`);setRecv(blankRecv);await load();
+      }catch(err){equipmentNotify('error',equipmentErrorText(err))}finally{receiveLock.current=false;setBusy(false)}
     }
     const PA=pf.applied;
     const pBounds=(()=>{const t=today;if(PA.period==='today')return [t,t];if(PA.period==='week')return [mondayOfWeek(t),t];if(PA.period==='lastmonth'){const d=new Date(`${t.slice(0,8)}01T12:00:00`);d.setMonth(d.getMonth()-1);const f=d.toISOString().slice(0,10);const x=new Date(`${t.slice(0,8)}01T12:00:00`);x.setDate(0);return [f,x.toISOString().slice(0,10)]}if(PA.period==='year')return [t.slice(0,4)+'-01-01',t];if(PA.period==='all')return ['0000-01-01','9999-12-31'];if(PA.period==='custom')return [PA.from||t,PA.to||t];return [monthStart,t]})();
@@ -275,34 +282,34 @@
       view&&h(DashboardBackBar,{title:'Biomedical Equipment',viewTitle,onBack:backToDashboard}),
       view&&itemsMissing&&['items','receive','purchases','register'].includes(view)&&h('div',{className:'message warning',style:{marginBottom:'12px'}},'Equipment Items and Receive / Purchase are not installed yet. Please run supabase/sql/164_equipment_item_master_purchases.sql once in Supabase.'),
       view==='requests'&&h(EquipmentCareRequests,{controller:true,patients}),
-      view==='items'&&h(Section,{title:'Equipment Items',subtitle:'Each kind of equipment is created ONCE and gets its item code (BME-001, BME-002 …). Its pieces are numbered after it (BME-001-01, BME-001-02 …). Link the Charge Master rate if residents are charged for it.'},
-        who.controller&&h('form',{onSubmit:saveItem,className:'equip-inline-form',style:{marginTop:0,marginBottom:'14px'}},
+      view==='items'&&h(Section,{title:billingAdmin?'Equipment & Billing':'Equipment Types',subtitle:billingAdmin?'Choose Edit to manage a type and its resident billing rate. Add physical pieces through Add Equipment.':'Equipment names and details. Use Add Equipment to register new equipment or more pieces.'},
+        who.controller&&itemForm.id&&h('form',{onSubmit:saveItem,className:'equip-inline-form',style:{marginTop:0,marginBottom:'14px'}},
           h('h4',{style:{margin:'0 0 10px'}},itemForm.id?`Edit ${(items.find(i=>i.id===itemForm.id)||{}).item_code||''}`:'New equipment item'),
           h('div',{className:'grid two'},
             h('div',{className:'field'},h('label',null,'Equipment name *'),h('input',{required:true,value:itemForm.item_name,onChange:e=>setItemForm({...itemForm,item_name:e.target.value}),placeholder:'e.g. Pulse Oximeter, Air Mattress'})),
-            h('div',{className:'field'},h('label',null,'Charge Master rate'),h('select',{value:itemForm.charge_key,onChange:e=>{const it=bio.find(b=>`${b.charge_code||''}|${b.service_name}`===e.target.value);setItemForm({...itemForm,charge_key:e.target.value,item_name:itemForm.item_name||String(it?.service_name||'').replace(/\s*\(per day\)\s*$/i,'')})}},h('option',{value:''},'Not charged to residents'),bio.map(b=>h('option',{key:`${b.charge_code}|${b.service_name}`,value:`${b.charge_code||''}|${b.service_name}`},`${b.charge_code?b.charge_code+' · ':''}${b.service_name}`)))),
+            billingAdmin&&h('div',{className:'field'},h('label',null,'Resident billing rate'),h('select',{value:itemForm.charge_key,onChange:e=>setItemForm({...itemForm,charge_key:e.target.value})},h('option',{value:''},'No separate equipment charge'),bio.map(b=>h('option',{key:`${b.charge_code}|${b.service_name}`,value:`${b.charge_code||''}|${b.service_name}`},`${b.charge_code?b.charge_code+' · ':''}${b.service_name}`)))),
             h('div',{className:'field'},h('label',null,'Notes'),h('input',{value:itemForm.notes,onChange:e=>setItemForm({...itemForm,notes:e.target.value}),placeholder:'Model, size, etc. (optional)'})),
             itemForm.id&&h('div',{className:'field'},h('label',null,'Status'),h('select',{value:itemForm.active?'1':'0',onChange:e=>setItemForm({...itemForm,active:e.target.value==='1'})},h('option',{value:'1'},'Active'),h('option',{value:'0'},'Inactive (no new pieces)')))
           ),
           h('div',{className:'equip-actions'},h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':itemForm.id?'Save Changes':'Create Item'),itemForm.id&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setItemForm(blankItem)},'Cancel'))
         ),
         items.length?h('div',{className:'table-wrap'},h('table',{className:'table'},
-          h('thead',null,h('tr',null,['Item code','Equipment','Charge Master','Pieces','Available','In use','Status',''].map(x=>h('th',{key:x},x)))),
+          h('thead',null,h('tr',null,['Item code','Equipment',...(billingAdmin?['Resident billing']:[]),'Pieces','Available','In use','Status',''].map(x=>h('th',{key:x},x)))),
           h('tbody',null,items.map(i=>{const ps=piecesOf(i);return h('tr',{key:i.id,className:'row-clickable',onClick:()=>{setItemFilter(i.id);setRegStatus('All');openView('register')}},
-            h('td',null,h('strong',null,i.item_code)),h('td',null,i.item_name),h('td',null,i.charge_code?`${i.charge_code} · ${i.charge_service_name||''}`:'Not charged'),
+            h('td',null,h('strong',null,i.item_code)),h('td',null,i.item_name),billingAdmin&&h('td',null,i.charge_code?`${i.charge_code} · ${i.charge_service_name||''}`:'No separate equipment charge'),
             h('td',null,ps.length),h('td',null,ps.filter(x=>x.status==='Available').length),h('td',null,ps.filter(x=>x.status==='In Use').length),
             h('td',null,h('span',{className:'equip-pill',style:{background:i.active?'#e7f6ef':'#eef1f0'}},i.active?'Active':'Inactive')),
             h('td',{onClick:e=>e.stopPropagation()},who.controller&&h('div',{className:'equip-actions',style:{marginTop:0}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>editItem(i)},'Edit'),!ps.length&&!purchases.some(x=>String(x.item_id)===String(i.id))&&h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:()=>deleteItem(i)},'Delete'))))}))
-        )):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},'No equipment items yet. Create the first one above.'),
+        )):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},'No equipment types yet. Use Add Equipment to enter the first equipment name and its pieces.'),
         h('p',{className:'small-note',style:{marginTop:'8px'}},'Tap an item to see its pieces in the Equipment Register.')
       ),
-      view==='receive'&&who.controller&&h(Section,{title:'Receive / Purchase',subtitle:'Pieces come into the register only from here. Each piece gets its code automatically after the item code (BME-001-01, BME-001-02 …).'},
+      view==='receive'&&who.controller&&h(Section,{title:'Add Equipment',subtitle:'Select an existing equipment type or enter a new name, then add its pieces. Codes are generated automatically. Admin manages resident billing separately.'},
         recvDone&&h('div',{className:'message success',style:{marginBottom:'12px'}},`Received ${recvDone.nos.length} × ${recvDone.item.item_name}: `,h('strong',null,recvDone.nos.join(', ')),'. Write these codes on the pieces.'),
-        !items.filter(i=>i.active).length&&h('p',{className:'message',style:{marginBottom:'10px'}},'Create the equipment item first in ',h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openView('items')},'Equipment Items'),'.'),
-        h('form',{onSubmit:doReceive},
+        h('form',{onSubmit:doReceive},h('fieldset',{disabled:busy,style:{border:0,padding:0,margin:0,minWidth:0}},
           h('div',{className:'stores-mode-switch',role:'tablist',style:{marginBottom:'12px'}},[['Purchase','Purchase from vendor'],['Opening stock','Already owned (opening stock)']].map(([k,l])=>h('button',{key:k,type:'button',role:'tab','aria-selected':recv.source===k,className:recv.source===k?'active':'',onClick:()=>setRecv({...recv,source:k})},l))),
           h('div',{className:'grid two'},
-            h('div',{className:'field'},h('label',null,'Equipment item *'),h('select',{required:true,value:recv.item_id,onChange:e=>setRecv({...recv,item_id:e.target.value})},h('option',{value:''},'Select item'),items.filter(i=>i.active).map(i=>h('option',{key:i.id,value:i.id},`${i.item_code} · ${i.item_name}${i.charge_code?'':' (not charged)'}`)))),
+            h('div',{className:'field'},h('label',null,'Equipment'),h('select',{value:recv.item_id,onChange:e=>setRecv({...recv,item_id:e.target.value,item_name:''})},h('option',{value:''},'＋ New equipment type'),items.filter(i=>i.active).map(i=>h('option',{key:i.id,value:i.id},`${i.item_code} · ${i.item_name}`)))),
+            !recv.item_id&&h('div',{className:'field'},h('label',null,'New equipment name *'),h('input',{required:true,value:recv.item_name,onChange:e=>setRecv({...recv,item_name:e.target.value}),placeholder:'e.g. Pulse Oximeter'})),
             h('div',{className:'field'},h('label',null,'Quantity (pieces) *'),h('input',{type:'number',min:'1',max:'100',required:true,value:recv.quantity,onChange:e=>setRecv({...recv,quantity:e.target.value})})),
             h('div',{className:'field'},h('label',null,recv.source==='Purchase'?'Vendor *':'Vendor (if known)'),h('input',{required:recv.source==='Purchase',value:recv.vendor_name,onChange:e=>setRecv({...recv,vendor_name:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Bill / Invoice No.'),h('input',{value:recv.bill_no,onChange:e=>setRecv({...recv,bill_no:e.target.value})})),
@@ -315,8 +322,8 @@
           ),
           recv.unit_cost!==''&&(parseInt(recv.quantity,10)||0)>0&&h('p',{className:'small-note'},`Total: ${money(Number(recv.unit_cost||0)*(parseInt(recv.quantity,10)||0))}`),
           h('div',{className:'field'},h('label',null,'Remarks'),h('input',{value:recv.remarks,onChange:e=>setRecv({...recv,remarks:e.target.value})})),
-          h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Receive into Register')
-        )
+          h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Add Equipment')
+        ))
       ),
       purchaseDetail&&h(RowDetailModal,{title:`BMR-${String(purchaseDetail.receipt_no).padStart(4,'0')} · ${(items.find(i=>String(i.id)===String(purchaseDetail.item_id))||{}).item_name||'Equipment'}`,subtitle:purchaseDetail.source==='Purchase'?'Purchase from vendor':'Already owned (opening stock)',fields:purchaseFields(purchaseDetail),onClose:()=>setPurchaseDetail(null)}),
       view==='purchases'&&h(Section,{title:'Purchase Register',subtitle:`${shownPurchases.length} receipt(s) · ${money(shownPurchases.reduce((a,x)=>a+Number(x.unit_cost||0)*Number(x.quantity||0),0))}`},
