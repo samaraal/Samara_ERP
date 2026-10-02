@@ -40,6 +40,13 @@
     const field=(label,key,type='text',opts={})=>h('div',{className:'field'},h('label',null,label),h('input',{type,value:purchase[key],onChange:e=>setPurchase(v=>({...v,[key]:e.target.value})),...opts}));
     const lineChange=(i,key,value)=>setPurchase(v=>({...v,items:v.items.map((x,j)=>j===i?{...x,[key]:value}:x)}));
     return h('div',{className:'kitchen-cash'},
+      h('style',null,`@media(max-width:760px){
+        .app:has(.kitchen-cash) .samara-float-nav{display:none!important}
+        .app:has(.kitchen-cash) .global-page-tools .global-back-button{display:inline-flex!important}
+        .kitchen-cash{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
+        .kitchen-cash td[data-mobile-label="Action"]{grid-column:1/-1!important;order:-1}
+        .kitchen-cash td[data-mobile-label="Action"] .btn{width:100%;white-space:normal}
+      }`),
       h('div',{className:'card panel dr-head'},h('div',{className:'dr-head-text'},h('h2',null,'Kitchen & Pantry — Cash Management'),h('small',null,'Cash only · Purchases reviewed afterward by Admin'),h('p',{className:'small-note'},`Primary: ${name(w.primary_staff)} · Current in-charge: ${name(w.custodian)}${w.cover_leave?' · Temporary leave cover':''}`)),h('button',{className:'btn btn-secondary',onClick:load},'Refresh')),
       error&&h('p',{className:'message error',role:'alert'},error),notice&&h('p',{className:'message success',role:'status'},notice),
       data.access.return_ready&&h('p',{className:'message',role:'status'},'Return to Duty has been recorded. Spending is paused until Admin arranges cash/stock handback and the primary in-charge accepts it.'),
@@ -68,6 +75,7 @@
         admin&&x.status==='Requested'&&button('Approve Amount','approve_funding',{id:x.id,amount:x.requested_amount,note:''}),admin&&x.status==='Requested'&&button('Decline','decline_funding',{id:x.id,note:''}),
         admin&&x.status==='Approved'&&button('Record Cash Handed Over','handover_cash',{id:x.id,note:''}),
         admin&&['Requested','Approved'].includes(x.status)&&button('Cancel Request','cancel_funding',{id:x.id,note:''}),
+        x.status==='Approved'&&!admin&&h('p',null,'Awaiting Admin to record cash handed over. Receipt confirmation becomes available after that.'),
         x.status==='Handed over'&&x.recipient===actor&&button('Confirm Cash Received','receive_cash',{id:x.id,amount:x.amount,note:''},true))]))),
       tab==='stock'&&h(Section,{title:'Kitchen stock and usage'},h('p',null,'Purchases marked “Add to kitchen stock” appear here. Existing Stores stock remains in its historical register; it is not silently imported or charged again.'),table(['Item','Balance','Low level','Action'],data.stock.map(x=>[x.name,x.quantity+' '+x.unit,x.low_level,actions(spend&&button('Record Usage / Wastage','use_stock',{id:x.id,quantity:'',kind:'Usage',note:''}), (spend||admin)&&button('Set Stock Alert','stock_limit',{id:x.id,amount:x.low_level,note:''}))])),
         h('details',null,h('summary',null,'Stock movement history'),table(['When','Item','Movement','Quantity','Reason','Staff'],data.movements.map(x=>[formatDateTimeIN(x.created_at),data.stock.find(s=>s.id===x.item_id)?.name,x.kind,x.quantity,x.reason,name(x.actor)])))),
