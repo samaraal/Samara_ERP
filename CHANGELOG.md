@@ -1,3 +1,7 @@
+## 2.15.52 — Simple Add Equipment
+
+Create a new equipment type and its physical pieces in one Add Equipment form, or add pieces to an existing type. Store staff enter equipment and purchase details; Admin manages resident billing separately in Equipment & Billing. SQL 187 saves types and pieces atomically, prevents duplicate retry receipts, and protects billing links from non-Admin changes.
+
 ## 2.15.51 — STD stores menu
 
 Remove Consumables, Pharmacy, Biomedical Equipment and Oxygen Cylinders from the STD role menu. Keep Kitchen / Food Stores and the other STD modules. No SQL change.
