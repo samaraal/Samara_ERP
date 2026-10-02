@@ -1,3 +1,7 @@
+## 2.15.51 — STD stores menu
+
+Remove Consumables, Pharmacy, Biomedical Equipment and Oxygen Cylinders from the STD role menu. Keep Kitchen / Food Stores and the other STD modules. No SQL change.
+
 ## 2.15.50 — Mobile kitchen cash actions
 
 Move Kitchen Back to the toolbar on phones and show card actions first so navigation cannot cover cash confirmation. Explain that Admin must record actual handover after approval. No SQL change.
