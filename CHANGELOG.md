@@ -1,3 +1,7 @@
+## 2.15.53 — Bills & Charges escalation to Admin after 30 minutes
+
+If a charge request raised in Bills & Charges is still Pending with Accounts (not approved, partly approved or rejected in Charge Approvals) 30 minutes after it was raised, Admin / Director get an ERP pop-up and a new "Bills & Charges — Not Attended by Accounts" list in Notifications (tap a row to open that exact charge). WhatsApp to Admin / Director (one message per Guest, never repeated per charge) runs every minute through the new Edge Function bill-charge-escalation-dispatch and stays silent until the Meta template samara_billing_escalation is approved and BILLING_WHATSAPP_ENABLED=true is set. Apply supabase/sql/188_bill_charge_accounts_escalation.sql. Charges already pending before SQL 188 is run are listed in the ERP but not sent on WhatsApp.
+
 ## 2.15.52 — Simple Add Equipment
 
 Create a new equipment type and its physical pieces in one Add Equipment form, or add pieces to an existing type. Store staff enter equipment and purchase details; Admin manages resident billing separately in Equipment & Billing. SQL 187 saves types and pieces atomically, prevents duplicate retry receipts, and protects billing links from non-Admin changes.

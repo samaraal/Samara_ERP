@@ -22,6 +22,15 @@
     return true;
   }
 
+  // 2.15.53: Bills & Charges still Pending with Accounts after 30 minutes -> Admin / Director (SQL 188).
+  function openOverdueCharge(a,onNavigate){
+    const target={type:'charge-request',request_id:a?.request_id,patient_id:a?.patient_id,at:Date.now()};
+    try{sessionStorage.setItem('samara-workflow-target',JSON.stringify(target))}catch(_error){}
+    if(typeof onNavigate==='function')onNavigate('Charge Approvals');
+    setTimeout(()=>window.dispatchEvent(new CustomEvent('samara-workflow-target',{detail:target})),0);
+  }
+  function overdueChargeMinutes(m){const n=Number(m||0);return n>=60?`${Math.floor(n/60)} h ${n%60} min`:`${n} min`}
+
   function ClinicalAlertBell({engine,onOpen}){
     const [preview,setPreview]=React.useState(false);
     const rows=(engine?.alerts||[]).slice().sort((a,b)=>{
@@ -63,6 +72,12 @@
     const nursingManager=profile?.role==='Manager'&&(isNursingManagerProfile(profile)||employeeDepartment(profile)==='Nursing');
     const [foodReceiptDue,setFoodReceiptDue]=React.useState([]);
     const [foodReplyAlerts,setFoodReplyAlerts]=React.useState([]);
+    const [overdueCharges,setOverdueCharges]=React.useState([]);
+    async function loadOverdueCharges(){
+      if(!cutoffAdmin)return;
+      try{const {data,error}=await client.rpc('bill_charge_overdue_alerts');if(error)throw error;setOverdueCharges(Array.isArray(data)?data:[]);}
+      catch(_error){/* Needs SQL 188; until then this section simply stays empty. */}
+    }
     async function loadFoodReplyAlerts(){
       if(!foodAccess)return;
       try{const {data,error}=await client.rpc('fv_vendor_reply_alerts');if(error)throw error;setFoodReplyAlerts(Array.isArray(data)?data:[]);}
@@ -90,6 +105,7 @@
         const map={};(patientResult.data||[]).forEach(p=>{map[p.id]=p});
         setPatientsById(map);setStoreRequests(indentResult.data||[]);
         await loadCutoffAttempts();
+        await loadOverdueCharges();
         if(typeof engine?.refresh==='function')await engine.refresh();
       }catch(error){setMessage(error.message||'Unable to refresh notifications.');}
       finally{setLoading(false);}
@@ -100,6 +116,7 @@
       return()=>{if(channel)client.removeChannel(channel)};
     },[profile?.id,nursingManager]);
     React.useEffect(()=>{if(!cutoffAdmin)return;const refresh=()=>loadCutoffAttempts().catch(error=>setMessage(error.message||'Unable to load food cutoff attempts.'));const timer=setInterval(refresh,15000);window.addEventListener('focus',refresh);return()=>{clearInterval(timer);window.removeEventListener('focus',refresh)}},[profile?.id,cutoffAdmin]);
+    React.useEffect(()=>{if(!cutoffAdmin)return;loadOverdueCharges();const timer=setInterval(loadOverdueCharges,60000);window.addEventListener('focus',loadOverdueCharges);return()=>{clearInterval(timer);window.removeEventListener('focus',loadOverdueCharges)}},[profile?.id,cutoffAdmin]);
     React.useEffect(()=>{if(!foodAccess)return;loadFoodReplyAlerts();const timer=setInterval(loadFoodReplyAlerts,30000);window.addEventListener('focus',loadFoodReplyAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadFoodReplyAlerts)}},[profile?.id,foodAccess]);
     React.useEffect(()=>{if(!foodAccess)return;loadFoodReceiptDue();const timer=setInterval(loadFoodReceiptDue,60000);window.addEventListener('focus',loadFoodReceiptDue);return()=>{clearInterval(timer);window.removeEventListener('focus',loadFoodReceiptDue)}},[profile?.id,foodAccess]);
     const overdueClinical=(engine?.alerts||[]).filter(a=>{
@@ -113,10 +130,15 @@
     const metric=(label,value,page,tone)=>h('button',{type:'button',className:'card',onClick:()=>navigate(page),style:{padding:'17px',textAlign:'left',cursor:'pointer',border:`1px solid ${tone||'#ead0de'}`,background:'#fff'}},h('small',null,label),h('strong',{style:{display:'block',fontSize:'28px',color:'#a40855',marginTop:'6px'}},value),h('span',{style:{fontSize:'12px',color:'#725d68'}},'Tap to open'));
     const patientName=row=>{const p=patientsById[row.patient_id];return p?[p.title,p.full_name].filter(Boolean).join(' '):(row.patient_name||'Patient')};
     return h('div',{className:'card panel'},
-      h('div',{className:'panel-head'},h('div',null,h('h3',null,'Notifications'),h('small',null,nursingManager?'Pharmacy & Stores requests and 30-minute nursing escalations.':cutoffAdmin?'Food cutoff attempts and clinical items requiring attention.':'Clinical items requiring attention.')),h('button',{type:'button',className:'btn btn-primary',disabled:loading,onClick:loadNotifications},loading?'Refreshing…':'↻ Refresh')),
+      h('div',{className:'panel-head'},h('div',null,h('h3',null,'Notifications'),h('small',null,nursingManager?'Pharmacy & Stores requests and 30-minute nursing escalations.':cutoffAdmin?'Bills & Charges not attended by Accounts, food cutoff attempts and clinical items requiring attention.':'Clinical items requiring attention.')),h('button',{type:'button',className:'btn btn-primary',disabled:loading,onClick:loadNotifications},loading?'Refreshing…':'↻ Refresh')),
       message?h('div',{className:'message error'},message):null,
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(165px,1fr))',gap:'12px',marginBottom:'18px'}},nursingManager?metric('Store Requests',awaitingApproval.length,'Patient Consumables'):null,nursingManager?metric('Awaiting Handover',awaitingHandover.length,'Patient Consumables'):null,metric('Medication > 30 min',medicineAlerts.length,'Clinical Escalations','#efb6b6'),metric('Care > 30 min',careAlerts.length,'Clinical Escalations','#efcf9c'),nursingManager?metric('Store Discrepancies',discrepancies.length,'Patient Consumables','#efb6b6'):null),
       nursingManager?h('section',{style:{marginBottom:'20px'}},h('h4',null,'Pharmacy & Stores Requests'),h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Item','Quantity','Status','Requested'].map(x=>h('th',{key:x},x)))),h('tbody',null,storeRequests.map(r=>h('tr',{key:r.id,role:'button',tabIndex:0,onClick:()=>navigate('Patient Consumables'),style:{cursor:'pointer',touchAction:'manipulation'}},h('td',null,patientName(r)),h('td',null,r.item_name||'Consumable'),h('td',null,`${r.requested_qty||'—'} ${r.unit||''}`),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)))),storeRequests.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No open Pharmacy & Stores requests.')):null)))):null,
+      cutoffAdmin?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Bills & Charges — Not Attended by Accounts (over 30 minutes)'),h('small',null,'Charge requests still Pending in Charge Approvals 30 minutes after they were raised. India time. Tap a row to open that charge.'),
+        h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Guest','Room','Charge','Qty','Raised by','Raised at','Pending for'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,overdueCharges.map(a=>h('tr',{key:a.request_id,role:'button',tabIndex:0,onClick:()=>openOverdueCharge(a,onNavigate),onKeyDown:e=>{if(e.key==='Enter')openOverdueCharge(a,onNavigate)},style:{cursor:'pointer',touchAction:'manipulation'}},
+            h('td',null,a.guest_name||'Guest'),h('td',null,a.room_label||'—'),h('td',null,[a.category,a.item].filter(Boolean).filter((v,i,arr)=>arr.indexOf(v)===i).join(' · ')),h('td',null,a.quantity??1),h('td',null,a.raised_by_name||'—'),h('td',null,fmt(a.raised_at)),h('td',null,h('span',{className:'badge',style:{background:'#ffe5e7',color:'#b2192d'}},overdueChargeMinutes(a.minutes))))),
+            overdueCharges.length===0?h('tr',null,h('td',{colSpan:7,className:'empty'},'Every charge request has been attended by Accounts within 30 minutes.')):null)))):null,
       cutoffAdmin?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Food Order Cutoff Attempts'),h('small',null,'Latest 100 blocked attempts. India time. Viewing an expired form alone does not create an alert.'),cutoffAttempts.length?cutoffAttempts.map(a=>h('article',{key:a.id,style:{border:'1px solid #efd3d3',borderRadius:'12px',padding:'12px',marginTop:'10px',background:'#fff8f8'}},h('strong',null,`${a.meal_slot} · ${formatDateIN(a.supply_date)} · Blocked`),h('p',null,`${a.actor_name} (${a.actor_role}) attempted ${a.operation==='modify'?'a modification':a.operation==='save'?'to save a draft':'a new order'}.`),h('p',null,`Attempt: ${fmt(a.attempted_at)} · Cutoff: ${fmt(a.deadline)}`))):h('p',{className:'empty'},'No blocked food order attempts.')):null,
       foodAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Food Vendor Replies — Action Needed'),h('small',null,'From the vendor\'s WhatsApp buttons. Returned = the vendor will not supply this order. No reply = nothing tapped 30 minutes after sending.'),
         foodReplyAlerts.length?foodReplyAlerts.map(a=>{const t=foodVendorAlertText(a);return h('article',{key:a.alert_key,style:{border:`1px solid ${t.tone}`,borderLeft:`6px solid ${t.tone}`,borderRadius:'12px',padding:'12px',marginTop:'10px',background:'#fff'}},
@@ -157,7 +179,10 @@
           const since=new Date(Date.now()-2*86400000).toISOString().slice(0,10);
           jobs.push(client.from('medication_administrations').select('id,patient_id,order_id,scheduled_date,scheduled_time,withhold_reason,withhold_reading,doctor_informed_name,administered_at').eq('status','Withheld').is('doctor_instruction',null).gte('scheduled_date',since).limit(50));
         }else jobs.push(Promise.resolve({data:[],error:null}));
-        const [dis,charges,food,withheld]=await Promise.all(jobs);
+        // 2.15.53: charges not attended by Accounts within 30 minutes -> Admin / Director
+        if(foodAdmin)jobs.push(client.rpc('bill_charge_overdue_alerts'));
+        else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges,food,withheld,overdue]=await Promise.all(jobs);
         const candidates=[];
         (dis.data||[]).forEach(row=>{
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
@@ -186,6 +211,12 @@
             const who=pt?`${formalName(pt)||pt.full_name}${pt.room_no?` (Room ${pt.room_no}${pt.bed_no?'-'+pt.bed_no:''})`:''}`:'A resident';
             candidates.push({key:`withheld-${w.id}`,kind:'Medication',title:'Dose withheld — doctor\'s instruction needed',detail:`${who}: ${[od.medicine_name,od.strength].filter(Boolean).join(' ')||'medicine'} (${String(w.scheduled_time||'').slice(0,5)}) was withheld — ${[w.withhold_reason,w.withhold_reading].filter(Boolean).join(', ')}. Doctor informed: ${w.doctor_informed_name||'—'}. Record the doctor's instruction in Medicines.`,page:'Medicines',urgent:true,at:w.administered_at});
           });
+        }
+        if(!overdue?.error&&Array.isArray(overdue?.data)&&overdue.data.length){
+          const list=overdue.data.slice().sort((a,b)=>new Date(a.raised_at)-new Date(b.raised_at));
+          const oldest=list[0],newest=list[list.length-1];
+          const lines=list.slice(0,4).map(a=>`${a.guest_name||'Guest'}${a.room_label?` (${a.room_label})`:''}: ${a.item||a.category||'Charge'} — pending ${overdueChargeMinutes(a.minutes)}`).join('; ');
+          candidates.push({key:`charge-overdue-${newest.request_id}-${list.length}`,kind:'Bills & Charges',title:`${list.length} charge request${list.length===1?'':'s'} not attended by Accounts`,detail:`Not approved / rejected by Accounts within 30 minutes of being raised. ${lines}${list.length>4?`; + ${list.length-4} more (see Notifications)`:''}. Follow up with Accounts.`,page:'Charge Approvals',target:{type:'charge-request',request_id:oldest.request_id,patient_id:oldest.patient_id},urgent:true,at:oldest.raised_at});
         }
         candidates.sort((a,b)=>Number(!!b.urgent)-Number(!!a.urgent)||new Date(b.at||0)-new Date(a.at||0));
         const next=candidates.find(x=>!closed.current.has(x.key));
