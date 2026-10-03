@@ -1,3 +1,7 @@
+## 2.15.57 — Erase Trial Guest works when the Guest has room-tariff adjustments
+
+"Erase Trial Guest" stopped with "Tariff adjustments are permanent audit entries" when a dated room-tariff change had added adjustment rows to the Trial Guest's ledger. The tariff guard now allows those rows to be removed only inside the Trial Guest erase, only for that Guest, and only if the Guest is Trial. Real Guests' tariff adjustments stay permanent; the room's tariff history is kept. Apply supabase/sql/191_trial_purge_tariff_adjustments.sql (after 182 and 171).
+
 ## 2.15.56 — Discharge: open Trial Guest cases no longer hidden silently
 
 The Nursing / main Dashboard counted Trial (test) Guest discharges, but the Discharge page shows "Real only" by default, so open Trial cases (e.g. "2 awaiting Management") seemed to be missing for Admin. Now: each stage box shows "+N 🧪 Trial" for hidden Trial cases, an amber note above the register lists them by stage with a one-tap "Show Trial cases" button, and the Dashboard discharge line says how many are Trial (e.g. "2 awaiting Management (🧪 all Trial)"). Frontend only — no SQL.

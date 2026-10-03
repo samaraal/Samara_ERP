@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.56';
-const CACHE = 'samara-erp-2.15.56-discharge-trial-visible';
+const APP_VERSION = '2.15.57';
+const CACHE = 'samara-erp-2.15.57-trial-erase-tariff';
 const SHELL = [
   './',
   './index.html',

@@ -657,7 +657,7 @@
           const missing=/purge_trial_guest|function .* does not exist|schema cache/i.test(dry.error.message||'');
           notify('error','Cannot erase',missing?'Run supabase/sql/171_trial_guest_purge.sql in Supabase first.':dry.error.message);return;
         }
-        if(!dry.data?.ok){notify('error','Cannot erase yet',`The database refused: ${dry.data?.error||'unknown reason'}. Nothing was changed.`);return}
+        if(!dry.data?.ok){const tariff=/Tariff adjustments are permanent/i.test(dry.data?.error||'');notify('error','Cannot erase yet',tariff?'This Guest has room-tariff adjustment entries. Run supabase/sql/191_trial_purge_tariff_adjustments.sql in Supabase once, then erase again. Nothing was changed.':`The database refused: ${dry.data?.error||'unknown reason'}. Nothing was changed.`);return}
         const removed=dry.data.removed||{};
         const lines=Object.keys(removed).sort().map(k=>`• ${k.replace(/^deleted: /,'').replace(/_/g,' ')} — ${removed[k]}${k.startsWith('detached')?' (kept, unlinked)':k.startsWith('bed')?' (bed becomes Available)':''}`);
         const files={'patient-documents':[],'patient-daily-moments':[]};
@@ -675,7 +675,7 @@
         const norm=v=>String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
         if(!norm(typed)||norm(typed)!==norm(p.patient_id)){notify('error','Not erased',`You typed "${String(typed).trim()}" — the Resident ID is ${p.patient_id}. Nothing was changed.`);return}
         const res=await client.rpc('purge_trial_guest',{p_patient:p.id,p_resident_code:p.patient_id,p_dry_run:false});
-        if(res.error){notify('error','Not erased',`${res.error.message} — nothing was changed.`);return}
+        if(res.error){const tariff=/Tariff adjustments are permanent/i.test(res.error.message||'');notify('error','Not erased',tariff?'This Guest has room-tariff adjustment entries. Run supabase/sql/191_trial_purge_tariff_adjustments.sql in Supabase once, then erase again. Nothing was changed.':`${res.error.message} — nothing was changed.`);return}
         let fileErrors=0;
         for(const [bucket,paths] of Object.entries(files)){
           for(let i=0;i<paths.length;i+=100){const r=await client.storage.from(bucket).remove(paths.slice(i,i+100));if(r.error)fileErrors++;}
@@ -725,7 +725,7 @@
         if(typed===null)return;
         if(String(typed).trim().toUpperCase().replace(/\s+/g,' ')!==confirmText){notify('error','Not erased',`You typed "${String(typed).trim()}" — type ${confirmText}. Nothing was changed.`);return}
         const res=await client.rpc('purge_all_trial_guests',{p_confirm:confirmText,p_dry_run:false});
-        if(res.error){notify('error','Not erased',`${res.error.message} — nothing was changed.`);return}
+        if(res.error){const tariff=/Tariff adjustments are permanent/i.test(res.error.message||'');notify('error','Not erased',tariff?'This Guest has room-tariff adjustment entries. Run supabase/sql/191_trial_purge_tariff_adjustments.sql in Supabase once, then erase again. Nothing was changed.':`${res.error.message} — nothing was changed.`);return}
         let fileErrors=0;
         for(const [bucket,paths] of Object.entries(files)){
           for(let i=0;i<paths.length;i+=100){const r=await client.storage.from(bucket).remove(paths.slice(i,i+100));if(r.error)fileErrors++;}
