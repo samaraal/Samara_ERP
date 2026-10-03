@@ -1,3 +1,7 @@
+## 2.15.60 — Fix: "Manage item list" no longer crashes Food & Diet
+
+Opening ⚙ Manage item list showed "This page had a problem" (a helper used by the window was not available to it). Fixed; no SQL.
+
 ## 2.15.59 — Food item list managed by Admin
 
 Resident Food Intake → Meal now has "⚙ Manage item list" for Admin: per Breakfast / Lunch / Dinner and group (Main item, Sides / curries, Others) Admin can add, rename, reorder (↑ ↓) and remove items, restore removed items, and turn staff-typed "Added earlier" items into list items or hide wrong spellings. Removing or renaming never changes saved meal entries. The list is stored in the new table food_item_list (filled with the current standard list); until supabase/sql/192_food_item_list.sql is run the built-in list is used. Only Admin can change the list.

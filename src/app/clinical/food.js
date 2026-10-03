@@ -63,6 +63,7 @@
   // 2.15.59: Admin manages the food item list (table food_item_list, supabase/sql/192_food_item_list.sql).
   // Remove = hide from the list (saved meal entries keep their text). 'Hidden' rows hide typed "Added earlier" items.
   const FOOD_MEALS=['Tiffin','Lunch','Dinner'];
+  const fimMealLabel=m=>m==='Tiffin'?'Breakfast':m; // same wording as the intake page
   function foodGroupsFrom(listRows,meal){
     if(!listRows)return FOOD_ITEMS[meal]||FOOD_ITEMS.Lunch;
     const out={Main:[],Side:[],Other:[]};
@@ -90,22 +91,22 @@
       const name=clean(nameIn);
       if(name.length<2)return alert('Enter the item name.');
       const existing=listRows.find(r=>r.meal_type===m&&r.item_group===g&&r.name.toLowerCase()===name.toLowerCase());
-      if(existing&&existing.active)return alert(`${name} is already in ${mealLabel(m)} — ${FOOD_GROUP_LABEL[g]}.`);
+      if(existing&&existing.active)return alert(`${name} is already in ${fimMealLabel(m)} — ${FOOD_GROUP_LABEL[g]}.`);
       const last=rowsOf(m,g).slice(-1)[0];
-      return run(`Added ${name} to ${mealLabel(m)} — ${FOOD_GROUP_LABEL[g]}`,()=>existing
+      return run(`Added ${name} to ${fimMealLabel(m)} — ${FOOD_GROUP_LABEL[g]}`,()=>existing
         ?client.from('food_item_list').update({active:true,name,sort_order:(last?.sort_order||0)+10,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',existing.id)
         :client.from('food_item_list').insert({meal_type:m,item_group:g,name,sort_order:(last?.sort_order||0)+10,created_by:profile.id,updated_by:profile.id}),{meal_type:m,item_group:g,name})
         .then(()=>setNewName(n=>({...n,[g]:''})));
     }
     function rename(r){
-      const v=window.prompt(`Rename "${r.name}" (${mealLabel(r.meal_type)} — ${FOOD_GROUP_LABEL[r.item_group]}).\nSaved meal entries keep the old name.`,r.name);
+      const v=window.prompt(`Rename "${r.name}" (${fimMealLabel(r.meal_type)} — ${FOOD_GROUP_LABEL[r.item_group]}).\nSaved meal entries keep the old name.`,r.name);
       if(v===null)return;const name=clean(v);
       if(name.length<2||name===r.name)return;
-      return run(`Renamed ${r.name} → ${name} (${mealLabel(r.meal_type)})`,()=>client.from('food_item_list').update({name,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',r.id),{from:r.name,to:name});
+      return run(`Renamed ${r.name} → ${name} (${fimMealLabel(r.meal_type)})`,()=>client.from('food_item_list').update({name,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',r.id),{from:r.name,to:name});
     }
     function setActive(r,active){
-      if(!active&&!window.confirm(`Remove "${r.name}" from the ${mealLabel(r.meal_type)} list?\nIt will no longer appear in "Add food item". Saved meal entries are not changed. You can restore it later.`))return;
-      return run(`${active?'Restored':'Removed'} ${r.name} (${mealLabel(r.meal_type)})`,()=>client.from('food_item_list').update({active,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',r.id),{name:r.name,meal_type:r.meal_type});
+      if(!active&&!window.confirm(`Remove "${r.name}" from the ${fimMealLabel(r.meal_type)} list?\nIt will no longer appear in "Add food item". Saved meal entries are not changed. You can restore it later.`))return;
+      return run(`${active?'Restored':'Removed'} ${r.name} (${fimMealLabel(r.meal_type)})`,()=>client.from('food_item_list').update({active,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',r.id),{name:r.name,meal_type:r.meal_type});
     }
     async function move(r,d){
       const list=rowsOf(r.meal_type,r.item_group);const i=list.findIndex(x=>x.id===r.id);const j=i+d;
@@ -125,7 +126,7 @@
     return h('div',{className:'modal-backdrop row-detail-backdrop',onClick:e=>{if(e.target===e.currentTarget)onClose()}},
       h('div',{className:'card modal row-detail-modal fim-modal',role:'dialog','aria-modal':'true','aria-label':'Manage food item list'},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Manage Food Item List'),h('small',null,'Admin only · changes apply to new entries; saved meal entries are never changed')),h('button',{type:'button',className:'close',onClick:onClose,'aria-label':'Close'},'×')),
-        h('div',{className:'fi-switch fim-meals',role:'tablist'},FOOD_MEALS.map(m=>h('button',{key:m,type:'button',role:'tab','aria-selected':meal===m,className:meal===m?'active':'',onClick:()=>setMeal(m)},mealLabel(m)))),
+        h('div',{className:'fi-switch fim-meals',role:'tablist'},FOOD_MEALS.map(m=>h('button',{key:m,type:'button',role:'tab','aria-selected':meal===m,className:meal===m?'active':'',onClick:()=>setMeal(m)},fimMealLabel(m)))),
         ['Main','Side','Other'].map(g=>h('div',{key:g,className:'fim-group'},
           h('h4',null,`${FOOD_GROUP_LABEL[g]} (${rowsOf(meal,g).length})`),
           h('div',{className:'fim-list'},rowsOf(meal,g).map((r,i,arr)=>h('div',{key:r.id,className:'fim-item'},
@@ -136,9 +137,9 @@
               h('button',{type:'button',title:'Rename','aria-label':`Rename ${r.name}`,disabled:busy,onClick:()=>rename(r)},'✎'),
               h('button',{type:'button',className:'fim-del',title:'Remove from list','aria-label':`Remove ${r.name}`,disabled:busy,onClick:()=>setActive(r,false)},'✕'))))),
           h('div',{className:'fim-add'},
-            h('input',{type:'text',maxLength:60,value:newName[g],placeholder:`New ${FOOD_GROUP_LABEL[g].toLowerCase()} for ${mealLabel(meal)}`,onChange:e=>setNewName({...newName,[g]:e.target.value}),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();add(g,newName[g])}}}),
+            h('input',{type:'text',maxLength:60,value:newName[g],placeholder:`New ${FOOD_GROUP_LABEL[g].toLowerCase()} for ${fimMealLabel(meal)}`,onChange:e=>setNewName({...newName,[g]:e.target.value}),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();add(g,newName[g])}}}),
             h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>add(g,newName[g])},'＋ Add')))),
-        removed.length>0&&h('div',{className:'fim-group'},h('h4',null,`Removed items — ${mealLabel(meal)} (${removed.length})`),
+        removed.length>0&&h('div',{className:'fim-group'},h('h4',null,`Removed items — ${fimMealLabel(meal)} (${removed.length})`),
           h('div',{className:'fim-list'},removed.map(r=>h('div',{key:r.id,className:'fim-item fim-removed'},h('span',{className:'fim-name'},`${r.name} · ${FOOD_GROUP_LABEL[r.item_group]}`),h('span',{className:'fim-actions'},h('button',{type:'button',disabled:busy,onClick:()=>setActive(r,true)},'↺ Restore')))))),
         h('div',{className:'fim-group fim-typed'},
           h('h4',null,`Typed by staff — "Added earlier" (${earlierItems.length})`),
@@ -146,7 +147,7 @@
           earlierItems.length?h('div',{className:'fim-list'},earlierItems.map(name=>{const tgt=promote[name]||{meal_type:meal,item_group:'Side'};return h('div',{key:name,className:'fim-item'},
             h('span',{className:'fim-name'},name),
             h('span',{className:'fim-actions fim-promote'},
-              h('select',{value:tgt.meal_type,'aria-label':`Meal for ${name}`,onChange:e=>setPromote({...promote,[name]:{...tgt,meal_type:e.target.value}})},FOOD_MEALS.map(m=>h('option',{key:m,value:m},mealLabel(m)))),
+              h('select',{value:tgt.meal_type,'aria-label':`Meal for ${name}`,onChange:e=>setPromote({...promote,[name]:{...tgt,meal_type:e.target.value}})},FOOD_MEALS.map(m=>h('option',{key:m,value:m},fimMealLabel(m)))),
               h('select',{value:tgt.item_group,'aria-label':`Group for ${name}`,onChange:e=>setPromote({...promote,[name]:{...tgt,item_group:e.target.value}})},['Main','Side','Other'].map(g=>h('option',{key:g,value:g},FOOD_GROUP_LABEL[g]))),
               h('button',{type:'button',disabled:busy,onClick:()=>add(tgt.item_group,name,tgt.meal_type)},'＋ Add to list'),
               h('button',{type:'button',className:'fim-del',disabled:busy,onClick:()=>hideTyped(name)},'Hide')))})):h('p',{className:'fi-empty'},'No typed items.'),
