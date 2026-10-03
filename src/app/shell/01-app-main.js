@@ -545,7 +545,7 @@
 
         const allowedPages=allowedPagesForProfile(data);
         const storedPage=readLastOpenPage();
-        const savedPage=storedPage==='Outgoing Payments'?'Payments & Vouchers':storedPage;
+        const savedPage=(storedPage==='Outgoing Payments'||storedPage==='Payments & Vouchers')&&allowedPages.includes('Payment Requests')?'Payment Requests':storedPage==='Outgoing Payments'?'Payments & Vouchers':storedPage;
         const firstWorkspaceLoad=workspaceInitialisedForUserRef.current!==session.user.id;
 
         if(firstWorkspaceLoad){

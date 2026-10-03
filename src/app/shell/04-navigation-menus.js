@@ -19,13 +19,13 @@
             onClick:()=>toggle(section.title),
             'aria-expanded':expanded
           },h('span',null,section.title),h('span',{className:'nav-chevron','aria-hidden':'true'},expanded?'−':'+')),
-          expanded&&h('div',{className:'nav nav-submenu'},section.items.map(item=>item==='Food & Diet'?h(FoodNavigationLinks,{key:item,profile,page,onNavigate:setPage}):h('button',{
+          expanded&&h('div',{className:'nav nav-submenu'},section.items.map((item,i)=>{const sub=navSubheadBefore(section.title,section.items,i);const node=item==='Food & Diet'?h(FoodNavigationLinks,{key:item,profile,page,onNavigate:setPage}):h('button',{
             key:item,
             type:'button',
             'data-nav':item,
             className:page===item?'active':'',
             onClick:()=>setPage(item)
-          },displayNavLabel(item,profile.role))))
+          },displayNavLabel(item,profile.role));return sub?h(React.Fragment,{key:item},h('div',{className:'nav-subhead',role:'presentation'},sub),node):node}))
         );
       })),
       h('div',{className:'sidebar-footer'},
@@ -98,7 +98,7 @@
     const [openSection,setOpenSection]=React.useState(activeSection);
     React.useEffect(()=>{const next=sections.find(section=>section.items.includes(page))?.title;if(next)setOpenSection(next)},[page]);
     const sectionIcon=title=>/OVERVIEW/.test(title)?'⌂':/HR|STAFF/.test(title)?'♙':/ADMISSION/.test(title)?'♥':/PATIENT/.test(title)?'⚕\uFE0E':/ROOM/.test(title)?'▦':/PHARMACY|STORE/.test(title)?'♨':/FOOD/.test(title)?'🍽\uFE0E':/CHARGE/.test(title)?'₹':/ACCOUNT.*BILL|BILLING|PAYMENT|FINANCE/.test(title)?'₹':/COMMUNICATION|WHATSAPP/.test(title)?'✉\uFE0E':/MY ACCOUNT|PROFILE/.test(title)?'☺\uFE0E':/DUTY|ROSTER|LEAVE/.test(title)?'◷':/DIRECTOR/.test(title)?'★':/CLINICAL|NURSING/.test(title)?'✚':'⚙\uFE0E';
-    const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Consumables'?'▤':item==='Pharmacy'?'✚':item==='Housekeeping & General'?'🧺\uFE0E':item==='Kitchen / Food Stores'?'🍽\uFE0E':item==='Biomedical Equipment'?'⚕\uFE0E':item==='Oxygen Cylinders'?'◉':item==='Stores'?'▥':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My To-Do List'?'✓':'›';
+    const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Consumables'?'▤':item==='Pharmacy'?'✚':item==='Housekeeping & General'?'🧺\uFE0E':item==='Kitchen / Food Stores'?'🍽\uFE0E':item==='Biomedical Equipment'?'⚕\uFE0E':item==='Oxygen Cylinders'?'◉':item==='Stores'?'▥':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My To-Do List'?'✓':item==='Accounts Dashboard'?'◫':['Charge Approvals','Payments','Patient Ledger','Final Billing','Refunds'].includes(item)?'₹':item==='Discharge Clearance'?'⇥':item==='Package Expiry Dashboard'?'◷':['Payment Requests','Payments & Vouchers'].includes(item)?'↗':item==='Approved—Ready to Pay'?'✓':item==='Payment Vouchers'?'▤':item==='Payment Statements'?'≡':item==='Accounts Reports'?'▦':'›';
     React.useEffect(()=>{
       const onKey=e=>{if(e.key==='Escape')onClose()};
       document.addEventListener('keydown',onKey);
@@ -138,7 +138,7 @@
         h('button',{type:'button',className:`mobile-drawer-home ${page===home?'active':''}`,onClick:()=>onNavigate(home)},(CLINICAL_ROLES.includes(profile.role)||isNursingManagerProfile(profile))?'⌂  Nursing Dashboard':'⌂  Dashboard'),
         h('div',{className:'mobile-drawer-scroll'},sections.map(section=>{const expanded=openSection===section.title;return h('section',{className:`mobile-drawer-group ${expanded?'expanded':''}`,key:section.title},
           h('button',{type:'button',className:'mobile-drawer-group-head',onClick:()=>setOpenSection(current=>current===section.title?'':section.title),'aria-expanded':expanded},h('span',{className:'mobile-drawer-group-icon'},sectionIcon(section.title)),h('span',null,section.title),h('span',{className:'mobile-drawer-group-chevron'},expanded?'−':'+')),
-          expanded?h('div',{className:'mobile-drawer-items'},section.items.map(item=>item==='Food & Diet'?h(FoodNavigationLinks,{key:item,profile,page,onNavigate,mobile:true}):h('button',{type:'button',key:item,'data-nav':item,className:page===item?'active':'',onClick:()=>onNavigate(item)},h('span',{className:'mobile-drawer-item-icon'},itemIcon(item)),h('span',null,displayNavLabel(item,profile.role)),h('span',{className:'mobile-drawer-item-arrow'},'›')))):null
+          expanded?h('div',{className:'mobile-drawer-items'},section.items.map((item,i)=>{const sub=navSubheadBefore(section.title,section.items,i);const node=item==='Food & Diet'?h(FoodNavigationLinks,{key:item,profile,page,onNavigate,mobile:true}):h('button',{type:'button',key:item,'data-nav':item,className:page===item?'active':'',onClick:()=>onNavigate(item)},h('span',{className:'mobile-drawer-item-icon'},itemIcon(item)),h('span',null,displayNavLabel(item,profile.role)),h('span',{className:'mobile-drawer-item-arrow'},'›'));return sub?h(React.Fragment,{key:item},h('div',{className:'mobile-drawer-subhead',role:'presentation'},sub),node):node})):null
         )})),
         h('div',{className:'mobile-drawer-footer'},
           h('button',{type:'button',className:'mobile-update-button',onClick:samaraOpenAppHelp},'⚙  App Help / Repair'),

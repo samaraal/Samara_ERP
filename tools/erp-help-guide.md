@@ -25,7 +25,7 @@ A resident's medicines can be added, changed or stopped only through "Doctor Rev
 Nurses can view a resident's personal details but cannot edit them; personal details are changed by Admin / Admissions. Nurses do doctor reviews from the Medicines page, not from the admission form.
 
 ## Bills & Charges (Charge Approvals)
-Charges come from the Admin-controlled Charge Master (same items and codes everywhere). Nurses raise charges from "Raise Bill / Charge Request" and do not see amounts. Accounts reviews every request in ACCOUNTS / BILLING → Charge Approvals and chooses Approve, Partial or Reject; approved charges are posted to the patient ledger. Categories that Admin marks as needing Nursing Manager approval (Nursing Procedures by default) cannot be raised directly — use NURSING → Approval Requests: choose the category and the item → the Nursing Manager approves → the nurse presses "Confirm & Start", which also raises the charge.
+Charges come from the Admin-controlled Charge Master (same items and codes everywhere). Nurses raise charges from "Raise Bill / Charge Request" and do not see amounts. Accounts reviews every request in ACCOUNTS / BILLING → Bills & Charges Approval (earlier called Charge Approvals) and chooses Approve, Partial or Reject; approved charges are posted to the patient ledger. Categories that Admin marks as needing Nursing Manager approval (Nursing Procedures by default) cannot be raised directly — use NURSING → Approval Requests: choose the category and the item → the Nursing Manager approves → the nurse presses "Confirm & Start", which also raises the charge.
 
 ## Consumables and Pharmacy — indent flow
 For Consumables / Pharmacy items a nurse cannot raise a charge directly. The flow is: Raise Indent → Nursing Manager approval → Stores hands over → nurse marks Received → item is used for the patient → unused items are returned. Example: order 10, receive 10, use 8, return 2. Only received items that are not yet charged or returned can be charged. The Nursing Manager is also the store keeper and handles indents. Pages: Raise Indent, Received Indents / Used Balance, Patient Consumables (NURSING), Consumables / Pharmacy (PHARMACY & STORES).
@@ -38,7 +38,7 @@ For Consumables / Pharmacy items a nurse cannot raise a charge directly. The flo
 The "Discharge timeline & departure follow-up" section shows each case with its date and time. If the patient already left before final clearance, Nursing uses "Patient already left — report late departure".
 
 ## Payments
-Accounts records payments in ACCOUNTS / BILLING → Payments: cash, UPI, RTGS (a transaction reference number is mandatory for UPI/RTGS), advance payments, online payment links and QR codes, and WhatsApp payment links. Refunds at discharge go through verification by Accounts and a separate Admin approval.
+Accounts records Guest payments in ACCOUNTS / BILLING → Guest Payments / Receipts (earlier called Payments): cash, UPI, RTGS (a transaction reference number is mandatory for UPI/RTGS), advance payments, online payment links and QR codes, and WhatsApp payment links. Refunds at discharge go through verification by Accounts and a separate Admin approval.
 
 ## Duty, leave and swaps
 HR → Duty Assignment / Duty Calendar shows and assigns duties (a voice assistant can fill the Assign Duty form from a spoken command). Staff apply for leave or permission in "My Leave & Permission"; approvers use "Leave Approvals". "Temporary Duty Swap", "Additional Duty Assignment" and "Leave Cover" handle swaps and cover duties. Staff returning early from leave submit a Return to Duty request.
@@ -57,3 +57,6 @@ Families of residents use the Family Portal (family.samaraassistedliving.com) wi
 - "Not permitted" / a page missing: your role does not have that action; ask your Manager or Admin.
 - A save fails with a red message: read the message — it says what is missing (for example a mandatory field, a reference number, or an approval that must come first).
 - Still stuck: take a screenshot and ask the Help / உதவி assistant, or contact Admin.
+
+## Accounts menu layout (2.15.58)
+ACCOUNTS / BILLING starts with Accounts Dashboard, then three groups. Guest Billing (money in): Bills & Charges Approval, Guest Payments / Receipts, Guest Ledger (earlier "Patient Ledger"), Final Billing, Discharge Clearance, Refunds, Package Expiry. Outgoing Payments (money out — vendors, staff, expenses): Payment Requests (earlier also listed as "Payments & Vouchers" — same screen), Approved — Ready to Pay, Payment Vouchers, Payment Statements. Reports: Accounts Reports. Guest Ledger and Final Billing are now only under ACCOUNTS / BILLING, not under PATIENTS.

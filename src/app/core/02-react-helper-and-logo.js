@@ -11,14 +11,14 @@
     }
     return React.createElement(type,props,...children);
   }
-  const ACCOUNTS_WORKFLOW_PAGES = ['Accounts Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','Package Expiry Dashboard'];
+  const ACCOUNTS_WORKFLOW_PAGES = ['Accounts Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard','Accounts Reports']; // 2.15.58: same order as the side menu
   function AccountsWorkflowNavigation({page,allowed,onNavigate}){
     if(!ACCOUNTS_WORKFLOW_PAGES.includes(page))return null;
     return h('nav',{className:'accounts-workflow-nav','aria-label':'Accounts workflow'},
       ACCOUNTS_WORKFLOW_PAGES.filter(item=>allowed.includes(item)).map(item=>
         h('button',{key:item,type:'button',className:`btn ${item===page?'btn-primary samara-action-selected':'btn-secondary'}`,
           'aria-current':item===page?'page':undefined,onClick:()=>{if(item!==page)onNavigate(item)}},
-          item==='Accounts Dashboard'?'Accounts Home':item==='Package Expiry Dashboard'?'Package Expiry':item)));
+          item==='Accounts Dashboard'?'Accounts Home':(ACCOUNTS_NAV_LABELS[item]||item))));
   }
   const BRAND_LOGO_SRC='./assets/samara-logo.png?v=20260814-final';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;

@@ -1,3 +1,7 @@
+## 2.15.58 — Accounts / Billing menu reorganised
+
+Accounts Dashboard is now first, followed by three labelled groups: Guest Billing · money in (Bills & Charges Approval, Guest Payments / Receipts, Guest Ledger, Final Billing, Discharge Clearance, Refunds, Package Expiry), Outgoing Payments · money out (Payment Requests, Approved — Ready to Pay, Payment Vouchers, Payment Statements) and Reports (Accounts Reports). "Payments & Vouchers" is no longer listed separately (it opened the same screen as Payment Requests; old saved links still work). Outgoing items have proper icons. Guest Ledger and Final Billing appear only under ACCOUNTS / BILLING (removed from PATIENTS). Nurses still see "Bills & Charges". The Accounts tab bar uses the same names and order. Help assistant knowledge refreshed. Menu only — no page, data or permission changes; no SQL.
+
 ## 2.15.57 — Erase Trial Guest works when the Guest has room-tariff adjustments
 
 "Erase Trial Guest" stopped with "Tariff adjustments are permanent audit entries" when a dated room-tariff change had added adjustment rows to the Trial Guest's ledger. The tariff guard now allows those rows to be removed only inside the Trial Guest erase, only for that Guest, and only if the Guest is Trial. Real Guests' tariff adjustments stay permanent; the room's tariff history is kept. Apply supabase/sql/191_trial_purge_tariff_adjustments.sql (after 182 and 171).

@@ -27,7 +27,7 @@ for sec in re.split(r'\n## ', guide)[1:]:
 nav_js = r"""
 const src=require('fs').readFileSync(process.argv[1],'utf8');
 const a=src.indexOf('const NAV_SECTIONS');const b=src.indexOf('const isNursingManagerProfile');
-eval(src.slice(a,b)+';process.stdout.write(JSON.stringify({NAV_SECTIONS,ROLE_NAV,ROLE_HOME}))');
+eval('const CM_PAGE_PREFIX="Charge Master · ";const CHARGE_MASTER_PAGES=[];'+src.slice(a,b)+';process.stdout.write(JSON.stringify({NAV_SECTIONS,ROLE_NAV,ROLE_HOME}))');
 """
 nav = json.loads(subprocess.check_output(['node', '-e', nav_js, os.path.join(ROOT, 'src/app/core/04-supabase-roles-navigation.js')]))
 section_of = {i: s['title'] for s in nav['NAV_SECTIONS'] for i in s['items']}

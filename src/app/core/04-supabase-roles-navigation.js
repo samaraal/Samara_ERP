@@ -92,6 +92,38 @@
   const displayName = row => formalName(row);
   const ROOM_NUMBER_OPTIONS = Array.from({length:26},(_,i)=>String(100+i));
   const BED_CODE_OPTIONS = ['A','B','C','D'];
+  // 2.15.58: Accounts menu — Dashboard first, then Guest Billing (money in), Outgoing Payments
+  // (money out), Reports. 'Payments & Vouchers' opens the same screen as 'Payment Requests', so
+  // the menu shows only 'Payment Requests' (the page key stays valid for saved links).
+  const ACCOUNTS_NAV_GROUPS=[
+    {label:'',items:['Accounts Dashboard']},
+    {label:'Guest Billing · money in',items:['Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard']},
+    {label:'Outgoing Payments · money out',items:['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements']},
+    {label:'Reports',items:['Accounts Reports']}
+  ];
+  const ACCOUNTS_NAV_ORDER=ACCOUNTS_NAV_GROUPS.flatMap(g=>g.items);
+  const ACCOUNTS_NAV_LABELS={
+    'Charge Approvals':'Bills & Charges Approval',
+    'Payments':'Guest Payments / Receipts',
+    'Patient Ledger':'Guest Ledger',
+    'Package Expiry Dashboard':'Package Expiry'
+  };
+  // Sub-heading to show above items[i] in the ACCOUNTS / BILLING menu (or '' for none).
+  const navSubheadBefore=(sectionTitle,items,i)=>{
+    if(sectionTitle!=='ACCOUNTS / BILLING')return '';
+    const group=ACCOUNTS_NAV_GROUPS.find(g=>g.items.includes(items[i]));
+    if(!group||!group.label)return '';
+    const prev=i>0?ACCOUNTS_NAV_GROUPS.find(g=>g.items.includes(items[i-1])):null;
+    return prev===group?'':group.label;
+  };
+  const tidyAccountsSection=sections=>sections.map(section=>{
+    if(section.title!=='ACCOUNTS / BILLING')return section;
+    let items=[...new Set(section.items)];
+    if(items.includes('Payment Requests'))items=items.filter(x=>x!=='Payments & Vouchers');
+    const rank=x=>{const i=ACCOUNTS_NAV_ORDER.indexOf(x);return i<0?999:i};
+    items.sort((a,b)=>rank(a)-rank(b));
+    return {...section,items};
+  });
   const NAV_SECTIONS = [
     { title:'OVERVIEW', items:['Dashboard','Notifications'] },
     { title:'ADMIN', items:['Temporary Duty Swap','Additional Duty Assignment','Rooms','Care Packages','Shift Management','Stores Master','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
@@ -99,12 +131,12 @@
     { title:'HR', items:['HR Dashboard','Employees','Duty Assignment','Duty Calendar','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiries & Feedback'] },
     { title:'ADMISSION', items:['Enquiries','Spot Assessment','Admissions','Admission Register'] },
-    { title:'PATIENTS', items:['Patients','Discharge','Documents','Recovery Timeline','Intelligent Reports','Family Communication','Incidents','Medication Errors','Patient Ledger','Final Billing'] },
+    { title:'PATIENTS', items:['Patients','Discharge','Documents','Recovery Timeline','Intelligent Reports','Family Communication','Incidents','Medication Errors'] }, // 2.15.58: Guest Ledger / Final Billing live only under ACCOUNTS
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Approval Requests','Charge Register','Physiotherapy','Special Nurse','Shift Handover'] },
     { title:'PHARMACY & STORES', items:['Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
-    { title:'ACCOUNTS / BILLING', items:['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
+    { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Reports'] }, // keep in step with ACCOUNTS_NAV_GROUPS
     { title:'COMMUNICATION', items:['WhatsApp Inbox','WhatsApp Logs','Feedback','Mail Dashboard'] },
     { title:'MY ACCOUNT', items:['My Profile'] }
   ];
@@ -197,9 +229,10 @@
     // v2.14.66: the Nursing Manager (store keeper) sees every patient indent here.
     if(item==='Patient Consumables'&&role==='Manager')return 'Indent Register';
     if(item==='Duty Assignment'&&(CLINICAL_ROLES.includes(role)||role==='Manager'))return 'My Duty';
-    return CLINICAL_ROLES.includes(role)?(ROLE_LABELS[item]||item):item;
+    return CLINICAL_ROLES.includes(role)?(ROLE_LABELS[item]||item):(ACCOUNTS_NAV_LABELS[item]||item);
   };
-  const sectionsFor = (allowed,role,canManageDuties=role==='Admin') => {
+  const sectionsFor = (allowed,role,canManageDuties=role==='Admin') => tidyAccountsSection(sectionsForRaw(allowed,role,canManageDuties));
+  const sectionsForRaw = (allowed,role,canManageDuties=role==='Admin') => {
     if(allowed.some(item=>['Temporary Duty Swap','Leave Cover','Additional Duty Assignment'].includes(item))){const dutyItems=allowed.filter(item=>['Temporary Duty Swap','Leave Cover','Additional Duty Assignment'].includes(item));const sections=sectionsFor(allowed.filter(item=>!dutyItems.includes(item)),role,canManageDuties);const title=canManageDuties?'ADMIN':'MY ACCOUNT';let section=sections.find(item=>item.title===title);if(!section){section={title,items:[]};sections.splice(canManageDuties?1:sections.length,0,section)}section.items.push(...dutyItems);return sections;}
     if(role!=='Admin'&&allowed.includes('Payment Requests')){const items=allowed.filter(x=>['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(x));const sections=sectionsFor(allowed.filter(x=>!items.includes(x)),role,canManageDuties);const accounts=sections.find(s=>s.title==='ACCOUNTS / BILLING');if(accounts)accounts.items=[...items,...accounts.items];else sections.push({title:'ACCOUNTS / BILLING',items});return sections;}
     if(CLINICAL_ROLES.includes(role)){

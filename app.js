@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.57';
+  const APP_VERSION = '2.15.58';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '03-Oct-2026 Trial erase tariff fix';
+  const APP_BUILD_DATE = '03-Oct-2026 Accounts menu reorganised';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -566,14 +566,14 @@ function initSamaraInaugurationInvitation(){
     }
     return React.createElement(type,props,...children);
   }
-  const ACCOUNTS_WORKFLOW_PAGES = ['Accounts Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','Package Expiry Dashboard'];
+  const ACCOUNTS_WORKFLOW_PAGES = ['Accounts Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard','Accounts Reports']; // 2.15.58: same order as the side menu
   function AccountsWorkflowNavigation({page,allowed,onNavigate}){
     if(!ACCOUNTS_WORKFLOW_PAGES.includes(page))return null;
     return h('nav',{className:'accounts-workflow-nav','aria-label':'Accounts workflow'},
       ACCOUNTS_WORKFLOW_PAGES.filter(item=>allowed.includes(item)).map(item=>
         h('button',{key:item,type:'button',className:`btn ${item===page?'btn-primary samara-action-selected':'btn-secondary'}`,
           'aria-current':item===page?'page':undefined,onClick:()=>{if(item!==page)onNavigate(item)}},
-          item==='Accounts Dashboard'?'Accounts Home':item==='Package Expiry Dashboard'?'Package Expiry':item)));
+          item==='Accounts Dashboard'?'Accounts Home':(ACCOUNTS_NAV_LABELS[item]||item))));
   }
   const BRAND_LOGO_SRC='./assets/samara-logo.png?v=20260814-final';
   const BRAND_LOGO_URL=new URL(BRAND_LOGO_SRC,window.location.href).href;
@@ -1660,6 +1660,38 @@ function initSamaraInaugurationInvitation(){
   const displayName = row => formalName(row);
   const ROOM_NUMBER_OPTIONS = Array.from({length:26},(_,i)=>String(100+i));
   const BED_CODE_OPTIONS = ['A','B','C','D'];
+  // 2.15.58: Accounts menu — Dashboard first, then Guest Billing (money in), Outgoing Payments
+  // (money out), Reports. 'Payments & Vouchers' opens the same screen as 'Payment Requests', so
+  // the menu shows only 'Payment Requests' (the page key stays valid for saved links).
+  const ACCOUNTS_NAV_GROUPS=[
+    {label:'',items:['Accounts Dashboard']},
+    {label:'Guest Billing · money in',items:['Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard']},
+    {label:'Outgoing Payments · money out',items:['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements']},
+    {label:'Reports',items:['Accounts Reports']}
+  ];
+  const ACCOUNTS_NAV_ORDER=ACCOUNTS_NAV_GROUPS.flatMap(g=>g.items);
+  const ACCOUNTS_NAV_LABELS={
+    'Charge Approvals':'Bills & Charges Approval',
+    'Payments':'Guest Payments / Receipts',
+    'Patient Ledger':'Guest Ledger',
+    'Package Expiry Dashboard':'Package Expiry'
+  };
+  // Sub-heading to show above items[i] in the ACCOUNTS / BILLING menu (or '' for none).
+  const navSubheadBefore=(sectionTitle,items,i)=>{
+    if(sectionTitle!=='ACCOUNTS / BILLING')return '';
+    const group=ACCOUNTS_NAV_GROUPS.find(g=>g.items.includes(items[i]));
+    if(!group||!group.label)return '';
+    const prev=i>0?ACCOUNTS_NAV_GROUPS.find(g=>g.items.includes(items[i-1])):null;
+    return prev===group?'':group.label;
+  };
+  const tidyAccountsSection=sections=>sections.map(section=>{
+    if(section.title!=='ACCOUNTS / BILLING')return section;
+    let items=[...new Set(section.items)];
+    if(items.includes('Payment Requests'))items=items.filter(x=>x!=='Payments & Vouchers');
+    const rank=x=>{const i=ACCOUNTS_NAV_ORDER.indexOf(x);return i<0?999:i};
+    items.sort((a,b)=>rank(a)-rank(b));
+    return {...section,items};
+  });
   const NAV_SECTIONS = [
     { title:'OVERVIEW', items:['Dashboard','Notifications'] },
     { title:'ADMIN', items:['Temporary Duty Swap','Additional Duty Assignment','Rooms','Care Packages','Shift Management','Stores Master','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
@@ -1667,12 +1699,12 @@ function initSamaraInaugurationInvitation(){
     { title:'HR', items:['HR Dashboard','Employees','Duty Assignment','Duty Calendar','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiries & Feedback'] },
     { title:'ADMISSION', items:['Enquiries','Spot Assessment','Admissions','Admission Register'] },
-    { title:'PATIENTS', items:['Patients','Discharge','Documents','Recovery Timeline','Intelligent Reports','Family Communication','Incidents','Medication Errors','Patient Ledger','Final Billing'] },
+    { title:'PATIENTS', items:['Patients','Discharge','Documents','Recovery Timeline','Intelligent Reports','Family Communication','Incidents','Medication Errors'] }, // 2.15.58: Guest Ledger / Final Billing live only under ACCOUNTS
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Approval Requests','Charge Register','Physiotherapy','Special Nurse','Shift Handover'] },
     { title:'PHARMACY & STORES', items:['Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
-    { title:'ACCOUNTS / BILLING', items:['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Dashboard','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports'] },
+    { title:'ACCOUNTS / BILLING', items:['Accounts Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Reports'] }, // keep in step with ACCOUNTS_NAV_GROUPS
     { title:'COMMUNICATION', items:['WhatsApp Inbox','WhatsApp Logs','Feedback','Mail Dashboard'] },
     { title:'MY ACCOUNT', items:['My Profile'] }
   ];
@@ -1765,9 +1797,10 @@ function initSamaraInaugurationInvitation(){
     // v2.14.66: the Nursing Manager (store keeper) sees every patient indent here.
     if(item==='Patient Consumables'&&role==='Manager')return 'Indent Register';
     if(item==='Duty Assignment'&&(CLINICAL_ROLES.includes(role)||role==='Manager'))return 'My Duty';
-    return CLINICAL_ROLES.includes(role)?(ROLE_LABELS[item]||item):item;
+    return CLINICAL_ROLES.includes(role)?(ROLE_LABELS[item]||item):(ACCOUNTS_NAV_LABELS[item]||item);
   };
-  const sectionsFor = (allowed,role,canManageDuties=role==='Admin') => {
+  const sectionsFor = (allowed,role,canManageDuties=role==='Admin') => tidyAccountsSection(sectionsForRaw(allowed,role,canManageDuties));
+  const sectionsForRaw = (allowed,role,canManageDuties=role==='Admin') => {
     if(allowed.some(item=>['Temporary Duty Swap','Leave Cover','Additional Duty Assignment'].includes(item))){const dutyItems=allowed.filter(item=>['Temporary Duty Swap','Leave Cover','Additional Duty Assignment'].includes(item));const sections=sectionsFor(allowed.filter(item=>!dutyItems.includes(item)),role,canManageDuties);const title=canManageDuties?'ADMIN':'MY ACCOUNT';let section=sections.find(item=>item.title===title);if(!section){section={title,items:[]};sections.splice(canManageDuties?1:sections.length,0,section)}section.items.push(...dutyItems);return sections;}
     if(role!=='Admin'&&allowed.includes('Payment Requests')){const items=allowed.filter(x=>['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(x));const sections=sectionsFor(allowed.filter(x=>!items.includes(x)),role,canManageDuties);const accounts=sections.find(s=>s.title==='ACCOUNTS / BILLING');if(accounts)accounts.items=[...items,...accounts.items];else sections.push({title:'ACCOUNTS / BILLING',items});return sections;}
     if(CLINICAL_ROLES.includes(role)){
@@ -8041,7 +8074,7 @@ https://samaraassistedliving.com/`;
 
         const allowedPages=allowedPagesForProfile(data);
         const storedPage=readLastOpenPage();
-        const savedPage=storedPage==='Outgoing Payments'?'Payments & Vouchers':storedPage;
+        const savedPage=(storedPage==='Outgoing Payments'||storedPage==='Payments & Vouchers')&&allowedPages.includes('Payment Requests')?'Payment Requests':storedPage==='Outgoing Payments'?'Payments & Vouchers':storedPage;
         const firstWorkspaceLoad=workspaceInitialisedForUserRef.current!==session.user.id;
 
         if(firstWorkspaceLoad){
@@ -8782,13 +8815,13 @@ https://samaraassistedliving.com/`;
             onClick:()=>toggle(section.title),
             'aria-expanded':expanded
           },h('span',null,section.title),h('span',{className:'nav-chevron','aria-hidden':'true'},expanded?'−':'+')),
-          expanded&&h('div',{className:'nav nav-submenu'},section.items.map(item=>item==='Food & Diet'?h(FoodNavigationLinks,{key:item,profile,page,onNavigate:setPage}):h('button',{
+          expanded&&h('div',{className:'nav nav-submenu'},section.items.map((item,i)=>{const sub=navSubheadBefore(section.title,section.items,i);const node=item==='Food & Diet'?h(FoodNavigationLinks,{key:item,profile,page,onNavigate:setPage}):h('button',{
             key:item,
             type:'button',
             'data-nav':item,
             className:page===item?'active':'',
             onClick:()=>setPage(item)
-          },displayNavLabel(item,profile.role))))
+          },displayNavLabel(item,profile.role));return sub?h(React.Fragment,{key:item},h('div',{className:'nav-subhead',role:'presentation'},sub),node):node}))
         );
       })),
       h('div',{className:'sidebar-footer'},
@@ -8861,7 +8894,7 @@ https://samaraassistedliving.com/`;
     const [openSection,setOpenSection]=React.useState(activeSection);
     React.useEffect(()=>{const next=sections.find(section=>section.items.includes(page))?.title;if(next)setOpenSection(next)},[page]);
     const sectionIcon=title=>/OVERVIEW/.test(title)?'⌂':/HR|STAFF/.test(title)?'♙':/ADMISSION/.test(title)?'♥':/PATIENT/.test(title)?'⚕\uFE0E':/ROOM/.test(title)?'▦':/PHARMACY|STORE/.test(title)?'♨':/FOOD/.test(title)?'🍽\uFE0E':/CHARGE/.test(title)?'₹':/ACCOUNT.*BILL|BILLING|PAYMENT|FINANCE/.test(title)?'₹':/COMMUNICATION|WHATSAPP/.test(title)?'✉\uFE0E':/MY ACCOUNT|PROFILE/.test(title)?'☺\uFE0E':/DUTY|ROSTER|LEAVE/.test(title)?'◷':/DIRECTOR/.test(title)?'★':/CLINICAL|NURSING/.test(title)?'✚':'⚙\uFE0E';
-    const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Consumables'?'▤':item==='Pharmacy'?'✚':item==='Housekeeping & General'?'🧺\uFE0E':item==='Kitchen / Food Stores'?'🍽\uFE0E':item==='Biomedical Equipment'?'⚕\uFE0E':item==='Oxygen Cylinders'?'◉':item==='Stores'?'▥':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My To-Do List'?'✓':'›';
+    const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Consumables'?'▤':item==='Pharmacy'?'✚':item==='Housekeeping & General'?'🧺\uFE0E':item==='Kitchen / Food Stores'?'🍽\uFE0E':item==='Biomedical Equipment'?'⚕\uFE0E':item==='Oxygen Cylinders'?'◉':item==='Stores'?'▥':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My To-Do List'?'✓':item==='Accounts Dashboard'?'◫':['Charge Approvals','Payments','Patient Ledger','Final Billing','Refunds'].includes(item)?'₹':item==='Discharge Clearance'?'⇥':item==='Package Expiry Dashboard'?'◷':['Payment Requests','Payments & Vouchers'].includes(item)?'↗':item==='Approved—Ready to Pay'?'✓':item==='Payment Vouchers'?'▤':item==='Payment Statements'?'≡':item==='Accounts Reports'?'▦':'›';
     React.useEffect(()=>{
       const onKey=e=>{if(e.key==='Escape')onClose()};
       document.addEventListener('keydown',onKey);
@@ -8901,7 +8934,7 @@ https://samaraassistedliving.com/`;
         h('button',{type:'button',className:`mobile-drawer-home ${page===home?'active':''}`,onClick:()=>onNavigate(home)},(CLINICAL_ROLES.includes(profile.role)||isNursingManagerProfile(profile))?'⌂  Nursing Dashboard':'⌂  Dashboard'),
         h('div',{className:'mobile-drawer-scroll'},sections.map(section=>{const expanded=openSection===section.title;return h('section',{className:`mobile-drawer-group ${expanded?'expanded':''}`,key:section.title},
           h('button',{type:'button',className:'mobile-drawer-group-head',onClick:()=>setOpenSection(current=>current===section.title?'':section.title),'aria-expanded':expanded},h('span',{className:'mobile-drawer-group-icon'},sectionIcon(section.title)),h('span',null,section.title),h('span',{className:'mobile-drawer-group-chevron'},expanded?'−':'+')),
-          expanded?h('div',{className:'mobile-drawer-items'},section.items.map(item=>item==='Food & Diet'?h(FoodNavigationLinks,{key:item,profile,page,onNavigate,mobile:true}):h('button',{type:'button',key:item,'data-nav':item,className:page===item?'active':'',onClick:()=>onNavigate(item)},h('span',{className:'mobile-drawer-item-icon'},itemIcon(item)),h('span',null,displayNavLabel(item,profile.role)),h('span',{className:'mobile-drawer-item-arrow'},'›')))):null
+          expanded?h('div',{className:'mobile-drawer-items'},section.items.map((item,i)=>{const sub=navSubheadBefore(section.title,section.items,i);const node=item==='Food & Diet'?h(FoodNavigationLinks,{key:item,profile,page,onNavigate,mobile:true}):h('button',{type:'button',key:item,'data-nav':item,className:page===item?'active':'',onClick:()=>onNavigate(item)},h('span',{className:'mobile-drawer-item-icon'},itemIcon(item)),h('span',null,displayNavLabel(item,profile.role)),h('span',{className:'mobile-drawer-item-arrow'},'›'));return sub?h(React.Fragment,{key:item},h('div',{className:'mobile-drawer-subhead',role:'presentation'},sub),node):node})):null
         )})),
         h('div',{className:'mobile-drawer-footer'},
           h('button',{type:'button',className:'mobile-update-button',onClick:samaraOpenAppHelp},'⚙  App Help / Repair'),
