@@ -2641,6 +2641,9 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 .dr-box-icon{font-size:18px;line-height:1}
 .dr-box-label{font-size:12.5px;min-height:31px;font-weight:700;color:#5b3a4b;line-height:1.25}
 .dr-box-count{font-size:24px;font-weight:900;color:var(--dr-c);line-height:1.1}
+.dr-box-trial{display:inline-block;margin-top:2px;padding:1px 7px;border-radius:999px;background:#fff4e0;color:#9a3412;font-size:11px;font-weight:800;width:max-content}
+.dr-trial-hidden-note{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin:-6px 0 14px;padding:10px 14px;border:1px solid #f3c58a;border-radius:12px;background:#fff8ec;color:#7c2d12;font-weight:700;font-size:13px}
+.dr-trial-hidden-note .btn{padding:6px 12px}
 .dr-register{padding:18px 20px!important}
 .dr-register-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .dr-register-head h3{margin:0;font-size:20px}

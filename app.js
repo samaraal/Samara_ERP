@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.55';
+  const APP_VERSION = '2.15.56';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '03-Oct-2026 Kitchen item codes';
+  const APP_BUILD_DATE = '03-Oct-2026 Discharge Trial cases visible';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -2723,7 +2723,9 @@ https://samaraassistedliving.com/`;
     const draftKey=JSON.stringify(values),appliedKey=JSON.stringify(applied);
     const dirty=draftKey!==appliedKey;
     const apply=()=>setApplied(JSON.parse(draftKey));
-    return {applied,apply,dirty};
+    // setNow: apply a value immediately (used by one-tap shortcuts such as "Show Trial cases").
+    const setNow=patch=>setApplied(prev=>({...prev,...patch}));
+    return {applied,apply,dirty,setNow};
   }
   function ApplyFilterButton({dirty,onApply,style}){
     return h('div',{className:'apply-filter-wrap',style},
@@ -9657,7 +9659,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
         client.from('care_logs').select('*',{count:'exact',head:true}).eq('care_date',today),
         client.from('billing_transactions').select('amount,transaction_type'),
         client.from('incidents').select('*',{count:'exact',head:true}).eq('status','Open'),
-        client.from('patient_discharges').select('id,status,management_status,accounts_status'),
+        client.from('patient_discharges').select('id,patient_id,status,management_status,accounts_status'),
         client.from('family_visit_requests').select('*',{count:'exact',head:true}).eq('status','Pending'),
         loadAdmissionIntake(true),
         client.from('clinical_alert_escalations').select('*',{count:'exact',head:true}).is('resolved_at',null)
@@ -9715,9 +9717,13 @@ function Dashboard({profile,onNavigate,alertEngine}){
         const status=String(row.status||'').trim().toLowerCase();
         return !['completed','closed','cancelled','canceled'].includes(status);
       });
-      const awaitingManagement=activeDischarges.filter(row=>
+      const awaitingManagementRows=activeDischarges.filter(row=>
         ['','pending'].includes(String(row.management_status||'').trim().toLowerCase())
-      ).length;
+      );
+      const awaitingManagement=awaitingManagementRows.length;
+      // 2.15.56: show how many are Trial Guests (Discharge page hides Trial by default).
+      const trialIds=new Set(patients.filter(p=>p.is_trial).map(p=>p.id));
+      const trialNote=list=>{const n=list.filter(r=>trialIds.has(r.patient_id)).length;return n?` (🧪 ${n===list.length?'all':n} Trial)`:''};
       const withAccounts=activeDischarges.filter(row=>
         String(row.management_status||'').trim().toLowerCase()==='approved'&&
         String(row.accounts_status||'').trim().toLowerCase()!=='cleared'
@@ -9730,7 +9736,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
         String(row.status||'').trim().toLowerCase()==='returned to nursing'
       ).length;
       const dischargeStatus=
-        awaitingManagement?`${awaitingManagement} awaiting Management approval`:
+        awaitingManagement?`${awaitingManagement} awaiting Management approval${trialNote(awaitingManagementRows)}`:
         withAccounts?`${withAccounts} awaiting Accounts clearance`:
         awaitingNurse?`${awaitingNurse} awaiting final Nursing discharge`:
         returned?`${returned} returned to Nursing`:
@@ -23129,6 +23135,16 @@ Doctor / Hospital: ${doctorHospital}`;
     const registerRows=recordFocus?allCases:filteredCases.filter(row=>inBox(row,drBox));
     const filtersOn=Boolean(DRF.q||DRF.basis||DRF.record!=='real'||(DRF.period&&DRF.period!=='all'));
     const hiddenTrial=DRF.record==='real'?allCases.filter(isTrialRow).length:0;
+    // 2.15.56: open Trial cases still need real action (Management / Accounts / Nursing), so when
+    // "Real only" hides them, say so on the stage boxes and above the register — never silently.
+    const hiddenTrialOpen=DRF.record==='real'?allCases.filter(r=>isTrialRow(r)&&stageOf(r)!=='completed'):[];
+    const hiddenTrialIn=k=>hiddenTrialOpen.filter(r=>inBox(r,k)).length;
+    const hiddenTrialStages=[...new Set(hiddenTrialOpen.map(stageOf))].map(st=>`${STAGES[st].label} ${hiddenTrialOpen.filter(r=>stageOf(r)===st).length}`);
+    function showTrialCases(){
+      setDrRecord('all');drf.setNow({record:'all'});
+      if(recordFocus)clearRecordFocus();
+      setDrBox('open');
+    }
     function detailFields(row){
       const p=patientFor(row.patient_id);
       return [
@@ -23208,8 +23224,12 @@ Doctor / Hospital: ${doctorHospital}`;
           onClick:()=>{if(recordFocus)clearRecordFocus();setDrBox(k)}},
           h('span',{className:'dr-box-icon','aria-hidden':'true'},meta.icon),
           h('span',{className:'dr-box-label'},meta.label),
-          h('b',{className:'dr-box-count'},stageCount(k)));
+          h('b',{className:'dr-box-count'},stageCount(k)),
+          k!=='completed'&&hiddenTrialIn(k)>0&&h('small',{className:'dr-box-trial',title:'Trial Guest cases hidden by the "Real only" filter'},`+${hiddenTrialIn(k)} 🧪 Trial`));
       })),
+      hiddenTrialOpen.length>0&&!recordFocus&&h('div',{className:'dr-trial-hidden-note',role:'status'},
+        h('span',null,`🧪 ${hiddenTrialOpen.length} Trial Guest discharge${hiddenTrialOpen.length>1?'s':''} open (${hiddenTrialStages.join(', ')}) — hidden because Guest record is "Real only".`),
+        h('button',{type:'button',className:'btn btn-secondary',onClick:showTrialCases},'Show Trial cases')),
       // 3. Discharge Register
       h('div',{id:'discharge-register',className:'card panel dr-register',style:{scrollMarginTop:'120px'}},
         h('div',{className:'dr-register-head'},
@@ -23249,7 +23269,7 @@ Doctor / Hospital: ${doctorHospital}`;
                   const dateOf=r=>r.actual_departure_at?new Date(new Date(r.actual_departure_at).getTime()+19800000).toISOString().slice(0,10):String(r.proposed_discharge_date||'').slice(0,10);
                   const known=[...new Set(allCases.map(dateOf).filter(Boolean))].sort().reverse().slice(0,5).map(formatDateIN);
                   const periodOn=DRF.period&&DRF.period!=='all';
-                  const lead=drBox==='open'&&!filtersOn?'No open discharge cases right now.'
+                  const lead=drBox==='open'&&!filtersOn?(hiddenTrialOpen.length?`No open Real Guest discharge cases. ${hiddenTrialOpen.length} open Trial case${hiddenTrialOpen.length>1?'s are':' is'} hidden — tap "Show Trial cases" above.`:'No open discharge cases right now.')
                     :periodOn&&!filteredCases.length?`No discharges in ${periodLabel}.${known.length?` Discharge dates on record: ${known.join(', ')}.`:''}`
                     :drBox==='open'?'No open cases match this filter.':'No discharges in this box match the filter.';
                   return elsewhere.length?h(React.Fragment,null,lead,' ',h('strong',null,`Found in: ${elsewhere.join(', ')}.`),' ',
@@ -24494,15 +24514,18 @@ function RoomsBeds({profile,onNavigate}){
       String(row.management_status||'').trim().toLowerCase()==='rejected'||
       String(row.status||'').trim().toLowerCase()==='returned to nursing'
     );
+    // 2.15.56: say how many are Trial (test) Guests — the Discharge page hides Trial cases by default.
+    const trialPatientIds=new Set(state.patients.filter(p=>p.is_trial).map(p=>p.id));
+    const withTrial=(list,text)=>{const n=list.filter(r=>trialPatientIds.has(r.patient_id)).length;return n?`${text} (🧪 ${n===list.length?'all':n} Trial)`:text};
     const dischargeStatusText=
       dischargeReady.length
-        ?`${dischargeReady.length} ready for final departure`
+        ?withTrial(dischargeReady,`${dischargeReady.length} ready for final departure`)
         :dischargeReturned.length
-          ?`${dischargeReturned.length} returned for action`
+          ?withTrial(dischargeReturned,`${dischargeReturned.length} returned for action`)
           :dischargeWithAccounts.length
-            ?`${dischargeWithAccounts.length} with Accounts`
+            ?withTrial(dischargeWithAccounts,`${dischargeWithAccounts.length} with Accounts`)
             :dischargeAwaitingManagement.length
-              ?`${dischargeAwaitingManagement.length} awaiting Management`
+              ?withTrial(dischargeAwaitingManagement,`${dischargeAwaitingManagement.length} awaiting Management`)
               :'No active discharge';
     const dischargeTone=
       dischargeReady.length||dischargeReturned.length

@@ -159,15 +159,18 @@
       String(row.management_status||'').trim().toLowerCase()==='rejected'||
       String(row.status||'').trim().toLowerCase()==='returned to nursing'
     );
+    // 2.15.56: say how many are Trial (test) Guests — the Discharge page hides Trial cases by default.
+    const trialPatientIds=new Set(state.patients.filter(p=>p.is_trial).map(p=>p.id));
+    const withTrial=(list,text)=>{const n=list.filter(r=>trialPatientIds.has(r.patient_id)).length;return n?`${text} (🧪 ${n===list.length?'all':n} Trial)`:text};
     const dischargeStatusText=
       dischargeReady.length
-        ?`${dischargeReady.length} ready for final departure`
+        ?withTrial(dischargeReady,`${dischargeReady.length} ready for final departure`)
         :dischargeReturned.length
-          ?`${dischargeReturned.length} returned for action`
+          ?withTrial(dischargeReturned,`${dischargeReturned.length} returned for action`)
           :dischargeWithAccounts.length
-            ?`${dischargeWithAccounts.length} with Accounts`
+            ?withTrial(dischargeWithAccounts,`${dischargeWithAccounts.length} with Accounts`)
             :dischargeAwaitingManagement.length
-              ?`${dischargeAwaitingManagement.length} awaiting Management`
+              ?withTrial(dischargeAwaitingManagement,`${dischargeAwaitingManagement.length} awaiting Management`)
               :'No active discharge';
     const dischargeTone=
       dischargeReady.length||dischargeReturned.length

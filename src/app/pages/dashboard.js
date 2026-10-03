@@ -160,7 +160,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
         client.from('care_logs').select('*',{count:'exact',head:true}).eq('care_date',today),
         client.from('billing_transactions').select('amount,transaction_type'),
         client.from('incidents').select('*',{count:'exact',head:true}).eq('status','Open'),
-        client.from('patient_discharges').select('id,status,management_status,accounts_status'),
+        client.from('patient_discharges').select('id,patient_id,status,management_status,accounts_status'),
         client.from('family_visit_requests').select('*',{count:'exact',head:true}).eq('status','Pending'),
         loadAdmissionIntake(true),
         client.from('clinical_alert_escalations').select('*',{count:'exact',head:true}).is('resolved_at',null)
@@ -218,9 +218,13 @@ function Dashboard({profile,onNavigate,alertEngine}){
         const status=String(row.status||'').trim().toLowerCase();
         return !['completed','closed','cancelled','canceled'].includes(status);
       });
-      const awaitingManagement=activeDischarges.filter(row=>
+      const awaitingManagementRows=activeDischarges.filter(row=>
         ['','pending'].includes(String(row.management_status||'').trim().toLowerCase())
-      ).length;
+      );
+      const awaitingManagement=awaitingManagementRows.length;
+      // 2.15.56: show how many are Trial Guests (Discharge page hides Trial by default).
+      const trialIds=new Set(patients.filter(p=>p.is_trial).map(p=>p.id));
+      const trialNote=list=>{const n=list.filter(r=>trialIds.has(r.patient_id)).length;return n?` (🧪 ${n===list.length?'all':n} Trial)`:''};
       const withAccounts=activeDischarges.filter(row=>
         String(row.management_status||'').trim().toLowerCase()==='approved'&&
         String(row.accounts_status||'').trim().toLowerCase()!=='cleared'
@@ -233,7 +237,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
         String(row.status||'').trim().toLowerCase()==='returned to nursing'
       ).length;
       const dischargeStatus=
-        awaitingManagement?`${awaitingManagement} awaiting Management approval`:
+        awaitingManagement?`${awaitingManagement} awaiting Management approval${trialNote(awaitingManagementRows)}`:
         withAccounts?`${withAccounts} awaiting Accounts clearance`:
         awaitingNurse?`${awaitingNurse} awaiting final Nursing discharge`:
         returned?`${returned} returned to Nursing`:

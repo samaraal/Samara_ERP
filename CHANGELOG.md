@@ -1,3 +1,7 @@
+## 2.15.56 — Discharge: open Trial Guest cases no longer hidden silently
+
+The Nursing / main Dashboard counted Trial (test) Guest discharges, but the Discharge page shows "Real only" by default, so open Trial cases (e.g. "2 awaiting Management") seemed to be missing for Admin. Now: each stage box shows "+N 🧪 Trial" for hidden Trial cases, an amber note above the register lists them by stage with a one-tap "Show Trial cases" button, and the Dashboard discharge line says how many are Trial (e.g. "2 awaiting Management (🧪 all Trial)"). Frontend only — no SQL.
+
 ## 2.15.55 — Kitchen / Food Stores item list with automatic codes
 
 Kitchen items now have automatic codes (KIT-0001, KIT-0002 …, same KIT- series as Stores). "＋ New Kitchen Items" (Record Purchase and Kitchen Stock tabs; kitchen in-charge or Admin) adds several items in one save — name, unit from the list, optional low-stock level; duplicate names are refused. Record Purchase now picks each item from the coded list (unit filled automatically), with "Other expense (not a stock item)" for things like auto fare. Kitchen Stock, Purchase Register and stock history show the codes. Existing kitchen items are numbered automatically. Apply supabase/sql/190_kitchen_item_codes.sql before this frontend.

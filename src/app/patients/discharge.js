@@ -1334,6 +1334,16 @@ Doctor / Hospital: ${doctorHospital}`;
     const registerRows=recordFocus?allCases:filteredCases.filter(row=>inBox(row,drBox));
     const filtersOn=Boolean(DRF.q||DRF.basis||DRF.record!=='real'||(DRF.period&&DRF.period!=='all'));
     const hiddenTrial=DRF.record==='real'?allCases.filter(isTrialRow).length:0;
+    // 2.15.56: open Trial cases still need real action (Management / Accounts / Nursing), so when
+    // "Real only" hides them, say so on the stage boxes and above the register — never silently.
+    const hiddenTrialOpen=DRF.record==='real'?allCases.filter(r=>isTrialRow(r)&&stageOf(r)!=='completed'):[];
+    const hiddenTrialIn=k=>hiddenTrialOpen.filter(r=>inBox(r,k)).length;
+    const hiddenTrialStages=[...new Set(hiddenTrialOpen.map(stageOf))].map(st=>`${STAGES[st].label} ${hiddenTrialOpen.filter(r=>stageOf(r)===st).length}`);
+    function showTrialCases(){
+      setDrRecord('all');drf.setNow({record:'all'});
+      if(recordFocus)clearRecordFocus();
+      setDrBox('open');
+    }
     function detailFields(row){
       const p=patientFor(row.patient_id);
       return [
@@ -1413,8 +1423,12 @@ Doctor / Hospital: ${doctorHospital}`;
           onClick:()=>{if(recordFocus)clearRecordFocus();setDrBox(k)}},
           h('span',{className:'dr-box-icon','aria-hidden':'true'},meta.icon),
           h('span',{className:'dr-box-label'},meta.label),
-          h('b',{className:'dr-box-count'},stageCount(k)));
+          h('b',{className:'dr-box-count'},stageCount(k)),
+          k!=='completed'&&hiddenTrialIn(k)>0&&h('small',{className:'dr-box-trial',title:'Trial Guest cases hidden by the "Real only" filter'},`+${hiddenTrialIn(k)} 🧪 Trial`));
       })),
+      hiddenTrialOpen.length>0&&!recordFocus&&h('div',{className:'dr-trial-hidden-note',role:'status'},
+        h('span',null,`🧪 ${hiddenTrialOpen.length} Trial Guest discharge${hiddenTrialOpen.length>1?'s':''} open (${hiddenTrialStages.join(', ')}) — hidden because Guest record is "Real only".`),
+        h('button',{type:'button',className:'btn btn-secondary',onClick:showTrialCases},'Show Trial cases')),
       // 3. Discharge Register
       h('div',{id:'discharge-register',className:'card panel dr-register',style:{scrollMarginTop:'120px'}},
         h('div',{className:'dr-register-head'},
@@ -1454,7 +1468,7 @@ Doctor / Hospital: ${doctorHospital}`;
                   const dateOf=r=>r.actual_departure_at?new Date(new Date(r.actual_departure_at).getTime()+19800000).toISOString().slice(0,10):String(r.proposed_discharge_date||'').slice(0,10);
                   const known=[...new Set(allCases.map(dateOf).filter(Boolean))].sort().reverse().slice(0,5).map(formatDateIN);
                   const periodOn=DRF.period&&DRF.period!=='all';
-                  const lead=drBox==='open'&&!filtersOn?'No open discharge cases right now.'
+                  const lead=drBox==='open'&&!filtersOn?(hiddenTrialOpen.length?`No open Real Guest discharge cases. ${hiddenTrialOpen.length} open Trial case${hiddenTrialOpen.length>1?'s are':' is'} hidden — tap "Show Trial cases" above.`:'No open discharge cases right now.')
                     :periodOn&&!filteredCases.length?`No discharges in ${periodLabel}.${known.length?` Discharge dates on record: ${known.join(', ')}.`:''}`
                     :drBox==='open'?'No open cases match this filter.':'No discharges in this box match the filter.';
                   return elsewhere.length?h(React.Fragment,null,lead,' ',h('strong',null,`Found in: ${elsewhere.join(', ')}.`),' ',

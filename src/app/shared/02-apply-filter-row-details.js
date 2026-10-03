@@ -6,7 +6,9 @@
     const draftKey=JSON.stringify(values),appliedKey=JSON.stringify(applied);
     const dirty=draftKey!==appliedKey;
     const apply=()=>setApplied(JSON.parse(draftKey));
-    return {applied,apply,dirty};
+    // setNow: apply a value immediately (used by one-tap shortcuts such as "Show Trial cases").
+    const setNow=patch=>setApplied(prev=>({...prev,...patch}));
+    return {applied,apply,dirty,setNow};
   }
   function ApplyFilterButton({dirty,onApply,style}){
     return h('div',{className:'apply-filter-wrap',style},
