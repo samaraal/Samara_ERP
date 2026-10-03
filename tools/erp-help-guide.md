@@ -60,3 +60,6 @@ Families of residents use the Family Portal (family.samaraassistedliving.com) wi
 
 ## Accounts menu layout (2.15.58)
 ACCOUNTS / BILLING starts with Accounts Dashboard, then three groups. Guest Billing (money in): Bills & Charges Approval, Guest Payments / Receipts, Guest Ledger (earlier "Patient Ledger"), Final Billing, Discharge Clearance, Refunds, Package Expiry. Outgoing Payments (money out — vendors, staff, expenses): Payment Requests (earlier also listed as "Payments & Vouchers" — same screen), Approved — Ready to Pay, Payment Vouchers, Payment Statements. Reports: Accounts Reports. Guest Ledger and Final Billing are now only under ACCOUNTS / BILLING, not under PATIENTS.
+
+## Food item list — add, rename, remove (2.15.59)
+The items in Resident Food Intake → "＋ Add food item…" (Breakfast / Lunch / Dinner; Main item, Sides / curries, Others) are managed by Admin. Admin opens FOOD & DIET → Resident Food Intake → Meal → "⚙ Manage item list": choose the meal, then ✎ rename, ↑ ↓ reorder, ✕ remove (Removed items can be restored), or type a new item and press ＋ Add. Items staff typed with "Other" appear under "Typed by staff — Added earlier": Admin can "＋ Add to list" (choose meal and group) or "Hide" a wrong spelling. Changes apply to new entries only; saved meal entries are never changed. Nurses and other staff cannot change the list — ask Admin.

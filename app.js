@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.58';
+  const APP_VERSION = '2.15.59';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '03-Oct-2026 Accounts menu reorganised';
+  const APP_BUILD_DATE = '03-Oct-2026 Food item list';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -26119,6 +26119,102 @@ function RoomsBeds({profile,onNavigate}){
   const BEVERAGE_INTAKE=['Consumed fully','Consumed partially','Refused'];
   const nowHHMM=()=>{try{return new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date())}catch(_e){return ''}};
 
+  // 2.15.59: Admin manages the food item list (table food_item_list, supabase/sql/192_food_item_list.sql).
+  // Remove = hide from the list (saved meal entries keep their text). 'Hidden' rows hide typed "Added earlier" items.
+  const FOOD_MEALS=['Tiffin','Lunch','Dinner'];
+  function foodGroupsFrom(listRows,meal){
+    if(!listRows)return FOOD_ITEMS[meal]||FOOD_ITEMS.Lunch;
+    const out={Main:[],Side:[],Other:[]};
+    listRows.filter(r=>r.active&&r.meal_type===meal&&out[r.item_group]).sort((a,b)=>(a.sort_order-b.sort_order)||a.name.localeCompare(b.name)).forEach(r=>out[r.item_group].push(r.name));
+    return out;
+  }
+  function FoodItemManager({listRows,earlierItems,profile,onClose,onChanged}){
+    const [meal,setMeal]=React.useState('Tiffin');
+    const [busy,setBusy]=React.useState(false);
+    const [newName,setNewName]=React.useState({Main:'',Side:'',Other:''});
+    const [promote,setPromote]=React.useState({});
+    React.useEffect(()=>{const k=e=>{if(e.key==='Escape')onClose()};window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k)},[]);
+    const clean=v=>String(v||'').trim().replace(/\s+/g,' ');
+    const rowsOf=(m,g,active=true)=>listRows.filter(r=>r.meal_type===m&&r.item_group===g&&r.active===active).sort((a,b)=>(a.sort_order-b.sort_order)||a.name.localeCompare(b.name));
+    async function run(label,fn,audit){
+      if(busy)return;setBusy(true);
+      try{const {error}=await fn();if(error)throw error;
+        showSamaraActionToast('success','Food item list updated',label);
+        writeAuditEvent('Food Item List Changed','Food & Diet',null,{change:label,...audit},'Success');
+        await onChanged();
+      }catch(e){alert(/duplicate|unique/i.test(e.message||'')?'That item is already in this list (it may be removed — see "Removed items" to restore it).':/row-level|permission|policy/i.test(e.message||'')?'Only Admin can change the food item list.':(e.message||String(e)))}
+      finally{setBusy(false)}
+    }
+    function add(g,nameIn,m=meal){
+      const name=clean(nameIn);
+      if(name.length<2)return alert('Enter the item name.');
+      const existing=listRows.find(r=>r.meal_type===m&&r.item_group===g&&r.name.toLowerCase()===name.toLowerCase());
+      if(existing&&existing.active)return alert(`${name} is already in ${mealLabel(m)} — ${FOOD_GROUP_LABEL[g]}.`);
+      const last=rowsOf(m,g).slice(-1)[0];
+      return run(`Added ${name} to ${mealLabel(m)} — ${FOOD_GROUP_LABEL[g]}`,()=>existing
+        ?client.from('food_item_list').update({active:true,name,sort_order:(last?.sort_order||0)+10,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',existing.id)
+        :client.from('food_item_list').insert({meal_type:m,item_group:g,name,sort_order:(last?.sort_order||0)+10,created_by:profile.id,updated_by:profile.id}),{meal_type:m,item_group:g,name})
+        .then(()=>setNewName(n=>({...n,[g]:''})));
+    }
+    function rename(r){
+      const v=window.prompt(`Rename "${r.name}" (${mealLabel(r.meal_type)} — ${FOOD_GROUP_LABEL[r.item_group]}).\nSaved meal entries keep the old name.`,r.name);
+      if(v===null)return;const name=clean(v);
+      if(name.length<2||name===r.name)return;
+      return run(`Renamed ${r.name} → ${name} (${mealLabel(r.meal_type)})`,()=>client.from('food_item_list').update({name,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',r.id),{from:r.name,to:name});
+    }
+    function setActive(r,active){
+      if(!active&&!window.confirm(`Remove "${r.name}" from the ${mealLabel(r.meal_type)} list?\nIt will no longer appear in "Add food item". Saved meal entries are not changed. You can restore it later.`))return;
+      return run(`${active?'Restored':'Removed'} ${r.name} (${mealLabel(r.meal_type)})`,()=>client.from('food_item_list').update({active,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',r.id),{name:r.name,meal_type:r.meal_type});
+    }
+    async function move(r,d){
+      const list=rowsOf(r.meal_type,r.item_group);const i=list.findIndex(x=>x.id===r.id);const j=i+d;
+      if(j<0||j>=list.length||busy)return;
+      const order=[...list];[order[i],order[j]]=[order[j],order[i]];
+      setBusy(true);
+      try{for(let k=0;k<order.length;k++){const want=(k+1)*10;if(order[k].sort_order!==want){const {error}=await client.from('food_item_list').update({sort_order:want,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',order[k].id);if(error)throw error}}
+        await onChanged();
+      }catch(e){alert(e.message||String(e))}finally{setBusy(false)}
+    }
+    function hideTyped(name){
+      if(!window.confirm(`Hide "${name}" from "Added earlier"?\nUse this for spelling mistakes. Saved meal entries are not changed.`))return;
+      return run(`Hid typed item ${name}`,()=>client.from('food_item_list').insert({meal_type:'All',item_group:'Hidden',name,active:false,created_by:profile.id,updated_by:profile.id}),{name});
+    }
+    const removed=listRows.filter(r=>r.meal_type===meal&&r.item_group!=='Hidden'&&!r.active);
+    const hiddenTyped=listRows.filter(r=>r.item_group==='Hidden');
+    return h('div',{className:'modal-backdrop row-detail-backdrop',onClick:e=>{if(e.target===e.currentTarget)onClose()}},
+      h('div',{className:'card modal row-detail-modal fim-modal',role:'dialog','aria-modal':'true','aria-label':'Manage food item list'},
+        h('div',{className:'panel-head'},h('div',null,h('h3',null,'Manage Food Item List'),h('small',null,'Admin only · changes apply to new entries; saved meal entries are never changed')),h('button',{type:'button',className:'close',onClick:onClose,'aria-label':'Close'},'×')),
+        h('div',{className:'fi-switch fim-meals',role:'tablist'},FOOD_MEALS.map(m=>h('button',{key:m,type:'button',role:'tab','aria-selected':meal===m,className:meal===m?'active':'',onClick:()=>setMeal(m)},mealLabel(m)))),
+        ['Main','Side','Other'].map(g=>h('div',{key:g,className:'fim-group'},
+          h('h4',null,`${FOOD_GROUP_LABEL[g]} (${rowsOf(meal,g).length})`),
+          h('div',{className:'fim-list'},rowsOf(meal,g).map((r,i,arr)=>h('div',{key:r.id,className:'fim-item'},
+            h('span',{className:'fim-name'},r.name),
+            h('span',{className:'fim-actions'},
+              h('button',{type:'button',title:'Move up','aria-label':`Move ${r.name} up`,disabled:busy||i===0,onClick:()=>move(r,-1)},'↑'),
+              h('button',{type:'button',title:'Move down','aria-label':`Move ${r.name} down`,disabled:busy||i===arr.length-1,onClick:()=>move(r,1)},'↓'),
+              h('button',{type:'button',title:'Rename','aria-label':`Rename ${r.name}`,disabled:busy,onClick:()=>rename(r)},'✎'),
+              h('button',{type:'button',className:'fim-del',title:'Remove from list','aria-label':`Remove ${r.name}`,disabled:busy,onClick:()=>setActive(r,false)},'✕'))))),
+          h('div',{className:'fim-add'},
+            h('input',{type:'text',maxLength:60,value:newName[g],placeholder:`New ${FOOD_GROUP_LABEL[g].toLowerCase()} for ${mealLabel(meal)}`,onChange:e=>setNewName({...newName,[g]:e.target.value}),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();add(g,newName[g])}}}),
+            h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>add(g,newName[g])},'＋ Add')))),
+        removed.length>0&&h('div',{className:'fim-group'},h('h4',null,`Removed items — ${mealLabel(meal)} (${removed.length})`),
+          h('div',{className:'fim-list'},removed.map(r=>h('div',{key:r.id,className:'fim-item fim-removed'},h('span',{className:'fim-name'},`${r.name} · ${FOOD_GROUP_LABEL[r.item_group]}`),h('span',{className:'fim-actions'},h('button',{type:'button',disabled:busy,onClick:()=>setActive(r,true)},'↺ Restore')))))),
+        h('div',{className:'fim-group fim-typed'},
+          h('h4',null,`Typed by staff — "Added earlier" (${earlierItems.length})`),
+          h('small',null,'Items staff typed with "Other". Add a correct one to the list, or hide a wrong spelling.'),
+          earlierItems.length?h('div',{className:'fim-list'},earlierItems.map(name=>{const tgt=promote[name]||{meal_type:meal,item_group:'Side'};return h('div',{key:name,className:'fim-item'},
+            h('span',{className:'fim-name'},name),
+            h('span',{className:'fim-actions fim-promote'},
+              h('select',{value:tgt.meal_type,'aria-label':`Meal for ${name}`,onChange:e=>setPromote({...promote,[name]:{...tgt,meal_type:e.target.value}})},FOOD_MEALS.map(m=>h('option',{key:m,value:m},mealLabel(m)))),
+              h('select',{value:tgt.item_group,'aria-label':`Group for ${name}`,onChange:e=>setPromote({...promote,[name]:{...tgt,item_group:e.target.value}})},['Main','Side','Other'].map(g=>h('option',{key:g,value:g},FOOD_GROUP_LABEL[g]))),
+              h('button',{type:'button',disabled:busy,onClick:()=>add(tgt.item_group,name,tgt.meal_type)},'＋ Add to list'),
+              h('button',{type:'button',className:'fim-del',disabled:busy,onClick:()=>hideTyped(name)},'Hide')))})):h('p',{className:'fi-empty'},'No typed items.'),
+          hiddenTyped.length>0&&h('div',{className:'fim-hidden'},h('small',null,'Hidden: '),hiddenTyped.map(r=>h('span',{key:r.id,className:'fi-chip'},h('span',null,r.name),h('button',{type:'button',className:'fi-chip-x',title:'Show again','aria-label':`Show ${r.name} again`,disabled:busy,onClick:()=>run(`Unhid typed item ${r.name}`,()=>client.from('food_item_list').delete().eq('id',r.id),{name:r.name})},'↺'))))),
+        h('div',{className:'modal-bottom-actions'},h('button',{type:'button',className:'btn btn-primary',onClick:onClose},'Done'))
+      )
+    );
+  }
+
   function ResidentFoodIntake({profile}){
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
@@ -26132,6 +26228,7 @@ function RoomsBeds({profile,onNavigate}){
     const [form,setForm]=React.useState(blankMeal);
     const [bev,setBev]=React.useState(blankBev);
     const [pick,setPick]=React.useState('');
+    const [foodList,setFoodList]=React.useState(null),[showItemManager,setShowItemManager]=React.useState(false);
     // 2.15.35: Guest-wise Food & Beverage Register — one Guest, Today or a period (Apply).
     const [regGuest,setRegGuest]=React.useState(''),[regPeriod,setRegPeriod]=React.useState('today'),[regFrom,setRegFrom]=React.useState(''),[regTo,setRegTo]=React.useState('');
     const regF=useAppliedFilters({guest:regGuest,period:regPeriod,from:regFrom,to:regTo});const RF=regF.applied;
@@ -26157,7 +26254,14 @@ function RoomsBeds({profile,onNavigate}){
       }
     })();
     // Recent rows feed only the "Added earlier" item list; the register loads per Guest + period.
+    async function loadFoodList(){
+      const r=await client.from('food_item_list').select('*');
+      // Before supabase/sql/192_food_item_list.sql is run the built-in list is used.
+      setFoodList(r.error||!(r.data||[]).length?null:r.data);
+      return r;
+    }
     async function load(){
+      loadFoodList();
       const m=await client.from('meal_records').select('menu').order('served_at',{ascending:false}).limit(200);
       setRows(m.data||[]);
       const b=await client.from('beverage_records').select('id').limit(1);
@@ -26179,7 +26283,7 @@ function RoomsBeds({profile,onNavigate}){
     React.useEffect(()=>{load()},[]);
     React.useEffect(()=>{loadRegister()},[RF.guest,RF.period,RF.from,RF.to]);
     // Items typed before (not in the standard list) are offered again under "Added earlier".
-    const standardItems=new Set(Object.values(FOOD_ITEMS).flatMap(g=>Object.values(g).flat()).map(x=>x.toLowerCase()));
+    const standardItems=new Set((foodList?foodList.map(r=>r.name):Object.values(FOOD_ITEMS).flatMap(g=>Object.values(g).flat())).map(x=>x.toLowerCase()));
     const earlierItems=[...new Set(rows.flatMap(r=>String(r.menu||'').split(/\s*,\s*/)).map(x=>x.trim()).filter(x=>x&&x.length<=40&&!standardItems.has(x.toLowerCase())&&!/\bwith\b|\band\b/i.test(x)))].sort().slice(0,30);
     function addItem(name){
       const item=String(name||'').trim().replace(/\s+/g,' ');
@@ -26244,7 +26348,7 @@ function RoomsBeds({profile,onNavigate}){
       setBev(b=>({...blankBev(),given_date:b.given_date}));
       load();
     }
-    const groups=FOOD_ITEMS[form.meal_type]||FOOD_ITEMS.Lunch;
+    const groups=foodGroupsFrom(foodList,form.meal_type);
     const guestName=r=>r.patients?[r.patients.title,r.patients.full_name].filter(Boolean).join(' '):'—';
     const roomOf=r=>r.patients?`${r.patients.room_no||'—'}-${r.patients.bed_no||'—'}`:'—';
     const regMeals=regRows||[];
@@ -26258,6 +26362,7 @@ function RoomsBeds({profile,onNavigate}){
     const mealOn=(type)=>regMeals.find(r=>canonicalMealType(r.meal_type)===type);
     const intakeClass=v=>/refused|vomit/i.test(v||'')?'fi-bad':/partial|tasted/i.test(v||'')?'fi-warn':'fi-ok';
     return h(React.Fragment,null,
+      showItemManager&&foodList&&h(FoodItemManager,{listRows:foodList,earlierItems,profile,onClose:()=>setShowItemManager(false),onChanged:loadFoodList}),
       h(Section,{title:'Food, Diet & Beverages',subtitle:'Nursing entry — meals item by item, and beverages separately'},
         h('div',{className:'fi-top'},
           h('div',{className:'fi-guest'},patientSelect(patients,patientId,v=>setPatientId(v),'Guest')),
@@ -26272,7 +26377,8 @@ function RoomsBeds({profile,onNavigate}){
             h('div',{className:'field'},h('label',null,`Actual consumption time (${mealTimeGuide(form.meal_type)})`),h('input',{type:'time',value:form.served_time,required:true,onChange:e=>setForm({...form,served_time:e.target.value})}))
           ),
           h('div',{className:'fi-items'},
-            h('label',{className:'fi-label'},`Food items served — add one by one (${form.items.length} added)`),
+            h('div',{className:'fi-label-row'},h('label',{className:'fi-label'},`Food items served — add one by one (${form.items.length} added)`),
+              profile?.role==='Admin'&&h('button',{type:'button',className:'btn btn-secondary fi-manage',onClick:async()=>{const r=await loadFoodList();if(r.error||!(r.data||[]).length){alert('The food item list needs a one-time database update: run supabase/sql/192_food_item_list.sql in Supabase → SQL Editor, then try again.');return}setShowItemManager(true)}},'⚙ Manage item list')),
             h('div',{className:'fi-chips'},
               form.items.length?form.items.map((it,i)=>h('span',{key:it,className:'fi-chip'},
                 i>0&&h('button',{type:'button',className:'fi-chip-move',title:'Move left','aria-label':`Move ${it} left`,onClick:()=>moveItem(i,-1)},'‹'),

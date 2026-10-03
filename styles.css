@@ -2774,3 +2774,24 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 .sidebar .nav-submenu button[data-nav='Approved—Ready to Pay']::before{content:''!important;color:#1f9d6a!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='m8 12 3 3 5-6'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='m8 12 3 3 5-6'/%3E%3C/svg%3E")!important}
 .sidebar .nav-submenu button[data-nav='Payment Vouchers']::before{content:''!important;color:#f59b23!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7h18v4a2 2 0 0 0 0 4v4H3v-4a2 2 0 0 0 0-4z'/%3E%3Cpath d='M9 7v12' stroke-dasharray='2 2'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7h18v4a2 2 0 0 0 0 4v4H3v-4a2 2 0 0 0 0-4z'/%3E%3Cpath d='M9 7v12' stroke-dasharray='2 2'/%3E%3C/svg%3E")!important}
 .sidebar .nav-submenu button[data-nav='Payment Statements']::before{content:''!important;color:#3b82c4!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z'/%3E%3Cpath d='M14 3v6h6M8 13h8M8 17h8'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z'/%3E%3Cpath d='M14 3v6h6M8 13h8M8 17h8'/%3E%3C/svg%3E")!important}
+
+/* 2.15.59: Manage Food Item List (Admin) */
+.fi-label-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+.fi-manage{padding:6px 12px!important;font-size:13px!important}
+.fim-modal{max-width:760px;width:calc(100vw - 24px);max-height:88vh;overflow:auto}
+.fim-meals{margin:4px 0 10px}
+.fim-group{border:1px solid #f0d3e1;border-radius:14px;padding:10px 12px;margin:10px 0;background:#fffafc}
+.fim-group h4{margin:0 0 8px;color:#8b0b49;font-size:14px}
+.fim-group>small{display:block;color:#6b5560;margin:-4px 0 8px}
+.fim-list{display:grid;gap:4px}
+.fim-item{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;padding:6px 8px;border-radius:10px;background:#fff;border:1px solid #f3e1ea}
+.fim-name{font-weight:800;color:#3d1a2c}
+.fim-actions{display:flex;flex-wrap:wrap;gap:4px}
+.fim-actions button,.fim-actions select{min-height:32px;padding:4px 10px;border-radius:9px;border:1px solid #e7b3cb;background:#fbeef4;color:#8b0b49;font-weight:800;cursor:pointer}
+.fim-actions button:disabled{opacity:.4;cursor:default}
+.fim-actions .fim-del{background:#fff1f2;border-color:#f5b5bf;color:#b42336}
+.fim-removed .fim-name{color:#8a7680;text-decoration:line-through}
+.fim-add{display:flex;gap:8px;margin-top:8px}
+.fim-add input{flex:1;min-width:0}
+.fim-hidden{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
+@media(max-width:560px){.fim-item{align-items:flex-start}.fim-actions{width:100%}}

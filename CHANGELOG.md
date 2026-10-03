@@ -1,3 +1,7 @@
+## 2.15.59 — Food item list managed by Admin
+
+Resident Food Intake → Meal now has "⚙ Manage item list" for Admin: per Breakfast / Lunch / Dinner and group (Main item, Sides / curries, Others) Admin can add, rename, reorder (↑ ↓) and remove items, restore removed items, and turn staff-typed "Added earlier" items into list items or hide wrong spellings. Removing or renaming never changes saved meal entries. The list is stored in the new table food_item_list (filled with the current standard list); until supabase/sql/192_food_item_list.sql is run the built-in list is used. Only Admin can change the list.
+
 ## 2.15.58 — Accounts / Billing menu reorganised
 
 Accounts Dashboard is now first, followed by three labelled groups: Guest Billing · money in (Bills & Charges Approval, Guest Payments / Receipts, Guest Ledger, Final Billing, Discharge Clearance, Refunds, Package Expiry), Outgoing Payments · money out (Payment Requests, Approved — Ready to Pay, Payment Vouchers, Payment Statements) and Reports (Accounts Reports). "Payments & Vouchers" is no longer listed separately (it opened the same screen as Payment Requests; old saved links still work). Outgoing items have proper icons. Guest Ledger and Final Billing appear only under ACCOUNTS / BILLING (removed from PATIENTS). Nurses still see "Bills & Charges". The Accounts tab bar uses the same names and order. Help assistant knowledge refreshed. Menu only — no page, data or permission changes; no SQL.
