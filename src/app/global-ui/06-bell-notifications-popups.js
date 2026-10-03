@@ -179,7 +179,7 @@
           const since=new Date(Date.now()-2*86400000).toISOString().slice(0,10);
           jobs.push(client.from('medication_administrations').select('id,patient_id,order_id,scheduled_date,scheduled_time,withhold_reason,withhold_reading,doctor_informed_name,administered_at').eq('status','Withheld').is('doctor_instruction',null).gte('scheduled_date',since).limit(50));
         }else jobs.push(Promise.resolve({data:[],error:null}));
-        // 2.15.53: charges not attended by Accounts within 30 minutes -> Admin / Director
+        // 2.15.53/54: charges not attended by Accounts within 30 minutes -> Admin / Director (pop-up re-appears every 30 min while pending)
         if(foodAdmin)jobs.push(client.rpc('bill_charge_overdue_alerts'));
         else jobs.push(Promise.resolve({data:[],error:null}));
         const [dis,charges,food,withheld,overdue]=await Promise.all(jobs);
@@ -216,7 +216,7 @@
           const list=overdue.data.slice().sort((a,b)=>new Date(a.raised_at)-new Date(b.raised_at));
           const oldest=list[0],newest=list[list.length-1];
           const lines=list.slice(0,4).map(a=>`${a.guest_name||'Guest'}${a.room_label?` (${a.room_label})`:''}: ${a.item||a.category||'Charge'} — pending ${overdueChargeMinutes(a.minutes)}`).join('; ');
-          candidates.push({key:`charge-overdue-${newest.request_id}-${list.length}`,kind:'Bills & Charges',title:`${list.length} charge request${list.length===1?'':'s'} not attended by Accounts`,detail:`Not approved / rejected by Accounts within 30 minutes of being raised. ${lines}${list.length>4?`; + ${list.length-4} more (see Notifications)`:''}. Follow up with Accounts.`,page:'Charge Approvals',target:{type:'charge-request',request_id:oldest.request_id,patient_id:oldest.patient_id},urgent:true,at:oldest.raised_at});
+          candidates.push({key:`charge-overdue-${newest.request_id}-${list.length}-${Math.floor(Date.now()/1800000)}`,kind:'Bills & Charges',title:`${list.length} charge request${list.length===1?'':'s'} not attended by Accounts`,detail:`Not approved / rejected by Accounts within 30 minutes of being raised. ${lines}${list.length>4?`; + ${list.length-4} more (see Notifications)`:''}. Follow up with Accounts.`,page:'Charge Approvals',target:{type:'charge-request',request_id:oldest.request_id,patient_id:oldest.patient_id},urgent:true,at:oldest.raised_at});
         }
         candidates.sort((a,b)=>Number(!!b.urgent)-Number(!!a.urgent)||new Date(b.at||0)-new Date(a.at||0));
         const next=candidates.find(x=>!closed.current.has(x.key));

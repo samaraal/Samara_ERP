@@ -1,6 +1,10 @@
+## 2.15.54 — Bills & Charges escalation repeats every 30 minutes
+
+While charge requests stay Pending with Accounts beyond 30 minutes, Admin / Director get the summary WhatsApp ("N Bills/Charges raised are unattended in Accounts ... pending since 12:30 PM on DD-MM-YYYY. Please take necessary action.") again every 30 minutes, and the ERP pop-up re-appears every 30 minutes. Stops automatically once Accounts attends to all of them. Apply supabase/sql/189_bill_charge_escalation_every_30_min.sql (after 188) and redeploy bill-charge-escalation-dispatch.
+
 ## 2.15.53 — Bills & Charges escalation to Admin after 30 minutes
 
-If a charge request raised in Bills & Charges is still Pending with Accounts (not approved, partly approved or rejected in Charge Approvals) 30 minutes after it was raised, Admin / Director get an ERP pop-up and a new "Bills & Charges — Not Attended by Accounts" list in Notifications (tap a row to open that exact charge). WhatsApp to Admin / Director (one message per Guest, never repeated per charge) runs every minute through the new Edge Function bill-charge-escalation-dispatch and stays silent until the Meta template samara_billing_escalation is approved and BILLING_WHATSAPP_ENABLED=true is set. Apply supabase/sql/188_bill_charge_accounts_escalation.sql. Charges already pending before SQL 188 is run are listed in the ERP but not sent on WhatsApp.
+If a charge request raised in Bills & Charges is still Pending with Accounts (not approved, partly approved or rejected in Charge Approvals) 30 minutes after it was raised, Admin / Director get an ERP pop-up and a new "Bills & Charges — Not Attended by Accounts" list in Notifications (tap a row to open that exact charge). WhatsApp to Admin / Director (one short summary: number of unattended charges and since when, no Guest details; sent again only when more charges become overdue) runs every minute through the new Edge Function bill-charge-escalation-dispatch and stays silent until the Meta template samara_billing_escalation is approved and BILLING_WHATSAPP_ENABLED=true is set. Apply supabase/sql/188_bill_charge_accounts_escalation.sql. Charges already pending before SQL 188 is run are listed in the ERP but not sent on WhatsApp.
 
 ## 2.15.52 — Simple Add Equipment
 
