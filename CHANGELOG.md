@@ -1,3 +1,7 @@
+## 2.15.55 — Kitchen / Food Stores item list with automatic codes
+
+Kitchen items now have automatic codes (KIT-0001, KIT-0002 …, same KIT- series as Stores). "＋ New Kitchen Items" (Record Purchase and Kitchen Stock tabs; kitchen in-charge or Admin) adds several items in one save — name, unit from the list, optional low-stock level; duplicate names are refused. Record Purchase now picks each item from the coded list (unit filled automatically), with "Other expense (not a stock item)" for things like auto fare. Kitchen Stock, Purchase Register and stock history show the codes. Existing kitchen items are numbered automatically. Apply supabase/sql/190_kitchen_item_codes.sql before this frontend.
+
 ## 2.15.54 — Bills & Charges escalation repeats every 30 minutes
 
 While charge requests stay Pending with Accounts beyond 30 minutes, Admin / Director get the summary WhatsApp ("N Bills/Charges raised are unattended in Accounts ... pending since 12:30 PM on DD-MM-YYYY. Please take necessary action.") again every 30 minutes, and the ERP pop-up re-appears every 30 minutes. Stops automatically once Accounts attends to all of them. Apply supabase/sql/189_bill_charge_escalation_every_30_min.sql (after 188) and redeploy bill-charge-escalation-dispatch.

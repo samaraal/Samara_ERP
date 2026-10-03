@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.54';
+  const APP_VERSION = '2.15.55';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '03-Oct-2026 Charge escalation every 30 min';
+  const APP_BUILD_DATE = '03-Oct-2026 Kitchen item codes';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -7352,7 +7352,10 @@ https://samaraassistedliving.com/`;
     const [data,setData]=React.useState(null),[error,setError]=React.useState(''),[notice,setNotice]=React.useState(''),[busy,setBusy]=React.useState(false),[tab,setTab]=React.useState('home');
     const [dialog,setDialog]=React.useState(null),[form,setForm]=React.useState({}),[receipt,setReceipt]=React.useState(null);
     const lock=React.useRef(false),token=React.useRef(null);
-    const emptyLine=()=>({name:'',unit:'kg',quantity:'1',price:'',stock:true});
+    const emptyLine=()=>({item_id:'',name:'',unit:'',quantity:'1',price:'',stock:true});
+    // 2.15.55: kitchen item list with automatic KIT- codes; several items can be added at once (SQL 190).
+    const emptyNewItem=()=>({name:'',unit:'Kg',low_level:''});
+    const [newItems,setNewItems]=React.useState(null),[newItemsError,setNewItemsError]=React.useState('');
     const [purchase,setPurchase]=React.useState({date:todayISOIndia(),vendor:'',bill:'',no_receipt:'',items:[emptyLine()]});
     const load=React.useCallback(async()=>{const r=await client.rpc('kitchen_workspace');if(r.error){setError(r.error.message);return}setData(r.data);setError('')},[]);
     React.useEffect(()=>{load();const timer=setInterval(load,30000);return()=>clearInterval(timer)},[load]);
@@ -7389,6 +7392,38 @@ https://samaraassistedliving.com/`;
     const actions=(...children)=>h('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}},...children);
     const field=(label,key,type='text',opts={})=>h('div',{className:'field'},h('label',null,label),h('input',{type,value:purchase[key],onChange:e=>setPurchase(v=>({...v,[key]:e.target.value})),...opts}));
     const lineChange=(i,key,value)=>setPurchase(v=>({...v,items:v.items.map((x,j)=>j===i?{...x,[key]:value}:x)}));
+    const kitchenItems=(data.stock||[]).filter(x=>x.active!==false).slice().sort((a,b)=>String(a.item_code||'').localeCompare(String(b.item_code||''),undefined,{numeric:true}));
+    const itemLabel=x=>`${x.item_code?x.item_code+' · ':''}${x.name} · ${x.unit}`;
+    const codeFor=(nm,unit)=>(data.stock||[]).find(x=>x.name===nm&&x.unit===unit)?.item_code;
+    const pickItem=(i,value)=>setPurchase(v=>({...v,items:v.items.map((x,j)=>{if(j!==i)return x;if(value==='__other')return {...x,item_id:'__other',name:'',unit:'Nos',stock:false};const it=kitchenItems.find(k=>String(k.id)===String(value));return it?{...x,item_id:it.id,name:it.name,unit:it.unit,stock:true}:{...x,item_id:'',name:'',unit:''}})}));
+    const canAddItems=admin||[w.primary_staff,w.custodian].includes(actor);
+    const openNewItems=()=>{setNewItems([emptyNewItem()]);setNewItemsError('')};
+    async function saveNewItems(e){
+      e.preventDefault();if(lock.current)return;
+      const rows=newItems.map(x=>({name:String(x.name||'').trim().replace(/\s+/g,' '),unit:x.unit,low_level:x.low_level===''?0:Number(x.low_level)}));
+      if(rows.some(x=>x.name.length<2))return setNewItemsError('Every item needs a name (or remove the empty row).');
+      const names=rows.map(x=>x.name.toLowerCase());const twice=names.find((n,i)=>names.indexOf(n)!==i);if(twice)return setNewItemsError(`"${twice}" is entered twice.`);
+      const exists=rows.find(x=>(data.stock||[]).some(k=>String(k.name).toLowerCase()===x.name.toLowerCase()));if(exists){const k=data.stock.find(k=>String(k.name).toLowerCase()===exists.name.toLowerCase());return setNewItemsError(`${exists.name} already exists as ${k.item_code||''} (${k.unit}). Use the existing item.`)}
+      lock.current=true;setBusy(true);setNewItemsError('');
+      try{const r=await client.rpc('kitchen_add_items',{p_items:rows});if(r.error)throw r.error;const added=Array.isArray(r.data)?r.data:[];setNewItems(null);await load();showSamaraActionToast('success',`${added.length} kitchen item${added.length===1?'':'s'} added`,added.map(x=>`${x.item_code} ${x.name}`).join(', '));}
+      catch(err){setNewItemsError(/kitchen_add_items/.test(err.message||'')?'Run SQL 190 first. '+err.message:err.message)}
+      finally{lock.current=false;setBusy(false)}
+    }
+    const newItemsDialog=newItems&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:saveNewItems,role:'dialog','aria-modal':true,style:{maxWidth:'720px',width:'min(96vw,720px)',maxHeight:'90vh',overflow:'auto'}},
+      h('h3',null,'Add Kitchen Items'),h('p',{className:'small-note'},'Codes are given automatically (KIT-0001, KIT-0002 …) when you save. Add as many items as you need, then save once.'),
+      newItemsError&&h('p',{className:'message error',role:'alert'},newItemsError),
+      h('fieldset',{disabled:busy,style:{border:0,padding:0}},
+        newItems.map((x,i)=>h('div',{key:i,className:'card panel',style:{marginBottom:'10px'}},
+          h('strong',null,`Item ${i+1}`),
+          h('div',{className:'grid two'},
+            h('div',{className:'field'},h('label',null,'Item name *'),h('input',{required:true,minLength:2,value:x.name,placeholder:'e.g. Rice (Ponni)',onChange:e=>setNewItems(v=>v.map((y,j)=>j===i?{...y,name:e.target.value}:y))})),
+            h('div',{className:'field'},h('label',null,'Unit *'),h('select',{required:true,value:x.unit,onChange:e=>setNewItems(v=>v.map((y,j)=>j===i?{...y,unit:e.target.value}:y))},STORE_UNITS.map(u=>h('option',{key:u,value:u},u)))),
+            h('div',{className:'field'},h('label',null,'Low-stock alert level (optional)'),h('input',{type:'number',min:'0',step:'0.001',value:x.low_level,onChange:e=>setNewItems(v=>v.map((y,j)=>j===i?{...y,low_level:e.target.value}:y))}))),
+          newItems.length>1&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setNewItems(v=>v.filter((_,j)=>j!==i))},'Remove'))),
+        h('button',{type:'button',className:'btn btn-secondary',disabled:newItems.length>=50,onClick:()=>setNewItems(v=>[...v,emptyNewItem()])},'＋ Add another item'),
+        h('div',{style:{display:'flex',gap:'8px',justifyContent:'flex-end',marginTop:'12px',flexWrap:'wrap'}},
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setNewItems(null)},'Cancel'),
+          h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':`Save ${newItems.length} item${newItems.length===1?'':'s'}`)))));
     return h('div',{className:'kitchen-cash'},
       h('style',null,`@media(max-width:760px){
         .app:has(.kitchen-cash) .samara-float-nav{display:none!important}
@@ -7410,15 +7445,20 @@ https://samaraassistedliving.com/`;
         actions(spend&&h('button',{className:'btn btn-primary',onClick:()=>setTab('purchase')},'Record Purchase'),spend&&button('Count / Reconcile Cash','reconcile',{amount:data.balance,note:''}),admin&&button('Set Low-Cash Limit','settings',{amount:w.low_limit,note:''}))),
       tab==='purchase'&&spend&&h(Section,{title:'Record cash purchase / expense'},h('form',{onSubmit:savePurchase},h('fieldset',{disabled:busy,style:{border:0,padding:0}},
         h('div',{className:'grid two'},field('Purchase date','date','date',{required:true,max:todayISOIndia()}),field('Shop / vendor','vendor','text',{required:true}),field('Bill number','bill')),
-        purchase.items.map((x,i)=>h('div',{key:i,className:'card panel'},h('div',{className:'grid two'},...['name','unit','quantity','price'].map(k=>h('div',{className:'field',key:k},h('label',null,{name:'Item / expense',unit:'Unit',quantity:'Quantity',price:'Unit price (₹)'}[k]),h('input',{required:true,type:['quantity','price'].includes(k)?'number':'text',min:k==='quantity'?'0.001':'0',step:k==='quantity'?'0.001':'0.01',value:x[k],onChange:e=>lineChange(i,k,e.target.value)}))),
-          h('label',null,h('input',{type:'checkbox',checked:x.stock,onChange:e=>lineChange(i,'stock',e.target.checked)}),' Add to kitchen stock (untick if used immediately)'),
+        h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap',margin:'6px 0 10px'}},h('small',null,kitchenItems.length?`${kitchenItems.length} kitchen items in the list.`:'No kitchen items yet — add them first.'),canAddItems&&h('button',{type:'button',className:'btn btn-secondary',onClick:openNewItems},'＋ New Kitchen Items')),
+        purchase.items.map((x,i)=>h('div',{key:i,className:'card panel'},h('strong',null,`Item ${i+1}`),h('div',{className:'grid two'},
+          h('div',{className:'field'},h('label',null,'Item *'),h('select',{required:true,value:x.item_id||'',onChange:e=>pickItem(i,e.target.value)},h('option',{value:''},'Select item'),kitchenItems.map(k=>h('option',{key:k.id,value:k.id},itemLabel(k))),h('option',{value:'__other'},'Other expense (not a stock item)'))),
+          x.item_id==='__other'?h('div',{className:'field'},h('label',null,'Expense details *'),h('input',{required:true,minLength:2,value:x.name,placeholder:'e.g. Auto fare, gas refill',onChange:e=>lineChange(i,'name',e.target.value)})):h('div',{className:'field'},h('label',null,'Unit'),h('input',{readOnly:true,value:x.unit||'—',tabIndex:-1,style:{background:'#f7f1f4'}})),
+          x.item_id==='__other'&&h('div',{className:'field'},h('label',null,'Unit *'),h('select',{required:true,value:x.unit||'Nos',onChange:e=>lineChange(i,'unit',e.target.value)},STORE_UNITS.map(u=>h('option',{key:u,value:u},u)))),
+          ...['quantity','price'].map(k=>h('div',{className:'field',key:k},h('label',null,{quantity:'Quantity *',price:'Unit price (₹) *'}[k]),h('input',{required:true,type:'number',min:k==='quantity'?'0.001':'0',step:k==='quantity'?'0.001':'0.01',value:x[k],onChange:e=>lineChange(i,k,e.target.value)}))),
+          x.item_id&&x.item_id!=='__other'&&h('label',null,h('input',{type:'checkbox',checked:x.stock,onChange:e=>lineChange(i,'stock',e.target.checked)}),' Add to kitchen stock (untick if used immediately)'),
           h('strong',null,'Line total: '+money(Math.round(Number(x.quantity)*Number(x.price)*100)/100))),purchase.items.length>1&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPurchase(v=>({...v,items:v.items.filter((_,j)=>j!==i)}))},'Remove line'))),
         h('button',{type:'button',className:'btn btn-secondary',disabled:purchase.items.length>=50,onClick:()=>setPurchase(v=>({...v,items:[...v.items,emptyLine()]}))},'＋ Add item'),
         h('p',null,'Total cash paid: ',h('strong',null,money(purchase.items.reduce((s,x)=>s+Math.round(Number(x.quantity)*Number(x.price)*100)/100,0)))),
         h('div',{className:'field'},h('label',null,'Receipt photo / PDF (up to 10 MB)'),h('input',{type:'file',accept:'image/jpeg,image/png,image/webp,application/pdf',onChange:e=>{setReceipt(e.target.files?.[0]||null);uploadRef.current=null}})),
         !receipt&&field('Reason no receipt is available','no_receipt','text',{required:true,minLength:3}),
         h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Record Expense')))),
-      tab==='purchases'&&h(Section,{title:'Purchase Register — Admin review afterward'},...data.purchases.map(x=>h('details',{key:x.id,className:'card panel'},h('summary',null,`${formatDateIN(x.expense_date)} · ${x.vendor} · ${money(x.total)} · ${x.status}`),h('p',null,`Entered by ${x.entered_name} · Bill: ${x.bill_no||'—'}`),table(['Item','Quantity','Unit price','Total','Stock'],x.items.map(l=>[l.name,l.quantity+' '+l.unit,money(l.price),money(l.total),l.stock?'Added to stock':'Used immediately'])),
+      tab==='purchases'&&h(Section,{title:'Purchase Register — Admin review afterward'},...data.purchases.map(x=>h('details',{key:x.id,className:'card panel'},h('summary',null,`${formatDateIN(x.expense_date)} · ${x.vendor} · ${money(x.total)} · ${x.status}`),h('p',null,`Entered by ${x.entered_name} · Bill: ${x.bill_no||'—'}`),table(['Item','Quantity','Unit price','Total','Stock'],x.items.map(l=>[(codeFor(l.name,l.unit)?codeFor(l.name,l.unit)+' · ':'')+l.name,l.quantity+' '+l.unit,money(l.price),money(l.total),l.stock?'Added to stock':'Used immediately'])),
         x.receipt_path?h('button',{className:'btn btn-secondary',onClick:()=>viewReceipt(x.receipt_path)},'View Receipt'):h('p',null,'No receipt: '+x.no_receipt_reason),x.review_note&&h('p',null,'Review: '+x.review_note),
         admin&&x.status!=='Reversed'&&actions(button('Review / Query','review',{id:x.id,status:'Reviewed',note:''}),button('Reverse / Correct','reverse',{id:x.id,note:''})))),!data.purchases.length&&h('p',null,'No purchases yet.')),
       tab==='funding'&&h(Section,{title:'Cash requests and handovers'},spend&&button('Request Cash','request_cash',{amount:2000,note:''},true),table(['Purpose','Recipient','Requested','Approved','Status','Action'],data.funding.map(x=>[x.purpose,name(x.recipient),money(x.requested_amount),x.amount?money(x.amount):'—',x.status,actions(
@@ -7427,8 +7467,8 @@ https://samaraassistedliving.com/`;
         admin&&['Requested','Approved'].includes(x.status)&&button('Cancel Request','cancel_funding',{id:x.id,note:''}),
         x.status==='Approved'&&!admin&&h('p',null,'Awaiting Admin to record cash handed over. Receipt confirmation becomes available after that.'),
         x.status==='Handed over'&&x.recipient===actor&&button('Confirm Cash Received','receive_cash',{id:x.id,amount:x.amount,note:''},true))]))),
-      tab==='stock'&&h(Section,{title:'Kitchen stock and usage'},h('p',null,'Purchases marked “Add to kitchen stock” appear here. Existing Stores stock remains in its historical register; it is not silently imported or charged again.'),table(['Item','Balance','Low level','Action'],data.stock.map(x=>[x.name,x.quantity+' '+x.unit,x.low_level,actions(spend&&button('Record Usage / Wastage','use_stock',{id:x.id,quantity:'',kind:'Usage',note:''}), (spend||admin)&&button('Set Stock Alert','stock_limit',{id:x.id,amount:x.low_level,note:''}))])),
-        h('details',null,h('summary',null,'Stock movement history'),table(['When','Item','Movement','Quantity','Reason','Staff'],data.movements.map(x=>[formatDateTimeIN(x.created_at),data.stock.find(s=>s.id===x.item_id)?.name,x.kind,x.quantity,x.reason,name(x.actor)])))),
+      tab==='stock'&&h(Section,{title:'Kitchen stock and usage'},h('p',null,'Kitchen item list with automatic codes. Purchases marked “Add to kitchen stock” add to these balances. Existing Stores stock remains in its historical register; it is not silently imported or charged again.'),canAddItems&&h('button',{type:'button',className:'btn btn-primary',onClick:openNewItems},'＋ New Kitchen Items'),table(['Code','Item','Balance','Low level','Action'],data.stock.slice().sort((a,b)=>String(a.item_code||'').localeCompare(String(b.item_code||''),undefined,{numeric:true})).map(x=>[x.item_code||'—',x.name,x.quantity+' '+x.unit,x.low_level,actions(spend&&button('Record Usage / Wastage','use_stock',{id:x.id,quantity:'',kind:'Usage',note:''}), (spend||admin)&&button('Set Stock Alert','stock_limit',{id:x.id,amount:x.low_level,note:''}))])),
+        h('details',null,h('summary',null,'Stock movement history'),table(['When','Item','Movement','Quantity','Reason','Staff'],data.movements.map(x=>[formatDateTimeIN(x.created_at),(s=>s?`${s.item_code?s.item_code+' · ':''}${s.name}`:'—')(data.stock.find(s=>s.id===x.item_id)),x.kind,x.quantity,x.reason,name(x.actor)])))),
       tab==='handover'&&h(Section,{title:'Responsibility, leave cover and cash handover'},h('p',null,`Primary: ${name(w.primary_staff)}. Current custodian: ${name(w.custodian)}.`),h('p',null,'Leave cover continues beyond the planned leave end date. After the existing Return to Duty approval, spending pauses until cash and stock are handed back. Each handover retains the stock snapshot and both confirmations.'),
         admin&&!pendingHandover&&button('Assign / Hand Over','handover_create',{kind:data.access.return_ready?'Return':'Leave cover',staff:data.access.return_ready?w.primary_staff:'',leave:'',note:''},true),
         ...data.handovers.map(x=>h('details',{key:x.id,className:'card panel',open:['Awaiting outgoing','Awaiting receipt'].includes(x.status)},h('summary',null,`${x.kind}: ${name(x.from_staff)} → ${name(x.to_staff)} · ${x.status}`),h('p',null,`Cash to transfer: ${money(x.expected_cash)} · ${x.reason}`),h('p',null,x.stock_note||'Stock confirmation pending'),table(['Stock at handover','Quantity'],x.stock_snapshot.map(s=>[s.name,s.quantity+' '+s.unit])),actions(
@@ -7440,6 +7480,7 @@ https://samaraassistedliving.com/`;
         table(['Date','Type','Details','In','Out','Balance','Staff'],data.cash.map(x=>[formatDateTimeIN(x.created_at),x.kind,x.details,x.amount>0?money(x.amount):'—',x.amount<0?money(-x.amount):'—',money(x.balance_after),x.actor_name])),
         h('details',null,h('summary',null,'Physical cash counts and discrepancies'),table(['When','Book cash','Physical cash','Difference','Staff','Note'],data.reconciliations.map(x=>[formatDateTimeIN(x.created_at),money(x.book_cash),money(x.physical_cash),money(x.difference),name(x.actor),x.note]))),
         h('details',null,h('summary',null,'Assignment and action audit history'),table(['When','Action','Staff','Details'],data.audit.map(x=>[formatDateTimeIN(x.created_at),x.action,x.actor_name||'Initial setup',JSON.stringify(x.details)])))),
+      newItemsDialog,
       dialog&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:submit,role:'dialog','aria-modal':true},h('h3',null,dialog.title),error&&h('p',{role:'alert',className:'message error'},error),h('fieldset',{disabled:busy,style:{border:0,padding:0}},
         ['amount'].filter(k=>k in form).map(k=>input(dialog.action==='adjust'?'Signed cash correction (₹); negative reduces cash':'Counted / approved amount (₹)',k,'number',{required:true,step:'0.01',min:dialog.action==='adjust'?undefined:0})),
         'quantity' in form&&input('Quantity','quantity','number',{required:true,min:'0.001',step:'0.001'}),
