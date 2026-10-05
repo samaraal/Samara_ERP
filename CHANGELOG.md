@@ -1,3 +1,7 @@
+## 2.15.63 — Food Vendor: no duplicate rates
+
+Only one rate per place + meal (Guest / Employee) + effective date. Saving the same price again is refused ("already saved"); saving a different price for the same date corrects that date's rate after confirmation (old price kept in Billing History). Existing duplicates are removed (the latest saved row, which is the one in use, is kept). Apply supabase/sql/195_food_rate_no_duplicates.sql (after 194).
+
 ## 2.15.62 — Food Vendor: separate Guest and Employee prices
 
 Breakfast, Lunch and Dinner now have a Guest (resident) price and an Employee price (Billing → Rates → "Price for"); Coffee/Tea keeps one price. Until an Employee price is saved, employees are charged the Guest price. Saving a rate can recalculate receipts already entered from its effective date (tick box, on by default); receipts corrected by hand are not changed, and the recalculation is recorded in Billing History. Receipt prices shows Guest / Employee quantities and lets Admin correct both prices. The statement shows "G ₹ / E ₹" rates and the meal summary has separate Guest and Employee rows. A negative closing balance now reads "Advance with vendor in words" instead of "Minus Rupees…". Apply supabase/sql/194_food_employee_rates.sql (after 104, 178 and 193).
