@@ -94,31 +94,41 @@ function compactRows(report){
  const groups=new Map();
  for(const o of report.orders||[]){const d=o.data||{},receipts=(report.events||[]).filter(e=>e.order_id===o.id&&e.kind==='receive');
  if(d.vendor_id!==report.vendor_id||d.date<report.from||d.date>report.to||o.status==='Draft'||(o.status==='Closed'&&!receipts.length))continue;
- const key=d.date+'|'+d.slot,g=groups.get(key)||{date:d.date,meal:d.slot,res:0,emp:0,received:0,hasReceipt:false,entries:[]};
+ const key=d.date+'|'+d.slot,g=groups.get(key)||{date:d.date,meal:d.slot,res:0,emp:0,received:0,recR:0,recE:0,hasReceipt:false,entries:[]};
  for(const it of d.items||[]){g.res+=Number(it.residents||0);g.emp+=Number(it.employees||0)}
- for(const e of receipts){g.hasReceipt=true;for(const it of e.data.items||[])g.received+=Number(it.residents||0)+Number(it.employees||0)}
+ for(const e of receipts){g.hasReceipt=true;for(const it of e.data.items||[]){g.received+=Number(it.residents||0)+Number(it.employees||0);g.recR+=Number(it.residents||0);g.recE+=Number(it.employees||0)}}
  g.entries.push(...(report.entries||[]).filter(e=>e.kind==='Receipt'&&e.data.order_id===o.id));groups.set(key,g);
  }
  return [...groups.values()].sort((a,b)=>a.date.localeCompare(b.date)||slots.indexOf(a.meal)-slots.indexOf(b.meal)).map(g=>{
  const priced=g.entries.length&&g.entries.every(e=>e.amount!=null&&e.data?.unit_price!=null),rates=[...new Set(g.entries.map(e=>Number(e.data?.unit_price)))],fallbackRate=rateFor(report,g.meal,g.date);
- const rate=priced?(rates.length===1?rates[0]:'Mixed'):fallbackRate,quantity=g.entries.length?g.entries.reduce((n,e)=>n+Number(e.data?.quantity||0),0):(g.hasReceipt?g.received:null);
- const amount=priced?Math.round(g.entries.reduce((n,e)=>n+Number(e.amount),0)*100)/100:(typeof rate==='number'&&quantity!=null?Math.round(quantity*rate*100)/100:null);
- return [g.date,g.meal,g.res,g.emp,g.res+g.emp,g.hasReceipt?g.received:null,rate,quantity,amount];
+ const eRates=[...new Set(g.entries.filter(e=>Number(e.data?.employees||0)>0).map(e=>Number(e.data?.employee_unit_price??e.data?.unit_price)))],splitRate=priced&&rates.length===1&&eRates.length===1&&eRates[0]!==rates[0]?'G '+rates[0]+' / E '+eRates[0]:null;
+ const rate=splitRate||(priced?(rates.length===1?rates[0]:'Mixed'):fallbackRate),quantity=g.entries.length?g.entries.reduce((n,e)=>n+Number(e.data?.quantity||0),0):(g.hasReceipt?g.received:null);
+ const empFallback=!priced&&!/Tea|Coffee/.test(g.meal)?rateFor(report,g.meal+' (Employee)',g.date):null,splitFallback=typeof fallbackRate==='number'&&empFallback!=null&&empFallback!==fallbackRate;
+ const amount=priced?Math.round(g.entries.reduce((n,e)=>n+Number(e.amount),0)*100)/100:splitFallback&&g.hasReceipt?Math.round((g.recR*fallbackRate+g.recE*empFallback)*100)/100:(typeof rate==='number'&&quantity!=null?Math.round(quantity*rate*100)/100:null);
+ const shownRate=splitFallback?'G '+fallbackRate+' / E '+empFallback:rate;
+ const row=[g.date,g.meal,g.res,g.emp,g.res+g.emp,g.hasReceipt?g.received:null,shownRate,quantity,amount];Object.defineProperty(row,'detail',{value:{entries:priced?g.entries:[],recR:g.recR,recE:g.recE},enumerable:false});return row;
  });
 }
 function mealSummary(report){
- const groups=['Tiffin','Lunch','Dinner','Tea/Coffee'].map(meal=>({meal,quantity:0,amount:0,missing:false,prices:new Set()}));
- // ERP 2.15.26: bill RECEIVED portions only. An order that is not yet received (e.g. tomorrow's breakfast)
- // counts 0 and adds nothing to Food charges; a receipt's own priced amount is used when recorded.
- for(const row of compactRows(report)){const category=/Tea|Coffee/.test(row[1])?'Coffee/Tea':row[1],g=groups.find(g=>g.meal===(category==='Coffee/Tea'?'Tea/Coffee':category));if(!g)continue;
- const received=row[7]==null?0:Number(row[7]||0);g.quantity+=received;
- if(received<=0)continue;
- if(row[8]!=null){g.amount+=Number(row[8]);g.prices.add(typeof row[6]==='number'?row[6]:'Varies');continue}
- const rates=(report.rates||[]).filter(r=>r.item===category&&r.effective<=row[0]).sort((a,b)=>b.effective.localeCompare(a.effective)||String(b.created_at||'').localeCompare(String(a.created_at||'')));
- const price=rates[0]?.price;if(price==null){g.missing=true}else{g.prices.add(Number(price));g.amount+=received*Number(price)}
+ // ERP 2.15.62: Breakfast / Lunch / Dinner are summarised separately for Guests (residents) and Employees,
+ // each at its own price; Coffee/Tea has one price. Only RECEIVED portions are billed (2.15.26).
+ const order=['Tiffin – Guest','Tiffin – Employee','Lunch – Guest','Lunch – Employee','Dinner – Guest','Dinner – Employee','Tea/Coffee'];
+ const groups=order.map(meal=>({meal,quantity:0,amount:0,missing:false,prices:new Set()}));
+ const G=name=>groups.find(g=>g.meal===name);
+ const latest=(item,day)=>{const r=(report.rates||[]).filter(x=>x.item===item&&x.effective<=day).sort((a,b)=>b.effective.localeCompare(a.effective)||String(b.created_at||'').localeCompare(String(a.created_at||'')))[0];return r?.price==null?null:Number(r.price)};
+ const add=(g,qty,price,amount)=>{if(!g||qty<=0)return;g.quantity+=qty;if(amount==null||price==null){g.missing=true;return}g.prices.add(Number(price));g.amount+=Number(amount)};
+ for(const row of compactRows(report)){const tea=/Tea|Coffee/.test(row[1]),category=tea?'Coffee/Tea':row[1],received=row[7]==null?0:Number(row[7]||0);
+  if(received<=0)continue;
+  const det=row.detail||{entries:[],recR:0,recE:0};
+  if(tea){if(row[8]!=null&&det.entries.length){for(const e of det.entries)add(G('Tea/Coffee'),Number(e.data?.quantity||0),e.data?.unit_price,e.amount)}else{const p=latest('Coffee/Tea',row[0]);add(G('Tea/Coffee'),received,p,p==null?null:received*p)}continue}
+  const gG=G(category+' – Guest'),gE=G(category+' – Employee');
+  if(row[8]!=null&&det.entries.length){for(const e of det.entries){const d=e.data||{},r=Number(d.residents||0),em=Number(d.employees||0),gp=d.unit_price,ep=d.employee_unit_price??d.unit_price;
+    if(d.resident_amount!==undefined||d.employee_amount!==undefined){add(gG,r,gp,d.resident_amount);add(gE,em,ep,d.employee_amount)}
+    else{const q=Number(d.quantity||0)||(r+em);if(r+em===0){add(gG,q,gp,e.amount)}else{add(gG,r,gp,gp==null?null:r*gp);add(gE,em,gp,gp==null?null:em*gp)}}}}
+  else{const gp=latest(category,row[0]),ep=latest(category+' (Employee)',row[0])??gp;add(gG,det.recR,gp,gp==null?null:det.recR*gp);add(gE,det.recE,ep,ep==null?null:det.recE*ep)}
  }
- const rows=groups.map(g=>[g.meal,g.quantity,g.prices.size===1&&!g.missing?[...g.prices][0]:g.prices.size>1&&!g.missing?'Varies':null,g.missing?null:Math.round(g.amount*100)/100]);
- return [...rows,['Grand total',rows.reduce((n,r)=>n+r[1],0),null,rows.some(r=>r[3]==null)?null:Math.round(rows.reduce((n,r)=>n+r[3],0)*100)/100]];
+ const rows=groups.filter(g=>g.quantity>0||/Guest|Tea/.test(g.meal)).map(g=>[g.meal,g.quantity,g.prices.size===1&&!g.missing?[...g.prices][0]:g.prices.size>1&&!g.missing?'Varies':null,g.missing?null:Math.round(g.amount*100)/100]);
+ return [...rows,['Grand total',rows.reduce((n,r)=>n+r[1],0),null,rows.some(r=>r[3]==null&&r[1]>0)?null:Math.round(rows.reduce((n,r)=>n+(r[3]||0),0)*100)/100]];
 }
 const dateText=v=>typeof v==='string'?dates.text(v).replace(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g,(_,d,m,y)=>d.padStart(2,'0')+'-'+m.padStart(2,'0')+'-'+y):v;
 const label=v=>typeof v==='string'?dateText(v.replace(/\bTiffin\b/gi,'Breakfast')):v;
