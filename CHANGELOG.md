@@ -1,3 +1,7 @@
+## 2.15.61 — Food Vendor: late receipt entry for auto-closed orders
+
+Orders with no receipt 3 hours after delivery are auto-closed (SQL 150) and closed orders are not billed, so food that came but was not entered was lost from the statement. Admin/Director now see "Reopen for late receipt" on a Closed (not cancelled) order from the last 30 days: enter a reason and the order reopens for 24 hours; staff then press Receive and enter the actual time and quantities (time defaults to the delivery time). Billing / ledger entries are made for the original supply date. For many days at once, Orders has "Reopen auto-closed orders in period (late receipt)" (Admin/Director): it reopens every auto-closed order in the selected From–To period, both places, for 48 hours (cancelled and manually closed orders are not touched). Late receipts do not send WhatsApp to the vendor automatically. The reopen and reason appear in the order history; if nothing is entered within 24 hours the order auto-closes again. Apply supabase/sql/193_food_late_receipt_reopen.sql (after 150 and 178).
+
 ## 2.15.60 — Fix: "Manage item list" no longer crashes Food & Diet
 
 Opening ⚙ Manage item list showed "This page had a problem" (a helper used by the window was not available to it). Fixed; no SQL.
