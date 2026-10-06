@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.68';
+  const APP_VERSION = '2.15.69';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -10721,6 +10721,13 @@ Samara Assisted Living`;
       return()=>client.removeChannel(ch);
     },[]);
     React.useEffect(()=>{
+      // 2.15.69: open one conversation directly (from Enquiries & Feedback / Enquiry Register), all messages shown.
+      let phone='';try{phone=normalizeWhatsAppRecipient(sessionStorage.getItem('samara_whatsapp_open_phone')||'')}catch(_error){}
+      if(!phone||!rows.length)return;
+      try{sessionStorage.removeItem('samara_whatsapp_open_phone')}catch(_error){}
+      setWaFolder('All');setQuery('');setShowUnread(false);setSelectedPhone(phone);
+    },[rows.length]);
+    React.useEffect(()=>{
       if(foodOnly){sessionStorage.removeItem('samara_patient_whatsapp_context');return;}
       let context=null;
       try{context=JSON.parse(sessionStorage.getItem('samara_patient_whatsapp_context')||'null')}catch(_error){}
@@ -12362,13 +12369,13 @@ Thank you.`;
     }).sort((a,b)=>String(b.last.created_at).localeCompare(String(a.last.created_at)));
   }
   function DirectorEnquiries({profile,onNavigate}){
-    const [enquiries,setEnquiries]=React.useState([]),[register,setRegister]=React.useState([]),[calls,setCalls]=React.useState([]),[feedback,setFeedback]=React.useState([]),[busy,setBusy]=React.useState(true),[error,setError]=React.useState('');
+    const [enquiries,setEnquiries]=React.useState([]),[register,setRegister]=React.useState([]),[registerAll,setRegisterAll]=React.useState([]),[addingPhone,setAddingPhone]=React.useState(''),[calls,setCalls]=React.useState([]),[feedback,setFeedback]=React.useState([]),[busy,setBusy]=React.useState(true),[error,setError]=React.useState('');
     async function load(){
       setBusy(true);setError('');
       try{
         async function all(table){const rows=[];for(let offset=0;;offset+=500){const r=await client.from(table).select('*').order('created_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+499);if(r.error)throw r.error;rows.push(...(r.data||[]));if((r.data||[]).length<500)return rows;}}
         const [wa,office,fb,reg]=await Promise.all([all('hr_whatsapp_communications'),all('director_office_items'),all('feedback'),all('pre_admission_enquiries').catch(()=>[])]);
-        setRegister(reg.filter(r=>!['Admitted','Converted to Admission','Closed'].includes(String(r.status||'New'))));
+        setRegisterAll(reg);setRegister(reg.filter(r=>!['Admitted','Converted to Admission','Closed','Not an enquiry'].includes(String(r.status||'New'))));
         setEnquiries(directorEnquiryConversations(wa));
         setCalls(office.filter(r=>r.item_type==='Call / Callback'&&!['completed','cancelled'].includes(String(r.status||'').toLowerCase())));
         setFeedback(fb.filter(r=>!['closed','resolved'].includes(String(r.status||'').toLowerCase())));
@@ -12387,7 +12394,28 @@ Thank you.`;
       h('h4',null,'WhatsApp enquiry conversations'),
       h('p',{className:'small-note'},'Uses the Inbox Admission Enquiries classification. Payment, employee, recruitment and patient/family conversations are excluded. Counts each contact once; unread enquiries: '+enquiries.filter(x=>x.unread).length+'.'),
       !busy&&!error&&!enquiries.length?h('p',null,'No classified enquiry conversations.'):null,
-      ...enquiries.map(e=>h('div',{key:e.phone,style:{padding:'12px',borderBottom:'1px solid #efd3e1',color:'#741747'}},h('strong',null,e.name),h('div',null,e.phone),h('small',null,e.unread?'Unread enquiry':'Read enquiry')))
+      ...enquiries.map(e=>{
+        // 2.15.69: each conversation opens its chat; linked to the Enquiry Register (open it, or add it).
+        const key=String(e.phone||'').replace(/\D/g,'').slice(-10);
+        const reg=registerAll.filter(r=>String(r.family_contact_phone||'').replace(/\D/g,'').slice(-10)===key).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)))[0];
+        const openChat=()=>{try{sessionStorage.setItem('samara_whatsapp_open_phone',e.phone)}catch(_){}onNavigate('WhatsApp Inbox')};
+        const openReg=id=>{try{sessionStorage.setItem('samara-open-enquiry-id',id)}catch(_){}onNavigate('Enquiry Register')};
+        async function addReg(){
+          setAddingPhone(e.phone);
+          try{const {data,error}=await client.rpc('enq_add_from_whatsapp',{p_phone:e.phone,p_name:e.name,p_message:e.last?.message_content||null});if(error)throw error;
+            showSamaraActionToast('success',data?.existing?'Already in the register':'Added to Enquiry Register',`${data?.enquiry_no||''} · ${e.name}`);openReg(data.id);}
+          catch(err){showSamaraActionToast('error','Not added',/enq_add_from_whatsapp|schema cache|does not exist/i.test(err.message||'')?'Run supabase/sql/197_enquiry_not_an_enquiry.sql in Supabase first.':err.message)}
+          finally{setAddingPhone('')}
+        }
+        return h('div',{key:e.phone,style:{padding:'12px',borderBottom:'1px solid #efd3e1',color:'#741747',display:'flex',gap:'12px',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
+          h('button',{type:'button',onClick:openChat,style:{all:'unset',cursor:'pointer',flex:'1 1 240px'},title:'Open this WhatsApp chat'},
+            h('strong',null,e.name),h('div',null,e.phone),h('small',null,(e.unread?'Unread enquiry':'Read enquiry')+' · tap to open chat'),
+            e.last?.message_content?h('small',{style:{display:'block',color:'#8a6577',marginTop:'3px'}},String(e.last.message_content).slice(0,120)):null),
+          h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
+            h('button',{type:'button',className:'btn btn-secondary',onClick:openChat},'💬 Open chat'),
+            reg?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openReg(reg.id)},`▤ ${reg.enquiry_no||'Enquiry'} · ${reg.status||'New'}`)
+              :h('button',{type:'button',className:'btn btn-primary',disabled:addingPhone===e.phone,onClick:addReg},addingPhone===e.phone?'Adding…':'+ Add to Enquiry Register')));
+      })
     );
   }
 
@@ -15517,7 +15545,9 @@ Thank you.`;
   // Walk-in / Phone enquiries, record follow-ups, set the next follow-up date, assign and close.
   // The old "Enquiries" page name opens this register too (dashboard tiles and saved links keep working).
   const ENQ_STATUSES=['New','Contacted','Visit / Assessment Scheduled','Estimate Sent','Bed Reserved','Admitted','Closed'];
-  const ENQ_DONE=['Admitted','Converted to Admission','Closed'];
+  const ENQ_DONE=['Admitted','Converted to Admission','Closed','Not an enquiry'];
+  const ENQ_NOT_KINDS=['Job seeker / career','Vendor / supplier','Guest\'s family (existing Guest)','Staff','Wrong number','Spam / promotion','General question (not admission)','Other'];
+  const enqIsNot=r=>String(r?.status||'')==='Not an enquiry';
   const ENQ_MANUAL_SOURCES=['Walk-in','Phone call','Reference / Doctor','Hospital referral','Other'];
   const ENQ_CARE=['Assisted Living','Post-hospital recovery','Dementia care','Palliative / end-of-life care','Respite / short stay','Physiotherapy / rehabilitation','Tracheostomy / special nursing','Other'];
   const ENQ_ROOMS=['Single room','Twin sharing','Triple sharing','Not decided'];
@@ -15527,7 +15557,7 @@ Thank you.`;
   const enqStatus=r=>{const s=String(r?.status||'New');return s==='Assessment Scheduled'?'Visit / Assessment Scheduled':s==='Converted to Admission'?'Admitted':s};
   const enqOpen=r=>!ENQ_DONE.includes(String(r?.status||'New'));
   const enqKey=v=>String(v||'').replace(/\D/g,'').slice(-10);
-  const enqStatusTone={'New':['#fde7f1','#a40855'],'Contacted':['#e8f0fe','#1a4fa0'],'Visit / Assessment Scheduled':['#efe6fb','#5b2a9a'],'Estimate Sent':['#fff4d6','#7a5600'],'Bed Reserved':['#e2f5f3','#0e6b60'],'Admitted':['#e5f6ea','#1d6b35'],'Closed':['#eef0ef','#55605b']};
+  const enqStatusTone={'New':['#fde7f1','#a40855'],'Contacted':['#e8f0fe','#1a4fa0'],'Visit / Assessment Scheduled':['#efe6fb','#5b2a9a'],'Estimate Sent':['#fff4d6','#7a5600'],'Bed Reserved':['#e2f5f3','#0e6b60'],'Admitted':['#e5f6ea','#1d6b35'],'Closed':['#eef0ef','#55605b'],'Not an enquiry':['#f1f1f1','#6b6b6b']};
   const enqSourceTone=s=>/whatsapp/i.test(s||'')?['#e5f7ec','#167a3c']:/website|portal/i.test(s||'')?['#e8f0fe','#1a4fa0']:['#fdeee4','#9a4a12'];
   const enqPill=(text,[bg,fg])=>h('span',{className:'equip-pill',style:{background:bg,color:fg,fontWeight:600,whiteSpace:'nowrap'}},text);
 
@@ -15538,6 +15568,7 @@ Thank you.`;
     const [rows,setRows]=React.useState(null),[staff,setStaff]=React.useState([]),[settings,setSettings]=React.useState(null),[msg,setMsg]=React.useState('');
     const [openId,setOpenId]=React.useState(null),[activity,setActivity]=React.useState([]),[form,setForm]=React.useState(null),[busy,setBusy]=React.useState(false);
     const [follow,setFollow]=React.useState({note:'',status:'',next:'',reason:''});
+    const [notEnq,setNotEnq]=React.useState(null); // {kind,note} while moving an entry out of the register
     const [chip,setChip]=React.useState(()=>{try{const v=sessionStorage.getItem('samara-enquiry-filter')||'';sessionStorage.removeItem('samara-enquiry-filter');return v==='active'?'Open':'All'}catch(_){return 'All'}});
     const [search,setSearch]=React.useState('');
     // 2.15.68: dashboard of boxes (like Pharmacy & Stores); each box opens the register view with its filter, Back / Close returns.
@@ -15588,19 +15619,21 @@ Thank you.`;
     })();
     const dayOf=r=>{try{return new Date(new Date(r.created_at).getTime()+19800000).toISOString().slice(0,10)}catch(_){return String(r.created_at||'').slice(0,10)}}; // India date
     const due=r=>enqOpen(r)&&r.next_follow_up&&String(r.next_follow_up)<=today;
-    const list=rows||[];
+    const allRows=rows||[];
+    const notList=allRows.filter(enqIsNot);
+    const list=allRows.filter(r=>!enqIsNot(r)); // 2.15.69: entries moved to "Not an enquiry" stay out of the register lists
     // Follow-ups due are shown whatever the period, so nothing due is hidden by the date filter.
     const inPeriod=list.filter(r=>{const d=dayOf(r);return d>=bounds[0]&&d<=bounds[1]})
       .filter(r=>PA.source==='All'||(PA.source==='Manual'?ENQ_MANUAL_SOURCES.includes(r.source):String(r.source||'Website')===PA.source))
       .filter(r=>PA.assignee==='All'||(PA.assignee==='none'?!r.assigned_to:r.assigned_to===PA.assignee));
     const dueAll=list.filter(due);
-    const counts={All:inPeriod.length,New:inPeriod.filter(r=>enqStatus(r)==='New').length,Open:inPeriod.filter(enqOpen).length,Due:dueAll.length,Admitted:inPeriod.filter(r=>enqStatus(r)==='Admitted').length,Closed:inPeriod.filter(r=>enqStatus(r)==='Closed').length};
-    const base=chip==='Due'?dueAll:inPeriod;
+    const counts={Not:notList.length,All:inPeriod.length,New:inPeriod.filter(r=>enqStatus(r)==='New').length,Open:inPeriod.filter(enqOpen).length,Due:dueAll.length,Admitted:inPeriod.filter(r=>enqStatus(r)==='Admitted').length,Closed:inPeriod.filter(r=>enqStatus(r)==='Closed').length};
+    const base=chip==='Due'?dueAll:chip==='Not'?notList:inPeriod;
     const q=search.trim().toLowerCase(),qd=q.replace(/\D/g,'');
-    const shown=base.filter(r=>chip==='All'||chip==='Due'||(chip==='Open'?enqOpen(r):enqStatus(r)===chip))
+    const shown=base.filter(r=>chip==='All'||chip==='Due'||chip==='Not'||(chip==='Open'?enqOpen(r):enqStatus(r)===chip))
       .filter(r=>q.length<2||[r.enquiry_no,r.patient_name,r.family_contact_name,r.care_type,r.current_location,r.special_requirements,r.source].join(' ').toLowerCase().includes(q)||(qd.length>=4&&String(r.family_contact_phone||'').replace(/\D/g,'').includes(qd)));
     const sources=[...new Set(list.map(r=>r.source||'Website'))].sort();
-    const current=openId?list.find(r=>r.id===openId):null;
+    const current=openId?allRows.find(r=>r.id===openId):null;
 
     const monthStart=today.slice(0,8)+'01',thisMonth=list.filter(r=>dayOf(r)>=monthStart);
     const bySource=k=>thisMonth.filter(r=>k==='Manual'?ENQ_MANUAL_SOURCES.includes(r.source):k==='Website'?/website|portal/i.test(r.source||'Website'):String(r.source||'')===k).length;
@@ -15614,6 +15647,7 @@ Thank you.`;
       {key:'Open',icon:'↻',title:'In Progress',value:ready?allOpen.length-allNew.length:null,unit:'being followed up',lines:ENQ_STATUSES.filter(s=>!['New','Admitted','Closed'].includes(s)).map(s=>`${list.filter(r=>enqStatus(r)===s).length} ${s}`)},
       {key:'Admitted',icon:'♥',title:'Admitted',value:ready?list.filter(r=>enqStatus(r)==='Admitted').length:null,unit:'converted',lines:[`${thisMonth.filter(r=>enqStatus(r)==='Admitted').length} from this month's enquiries`]},
       {key:'Closed',icon:'✕',title:'Closed',value:ready?list.filter(r=>enqStatus(r)==='Closed').length:null,unit:'not converted',lines:[`${thisMonth.filter(r=>enqStatus(r)==='Closed').length} from this month's enquiries`]},
+      {key:'Not',icon:'⇲',title:'Not Enquiries (moved)',value:ready?notList.length:null,unit:'moved out',lines:['Job seekers, vendors, Guests\' families, wrong numbers…','Open to check or restore']},
       {key:'All#source',icon:'◔',title:'This Month by Source',value:ready?thisMonth.length:null,unit:'enquiries',lines:[`${bySource('Website')} Website / Portal`,`${bySource('WhatsApp')} WhatsApp`,`${bySource('Manual')} Walk-in / Phone`]}
     ];
     function openTile(key){
@@ -15625,10 +15659,10 @@ Thank you.`;
       openView('register');
     }
     React.useEffect(()=>{pa.apply()},[view]); // the period chosen by a box takes effect at once
-    function openRow(r){setOpenId(r.id);setFollow({note:'',status:'',next:'',reason:''});loadActivity(r.id)}
+    function openRow(r){setOpenId(r.id);setFollow({note:'',status:'',next:'',reason:''});setNotEnq(null);loadActivity(r.id)}
     function blankForm(){return {patient_name:'',age:'',family_contact_name:'',family_contact_phone:'+91 ',contact_relation:'',current_location:'',care_type:'',bed_preference:'',expected_admission_date:'',special_requirements:'',how_heard:'',source:'Walk-in',next_follow_up:'',assigned_to:settings?.default_assignee||''}}
     function editForm(r){return {id:r.id,patient_name:r.patient_name||'',age:r.website_age??'',family_contact_name:r.family_contact_name||'',family_contact_phone:r.family_contact_phone||'',contact_relation:r.contact_relation||'',current_location:r.current_location||'',care_type:r.care_type||r.reason_for_enquiry||'',bed_preference:r.bed_preference||'',expected_admission_date:r.expected_admission_date||'',special_requirements:r.special_requirements||'',how_heard:r.how_heard||'',source:r.source||''}}
-    const duplicates=form&&enqKey(form.family_contact_phone).length===10?list.filter(r=>r.id!==form.id&&enqKey(r.family_contact_phone)===enqKey(form.family_contact_phone)):[];
+    const duplicates=form&&enqKey(form.family_contact_phone).length===10?allRows.filter(r=>r.id!==form.id&&enqKey(r.family_contact_phone)===enqKey(form.family_contact_phone)):[];
 
     async function saveForm(){
       if(busy)return;
@@ -15651,6 +15685,19 @@ Thank you.`;
         showSamaraActionToast('success','Follow-up saved',`${current.enquiry_no||current.patient_name}${follow.status?` · ${follow.status}`:''}`);
         setFollow({note:'',status:'',next:'',reason:''});await load();loadActivity(current.id);
       }catch(e){showSamaraActionToast('error','Not saved',e.message)}
+      finally{setBusy(false)}
+    }
+    async function moveNot(restore){
+      if(busy||!current)return;
+      if(!restore&&(!notEnq?.kind))return;
+      setBusy(true);
+      try{
+        const {error}=await client.rpc('enq_followup',restore?{p_id:current.id,p_note:'Restored to the Enquiry Register',p_status:'New',p_next_follow_up:null,p_closed_reason:null}
+          :{p_id:current.id,p_note:(notEnq.note||'').trim()||'Moved out of the Enquiry Register',p_status:'Not an enquiry',p_next_follow_up:null,p_closed_reason:notEnq.kind});
+        if(error)throw error;
+        showSamaraActionToast('success',restore?'Restored as enquiry':'Moved to Not enquiries',`${current.enquiry_no||''}${restore?'':` · ${notEnq.kind}`}`);
+        setNotEnq(null);await load();loadActivity(current.id);
+      }catch(e){showSamaraActionToast('error','Not saved',/Invalid status|enq_followup/i.test(e.message||'')?'Run supabase/sql/197_enquiry_not_an_enquiry.sql in Supabase first.':e.message)}
       finally{setBusy(false)}
     }
     async function assign(userId){
@@ -15707,14 +15754,25 @@ Thank you.`;
           ['Guest is now at',current.current_location],['Care needed',current.care_type||current.reason_for_enquiry],['Room preference',current.bed_preference],
           ['Expected admission',current.expected_admission_date?formatDateIN(current.expected_admission_date):''],['Heard about Samara',current.how_heard],
           ['Requirements / message',current.special_requirements],['Status',enqStatus(current)],['Next follow-up',current.next_follow_up?formatDateIN(current.next_follow_up):''],
-          ['Closed reason',current.closed_reason],['Assigned to',nameOf(current.assigned_to)||(current.assigned_to?'—':'Not assigned')],['Added by',nameOf(current.created_by)]]},
+          [enqIsNot(current)?'Not an enquiry':'Closed reason',current.closed_reason],['Assigned to',nameOf(current.assigned_to)||(current.assigned_to?'—':'Not assigned')],['Added by',nameOf(current.created_by)]]},
         h('div',{className:'equip-actions',style:{flexWrap:'wrap',gap:'8px',margin:'10px 0'}},
           current.family_contact_phone&&h('a',{className:'btn btn-secondary',href:`tel:${String(current.family_contact_phone).replace(/[^\d+]/g,'')}`},'📞 Call'),
-          current.family_contact_phone&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{try{sessionStorage.setItem('samara_whatsapp_folder','Admission Enquiries')}catch(_){}if(typeof onNavigate==='function')onNavigate('WhatsApp Inbox')}},'💬 WhatsApp Inbox'),
+          current.family_contact_phone&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{try{sessionStorage.setItem('samara_whatsapp_open_phone',String(current.family_contact_phone).replace(/\D/g,''))}catch(_){}if(typeof onNavigate==='function')onNavigate('WhatsApp Inbox')}},'💬 WhatsApp chat'),
           canManage&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setForm(editForm(current))},'✎ Edit details'),
-          canAdmit&&enqOpen(current)&&h('button',{type:'button',className:'btn btn-primary',onClick:()=>startAdmission(current)},'➜ Start Admission')
+          canAdmit&&enqOpen(current)&&h('button',{type:'button',className:'btn btn-primary',onClick:()=>startAdmission(current)},'➜ Start Admission'),
+          canManage&&!enqIsNot(current)&&enqStatus(current)!=='Admitted'&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setNotEnq(notEnq?null:{kind:'',note:''})},'⇲ Not an enquiry'),
+          canManage&&enqIsNot(current)&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>moveNot(true)},'↩ Restore as enquiry')
         ),
-        canManage&&h('div',{className:'card',style:{padding:'12px',margin:'8px 0',border:'1px solid #ead0de'}},
+        notEnq&&!enqIsNot(current)&&h('div',{className:'card',style:{padding:'12px',margin:'8px 0',border:'1px solid #d9d9d9',background:'#fafafa'}},
+          h('h4',{style:{margin:'0 0 6px'}},'Move out of the Enquiry Register'),
+          h('small',null,'For messages that are not admission enquiries. It leaves the lists and reminders, WhatsApp will not add this number again, and you can restore it from "Not enquiries".'),
+          h('div',{className:'grid grid-2',style:{gap:'10px',marginTop:'8px'}},
+            h('div',{className:'field'},h('label',null,'What is it? *'),h('select',{value:notEnq.kind,onChange:e=>setNotEnq({...notEnq,kind:e.target.value})},h('option',{value:''},'— Select —'),ENQ_NOT_KINDS.map(k=>h('option',{key:k,value:k},k)))),
+            h('div',{className:'field'},h('label',null,'Note (optional)'),h('input',{value:notEnq.note,onChange:e=>setNotEnq({...notEnq,note:e.target.value}),placeholder:'e.g. asked for a nursing job'}))
+          ),
+          h('div',{style:{display:'flex',gap:'8px'}},h('button',{type:'button',className:'btn btn-primary',disabled:busy||!notEnq.kind,onClick:()=>moveNot(false)},busy?'Moving…':'Move to Not enquiries'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setNotEnq(null)},'Cancel'))
+        ),
+        canManage&&!enqIsNot(current)&&h('div',{className:'card',style:{padding:'12px',margin:'8px 0',border:'1px solid #ead0de'}},
           h('h4',{style:{margin:'0 0 8px'}},'Record follow-up'),
           h('div',{className:'grid grid-2',style:{gap:'10px'}},
             h('div',{className:'field'},h('label',null,'Change status to'),h('select',{value:follow.status,onChange:e=>setFollow({...follow,status:e.target.value})},h('option',{value:''},`No change (${enqStatus(current)})`),ENQ_STATUSES.filter(s=>s!=='New').map(s=>h('option',{key:s,value:s},s)))),
@@ -15751,7 +15809,7 @@ Thank you.`;
           isAdmin&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setDefaultPick(settings?.default_assignee||'');setShowSettings(true)}},'⚙ Default person'))),
       view&&msg?h('div',{className:'message error'},msg):null,
 
-      view==='register'&&h(React.Fragment,null,h(DashboardBackBar,{title:'Enquiry Register',viewTitle:{All:'All enquiries',New:'New — not yet contacted',Open:'In progress',Due:'Follow-up due',Admitted:'Admitted',Closed:'Closed'}[chip]||'Enquiries',onBack:backToDashboard}),
+      view==='register'&&h(React.Fragment,null,h(DashboardBackBar,{title:'Enquiry Register',viewTitle:{Not:'Not enquiries (moved out of the register)',All:'All enquiries',New:'New — not yet contacted',Open:'In progress',Due:'Follow-up due',Admitted:'Admitted',Closed:'Closed'}[chip]||'Enquiries',onBack:backToDashboard}),
       h(Section,{title:`Enquiries · ${PA.period==='all'?'All dates':`${formatDateIN(bounds[0])} – ${formatDateIN(bounds[1])}`}`,subtitle:`${shown.length} shown${settings?.default_assignee?` · new enquiries go to ${nameOf(settings.default_assignee)||'—'}`:' · no default person set'}`,
         actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
           isAdmin&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setDefaultPick(settings?.default_assignee||'');setShowSettings(true)}},'⚙ Default person'),
@@ -15765,7 +15823,7 @@ Thank you.`;
           h(ApplyFilterButton,{dirty:pa.dirty,onApply:pa.apply}),
           h('div',{className:'field',style:{flex:'1 1 220px'}},h('label',null,'Search'),h('input',{type:'search',value:search,onChange:e=>setSearch(e.target.value),placeholder:'Enquiry no, name, mobile, care'}))
         ),
-        h('div',{className:'stores-mode-switch',role:'tablist',style:{marginBottom:'12px'}},chipBtn('All','All'),chipBtn('New','New'),chipBtn('Open','In progress'),chipBtn('Due','Follow-up due'),chipBtn('Admitted','Admitted'),chipBtn('Closed','Closed')),
+        h('div',{className:'stores-mode-switch',role:'tablist',style:{marginBottom:'12px'}},chipBtn('All','All'),chipBtn('New','New'),chipBtn('Open','In progress'),chipBtn('Due','Follow-up due'),chipBtn('Admitted','Admitted'),chipBtn('Closed','Closed'),chipBtn('Not','Not enquiries')),
         chip==='Due'&&h('small',{className:'small-note'},'Follow-ups due today or earlier — all dates, whatever period is selected.'),
         rows===null?h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},'Loading…'):
         shown.length?h('div',{className:'table-wrap'},h('table',{className:'table'},

@@ -25,13 +25,13 @@
     }).sort((a,b)=>String(b.last.created_at).localeCompare(String(a.last.created_at)));
   }
   function DirectorEnquiries({profile,onNavigate}){
-    const [enquiries,setEnquiries]=React.useState([]),[register,setRegister]=React.useState([]),[calls,setCalls]=React.useState([]),[feedback,setFeedback]=React.useState([]),[busy,setBusy]=React.useState(true),[error,setError]=React.useState('');
+    const [enquiries,setEnquiries]=React.useState([]),[register,setRegister]=React.useState([]),[registerAll,setRegisterAll]=React.useState([]),[addingPhone,setAddingPhone]=React.useState(''),[calls,setCalls]=React.useState([]),[feedback,setFeedback]=React.useState([]),[busy,setBusy]=React.useState(true),[error,setError]=React.useState('');
     async function load(){
       setBusy(true);setError('');
       try{
         async function all(table){const rows=[];for(let offset=0;;offset+=500){const r=await client.from(table).select('*').order('created_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+499);if(r.error)throw r.error;rows.push(...(r.data||[]));if((r.data||[]).length<500)return rows;}}
         const [wa,office,fb,reg]=await Promise.all([all('hr_whatsapp_communications'),all('director_office_items'),all('feedback'),all('pre_admission_enquiries').catch(()=>[])]);
-        setRegister(reg.filter(r=>!['Admitted','Converted to Admission','Closed'].includes(String(r.status||'New'))));
+        setRegisterAll(reg);setRegister(reg.filter(r=>!['Admitted','Converted to Admission','Closed','Not an enquiry'].includes(String(r.status||'New'))));
         setEnquiries(directorEnquiryConversations(wa));
         setCalls(office.filter(r=>r.item_type==='Call / Callback'&&!['completed','cancelled'].includes(String(r.status||'').toLowerCase())));
         setFeedback(fb.filter(r=>!['closed','resolved'].includes(String(r.status||'').toLowerCase())));
@@ -50,7 +50,28 @@
       h('h4',null,'WhatsApp enquiry conversations'),
       h('p',{className:'small-note'},'Uses the Inbox Admission Enquiries classification. Payment, employee, recruitment and patient/family conversations are excluded. Counts each contact once; unread enquiries: '+enquiries.filter(x=>x.unread).length+'.'),
       !busy&&!error&&!enquiries.length?h('p',null,'No classified enquiry conversations.'):null,
-      ...enquiries.map(e=>h('div',{key:e.phone,style:{padding:'12px',borderBottom:'1px solid #efd3e1',color:'#741747'}},h('strong',null,e.name),h('div',null,e.phone),h('small',null,e.unread?'Unread enquiry':'Read enquiry')))
+      ...enquiries.map(e=>{
+        // 2.15.69: each conversation opens its chat; linked to the Enquiry Register (open it, or add it).
+        const key=String(e.phone||'').replace(/\D/g,'').slice(-10);
+        const reg=registerAll.filter(r=>String(r.family_contact_phone||'').replace(/\D/g,'').slice(-10)===key).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)))[0];
+        const openChat=()=>{try{sessionStorage.setItem('samara_whatsapp_open_phone',e.phone)}catch(_){}onNavigate('WhatsApp Inbox')};
+        const openReg=id=>{try{sessionStorage.setItem('samara-open-enquiry-id',id)}catch(_){}onNavigate('Enquiry Register')};
+        async function addReg(){
+          setAddingPhone(e.phone);
+          try{const {data,error}=await client.rpc('enq_add_from_whatsapp',{p_phone:e.phone,p_name:e.name,p_message:e.last?.message_content||null});if(error)throw error;
+            showSamaraActionToast('success',data?.existing?'Already in the register':'Added to Enquiry Register',`${data?.enquiry_no||''} · ${e.name}`);openReg(data.id);}
+          catch(err){showSamaraActionToast('error','Not added',/enq_add_from_whatsapp|schema cache|does not exist/i.test(err.message||'')?'Run supabase/sql/197_enquiry_not_an_enquiry.sql in Supabase first.':err.message)}
+          finally{setAddingPhone('')}
+        }
+        return h('div',{key:e.phone,style:{padding:'12px',borderBottom:'1px solid #efd3e1',color:'#741747',display:'flex',gap:'12px',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
+          h('button',{type:'button',onClick:openChat,style:{all:'unset',cursor:'pointer',flex:'1 1 240px'},title:'Open this WhatsApp chat'},
+            h('strong',null,e.name),h('div',null,e.phone),h('small',null,(e.unread?'Unread enquiry':'Read enquiry')+' · tap to open chat'),
+            e.last?.message_content?h('small',{style:{display:'block',color:'#8a6577',marginTop:'3px'}},String(e.last.message_content).slice(0,120)):null),
+          h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
+            h('button',{type:'button',className:'btn btn-secondary',onClick:openChat},'💬 Open chat'),
+            reg?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openReg(reg.id)},`▤ ${reg.enquiry_no||'Enquiry'} · ${reg.status||'New'}`)
+              :h('button',{type:'button',className:'btn btn-primary',disabled:addingPhone===e.phone,onClick:addReg},addingPhone===e.phone?'Adding…':'+ Add to Enquiry Register')));
+      })
     );
   }
 

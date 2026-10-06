@@ -1,3 +1,9 @@
+## 2.15.69 — Enquiries: open WhatsApp chats, "Not an enquiry" category
+
+- Director's Office → Enquiries & Feedback: each WhatsApp enquiry conversation now opens its chat (tap the row or 💬 Open chat — the Inbox opens on that conversation) and shows its Enquiry Register entry (▤ ENQ-… · status), or **+ Add to Enquiry Register** when it is not in the register yet.
+- Enquiry Register: **⇲ Not an enquiry** moves a Website / WhatsApp entry that is not an admission enquiry (job seeker, vendor, Guest's family, staff, wrong number, spam, general question, other) out of the register lists and reminders. WhatsApp never re-adds that number. New dashboard box and chip **Not enquiries** to check them; **↩ Restore as enquiry** brings one back as New. 💬 WhatsApp chat in an enquiry opens that conversation.
+- Apply supabase/sql/197_enquiry_not_an_enquiry.sql (after 196).
+
 ## 2.15.68 — Enquiry Register opens as a dashboard
 
 Director's Office → Enquiry Register now opens with boxes, like Pharmacy & Stores: New Enquiry, Enquiry Register — View All, New — Not Yet Contacted, Follow-up Due, In Progress, Admitted, Closed and This Month by Source (live counts). Each box opens the register already filtered, with the period / source / person filters + Apply, search and status chips; "← Back to Dashboard", × or the phone's Back button return to the boxes. Admin sets the default person from the dashboard (⚙ Default person). No SQL.

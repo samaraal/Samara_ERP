@@ -386,6 +386,13 @@ Samara Assisted Living`;
       return()=>client.removeChannel(ch);
     },[]);
     React.useEffect(()=>{
+      // 2.15.69: open one conversation directly (from Enquiries & Feedback / Enquiry Register), all messages shown.
+      let phone='';try{phone=normalizeWhatsAppRecipient(sessionStorage.getItem('samara_whatsapp_open_phone')||'')}catch(_error){}
+      if(!phone||!rows.length)return;
+      try{sessionStorage.removeItem('samara_whatsapp_open_phone')}catch(_error){}
+      setWaFolder('All');setQuery('');setShowUnread(false);setSelectedPhone(phone);
+    },[rows.length]);
+    React.useEffect(()=>{
       if(foodOnly){sessionStorage.removeItem('samara_patient_whatsapp_context');return;}
       let context=null;
       try{context=JSON.parse(sessionStorage.getItem('samara_patient_whatsapp_context')||'null')}catch(_error){}
