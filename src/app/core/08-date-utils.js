@@ -23,7 +23,7 @@ function billIsAdvance(row){
   return type==='advance'||(type==='payment'&&/advance/i.test(String(row?.category||'')));
 }
 function billRupees(v){const n=Number(v);return Number.isFinite(n)?'₹'+n.toLocaleString('en-IN',{maximumFractionDigits:2}):String(v);}
-function billLineLabel(row){
+function billItemName(row){
   const type=String(row?.transaction_type||'').toLowerCase();
   const cat=String(row?.category||'').trim();
   const text=String(row?.description||'').trim();
@@ -43,11 +43,38 @@ function billLineLabel(row){
   if(type==='refund')return 'Refund';
   return parts[0]||cat||'Charge';
 }
-// "Examination Gloves × 9 · Glucometer Strips × 2" for a group of charge rows.
+function billQty(v){const n=Number(v);return Number.isInteger(n)?String(n):String(Math.round(n*100)/100);}
+// Item name, plus "(2 × ₹30)" when the charge came with a quantity (see attachBillUnits).
+function billLineLabel(row){
+  const name=billItemName(row);
+  const q=Number(row?.bill_quantity),p=Number(row?.bill_unit_price);
+  return q>0&&p>0?`${name} (${billQty(q)} × ${billRupees(p)})`:name;
+}
+// One line per item and price for a group of charge rows:
+// "Examination Gloves (17 × ₹30), Glucometer Strips (2 × ₹50)" (or "Item × 3" when no quantity is known).
 function billItemsSummary(items){
-  const counts=new Map();
-  for(const it of items||[]){const label=billLineLabel(it);counts.set(label,(counts.get(label)||0)+1);}
-  return [...counts].map(([label,n])=>n>1?`${label} × ${n}`:label).join(' · ')||'—';
+  const groups=new Map();
+  for(const it of items||[]){
+    const name=billItemName(it),q=Number(it?.bill_quantity),p=Number(it?.bill_unit_price);
+    const unit=q>0&&p>0;const key=unit?`${name}|${p}`:`${name}|-`;
+    const g=groups.get(key)||{name,unit,price:p,qty:0,count:0};g.qty+=unit?q:0;g.count+=1;groups.set(key,g);
+  }
+  return [...groups.values()].map(g=>g.unit?`${g.name} (${billQty(g.qty)} × ${billRupees(g.price)})`:(g.count>1?`${g.name} × ${g.count}`:g.name)).join(', ')||'—';
+}
+// Adds bill_quantity / bill_unit_price from Bills & Charges requests to billing rows.
+// Staff names, approvals and remarks stay in bill_charge_requests (internal, time-stamped).
+async function attachBillUnits(rows,patientId){
+  try{
+    if(!patientId||!(rows||[]).some(r=>r.transaction_type==='Charge'))return rows||[];
+    const {data,error}=await client.from('bill_charge_requests').select('billing_transaction_id,quantity')
+      .eq('patient_id',patientId).not('billing_transaction_id','is',null);
+    if(error||!Array.isArray(data))return rows;
+    const byId=new Map(data.map(r=>[String(r.billing_transaction_id),Number(r.quantity)]));
+    return rows.map(row=>{
+      const q=byId.get(String(row.id));const amt=Number(row.amount||0);
+      return q>0&&amt>0&&row.transaction_type==='Charge'?{...row,bill_quantity:q,bill_unit_price:Math.round(amt/q*100)/100}:row;
+    });
+  }catch(_){return rows||[];}
 }
   const localDateTimeValue = (date=new Date()) => {
     const value=date instanceof Date?date:new Date(date);

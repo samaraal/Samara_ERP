@@ -1,3 +1,9 @@
+## 2.15.77 — Patient Ledger simple lines; units × price
+
+- Patient Ledger (screen, PDF and Excel) uses the same lines as the Family Portal: item name with quantity × unit price, e.g. "Examination Gloves (2 × ₹30)", "Room rent · 06-10-2026 · Room 109-B", "Advance received · Ref …". Accounts names, approvals and remarks are not shown (they stay in Bills & Charges with time stamps). Type · Category shown below in small text; "Not applicable" hidden.
+- Final Bill charge summary: "Examination Gloves (17 × ₹30), Glucometer Strips (2 × ₹50)".
+- SQL 201: family_portal_bill_units — lets the Family Portal show the same quantity × price (own Guest only, no staff names).
+
 ## 2.15.76 — Final Bill: simple lines, Advance shown as Advance
 
 - Final / Complete Bill (print and screen) now uses the same simple lines as the Family Portal: item names only, grouped with counts (e.g. "Glucometer Strips × 2 · Examination Gloves × 9"). Accounts names, "Admin-fixed tariff", approval remarks and internal discount notes are no longer printed.
