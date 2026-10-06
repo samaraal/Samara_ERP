@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.80';
+  const APP_VERSION = '2.15.81';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2581,6 +2581,26 @@ function billChargeLines(items){
   }
   flush();
   return out.concat([...other.values()]);
+}
+// Amount in words, Indian system: 1,23,45,678.50 → "Rupees One Crore Twenty Three Lakh Forty Five Thousand Six Hundred Seventy Eight and Fifty Paise Only".
+function billAmountInWords(value){
+  const ones=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  const tens=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  const two=n=>n<20?ones[n]:`${tens[Math.floor(n/10)]}${n%10?' '+ones[n%10]:''}`;
+  const three=n=>{const h=Math.floor(n/100),r=n%100;return [h?`${ones[h]} Hundred`:'',r?two(r):''].filter(Boolean).join(' ');};
+  const words=n=>{
+    if(n===0)return 'Zero';
+    const parts=[];const crore=Math.floor(n/10000000);n%=10000000;
+    const lakh=Math.floor(n/100000);n%=100000;const thousand=Math.floor(n/1000);n%=1000;
+    if(crore)parts.push(`${words(crore)} Crore`);
+    if(lakh)parts.push(`${two(lakh)} Lakh`);
+    if(thousand)parts.push(`${two(thousand)} Thousand`);
+    if(n)parts.push(three(n));
+    return parts.join(' ');
+  };
+  const total=Math.round(Math.abs(Number(value)||0)*100);
+  const rupees=Math.floor(total/100),paise=total%100;
+  return `Rupees ${words(rupees)}${paise?` and ${two(paise)} Paise`:''} Only`;
 }
 // Adds bill_quantity / bill_unit_price from Bills & Charges requests to billing rows.
 // Staff names, approvals and remarks stay in bill_charge_requests (internal, time-stamped).
@@ -32422,6 +32442,10 @@ function ShiftHandover({profile,onNavigate}){
   .amount{text-align:right;white-space:nowrap;font-weight:bold}
   .detail{margin-top:4px;color:#7b6571;font-size:10px;line-height:1.35}
   .num{text-align:right;white-space:nowrap}
+  .in-words{margin-top:12px;padding:10px 12px;border:1px solid #ead0de;border-radius:10px;background:#fffafd;font-size:12px}
+  .in-words div+div{margin-top:6px}
+  .in-words span{display:block;color:#7b6571;font-size:10.5px;margin-bottom:2px}
+  .in-words strong{color:#7a1247}
   .cat-row td{background:#fff5fa}
   .item-row td{padding:5px 8px;font-size:10.5px;color:#4a3340}
   .item-row td:nth-child(2){padding-left:18px}
@@ -32504,6 +32528,11 @@ function ShiftHandover({profile,onNavigate}){
     <div class="summary-row"><span>Refunds</span><strong>${escapeHtml(money(totals.Refund))}</strong></div>
     <div class="summary-row total"><span>NET PAYABLE</span><strong>${escapeHtml(money(netPayable))}</strong></div>
     ${advanceBalance>0?`<div class="summary-row"><span>Advance Balance / Refundable</span><strong>${escapeHtml(money(advanceBalance))}</strong></div>`:''}
+  </div>
+
+  <div class="in-words">
+    <div><span>Net Payable (in words)</span><strong>${escapeHtml(billAmountInWords(netPayable))}</strong></div>
+    ${advanceBalance>0?`<div><span>Advance Balance / Refundable (in words)</span><strong>${escapeHtml(billAmountInWords(advanceBalance))}</strong></div>`:''}
   </div>
 
   <div class="status">${escapeHtml(billStatus)}</div>

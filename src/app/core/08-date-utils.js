@@ -86,6 +86,26 @@ function billChargeLines(items){
   flush();
   return out.concat([...other.values()]);
 }
+// Amount in words, Indian system: 1,23,45,678.50 → "Rupees One Crore Twenty Three Lakh Forty Five Thousand Six Hundred Seventy Eight and Fifty Paise Only".
+function billAmountInWords(value){
+  const ones=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  const tens=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  const two=n=>n<20?ones[n]:`${tens[Math.floor(n/10)]}${n%10?' '+ones[n%10]:''}`;
+  const three=n=>{const h=Math.floor(n/100),r=n%100;return [h?`${ones[h]} Hundred`:'',r?two(r):''].filter(Boolean).join(' ');};
+  const words=n=>{
+    if(n===0)return 'Zero';
+    const parts=[];const crore=Math.floor(n/10000000);n%=10000000;
+    const lakh=Math.floor(n/100000);n%=100000;const thousand=Math.floor(n/1000);n%=1000;
+    if(crore)parts.push(`${words(crore)} Crore`);
+    if(lakh)parts.push(`${two(lakh)} Lakh`);
+    if(thousand)parts.push(`${two(thousand)} Thousand`);
+    if(n)parts.push(three(n));
+    return parts.join(' ');
+  };
+  const total=Math.round(Math.abs(Number(value)||0)*100);
+  const rupees=Math.floor(total/100),paise=total%100;
+  return `Rupees ${words(rupees)}${paise?` and ${two(paise)} Paise`:''} Only`;
+}
 // Adds bill_quantity / bill_unit_price from Bills & Charges requests to billing rows.
 // Staff names, approvals and remarks stay in bill_charge_requests (internal, time-stamped).
 async function attachBillUnits(rows,patientId){

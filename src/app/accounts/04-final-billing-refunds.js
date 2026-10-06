@@ -187,6 +187,10 @@
   .amount{text-align:right;white-space:nowrap;font-weight:bold}
   .detail{margin-top:4px;color:#7b6571;font-size:10px;line-height:1.35}
   .num{text-align:right;white-space:nowrap}
+  .in-words{margin-top:12px;padding:10px 12px;border:1px solid #ead0de;border-radius:10px;background:#fffafd;font-size:12px}
+  .in-words div+div{margin-top:6px}
+  .in-words span{display:block;color:#7b6571;font-size:10.5px;margin-bottom:2px}
+  .in-words strong{color:#7a1247}
   .cat-row td{background:#fff5fa}
   .item-row td{padding:5px 8px;font-size:10.5px;color:#4a3340}
   .item-row td:nth-child(2){padding-left:18px}
@@ -269,6 +273,11 @@
     <div class="summary-row"><span>Refunds</span><strong>${escapeHtml(money(totals.Refund))}</strong></div>
     <div class="summary-row total"><span>NET PAYABLE</span><strong>${escapeHtml(money(netPayable))}</strong></div>
     ${advanceBalance>0?`<div class="summary-row"><span>Advance Balance / Refundable</span><strong>${escapeHtml(money(advanceBalance))}</strong></div>`:''}
+  </div>
+
+  <div class="in-words">
+    <div><span>Net Payable (in words)</span><strong>${escapeHtml(billAmountInWords(netPayable))}</strong></div>
+    ${advanceBalance>0?`<div><span>Advance Balance / Refundable (in words)</span><strong>${escapeHtml(billAmountInWords(advanceBalance))}</strong></div>`:''}
   </div>
 
   <div class="status">${escapeHtml(billStatus)}</div>

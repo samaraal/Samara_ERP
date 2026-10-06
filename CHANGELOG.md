@@ -1,3 +1,7 @@
+## 2.15.81 — Final Bill: amount in words
+
+The Final / Complete Bill shows the Net Payable in words (Indian system — Thousand, Lakh, Crore, with Paise), e.g. "Rupees Nine Hundred Thirty Only", and the Advance Balance / Refundable in words when there is one. Shared helper billAmountInWords (core/08-date-utils.js); the Family Portal Ledger PDF uses the same wording. No SQL.
+
 ## 2.15.80 — Back button on print / PDF pages (mobile)
 
 Final Bill, Guest Ledger PDF, Payment QR, Resident ID card, employee print and Medication Safety Report open as a new tab; on phones there was no way back. They now have a top bar with "← Back to ERP" (closes the tab, or returns to the ERP) and "Print / Save PDF"; the bar is hidden when printing. Shared helper samaraPrintBar (shared/02-apply-filter-row-details.js). No SQL.
