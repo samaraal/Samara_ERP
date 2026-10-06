@@ -8,18 +8,26 @@
     let on=false,observer=null,queued=new Set(),scheduled=false;
     const textRec=new WeakMap(),attrRec=new WeakMap(),touchedText=new Set(),touchedEl=new Set();
     const ATTRS=['placeholder','title','aria-label'];
-    const SKIP='script,style,textarea,code,pre,[contenteditable="true"],[data-no-translate],.samara-no-translate,.wa-bubble,.row-detail-field strong';
+    const SKIP='script,style,textarea,code,pre,[contenteditable="true"],[data-no-translate],.samara-no-translate,.wa-bubble';
     function look(t){return dict.get(t)||lower.get(t.toLowerCase())||null}
     function translate(text,depth=0){
       const t=String(text||'').trim();
-      if(!t||t.length>140||!/[A-Za-z]/.test(t))return null;
+      if(!t||t.length>320||!/[A-Za-z]/.test(t))return null;
       const hit=look(t);if(hit)return hit;
-      if(depth>2)return null;
+      if(depth>3)return null;
       let m;
       if((m=/^(\d+)\s+(.+)$/.exec(t))){const a=translate(m[2],depth+1);return a?`${m[1]} ${a}`:null}                    // "3 this month"
       if((m=/^(.*?)\s*\((\d+)\)$/.exec(t))){const a=translate(m[1],depth+1);return a?`${a} (${m[2]})`:null}            // "All (12)"
+      if((m=/^(.+?)\s+(\d+)$/.exec(t))&&!/\d[-/]\d/.test(t)){const a=translate(m[1],depth+1);if(a)return `${a} ${m[2]}`} // "Unread 0"
       if((m=/^([^A-Za-z0-9]+)(.+)$/.exec(t))){const a=translate(m[2],depth+1);return a?`${m[1].trim()} ${a}`:null}     // "+ New Enquiry", "← Back"
       if((m=/^(.+?)\s*([*:·→›]+)$/.exec(t))){const a=translate(m[1],depth+1);return a?`${a} ${m[2]}`:null}             // "Name *", "Status:"
+      // 2.15.75: phrases joined with " · ", " — ", " – " or "Label: value" — translate each part, keep the rest (dates, names, numbers).
+      for(const sep of [' · ',' — ',' – ',': ']){
+        if(!t.includes(sep))continue;
+        const parts=t.split(sep);let any=false;
+        const out=parts.map(x=>{const y=x.trim();if(!y)return x;const a=translate(y,depth+1);if(a){any=true;return a}return y});
+        if(any)return out.join(sep);
+      }
       return null;
     }
     function skipped(el){try{return !el||!!el.closest(SKIP)}catch(_){return true}}

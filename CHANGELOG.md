@@ -1,3 +1,7 @@
+## 2.15.75 — Tamil screens: much wider coverage
+
+The தமிழ் word list grows from about 1,200 to about 2,250 phrases, covering Akshi's pages far more fully: Director's Office, Enquiry Register, Enquiries & Feedback, WhatsApp Inbox, Food & Diet and Food Vendor, Stores / Kitchen, Duty Assignment, Leave & Permission, Duty Swap / Leave Cover, Spot Assessment, Notifications, My Profile, voice input, pop-ups, confirmations and error messages. Mixed lines are now translated part by part (for example "This Week · 05-10-2026", "Unread 0", "Status: New"), and status values inside detail windows are translated too. Names, notes, codes and dates stay as entered. No SQL.
+
 ## 2.15.74 — Food Vendor statement: simpler lines, AppGeo logo
 
 - The statement table is now one line per date + meal + Guest / Employee: Date · Meal · Guest / Employee · Ordered · Received · Rate ₹ · Amount ₹ (Employee lines lightly shaded; lines with nothing ordered or received are left out; Total row at the bottom). Same on screen, PDF, WhatsApp PDF and Excel. Quantities-only view: Date · Meal · Guest / Employee · Ordered · Received.
