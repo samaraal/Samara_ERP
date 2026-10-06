@@ -1,3 +1,9 @@
+## 2.15.75 · SQL 199 — Daily room rent posts automatically at 12:05 AM
+
+- Room rent, nursing and special-nurse daily charges now post by themselves every night at **12:05 AM (India time)**, with a safety re-run at **6:05 AM**. Staff no longer need to log in for the day's rent to appear.
+- Fixed: between 12:00 AM and 5:30 AM the database (UTC clock) rejected today's rent as a "future charge". The check now uses the India date.
+- Login and the payable WhatsApp still run the same billing as a backup. All runs are duplicate-safe. SQL only (supabase/sql/199_daily_rent_ist_auto_post.sql); no app files changed.
+
 ## 2.15.75 — Tamil screens: much wider coverage
 
 The தமிழ் word list grows from about 1,200 to about 2,250 phrases, covering Akshi's pages far more fully: Director's Office, Enquiry Register, Enquiries & Feedback, WhatsApp Inbox, Food & Diet and Food Vendor, Stores / Kitchen, Duty Assignment, Leave & Permission, Duty Swap / Leave Cover, Spot Assessment, Notifications, My Profile, voice input, pop-ups, confirmations and error messages. Mixed lines are now translated part by part (for example "This Week · 05-10-2026", "Unread 0", "Status: New"), and status values inside detail windows are translated too. Names, notes, codes and dates stay as entered. No SQL.
