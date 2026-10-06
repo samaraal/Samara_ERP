@@ -115,25 +115,26 @@
         };
       };
 
+      // Itemised: category row (subtotal) + one line per item with Qty × Rate = Amount.
       const itemHtml=chargeRows.length
         ?chargeRows.map((group,index)=>{
-          const simple=simplifyChargeDescription(group.category,group.items);
-          const rawDetail=billItemsSummary(group.items);
-          const detail=simple
-            ?simple.text
-            :rawDetail.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g,'$3-$2-$1');
+          const lines=billChargeLines(group.items);
           return `
-          <tr>
+          <tr class="cat-row">
             <td>${index+1}</td>
-            <td>
-              <strong>${escapeHtml(group.category)}</strong>
-              <div class="detail">${escapeHtml(detail)}</div>
-            </td>
-            <td>${escapeHtml(String(group.items.length))}</td>
+            <td colspan="3"><strong>${escapeHtml(group.category)}</strong></td>
             <td class="amount">${escapeHtml(money(group.amount))}</td>
           </tr>
+          ${lines.map(line=>`
+          <tr class="item-row">
+            <td></td>
+            <td>${escapeHtml(line.label)}</td>
+            <td class="num">${escapeHtml(billQty(line.qty))}${line.unit?` ${escapeHtml(line.unit)}`:''}</td>
+            <td class="num">${escapeHtml(money(line.rate))}</td>
+            <td class="num">${escapeHtml(money(line.amount))}</td>
+          </tr>`).join('')}
         `}).join('')
-        :`<tr><td colspan="4" class="empty">No charges recorded.</td></tr>`;
+        :`<tr><td colspan="5" class="empty">No charges recorded.</td></tr>`;
 
       const paymentHtml=transactionRows.length
         ?transactionRows.map((row,index)=>`
@@ -185,6 +186,10 @@
   td{padding:8px;border:1px solid #ecd5e1;vertical-align:top}
   .amount{text-align:right;white-space:nowrap;font-weight:bold}
   .detail{margin-top:4px;color:#7b6571;font-size:10px;line-height:1.35}
+  .num{text-align:right;white-space:nowrap}
+  .cat-row td{background:#fff5fa}
+  .item-row td{padding:5px 8px;font-size:10.5px;color:#4a3340}
+  .item-row td:nth-child(2){padding-left:18px}
   .empty{text-align:center;color:#7b6571;padding:18px}
   .summary{width:44%;margin:16px 0 0 auto;border:1px solid #ead0de;border-radius:10px;overflow:hidden}
   .summary-row{display:flex;justify-content:space-between;padding:8px 10px;border-bottom:1px solid #f0dce7;font-size:12px}
@@ -246,7 +251,7 @@
 
   <h3>1. Charges Summary</h3>
   <table>
-    <thead><tr><th style="width:42px">Sl.</th><th>Charge Category / Particulars</th><th style="width:70px">Entries</th><th style="width:120px;text-align:right">Amount</th></tr></thead>
+    <thead><tr><th style="width:42px">Sl.</th><th>Charge Category / Particulars</th><th style="width:78px;text-align:right">Qty</th><th style="width:96px;text-align:right">Rate</th><th style="width:120px;text-align:right">Amount</th></tr></thead>
     <tbody>${itemHtml}</tbody>
   </table>
 

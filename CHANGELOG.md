@@ -1,3 +1,10 @@
+## 2.15.78 — Final Bill itemised: Qty × Rate = Amount
+
+Charges Summary on the printed Final / Complete Bill now lists every item under its category with Qty, Rate and Amount columns (the "Entries" column is removed):
+- Room rent in date runs at the same rate, e.g. "Room rent (30-09-2026 to 01-10-2026) · 2 days × ₹3,200 = ₹6,400", "Room rent (02-10-2026 to 07-10-2026) · 6 days × ₹2,500 = ₹15,000".
+- Bills & Charges items by item and unit price, e.g. "Examination Gloves · 17 × ₹30 = ₹510". Items without a recorded quantity count each entry as 1 at its amount.
+- Category row keeps the subtotal. Shared helper billChargeLines (core/08-date-utils.js). No SQL.
+
 ## 2.15.77 — Patient Ledger simple lines; units × price
 
 - Patient Ledger (screen, PDF and Excel) uses the same lines as the Family Portal: item name with quantity × unit price, e.g. "Examination Gloves (2 × ₹30)", "Room rent · 06-10-2026 · Room 109-B", "Advance received · Ref …". Accounts names, approvals and remarks are not shown (they stay in Bills & Charges with time stamps). Type · Category shown below in small text; "Not applicable" hidden.

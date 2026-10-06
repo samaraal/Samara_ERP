@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.77';
+  const APP_VERSION = '2.15.78';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2556,6 +2556,31 @@ function billItemsSummary(items){
     const g=groups.get(key)||{name,unit,price:p,qty:0,count:0};g.qty+=unit?q:0;g.count+=1;groups.set(key,g);
   }
   return [...groups.values()].map(g=>g.unit?`${g.name} (${billQty(g.qty)} × ${billRupees(g.price)})`:(g.count>1?`${g.name} × ${g.count}`:g.name)).join(', ')||'—';
+}
+// Itemised lines for one charge category, always Qty × Rate = Amount (Final Bill):
+//  • daily charges → "Room rent (30-09-2026 to 01-10-2026)" 2 days × ₹3,200
+//  • Bills & Charges items → "Examination Gloves" 17 × ₹30 (no recorded quantity: entries × amount)
+function billChargeLines(items){
+  const daily=[],other=new Map(),out=[];
+  for(const it of items||[]){
+    const name=billItemName(it);
+    const m=name.match(/^(Room rent|Nursing charge|Special nurse charge) · (\d{2})-(\d{2})-(\d{4})/);
+    if(m){daily.push({kind:m[1],iso:`${m[4]}-${m[3]}-${m[2]}`,amount:Number(it.amount||0)});continue;}
+    const q=Number(it?.bill_quantity),p=Number(it?.bill_unit_price),unit=q>0&&p>0;
+    const amt=Number(it.amount||0),rate=unit?p:amt,key=`${name}|${rate}`;
+    const g=other.get(key)||{label:name,qty:0,rate,amount:0,unit:''};
+    g.qty+=unit?q:1;g.amount+=amt;other.set(key,g);
+  }
+  const dmy=iso=>`${iso.slice(8,10)}-${iso.slice(5,7)}-${iso.slice(0,4)}`;
+  daily.sort((a,b)=>a.kind.localeCompare(b.kind)||a.iso.localeCompare(b.iso));
+  let run=null;
+  const flush=()=>{if(!run)return;out.push({label:run.from===run.to?`${run.kind} (${dmy(run.from)})`:`${run.kind} (${dmy(run.from)} to ${dmy(run.to)})`,qty:run.n,rate:run.rate,amount:run.n*run.rate,unit:run.n===1?'day':'days'});run=null;};
+  for(const d of daily){
+    const next=run&&run.kind===d.kind&&Math.abs(run.rate-d.amount)<0.005&&Date.parse(d.iso)-Date.parse(run.to)<=86400000;
+    if(next){run.to=d.iso;run.n+=1;}else{flush();run={kind:d.kind,from:d.iso,to:d.iso,n:1,rate:d.amount};}
+  }
+  flush();
+  return out.concat([...other.values()]);
 }
 // Adds bill_quantity / bill_unit_price from Bills & Charges requests to billing rows.
 // Staff names, approvals and remarks stay in bill_charge_requests (internal, time-stamped).
@@ -32296,25 +32321,26 @@ function ShiftHandover({profile,onNavigate}){
         };
       };
 
+      // Itemised: category row (subtotal) + one line per item with Qty × Rate = Amount.
       const itemHtml=chargeRows.length
         ?chargeRows.map((group,index)=>{
-          const simple=simplifyChargeDescription(group.category,group.items);
-          const rawDetail=billItemsSummary(group.items);
-          const detail=simple
-            ?simple.text
-            :rawDetail.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g,'$3-$2-$1');
+          const lines=billChargeLines(group.items);
           return `
-          <tr>
+          <tr class="cat-row">
             <td>${index+1}</td>
-            <td>
-              <strong>${escapeHtml(group.category)}</strong>
-              <div class="detail">${escapeHtml(detail)}</div>
-            </td>
-            <td>${escapeHtml(String(group.items.length))}</td>
+            <td colspan="3"><strong>${escapeHtml(group.category)}</strong></td>
             <td class="amount">${escapeHtml(money(group.amount))}</td>
           </tr>
+          ${lines.map(line=>`
+          <tr class="item-row">
+            <td></td>
+            <td>${escapeHtml(line.label)}</td>
+            <td class="num">${escapeHtml(billQty(line.qty))}${line.unit?` ${escapeHtml(line.unit)}`:''}</td>
+            <td class="num">${escapeHtml(money(line.rate))}</td>
+            <td class="num">${escapeHtml(money(line.amount))}</td>
+          </tr>`).join('')}
         `}).join('')
-        :`<tr><td colspan="4" class="empty">No charges recorded.</td></tr>`;
+        :`<tr><td colspan="5" class="empty">No charges recorded.</td></tr>`;
 
       const paymentHtml=transactionRows.length
         ?transactionRows.map((row,index)=>`
@@ -32366,6 +32392,10 @@ function ShiftHandover({profile,onNavigate}){
   td{padding:8px;border:1px solid #ecd5e1;vertical-align:top}
   .amount{text-align:right;white-space:nowrap;font-weight:bold}
   .detail{margin-top:4px;color:#7b6571;font-size:10px;line-height:1.35}
+  .num{text-align:right;white-space:nowrap}
+  .cat-row td{background:#fff5fa}
+  .item-row td{padding:5px 8px;font-size:10.5px;color:#4a3340}
+  .item-row td:nth-child(2){padding-left:18px}
   .empty{text-align:center;color:#7b6571;padding:18px}
   .summary{width:44%;margin:16px 0 0 auto;border:1px solid #ead0de;border-radius:10px;overflow:hidden}
   .summary-row{display:flex;justify-content:space-between;padding:8px 10px;border-bottom:1px solid #f0dce7;font-size:12px}
@@ -32427,7 +32457,7 @@ function ShiftHandover({profile,onNavigate}){
 
   <h3>1. Charges Summary</h3>
   <table>
-    <thead><tr><th style="width:42px">Sl.</th><th>Charge Category / Particulars</th><th style="width:70px">Entries</th><th style="width:120px;text-align:right">Amount</th></tr></thead>
+    <thead><tr><th style="width:42px">Sl.</th><th>Charge Category / Particulars</th><th style="width:78px;text-align:right">Qty</th><th style="width:96px;text-align:right">Rate</th><th style="width:120px;text-align:right">Amount</th></tr></thead>
     <tbody>${itemHtml}</tbody>
   </table>
 

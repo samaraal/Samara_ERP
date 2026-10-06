@@ -61,6 +61,31 @@ function billItemsSummary(items){
   }
   return [...groups.values()].map(g=>g.unit?`${g.name} (${billQty(g.qty)} × ${billRupees(g.price)})`:(g.count>1?`${g.name} × ${g.count}`:g.name)).join(', ')||'—';
 }
+// Itemised lines for one charge category, always Qty × Rate = Amount (Final Bill):
+//  • daily charges → "Room rent (30-09-2026 to 01-10-2026)" 2 days × ₹3,200
+//  • Bills & Charges items → "Examination Gloves" 17 × ₹30 (no recorded quantity: entries × amount)
+function billChargeLines(items){
+  const daily=[],other=new Map(),out=[];
+  for(const it of items||[]){
+    const name=billItemName(it);
+    const m=name.match(/^(Room rent|Nursing charge|Special nurse charge) · (\d{2})-(\d{2})-(\d{4})/);
+    if(m){daily.push({kind:m[1],iso:`${m[4]}-${m[3]}-${m[2]}`,amount:Number(it.amount||0)});continue;}
+    const q=Number(it?.bill_quantity),p=Number(it?.bill_unit_price),unit=q>0&&p>0;
+    const amt=Number(it.amount||0),rate=unit?p:amt,key=`${name}|${rate}`;
+    const g=other.get(key)||{label:name,qty:0,rate,amount:0,unit:''};
+    g.qty+=unit?q:1;g.amount+=amt;other.set(key,g);
+  }
+  const dmy=iso=>`${iso.slice(8,10)}-${iso.slice(5,7)}-${iso.slice(0,4)}`;
+  daily.sort((a,b)=>a.kind.localeCompare(b.kind)||a.iso.localeCompare(b.iso));
+  let run=null;
+  const flush=()=>{if(!run)return;out.push({label:run.from===run.to?`${run.kind} (${dmy(run.from)})`:`${run.kind} (${dmy(run.from)} to ${dmy(run.to)})`,qty:run.n,rate:run.rate,amount:run.n*run.rate,unit:run.n===1?'day':'days'});run=null;};
+  for(const d of daily){
+    const next=run&&run.kind===d.kind&&Math.abs(run.rate-d.amount)<0.005&&Date.parse(d.iso)-Date.parse(run.to)<=86400000;
+    if(next){run.to=d.iso;run.n+=1;}else{flush();run={kind:d.kind,from:d.iso,to:d.iso,n:1,rate:d.amount};}
+  }
+  flush();
+  return out.concat([...other.values()]);
+}
 // Adds bill_quantity / bill_unit_price from Bills & Charges requests to billing rows.
 // Staff names, approvals and remarks stay in bill_charge_requests (internal, time-stamped).
 async function attachBillUnits(rows,patientId){
