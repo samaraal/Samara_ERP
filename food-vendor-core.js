@@ -17,7 +17,7 @@ function total(items){return (items||[]).map(i=>`${clean(i.name)}: *${Number(i.r
  function header(kind,s){const k=headerKind(kind,s);return k?headerBase+k+'-'+placeKey(s)+'.jpg':logo}
  function time12(v){const m=/^(\d{1,2}):(\d{2})/.exec(String(v??'').trim());if(!m)return clean(v);let h=Number(m[1]);const ap=h>=12?'PM':'AM';h=h%12||12;return h+':'+m[2]+' '+ap}
  function istTime(v){const d=new Date(v);if(isNaN(d.getTime()))return clean(v);const p=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:true}).formatToParts(d).map(x=>[x.type,x.value]));return Number(p.hour)+':'+p.minute+' '+String(p.dayPeriod||'').toUpperCase()}
- function qty(items,fn){const parts=(items||[]).map(i=>[clean(i.name),fn(i)]).filter(x=>x[1]>0).map(x=>'*'+x[0]+' '+x[1]+'*');return parts.join(' • ')||'None'}
+ function qty(items,fn){const parts=(items||[]).map(i=>[clean(i.name),fn(i)]).filter(x=>x[1]>0).map(x=>x[0]+' *'+x[1]+'*');return parts.join(' • ')||'None'}
  const both=i=>Number(i.residents||0)+Number(i.employees||0);
  function messageV2(kind,s){
   // 2.15.65: total plus separate Guest and Employee lines (priced separately); the place is shown only in the header picture.
@@ -38,7 +38,7 @@ function total(items){return (items||[]).map(i=>`${clean(i.name)}: *${Number(i.r
    const r=s.receipt||{},lines=(r.items||[]).map((i,n)=>({...i,name:(s.items[n]||{}).name}));
    const ordered=(s.items||[]).reduce((n,i)=>n+both(i),0),now=lines.reduce((n,i)=>n+both(i),0),out=Number(s.outstanding||0);
    // Per-item balance is exact only when this is the first delivery for the order; otherwise show the total.
-   const balance=out<=0?'Nothing ✔️ / இல்லை':ordered-now===out?qty(s.items.map((i,n)=>({name:i.name,left:both(i)-both(lines[n]||{})})),i=>i.left)+' – please send / அனுப்பவும்':'*'+out+' portions* – please send / அனுப்பவும்';
+   const balance=out<=0?'Nothing ✔️ / இல்லை':ordered-now===out?qty(s.items.map((i,n)=>({name:i.name,left:both(i)-both(lines[n]||{})})),i=>i.left)+' – please send / அனுப்பவும்':'*'+out+'* portions – please send / அனுப்பவும்';
    const rejected=lines.filter(i=>Number(i.rejected||0)>0);
    const remarks=(rejected.length?'Rejected / திருப்பியது: '+rejected.map(i=>clean(i.name)+' '+Number(i.rejected)).join(', ')+'. ':'')+(clean(r.remarks)!=='None'?clean(r.remarks):rejected.length?'':'None');
    values=[clean(s.vendor_name),when,istTime(r.received_at),...split(lines),balance,remarks,no];

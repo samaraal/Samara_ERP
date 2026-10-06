@@ -1,3 +1,7 @@
+## 2.15.66 — Food Vendor messages: only the numbers in bold
+
+In the simplified vendor messages only the quantities are bold (Standard meal *18* • Soft meal *4*). Templates to submit to Meta are unchanged. Edge Function food-whatsapp: redeploy from supabase/function-copies/food-whatsapp-inbox.ts. No SQL.
+
 ## 2.15.65 — Food Vendor messages: Guest / Employee split, AppGeo logo only
 
 - New simplified vendor messages (not yet submitted to Meta) now show the Total plus separate Guest (கெஸ்ட்) and Employee (ஊழியர்) quantities, for order, order change and received.
