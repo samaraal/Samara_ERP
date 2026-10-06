@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.63';
-const CACHE = 'samara-erp-2.15.63-food-item-list-fix';
+const APP_VERSION = '2.15.64';
+const CACHE = 'samara-erp-2.15.64-food-vendor-messages-v2';
 const SHELL = [
   './',
   './index.html',

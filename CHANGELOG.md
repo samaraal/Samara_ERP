@@ -1,3 +1,10 @@
+## 2.15.64 — Food Vendor: simpler, colour-coded WhatsApp messages
+
+The vendor was confusing the Order and Received messages. New simplified messages (English + Tamil, short lines, place / time / quantities in **bold**) with a coloured header picture: pink band = NEW ORDER, purple = ORDER CHANGED, grey = ORDER CANCELLED, blue = RECEIVED; magenta tag = Samara Main – Mogappair, AppGeo logo on a pale green strip = AppGeo – Saidapet. The Received message now says "This is NOT a new order", shows only what was received and what is still to send (no repeated ordered quantities, no buttons). The place is no longer fixed as Mogappair in the order wording.
+- Meta: submit samara_food_order_v2, samara_food_modification_v2, samara_food_receipt_v2 (exact text in docs/META_TEMPLATES_food_v2.md). Until each is approved and ticked in Food Vendor → Settings, the ERP keeps sending the older template. Manual WhatsApp already uses the new wording.
+- Edge Function food-whatsapp: redeploy from supabase/function-copies/food-whatsapp-inbox.ts. No SQL.
+- New pictures: assets/food-wa/*.jpg (upload with the ERP files).
+
 ## 2.15.63 — Food Vendor: no duplicate rates
 
 Only one rate per place + meal (Guest / Employee) + effective date. Saving the same price again is refused ("already saved"); saving a different price for the same date corrects that date's rate after confirmation (old price kept in Billing History). Existing duplicates are removed (the latest saved row, which is the one in use, is kept). Apply supabase/sql/195_food_rate_no_duplicates.sql (after 194).
