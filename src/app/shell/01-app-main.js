@@ -12,6 +12,7 @@
     };
     const [session,setSession]=React.useState(null);
     const [profile,setProfile]=React.useState(null);
+    React.useEffect(()=>{try{SamaraLang.init(profile||{})}catch(_){}},[profile?.id,profile?.role,profile?.ui_language]); // 2.15.70: EN | தமிழ்
     const dutyContext=window.SamaraDutySwap.useContext({client,profile,setProfile,onChanged:next=>setPage(homePageForProfile(next))});
     const dutyNotice=window.SamaraDutySwap.useDailyNotice({client,profile,ready:dutyContext.ready});
     const [loading,setLoading]=React.useState(true);
@@ -648,6 +649,7 @@
           h(GlobalSearch,{onNavigate:setPage,profile}),
           h(StoreIndentAlerts,{profile,onNavigate:setPage}),
           profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
+          h(LanguageSwitch,{profile}),
           h('span',{className:'badge'},profile.role)
         ),
         h(MobileMenu,{page,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),

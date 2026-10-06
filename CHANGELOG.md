@@ -1,3 +1,9 @@
+## 2.15.70 — EN | தமிழ் screen language (trial for STD)
+
+- New **EN | தமிழ்** switch at the top (next to the role badge) for STD — Admin also sees it to check the wording. தமிழ் shows the menu, page titles, boxes, buttons, labels, filters, statuses and short messages in simple Tamil with common English work words (Guest = கெஸ்ட் (Guest)); names, notes, WhatsApp messages, item names and other typed data stay as entered; dates stay DD-MM-YYYY.
+- First version covers STD's pages (Director's Office, Enquiry Register, Enquiries & Feedback, WhatsApp Inbox, Food & Diet, Stores, Leave, Notifications, menu and top bar) — about 1,180 phrases in src/app/global-ui/09-tamil-dictionary.js; anything not yet in the list stays in English (nothing breaks). Server error messages stay English for now.
+- The choice is remembered per user on every device. Apply supabase/sql/198_ui_language.sql (after 197); until then it is remembered on that device only.
+
 ## 2.15.69 — Enquiries: open WhatsApp chats, "Not an enquiry" category
 
 - Director's Office → Enquiries & Feedback: each WhatsApp enquiry conversation now opens its chat (tap the row or 💬 Open chat — the Inbox opens on that conversation) and shows its Enquiry Register entry (▤ ENQ-… · status), or **+ Add to Enquiry Register** when it is not in the register yet.

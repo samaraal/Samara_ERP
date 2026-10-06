@@ -122,6 +122,16 @@
    "lines": 108
   },
   {
+   "file": "global-ui/09-tamil-dictionary.js",
+   "about": "English to Tamil screen words for the EN | தமிழ் switch",
+   "lines": 0
+  },
+  {
+   "file": "global-ui/10-tamil-ui.js",
+   "about": "EN | தமிழ் screen-language switch (translates fixed screen text only)",
+   "lines": 0
+  },
+  {
    "file": "stores/kitchen-cash.js",
    "about": "Kitchen petty cash and custody workflow"
   },
