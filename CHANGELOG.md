@@ -1,3 +1,14 @@
+## 2.15.67 — Samara Enquiry Register
+
+New DIRECTOR'S OFFICE → **Enquiry Register** (replaces ADMISSION → Enquiries; old links open the register).
+- One register for every admission enquiry: Website / Family Portal (as before) and **WhatsApp — now automatic**: a new WhatsApp chat about admission, rooms, cost, nursing etc. becomes an enquiry (staff, Guests' families, applicants, the food vendor and payment chats are skipped); later messages from the same number are noted in its timeline. WhatsApp enquiries from the last 14 days are added once when the SQL is run.
+- **+ New Enquiry** for Walk-in / Phone call / Reference / Hospital referral: Guest name and age, contact, relation, where the Guest is now, care needed, room preference, expected admission date, how they heard about Samara, notes. Warns when the mobile number is already in the register.
+- Enquiry number (ENQ-00001…), status New → Contacted → Visit / Assessment Scheduled → Estimate Sent → Bed Reserved → Admitted / Closed (closing needs a reason), next follow-up date, assignment, and a dated timeline of every follow-up (who and what).
+- Filters: Today / This Week / This Month / Last Month / All / Selected period, source and assigned person, with Apply; search; chips All / New / In progress / Follow-up due / Admitted / Closed. Tap a row for full details, follow-up, Call, Edit and **Start Admission** (opens the Admission form with the Guest and attendant details).
+- Who: STD (Akshi), Admin and Manager add and update; Admin chooses the **default person** for new enquiries (⚙ Default person — choose Akshi; can also assign the open unassigned ones).
+- Reminders in **Notifications** ("Enquiries — Follow-up Needed"): the assigned person sees new enquiries and follow-ups due; Admin also sees New enquiries untouched for 24 hours or not assigned. STD now has Notifications in the menu. Director's Office → Enquiries & Feedback shows an Enquiry Register tile.
+- Apply supabase/sql/196_enquiry_register.sql (after 195). No Edge Function change.
+
 ## 2.15.66 — Food Vendor messages: only the numbers in bold
 
 In the simplified vendor messages only the quantities are bold (Standard meal *18* • Soft meal *4*). Templates to submit to Meta are unchanged. Edge Function food-whatsapp: redeploy from supabase/function-copies/food-whatsapp-inbox.ts. No SQL.

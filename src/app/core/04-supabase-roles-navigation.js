@@ -129,8 +129,8 @@
     { title:'ADMIN', items:['Temporary Duty Swap','Additional Duty Assignment','Rooms','Care Packages','Shift Management','Stores Master','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
     { title:'CHARGE MASTER', items:['Charge Master',...CHARGE_MASTER_PAGES] },
     { title:'HR', items:['HR Dashboard','Employees','Duty Assignment','Duty Calendar','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
-    { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiries & Feedback'] },
-    { title:'ADMISSION', items:['Enquiries','Spot Assessment','Admissions','Admission Register'] },
+    { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiry Register','Enquiries & Feedback'] },
+    { title:'ADMISSION', items:['Spot Assessment','Admissions','Admission Register'] }, // 2.15.67: Enquiries moved to DIRECTOR'S OFFICE → Enquiry Register
     { title:'PATIENTS', items:['Patients','Discharge','Documents','Recovery Timeline','Intelligent Reports','Family Communication','Incidents','Medication Errors'] }, // 2.15.58: Guest Ledger / Final Billing live only under ACCOUNTS
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports'] },
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Medicines','Approval Requests','Charge Register','Physiotherapy','Special Nurse','Shift Handover'] },
@@ -150,7 +150,7 @@
     Caregiver:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
     Accounts:['Accounts Dashboard','Duty Assignment','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
     Kitchen:['Notifications','Duty Assignment','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission'],
-    STD:["Director's Office",'Enquiries & Feedback','Food & Diet','Duty Assignment','Patient Consumables','Stores','Housekeeping & General','Kitchen / Food Stores','WhatsApp Inbox','Feedback','My Leave & Permission']
+    STD:["Director's Office",'Enquiry Register','Enquiries & Feedback','Notifications','Food & Diet','Duty Assignment','Patient Consumables','Stores','Housekeeping & General','Kitchen / Food Stores','WhatsApp Inbox','Feedback','My Leave & Permission']
   };
   Object.keys(ROLE_NAV).forEach(role=>{
     if(!ROLE_NAV[role].includes('Temporary Duty Swap'))ROLE_NAV[role].push('Temporary Duty Swap');
@@ -185,7 +185,7 @@
     if(isNursingManagerProfile(profile))return [
       'Admission Register',
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
-      'Enquiries','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Approval Requests','Charge Register',
+      'Enquiry Register','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Approval Requests','Charge Register',
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
       'Patient Consumables','Stores','Stores In-charge Assignment','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
     ];
@@ -246,11 +246,11 @@
     }
     if(role==='Manager'&&allowed.includes('My To-Do List')&&allowed.includes('Employees')&&!allowed.includes('Accounts Dashboard')){
       return [
-        {title:"DIRECTOR'S OFFICE",items:["Director's Office",'Enquiries & Feedback','Feedback'].filter(item=>allowed.includes(item))},
+        {title:"DIRECTOR'S OFFICE",items:["Director's Office",'Enquiry Register','Enquiries & Feedback','Feedback'].filter(item=>allowed.includes(item))},
         {title:'NURSING OVERVIEW',items:['Clinical Dashboard','Notifications','Clinical Alerts','Clinical Escalations','Approval Requests','Charge Register','My To-Do List'].filter(item=>allowed.includes(item))},
         {title:'DUTY ROSTER & LEAVE',items:['Duty Assignment','My Leave & Permission'].filter(item=>allowed.includes(item))},
         {title:'NURSING STAFF',items:['Staff Duty Assignment','Duty Calendar','Staff Leave Calendar','Employees'].filter(item=>allowed.includes(item))},
-        {title:'ADMISSION',items:['Enquiries','Spot Assessment','Admissions','Admission Register'].filter(item=>allowed.includes(item))},
+        {title:'ADMISSION',items:['Spot Assessment','Admissions','Admission Register'].filter(item=>allowed.includes(item))},
         {title:'PATIENTS',items:['Patients','Discharge','Documents','Recovery Timeline','Intelligent Reports','Family Communication','Incidents','Medication Errors','Patient Ledger','Final Billing'].filter(item=>allowed.includes(item))},
         {title:'ROOMS & PACKAGES',items:['Rooms','Care Packages'].filter(item=>allowed.includes(item))},
         {title:'PHARMACY & STORES',items:['Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'].filter(item=>allowed.includes(item))},

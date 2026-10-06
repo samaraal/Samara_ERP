@@ -25,12 +25,13 @@
     }).sort((a,b)=>String(b.last.created_at).localeCompare(String(a.last.created_at)));
   }
   function DirectorEnquiries({profile,onNavigate}){
-    const [enquiries,setEnquiries]=React.useState([]),[calls,setCalls]=React.useState([]),[feedback,setFeedback]=React.useState([]),[busy,setBusy]=React.useState(true),[error,setError]=React.useState('');
+    const [enquiries,setEnquiries]=React.useState([]),[register,setRegister]=React.useState([]),[calls,setCalls]=React.useState([]),[feedback,setFeedback]=React.useState([]),[busy,setBusy]=React.useState(true),[error,setError]=React.useState('');
     async function load(){
       setBusy(true);setError('');
       try{
         async function all(table){const rows=[];for(let offset=0;;offset+=500){const r=await client.from(table).select('*').order('created_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+499);if(r.error)throw r.error;rows.push(...(r.data||[]));if((r.data||[]).length<500)return rows;}}
-        const [wa,office,fb]=await Promise.all([all('hr_whatsapp_communications'),all('director_office_items'),all('feedback')]);
+        const [wa,office,fb,reg]=await Promise.all([all('hr_whatsapp_communications'),all('director_office_items'),all('feedback'),all('pre_admission_enquiries').catch(()=>[])]);
+        setRegister(reg.filter(r=>!['Admitted','Converted to Admission','Closed'].includes(String(r.status||'New'))));
         setEnquiries(directorEnquiryConversations(wa));
         setCalls(office.filter(r=>r.item_type==='Call / Callback'&&!['completed','cancelled'].includes(String(r.status||'').toLowerCase())));
         setFeedback(fb.filter(r=>!['closed','resolved'].includes(String(r.status||'').toLowerCase())));
@@ -42,6 +43,7 @@
     return h(Section,{title:'Enquiries & Feedback',subtitle:"Director's Office",actions:h('button',{className:'btn btn-secondary',disabled:busy,onClick:load},busy?'Refreshing…':'Refresh')},
       error?h('div',{className:'message error'},error):null,
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:'12px'}},
+        tile('Enquiry Register',register.length,'Open enquiries (Website, WhatsApp, Walk-in, Phone) — tap to follow up',()=>onNavigate('Enquiry Register')),
         tile('WhatsApp Enquiries',enquiries.length,'Distinct enquiry conversations — not message count',()=>{sessionStorage.setItem('samara_whatsapp_folder','Admission Enquiries');onNavigate('WhatsApp Inbox');}),
         tile('Pending Calls / Callbacks',calls.length,'Office call tasks; these are not all public enquiries',()=>onNavigate("Director's Office")),
         tile('Open Feedback',feedback.length,'Excludes closed and resolved feedback',()=>onNavigate('Feedback'))),

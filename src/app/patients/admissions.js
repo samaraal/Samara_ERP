@@ -234,6 +234,22 @@
         setMsg(`Reserved Room ${reservation.room_no}-${reservation.bed_no} selected. Complete the admission details.`);
       }catch(error){console.warn('Unable to open reserved bed in Admission:',error)}
     },[]);
+    React.useEffect(()=>{
+      // 2.15.67: "Start Admission" from the Enquiry Register fills the Guest and attendant details.
+      try{
+        const raw=sessionStorage.getItem('samara-enquiry-admission');
+        if(!raw)return;
+        sessionStorage.removeItem('samara-enquiry-admission');
+        const e=JSON.parse(raw);
+        setForm(current=>({...current,
+          full_name:current.full_name||e.full_name||'',
+          age:current.age||(e.age!=null?String(e.age):''),
+          attendant_name:current.attendant_name||e.attendant_name||'',
+          attendant_phone:String(current.attendant_phone||'').replace(/\D/g,'').length>2?current.attendant_phone:(e.attendant_phone||current.attendant_phone)
+        }));
+        setMsg(`Details taken from enquiry ${e.enquiry_no||''}. Complete the admission, then mark the enquiry "Admitted" in the Enquiry Register.`);
+      }catch(error){console.warn('Unable to open enquiry in Admission:',error)}
+    },[]);
 
     const hasMeaningfulData=Boolean(
       form.full_name||String(form.mobile||'').replace(/\D/g,'').length>2||form.district||form.village_town||form.street_name||form.house_no||form.attendant_name||

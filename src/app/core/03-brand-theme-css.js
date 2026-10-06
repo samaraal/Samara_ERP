@@ -299,7 +299,7 @@
       }
       .sidebar .nav-submenu button[data-nav='Dashboard']::before{content:'⌂'}
       .sidebar .nav-submenu button[data-nav='Notifications']::before{content:'♧'}
-      .sidebar .nav-submenu button[data-nav='Enquiries']::before{content:'▣'}
+      .sidebar .nav-submenu button[data-nav='Enquiries'],.sidebar .nav-submenu button[data-nav='Enquiry Register']::before{content:'▣'}
       .sidebar .nav-submenu button[data-nav='Admissions']::before{content:'♥'}
       .sidebar .nav-submenu button[data-nav='Patients']::before{content:'♙'}
       .sidebar .nav-submenu button[data-nav='Discharge']::before{content:'↪'}
@@ -559,7 +559,7 @@
       /* Innovative submenu icons */
       .sidebar .nav-submenu button[data-nav='Dashboard']::before{content:'⌂'!important;color:#d81b72!important}
       .sidebar .nav-submenu button[data-nav='Notifications']::before{content:'🔔'!important;color:#f59b23!important}
-      .sidebar .nav-submenu button[data-nav='Enquiries']::before{content:'☎'!important;color:#b01264!important}
+      .sidebar .nav-submenu button[data-nav='Enquiries'],.sidebar .nav-submenu button[data-nav='Enquiry Register']::before{content:'☎'!important;color:#b01264!important}
       .sidebar .nav-submenu button[data-nav='Admissions']::before{content:'✚'!important;color:#e03a7c!important}
       .sidebar .nav-submenu button[data-nav='Patients']::before{content:'♟'!important;color:#b01264!important}
       .sidebar .nav-submenu button[data-nav='Discharge']::before{content:'⇥'!important;color:#f36a4c!important}
@@ -683,7 +683,7 @@
         color:#ff8a48!important;
       }
 
-      .sidebar .nav-submenu button[data-nav='Enquiries']::before{
+      .sidebar .nav-submenu button[data-nav='Enquiries'],.sidebar .nav-submenu button[data-nav='Enquiry Register']::before{
         content:'☎'!important;
         color:#e81f77!important;
       }
@@ -879,7 +879,7 @@
         mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-3 3-3-3 3-3Z'/%3E%3C/svg%3E")!important;
       }
 
-      .sidebar .nav-submenu button[data-nav='Enquiries']::before{
+      .sidebar .nav-submenu button[data-nav='Enquiries'],.sidebar .nav-submenu button[data-nav='Enquiry Register']::before{
         color:#e51d73!important;
         -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.45 1.78.62 2.62a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.28-1.28a2 2 0 0 1 2.11-.45c.84.29 1.72.5 2.62.62A2 2 0 0 1 22 16.92Z'/%3E%3C/svg%3E")!important;
         mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.45 1.78.62 2.62a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.28-1.28a2 2 0 0 1 2.11-.45c.84.29 1.72.5 2.62.62A2 2 0 0 1 22 16.92Z'/%3E%3C/svg%3E")!important;

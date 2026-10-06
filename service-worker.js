@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.66';
-const CACHE = 'samara-erp-2.15.66-food-vendor-bold-numbers';
+const APP_VERSION = '2.15.67';
+const CACHE = 'samara-erp-2.15.67-enquiry-register';
 const SHELL = [
   './',
   './index.html',

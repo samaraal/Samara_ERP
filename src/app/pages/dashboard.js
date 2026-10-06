@@ -71,7 +71,7 @@
     // cap silently truncates the dashboard count.
     for(let offset=0;;offset+=500){
       let query=client.from('pre_admission_enquiries').select('*').order('created_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+499);
-      if(activeOnly)query=query.in('status',['New','Contacted','Assessment Scheduled']);
+      if(activeOnly)query=query.in('status',['New','Contacted','Assessment Scheduled','Visit / Assessment Scheduled','Estimate Sent','Bed Reserved']);
       const result=await query;
       if(result.error)return {data:[],error:result.error};
       data.push(...(result.data||[]));
@@ -288,7 +288,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
       {label:'Clinical escalations',value:stats.escalations,page:'Clinical Escalations',icon:'🔔',escalationFilter:'open',status:stats.escalations?`${stats.escalations} awaiting Manager/Admin action`:'No open escalations'},
       {label:'Outstanding Amount',value:`₹${stats.outstanding.toLocaleString('en-IN')}`,page:'Payments',icon:'₹',paymentFilter:'outstanding'},
       {label:'Package Expiry',value:stats.packageExpiry,page:'Package Expiry Dashboard',icon:'📦',status:stats.packageExpiry?`${stats.packageExpiry} expired / expiring within 2 days`:'No package expiry due'},
-      {label:'Admission Enquiries',value:stats.enquiries,page:'Enquiries',icon:'☎',enquiryFilter:'active',status:stats.enquiries?`${stats.enquiries} awaiting follow-up`:'No new enquiries'},
+      {label:'Admission Enquiries',value:stats.enquiries,page:'Enquiry Register',icon:'☎',enquiryFilter:'active',status:stats.enquiries?`${stats.enquiries} awaiting follow-up`:'No new enquiries'},
       {label:'Visit Requests',value:stats.visitRequests,page:'Family Communication',icon:'📅',visitFilter:'pending',status:stats.visitRequests?`${stats.visitRequests} pending approval`:'No pending requests'},
       {label:'Discharge',value:stats.discharges,page:'Discharge',icon:'🚪',dischargeFilter:'open',status:stats.dischargeStatus}
     ];
@@ -380,8 +380,8 @@ function Dashboard({profile,onNavigate,alertEngine}){
       },title:`Open ${card.page}`},h('span',{className:'dashboard-icon','aria-hidden':'true'},card.icon),h('span',null,card.label),h('strong',null,card.value),h('small',null,card.status||`Open ${card.page} →`)))),
       h('div',{className:'grid two',style:{marginTop:'18px'}},
         h('div',{className:'card panel'},
-          h('div',{className:'panel-head'},h('div',null,h('h3',null,'Latest Admission Enquiries'),h('small',null,'Website and Family Portal submissions')),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dashboardNavigate(onNavigate,'Enquiries','Latest Admission Enquiries',{source:'Main Dashboard'})},'Open Enquiries')),
-          (stats.recentEnquiries||[]).length?h('div',{style:{display:'grid',gap:'9px'}},stats.recentEnquiries.map(r=>h('button',{type:'button',key:r.id,onClick:()=>dashboardNavigate(onNavigate,'Enquiries','Latest Admission Enquiries',{source:'Main Dashboard'}),style:{textAlign:'left',padding:'11px 12px',border:'1px solid #ecd6e2',borderRadius:'12px',background:'#fffafd',cursor:'pointer'}},h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center'}},h('strong',{style:{color:'#5d1039'}},r.patient_name||'Resident'),h('span',{className:'badge'},r.source||'Website')),h('small',{style:{display:'block',marginTop:'4px'}},`${r.family_contact_name||'—'} · ${r.family_contact_phone||'—'}`),h('small',{style:{display:'block',marginTop:'3px',color:'#8a6577'}},`${r.care_type||'Admission enquiry'} · ${r.status||'New'} · ${formatDateTimeIN(r.created_at)}`)))):h('p',{className:'empty'},'No new admission enquiries.' )
+          h('div',{className:'panel-head'},h('div',null,h('h3',null,'Latest Admission Enquiries'),h('small',null,'Website, WhatsApp and walk-in enquiries')),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dashboardNavigate(onNavigate,'Enquiry Register','Latest Admission Enquiries',{source:'Main Dashboard'})},'Open Enquiry Register')),
+          (stats.recentEnquiries||[]).length?h('div',{style:{display:'grid',gap:'9px'}},stats.recentEnquiries.map(r=>h('button',{type:'button',key:r.id,onClick:()=>{try{sessionStorage.setItem('samara-open-enquiry-id',r.id)}catch(_){}dashboardNavigate(onNavigate,'Enquiry Register','Latest Admission Enquiries',{source:'Main Dashboard'})},style:{textAlign:'left',padding:'11px 12px',border:'1px solid #ecd6e2',borderRadius:'12px',background:'#fffafd',cursor:'pointer'}},h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center'}},h('strong',{style:{color:'#5d1039'}},r.patient_name||'Resident'),h('span',{className:'badge'},r.source||'Website')),h('small',{style:{display:'block',marginTop:'4px'}},`${r.family_contact_name||'—'} · ${r.family_contact_phone||'—'}`),h('small',{style:{display:'block',marginTop:'3px',color:'#8a6577'}},`${r.care_type||'Admission enquiry'} · ${r.status||'New'} · ${formatDateTimeIN(r.created_at)}`)))):h('p',{className:'empty'},'No new admission enquiries.' )
         ),
         h('div',{style:{display:'grid',gap:'12px'}},
           h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>dashboardNavigate(onNavigate,'Shift Tasks','Today’s Operational Focus',{source:'Main Dashboard'})},h('div',{className:'panel-head'},h('h3',null,'Today’s Operational Focus')),h('p',null,'Open medicines, bathing, restroom assistance, feeding, mobility, physiotherapy and special-nurse tasks.'),h('span',{className:'badge'},'Open Shift Tasks →')),

@@ -679,7 +679,7 @@
           page==='Leave Approvals'&&h(LeavePermission,{profile,mode:'approvals'}),
           page==='Career Applications'&&h(CareerApplications,{profile,onNavigate:setPage}),
           page==='Interviews'&&h(HRInterviews,{profile,onNavigate:setPage}),
-          page==='Enquiries'&&h(Enquiries,{profile}),
+          (page==='Enquiry Register'||page==='Enquiries')&&h(EnquiryRegister,{profile,onNavigate:setPage}),
           page==='Spot Assessment'&&h(window.SamaraSpotAssessment,{profile,client}),
           page==='Admissions'&&h(Admissions,{profile,onNavigate:setPage}),
           page==='Clinical Dashboard'&&h(ClinicalDashboard,{profile,onNavigate:setPage,alertEngine}),

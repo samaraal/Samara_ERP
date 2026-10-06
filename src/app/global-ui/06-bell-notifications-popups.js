@@ -73,6 +73,14 @@
     const [foodReceiptDue,setFoodReceiptDue]=React.useState([]);
     const [foodReplyAlerts,setFoodReplyAlerts]=React.useState([]);
     const [overdueCharges,setOverdueCharges]=React.useState([]);
+    // 2.15.67: Enquiry Register reminders (SQL 196) — new enquiry / follow-up due for the assigned person; Admin: untouched 24 h.
+    const enquiryAccess=['Admin','Manager','STD'].some(r=>hasDutyRole(profile,r));
+    const [enquiryAlerts,setEnquiryAlerts]=React.useState([]);
+    async function loadEnquiryAlerts(){
+      if(!enquiryAccess)return;
+      try{const {data,error}=await client.rpc('enquiry_alerts');if(error)throw error;setEnquiryAlerts(Array.isArray(data)?data:[]);}
+      catch(_error){/* Needs SQL 196; until then this section simply stays empty. */}
+    }
     async function loadOverdueCharges(){
       if(!cutoffAdmin)return;
       try{const {data,error}=await client.rpc('bill_charge_overdue_alerts');if(error)throw error;setOverdueCharges(Array.isArray(data)?data:[]);}
@@ -106,6 +114,7 @@
         setPatientsById(map);setStoreRequests(indentResult.data||[]);
         await loadCutoffAttempts();
         await loadOverdueCharges();
+        await loadEnquiryAlerts();
         if(typeof engine?.refresh==='function')await engine.refresh();
       }catch(error){setMessage(error.message||'Unable to refresh notifications.');}
       finally{setLoading(false);}
@@ -116,6 +125,7 @@
       return()=>{if(channel)client.removeChannel(channel)};
     },[profile?.id,nursingManager]);
     React.useEffect(()=>{if(!cutoffAdmin)return;const refresh=()=>loadCutoffAttempts().catch(error=>setMessage(error.message||'Unable to load food cutoff attempts.'));const timer=setInterval(refresh,15000);window.addEventListener('focus',refresh);return()=>{clearInterval(timer);window.removeEventListener('focus',refresh)}},[profile?.id,cutoffAdmin]);
+    React.useEffect(()=>{if(!enquiryAccess)return;loadEnquiryAlerts();const timer=setInterval(loadEnquiryAlerts,60000);window.addEventListener('focus',loadEnquiryAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadEnquiryAlerts)}},[profile?.id,enquiryAccess]);
     React.useEffect(()=>{if(!cutoffAdmin)return;loadOverdueCharges();const timer=setInterval(loadOverdueCharges,60000);window.addEventListener('focus',loadOverdueCharges);return()=>{clearInterval(timer);window.removeEventListener('focus',loadOverdueCharges)}},[profile?.id,cutoffAdmin]);
     React.useEffect(()=>{if(!foodAccess)return;loadFoodReplyAlerts();const timer=setInterval(loadFoodReplyAlerts,30000);window.addEventListener('focus',loadFoodReplyAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadFoodReplyAlerts)}},[profile?.id,foodAccess]);
     React.useEffect(()=>{if(!foodAccess)return;loadFoodReceiptDue();const timer=setInterval(loadFoodReceiptDue,60000);window.addEventListener('focus',loadFoodReceiptDue);return()=>{clearInterval(timer);window.removeEventListener('focus',loadFoodReceiptDue)}},[profile?.id,foodAccess]);
@@ -134,6 +144,13 @@
       message?h('div',{className:'message error'},message):null,
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(165px,1fr))',gap:'12px',marginBottom:'18px'}},nursingManager?metric('Store Requests',awaitingApproval.length,'Patient Consumables'):null,nursingManager?metric('Awaiting Handover',awaitingHandover.length,'Patient Consumables'):null,metric('Medication > 30 min',medicineAlerts.length,'Clinical Escalations','#efb6b6'),metric('Care > 30 min',careAlerts.length,'Clinical Escalations','#efcf9c'),nursingManager?metric('Store Discrepancies',discrepancies.length,'Patient Consumables','#efb6b6'):null),
       nursingManager?h('section',{style:{marginBottom:'20px'}},h('h4',null,'Pharmacy & Stores Requests'),h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Item','Quantity','Status','Requested'].map(x=>h('th',{key:x},x)))),h('tbody',null,storeRequests.map(r=>h('tr',{key:r.id,role:'button',tabIndex:0,onClick:()=>navigate('Patient Consumables'),style:{cursor:'pointer',touchAction:'manipulation'}},h('td',null,patientName(r)),h('td',null,r.item_name||'Consumable'),h('td',null,`${r.requested_qty||'—'} ${r.unit||''}`),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)))),storeRequests.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No open Pharmacy & Stores requests.')):null)))):null,
+      enquiryAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Enquiries — Follow-up Needed'),h('small',null,'New enquiries and follow-ups due for you; Admin also sees New enquiries untouched for 24 hours. Tap a row to open that enquiry.'),
+        h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Alert','Enquiry','Guest','Contact','Source','When'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,enquiryAlerts.map((a,i)=>h('tr',{key:a.alert+a.id+i,role:'button',tabIndex:0,style:{cursor:'pointer',touchAction:'manipulation'},onClick:()=>{try{sessionStorage.setItem('samara-open-enquiry-id',a.id)}catch(_){}navigate('Enquiry Register');setTimeout(()=>window.dispatchEvent(new CustomEvent('samara-open-enquiry',{detail:{id:a.id}})),0)}},
+            h('td',null,h('span',{className:'badge',style:/Untouched|Not assigned/.test(a.alert)?{background:'#ffe5e7',color:'#b2192d'}:/Follow-up/.test(a.alert)?{background:'#fff4d6',color:'#7a5600'}:{background:'#fde7f1',color:'#a40855'}},a.alert)),
+            h('td',null,a.enquiry_no||'—'),h('td',null,a.guest||'—'),h('td',null,`${a.contact||'—'} · ${a.phone||''}`),h('td',null,a.source||'Website'),
+            h('td',null,a.due?`Due ${formatDateIN(a.due)}`:`${fmt(a.at)}${a.assigned_name?` · ${a.assigned_name}`:''}`))),
+            enquiryAlerts.length===0?h('tr',null,h('td',{colSpan:6,className:'empty'},'No enquiry follow-ups pending.')):null)))):null,
       cutoffAdmin?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Bills & Charges — Not Attended by Accounts (over 30 minutes)'),h('small',null,'Charge requests still Pending in Charge Approvals 30 minutes after they were raised. India time. Tap a row to open that charge.'),
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Guest','Room','Charge','Qty','Raised by','Raised at','Pending for'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,overdueCharges.map(a=>h('tr',{key:a.request_id,role:'button',tabIndex:0,onClick:()=>openOverdueCharge(a,onNavigate),onKeyDown:e=>{if(e.key==='Enter')openOverdueCharge(a,onNavigate)},style:{cursor:'pointer',touchAction:'manipulation'}},
