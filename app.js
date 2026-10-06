@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.78';
+  const APP_VERSION = '2.15.79';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -32892,6 +32892,7 @@ function ShiftHandover({profile,onNavigate}){
     const [tariffContext,setTariffContext]=React.useState(null);
     const [loading,setLoading]=React.useState(false);
     const [message,setMessage]=React.useState('');
+    const [detail,setDetail]=React.useState(null);
 
     const money=value=>`₹${Number(value||0).toLocaleString('en-IN',{maximumFractionDigits:2})}`;
     const compactLedgerReference=value=>{
@@ -32968,6 +32969,65 @@ function ShiftHandover({profile,onNavigate}){
     },{charges:0,receipts:0,discounts:0,refunds:0});
     const balance=totals.charges-totals.receipts-totals.discounts+totals.refunds;
 
+    // 2.15.79: readable ledger cells (no system keys; daily charges by date; advance balance as "Cr").
+    const ledgerWhen=row=>{
+      const daily=/^daily /i.test(String(row.source_type||''))||(row.auto_generated&&/room|nursing/i.test(String(row.category||'')));
+      return daily&&row.source_date?formatDateIN(row.source_date):fmt(row.transaction_date||row.created_at);
+    };
+    const ledgerBalance=v=>{const n=Number(v||0);return n<-0.005?`${money(-n)} Cr`:money(n);};
+    const ledgerSource=row=>row.source_type||(/not applicable/i.test(row.payment_mode||'')?'':row.payment_mode)||'—';
+    const ledgerRef=row=>row.payment_reference||row.reference_no||'';
+    async function openLedgerRow(row){
+      const base={row,req:null,names:{},loading:true};
+      setDetail(base);
+      try{
+        const ids=[row.entered_by,row.approved_by].filter(Boolean);
+        let req=null;
+        if(row.transaction_type==='Charge'){
+          const r=await client.from('bill_charge_requests').select('*').eq('billing_transaction_id',row.id).maybeSingle();
+          if(!r.error&&r.data){req=r.data;ids.push(req.raised_by,req.approved_by);}
+        }
+        const uniq=[...new Set(ids.filter(Boolean).map(String))];
+        const names={};
+        if(uniq.length){
+          const [a,b]=await Promise.all([
+            client.from('profiles').select('id,auth_user_id,full_name').in('id',uniq),
+            client.from('profiles').select('id,auth_user_id,full_name').in('auth_user_id',uniq)
+          ]);
+          [...(a.data||[]),...(b.data||[])].forEach(pr=>{names[String(pr.id)]=pr.full_name;if(pr.auth_user_id)names[String(pr.auth_user_id)]=pr.full_name;});
+        }
+        setDetail(d=>d&&d.row.id===row.id?{row,req,names,loading:false}:d);
+      }catch(_){setDetail(d=>d&&d.row.id===row.id?{...d,loading:false}:d);}
+    }
+    function ledgerDetailFields(d){
+      const row=d.row,req=d.req||{},nm=id=>id?(d.names[String(id)]||'—'):'';
+      const q=Number(row.bill_quantity),p=Number(row.bill_unit_price);
+      return [
+        ['Particulars',billLineLabel(row)],
+        ['Date / time recorded',fmt(row.transaction_date||row.created_at)],
+        ['Charge for date',row.source_date?formatDateIN(row.source_date):''],
+        ['Type',row.transaction_type],['Category',row.category],
+        ['Quantity',q>0?String(q):''],['Unit price',p>0?money(p):''],
+        ['Debit',row._debit?money(row._debit):''],['Credit',row._credit?money(row._credit):''],
+        ['Balance after this entry',ledgerBalance(row._balance)],
+        ['Payment mode',/not applicable/i.test(row.payment_mode||'')?'':row.payment_mode],
+        ['Reference',ledgerRef(row)],
+        ['Source',row.source_type||(req.id?'Bills & Charges':'')],
+        ['Raised by',nm(req.raised_by)],['Raised at',req.created_at?fmt(req.created_at):''],
+        ['Service date / time',req.service_datetime?fmt(req.service_datetime):(req.charge_date?formatDateIN(req.charge_date):'')],
+        ['Requested amount',req.requested_amount!=null?money(req.requested_amount):''],
+        ['Accounts decision',req.approval_status||req.status],
+        ['Decided by',req.decision_by_name||nm(req.approved_by)],
+        ['Decided at',req.approved_at?fmt(req.approved_at):(req.decision_date?fmt(req.decision_date):'')],
+        ['Accounts remarks',req.approval_remarks],['Nurse remarks',req.remarks],
+        ['Bill number',req.bill_number],
+        ['Entered by',nm(row.entered_by)],
+        ['Full description (internal)',row.description],
+        ['Auto-generated',row.auto_generated?'Yes':''],
+        ['System key',row.source_key]
+      ];
+    }
+
     let running=0;
     const rowsWithBalance=ledger.map(row=>{
       const amount=Number(row.amount||0),type=String(row.transaction_type||'Charge');
@@ -32997,7 +33057,7 @@ function ShiftHandover({profile,onNavigate}){
       const shiftRows=shifts.map(s=>isInitialAllotment(s)
         ? `<tr><td>${escapeExcel(fmt(s.effective_at))}</td><td>${escapeExcel(`Initial Allotment → ${s.to_room_no||'—'}${s.to_bed_no?`-${s.to_bed_no}`:''}`)}</td><td>${escapeExcel(s.reason||'Initial admission room allotment')}</td><td colspan="5">Historical initial allotment</td></tr>`
         : `<tr><td>${escapeExcel(fmt(s.effective_at))}</td><td>${escapeExcel(`${s.from_room_no||'—'}${s.from_bed_no?`-${s.from_bed_no}`:''} → ${s.to_room_no||'—'}${s.to_bed_no?`-${s.to_bed_no}`:''}`)}</td><td>${escapeExcel(s.reason||'')}</td><td>${escapeExcel(money(s.from_room_daily_rate))}</td><td>${escapeExcel(money(s.to_room_daily_rate))}</td><td>${escapeExcel(money(s.from_nursing_daily_rate))}</td><td>${escapeExcel(money(s.to_nursing_daily_rate))}</td><td>${escapeExcel(s.accounts_synced?'Accounts synchronised':'Accounts sync pending')}</td></tr>`).join('');
-      const ledgerRows=rowsWithBalance.map(row=>`<tr><td>${escapeExcel(fmt(row.transaction_date||row.created_at))}</td><td>${escapeExcel(`${row.transaction_type||'Transaction'} · ${row.category||'General'}`)}</td><td>${escapeExcel(billLineLabel(row))}</td><td>${row._debit||''}</td><td>${row._credit||''}</td><td>${row._balance}</td><td>${escapeExcel(row.source_type||(/not applicable/i.test(row.payment_mode||'')?'':row.payment_mode)||'')}</td><td>${escapeExcel(row.payment_reference||row.reference_no||row.source_key||'')}</td></tr>`).join('');
+      const ledgerRows=rowsWithBalance.map(row=>`<tr><td>${escapeExcel(ledgerWhen(row))}</td><td>${escapeExcel(`${row.transaction_type||'Transaction'} · ${row.category||'General'}`)}</td><td>${escapeExcel(billLineLabel(row))}</td><td>${row._debit||''}</td><td>${row._credit||''}</td><td>${escapeExcel(ledgerBalance(row._balance))}</td><td>${escapeExcel(ledgerSource(row))}</td><td>${escapeExcel(ledgerRef(row))}</td></tr>`).join('');
       const roomText=roomBed?`${roomBed.room_no||'—'}${roomBed.bed_no?`-${roomBed.bed_no}`:''} · ${roomBed.room_type||roomBed.type||'Room'}`:'Not linked';
       const html=`<!doctype html><html><head><meta charset="utf-8"><style>
       body{font-family:Arial,sans-serif;color:#321523;background:#fff;margin:14px}h1{color:#a20b55;margin:0;font-size:22px;text-align:center;vertical-align:middle}h2{color:#a20b55;margin:18px 0 5px;padding:4px 7px;font-size:16px;line-height:1.2;background:#fff0f6;border-left:3px solid #c21867}table{border-collapse:collapse;width:100%;margin:8px 0 18px}th,td{border:1px solid #d9a8bd;padding:7px;text-align:left}th{background:#fbe7f0;color:#6d123c}.money{mso-number-format:"₹\#\,##0.00"}.brand{width:100%;border-collapse:collapse;margin:0 0 12px}.brand td{border:0!important;padding:3px 8px;vertical-align:middle}.brand-logo{width:150px;height:100px;object-fit:contain}.brand-sub{color:#6c5a63;font-weight:700}.footer{margin-top:18px;border-top:2px solid #e7b4ca;padding-top:10px;color:#6a4154;font-size:11px;line-height:1.45}.footer strong{color:#a20b55}
@@ -33048,12 +33108,12 @@ function ShiftHandover({profile,onNavigate}){
       if(!selected)return;
       const pdfRows=rowsWithBalance.slice().reverse().map((row,index)=>`<tr>
         <td>${index+1}</td>
-        <td>${escapeExcel(fmt(row.transaction_date||row.created_at))}</td>
+        <td>${escapeExcel(ledgerWhen(row))}</td>
         <td><b>${escapeExcel(billLineLabel(row))}</b><div class="desc">${escapeExcel(`${row.transaction_type||'Transaction'} · ${row.category||'General'}`)}</div></td>
         <td class="num">${row._debit?escapeExcel(money(row._debit)):'—'}</td>
         <td class="num">${row._credit?escapeExcel(money(row._credit)):'—'}</td>
-        <td class="num balance">${escapeExcel(money(row._balance))}</td>
-        <td>${escapeExcel(row.source_type||(/not applicable/i.test(row.payment_mode||'')?'':row.payment_mode)||'—')}${(row.payment_reference||row.reference_no||row.source_key)?`<div class="desc">${escapeExcel(row.payment_reference||row.reference_no||row.source_key)}</div>`:''}</td>
+        <td class="num balance">${escapeExcel(ledgerBalance(row._balance))}</td>
+        <td>${escapeExcel(ledgerSource(row))}${ledgerRef(row)?`<div class="desc">${escapeExcel(ledgerRef(row))}</div>`:''}</td>
       </tr>`).join('');
       const roomText=roomBed?`${roomBed.room_no||'—'}${roomBed.bed_no?`-${roomBed.bed_no}`:''}`:(selected.room_no?`${selected.room_no}${selected.bed_no?`-${selected.bed_no}`:''}`:'—');
       const generatedOn=fmt(new Date());
@@ -33088,8 +33148,11 @@ function ShiftHandover({profile,onNavigate}){
     }
 
     return h('div',{className:'stack patient-ledger-page'},
+      detail&&h(RowDetailModal,{title:billLineLabel(detail.row),subtitle:`${detail.row.transaction_type||'Transaction'} · ${detail.row.category||'General'} · ${money(detail.row.amount)}`,fields:ledgerDetailFields(detail),onClose:()=>setDetail(null)},
+        detail.loading&&h('small',{className:'small-note'},'Loading request details…')),
       selectedId&&h(PatientChargeReadiness,{patientId:selectedId}),
       h('style',null,`
+        .patient-ledger-page .ledger-click-row{cursor:pointer}.patient-ledger-page .ledger-click-row:hover td{background:#fff3f8}.patient-ledger-page .ledger-credit-balance{color:#078a3e}
         .patient-ledger-page .ledger-patient-tools{display:grid;grid-template-columns:minmax(280px,420px) minmax(320px,1fr);gap:14px;align-items:end}
         .patient-ledger-page .ledger-patient-tools .field{margin:0}
         .patient-ledger-page .ledger-search-wrap{position:relative;max-width:none}
@@ -33188,16 +33251,15 @@ function ShiftHandover({profile,onNavigate}){
           ),
           ledger.length?h('div',{className:'ledger-table-wrap'},h('table',null,
             h('thead',null,h('tr',null,['Date / Time','Particulars','Debit','Credit','Balance','Source / Reference'].map(x=>h('th',{key:x},x)))),
-            h('tbody',null,rowsWithBalance.map(row=>h('tr',{key:row.id},
-              h('td',null,fmt(row.transaction_date||row.created_at)),
+            h('tbody',null,rowsWithBalance.map(row=>h('tr',{key:row.id,className:'ledger-click-row',title:'Tap for full details',onClick:()=>openLedgerRow(row)},
+              h('td',null,ledgerWhen(row)),
               h('td',null,h('strong',null,billLineLabel(row)),h('div',{className:'small-note'},`${row.transaction_type||'Transaction'} · ${row.category||'General'}`)),
               h('td',{className:'ledger-debit'},row._debit?money(row._debit):'—'),
               h('td',{className:'ledger-credit'},row._credit?money(row._credit):'—'),
-              h('td',{className:'ledger-balance'},money(row._balance)),
+              h('td',{className:`ledger-balance${Number(row._balance)<-0.005?' ledger-credit-balance':''}`},ledgerBalance(row._balance)),
               h('td',{className:'ledger-source-cell'},
-                h('div',{className:'ledger-source-name'},row.source_type||(/not applicable/i.test(row.payment_mode||'')?'':row.payment_mode)||'—'),
-                h('div',{className:'small-note ledger-reference-full'},row.payment_reference||row.reference_no||row.source_key||''),
-                h('div',{className:'small-note ledger-reference-compact',title:row.payment_reference||row.reference_no||row.source_key||''},compactLedgerReference(row.payment_reference||row.reference_no||row.source_key||''))
+                h('div',{className:'ledger-source-name'},ledgerSource(row)),
+                ledgerRef(row)&&h('div',{className:'small-note'},ledgerRef(row))
               )
             )))
           )):h('div',{className:'empty-state'},'No billing transactions have been recorded for this patient yet.')

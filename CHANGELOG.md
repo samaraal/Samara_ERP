@@ -1,3 +1,10 @@
+## 2.15.79 — Guest Ledger: readable cells, tap a row for full details
+
+- Source / Reference column no longer shows system keys (e.g. "ROOM:ae736b2e-…:06-10-2026"); it shows the source (Daily Room Charge, Cash, UPI…) and the payment reference only.
+- Daily room / nursing charges show their date (06-10-2026) instead of a confusing "05:30 AM IST" time.
+- A running balance in the Guest's favour shows as "₹2,130 Cr" in green instead of "₹-2,130" (screen, PDF, Excel).
+- Tap any ledger row: full details — particulars, quantity, unit price, debit / credit, balance after, payment mode, reference, raised by / at, service date, Accounts decision, decided by / at, remarks, bill number, entered by, full internal description and system key. No SQL.
+
 ## 2.15.78 — Final Bill itemised: Qty × Rate = Amount
 
 Charges Summary on the printed Final / Complete Bill now lists every item under its category with Qty, Rate and Amount columns (the "Entries" column is removed):
