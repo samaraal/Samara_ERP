@@ -1,3 +1,11 @@
+## 2.15.65 — Food Vendor messages: Guest / Employee split, AppGeo logo only
+
+- New simplified vendor messages (not yet submitted to Meta) now show the Total plus separate Guest (கெஸ்ட்) and Employee (ஊழியர்) quantities, for order, order change and received.
+- The "Deliver to" / "Received at" line is removed: the header picture shows the place. AppGeo pictures now carry only the AppGeo logo (no Samara logo).
+- A place without its own picture (anything other than Samara Main and AppGeo) keeps the older wording, which names the place.
+- Food Vendor screens say "Guests" instead of "Residents".
+- Meta: submit the updated texts in docs/META_TEMPLATES_food_v2.md (they replace the 2.15.64 texts). Edge Function food-whatsapp: redeploy from supabase/function-copies/food-whatsapp-inbox.ts. No SQL.
+
 ## 2.15.64 — Food Vendor: simpler, colour-coded WhatsApp messages
 
 The vendor was confusing the Order and Received messages. New simplified messages (English + Tamil, short lines, place / time / quantities in **bold**) with a coloured header picture: pink band = NEW ORDER, purple = ORDER CHANGED, grey = ORDER CANCELLED, blue = RECEIVED; magenta tag = Samara Main – Mogappair, AppGeo logo on a pale green strip = AppGeo – Saidapet. The Received message now says "This is NOT a new order", shows only what was received and what is still to send (no repeated ordered quantities, no buttons). The place is no longer fixed as Mogappair in the order wording.

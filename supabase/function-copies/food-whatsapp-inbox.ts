@@ -10,7 +10,7 @@ function summary(items,key){return (items||[]).map(i=>`${clean(i.name)}: *${Numb
 function total(items){return (items||[]).map(i=>`${clean(i.name)}: *${Number(i.residents||0)+Number(i.employees||0)}*`).join('; ')||'None'}
 // 2.15.36: same wording as the ERP's manual WhatsApp — 'Breakfast' (not Tiffin) and dates as DD-MM-YYYY.
 const label=(v:any)=>String(v).replace(/\bTiffin\b/gi,'Breakfast').replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g,(_:string,y:string,m:string,d:string)=>d+'-'+m+'-'+y);
- // 2.15.64: simplified vendor messages (Meta templates samara_food_order_v2 / _modification_v2 / _receipt_v2).
+ // 2.15.64/65: simplified vendor messages (Meta templates samara_food_order_v2 / _modification_v2 / _receipt_v2).
  // Header picture shows the kind of message (band colour) and the place (tag colour); quantities and place are bold.
  const headerBase='https://app.samaraassistedliving.com/assets/food-wa/';
  const V2_KINDS=['order','modification','receipt'];
@@ -22,18 +22,20 @@ const label=(v:any)=>String(v).replace(/\bTiffin\b/gi,'Breakfast').replace(/\b(\
  function qty(items,fn){const parts=(items||[]).map(i=>[clean(i.name),fn(i)]).filter(x=>x[1]>0).map(x=>'*'+x[0]+' '+x[1]+'*');return parts.join(' • ')||'None'}
  const both=i=>Number(i.residents||0)+Number(i.employees||0);
  function messageV2(kind,s){
-  const place=s.place?clean(s.place):'Samara Main - Mogappair',when=clean(s.date)+' – '+clean(s.slot),no=ref(s.id);
+  // 2.15.65: total plus separate Guest and Employee lines (priced separately); the place is shown only in the header picture.
+  const when=clean(s.date)+' – '+clean(s.slot),no=ref(s.id);
+  const g=i=>Number(i.residents||0),e=i=>Number(i.employees||0),split=items=>[qty(items,both),qty(items,g),qty(items,e)];
   let values,body;
   if(kind==='order'){
-   values=[clean(s.vendor_name),place,when,time12(s.delivery),qty(s.items,both),clean(s.instructions),no];
-   body=`🍽️ *NEW FOOD ORDER / புதிய உணவு ஆர்டர்*\n\nDear {{1}},\n\n📍 Deliver to / இடம்: *{{2}}*\n📅 Date / தேதி: *{{3}}*\n⏰ Time / நேரம்: *{{4}}*\n\n🍛 Quantity / அளவு: {{5}}\n📝 Note / குறிப்பு: {{6}}\n\nOrder No: {{7}}\n\n👉 Please tap *Acknowledged* below.\nகீழே உள்ள *Acknowledged* பட்டனை அழுத்தவும்.\nThank you – Samara Assisted Living`;
+   values=[clean(s.vendor_name),when,time12(s.delivery),...split(s.items),clean(s.instructions),no];
+   body=`🍽️ *NEW FOOD ORDER / புதிய உணவு ஆர்டர்*\n\nDear {{1}},\n\n📅 Date / தேதி: *{{2}}*\n⏰ Time / நேரம்: *{{3}}*\n\n🍛 Total / மொத்தம்: {{4}}\n👥 Guest / கெஸ்ட்: {{5}}\n👷 Employee / ஊழியர்: {{6}}\n📝 Note / குறிப்பு: {{7}}\n\nOrder No: {{8}}\n\n👉 Please tap *Acknowledged* below.\nகீழே உள்ள *Acknowledged* பட்டனை அழுத்தவும்.\nThank you – Samara Assisted Living`;
   }else if(kind==='modification'){
    const before=s.before||{},timeChanged=before.delivery&&String(before.delivery).slice(0,5)!==String(s.delivery).slice(0,5);
-   const now=s.cancellation?'*CANCELLED – do not prepare / சமைக்க வேண்டாம்*':qty(s.items,both);
+   const now=s.cancellation?['*CANCELLED – do not prepare / சமைக்க வேண்டாம்*','None','None']:split(s.items);
    const earlier=qty(before.items,both)+(timeChanged?' (time '+time12(before.delivery)+')':'');
    const why=s.cancellation?clean(s.cancellation_reason||String(s.reason||'').replace(/^FULL CANCELLATION - /,'')):clean(s.reason)+(s.instructions&&clean(s.instructions)!=='None'?'; '+clean(s.instructions):'');
-   values=[clean(s.vendor_name),place,when,time12(s.delivery),now,earlier,why,no+' / Rev '+clean(s.version)];
-   body=`✏️ *ORDER CHANGED / ஆர்டர் மாற்றம்*\n_Use this in place of the earlier order._\n_முந்தைய ஆர்டருக்கு பதிலாக இதைப் பின்பற்றவும்._\n\nDear {{1}},\n\n📍 Deliver to / இடம்: *{{2}}*\n📅 Date / தேதி: *{{3}}*\n⏰ Time / நேரம்: *{{4}}*\n\n🍛 NEW quantity / புதிய அளவு: {{5}}\nEarlier / முன்பு: {{6}}\n📝 Reason / காரணம்: {{7}}\n\nOrder No: {{8}}\n\n👉 Please tap *Acknowledged* below.\nகீழே உள்ள *Acknowledged* பட்டனை அழுத்தவும்.\nThank you – Samara Assisted Living`;
+   values=[clean(s.vendor_name),when,time12(s.delivery),...now,earlier,why,no+' / Rev '+clean(s.version)];
+   body=`✏️ *ORDER CHANGED / ஆர்டர் மாற்றம்*\n_Use this in place of the earlier order._\n_முந்தைய ஆர்டருக்கு பதிலாக இதைப் பின்பற்றவும்._\n\nDear {{1}},\n\n📅 Date / தேதி: *{{2}}*\n⏰ Time / நேரம்: *{{3}}*\n\n🍛 NEW total / புதிய மொத்தம்: {{4}}\n👥 Guest / கெஸ்ட்: {{5}}\n👷 Employee / ஊழியர்: {{6}}\nEarlier total / முன்பு: {{7}}\n📝 Reason / காரணம்: {{8}}\n\nOrder No: {{9}}\n\n👉 Please tap *Acknowledged* below.\nகீழே உள்ள *Acknowledged* பட்டனை அழுத்தவும்.\nThank you – Samara Assisted Living`;
   }else if(kind==='receipt'){
    const r=s.receipt||{},lines=(r.items||[]).map((i,n)=>({...i,name:(s.items[n]||{}).name}));
    const ordered=(s.items||[]).reduce((n,i)=>n+both(i),0),now=lines.reduce((n,i)=>n+both(i),0),out=Number(s.outstanding||0);
@@ -41,14 +43,15 @@ const label=(v:any)=>String(v).replace(/\bTiffin\b/gi,'Breakfast').replace(/\b(\
    const balance=out<=0?'Nothing ✔️ / இல்லை':ordered-now===out?qty(s.items.map((i,n)=>({name:i.name,left:both(i)-both(lines[n]||{})})),i=>i.left)+' – please send / அனுப்பவும்':'*'+out+' portions* – please send / அனுப்பவும்';
    const rejected=lines.filter(i=>Number(i.rejected||0)>0);
    const remarks=(rejected.length?'Rejected / திருப்பியது: '+rejected.map(i=>clean(i.name)+' '+Number(i.rejected)).join(', ')+'. ':'')+(clean(r.remarks)!=='None'?clean(r.remarks):rejected.length?'':'None');
-   values=[clean(s.vendor_name),place,when,istTime(r.received_at),qty(lines,both),balance,remarks,no];
-   body=`✅ *FOOD RECEIVED / உணவு பெற்றுக்கொண்டோம்*\n_This is NOT a new order. இது புதிய ஆர்டர் அல்ல._\n\nDear {{1}},\n\n📍 Received at / இடம்: *{{2}}*\n📅 Date / தேதி: {{3}}\n⏰ Received time / நேரம்: {{4}}\n\n✔️ We received / பெற்றது: {{5}}\n📦 Still to send / இன்னும் அனுப்ப வேண்டியது: {{6}}\n📝 Remarks / குறிப்பு: {{7}}\n\nOrder No: {{8}}\nThank you – Samara Assisted Living`;
+   values=[clean(s.vendor_name),when,istTime(r.received_at),...split(lines),balance,remarks,no];
+   body=`✅ *FOOD RECEIVED / உணவு பெற்றுக்கொண்டோம்*\n_This is NOT a new order. இது புதிய ஆர்டர் அல்ல._\n\nDear {{1}},\n\n📅 Date / தேதி: {{2}}\n⏰ Received time / நேரம்: {{3}}\n\n✔️ We received / பெற்றது: {{4}}\n👥 Guest / கெஸ்ட்: {{5}}\n👷 Employee / ஊழியர்: {{6}}\n📦 Still to send / இன்னும் அனுப்ப வேண்டியது: {{7}}\n📝 Remarks / குறிப்பு: {{8}}\n\nOrder No: {{9}}\nThank you – Samara Assisted Living`;
   }else return null;
   values=values.map(v=>label(clean(v)));const text=body.replace(/\{\{(\d+)\}\}/g,(_,i)=>values[Number(i)-1]);
   return {name:'samara_food_'+kind+'_v2',values,text,logo:header(kind,s),tooLong:text.length>1000};
  }
 function message(kind,s,v2){
- if(v2&&V2_KINDS.includes(kind)){const m=messageV2(kind,s);if(m&&!m.tooLong)return m}
+ // A place without its own header picture keeps the older wording, which names the place in the text.
+ if(v2&&V2_KINDS.includes(kind)&&placeKey(s)!=='other'){const m=messageV2(kind,s);if(m&&!m.tooLong)return m}
  const common=[clean(s.vendor_name),ref(s.id),clean(s.date)+' / '+clean(s.slot)+(s.place?' / Deliver to: *'+clean(s.place)+'*':''),clean(s.delivery)]; // 2.15.36: place inside the approved 'Date and meal' value
  let values,body;
  if(kind==='order'){
