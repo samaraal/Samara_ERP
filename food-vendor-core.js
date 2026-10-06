@@ -154,6 +154,18 @@ function splitRows(report){
   return [r[0],meal,r[2],hasReceipt?recR:null,gRate,gAmt,r[3],hasReceipt?recE:null,eRate,eAmt,r[7]!=null?r[7]:(hasReceipt?r[5]:null),total];
  });
 }
+// 2.15.74: simple statement lines — one line per date + meal + Guest / Employee:
+// [date, meal, 'Guest' | 'Employee', ordered, received, rate, amount]. Lines with nothing ordered or received are left out.
+function statementLines(report){
+ const out=[];
+ for(const r of splitRows(report)){
+  const g=[r[0],r[1],'Guest',r[2],r[3],r[4],r[5]],e=[r[0],r[1],'Employee',r[6],r[7],r[8],r[9]];
+  const has=l=>Number(l[3]||0)>0||Number(l[4]||0)>0;
+  const lines=[g,e].filter(has);
+  out.push(...(lines.length?lines:[g]));
+ }
+ return out;
+}
 function compactRows(report){
  if(!report)return [];
  const groups=new Map();
@@ -221,7 +233,7 @@ function statementPdf(model){
  const newPage=()=>{finish();page++;canvas=document.createElement('canvas');canvas.width=W*scale;canvas.height=H*scale;ctx=canvas.getContext('2d');ctx.scale(scale,scale);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);if(model.logoImage)ctx.drawImage(model.logoImage,M,24,180,180*(model.logoImage.naturalHeight||model.logoImage.height)/(model.logoImage.naturalWidth||model.logoImage.width));text('Food Vendor Statement',M,164,14,true);const vendorLines=wrap(model.vendor,W-2*M,18,true);vendorLines.forEach((v,i)=>text(v,M,193+i*22,18,true));y=210+vendorLines.length*22;text(model.period,M,y,11);y+=22};
  const drawRow=(row,widths,header=false,bold=false)=>{const lines=row.map((v,i)=>wrap(v,widths[i]-10,11,header||bold));const height=Math.max(...lines.map(v=>v.length))*15+12;let x=M;row.forEach((_,i)=>{ctx.fillStyle=header?'#eee':'#fff';ctx.fillRect(x,y,widths[i],height);ctx.strokeStyle='#999';ctx.lineWidth=.6;ctx.strokeRect(x,y,widths[i],height);lines[i].forEach((l,j)=>text(l,x+5,y+17+j*15,11,header||bold));x+=widths[i]});y+=height};
  const table=(heads,rows,widths,groupDates=false)=>{const header=()=>drawRow(heads,widths,true);if(y>H-180)newPage();header();let previousDate=null;rows.forEach((row,i)=>{const height=Math.max(...row.map((v,j)=>wrap(v,widths[j]-10).length))*15+12;if(y+height>H-50){newPage();header();previousDate=null}const shown=row.slice();if(groupDates&&row[0]===previousDate)shown[0]='';previousDate=row[0];drawRow(shown,widths,false,row[0]==='Grand total'||row[0]==='Total')})};
- newPage();table(model.heads,model.rows,model.heads.length===12?[70,62,52,56,52,62,56,58,52,62,52,70]:model.heads.length===7?[96,120,96,96,96,96,104]:model.heads.length===9?[88,112,72,72,72,72,72,72,72]:[100,160,111,111,111,111],true);
+ newPage();table(model.heads,model.rows,model.heads.length===7?[96,110,130,92,92,88,96]:model.heads.length===5?[120,150,150,142,142]:model.heads.length===9?[88,112,72,72,72,72,72,72,72]:[100,160,111,111,111,111],true);
  if(y>H-300)newPage();y+=24;text('Meal summary - received portions',M,y,12,true);y+=12;table(model.summaryHeads,model.summary,model.summaryHeads.length===4?[140,80,110,150]:[230,130]);
  if(model.ledgerHeads){if(y>H-260)newPage();y+=24;text('Payments & adjustments',M,y,12,true);y+=12;if(model.ledgerRows?.length)table(model.ledgerHeads,model.ledgerRows,[100,100,330,120]);else {text('No payments or adjustments in this period.',M,y+18,11);y+=32}const f=model.finance||{};if(y>H-260)newPage();y+=24;text('Account summary',M,y,12,true);y+=12;table(['Particulars','Amount INR'],[['Opening balance',Number(f.opening||0).toFixed(2)],['Food charges',Number(f.charges||0).toFixed(2)],['Payments received','- '+Number(f.payments||0).toFixed(2)],['Adjustments',Number(f.adjustments||0).toFixed(2)],['Closing balance',Number(f.closing||0).toFixed(2)]],[330,180]);}
  for(const note of model.notes||[]){const lines=wrap(note,W-2*M,11);if(y+lines.length*15+20>H-50)newPage();y+=20;lines.forEach(l=>{text(l,M,y,11);y+=15})}finish();return pdfFromJpegs(pages);
@@ -253,5 +265,5 @@ function receiptDeadline(order,now=Date.now()){
  return {delivered,remindAt,closeAt,due:now>=remindAt&&now<closeAt,overdueMinutes};
 }
 
-const api={splitRows,header,messageV2,V2_KINDS,rateFor,orderCutoff,cutoffRules,receiptDeadline,dateText,orderProgress,orderFilterFacts,matchesOrderFilter,logo,statementLogo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary,label,amountWords,pdfFromJpegs,statementPdf};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+const api={statementLines,splitRows,header,messageV2,V2_KINDS,rateFor,orderCutoff,cutoffRules,receiptDeadline,dateText,orderProgress,orderFilterFacts,matchesOrderFilter,logo,statementLogo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary,label,amountWords,pdfFromJpegs,statementPdf};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(globalThis);

@@ -1,3 +1,8 @@
+## 2.15.74 — Food Vendor statement: simpler lines, AppGeo logo
+
+- The statement table is now one line per date + meal + Guest / Employee: Date · Meal · Guest / Employee · Ordered · Received · Rate ₹ · Amount ₹ (Employee lines lightly shaded; lines with nothing ordered or received are left out; Total row at the bottom). Same on screen, PDF, WhatsApp PDF and Excel. Quantities-only view: Date · Meal · Guest / Employee · Ordered · Received.
+- AppGeo - Saidapet statements show the AppGeo logo (assets/appgeo-logo.png) instead of the Samara logo, on screen and in the PDF. No SQL.
+
 ## 2.15.73 — Food Vendor statement: Guest and Employee in separate columns
 
 The statement table (screen, Print / Save PDF, Send WhatsApp PDF and Export Excel) now shows, for each date and meal: Guest ordered, Guest received, Guest rate, Guest amount, Employee ordered, Employee received, Employee rate, Employee amount, Total received and Total ₹ — with totals for every column. The quantities-only view shows Guest / Employee ordered and received. The meal summary below is unchanged. No SQL.
