@@ -649,8 +649,7 @@
           h(GlobalSearch,{onNavigate:setPage,profile}),
           h(StoreIndentAlerts,{profile,onNavigate:setPage}),
           profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
-          h(OnDutyToday,{profile}),
-          h(LanguageSwitch,{profile}),
+          (SamaraLang.allowed(profile)||['Admin','Manager','STD'].some(r=>hasDutyRole(profile,r)))&&h('div',{className:'topbar-quick-tools'},h(OnDutyToday,{profile}),h(LanguageSwitch,{profile})), // 2.15.72: one row on phones
           h('span',{className:'badge'},profile.role)
         ),
         h(MobileMenu,{page,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),

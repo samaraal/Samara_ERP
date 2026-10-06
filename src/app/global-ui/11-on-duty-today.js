@@ -107,7 +107,13 @@
     st.textContent=`
       .odt-top-button{border:1px solid #e7acc8;background:#fff;color:#8e1b4f;border-radius:999px;padding:6px 12px;font-weight:700;cursor:pointer;white-space:nowrap;flex:0 0 auto}
       .odt-top-button:hover{background:#fdeef5}
-      @media(max-width:760px){.odt-top-button span{display:none}}
+      .topbar-quick-tools{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+      @media(max-width:900px){
+        .topbar .topbar-quick-tools{grid-column:1/-1!important;width:100%;justify-content:space-between;flex-wrap:nowrap;order:5}
+        .topbar-quick-tools .odt-top-button{height:38px;padding:0 14px;font-size:14px;display:inline-flex;align-items:center;gap:4px}
+        .topbar-quick-tools .samara-lang-switch{height:38px;margin:0;flex:0 0 auto;min-width:118px}
+        .topbar-quick-tools .samara-lang-switch button{white-space:nowrap;writing-mode:horizontal-tb;padding:0 14px}
+      }
       .odt-modal{max-width:760px}
       .odt-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0}
       .odt-section{margin:12px 0}

@@ -1,3 +1,7 @@
+## 2.15.72 — Phone layout: On Duty Today and EN | தமிழ் in one row
+
+On phones the language switch was squeezed into a narrow column (E/N stacked). The 👥 On Duty Today button and the EN | தமிழ் switch now sit together in their own full-width row under the search box (button with its label on the left, switch on the right). Desktop unchanged. No SQL.
+
 ## 2.15.71 — On Duty Today
 
 New **👥 On Duty Today** button in the top bar (Admin, Manager, STD). Shows who is **on duty now** (by shift time; last night's Night Shift until 7 AM), today's duty by shift (Day, Night, Morning, Evening, General) with duty type / room / task, **weekly off**, and staff on **approved leave / permission** (not counted as on duty). Department chips, ‹ › for other days, and 📞 tap-to-call mobile numbers. Uses the existing Duty Assignment and Leave records — no SQL. Tamil wording included.
