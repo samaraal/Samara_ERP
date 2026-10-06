@@ -1,3 +1,7 @@
+## 2.15.73 — Food Vendor statement: Guest and Employee in separate columns
+
+The statement table (screen, Print / Save PDF, Send WhatsApp PDF and Export Excel) now shows, for each date and meal: Guest ordered, Guest received, Guest rate, Guest amount, Employee ordered, Employee received, Employee rate, Employee amount, Total received and Total ₹ — with totals for every column. The quantities-only view shows Guest / Employee ordered and received. The meal summary below is unchanged. No SQL.
+
 ## 2.15.72 — Phone layout: On Duty Today and EN | தமிழ் in one row
 
 On phones the language switch was squeezed into a narrow column (E/N stacked). The 👥 On Duty Today button and the EN | தமிழ் switch now sit together in their own full-width row under the search box (button with its label on the left, switch on the right). Desktop unchanged. No SQL.

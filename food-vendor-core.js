@@ -130,6 +130,30 @@ function quantityRows(report){
 function rateFor(report,meal,day){
  if(!report)return null;const category=/Tea|Coffee/.test(meal)?'Coffee/Tea':meal;const rates=(report.rates||[]).filter(r=>r&&r.item===category&&r.effective<=day).sort((a,b)=>b.effective.localeCompare(a.effective)||String(b.created_at||'').localeCompare(String(a.created_at||'')));return rates[0]?.price==null?null:Number(rates[0].price);
 }
+// 2.15.73: statement rows with Guest and Employee in separate columns:
+// [date, meal, guest ordered, guest received, guest rate, guest amount, employee ordered, employee received, employee rate, employee amount, total received, total amount]
+function splitRows(report){
+ const round=v=>Math.round(v*100)/100,uniq=a=>[...new Set(a.filter(v=>v!=null&&!isNaN(v)))];
+ return compactRows(report).map(r=>{
+  const det=r.detail||{},entries=det.entries||[],meal=r[1],tea=/Tea|Coffee/.test(meal),recR=Number(det.recR||0),recE=Number(det.recE||0),hasReceipt=r[5]!=null;
+  let gRate,eRate,gAmt,eAmt;
+  if(entries.length){
+   const gr=uniq(entries.filter(e=>Number(e.data?.residents||0)>0||!(Number(e.data?.employees||0)>0)).map(e=>Number(e.data?.unit_price)));
+   const er=uniq(entries.filter(e=>Number(e.data?.employees||0)>0).map(e=>Number(e.data?.employee_unit_price??e.data?.unit_price)));
+   gRate=gr.length===1?gr[0]:gr.length?'Mixed':(recR?null:uniq(entries.map(e=>Number(e.data?.unit_price)))[0]??null);
+   eRate=er.length===1?er[0]:er.length?'Mixed':(tea?gRate:uniq(entries.map(e=>Number(e.data?.employee_unit_price??e.data?.unit_price)))[0]??null);
+   gAmt=round(entries.reduce((n,e)=>{const d=e.data||{},q=Number(d.residents||0);return n+(d.resident_amount!=null?Number(d.resident_amount):q*Number(d.unit_price||0))},0));
+   eAmt=round(entries.reduce((n,e)=>{const d=e.data||{},q=Number(d.employees||0);return n+(d.employee_amount!=null?Number(d.employee_amount):q*Number(d.employee_unit_price??d.unit_price??0))},0));
+   // Old receipts saved as one quantity (no Guest / Employee split) count as Guest.
+   const unsplit=entries.filter(e=>!(Number(e.data?.residents||0)+Number(e.data?.employees||0))).reduce((n,e)=>n+Number(e.amount||0),0);gAmt=round(gAmt+unsplit);
+  }else{
+   gRate=rateFor(report,meal,r[0]);eRate=tea?gRate:(rateFor(report,meal+' (Employee)',r[0])??gRate);
+   gAmt=hasReceipt&&typeof gRate==='number'?round(recR*gRate):null;eAmt=hasReceipt&&typeof eRate==='number'?round(recE*eRate):null;
+  }
+  const total=r[8]!=null?r[8]:(gAmt!=null&&eAmt!=null?round(gAmt+eAmt):null);
+  return [r[0],meal,r[2],hasReceipt?recR:null,gRate,gAmt,r[3],hasReceipt?recE:null,eRate,eAmt,r[7]!=null?r[7]:(hasReceipt?r[5]:null),total];
+ });
+}
 function compactRows(report){
  if(!report)return [];
  const groups=new Map();
@@ -197,7 +221,7 @@ function statementPdf(model){
  const newPage=()=>{finish();page++;canvas=document.createElement('canvas');canvas.width=W*scale;canvas.height=H*scale;ctx=canvas.getContext('2d');ctx.scale(scale,scale);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);if(model.logoImage)ctx.drawImage(model.logoImage,M,24,180,180*(model.logoImage.naturalHeight||model.logoImage.height)/(model.logoImage.naturalWidth||model.logoImage.width));text('Food Vendor Statement',M,164,14,true);const vendorLines=wrap(model.vendor,W-2*M,18,true);vendorLines.forEach((v,i)=>text(v,M,193+i*22,18,true));y=210+vendorLines.length*22;text(model.period,M,y,11);y+=22};
  const drawRow=(row,widths,header=false,bold=false)=>{const lines=row.map((v,i)=>wrap(v,widths[i]-10,11,header||bold));const height=Math.max(...lines.map(v=>v.length))*15+12;let x=M;row.forEach((_,i)=>{ctx.fillStyle=header?'#eee':'#fff';ctx.fillRect(x,y,widths[i],height);ctx.strokeStyle='#999';ctx.lineWidth=.6;ctx.strokeRect(x,y,widths[i],height);lines[i].forEach((l,j)=>text(l,x+5,y+17+j*15,11,header||bold));x+=widths[i]});y+=height};
  const table=(heads,rows,widths,groupDates=false)=>{const header=()=>drawRow(heads,widths,true);if(y>H-180)newPage();header();let previousDate=null;rows.forEach((row,i)=>{const height=Math.max(...row.map((v,j)=>wrap(v,widths[j]-10).length))*15+12;if(y+height>H-50){newPage();header();previousDate=null}const shown=row.slice();if(groupDates&&row[0]===previousDate)shown[0]='';previousDate=row[0];drawRow(shown,widths,false,row[0]==='Grand total'||row[0]==='Total')})};
- newPage();table(model.heads,model.rows,model.heads.length===9?[88,112,72,72,72,72,72,72,72]:[100,160,111,111,111,111],true);
+ newPage();table(model.heads,model.rows,model.heads.length===12?[70,62,52,56,52,62,56,58,52,62,52,70]:model.heads.length===7?[96,120,96,96,96,96,104]:model.heads.length===9?[88,112,72,72,72,72,72,72,72]:[100,160,111,111,111,111],true);
  if(y>H-300)newPage();y+=24;text('Meal summary - received portions',M,y,12,true);y+=12;table(model.summaryHeads,model.summary,model.summaryHeads.length===4?[140,80,110,150]:[230,130]);
  if(model.ledgerHeads){if(y>H-260)newPage();y+=24;text('Payments & adjustments',M,y,12,true);y+=12;if(model.ledgerRows?.length)table(model.ledgerHeads,model.ledgerRows,[100,100,330,120]);else {text('No payments or adjustments in this period.',M,y+18,11);y+=32}const f=model.finance||{};if(y>H-260)newPage();y+=24;text('Account summary',M,y,12,true);y+=12;table(['Particulars','Amount INR'],[['Opening balance',Number(f.opening||0).toFixed(2)],['Food charges',Number(f.charges||0).toFixed(2)],['Payments received','- '+Number(f.payments||0).toFixed(2)],['Adjustments',Number(f.adjustments||0).toFixed(2)],['Closing balance',Number(f.closing||0).toFixed(2)]],[330,180]);}
  for(const note of model.notes||[]){const lines=wrap(note,W-2*M,11);if(y+lines.length*15+20>H-50)newPage();y+=20;lines.forEach(l=>{text(l,M,y,11);y+=15})}finish();return pdfFromJpegs(pages);
@@ -229,5 +253,5 @@ function receiptDeadline(order,now=Date.now()){
  return {delivered,remindAt,closeAt,due:now>=remindAt&&now<closeAt,overdueMinutes};
 }
 
-const api={header,messageV2,V2_KINDS,rateFor,orderCutoff,cutoffRules,receiptDeadline,dateText,orderProgress,orderFilterFacts,matchesOrderFilter,logo,statementLogo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary,label,amountWords,pdfFromJpegs,statementPdf};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
+const api={splitRows,header,messageV2,V2_KINDS,rateFor,orderCutoff,cutoffRules,receiptDeadline,dateText,orderProgress,orderFilterFacts,matchesOrderFilter,logo,statementLogo,slots,ref,message,payload,manual,balance,workbook,quantityRows,compactRows,mealSummary,label,amountWords,pdfFromJpegs,statementPdf};root.SamaraFoodCore=api;if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(globalThis);

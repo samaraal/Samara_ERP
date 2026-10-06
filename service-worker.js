@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.72';
-const CACHE = 'samara-erp-2.15.72-mobile-top-tools';
+const APP_VERSION = '2.15.73';
+const CACHE = 'samara-erp-2.15.73-food-statement-split';
 const SHELL = [
   './',
   './index.html',
