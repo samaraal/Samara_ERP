@@ -13,6 +13,42 @@ function residentTariffDescription(row,admission){
     return day?`applicable from ${day.slice(8,10)}-${day.slice(5,7)}-${day.slice(0,4)}`:match;
   });
 }
+
+// ── Simple bill lines (v2.15.76) ─────────────────────────────────────────────
+// KEEP IN STEP WITH the Family Portal (js/family-app-v1.0.6.js familyParticulars /
+// familyBillingLines): the ERP bill and the Family Portal must show the same lines.
+// Item name only — no Accounts names, approval remarks or internal discount notes.
+function billIsAdvance(row){
+  const type=String(row?.transaction_type||'').toLowerCase();
+  return type==='advance'||(type==='payment'&&/advance/i.test(String(row?.category||'')));
+}
+function billRupees(v){const n=Number(v);return Number.isFinite(n)?'₹'+n.toLocaleString('en-IN',{maximumFractionDigits:2}):String(v);}
+function billLineLabel(row){
+  const type=String(row?.transaction_type||'').toLowerCase();
+  const cat=String(row?.category||'').trim();
+  const text=String(row?.description||'').trim();
+  const parts=text.split(' · ').map(x=>x.trim()).filter(Boolean);
+  let m=text.match(/^(?:Automatic )?room rent for (\d{2}-\d{2}-\d{4})(?: \(([^)]*)\))?(?: · Room ([^ ·]+))?/i);
+  if(m){const room=m[3]||((m[2]||'').match(/Room ([^ ,)]+)/i)||[])[1];return `Room rent · ${m[1]}${room?` · Room ${room}`:''}`;}
+  m=text.match(/^(?:Automatic )?(daily )?(special )?nurs\w* charge for (\d{2}-\d{2}-\d{4})/i);
+  if(m)return `${m[2]?'Special nurse':'Nursing'} charge · ${m[3]}`;
+  m=text.match(/^Tariff adjustment for (\d{2}-\d{2}-\d{4}) · Room (\S+)(?: · [^·]*)? · ([\d.]+) → ([\d.]+)/i);
+  if(m)return `Room tariff adjustment · ${m[1]} · Room ${m[2]} (${billRupees(m[3])} → ${billRupees(m[4])} per day)`;
+  if(type==='payment'||type==='advance'){
+    const ref=(text.match(/Reference:\s*([^·]+)/i)||[])[1];
+    const label=billIsAdvance(row)?'Advance received':'Payment received';
+    return ref?`${label} · Ref ${ref.trim()}`:label;
+  }
+  if(type==='discount')return cat?`Discount · ${cat}`:'Discount';
+  if(type==='refund')return 'Refund';
+  return parts[0]||cat||'Charge';
+}
+// "Examination Gloves × 9 · Glucometer Strips × 2" for a group of charge rows.
+function billItemsSummary(items){
+  const counts=new Map();
+  for(const it of items||[]){const label=billLineLabel(it);counts.set(label,(counts.get(label)||0)+1);}
+  return [...counts].map(([label,n])=>n>1?`${label} × ${n}`:label).join(' · ')||'—';
+}
   const localDateTimeValue = (date=new Date()) => {
     const value=date instanceof Date?date:new Date(date);
     const safe=Number.isNaN(value.getTime())?new Date():value;

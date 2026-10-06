@@ -1,3 +1,9 @@
+## 2.15.76 — Final Bill: simple lines, Advance shown as Advance
+
+- Final / Complete Bill (print and screen) now uses the same simple lines as the Family Portal: item names only, grouped with counts (e.g. "Glucometer Strips × 2 · Examination Gloves × 9"). Accounts names, "Admin-fixed tariff", approval remarks and internal discount notes are no longer printed.
+- Payments section: the ₹ advance recorded as Payment / category Advance now shows as **Advance** and is totalled under Advance Received (was Payments Received). Discounts show "Room tariff adjustment · date · Room (₹3,200 → ₹2,500 per day)", dated by day; Mode shows "—" instead of "Not applicable".
+- Shared helpers billLineLabel / billIsAdvance / billItemsSummary (core/08-date-utils.js) — must stay in step with the Family Portal. No SQL.
+
 ## 2.15.75 · SQL 199 — Daily room rent posts automatically at 12:05 AM
 
 - Room rent, nursing and special-nurse daily charges now post by themselves every night at **12:05 AM (India time)**, with a safety re-run at **6:05 AM**. Staff no longer need to log in for the day's rent to appear.

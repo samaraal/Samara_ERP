@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.75';
+  const APP_VERSION = '2.15.76';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2508,6 +2508,42 @@ function residentTariffDescription(row,admission){
     const day=residentTariffDate(`${yyyy}-${mm}-${dd}`,admission);
     return day?`applicable from ${day.slice(8,10)}-${day.slice(5,7)}-${day.slice(0,4)}`:match;
   });
+}
+
+// ── Simple bill lines (v2.15.76) ─────────────────────────────────────────────
+// KEEP IN STEP WITH the Family Portal (js/family-app-v1.0.6.js familyParticulars /
+// familyBillingLines): the ERP bill and the Family Portal must show the same lines.
+// Item name only — no Accounts names, approval remarks or internal discount notes.
+function billIsAdvance(row){
+  const type=String(row?.transaction_type||'').toLowerCase();
+  return type==='advance'||(type==='payment'&&/advance/i.test(String(row?.category||'')));
+}
+function billRupees(v){const n=Number(v);return Number.isFinite(n)?'₹'+n.toLocaleString('en-IN',{maximumFractionDigits:2}):String(v);}
+function billLineLabel(row){
+  const type=String(row?.transaction_type||'').toLowerCase();
+  const cat=String(row?.category||'').trim();
+  const text=String(row?.description||'').trim();
+  const parts=text.split(' · ').map(x=>x.trim()).filter(Boolean);
+  let m=text.match(/^(?:Automatic )?room rent for (\d{2}-\d{2}-\d{4})(?: \(([^)]*)\))?(?: · Room ([^ ·]+))?/i);
+  if(m){const room=m[3]||((m[2]||'').match(/Room ([^ ,)]+)/i)||[])[1];return `Room rent · ${m[1]}${room?` · Room ${room}`:''}`;}
+  m=text.match(/^(?:Automatic )?(daily )?(special )?nurs\w* charge for (\d{2}-\d{2}-\d{4})/i);
+  if(m)return `${m[2]?'Special nurse':'Nursing'} charge · ${m[3]}`;
+  m=text.match(/^Tariff adjustment for (\d{2}-\d{2}-\d{4}) · Room (\S+)(?: · [^·]*)? · ([\d.]+) → ([\d.]+)/i);
+  if(m)return `Room tariff adjustment · ${m[1]} · Room ${m[2]} (${billRupees(m[3])} → ${billRupees(m[4])} per day)`;
+  if(type==='payment'||type==='advance'){
+    const ref=(text.match(/Reference:\s*([^·]+)/i)||[])[1];
+    const label=billIsAdvance(row)?'Advance received':'Payment received';
+    return ref?`${label} · Ref ${ref.trim()}`:label;
+  }
+  if(type==='discount')return cat?`Discount · ${cat}`:'Discount';
+  if(type==='refund')return 'Refund';
+  return parts[0]||cat||'Charge';
+}
+// "Examination Gloves × 9 · Glucometer Strips × 2" for a group of charge rows.
+function billItemsSummary(items){
+  const counts=new Map();
+  for(const it of items||[]){const label=billLineLabel(it);counts.set(label,(counts.get(label)||0)+1);}
+  return [...counts].map(([label,n])=>n>1?`${label} × ${n}`:label).join(' · ')||'—';
 }
   const localDateTimeValue = (date=new Date()) => {
     const value=date instanceof Date?date:new Date(date);
@@ -32131,6 +32167,19 @@ function ShiftHandover({profile,onNavigate}){
       maximumFractionDigits:2
     })}`;
 
+    // Payments section: Advance shown as Advance; discounts dated by day only; no "Not applicable".
+    const billTxnType=row=>billIsAdvance(row)?'Advance':(row.transaction_type||'—');
+    const billTxnMode=row=>{const m=String(row.payment_mode||'').trim();return !m||/not applicable/i.test(m)?'—':m;};
+    const billTxnDate=row=>{
+      if(String(row.transaction_type||'')==='Discount'){
+        const m=String(row.description||'').match(/^Tariff adjustment for (\d{2}-\d{2}-\d{4})/i);
+        if(m)return m[1];
+        const raw=String(row.source_date||row.transaction_date||'').slice(0,10);
+        if(/^\d{4}-\d{2}-\d{2}$/.test(raw)){const [y,mo,d]=raw.split('-');return `${d}-${mo}-${y}`;}
+      }
+      return formatDateTimeIN(row.transaction_date);
+    };
+
     async function loadBill(nextPatientId=patientId){
       if(!nextPatientId){
         setRows([]);
@@ -32170,7 +32219,7 @@ function ShiftHandover({profile,onNavigate}){
     },{});
 
     const totals=rows.reduce((sum,row)=>{
-      const type=row.transaction_type||'Charge';
+      const type=billIsAdvance(row)?'Advance':(row.transaction_type||'Charge');
       sum[type]=(sum[type]||0)+Number(row.amount||0);
       return sum;
     },{Charge:0,Payment:0,Advance:0,Discount:0,Refund:0});
@@ -32223,7 +32272,7 @@ function ShiftHandover({profile,onNavigate}){
       const itemHtml=chargeRows.length
         ?chargeRows.map((group,index)=>{
           const simple=simplifyChargeDescription(group.category,group.items);
-          const rawDetail=group.items.map(item=>item.description||'').filter(Boolean).join(' | ')||'—';
+          const rawDetail=billItemsSummary(group.items);
           const detail=simple
             ?simple.text
             :rawDetail.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g,'$3-$2-$1');
@@ -32244,10 +32293,10 @@ function ShiftHandover({profile,onNavigate}){
         ?transactionRows.map((row,index)=>`
           <tr>
             <td>${index+1}</td>
-            <td>${escapeHtml(formatDateTimeIN(row.transaction_date))}</td>
-            <td>${escapeHtml(row.transaction_type||'—')}</td>
-            <td>${escapeHtml(row.payment_mode||'—')}</td>
-            <td>${escapeHtml(row.description||'—')}</td>
+            <td>${escapeHtml(billTxnDate(row))}</td>
+            <td>${escapeHtml(billTxnType(row))}</td>
+            <td>${escapeHtml(billTxnMode(row))}</td>
+            <td>${escapeHtml(billLineLabel(row))}</td>
             <td class="amount">${escapeHtml(money(row.amount))}</td>
           </tr>
         `).join('')
@@ -32396,8 +32445,7 @@ function ShiftHandover({profile,onNavigate}){
     const chargeGroups=Object.values(groupedCharges);
     const compactChargeDescription=group=>{
       if(!['Room Charges','Nursing Charges'].includes(group.category)){
-        return (group.items.map(item=>item.description).filter(Boolean).join(' | ')||'—')
-          .replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g,'$3-$2-$1');
+        return billItemsSummary(group.items);
       }
       const dated=group.items.map(item=>String(item.source_date||item.transaction_date||'').slice(0,10))
         .filter(value=>/^\d{4}-\d{2}-\d{2}$/.test(value)).sort();
@@ -32471,11 +32519,11 @@ function ShiftHandover({profile,onNavigate}){
           subtitle:'Payments, advances, discounts and refunds',
           heads:['Date','Type','Category','Mode','Reference / Description','Amount'],
           rows:rows.filter(row=>['Payment','Advance','Discount','Refund'].includes(row.transaction_type)).map(row=>[
-            formatDateTimeIN(row.transaction_date),
-            row.transaction_type,
+            billTxnDate(row),
+            billTxnType(row),
             row.category||'—',
-            row.payment_mode||'—',
-            row.description||'—',
+            billTxnMode(row),
+            billLineLabel(row),
             money(row.amount)
           ])
         }),
