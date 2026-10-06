@@ -649,6 +649,7 @@
           h(GlobalSearch,{onNavigate:setPage,profile}),
           h(StoreIndentAlerts,{profile,onNavigate:setPage}),
           profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
+          h(OnDutyToday,{profile}),
           h(LanguageSwitch,{profile}),
           h('span',{className:'badge'},profile.role)
         ),

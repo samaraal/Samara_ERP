@@ -1180,5 +1180,21 @@
 "Compact executive assistance workspace": "நிர்வாக உதவி பணியிடம்",
 "jobs": "வேலைகள்",
 "items": "பதிவுகள்",
-"Search subject, name, mobile or notes…": "விஷயம், பெயர், மொபைல் அல்லது குறிப்பு தேடு…"
+"Search subject, name, mobile or notes…": "விஷயம், பெயர், மொபைல் அல்லது குறிப்பு தேடு…",
+"On Duty Today": "இன்றைய டியூட்டி",
+"Who is working, on weekly off or on leave": "யார் வேலையில், வார விடுமுறையில் அல்லது லீவில் உள்ளனர்",
+"On duty now": "இப்போது டியூட்டியில்",
+"Nobody is marked on duty at this time.": "இந்த நேரத்தில் யாரும் டியூட்டியில் குறிக்கப்படவில்லை.",
+"No duty assigned for this day.": "இந்த நாளுக்கு டியூட்டி ஒதுக்கப்படவில்லை.",
+"Weekly off": "வார விடுமுறை",
+"On leave / permission": "லீவ் / பர்மிஷனில்",
+"From Duty Assignment and approved Leave / Permission. Staff on approved leave are not counted as on duty.": "டியூட்டி ஒதுக்கீடு மற்றும் அனுமதிக்கப்பட்ட லீவ் / பர்மிஷன் அடிப்படையில். அனுமதிக்கப்பட்ட லீவில் உள்ளவர்கள் டியூட்டியில் கணக்கிடப்படமாட்டார்கள்.",
+"No mobile": "மொபைல் இல்லை",
+"Day Shift (7 AM–7 PM)": "பகல் ஷிஃப்ட் (7 AM–7 PM)",
+"Night Shift (7 PM–7 AM)": "இரவு ஷிஃப்ட் (7 PM–7 AM)",
+"Morning Shift (7 AM–2 PM)": "காலை ஷிஃப்ட் (7 AM–2 PM)",
+"Evening Shift (1 PM–7 PM)": "மாலை ஷிஃப்ட் (1 PM–7 PM)",
+"General Shift (9 AM–6 PM)": "ஜெனரல் ஷிஃப்ட் (9 AM–6 PM)",
+"Shift not set": "ஷிஃப்ட் அமைக்கப்படவில்லை",
+"Who is on duty today": "இன்று யார் டியூட்டியில்"
 };

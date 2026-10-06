@@ -1,3 +1,7 @@
+## 2.15.71 — On Duty Today
+
+New **👥 On Duty Today** button in the top bar (Admin, Manager, STD). Shows who is **on duty now** (by shift time; last night's Night Shift until 7 AM), today's duty by shift (Day, Night, Morning, Evening, General) with duty type / room / task, **weekly off**, and staff on **approved leave / permission** (not counted as on duty). Department chips, ‹ › for other days, and 📞 tap-to-call mobile numbers. Uses the existing Duty Assignment and Leave records — no SQL. Tamil wording included.
+
 ## 2.15.70 — EN | தமிழ் screen language (trial for STD)
 
 - New **EN | தமிழ்** switch at the top (next to the role badge) for STD — Admin also sees it to check the wording. தமிழ் shows the menu, page titles, boxes, buttons, labels, filters, statuses and short messages in simple Tamil with common English work words (Guest = கெஸ்ட் (Guest)); names, notes, WhatsApp messages, item names and other typed data stay as entered; dates stay DD-MM-YYYY.

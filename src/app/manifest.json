@@ -132,6 +132,11 @@
    "lines": 0
   },
   {
+   "file": "global-ui/11-on-duty-today.js",
+   "about": "On Duty Today quick view (top bar)",
+   "lines": 0
+  },
+  {
    "file": "stores/kitchen-cash.js",
    "about": "Kitchen petty cash and custody workflow"
   },
