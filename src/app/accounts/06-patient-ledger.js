@@ -265,7 +265,7 @@
         <div class="footer"><b>Samara Health Care LLP</b> · RBK VILLA, No: 23-A, Reddipalayam Road, Jeswant Nagar Phase 1, Mogappair West, Chennai 600037.<br>9976735577 · 7395961616 · care@samaraassistedliving.com · www.samaraassistedliving.com<br>Computer-generated patient account ledger · No manual alteration permitted</div>
         <script>window.addEventListener('load',()=>{const imgs=[...document.images];Promise.all(imgs.map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=i.onerror=r}))).then(()=>setTimeout(()=>window.print(),250));});<\/script>
       </body></html>`;
-      const win=window.open('','_blank');
+      const win=samaraPrintBar(window.open('','_blank'));
       if(!win){alert('Please allow pop-ups to download / save the Patient Ledger PDF.');return}
       win.document.open();win.document.write(html);win.document.close();
     }

@@ -1,3 +1,7 @@
+## 2.15.80 — Back button on print / PDF pages (mobile)
+
+Final Bill, Guest Ledger PDF, Payment QR, Resident ID card, employee print and Medication Safety Report open as a new tab; on phones there was no way back. They now have a top bar with "← Back to ERP" (closes the tab, or returns to the ERP) and "Print / Save PDF"; the bar is hidden when printing. Shared helper samaraPrintBar (shared/02-apply-filter-row-details.js). No SQL.
+
 ## 2.15.79 — Guest Ledger: readable cells, tap a row for full details
 
 - Source / Reference column no longer shows system keys (e.g. "ROOM:ae736b2e-…:06-10-2026"); it shows the source (Daily Room Charge, Cash, UPI…) and the payment reference only.

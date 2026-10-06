@@ -696,7 +696,7 @@
       const resolved=await resolveEmployeePhoto(row,900);
       const currentRow=resolved.profile||row;
       const photoUrl=resolved.url||'';
-      const win=window.open('','_blank','width=760,height=700');
+      const win=samaraPrintBar(window.open('','_blank','width=760,height=700'));
       if(!win){alert('Please allow pop-ups to print the ID card.');return}
       const validUntil=currentRow.date_of_joining?formatDateIN(new Date(new Date(currentRow.date_of_joining).setFullYear(new Date(currentRow.date_of_joining).getFullYear()+3))):'As per employment';
       const paymentModes=[...new Set(rows

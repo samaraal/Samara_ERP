@@ -83,7 +83,7 @@
         setMessage('Select a patient before printing the complete bill.');
         return;
       }
-      const win=window.open('','_blank','width=1100,height=900');
+      const win=samaraPrintBar(window.open('','_blank','width=1100,height=900'));
       if(!win){
         setMessage('Pop-up was blocked. Please allow pop-ups and try again.');
         return;

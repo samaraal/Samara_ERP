@@ -150,7 +150,7 @@
     function printCurrentReport(){
       const report=document.getElementById('medication-safety-report');
       if(!report)return;
-      const win=window.open('','_blank');if(!win)return alert('Please allow pop-ups to print the report.');
+      const win=samaraPrintBar(window.open('','_blank'));if(!win)return alert('Please allow pop-ups to print the report.');
       win.document.write(`<!doctype html><html><head><title>Medication Safety Report</title><style>body{font-family:Arial;padding:24px;color:#4c263c}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #bbb;padding:6px;text-align:left;vertical-align:top}th{background:#e7f3f0}.no-print{display:none}.card{border:1px solid #ead0de;border-radius:12px;padding:14px;margin:12px 0}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.stat strong{display:block;font-size:24px;color:#a91360}h1,h2{color:#a91360}</style></head><body>${report.innerHTML}</body></html>`);
       win.document.close();setTimeout(()=>{win.focus();win.print()},250);
     }

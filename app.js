@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.79';
+  const APP_VERSION = '2.15.80';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2853,6 +2853,35 @@ https://samaraassistedliving.com/`;
       h('button',{type:'button',className:`btn ${dirty?'btn-primary apply-filter-dirty':'btn-secondary'}`,onClick:onApply,'aria-label':'Apply filter'},dirty?'✓ Apply':'✓ Applied'),
       dirty&&h('small',{className:'apply-filter-note'},'Filter changed — press Apply')
     );
+  }
+  // 2.15.80: print / PDF windows open as a new tab — on phones there was no way back.
+  // Adds a top bar with "← Back to ERP" and "Print / Save PDF" (hidden when printing).
+  // Wrap any window.open('','_blank') for a printable page: samaraPrintBar(window.open(...)).
+  function samaraPrintBar(win,backLabel){
+    if(!win)return win;
+    const appUrl=window.location.origin+window.location.pathname;
+    let tries=0;
+    const add=()=>{
+      try{
+        if(win.closed)return;
+        const d=win.document;
+        if(d&&d.body&&d.body.childElementCount&&!d.getElementById('samara-print-bar')){
+          const st=d.createElement('style');st.id='samara-print-bar-style';
+          st.textContent='#samara-print-bar{position:sticky;top:0;z-index:2147483647;display:flex;gap:10px;justify-content:space-between;align-items:center;padding:10px 12px;margin:0 0 10px;background:linear-gradient(100deg,#7a1247,#b01264,#e03a7c);box-shadow:0 4px 14px rgba(80,10,40,.25);font-family:Arial,sans-serif}#samara-print-bar button{border:0;border-radius:999px;padding:10px 16px;font-size:15px;font-weight:700;cursor:pointer}#samara-print-bar .sp-back{background:#fff;color:#7a1247}#samara-print-bar .sp-print{background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.6)}@media print{#samara-print-bar{display:none!important}}';
+          const bar=d.createElement('div');bar.id='samara-print-bar';
+          const back=d.createElement('button');back.type='button';back.className='sp-back';back.textContent=backLabel||'\u2190 Back to ERP';
+          const pr=d.createElement('button');pr.type='button';pr.className='sp-print';pr.textContent='Print / Save PDF';
+          back.onclick=()=>{try{win.close()}catch(_){}setTimeout(()=>{try{if(!win.closed)win.location.href=appUrl}catch(_){}},350)};
+          pr.onclick=()=>{try{win.focus();win.print()}catch(_){}};
+          bar.append(back,pr);
+          (d.head||d.body).appendChild(st);
+          d.body.insertBefore(bar,d.body.firstChild);
+        }
+      }catch(_){}
+      if(++tries<40)setTimeout(add,300);
+    };
+    setTimeout(add,0);
+    return win;
   }
   // RowDetailModal: full details of one register row. fields = [[label, value], …] (empty values are skipped).
   function RowDetailModal({title,subtitle,fields,children,onClose}){
@@ -17467,7 +17496,7 @@ Thank you.`;
       const resolved=await resolveEmployeePhoto(row,900);
       const currentRow=resolved.profile||row;
       const photoUrl=resolved.url||'';
-      const win=window.open('','_blank','width=760,height=700');
+      const win=samaraPrintBar(window.open('','_blank','width=760,height=700'));
       if(!win){alert('Please allow pop-ups to print the ID card.');return}
       const validUntil=currentRow.date_of_joining?formatDateIN(new Date(new Date(currentRow.date_of_joining).setFullYear(new Date(currentRow.date_of_joining).getFullYear()+3))):'As per employment';
       const paymentModes=[...new Set(rows
@@ -22597,7 +22626,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
     }
 
     async function printPatientIdCard(row){
-      const url=await resolvePatientPhoto(row);const win=window.open('','_blank','width=760,height=820');if(!win){alert('Please allow pop-ups to print the Patient ID card.');return}
+      const url=await resolvePatientPhoto(row);const win=samaraPrintBar(window.open('','_blank','width=760,height=820'));if(!win){alert('Please allow pop-ups to print the Patient ID card.');return}
       const doctor=row.referring_doctor||row.treating_doctor||row.family_doctor||'—';
       const emergencyName=row.attendant_name||'—';const emergencyPhone=row.attendant_phone||row.mobile||'—';
       win.document.write(`<!doctype html><html><head><title>Resident ID Card</title><style>body{font-family:Arial;margin:0;padding:24px;background:#fff5fa}.card{width:390px;min-height:650px;margin:auto;background:white;border-radius:24px;overflow:hidden;box-shadow:0 12px 35px #0002;border:2px solid #b01264}.head{background:#b01264;color:white;text-align:center;padding:20px}.head h1{margin:0;font-size:24px}.head p{margin:6px 0 0}.photo{width:125px;height:145px;border:4px solid white;border-radius:16px;object-fit:cover;background:#ddd;margin:14px auto 10px;display:block;box-shadow:0 4px 15px #0003}.body{padding:10px 26px 24px;text-align:center}.name{font-size:25px;font-weight:bold;color:#5d1039}.category{font-size:16px;color:#b01264;margin:4px 0 12px}.grid{text-align:left;line-height:1.55;font-size:15px}.row{padding:4px 0;border-bottom:1px solid #f7e7ef}.label{font-weight:bold;color:#444}.emergency{margin-top:12px;padding:10px;background:#fff4e5;border:1px solid #f2c87d;border-radius:10px}.barcode{margin-top:14px;padding:9px;border-top:1px dashed #aaa;font-family:monospace}.print{display:block;margin:20px auto;padding:12px 24px}@media print{.print{display:none}body{background:white;padding:0}}</style></head><body><div class="card"><div class="head"><h1>SAMARA HEALTH CARE LLP</h1><p>Assisted Living Patient Identity & Emergency Card</p></div><div class="body">${url?`<img class="photo" src="${url}">`:`<div class="photo" style="display:flex;align-items:center;justify-content:center;font-size:48px">SC</div>`}<div class="name">${escapeHtml(formalName(row))}</div><div class="category">${escapeHtml(row.patient_category||'Patient')}</div><div class="grid"><div class="row"><span class="label">Resident ID:</span> ${escapeHtml(row.patient_id||'—')}</div><div class="row"><span class="label">Main Diagnosis:</span> ${escapeHtml(row.diagnosis||'—')}</div><div class="row"><span class="label">Referred / Treating Doctor:</span> ${escapeHtml(doctor)}</div><div class="row"><span class="label">Doctor Mobile:</span> ${escapeHtml(row.doctor_phone||'—')}</div><div class="row"><span class="label">Room / Bed:</span> ${escapeHtml(`${row.room_no||'—'} / ${row.bed_no||'—'}`)}</div><div class="row"><span class="label">Gender / Age:</span> ${escapeHtml(`${row.gender||'—'} / ${row.age||'—'}`)}</div><div class="row"><span class="label">Blood Group:</span> ${escapeHtml(row.blood_group||'Unknown')}</div><div class="row"><span class="label">Patient Mobile:</span> ${escapeHtml(row.mobile||'—')}</div><div class="row"><span class="label">Allergies:</span> ${escapeHtml(row.allergies||'None recorded')}</div><div class="emergency"><div><span class="label">Emergency Contact:</span> ${escapeHtml(emergencyName)}</div><div><span class="label">Emergency Mobile:</span> ${escapeHtml(emergencyPhone)}</div></div></div><div class="barcode">${escapeHtml(row.patient_id||row.id)}</div></div></div><button class="print" onclick="window.print()">Print Resident ID Card</button></body></html>`);win.document.close();
@@ -28830,7 +28859,7 @@ function RoomsBeds({profile,onNavigate}){
     function printCurrentReport(){
       const report=document.getElementById('medication-safety-report');
       if(!report)return;
-      const win=window.open('','_blank');if(!win)return alert('Please allow pop-ups to print the report.');
+      const win=samaraPrintBar(window.open('','_blank'));if(!win)return alert('Please allow pop-ups to print the report.');
       win.document.write(`<!doctype html><html><head><title>Medication Safety Report</title><style>body{font-family:Arial;padding:24px;color:#4c263c}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #bbb;padding:6px;text-align:left;vertical-align:top}th{background:#e7f3f0}.no-print{display:none}.card{border:1px solid #ead0de;border-radius:12px;padding:14px;margin:12px 0}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.stat strong{display:block;font-size:24px;color:#a91360}h1,h2{color:#a91360}</style></head><body>${report.innerHTML}</body></html>`);
       win.document.close();setTimeout(()=>{win.focus();win.print()},250);
     }
@@ -32289,7 +32318,7 @@ function ShiftHandover({profile,onNavigate}){
         setMessage('Select a patient before printing the complete bill.');
         return;
       }
-      const win=window.open('','_blank','width=1100,height=900');
+      const win=samaraPrintBar(window.open('','_blank','width=1100,height=900'));
       if(!win){
         setMessage('Pop-up was blocked. Please allow pop-ups and try again.');
         return;
@@ -33142,7 +33171,7 @@ function ShiftHandover({profile,onNavigate}){
         <div class="footer"><b>Samara Health Care LLP</b> · RBK VILLA, No: 23-A, Reddipalayam Road, Jeswant Nagar Phase 1, Mogappair West, Chennai 600037.<br>9976735577 · 7395961616 · care@samaraassistedliving.com · www.samaraassistedliving.com<br>Computer-generated patient account ledger · No manual alteration permitted</div>
         <script>window.addEventListener('load',()=>{const imgs=[...document.images];Promise.all(imgs.map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=i.onerror=r}))).then(()=>setTimeout(()=>window.print(),250));});<\/script>
       </body></html>`;
-      const win=window.open('','_blank');
+      const win=samaraPrintBar(window.open('','_blank'));
       if(!win){alert('Please allow pop-ups to download / save the Patient Ledger PDF.');return}
       win.document.open();win.document.write(html);win.document.close();
     }
@@ -33451,7 +33480,7 @@ function ShiftHandover({profile,onNavigate}){
 
     async function showPaymentQr(){
       if(!paymentRequest?.id)return;
-      const w=window.open('','_blank','width=520,height=720');
+      const w=samaraPrintBar(window.open('','_blank','width=520,height=720'));
       if(!w){notify('error','QR could not be displayed','Allow pop-ups to display the payment QR code.');return}
       w.document.write(`<!doctype html><html><head><title>Samara Payment QR</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;text-align:center;padding:24px;color:#5d1740;background:#fff7fb}main{max-width:440px;margin:auto;background:#fff;padding:28px;border-radius:20px;box-shadow:0 10px 35px #b0186720}h1{color:#b01867}.wait{font-size:18px;line-height:1.5}.spin{width:44px;height:44px;border:5px solid #f7d9e8;border-top-color:#b01867;border-radius:50%;margin:28px auto;animation:s 1s linear infinite}@keyframes s{to{transform:rotate(360deg)}}</style></head><body><main><h1>Samara Assisted Living</h1><div class="spin"></div><p class="wait">Preparing direct UPI Scan & Pay QR…<br>Please wait for a moment.</p></main></body></html>`);w.document.close();
       try{

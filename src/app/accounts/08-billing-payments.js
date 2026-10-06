@@ -126,7 +126,7 @@
 
     async function showPaymentQr(){
       if(!paymentRequest?.id)return;
-      const w=window.open('','_blank','width=520,height=720');
+      const w=samaraPrintBar(window.open('','_blank','width=520,height=720'));
       if(!w){notify('error','QR could not be displayed','Allow pop-ups to display the payment QR code.');return}
       w.document.write(`<!doctype html><html><head><title>Samara Payment QR</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;text-align:center;padding:24px;color:#5d1740;background:#fff7fb}main{max-width:440px;margin:auto;background:#fff;padding:28px;border-radius:20px;box-shadow:0 10px 35px #b0186720}h1{color:#b01867}.wait{font-size:18px;line-height:1.5}.spin{width:44px;height:44px;border:5px solid #f7d9e8;border-top-color:#b01867;border-radius:50%;margin:28px auto;animation:s 1s linear infinite}@keyframes s{to{transform:rotate(360deg)}}</style></head><body><main><h1>Samara Assisted Living</h1><div class="spin"></div><p class="wait">Preparing direct UPI Scan & Pay QR…<br>Please wait for a moment.</p></main></body></html>`);w.document.close();
       try{
