@@ -1,3 +1,7 @@
+## 2.15.82 — Final Billing: search Guest by name / mobile
+
+On Accounts › Final Billing the read-only "Bill / Invoice Number" box is replaced by **Search Guest** — type any 3 characters of the name, mobile number (Guest or attendant) or Resident ID and tap the Guest to open the bill. The Bill No still prints on the bill and shows under the search once a Guest is chosen. The Patient dropdown stays. No SQL.
+
 ## 2.15.81 — Final Bill: amount in words
 
 The Final / Complete Bill shows the Net Payable in words (Indian system — Thousand, Lakh, Crore, with Paise), e.g. "Rupees Nine Hundred Thirty Only", and the Advance Balance / Refundable in words when there is one. Shared helper billAmountInWords (core/08-date-utils.js); the Family Portal Ledger PDF uses the same wording. No SQL.

@@ -2,6 +2,9 @@
     React.useEffect(()=>{ensureAccountsWorkspaceStyle()},[]);
     const [patients]=usePatients();
     const [patientId,setPatientId]=React.useState('');
+    // 2.15.82: find the Guest by name, mobile number or Resident ID (any 3 characters).
+    const [guestQuery,setGuestQuery]=React.useState('');
+    const [guestPicked,setGuestPicked]=React.useState(false);
     const [rows,setRows]=React.useState([]);
     const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [loading,setLoading]=React.useState(false);
@@ -340,10 +343,31 @@
             )
           ),
           h('div',{className:'field'},
-            h('label',null,'Bill / Invoice Number'),
-            h('input',{value:invoiceNo,readOnly:true})
+            h('label',null,'Search Guest'),
+            h('div',{className:'fb-search-wrap'},
+              h('input',{type:'search',value:guestQuery,placeholder:'Search by name, Mobile No. or Resident ID (any 3 characters)',
+                onChange:e=>{setGuestQuery(e.target.value);setGuestPicked(false);}}),
+              (()=>{
+                const q=guestQuery.trim().toLowerCase();
+                if(!q||guestPicked)return null;
+                if(q.length<3)return h('div',{className:'fb-search-results'},h('div',{className:'small-note',style:{padding:'12px 14px'}},'Type at least 3 characters'));
+                const digits=q.replace(/\D/g,'');
+                const found=patients.filter(p=>{
+                  const hay=[formalName(p),p.full_name,p.patient_id,p.room_no,p.attendant_name].filter(Boolean).join(' ').toLowerCase();
+                  const phones=[p.mobile,p.attendant_phone,p.alternate_mobile,p.emergency_contact].filter(Boolean).join(' ').replace(/\D/g,'');
+                  return hay.includes(q)||(digits.length>=3&&phones.includes(digits));
+                }).slice(0,12);
+                return h('div',{className:'fb-search-results'},
+                  found.length?found.map(p=>h('button',{key:p.id,type:'button',className:'fb-search-result',onClick:()=>{setPatientId(p.id);setGuestQuery(formalName(p)||p.full_name||'');setGuestPicked(true);}},
+                    h('strong',null,formalName(p)||p.full_name||'Guest'),
+                    h('div',{className:'small-note'},`${p.patient_id||'No ID'}${p.room_no?` · Room ${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:''}${p.mobile?` · ${p.mobile}`:''}`)
+                  )):h('div',{className:'small-note',style:{padding:'12px 14px'}},'No Guest found'));
+              })()
+            ),
+            patient&&h('small',{className:'small-note',style:{display:'block',marginTop:'6px'}},`Bill No: ${invoiceNo}`)
           )
         ),
+        h('style',null,'.fb-search-wrap{position:relative}.fb-search-results{position:absolute;z-index:40;left:0;right:0;top:calc(100% + 6px);background:#fff;border:1px solid #efbed2;border-radius:14px;box-shadow:0 14px 32px rgba(110,14,62,.18);max-height:340px;overflow:auto}.fb-search-result{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #f6dce7;background:#fff;padding:12px 14px;cursor:pointer;color:#3f2635}.fb-search-result:hover{background:#fff1f7}'),
         message&&h('div',{className:'message error'},message)
       ),
 
