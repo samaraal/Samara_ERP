@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.67';
+  const APP_VERSION = '2.15.68';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -15540,6 +15540,9 @@ Thank you.`;
     const [follow,setFollow]=React.useState({note:'',status:'',next:'',reason:''});
     const [chip,setChip]=React.useState(()=>{try{const v=sessionStorage.getItem('samara-enquiry-filter')||'';sessionStorage.removeItem('samara-enquiry-filter');return v==='active'?'Open':'All'}catch(_){return 'All'}});
     const [search,setSearch]=React.useState('');
+    // 2.15.68: dashboard of boxes (like Pharmacy & Stores); each box opens the register view with its filter, Back / Close returns.
+    const {view,openView,backToDashboard}=useDashboardView();
+    React.useEffect(()=>{if(chip!=='All'){setPeriod('all');openView('register')}},[]); // e.g. dashboard 'awaiting follow-up' tile
     const [period,setPeriod]=React.useState('month'),[from,setFrom]=React.useState(''),[to,setTo]=React.useState(''),[source,setSource]=React.useState('All'),[assignee,setAssignee]=React.useState('All');
     const pa=useAppliedFilters({period,from,to,source,assignee});const PA=pa.applied;
     const [showSettings,setShowSettings]=React.useState(false),[defaultPick,setDefaultPick]=React.useState(''),[assignOpen,setAssignOpen]=React.useState(true);
@@ -15599,6 +15602,29 @@ Thank you.`;
     const sources=[...new Set(list.map(r=>r.source||'Website'))].sort();
     const current=openId?list.find(r=>r.id===openId):null;
 
+    const monthStart=today.slice(0,8)+'01',thisMonth=list.filter(r=>dayOf(r)>=monthStart);
+    const bySource=k=>thisMonth.filter(r=>k==='Manual'?ENQ_MANUAL_SOURCES.includes(r.source):k==='Website'?/website|portal/i.test(r.source||'Website'):String(r.source||'')===k).length;
+    const allNew=list.filter(r=>enqStatus(r)==='New'),allOpen=list.filter(enqOpen),mine=list.filter(r=>enqOpen(r)&&r.assigned_to===profile?.id);
+    const ready=rows!==null;
+    const tiles=[
+      ...(canManage?[{key:'new',icon:'＋',title:'New Enquiry',valueText:'Add',unit:'walk-in / phone',lines:['Walk-in, phone call, reference or hospital referral','Website and WhatsApp come in automatically']}]:[]),
+      {key:'All',icon:'▤',title:'Enquiry Register — View All',value:ready?list.length:null,unit:'enquiries',lines:[`${ready?thisMonth.length:'…'} this month`,'Filter by period, source, person · search']},
+      {key:'New',icon:'✉',title:'New — Not Yet Contacted',value:ready?allNew.length:null,unit:'to call',lines:[`${allNew.filter(r=>/whatsapp/i.test(r.source||'')).length} WhatsApp · ${allNew.filter(r=>/website|portal/i.test(r.source||'Website')).length} Website · ${allNew.filter(r=>ENQ_MANUAL_SOURCES.includes(r.source)).length} Walk-in / Phone`],alert:allNew.length>0},
+      {key:'Due',icon:'⏰',title:'Follow-up Due',value:ready?dueAll.length:null,unit:'today or earlier',lines:[mine.length?`${mine.length} open enquiries assigned to you`:'Follow-up date reached'],warn:dueAll.length>0},
+      {key:'Open',icon:'↻',title:'In Progress',value:ready?allOpen.length-allNew.length:null,unit:'being followed up',lines:ENQ_STATUSES.filter(s=>!['New','Admitted','Closed'].includes(s)).map(s=>`${list.filter(r=>enqStatus(r)===s).length} ${s}`)},
+      {key:'Admitted',icon:'♥',title:'Admitted',value:ready?list.filter(r=>enqStatus(r)==='Admitted').length:null,unit:'converted',lines:[`${thisMonth.filter(r=>enqStatus(r)==='Admitted').length} from this month's enquiries`]},
+      {key:'Closed',icon:'✕',title:'Closed',value:ready?list.filter(r=>enqStatus(r)==='Closed').length:null,unit:'not converted',lines:[`${thisMonth.filter(r=>enqStatus(r)==='Closed').length} from this month's enquiries`]},
+      {key:'All#source',icon:'◔',title:'This Month by Source',value:ready?thisMonth.length:null,unit:'enquiries',lines:[`${bySource('Website')} Website / Portal`,`${bySource('WhatsApp')} WhatsApp`,`${bySource('Manual')} Walk-in / Phone`]}
+    ];
+    function openTile(key){
+      if(key==='new'){setForm(blankForm());return}
+      const k=key.split('#')[0];
+      setChip(k);
+      // "View All" and "by Source" open this month (change the period there); status boxes show every date.
+      setPeriod(k==='All'?'month':'all');
+      openView('register');
+    }
+    React.useEffect(()=>{pa.apply()},[view]); // the period chosen by a box takes effect at once
     function openRow(r){setOpenId(r.id);setFollow({note:'',status:'',next:'',reason:''});loadActivity(r.id)}
     function blankForm(){return {patient_name:'',age:'',family_contact_name:'',family_contact_phone:'+91 ',contact_relation:'',current_location:'',care_type:'',bed_preference:'',expected_admission_date:'',special_requirements:'',how_heard:'',source:'Walk-in',next_follow_up:'',assigned_to:settings?.default_assignee||''}}
     function editForm(r){return {id:r.id,patient_name:r.patient_name||'',age:r.website_age??'',family_contact_name:r.family_contact_name||'',family_contact_phone:r.family_contact_phone||'',contact_relation:r.contact_relation||'',current_location:r.current_location||'',care_type:r.care_type||r.reason_for_enquiry||'',bed_preference:r.bed_preference||'',expected_admission_date:r.expected_admission_date||'',special_requirements:r.special_requirements||'',how_heard:r.how_heard||'',source:r.source||''}}
@@ -15716,8 +15742,16 @@ Thank you.`;
           h('div',{className:'modal-bottom-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowSettings(false)},'Cancel'),h('button',{type:'button',className:'btn btn-primary',disabled:!defaultPick,onClick:saveDefault},'Save'))
         )
       ),
-      h('div',{className:'stores-dash'},h(DashboardHero,{kicker:"DIRECTOR'S OFFICE",title:'Samara Enquiry Register',blurb:'Every admission enquiry in one place — Website and WhatsApp arrive automatically; Walk-in and Phone enquiries are added here. Tap a row to follow up.',onRefresh:load})),
-      msg?h('div',{className:'message error'},msg):null,
+      !view&&h('div',{className:'stores-dash'},
+        h(DashboardHero,{kicker:"DIRECTOR'S OFFICE",title:'Samara Enquiry Register',blurb:'Every admission enquiry in one place — Website and WhatsApp arrive automatically; Walk-in and Phone enquiries are added here. Open a box to view, filter and follow up.',onRefresh:load}),
+        msg?h('div',{className:'message error'},msg):null,
+        h(DashboardTiles,{tiles,onOpen:openTile}),
+        h('div',{className:'small-note',style:{display:'flex',gap:'10px',alignItems:'center',flexWrap:'wrap',marginTop:'10px'}},
+          settings?.default_assignee?`New enquiries are assigned to ${nameOf(settings.default_assignee)||'—'}.`:'No default person set for new enquiries.',
+          isAdmin&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setDefaultPick(settings?.default_assignee||'');setShowSettings(true)}},'⚙ Default person'))),
+      view&&msg?h('div',{className:'message error'},msg):null,
+
+      view==='register'&&h(React.Fragment,null,h(DashboardBackBar,{title:'Enquiry Register',viewTitle:{All:'All enquiries',New:'New — not yet contacted',Open:'In progress',Due:'Follow-up due',Admitted:'Admitted',Closed:'Closed'}[chip]||'Enquiries',onBack:backToDashboard}),
       h(Section,{title:`Enquiries · ${PA.period==='all'?'All dates':`${formatDateIN(bounds[0])} – ${formatDateIN(bounds[1])}`}`,subtitle:`${shown.length} shown${settings?.default_assignee?` · new enquiries go to ${nameOf(settings.default_assignee)||'—'}`:' · no default person set'}`,
         actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
           isAdmin&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setDefaultPick(settings?.default_assignee||'');setShowSettings(true)}},'⚙ Default person'),
@@ -15748,7 +15782,7 @@ Thank you.`;
             h('td',null,nameOf(r.assigned_to)||(r.assigned_to?'—':h('span',{className:'unit-warn'},'Not assigned')))
           )))
         )):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},'No enquiries in this period / filter.')
-      )
+      ))
     );
   }
   // The old ADMISSION → "Enquiries" page name opens the same register.

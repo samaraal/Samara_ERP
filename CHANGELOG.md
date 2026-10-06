@@ -1,3 +1,7 @@
+## 2.15.68 — Enquiry Register opens as a dashboard
+
+Director's Office → Enquiry Register now opens with boxes, like Pharmacy & Stores: New Enquiry, Enquiry Register — View All, New — Not Yet Contacted, Follow-up Due, In Progress, Admitted, Closed and This Month by Source (live counts). Each box opens the register already filtered, with the period / source / person filters + Apply, search and status chips; "← Back to Dashboard", × or the phone's Back button return to the boxes. Admin sets the default person from the dashboard (⚙ Default person). No SQL.
+
 ## 2.15.67 — Samara Enquiry Register
 
 New DIRECTOR'S OFFICE → **Enquiry Register** (replaces ADMISSION → Enquiries; old links open the register).
