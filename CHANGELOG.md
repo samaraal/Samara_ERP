@@ -1,3 +1,7 @@
+## 2.15.88 — Food Vendor Settings: one choice per message
+
+The two rows of template tick boxes (old + _v2) were confusing. Settings now shows one line per message — New order · Order changed / cancelled · Food received — with a single choice: **New simplified (_v2)** / **Old** / **Off**. Choosing New automatically keeps the sending permission the database needs (the old tick is handled behind the scenes). No SQL.
+
 ## 2.15.87 — Food orders: delivery time must suit the meal
 
 An Evening Tea / Coffee order went to the vendor with 12:30 PM because the form always started at 12:30. Now:

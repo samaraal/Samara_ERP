@@ -1,4 +1,4 @@
-Samara Care ERP 2.15.87 — Food delivery time windows — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
+Samara Care ERP 2.15.88 — Food template choice — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
 
 No SQL. No Edge Function.
 Website files: src/app/pages/whatsapp-inbox.js, food-vendor.js, index.html, service-worker.js, bootstrap-error.js,
