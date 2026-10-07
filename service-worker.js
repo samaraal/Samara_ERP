@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.84';
-const CACHE = 'samara-erp-2.15.84-food-timestamps';
+const APP_VERSION = '2.15.85';
+const CACHE = 'samara-erp-2.15.85-food-receipt-fix';
 const SHELL = [
   './',
   './index.html',

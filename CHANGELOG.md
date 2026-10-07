@@ -1,3 +1,10 @@
+## 2.15.85 — Food Vendor: receipts not sent automatically (fix)
+
+Cause: in Food Vendor › Settings the older template ticks (samara_food_order / _modification / _receipt) had been switched off when the _v2 ticks were switched on. The database still needs the older tick before any message is sent, so today's receipts stayed "Pending" silently.
+- Saving Settings now keeps the older tick on automatically whenever its _v2 tick is on (label says so).
+- If a receipt is saved while sending is not allowed, the screen now says clearly that WhatsApp was NOT sent and what to tick, instead of staying silent.
+No SQL.
+
 ## 2.15.84 — Food Vendor: time stamps on orders
 
 Food Vendor Management › Orders and History lists now show when each step happened, under the numbers (DD-MM-YYYY, India time):

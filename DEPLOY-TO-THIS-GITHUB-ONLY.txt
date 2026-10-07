@@ -1,8 +1,8 @@
-Samara Care ERP 2.15.84 — Food Vendor order time stamps — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
+Samara Care ERP 2.15.85 — Food Vendor receipt WhatsApp fix — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
 
 No SQL. No Edge Function.
 Website files: food-vendor.js, index.html, service-worker.js, bootstrap-error.js,
 src/app/0-start/01-app-constants.js, app.js, CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
 
-Check: open the ERP, confirm Version 2.15.84, Food & Diet > Food Vendor Management > Orders:
-each row shows "Ordered · date time" and "Received · date time" under the numbers.
+After it loads (Version 2.15.85): Food Vendor Management > Settings > press Save settings once
+(the older ticks are switched back on automatically), then Messages > send the Pending receipts.
