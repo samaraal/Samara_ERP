@@ -4,6 +4,7 @@ Cause: in Food Vendor › Settings the older template ticks (samara_food_order /
 - Saving Settings now keeps the older tick on automatically whenever its _v2 tick is on (label says so).
 - If a receipt is saved while sending is not allowed, the screen now says clearly that WhatsApp was NOT sent and what to tick, instead of staying silent.
 No SQL.
+- **SQL 203 (added later the same day):** WhatsApp Inbox showed the new _v2 food messages under the old template name, so the Inbox copy read "Date and meal: 5:30 PM". The vendor received the correct message; the Inbox copy was overwritten by the food-message trigger. SQL 203 keeps the real template name and repairs the last 30 days of Inbox rows. Sends nothing.
 
 ## 2.15.84 — Food Vendor: time stamps on orders
 
