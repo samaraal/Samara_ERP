@@ -1,3 +1,7 @@
+## 2.15.86 — WhatsApp Inbox shows food messages exactly as sent
+
+The simplified food messages (_v2) go to the vendor with a coloured header picture (NEW ORDER pink, ORDER CHANGED purple, CANCELLED grey, RECEIVED blue, with the Samara Main tag or the AppGeo logo). The Inbox showed the plain Samara logo instead; it now shows the same picture the vendor received, above the same wording. No SQL.
+
 ## 2.15.85 — Food Vendor: receipts not sent automatically (fix)
 
 Cause: in Food Vendor › Settings the older template ticks (samara_food_order / _modification / _receipt) had been switched off when the _v2 ticks were switched on. The database still needs the older tick before any message is sent, so today's receipts stayed "Pending" silently.

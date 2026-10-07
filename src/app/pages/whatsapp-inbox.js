@@ -837,7 +837,9 @@ Thank you.`;
                 const deliveryLabel=({read:'✓✓ Read',delivered:'✓✓ Delivered',sent:'✓ Sent',accepted:'✓ Accepted',failed:'Failed',unknown:'Acceptance unknown',sending:'Sending…',pending:'Pending'})[status.toLowerCase()]||status;
                 const deleted=Boolean(r.deleted_at);
                 // Header exactly as sent: template IMAGE header / logo on replies = Samara logo; TEXT header = its text.
-                const showLogo=outgoing&&!sentAttachment&&(tpl?tpl.header?.format==='IMAGE':true);
+                // 2.15.86: simplified food messages (_v2) were sent with a coloured header picture; show that same picture.
+                const foodHeader=(()=>{const m=/^samara_food_(order|modification|receipt)_v2$/.exec(String(r.template_name||'').toLowerCase());const p=r.message_payload||{};if(!m||!outgoing||p.test)return '';const sn=p.snapshot||{};const place=/appgeo|saidapet/i.test(String(sn.place||''))?'appgeo':'samara';const kind=m[1]==='order'?'order':m[1]==='receipt'?'received':(sn.cancellation?'cancelled':'revised');return `./assets/food-wa/${kind}-${place}.jpg`})();
+                const showLogo=!foodHeader&&outgoing&&!sentAttachment&&(tpl?tpl.header?.format==='IMAGE':true);
                 const legacyButtons=!tpl&&outgoing?templateReplyButtons(String(r.template_name||'').toLowerCase()):[];
                 const quoted=quotedOf(r,active.msgs);
                 return h('div',{key:r.id,id:`wa-msg-${r.id}`,className:`wa-msg-row ${deleted?'wa-msg-deleted':''}`,style:{display:'flex',justifyContent:outgoing?'flex-end':'flex-start',marginBottom:'8px'}},
@@ -853,6 +855,7 @@ Thank you.`;
                     quoted?h('button',{type:'button',className:'wa-quote',onClick:()=>{if(quoted.id){const el=document.getElementById(`wa-msg-${quoted.id}`);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('wa-flash');setTimeout(()=>el.classList.remove('wa-flash'),1600)}}}},
                       h('strong',null,quoted.missing?'Replying to an earlier message':(quoted.direction==='inbound'?(active.name||'Contact'):'Samara')),
                       h('span',null,quoted.missing?'(not in this inbox)':snippetOf(quoted))):null,
+                    foodHeader?h('img',{src:foodHeader,alt:'Message header picture',style:{display:'block',width:'100%',maxWidth:'340px',height:'auto',borderRadius:'8px',marginBottom:'9px'}}):null,
                     showLogo?h('div',{style:{background:'#fff',border:'1px solid #ecdce4',borderRadius:'8px',padding:'8px 10px',marginBottom:'9px',textAlign:'center'}},
                         h('img',{src:BRAND_LOGO_SRC,alt:'Samara Assisted Living',style:{display:'block',width:'128px',maxWidth:'70%',height:'auto',margin:'0 auto 5px'}}),
                         !tpl&&String(r.template_name||'').toLowerCase()!=='employee_welcome_samara'&&String(r.message_type||'').toLowerCase()==='template'?h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7d1748'}},'Greetings from Samara Assisted Living'):null
