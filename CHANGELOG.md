@@ -1,3 +1,13 @@
+## 2.15.83 · SQL 202 · Edge Function discharge-summary — Discharge Summary PDF
+
+- **Automatic:** when the nurse completes the Final Discharge, right after the discharge confirmation WhatsApp, the Guest's **Discharge Summary PDF** is sent to the same family number as a WhatsApp attachment (Meta template `samara_discharge_summary`, header = PDF). The success message says whether the PDF went; if not, the reason is shown.
+- **Patient card:** discharged Guests have a new **Discharge Summary** button (Admin / Manager) next to Family Details: Open / Save PDF, choose a registered family number, **Send PDF · WhatsApp API**, or **Existing WhatsApp** (phones: share the PDF straight into WhatsApp; computers: download the PDF and open the chat with the message ready). Status "WhatsApp PDF sent ✓" with date/time.
+- **Discharge register:** completed discharges show **Discharge Summary** in the details popup (Nurses can open the PDF / use Existing WhatsApp there).
+- The PDF is built from ALL records of the stay (admission → departure): Guest and stay details, diagnosis, allergy, risk flags, an automatic written course of the stay (from vitals, medicines, doctor reviews, meals, nursing handovers), headline figures, admission vs discharge vitals, blood-pressure chart, day-wise vitals, doses given per medicine, doctor review changes, medicines at discharge, daily care and nutrition, condition at discharge, advice & follow-up, handover checklist and sign-off names. Dates DD-MM-YYYY. Billing is not included (Final Bill). Doses withheld by nurses stay internal and are not printed.
+- Stored privately in the patient-reports bucket (`<guest>/discharge/…`); the path is kept on the discharge record and in Patients.discharge_summary_url. WhatsApp sends appear in WhatsApp Inbox with the PDF attached.
+- Only registered numbers of the Guest can receive it. Nurses can send only on the day of discharge (the automatic send).
+- SQL 202 adds discharge_summary_* columns to patient_discharges. Meta template text: docs/META_TEMPLATE_discharge_summary.md.
+
 ## 2.15.82 — Final Billing: search Guest by name / mobile
 
 On Accounts › Final Billing the read-only "Bill / Invoice Number" box is replaced by **Search Guest** — type any 3 characters of the name, mobile number (Guest or attendant) or Resident ID and tap the Guest to open the bill. The Bill No still prints on the bill and shows under the search once a Guest is chosen. The Patient dropdown stays. No SQL.

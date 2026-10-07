@@ -71,6 +71,7 @@
     const finalDischargeSubmitting=React.useRef(false);
     const finalDischargeCompleted=finalDischargeRow?.status==='Completed'||rows.some(row=>row.id===finalDischargeRow?.id&&row.status==='Completed');
     const [dischargeWhatsAppBusy,setDischargeWhatsAppBusy]=React.useState('');
+    const [summaryRow,setSummaryRow]=React.useState(null); // 2.15.83 Discharge Summary popup
     const [finalForm,setFinalForm]=React.useState({
       discharge_summary_handed_over:false,
       medicines_handed_over:false,
@@ -985,12 +986,27 @@
       }catch(sendError){
         whatsappError=sendError?.message||String(sendError||'WhatsApp API unavailable');
       }
+      // 2.15.83: Discharge Summary PDF goes to the same family number, right after the confirmation.
+      let summaryNote='';
+      try{
+        const summaryPatient=patients.find(p=>p.id===completedRow.patient_id)||{};
+        await sendDischargeSummaryWhatsAppApi({
+          dischargeId:completedRow.id,
+          to:summaryPatient.attendant_phone||completedRow.relative_contact||summaryPatient.mobile||'',
+          recipientName:summaryPatient.attendant_name||completedRow.relative_name||'Family Member',
+          automatic:true
+        });
+        summaryNote=' The Discharge Summary PDF was also sent on WhatsApp.';
+        setRows(current=>current.map(item=>item.id===completedRow.id?{...item,discharge_summary_whatsapp_status:'Accepted'}:item));
+      }catch(summaryError){
+        summaryNote=` Discharge Summary PDF was not sent (${summaryError?.message||summaryError}). Send it from Discharge Summary in the register or the Patient card.`;
+      }
       notify(
         whatsappAccepted?'success':'warning',
         'Patient discharged successfully',
-        whatsappAccepted
+        (whatsappAccepted
           ?`Final nursing clearance completed by ${completedRow.completed_by_name}. The family discharge confirmation was accepted by Meta.`
-          :`Final nursing clearance completed and the room is available. Family WhatsApp was not sent${whatsappError?`: ${whatsappError}`:''}. Use Retry WhatsApp in the register.`
+          :`Final nursing clearance completed and the room is available. Family WhatsApp was not sent${whatsappError?`: ${whatsappError}`:''}. Use Retry WhatsApp in the register.`)+summaryNote
       );
       // v2.8.18: keep Final Discharge window open until Close/Done is selected.
       await load();
@@ -1241,7 +1257,8 @@ Doctor / Hospital: ${doctorHospital}`;
             )
             :h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>sendDischargeConfirmationWhatsAppApi(row).catch(()=>{})},row.discharge_whatsapp_status==='Failed'?'Retry WhatsApp API':'Send Discharge WhatsApp API')
         ),
-        ['Admin','Manager'].includes(profile?.role)&&String(row.status||'').trim().toLowerCase()==='completed'&&row.review_appointment_date&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>sendReviewAppointmentWhatsAppApi(row)},'Send Review Reminder API')
+        ['Admin','Manager'].includes(profile?.role)&&String(row.status||'').trim().toLowerCase()==='completed'&&row.review_appointment_date&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>sendReviewAppointmentWhatsAppApi(row)},'Send Review Reminder API'),
+        ['Admin','Manager','Nurse'].includes(profile?.role)&&String(row.status||'').trim().toLowerCase()==='completed'&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setSummaryRow(row)},row.discharge_summary_whatsapp_status==='Accepted'?'Discharge Summary ✓':'Discharge Summary')
       );
     }
     const lc=v=>String(v||'').trim().toLowerCase();
@@ -1386,6 +1403,7 @@ Doctor / Hospital: ${doctorHospital}`;
     const trialToErase=!isAccountsClearance&&profile?.role==='Admin'?patients.filter(p=>p.is_trial&&p.is_active===false).length:0;
     const periodLabel=DRF.period==='all'||(!drBounds[0]&&!drBounds[1])?'All dates':`${(DR_PERIODS.find(p=>p[0]===DRF.period)||[])[1]||''}: ${drBounds[0]?formatDateIN(drBounds[0]):'…'} – ${drBounds[1]?formatDateIN(drBounds[1]):'…'}`;
     return h(React.Fragment,null,
+      summaryRow&&h(DischargeSummaryDialog,{patient:patients.find(p=>p.id===summaryRow.patient_id)||{id:summaryRow.patient_id},discharge:summaryRow,familyAccess:[],profile,onClose:()=>setSummaryRow(null),onUpdated:patch=>setRows(current=>current.map(item=>item.id===summaryRow.id?{...item,...patch}:item))}),
       // 1. Header: title + main buttons
       h('div',{className:'card panel dr-head'},
         h('div',{className:'dr-head-text'},

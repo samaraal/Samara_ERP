@@ -241,6 +241,11 @@
    "lines": 415
   },
   {
+   "file": "patients/discharge-summary.js",
+   "about": "Discharge Summary PDF: open, WhatsApp API send, existing WhatsApp share (2.15.83)",
+   "lines": 145
+  },
+  {
    "file": "patients/patients.js",
    "about": "Patients page",
    "lines": 2803

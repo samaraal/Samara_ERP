@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.82';
+  const APP_VERSION = '2.15.83';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '03-Oct-2026 Food item list fix';
+  const APP_BUILD_DATE = '07-Oct-2026 Discharge Summary PDF';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -21768,6 +21768,151 @@ Please keep these login details confidential.`;
       )
     );
   }
+  // ---------------------------------------------------------------------------------------------
+  // 2.15.83 Discharge Summary (PDF) — shared by the Patient card and the Discharge workflow.
+  // The PDF is built by the Edge Function "discharge-summary" from ALL records of the stay.
+  //   * Open / Save PDF
+  //   * Send PDF by WhatsApp API (template samara_discharge_summary, PDF attached)
+  //   * Existing WhatsApp: share the PDF file into WhatsApp (phones) or download it and open the chat
+  // ---------------------------------------------------------------------------------------------
+  async function callDischargeSummary(body){
+    const {data:{session}}=await client.auth.getSession();
+    if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
+    const response=await fetch(`${cfg.supabaseUrl}/functions/v1/discharge-summary`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey},
+      body:JSON.stringify(body)
+    });
+    const result=await response.json().catch(()=>({ok:false,error:`The Discharge Summary service did not answer (${response.status}). Please check that the Edge Function "discharge-summary" is deployed.`}));
+    if(!response.ok||result?.ok===false){const error=new Error(result?.error||`Discharge Summary failed (${response.status})`);error.result=result;throw error}
+    return result;
+  }
+  // Called automatically right after the final discharge (and by Send buttons).
+  async function sendDischargeSummaryWhatsAppApi({dischargeId,to,recipientName,automatic=false}){
+    const recipient=normalizeWhatsAppRecipient(to);
+    if(!recipient)throw new Error('A valid family WhatsApp number is required.');
+    return callDischargeSummary({mode:'send',discharge_id:dischargeId,recipient_mobile:recipient,recipient_name:recipientName||'Family Member',automatic:Boolean(automatic)});
+  }
+  function dischargeSummaryContacts(patient,discharge,familyAccess){
+    const list=[];const seen=new Set();
+    const add=(name,relationship,mobile)=>{const key=String(mobile||'').replace(/\D/g,'').slice(-10);if(key.length!==10||seen.has(key))return;seen.add(key);list.push({name:String(name||'').trim()||'Family Member',relationship:String(relationship||'').trim(),mobile:String(mobile||'').trim()})};
+    (familyAccess||[]).filter(row=>row?.is_active!==false).forEach(row=>add(row.relative_name,row.relationship||(row.primary_contact?'Primary contact':''),row.mobile));
+    add(discharge?.received_by_name||patient?.attendant_name,discharge?.received_by_relationship||'Attendant',discharge?.received_by_contact);
+    add(patient?.attendant_name,'Attendant',patient?.attendant_phone);
+    add(patient?.attendant_name,'Attendant (alternate)',patient?.attendant_alternative_phone);
+    return list;
+  }
+
+  function DischargeSummaryDialog({patient,discharge,familyAccess,profile,onClose,onUpdated}){
+    const canSend=['Admin','Manager'].includes(profile?.role);
+    const contacts=React.useMemo(()=>dischargeSummaryContacts(patient,discharge,familyAccess),[patient?.id,discharge?.id,familyAccess]);
+    const [pick,setPick]=React.useState(0);
+    const [busy,setBusy]=React.useState('');
+    const [note,setNote]=React.useState(null);
+    const [prepared,setPrepared]=React.useState(null); // {file,url,name} for Existing WhatsApp
+    const [status,setStatus]=React.useState({state:discharge?.discharge_summary_whatsapp_status||'',at:discharge?.discharge_summary_whatsapp_sent_at||'',error:discharge?.discharge_summary_whatsapp_error||''});
+    React.useEffect(()=>()=>{if(prepared?.url)URL.revokeObjectURL(prepared.url)},[prepared]);
+    const contact=contacts[pick]||null;
+    const guest=formalName(patient)||patient?.full_name||'Guest';
+    const departure=discharge?.actual_departure_at||discharge?.final_departure_at||discharge?.completed_at;
+    const canShareFiles=(()=>{try{return Boolean(navigator.canShare&&navigator.canShare({files:[new File(['x'],'x.pdf',{type:'application/pdf'})]}))}catch(_e){return false}})();
+    const messageText=()=>`Dear ${contact?.name||'Family Member'},\n\nPlease find attached the Discharge Summary of ${guest} for the stay at Samara Assisted Living from ${formatDateIN(patient?.admission_date)} to ${formatDateIN(String(departure||'').slice(0,10))}.\n\nThis summary is confidential and meant only for the family and the treating doctor. Please keep it for future medical visits.\n\nFor any help, please contact the Samara nursing team on 7395961616.\n\nSamara Health Care LLP`;
+    async function logManual(route){
+      try{await client.from('patient_communications').insert({patient_id:patient.id,communication_type:'Discharge Summary',method:'WhatsApp (existing)',recipient_type:'Relative',recipient_name:contact?.name||null,recipient_number:normalizeWhatsAppRecipient(contact?.mobile||''),status:route,message_preview:'Discharge Summary PDF shared through existing WhatsApp',created_at:new Date().toISOString()})}catch(_e){}
+    }
+    async function openPdf(){
+      const tab=window.open('about:blank','_blank');
+      setBusy('open');setNote(null);
+      try{
+        const r=await callDischargeSummary({mode:'generate_only',discharge_id:discharge.id});
+        if(tab)tab.location.href=r.report_url;else window.open(r.report_url,'_blank','noopener');
+        setNote({type:'success',text:'Discharge Summary PDF opened in a new tab. Use Print / Save there.'});
+      }catch(error){if(tab)tab.close();setNote({type:'error',text:error.message||String(error)})}
+      setBusy('');
+    }
+    async function sendApi(){
+      if(!contact)return setNote({type:'error',text:'No registered family WhatsApp number. Add one in Family Details first.'});
+      setBusy('api');setNote(null);
+      try{
+        const r=await sendDischargeSummaryWhatsAppApi({dischargeId:discharge.id,to:contact.mobile,recipientName:contact.name});
+        const now=new Date().toISOString();
+        setStatus({state:'Accepted',at:now,error:''});onUpdated?.({discharge_summary_whatsapp_status:'Accepted',discharge_summary_whatsapp_sent_at:now,discharge_summary_whatsapp_error:null});
+        setNote({type:'success',text:`Discharge Summary PDF accepted by Meta for ${contact.name} (${contact.mobile})${/24-hour/.test(r.route||'')?' — sent as a direct PDF because the template is not approved yet':''}. It is recorded in WhatsApp Inbox.`});
+      }catch(error){
+        setStatus({state:'Failed',at:'',error:error.message||String(error)});onUpdated?.({discharge_summary_whatsapp_status:'Failed'});
+        setNote({type:'error',text:`${error.message||error}`});
+      }
+      setBusy('');
+    }
+    async function preparePdf(){
+      setBusy('prepare');setNote(null);
+      try{
+        const r=await callDischargeSummary({mode:'generate_only',discharge_id:discharge.id});
+        const blob=await fetch(r.report_url).then(res=>{if(!res.ok)throw new Error('The PDF could not be downloaded.');return res.blob()});
+        const file=new File([blob],r.file_name||`${guest} - Discharge Summary.pdf`,{type:'application/pdf'});
+        setPrepared({file,url:URL.createObjectURL(blob),name:file.name});
+        setNote({type:'success',text:canShareFiles?'PDF ready. Tap "Share PDF to WhatsApp" and choose the family chat.':'PDF ready. Download it, then open the WhatsApp chat and attach the PDF.'});
+      }catch(error){setNote({type:'error',text:error.message||String(error)})}
+      setBusy('');
+    }
+    async function sharePdf(){
+      if(!prepared)return;
+      try{await navigator.share({files:[prepared.file],title:prepared.name,text:messageText()});await logManual('Shared');setNote({type:'success',text:'Shared. Check that it reached the right family chat.'})}
+      catch(error){if(error?.name!=='AbortError')setNote({type:'error',text:`Sharing failed: ${error.message||error}. Use Download PDF instead.`})}
+    }
+    function downloadPdf(){
+      if(!prepared)return;
+      const a=document.createElement('a');a.href=prepared.url;a.download=prepared.name;document.body.appendChild(a);a.click();a.remove();
+    }
+    function openChat(){
+      const number=normalizeWhatsAppRecipient(contact?.mobile||'');
+      if(!number)return setNote({type:'error',text:'No WhatsApp number for this contact.'});
+      window.open(`https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(messageText()))}`,'_blank','noopener');
+      logManual('Opened');
+    }
+    const statusPill=status.state==='Accepted'
+      ?h('span',{className:'pill',style:{background:'#e8f6ee',color:'#0a8a4a'}},`WhatsApp PDF sent ✓${status.at?` · ${formatDateIN(String(status.at).slice(0,10))} ${formatTimeIN(status.at)}`:''}`)
+      :status.state==='Failed'?h('span',{className:'pill warning',title:status.error||''},'WhatsApp PDF failed')
+      :h('span',{className:'pill'},'WhatsApp PDF not sent yet');
+    return h('div',{className:'modal-backdrop discharge-summary-backdrop',style:{zIndex:12000},onClick:e=>{if(e.target===e.currentTarget)onClose()}},h('div',{className:'card modal discharge-summary-modal',style:{maxWidth:'640px'}},
+      h('style',null,`.discharge-summary-modal .ds-contacts{display:grid;gap:8px;margin:8px 0 4px}
+.discharge-summary-modal .ds-contact{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid #ecd2df;border-radius:12px;cursor:pointer;background:#fff}
+.discharge-summary-modal .ds-contact.on{border-color:#b8055a;background:#fdf1f6}
+.discharge-summary-modal .ds-contact small{display:block;color:#7a5e6d}
+.discharge-summary-modal .ds-block{border-top:1px solid #f0dbe5;padding-top:12px;margin-top:12px}
+.discharge-summary-modal .ds-block h4{margin:0 0 4px;color:#7a0c43;font-size:14px}
+.discharge-summary-modal .ds-block p{margin:0 0 8px;color:#6b5560;font-size:13px}
+.discharge-summary-modal .actions{flex-wrap:wrap}`),
+      h('div',{className:'panel-head'},
+        h('div',null,h('h3',null,'Discharge Summary'),h('small',null,`${guest} · ${patient?.patient_id||''} · Discharged ${formatDateIN(String(departure||'').slice(0,10))} ${formatTimeIN(departure)}`)),
+        h('button',{type:'button',className:'close',onClick:onClose},'×')),
+      h('p',{className:'small-note',style:{marginTop:0}},'Built automatically from all records of the stay: vitals, medicines, doctor reviews, care, food, handovers and discharge details.'),
+      h('div',{className:'actions'},
+        h('button',{type:'button',className:'btn btn-primary',disabled:!!busy,onClick:openPdf},busy==='open'?'Preparing PDF…':'Open / Save PDF'),
+        statusPill),
+      h('div',{className:'ds-block'},
+        h('h4',null,'Send to family'),
+        contacts.length
+          ?h('div',{className:'ds-contacts',role:'radiogroup'},contacts.map((c,i)=>h('label',{key:c.mobile,className:`ds-contact ${i===pick?'on':''}`},
+              h('input',{type:'radio',name:'ds-contact',id:`ds-contact-${i}`,checked:i===pick,onChange:()=>setPick(i)}),
+              h('span',null,h('strong',null,c.name),h('small',null,`${c.relationship?`${c.relationship} · `:''}${c.mobile}`)))))
+          :h('div',{className:'message warning'},'No registered family WhatsApp number. Add one in Family Details first.')),
+      canSend&&h('div',{className:'ds-block'},
+        h('h4',null,'WhatsApp API (PDF attached)'),
+        h('p',null,'Sends the Discharge Summary PDF from the Samara WhatsApp number. It is recorded in WhatsApp Inbox.'),
+        h('button',{type:'button',className:'btn btn-whatsapp',disabled:!!busy||!contact,onClick:sendApi},busy==='api'?'Generating & sending PDF…':status.state==='Accepted'?'Resend PDF · WhatsApp API':'Send PDF · WhatsApp API')),
+      h('div',{className:'ds-block'},
+        h('h4',null,'Existing WhatsApp'),
+        h('p',null,canShareFiles?'Prepare the PDF, then share it straight into the family WhatsApp chat from this phone.':'Prepare the PDF, download it, then open the family chat in WhatsApp Web and attach it.'),
+        h('div',{className:'actions'},
+          !prepared&&h('button',{type:'button',className:'btn btn-secondary',disabled:!!busy,onClick:preparePdf},busy==='prepare'?'Preparing PDF…':'Prepare PDF'),
+          prepared&&canShareFiles&&h('button',{type:'button',className:'btn btn-whatsapp',onClick:sharePdf},'Share PDF to WhatsApp'),
+          prepared&&h('button',{type:'button',className:'btn btn-secondary',onClick:downloadPdf},'Download PDF'),
+          prepared&&h('button',{type:'button',className:'btn btn-secondary',disabled:!contact,onClick:openChat},'Open WhatsApp chat'))),
+      note&&h('div',{className:`message ${note.type}`,style:{marginTop:'12px'}},note.text),
+      h('div',{className:'modal-bottom-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:onClose},'Close'))
+    ));
+  }
   function composePatientAddressGlobal(source={}){
     const line1=[source.house_no,source.street_name,source.apartment_name,source.flat_no?`Flat ${source.flat_no}`:''].filter(Boolean).join(', ');
     const line2=[source.locality_area,source.village_town,source.taluk,source.district,source.state,source.pincode].filter(Boolean).join(', ');
@@ -21813,6 +21958,8 @@ Please keep these login details confidential.`;
     const [dailyQuickEditBusy,setDailyQuickEditBusy]=React.useState(false);
     const [dailyQuickEditMsg,setDailyQuickEditMsg]=React.useState('');
     const [showFamilyDetails,setShowFamilyDetails]=React.useState(false);
+    const [showDischargeSummary,setShowDischargeSummary]=React.useState(false); // 2.15.83
+    React.useEffect(()=>{setShowDischargeSummary(false)},[selected?.id]);
     const [momentBusy,setMomentBusy]=React.useState(false);
     const [momentCaption,setMomentCaption]=React.useState('');
     const [momentFamilyVisible,setMomentFamilyVisible]=React.useState(true);
@@ -24093,6 +24240,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
         h('div',{className:'panel-head patient-master-header'},h('div',{className:'patient-head',style:{display:'flex',alignItems:'center',gap:'14px',minWidth:0,flex:'1 1 auto'}},photoUrl?h('img',{src:photoUrl,className:'patient-photo',alt:`${formalName(selected)} photo`,style:{width:'92px',height:'108px',maxWidth:'92px',minWidth:'92px',maxHeight:'108px',objectFit:'cover',objectPosition:'center',borderRadius:'16px',border:'1px solid #ead0de',background:'#fff',display:'block',flex:'0 0 92px'}}):h('div',{className:'patient-photo patient-photo-placeholder',style:{width:'92px',height:'108px',maxWidth:'92px',minWidth:'92px',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'16px',flex:'0 0 92px'}},'SC'),h('div',{style:{minWidth:0,flex:'1 1 auto'}},h('h3',null,formalName(selected)),h('small',null,`${selected.patient_id||'—'} · ${selected.admission_type||''} · ${selected.patient_category||''}`),h('div',{className:'patient-header-badges'},h('span',{className:'badge'},selected.is_active===false?'Inactive':'Active'),selected.room_no&&selected.bed_no?h('span',{className:'pill'},`Room ${selected.room_no} · Bed ${selected.bed_no}`):h('span',{className:'pill warning'},'Room not assigned'),selected.special_nurse_required?h('span',{className:'pill warning'},`Special nurse: ${selected.special_nurse_name||'Required'}`):null))),h('div',{className:'employee-actions'},
           h('button',{className:'btn btn-secondary',onClick:()=>setTab('Admission Details')},'Admission Details'),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setTab('Consent')},'Consent'),
+          canEdit&&completedPatientDischarge()?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowDischargeSummary(true)},'Discharge Summary'):null,
           canEdit?h('button',{className:'btn btn-secondary',onClick:()=>setShowFamilyDetails(true)},'Family Details'):null,
           canEdit?h('button',{className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Patient'):h('span',{className:'pill'},'View only'),h('button',{className:'close',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false)}},'×')),
           completedPatientDischarge()?h('div',{className:'patient-discharge-stamp','aria-label':'Patient discharged'},
@@ -24437,6 +24585,7 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false)}},'Close Patient File')
         )
       )),
+      showDischargeSummary&&selected&&details&&completedPatientDischarge()&&h(DischargeSummaryDialog,{patient:selected,discharge:completedPatientDischarge(),familyAccess:details.familyAccess||[],profile,onClose:()=>setShowDischargeSummary(false),onUpdated:patch=>{const id=completedPatientDischarge()?.id;setDetails(cur=>cur?{...cur,discharges:(cur.discharges||[]).map(row=>row.id===id?{...row,...patch}:row)}:cur)}}),
       showFamilyDetails&&selected&&details&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setShowFamilyDetails(false)}},h('div',{className:'card modal',style:{maxWidth:'680px'}},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Family Details'),h('small',null,`${formalName(selected)||selected.full_name||'Resident'} · Authorised family contact`)),h('button',{type:'button',className:'close',onClick:()=>setShowFamilyDetails(false)},'×')),
         (()=>{const family=primaryFamilyContact();return h('div',{className:'modal-grid'},
@@ -24876,6 +25025,7 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
     const finalDischargeSubmitting=React.useRef(false);
     const finalDischargeCompleted=finalDischargeRow?.status==='Completed'||rows.some(row=>row.id===finalDischargeRow?.id&&row.status==='Completed');
     const [dischargeWhatsAppBusy,setDischargeWhatsAppBusy]=React.useState('');
+    const [summaryRow,setSummaryRow]=React.useState(null); // 2.15.83 Discharge Summary popup
     const [finalForm,setFinalForm]=React.useState({
       discharge_summary_handed_over:false,
       medicines_handed_over:false,
@@ -25790,12 +25940,27 @@ Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send
       }catch(sendError){
         whatsappError=sendError?.message||String(sendError||'WhatsApp API unavailable');
       }
+      // 2.15.83: Discharge Summary PDF goes to the same family number, right after the confirmation.
+      let summaryNote='';
+      try{
+        const summaryPatient=patients.find(p=>p.id===completedRow.patient_id)||{};
+        await sendDischargeSummaryWhatsAppApi({
+          dischargeId:completedRow.id,
+          to:summaryPatient.attendant_phone||completedRow.relative_contact||summaryPatient.mobile||'',
+          recipientName:summaryPatient.attendant_name||completedRow.relative_name||'Family Member',
+          automatic:true
+        });
+        summaryNote=' The Discharge Summary PDF was also sent on WhatsApp.';
+        setRows(current=>current.map(item=>item.id===completedRow.id?{...item,discharge_summary_whatsapp_status:'Accepted'}:item));
+      }catch(summaryError){
+        summaryNote=` Discharge Summary PDF was not sent (${summaryError?.message||summaryError}). Send it from Discharge Summary in the register or the Patient card.`;
+      }
       notify(
         whatsappAccepted?'success':'warning',
         'Patient discharged successfully',
-        whatsappAccepted
+        (whatsappAccepted
           ?`Final nursing clearance completed by ${completedRow.completed_by_name}. The family discharge confirmation was accepted by Meta.`
-          :`Final nursing clearance completed and the room is available. Family WhatsApp was not sent${whatsappError?`: ${whatsappError}`:''}. Use Retry WhatsApp in the register.`
+          :`Final nursing clearance completed and the room is available. Family WhatsApp was not sent${whatsappError?`: ${whatsappError}`:''}. Use Retry WhatsApp in the register.`)+summaryNote
       );
       // v2.8.18: keep Final Discharge window open until Close/Done is selected.
       await load();
@@ -26046,7 +26211,8 @@ Doctor / Hospital: ${doctorHospital}`;
             )
             :h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>sendDischargeConfirmationWhatsAppApi(row).catch(()=>{})},row.discharge_whatsapp_status==='Failed'?'Retry WhatsApp API':'Send Discharge WhatsApp API')
         ),
-        ['Admin','Manager'].includes(profile?.role)&&String(row.status||'').trim().toLowerCase()==='completed'&&row.review_appointment_date&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>sendReviewAppointmentWhatsAppApi(row)},'Send Review Reminder API')
+        ['Admin','Manager'].includes(profile?.role)&&String(row.status||'').trim().toLowerCase()==='completed'&&row.review_appointment_date&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>sendReviewAppointmentWhatsAppApi(row)},'Send Review Reminder API'),
+        ['Admin','Manager','Nurse'].includes(profile?.role)&&String(row.status||'').trim().toLowerCase()==='completed'&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setSummaryRow(row)},row.discharge_summary_whatsapp_status==='Accepted'?'Discharge Summary ✓':'Discharge Summary')
       );
     }
     const lc=v=>String(v||'').trim().toLowerCase();
@@ -26191,6 +26357,7 @@ Doctor / Hospital: ${doctorHospital}`;
     const trialToErase=!isAccountsClearance&&profile?.role==='Admin'?patients.filter(p=>p.is_trial&&p.is_active===false).length:0;
     const periodLabel=DRF.period==='all'||(!drBounds[0]&&!drBounds[1])?'All dates':`${(DR_PERIODS.find(p=>p[0]===DRF.period)||[])[1]||''}: ${drBounds[0]?formatDateIN(drBounds[0]):'…'} – ${drBounds[1]?formatDateIN(drBounds[1]):'…'}`;
     return h(React.Fragment,null,
+      summaryRow&&h(DischargeSummaryDialog,{patient:patients.find(p=>p.id===summaryRow.patient_id)||{id:summaryRow.patient_id},discharge:summaryRow,familyAccess:[],profile,onClose:()=>setSummaryRow(null),onUpdated:patch=>setRows(current=>current.map(item=>item.id===summaryRow.id?{...item,...patch}:item))}),
       // 1. Header: title + main buttons
       h('div',{className:'card panel dr-head'},
         h('div',{className:'dr-head-text'},
