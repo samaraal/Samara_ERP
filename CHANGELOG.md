@@ -1,3 +1,11 @@
+## 2.15.84 — Food Vendor: time stamps on orders
+
+Food Vendor Management › Orders and History lists now show when each step happened, under the numbers (DD-MM-YYYY, India time):
+- **Ordered** column: "Ordered · 06-10-2026 07:42 PM" (Draft saved for drafts), plus "Modified · …" when the order was changed.
+- **Received** column: time of the delivery receipt ("Last of 2 · …" when received in parts).
+- **Status** column: "Closed / Cancelled / Reopened · …" when that was done by staff. Orders auto-closed by the system have no stamp.
+Taken from the order history already stored. No SQL.
+
 ## 2.15.83 · SQL 202 · Edge Function discharge-summary — Discharge Summary PDF
 
 - **Automatic:** when the nurse completes the Final Discharge, right after the discharge confirmation WhatsApp, the Guest's **Discharge Summary PDF** is sent to the same family number as a WhatsApp attachment (Meta template `samara_discharge_summary`, header = PDF). The success message says whether the PDF went; if not, the reason is shown.

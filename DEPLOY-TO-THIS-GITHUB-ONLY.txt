@@ -1,21 +1,8 @@
-Samara Care ERP 2.15.83 — Discharge Summary PDF — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
+Samara Care ERP 2.15.84 — Food Vendor order time stamps — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
 
-1. Supabase > SQL Editor: run once
-   supabase/sql/202_discharge_summary.sql         -> check lists 6 "discharge_summary_..." columns
+No SQL. No Edge Function.
+Website files: food-vendor.js, index.html, service-worker.js, bootstrap-error.js,
+src/app/0-start/01-app-constants.js, app.js, CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
 
-2. Supabase > Edge Functions > "Deploy a new function" > "Via Editor":
-   Function name:  discharge-summary     (exactly this name)
-   Replace ALL the sample code with supabase/functions/discharge-summary/index.ts and press Deploy.
-   Keep "Verify JWT" ON. No new secrets (uses WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID, already set).
-
-3. Meta > WhatsApp Manager > Message Templates: create "samara_discharge_summary"
-   (Utility, English, header = Document). Exact text: docs/META_TEMPLATE_discharge_summary.md
-   Until it is approved, the PDF goes only if the family wrote to Samara in the last 24 hours;
-   otherwise use "Existing WhatsApp" in the Discharge Summary popup.
-
-4. Website files (already in GitHub if Claude pushed them):
-   src/app/patients/discharge-summary.js (new), src/app/patients/patients.js, src/app/patients/discharge.js,
-   src/app/manifest.json, src/app/0-start/01-app-constants.js, app.js, index.html, service-worker.js,
-   bootstrap-error.js, CHANGELOG.md, docs/META_TEMPLATE_discharge_summary.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
-
-5. Open the ERP, confirm Version 2.15.83. Patients > open Mrs. Shylaja Nanu > "Discharge Summary" > Open / Save PDF.
+Check: open the ERP, confirm Version 2.15.84, Food & Diet > Food Vendor Management > Orders:
+each row shows "Ordered · date time" and "Received · date time" under the numbers.
