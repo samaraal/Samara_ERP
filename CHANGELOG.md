@@ -1,3 +1,11 @@
+## 2.15.87 — Food orders: delivery time must suit the meal
+
+An Evening Tea / Coffee order went to the vendor with 12:30 PM because the form always started at 12:30. Now:
+- Each meal has an allowed delivery window (India time): Breakfast 6:00 AM – 10:30 AM · Morning Tea / Coffee 6:00 AM – 11:30 AM · Lunch 11:30 AM – 3:00 PM · Evening Tea / Coffee 3:00 PM – 7:00 PM · Dinner 6:00 PM – 10:30 PM.
+- Choosing the meal fills its usual time (Breakfast 7:30 AM, Morning Tea 10:30 AM, Lunch 12:30 PM, Evening Tea 4:30 PM, Dinner 7:30 PM) unless the time already entered suits it.
+- The allowed window shows under the time; a wrong time turns red and Save / Finalise / Modify is refused with a clear message.
+No SQL.
+
 ## 2.15.86 — WhatsApp Inbox shows food messages exactly as sent
 
 The simplified food messages (_v2) go to the vendor with a coloured header picture (NEW ORDER pink, ORDER CHANGED purple, CANCELLED grey, RECEIVED blue, with the Samara Main tag or the AppGeo logo). The Inbox showed the plain Samara logo instead; it now shows the same picture the vendor received, above the same wording. No SQL.

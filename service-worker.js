@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.86';
-const CACHE = 'samara-erp-2.15.86-inbox-food-header';
+const APP_VERSION = '2.15.87';
+const CACHE = 'samara-erp-2.15.87-food-delivery-windows';
 const SHELL = [
   './',
   './index.html',
