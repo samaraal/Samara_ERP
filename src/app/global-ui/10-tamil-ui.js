@@ -83,7 +83,10 @@
       on=want;if(on)start();else stop();
       try{window.dispatchEvent(new CustomEvent('samara-lang',{detail:{lang:on?'ta':'en'}}))}catch(_){}
     }
-    const allowed=p=>['STD','Admin'].includes(String(p?.role||''))||Boolean(p?.__dutyContext?.roles?.includes('STD'));
+    // 2.16.8: trial extended to named staff — ANM Dharshini (EMP-0018). Add more names / employee IDs here.
+    const TRIAL_STAFF=[/\bdharshini\b/i];const TRIAL_IDS=['EMP-0018'];
+    const trialStaff=p=>TRIAL_IDS.includes(String(p?.employee_id||'').toUpperCase())||TRIAL_STAFF.some(re=>re.test(String(p?.full_name||'')));
+    const allowed=p=>['STD','Admin'].includes(String(p?.role||''))||Boolean(p?.__dutyContext?.roles?.includes('STD'))||trialStaff(p);
     return {
       allowed,translate,
       current:()=>on?'ta':'en',

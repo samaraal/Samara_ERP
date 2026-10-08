@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.7';
+  const APP_VERSION = '2.16.8';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '08-Oct-2026 On Duty Today for Nurses';
+  const APP_BUILD_DATE = '08-Oct-2026 Tamil switch for ANM Dharshini';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -9824,6 +9824,16 @@ https://samaraassistedliving.com/`;
 "WhatsApp Enquiry Desk & Food Orders": "WhatsApp என்கொயரி மேசை & உணவு ஆர்டர்கள்",
 "Incoming public enquiries, and food-vendor order messages (Food Vendors folder). Filter by subject, name/mobile and date.": "வரும் பொது என்கொயரிகள், உணவு வெண்டர் ஆர்டர் மெசேஜ்கள் (உணவு வெண்டர்கள் ஃபோல்டர்). விஷயம், பெயர்/மொபைல், தேதி வாரியாக ஃபில்டர் செய்யலாம்.",
 "Food Orders": "உணவு ஆர்டர்கள்",
+"Blood Pressure": "இரத்த அழுத்தம் (BP)",
+"Pulse": "நாடித்துடிப்பு (Pulse)",
+"Temperature": "உடல் வெப்பநிலை",
+"Acknowledge": "ஏற்றுக்கொள்",
+"Duty Roster": "டியூட்டி ரோஸ்டர்",
+"Save roster": "ரோஸ்டரைச் சேமி",
+"Copy previous period": "முந்தைய காலத்தை நகலெடு",
+"This week": "இந்த வாரம்",
+"Discard": "ரத்து செய்",
+"Duty list": "டியூட்டி பட்டியல்",
 "Last 7 days": "கடந்த 7 நாட்கள்",
 "Last 30 days": "கடந்த 30 நாட்கள்",
 "Last 3 months": "கடந்த 3 மாதங்கள்",
@@ -9991,7 +10001,10 @@ https://samaraassistedliving.com/`;
       on=want;if(on)start();else stop();
       try{window.dispatchEvent(new CustomEvent('samara-lang',{detail:{lang:on?'ta':'en'}}))}catch(_){}
     }
-    const allowed=p=>['STD','Admin'].includes(String(p?.role||''))||Boolean(p?.__dutyContext?.roles?.includes('STD'));
+    // 2.16.8: trial extended to named staff — ANM Dharshini (EMP-0018). Add more names / employee IDs here.
+    const TRIAL_STAFF=[/\bdharshini\b/i];const TRIAL_IDS=['EMP-0018'];
+    const trialStaff=p=>TRIAL_IDS.includes(String(p?.employee_id||'').toUpperCase())||TRIAL_STAFF.some(re=>re.test(String(p?.full_name||'')));
+    const allowed=p=>['STD','Admin'].includes(String(p?.role||''))||Boolean(p?.__dutyContext?.roles?.includes('STD'))||trialStaff(p);
     return {
       allowed,translate,
       current:()=>on?'ta':'en',

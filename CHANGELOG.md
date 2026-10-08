@@ -1,3 +1,10 @@
+## 2.16.8 — EN | தமிழ் switch for ANM Dharshini
+
+- The language switch (top bar, **EN | தமிழ்**) is now also shown to **Miss Dharshini (ANM, EMP-0018)** — the Tamil trial so far was STD (Akshi) and Admin. Her choice is remembered on every device.
+- A few more Tamil words added (BP, pulse, temperature, Duty Roster buttons). Nursing screens not yet fully covered show some English words; tell us which screens she uses most to translate next.
+- More staff can be added to the trial by name / employee ID (one line in the code).
+No SQL.
+
 ## 2.16.7 — On Duty Today for Nurses and Caregivers
 
 - The **On Duty Today** button (top bar) is now also shown to **Nurses and Caregivers** — the same view as Admin / Manager / STD: who is on duty now, today's shifts, weekly off and leave today, with tap-to-call mobile numbers.
