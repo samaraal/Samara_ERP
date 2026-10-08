@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.91';
+  const APP_VERSION = '2.15.92';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '08-Oct-2026 Duty roster skips leave days';
+  const APP_BUILD_DATE = '08-Oct-2026 Weekly Off to working duty';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -31047,6 +31047,16 @@ function ShiftManagement({profile}){
       closeDutyVoice();
       setShowForm(true);
     }
+    // 2.15.92: a Weekly Off day can be changed to a working duty (e.g. staff back from leave who must work that day).
+    // The form opens with the shift / duty type she works on the other days of that week.
+    function openWorkingFromOff(row){
+      const ids=new Set(employeeIdentityIds(row.employee_id));
+      const week=row.week_start||mondayOfWeek(row.duty_date);
+      const sameWeek=assignments.filter(x=>x.id!==row.id&&ids.has(String(x.employee_id))&&(x.week_start||mondayOfWeek(x.duty_date))===week&&!x.is_weekly_off&&x.status!=='Weekly Off'&&x.status!=='Cancelled'&&SHIFT_OPTIONS.includes(x.shift));
+      const near=sameWeek.sort((a,b)=>Math.abs(new Date(a.duty_date)-new Date(row.duty_date))-Math.abs(new Date(b.duty_date)-new Date(row.duty_date)))[0];
+      openEdit(row);
+      setForm(f=>({...f,shift:near?.shift||SHIFT_OPTIONS[0],duty_type:DUTY_TYPE_OPTIONS.includes(near?.duty_type)?near.duty_type:'General Duty',status:'Assigned',weekly_off:'None'}));
+    }
     function openEdit(row){
       setVoiceCandidates([]);setEmployeeSearch('');
       setEditing(row);
@@ -31191,6 +31201,7 @@ function ShiftManagement({profile}){
         h('div',{className:'employee-actions'},
           canModify&&!isOff&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(row)},'Edit'),
           canManage&&!isOff&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openEdit(row)},'Modify'),
+          canManage&&isOff&&!row.__leaveRecord&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openWorkingFromOff(row)},'Change to Working Duty'),
           isOwner&&!isOff&&h('button',{type:'button',className:'btn btn-secondary',disabled:row.status==='Acknowledged',onClick:()=>updateStatus(row,'Acknowledged')},'Action- Acknowledge'),
           isOwner&&!isOff&&h('button',{type:'button',className:'btn btn-secondary',disabled:row.status==='Acknowledged'||Boolean(row.modification_request),onClick:()=>requestModification(row)},'Request Modify'),
           isOwner&&!isOff&&h('button',{type:'button',className:'btn btn-secondary',disabled:row.staff_response==='Reassignment Requested'||reassignmentRequested&&Boolean(row.review_status),onClick:()=>requestShiftChange(row)},'Request for Change of Shift'),
@@ -31373,6 +31384,7 @@ function ShiftManagement({profile}){
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setSelectedDuty(null)},'Close'),
               canModify&&!selectedOff&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setSelectedDuty(null);openEdit(selectedDuty)}},'Edit'),
               canManage&&!selectedOff&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setSelectedDuty(null);openEdit(selectedDuty)}},'Modify'),
+              canManage&&selectedOff&&!selectedLeaveOnly&&h('button',{type:'button',className:'btn btn-primary',onClick:()=>{const row=selectedDuty;setSelectedDuty(null);openWorkingFromOff(row)}},'Change to Working Duty'),
               selectedOwner&&!selectedOff&&h('button',{type:'button',className:'btn btn-secondary',disabled:selectedDuty.status==='Acknowledged',onClick:()=>updateStatus(selectedDuty,'Acknowledged')},'Action- Acknowledge'),
               selectedOwner&&!selectedOff&&h('button',{type:'button',className:'btn btn-secondary',disabled:selectedDuty.status==='Acknowledged'||Boolean(selectedDuty.modification_request),onClick:()=>requestModification(selectedDuty)},'Request Modify'),
               selectedOwner&&!selectedOff&&h('button',{type:'button',className:'btn btn-secondary',disabled:selectedReassignment||Boolean(selectedDuty.review_status),onClick:()=>requestShiftChange(selectedDuty)},'Request for Change of Shift'),

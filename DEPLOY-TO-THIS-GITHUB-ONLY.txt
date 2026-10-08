@@ -1,4 +1,4 @@
-Samara Care ERP 2.15.91 — Duty Assignment skips approved-leave days — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
+Samara Care ERP 2.15.92 — Weekly Off to working duty — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
 
 No SQL. No Edge Function.
 Website files: src/app/nursing/duty-assignment.js, src/app/0-start/01-app-constants.js, app.js, index.html,

@@ -1,3 +1,10 @@
+## 2.15.92 — Duty Calendar: change a Weekly Off day to a working duty
+
+Saranya's week was saved with Weekly Off on Thursday (the day she came back), and a Weekly Off row had no Edit / Modify button, so it could not be changed to Night Shift.
+- Weekly Off rows now show **Change to Working Duty** (Manager / Nursing Manager / Admin) in the list and in View details.
+- It opens the duty form for that day with the shift and duty type she works on the other days of that week (e.g. Night Shift), status Assigned — check and save.
+No SQL.
+
 ## 2.15.91 — Duty Assignment: staff back from leave mid-week can be assigned
 
 Saranya came back on duty on Thursday after approved leave Monday–Wednesday, but Assign Duty for the week refused to save ("Approved leave / permission overlaps this assignment") because the weekly form covers all 7 days.
