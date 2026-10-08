@@ -1,4 +1,4 @@
-// Self-contained for Supabase Dashboard deployment. Edge Function: discharge-summary (ERP 2.15.83).
+// Self-contained for Supabase Dashboard deployment. Edge Function: discharge-summary (ERP 2.15.83; checklist 2.15.93).
 // Builds the Guest's Discharge Summary PDF from ALL ERP records of the stay (admission -> departure),
 // stores it in the private "patient-reports" bucket and, when asked, sends it to the registered family
 // WhatsApp number as a PDF attachment (Meta template samara_discharge_summary with a DOCUMENT header).
@@ -376,9 +376,18 @@ async function makePdf(patient: any, discharge: any, d: any, a: any) {
   bullets(a.advice.length ? a.advice : ["Continue routine care and follow up with the family doctor."]);
 
   section("Handover Checklist");
-  const checks: [string, boolean][] = [["Discharge medicines", !!discharge.medicines_handed_over], ["Reports & documents", !!discharge.reports_handed_over], ["Belongings", !!discharge.belongings_handed_over], ["Valuables", !!discharge.valuables_handed_over], ["Instructions explained", !!discharge.final_instructions_explained], ["Condition confirmed", !!discharge.patient_condition_confirmed]];
+  // ERP 2.15.93 (SQL 207): real handover answers — "None" items print as "none", not as a tick.
+  const hd = (discharge.handover_details && typeof discharge.handover_details === "object") ? discharge.handover_details : null;
+  const ans = (v: unknown, fallback: boolean): [boolean, string] => { const t = text(v); if (!t) return [fallback, ""]; return t === "Handed over" ? [true, ""] : [false, "none"]; };
+  const checks: [string, boolean, string][] = [
+    ["Discharge medicines", ...ans(hd?.medicines, !!discharge.medicines_handed_over)],
+    ["Reports & documents", ...ans(hd?.reports, !!discharge.reports_handed_over)],
+    ["Belongings", ...ans(hd?.belongings, !!discharge.belongings_handed_over)],
+    ["Valuables", ...ans(hd?.valuables, !!discharge.valuables_handed_over)],
+    ["Instructions explained", !!discharge.final_instructions_explained, ""],
+    ["Condition confirmed", !!discharge.patient_condition_confirmed, ""]];
   const cw3 = CW / 3;
-  for (let i = 0; i < checks.length; i += 3) { ensure(16); checks.slice(i, i + 3).forEach(([label, done], j) => { const x = M + j * cw3; if (done) { page.drawLine({ start: { x, y: y - 6 }, end: { x: x + 3, y: y - 9 }, thickness: 1.4, color: ok }); page.drawLine({ start: { x: x + 3, y: y - 9 }, end: { x: x + 8, y: y - 2 }, thickness: 1.4, color: ok }); } else T("-", x + 2, y - 9, 9, B, grey); T(`${label}${done ? "" : " (not recorded)"}`, x + 14, y - 9, 8.8, R, done ? ink : grey); }); y -= 15; }
+  for (let i = 0; i < checks.length; i += 3) { ensure(16); checks.slice(i, i + 3).forEach(([label, done, note], j) => { const x = M + j * cw3; if (done) { page.drawLine({ start: { x, y: y - 6 }, end: { x: x + 3, y: y - 9 }, thickness: 1.4, color: ok }); page.drawLine({ start: { x: x + 3, y: y - 9 }, end: { x: x + 8, y: y - 2 }, thickness: 1.4, color: ok }); } else T("-", x + 2, y - 9, 9, B, grey); T(`${label}${done ? "" : note ? ` - ${note}` : " (not recorded)"}`, x + 14, y - 9, 8.8, R, done || note ? ink : grey); }); y -= 15; }
 
   // Signatures
   ensure(72); y -= 40;

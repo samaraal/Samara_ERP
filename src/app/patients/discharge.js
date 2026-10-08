@@ -17,12 +17,28 @@
       .final-discharge-checklist .check-card{
         min-height:52px;
       }
+      .handover-choice-card{border:1px solid #ead2dd;border-radius:12px;padding:10px 12px;background:#fff;display:grid;gap:8px}
+      .handover-choice-card.missing{border-color:#e7a1b6;background:#fff8fb}
+      .handover-choice-card>strong{color:#4f1736;font-size:14px}
+      .handover-choice-options{display:flex;gap:8px;flex-wrap:wrap}
+      .handover-choice-options button{border:1px solid #d9b7c8;border-radius:999px;background:#fff;color:#6f153f;padding:7px 12px;font-weight:800;cursor:pointer;font-family:inherit;touch-action:manipulation}
+      .handover-choice-options button.active{background:#a80d4f;border-color:#a80d4f;color:#fff}
+      .handover-summary-auto{grid-column:1/-1;border:1px solid #bfe3cf;border-radius:12px;padding:10px 12px;background:#effaf4;color:#17603a;display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+      .handover-summary-auto label{display:flex;gap:8px;align-items:center;color:#4f1736;font-weight:700}
       @media(max-width:700px){
         .final-discharge-checklist{grid-template-columns:1fr}
       }
     `;
     document.head.appendChild(style);
   };
+
+  // 2.15.93: handover items answered as a choice — "None" is a valid answer (SQL 207).
+  const HANDOVER_CHOICES=[
+    ['ho_medicines','Medicines',['Handed over','None to hand over']],
+    ['ho_reports','Reports and investigation documents',['Handed over','None to hand over']],
+    ['ho_belongings','Personal belongings',['Handed over','None held by Samara']],
+    ['ho_valuables','Valuables',['Handed over','None held']]
+  ];
 
   function DischargeManagement({profile,mode='workflow',onNavigate}){
     React.useEffect(()=>{ensureFinalDischargeStyle()},[]);
@@ -72,12 +88,13 @@
     const finalDischargeCompleted=finalDischargeRow?.status==='Completed'||rows.some(row=>row.id===finalDischargeRow?.id&&row.status==='Completed');
     const [dischargeWhatsAppBusy,setDischargeWhatsAppBusy]=React.useState('');
     const [summaryRow,setSummaryRow]=React.useState(null); // 2.15.83 Discharge Summary popup
+    // 2.15.93: medicines / reports / belongings / valuables are a choice (handed over or none), not a forced tick (SQL 207).
     const [finalForm,setFinalForm]=React.useState({
-      discharge_summary_handed_over:false,
-      medicines_handed_over:false,
-      reports_handed_over:false,
-      belongings_handed_over:false,
-      valuables_handed_over:false,
+      summary_printed_copy:false,
+      ho_medicines:'',
+      ho_reports:'',
+      ho_belongings:'',
+      ho_valuables:'',
       final_instructions_explained:false,
       patient_condition_confirmed:false,
       receiving_person_name:'',
@@ -94,7 +111,7 @@
       review_doctor_name:'',
       review_hospital_clinic:'',
       review_instructions:'',
-      final_remarks:'Patient left the facility after receiving discharge documents, medicines and belongings.'
+      final_remarks:'Patient left the facility.'
     });
     const initial={
       patient_id:'',initiation_basis:'Consultant / Doctor Instruction',
@@ -837,11 +854,8 @@
       ensureFinalDischargeStyle();
       setFinalDischargeRow(row);
       setFinalForm({
-        discharge_summary_handed_over:!!row.discharge_summary_handed_over,
-        medicines_handed_over:!!row.medicines_handed_over,
-        reports_handed_over:!!row.reports_handed_over,
-        belongings_handed_over:!!row.valuables_handed_over,
-        valuables_handed_over:!!row.valuables_handed_over,
+        summary_printed_copy:false,
+        ho_medicines:'',ho_reports:'',ho_belongings:'',ho_valuables:'',
         final_instructions_explained:false,
         patient_condition_confirmed:false,
         receiving_person_name:row.relative_name||row.voluntary_requester_name||'',
@@ -859,7 +873,7 @@
         review_doctor_name:row.review_doctor_name||row.instructed_by_name||'',
         review_hospital_clinic:row.review_hospital_clinic||'',
         review_instructions:row.review_instructions||'',
-        final_remarks:'Patient left the facility after receiving discharge documents, medicines and belongings.'
+        final_remarks:'Patient left the facility.'
       });
       setShowFinalDischarge(true);
     }
@@ -868,18 +882,10 @@
       e.preventDefault();
       if(!isNurse||isAssignedDirector||busy||!finalDischargeRow||finalDischargeCompleted||finalDischargeSubmitting.current)return;
 
-      const requiredChecks=[
-        ['discharge_summary_handed_over','Discharge summary handed over'],
-        ['medicines_handed_over','Medicines handed over'],
-        ['reports_handed_over','Reports/documents handed over'],
-        ['belongings_handed_over','Personal belongings handed over'],
-        ['valuables_handed_over','Valuables handed over / confirmed none'],
-        ['final_instructions_explained','Final instructions explained'],
-        ['patient_condition_confirmed','Patient condition confirmed before departure']
-      ];
-      const missing=requiredChecks.filter(([key])=>!finalForm[key]).map(([,label])=>label);
+      const missing=HANDOVER_CHOICES.filter(([key])=>!finalForm[key]).map(([,label])=>label)
+        .concat([['final_instructions_explained','Instructions explained'],['patient_condition_confirmed','Patient condition checked']].filter(([key])=>!finalForm[key]).map(([,label])=>label));
       if(missing.length){
-        notify('error','Final discharge not completed',`Complete all checklist items: ${missing.join(', ')}.`);
+        notify('error','Final discharge not completed',`Choose / tick: ${missing.join(', ')}.`);
         return;
       }
       if(!finalForm.receiving_person_name.trim()){
@@ -930,7 +936,7 @@
       let data=null;
       let error=null;
       try{
-        const rpcResult=await client.rpc('confirm_patient_departure_v4',{
+        const rpcResult=await client.rpc('confirm_patient_departure_v5',{
         p_discharge_id:finalDischargeRow.id,
         p_late_entry_reason:finalForm.late_entry_reason?.trim()||null,
         p_received_by_name:finalForm.receiving_person_name.trim(),
@@ -948,11 +954,7 @@
         p_review_hospital_clinic:finalForm.review_hospital_clinic.trim()||null,
         p_review_instructions:finalForm.review_instructions.trim()||null,
         p_departure_remarks:finalForm.final_remarks.trim(),
-        p_discharge_summary_handed_over:finalForm.discharge_summary_handed_over,
-        p_medicines_handed_over:finalForm.medicines_handed_over,
-        p_reports_handed_over:finalForm.reports_handed_over,
-        p_belongings_handed_over:finalForm.belongings_handed_over,
-        p_valuables_handed_over:finalForm.valuables_handed_over,
+        p_handover:{medicines:finalForm.ho_medicines,reports:finalForm.ho_reports,belongings:finalForm.ho_belongings,valuables:finalForm.ho_valuables,summary_printed_copy:!!finalForm.summary_printed_copy},
         p_final_instructions_explained:finalForm.final_instructions_explained,
         p_patient_condition_confirmed:finalForm.patient_condition_confirmed
         });
@@ -1373,10 +1375,16 @@ Doctor / Hospital: ${doctorHospital}`;
         ['Discount request',row.discount_request_status],['Discount reason',row.discount_request_reason],['Suggested discount',row.discount_suggested_amount!=null?`₹${Number(row.discount_suggested_amount).toLocaleString('en-IN')}`:''],
         ['Accounts',row.accounts_status],['Cleared by',row.accounts_cleared_by_name],['Cleared at',row.accounts_cleared_at?fmt(row.accounts_cleared_at):''],['Accounts remarks',row.accounts_remarks],
         ['Departed',row.actual_departure_at?fmt(row.actual_departure_at):''],['Completed by',row.completed_by_name],['Transport',row.transport_arrangement],
+        ...(row.handover_details?[
+          ['Discharge summary',row.handover_details.discharge_summary],
+          ['Medicines',row.handover_details.medicines],['Reports / documents',row.handover_details.reports],
+          ['Belongings',row.handover_details.belongings],['Valuables',row.handover_details.valuables],
+          ['Handover recorded by',[row.handover_details.recorded_by,row.handover_details.recorded_at?fmt(row.handover_details.recorded_at):''].filter(Boolean).join(' · ')]
+        ]:[
         ['Discharge summary handed over',row.discharge_summary_handed_over===true?'Yes':row.discharge_summary_handed_over===false?'No':''],
         ['Medicines handed over',row.medicines_handed_over===true?'Yes':row.medicines_handed_over===false?'No':''],
         ['Reports handed over',row.reports_handed_over===true?'Yes':row.reports_handed_over===false?'No':''],
-        ['Valuables handed over',row.valuables_handed_over===true?'Yes':row.valuables_handed_over===false?'No':''],
+        ['Valuables handed over',row.valuables_handed_over===true?'Yes':row.valuables_handed_over===false?'No':'']]),
         ['Review appointment',[row.review_appointment_date?formatDateIN(row.review_appointment_date):'',row.review_appointment_time,row.review_doctor_name,row.review_hospital_clinic].filter(Boolean).join(' · ')],
         ['Review instructions',row.review_instructions],['Discharge WhatsApp',row.discharge_whatsapp_status],
         ['Last updated',row.updated_at?fmt(row.updated_at):'']
@@ -1802,16 +1810,18 @@ Doctor / Hospital: ${doctorHospital}`;
           ),
           h('div',{className:'message success'},
             finalDischargeCompleted?'Final discharge completed successfully. The patient has been discharged and the room and bed released.':
-            'Accounts clearance completed. Confirm all clinical handover items and the patient’s actual departure before releasing the room and bed.'
+            'Accounts clearance completed. For each item choose Handed over or None, tick the two clinical confirmations, and record the actual departure before releasing the room and bed.'
           ),
           h('fieldset',{disabled:busy||finalDischargeCompleted,style:{border:0,padding:0,margin:0,minWidth:0}},
           h('div',{className:'final-discharge-checklist'},
+            h('div',{className:'handover-summary-auto'},
+              h('span',null,'✓ Discharge Summary is sent to the family automatically on WhatsApp after this step.'),
+              h('label',null,h('input',{type:'checkbox',checked:!!finalForm.summary_printed_copy,onChange:e=>setFinalForm({...finalForm,summary_printed_copy:e.target.checked})}),'Printed copy also handed over')),
+            HANDOVER_CHOICES.map(([key,label,options])=>h('div',{className:`handover-choice-card${finalForm[key]?'':' missing'}`,key},
+              h('strong',null,label),
+              h('div',{className:'handover-choice-options',role:'radiogroup','aria-label':label},
+                options.map(option=>h('button',{type:'button',key:option,role:'radio','aria-checked':finalForm[key]===option?'true':'false',className:finalForm[key]===option?'active':'',onClick:()=>setFinalForm({...finalForm,[key]:option})},option))))),
             [
-              ['discharge_summary_handed_over','Discharge summary handed over'],
-              ['medicines_handed_over','Medicines handed over'],
-              ['reports_handed_over','Reports and investigation documents handed over'],
-              ['belongings_handed_over','Personal belongings handed over'],
-              ['valuables_handed_over','Valuables handed over / confirmed none'],
               ['final_instructions_explained','Medication, diet and follow-up instructions explained'],
               ['patient_condition_confirmed','Patient condition checked and fit for departure / transfer']
             ].map(([key,label])=>h('label',{className:'check-card',key},

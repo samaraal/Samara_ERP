@@ -1,3 +1,14 @@
+## 2.15.93 — Final Nursing Discharge: realistic handover checklist
+
+Every handover box had to be ticked, even when the Guest had no take-home medicines or reports and Samara held no belongings / valuables.
+- **Discharge summary**: no tick — a green line says it is sent to the family automatically on WhatsApp after this step; optional tick "Printed copy also handed over".
+- **Medicines** and **Reports / documents**: choose *Handed over* or *None to hand over*.
+- **Personal belongings**: *Handed over* or *None held by Samara*. **Valuables**: *Handed over* or *None held*.
+- Every item must still be answered (unanswered items are highlighted); **Instructions explained** and **Patient condition fit for departure** must still be ticked.
+- The answers are saved with the nurse's name and time, shown in Discharge history ("Belongings: None held by Samara"), and printed in the Discharge Summary PDF as "Belongings - none" instead of a tick.
+- Default final remark is now "Patient left the facility." (no longer claims medicines and belongings were received).
+**SQL 207** (new confirm_patient_departure_v5; v4 is unchanged and still does the bed release) + redeploy Edge Function **discharge-summary**.
+
 ## 2.15.92 — Duty Calendar: change a Weekly Off day to a working duty
 
 Saranya's week was saved with Weekly Off on Thursday (the day she came back), and a Weekly Off row had no Edit / Modify button, so it could not be changed to Night Shift.

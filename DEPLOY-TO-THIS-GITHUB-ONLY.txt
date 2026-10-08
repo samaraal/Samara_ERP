@@ -1,5 +1,10 @@
-Samara Care ERP 2.15.92 — Weekly Off to working duty — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
+Samara Care ERP 2.15.93 — Discharge handover choices — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
 
-No SQL. No Edge Function.
-Website files: src/app/nursing/duty-assignment.js, src/app/0-start/01-app-constants.js, app.js, index.html,
+Website files: src/app/patients/discharge.js, src/app/0-start/01-app-constants.js, app.js, index.html,
 service-worker.js, bootstrap-error.js, CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
+
+Supabase (BEFORE the next discharge is completed):
+1. SQL Editor > run  supabase/sql/207_discharge_handover_choices.sql  (last line should show confirm_patient_departure_v5).
+   Until this is run, the new form shows "function confirm_patient_departure_v5 not found" when completing a discharge.
+2. Edge Functions > discharge-summary > replace the code with  supabase/functions/discharge-summary/index.ts  and Deploy
+   (only the Handover Checklist part of the PDF changed).
