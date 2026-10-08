@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.5';
+  const APP_VERSION = '2.16.6';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '08-Oct-2026 Roster equal columns fix';
+  const APP_BUILD_DATE = '08-Oct-2026 Roster Save always visible';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -31843,6 +31843,8 @@ function ShiftManagement({profile}){
         h('button',{type:'button',className:'btn btn-secondary','aria-label':'Next period',onClick:()=>move(1)},'›'),
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{if(dirtyCount&&!window.confirm('You have unsaved roster changes. Discard them?'))return;setDraft({});setStart(monday(today))}},'This week'),
         h('span',{className:'rg-spacer'}),
+        // 2.16.6: Save is always visible (greyed until something changes)
+        h('button',{type:'button',className:'btn btn-primary',disabled:busy||!dirtyCount,title:dirtyCount?'Save all changes':'Tap cells first — nothing to save yet',onClick:save},busy?'Saving…':dirtyCount?`Save roster (${dirtyCount})`:'Save roster'),
         h('input',{value:search,onChange:e=>setSearch(e.target.value),placeholder:'Search staff…',style:{maxWidth:'180px'}}),
         h('button',{type:'button',className:'btn btn-secondary',disabled:busy||loading,title:`Fill empty cells from the previous ${days} days`,onClick:copyPrevious},'Copy previous period'),
         h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>{if(dirtyCount&&!window.confirm('Reload and discard unsaved changes?'))return;setDraft({});load()}},'Reload')),
@@ -31894,10 +31896,10 @@ function ShiftManagement({profile}){
             h('td',{className:'rg-name'},'On duty (Day · Night)'),
             dates.map(date=>{const cov=coverage(date);return h('td',{key:date,className:short(date,cov)?'rg-short':'',title:short(date,cov)?'Below the minimum per shift':''},`${cov.D}·${cov.N}`)}),
             h('td',null,''))))),
-      dirtyCount?h('div',{className:'rg-unsaved',role:'status'},
-        h('strong',{style:{color:'#790c44'}},`${dirtyCount} unsaved change${dirtyCount===1?'':'s'}`),
-        h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>setDraft({})},'Discard'),
-        h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:save},busy?'Saving…':'Save roster')):null,
+      h('div',{className:'rg-unsaved',role:'status',style:dirtyCount?undefined:{borderColor:'#ead7e1',background:'#fff'}},
+        h('strong',{style:{color:dirtyCount?'#790c44':'#7b6871'}},dirtyCount?`${dirtyCount} unsaved change${dirtyCount===1?'':'s'}`:'No changes yet — tap cells to plan, then Save roster'),
+        h('button',{type:'button',className:'btn btn-secondary',disabled:busy||!dirtyCount,onClick:()=>setDraft({})},'Discard'),
+        h('button',{type:'button',className:'btn btn-primary',disabled:busy||!dirtyCount,onClick:save},busy?'Saving…':'Save roster')),
       h('p',{className:'small-note',style:{marginTop:'8px'}},'Past dates are view only. Staff on approved leave are locked (mark Back on Duty in Staff Leave Calendar to roster them). Changing a shift a staff member already acknowledged asks them to acknowledge again. Patient, ward and task details can still be added from the List tab.'));
   }
 

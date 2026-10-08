@@ -1,5 +1,5 @@
-Samara Care ERP 2.16.5 — Roster grid equal columns fix — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
+Samara Care ERP 2.16.6 — Roster grid Save always visible — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
 
-Website files: src/app/nursing/duty-roster-grid.js, src/app/global-ui/05-hover-clickable-cards-mobile-tables.js, src/app/manifest.json,
-src/app/0-start/01-app-constants.js, app.js, index.html, service-worker.js, bootstrap-error.js, CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
+Website files: src/app/nursing/duty-roster-grid.js, src/app/manifest.json, src/app/0-start/01-app-constants.js,
+app.js, index.html, service-worker.js, bootstrap-error.js, CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
 No SQL for this release.

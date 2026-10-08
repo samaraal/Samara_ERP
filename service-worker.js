@@ -1,5 +1,5 @@
-const APP_VERSION = '2.16.5';
-const CACHE = 'samara-erp-2.16.5-roster-columns-fix';
+const APP_VERSION = '2.16.6';
+const CACHE = 'samara-erp-2.16.6-roster-save-visible';
 const SHELL = [
   './',
   './index.html',

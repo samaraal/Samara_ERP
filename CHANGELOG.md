@@ -1,3 +1,8 @@
+## 2.16.6 — Roster grid: Save roster always visible
+
+- **Save roster** is now always shown — at the top (next to Copy previous period, with the number of changes) and in the bar below the grid. It is greyed until a cell is changed; before, it appeared only after the first change, so it looked missing.
+No SQL.
+
 ## 2.16.5 — Roster grid: equal columns really applied
 
 - 2.16.4's equal widths were overridden because the Discharge Register already used the same style names ("dr-…": its column widths 20% / 18% / 10%… were applied to the roster). The roster grid now has its own names ("rg-…"), so every date column is the same width and the roster fits the screen.
