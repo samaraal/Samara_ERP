@@ -1,5 +1,5 @@
-Samara Care ERP 2.15.97 — WhatsApp Inbox: load only a chosen period — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
+Samara Care ERP 2.15.98 — My Patients: Inactive / discharged list for Nurses — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
 
-Website files: src/app/pages/whatsapp-inbox.js, src/app/global-ui/09-tamil-dictionary.js, src/app/0-start/01-app-constants.js,
-app.js, index.html, service-worker.js, bootstrap-error.js, CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
+Website files: src/app/patients/patients.js, src/app/0-start/01-app-constants.js, app.js, index.html, service-worker.js,
+bootstrap-error.js, CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
 No SQL for this release. (Still pending if not done: SQL 208, SQL 209, whatsapp-media Edge Function — see 2.15.94 / 2.15.95.)

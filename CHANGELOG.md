@@ -1,3 +1,10 @@
+## 2.15.98 — My Patients: Inactive / discharged list for Nurses
+
+For Nurse and Caregiver logins, discharged Guests were removed from every list, so "Inactive / discharged" always showed 0 (Admin saw them correctly).
+- Nurses / Caregivers now see discharged Guests when they choose **Inactive / discharged** or **All records**. The default **Active patients** list and the other lists still show only current Guests.
+- Personal details remain view-only for nurses, as before.
+No SQL.
+
 ## 2.15.97 — WhatsApp Inbox: load only a chosen period
 
 - The inbox now loads only the **last 30 days** by default, so it opens faster. Choose **Show: Last 7 days / 30 days / 3 months / 6 months / All messages** and press **Apply**; the choice is remembered for each user on that device.

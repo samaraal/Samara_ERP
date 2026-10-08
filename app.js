@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.97';
+  const APP_VERSION = '2.15.98';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '08-Oct-2026 WhatsApp Inbox period';
+  const APP_BUILD_DATE = '08-Oct-2026 Nurse discharged list';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -23768,10 +23768,14 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
         r.district,r.taluk,r.village_town,r.locality_area,r.street_name,r.pincode
       ].some(value=>String(value||'').toLowerCase().includes(q));
       const matchesDistrict=districtFilter==='All'||String(r.district||'')===districtFilter;
-      if(['Nurse','Caregiver'].includes(profile?.role)&&(r.is_active===false||r.admission_status==='Discharged'))return false;
+      // 2.15.98: Nurses / Caregivers see discharged Guests only when they choose "Inactive / discharged" or "All records"
+      // (before, they were hidden in every list, so the Inactive list was always empty for nurses).
+      const clinicalStaff=['Nurse','Caregiver'].includes(profile?.role);
+      const discharged=r.is_active===false||(clinicalStaff&&r.admission_status==='Discharged');
+      if(clinicalStaff&&discharged&&!['inactive','all'].includes(patientQuickFilter))return false;
       const matchesQuick=patientQuickFilter==='all'||
         (patientQuickFilter==='active'&&r.is_active!==false)||
-        (patientQuickFilter==='inactive'&&r.is_active===false)||
+        (patientQuickFilter==='inactive'&&discharged)||
         (patientQuickFilter==='assigned'&&r.is_active!==false&&r.room_no&&r.bed_no)||
         (patientQuickFilter==='awaiting'&&r.is_active!==false&&(!r.room_no||!r.bed_no))||
         (patientQuickFilter==='high-risk'&&r.is_active!==false&&Boolean(r.fall_risk||r.pressure_sore_risk||r.aspiration_risk||r.wandering_risk||r.infection_risk||r.oxygen_required))||
