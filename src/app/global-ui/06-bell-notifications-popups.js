@@ -247,7 +247,10 @@
         // 2.15.90: staff back on duty / not back after leave -> Admin / Director (both) and Managers (not back, own staff)
         if(foodAdmin||role==='manager')jobs.push(client.rpc('staff_return_alerts'));
         else jobs.push(Promise.resolve({data:[],error:null}));
-        const [dis,charges,food,withheld,overdue,indentDue,staffReturn]=await Promise.all(jobs);
+        // 2.15.94: new WhatsApp from the food vendor -> the person assigned Food Management (SQL 208)
+        if(foodManager)jobs.push(client.rpc('fv_whatsapp_unread'));
+        else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa]=await Promise.all(jobs);
         const candidates=[];
         (dis.data||[]).forEach(row=>{
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
@@ -294,6 +297,12 @@
             detail:mine?`The store handed these over more than 20 minutes ago, but Received is not entered yet. ${lines}${list.length>4?`; + ${list.length-4} more`:''}. Check the items and press Received.`:`Handed over by the store, but the nurse has not pressed Received within 20 minutes. ${lines}${list.length>4?`; + ${list.length-4} more (see Alerts)`:''}. Please follow up with the nurse.`,
             page:'Patient Consumables',record:list.length===1?{id:oldest.indent_id,patient_id:oldest.patient_id,label:indentReceiptLabel(oldest)}:null,urgent:true,at:oldest.handed_over_at});
         }
+        if(!foodWa?.error&&Array.isArray(foodWa?.data))foodWa.data.forEach(a=>{
+          const who=a.contact_name||(a.phone?`+${a.phone}`:'Food vendor');
+          candidates.push({key:`food-wa-${a.latest_id}`,kind:'Food Vendor WhatsApp',title:`New WhatsApp from ${who}`,
+            detail:`${a.unread>1?`${a.unread} unread messages. Latest: `:''}${a.snippet||'Message received'}`,
+            page:'WhatsApp Inbox',waPhone:a.phone,food:null,at:a.latest_at});
+        });
         const staffRows=(!staffReturn?.error&&Array.isArray(staffReturn?.data))?staffReturn.data:[];
         const notBack=staffRows.filter(a=>a.alert==='Not back'),backRows=staffRows.filter(a=>a.alert!=='Not back');
         if(notBack.length){
@@ -322,6 +331,7 @@
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dismiss(item)},'Close'),
         item.food?h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{if(await markFoodVendorAlertHandled(item.food)){dismiss(item);load();}}},'Mark handled'):null,
         item.food?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{dismiss(item);openFoodVendorMessage(item.food,onNavigate)}},'Open order message'):
+        item.waPhone?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{dismiss(item);try{sessionStorage.setItem('samara_whatsapp_open_phone',item.waPhone)}catch(_error){}onNavigate('WhatsApp Inbox')}},'Open WhatsApp chat'):
         item.record?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{dismiss(item);openRecord(item.page,item.record)}},'Open & Take Action'):
         h('button',{type:'button',className:'btn btn-primary',onClick:()=>{const target=item.target?{...item.target,at:Date.now()}:null;try{if(target)sessionStorage.setItem('samara-workflow-target',JSON.stringify(target));}catch(_error){} dismiss(item);onNavigate(item.page);/* v2.14.45: tell an already-open page to show this exact item now */if(target)setTimeout(()=>window.dispatchEvent(new CustomEvent('samara-workflow-target',{detail:target})),0)}},'Open & Take Action'))
     ));

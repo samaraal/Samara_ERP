@@ -1,10 +1,11 @@
-Samara Care ERP 2.15.93 — Discharge handover choices — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
+Samara Care ERP 2.15.94 — Food-order WhatsApp inbox for the Food Management in-charge — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
 
-Website files: src/app/patients/discharge.js, src/app/0-start/01-app-constants.js, app.js, index.html,
-service-worker.js, bootstrap-error.js, CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
+Website files: src/app/pages/whatsapp-inbox.js, src/app/global-ui/06-bell-notifications-popups.js, src/app/core/04-supabase-roles-navigation.js,
+src/app/global-ui/09-tamil-dictionary.js, src/app/0-start/01-app-constants.js, app.js, index.html, service-worker.js, bootstrap-error.js,
+CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
 
-Supabase (BEFORE the next discharge is completed):
-1. SQL Editor > run  supabase/sql/207_discharge_handover_choices.sql  (last line should show confirm_patient_departure_v5).
-   Until this is run, the new form shows "function confirm_patient_departure_v5 not found" when completing a discharge.
-2. Edge Functions > discharge-summary > replace the code with  supabase/functions/discharge-summary/index.ts  and Deploy
-   (only the Handover Checklist part of the PDF changed).
+Supabase:
+1. SQL Editor > run  supabase/sql/208_food_whatsapp_inbox_assignee.sql  (last result should list fv_whatsapp_inbox, fv_whatsapp_mark_read, fv_whatsapp_unread).
+   Until this is run, the WhatsApp Inbox shows "Food Vendors folder: ask the administrator to run SQL 208." to the in-charge; nothing else changes.
+2. Edge Functions > whatsapp-media > replace the code with  supabase/functions/whatsapp-media/index.ts  and Deploy
+   (only needed for the in-charge to open vendor photos / PDFs).

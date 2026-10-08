@@ -1,3 +1,12 @@
+## 2.15.94 — Food-order WhatsApp inbox goes to whoever is assigned Food Management
+
+Food vendor WhatsApp conversations were shown only in the Nursing Manager's food inbox, so Akshi (STD), who now handles Food Management, could not see the vendor's order replies.
+- **WhatsApp Inbox → "Food Vendors" folder** for the person currently assigned Food Management (Admin › Food Vendor Management assignment) — STD sees *Admission Enquiries · Food Vendors · Other*; Admin / Director also get the folder. Order, revised and received messages show with their coloured header pictures.
+- **Automatic**: when Admin assigns Food Management to another staff member (or the assignment ends / is revoked), the folder moves to the new person within about 30 seconds — nothing to set per user. Any role can be the in-charge; WhatsApp Inbox appears in their menu automatically.
+- **New message pop-up**: each new WhatsApp from the food vendor gives the assigned person a pop-up with **Open WhatsApp chat** (opens that chat directly). Existing Returned / Needs Modification / No reply alerts are unchanged.
+- In a vendor chat the in-charge can reply (24-hour window), send photos / PDFs and the *Food Vendor Callback* template; other templates are hidden for vendor chats. Opening a chat marks it read; vendor photos / documents can be opened.
+**SQL 208** + redeploy Edge Function **whatsapp-media** (lets the in-charge open vendor photos / documents; permission still checked per file).
+
 ## 2.15.93 — Final Nursing Discharge: realistic handover checklist
 
 Every handover box had to be ticked, even when the Guest had no take-home medicines or reports and Samara held no belongings / valuables.

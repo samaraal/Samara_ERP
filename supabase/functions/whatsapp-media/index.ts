@@ -1,4 +1,4 @@
-// Self-contained for Supabase Dashboard deployment. Edge Function: whatsapp-media (ERP 2.15.24: also serves Samara's stored copies).
+// Self-contained for Supabase Dashboard deployment. Edge Function: whatsapp-media (ERP 2.15.24: also serves Samara's stored copies; 2.15.94: Food Management in-charge can open vendor files).
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 async function requireWhatsAppUser(req: Request) {
@@ -8,7 +8,9 @@ async function requireWhatsAppUser(req: Request) {
   const { data: { user }, error } = await db.auth.getUser(token);
   if (error || !user) throw new Error("Invalid ERP session");
   const { data: profile, error: profileError } = await db.from("duty_profiles").select("id,role,is_active,active").or(`id.eq.${user.id},auth_user_id.eq.${user.id}`).maybeSingle();
-  if (profileError || !profile || !(profile.is_active ?? profile.active ?? false) || !["Admin", "Manager"].includes(profile.role)) throw new Error("WhatsApp access requires an active Admin or Manager account");
+  // ERP 2.15.94: any active account; wa_food_guard (below) decides which files each person may open
+  // (Admin / Manager as before; the Food Management in-charge, e.g. STD, only food-vendor files).
+  if (profileError || !profile || !(profile.is_active ?? profile.active ?? false)) throw new Error("WhatsApp access requires an active ERP account");
   return { db, user, profile };
 }
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -30,7 +32,7 @@ Deno.serve(async (req) => {
 
   let caller;
   try { caller = await requireWhatsAppUser(req); }
-  catch (_) { return new Response(JSON.stringify({ error: "An active Admin or Manager session is required." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }); }
+  catch (_) { return new Response(JSON.stringify({ error: "An active ERP session is required." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }); }
   try {
     const accessToken = Deno.env.get("WHATSAPP_ACCESS_TOKEN") || "";
     const graphVersion = Deno.env.get("WHATSAPP_GRAPH_API_VERSION") || "v25.0";
