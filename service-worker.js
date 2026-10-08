@@ -1,5 +1,5 @@
-const APP_VERSION = '2.16.1';
-const CACHE = 'samara-erp-2.16.1-duty-roster-grid';
+const APP_VERSION = '2.16.2';
+const CACHE = 'samara-erp-2.16.2-roster-grid-nm';
 const SHELL = [
   './',
   './index.html',

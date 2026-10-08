@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.1';
+  const APP_VERSION = '2.16.2';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '08-Oct-2026 Duty Roster grid';
+  const APP_BUILD_DATE = '08-Oct-2026 Roster grid on Staff Duty Assignment';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -11023,7 +11023,7 @@ https://samaraassistedliving.com/`;
           page==='Physiotherapy'&&h(Physiotherapy,{profile,onNavigate:setPage}),
           page==='Duty Assignment'&&h(DutyAssignmentPage,{profile}), // 2.16.1: Roster grid + list
           page==='Duty Calendar'&&h(DutyAssignment,{profile,viewMode:'team'}),
-          page==='Staff Duty Assignment'&&h(DutyAssignment,{profile,viewMode:'team'}),
+          page==='Staff Duty Assignment'&&h(DutyAssignmentPage,{profile,viewMode:'team'}), // 2.16.2: Roster grid for Nursing Manager / Admin
           page==='Special Nurse'&&h(SpecialNurseManagement,{profile}),
           (page==='Approval Requests'||page==='Nursing Procedures')&&h(NursingProcedures,{profile}),
           page==='Charge Register'&&h(NursingChargeRegister,{profile}),
@@ -31891,16 +31891,18 @@ function ShiftManagement({profile}){
   }
 
   // Duty Assignment page: Roster grid (Admin / Nursing Manager) + the existing list and weekly form.
-  function DutyAssignmentPage({profile}){
-    const allowed=rosterGridAllowed(profile);
+  function DutyAssignmentPage({profile,viewMode='assignment'}){
+    // 'Duty Assignment' is the Nursing Manager's own 'My Duty' page, so there the grid is for Admin only;
+    // 'Staff Duty Assignment' (team) has the grid for Admin and the Nursing Manager.
+    const allowed=viewMode==='team'?rosterGridAllowed(profile):profile?.role==='Admin';
     const [view,setView]=React.useState(()=>{try{return sessionStorage.getItem('samara_duty_view')||'grid'}catch(_){return 'grid'}});
     React.useEffect(()=>{try{sessionStorage.setItem('samara_duty_view',view)}catch(_){}},[view]);
-    if(!allowed)return h(DutyAssignment,{profile,viewMode:'assignment'});
+    if(!allowed)return h(DutyAssignment,{profile,viewMode});
     return h(React.Fragment,null,
       h('div',{role:'tablist','aria-label':'Duty views',style:{display:'flex',gap:'6px',margin:'0 0 10px'}},
         h('button',{type:'button',role:'tab','aria-selected':view==='grid',className:`btn ${view==='grid'?'btn-primary':'btn-secondary'}`,onClick:()=>setView('grid')},'Roster grid'),
-        h('button',{type:'button',role:'tab','aria-selected':view==='list',className:`btn ${view==='list'?'btn-primary':'btn-secondary'}`,onClick:()=>setView('list')},'List & weekly form')),
-      view==='grid'?h(DutyRosterGrid,{profile}):h(DutyAssignment,{profile,viewMode:'assignment'}));
+        h('button',{type:'button',role:'tab','aria-selected':view==='list',className:`btn ${view==='list'?'btn-primary':'btn-secondary'}`,onClick:()=>setView('list')},viewMode==='team'?'Day list & weekly form':'List & weekly form')),
+      view==='grid'?h(DutyRosterGrid,{profile}):h(DutyAssignment,{profile,viewMode}));
   }
 function ShiftHandover({profile,onNavigate}){
     const [patients]=usePatients();

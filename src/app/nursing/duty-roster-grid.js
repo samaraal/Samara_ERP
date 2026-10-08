@@ -273,14 +273,16 @@
   }
 
   // Duty Assignment page: Roster grid (Admin / Nursing Manager) + the existing list and weekly form.
-  function DutyAssignmentPage({profile}){
-    const allowed=rosterGridAllowed(profile);
+  function DutyAssignmentPage({profile,viewMode='assignment'}){
+    // 'Duty Assignment' is the Nursing Manager's own 'My Duty' page, so there the grid is for Admin only;
+    // 'Staff Duty Assignment' (team) has the grid for Admin and the Nursing Manager.
+    const allowed=viewMode==='team'?rosterGridAllowed(profile):profile?.role==='Admin';
     const [view,setView]=React.useState(()=>{try{return sessionStorage.getItem('samara_duty_view')||'grid'}catch(_){return 'grid'}});
     React.useEffect(()=>{try{sessionStorage.setItem('samara_duty_view',view)}catch(_){}},[view]);
-    if(!allowed)return h(DutyAssignment,{profile,viewMode:'assignment'});
+    if(!allowed)return h(DutyAssignment,{profile,viewMode});
     return h(React.Fragment,null,
       h('div',{role:'tablist','aria-label':'Duty views',style:{display:'flex',gap:'6px',margin:'0 0 10px'}},
         h('button',{type:'button',role:'tab','aria-selected':view==='grid',className:`btn ${view==='grid'?'btn-primary':'btn-secondary'}`,onClick:()=>setView('grid')},'Roster grid'),
-        h('button',{type:'button',role:'tab','aria-selected':view==='list',className:`btn ${view==='list'?'btn-primary':'btn-secondary'}`,onClick:()=>setView('list')},'List & weekly form')),
-      view==='grid'?h(DutyRosterGrid,{profile}):h(DutyAssignment,{profile,viewMode:'assignment'}));
+        h('button',{type:'button',role:'tab','aria-selected':view==='list',className:`btn ${view==='list'?'btn-primary':'btn-secondary'}`,onClick:()=>setView('list')},viewMode==='team'?'Day list & weekly form':'List & weekly form')),
+      view==='grid'?h(DutyRosterGrid,{profile}):h(DutyAssignment,{profile,viewMode}));
   }

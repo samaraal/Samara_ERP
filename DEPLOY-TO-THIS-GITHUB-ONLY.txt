@@ -1,5 +1,5 @@
-Samara Care ERP 2.16.1 — Duty Roster grid — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
+Samara Care ERP 2.16.2 — Roster grid on Staff Duty Assignment (Nursing Manager / Admin) — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
 
-Website files: src/app/nursing/duty-roster-grid.js (NEW), src/app/manifest.json, src/app/shell/01-app-main.js,
-src/app/0-start/01-app-constants.js, app.js, index.html, service-worker.js, bootstrap-error.js, CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
-No SQL for this release. (Still pending if not done: SQL 208, SQL 209, whatsapp-media Edge Function — see 2.15.94 / 2.15.95.)
+Website files: src/app/nursing/duty-roster-grid.js, src/app/manifest.json, src/app/shell/01-app-main.js, src/app/0-start/01-app-constants.js,
+app.js, index.html, service-worker.js, bootstrap-error.js, CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
+No SQL for this release.

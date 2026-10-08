@@ -718,7 +718,7 @@
           page==='Physiotherapy'&&h(Physiotherapy,{profile,onNavigate:setPage}),
           page==='Duty Assignment'&&h(DutyAssignmentPage,{profile}), // 2.16.1: Roster grid + list
           page==='Duty Calendar'&&h(DutyAssignment,{profile,viewMode:'team'}),
-          page==='Staff Duty Assignment'&&h(DutyAssignment,{profile,viewMode:'team'}),
+          page==='Staff Duty Assignment'&&h(DutyAssignmentPage,{profile,viewMode:'team'}), // 2.16.2: Roster grid for Nursing Manager / Admin
           page==='Special Nurse'&&h(SpecialNurseManagement,{profile}),
           (page==='Approval Requests'||page==='Nursing Procedures')&&h(NursingProcedures,{profile}),
           page==='Charge Register'&&h(NursingChargeRegister,{profile}),

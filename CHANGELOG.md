@@ -1,3 +1,10 @@
+## 2.16.2 — Roster grid where the Nursing Manager assigns duty
+
+- The Nursing Manager's **Nursing Staff › Staff Duty Assignment** now opens on the **Roster grid** (nursing staff); the previous day list and weekly form are in the second tab.
+- Admin: **HR › Duty Assignment** and **Staff Duty Assignment** open on the grid (all staff).
+- The Nursing Manager's own **My Duty** page is unchanged (no grid there). Duty Calendar is unchanged.
+No SQL.
+
 ## 2.16.1 — Duty Roster grid (Excel-style)
 
 Duty Assignment now opens on a **Roster grid** for **Admin / Director** (all staff, grouped by department) and the **Nursing Manager** (nursing staff). The existing list and weekly form stay in the second tab, **List & weekly form**.
