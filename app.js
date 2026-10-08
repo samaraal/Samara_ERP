@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.2';
+  const APP_VERSION = '2.16.3';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '08-Oct-2026 Roster grid on Staff Duty Assignment';
+  const APP_BUILD_DATE = '08-Oct-2026 Assign Duty opens Roster grid';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -30715,7 +30715,7 @@ function ShiftManagement({profile}){
       ),h('div',{className:'actions'},h('button',{className:'btn btn-primary'},'Save Shift Settings')),saved&&h('div',{className:'message success'},'Shift settings saved for new assignments from the effective date.')));
   }
 
-  function DutyAssignment({profile,viewMode='mine'}){
+  function DutyAssignment({profile,viewMode='mine',onOpenGrid=null}){
     // Admin/Director management accounts can assign and modify duty for every
     // employee. A Nursing Manager can assign duty to other nursing staff;
     // the Nursing Manager's own duty remains an Admin/Director assignment.
@@ -31204,6 +31204,7 @@ function ShiftManagement({profile}){
     },[assignments,rangeStart,rangeEnd,calendarDate,dayCalendar,canManage,fullDutyControl,staffScopeIds,profile]);
 
     function openCreate(){
+      if(typeof onOpenGrid==='function'){onOpenGrid();return;} // 2.16.3: Admin / Nursing Manager assign duty in the Roster grid, not the long form
       setVoiceCandidates([]);setEmployeeSearch('');
       setEditing(null);
       const today=todayISOIndia();
@@ -31900,9 +31901,10 @@ function ShiftManagement({profile}){
     if(!allowed)return h(DutyAssignment,{profile,viewMode});
     return h(React.Fragment,null,
       h('div',{role:'tablist','aria-label':'Duty views',style:{display:'flex',gap:'6px',margin:'0 0 10px'}},
-        h('button',{type:'button',role:'tab','aria-selected':view==='grid',className:`btn ${view==='grid'?'btn-primary':'btn-secondary'}`,onClick:()=>setView('grid')},'Roster grid'),
-        h('button',{type:'button',role:'tab','aria-selected':view==='list',className:`btn ${view==='list'?'btn-primary':'btn-secondary'}`,onClick:()=>setView('list')},viewMode==='team'?'Day list & weekly form':'List & weekly form')),
-      view==='grid'?h(DutyRosterGrid,{profile}):h(DutyAssignment,{profile,viewMode}));
+        h('button',{type:'button',role:'tab','aria-selected':view==='grid',className:`btn ${view==='grid'?'btn-primary':'btn-secondary'}`,onClick:()=>setView('grid')},'＋ Assign Duty (Roster grid)'),
+        h('button',{type:'button',role:'tab','aria-selected':view==='list',className:`btn ${view==='list'?'btn-primary':'btn-secondary'}`,onClick:()=>setView('list')},'Duty list')),
+      // 2.16.3: in the Duty list, "Assign Duty" opens the Roster grid (the long weekly form is no longer used here)
+      view==='grid'?h(DutyRosterGrid,{profile}):h(DutyAssignment,{profile,viewMode,onOpenGrid:()=>setView('grid')}));
   }
 function ShiftHandover({profile,onNavigate}){
     const [patients]=usePatients();

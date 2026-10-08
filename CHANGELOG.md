@@ -1,3 +1,9 @@
+## 2.16.3 — Assign Duty = Roster grid (no long form)
+
+- For Admin and the Nursing Manager, **＋ Assign Duty** now opens the **Roster grid** (tick Day / Night / OFF per staff per day) instead of the long weekly form. Tabs renamed: **＋ Assign Duty (Roster grid)** and **Duty list**.
+- The Duty list (view, acknowledge, details, modify one day) is unchanged.
+No SQL.
+
 ## 2.16.2 — Roster grid where the Nursing Manager assigns duty
 
 - The Nursing Manager's **Nursing Staff › Staff Duty Assignment** now opens on the **Roster grid** (nursing staff); the previous day list and weekly form are in the second tab.

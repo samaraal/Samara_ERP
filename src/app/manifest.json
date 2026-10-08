@@ -318,12 +318,12 @@
   {
    "file": "nursing/duty-assignment.js",
    "about": "Shift management + Duty Assignment (duty roster)",
-   "lines": 898
+   "lines": 918
   },
   {
    "file": "nursing/duty-roster-grid.js",
    "about": "Duty Roster grid (staff x dates, Day / Night / Off, 7 or 30 days) + Duty Assignment page tabs",
-   "lines": 288
+   "lines": 289
   },
   {
    "file": "nursing/shift-handover.js",

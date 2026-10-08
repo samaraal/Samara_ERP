@@ -282,7 +282,8 @@
     if(!allowed)return h(DutyAssignment,{profile,viewMode});
     return h(React.Fragment,null,
       h('div',{role:'tablist','aria-label':'Duty views',style:{display:'flex',gap:'6px',margin:'0 0 10px'}},
-        h('button',{type:'button',role:'tab','aria-selected':view==='grid',className:`btn ${view==='grid'?'btn-primary':'btn-secondary'}`,onClick:()=>setView('grid')},'Roster grid'),
-        h('button',{type:'button',role:'tab','aria-selected':view==='list',className:`btn ${view==='list'?'btn-primary':'btn-secondary'}`,onClick:()=>setView('list')},viewMode==='team'?'Day list & weekly form':'List & weekly form')),
-      view==='grid'?h(DutyRosterGrid,{profile}):h(DutyAssignment,{profile,viewMode}));
+        h('button',{type:'button',role:'tab','aria-selected':view==='grid',className:`btn ${view==='grid'?'btn-primary':'btn-secondary'}`,onClick:()=>setView('grid')},'＋ Assign Duty (Roster grid)'),
+        h('button',{type:'button',role:'tab','aria-selected':view==='list',className:`btn ${view==='list'?'btn-primary':'btn-secondary'}`,onClick:()=>setView('list')},'Duty list')),
+      // 2.16.3: in the Duty list, "Assign Duty" opens the Roster grid (the long weekly form is no longer used here)
+      view==='grid'?h(DutyRosterGrid,{profile}):h(DutyAssignment,{profile,viewMode,onOpenGrid:()=>setView('grid')}));
   }

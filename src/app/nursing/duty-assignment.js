@@ -14,7 +14,7 @@ function ShiftManagement({profile}){
       ),h('div',{className:'actions'},h('button',{className:'btn btn-primary'},'Save Shift Settings')),saved&&h('div',{className:'message success'},'Shift settings saved for new assignments from the effective date.')));
   }
 
-  function DutyAssignment({profile,viewMode='mine'}){
+  function DutyAssignment({profile,viewMode='mine',onOpenGrid=null}){
     // Admin/Director management accounts can assign and modify duty for every
     // employee. A Nursing Manager can assign duty to other nursing staff;
     // the Nursing Manager's own duty remains an Admin/Director assignment.
@@ -503,6 +503,7 @@ function ShiftManagement({profile}){
     },[assignments,rangeStart,rangeEnd,calendarDate,dayCalendar,canManage,fullDutyControl,staffScopeIds,profile]);
 
     function openCreate(){
+      if(typeof onOpenGrid==='function'){onOpenGrid();return;} // 2.16.3: Admin / Nursing Manager assign duty in the Roster grid, not the long form
       setVoiceCandidates([]);setEmployeeSearch('');
       setEditing(null);
       const today=todayISOIndia();
