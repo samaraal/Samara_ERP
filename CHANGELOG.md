@@ -1,3 +1,15 @@
+## 2.16.1 — Duty Roster grid (Excel-style)
+
+Duty Assignment now opens on a **Roster grid** for **Admin / Director** (all staff, grouped by department) and the **Nursing Manager** (nursing staff). The existing list and weekly form stay in the second tab, **List & weekly form**.
+- Staff in rows, dates (with day) in columns. **Tap a cell: Day (7 AM–7 PM) → Night (7 PM–7 AM) → OFF → empty** — each day can differ; the weekly off can be any day.
+- **7 days / 30 days** switch, From date with Apply, ‹ › to move by the period, This week.
+- **Approved leave** (current and future) shows as a locked LEAVE cell; ⚠ = leave pending approval; P = approved permission (a few hours). Past dates are view only.
+- **Copy previous period** fills empty cells from the previous 7 / 30 days; **All Day / All Night** under each name fills that row.
+- Bottom row counts **On duty (Day · Night)** per date; set **Minimum per shift** to highlight short days in red.
+- Changes are drafted (dashed outline) and saved together with **Save roster** (or Discard). Before saving, the roster is re-read: cells changed by someone else, or now on approved leave, are skipped and listed.
+- Saves into the same duty records as before (one per staff per day), so My Duty, acknowledgement (✓), On Duty Today, Back on Duty and leave checks work unchanged. Changing an acknowledged shift asks the staff to acknowledge again; clearing a cell cancels that duty (kept in history).
+No SQL.
+
 ## 2.16.0 — Discharge Summary button at the top for Nurses
 
 - The **Discharge Summary** button now sits at the top of the Patient file, beside **Admission Details · Consent**, for **Nurses** as well as Admin / Manager (for Guests whose discharge is completed). The extra tab added in 2.15.99 is removed (one place only).
