@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.98';
+  const APP_VERSION = '2.15.99';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '08-Oct-2026 Nurse discharged list';
+  const APP_BUILD_DATE = '08-Oct-2026 Discharge Summary tab';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -24503,7 +24503,9 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
             h('strong',null,'DISCHARGED'),
             h('span',null,`Discharged on ${formatDateIN(String(completedPatientDischarge().actual_departure_at||completedPatientDischarge().updated_at||completedPatientDischarge().created_at||'').slice(0,10))} · ${formatTimeIN(completedPatientDischarge().actual_departure_at||completedPatientDischarge().updated_at||completedPatientDischarge().created_at)}`)
           ):null),
-        h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Admission Details'),tabButton('Documents',details.docs.length),tabButton('Consent',details.docs.filter(window.SamaraConsent.isConsent).length),(canEdit||nursingManagerView)?tabButton('Clinical History',(details.allMar||[]).length+(details.nursingProcedures||[]).length+(details.careLogs||[]).length+(details.vitals||[]).length+(details.physioSessions||[]).length):null,tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),tabButton('Daily Moments',(details.dailyMoments||[]).length),!clinicalView?tabButton('Billing',details.billing.length,nursingManagerView?'Pending Dues':'Billing'):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
+        h('div',{className:'patient-tab-bar'},tabButton('Overview'),tabButton('Admission Details'),tabButton('Documents',details.docs.length),tabButton('Consent',details.docs.filter(window.SamaraConsent.isConsent).length),
+          // 2.15.99: Discharge Summary next to Admission Details / Consent for Admin, Manager and Nurse (opens the summary; sending stays Admin / Manager)
+          ['Admin','Manager','Nurse'].includes(profile?.role)&&completedPatientDischarge()?h('button',{type:'button',className:'patient-tab',onClick:()=>setShowDischargeSummary(true)},'Discharge Summary'):null,(canEdit||nursingManagerView)?tabButton('Clinical History',(details.allMar||[]).length+(details.nursingProcedures||[]).length+(details.careLogs||[]).length+(details.vitals||[]).length+(details.physioSessions||[]).length):null,tabButton('Medicines',details.meds.length),tabButton('Nursing',details.careLogs.length),tabButton('Vitals',details.vitals.length),tabButton('Physiotherapy',details.physioSessions.length),tabButton('Diet',details.meals.length),tabButton('Daily Moments',(details.dailyMoments||[]).length),!clinicalView?tabButton('Billing',details.billing.length,nursingManagerView?'Pending Dues':'Billing'):null,tabButton('Timeline',details.recovery.length+details.incidents.length),canEdit?tabButton('Family Portal',(details.familyAccess||[]).filter(x=>x.is_active).length):null),
         h('div',{className:'patient-tab-content'},
           tab==='Overview'&&h('div',{className:'tabs-grid'},
             h(GuestCallPanel,{patient:selected}),

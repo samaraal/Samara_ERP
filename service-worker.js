@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.98';
-const CACHE = 'samara-erp-2.15.98-nurse-discharged-list';
+const APP_VERSION = '2.15.99';
+const CACHE = 'samara-erp-2.15.99-discharge-summary-tab';
 const SHELL = [
   './',
   './index.html',

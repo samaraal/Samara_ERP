@@ -1,4 +1,4 @@
-Samara Care ERP 2.15.98 — My Patients: Inactive / discharged list for Nurses — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
+Samara Care ERP 2.15.99 — Discharge Summary tab in Patient file (Admin / Manager / Nurse) — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
 
 Website files: src/app/patients/patients.js, src/app/0-start/01-app-constants.js, app.js, index.html, service-worker.js,
 bootstrap-error.js, CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt

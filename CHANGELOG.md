@@ -1,3 +1,9 @@
+## 2.15.99 — Discharge Summary in the Patient file tabs (also for Nurses)
+
+- A **Discharge Summary** tab now sits beside *Admission Details · Documents · Consent* in the Patient file, for discharged Guests (completed discharge). It opens the summary with **Open / Save PDF**.
+- Visible to **Admin, Manager and Nurse** (the Discharge Summary service allows these three). Sending the PDF by WhatsApp from this window stays with Admin / Manager, as before.
+No SQL.
+
 ## 2.15.98 — My Patients: Inactive / discharged list for Nurses
 
 For Nurse and Caregiver logins, discharged Guests were removed from every list, so "Inactive / discharged" always showed 0 (Admin saw them correctly).
