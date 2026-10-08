@@ -214,6 +214,17 @@
   function WorkflowActionPopups({profile,onNavigate}){
     const [item,setItem]=React.useState(null);
     const closed=React.useRef(new Set());
+    // 2.15.96: information-only pop-ups (staff back on duty, new food-vendor WhatsApp) stay closed after Close /
+    // Open, also after a page refresh or app update, on this device. Action pop-ups behave as before.
+    const SEEN_KEY=`samara_popup_seen_v1_${profile?.id||'anon'}`;
+    const remembered=key=>/^(staff-back-|food-wa-)/.test(String(key||''));
+    React.useEffect(()=>{
+      try{
+        const saved=JSON.parse(localStorage.getItem(SEEN_KEY)||'{}')||{};const cutoff=Date.now()-3*86400000;const kept={};
+        Object.entries(saved).forEach(([k,t])=>{if(Number(t)>cutoff){kept[k]=t;closed.current.add(k)}});
+        localStorage.setItem(SEEN_KEY,JSON.stringify(kept));
+      }catch(_error){}
+    },[SEEN_KEY]);
     const role=String(profile?.role||'').trim().toLowerCase();
     const isManagement=['admin','administrator','director'].includes(role)||(role==='manager'&&!isNursingManagerProfile(profile));
     const isAccounts=role==='accounts';
@@ -221,7 +232,13 @@
     const foodAdmin=['admin','administrator','director'].includes(role);
     const foodManager=!!profile?.__foodVendor?.read;
     const canReceive=isManagement||isAccounts||isNursing||foodManager;
-    const dismiss=current=>{if(current?.key)closed.current.add(current.key);setItem(null)};
+    const dismiss=current=>{
+      if(current?.key){
+        closed.current.add(current.key);
+        if(remembered(current.key))try{const saved=JSON.parse(localStorage.getItem(SEEN_KEY)||'{}')||{};saved[current.key]=Date.now();localStorage.setItem(SEEN_KEY,JSON.stringify(saved))}catch(_error){}
+      }
+      setItem(null);
+    };
     const load=React.useCallback(async()=>{
       if(!canReceive){setItem(null);return}
       try{

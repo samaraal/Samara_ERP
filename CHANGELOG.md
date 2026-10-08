@@ -1,3 +1,10 @@
+## 2.15.96 — "Back on duty" pop-up stays closed
+
+The "Miss Saranya S is back on duty" pop-up came back after every page refresh / app update for 24 hours, because Close was remembered only until the page reloaded.
+- Information-only pop-ups — **staff back on duty** and **new food-vendor WhatsApp** — now stay closed after **Close** or **Open & Take Action**, also after refresh, re-login or an app update (remembered on that device for 3 days).
+- Action pop-ups (discharge, charges, indents, "Not back on duty", etc.) are unchanged: they still repeat until the work is done.
+No SQL.
+
 ## 2.15.95 — WhatsApp Inbox loads fast again
 
 The inbox had become slow to open. Cause: the food-vendor security rules (SQL 125/130/183) tested every WhatsApp message, for every user, against the whole food-orders table, and the inbox reloaded everything again on each change.

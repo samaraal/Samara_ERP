@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.95';
-const CACHE = 'samara-erp-2.15.95-whatsapp-inbox-speed';
+const APP_VERSION = '2.15.96';
+const CACHE = 'samara-erp-2.15.96-popup-close-remembered';
 const SHELL = [
   './',
   './index.html',

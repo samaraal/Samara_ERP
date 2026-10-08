@@ -1,9 +1,5 @@
-Samara Care ERP 2.15.95 — WhatsApp Inbox speed (+ 2.15.94 food inbox for the Food Management in-charge) — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
+Samara Care ERP 2.15.96 — "Back on duty" pop-up stays closed — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
 
-Website files: src/app/pages/whatsapp-inbox.js, src/app/0-start/01-app-constants.js, app.js, index.html, service-worker.js,
-bootstrap-error.js, CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
-
-Supabase, in this order:
-1. SQL Editor > run  supabase/sql/208_food_whatsapp_inbox_assignee.sql  (if not run yet).
-2. SQL Editor > run  supabase/sql/209_whatsapp_inbox_speed.sql  (the last result lists the WhatsApp security rules; screenshot it if the inbox is still slow).
-3. Edge Functions > whatsapp-media > replace with  supabase/functions/whatsapp-media/index.ts  and Deploy (if not done yet; 2.15.94).
+Website files: src/app/global-ui/06-bell-notifications-popups.js, src/app/0-start/01-app-constants.js, app.js, index.html,
+service-worker.js, bootstrap-error.js, CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
+No SQL for this release. (Still pending if not done: SQL 208, SQL 209, whatsapp-media Edge Function — see 2.15.94 / 2.15.95.)
