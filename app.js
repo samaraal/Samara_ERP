@@ -22304,7 +22304,7 @@ Please keep these login details confidential.`;
         canEdit?client.from('patient_communications').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}).limit(50):Promise.resolve({data:[]}),
         client.from('bill_charge_requests').select('id,patient_id,charge_date,service_datetime,category,service_name,description,quantity,unit,status,approval_status,remarks,raised_by_name,raised_at,created_at').eq('patient_id',p.id).eq('category','Nursing Procedures').order('service_datetime',{ascending:false}).limit(100),
         client.from('shift_handovers').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}).limit(100),
-        canEdit?client.from('patient_discharges').select('*').eq('patient_id',p.id).order('updated_at',{ascending:false}).limit(20):Promise.resolve({data:[]}),
+        (canEdit||profile?.role==='Nurse')?client.from('patient_discharges').select('*').eq('patient_id',p.id).order('updated_at',{ascending:false}).limit(20):Promise.resolve({data:[]}),
         resolvePatientPhoto(p)
       ]);
       if(seq!==openPatientSeqRef.current)return; // another patient was opened meanwhile
