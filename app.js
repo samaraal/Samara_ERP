@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.96';
+  const APP_VERSION = '2.15.97';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '08-Oct-2026 Pop-up close remembered';
+  const APP_BUILD_DATE = '08-Oct-2026 WhatsApp Inbox period';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -9824,6 +9824,14 @@ https://samaraassistedliving.com/`;
 "WhatsApp Enquiry Desk & Food Orders": "WhatsApp என்கொயரி மேசை & உணவு ஆர்டர்கள்",
 "Incoming public enquiries, and food-vendor order messages (Food Vendors folder). Filter by subject, name/mobile and date.": "வரும் பொது என்கொயரிகள், உணவு வெண்டர் ஆர்டர் மெசேஜ்கள் (உணவு வெண்டர்கள் ஃபோல்டர்). விஷயம், பெயர்/மொபைல், தேதி வாரியாக ஃபில்டர் செய்யலாம்.",
 "Food Orders": "உணவு ஆர்டர்கள்",
+"Last 7 days": "கடந்த 7 நாட்கள்",
+"Last 30 days": "கடந்த 30 நாட்கள்",
+"Last 3 months": "கடந்த 3 மாதங்கள்",
+"Last 6 months": "கடந்த 6 மாதங்கள்",
+"All messages": "எல்லா மெசேஜ்களும்",
+"Show older messages": "பழைய மெசேஜ்களைக் காட்டு",
+"Older": "பழையவை",
+"Show": "காட்டு",
 "Open WhatsApp chat": "WhatsApp சாட் திற",
 "Wheelchair": "வீல்சேர்",
 "When (IST)": "எப்போது (IST)",
@@ -13469,6 +13477,17 @@ Samara Assisted Living`;
         return rows;
       }catch(error){console.warn('Legacy interview WhatsApp display repair failed safely',error);return rows}
     }
+    // 2.15.97: load only a chosen period (default last 30 days; remembered per user). Chats opened directly,
+    // or "Show older messages", load that one contact's full history.
+    const WA_PERIODS=[['7','Last 7 days'],['30','Last 30 days'],['90','Last 3 months'],['180','Last 6 months'],['all','All messages']];
+    const PERIOD_KEY=`samara_wa_period_v1_${profile?.id||'anon'}`;
+    const [waPeriod,setWaPeriod]=React.useState(()=>{try{const v=localStorage.getItem(PERIOD_KEY);return WA_PERIODS.some(x=>x[0]===v)?v:'30'}catch(_error){return '30'}});
+    const [waPeriodDraft,setWaPeriodDraft]=React.useState(waPeriod);
+    const [loadedAt,setLoadedAt]=React.useState(0);
+    const periodRef=React.useRef(waPeriod);periodRef.current=waPeriod;
+    const fullPhonesRef=React.useRef(new Set());
+    const periodFirstRef=React.useRef(true);
+    const phoneVariants=p=>{const d=String(p||'').replace(/\D/g,'');if(!d)return [];const v=new Set([d,'+'+d]);if(d.length===12&&d.startsWith('91')){v.add(d.slice(2));v.add('0'+d.slice(2));}return [...v];};
     // 2.15.95: one load at a time; extra requests while loading are folded into one follow-up load.
     const loadState=React.useRef({busy:false,again:false,timer:null});
     async function load(showStatus=false){
@@ -13487,12 +13506,23 @@ Samara Assisted Living`;
       if(showStatus)setMessage('Refreshing WhatsApp Inbox…');
       try{
         const data=[];
+        const baseQuery=()=>foodOnly?client.rpc('wa_food_inbox'):client.from('hr_whatsapp_communications').select('*');
+        const days=Number(periodRef.current);
+        const since=periodRef.current!=='all'&&days>0?new Date(Date.now()-days*86400000).toISOString():null;
         for(let offset=0;;offset+=1000){
-          const query=foodOnly?client.rpc('wa_food_inbox'):client.from('hr_whatsapp_communications').select('*');
+          let query=baseQuery();
+          if(since)query=query.gte('created_at',since);
           const page=await query.order('created_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+999);
           if(page.error)throw page.error;
           data.push(...(page.data||[]));
           if((page.data||[]).length<1000)break;
+        }
+        if(since&&fullPhonesRef.current.size){
+          // Full history for chats opened directly / "Show older messages".
+          const variants=[...fullPhonesRef.current].flatMap(phoneVariants);
+          const extra=await baseQuery().in('recipient_number',variants).lt('created_at',since).order('created_at',{ascending:false}).limit(2000);
+          if(!extra.error){const seen=new Set(data.map(r=>r.id));(extra.data||[]).forEach(r=>{if(!seen.has(r.id)){seen.add(r.id);data.push(r)}});}
+          data.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)||String(b.id).localeCompare(String(a.id)));
         }
         if(foodDesk){
           // 2.15.95: food rows already arrive in the normal list (database rules allow the in-charge to read them).
@@ -13521,11 +13551,17 @@ Samara Assisted Living`;
         }
         const repaired=(foodOnly?(data||[]):await repairLegacyInterviewHistory(data||[]));
         setRows(repaired.slice().reverse());
+        setLoadedAt(Date.now());
         if(showStatus)setMessage(`✓ WhatsApp Inbox refreshed at ${formatTimeIN(new Date())}.`);
       }catch(error){
         setMessage(`Unable to refresh WhatsApp Inbox: ${error?.message||error}`);
       }
     }
+    React.useEffect(()=>{
+      if(periodFirstRef.current){periodFirstRef.current=false;return;}
+      try{localStorage.setItem(PERIOD_KEY,waPeriod)}catch(_error){}
+      load(true);
+    },[waPeriod]);
     React.useEffect(()=>{
       load();
       const ch=client.channel('whatsapp-inbox-live').on('postgres_changes',{event:'*',schema:'public',table:'hr_whatsapp_communications'},()=>scheduleLoad()).subscribe();
@@ -13534,10 +13570,14 @@ Samara Assisted Living`;
     React.useEffect(()=>{
       // 2.15.69: open one conversation directly (from Enquiries & Feedback / Enquiry Register), all messages shown.
       let phone='';try{phone=normalizeWhatsAppRecipient(sessionStorage.getItem('samara_whatsapp_open_phone')||'')}catch(_error){}
-      if(!phone||!rows.length)return;
+      if(!phone||!loadedAt)return;
+      // 2.15.97: a chat opened from elsewhere always gets its full history, whatever period is chosen.
+      if(periodRef.current!=='all'&&!fullPhonesRef.current.has(phone)){fullPhonesRef.current.add(phone);scheduleLoad(50);return;}
       try{sessionStorage.removeItem('samara_whatsapp_open_phone')}catch(_error){}
-      setWaFolder(foodDesk&&foodScope.phones.has(phone)?'Food Vendors':'All'); // 2.15.94: food-vendor chat opens in its foldersetQuery('');setShowUnread(false);setSelectedPhone(phone);
-    },[rows.length]);
+      // 2.15.94: food-vendor chat opens in its folder (2.15.97: line fixed — the rest had been commented out)
+      setWaFolder(foodDesk&&foodScope.phones.has(phone)?'Food Vendors':'All');
+      setQuery('');setShowUnread(false);setSelectedPhone(phone);
+    },[rows.length,loadedAt]);
     React.useEffect(()=>{
       if(foodOnly){sessionStorage.removeItem('samara_patient_whatsapp_context');return;}
       let context=null;
@@ -13545,6 +13585,7 @@ Samara Assisted Living`;
       if(!context)return;
       const phone=normalizeWhatsAppRecipient(context.phone||'');
       if(!phone)return;
+      if(periodRef.current!=='all'&&!fullPhonesRef.current.has(phone)){fullPhonesRef.current.add(phone);scheduleLoad(50);} // 2.15.97
       setPatientContext({
         phone,
         patient_id:context.patient_id||null,
@@ -13959,6 +14000,9 @@ Thank you.`;
             if(next)setQuery('');
           }},`Unread ${unreadTotal}`),
           isSTD?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setQuery('');setSubjectFilter('All Subjects');setDateFrom('');setDateTo('');setShowUnread(false);setSelectedPhone('')}},'Clear Filters'):null,
+          h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'},title:'Older messages are not loaded, so the inbox opens faster'},'Show',
+            h('select',{value:waPeriodDraft,onChange:e=>setWaPeriodDraft(e.target.value),style:{minWidth:'140px'}},WA_PERIODS.map(([v,l])=>h('option',{key:v,value:v},l)))),
+          waPeriodDraft!==waPeriod?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{setSelectedPhone('');setWaPeriod(waPeriodDraft)}},'Apply'):null,
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>load(true)},'Refresh'),
           canDeleteMsg?h('button',{type:'button',className:'btn btn-secondary',disabled:templateSync.busy,title:'Reload approved template texts from Meta',onClick:()=>syncWaTemplates(false)},templateSync.busy?'Refreshing templates…':'Refresh templates'):null,
           canRestoreMsg&&deletedCount?h('button',{type:'button',className:`btn ${showDeleted?'btn-primary':'btn-secondary'}`,onClick:()=>setShowDeleted(v=>!v)},showDeleted?`Hide deleted (${deletedCount})`:`Show deleted (${deletedCount})`):null
@@ -13986,9 +14030,10 @@ Thank you.`;
                   h('div',{style:{width:'40px',height:'40px',borderRadius:'50%',display:'grid',placeItems:'center',background:'#dfe5e7',color:'#5d1039',fontWeight:'800'}},String(active.name||'?').trim().slice(0,1).toUpperCase()),
                   h('div',{style:{minWidth:0}},h('div',{style:{fontWeight:'800',color:'#2e252a',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},active.name),h('small',{style:{color:'#6e6268'}},isMobile?`+${active.phone}`:`+${active.phone} · ${active.source}`))
                 ),
-                !isMobile?h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}},
-                  h('span',{className:`badge ${within24?'success':''}`},within24?'Reply window open':'Template required')
-                ):null
+                h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}},
+                  waPeriod!=='all'&&!fullPhonesRef.current.has(active.phone)?h('button',{type:'button',className:'btn btn-secondary',style:{padding:'4px 10px',fontSize:'12px'},title:'Load this contact\'s messages older than the chosen period',onClick:()=>{fullPhonesRef.current.add(active.phone);load(true)}},isMobile?'Older':'Show older messages'):null,
+                  !isMobile?h('span',{className:`badge ${within24?'success':''}`},within24?'Reply window open':'Template required'):null
+                )
               ),
               h('div',{className:'wa-chat-scroll',ref:chatScrollRef,onScroll:e=>{const pane=e.currentTarget;chatViewRef.current.followLatest=pane.scrollHeight-pane.scrollTop-pane.clientHeight<64;}},active.msgs.map(r=>{
                 const outgoing=r.direction!=='inbound';const media=mediaInfo(r);

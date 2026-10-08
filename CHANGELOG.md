@@ -1,3 +1,12 @@
+## 2.15.97 — WhatsApp Inbox: load only a chosen period
+
+- The inbox now loads only the **last 30 days** by default, so it opens faster. Choose **Show: Last 7 days / 30 days / 3 months / 6 months / All messages** and press **Apply**; the choice is remembered for each user on that device.
+- **Show older messages** in an open chat loads that contact's full history.
+- A chat opened from the Enquiry Register, Enquiries & Feedback, a patient file or an alert pop-up always loads that contact's full history.
+- Fix (from 2.15.94): opening a chat from the Enquiry Register / pop-up again selects that chat (part of the line had been commented out by mistake).
+- Note: unread messages older than the chosen period are not counted; for STD, an enquiry whose last incoming message is older than the period shows after choosing a longer period.
+No SQL (SQL 209's date index makes the period load fast).
+
 ## 2.15.96 — "Back on duty" pop-up stays closed
 
 The "Miss Saranya S is back on duty" pop-up came back after every page refresh / app update for 24 hours, because Close was remembered only until the page reloaded.

@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.96';
-const CACHE = 'samara-erp-2.15.96-popup-close-remembered';
+const APP_VERSION = '2.15.97';
+const CACHE = 'samara-erp-2.15.97-whatsapp-period';
 const SHELL = [
   './',
   './index.html',
