@@ -37,6 +37,8 @@
       const ta=translate(val);
       if(!ta){if(rec)textRec.delete(node);return}
       if(skipped(node.parentElement))return;
+      // 2.16.9: a dropdown option without a value attribute uses its text as the saved value — keep the English value.
+      const opt=node.parentElement;if(opt&&opt.tagName==='OPTION'&&!opt.hasAttribute('value'))opt.setAttribute('value',String(val).trim());
       const lead=(/^\s*/.exec(val)||[''])[0],trail=(/\s*$/.exec(val)||[''])[0],out=lead+ta+trail;
       textRec.set(node,{en:val,ta:out});touchedText.add(node);node.nodeValue=out;
     }

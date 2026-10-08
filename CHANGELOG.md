@@ -1,3 +1,10 @@
+## 2.16.9 — Full Tamil for nurse screens
+
+- About 1,450 more Tamil phrases for the screens nurses use: Nursing Dashboard, Clinical Alerts, Shift Tasks, Medication Administration (MAR, doctor review, withheld dose), Vital Signs, Daily Care, Patients / Patient file, Discharge, Available Beds, Approval Requests, Equipment / Oxygen, Physiotherapy, Special Nurse, Shift Handover, Incidents, My Leave, To-Do, alerts and pop-ups.
+- Style as agreed: simple Tamil, with widely used work words kept (BP, MAR, டியூட்டி, ஷிஃப்ட், கெஸ்ட்). Food names, consumable item names, staff / Guest names and anything typed by staff stay as entered.
+- Safety: dropdown choices keep their English saved value when shown in Tamil, so forms save exactly as before.
+- Applies to everyone with the EN | தமிழ் switch (Akshi, Dharshini, Admin). No SQL.
+
 ## 2.16.8 — EN | தமிழ் switch for ANM Dharshini
 
 - The language switch (top bar, **EN | தமிழ்**) is now also shown to **Miss Dharshini (ANM, EMP-0018)** — the Tamil trial so far was STD (Akshi) and Admin. Her choice is remembered on every device.
