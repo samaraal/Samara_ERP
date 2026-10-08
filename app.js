@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.4';
+  const APP_VERSION = '2.16.5';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '08-Oct-2026 Roster equal columns';
+  const APP_BUILD_DATE = '08-Oct-2026 Roster equal columns fix';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -6850,7 +6850,7 @@ https://samaraassistedliving.com/`;
       }
       const media=window.matchMedia?.('(max-width:760px)');
       let frame=0;
-      const excluded='table.fv-history-table,table.rooms-table,table.patient-master-table,table.employee-master-table,table.medication-log-table,table.vitals-log-table';
+      const excluded='table.fv-history-table,table.rooms-table,table.patient-master-table,table.employee-master-table,table.medication-log-table,table.vitals-log-table,table.rg-table'; // 2.16.5: Duty Roster grid keeps its grid on phones
       const wideLabels=/action|details|description|remarks|instruction|patient|resident|employee|applicant|medicine|item|service|address|message|reason|particular|source|reference|request|decision/i;
       const enhanceTable=table=>{
         if(!table?.matches?.('table')||table.matches(excluded)||table.closest('.rooms-desktop-table-wrap'))return;
@@ -31624,47 +31624,47 @@ function ShiftManagement({profile}){
   const ROSTER_DAY='Day Shift (7 AM–7 PM)',ROSTER_NIGHT='Night Shift (7 PM–7 AM)';
   function rosterGridAllowed(profile){return profile?.role==='Admin'||isNursingManagerProfile(profile)}
   function ensureDutyRosterStyles(){
-    if(document.getElementById('samara-duty-roster-css'))return;
-    const s=document.createElement('style');s.id='samara-duty-roster-css';
+    if(document.getElementById('samara-roster-grid-css-v2'))return;
+    const s=document.createElement('style');s.id='samara-roster-grid-css-v2';
     s.textContent=`
-      .dr-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 12px}
-      .dr-bar .dr-spacer{flex:1 1 auto}
-      .dr-legend{display:flex;flex-wrap:wrap;gap:6px;font-size:12px;color:#5d4a54;margin:0 0 10px}
-      .dr-legend span{display:inline-flex;align-items:center;gap:4px}
-      .dr-wrap{overflow-x:hidden;overflow-y:auto;max-height:70vh;border:1px solid #ead7e1;border-radius:12px;background:#fff}
-      .dr-table{border-collapse:separate;border-spacing:0;font-size:13px;width:100%;table-layout:fixed} /* 2.16.4: equal date columns, no sideways scroll */
-      .dr-table th,.dr-table td{border-bottom:1px solid #f0e4ea;border-right:1px solid #f0e4ea;padding:0;text-align:center;white-space:nowrap}
-      .dr-table thead th{position:sticky;top:0;z-index:3;background:#fbf2f7;color:#5d1039;font-weight:800;padding:6px 2px;overflow:hidden}
-      .dr-table thead th.dr-today{background:#a91360;color:#fff}
-      .dr-table thead th small{display:block;font-weight:600;font-size:11px;opacity:.85}
-      .dr-table .dr-name{position:sticky;left:0;z-index:2;background:#fff;text-align:left;padding:6px 8px;width:170px;white-space:normal;overflow-wrap:anywhere;font-weight:700;color:#2e252a}
-      .dr-table thead .dr-name{z-index:4;background:#fbf2f7}
-      .dr-table .dr-name small{display:block;font-weight:500;color:#7b6871;font-size:11px}
-      .dr-table .dr-group td{background:#f6eaf0;color:#790c44;font-weight:800;text-align:left;padding:5px 10px;position:sticky;left:0}
-      .dr-cell{display:flex;align-items:center;justify-content:center;flex-direction:column;width:100%;min-width:0;overflow:hidden;height:42px;border:0;background:transparent;font-weight:800;font-size:13px;cursor:pointer;position:relative;color:#2e252a}
-      .dr-cell:disabled{cursor:not-allowed}
-      .dr-cell small{font-size:9px;font-weight:700;opacity:.8}
-      .dr-D{background:#fff4c7;color:#7a5200}
-      .dr-N{background:#1f2a5a;color:#fff}
-      .dr-O{background:#eee9ff;color:#5940aa}
-      .dr-L{background:#fde2e2;color:#b42318}
-      .dr-X{background:#e7f1ff;color:#1d4f91}
-      .dr-M{background:#ffe7c2;color:#8a4b00}
-      .dr-past{opacity:.55}
-      .dr-changed{outline:3px dashed #a91360;outline-offset:-3px}
-      .dr-ack{position:absolute;top:2px;right:4px;font-size:10px;color:#11643a}
-      .dr-N .dr-ack{color:#9ff0c0}
-      .dr-flag{position:absolute;top:2px;left:4px;font-size:10px}
-      .dr-total{font-size:12px;color:#5d4a54;padding:4px 2px!important;white-space:normal!important}
-      .dr-table col.dr-c-name{width:170px}.dr-table col.dr-c-total{width:78px}
-      .dr-s{display:none}.dr-compact .dr-l{display:none}.dr-compact .dr-s{display:inline}
-      .dr-compact thead th{font-size:11px}.dr-compact thead th small{font-size:10px}.dr-compact .dr-cell{font-size:12px}
-      .dr-compact .dr-cov td{font-size:10px}
-      .dr-cov td{background:#fbf7f9;font-size:11px;font-weight:700;color:#5d4a54;padding:4px 2px}
-      .dr-cov td.dr-short{background:#fde2e2;color:#b42318}
-      .dr-cov .dr-name{background:#fbf7f9}
-      .dr-unsaved{position:sticky;bottom:0;z-index:5;display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;padding:10px 12px;margin-top:10px;background:#fff7fb;border:2px solid #a91360;border-radius:12px}
-      @media (max-width:700px){.dr-table .dr-name{font-size:11px;padding:4px}.dr-table col.dr-c-name{width:92px}.dr-table col.dr-c-total{width:44px}.dr-l{display:none}.dr-s{display:inline}.dr-cell{height:38px;font-size:11px}.dr-table thead th{font-size:10px}.dr-name .btn{display:none!important}.dr-total{font-size:10px}}
+      .rg-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 12px}
+      .rg-bar .rg-spacer{flex:1 1 auto}
+      .rg-legend{display:flex;flex-wrap:wrap;gap:6px;font-size:12px;color:#5d4a54;margin:0 0 10px}
+      .rg-legend span{display:inline-flex;align-items:center;gap:4px}
+      .rg-wrap{overflow-x:hidden;overflow-y:auto;max-height:70vh;border:1px solid #ead7e1;border-radius:12px;background:#fff}
+      .rg-table{border-collapse:separate;border-spacing:0;font-size:13px;width:100%;table-layout:fixed} /* 2.16.4: equal date columns, no sideways scroll */
+      .rg-table th,.rg-table td{border-bottom:1px solid #f0e4ea;border-right:1px solid #f0e4ea;padding:0;text-align:center;white-space:nowrap}
+      .rg-table thead th{position:sticky;top:0;z-index:3;background:#fbf2f7;color:#5d1039;font-weight:800;padding:6px 2px;overflow:hidden}
+      .rg-table thead th.rg-today{background:#a91360;color:#fff}
+      .rg-table thead th small{display:block;font-weight:600;font-size:11px;opacity:.85}
+      .rg-table .rg-name{position:sticky;left:0;z-index:2;background:#fff;text-align:left;padding:6px 8px;width:170px;white-space:normal;overflow-wrap:anywhere;font-weight:700;color:#2e252a}
+      .rg-table thead .rg-name{z-index:4;background:#fbf2f7}
+      .rg-table .rg-name small{display:block;font-weight:500;color:#7b6871;font-size:11px}
+      .rg-table .rg-group td{background:#f6eaf0;color:#790c44;font-weight:800;text-align:left;padding:5px 10px;position:sticky;left:0}
+      .rg-cell{display:flex;align-items:center;justify-content:center;flex-direction:column;width:100%;min-width:0;overflow:hidden;height:42px;border:0;background:transparent;font-weight:800;font-size:13px;cursor:pointer;position:relative;color:#2e252a}
+      .rg-cell:disabled{cursor:not-allowed}
+      .rg-cell small{font-size:9px;font-weight:700;opacity:.8}
+      .rg-D{background:#fff4c7;color:#7a5200}
+      .rg-N{background:#1f2a5a;color:#fff}
+      .rg-O{background:#eee9ff;color:#5940aa}
+      .rg-L{background:#fde2e2;color:#b42318}
+      .rg-X{background:#e7f1ff;color:#1d4f91}
+      .rg-M{background:#ffe7c2;color:#8a4b00}
+      .rg-past{opacity:.55}
+      .rg-changed{outline:3px dashed #a91360;outline-offset:-3px}
+      .rg-ack{position:absolute;top:2px;right:4px;font-size:10px;color:#11643a}
+      .rg-N .rg-ack{color:#9ff0c0}
+      .rg-flag{position:absolute;top:2px;left:4px;font-size:10px}
+      .rg-total{font-size:12px;color:#5d4a54;padding:4px 2px!important;white-space:normal!important}
+      .rg-table col.rg-c-name{width:170px}.rg-table col.rg-c-total{width:78px}
+      .rg-s{display:none}.rg-compact .rg-l{display:none}.rg-compact .rg-s{display:inline}
+      .rg-compact thead th{font-size:11px}.rg-compact thead th small{font-size:10px}.rg-compact .rg-cell{font-size:12px}
+      .rg-compact .rg-cov td{font-size:10px}
+      .rg-cov td{background:#fbf7f9;font-size:11px;font-weight:700;color:#5d4a54;padding:4px 2px}
+      .rg-cov td.rg-short{background:#fde2e2;color:#b42318}
+      .rg-cov .rg-name{background:#fbf7f9}
+      .rg-unsaved{position:sticky;bottom:0;z-index:5;display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;padding:10px 12px;margin-top:10px;background:#fff7fb;border:2px solid #a91360;border-radius:12px}
+      @media (max-width:700px){.rg-table .rg-name{font-size:11px;padding:4px}.rg-table col.rg-c-name{width:92px}.rg-table col.rg-c-total{width:44px}.rg-l{display:none}.rg-s{display:inline}.rg-cell{height:38px;font-size:11px}.rg-table thead th{font-size:10px}.rg-name .btn{display:none!important}.rg-total{font-size:10px}}
     `;
     document.head.appendChild(s);
   }
@@ -31679,6 +31679,10 @@ function ShiftManagement({profile}){
     const DAY_NAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
     const today=todayISOIndia();
     const [days,setDays]=React.useState(7);
+    // 2.16.5: a month cannot fit a phone without sideways scrolling, so phones stay on 7 days.
+    const [narrow,setNarrow]=React.useState(()=>window.matchMedia?.('(max-width:700px)').matches||false);
+    React.useEffect(()=>{const mq=window.matchMedia?.('(max-width:700px)');if(!mq)return;const f=()=>setNarrow(mq.matches);mq.addEventListener?.('change',f);return()=>mq.removeEventListener?.('change',f)},[]);
+    React.useEffect(()=>{if(narrow&&days!==7){setDraft({});setDays(7)}},[narrow]);
     const [start,setStart]=React.useState(()=>monday(today));
     const [startDraft,setStartDraft]=React.useState(start);
     React.useEffect(()=>setStartDraft(start),[start]);
@@ -31830,23 +31834,23 @@ function ShiftManagement({profile}){
     const setPeriod=n=>{if(n===days)return;if(dirtyCount&&!window.confirm('You have unsaved roster changes. Discard them?'))return;setDraft({});setDays(n)};
 
     return h(Section,{title:'Duty Roster',subtitle:nursingManager&&profile?.role!=='Admin'?'Nursing staff · tap a cell: Day → Night → Off → empty. Press Save roster when done.':'All staff · tap a cell: Day → Night → Off → empty. Press Save roster when done.'},
-      h('div',{className:'dr-bar'},
+      h('div',{className:'rg-bar'},
         h('div',{role:'group','aria-label':'Period length',style:{display:'flex',gap:'4px'}},
-          [7,30].map(n=>h('button',{key:n,type:'button',className:`btn ${days===n?'btn-primary':'btn-secondary'}`,'aria-pressed':days===n,onClick:()=>setPeriod(n)},`${n} days`))),
+          [7,30].map(n=>h('button',{key:n,type:'button',className:`btn ${days===n?'btn-primary':'btn-secondary'}`,'aria-pressed':days===n,disabled:n===30&&narrow,title:n===30&&narrow?'30 days needs a wider screen (computer or tablet)':undefined,onClick:()=>setPeriod(n)},`${n} days`))),
         h('button',{type:'button',className:'btn btn-secondary','aria-label':'Previous period',onClick:()=>move(-1)},'‹'),
         h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'From',h(StrictDateInput,{value:startDraft,onChange:e=>setStartDraft(e.target.value)})),
         startDraft&&startDraft!==start?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{if(dirtyCount&&!window.confirm('You have unsaved roster changes. Discard them?'))return;setDraft({});setStart(startDraft)}},'Apply'):null,
         h('button',{type:'button',className:'btn btn-secondary','aria-label':'Next period',onClick:()=>move(1)},'›'),
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{if(dirtyCount&&!window.confirm('You have unsaved roster changes. Discard them?'))return;setDraft({});setStart(monday(today))}},'This week'),
-        h('span',{className:'dr-spacer'}),
+        h('span',{className:'rg-spacer'}),
         h('input',{value:search,onChange:e=>setSearch(e.target.value),placeholder:'Search staff…',style:{maxWidth:'180px'}}),
         h('button',{type:'button',className:'btn btn-secondary',disabled:busy||loading,title:`Fill empty cells from the previous ${days} days`,onClick:copyPrevious},'Copy previous period'),
         h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>{if(dirtyCount&&!window.confirm('Reload and discard unsaved changes?'))return;setDraft({});load()}},'Reload')),
-      h('div',{className:'dr-legend'},
-        h('span',null,h('b',{className:'dr-D',style:{padding:'2px 6px',borderRadius:'6px'}},'Day'),'7 AM–7 PM'),
-        h('span',null,h('b',{className:'dr-N',style:{padding:'2px 6px',borderRadius:'6px'}},'Night'),'7 PM–7 AM'),
-        h('span',null,h('b',{className:'dr-O',style:{padding:'2px 6px',borderRadius:'6px'}},'OFF'),'Weekly off (any day)'),
-        h('span',null,h('b',{className:'dr-L',style:{padding:'2px 6px',borderRadius:'6px'}},'LEAVE 🔒'),'Approved leave'),
+      h('div',{className:'rg-legend'},
+        h('span',null,h('b',{className:'rg-D',style:{padding:'2px 6px',borderRadius:'6px'}},'Day'),'7 AM–7 PM'),
+        h('span',null,h('b',{className:'rg-N',style:{padding:'2px 6px',borderRadius:'6px'}},'Night'),'7 PM–7 AM'),
+        h('span',null,h('b',{className:'rg-O',style:{padding:'2px 6px',borderRadius:'6px'}},'OFF'),'Weekly off (any day)'),
+        h('span',null,h('b',{className:'rg-L',style:{padding:'2px 6px',borderRadius:'6px'}},'LEAVE 🔒'),'Approved leave'),
         h('span',null,'30 days / phone: D = Day · N = Night · O = Off · L = Leave'),
         h('span',null,'⚠ Leave pending · P Permission · ✓ Acknowledged by staff · Other = Morning / Evening / General (from the list)'),
         h('span',{style:{marginLeft:'auto',display:'inline-flex',gap:'6px',alignItems:'center'}},'Minimum per shift: Day',
@@ -31854,15 +31858,15 @@ function ShiftManagement({profile}){
           h('input',{type:'number',min:0,value:minCover.N||'',onChange:e=>setMinCover({...minCover,N:e.target.value}),style:{width:'52px',padding:'2px 4px'}}))),
       error?h('div',{className:'message error'},error):null,
       loading&&!staff.length?h('p',{className:'empty'},'Loading roster…'):
-      h('div',{className:'dr-wrap'},h('table',{className:`dr-table ${days>7?'dr-compact':''}`},
-        h('colgroup',null,h('col',{className:'dr-c-name'}),dates.map(d=>h('col',{key:d})),h('col',{className:'dr-c-total'})),
+      h('div',{className:'rg-wrap'},h('table',{className:`rg-table ${days>7?'rg-compact':''}`},
+        h('colgroup',null,h('col',{className:'rg-c-name'}),dates.map(d=>h('col',{key:d})),h('col',{className:'rg-c-total'})),
         h('thead',null,h('tr',null,
-          h('th',{className:'dr-name'},`Staff (${scope.length})`),
-          dates.map(date=>h('th',{key:date,className:date===today?'dr-today':'',title:formatDateIN(date)},h('span',{className:'dr-l'},DAY_NAMES[parse(date).getUTCDay()]),h('span',{className:'dr-s'},DAY_NAMES[parse(date).getUTCDay()].slice(0,2)),h('small',null,h('span',{className:'dr-l'},formatDateIN(date).slice(0,5)),h('span',{className:'dr-s'},formatDateIN(date).slice(0,2))))),
+          h('th',{className:'rg-name'},`Staff (${scope.length})`),
+          dates.map(date=>h('th',{key:date,className:date===today?'rg-today':'',title:formatDateIN(date)},h('span',{className:'rg-l'},DAY_NAMES[parse(date).getUTCDay()]),h('span',{className:'rg-s'},DAY_NAMES[parse(date).getUTCDay()].slice(0,2)),h('small',null,h('span',{className:'rg-l'},formatDateIN(date).slice(0,5)),h('span',{className:'rg-s'},formatDateIN(date).slice(0,2))))),
           h('th',{title:'Days / Nights / Offs in this period'},'D/N/O'))),
         h('tbody',null,
           groups.map(g=>[
-            g.dept?h('tr',{key:`g-${g.dept}`,className:'dr-group'},h('td',{colSpan:dates.length+2},g.dept)):null,
+            g.dept?h('tr',{key:`g-${g.dept}`,className:'rg-group'},h('td',{colSpan:dates.length+2},g.dept)):null,
             ...g.staff.map(s=>{
               let D=0,N=0,O=0;
               const cells=dates.map(date=>{
@@ -31871,26 +31875,26 @@ function ShiftManagement({profile}){
                 const ack=c.existing.length===1&&c.existing[0].status==='Acknowledged'&&!c.changed;
                 const code=c.onLeave?'L':c.saved==='MULTI'?'M':c.value;
                 const title=c.onLeave?`Approved leave (${c.lv.leave_type||'Leave'})`:c.saved==='MULTI'?'More than one duty on this day — fix it in the List tab':date<today?'Past date (view only)':c.lv?(c.lv.status==='approved'?'Approved permission':'Leave / permission pending approval'):'Tap: Day → Night → Off → empty';
-                return h('td',{key:date},h('button',{type:'button',className:`dr-cell ${code?`dr-${code}`:''} ${date<today?'dr-past':''} ${c.changed?'dr-changed':''}`,disabled:c.locked||busy,title,'aria-label':`${formalName(s)} ${formatDateIN(date)}: ${c.onLeave?'leave':label(c.value)||'empty'}`,onClick:()=>tap(s,date)},
-                  !c.onLeave&&c.lv?h('span',{className:'dr-flag'},c.lv.status==='approved'?'P':'⚠'):null,
-                  ack?h('span',{className:'dr-ack'},'✓'):null,
-                  c.onLeave?h(React.Fragment,null,h('span',{className:'dr-l'},'LEAVE'),h('span',{className:'dr-s'},'L')):c.saved==='MULTI'?'2×':h(React.Fragment,null,h('span',{className:'dr-l'},label(c.value)),h('span',{className:'dr-s'},({D:'D',N:'N',O:'O',X:'•'})[c.value]||'')),
-                  c.value==='X'&&!c.changed&&c.existing[0]?h('small',{className:'dr-l'},String(c.existing[0].shift||'').split(' ')[0]):null));
+                return h('td',{key:date},h('button',{type:'button',className:`rg-cell ${code?`rg-${code}`:''} ${date<today?'rg-past':''} ${c.changed?'rg-changed':''}`,disabled:c.locked||busy,title,'aria-label':`${formalName(s)} ${formatDateIN(date)}: ${c.onLeave?'leave':label(c.value)||'empty'}`,onClick:()=>tap(s,date)},
+                  !c.onLeave&&c.lv?h('span',{className:'rg-flag'},c.lv.status==='approved'?'P':'⚠'):null,
+                  ack?h('span',{className:'rg-ack'},'✓'):null,
+                  c.onLeave?h(React.Fragment,null,h('span',{className:'rg-l'},'LEAVE'),h('span',{className:'rg-s'},'L')):c.saved==='MULTI'?'2×':h(React.Fragment,null,h('span',{className:'rg-l'},label(c.value)),h('span',{className:'rg-s'},({D:'D',N:'N',O:'O',X:'•'})[c.value]||'')),
+                  c.value==='X'&&!c.changed&&c.existing[0]?h('small',{className:'rg-l'},String(c.existing[0].shift||'').split(' ')[0]):null));
               });
               return h('tr',{key:s.id},
-                h('td',{className:'dr-name'},formalName(s),h('small',null,[s.designation,s.employee_id].filter(Boolean).join(' · ')),
+                h('td',{className:'rg-name'},formalName(s),h('small',null,[s.designation,s.employee_id].filter(Boolean).join(' · ')),
                   h('span',{style:{display:'flex',gap:'3px',marginTop:'3px'}},
                     h('button',{type:'button',className:'btn btn-secondary',style:{padding:'1px 6px',fontSize:'10px'},title:'Set every open day in this period to Day',onClick:()=>fillRow(s,'D')},'All Day'),
                     h('button',{type:'button',className:'btn btn-secondary',style:{padding:'1px 6px',fontSize:'10px'},title:'Set every open day in this period to Night',onClick:()=>fillRow(s,'N')},'All Night'))),
                 cells,
-                h('td',{className:'dr-total'},`${D}/${N}/${O}`));
+                h('td',{className:'rg-total'},`${D}/${N}/${O}`));
             })
           ]),
-          h('tr',{className:'dr-cov'},
-            h('td',{className:'dr-name'},'On duty (Day · Night)'),
-            dates.map(date=>{const cov=coverage(date);return h('td',{key:date,className:short(date,cov)?'dr-short':'',title:short(date,cov)?'Below the minimum per shift':''},`${cov.D}·${cov.N}`)}),
+          h('tr',{className:'rg-cov'},
+            h('td',{className:'rg-name'},'On duty (Day · Night)'),
+            dates.map(date=>{const cov=coverage(date);return h('td',{key:date,className:short(date,cov)?'rg-short':'',title:short(date,cov)?'Below the minimum per shift':''},`${cov.D}·${cov.N}`)}),
             h('td',null,''))))),
-      dirtyCount?h('div',{className:'dr-unsaved',role:'status'},
+      dirtyCount?h('div',{className:'rg-unsaved',role:'status'},
         h('strong',{style:{color:'#790c44'}},`${dirtyCount} unsaved change${dirtyCount===1?'':'s'}`),
         h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>setDraft({})},'Discard'),
         h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:save},busy?'Saving…':'Save roster')):null,

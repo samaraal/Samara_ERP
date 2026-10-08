@@ -1,3 +1,10 @@
+## 2.16.5 — Roster grid: equal columns really applied
+
+- 2.16.4's equal widths were overridden because the Discharge Register already used the same style names ("dr-…": its column widths 20% / 18% / 10%… were applied to the roster). The roster grid now has its own names ("rg-…"), so every date column is the same width and the roster fits the screen.
+- This also stops the roster's styles from affecting the Discharge Register table after the roster had been opened.
+- Phones keep the roster as a grid (not turned into cards) and stay on 7 days (30 days is disabled on phones — a month cannot fit without sideways scrolling).
+No SQL.
+
 ## 2.16.4 — Roster grid: equal column widths, no sideways scrolling
 
 - All date columns are the same width and the whole roster fits the screen — no horizontal scrolling, on computer or phone.

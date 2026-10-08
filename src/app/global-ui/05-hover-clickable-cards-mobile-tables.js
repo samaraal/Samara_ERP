@@ -119,7 +119,7 @@
       }
       const media=window.matchMedia?.('(max-width:760px)');
       let frame=0;
-      const excluded='table.fv-history-table,table.rooms-table,table.patient-master-table,table.employee-master-table,table.medication-log-table,table.vitals-log-table';
+      const excluded='table.fv-history-table,table.rooms-table,table.patient-master-table,table.employee-master-table,table.medication-log-table,table.vitals-log-table,table.rg-table'; // 2.16.5: Duty Roster grid keeps its grid on phones
       const wideLabels=/action|details|description|remarks|instruction|patient|resident|employee|applicant|medicine|item|service|address|message|reason|particular|source|reference|request|decision/i;
       const enhanceTable=table=>{
         if(!table?.matches?.('table')||table.matches(excluded)||table.closest('.rooms-desktop-table-wrap'))return;
