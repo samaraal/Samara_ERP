@@ -1,5 +1,5 @@
-Samara Care ERP 2.16.3 — Assign Duty opens the Roster grid — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
+Samara Care ERP 2.16.4 — Roster grid equal columns, no sideways scrolling — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
 
-Website files: src/app/nursing/duty-roster-grid.js, src/app/nursing/duty-assignment.js, src/app/manifest.json, src/app/0-start/01-app-constants.js,
+Website files: src/app/nursing/duty-roster-grid.js, src/app/manifest.json, src/app/0-start/01-app-constants.js,
 app.js, index.html, service-worker.js, bootstrap-error.js, CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
 No SQL for this release.

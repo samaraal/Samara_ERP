@@ -12,17 +12,17 @@
       .dr-bar .dr-spacer{flex:1 1 auto}
       .dr-legend{display:flex;flex-wrap:wrap;gap:6px;font-size:12px;color:#5d4a54;margin:0 0 10px}
       .dr-legend span{display:inline-flex;align-items:center;gap:4px}
-      .dr-wrap{overflow:auto;max-height:70vh;border:1px solid #ead7e1;border-radius:12px;background:#fff}
-      .dr-table{border-collapse:separate;border-spacing:0;font-size:13px;min-width:100%}
+      .dr-wrap{overflow-x:hidden;overflow-y:auto;max-height:70vh;border:1px solid #ead7e1;border-radius:12px;background:#fff}
+      .dr-table{border-collapse:separate;border-spacing:0;font-size:13px;width:100%;table-layout:fixed} /* 2.16.4: equal date columns, no sideways scroll */
       .dr-table th,.dr-table td{border-bottom:1px solid #f0e4ea;border-right:1px solid #f0e4ea;padding:0;text-align:center;white-space:nowrap}
-      .dr-table thead th{position:sticky;top:0;z-index:3;background:#fbf2f7;color:#5d1039;font-weight:800;padding:6px 4px;min-width:62px}
+      .dr-table thead th{position:sticky;top:0;z-index:3;background:#fbf2f7;color:#5d1039;font-weight:800;padding:6px 2px;overflow:hidden}
       .dr-table thead th.dr-today{background:#a91360;color:#fff}
       .dr-table thead th small{display:block;font-weight:600;font-size:11px;opacity:.85}
-      .dr-table .dr-name{position:sticky;left:0;z-index:2;background:#fff;text-align:left;padding:6px 10px;min-width:170px;max-width:220px;white-space:normal;font-weight:700;color:#2e252a}
+      .dr-table .dr-name{position:sticky;left:0;z-index:2;background:#fff;text-align:left;padding:6px 8px;width:170px;white-space:normal;overflow-wrap:anywhere;font-weight:700;color:#2e252a}
       .dr-table thead .dr-name{z-index:4;background:#fbf2f7}
       .dr-table .dr-name small{display:block;font-weight:500;color:#7b6871;font-size:11px}
       .dr-table .dr-group td{background:#f6eaf0;color:#790c44;font-weight:800;text-align:left;padding:5px 10px;position:sticky;left:0}
-      .dr-cell{display:flex;align-items:center;justify-content:center;flex-direction:column;width:100%;min-width:62px;height:42px;border:0;background:transparent;font-weight:800;font-size:13px;cursor:pointer;position:relative;color:#2e252a}
+      .dr-cell{display:flex;align-items:center;justify-content:center;flex-direction:column;width:100%;min-width:0;overflow:hidden;height:42px;border:0;background:transparent;font-weight:800;font-size:13px;cursor:pointer;position:relative;color:#2e252a}
       .dr-cell:disabled{cursor:not-allowed}
       .dr-cell small{font-size:9px;font-weight:700;opacity:.8}
       .dr-D{background:#fff4c7;color:#7a5200}
@@ -36,12 +36,16 @@
       .dr-ack{position:absolute;top:2px;right:4px;font-size:10px;color:#11643a}
       .dr-N .dr-ack{color:#9ff0c0}
       .dr-flag{position:absolute;top:2px;left:4px;font-size:10px}
-      .dr-total{font-size:12px;color:#5d4a54;padding:4px 8px!important;min-width:70px}
+      .dr-total{font-size:12px;color:#5d4a54;padding:4px 2px!important;white-space:normal!important}
+      .dr-table col.dr-c-name{width:170px}.dr-table col.dr-c-total{width:78px}
+      .dr-s{display:none}.dr-compact .dr-l{display:none}.dr-compact .dr-s{display:inline}
+      .dr-compact thead th{font-size:11px}.dr-compact thead th small{font-size:10px}.dr-compact .dr-cell{font-size:12px}
+      .dr-compact .dr-cov td{font-size:10px}
       .dr-cov td{background:#fbf7f9;font-size:11px;font-weight:700;color:#5d4a54;padding:4px 2px}
       .dr-cov td.dr-short{background:#fde2e2;color:#b42318}
       .dr-cov .dr-name{background:#fbf7f9}
       .dr-unsaved{position:sticky;bottom:0;z-index:5;display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;padding:10px 12px;margin-top:10px;background:#fff7fb;border:2px solid #a91360;border-radius:12px}
-      @media (max-width:700px){.dr-table .dr-name{min-width:118px;max-width:130px;font-size:12px}.dr-cell{min-width:48px;height:40px}.dr-table thead th{min-width:48px}}
+      @media (max-width:700px){.dr-table .dr-name{font-size:11px;padding:4px}.dr-table col.dr-c-name{width:92px}.dr-table col.dr-c-total{width:44px}.dr-l{display:none}.dr-s{display:inline}.dr-cell{height:38px;font-size:11px}.dr-table thead th{font-size:10px}.dr-name .btn{display:none!important}.dr-total{font-size:10px}}
     `;
     document.head.appendChild(s);
   }
@@ -224,17 +228,19 @@
         h('span',null,h('b',{className:'dr-N',style:{padding:'2px 6px',borderRadius:'6px'}},'Night'),'7 PM–7 AM'),
         h('span',null,h('b',{className:'dr-O',style:{padding:'2px 6px',borderRadius:'6px'}},'OFF'),'Weekly off (any day)'),
         h('span',null,h('b',{className:'dr-L',style:{padding:'2px 6px',borderRadius:'6px'}},'LEAVE 🔒'),'Approved leave'),
+        h('span',null,'30 days / phone: D = Day · N = Night · O = Off · L = Leave'),
         h('span',null,'⚠ Leave pending · P Permission · ✓ Acknowledged by staff · Other = Morning / Evening / General (from the list)'),
         h('span',{style:{marginLeft:'auto',display:'inline-flex',gap:'6px',alignItems:'center'}},'Minimum per shift: Day',
           h('input',{type:'number',min:0,value:minCover.D||'',onChange:e=>setMinCover({...minCover,D:e.target.value}),style:{width:'52px',padding:'2px 4px'}}),'Night',
           h('input',{type:'number',min:0,value:minCover.N||'',onChange:e=>setMinCover({...minCover,N:e.target.value}),style:{width:'52px',padding:'2px 4px'}}))),
       error?h('div',{className:'message error'},error):null,
       loading&&!staff.length?h('p',{className:'empty'},'Loading roster…'):
-      h('div',{className:'dr-wrap'},h('table',{className:'dr-table'},
+      h('div',{className:'dr-wrap'},h('table',{className:`dr-table ${days>7?'dr-compact':''}`},
+        h('colgroup',null,h('col',{className:'dr-c-name'}),dates.map(d=>h('col',{key:d})),h('col',{className:'dr-c-total'})),
         h('thead',null,h('tr',null,
           h('th',{className:'dr-name'},`Staff (${scope.length})`),
-          dates.map(date=>h('th',{key:date,className:date===today?'dr-today':''},DAY_NAMES[parse(date).getUTCDay()],h('small',null,formatDateIN(date).slice(0,5)))),
-          h('th',null,'Day / Night / Off'))),
+          dates.map(date=>h('th',{key:date,className:date===today?'dr-today':'',title:formatDateIN(date)},h('span',{className:'dr-l'},DAY_NAMES[parse(date).getUTCDay()]),h('span',{className:'dr-s'},DAY_NAMES[parse(date).getUTCDay()].slice(0,2)),h('small',null,h('span',{className:'dr-l'},formatDateIN(date).slice(0,5)),h('span',{className:'dr-s'},formatDateIN(date).slice(0,2))))),
+          h('th',{title:'Days / Nights / Offs in this period'},'D/N/O'))),
         h('tbody',null,
           groups.map(g=>[
             g.dept?h('tr',{key:`g-${g.dept}`,className:'dr-group'},h('td',{colSpan:dates.length+2},g.dept)):null,
@@ -249,8 +255,8 @@
                 return h('td',{key:date},h('button',{type:'button',className:`dr-cell ${code?`dr-${code}`:''} ${date<today?'dr-past':''} ${c.changed?'dr-changed':''}`,disabled:c.locked||busy,title,'aria-label':`${formalName(s)} ${formatDateIN(date)}: ${c.onLeave?'leave':label(c.value)||'empty'}`,onClick:()=>tap(s,date)},
                   !c.onLeave&&c.lv?h('span',{className:'dr-flag'},c.lv.status==='approved'?'P':'⚠'):null,
                   ack?h('span',{className:'dr-ack'},'✓'):null,
-                  c.onLeave?'LEAVE':c.saved==='MULTI'?'2×':label(c.value),
-                  c.value==='X'&&!c.changed&&c.existing[0]?h('small',null,String(c.existing[0].shift||'').split(' ')[0]):null));
+                  c.onLeave?h(React.Fragment,null,h('span',{className:'dr-l'},'LEAVE'),h('span',{className:'dr-s'},'L')):c.saved==='MULTI'?'2×':h(React.Fragment,null,h('span',{className:'dr-l'},label(c.value)),h('span',{className:'dr-s'},({D:'D',N:'N',O:'O',X:'•'})[c.value]||'')),
+                  c.value==='X'&&!c.changed&&c.existing[0]?h('small',{className:'dr-l'},String(c.existing[0].shift||'').split(' ')[0]):null));
               });
               return h('tr',{key:s.id},
                 h('td',{className:'dr-name'},formalName(s),h('small',null,[s.designation,s.employee_id].filter(Boolean).join(' · ')),
@@ -258,12 +264,12 @@
                     h('button',{type:'button',className:'btn btn-secondary',style:{padding:'1px 6px',fontSize:'10px'},title:'Set every open day in this period to Day',onClick:()=>fillRow(s,'D')},'All Day'),
                     h('button',{type:'button',className:'btn btn-secondary',style:{padding:'1px 6px',fontSize:'10px'},title:'Set every open day in this period to Night',onClick:()=>fillRow(s,'N')},'All Night'))),
                 cells,
-                h('td',{className:'dr-total'},`${D} / ${N} / ${O}`));
+                h('td',{className:'dr-total'},`${D}/${N}/${O}`));
             })
           ]),
           h('tr',{className:'dr-cov'},
             h('td',{className:'dr-name'},'On duty (Day · Night)'),
-            dates.map(date=>{const cov=coverage(date);return h('td',{key:date,className:short(date,cov)?'dr-short':'',title:short(date,cov)?'Below the minimum per shift':''},`${cov.D} · ${cov.N}`)}),
+            dates.map(date=>{const cov=coverage(date);return h('td',{key:date,className:short(date,cov)?'dr-short':'',title:short(date,cov)?'Below the minimum per shift':''},`${cov.D}·${cov.N}`)}),
             h('td',null,''))))),
       dirtyCount?h('div',{className:'dr-unsaved',role:'status'},
         h('strong',{style:{color:'#790c44'}},`${dirtyCount} unsaved change${dirtyCount===1?'':'s'}`),

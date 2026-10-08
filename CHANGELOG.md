@@ -1,3 +1,10 @@
+## 2.16.4 — Roster grid: equal column widths, no sideways scrolling
+
+- All date columns are the same width and the whole roster fits the screen — no horizontal scrolling, on computer or phone.
+- 30 days (and phones) show short letters: **D** Day · **N** Night · **O** Off · **L** Leave, with 2-letter weekday and date number in the header.
+- On phones the All Day / All Night buttons are hidden to save space.
+No SQL.
+
 ## 2.16.3 — Assign Duty = Roster grid (no long form)
 
 - For Admin and the Nursing Manager, **＋ Assign Duty** now opens the **Roster grid** (tick Day / Night / OFF per staff per day) instead of the long weekly form. Tabs renamed: **＋ Assign Duty (Roster grid)** and **Duty list**.
