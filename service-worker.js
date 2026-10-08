@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.90';
-const CACHE = 'samara-erp-2.15.90-staff-back-on-duty';
+const APP_VERSION = '2.15.91';
+const CACHE = 'samara-erp-2.15.91-duty-skip-leave-days';
 const SHELL = [
   './',
   './index.html',

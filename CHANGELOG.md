@@ -1,3 +1,12 @@
+## 2.15.91 — Duty Assignment: staff back from leave mid-week can be assigned
+
+Saranya came back on duty on Thursday after approved leave Monday–Wednesday, but Assign Duty for the week refused to save ("Approved leave / permission overlaps this assignment") because the weekly form covers all 7 days.
+- Weekly Assign Duty now skips the days on approved leave and assigns the other days; the message lists the skipped leave days.
+- If every working day of the week is on approved leave, nothing is assigned and the message says so.
+- Editing a single day that is on approved leave is still refused (mark Back on Duty first if she returned early).
+- Approved permission (a few hours) no longer blocks the day — it is shown as a warning.
+No SQL.
+
 ## 2.15.90 — Staff back on duty after approved leave
 
 How Admin knows a staff member has rejoined after leave:

@@ -544,14 +544,21 @@ function ShiftManagement({profile}){
       const failedCheck=checks.find(result=>result.error);
       if(failedCheck){setBusy(false);showToast('error',`Leave conflict check failed: ${failedCheck.error.message||'Unable to verify leave / permission records. The weekly duty was not assigned.'}`);return}
       const leaveConflicts=checks.map((result,index)=>result.conflict?{date:workingDates[index],conflict:result.conflict}:null).filter(Boolean);
-      if(leaveConflicts.some(item=>item.conflict.status==='approved'))throw new Error('Approved leave / permission overlaps this assignment. Change the dates or employee before saving.');
-      const leaveWarning=leaveConflicts.length?leaveConflicts.map(item=>`${leaveStatusLabel(item.conflict.status)} on ${formatDateIN(item.date)}`).join('; '):'';
+      // 2.15.91: a weekly assignment no longer fails because part of the week is on approved leave
+      // (e.g. back on duty mid-week): approved-leave days are skipped and the other days are assigned.
+      // A single-date edit on an approved-leave day is still refused. Approved permission (a few hours) is a warning only.
+      const isApprovedLeave=item=>item.conflict.status==='approved'&&item.conflict.request_type!=='Permission';
+      const leaveDays=new Set(leaveConflicts.filter(isApprovedLeave).map(item=>item.date));
+      if(editing&&leaveDays.size)throw new Error(`Approved leave on ${formatDateIN(form.duty_date)}. Change the date, or mark the staff Back on Duty in Staff Leave Calendar first.`);
+      if(!editing&&workingDates.length&&workingDates.every(date=>leaveDays.has(date)))throw new Error(`${formalName(staffFor(form.employee_id))||'This employee'} is on approved leave on every working day of this week. Nothing was assigned.`);
+      const leaveWarning=leaveConflicts.filter(item=>!isApprovedLeave(item)).map(item=>`${item.conflict.status==='approved'?'approved permission':leaveStatusLabel(item.conflict.status)} on ${formatDateIN(item.date)}`).join('; ');
+      const leaveSkipNote=leaveDays.size?` Approved leave on ${[...leaveDays].sort().map(formatDateIN).join(', ')} — no duty assigned on ${leaveDays.size===1?'that day':'those days'}.`:'';
       const {data:{user}}=await client.auth.getUser();
       const actionNow=new Date().toISOString();
       const basePayload={employee_id:form.employee_id,patient_id:form.patient_id||null,ward_room:form.ward_room.trim()||null,duty_task:form.duty_task.trim()||null,remarks:form.remarks.trim()||null,assigned_by:user?.id||profile?.id,assigned_by_name:formalName(profile)||profile?.full_name||'Authorised user',assigned_by_role:profile?.role,assigned_at:editing?(editing.assigned_at||editing.created_at||null):actionNow,updated_at:actionNow};
       const payload=editing
         ?{...basePayload,duty_date:form.duty_date,week_start:weekStart,weekly_off_day:form.weekly_off==='None'?null:Number(form.weekly_off),shift:form.shift,duty_type:form.duty_type,status:form.status,is_weekly_off:false}
-        :weekDates.filter(date=>!existingDates.has(date)).map(date=>{const index=weekDates.indexOf(date);const isOff=index===offIndex;return {...basePayload,duty_date:date,week_start:weekStart,weekly_off_day:offIndex,shift:isOff?'Weekly Off':form.shift,duty_type:isOff?'Weekly Off':form.duty_type,status:isOff?'Weekly Off':form.status,is_weekly_off:isOff}});
+        :weekDates.filter(date=>!existingDates.has(date)&&!leaveDays.has(date)).map(date=>{const index=weekDates.indexOf(date);const isOff=index===offIndex;return {...basePayload,duty_date:date,week_start:weekStart,weekly_off_day:offIndex,shift:isOff?'Weekly Off':form.shift,duty_type:isOff?'Weekly Off':form.duty_type,status:isOff?'Weekly Off':form.status,is_weekly_off:isOff}});
       const query=editing
         ?client.from('duty_assignments').update(payload).eq('id',editing.id).select('id').single()
         :client.from('duty_assignments').insert(payload).select('id');
@@ -559,7 +566,7 @@ function ShiftManagement({profile}){
       setBusy(false);
       if(error){showToast('error',error.message||'Unable to save duty assignment.');return}
       const retainedNote=!editing&&retainedDates.length?` Existing assignment${retainedDates.length===1?'':'s'} on ${retainedDates.map(formatDateIN).join(', ')} retained.`:'';
-      showToast('success',leaveWarning?`Assignment saved with warning: ${formalName(staffFor(form.employee_id))||'This employee'} has ${leaveWarning}. It is available for review and modification.`:(editing?'Duty assignment updated successfully.':`Weekly duty assigned for ${formatDateIN(weekStart)} to ${formatDateIN(weekDates[6])}.${retainedNote}`));
+      showToast('success',leaveWarning?`Assignment saved with warning: ${formalName(staffFor(form.employee_id))||'This employee'} has ${leaveWarning}. It is available for review and modification.${leaveSkipNote}`:(editing?'Duty assignment updated successfully.':`Weekly duty assigned for ${formatDateIN(weekStart)} to ${formatDateIN(weekDates[6])}.${retainedNote}${leaveSkipNote}`));
       setShowForm(false);await load();
       if(leaveWarning)setMessage(`Warning: ${formalName(staffFor(form.employee_id))||'This employee'} has ${leaveWarning}. Assignment was saved for review and modification.`);
       writeAuditEvent(editing?'Duty Assignment Updated':'Duty Assigned','Duty Assignment',data?.id||editing?.id,{
