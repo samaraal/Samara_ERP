@@ -17,6 +17,15 @@
     const stockFor=r=>stock.find(x=>x.item_id===r.store_item_id)||stock.find(x=>String(x.item_name).toLowerCase()===String(r.item_name).toLowerCase());
     // 2.14.96: click an indent row for its full details (who, when, every step)
     const [indentDetail,setIndentDetail]=React.useState(null);
+    // 2.15.89: a notification for one indent opens only that indent (global record-focus rule);
+    // indents handed over but not received within 20 minutes are marked in red (SQL 205).
+    // Only the full Patient Consumables page takes the focus (not Raise Indent / dashboard copies of this component).
+    const [recordFocus,clearRecordFocus]=useRecordFocus(!section&&!initialView?'Patient Consumables':'__patient-consumables-embedded__');
+    const [receiptOverdue,setReceiptOverdue]=React.useState({});
+    async function loadReceiptOverdue(){
+      try{const {data,error}=await client.rpc('indent_receipt_overdue_alerts');if(error)throw error;const map={};(Array.isArray(data)?data:[]).forEach(a=>{map[String(a.indent_id)]=a});setReceiptOverdue(map);}
+      catch(_error){/* Needs SQL 205; the register works without it. */}
+    }
     const rowClick=fn=>e=>{if(e&&e.target&&e.target.closest&&e.target.closest('button,a,input,select,textarea,label'))return;fn()};
     function indentFields(r){
       const u=indentUsage(r);const m=(masterItems||[]).find(x=>String(x.id)===String(r.store_item_id));const when=v=>v?formatDateTimeIN(v):'';
@@ -50,6 +59,7 @@
       if(iRes.error){console.warn(iRes.error);notify('error','Consumables workflow database is not installed yet.')} else setRows(iRes.data||[]);
       if(!aRes.error)setAllocations(aRes.data||[]);
       if(!rRes.error)setReturns(rRes.data||[]);
+      await loadReceiptOverdue();
 
     }
     async function refreshIndents(){
@@ -60,6 +70,7 @@
       notify('success','Patient Consumables refreshed.');
     }
     React.useEffect(()=>{load()},[]);
+    React.useEffect(()=>{const timer=setInterval(loadReceiptOverdue,60000);return()=>clearInterval(timer)},[]);
     React.useEffect(()=>{if(registerFilter)setFilter(registerFilter)},[registerFilter,section]);
     function chooseItem(id){const st=stock.find(x=>x.item_id===id);setForm(f=>({...f,store_item_id:id,item_name:displayStoreItemName(st?.item_name)||'',unit:st?.unit||'Nos'}))}
     async function initiate(e){
@@ -112,7 +123,8 @@
       if(res.error)notify('error',res.error.message);else{notify('success','Return confirmed and quantity added back to Stores.');await load()}
     }
     const openStatuses=['Initiated','Approved','Partially Approved','Handed Over','Receipt Discrepancy'];
-    const visible=rows.filter(r=>filter==='All'||(filter==='Open'?openStatuses.includes(r.status):filter==='Awaiting Handover'?['Approved','Partially Approved'].includes(r.status):r.status===filter));
+    const focusId=recordFocus?.id?String(recordFocus.id):'';
+    const visible=focusId?allIndentRows.filter(r=>String(r.id)===focusId):rows.filter(r=>filter==='All'||(filter==='Open'?openStatuses.includes(r.status):filter==='Awaiting Handover'?['Approved','Partially Approved'].includes(r.status):r.status===filter));
     const counts={initiated:rows.filter(r=>r.status==='Initiated').length,handover:rows.filter(r=>['Approved','Partially Approved'].includes(r.status)).length,receipt:rows.filter(r=>r.status==='Handed Over').length,discrepancy:rows.filter(r=>r.status==='Receipt Discrepancy').length};
     // 2.14.91: numbers for the Pharmacy & Stores dashboard boxes
     const indentToday=todayISOIndia();
@@ -139,6 +151,7 @@
     const alphaSort=(a,b)=>String(a||'').localeCompare(String(b||''),'en',{sensitivity:'base',numeric:true});
     const indentCategories=[...new Set(stock.map(categoryOfStock))].sort(alphaSort);
     const options=stock.filter(x=>!form.category||categoryOfStock(x)===form.category).slice().sort((a,b)=>alphaSort(a.item_name,b.item_name));
+    useScrollToFocused(focusId?`indent-row-${focusId}`:'',!!focusId&&visible.length>0);
     if(section==='none')return null;
     return h('div',null,
       indentDetail&&h(RowDetailModal,{title:indentDetail.title,subtitle:indentDetail.subtitle,fields:indentDetail.fields,onClose:()=>setIndentDetail(null)}),
@@ -165,10 +178,11 @@
         ))
       )),
       (!section||section==='register')&&h('div',{id:'consumables-indent-register',style:{scrollMarginTop:'90px'}},h(Section,{title:categoryFilter?`${categoryFilter} Indent Register`:'Consumables Indent Register',actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:refreshIndents},busy?'Refreshing…':'↻ Refresh'),['Open','Initiated','Awaiting Handover','Handed Over','Receipt Discrepancy','Received','Rejected','All'].map(x=>h('button',{type:'button',key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>navigateIndentFilter(x),'aria-pressed':filter===x},x)))},
+        focusId?h(RecordFocusBanner,{focus:recordFocus,onShowAll:clearRecordFocus}):null,
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Indent','Patient','Item / Store Balance','Requested','Approved','Handed Over','Received','Status','Initiated By / Time','Approval / Handover','Receipt','Action'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,visible.length?visible.map(r=>{const st=stockFor(r);return h('tr',{key:r.id,className:'row-clickable',onClick:rowClick(()=>setIndentDetail(indentFields(r)))},
+          h('tbody',null,visible.length?visible.map(r=>{const st=stockFor(r);const late=r.status==='Handed Over'?receiptOverdue[String(r.id)]:null;return h('tr',{key:r.id,id:`indent-row-${r.id}`,className:'row-clickable',onClick:rowClick(()=>setIndentDetail(indentFields(r)))},
             h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),h('td',null,patientLabel(r.patient_id)),h('td',null,h('strong',null,r.item_name),h('small',{style:{display:'block'}},`Store: ${st?.balance_qty??'—'} ${st?.unit||r.unit}`),r.request_remarks&&h('small',{style:{display:'block'}},r.request_remarks)),
-            h('td',null,`${r.requested_qty} ${r.unit}`),h('td',null,r.approved_qty!=null?`${r.approved_qty} ${r.unit}`:'—'),h('td',null,r.handed_over_qty!=null?`${r.handed_over_qty} ${r.unit}`:'—'),h('td',null,r.received_qty!=null?`${r.received_qty} ${r.unit}`:'—'),h('td',null,h('span',{style:stageStyle(r.status)},r.status)),
+            h('td',null,`${r.requested_qty} ${r.unit}`),h('td',null,r.approved_qty!=null?`${r.approved_qty} ${r.unit}`:'—'),h('td',null,r.handed_over_qty!=null?`${r.handed_over_qty} ${r.unit}`:'—'),h('td',null,r.received_qty!=null?`${r.received_qty} ${r.unit}`:'—'),h('td',null,h('span',{style:stageStyle(r.status)},r.status),late&&h('small',{style:{display:'block',marginTop:'5px',color:'#b2192d',fontWeight:800}},`Not received · ${late.minutes} min`)),
             h('td',null,h('strong',null,r.initiated_by_name||'—'),h('small',{style:{display:'block'}},r.initiated_at?formatDateTimeIN(r.initiated_at):'—')),
             h('td',null,r.approved_by_name&&h('div',null,h('strong',null,`Approved: ${r.approved_by_name}`),h('small',{style:{display:'block'}},r.approved_at?formatDateTimeIN(r.approved_at):'')),r.handed_over_by_name&&h('div',{style:{marginTop:'5px'}},h('strong',null,`Handed over: ${r.handed_over_by_name}`),h('small',{style:{display:'block'}},r.handed_over_at?formatDateTimeIN(r.handed_over_at):''))),
             h('td',null,r.received_by_name?h('div',null,h('strong',null,r.received_by_name),h('small',{style:{display:'block'}},r.received_at?formatDateTimeIN(r.received_at):''),r.receipt_remarks&&h('small',{style:{display:'block'}},r.receipt_remarks)):'—'),

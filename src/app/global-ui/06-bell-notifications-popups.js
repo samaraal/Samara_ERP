@@ -30,6 +30,9 @@
     setTimeout(()=>window.dispatchEvent(new CustomEvent('samara-workflow-target',{detail:target})),0);
   }
   function overdueChargeMinutes(m){const n=Number(m||0);return n>=60?`${Math.floor(n/60)} h ${n%60} min`:`${n} min`}
+  // 2.15.89: indent handed over but the nurse has not pressed Received within 20 minutes -> that nurse + Nursing Manager (SQL 205).
+  function indentReceiptLabel(a){return `${a?.indent_ref||'Indent'} · ${a?.item_name||'Item'}`}
+  function openIndentReceipt(a){openRecord('Patient Consumables',{id:a?.indent_id,patient_id:a?.patient_id,label:indentReceiptLabel(a)})}
 
   function ClinicalAlertBell({engine,onOpen}){
     const [preview,setPreview]=React.useState(false);
@@ -73,6 +76,15 @@
     const [foodReceiptDue,setFoodReceiptDue]=React.useState([]);
     const [foodReplyAlerts,setFoodReplyAlerts]=React.useState([]);
     const [overdueCharges,setOverdueCharges]=React.useState([]);
+    // 2.15.89: indents handed over but not received by the nurse within 20 minutes (SQL 205).
+    const roleKey=String(profile?.role||'').trim().toLowerCase();
+    const indentReceiptAccess=roleKey==='nurse'||cutoffAdmin||isNursingManagerProfile(profile)||nursingManager;
+    const [indentReceiptDue,setIndentReceiptDue]=React.useState([]);
+    async function loadIndentReceiptDue(){
+      if(!indentReceiptAccess)return;
+      try{const {data,error}=await client.rpc('indent_receipt_overdue_alerts');if(error)throw error;setIndentReceiptDue(Array.isArray(data)?data:[]);}
+      catch(_error){/* Needs SQL 205; until then this section simply stays empty. */}
+    }
     // 2.15.67: Enquiry Register reminders (SQL 196) — new enquiry / follow-up due for the assigned person; Admin: untouched 24 h.
     const enquiryAccess=['Admin','Manager','STD'].some(r=>hasDutyRole(profile,r));
     const [enquiryAlerts,setEnquiryAlerts]=React.useState([]);
@@ -114,6 +126,7 @@
         setPatientsById(map);setStoreRequests(indentResult.data||[]);
         await loadCutoffAttempts();
         await loadOverdueCharges();
+        await loadIndentReceiptDue();
         await loadEnquiryAlerts();
         if(typeof engine?.refresh==='function')await engine.refresh();
       }catch(error){setMessage(error.message||'Unable to refresh notifications.');}
@@ -126,6 +139,7 @@
     },[profile?.id,nursingManager]);
     React.useEffect(()=>{if(!cutoffAdmin)return;const refresh=()=>loadCutoffAttempts().catch(error=>setMessage(error.message||'Unable to load food cutoff attempts.'));const timer=setInterval(refresh,15000);window.addEventListener('focus',refresh);return()=>{clearInterval(timer);window.removeEventListener('focus',refresh)}},[profile?.id,cutoffAdmin]);
     React.useEffect(()=>{if(!enquiryAccess)return;loadEnquiryAlerts();const timer=setInterval(loadEnquiryAlerts,60000);window.addEventListener('focus',loadEnquiryAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadEnquiryAlerts)}},[profile?.id,enquiryAccess]);
+    React.useEffect(()=>{if(!indentReceiptAccess)return;loadIndentReceiptDue();const timer=setInterval(loadIndentReceiptDue,60000);window.addEventListener('focus',loadIndentReceiptDue);return()=>{clearInterval(timer);window.removeEventListener('focus',loadIndentReceiptDue)}},[profile?.id,indentReceiptAccess]);
     React.useEffect(()=>{if(!cutoffAdmin)return;loadOverdueCharges();const timer=setInterval(loadOverdueCharges,60000);window.addEventListener('focus',loadOverdueCharges);return()=>{clearInterval(timer);window.removeEventListener('focus',loadOverdueCharges)}},[profile?.id,cutoffAdmin]);
     React.useEffect(()=>{if(!foodAccess)return;loadFoodReplyAlerts();const timer=setInterval(loadFoodReplyAlerts,30000);window.addEventListener('focus',loadFoodReplyAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadFoodReplyAlerts)}},[profile?.id,foodAccess]);
     React.useEffect(()=>{if(!foodAccess)return;loadFoodReceiptDue();const timer=setInterval(loadFoodReceiptDue,60000);window.addEventListener('focus',loadFoodReceiptDue);return()=>{clearInterval(timer);window.removeEventListener('focus',loadFoodReceiptDue)}},[profile?.id,foodAccess]);
@@ -144,6 +158,11 @@
       message?h('div',{className:'message error'},message):null,
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(165px,1fr))',gap:'12px',marginBottom:'18px'}},nursingManager?metric('Store Requests',awaitingApproval.length,'Patient Consumables'):null,nursingManager?metric('Awaiting Handover',awaitingHandover.length,'Patient Consumables'):null,metric('Medication > 30 min',medicineAlerts.length,'Clinical Escalations','#efb6b6'),metric('Care > 30 min',careAlerts.length,'Clinical Escalations','#efcf9c'),nursingManager?metric('Store Discrepancies',discrepancies.length,'Patient Consumables','#efb6b6'):null),
       nursingManager?h('section',{style:{marginBottom:'20px'}},h('h4',null,'Pharmacy & Stores Requests'),h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Item','Quantity','Status','Requested'].map(x=>h('th',{key:x},x)))),h('tbody',null,storeRequests.map(r=>h('tr',{key:r.id,role:'button',tabIndex:0,onClick:()=>navigate('Patient Consumables'),style:{cursor:'pointer',touchAction:'manipulation'}},h('td',null,patientName(r)),h('td',null,r.item_name||'Consumable'),h('td',null,`${r.requested_qty||'—'} ${r.unit||''}`),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)))),storeRequests.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No open Pharmacy & Stores requests.')):null)))):null,
+      indentReceiptAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Indents Handed Over — Not Received by Nurse (over 20 minutes)'),h('small',null,roleKey==='nurse'?'Items the store handed over to you, but you have not pressed Received yet. Tap a row, check the items and press Received.':'Store handed these over, but the nurse who raised the indent has not pressed Received within 20 minutes. India time. Tap a row to open that indent.'),
+        h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Indent','Guest','Room','Item','Qty','Nurse','Handed over','Waiting'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,indentReceiptDue.map(a=>h('tr',{key:a.indent_id,role:'button',tabIndex:0,onClick:()=>openIndentReceipt(a),onKeyDown:e=>{if(e.key==='Enter')openIndentReceipt(a)},style:{cursor:'pointer',touchAction:'manipulation'}},
+            h('td',null,a.indent_ref||'—'),h('td',null,a.guest_name||'Guest'),h('td',null,a.room_label||'—'),h('td',null,a.item_name||'—'),h('td',null,`${a.quantity??'—'} ${a.unit||''}`),h('td',null,a.nurse_name||'—'),h('td',null,`${fmt(a.handed_over_at)}${a.handed_over_by_name?` · ${a.handed_over_by_name}`:''}`),h('td',null,h('span',{className:'badge',style:{background:'#ffe5e7',color:'#b2192d'}},overdueChargeMinutes(a.minutes))))),
+            indentReceiptDue.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'Every handed-over indent has been received within 20 minutes.')):null)))):null,
       enquiryAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Enquiries — Follow-up Needed'),h('small',null,'New enquiries and follow-ups due for you; Admin also sees New enquiries untouched for 24 hours. Tap a row to open that enquiry.'),
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Alert','Enquiry','Guest','Contact','Source','When'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,enquiryAlerts.map((a,i)=>h('tr',{key:a.alert+a.id+i,role:'button',tabIndex:0,style:{cursor:'pointer',touchAction:'manipulation'},onClick:()=>{try{sessionStorage.setItem('samara-open-enquiry-id',a.id)}catch(_){}navigate('Enquiry Register');setTimeout(()=>window.dispatchEvent(new CustomEvent('samara-open-enquiry',{detail:{id:a.id}})),0)}},
@@ -199,7 +218,10 @@
         // 2.15.53/54: charges not attended by Accounts within 30 minutes -> Admin / Director (pop-up re-appears every 30 min while pending)
         if(foodAdmin)jobs.push(client.rpc('bill_charge_overdue_alerts'));
         else jobs.push(Promise.resolve({data:[],error:null}));
-        const [dis,charges,food,withheld,overdue]=await Promise.all(jobs);
+        // 2.15.89: indent handed over, not received within 20 min -> the nurse who raised it + Nursing Manager (pop-up re-appears every 20 min)
+        if(isNursing)jobs.push(client.rpc('indent_receipt_overdue_alerts'));
+        else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges,food,withheld,overdue,indentDue]=await Promise.all(jobs);
         const candidates=[];
         (dis.data||[]).forEach(row=>{
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
@@ -235,6 +257,17 @@
           const lines=list.slice(0,4).map(a=>`${a.guest_name||'Guest'}${a.room_label?` (${a.room_label})`:''}: ${a.item||a.category||'Charge'} — pending ${overdueChargeMinutes(a.minutes)}`).join('; ');
           candidates.push({key:`charge-overdue-${newest.request_id}-${list.length}-${Math.floor(Date.now()/1800000)}`,kind:'Bills & Charges',title:`${list.length} charge request${list.length===1?'':'s'} not attended by Accounts`,detail:`Not approved / rejected by Accounts within 30 minutes of being raised. ${lines}${list.length>4?`; + ${list.length-4} more (see Notifications)`:''}. Follow up with Accounts.`,page:'Charge Approvals',target:{type:'charge-request',request_id:oldest.request_id,patient_id:oldest.patient_id},urgent:true,at:oldest.raised_at});
         }
+        const indentRows=(!indentDue?.error&&Array.isArray(indentDue?.data))?indentDue.data.filter(a=>a.audience==='nurse'||a.audience==='manager'):[];
+        if(indentRows.length){
+          const list=indentRows.slice().sort((a,b)=>new Date(a.handed_over_at)-new Date(b.handed_over_at));
+          const oldest=list[0],mine=list.every(a=>a.audience==='nurse');
+          const round=Math.max(...list.map(a=>Number(a.round_no||0)));
+          const lines=list.slice(0,4).map(a=>`${a.indent_ref}: ${a.item_name} × ${a.quantity} ${a.unit||''} for ${a.guest_name||'Guest'}${a.room_label?` (${a.room_label})`:''}${mine?'':` — ${a.nurse_name||'nurse'}`}, waiting ${overdueChargeMinutes(a.minutes)}`).join('; ');
+          candidates.push({key:`indent-receipt-${list.map(a=>a.indent_id).join('-')}-${round}`,kind:'Nursing Indent',
+            title:mine?`Press Received for ${list.length===1?'your indent':`${list.length} indents`}`:`${list.length} indent${list.length===1?'':'s'} not received by the nurse`,
+            detail:mine?`The store handed these over more than 20 minutes ago, but Received is not entered yet. ${lines}${list.length>4?`; + ${list.length-4} more`:''}. Check the items and press Received.`:`Handed over by the store, but the nurse has not pressed Received within 20 minutes. ${lines}${list.length>4?`; + ${list.length-4} more (see Alerts)`:''}. Please follow up with the nurse.`,
+            page:'Patient Consumables',record:list.length===1?{id:oldest.indent_id,patient_id:oldest.patient_id,label:indentReceiptLabel(oldest)}:null,urgent:true,at:oldest.handed_over_at});
+        }
         candidates.sort((a,b)=>Number(!!b.urgent)-Number(!!a.urgent)||new Date(b.at||0)-new Date(a.at||0));
         const next=candidates.find(x=>!closed.current.has(x.key));
         setItem(current=>current&&candidates.some(x=>x.key===current.key)?current:(next||null));
@@ -253,6 +286,7 @@
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dismiss(item)},'Close'),
         item.food?h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{if(await markFoodVendorAlertHandled(item.food)){dismiss(item);load();}}},'Mark handled'):null,
         item.food?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{dismiss(item);openFoodVendorMessage(item.food,onNavigate)}},'Open order message'):
+        item.record?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{dismiss(item);openRecord(item.page,item.record)}},'Open & Take Action'):
         h('button',{type:'button',className:'btn btn-primary',onClick:()=>{const target=item.target?{...item.target,at:Date.now()}:null;try{if(target)sessionStorage.setItem('samara-workflow-target',JSON.stringify(target));}catch(_error){} dismiss(item);onNavigate(item.page);/* v2.14.45: tell an already-open page to show this exact item now */if(target)setTimeout(()=>window.dispatchEvent(new CustomEvent('samara-workflow-target',{detail:target})),0)}},'Open & Take Action'))
     ));
   }

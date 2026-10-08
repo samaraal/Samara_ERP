@@ -1,3 +1,14 @@
+## 2.15.89 — Nursing Indent: alert when the nurse has not pressed Received within 20 minutes
+
+Indent flow: Nurse requests → Nursing Manager approves → Store hands over → Nurse presses **Received**.
+If the indent is still "Handed Over" 20 minutes after the handover:
+- **The nurse who raised the indent** and **the Nursing Manager** get a pop-up in the ERP (it comes back every 20 minutes until Received is entered) and a phone notification (repeated every 20 minutes while still not received).
+- Alerts page: new section "Indents Handed Over — Not Received by Nurse (over 20 minutes)". The nurse sees only her own indents; the Nursing Manager sees all; Admin / Director can also view the list (no pop-up, no phone notification).
+- Tapping the pop-up or a row opens Patient Consumables showing only that indent (Show all button to return); in the Indent Register the late indent shows "Not received · N min" in red under its status.
+- Indents handed over before SQL 205 was run are listed but get no phone notification.
+- Times are in settings (indent_receipt_alert_settings: minutes 20, repeat_minutes 20; 0 = remind only once).
+**SQL 205** + new Edge Function **indent-receipt-alert-dispatch** (uses the existing push secrets; runs every minute).
+
 ## 2.15.88 — Food Vendor Settings: one choice per message
 
 The two rows of template tick boxes (old + _v2) were confusing. Settings now shows one line per message — New order · Order changed / cancelled · Food received — with a single choice: **New simplified (_v2)** / **Old** / **Off**. Choosing New automatically keeps the sending permission the database needs (the old tick is handled behind the scenes). No SQL.

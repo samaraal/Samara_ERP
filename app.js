@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.88';
+  const APP_VERSION = '2.15.89';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '07-Oct-2026 Food template choice';
+  const APP_BUILD_DATE = '08-Oct-2026 Indent receipt 20-min alert';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -6921,6 +6921,9 @@ https://samaraassistedliving.com/`;
     setTimeout(()=>window.dispatchEvent(new CustomEvent('samara-workflow-target',{detail:target})),0);
   }
   function overdueChargeMinutes(m){const n=Number(m||0);return n>=60?`${Math.floor(n/60)} h ${n%60} min`:`${n} min`}
+  // 2.15.89: indent handed over but the nurse has not pressed Received within 20 minutes -> that nurse + Nursing Manager (SQL 205).
+  function indentReceiptLabel(a){return `${a?.indent_ref||'Indent'} · ${a?.item_name||'Item'}`}
+  function openIndentReceipt(a){openRecord('Patient Consumables',{id:a?.indent_id,patient_id:a?.patient_id,label:indentReceiptLabel(a)})}
 
   function ClinicalAlertBell({engine,onOpen}){
     const [preview,setPreview]=React.useState(false);
@@ -6964,6 +6967,15 @@ https://samaraassistedliving.com/`;
     const [foodReceiptDue,setFoodReceiptDue]=React.useState([]);
     const [foodReplyAlerts,setFoodReplyAlerts]=React.useState([]);
     const [overdueCharges,setOverdueCharges]=React.useState([]);
+    // 2.15.89: indents handed over but not received by the nurse within 20 minutes (SQL 205).
+    const roleKey=String(profile?.role||'').trim().toLowerCase();
+    const indentReceiptAccess=roleKey==='nurse'||cutoffAdmin||isNursingManagerProfile(profile)||nursingManager;
+    const [indentReceiptDue,setIndentReceiptDue]=React.useState([]);
+    async function loadIndentReceiptDue(){
+      if(!indentReceiptAccess)return;
+      try{const {data,error}=await client.rpc('indent_receipt_overdue_alerts');if(error)throw error;setIndentReceiptDue(Array.isArray(data)?data:[]);}
+      catch(_error){/* Needs SQL 205; until then this section simply stays empty. */}
+    }
     // 2.15.67: Enquiry Register reminders (SQL 196) — new enquiry / follow-up due for the assigned person; Admin: untouched 24 h.
     const enquiryAccess=['Admin','Manager','STD'].some(r=>hasDutyRole(profile,r));
     const [enquiryAlerts,setEnquiryAlerts]=React.useState([]);
@@ -7005,6 +7017,7 @@ https://samaraassistedliving.com/`;
         setPatientsById(map);setStoreRequests(indentResult.data||[]);
         await loadCutoffAttempts();
         await loadOverdueCharges();
+        await loadIndentReceiptDue();
         await loadEnquiryAlerts();
         if(typeof engine?.refresh==='function')await engine.refresh();
       }catch(error){setMessage(error.message||'Unable to refresh notifications.');}
@@ -7017,6 +7030,7 @@ https://samaraassistedliving.com/`;
     },[profile?.id,nursingManager]);
     React.useEffect(()=>{if(!cutoffAdmin)return;const refresh=()=>loadCutoffAttempts().catch(error=>setMessage(error.message||'Unable to load food cutoff attempts.'));const timer=setInterval(refresh,15000);window.addEventListener('focus',refresh);return()=>{clearInterval(timer);window.removeEventListener('focus',refresh)}},[profile?.id,cutoffAdmin]);
     React.useEffect(()=>{if(!enquiryAccess)return;loadEnquiryAlerts();const timer=setInterval(loadEnquiryAlerts,60000);window.addEventListener('focus',loadEnquiryAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadEnquiryAlerts)}},[profile?.id,enquiryAccess]);
+    React.useEffect(()=>{if(!indentReceiptAccess)return;loadIndentReceiptDue();const timer=setInterval(loadIndentReceiptDue,60000);window.addEventListener('focus',loadIndentReceiptDue);return()=>{clearInterval(timer);window.removeEventListener('focus',loadIndentReceiptDue)}},[profile?.id,indentReceiptAccess]);
     React.useEffect(()=>{if(!cutoffAdmin)return;loadOverdueCharges();const timer=setInterval(loadOverdueCharges,60000);window.addEventListener('focus',loadOverdueCharges);return()=>{clearInterval(timer);window.removeEventListener('focus',loadOverdueCharges)}},[profile?.id,cutoffAdmin]);
     React.useEffect(()=>{if(!foodAccess)return;loadFoodReplyAlerts();const timer=setInterval(loadFoodReplyAlerts,30000);window.addEventListener('focus',loadFoodReplyAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadFoodReplyAlerts)}},[profile?.id,foodAccess]);
     React.useEffect(()=>{if(!foodAccess)return;loadFoodReceiptDue();const timer=setInterval(loadFoodReceiptDue,60000);window.addEventListener('focus',loadFoodReceiptDue);return()=>{clearInterval(timer);window.removeEventListener('focus',loadFoodReceiptDue)}},[profile?.id,foodAccess]);
@@ -7035,6 +7049,11 @@ https://samaraassistedliving.com/`;
       message?h('div',{className:'message error'},message):null,
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(165px,1fr))',gap:'12px',marginBottom:'18px'}},nursingManager?metric('Store Requests',awaitingApproval.length,'Patient Consumables'):null,nursingManager?metric('Awaiting Handover',awaitingHandover.length,'Patient Consumables'):null,metric('Medication > 30 min',medicineAlerts.length,'Clinical Escalations','#efb6b6'),metric('Care > 30 min',careAlerts.length,'Clinical Escalations','#efcf9c'),nursingManager?metric('Store Discrepancies',discrepancies.length,'Patient Consumables','#efb6b6'):null),
       nursingManager?h('section',{style:{marginBottom:'20px'}},h('h4',null,'Pharmacy & Stores Requests'),h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Item','Quantity','Status','Requested'].map(x=>h('th',{key:x},x)))),h('tbody',null,storeRequests.map(r=>h('tr',{key:r.id,role:'button',tabIndex:0,onClick:()=>navigate('Patient Consumables'),style:{cursor:'pointer',touchAction:'manipulation'}},h('td',null,patientName(r)),h('td',null,r.item_name||'Consumable'),h('td',null,`${r.requested_qty||'—'} ${r.unit||''}`),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)))),storeRequests.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No open Pharmacy & Stores requests.')):null)))):null,
+      indentReceiptAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Indents Handed Over — Not Received by Nurse (over 20 minutes)'),h('small',null,roleKey==='nurse'?'Items the store handed over to you, but you have not pressed Received yet. Tap a row, check the items and press Received.':'Store handed these over, but the nurse who raised the indent has not pressed Received within 20 minutes. India time. Tap a row to open that indent.'),
+        h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Indent','Guest','Room','Item','Qty','Nurse','Handed over','Waiting'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,indentReceiptDue.map(a=>h('tr',{key:a.indent_id,role:'button',tabIndex:0,onClick:()=>openIndentReceipt(a),onKeyDown:e=>{if(e.key==='Enter')openIndentReceipt(a)},style:{cursor:'pointer',touchAction:'manipulation'}},
+            h('td',null,a.indent_ref||'—'),h('td',null,a.guest_name||'Guest'),h('td',null,a.room_label||'—'),h('td',null,a.item_name||'—'),h('td',null,`${a.quantity??'—'} ${a.unit||''}`),h('td',null,a.nurse_name||'—'),h('td',null,`${fmt(a.handed_over_at)}${a.handed_over_by_name?` · ${a.handed_over_by_name}`:''}`),h('td',null,h('span',{className:'badge',style:{background:'#ffe5e7',color:'#b2192d'}},overdueChargeMinutes(a.minutes))))),
+            indentReceiptDue.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'Every handed-over indent has been received within 20 minutes.')):null)))):null,
       enquiryAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Enquiries — Follow-up Needed'),h('small',null,'New enquiries and follow-ups due for you; Admin also sees New enquiries untouched for 24 hours. Tap a row to open that enquiry.'),
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Alert','Enquiry','Guest','Contact','Source','When'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,enquiryAlerts.map((a,i)=>h('tr',{key:a.alert+a.id+i,role:'button',tabIndex:0,style:{cursor:'pointer',touchAction:'manipulation'},onClick:()=>{try{sessionStorage.setItem('samara-open-enquiry-id',a.id)}catch(_){}navigate('Enquiry Register');setTimeout(()=>window.dispatchEvent(new CustomEvent('samara-open-enquiry',{detail:{id:a.id}})),0)}},
@@ -7090,7 +7109,10 @@ https://samaraassistedliving.com/`;
         // 2.15.53/54: charges not attended by Accounts within 30 minutes -> Admin / Director (pop-up re-appears every 30 min while pending)
         if(foodAdmin)jobs.push(client.rpc('bill_charge_overdue_alerts'));
         else jobs.push(Promise.resolve({data:[],error:null}));
-        const [dis,charges,food,withheld,overdue]=await Promise.all(jobs);
+        // 2.15.89: indent handed over, not received within 20 min -> the nurse who raised it + Nursing Manager (pop-up re-appears every 20 min)
+        if(isNursing)jobs.push(client.rpc('indent_receipt_overdue_alerts'));
+        else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges,food,withheld,overdue,indentDue]=await Promise.all(jobs);
         const candidates=[];
         (dis.data||[]).forEach(row=>{
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
@@ -7126,6 +7148,17 @@ https://samaraassistedliving.com/`;
           const lines=list.slice(0,4).map(a=>`${a.guest_name||'Guest'}${a.room_label?` (${a.room_label})`:''}: ${a.item||a.category||'Charge'} — pending ${overdueChargeMinutes(a.minutes)}`).join('; ');
           candidates.push({key:`charge-overdue-${newest.request_id}-${list.length}-${Math.floor(Date.now()/1800000)}`,kind:'Bills & Charges',title:`${list.length} charge request${list.length===1?'':'s'} not attended by Accounts`,detail:`Not approved / rejected by Accounts within 30 minutes of being raised. ${lines}${list.length>4?`; + ${list.length-4} more (see Notifications)`:''}. Follow up with Accounts.`,page:'Charge Approvals',target:{type:'charge-request',request_id:oldest.request_id,patient_id:oldest.patient_id},urgent:true,at:oldest.raised_at});
         }
+        const indentRows=(!indentDue?.error&&Array.isArray(indentDue?.data))?indentDue.data.filter(a=>a.audience==='nurse'||a.audience==='manager'):[];
+        if(indentRows.length){
+          const list=indentRows.slice().sort((a,b)=>new Date(a.handed_over_at)-new Date(b.handed_over_at));
+          const oldest=list[0],mine=list.every(a=>a.audience==='nurse');
+          const round=Math.max(...list.map(a=>Number(a.round_no||0)));
+          const lines=list.slice(0,4).map(a=>`${a.indent_ref}: ${a.item_name} × ${a.quantity} ${a.unit||''} for ${a.guest_name||'Guest'}${a.room_label?` (${a.room_label})`:''}${mine?'':` — ${a.nurse_name||'nurse'}`}, waiting ${overdueChargeMinutes(a.minutes)}`).join('; ');
+          candidates.push({key:`indent-receipt-${list.map(a=>a.indent_id).join('-')}-${round}`,kind:'Nursing Indent',
+            title:mine?`Press Received for ${list.length===1?'your indent':`${list.length} indents`}`:`${list.length} indent${list.length===1?'':'s'} not received by the nurse`,
+            detail:mine?`The store handed these over more than 20 minutes ago, but Received is not entered yet. ${lines}${list.length>4?`; + ${list.length-4} more`:''}. Check the items and press Received.`:`Handed over by the store, but the nurse has not pressed Received within 20 minutes. ${lines}${list.length>4?`; + ${list.length-4} more (see Alerts)`:''}. Please follow up with the nurse.`,
+            page:'Patient Consumables',record:list.length===1?{id:oldest.indent_id,patient_id:oldest.patient_id,label:indentReceiptLabel(oldest)}:null,urgent:true,at:oldest.handed_over_at});
+        }
         candidates.sort((a,b)=>Number(!!b.urgent)-Number(!!a.urgent)||new Date(b.at||0)-new Date(a.at||0));
         const next=candidates.find(x=>!closed.current.has(x.key));
         setItem(current=>current&&candidates.some(x=>x.key===current.key)?current:(next||null));
@@ -7144,6 +7177,7 @@ https://samaraassistedliving.com/`;
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dismiss(item)},'Close'),
         item.food?h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{if(await markFoodVendorAlertHandled(item.food)){dismiss(item);load();}}},'Mark handled'):null,
         item.food?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{dismiss(item);openFoodVendorMessage(item.food,onNavigate)}},'Open order message'):
+        item.record?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{dismiss(item);openRecord(item.page,item.record)}},'Open & Take Action'):
         h('button',{type:'button',className:'btn btn-primary',onClick:()=>{const target=item.target?{...item.target,at:Date.now()}:null;try{if(target)sessionStorage.setItem('samara-workflow-target',JSON.stringify(target));}catch(_error){} dismiss(item);onNavigate(item.page);/* v2.14.45: tell an already-open page to show this exact item now */if(target)setTimeout(()=>window.dispatchEvent(new CustomEvent('samara-workflow-target',{detail:target})),0)}},'Open & Take Action'))
     ));
   }
@@ -35960,6 +35994,15 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const stockFor=r=>stock.find(x=>x.item_id===r.store_item_id)||stock.find(x=>String(x.item_name).toLowerCase()===String(r.item_name).toLowerCase());
     // 2.14.96: click an indent row for its full details (who, when, every step)
     const [indentDetail,setIndentDetail]=React.useState(null);
+    // 2.15.89: a notification for one indent opens only that indent (global record-focus rule);
+    // indents handed over but not received within 20 minutes are marked in red (SQL 205).
+    // Only the full Patient Consumables page takes the focus (not Raise Indent / dashboard copies of this component).
+    const [recordFocus,clearRecordFocus]=useRecordFocus(!section&&!initialView?'Patient Consumables':'__patient-consumables-embedded__');
+    const [receiptOverdue,setReceiptOverdue]=React.useState({});
+    async function loadReceiptOverdue(){
+      try{const {data,error}=await client.rpc('indent_receipt_overdue_alerts');if(error)throw error;const map={};(Array.isArray(data)?data:[]).forEach(a=>{map[String(a.indent_id)]=a});setReceiptOverdue(map);}
+      catch(_error){/* Needs SQL 205; the register works without it. */}
+    }
     const rowClick=fn=>e=>{if(e&&e.target&&e.target.closest&&e.target.closest('button,a,input,select,textarea,label'))return;fn()};
     function indentFields(r){
       const u=indentUsage(r);const m=(masterItems||[]).find(x=>String(x.id)===String(r.store_item_id));const when=v=>v?formatDateTimeIN(v):'';
@@ -35993,6 +36036,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       if(iRes.error){console.warn(iRes.error);notify('error','Consumables workflow database is not installed yet.')} else setRows(iRes.data||[]);
       if(!aRes.error)setAllocations(aRes.data||[]);
       if(!rRes.error)setReturns(rRes.data||[]);
+      await loadReceiptOverdue();
 
     }
     async function refreshIndents(){
@@ -36003,6 +36047,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       notify('success','Patient Consumables refreshed.');
     }
     React.useEffect(()=>{load()},[]);
+    React.useEffect(()=>{const timer=setInterval(loadReceiptOverdue,60000);return()=>clearInterval(timer)},[]);
     React.useEffect(()=>{if(registerFilter)setFilter(registerFilter)},[registerFilter,section]);
     function chooseItem(id){const st=stock.find(x=>x.item_id===id);setForm(f=>({...f,store_item_id:id,item_name:displayStoreItemName(st?.item_name)||'',unit:st?.unit||'Nos'}))}
     async function initiate(e){
@@ -36055,7 +36100,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       if(res.error)notify('error',res.error.message);else{notify('success','Return confirmed and quantity added back to Stores.');await load()}
     }
     const openStatuses=['Initiated','Approved','Partially Approved','Handed Over','Receipt Discrepancy'];
-    const visible=rows.filter(r=>filter==='All'||(filter==='Open'?openStatuses.includes(r.status):filter==='Awaiting Handover'?['Approved','Partially Approved'].includes(r.status):r.status===filter));
+    const focusId=recordFocus?.id?String(recordFocus.id):'';
+    const visible=focusId?allIndentRows.filter(r=>String(r.id)===focusId):rows.filter(r=>filter==='All'||(filter==='Open'?openStatuses.includes(r.status):filter==='Awaiting Handover'?['Approved','Partially Approved'].includes(r.status):r.status===filter));
     const counts={initiated:rows.filter(r=>r.status==='Initiated').length,handover:rows.filter(r=>['Approved','Partially Approved'].includes(r.status)).length,receipt:rows.filter(r=>r.status==='Handed Over').length,discrepancy:rows.filter(r=>r.status==='Receipt Discrepancy').length};
     // 2.14.91: numbers for the Pharmacy & Stores dashboard boxes
     const indentToday=todayISOIndia();
@@ -36082,6 +36128,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const alphaSort=(a,b)=>String(a||'').localeCompare(String(b||''),'en',{sensitivity:'base',numeric:true});
     const indentCategories=[...new Set(stock.map(categoryOfStock))].sort(alphaSort);
     const options=stock.filter(x=>!form.category||categoryOfStock(x)===form.category).slice().sort((a,b)=>alphaSort(a.item_name,b.item_name));
+    useScrollToFocused(focusId?`indent-row-${focusId}`:'',!!focusId&&visible.length>0);
     if(section==='none')return null;
     return h('div',null,
       indentDetail&&h(RowDetailModal,{title:indentDetail.title,subtitle:indentDetail.subtitle,fields:indentDetail.fields,onClose:()=>setIndentDetail(null)}),
@@ -36108,10 +36155,11 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         ))
       )),
       (!section||section==='register')&&h('div',{id:'consumables-indent-register',style:{scrollMarginTop:'90px'}},h(Section,{title:categoryFilter?`${categoryFilter} Indent Register`:'Consumables Indent Register',actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:refreshIndents},busy?'Refreshing…':'↻ Refresh'),['Open','Initiated','Awaiting Handover','Handed Over','Receipt Discrepancy','Received','Rejected','All'].map(x=>h('button',{type:'button',key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>navigateIndentFilter(x),'aria-pressed':filter===x},x)))},
+        focusId?h(RecordFocusBanner,{focus:recordFocus,onShowAll:clearRecordFocus}):null,
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Indent','Patient','Item / Store Balance','Requested','Approved','Handed Over','Received','Status','Initiated By / Time','Approval / Handover','Receipt','Action'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,visible.length?visible.map(r=>{const st=stockFor(r);return h('tr',{key:r.id,className:'row-clickable',onClick:rowClick(()=>setIndentDetail(indentFields(r)))},
+          h('tbody',null,visible.length?visible.map(r=>{const st=stockFor(r);const late=r.status==='Handed Over'?receiptOverdue[String(r.id)]:null;return h('tr',{key:r.id,id:`indent-row-${r.id}`,className:'row-clickable',onClick:rowClick(()=>setIndentDetail(indentFields(r)))},
             h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),h('td',null,patientLabel(r.patient_id)),h('td',null,h('strong',null,r.item_name),h('small',{style:{display:'block'}},`Store: ${st?.balance_qty??'—'} ${st?.unit||r.unit}`),r.request_remarks&&h('small',{style:{display:'block'}},r.request_remarks)),
-            h('td',null,`${r.requested_qty} ${r.unit}`),h('td',null,r.approved_qty!=null?`${r.approved_qty} ${r.unit}`:'—'),h('td',null,r.handed_over_qty!=null?`${r.handed_over_qty} ${r.unit}`:'—'),h('td',null,r.received_qty!=null?`${r.received_qty} ${r.unit}`:'—'),h('td',null,h('span',{style:stageStyle(r.status)},r.status)),
+            h('td',null,`${r.requested_qty} ${r.unit}`),h('td',null,r.approved_qty!=null?`${r.approved_qty} ${r.unit}`:'—'),h('td',null,r.handed_over_qty!=null?`${r.handed_over_qty} ${r.unit}`:'—'),h('td',null,r.received_qty!=null?`${r.received_qty} ${r.unit}`:'—'),h('td',null,h('span',{style:stageStyle(r.status)},r.status),late&&h('small',{style:{display:'block',marginTop:'5px',color:'#b2192d',fontWeight:800}},`Not received · ${late.minutes} min`)),
             h('td',null,h('strong',null,r.initiated_by_name||'—'),h('small',{style:{display:'block'}},r.initiated_at?formatDateTimeIN(r.initiated_at):'—')),
             h('td',null,r.approved_by_name&&h('div',null,h('strong',null,`Approved: ${r.approved_by_name}`),h('small',{style:{display:'block'}},r.approved_at?formatDateTimeIN(r.approved_at):'')),r.handed_over_by_name&&h('div',{style:{marginTop:'5px'}},h('strong',null,`Handed over: ${r.handed_over_by_name}`),h('small',{style:{display:'block'}},r.handed_over_at?formatDateTimeIN(r.handed_over_at):''))),
             h('td',null,r.received_by_name?h('div',null,h('strong',null,r.received_by_name),h('small',{style:{display:'block'}},r.received_at?formatDateTimeIN(r.received_at):''),r.receipt_remarks&&h('small',{style:{display:'block'}},r.receipt_remarks)):'—'),

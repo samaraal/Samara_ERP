@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.88';
-const CACHE = 'samara-erp-2.15.88-food-template-choice';
+const APP_VERSION = '2.15.89';
+const CACHE = 'samara-erp-2.15.89-indent-receipt-alert';
 const SHELL = [
   './',
   './index.html',

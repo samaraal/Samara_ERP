@@ -1,8 +1,14 @@
-Samara Care ERP 2.15.88 — Food template choice — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
+Samara Care ERP 2.15.89 — Nursing Indent 20-minute receipt alert — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
 
-No SQL. No Edge Function.
-Website files: src/app/pages/whatsapp-inbox.js, food-vendor.js, index.html, service-worker.js, bootstrap-error.js,
-src/app/0-start/01-app-constants.js, app.js, CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
+Website files: src/app/global-ui/06-bell-notifications-popups.js, src/app/stores/patient-consumables.js,
+src/app/0-start/01-app-constants.js, app.js, index.html, service-worker.js, bootstrap-error.js, CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
 
-After it loads (Version 2.15.85): Food Vendor Management > Settings > press Save settings once
-(the older ticks are switched back on automatically), then Messages > send the Pending receipts.
+Supabase (in this order):
+1. Edge Functions > Deploy a new function named  indent-receipt-alert-dispatch  — paste
+   supabase/functions/indent-receipt-alert-dispatch/index.ts  (keep "Verify JWT" ON, like food-cutoff-push).
+   No new secrets needed (uses CRON_SECRET + VAPID keys already set).
+2. SQL Editor > run  supabase/sql/205_indent_receipt_overdue_alerts.sql
+   The last lines should show: minutes 20 / repeat 20, the cron job samara-indent-receipt-alert-dispatch,
+   and any indents overdue right now.
+
+Phone notifications reach only phones where the nurse / Nursing Manager has tapped "Enable Mobile Notifications".
