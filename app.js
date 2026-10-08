@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.94';
+  const APP_VERSION = '2.15.95';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '08-Oct-2026 Food WhatsApp inbox for Food Management in-charge';
+  const APP_BUILD_DATE = '08-Oct-2026 WhatsApp Inbox speed';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -13085,6 +13085,16 @@ function Dashboard({profile,onNavigate,alertEngine}){
   // 2.15.94: whoever is assigned Food Management (Admin > Food Vendor Management > assignment) automatically gets the
   // food-vendor WhatsApp conversations in their inbox ("Food Vendors" folder). The assignment is re-checked every 30 s
   // (fv_access); when it changes the inbox reloads with or without that folder.
+  // 2.15.95: same test as the database's wa_food_row (SQL 209), applied to rows of a known vendor phone.
+  function foodVendorRowLocal(r){
+    if(String(r?.career_application_id||'')||String(r?.application_id||''))return false;
+    if(/(patient|family|emergency|hr applicant|employee)/.test(String(r?.source_type||'').toLowerCase()))return false;
+    if(/(payment|daily report|discharge|employee|emergency|family portal|patient|interview|admission)/.test(String(r?.communication_type||'').toLowerCase()))return false;
+    if(/(patient|employee|interview|admission|family|emergency|payment)/.test(String(r?.template_name||'').toLowerCase()))return false;
+    const p=r?.message_payload;
+    if(p&&typeof p==='object'&&!Array.isArray(p)&&['patient_id','patient_uuid','patient_code','patient_ref','patient','resident_id','career_application_id'].some(k=>Object.prototype.hasOwnProperty.call(p,k)))return false;
+    return true;
+  }
   function WhatsAppInbox(props){
     const foodKey=props?.profile?.__foodVendor?.read&&!isNursingManagerProfile(props?.profile)?'food-desk':'standard';
     return h(WhatsAppInboxView,{...props,key:foodKey});
@@ -13442,8 +13452,21 @@ Samara Assisted Living`;
         return rows;
       }catch(error){console.warn('Legacy interview WhatsApp display repair failed safely',error);return rows}
     }
+    // 2.15.95: one load at a time; extra requests while loading are folded into one follow-up load.
+    const loadState=React.useRef({busy:false,again:false,timer:null});
     async function load(showStatus=false){
       if(!canUse)return;
+      const st=loadState.current;
+      if(st.busy){st.again=true;return;}
+      st.busy=true;
+      try{await loadNow(showStatus);}finally{st.busy=false;if(st.again){st.again=false;scheduleLoad(300);}}
+    }
+    const loadRef=React.useRef(load);loadRef.current=load;
+    function scheduleLoad(delay=1200){
+      // Realtime sends one event per changed row (e.g. 10 messages marked read = 10 events): reload once.
+      const st=loadState.current;clearTimeout(st.timer);st.timer=setTimeout(()=>loadRef.current(),delay);
+    }
+    async function loadNow(showStatus=false){
       if(showStatus)setMessage('Refreshing WhatsApp Inbox…');
       try{
         const data=[];
@@ -13455,19 +13478,28 @@ Samara Assisted Living`;
           if((page.data||[]).length<1000)break;
         }
         if(foodDesk){
-          // 2.15.94: food-vendor conversations for the Food Management in-charge (SQL 208: fv_whatsapp_inbox).
-          const foodRows=[];let foodNote='';
-          try{
-            for(let offset=0;;offset+=1000){
-              const page=await client.rpc('fv_whatsapp_inbox').order('created_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+999);
-              if(page.error)throw page.error;
-              foodRows.push(...(page.data||[]));
-              if((page.data||[]).length<1000)break;
-            }
-          }catch(error){console.warn('Food-vendor WhatsApp folder unavailable:',error);foodNote=/fv_whatsapp_inbox|PGRST202|does not exist/i.test(String(error?.message||error?.code||''))?'Food Vendors folder: ask the administrator to run SQL 208.':'';}
-          const seen=new Set(data.map(r=>r.id));
-          foodRows.forEach(r=>{if(!seen.has(r.id)){seen.add(r.id);data.push(r)}});
-          data.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)||String(b.id).localeCompare(String(a.id)));
+          // 2.15.95: food rows already arrive in the normal list (database rules allow the in-charge to read them).
+          // Only the vendor phone list is fetched (SQL 209) and rows are recognised here as the database does.
+          let vendorPhones=null;
+          try{const r=await client.rpc('fv_whatsapp_vendor_phones');if(!r.error&&Array.isArray(r.data))vendorPhones=r.data;}catch(_error){}
+          let foodRows=[],foodNote='';
+          if(vendorPhones){
+            const phones=new Set(vendorPhones.map(normalizeWhatsAppRecipient).filter(Boolean));
+            foodRows=data.filter(r=>phones.has(normalizeWhatsAppRecipient(r.recipient_number||''))&&foodVendorRowLocal(r));
+          }else{
+            // Until SQL 209 is run: full food-row fetch (SQL 208).
+            try{
+              for(let offset=0;;offset+=1000){
+                const page=await client.rpc('fv_whatsapp_inbox').order('created_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+999);
+                if(page.error)throw page.error;
+                foodRows.push(...(page.data||[]));
+                if((page.data||[]).length<1000)break;
+              }
+            }catch(error){console.warn('Food-vendor WhatsApp folder unavailable:',error);foodNote=/fv_whatsapp_inbox|PGRST202|does not exist/i.test(String(error?.message||error?.code||''))?'Food Vendors folder: ask the administrator to run SQL 208 and SQL 209.':'';}
+            const seen=new Set(data.map(r=>r.id));
+            foodRows.forEach(r=>{if(!seen.has(r.id)){seen.add(r.id);data.push(r)}});
+            data.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)||String(b.id).localeCompare(String(a.id)));
+          }
           setFoodScope({ids:new Set(foodRows.map(r=>r.id)),phones:new Set(foodRows.map(r=>normalizeWhatsAppRecipient(r.recipient_number||'')).filter(Boolean)),note:foodNote});
         }
         const repaired=(foodOnly?(data||[]):await repairLegacyInterviewHistory(data||[]));
@@ -13479,8 +13511,8 @@ Samara Assisted Living`;
     }
     React.useEffect(()=>{
       load();
-      const ch=client.channel('whatsapp-inbox-live').on('postgres_changes',{event:'*',schema:'public',table:'hr_whatsapp_communications'},load).subscribe();
-      return()=>client.removeChannel(ch);
+      const ch=client.channel('whatsapp-inbox-live').on('postgres_changes',{event:'*',schema:'public',table:'hr_whatsapp_communications'},()=>scheduleLoad()).subscribe();
+      return()=>{clearTimeout(loadState.current.timer);client.removeChannel(ch);};
     },[]);
     React.useEffect(()=>{
       // 2.15.69: open one conversation directly (from Enquiries & Feedback / Enquiry Register), all messages shown.
@@ -13550,6 +13582,9 @@ Samara Assisted Living`;
     }
     const deletedCount=rows.filter(r=>r.deleted_at).length;
     const visibleRows=(patientContext?rows.filter(row=>patientLinkedMessage(row,patientContext)):rows).filter(stdAllowedRow).filter(r=>!r.deleted_at||(showDeleted&&canRestoreMsg));
+    // 2.15.95: all rows grouped by phone once (rows are already oldest-first), instead of re-scanning every row per chat.
+    const allRowsByPhone={};
+    if(isSTD)rows.forEach(r=>{const p=phoneOf(r);if(p)(allRowsByPhone[p]||(allRowsByPhone[p]=[])).push(r)});
     const groups={};
     visibleRows.forEach(r=>{const phone=phoneOf(r);if(!phone)return;(groups[phone]||(groups[phone]=[])).push(r)});
     const conversations=Object.entries(groups).map(([phone,msgs])=>{
@@ -13561,7 +13596,7 @@ Samara Assisted Living`;
       const isFood=(foodOnly&&!leaveCover)||(foodDesk&&foodScope.phones.has(phone)); // 2.15.94
       const source=isFood?'Food Vendor':last.source_type||inbound?.source_type||(last.career_application_id?'HR Applicant':'Website / Public');
       const subject=isFood?'Food Orders':enquirySubject(sorted);
-      const folder=isFood?'Food Vendors':whatsAppFolder(isSTD?rows.filter(r=>phoneOf(r)===phone).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)):sorted);
+      const folder=isFood?'Food Vendors':whatsAppFolder(isSTD?(allRowsByPhone[phone]||sorted):sorted);
       return {phone,msgs:sorted,last,name,source,subject,folder,unread,lastAt:last.created_at,hasInbound:Boolean(inbound),isFood};
     }).filter(c=>!isSTD||c.isFood||(c.hasInbound&&c.folder!=='Payment Follow-ups')).sort((a,b)=>new Date(b.lastAt)-new Date(a.lastAt));
     const filtered=conversations.filter(c=>{
@@ -13603,9 +13638,12 @@ Samara Assisted Living`;
       if(!active)return;
       const unreadIds=active.msgs.filter(x=>x.direction==='inbound'&&!x.erp_read_at).map(x=>x.id);
       if(!unreadIds.length)return;
-      const direct=()=>client.from('hr_whatsapp_communications').update({erp_read_at:new Date().toISOString(),updated_at:new Date().toISOString()}).in('id',unreadIds).then(load);
+      // 2.15.95: mark read and update the list in place (no full reload of the inbox).
+      const stamp=new Date().toISOString(),ids=new Set(unreadIds);
+      const markLocal=()=>setRows(list=>list.map(r=>ids.has(r.id)&&!r.erp_read_at?{...r,erp_read_at:stamp}:r));
+      const direct=()=>client.from('hr_whatsapp_communications').update({erp_read_at:stamp,updated_at:stamp}).in('id',unreadIds).then(({error})=>{if(!error)markLocal()});
       // 2.15.94: the Food Management in-charge marks food-vendor messages read through SQL 208 (works for any role).
-      if(foodDesk&&active.isFood)client.rpc('fv_whatsapp_mark_read',{p_ids:unreadIds}).then(({error})=>error?direct():load());
+      if(foodDesk&&active.isFood)client.rpc('fv_whatsapp_mark_read',{p_ids:unreadIds}).then(({error})=>error?direct():markLocal());
       else direct();
     },[active?.phone,rows]);
     const activeIsFood=Boolean(foodDesk&&active?.isFood);

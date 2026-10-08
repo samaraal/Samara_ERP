@@ -1,3 +1,10 @@
+## 2.15.95 — WhatsApp Inbox loads fast again
+
+The inbox had become slow to open. Cause: the food-vendor security rules (SQL 125/130/183) tested every WhatsApp message, for every user, against the whole food-orders table, and the inbox reloaded everything again on each change.
+- **SQL 209**: vendor phone is indexed; the "food-vendor message?" test does cheap checks first; the same rules now work out "who is signed in / food in-charge" once per load instead of once per message. Nobody gains or loses access.
+- Inbox: several changes arriving together (e.g. messages marked read) now cause one reload, not one per message; opening a chat marks it read on screen without reloading the whole inbox; the Food Vendors folder uses a small vendor-phone list instead of a second full fetch; STD's folder sorting no longer re-scans all messages per chat.
+**SQL 209** (run after SQL 208).
+
 ## 2.15.94 — Food-order WhatsApp inbox goes to whoever is assigned Food Management
 
 Food vendor WhatsApp conversations were shown only in the Nursing Manager's food inbox, so Akshi (STD), who now handles Food Management, could not see the vendor's order replies.
