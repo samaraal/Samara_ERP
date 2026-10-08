@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.99';
-const CACHE = 'samara-erp-2.15.99-discharge-summary-tab';
+const APP_VERSION = '2.16.0';
+const CACHE = 'samara-erp-2.16.0-discharge-summary-top';
 const SHELL = [
   './',
   './index.html',

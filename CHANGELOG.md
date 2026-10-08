@@ -1,3 +1,9 @@
+## 2.16.0 — Discharge Summary button at the top for Nurses
+
+- The **Discharge Summary** button now sits at the top of the Patient file, beside **Admission Details · Consent**, for **Nurses** as well as Admin / Manager (for Guests whose discharge is completed). The extra tab added in 2.15.99 is removed (one place only).
+- Sending by WhatsApp from the summary stays with Admin / Manager.
+No SQL.
+
 ## 2.15.99 — Discharge Summary in the Patient file tabs (also for Nurses)
 
 - A **Discharge Summary** tab now sits beside *Admission Details · Documents · Consent* in the Patient file, for discharged Guests (completed discharge). It opens the summary with **Open / Save PDF**.
