@@ -21,7 +21,7 @@
   function odtAddDays(iso,n){const d=new Date(iso+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
 
   function OnDutyToday({profile}){
-    const allowed=['Admin','Manager','STD'].some(r=>hasDutyRole(profile,r));
+    const allowed=['Admin','Manager','STD','Nurse','Caregiver'].some(r=>hasDutyRole(profile,r)); // 2.16.7: Nurses / Caregivers too
     const [open,setOpen]=React.useState(false),[data,setData]=React.useState(null),[err,setErr]=React.useState(''),[dept,setDept]=React.useState('All'),[day,setDay]=React.useState('');
     async function load(target){
       setErr('');setData(null);

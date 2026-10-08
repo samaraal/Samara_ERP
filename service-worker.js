@@ -1,5 +1,5 @@
-const APP_VERSION = '2.16.6';
-const CACHE = 'samara-erp-2.16.6-roster-save-visible';
+const APP_VERSION = '2.16.7';
+const CACHE = 'samara-erp-2.16.7-on-duty-nurses';
 const SHELL = [
   './',
   './index.html',

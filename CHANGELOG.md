@@ -1,3 +1,8 @@
+## 2.16.7 — On Duty Today for Nurses and Caregivers
+
+- The **On Duty Today** button (top bar) is now also shown to **Nurses and Caregivers** — the same view as Admin / Manager / STD: who is on duty now, today's shifts, weekly off and leave today, with tap-to-call mobile numbers.
+No SQL.
+
 ## 2.16.6 — Roster grid: Save roster always visible
 
 - **Save roster** is now always shown — at the top (next to Copy previous period, with the number of changes) and in the bar below the grid. It is greyed until a cell is changed; before, it appeared only after the first change, so it looked missing.

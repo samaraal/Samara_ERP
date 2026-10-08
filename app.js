@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.6';
+  const APP_VERSION = '2.16.7';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '08-Oct-2026 Roster Save always visible';
+  const APP_BUILD_DATE = '08-Oct-2026 On Duty Today for Nurses';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -10052,7 +10052,7 @@ https://samaraassistedliving.com/`;
   function odtAddDays(iso,n){const d=new Date(iso+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
 
   function OnDutyToday({profile}){
-    const allowed=['Admin','Manager','STD'].some(r=>hasDutyRole(profile,r));
+    const allowed=['Admin','Manager','STD','Nurse','Caregiver'].some(r=>hasDutyRole(profile,r)); // 2.16.7: Nurses / Caregivers too
     const [open,setOpen]=React.useState(false),[data,setData]=React.useState(null),[err,setErr]=React.useState(''),[dept,setDept]=React.useState('All'),[day,setDay]=React.useState('');
     async function load(target){
       setErr('');setData(null);
@@ -10954,7 +10954,7 @@ https://samaraassistedliving.com/`;
           h(GlobalSearch,{onNavigate:setPage,profile}),
           h(StoreIndentAlerts,{profile,onNavigate:setPage}),
           profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
-          (SamaraLang.allowed(profile)||['Admin','Manager','STD'].some(r=>hasDutyRole(profile,r)))&&h('div',{className:'topbar-quick-tools'},h(OnDutyToday,{profile}),h(LanguageSwitch,{profile})), // 2.15.72: one row on phones
+          (SamaraLang.allowed(profile)||['Admin','Manager','STD','Nurse','Caregiver'].some(r=>hasDutyRole(profile,r)))&&h('div',{className:'topbar-quick-tools'},h(OnDutyToday,{profile}),h(LanguageSwitch,{profile})), // 2.15.72: one row on phones
           h('span',{className:'badge'},profile.role)
         ),
         h(MobileMenu,{page,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
