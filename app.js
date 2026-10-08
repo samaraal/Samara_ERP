@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.15.89';
+  const APP_VERSION = '2.15.90';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '08-Oct-2026 Indent receipt 20-min alert';
+  const APP_BUILD_DATE = '08-Oct-2026 Staff back on duty';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -6923,6 +6923,13 @@ https://samaraassistedliving.com/`;
   function overdueChargeMinutes(m){const n=Number(m||0);return n>=60?`${Math.floor(n/60)} h ${n%60} min`:`${n} min`}
   // 2.15.89: indent handed over but the nurse has not pressed Received within 20 minutes -> that nurse + Nursing Manager (SQL 205).
   function indentReceiptLabel(a){return `${a?.indent_ref||'Indent'} · ${a?.item_name||'Item'}`}
+  // 2.15.90: staff back on duty after approved leave (SQL 206) -> opens that leave on the Staff Leave Calendar.
+  function staffReturnLabel(a){return `${a?.employee_name||'Staff'} · ${a?.alert==='Not back'?'not back on duty':'back on duty'}`}
+  function openStaffReturn(a){openRecord('Staff Leave Calendar',{id:a?.leave_id,date:a?.due_date,label:staffReturnLabel(a)})}
+  function staffReturnLine(a){
+    if(a?.alert==='Not back')return `${a.employee_name||'Staff'} — leave ended ${formatDateIN(a.leave_to)}, due back ${formatDateIN(a.due_date)}${a.due_shift?` (${a.due_shift})`:''}, not marked back on duty`;
+    return `${a?.employee_name||'Staff'} — back on duty ${a?.returned_at?fmt(a.returned_at):formatDateIN(a?.returned_date)}${a?.late_days>0?` (${a.late_days} day${a.late_days===1?'':'s'} late)`:''}${a?.recorded_by_name?` · marked by ${a.recorded_by_name}`:''}`;
+  }
   function openIndentReceipt(a){openRecord('Patient Consumables',{id:a?.indent_id,patient_id:a?.patient_id,label:indentReceiptLabel(a)})}
 
   function ClinicalAlertBell({engine,onOpen}){
@@ -6971,6 +6978,13 @@ https://samaraassistedliving.com/`;
     const roleKey=String(profile?.role||'').trim().toLowerCase();
     const indentReceiptAccess=roleKey==='nurse'||cutoffAdmin||isNursingManagerProfile(profile)||nursingManager;
     const [indentReceiptDue,setIndentReceiptDue]=React.useState([]);
+    const staffReturnAccess=cutoffAdmin||roleKey==='manager';
+    const [staffReturnAlerts,setStaffReturnAlerts]=React.useState([]);
+    async function loadStaffReturnAlerts(){
+      if(!staffReturnAccess)return;
+      try{const {data,error}=await client.rpc('staff_return_alerts');if(error)throw error;setStaffReturnAlerts(Array.isArray(data)?data:[]);}
+      catch(_error){/* Needs SQL 206; until then this section simply stays empty. */}
+    }
     async function loadIndentReceiptDue(){
       if(!indentReceiptAccess)return;
       try{const {data,error}=await client.rpc('indent_receipt_overdue_alerts');if(error)throw error;setIndentReceiptDue(Array.isArray(data)?data:[]);}
@@ -7018,6 +7032,7 @@ https://samaraassistedliving.com/`;
         await loadCutoffAttempts();
         await loadOverdueCharges();
         await loadIndentReceiptDue();
+        await loadStaffReturnAlerts();
         await loadEnquiryAlerts();
         if(typeof engine?.refresh==='function')await engine.refresh();
       }catch(error){setMessage(error.message||'Unable to refresh notifications.');}
@@ -7030,6 +7045,7 @@ https://samaraassistedliving.com/`;
     },[profile?.id,nursingManager]);
     React.useEffect(()=>{if(!cutoffAdmin)return;const refresh=()=>loadCutoffAttempts().catch(error=>setMessage(error.message||'Unable to load food cutoff attempts.'));const timer=setInterval(refresh,15000);window.addEventListener('focus',refresh);return()=>{clearInterval(timer);window.removeEventListener('focus',refresh)}},[profile?.id,cutoffAdmin]);
     React.useEffect(()=>{if(!enquiryAccess)return;loadEnquiryAlerts();const timer=setInterval(loadEnquiryAlerts,60000);window.addEventListener('focus',loadEnquiryAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadEnquiryAlerts)}},[profile?.id,enquiryAccess]);
+    React.useEffect(()=>{if(!staffReturnAccess)return;loadStaffReturnAlerts();const timer=setInterval(loadStaffReturnAlerts,60000);window.addEventListener('focus',loadStaffReturnAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadStaffReturnAlerts)}},[profile?.id,staffReturnAccess]);
     React.useEffect(()=>{if(!indentReceiptAccess)return;loadIndentReceiptDue();const timer=setInterval(loadIndentReceiptDue,60000);window.addEventListener('focus',loadIndentReceiptDue);return()=>{clearInterval(timer);window.removeEventListener('focus',loadIndentReceiptDue)}},[profile?.id,indentReceiptAccess]);
     React.useEffect(()=>{if(!cutoffAdmin)return;loadOverdueCharges();const timer=setInterval(loadOverdueCharges,60000);window.addEventListener('focus',loadOverdueCharges);return()=>{clearInterval(timer);window.removeEventListener('focus',loadOverdueCharges)}},[profile?.id,cutoffAdmin]);
     React.useEffect(()=>{if(!foodAccess)return;loadFoodReplyAlerts();const timer=setInterval(loadFoodReplyAlerts,30000);window.addEventListener('focus',loadFoodReplyAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadFoodReplyAlerts)}},[profile?.id,foodAccess]);
@@ -7049,6 +7065,13 @@ https://samaraassistedliving.com/`;
       message?h('div',{className:'message error'},message):null,
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(165px,1fr))',gap:'12px',marginBottom:'18px'}},nursingManager?metric('Store Requests',awaitingApproval.length,'Patient Consumables'):null,nursingManager?metric('Awaiting Handover',awaitingHandover.length,'Patient Consumables'):null,metric('Medication > 30 min',medicineAlerts.length,'Clinical Escalations','#efb6b6'),metric('Care > 30 min',careAlerts.length,'Clinical Escalations','#efcf9c'),nursingManager?metric('Store Discrepancies',discrepancies.length,'Patient Consumables','#efb6b6'):null),
       nursingManager?h('section',{style:{marginBottom:'20px'}},h('h4',null,'Pharmacy & Stores Requests'),h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Item','Quantity','Status','Requested'].map(x=>h('th',{key:x},x)))),h('tbody',null,storeRequests.map(r=>h('tr',{key:r.id,role:'button',tabIndex:0,onClick:()=>navigate('Patient Consumables'),style:{cursor:'pointer',touchAction:'manipulation'}},h('td',null,patientName(r)),h('td',null,r.item_name||'Consumable'),h('td',null,`${r.requested_qty||'—'} ${r.unit||''}`),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)))),storeRequests.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No open Pharmacy & Stores requests.')):null)))):null,
+      staffReturnAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Staff Back on Duty after Leave'),h('small',null,cutoffAdmin?'Not back = leave has ended but no Manager has marked her back on duty 2 hours after her rostered shift started (10 AM if no roster). Back on duty = marked in the last 24 hours. Tap a row to open that leave.':'Staff of your department whose leave has ended but who are not marked back on duty. Tap a row, then Mark Back on Duty once she reports.'),
+        h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Status','Staff','Leave','Due back','Back on duty','Marked by'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,staffReturnAlerts.map(a=>h('tr',{key:`${a.alert}-${a.leave_id}`,role:'button',tabIndex:0,onClick:()=>openStaffReturn(a),onKeyDown:e=>{if(e.key==='Enter')openStaffReturn(a)},style:{cursor:'pointer',touchAction:'manipulation'}},
+            h('td',null,h('span',{className:'badge',style:a.alert==='Not back'?{background:'#ffe5e7',color:'#b2192d'}:{background:'#e7f6ef',color:'#17603a'}},a.alert==='Not back'?'Not back':'Back on duty')),
+            h('td',null,a.employee_name||'Staff'),h('td',null,`${formatDateIN(a.leave_from)} – ${formatDateIN(a.leave_to)}`),h('td',null,`${formatDateIN(a.due_date)}${a.due_shift?` · ${a.due_shift}`:''}`),
+            h('td',null,a.alert==='Not back'?'—':`${a.returned_at?fmt(a.returned_at):formatDateIN(a.returned_date)}${a.late_days>0?` · ${a.late_days} day${a.late_days===1?'':'s'} late`:''}`),h('td',null,a.recorded_by_name||'—'))),
+            staffReturnAlerts.length===0?h('tr',null,h('td',{colSpan:6,className:'empty'},'No staff returns to report.')):null)))):null,
       indentReceiptAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Indents Handed Over — Not Received by Nurse (over 20 minutes)'),h('small',null,roleKey==='nurse'?'Items the store handed over to you, but you have not pressed Received yet. Tap a row, check the items and press Received.':'Store handed these over, but the nurse who raised the indent has not pressed Received within 20 minutes. India time. Tap a row to open that indent.'),
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Indent','Guest','Room','Item','Qty','Nurse','Handed over','Waiting'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,indentReceiptDue.map(a=>h('tr',{key:a.indent_id,role:'button',tabIndex:0,onClick:()=>openIndentReceipt(a),onKeyDown:e=>{if(e.key==='Enter')openIndentReceipt(a)},style:{cursor:'pointer',touchAction:'manipulation'}},
@@ -7112,7 +7135,10 @@ https://samaraassistedliving.com/`;
         // 2.15.89: indent handed over, not received within 20 min -> the nurse who raised it + Nursing Manager (pop-up re-appears every 20 min)
         if(isNursing)jobs.push(client.rpc('indent_receipt_overdue_alerts'));
         else jobs.push(Promise.resolve({data:[],error:null}));
-        const [dis,charges,food,withheld,overdue,indentDue]=await Promise.all(jobs);
+        // 2.15.90: staff back on duty / not back after leave -> Admin / Director (both) and Managers (not back, own staff)
+        if(foodAdmin||role==='manager')jobs.push(client.rpc('staff_return_alerts'));
+        else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges,food,withheld,overdue,indentDue,staffReturn]=await Promise.all(jobs);
         const candidates=[];
         (dis.data||[]).forEach(row=>{
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
@@ -7159,6 +7185,16 @@ https://samaraassistedliving.com/`;
             detail:mine?`The store handed these over more than 20 minutes ago, but Received is not entered yet. ${lines}${list.length>4?`; + ${list.length-4} more`:''}. Check the items and press Received.`:`Handed over by the store, but the nurse has not pressed Received within 20 minutes. ${lines}${list.length>4?`; + ${list.length-4} more (see Alerts)`:''}. Please follow up with the nurse.`,
             page:'Patient Consumables',record:list.length===1?{id:oldest.indent_id,patient_id:oldest.patient_id,label:indentReceiptLabel(oldest)}:null,urgent:true,at:oldest.handed_over_at});
         }
+        const staffRows=(!staffReturn?.error&&Array.isArray(staffReturn?.data))?staffReturn.data:[];
+        const notBack=staffRows.filter(a=>a.alert==='Not back'),backRows=staffRows.filter(a=>a.alert!=='Not back');
+        if(notBack.length){
+          const first=notBack[0];
+          candidates.push({key:`staff-notback-${notBack.map(a=>a.leave_id).join('-')}-${Math.floor(Date.now()/3600000)}`,kind:'Staff Leave',
+            title:`${notBack.length} staff not back on duty after leave`,
+            detail:`${notBack.slice(0,4).map(staffReturnLine).join('; ')}${notBack.length>4?`; + ${notBack.length-4} more (see Alerts)`:''}. ${foodAdmin?'Check with the Manager.':'If she has reported, open the leave and tap Mark Back on Duty.'}`,
+            page:'Staff Leave Calendar',record:{id:first.leave_id,date:first.due_date,label:staffReturnLabel(first)},urgent:true,at:first.alert_at});
+        }
+        backRows.forEach(a=>candidates.push({key:`staff-back-${a.leave_id}`,kind:'Staff Leave',title:`${a.employee_name||'Staff'} is back on duty`,detail:staffReturnLine(a)+'.',page:'Staff Leave Calendar',record:{id:a.leave_id,date:a.due_date,label:staffReturnLabel(a)},at:a.recorded_at}));
         candidates.sort((a,b)=>Number(!!b.urgent)-Number(!!a.urgent)||new Date(b.at||0)-new Date(a.at||0));
         const next=candidates.find(x=>!closed.current.has(x.key));
         setItem(current=>current&&candidates.some(x=>x.key===current.key)?current:(next||null));
@@ -16592,22 +16628,27 @@ Thank you.`;
     const [returnTarget,setReturnTarget]=React.useState(null),[returnDate,setReturnDate]=React.useState(''),[returnNote,setReturnNote]=React.useState(''),[returnBusy,setReturnBusy]=React.useState(false),[returnError,setReturnError]=React.useState('');
     const returnLock=React.useRef(false);
     function canRecordReturn(r){return !handoverManagers.includes(r.employee_id)&&['Admin','Manager'].includes(profile.role)&&r.employee_id!==profile.id&&r.request_type==='Leave'&&r.status==='approved'&&!r.return_to_duty_date&&r.from_date<=todayISOIndia();}
-    function openReturn(r){setReturnTarget(r);setReturnDate(todayISOIndia()<=r.to_date?todayISOIndia():r.to_date);setReturnNote('');setReturnError('');}
+    // 2.15.90: "Mark Back on Duty" (Manager / Admin) replaces "Record Early Return" — actual date & time she reported;
+    // works for early, on-time and late returns. Admin is informed (SQL 206).
+    const nowLocalInput=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)};
+    function openReturn(r){setReturnTarget(r);setReturnDate(nowLocalInput());setReturnNote('');setReturnError('');}
     async function saveReturn(e){
       e.preventDefault();if(returnLock.current||!returnTarget)return;
-      if(!returnDate||returnDate<returnTarget.from_date||returnDate>returnTarget.to_date||returnDate>todayISOIndia()){setReturnError('Choose an actual return date within the approved leave period, no later than today.');return;}
-      if(!returnNote.trim()){setReturnError('Please confirm the employee has rejoined in the remarks.');return;}
+      const when=returnDate?new Date(returnDate):null;
+      if(!when||Number.isNaN(when.getTime())||when.getTime()>Date.now()+5*60000){setReturnError('Enter the actual date and time she reported for duty (not a future time).');return;}
+      if(when.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})<returnTarget.from_date){setReturnError('Return cannot be before the leave starts.');return;}
+      if(!returnNote.trim()){setReturnError('Remarks are required (e.g. Reported for Day Shift).');return;}
       returnLock.current=true;setReturnBusy(true);setReturnError('');
       try{
-        const {data,error}=await client.rpc('record_absence_early_return',{p_request_id:returnTarget.id,p_return_date:returnDate,p_remarks:returnNote.trim()});
+        const {data,error}=await client.rpc('mark_staff_back_on_duty',{p_request_id:returnTarget.id,p_returned_at:when.toISOString(),p_remarks:returnNote.trim()});
         if(error)throw error;
-        setReturnTarget(null);setMsg(data?.message||'Early return recorded.');await load();
-      }catch(error){setReturnError(error.message||'Unable to record the early return.');}
+        setReturnTarget(null);setMsg(data?.message||'Back on duty recorded.');await load();await loadReturnStatus();
+      }catch(error){setReturnError(error.message||'Unable to record back on duty.');}
       finally{returnLock.current=false;setReturnBusy(false);}
     }
     function returnDetails(r){return r.return_to_duty_date?h(React.Fragment,null,
       h('div',null,h('small',null,'Originally Approved'),h('strong',null,`${formatDateIN(r.from_date)} – ${formatDateIN(r.original_leave_to_date)}`)),
-      h('div',null,h('small',null,'Returned to Duty'),h('strong',null,formatDateIN(r.return_to_duty_date))),
+      h('div',null,h('small',null,'Back on Duty'),h('strong',null,r.return_to_duty_at?formatDateTimeIN(r.return_to_duty_at):formatDateIN(r.return_to_duty_date))),
       h('div',null,h('small',null,'Return Confirmed By'),h('strong',null,formalName(byId(r.return_recorded_by))||'Management'),h('small',null,fmt(r.return_recorded_at))),
       h('div',null,h('small',null,'Return Remarks'),h('strong',null,r.return_remarks||'—'))):null;}
     const [rows,setRows]=React.useState([]),[profiles,setProfiles]=React.useState([]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
@@ -16622,18 +16663,36 @@ Thank you.`;
     const [calendarStatusFilter,setCalendarStatusFilter]=React.useState('');
     const [requestStatusFilter,setRequestStatusFilter]=React.useState('');
     const [expandedCalendarRows,setExpandedCalendarRows]=React.useState(new Set());
+    // 2.15.90: back-on-duty status per leave for the week shown (SQL 206); an alert opens only that leave.
+    const [returnStatus,setReturnStatus]=React.useState({});
+    const [leaveFocus,clearLeaveFocus]=useRecordFocus(calendar?'Staff Leave Calendar':'__leave-permission-embedded__');
+    React.useEffect(()=>{if(leaveFocus?.date){setCalendarDate(leaveFocus.date);setExpandedCalendarRows(new Set([`${leaveFocus.id}-return`]))}},[leaveFocus?.id,leaveFocus?.date]);
+    const calendarWeekStart=calendar?mondayOfWeek(calendarDate||todayISOIndia()):'';
+    async function loadReturnStatus(){
+      if(!calendar)return;
+      try{const {data,error}=await client.rpc('staff_return_status',{p_from:calendarWeekStart,p_to:addDaysISO(calendarWeekStart,6)});if(error)throw error;const map={};(Array.isArray(data)?data:[]).forEach(x=>{map[String(x.leave_id)]=x});setReturnStatus(map);}
+      catch(_error){/* Needs SQL 206; the calendar works without it. */}
+    }
+    React.useEffect(()=>{loadReturnStatus();if(!calendar)return;const t=setInterval(loadReturnStatus,60000);return()=>clearInterval(t)},[calendar,calendarWeekStart,rows.length]);
+    function returnBadge(st){
+      if(!st)return null;
+      const style=st.return_status==='Back on duty'?{background:'#e7f6ef',color:'#17603a'}:st.return_status==='Not back'?{background:'#ffe5e7',color:'#b2192d'}:{background:'#fff4d6',color:'#7a5600'};
+      const text=st.return_status==='Back on duty'?`Back on duty ${st.returned_at?formatDateTimeIN(st.returned_at):formatDateIN(st.returned_date)}${st.late_days>0?` · ${st.late_days} day${st.late_days===1?'':'s'} late`:''}`:st.return_status==='Not back'?`Not back on duty · due ${formatDateIN(st.due_date)}`:`Due back ${formatDateIN(st.due_date)}`;
+      return h('span',{className:'badge',style:{...style,marginRight:'6px'}},text);
+    }
     const byId=id=>profiles.find(x=>x.id===id)||{};
+    const returnDay=returnDate?String(returnDate).slice(0,10):'';
     const returnModal=returnTarget?h('div',{className:'modal-backdrop'},h('form',{className:'card modal absence-modal',onSubmit:saveReturn},
-      h('div',{className:'panel-head'},h('h3',null,'Record Early Return'),h('button',{type:'button',className:'close',disabled:returnBusy,'aria-label':'Close early return',onClick:()=>setReturnTarget(null)},'×')),
-      h('p',null,`${returnTarget.employee_name||formalName(byId(returnTarget.employee_id))||'Employee'} · Approved ${formatDateIN(returnTarget.from_date)} – ${formatDateIN(returnTarget.to_date)}`),
+      h('div',{className:'panel-head'},h('h3',null,'Mark Back on Duty'),h('button',{type:'button',className:'close',disabled:returnBusy,'aria-label':'Close back on duty',onClick:()=>setReturnTarget(null)},'×')),
+      h('p',null,`${returnTarget.employee_name||formalName(byId(returnTarget.employee_id))||'Employee'} · Approved leave ${formatDateIN(returnTarget.from_date)} – ${formatDateIN(returnTarget.to_date)}`),
       h('div',{className:'modal-grid'},
-        h('div',{className:'field'},h('label',{htmlFor:'early-return-date'},'Actual Return Date'),h('input',{id:'early-return-date',type:'date',required:true,min:returnTarget.from_date,max:returnTarget.to_date<todayISOIndia()?returnTarget.to_date:todayISOIndia(),value:returnDate,disabled:returnBusy,onChange:e=>setReturnDate(e.target.value)})),
-        h('div',{className:'field span-2'},h('label',{htmlFor:'early-return-note'},'Return Confirmation / Remarks'),h('textarea',{id:'early-return-note',required:true,rows:3,value:returnNote,disabled:returnBusy,onChange:e=>setReturnNote(e.target.value),placeholder:'Confirm when the employee rejoined duty'}))
+        h('div',{className:'field'},h('label',{htmlFor:'back-on-duty-at'},'Reported for Duty (Date & Time)'),h('input',{id:'back-on-duty-at',type:'datetime-local',required:true,max:nowLocalInput(),value:returnDate,disabled:returnBusy,onChange:e=>setReturnDate(e.target.value)})),
+        h('div',{className:'field span-2'},h('label',{htmlFor:'back-on-duty-note'},'Remarks'),h('textarea',{id:'back-on-duty-note',required:true,rows:3,value:returnNote,disabled:returnBusy,onChange:e=>setReturnNote(e.target.value),placeholder:'e.g. Reported for Day Shift'}))
       ),
-      h('p',null,returnDate===returnTarget.from_date?'No leave days taken. The leave will be marked cancelled, with the original approval preserved.':`Leave will end on ${returnDate?formatDateIN(addDaysISO(returnDate,-1)):'—'}. The return date is a working day; the original approval is retained.`),
-      h('small',null,'Use this for a return at the start of the working day or shift. Record attendance and duty assignments separately.'),
+      h('p',null,!returnDay?'':returnDay===returnTarget.from_date?'No leave days taken — the leave will be marked cancelled (original approval kept).':returnDay<=returnTarget.to_date?`Early return — leave will end on ${formatDateIN(addDaysISO(returnDay,-1))} (original approval kept).`:returnDay>addDaysISO(returnTarget.to_date,1)?`Leave ended on ${formatDateIN(returnTarget.to_date)}. This return may be recorded as late (compared with her rostered shift).`:'On-time return.'),
+      h('small',null,'Admin / Director are informed automatically.'),
       returnError?h('div',{className:'message error',role:'alert'},returnError):null,
-      h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:returnBusy,onClick:()=>setReturnTarget(null)},'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:returnBusy},returnBusy?'Saving…':'Confirm Early Return'))
+      h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:returnBusy,onClick:()=>setReturnTarget(null)},'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:returnBusy},returnBusy?'Saving…':'Confirm Back on Duty'))
     )):null;
 
     const statusLabel=s=>({pending_superior:'Pending Superior',pending_management:'Pending Management',approved:'Approved',rejected:'Rejected',cancelled:'Cancelled'}[s]||s||'—');
@@ -16748,7 +16807,7 @@ Thank you.`;
           ):null
         ),
         h('div',{className:'absence-actions'},
-          canRecordReturn(r)?h('button',{type:'button',className:'btn btn-secondary',disabled:busy||returnBusy,onClick:()=>openReturn(r)},'Record Early Return'):null,
+          canRecordReturn(r)?h('button',{type:'button',className:'btn btn-secondary',disabled:busy||returnBusy,onClick:()=>openReturn(r)},'Mark Back on Duty'):null,
           !isApprovals&&['pending_superior','pending_management'].includes(r.status)?h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'cancel')},'Cancel Request'):null,
           isApprovals&&canRecommend(r)?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>act(r,'recommend')},'Recommend'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'reject')},'Reject')):null,
           isApprovals&&canManage(r)?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>act(r,'approve')},'Approve'),r.request_type==='Leave'?h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openModifiedApproval(r)},'Approve with Modification'):null,h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'reject')},'Reject')):null
@@ -16775,7 +16834,7 @@ Thank you.`;
         h('button',{type:'button',className:'calendar-absence-summary',onClick:()=>setExpandedCalendarRows(prev=>{const next=new Set(prev);next.has(calendarKey)?next.delete(calendarKey):next.add(calendarKey);return next})},
           h('span',{className:'calendar-absence-day'},formatDateWithDayIN(r.__calendarDay||(r.request_type==='Leave'?r.from_date:r.permission_date))),
           h('span',{className:'calendar-absence-person'},(isApprovals||calendar)?(formalName(emp)||r.employee_name||'Employee'):(r.request_type==='Leave'?(r.leave_type||'Leave'):'Permission')),
-          h('span',{className:`badge ${statusClass(r.status)}`},statusLabel(r.status)),
+          r.__returnRow?returnBadge(r.__returnRow):h('span',{className:`badge ${statusClass(r.status)}`},statusLabel(r.status)),
           h('span',{className:'calendar-absence-chevron'},expanded?'⌃':'⌄')
         ),
         expanded?h('div',{className:'absence-grid calendar-absence-details'},
@@ -16785,12 +16844,14 @@ Thank you.`;
           h('div',null,h('small',null,'Position'),h('strong',null,[emp.designation||emp.position,emp.department].filter(Boolean).join(' · ')||'—')),
           h('div',null,h('small',null,'Reason'),h('strong',null,r.reason||'—')),
           h('div',null,h('small',null,'Status'),h('strong',null,statusLabel(r.status))),
+          returnStatus[String(r.id)]&&r.request_type==='Leave'?h('div',null,h('small',null,'Due Back'),h('strong',null,`${formatDateIN(returnStatus[String(r.id)].due_date)}${returnStatus[String(r.id)].due_shift?` · ${returnStatus[String(r.id)].due_shift}`:''}`)):null,
+          returnStatus[String(r.id)]&&r.request_type==='Leave'?h('div',null,h('small',null,'Back on Duty Status'),h('strong',null,returnBadge(returnStatus[String(r.id)]))):null,
           returnDetails(r),
           handoverManagers.includes(r.employee_id)&&h('div',{style:{gridColumn:'1/-1'},className:'message'},'Nursing Manager return: Admin/Director must use Approve Return to Duty under Stores In-charge Assignment. STD retains operational rights until approval.'),
           r.handover_remarks?h('div',null,h('small',null,'Handover'),h('strong',null,r.handover_remarks)):null,
           r.decision_by_name?h('div',null,h('small',null,'Decision'),h('strong',null,`${r.decision_by_name}${r.decision_at?` · ${fmt(r.decision_at)}`:''}`)):null,
           h('div',{className:'absence-actions',style:{gridColumn:'1/-1'}},
-            canRecordReturn(r)?h('button',{type:'button',className:'btn btn-secondary',disabled:busy||returnBusy,onClick:()=>openReturn(r)},'Record Early Return'):null,
+            canRecordReturn(r)?h('button',{type:'button',className:'btn btn-secondary',disabled:busy||returnBusy,onClick:()=>openReturn(r)},'Mark Back on Duty'):null,
             isApprovals&&canRecommend(r)?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>act(r,'recommend')},'Recommend'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'reject')},'Reject')):null,
             isApprovals&&canManage(r)?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>act(r,'approve')},'Approve'),r.request_type==='Leave'?h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openModifiedApproval(r)},'Approve with Modification'):null,h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'reject')},'Reject')):null
           )
@@ -16822,14 +16883,18 @@ Thank you.`;
         const to=(r.to_date||r.from_date)&&((r.to_date||r.from_date)<weekEnd?(r.to_date||r.from_date):weekEnd);
         const days=[];
         for(let day=from;day&&to&&day<=to;day=addDaysISO(day,1))days.push({...r,__calendarDay:day,__calendarKey:`${r.id}-${day}`});
+        // 2.15.90: one extra line on the day she is due back, showing Due back / Back on duty / Not back.
+        const st=returnStatus[String(r.id)];
+        if(st&&st.due_date>=weekStart&&st.due_date<=weekEnd)days.push({...r,__calendarDay:st.due_date,__calendarKey:`${r.id}-return`,__returnRow:st});
         return days;
-      });
+      }).filter(x=>!leaveFocus?.id||String(x.id)===String(leaveFocus.id)).sort((a,b)=>String(a.__calendarDay||'').localeCompare(String(b.__calendarDay||'')));
       const selectedLabel=`${formatDateWithDayIN(weekStart)} to ${formatDateWithDayIN(weekEnd)}`;
       const currentWeek=mondayOfWeek(todayISOIndia());
       const statusButton=(value,label)=>h('button',{type:'button',className:calendarStatusFilter===value?'active':'',onClick:()=>setCalendarStatusFilter(calendarStatusFilter===value?'':value)},h('strong',null,rows.filter(calendarMatches).filter(r=>value?(value==='pending'?['pending_superior','pending_management'].includes(r.status):r.status===value):true).length),h('small',null,label));
       return h(React.Fragment,null,returnModal,
         h(Section,{title:'Staff Leave Calendar',subtitle:`${selectedLabel} · ${calendarBaseRows.length} leave / permission record${calendarBaseRows.length===1?'':'s'}`,actions:h('button',{className:'btn btn-secondary',onClick:load,disabled:busy},'Refresh')},
           msg?h('div',{className:'message'},msg):null,
+          leaveFocus?.id?h(RecordFocusBanner,{focus:leaveFocus,onShowAll:clearLeaveFocus}):null,
           h('div',{className:'selected-week-banner'},h('small',null,'Selected week'),h('strong',null,selectedLabel)),
           h('div',{className:'leave-calendar-controls'},
             h('input',{type:'search',value:calendarSearch,onChange:e=>setCalendarSearch(e.target.value),placeholder:'Search name, mobile, position…','aria-label':'Search staff by name, mobile or position'}),

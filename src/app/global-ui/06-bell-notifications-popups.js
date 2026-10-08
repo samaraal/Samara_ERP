@@ -32,6 +32,13 @@
   function overdueChargeMinutes(m){const n=Number(m||0);return n>=60?`${Math.floor(n/60)} h ${n%60} min`:`${n} min`}
   // 2.15.89: indent handed over but the nurse has not pressed Received within 20 minutes -> that nurse + Nursing Manager (SQL 205).
   function indentReceiptLabel(a){return `${a?.indent_ref||'Indent'} · ${a?.item_name||'Item'}`}
+  // 2.15.90: staff back on duty after approved leave (SQL 206) -> opens that leave on the Staff Leave Calendar.
+  function staffReturnLabel(a){return `${a?.employee_name||'Staff'} · ${a?.alert==='Not back'?'not back on duty':'back on duty'}`}
+  function openStaffReturn(a){openRecord('Staff Leave Calendar',{id:a?.leave_id,date:a?.due_date,label:staffReturnLabel(a)})}
+  function staffReturnLine(a){
+    if(a?.alert==='Not back')return `${a.employee_name||'Staff'} — leave ended ${formatDateIN(a.leave_to)}, due back ${formatDateIN(a.due_date)}${a.due_shift?` (${a.due_shift})`:''}, not marked back on duty`;
+    return `${a?.employee_name||'Staff'} — back on duty ${a?.returned_at?fmt(a.returned_at):formatDateIN(a?.returned_date)}${a?.late_days>0?` (${a.late_days} day${a.late_days===1?'':'s'} late)`:''}${a?.recorded_by_name?` · marked by ${a.recorded_by_name}`:''}`;
+  }
   function openIndentReceipt(a){openRecord('Patient Consumables',{id:a?.indent_id,patient_id:a?.patient_id,label:indentReceiptLabel(a)})}
 
   function ClinicalAlertBell({engine,onOpen}){
@@ -80,6 +87,13 @@
     const roleKey=String(profile?.role||'').trim().toLowerCase();
     const indentReceiptAccess=roleKey==='nurse'||cutoffAdmin||isNursingManagerProfile(profile)||nursingManager;
     const [indentReceiptDue,setIndentReceiptDue]=React.useState([]);
+    const staffReturnAccess=cutoffAdmin||roleKey==='manager';
+    const [staffReturnAlerts,setStaffReturnAlerts]=React.useState([]);
+    async function loadStaffReturnAlerts(){
+      if(!staffReturnAccess)return;
+      try{const {data,error}=await client.rpc('staff_return_alerts');if(error)throw error;setStaffReturnAlerts(Array.isArray(data)?data:[]);}
+      catch(_error){/* Needs SQL 206; until then this section simply stays empty. */}
+    }
     async function loadIndentReceiptDue(){
       if(!indentReceiptAccess)return;
       try{const {data,error}=await client.rpc('indent_receipt_overdue_alerts');if(error)throw error;setIndentReceiptDue(Array.isArray(data)?data:[]);}
@@ -127,6 +141,7 @@
         await loadCutoffAttempts();
         await loadOverdueCharges();
         await loadIndentReceiptDue();
+        await loadStaffReturnAlerts();
         await loadEnquiryAlerts();
         if(typeof engine?.refresh==='function')await engine.refresh();
       }catch(error){setMessage(error.message||'Unable to refresh notifications.');}
@@ -139,6 +154,7 @@
     },[profile?.id,nursingManager]);
     React.useEffect(()=>{if(!cutoffAdmin)return;const refresh=()=>loadCutoffAttempts().catch(error=>setMessage(error.message||'Unable to load food cutoff attempts.'));const timer=setInterval(refresh,15000);window.addEventListener('focus',refresh);return()=>{clearInterval(timer);window.removeEventListener('focus',refresh)}},[profile?.id,cutoffAdmin]);
     React.useEffect(()=>{if(!enquiryAccess)return;loadEnquiryAlerts();const timer=setInterval(loadEnquiryAlerts,60000);window.addEventListener('focus',loadEnquiryAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadEnquiryAlerts)}},[profile?.id,enquiryAccess]);
+    React.useEffect(()=>{if(!staffReturnAccess)return;loadStaffReturnAlerts();const timer=setInterval(loadStaffReturnAlerts,60000);window.addEventListener('focus',loadStaffReturnAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadStaffReturnAlerts)}},[profile?.id,staffReturnAccess]);
     React.useEffect(()=>{if(!indentReceiptAccess)return;loadIndentReceiptDue();const timer=setInterval(loadIndentReceiptDue,60000);window.addEventListener('focus',loadIndentReceiptDue);return()=>{clearInterval(timer);window.removeEventListener('focus',loadIndentReceiptDue)}},[profile?.id,indentReceiptAccess]);
     React.useEffect(()=>{if(!cutoffAdmin)return;loadOverdueCharges();const timer=setInterval(loadOverdueCharges,60000);window.addEventListener('focus',loadOverdueCharges);return()=>{clearInterval(timer);window.removeEventListener('focus',loadOverdueCharges)}},[profile?.id,cutoffAdmin]);
     React.useEffect(()=>{if(!foodAccess)return;loadFoodReplyAlerts();const timer=setInterval(loadFoodReplyAlerts,30000);window.addEventListener('focus',loadFoodReplyAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadFoodReplyAlerts)}},[profile?.id,foodAccess]);
@@ -158,6 +174,13 @@
       message?h('div',{className:'message error'},message):null,
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(165px,1fr))',gap:'12px',marginBottom:'18px'}},nursingManager?metric('Store Requests',awaitingApproval.length,'Patient Consumables'):null,nursingManager?metric('Awaiting Handover',awaitingHandover.length,'Patient Consumables'):null,metric('Medication > 30 min',medicineAlerts.length,'Clinical Escalations','#efb6b6'),metric('Care > 30 min',careAlerts.length,'Clinical Escalations','#efcf9c'),nursingManager?metric('Store Discrepancies',discrepancies.length,'Patient Consumables','#efb6b6'):null),
       nursingManager?h('section',{style:{marginBottom:'20px'}},h('h4',null,'Pharmacy & Stores Requests'),h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Item','Quantity','Status','Requested'].map(x=>h('th',{key:x},x)))),h('tbody',null,storeRequests.map(r=>h('tr',{key:r.id,role:'button',tabIndex:0,onClick:()=>navigate('Patient Consumables'),style:{cursor:'pointer',touchAction:'manipulation'}},h('td',null,patientName(r)),h('td',null,r.item_name||'Consumable'),h('td',null,`${r.requested_qty||'—'} ${r.unit||''}`),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)))),storeRequests.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No open Pharmacy & Stores requests.')):null)))):null,
+      staffReturnAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Staff Back on Duty after Leave'),h('small',null,cutoffAdmin?'Not back = leave has ended but no Manager has marked her back on duty 2 hours after her rostered shift started (10 AM if no roster). Back on duty = marked in the last 24 hours. Tap a row to open that leave.':'Staff of your department whose leave has ended but who are not marked back on duty. Tap a row, then Mark Back on Duty once she reports.'),
+        h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Status','Staff','Leave','Due back','Back on duty','Marked by'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,staffReturnAlerts.map(a=>h('tr',{key:`${a.alert}-${a.leave_id}`,role:'button',tabIndex:0,onClick:()=>openStaffReturn(a),onKeyDown:e=>{if(e.key==='Enter')openStaffReturn(a)},style:{cursor:'pointer',touchAction:'manipulation'}},
+            h('td',null,h('span',{className:'badge',style:a.alert==='Not back'?{background:'#ffe5e7',color:'#b2192d'}:{background:'#e7f6ef',color:'#17603a'}},a.alert==='Not back'?'Not back':'Back on duty')),
+            h('td',null,a.employee_name||'Staff'),h('td',null,`${formatDateIN(a.leave_from)} – ${formatDateIN(a.leave_to)}`),h('td',null,`${formatDateIN(a.due_date)}${a.due_shift?` · ${a.due_shift}`:''}`),
+            h('td',null,a.alert==='Not back'?'—':`${a.returned_at?fmt(a.returned_at):formatDateIN(a.returned_date)}${a.late_days>0?` · ${a.late_days} day${a.late_days===1?'':'s'} late`:''}`),h('td',null,a.recorded_by_name||'—'))),
+            staffReturnAlerts.length===0?h('tr',null,h('td',{colSpan:6,className:'empty'},'No staff returns to report.')):null)))):null,
       indentReceiptAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Indents Handed Over — Not Received by Nurse (over 20 minutes)'),h('small',null,roleKey==='nurse'?'Items the store handed over to you, but you have not pressed Received yet. Tap a row, check the items and press Received.':'Store handed these over, but the nurse who raised the indent has not pressed Received within 20 minutes. India time. Tap a row to open that indent.'),
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Indent','Guest','Room','Item','Qty','Nurse','Handed over','Waiting'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,indentReceiptDue.map(a=>h('tr',{key:a.indent_id,role:'button',tabIndex:0,onClick:()=>openIndentReceipt(a),onKeyDown:e=>{if(e.key==='Enter')openIndentReceipt(a)},style:{cursor:'pointer',touchAction:'manipulation'}},
@@ -221,7 +244,10 @@
         // 2.15.89: indent handed over, not received within 20 min -> the nurse who raised it + Nursing Manager (pop-up re-appears every 20 min)
         if(isNursing)jobs.push(client.rpc('indent_receipt_overdue_alerts'));
         else jobs.push(Promise.resolve({data:[],error:null}));
-        const [dis,charges,food,withheld,overdue,indentDue]=await Promise.all(jobs);
+        // 2.15.90: staff back on duty / not back after leave -> Admin / Director (both) and Managers (not back, own staff)
+        if(foodAdmin||role==='manager')jobs.push(client.rpc('staff_return_alerts'));
+        else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges,food,withheld,overdue,indentDue,staffReturn]=await Promise.all(jobs);
         const candidates=[];
         (dis.data||[]).forEach(row=>{
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
@@ -268,6 +294,16 @@
             detail:mine?`The store handed these over more than 20 minutes ago, but Received is not entered yet. ${lines}${list.length>4?`; + ${list.length-4} more`:''}. Check the items and press Received.`:`Handed over by the store, but the nurse has not pressed Received within 20 minutes. ${lines}${list.length>4?`; + ${list.length-4} more (see Alerts)`:''}. Please follow up with the nurse.`,
             page:'Patient Consumables',record:list.length===1?{id:oldest.indent_id,patient_id:oldest.patient_id,label:indentReceiptLabel(oldest)}:null,urgent:true,at:oldest.handed_over_at});
         }
+        const staffRows=(!staffReturn?.error&&Array.isArray(staffReturn?.data))?staffReturn.data:[];
+        const notBack=staffRows.filter(a=>a.alert==='Not back'),backRows=staffRows.filter(a=>a.alert!=='Not back');
+        if(notBack.length){
+          const first=notBack[0];
+          candidates.push({key:`staff-notback-${notBack.map(a=>a.leave_id).join('-')}-${Math.floor(Date.now()/3600000)}`,kind:'Staff Leave',
+            title:`${notBack.length} staff not back on duty after leave`,
+            detail:`${notBack.slice(0,4).map(staffReturnLine).join('; ')}${notBack.length>4?`; + ${notBack.length-4} more (see Alerts)`:''}. ${foodAdmin?'Check with the Manager.':'If she has reported, open the leave and tap Mark Back on Duty.'}`,
+            page:'Staff Leave Calendar',record:{id:first.leave_id,date:first.due_date,label:staffReturnLabel(first)},urgent:true,at:first.alert_at});
+        }
+        backRows.forEach(a=>candidates.push({key:`staff-back-${a.leave_id}`,kind:'Staff Leave',title:`${a.employee_name||'Staff'} is back on duty`,detail:staffReturnLine(a)+'.',page:'Staff Leave Calendar',record:{id:a.leave_id,date:a.due_date,label:staffReturnLabel(a)},at:a.recorded_at}));
         candidates.sort((a,b)=>Number(!!b.urgent)-Number(!!a.urgent)||new Date(b.at||0)-new Date(a.at||0));
         const next=candidates.find(x=>!closed.current.has(x.key));
         setItem(current=>current&&candidates.some(x=>x.key===current.key)?current:(next||null));

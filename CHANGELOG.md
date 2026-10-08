@@ -1,3 +1,14 @@
+## 2.15.90 — Staff back on duty after approved leave
+
+How Admin knows a staff member has rejoined after leave:
+- **Mark Back on Duty** (replaces "Record Early Return"): the Manager — Nursing Manager for nursing staff — or Admin opens the leave on Staff Leave Calendar / Leave Approvals and enters the actual date & time she reported, with remarks. Works for early (leave shortened as before), on-time and late returns.
+- **Due back** = her first rostered working shift after the leave (Duty Assignment, up to 7 days ahead); if no roster, the day after the leave ends.
+- **Not back**: if nobody has marked her back 2 hours after that shift starts (10 AM if no roster) → Admin / Director get a pop-up (repeats hourly), an Alerts-page row and a phone notification; her Manager (same department or reporting superior) gets the pop-up and Alerts row to mark her.
+- **Back on duty**: when a Manager marks it → Admin / Director get a pop-up, an Alerts-page row (24 hours) and a phone notification (not the Admin who marked it).
+- **Staff Leave Calendar**: an extra line on the due-back day — amber "Due back", green "Back on duty 09-10-2026 07:05 AM" (with "N days late" if late) or red "Not back on duty"; the leave details show Due Back and status. Tapping an alert opens only that leave (Show all to return).
+- The Nursing Manager's own return (Stores In-charge handover) still uses Approve Return to Duty.
+**SQL 206** + new Edge Function **staff-return-alert-dispatch** (existing push secrets; runs every minute). Settings: staff_return_alert_settings (hours_after_shift 2, default_time 10:00).
+
 ## 2.15.89 — Nursing Indent: alert when the nurse has not pressed Received within 20 minutes
 
 Indent flow: Nurse requests → Nursing Manager approves → Store hands over → Nurse presses **Received**.

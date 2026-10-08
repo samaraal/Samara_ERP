@@ -1,14 +1,12 @@
-Samara Care ERP 2.15.89 — Nursing Indent 20-minute receipt alert — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
+Samara Care ERP 2.15.90 — Staff back on duty after leave — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
 
-Website files: src/app/global-ui/06-bell-notifications-popups.js, src/app/stores/patient-consumables.js,
+Website files: src/app/hr/leave-permission.js, src/app/global-ui/06-bell-notifications-popups.js,
 src/app/0-start/01-app-constants.js, app.js, index.html, service-worker.js, bootstrap-error.js, CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
 
 Supabase (in this order):
-1. Edge Functions > Deploy a new function named  indent-receipt-alert-dispatch  — paste
-   supabase/functions/indent-receipt-alert-dispatch/index.ts  (keep "Verify JWT" ON, like food-cutoff-push).
-   No new secrets needed (uses CRON_SECRET + VAPID keys already set).
-2. SQL Editor > run  supabase/sql/205_indent_receipt_overdue_alerts.sql
-   The last lines should show: minutes 20 / repeat 20, the cron job samara-indent-receipt-alert-dispatch,
-   and any indents overdue right now.
+1. Edge Functions > Deploy a new function named  staff-return-alert-dispatch  — paste
+   supabase/functions/staff-return-alert-dispatch/index.ts  (keep "Verify JWT" ON). No new secrets.
+2. SQL Editor > run  supabase/sql/206_staff_back_on_duty.sql
+   The last lines show the cron job samara-staff-return-alert-dispatch and staff due back in the last / next 7 days.
 
-Phone notifications reach only phones where the nurse / Nursing Manager has tapped "Enable Mobile Notifications".
+Phone notifications reach only Admin / Director phones where "Enable Mobile Notifications" has been tapped.

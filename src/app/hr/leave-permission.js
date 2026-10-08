@@ -66,22 +66,27 @@
     const [returnTarget,setReturnTarget]=React.useState(null),[returnDate,setReturnDate]=React.useState(''),[returnNote,setReturnNote]=React.useState(''),[returnBusy,setReturnBusy]=React.useState(false),[returnError,setReturnError]=React.useState('');
     const returnLock=React.useRef(false);
     function canRecordReturn(r){return !handoverManagers.includes(r.employee_id)&&['Admin','Manager'].includes(profile.role)&&r.employee_id!==profile.id&&r.request_type==='Leave'&&r.status==='approved'&&!r.return_to_duty_date&&r.from_date<=todayISOIndia();}
-    function openReturn(r){setReturnTarget(r);setReturnDate(todayISOIndia()<=r.to_date?todayISOIndia():r.to_date);setReturnNote('');setReturnError('');}
+    // 2.15.90: "Mark Back on Duty" (Manager / Admin) replaces "Record Early Return" — actual date & time she reported;
+    // works for early, on-time and late returns. Admin is informed (SQL 206).
+    const nowLocalInput=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)};
+    function openReturn(r){setReturnTarget(r);setReturnDate(nowLocalInput());setReturnNote('');setReturnError('');}
     async function saveReturn(e){
       e.preventDefault();if(returnLock.current||!returnTarget)return;
-      if(!returnDate||returnDate<returnTarget.from_date||returnDate>returnTarget.to_date||returnDate>todayISOIndia()){setReturnError('Choose an actual return date within the approved leave period, no later than today.');return;}
-      if(!returnNote.trim()){setReturnError('Please confirm the employee has rejoined in the remarks.');return;}
+      const when=returnDate?new Date(returnDate):null;
+      if(!when||Number.isNaN(when.getTime())||when.getTime()>Date.now()+5*60000){setReturnError('Enter the actual date and time she reported for duty (not a future time).');return;}
+      if(when.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})<returnTarget.from_date){setReturnError('Return cannot be before the leave starts.');return;}
+      if(!returnNote.trim()){setReturnError('Remarks are required (e.g. Reported for Day Shift).');return;}
       returnLock.current=true;setReturnBusy(true);setReturnError('');
       try{
-        const {data,error}=await client.rpc('record_absence_early_return',{p_request_id:returnTarget.id,p_return_date:returnDate,p_remarks:returnNote.trim()});
+        const {data,error}=await client.rpc('mark_staff_back_on_duty',{p_request_id:returnTarget.id,p_returned_at:when.toISOString(),p_remarks:returnNote.trim()});
         if(error)throw error;
-        setReturnTarget(null);setMsg(data?.message||'Early return recorded.');await load();
-      }catch(error){setReturnError(error.message||'Unable to record the early return.');}
+        setReturnTarget(null);setMsg(data?.message||'Back on duty recorded.');await load();await loadReturnStatus();
+      }catch(error){setReturnError(error.message||'Unable to record back on duty.');}
       finally{returnLock.current=false;setReturnBusy(false);}
     }
     function returnDetails(r){return r.return_to_duty_date?h(React.Fragment,null,
       h('div',null,h('small',null,'Originally Approved'),h('strong',null,`${formatDateIN(r.from_date)} – ${formatDateIN(r.original_leave_to_date)}`)),
-      h('div',null,h('small',null,'Returned to Duty'),h('strong',null,formatDateIN(r.return_to_duty_date))),
+      h('div',null,h('small',null,'Back on Duty'),h('strong',null,r.return_to_duty_at?formatDateTimeIN(r.return_to_duty_at):formatDateIN(r.return_to_duty_date))),
       h('div',null,h('small',null,'Return Confirmed By'),h('strong',null,formalName(byId(r.return_recorded_by))||'Management'),h('small',null,fmt(r.return_recorded_at))),
       h('div',null,h('small',null,'Return Remarks'),h('strong',null,r.return_remarks||'—'))):null;}
     const [rows,setRows]=React.useState([]),[profiles,setProfiles]=React.useState([]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
@@ -96,18 +101,36 @@
     const [calendarStatusFilter,setCalendarStatusFilter]=React.useState('');
     const [requestStatusFilter,setRequestStatusFilter]=React.useState('');
     const [expandedCalendarRows,setExpandedCalendarRows]=React.useState(new Set());
+    // 2.15.90: back-on-duty status per leave for the week shown (SQL 206); an alert opens only that leave.
+    const [returnStatus,setReturnStatus]=React.useState({});
+    const [leaveFocus,clearLeaveFocus]=useRecordFocus(calendar?'Staff Leave Calendar':'__leave-permission-embedded__');
+    React.useEffect(()=>{if(leaveFocus?.date){setCalendarDate(leaveFocus.date);setExpandedCalendarRows(new Set([`${leaveFocus.id}-return`]))}},[leaveFocus?.id,leaveFocus?.date]);
+    const calendarWeekStart=calendar?mondayOfWeek(calendarDate||todayISOIndia()):'';
+    async function loadReturnStatus(){
+      if(!calendar)return;
+      try{const {data,error}=await client.rpc('staff_return_status',{p_from:calendarWeekStart,p_to:addDaysISO(calendarWeekStart,6)});if(error)throw error;const map={};(Array.isArray(data)?data:[]).forEach(x=>{map[String(x.leave_id)]=x});setReturnStatus(map);}
+      catch(_error){/* Needs SQL 206; the calendar works without it. */}
+    }
+    React.useEffect(()=>{loadReturnStatus();if(!calendar)return;const t=setInterval(loadReturnStatus,60000);return()=>clearInterval(t)},[calendar,calendarWeekStart,rows.length]);
+    function returnBadge(st){
+      if(!st)return null;
+      const style=st.return_status==='Back on duty'?{background:'#e7f6ef',color:'#17603a'}:st.return_status==='Not back'?{background:'#ffe5e7',color:'#b2192d'}:{background:'#fff4d6',color:'#7a5600'};
+      const text=st.return_status==='Back on duty'?`Back on duty ${st.returned_at?formatDateTimeIN(st.returned_at):formatDateIN(st.returned_date)}${st.late_days>0?` · ${st.late_days} day${st.late_days===1?'':'s'} late`:''}`:st.return_status==='Not back'?`Not back on duty · due ${formatDateIN(st.due_date)}`:`Due back ${formatDateIN(st.due_date)}`;
+      return h('span',{className:'badge',style:{...style,marginRight:'6px'}},text);
+    }
     const byId=id=>profiles.find(x=>x.id===id)||{};
+    const returnDay=returnDate?String(returnDate).slice(0,10):'';
     const returnModal=returnTarget?h('div',{className:'modal-backdrop'},h('form',{className:'card modal absence-modal',onSubmit:saveReturn},
-      h('div',{className:'panel-head'},h('h3',null,'Record Early Return'),h('button',{type:'button',className:'close',disabled:returnBusy,'aria-label':'Close early return',onClick:()=>setReturnTarget(null)},'×')),
-      h('p',null,`${returnTarget.employee_name||formalName(byId(returnTarget.employee_id))||'Employee'} · Approved ${formatDateIN(returnTarget.from_date)} – ${formatDateIN(returnTarget.to_date)}`),
+      h('div',{className:'panel-head'},h('h3',null,'Mark Back on Duty'),h('button',{type:'button',className:'close',disabled:returnBusy,'aria-label':'Close back on duty',onClick:()=>setReturnTarget(null)},'×')),
+      h('p',null,`${returnTarget.employee_name||formalName(byId(returnTarget.employee_id))||'Employee'} · Approved leave ${formatDateIN(returnTarget.from_date)} – ${formatDateIN(returnTarget.to_date)}`),
       h('div',{className:'modal-grid'},
-        h('div',{className:'field'},h('label',{htmlFor:'early-return-date'},'Actual Return Date'),h('input',{id:'early-return-date',type:'date',required:true,min:returnTarget.from_date,max:returnTarget.to_date<todayISOIndia()?returnTarget.to_date:todayISOIndia(),value:returnDate,disabled:returnBusy,onChange:e=>setReturnDate(e.target.value)})),
-        h('div',{className:'field span-2'},h('label',{htmlFor:'early-return-note'},'Return Confirmation / Remarks'),h('textarea',{id:'early-return-note',required:true,rows:3,value:returnNote,disabled:returnBusy,onChange:e=>setReturnNote(e.target.value),placeholder:'Confirm when the employee rejoined duty'}))
+        h('div',{className:'field'},h('label',{htmlFor:'back-on-duty-at'},'Reported for Duty (Date & Time)'),h('input',{id:'back-on-duty-at',type:'datetime-local',required:true,max:nowLocalInput(),value:returnDate,disabled:returnBusy,onChange:e=>setReturnDate(e.target.value)})),
+        h('div',{className:'field span-2'},h('label',{htmlFor:'back-on-duty-note'},'Remarks'),h('textarea',{id:'back-on-duty-note',required:true,rows:3,value:returnNote,disabled:returnBusy,onChange:e=>setReturnNote(e.target.value),placeholder:'e.g. Reported for Day Shift'}))
       ),
-      h('p',null,returnDate===returnTarget.from_date?'No leave days taken. The leave will be marked cancelled, with the original approval preserved.':`Leave will end on ${returnDate?formatDateIN(addDaysISO(returnDate,-1)):'—'}. The return date is a working day; the original approval is retained.`),
-      h('small',null,'Use this for a return at the start of the working day or shift. Record attendance and duty assignments separately.'),
+      h('p',null,!returnDay?'':returnDay===returnTarget.from_date?'No leave days taken — the leave will be marked cancelled (original approval kept).':returnDay<=returnTarget.to_date?`Early return — leave will end on ${formatDateIN(addDaysISO(returnDay,-1))} (original approval kept).`:returnDay>addDaysISO(returnTarget.to_date,1)?`Leave ended on ${formatDateIN(returnTarget.to_date)}. This return may be recorded as late (compared with her rostered shift).`:'On-time return.'),
+      h('small',null,'Admin / Director are informed automatically.'),
       returnError?h('div',{className:'message error',role:'alert'},returnError):null,
-      h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:returnBusy,onClick:()=>setReturnTarget(null)},'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:returnBusy},returnBusy?'Saving…':'Confirm Early Return'))
+      h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:returnBusy,onClick:()=>setReturnTarget(null)},'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:returnBusy},returnBusy?'Saving…':'Confirm Back on Duty'))
     )):null;
 
     const statusLabel=s=>({pending_superior:'Pending Superior',pending_management:'Pending Management',approved:'Approved',rejected:'Rejected',cancelled:'Cancelled'}[s]||s||'—');
@@ -222,7 +245,7 @@
           ):null
         ),
         h('div',{className:'absence-actions'},
-          canRecordReturn(r)?h('button',{type:'button',className:'btn btn-secondary',disabled:busy||returnBusy,onClick:()=>openReturn(r)},'Record Early Return'):null,
+          canRecordReturn(r)?h('button',{type:'button',className:'btn btn-secondary',disabled:busy||returnBusy,onClick:()=>openReturn(r)},'Mark Back on Duty'):null,
           !isApprovals&&['pending_superior','pending_management'].includes(r.status)?h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'cancel')},'Cancel Request'):null,
           isApprovals&&canRecommend(r)?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>act(r,'recommend')},'Recommend'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'reject')},'Reject')):null,
           isApprovals&&canManage(r)?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>act(r,'approve')},'Approve'),r.request_type==='Leave'?h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openModifiedApproval(r)},'Approve with Modification'):null,h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'reject')},'Reject')):null
@@ -249,7 +272,7 @@
         h('button',{type:'button',className:'calendar-absence-summary',onClick:()=>setExpandedCalendarRows(prev=>{const next=new Set(prev);next.has(calendarKey)?next.delete(calendarKey):next.add(calendarKey);return next})},
           h('span',{className:'calendar-absence-day'},formatDateWithDayIN(r.__calendarDay||(r.request_type==='Leave'?r.from_date:r.permission_date))),
           h('span',{className:'calendar-absence-person'},(isApprovals||calendar)?(formalName(emp)||r.employee_name||'Employee'):(r.request_type==='Leave'?(r.leave_type||'Leave'):'Permission')),
-          h('span',{className:`badge ${statusClass(r.status)}`},statusLabel(r.status)),
+          r.__returnRow?returnBadge(r.__returnRow):h('span',{className:`badge ${statusClass(r.status)}`},statusLabel(r.status)),
           h('span',{className:'calendar-absence-chevron'},expanded?'⌃':'⌄')
         ),
         expanded?h('div',{className:'absence-grid calendar-absence-details'},
@@ -259,12 +282,14 @@
           h('div',null,h('small',null,'Position'),h('strong',null,[emp.designation||emp.position,emp.department].filter(Boolean).join(' · ')||'—')),
           h('div',null,h('small',null,'Reason'),h('strong',null,r.reason||'—')),
           h('div',null,h('small',null,'Status'),h('strong',null,statusLabel(r.status))),
+          returnStatus[String(r.id)]&&r.request_type==='Leave'?h('div',null,h('small',null,'Due Back'),h('strong',null,`${formatDateIN(returnStatus[String(r.id)].due_date)}${returnStatus[String(r.id)].due_shift?` · ${returnStatus[String(r.id)].due_shift}`:''}`)):null,
+          returnStatus[String(r.id)]&&r.request_type==='Leave'?h('div',null,h('small',null,'Back on Duty Status'),h('strong',null,returnBadge(returnStatus[String(r.id)]))):null,
           returnDetails(r),
           handoverManagers.includes(r.employee_id)&&h('div',{style:{gridColumn:'1/-1'},className:'message'},'Nursing Manager return: Admin/Director must use Approve Return to Duty under Stores In-charge Assignment. STD retains operational rights until approval.'),
           r.handover_remarks?h('div',null,h('small',null,'Handover'),h('strong',null,r.handover_remarks)):null,
           r.decision_by_name?h('div',null,h('small',null,'Decision'),h('strong',null,`${r.decision_by_name}${r.decision_at?` · ${fmt(r.decision_at)}`:''}`)):null,
           h('div',{className:'absence-actions',style:{gridColumn:'1/-1'}},
-            canRecordReturn(r)?h('button',{type:'button',className:'btn btn-secondary',disabled:busy||returnBusy,onClick:()=>openReturn(r)},'Record Early Return'):null,
+            canRecordReturn(r)?h('button',{type:'button',className:'btn btn-secondary',disabled:busy||returnBusy,onClick:()=>openReturn(r)},'Mark Back on Duty'):null,
             isApprovals&&canRecommend(r)?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>act(r,'recommend')},'Recommend'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'reject')},'Reject')):null,
             isApprovals&&canManage(r)?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>act(r,'approve')},'Approve'),r.request_type==='Leave'?h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openModifiedApproval(r)},'Approve with Modification'):null,h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>act(r,'reject')},'Reject')):null
           )
@@ -296,14 +321,18 @@
         const to=(r.to_date||r.from_date)&&((r.to_date||r.from_date)<weekEnd?(r.to_date||r.from_date):weekEnd);
         const days=[];
         for(let day=from;day&&to&&day<=to;day=addDaysISO(day,1))days.push({...r,__calendarDay:day,__calendarKey:`${r.id}-${day}`});
+        // 2.15.90: one extra line on the day she is due back, showing Due back / Back on duty / Not back.
+        const st=returnStatus[String(r.id)];
+        if(st&&st.due_date>=weekStart&&st.due_date<=weekEnd)days.push({...r,__calendarDay:st.due_date,__calendarKey:`${r.id}-return`,__returnRow:st});
         return days;
-      });
+      }).filter(x=>!leaveFocus?.id||String(x.id)===String(leaveFocus.id)).sort((a,b)=>String(a.__calendarDay||'').localeCompare(String(b.__calendarDay||'')));
       const selectedLabel=`${formatDateWithDayIN(weekStart)} to ${formatDateWithDayIN(weekEnd)}`;
       const currentWeek=mondayOfWeek(todayISOIndia());
       const statusButton=(value,label)=>h('button',{type:'button',className:calendarStatusFilter===value?'active':'',onClick:()=>setCalendarStatusFilter(calendarStatusFilter===value?'':value)},h('strong',null,rows.filter(calendarMatches).filter(r=>value?(value==='pending'?['pending_superior','pending_management'].includes(r.status):r.status===value):true).length),h('small',null,label));
       return h(React.Fragment,null,returnModal,
         h(Section,{title:'Staff Leave Calendar',subtitle:`${selectedLabel} · ${calendarBaseRows.length} leave / permission record${calendarBaseRows.length===1?'':'s'}`,actions:h('button',{className:'btn btn-secondary',onClick:load,disabled:busy},'Refresh')},
           msg?h('div',{className:'message'},msg):null,
+          leaveFocus?.id?h(RecordFocusBanner,{focus:leaveFocus,onShowAll:clearLeaveFocus}):null,
           h('div',{className:'selected-week-banner'},h('small',null,'Selected week'),h('strong',null,selectedLabel)),
           h('div',{className:'leave-calendar-controls'},
             h('input',{type:'search',value:calendarSearch,onChange:e=>setCalendarSearch(e.target.value),placeholder:'Search name, mobile, position…','aria-label':'Search staff by name, mobile or position'}),

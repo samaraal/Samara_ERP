@@ -1,5 +1,5 @@
-const APP_VERSION = '2.15.89';
-const CACHE = 'samara-erp-2.15.89-indent-receipt-alert';
+const APP_VERSION = '2.15.90';
+const CACHE = 'samara-erp-2.15.90-staff-back-on-duty';
 const SHELL = [
   './',
   './index.html',
