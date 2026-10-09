@@ -157,6 +157,7 @@
     const actions=[
       ['Medicines','◐','Medication','Give / record'],
       ['Vital Signs','∿','Vitals','Enter observations'],
+      ['Intake / Output','💧','Intake / Output','Fluid chart'],
       ['Daily Care','♡','Daily Care','Complete care'],
       ['Food & Diet','♨','Food & Beverages','Record intake'],
       ['Shift Tasks','☷','Tasks','Current shift']

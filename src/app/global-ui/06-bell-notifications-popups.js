@@ -39,6 +39,15 @@
     if(a?.alert==='Not back')return `${a.employee_name||'Staff'} — leave ended ${formatDateIN(a.leave_to)}, due back ${formatDateIN(a.due_date)}${a.due_shift?` (${a.due_shift})`:''}, not marked back on duty`;
     return `${a?.employee_name||'Staff'} — back on duty ${a?.returned_at?fmt(a.returned_at):formatDateIN(a?.returned_date)}${a?.late_days>0?` (${a.late_days} day${a.late_days===1?'':'s'} late)`:''}${a?.recorded_by_name?` · marked by ${a.recorded_by_name}`:''}`;
   }
+  // 2.16.11: Intake / Output chart alerts (SQL 211) — low urine in the shift that just ended, big 24 h imbalance.
+  function ioAlertLabel(a){return `${a?.guest_name||'Guest'}${a?.room_label?` · ${a.room_label}`:''} · ${a?.kind||'Fluid alert'} · ${formatDateIN(a?.chart_date)}`}
+  function ioAlertLine(a){
+    const who=`${a?.guest_name||'Guest'}${a?.room_label?` (${a.room_label})`:''}`;
+    if(a?.kind==='Low urine')return `${who}: urine ${Math.round(Number(a.value_ml||0))} ml in ${String(a.shift||'the shift').replace(/ \(.*\)$/,'')} of ${formatDateIN(a.chart_date)} (minimum ${a.limit_ml} ml)`;
+    const diff=Math.round(Number(a?.value_ml||0));
+    return `${who}: intake ${Math.round(Number(a?.intake_ml||0))} ml, output ${Math.round(Number(a?.output_ml||0))} ml on ${formatDateIN(a?.chart_date)} — ${diff>=0?'+':''}${diff} ml (limit ±${a?.limit_ml} ml)`;
+  }
+  function openIoAlert(a){openRecord('Intake / Output',{patient_id:a?.patient_id,chart_date:a?.chart_date,label:ioAlertLabel(a)})}
   function openIndentReceipt(a){openRecord('Patient Consumables',{id:a?.indent_id,patient_id:a?.patient_id,label:indentReceiptLabel(a)})}
 
   function ClinicalAlertBell({engine,onOpen}){
@@ -87,6 +96,13 @@
     const roleKey=String(profile?.role||'').trim().toLowerCase();
     const indentReceiptAccess=roleKey==='nurse'||cutoffAdmin||isNursingManagerProfile(profile)||nursingManager;
     const [indentReceiptDue,setIndentReceiptDue]=React.useState([]);
+    const ioAlertAccess=roleKey==='nurse'||roleKey==='caregiver'||cutoffAdmin||roleKey==='manager';
+    const [ioAlerts,setIoAlerts]=React.useState([]);
+    async function loadIoAlerts(){
+      if(!ioAlertAccess)return;
+      try{const {data,error}=await client.rpc('io_chart_alerts');if(error)throw error;setIoAlerts(Array.isArray(data)?data:[]);}
+      catch(_error){/* Needs SQL 211; until then this section simply stays empty. */}
+    }
     const staffReturnAccess=cutoffAdmin||roleKey==='manager';
     const [staffReturnAlerts,setStaffReturnAlerts]=React.useState([]);
     async function loadStaffReturnAlerts(){
@@ -142,6 +158,7 @@
         await loadOverdueCharges();
         await loadIndentReceiptDue();
         await loadStaffReturnAlerts();
+        await loadIoAlerts();
         await loadEnquiryAlerts();
         if(typeof engine?.refresh==='function')await engine.refresh();
       }catch(error){setMessage(error.message||'Unable to refresh notifications.');}
@@ -155,6 +172,7 @@
     React.useEffect(()=>{if(!cutoffAdmin)return;const refresh=()=>loadCutoffAttempts().catch(error=>setMessage(error.message||'Unable to load food cutoff attempts.'));const timer=setInterval(refresh,15000);window.addEventListener('focus',refresh);return()=>{clearInterval(timer);window.removeEventListener('focus',refresh)}},[profile?.id,cutoffAdmin]);
     React.useEffect(()=>{if(!enquiryAccess)return;loadEnquiryAlerts();const timer=setInterval(loadEnquiryAlerts,60000);window.addEventListener('focus',loadEnquiryAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadEnquiryAlerts)}},[profile?.id,enquiryAccess]);
     React.useEffect(()=>{if(!staffReturnAccess)return;loadStaffReturnAlerts();const timer=setInterval(loadStaffReturnAlerts,60000);window.addEventListener('focus',loadStaffReturnAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadStaffReturnAlerts)}},[profile?.id,staffReturnAccess]);
+    React.useEffect(()=>{if(!ioAlertAccess)return;loadIoAlerts();const timer=setInterval(loadIoAlerts,300000);window.addEventListener('focus',loadIoAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadIoAlerts)}},[profile?.id,ioAlertAccess]);
     React.useEffect(()=>{if(!indentReceiptAccess)return;loadIndentReceiptDue();const timer=setInterval(loadIndentReceiptDue,60000);window.addEventListener('focus',loadIndentReceiptDue);return()=>{clearInterval(timer);window.removeEventListener('focus',loadIndentReceiptDue)}},[profile?.id,indentReceiptAccess]);
     React.useEffect(()=>{if(!cutoffAdmin)return;loadOverdueCharges();const timer=setInterval(loadOverdueCharges,60000);window.addEventListener('focus',loadOverdueCharges);return()=>{clearInterval(timer);window.removeEventListener('focus',loadOverdueCharges)}},[profile?.id,cutoffAdmin]);
     React.useEffect(()=>{if(!foodAccess)return;loadFoodReplyAlerts();const timer=setInterval(loadFoodReplyAlerts,30000);window.addEventListener('focus',loadFoodReplyAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadFoodReplyAlerts)}},[profile?.id,foodAccess]);
@@ -186,6 +204,13 @@
           h('tbody',null,indentReceiptDue.map(a=>h('tr',{key:a.indent_id,role:'button',tabIndex:0,onClick:()=>openIndentReceipt(a),onKeyDown:e=>{if(e.key==='Enter')openIndentReceipt(a)},style:{cursor:'pointer',touchAction:'manipulation'}},
             h('td',null,a.indent_ref||'—'),h('td',null,a.guest_name||'Guest'),h('td',null,a.room_label||'—'),h('td',null,a.item_name||'—'),h('td',null,`${a.quantity??'—'} ${a.unit||''}`),h('td',null,a.nurse_name||'—'),h('td',null,`${fmt(a.handed_over_at)}${a.handed_over_by_name?` · ${a.handed_over_by_name}`:''}`),h('td',null,h('span',{className:'badge',style:{background:'#ffe5e7',color:'#b2192d'}},overdueChargeMinutes(a.minutes))))),
             indentReceiptDue.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'Every handed-over indent has been received within 20 minutes.')):null)))):null,
+      ioAlertAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Intake / Output Alerts'),h('small',null,'Guests on the fluid chart: low urine in the shift that just ended, or a big intake–output difference in the last full chart day (7 AM to 7 AM). Tap a row to open the chart.'),
+        h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Alert','Guest','Room','Chart date','Details'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,ioAlerts.map(a=>h('tr',{key:a.alert_key,role:'button',tabIndex:0,onClick:()=>openIoAlert(a),onKeyDown:e=>{if(e.key==='Enter')openIoAlert(a)},style:{cursor:'pointer',touchAction:'manipulation'}},
+            h('td',null,h('span',{className:'badge',style:{background:'#ffe5e7',color:'#b2192d'}},a.kind)),h('td',null,a.guest_name||'Guest'),h('td',null,a.room_label||'—'),
+            h('td',null,`${formatDateIN(a.chart_date)}${a.shift?` · ${String(a.shift).replace(/ \(.*\)$/,'')}`:''}`),
+            h('td',null,a.kind==='Low urine'?`Urine ${Math.round(Number(a.value_ml||0))} ml (minimum ${a.limit_ml} ml)`:`In ${Math.round(Number(a.intake_ml||0))} ml · Out ${Math.round(Number(a.output_ml||0))} ml · Difference ${Math.round(Number(a.value_ml||0))>=0?'+':''}${Math.round(Number(a.value_ml||0))} ml (limit ±${a.limit_ml} ml)`))),
+            ioAlerts.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No intake / output alerts.')):null)))):null,
       enquiryAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Enquiries — Follow-up Needed'),h('small',null,'New enquiries and follow-ups due for you; Admin also sees New enquiries untouched for 24 hours. Tap a row to open that enquiry.'),
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Alert','Enquiry','Guest','Contact','Source','When'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,enquiryAlerts.map((a,i)=>h('tr',{key:a.alert+a.id+i,role:'button',tabIndex:0,style:{cursor:'pointer',touchAction:'manipulation'},onClick:()=>{try{sessionStorage.setItem('samara-open-enquiry-id',a.id)}catch(_){}navigate('Enquiry Register');setTimeout(()=>window.dispatchEvent(new CustomEvent('samara-open-enquiry',{detail:{id:a.id}})),0)}},
@@ -217,7 +242,7 @@
     // 2.15.96: information-only pop-ups (staff back on duty, new food-vendor WhatsApp) stay closed after Close /
     // Open, also after a page refresh or app update, on this device. Action pop-ups behave as before.
     const SEEN_KEY=`samara_popup_seen_v1_${profile?.id||'anon'}`;
-    const remembered=key=>/^(staff-back-|food-wa-)/.test(String(key||''));
+    const remembered=key=>/^(staff-back-|food-wa-|io-)/.test(String(key||''));
     React.useEffect(()=>{
       try{
         const saved=JSON.parse(localStorage.getItem(SEEN_KEY)||'{}')||{};const cutoff=Date.now()-3*86400000;const kept={};
@@ -268,7 +293,10 @@
         // 2.15.94: new WhatsApp from the food vendor -> the person assigned Food Management (SQL 208)
         if(foodManager)jobs.push(client.rpc('fv_whatsapp_unread'));
         else jobs.push(Promise.resolve({data:[],error:null}));
-        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa]=await Promise.all(jobs);
+        // 2.16.11: Intake / Output chart alerts (SQL 211) for the nurse and the Nursing Manager.
+        if(isNursing)jobs.push(client.rpc('io_chart_alerts'));
+        else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts]=await Promise.all(jobs);
         const candidates=[];
         (dis.data||[]).forEach(row=>{
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
@@ -325,6 +353,11 @@
             detail:`${a.unread>1?`${a.unread} unread messages. Latest: `:''}${a.snippet||'Message received'}`,
             page:'WhatsApp Inbox',waPhone:a.phone,food:null,at:a.latest_at});
         });
+        const ioRows=(!ioAlerts?.error&&Array.isArray(ioAlerts?.data))?ioAlerts.data.filter(a=>a.audience==='nursing'):[];
+        ioRows.forEach(a=>candidates.push({key:a.alert_key,kind:'Intake / Output',
+          title:a.kind==='Low urine'?`Low urine output — ${a.guest_name||'Guest'}`:`Fluid imbalance — ${a.guest_name||'Guest'}`,
+          detail:`${ioAlertLine(a)}. ${a.kind==='Low urine'?'Check the Guest, check catheter / bladder, encourage fluids as advised and inform the doctor if needed.':'Review the chart and inform the doctor if needed.'}`,
+          page:'Intake / Output',record:{patient_id:a.patient_id,chart_date:a.chart_date,label:ioAlertLabel(a)},urgent:true,at:a.ended_at}));
         const staffRows=(!staffReturn?.error&&Array.isArray(staffReturn?.data))?staffReturn.data:[];
         const notBack=staffRows.filter(a=>a.alert==='Not back'),backRows=staffRows.filter(a=>a.alert!=='Not back');
         if(notBack.length){

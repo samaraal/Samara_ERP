@@ -163,10 +163,15 @@ async function makeReport(sb:any,patient:any,date:string){
     ...dayBeverages.map((x:any)=>`${bevName(x)} at ${text(x.given_time).slice(0,5)}${text(x.consumption_status)&&text(x.consumption_status)!=="Consumed fully"?` (${text(x.consumption_status)})`:""}`)].join("; ")||"No beverage entered";
   const wellbeing=`Mobility ${/mobil|walk|ambulat|turn|position/i.test(wellbeingText)?"documented":"not separately recorded"}; pain ${/pain/i.test(wellbeingText)?"mentioned":"not separately recorded"}; sleep ${/sleep/i.test(wellbeingText)?"documented":"not separately recorded"}; orientation ${/orient|conscious|alert/i.test(wellbeingText)?"documented":"not separately recorded"}.`;
   const previous=vitalRows[1];const direction=(a:any,b:any)=>a==null||b==null?"Not enough data":a>b?"increased":a<b?"decreased":"remained stable";
+  // 2.16.11: Intake / Output chart (SQL 211). Shown only when the Guest has chart entries for this chart day (7 AM to 7 AM).
+  let fluidLine="";
+  try{const io=await sb.rpc("io_rows",{p_patient:patient.id,p_from:date,p_to:date});const list:any[]=io.error?[]:(io.data||[]);
+    if(list.some((r:any)=>r.source==="Chart")){const sum=(d:string)=>Math.round(list.filter((r:any)=>r.direction===d).reduce((t:number,r:any)=>t+Number(r.ml||0),0));
+      fluidLine=` Fluid chart (7 AM to 7 AM): intake ${sum("Intake")} ml, output ${sum("Output")} ml.`}}catch{/* SQL 211 not run yet */}
   const glanceCards:[string,string][]=[
     ["VITAL TREND",latest&&previous?`BP ${n(latest.systolic)??"-"}/${n(latest.diastolic)??"-"}; pulse ${direction(n(latest.pulse),n(previous.pulse))}; SpO2 ${direction(n(latest.spo2),n(previous.spo2))}`:latest?"One observation; comparison unavailable":"No observation entered"],
     ["MEDICATION",`${given} given; ${missed} missed / omitted / refused`],
-    ["FOOD AND BEVERAGES",`${mealSummary}. ${beverageSummary}`],
+    ["FOOD AND BEVERAGES",`${mealSummary}. ${beverageSummary}${fluidLine?"."+fluidLine:""}`],
     ["DAILY WELLBEING",wellbeing],
     ["DOCTOR REVIEW",latestReview?`${text(latestReview.doctor_name)||"Doctor"}: ${text(latestReview.clinical_notes)||text(latestReview.review_type)||"Review recorded"}${reviewChanges?`; ${reviewChanges}`:""}`:"No new review entered"],
     ["CLINICAL CONCERN",dayIncidents.length?`${dayIncidents.length} incident(s) recorded - review required`:"No incident recorded"]

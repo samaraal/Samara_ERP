@@ -281,6 +281,11 @@
    "lines": 235
   },
   {
+   "file": "clinical/intake-output.js",
+   "about": "Intake / Output (fluid balance) chart",
+   "lines": 261
+  },
+  {
    "file": "clinical/medicines.js",
    "about": "Medicines (+ discharge medication review)",
    "lines": 808

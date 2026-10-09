@@ -1,3 +1,15 @@
+## 2.16.11 — Intake / Output (fluid balance) chart for nurses
+
+- New page **Nursing → Intake / Output Chart** (Nurse, Caregiver, Nursing Manager; Admin / Manager can view). Also a quick-action tile on the Nursing Dashboard.
+- The chart is switched ON per Guest only (reason + alert limits). The Nursing Manager / Admin can change the limits or stop the chart.
+- Intake: Oral fluids, IV fluids, Tube feed, Other. Output: Urine, Catheter urine, Drain, Vomit, Stool (count + type, ml optional), Other.
+- Tea / coffee / milk / juice from Resident Food Intake count automatically as oral intake (ml as entered; cup 150, tumbler 200, glass 250, mug 250 ml; partly taken = half; refused = 0).
+- Totals: Day shift 7 AM–7 PM, Night shift 7 PM–7 AM and 24 hours (chart day 7 AM to 7 AM), with balance and a warning when beyond the limit. Date bar with Previous / Apply / Next / Today; rows open for full details. Wrong entries are removed with a reason (kept in the audit).
+- Alerts (pop-up for the nurse and Nursing Manager, list in Alerts): low urine in the shift that just ended, and a big 24-hour imbalance. Tapping opens that Guest's chart for that day.
+- Daily Intelligent Report: one line "Fluid chart (7 AM to 7 AM): intake X ml, output Y ml" when the Guest is on the chart.
+- Family Portal 1.0.34 (other repo) shows the same simple daily line.
+- Needs SQL 211_intake_output_chart.sql.
+
 ## 2.16.10 (update) — Daily Intelligent Report: built on the LIVE function
 
 - The repo copy of **daily-patient-report** was older than the function actually running in Supabase (the live one has the Nursing Procedures section and the Family Portal "existing reports" list; the copy did not). Redeploying the old copy would have removed both. The copy is now the **live function** plus:
