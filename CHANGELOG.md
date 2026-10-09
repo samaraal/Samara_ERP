@@ -1,3 +1,14 @@
+## 2.16.10 — Medicines WITHHOLD: family sees it in simple words; phone alert; time fixes (SQL 210)
+
+- **Family (Daily Intelligent Report on WhatsApp + Family Portal 1.0.33):** a withheld dose is no longer shown raw. It is shown **only after the doctor's instruction is recorded**, in simple words — e.g. "Held because the blood pressure was low (BP 90/58 mmHg). Dr. Kumar was informed and advised to give it at 12:00 PM." In the report table: status "Held - Dr. informed" with a short line. No staff names, no internal remarks, nothing while the doctor's reply is pending. (Discharge Summary unchanged — withheld doses still not printed.)
+- **"Give at a later time" across midnight fixed:** a time earlier than the dose time is now the **next day** (10 PM dose, doctor says 6 AM → 6 AM tomorrow). Before, it was silently changed to 10:01 PM the same night. The form shows the date the dose will be due; a time already passed is refused with a clear message.
+- **Low-vitals warning:** now reads the latest reading of **each** of BP, sugar and pulse from the last 12 hours (before, only the single latest vitals entry — a low sugar at 7:00 was missed if only BP was entered at 7:30). Zero readings are treated as not taken.
+- **Phone notification** to Nurses, Nursing Manager, Managers and Admin / Directors as soon as a dose is withheld, **repeated every 30 minutes** until the doctor's instruction is recorded (new Edge Function withheld-dose-alert-dispatch, every minute; setting withheld_dose_alert_settings.repeat_minutes). The ERP pop-up also comes back every 30 minutes and now covers 3 days (was 2).
+- **Opens only that dose:** "Open & Take Action" on the pop-up opens Medicines showing only that withheld dose (Show all to return).
+- Re-checks that the clinical alert engine raises "Re-medication Due" for a dose the doctor said to give later.
+- Deploy: run **supabase/sql/210_medicine_withhold_fixes_family_push.sql**; create Edge Function **withheld-dose-alert-dispatch** from supabase/functions/withheld-dose-alert-dispatch/index.ts (legacy JWT ON, existing push secrets); redeploy Edge Function **daily-patient-report** from supabase/function-copies/daily-patient-report-inbox.ts; upload Family Portal 1.0.33 to repo Samara_Family_Portal.
+- Files: src/app/clinical/medicines.js, src/app/patients/medication-helpers.js, src/app/global-ui/06-bell-notifications-popups.js, src/app/global-ui/09-tamil-dictionary.js, version files, app.js (rebuilt).
+
 ## 2.16.9 — Full Tamil for nurse screens
 
 - About 1,450 more Tamil phrases for the screens nurses use: Nursing Dashboard, Clinical Alerts, Shift Tasks, Medication Administration (MAR, doctor review, withheld dose), Vital Signs, Daily Care, Patients / Patient file, Discharge, Available Beds, Approval Requests, Equipment / Oxygen, Physiotherapy, Special Nurse, Shift Handover, Incidents, My Leave, To-Do, alerts and pop-ups.

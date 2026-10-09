@@ -37,6 +37,8 @@
     const [instructionForm,setInstructionForm]=React.useState({instruction:'',notes:'',give_at:''});
     const [instructionBusy,setInstructionBusy]=React.useState(false);
     const [instructionMessage,setInstructionMessage]=React.useState('');
+    // 2.16.10: a withheld-dose pop-up / notification opens Medicines showing only that dose (global rule)
+    const [withheldFocus,clearWithheldFocus]=useRecordFocus('Medicines');
     const [marBusy,setMarBusy]=React.useState(false);
     const [marMessage,setMarMessage]=React.useState('');
     const [showShiftMedication,setShowShiftMedication]=React.useState(false);
@@ -724,8 +726,16 @@
     }
 
     // 2.15.11: warn-only suggestion from today's latest vitals; open withheld doses awaiting the doctor
-    const withholdSuggestion=marTarget&&marForm.status!=='Withheld'?medicationWithholdSuggestion(marTarget,(state.vitals||[]).find(v=>v.patient_id===marTarget.patient_id)):null;
-    const openWithheld=(state.mar||[]).filter(medicationWithholdOpen).filter(log=>{const pt=state.patients.find(x=>x.id===log.patient_id);return pt&&pt.is_active!==false&&(!patientFilter||log.patient_id===patientFilter)});
+    const withholdSuggestion=marTarget&&marForm.status!=='Withheld'?medicationWithholdSuggestion(marTarget,(state.vitals||[]).filter(v=>v.patient_id===marTarget.patient_id)):null;
+    const allOpenWithheld=(state.mar||[]).filter(medicationWithholdOpen).filter(log=>{const pt=state.patients.find(x=>x.id===log.patient_id);return pt&&pt.is_active!==false&&(!patientFilter||log.patient_id===patientFilter)});
+    const openWithheld=withheldFocus?.id?allOpenWithheld.filter(log=>log.id===withheldFocus.id):allOpenWithheld;
+    const focusedWithheldDone=Boolean(withheldFocus?.id&&!state.loading&&!openWithheld.length);
+    useScrollToFocused(withheldFocus?.id&&openWithheld.length?`withheld-${withheldFocus.id}`:'',!state.loading);
+    // Re-dose day for "Give now / later": same rule as Today's MAR — a time after the dose time is the same day, an earlier one the next day
+    function instructionGiveOn(target,giveHHMM){
+      if(!target||!giveHHMM)return '';
+      return rescheduledDoseDate({scheduled_date:target.scheduled_date,scheduled_time:target.scheduled_time,rescheduled_time:giveHHMM});
+    }
     function openInstruction(log){
       const plus30=new Date(Date.now()+30*60000);
       setInstructionTarget(log);
@@ -740,13 +750,18 @@
       if(!f.instruction)return fail('Select the doctor\'s instruction.');
       if(!String(f.notes||'').trim())return fail('Enter what the doctor said (the instruction in the doctor\'s words).');
       if(f.instruction==='Give at a later time'&&!f.give_at)return fail('Choose the time to give the dose.');
+      if(f.instruction==='Give at a later time'){
+        const on=instructionGiveOn(instructionTarget,f.give_at);
+        const when=on?new Date(`${on}T${normalizeMedicationTime(f.give_at)}:00+05:30`):null;
+        if(when&&when.getTime()<Date.now()-10*60000)return fail(`${medicationTimeLabel(f.give_at)} on ${formatDateIN(on)} has already passed for this dose. Choose a later time, or "Skip this dose" if the doctor advised waiting for the next dose.`);
+      }
       setInstructionBusy(true);
       const {error}=await client.rpc('record_withheld_dose_instruction',{p_id:instructionTarget.id,p_instruction:f.instruction,p_notes:String(f.notes).trim(),p_give_at:f.instruction==='Give at a later time'?`${f.give_at}:00`:null});
       setInstructionBusy(false);
       if(error)return fail(error.message||'Unable to save the doctor\'s instruction.');
       const patientId=instructionTarget.patient_id;
       setInstructionTarget(null);
-      showSamaraActionToast('success','Doctor\'s instruction recorded',f.instruction==='Give now'?'The dose now appears as due in Today\'s MAR. Record it when given.':f.instruction==='Give at a later time'?`The dose will appear again at ${medicationTimeLabel(f.give_at)} in Today\'s MAR.`:f.instruction==='Skip this dose'?'This dose is closed as skipped on the doctor\'s instruction.':'Now record the prescription change in Doctor Review / Modify.');
+      showSamaraActionToast('success','Doctor\'s instruction recorded',f.instruction==='Give now'?'The dose now appears as due in Today\'s MAR. Record it when given.':f.instruction==='Give at a later time'?(()=>{const on=instructionGiveOn(instructionTarget,f.give_at);return `The dose will appear again at ${medicationTimeLabel(f.give_at)}${on&&on!==today?` on ${formatDateIN(on)}`:''} in Today\'s MAR and Shift Tasks.`})():f.instruction==='Skip this dose'?'This dose is closed as skipped on the doctor\'s instruction.':'Now record the prescription change in Doctor Review / Modify.');
       await load();
       if(f.instruction==='Change prescription (Doctor Review)'&&canReviseMedication&&!state.reviewSetupError){setTab('Prescription History');openMedicationReview(patientId);}
     }
@@ -758,6 +773,9 @@
       h(Section,{title:'Medication Administration & Prescription Register',subtitle:'Unified prescription history and MAR status from the patient record'},
         state.error&&h('div',{className:'message error'},`Unable to load part of the medication register: ${state.error}`),
         state.reviewSetupError&&h('div',{className:'message error'},'Medication Review database upgrade is not yet installed. Run MEDICATION_REVIEW_MIGRATION_v2.11.26.sql in Supabase SQL Editor before using Doctor Review / Modify.'),
+        // 2.16.10: opened from a withheld-dose alert -> only that dose
+        withheldFocus&&h(RecordFocusBanner,{focus:withheldFocus,onShowAll:clearWithheldFocus}),
+        focusedWithheldDone&&h('div',{className:'message success'},'The doctor\'s instruction for this withheld dose is already recorded. Tap Show all to see the full register.'),
         // 2.15.11: withheld doses stay here until the doctor's instruction is recorded
         openWithheld.length>0&&h('div',{className:'section-card',style:{border:'1px solid #f0b4b4',borderLeft:'6px solid #b42318',background:'#fff7f7',marginBottom:'14px'}},
           h('div',{className:'panel-head'},h('div',null,h('h3',{style:{color:'#b42318',margin:0}},`Withheld doses — awaiting doctor's instruction (${openWithheld.length})`),h('small',null,'Record the doctor\'s instruction as soon as it is received. Nursing Manager and Admin are alerted until then.'))),
@@ -765,7 +783,7 @@
             const order=state.orders.find(o=>o.id===log.order_id)||{};
             const pt=state.patients.find(x=>x.id===log.patient_id)||{};
             const since=Math.max(0,Math.round((Date.now()-new Date(log.administered_at||log.entry_recorded_at||Date.now()).getTime())/60000));
-            return h('div',{key:log.id,style:{display:'flex',gap:'10px',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',padding:'10px 12px',border:'1px solid #f3cccc',borderRadius:'10px',background:'#fff'}},
+            return h('div',{key:log.id,id:`withheld-${log.id}`,style:{display:'flex',gap:'10px',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',padding:'10px 12px',border:'1px solid #f3cccc',borderRadius:'10px',background:'#fff'}},
               h('div',{style:{minWidth:'240px',flex:'1 1 320px'}},
                 h('strong',null,`${formalName(pt)||pt.full_name||'Resident'}${pt.room_no?` · Room ${pt.room_no}${pt.bed_no?'-'+pt.bed_no:''}`:''}`),
                 h('div',null,`${medicineLabel(order)} · dose ${medicationTimeLabel(log.scheduled_time)}${log.scheduled_date&&log.scheduled_date!==today?` (${formatDateIN(log.scheduled_date)})`:''}`),
@@ -887,7 +905,7 @@
             return h('div',{className:'message warning'},`${formalName(pt)||pt.full_name||'Resident'} · ${medicineLabel(order)} · dose ${medicationTimeLabel(instructionTarget.scheduled_time)} — withheld: ${[instructionTarget.withhold_reason,instructionTarget.withhold_reading].filter(Boolean).join(' · ')}`)})(),
           h('div',{className:'modal-grid'},
             h('div',{className:'field span-2'},h('label',null,'Doctor\'s instruction'),h('select',{required:true,value:instructionForm.instruction,onChange:e=>setInstructionForm({...instructionForm,instruction:e.target.value})},h('option',{value:''},'Select instruction'),MEDICATION_WITHHOLD_INSTRUCTIONS.map(x=>h('option',{key:x,value:x},x)))),
-            instructionForm.instruction==='Give at a later time'&&h('div',{className:'field span-2'},h('label',null,'Give the dose at'),h('input',{type:'time',required:true,value:instructionForm.give_at,onChange:e=>setInstructionForm({...instructionForm,give_at:e.target.value})}),h('small',null,'The dose appears again at this time in Today\'s MAR and Shift Tasks.')),
+            instructionForm.instruction==='Give at a later time'&&h('div',{className:'field span-2'},h('label',null,'Give the dose at'),h('input',{type:'time',required:true,value:instructionForm.give_at,onChange:e=>setInstructionForm({...instructionForm,give_at:e.target.value})}),h('small',null,(()=>{const on=instructionGiveOn(instructionTarget,instructionForm.give_at);return on?`Dose will be due at ${medicationTimeLabel(instructionForm.give_at)} on ${formatDateIN(on)}${on!==String(instructionTarget.scheduled_date||'').slice(0,10)?' (next day — the time is earlier than the dose time)':''}. It appears in Today\'s MAR and Shift Tasks.`:'The dose appears again at this time in Today\'s MAR and Shift Tasks.'})())),
             instructionForm.instruction==='Change prescription (Doctor Review)'&&h('div',{className:'message warning span-2'},'After saving, Doctor Review / Modify opens so the prescription change is recorded properly (medicines are changed only through Doctor Review).'),
             h('div',{className:'field span-2'},h('label',null,'What the doctor said'),h('textarea',{rows:3,required:true,value:instructionForm.notes,placeholder:'Example: Dr. Kumar (phone, 8:10 AM): skip this morning dose, recheck BP at 12 PM and inform',onChange:e=>setInstructionForm({...instructionForm,notes:e.target.value})}))
           ),

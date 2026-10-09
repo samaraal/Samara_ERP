@@ -1,5 +1,5 @@
-const APP_VERSION = '2.16.9';
-const CACHE = 'samara-erp-2.16.9-tamil-nurse-screens';
+const APP_VERSION = '2.16.10';
+const CACHE = 'samara-erp-2.16.10-withhold-fixes';
 const SHELL = [
   './',
   './index.html',

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.9';
+  const APP_VERSION = '2.16.10';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '08-Oct-2026 Tamil for nurse screens';
+  const APP_BUILD_DATE = '09-Oct-2026 Medicine withhold fixes';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -7143,8 +7143,9 @@ https://samaraassistedliving.com/`;
         else jobs.push(Promise.resolve({data:[],error:null}));
         // 2.15.11: withheld doses awaiting the doctor's instruction -> Nurses, Nursing Manager, Managers, Admin/Directors
         if(isManagement||isNursing||foodAdmin){
-          const since=new Date(Date.now()-2*86400000).toISOString().slice(0,10);
-          jobs.push(client.from('medication_administrations').select('id,patient_id,order_id,scheduled_date,scheduled_time,withhold_reason,withhold_reading,doctor_informed_name,administered_at').eq('status','Withheld').is('doctor_instruction',null).gte('scheduled_date',since).limit(50));
+          // 2.16.10: 3 days (was 2), same as the phone notification; entry_recorded_at for the 30-minute repeat
+          const since=new Date(Date.now()-3*86400000).toISOString().slice(0,10);
+          jobs.push(client.from('medication_administrations').select('id,patient_id,order_id,scheduled_date,scheduled_time,withhold_reason,withhold_reading,doctor_informed_name,administered_at,entry_recorded_at').eq('status','Withheld').is('doctor_instruction',null).gte('scheduled_date',since).limit(50));
         }else jobs.push(Promise.resolve({data:[],error:null}));
         // 2.15.53/54: charges not attended by Accounts within 30 minutes -> Admin / Director (pop-up re-appears every 30 min while pending)
         if(foodAdmin)jobs.push(client.rpc('bill_charge_overdue_alerts'));
@@ -7185,7 +7186,11 @@ https://samaraassistedliving.com/`;
             const pt=(pts.data||[]).find(x=>x.id===w.patient_id);if(pt&&pt.is_active===false)return;
             const od=(ords.data||[]).find(x=>x.id===w.order_id)||{};
             const who=pt?`${formalName(pt)||pt.full_name}${pt.room_no?` (Room ${pt.room_no}${pt.bed_no?'-'+pt.bed_no:''})`:''}`:'A resident';
-            candidates.push({key:`withheld-${w.id}`,kind:'Medication',title:'Dose withheld — doctor\'s instruction needed',detail:`${who}: ${[od.medicine_name,od.strength].filter(Boolean).join(' ')||'medicine'} (${String(w.scheduled_time||'').slice(0,5)}) was withheld — ${[w.withhold_reason,w.withhold_reading].filter(Boolean).join(', ')}. Doctor informed: ${w.doctor_informed_name||'—'}. Record the doctor's instruction in Medicines.`,page:'Medicines',urgent:true,at:w.administered_at});
+            // 2.16.10: comes back every 30 minutes until the doctor's instruction is recorded; opens only this dose
+            const heldAt=new Date(w.entry_recorded_at||w.administered_at||Date.now()).getTime();
+            const round=Math.max(0,Math.floor((Date.now()-heldAt)/1800000));
+            const label=`${who} · ${[od.medicine_name,od.strength].filter(Boolean).join(' ')||'medicine'} (${String(w.scheduled_time||'').slice(0,5)}) withheld`;
+            candidates.push({key:`withheld-${w.id}-${round}`,record:{id:w.id,patient_id:w.patient_id,label},kind:'Medication',title:round>0?'Withheld dose — doctor\'s instruction still pending':'Dose withheld — doctor\'s instruction needed',detail:`${who}: ${[od.medicine_name,od.strength].filter(Boolean).join(' ')||'medicine'} (${String(w.scheduled_time||'').slice(0,5)}) was withheld — ${[w.withhold_reason,w.withhold_reading].filter(Boolean).join(', ')}. Doctor informed: ${w.doctor_informed_name||'—'}. Record the doctor's instruction in Medicines.`,page:'Medicines',urgent:true,at:w.administered_at});
           });
         }
         if(!overdue?.error&&Array.isArray(overdue?.data)&&overdue.data.length){
@@ -11372,7 +11377,10 @@ https://samaraassistedliving.com/`;
 "New enquiries are assigned to Akshi.": "புதிய என்கொயரிகள் அக்ஷிக்கு ஒதுக்கப்படுகின்றன.",
 "assessment(s)": "மதிப்பீடுகள்",
 "Website / Portal": "வெப்சைட் / போர்டல்",
-"Walk-in / Phone": "நேரில் / ஃபோன்"
+"Walk-in / Phone": "நேரில் / ஃபோன்",
+"Withheld dose — doctor's instruction still pending": "நிறுத்தி வைத்த டோஸ் — டாக்டர் அறிவுறுத்தல் இன்னும் நிலுவையில்",
+"The doctor's instruction for this withheld dose is already recorded. Tap Show all to see the full register.": "இந்த நிறுத்தி வைத்த டோஸுக்கான டாக்டர் அறிவுறுத்தல் ஏற்கனவே பதிவாகிவிட்டது. முழு பதிவேட்டைப் பார்க்க \"எல்லாம் காட்டு\" தட்டவும்.",
+"Show all": "எல்லாம் காட்டு"
 };
   // 2.15.70: EN | தமிழ் screen-language switch (trial for STD; Admin can also check).
   // Translates only fixed screen wording (menu, titles, buttons, labels, statuses) using SAMARA_TA.
@@ -20476,22 +20484,34 @@ Thank you.`;
   const MEDICATION_RATE_RE=/metoprolol|atenolol|bisoprolol|carvedilol|nebivolol|propranolol|labetalol|diltiazem|verapamil|digoxin|ivabradine/i;
   const MEDICATION_SUGAR_RE=/metformin|glimepiride|gliclazide|glipizide|glibenclamide|insulin|sitagliptin|vildagliptin|teneligliptin|linagliptin|saxagliptin|dapagliflozin|empagliflozin|canagliflozin|pioglitazone|voglibose|acarbose|repaglinide|\bglycomet\b|\bamaryl\b|\bjanuvia\b|\bgalvus\b|\bhuman mixtard\b|\blantus\b|\bnovorapid\b/i;
   function medicationWithholdOpen(log){return String(log?.status||'')==='Withheld'&&!log?.doctor_instruction}
-  // Warn-only: returns a suggestion when today's latest reading is low for this kind of medicine. The nurse decides.
-  function medicationWithholdSuggestion(order,latestVitals){
+  // Warn-only: returns a suggestion when a recent reading is low for this kind of medicine. The nurse decides.
+  // 2.16.10: takes the Guest's recent vitals (any order) and uses the latest reading of EACH parameter, so a low
+  // sugar at 7:00 is not missed when BP alone was recorded at 7:30 (before, only the single latest entry was read).
+  function medicationWithholdSuggestion(order,recentVitals){
     const name=`${order?.medicine_name||''} ${order?.generic_name||''}`;
-    const v=latestVitals||{};
-    const at=v.recorded_at?new Date(v.recorded_at).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}):'';
-    const s=Number(v.systolic),d=Number(v.diastolic),pulse=Number(v.pulse),sugar=Number(v.blood_sugar);
-    if(MEDICATION_SUGAR_RE.test(name)&&v.blood_sugar!==null&&v.blood_sugar!==undefined&&Number.isFinite(sugar)&&sugar<100){
-      const reading=`Blood sugar ${sugar} mg/dL${v.blood_sugar_type&&v.blood_sugar_type!=='Not Taken'?` (${v.blood_sugar_type})`:''}${at?` at ${at}`:''}`;
+    const list=(Array.isArray(recentVitals)?recentVitals:(recentVitals?[recentVitals]:[])).filter(Boolean)
+      .slice().sort((a,b)=>String(b.recorded_at||'').localeCompare(String(a.recorded_at||'')));
+    const has=(v,field)=>v[field]!==null&&v[field]!==undefined&&v[field]!==''&&Number.isFinite(Number(v[field]))&&Number(v[field])>0; // 0 = not taken
+    const latest=field=>list.find(v=>has(v,field))||null;
+    const at=v=>v?.recorded_at?new Date(v.recorded_at).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}):'';
+    const sv=latest('blood_sugar');
+    if(MEDICATION_SUGAR_RE.test(name)&&sv&&Number(sv.blood_sugar)<100){
+      const sugar=Number(sv.blood_sugar);
+      const reading=`Blood sugar ${sugar} mg/dL${sv.blood_sugar_type&&sv.blood_sugar_type!=='Not Taken'?` (${sv.blood_sugar_type})`:''}${at(sv)?` at ${at(sv)}`:''}`;
       return {reason:'Low blood sugar',reading,text:`${sugar<70?'Low blood sugar (below 70 mg/dL)':'Blood sugar is already in the normal range'}: ${reading}. This diabetes medicine may lower it further — consider withholding and informing the treating doctor.`};
     }
-    if(MEDICATION_BP_RE.test(name)&&v.systolic!==null&&v.systolic!==undefined&&Number.isFinite(s)&&(s<100||(Number.isFinite(d)&&d<60))){
-      const reading=`BP ${s}/${Number.isFinite(d)?d:'—'} mmHg${at?` at ${at}`:''}`;
-      return {reason:'Low blood pressure',reading,text:`Low blood pressure: ${reading}. This BP medicine may lower it further — consider withholding and informing the treating doctor.`};
+    const bv=list.find(v=>has(v,'systolic')||has(v,'diastolic'))||null;
+    if(MEDICATION_BP_RE.test(name)&&bv){
+      const s=has(bv,'systolic')?Number(bv.systolic):NaN,d=has(bv,'diastolic')?Number(bv.diastolic):NaN;
+      if((Number.isFinite(s)&&s<100)||(Number.isFinite(d)&&d<60)){
+        const reading=`BP ${Number.isFinite(s)?s:'—'}/${Number.isFinite(d)?d:'—'} mmHg${at(bv)?` at ${at(bv)}`:''}`;
+        return {reason:'Low blood pressure',reading,text:`Low blood pressure: ${reading}. This BP medicine may lower it further — consider withholding and informing the treating doctor.`};
+      }
     }
-    if(MEDICATION_RATE_RE.test(name)&&v.pulse!==null&&v.pulse!==undefined&&Number.isFinite(pulse)&&pulse<55){
-      const reading=`Pulse ${pulse}/min${at?` at ${at}`:''}`;
+    const pv=latest('pulse');
+    if(MEDICATION_RATE_RE.test(name)&&pv&&Number(pv.pulse)<55){
+      const pulse=Number(pv.pulse);
+      const reading=`Pulse ${pulse}/min${at(pv)?` at ${at(pv)}`:''}`;
       return {reason:'Low pulse / heart rate',reading,text:`Low pulse: ${reading}. This medicine slows the heart rate — consider withholding and informing the treating doctor.`};
     }
     return null;
@@ -29773,6 +29793,8 @@ function RoomsBeds({profile,onNavigate}){
     const [instructionForm,setInstructionForm]=React.useState({instruction:'',notes:'',give_at:''});
     const [instructionBusy,setInstructionBusy]=React.useState(false);
     const [instructionMessage,setInstructionMessage]=React.useState('');
+    // 2.16.10: a withheld-dose pop-up / notification opens Medicines showing only that dose (global rule)
+    const [withheldFocus,clearWithheldFocus]=useRecordFocus('Medicines');
     const [marBusy,setMarBusy]=React.useState(false);
     const [marMessage,setMarMessage]=React.useState('');
     const [showShiftMedication,setShowShiftMedication]=React.useState(false);
@@ -30460,8 +30482,16 @@ function RoomsBeds({profile,onNavigate}){
     }
 
     // 2.15.11: warn-only suggestion from today's latest vitals; open withheld doses awaiting the doctor
-    const withholdSuggestion=marTarget&&marForm.status!=='Withheld'?medicationWithholdSuggestion(marTarget,(state.vitals||[]).find(v=>v.patient_id===marTarget.patient_id)):null;
-    const openWithheld=(state.mar||[]).filter(medicationWithholdOpen).filter(log=>{const pt=state.patients.find(x=>x.id===log.patient_id);return pt&&pt.is_active!==false&&(!patientFilter||log.patient_id===patientFilter)});
+    const withholdSuggestion=marTarget&&marForm.status!=='Withheld'?medicationWithholdSuggestion(marTarget,(state.vitals||[]).filter(v=>v.patient_id===marTarget.patient_id)):null;
+    const allOpenWithheld=(state.mar||[]).filter(medicationWithholdOpen).filter(log=>{const pt=state.patients.find(x=>x.id===log.patient_id);return pt&&pt.is_active!==false&&(!patientFilter||log.patient_id===patientFilter)});
+    const openWithheld=withheldFocus?.id?allOpenWithheld.filter(log=>log.id===withheldFocus.id):allOpenWithheld;
+    const focusedWithheldDone=Boolean(withheldFocus?.id&&!state.loading&&!openWithheld.length);
+    useScrollToFocused(withheldFocus?.id&&openWithheld.length?`withheld-${withheldFocus.id}`:'',!state.loading);
+    // Re-dose day for "Give now / later": same rule as Today's MAR — a time after the dose time is the same day, an earlier one the next day
+    function instructionGiveOn(target,giveHHMM){
+      if(!target||!giveHHMM)return '';
+      return rescheduledDoseDate({scheduled_date:target.scheduled_date,scheduled_time:target.scheduled_time,rescheduled_time:giveHHMM});
+    }
     function openInstruction(log){
       const plus30=new Date(Date.now()+30*60000);
       setInstructionTarget(log);
@@ -30476,13 +30506,18 @@ function RoomsBeds({profile,onNavigate}){
       if(!f.instruction)return fail('Select the doctor\'s instruction.');
       if(!String(f.notes||'').trim())return fail('Enter what the doctor said (the instruction in the doctor\'s words).');
       if(f.instruction==='Give at a later time'&&!f.give_at)return fail('Choose the time to give the dose.');
+      if(f.instruction==='Give at a later time'){
+        const on=instructionGiveOn(instructionTarget,f.give_at);
+        const when=on?new Date(`${on}T${normalizeMedicationTime(f.give_at)}:00+05:30`):null;
+        if(when&&when.getTime()<Date.now()-10*60000)return fail(`${medicationTimeLabel(f.give_at)} on ${formatDateIN(on)} has already passed for this dose. Choose a later time, or "Skip this dose" if the doctor advised waiting for the next dose.`);
+      }
       setInstructionBusy(true);
       const {error}=await client.rpc('record_withheld_dose_instruction',{p_id:instructionTarget.id,p_instruction:f.instruction,p_notes:String(f.notes).trim(),p_give_at:f.instruction==='Give at a later time'?`${f.give_at}:00`:null});
       setInstructionBusy(false);
       if(error)return fail(error.message||'Unable to save the doctor\'s instruction.');
       const patientId=instructionTarget.patient_id;
       setInstructionTarget(null);
-      showSamaraActionToast('success','Doctor\'s instruction recorded',f.instruction==='Give now'?'The dose now appears as due in Today\'s MAR. Record it when given.':f.instruction==='Give at a later time'?`The dose will appear again at ${medicationTimeLabel(f.give_at)} in Today\'s MAR.`:f.instruction==='Skip this dose'?'This dose is closed as skipped on the doctor\'s instruction.':'Now record the prescription change in Doctor Review / Modify.');
+      showSamaraActionToast('success','Doctor\'s instruction recorded',f.instruction==='Give now'?'The dose now appears as due in Today\'s MAR. Record it when given.':f.instruction==='Give at a later time'?(()=>{const on=instructionGiveOn(instructionTarget,f.give_at);return `The dose will appear again at ${medicationTimeLabel(f.give_at)}${on&&on!==today?` on ${formatDateIN(on)}`:''} in Today\'s MAR and Shift Tasks.`})():f.instruction==='Skip this dose'?'This dose is closed as skipped on the doctor\'s instruction.':'Now record the prescription change in Doctor Review / Modify.');
       await load();
       if(f.instruction==='Change prescription (Doctor Review)'&&canReviseMedication&&!state.reviewSetupError){setTab('Prescription History');openMedicationReview(patientId);}
     }
@@ -30494,6 +30529,9 @@ function RoomsBeds({profile,onNavigate}){
       h(Section,{title:'Medication Administration & Prescription Register',subtitle:'Unified prescription history and MAR status from the patient record'},
         state.error&&h('div',{className:'message error'},`Unable to load part of the medication register: ${state.error}`),
         state.reviewSetupError&&h('div',{className:'message error'},'Medication Review database upgrade is not yet installed. Run MEDICATION_REVIEW_MIGRATION_v2.11.26.sql in Supabase SQL Editor before using Doctor Review / Modify.'),
+        // 2.16.10: opened from a withheld-dose alert -> only that dose
+        withheldFocus&&h(RecordFocusBanner,{focus:withheldFocus,onShowAll:clearWithheldFocus}),
+        focusedWithheldDone&&h('div',{className:'message success'},'The doctor\'s instruction for this withheld dose is already recorded. Tap Show all to see the full register.'),
         // 2.15.11: withheld doses stay here until the doctor's instruction is recorded
         openWithheld.length>0&&h('div',{className:'section-card',style:{border:'1px solid #f0b4b4',borderLeft:'6px solid #b42318',background:'#fff7f7',marginBottom:'14px'}},
           h('div',{className:'panel-head'},h('div',null,h('h3',{style:{color:'#b42318',margin:0}},`Withheld doses — awaiting doctor's instruction (${openWithheld.length})`),h('small',null,'Record the doctor\'s instruction as soon as it is received. Nursing Manager and Admin are alerted until then.'))),
@@ -30501,7 +30539,7 @@ function RoomsBeds({profile,onNavigate}){
             const order=state.orders.find(o=>o.id===log.order_id)||{};
             const pt=state.patients.find(x=>x.id===log.patient_id)||{};
             const since=Math.max(0,Math.round((Date.now()-new Date(log.administered_at||log.entry_recorded_at||Date.now()).getTime())/60000));
-            return h('div',{key:log.id,style:{display:'flex',gap:'10px',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',padding:'10px 12px',border:'1px solid #f3cccc',borderRadius:'10px',background:'#fff'}},
+            return h('div',{key:log.id,id:`withheld-${log.id}`,style:{display:'flex',gap:'10px',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',padding:'10px 12px',border:'1px solid #f3cccc',borderRadius:'10px',background:'#fff'}},
               h('div',{style:{minWidth:'240px',flex:'1 1 320px'}},
                 h('strong',null,`${formalName(pt)||pt.full_name||'Resident'}${pt.room_no?` · Room ${pt.room_no}${pt.bed_no?'-'+pt.bed_no:''}`:''}`),
                 h('div',null,`${medicineLabel(order)} · dose ${medicationTimeLabel(log.scheduled_time)}${log.scheduled_date&&log.scheduled_date!==today?` (${formatDateIN(log.scheduled_date)})`:''}`),
@@ -30623,7 +30661,7 @@ function RoomsBeds({profile,onNavigate}){
             return h('div',{className:'message warning'},`${formalName(pt)||pt.full_name||'Resident'} · ${medicineLabel(order)} · dose ${medicationTimeLabel(instructionTarget.scheduled_time)} — withheld: ${[instructionTarget.withhold_reason,instructionTarget.withhold_reading].filter(Boolean).join(' · ')}`)})(),
           h('div',{className:'modal-grid'},
             h('div',{className:'field span-2'},h('label',null,'Doctor\'s instruction'),h('select',{required:true,value:instructionForm.instruction,onChange:e=>setInstructionForm({...instructionForm,instruction:e.target.value})},h('option',{value:''},'Select instruction'),MEDICATION_WITHHOLD_INSTRUCTIONS.map(x=>h('option',{key:x,value:x},x)))),
-            instructionForm.instruction==='Give at a later time'&&h('div',{className:'field span-2'},h('label',null,'Give the dose at'),h('input',{type:'time',required:true,value:instructionForm.give_at,onChange:e=>setInstructionForm({...instructionForm,give_at:e.target.value})}),h('small',null,'The dose appears again at this time in Today\'s MAR and Shift Tasks.')),
+            instructionForm.instruction==='Give at a later time'&&h('div',{className:'field span-2'},h('label',null,'Give the dose at'),h('input',{type:'time',required:true,value:instructionForm.give_at,onChange:e=>setInstructionForm({...instructionForm,give_at:e.target.value})}),h('small',null,(()=>{const on=instructionGiveOn(instructionTarget,instructionForm.give_at);return on?`Dose will be due at ${medicationTimeLabel(instructionForm.give_at)} on ${formatDateIN(on)}${on!==String(instructionTarget.scheduled_date||'').slice(0,10)?' (next day — the time is earlier than the dose time)':''}. It appears in Today\'s MAR and Shift Tasks.`:'The dose appears again at this time in Today\'s MAR and Shift Tasks.'})())),
             instructionForm.instruction==='Change prescription (Doctor Review)'&&h('div',{className:'message warning span-2'},'After saving, Doctor Review / Modify opens so the prescription change is recorded properly (medicines are changed only through Doctor Review).'),
             h('div',{className:'field span-2'},h('label',null,'What the doctor said'),h('textarea',{rows:3,required:true,value:instructionForm.notes,placeholder:'Example: Dr. Kumar (phone, 8:10 AM): skip this morning dose, recheck BP at 12 PM and inform',onChange:e=>setInstructionForm({...instructionForm,notes:e.target.value})}))
           ),

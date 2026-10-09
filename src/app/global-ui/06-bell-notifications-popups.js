@@ -252,8 +252,9 @@
         else jobs.push(Promise.resolve({data:[],error:null}));
         // 2.15.11: withheld doses awaiting the doctor's instruction -> Nurses, Nursing Manager, Managers, Admin/Directors
         if(isManagement||isNursing||foodAdmin){
-          const since=new Date(Date.now()-2*86400000).toISOString().slice(0,10);
-          jobs.push(client.from('medication_administrations').select('id,patient_id,order_id,scheduled_date,scheduled_time,withhold_reason,withhold_reading,doctor_informed_name,administered_at').eq('status','Withheld').is('doctor_instruction',null).gte('scheduled_date',since).limit(50));
+          // 2.16.10: 3 days (was 2), same as the phone notification; entry_recorded_at for the 30-minute repeat
+          const since=new Date(Date.now()-3*86400000).toISOString().slice(0,10);
+          jobs.push(client.from('medication_administrations').select('id,patient_id,order_id,scheduled_date,scheduled_time,withhold_reason,withhold_reading,doctor_informed_name,administered_at,entry_recorded_at').eq('status','Withheld').is('doctor_instruction',null).gte('scheduled_date',since).limit(50));
         }else jobs.push(Promise.resolve({data:[],error:null}));
         // 2.15.53/54: charges not attended by Accounts within 30 minutes -> Admin / Director (pop-up re-appears every 30 min while pending)
         if(foodAdmin)jobs.push(client.rpc('bill_charge_overdue_alerts'));
@@ -294,7 +295,11 @@
             const pt=(pts.data||[]).find(x=>x.id===w.patient_id);if(pt&&pt.is_active===false)return;
             const od=(ords.data||[]).find(x=>x.id===w.order_id)||{};
             const who=pt?`${formalName(pt)||pt.full_name}${pt.room_no?` (Room ${pt.room_no}${pt.bed_no?'-'+pt.bed_no:''})`:''}`:'A resident';
-            candidates.push({key:`withheld-${w.id}`,kind:'Medication',title:'Dose withheld — doctor\'s instruction needed',detail:`${who}: ${[od.medicine_name,od.strength].filter(Boolean).join(' ')||'medicine'} (${String(w.scheduled_time||'').slice(0,5)}) was withheld — ${[w.withhold_reason,w.withhold_reading].filter(Boolean).join(', ')}. Doctor informed: ${w.doctor_informed_name||'—'}. Record the doctor's instruction in Medicines.`,page:'Medicines',urgent:true,at:w.administered_at});
+            // 2.16.10: comes back every 30 minutes until the doctor's instruction is recorded; opens only this dose
+            const heldAt=new Date(w.entry_recorded_at||w.administered_at||Date.now()).getTime();
+            const round=Math.max(0,Math.floor((Date.now()-heldAt)/1800000));
+            const label=`${who} · ${[od.medicine_name,od.strength].filter(Boolean).join(' ')||'medicine'} (${String(w.scheduled_time||'').slice(0,5)}) withheld`;
+            candidates.push({key:`withheld-${w.id}-${round}`,record:{id:w.id,patient_id:w.patient_id,label},kind:'Medication',title:round>0?'Withheld dose — doctor\'s instruction still pending':'Dose withheld — doctor\'s instruction needed',detail:`${who}: ${[od.medicine_name,od.strength].filter(Boolean).join(' ')||'medicine'} (${String(w.scheduled_time||'').slice(0,5)}) was withheld — ${[w.withhold_reason,w.withhold_reading].filter(Boolean).join(', ')}. Doctor informed: ${w.doctor_informed_name||'—'}. Record the doctor's instruction in Medicines.`,page:'Medicines',urgent:true,at:w.administered_at});
           });
         }
         if(!overdue?.error&&Array.isArray(overdue?.data)&&overdue.data.length){

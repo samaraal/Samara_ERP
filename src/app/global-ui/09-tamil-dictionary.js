@@ -3736,5 +3736,8 @@
 "New enquiries are assigned to Akshi.": "புதிய என்கொயரிகள் அக்ஷிக்கு ஒதுக்கப்படுகின்றன.",
 "assessment(s)": "மதிப்பீடுகள்",
 "Website / Portal": "வெப்சைட் / போர்டல்",
-"Walk-in / Phone": "நேரில் / ஃபோன்"
+"Walk-in / Phone": "நேரில் / ஃபோன்",
+"Withheld dose — doctor's instruction still pending": "நிறுத்தி வைத்த டோஸ் — டாக்டர் அறிவுறுத்தல் இன்னும் நிலுவையில்",
+"The doctor's instruction for this withheld dose is already recorded. Tap Show all to see the full register.": "இந்த நிறுத்தி வைத்த டோஸுக்கான டாக்டர் அறிவுறுத்தல் ஏற்கனவே பதிவாகிவிட்டது. முழு பதிவேட்டைப் பார்க்க \"எல்லாம் காட்டு\" தட்டவும்.",
+"Show all": "எல்லாம் காட்டு"
 };

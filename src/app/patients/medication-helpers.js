@@ -252,22 +252,34 @@
   const MEDICATION_RATE_RE=/metoprolol|atenolol|bisoprolol|carvedilol|nebivolol|propranolol|labetalol|diltiazem|verapamil|digoxin|ivabradine/i;
   const MEDICATION_SUGAR_RE=/metformin|glimepiride|gliclazide|glipizide|glibenclamide|insulin|sitagliptin|vildagliptin|teneligliptin|linagliptin|saxagliptin|dapagliflozin|empagliflozin|canagliflozin|pioglitazone|voglibose|acarbose|repaglinide|\bglycomet\b|\bamaryl\b|\bjanuvia\b|\bgalvus\b|\bhuman mixtard\b|\blantus\b|\bnovorapid\b/i;
   function medicationWithholdOpen(log){return String(log?.status||'')==='Withheld'&&!log?.doctor_instruction}
-  // Warn-only: returns a suggestion when today's latest reading is low for this kind of medicine. The nurse decides.
-  function medicationWithholdSuggestion(order,latestVitals){
+  // Warn-only: returns a suggestion when a recent reading is low for this kind of medicine. The nurse decides.
+  // 2.16.10: takes the Guest's recent vitals (any order) and uses the latest reading of EACH parameter, so a low
+  // sugar at 7:00 is not missed when BP alone was recorded at 7:30 (before, only the single latest entry was read).
+  function medicationWithholdSuggestion(order,recentVitals){
     const name=`${order?.medicine_name||''} ${order?.generic_name||''}`;
-    const v=latestVitals||{};
-    const at=v.recorded_at?new Date(v.recorded_at).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}):'';
-    const s=Number(v.systolic),d=Number(v.diastolic),pulse=Number(v.pulse),sugar=Number(v.blood_sugar);
-    if(MEDICATION_SUGAR_RE.test(name)&&v.blood_sugar!==null&&v.blood_sugar!==undefined&&Number.isFinite(sugar)&&sugar<100){
-      const reading=`Blood sugar ${sugar} mg/dL${v.blood_sugar_type&&v.blood_sugar_type!=='Not Taken'?` (${v.blood_sugar_type})`:''}${at?` at ${at}`:''}`;
+    const list=(Array.isArray(recentVitals)?recentVitals:(recentVitals?[recentVitals]:[])).filter(Boolean)
+      .slice().sort((a,b)=>String(b.recorded_at||'').localeCompare(String(a.recorded_at||'')));
+    const has=(v,field)=>v[field]!==null&&v[field]!==undefined&&v[field]!==''&&Number.isFinite(Number(v[field]))&&Number(v[field])>0; // 0 = not taken
+    const latest=field=>list.find(v=>has(v,field))||null;
+    const at=v=>v?.recorded_at?new Date(v.recorded_at).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}):'';
+    const sv=latest('blood_sugar');
+    if(MEDICATION_SUGAR_RE.test(name)&&sv&&Number(sv.blood_sugar)<100){
+      const sugar=Number(sv.blood_sugar);
+      const reading=`Blood sugar ${sugar} mg/dL${sv.blood_sugar_type&&sv.blood_sugar_type!=='Not Taken'?` (${sv.blood_sugar_type})`:''}${at(sv)?` at ${at(sv)}`:''}`;
       return {reason:'Low blood sugar',reading,text:`${sugar<70?'Low blood sugar (below 70 mg/dL)':'Blood sugar is already in the normal range'}: ${reading}. This diabetes medicine may lower it further — consider withholding and informing the treating doctor.`};
     }
-    if(MEDICATION_BP_RE.test(name)&&v.systolic!==null&&v.systolic!==undefined&&Number.isFinite(s)&&(s<100||(Number.isFinite(d)&&d<60))){
-      const reading=`BP ${s}/${Number.isFinite(d)?d:'—'} mmHg${at?` at ${at}`:''}`;
-      return {reason:'Low blood pressure',reading,text:`Low blood pressure: ${reading}. This BP medicine may lower it further — consider withholding and informing the treating doctor.`};
+    const bv=list.find(v=>has(v,'systolic')||has(v,'diastolic'))||null;
+    if(MEDICATION_BP_RE.test(name)&&bv){
+      const s=has(bv,'systolic')?Number(bv.systolic):NaN,d=has(bv,'diastolic')?Number(bv.diastolic):NaN;
+      if((Number.isFinite(s)&&s<100)||(Number.isFinite(d)&&d<60)){
+        const reading=`BP ${Number.isFinite(s)?s:'—'}/${Number.isFinite(d)?d:'—'} mmHg${at(bv)?` at ${at(bv)}`:''}`;
+        return {reason:'Low blood pressure',reading,text:`Low blood pressure: ${reading}. This BP medicine may lower it further — consider withholding and informing the treating doctor.`};
+      }
     }
-    if(MEDICATION_RATE_RE.test(name)&&v.pulse!==null&&v.pulse!==undefined&&Number.isFinite(pulse)&&pulse<55){
-      const reading=`Pulse ${pulse}/min${at?` at ${at}`:''}`;
+    const pv=latest('pulse');
+    if(MEDICATION_RATE_RE.test(name)&&pv&&Number(pv.pulse)<55){
+      const pulse=Number(pv.pulse);
+      const reading=`Pulse ${pulse}/min${at(pv)?` at ${at(pv)}`:''}`;
       return {reason:'Low pulse / heart rate',reading,text:`Low pulse: ${reading}. This medicine slows the heart rate — consider withholding and informing the treating doctor.`};
     }
     return null;

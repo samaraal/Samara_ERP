@@ -1,5 +1,10 @@
-Samara Care ERP 2.16.9 — Full Tamil for nurse screens — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
+Samara Care ERP 2.16.10 — Medicines withhold fixes — upload ONLY to GitHub repo: Samara_ERP (app.samaraassistedliving.com)
 
-Website files: src/app/global-ui/09-tamil-dictionary.js, src/app/global-ui/10-tamil-ui.js, src/app/0-start/01-app-constants.js,
-app.js, index.html, service-worker.js, bootstrap-error.js, CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
-No SQL for this release.
+Website files: src/app/clinical/medicines.js, src/app/patients/medication-helpers.js, src/app/global-ui/06-bell-notifications-popups.js,
+src/app/global-ui/09-tamil-dictionary.js, src/app/0-start/01-app-constants.js, app.js, index.html, service-worker.js, bootstrap-error.js,
+CHANGELOG.md, DEPLOY-TO-THIS-GITHUB-ONLY.txt
+Supabase (in this order):
+ 1. SQL Editor: run supabase/sql/210_medicine_withhold_fixes_family_push.sql (all checks should show true)
+ 2. Edge Function NEW: withheld-dose-alert-dispatch  <- supabase/functions/withheld-dose-alert-dispatch/index.ts (keep legacy JWT verification ON)
+ 3. Edge Function REDEPLOY: daily-patient-report     <- supabase/function-copies/daily-patient-report-inbox.ts
+Family Portal 1.0.33 goes to the OTHER repo: Samara_Family_Portal (separate package).
