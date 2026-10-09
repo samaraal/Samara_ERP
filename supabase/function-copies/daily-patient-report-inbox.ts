@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { PDFDocument, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 
-const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, content-type, x-cron-secret","Access-Control-Allow-Methods":"POST, OPTIONS"};
+const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, content-type, x-client-info, x-cron-secret","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
 const text=(v:unknown)=>String(v??"").trim();
 // Standard PDF fonts use WinAnsi. Convert invisible spaces and unsupported
@@ -20,8 +20,9 @@ const digits=(v:unknown)=>text(v).replace(/\D/g,"");
 // the WhatsApp API payload and the ERP inbox/audit record.
 const DAILY_PATIENT_REPORT_TEMPLATE="amara_daily_patient_report";
 const indiaDate=(value=new Date())=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit"}).format(value);
-const displayDate=(iso:string)=>{const [y,m,d]=iso.split("-");return `${d}:${m}:${y}`};
-const displayDateTime=(v:unknown)=>v?pdfText(new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Kolkata",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:true}).format(new Date(String(v))).replace(",","").replace(/\//g,":")):"-";
+// 2.16.10: dates DD-MM-YYYY everywhere (was DD:MM:YYYY, easily read as a time)
+const displayDate=(iso:string)=>{const [y,m,d]=iso.split("-");return `${d}-${m}-${y}`};
+const displayDateTime=(v:unknown)=>v?pdfText(new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Kolkata",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:true}).format(new Date(String(v))).replace(",","").replace(/\//g,"-")):"-";
 const sameDay=(v:unknown,date:string)=>{if(!v)return false;try{return indiaDate(new Date(String(v)))===date}catch{return false}};
 const patientName=(p:any)=>[text(p.title),text(p.full_name)].filter(Boolean).join(" ")||"Patient";
 const canonicalMealType=(value:unknown)=>{const v=text(value).toLowerCase();if(v.includes("lunch"))return "Lunch";if(v.includes("dinner"))return "Dinner";return "Tiffin"};
@@ -43,12 +44,12 @@ async function allRows(sb:any,table:string){const r=await sb.from(table).select(
 function wrap(font:any,value:string,size:number,max:number){const words=pdfText(value).split(/\s+/).filter(Boolean),out:string[]=[];let line="";for(const word of words){const next=line?`${line} ${word}`:word;if(font.widthOfTextAtSize(next,size)<=max)line=next;else{if(line)out.push(line);line=word}}if(line)out.push(line);return out.length?out:[""]}
 
 async function makeReport(sb:any,patient:any,date:string){
-  const [vitals,care,careOrders,orders,mar,meals,physioPlans,physio,incidents,billing,recovery,documents,handovers,medReviews,medReviewItems,staffResult,beverages]=await Promise.all([
+  const [vitals,care,careOrders,orders,mar,meals,physioPlans,physio,incidents,billing,recovery,documents,handovers,medReviews,medReviewItems,nursingProcedures,staffResult,beverages]=await Promise.all([
     rows(sb,"vital_signs",patient.id),rows(sb,"care_logs",patient.id),rows(sb,"care_orders",patient.id),rows(sb,"medication_orders",patient.id),
     rows(sb,"medication_administrations",patient.id),rows(sb,"meal_records",patient.id),rows(sb,"physiotherapy_plans",patient.id),rows(sb,"physiotherapy_sessions",patient.id),
     rows(sb,"incidents",patient.id),rows(sb,"billing_transactions",patient.id),rows(sb,"recovery_events",patient.id),rows(sb,"patient_documents",patient.id),
-    rows(sb,"shift_handovers",patient.id),rows(sb,"medication_reviews",patient.id),allRows(sb,"medication_review_items"),sb.from("profiles").select("id,full_name,role"),
-    rows(sb,"beverage_records",patient.id) // 2.15.34: separate beverage servings ([] if the table is not created yet)
+    rows(sb,"shift_handovers",patient.id),rows(sb,"medication_reviews",patient.id),allRows(sb,"medication_review_items"),rows(sb,"bill_charge_requests",patient.id),sb.from("profiles").select("id,full_name,role"),
+    rows(sb,"beverage_records",patient.id) // 2.15.34 / 2.16.10: separate beverage servings ([] if the table is not created yet)
   ]);
   const dayVitals=vitals.filter((x:any)=>sameDay(x.recorded_at||x.created_at,date));
   const dayCare=care.filter((x:any)=>sameDay(x.completed_at||x.created_at||x.care_date,date));
@@ -60,6 +61,7 @@ async function makeReport(sb:any,patient:any,date:string){
   const dayIncidents=incidents.filter((x:any)=>sameDay(x.incident_at||x.created_at,date));
   const dayHandovers=handovers.filter((x:any)=>sameDay(x.created_at||x.handover_date,date));
   const dayReviews=medReviews.filter((x:any)=>sameDay(x.reviewed_at||x.created_at,date));
+  const dayProcedures=nursingProcedures.filter((x:any)=>text(x.category).toLowerCase()==="nursing procedures"&&sameDay(x.service_datetime||x.charge_date||x.raised_at||x.created_at,date));
   const staff=staffResult.error?[]:(staffResult.data||[]),staffName=(id:any)=>text(staff.find((x:any)=>x.id===id)?.full_name)||"Not recorded";
   const latest=[...dayVitals].sort((a:any,b:any)=>+new Date(b.recorded_at||b.created_at)-+new Date(a.recorded_at||a.created_at))[0];
   const n=(v:any)=>{const x=Number(v);return Number.isFinite(x)&&x!==0?x:null};
@@ -76,7 +78,7 @@ async function makeReport(sb:any,patient:any,date:string){
   const pronoun=text(patient.gender).toLowerCase()==="female"?"She":text(patient.gender).toLowerCase()==="male"?"He":"The patient";
   const hospital=text(patient.hospital_name)||"the referring hospital / care centre";
   const intro=`Admission Summary: ${patientName(patient)} (${text(patient.patient_id)||"patient ID not assigned"}) was admitted following discharge from ${hospital} on ${displayDate(text(patient.admission_date).slice(0,10)||date)} with ${text(patient.diagnosis)?`a diagnosis of ${text(patient.diagnosis)}`:"the recorded assisted-living care requirement"}. ${pronoun} has completed ${stay} day${stay===1?"":"s"} of stay as on ${displayDate(date)}. Known allergies: ${text(patient.allergies)||"none recorded"}.`;
-  const careSummary=`Care and Treatment Provided: ${meds?`Treatment is continuing according to the active prescription: ${meds}.`:"No active medicine prescription is available."} ${given} administered dose record(s), ${dayCare.length} nursing/personal-care activity record(s), ${dayMeals.length} meal/intake record(s) and ${dayPhysio.length} physiotherapy session record(s) are available for the selected date.`;
+  const careSummary=`Care and Treatment Provided: ${meds?`Treatment is continuing according to the active prescription: ${meds}.`:"No active medicine prescription is available."} ${given} administered dose record(s), ${dayProcedures.length} nursing procedure record(s), ${dayCare.length} nursing/personal-care activity record(s), ${dayMeals.length} meal/intake record(s) and ${dayPhysio.length} physiotherapy session record(s) are available for the selected date.`;
   const vitalText=latest?[n(latest.systolic)!==null||n(latest.diastolic)!==null?`BP ${n(latest.systolic)??"-"}/${n(latest.diastolic)??"-"} mmHg`:"",n(latest.pulse)!==null?`pulse ${n(latest.pulse)}/min`:"",n(latest.spo2)!==null?`SpO2 ${n(latest.spo2)}%`:"",n(latest.blood_sugar)!==null?`${text(latest.blood_sugar_type)||"RBS"} ${n(latest.blood_sugar)} mg/dL`:""].filter(Boolean).join(", "):"no vital-sign observation was entered";
   const current=`Current Clinical Status: ${pronoun} is ${status==="STABLE"?"clinically stable":status.toLowerCase()} on the available records. The latest available observations show ${vitalText}. ${dayIncidents.length?`${dayIncidents.length} incident(s) were recorded and require review.`:"No serious incident was recorded for the selected date."}`;
 
@@ -126,7 +128,7 @@ async function makeReport(sb:any,patient:any,date:string){
   const gap=8,cw=(W-2*M-gap*2)/3,ch=112,row1=H-458,row2=H-572;
   card("VITAL SIGNS SUMMARY",[["Blood Pressure",latest?`${n(latest.systolic)??"-"}/${n(latest.diastolic)??"-"} mmHg`:"-"],["Pulse Rate",latest&&n(latest.pulse)!==null?`${n(latest.pulse)}/min`:"-"],["SpO2",latest&&n(latest.spo2)!==null?`${n(latest.spo2)}%`:"-"],["Temperature",latest&&n(latest.temperature)!==null?`${n(latest.temperature)} deg`:"-"],["Blood Sugar",latest&&n(latest.blood_sugar)!==null?`${text(latest.blood_sugar_type)||"RBS"} ${n(latest.blood_sugar)} mg/dL`:"Not Taken"]],latest?`Latest: ${displayDateTime(latest.recorded_at||latest.created_at)}`:"No vital observations recorded.",M,row1,cw,ch);
   card("MEDICATION ADMINISTRATION",[["Medicines Scheduled",String(dayMar.length)],["Medicines Given",String(given)],["Missed / Omitted",String(missed)],["Active Prescription Items",String(activeOrders.length)]],missed?"Medication exceptions require review.":"Medication activity is summarised above.",M+cw+gap,row1,cw,ch);
-  card("DAILY CARE AND NURSING",[["Care Activities Planned",String(careOrders.filter((x:any)=>x.is_active!==false).length)],["Care Activities Recorded",String(dayCare.length)],["Care Activities Completed",String(completed)],["Assistance with ADL",dayCare.length?"Recorded":"-"]],"Care activities are summarised above.",M+(cw+gap)*2,row1,cw,ch);
+  card("DAILY CARE AND NURSING",[["Care Activities Planned",String(careOrders.filter((x:any)=>x.is_active!==false).length)],["Care Activities Recorded",String(dayCare.length)],["Care Activities Completed",String(completed)],["Nursing Procedures",String(dayProcedures.length)],["Assistance with ADL",dayCare.length?"Recorded":"-"]],"Nursing procedures and care activities are summarised above.",M+(cw+gap)*2,row1,cw,ch);
   card("FOOD, DIET AND INTAKE",[["Diet Type",text(patient.diet_type||patient.food_preference)||"Normal Diet"],["Meal / Intake Records",String(dayMeals.length)],["Average Intake",dayMeals.length?"Recorded":"-"],["Feeding Instruction",text(patient.feeding_instruction)||"-"]],"Meal and intake records are available.",M,row2,cw,ch);
   card("PHYSIOTHERAPY",[["Sessions Planned",String(physioPlans.filter((x:any)=>x.is_active!==false).length)],["Sessions Recorded",String(dayPhysio.length)],["Sessions Completed",String(physioDone)],["Remarks",dayPhysio.length?"Available":"-"]],dayPhysio.length?"Physiotherapy activity recorded.":"No physiotherapy records for the period.",M+cw+gap,row2,cw,ch);
   card("INCIDENT REPORTS",[["Total Incidents",String(dayIncidents.length)],["Falls",String(dayIncidents.filter((x:any)=>/fall/i.test(text(x.incident_type||x.type))).length)],["Medical Emergencies",String(dayIncidents.filter((x:any)=>/emergency|transfer/i.test(text(x.incident_type||x.type))).length)],["Open Incidents",String(dayIncidents.filter((x:any)=>text(x.status||"Open").toLowerCase()!=="closed").length)]],dayIncidents.length?"Incident review is required.":"No reportable incidents during the period.",M+(cw+gap)*2,row2,cw,ch);
@@ -175,9 +177,8 @@ async function makeReport(sb:any,patient:any,date:string){
   let y2=H-155;let cursor=p2Section("TODAY AT A GLANCE AND CHANGES SINCE THE PREVIOUS REPORT",y2,84);const glanceGap=6,glanceW=(W-2*M-28-glanceGap*2)/3;glanceCards.forEach(([label,value],i)=>{const col=i%3,row=Math.floor(i/3),x=M+8+col*(glanceW+glanceGap),y=cursor-21-row*22;p2.drawRectangle({x,y,width:glanceW,height:21,color:row?pale:rgb(1,.97,.985),borderColor:pink,borderWidth:.4});p2.drawText(label,{x:x+5,y:y+12.5,size:6.5,font:bold,color:mag});p2Fit(value,x+5,y+4.5,glanceW-10,6,regular,i===5&&dayIncidents.length?red:ink)});
   y2=H-282;cursor=p2Section("VITAL-SIGN TREND",y2,117);const vitalData=vitalRows.length?vitalRows.map((x:any)=>[displayDateTime(x.recorded_at||x.created_at),`${n(x.systolic)??"-"}/${n(x.diastolic)??"-"}`,n(x.pulse)!=null?`${n(x.pulse)}/min`:"-",n(x.spo2)!=null?`${n(x.spo2)}%`:"-",n(x.temperature)!=null?`${n(x.temperature)} deg`:"-",n(x.blood_sugar)!=null?`${text(x.blood_sugar_type)||"RBS"} ${n(x.blood_sugar)}`:"Not taken",vitalFlag(x)]):[["No observations","-","-","-","-","-","-"]];table(M+8,cursor,[74,72,60,58,58,76,87],["Date / Time","Blood Pressure","Pulse","SpO2","Temperature","Blood Sugar","Assessment"],vitalData,Math.min(22,80/(vitalData.length+1)));
   y2=H-433;cursor=p2Section("MEDICATION ADMINISTRATION DETAILS",y2,141);const medRows=[...dayMar].sort((a:any,b:any)=>+new Date(a.scheduled_at||a.created_at)-+new Date(b.scheduled_at||b.created_at)).slice(0,8).map((x:any)=>{const o=orderMap[x.order_id||x.medication_order_id]||{};return [text(x.scheduled_time)||text(x.scheduled_at).slice(11,16)||"-",text(x.administered_at)?displayDateTime(x.administered_at).split(" ").slice(-2).join(" "):"-",text(x.medicine_name)||text(o.medicine_name)||"Medicine",text(x.dose||x.strength)||text(o.dose||o.strength)||"-",text(x.route)||text(o.route)||"-",isWithheld(x)?"Held - Dr. informed":text(x.status)||"Recorded",isWithheld(x)?withheldFamilyShort(x):text(x.remarks||x.exception_reason)||staffName(x.administered_by)]});const medData=medRows.length?medRows:[["-","-","No administration records","-","-","-","-"]];table(M+8,cursor,[45,54,106,58,44,61,155],["Scheduled","Actual","Medicine","Dose","Route","Status","Remarks / Recorded by"],medData,Math.min(22,104/(medData.length+1)));
-  y2=H-558;cursor=p2Section("DAILY CARE AND NURSING DETAILS",y2,115);const careRows=[...dayCare].sort((a:any,b:any)=>+new Date(a.completed_at||a.created_at)-+new Date(b.completed_at||b.created_at)).slice(0,6).map((x:any)=>{const o=careOrderMap[x.care_order_id]||{};return [text(o.care_type||o.task_name||x.care_type)||"Care activity",text(x.shift)||text(o.shift)||"-",text(x.status)||"Recorded",displayDateTime(x.completed_at||x.created_at),text(x.remarks)||"-",staffName(x.completed_by)]});const careData=careRows.length?careRows:[["No detailed care log","-","-","-","-","-"]];table(M+8,cursor,[120,60,60,88,135,60],["Care activity","Shift","Status","Completed at","Remarks","Recorded by"],careData,Math.min(22,78/(careData.length+1)));
-  y2=H-682;cursor=p2Section("FOOD, FLUID, PHYSIOTHERAPY AND INCIDENT DETAILS",y2,114);const fullX=M+8,foodData=dayMeals.slice(0,3).map((x:any)=>[text(x.meal_type)||"Meal",text(x.menu)||"-",text(x.consumption_status)||"Recorded",text(x.served_at)?displayDateTime(x.served_at).split(" ").slice(-2).join(" "):"-",text(x.beverage_type)||"-",text(x.beverage_time).slice(0,5)||"-"])
-    .concat(dayBeverages.slice(0,Math.max(0,6-Math.min(3,dayMeals.length))).map((x:any)=>["Beverage",text(x.quantity)?`${text(x.quantity)} ${text(x.quantity_unit)||"ml"}`:text(x.quantity_ml)?`${text(x.quantity_ml)} ml`:"-",text(x.consumption_status)||"Recorded",displayDateTime(x.given_at).split(" ").slice(-2).join(" "),bevName(x),text(x.given_time).slice(0,5)||"-"]))
+  y2=H-558;cursor=p2Section("NURSING PROCEDURES AND DAILY CARE DETAILS",y2,115);const procedureRows=[...dayProcedures].sort((a:any,b:any)=>+new Date(a.service_datetime||a.raised_at||a.created_at)-+new Date(b.service_datetime||b.raised_at||b.created_at)).map((x:any)=>[text(x.service_name)||"Nursing Procedure","Procedure",text(x.status)||text(x.approval_status)||"Recorded",displayDateTime(x.service_datetime||x.raised_at||x.created_at),`${text(x.remarks||x.description)||"-"}${x.quantity?` | Qty ${x.quantity}${text(x.unit)?` ${text(x.unit)}`:""}`:""}`,text(x.raised_by_name)||staffName(x.raised_by)]);const careRows=[...dayCare].sort((a:any,b:any)=>+new Date(a.completed_at||a.created_at)-+new Date(b.completed_at||b.created_at)).map((x:any)=>{const o=careOrderMap[x.care_order_id]||{};return [text(o.care_type||o.task_name||x.care_type)||"Care activity",text(x.shift)||text(o.shift)||"Care",text(x.status)||"Recorded",displayDateTime(x.completed_at||x.created_at),text(x.remarks)||"-",staffName(x.completed_by)]});const combinedNursingRows=[...procedureRows,...careRows].slice(0,6);const careData=combinedNursingRows.length?combinedNursingRows:[["No nursing procedure / care log","-","-","-","-","-"]];table(M+8,cursor,[120,60,60,88,135,60],["Procedure / Care","Type / Shift","Status","Completed at","Remarks / Qty","Recorded by"],careData,Math.min(22,78/(careData.length+1)));
+  y2=H-682;cursor=p2Section("FOOD, FLUID, PHYSIOTHERAPY AND INCIDENT DETAILS",y2,114);const fullX=M+8,foodData=dayMeals.slice(0,3).map((x:any)=>[text(x.meal_type)||"Meal",text(x.menu)||"-",text(x.consumption_status)||"Recorded",text(x.served_at)?displayDateTime(x.served_at).split(" ").slice(-2).join(" "):"-",text(x.beverage_type)||"-",text(x.beverage_time).slice(0,5)||"-"]).concat(dayBeverages.slice(0,Math.max(0,6-Math.min(3,dayMeals.length))).map((x:any)=>["Beverage",text(x.quantity)?`${text(x.quantity)} ${text(x.quantity_unit)||"ml"}`:text(x.quantity_ml)?`${text(x.quantity_ml)} ml`:"-",text(x.consumption_status)||"Recorded",displayDateTime(x.given_at).split(" ").slice(-2).join(" "),bevName(x),text(x.given_time).slice(0,5)||"-"]))
     .concat(dayMeals.length||dayBeverages.length?[]:[["No records","-","-","-","-","-"]]);p2.drawText("Food / Fluid Intake",{x:fullX+2,y:cursor,size:7,font:bold,color:deep});table(fullX,cursor-8,[42,122,78,68,91,64],["Meal","Menu","Food Intake","Meal Time","Beverage","Beverage Time"],foodData,Math.min(11,42/(foodData.length+1)));const clinicalY=cursor-58;p2.drawText("Physiotherapy / Incidents",{x:fullX+2,y:clinicalY,size:7,font:bold,color:deep});const combined=[...dayPhysio.slice(0,2).map((x:any)=>["Physiotherapy",text(x.status)||"Recorded",text(x.notes)||"-"]),...dayIncidents.slice(0,2).map((x:any)=>[text(x.incident_type)||"Incident",`${text(x.severity)||"-"} / ${text(x.status)||"-"}`,text(x.description||x.immediate_action)||"-"])],combinedData=combined.length?combined:[["No records","-","-"]];table(fullX,clinicalY-8,[125,110,230],["Type","Status","Notes / Action"],combinedData,Math.min(10,28/(combinedData.length+1)));
   y2=58;cursor=p2Section("NEXT 24 HOURS / HANDOVER PLAN",y2,92);const nextItems=[latestHandover?.pending_tasks&&["Pending tasks",text(latestHandover.pending_tasks)],latestHandover?.special_instructions&&["Special instructions",text(latestHandover.special_instructions)],latestHandover?.patient_summary&&["Patient summary",text(latestHandover.patient_summary)],activeOrders.length&&["Medication plan",`Continue ${activeOrders.length} active prescription item(s) at the ordered times.`],careOrders.some((x:any)=>x.is_active!==false)&&["Care plan",`Continue ${careOrders.filter((x:any)=>x.is_active!==false).length} active care-plan item(s).`]].filter(Boolean) as string[][];const planRows=nextItems.length?nextItems:[["Plan","Continue prescribed treatment, routine nursing care and observation. No separate patient-specific handover instruction was recorded."]];let planY=cursor;for(const [label,value] of planRows.slice(0,5)){p2.drawText("-",{x:M+10,y:planY,size:7,font:bold,color:ink});p2Fit(label,M+20,planY,92,6.5,bold,ink);p2.drawText(":",{x:M+114,y:planY,size:6.5,font:bold,color:ink});const used=p2Wrapped(value,M+122,planY,W-M-(M+122),6.5,7.4,2,regular,ink);planY-=Math.max(10,used*7.4+2)}
   p2.drawText("This annexure is automatically compiled from ERP entries and does not replace medical advice.",{x:M,y:36,size:6,font:regular,color:grey});p2.drawText("For full details, log in to the Samara Family Portal: https://family.samaraassistedliving.com/",{x:M,y:23,size:6.2,font:bold,color:mag});p2.drawText("2 / 2",{x:W-M-20,y:23,size:6.3,font:regular,color:grey});
@@ -221,6 +222,45 @@ Deno.serve(async req=>{
  try{
   const url=Deno.env.get("SUPABASE_URL")!,key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,cronSecret=Deno.env.get("DAILY_REPORT_CRON_SECRET")||"";const sb=createClient(url,key,{auth:{persistSession:false}});const body=await req.json().catch(()=>({}));
   const scheduled=Boolean(cronSecret&&req.headers.get("x-cron-secret")===cronSecret);
+
+  // Family Portal read-only access to PDFs already generated by this function.
+  // This mode NEVER generates, modifies, or sends a report.
+  if(body.mode==="family_list_existing_reports"){
+   const sessionToken=text(body.session_token);
+   if(!sessionToken)return json({ok:false,error:"Family Portal session is required"},401);
+   const anonKey=Deno.env.get("SUPABASE_ANON_KEY")||"";
+   const publicClient=createClient(url,anonKey,{auth:{persistSession:false}});
+   const dash=await publicClient.rpc("family_portal_dashboard",{p_session_token:sessionToken});
+   if(dash.error||!dash.data?.patient)return json({ok:false,error:"Family Portal session has expired"},401);
+   const patientId=dash.data.patient.id||dash.data.patient.uuid;
+   if(!patientId)return json({ok:false,error:"Resident could not be identified"},400);
+   // The stored PDF metadata lives inside message_payload. The WhatsApp inbox
+   // table itself does not have patient_id/report_date columns, so filter by
+   // the exact payload written by sendWhatsApp() instead of querying columns
+   // that do not exist.
+   const logs=await sb.from("hr_whatsapp_communications")
+    .select("id,sent_at,created_at,message_payload,communication_type")
+    .eq("communication_type","Daily Intelligent Patient Report")
+    .order("created_at",{ascending:false})
+    .limit(200);
+   if(logs.error)throw logs.error;
+   const reports:any[]=[];const seen=new Set<string>();
+   for(const row of logs.data||[]){
+    const payload=row.message_payload||{};
+    if(text(payload.patient_id)!==patientId)continue;
+    const path=text(payload.report_storage_path);
+    const bucket=text(payload.report_storage_bucket)||"patient-reports";
+    const reportDate=text(payload.report_date);
+    if(!path||!reportDate||seen.has(path))continue;
+    const signed=await sb.storage.from(bucket).createSignedUrl(path,900);
+    if(signed.error||!signed.data?.signedUrl)continue;
+    seen.add(path);
+    reports.push({report_date:reportDate,sent_at:row.sent_at||row.created_at,created_at:row.created_at,file_name:text(payload.report_file_name)||`Intelligent Patient Report - ${displayDate(reportDate)}.pdf`,signed_url:signed.data.signedUrl});
+   }
+   reports.sort((a:any,b:any)=>String(b.report_date).localeCompare(String(a.report_date))||(+new Date(b.created_at||0)-+new Date(a.created_at||0)));
+   return json({ok:true,reports});
+  }
+
   if(!scheduled){const jwt=(req.headers.get("authorization")||"").replace(/^Bearer\s+/i,"");const auth=await sb.auth.getUser(jwt);if(auth.error||!auth.data.user)return json({ok:false,error:"Unauthorised"},401)}
   if(scheduled){
    const now=new Date(),date=indiaDate(now),time=new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Kolkata",hour:"2-digit",minute:"2-digit",hour12:false}).format(now);
@@ -235,19 +275,13 @@ Deno.serve(async req=>{
     try{
      const pr=await sb.from("patients").select("*").eq("id",pref.patient_id).single();
      if(pr.error)throw pr.error;if(pr.data.is_active===false){results.push({patient_id:pref.patient_id,status:"skipped_inactive"});continue}
-     const bytes=await makeReport(sb,pr.data,date),file=await uploadAndSign(sb,pr.data,date,bytes);
-     const recipients=[{name:pref.recipient_name||"Family Member",mobile:pref.recipient_mobile,enabled:true},{name:pref.secondary_recipient_name||"Family Member 2",mobile:pref.secondary_recipient_mobile,enabled:Boolean(pref.secondary_enabled&&pref.secondary_daily_whatsapp_enabled)}].filter((r:any)=>r.enabled&&digits(r.mobile).length>=10);
-     const deliveryResults:any[]=[];let inboxError:any=null,patientLog:any={error:null},provider:string|null=null;
-     for(const recipient of recipients){
-       const wa=await sendWhatsApp(recipient.mobile,recipient.name,patientName(pr.data),date,file.url);provider=wa?.messages?.[0]?.id||null;
-       const oneInboxError=await recordWhatsAppInbox(sb,{patient:pr.data,recipientName:recipient.name,recipientMobile:recipient.mobile,date,providerId:provider,storagePath:file.path,scheduled:true});if(oneInboxError)inboxError=oneInboxError;
-       const oneLog=await sb.from("patient_communications").insert({patient_id:pr.data.id,communication_type:"Daily Intelligent Patient Report",method:"WhatsApp",recipient_type:"Relative",recipient_name:recipient.name,recipient_number:digits(recipient.mobile),report_date:date,status:"Accepted",provider_message_id:provider,message_preview:"Detailed two-page Intelligent Patient Report PDF",created_at:new Date().toISOString()});if(oneLog.error)patientLog=oneLog;
-       deliveryResults.push({recipient:recipient.name,mobile:digits(recipient.mobile),provider_message_id:provider,inbox_recorded:!oneInboxError,patient_history_recorded:!oneLog.error});
-     }
+     const bytes=await makeReport(sb,pr.data,date),file=await uploadAndSign(sb,pr.data,date,bytes),wa=await sendWhatsApp(pref.recipient_mobile,pref.recipient_name||"Family Member",patientName(pr.data),date,file.url),provider=wa?.messages?.[0]?.id||null;
+     const inboxError=await recordWhatsAppInbox(sb,{patient:pr.data,recipientName:pref.recipient_name||"Family Member",recipientMobile:pref.recipient_mobile,date,providerId:provider,storagePath:file.path,scheduled:true});
+	     const patientLog=await sb.from("patient_communications").insert({patient_id:pr.data.id,communication_type:"Daily Intelligent Patient Report",method:"WhatsApp",recipient_type:"Relative",recipient_name:pref.recipient_name||"Family Member",recipient_number:digits(pref.recipient_mobile),report_date:date,status:"Accepted",provider_message_id:provider,message_preview:"Detailed two-page Intelligent Patient Report PDF",created_at:new Date().toISOString()});
 	     if(patientLog.error)console.error("DAILY_REPORT patient history insert failed",pref.patient_id,patientLog.error);
 	     const preferenceUpdate=await sb.from("patient_family_communication_preferences").update({last_report_sent_at:new Date().toISOString(),last_report_status:"Accepted by Meta",updated_at:new Date().toISOString()}).eq("patient_id",pref.patient_id);
 	     if(preferenceUpdate.error)console.error("DAILY_REPORT preference timestamp update failed",pref.patient_id,preferenceUpdate.error);
-	     results.push({patient_id:pr.data.id,status:"sent",provider_message_id:provider,deliveries:deliveryResults,inbox_recorded:!inboxError,patient_history_recorded:!patientLog.error,preference_updated:!preferenceUpdate.error});
+	     results.push({patient_id:pr.data.id,status:"sent",provider_message_id:provider,inbox_recorded:!inboxError,patient_history_recorded:!patientLog.error,preference_updated:!preferenceUpdate.error});
      console.log("DAILY_REPORT_SENT",JSON.stringify(results[results.length-1]));
     }catch(e){const error=e instanceof Error?e.message:String(e);console.error("DAILY_REPORT_FAILED",JSON.stringify({patient_id:pref.patient_id,error}));results.push({patient_id:pref.patient_id,status:"failed",error})}
    }
@@ -306,7 +340,5 @@ async function samaraInboxFetch(input: any, init?: RequestInit): Promise<Respons
   }).eq("id",id);
   // A failed status write must never turn an accepted send into a retryable error.
   if (saved.error) console.error("WhatsApp Inbox outcome update failed",id,saved.error.message);
-  const headers = new Headers(response.headers);
-  headers.set("x-samara-inbox-id",id);
-  return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
+  return response;
 }

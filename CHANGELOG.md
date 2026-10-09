@@ -1,3 +1,11 @@
+## 2.16.10 (update) — Daily Intelligent Report: built on the LIVE function
+
+- The repo copy of **daily-patient-report** was older than the function actually running in Supabase (the live one has the Nursing Procedures section and the Family Portal "existing reports" list; the copy did not). Redeploying the old copy would have removed both. The copy is now the **live function** plus:
+  - withheld doses shown to the family only after the doctor's instruction, in simple words (as in 2.16.10);
+  - beverage servings (Tea / Coffee / Milk / Boost / Horlicks / Fresh Juice) in Food / Fluid Intake — this 2.15.34 change had never reached the live function;
+  - dates as DD-MM-YYYY (was DD:MM:YYYY, which looked like a time).
+- Deploy: redeploy Edge Function **daily-patient-report** from supabase/function-copies/daily-patient-report-inbox.ts (this file replaces the one in Backup_145). No SQL beyond 210.
+
 ## 2.16.10 — Medicines WITHHOLD: family sees it in simple words; phone alert; time fixes (SQL 210)
 
 - **Family (Daily Intelligent Report on WhatsApp + Family Portal 1.0.33):** a withheld dose is no longer shown raw. It is shown **only after the doctor's instruction is recorded**, in simple words — e.g. "Held because the blood pressure was low (BP 90/58 mmHg). Dr. Kumar was informed and advised to give it at 12:00 PM." In the report table: status "Held - Dr. informed" with a short line. No staff names, no internal remarks, nothing while the doctor's reply is pending. (Discharge Summary unchanged — withheld doses still not printed.)
