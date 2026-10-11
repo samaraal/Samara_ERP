@@ -1,3 +1,7 @@
+## 2.16.13 (update) — delete employee Rajee (SQL 213)
+
+- **Rajee — permanent delete (cannot be undone):** run **onetime_213_delete_employee_rajee_STEP1_preview.sql** first (read only), then **onetime_213_delete_employee_rajee_STEP2_delete.sql**. Same safety as Rama's (SQL 212): stops and changes nothing unless exactly one Rajee / Raji is found, or if a record that must be kept depends on her. No app change.
+
 ## 2.16.13 — Ramya off the Duty Roster (login kept); delete employee Rama (SQL 212)
 
 - New list **duty_roster_exclusions**: staff on it are left out of the Duty Roster grid, the Duty list / Assign Duty, and On Duty Today. Their login and all their other pages are unchanged.
