@@ -45,6 +45,16 @@
       .rg-cov td.rg-short{background:#fde2e2;color:#b42318}
       .rg-cov .rg-name{background:#fbf7f9}
       .rg-unsaved{position:sticky;bottom:0;z-index:5;display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;padding:10px 12px;margin-top:10px;background:#fff7fb;border:2px solid #a91360;border-radius:12px}
+      /* 2.16.12: on phones the floating "unsaved changes" box covered › Next week, This week and Save roster
+         (and the dates / last staff rows sat behind it and the bottom menu). On phones it is now a normal
+         box under the grid; Save roster stays at the top of the roster. */
+      @media (max-width:760px){
+        .rg-unsaved{position:static!important;margin-top:10px}
+        .rg-wrap{max-height:62vh}
+        .rg-bar{gap:6px}
+        .rg-bar .rg-spacer{display:none}
+        .rg-roster-end{height:96px} /* room to scroll the last staff rows above the bottom menu / Back / Help buttons */
+      }
       @media (max-width:700px){.rg-table .rg-name{font-size:11px;padding:4px}.rg-table col.rg-c-name{width:92px}.rg-table col.rg-c-total{width:44px}.rg-l{display:none}.rg-s{display:inline}.rg-cell{height:38px;font-size:11px}.rg-table thead th{font-size:10px}.rg-name .btn{display:none!important}.rg-total{font-size:10px}}
     `;
     document.head.appendChild(s);
@@ -281,7 +291,8 @@
         h('strong',{style:{color:dirtyCount?'#790c44':'#7b6871'}},dirtyCount?`${dirtyCount} unsaved change${dirtyCount===1?'':'s'}`:'No changes yet — tap cells to plan, then Save roster'),
         h('button',{type:'button',className:'btn btn-secondary',disabled:busy||!dirtyCount,onClick:()=>setDraft({})},'Discard'),
         h('button',{type:'button',className:'btn btn-primary',disabled:busy||!dirtyCount,onClick:save},busy?'Saving…':'Save roster')),
-      h('p',{className:'small-note',style:{marginTop:'8px'}},'Past dates are view only. Staff on approved leave are locked (mark Back on Duty in Staff Leave Calendar to roster them). Changing a shift a staff member already acknowledged asks them to acknowledge again. Patient, ward and task details can still be added from the List tab.'));
+      h('p',{className:'small-note',style:{marginTop:'8px'}},'Past dates are view only. Staff on approved leave are locked (mark Back on Duty in Staff Leave Calendar to roster them). Changing a shift a staff member already acknowledged asks them to acknowledge again. Patient, ward and task details can still be added from the List tab.'),
+      h('div',{className:'rg-roster-end','aria-hidden':'true'}));
   }
 
   // Duty Assignment page: Roster grid (Admin / Nursing Manager) + the existing list and weekly form.

@@ -1,3 +1,11 @@
+## 2.16.12 — Duty Roster on phones: Next week / This week / Save no longer hidden
+
+- On a phone, the "No changes yet / Save roster" box under the roster floated on top of the roster's own buttons. It covered **› (next week), This week, Save roster, Copy previous period and Reload**, and the date row and staff cells sat behind it — so a fresh roster for next week could not be made, and this week's duties could not be changed, from a mobile.
+- On phones that box is now a normal box under the grid (on computers it still floats at the bottom). Save roster is also at the top of the roster, as before.
+- Extra space after the roster so the last staff rows can be scrolled above the bottom menu, Back and Help buttons.
+- Checked on a phone-size screen: next week — tap a cell, Save roster creates the duty; this week — today's cell can be changed (Day → Night) and saved.
+- Files: src/app/nursing/duty-roster-grid.js, version files, app.js (rebuilt). No SQL.
+
 ## 2.16.11 — Intake / Output (fluid balance) chart for nurses
 
 - New page **Nursing → Intake / Output Chart** (Nurse, Caregiver, Nursing Manager; Admin / Manager can view). Also a quick-action tile on the Nursing Dashboard.
