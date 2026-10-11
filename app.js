@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.12';
+  const APP_VERSION = '2.16.13';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1631,6 +1631,13 @@ function initSamaraInaugurationInvitation(){
       login==='maneeshaboominathan' ||
       login==='ram';
   };
+  // 2.16.13: staff kept off the Duty Roster / Duty list / On Duty Today, with login and all other pages unchanged.
+  // List lives in table duty_roster_exclusions (SQL 212). If the table is missing or unreadable, nobody is excluded.
+  const loadDutyRosterExclusions=async()=>{
+    try{const r=await client.from('duty_roster_exclusions').select('profile_id');if(r.error)return new Set();return new Set((r.data||[]).map(x=>String(x.profile_id)))}
+    catch(_){return new Set()}
+  };
+  const notExcludedFromRoster=excluded=>row=>!excluded.has(String(row?.id||''))&&!(row?.auth_user_id&&excluded.has(String(row.auth_user_id)));
   const isNonPayrollManagementAccount=row=>{
     const clean=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]/g,'');
     const name=clean(row?.full_name||row?.name), login=clean(row?.login_id||row?.username), employeeId=clean(row?.employee_id);
@@ -11579,12 +11586,13 @@ https://samaraassistedliving.com/`;
       try{
         const now=odtNowIndia(),date=target||now.date,prev=odtAddDays(date,-1);
         const pages=async q=>{const out=[];for(let o=0;;o+=500){const r=await q().range(o,o+499);if(r.error)throw r.error;out.push(...(r.data||[]));if((r.data||[]).length<500)return out}};
-        const [duty,staff,leave]=await Promise.all([
+        const [duty,staff,leave,rosterOff]=await Promise.all([
           pages(()=>client.from('duty_assignments').select('*').gte('duty_date',prev).lte('duty_date',date).order('id')),
           pages(()=>client.from('profiles').select('id,title,full_name,role,department,designation,mobile,is_active').order('id')),
-          pages(()=>client.from('absence_requests').select('*').eq('status','approved').lte('from_date',date).gte('to_date',date).order('id'))
+          pages(()=>client.from('absence_requests').select('*').eq('status','approved').lte('from_date',date).gte('to_date',date).order('id')),
+          loadDutyRosterExclusions()
         ]);
-        setData({date,now,duty,staff:staff.filter(s=>s.is_active!==false),leave,today:date===now.date});
+        setData({date,now,duty,staff:staff.filter(s=>s.is_active!==false).filter(notExcludedFromRoster(rosterOff)),leave,today:date===now.date});
       }catch(e){setErr(e.message||'Unable to load duty.')}
     }
     function show(){setOpen(true);setDept('All');const d=odtNowIndia().date;setDay(d);load(d)}
@@ -32871,14 +32879,15 @@ function ShiftManagement({profile}){
         const start=dayCalendar?mondayOfWeek(calendarDate||todayISOIndia()):rangeStart;
         const end=dayCalendar?addDaysISO(start,6):rangeEnd;
         if(!start||!end||start>end)throw new Error('Select a valid start and end date.');
-        const [a,e,p,l]=await Promise.all([
+        const [a,e,p,l,rosterOff]=await Promise.all([
           readDutyRange(start,end),
           allDutyPages(()=>client.from('profiles').select('id,auth_user_id,title,full_name,employee_id,role,department,designation,reporting_superior_id,is_active').order('id')),
           allDutyPages(()=>client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').order('id')),
-          allDutyPages(()=>client.from('absence_requests').select('*').in('status',['approved','pending_superior','pending_management']).order('id'))
+          allDutyPages(()=>client.from('absence_requests').select('*').in('status',['approved','pending_superior','pending_management']).order('id')),
+          loadDutyRosterExclusions()
         ]);
         if(generation!==loadGeneration.current)return;
-        setAssignments(a);setStaff(e.filter(x=>x.is_active!==false&&!isNonPayrollManagementAccount(x)));setPatients(p);setAbsenceRows(l);
+        setAssignments(a);setStaff(e.filter(x=>x.is_active!==false&&!isNonPayrollManagementAccount(x)).filter(notExcludedFromRoster(rosterOff)));setPatients(p);setAbsenceRows(l);
       }catch(error){if(generation===loadGeneration.current){setLoadError(error.message||'Unable to load duties.');setAssignments([])}}
       finally{if(generation===loadGeneration.current)setLoading(false)}
     }
@@ -33530,13 +33539,14 @@ function ShiftManagement({profile}){
       const g=++gen.current;setLoading(true);setError('');
       try{
         const from=addDays(start,-days);
-        const [a,e,l]=await Promise.all([
+        const [a,e,l,rosterOff]=await Promise.all([
           pages(()=>client.from('duty_assignments').select('*').gte('duty_date',from).lte('duty_date',end).order('id')),
           pages(()=>client.from('profiles').select('id,auth_user_id,title,full_name,employee_id,role,department,designation,is_active').order('id')),
-          pages(()=>client.from('absence_requests').select('id,employee_id,request_type,status,leave_type,from_date,to_date,permission_date').in('status',['approved','pending_superior','pending_management']).order('id'))
+          pages(()=>client.from('absence_requests').select('id,employee_id,request_type,status,leave_type,from_date,to_date,permission_date').in('status',['approved','pending_superior','pending_management']).order('id')),
+          loadDutyRosterExclusions()
         ]);
         if(g!==gen.current)return;
-        setRows(a);setStaff(e.filter(x=>x.is_active!==false&&!isNonPayrollManagementAccount(x)));setLeave(l);
+        setRows(a);setStaff(e.filter(x=>x.is_active!==false&&!isNonPayrollManagementAccount(x)).filter(notExcludedFromRoster(rosterOff)));setLeave(l);
       }catch(err){if(g===gen.current)setError(err.message||'Unable to load the roster.')}
       finally{if(g===gen.current)setLoading(false)}
     }

@@ -98,13 +98,14 @@
       const g=++gen.current;setLoading(true);setError('');
       try{
         const from=addDays(start,-days);
-        const [a,e,l]=await Promise.all([
+        const [a,e,l,rosterOff]=await Promise.all([
           pages(()=>client.from('duty_assignments').select('*').gte('duty_date',from).lte('duty_date',end).order('id')),
           pages(()=>client.from('profiles').select('id,auth_user_id,title,full_name,employee_id,role,department,designation,is_active').order('id')),
-          pages(()=>client.from('absence_requests').select('id,employee_id,request_type,status,leave_type,from_date,to_date,permission_date').in('status',['approved','pending_superior','pending_management']).order('id'))
+          pages(()=>client.from('absence_requests').select('id,employee_id,request_type,status,leave_type,from_date,to_date,permission_date').in('status',['approved','pending_superior','pending_management']).order('id')),
+          loadDutyRosterExclusions()
         ]);
         if(g!==gen.current)return;
-        setRows(a);setStaff(e.filter(x=>x.is_active!==false&&!isNonPayrollManagementAccount(x)));setLeave(l);
+        setRows(a);setStaff(e.filter(x=>x.is_active!==false&&!isNonPayrollManagementAccount(x)).filter(notExcludedFromRoster(rosterOff)));setLeave(l);
       }catch(err){if(g===gen.current)setError(err.message||'Unable to load the roster.')}
       finally{if(g===gen.current)setLoading(false)}
     }

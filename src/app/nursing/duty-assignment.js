@@ -357,14 +357,15 @@ function ShiftManagement({profile}){
         const start=dayCalendar?mondayOfWeek(calendarDate||todayISOIndia()):rangeStart;
         const end=dayCalendar?addDaysISO(start,6):rangeEnd;
         if(!start||!end||start>end)throw new Error('Select a valid start and end date.');
-        const [a,e,p,l]=await Promise.all([
+        const [a,e,p,l,rosterOff]=await Promise.all([
           readDutyRange(start,end),
           allDutyPages(()=>client.from('profiles').select('id,auth_user_id,title,full_name,employee_id,role,department,designation,reporting_superior_id,is_active').order('id')),
           allDutyPages(()=>client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').order('id')),
-          allDutyPages(()=>client.from('absence_requests').select('*').in('status',['approved','pending_superior','pending_management']).order('id'))
+          allDutyPages(()=>client.from('absence_requests').select('*').in('status',['approved','pending_superior','pending_management']).order('id')),
+          loadDutyRosterExclusions()
         ]);
         if(generation!==loadGeneration.current)return;
-        setAssignments(a);setStaff(e.filter(x=>x.is_active!==false&&!isNonPayrollManagementAccount(x)));setPatients(p);setAbsenceRows(l);
+        setAssignments(a);setStaff(e.filter(x=>x.is_active!==false&&!isNonPayrollManagementAccount(x)).filter(notExcludedFromRoster(rosterOff)));setPatients(p);setAbsenceRows(l);
       }catch(error){if(generation===loadGeneration.current){setLoadError(error.message||'Unable to load duties.');setAssignments([])}}
       finally{if(generation===loadGeneration.current)setLoading(false)}
     }

@@ -28,12 +28,13 @@
       try{
         const now=odtNowIndia(),date=target||now.date,prev=odtAddDays(date,-1);
         const pages=async q=>{const out=[];for(let o=0;;o+=500){const r=await q().range(o,o+499);if(r.error)throw r.error;out.push(...(r.data||[]));if((r.data||[]).length<500)return out}};
-        const [duty,staff,leave]=await Promise.all([
+        const [duty,staff,leave,rosterOff]=await Promise.all([
           pages(()=>client.from('duty_assignments').select('*').gte('duty_date',prev).lte('duty_date',date).order('id')),
           pages(()=>client.from('profiles').select('id,title,full_name,role,department,designation,mobile,is_active').order('id')),
-          pages(()=>client.from('absence_requests').select('*').eq('status','approved').lte('from_date',date).gte('to_date',date).order('id'))
+          pages(()=>client.from('absence_requests').select('*').eq('status','approved').lte('from_date',date).gte('to_date',date).order('id')),
+          loadDutyRosterExclusions()
         ]);
-        setData({date,now,duty,staff:staff.filter(s=>s.is_active!==false),leave,today:date===now.date});
+        setData({date,now,duty,staff:staff.filter(s=>s.is_active!==false).filter(notExcludedFromRoster(rosterOff)),leave,today:date===now.date});
       }catch(e){setErr(e.message||'Unable to load duty.')}
     }
     function show(){setOpen(true);setDept('All');const d=odtNowIndia().date;setDay(d);load(d)}

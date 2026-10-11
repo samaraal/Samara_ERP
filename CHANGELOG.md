@@ -1,3 +1,11 @@
+## 2.16.13 — Ramya off the Duty Roster (login kept); delete employee Rama (SQL 212)
+
+- New list **duty_roster_exclusions**: staff on it are left out of the Duty Roster grid, the Duty list / Assign Duty, and On Duty Today. Their login and all their other pages are unchanged.
+- **supabase/sql/212_duty_roster_exclusions_ramya.sql** puts **Ramya** on that list and cancels her duties from today onward. It stops without changing anything unless exactly one employee named Ramya is found. To put her back: the one-line delete at the end of the file.
+- **Rama — permanent delete (cannot be undone):** run **onetime_212_delete_employee_rama_STEP1_preview.sql** first (read only, shows the matching employee), then **onetime_212_delete_employee_rama_STEP2_delete.sql**. It removes her login, employee record, duty and leave rows. Entries she made elsewhere stay and just no longer show her name. It stops and changes nothing if more than one Rama is found, or if a record that must be kept depends on her.
+- If SQL 212 has not been run yet, nobody is left out (the screens work as before).
+- Files: src/app/core/04-supabase-roles-navigation.js, src/app/nursing/duty-assignment.js, src/app/nursing/duty-roster-grid.js, src/app/global-ui/11-on-duty-today.js, version files, app.js (rebuilt), the 3 SQL files.
+
 ## 2.16.12 — Duty Roster on phones: Next week / This week / Save no longer hidden
 
 - On a phone, the "No changes yet / Save roster" box under the roster floated on top of the roster's own buttons. It covered **› (next week), This week, Save roster, Copy previous period and Reload**, and the date row and staff cells sat behind it — so a fresh roster for next week could not be made, and this week's duties could not be changed, from a mobile.

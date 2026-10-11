@@ -58,6 +58,13 @@
       login==='maneeshaboominathan' ||
       login==='ram';
   };
+  // 2.16.13: staff kept off the Duty Roster / Duty list / On Duty Today, with login and all other pages unchanged.
+  // List lives in table duty_roster_exclusions (SQL 212). If the table is missing or unreadable, nobody is excluded.
+  const loadDutyRosterExclusions=async()=>{
+    try{const r=await client.from('duty_roster_exclusions').select('profile_id');if(r.error)return new Set();return new Set((r.data||[]).map(x=>String(x.profile_id)))}
+    catch(_){return new Set()}
+  };
+  const notExcludedFromRoster=excluded=>row=>!excluded.has(String(row?.id||''))&&!(row?.auth_user_id&&excluded.has(String(row.auth_user_id)));
   const isNonPayrollManagementAccount=row=>{
     const clean=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]/g,'');
     const name=clean(row?.full_name||row?.name), login=clean(row?.login_id||row?.username), employeeId=clean(row?.employee_id);
