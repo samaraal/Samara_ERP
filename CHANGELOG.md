@@ -1,3 +1,15 @@
+## 2.16.14 — Intake / Output chart: simple grid entry (like the Duty Roster)
+
+- The long Intake / Output form is replaced by a **grid**: rows = 2-hour slots for the chart day (7–9 AM … 5–7 AM), columns = **Oral · IV · Tube** (intake) and **Urine · Drain · Vomit · Stool** (output), plus **Other**.
+- **Tap a box** → choose **what** (Water / Juice / Soup / Kanji … ; IV: NS / DNS / RL … ; Tube: Ensure / Kanji / Milk … ; Urine: Passed urine / Catheter bag — Catheter is pre-selected when the chart reason says catheter) → tap an **amount** (or type ml) → **Save**. Stool: number of times + type.
+- The time is taken from the slot (or "now" in the current slot); it can still be changed under "change time / add remarks".
+- Each box shows the total ml for that slot; ☕ marks tea / milk / juice coming automatically from Resident Food Intake. Tapping a filled box shows what is in it, with **Remove** for wrong entries.
+- **Day total / Night total** rows with In · Out · Urine · Balance for each shift, and the 24-hour balance at the bottom (red when beyond the limit).
+- The full list of entries is still there under "All entries — Show the list".
+- Works on phones (fits the screen, no sideways scrolling). Tamil words added for the new screen.
+- Same data as before (io_entries): alerts, limits, the Daily Intelligent Report line and the Family Portal are unchanged. No SQL.
+- Files: src/app/clinical/intake-output.js, src/app/global-ui/05-hover-clickable-cards-mobile-tables.js, src/app/global-ui/09-tamil-dictionary.js, version files, app.js (rebuilt).
+
 ## 2.16.13 (update) — delete employee Rajee (SQL 213)
 
 - **Rajee — permanent delete (cannot be undone):** run **onetime_213_delete_employee_rajee_STEP1_preview.sql** first (read only), then **onetime_213_delete_employee_rajee_STEP2_delete.sql**. Same safety as Rama's (SQL 212): stops and changes nothing unless exactly one Rajee / Raji is found, or if a record that must be kept depends on her. No app change.

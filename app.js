@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.13';
+  const APP_VERSION = '2.16.14';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -6863,7 +6863,7 @@ https://samaraassistedliving.com/`;
       }
       const media=window.matchMedia?.('(max-width:760px)');
       let frame=0;
-      const excluded='table.fv-history-table,table.rooms-table,table.patient-master-table,table.employee-master-table,table.medication-log-table,table.vitals-log-table,table.rg-table'; // 2.16.5: Duty Roster grid keeps its grid on phones
+      const excluded='table.fv-history-table,table.rooms-table,table.patient-master-table,table.employee-master-table,table.medication-log-table,table.vitals-log-table,table.rg-table,table.io-grid'; // 2.16.5: Duty Roster grid keeps its grid on phones
       const wideLabels=/action|details|description|remarks|instruction|patient|resident|employee|applicant|medicine|item|service|address|message|reason|particular|source|reference|request|decision/i;
       const enhanceTable=table=>{
         if(!table?.matches?.('table')||table.matches(excluded)||table.closest('.rooms-desktop-table-wrap'))return;
@@ -11426,7 +11426,34 @@ https://samaraassistedliving.com/`;
 "Walk-in / Phone": "நேரில் / ஃபோன்",
 "Withheld dose — doctor's instruction still pending": "நிறுத்தி வைத்த டோஸ் — டாக்டர் அறிவுறுத்தல் இன்னும் நிலுவையில்",
 "The doctor's instruction for this withheld dose is already recorded. Tap Show all to see the full register.": "இந்த நிறுத்தி வைத்த டோஸுக்கான டாக்டர் அறிவுறுத்தல் ஏற்கனவே பதிவாகிவிட்டது. முழு பதிவேட்டைப் பார்க்க \"எல்லாம் காட்டு\" தட்டவும்.",
-"Show all": "எல்லாம் காட்டு"
+"Show all": "எல்லாம் காட்டு",
+"What": "என்ன",
+"Amount (ml)": "அளவு (ml)",
+"How many times": "எத்தனை முறை",
+"Day total": "பகல் மொத்தம்",
+"Night total": "இரவு மொத்தம்",
+"Show the list": "பட்டியலைக் காட்டு",
+"Already in this box": "இந்தக் கட்டத்தில் ஏற்கனவே உள்ளவை",
+"Other amount (ml)": "வேறு அளவு (ml)",
+"Urine": "சிறுநீர்",
+"Stool": "மலம்",
+"Vomit": "வாந்தி",
+"Drain": "டிரெயின்",
+"Tube": "டியூப்",
+"now": "இப்போது",
+"Water": "தண்ணீர்",
+"Juice": "ஜூஸ்",
+"Soup": "சூப்",
+"How": "எப்படி",
+"In or out": "உள்ளே / வெளியே",
+"Passed urine": "சிறுநீர் கழித்தது",
+"Catheter bag": "கதீட்டர் பை",
+"Not yet": "இன்னும் இல்லை",
+"Next day ›": "அடுத்த நாள் ›",
+"‹ Previous day": "‹ முந்தைய நாள்",
+"Chart date": "சார்ட் தேதி",
+"Tap a box → choose what and how much → Save. ☕ = tea / milk / juice from Resident Food Intake (added automatically).": "கட்டத்தைத் தொடவும் → என்ன, எவ்வளவு என்று தேர்வு செய்யவும் → Save. ☕ = Resident Food Intake-இல் பதிந்த டீ / பால் / ஜூஸ் (தானாகச் சேர்க்கப்படும்).",
+"Every entry with time and nurse. Tap a row for full details; Remove wrong entries here.": "ஒவ்வொரு பதிவும் நேரம், நர்ஸ் பெயருடன். முழு விவரத்துக்கு வரிசையைத் தொடவும்; தவறான பதிவை இங்கே நீக்கவும்."
 };
   // 2.15.70: EN | தமிழ் screen-language switch (trial for STD; Admin can also check).
   // Translates only fixed screen wording (menu, titles, buttons, labels, statuses) using SAMARA_TA.
@@ -29832,6 +29859,25 @@ function RoomsBeds({profile,onNavigate}){
     return isNursingManagerProfile(profile)||['admin','administrator','director','manager'].includes(r);
   }
 
+  // 2.16.14: grid entry (like the Duty Roster): rows = 2-hour slots 7 AM → 7 AM, columns = intake / output types.
+  // Tap a cell → choose the item + amount (time comes from the slot) → Save. Same io_entries rows as before.
+  const IO_COLS=[
+    {key:'oral',label:'Oral',icon:'💧',dir:'Intake',cats:['Oral fluids'],items:['Water','Juice','Soup','Kanji','Butter milk','Coconut water'],amounts:[50,100,150,200,250,300]},
+    {key:'iv',label:'IV',icon:'💉',dir:'Intake',cats:['IV fluids'],items:['NS','DNS','RL','D5','D10'],amounts:[100,250,500,1000]},
+    {key:'tube',label:'Tube',icon:'🧪',dir:'Intake',cats:['Tube feed'],items:['Ensure','Kanji','Milk','Water flush','Feed'],amounts:[50,100,150,200,250,300]},
+    {key:'urine',label:'Urine',icon:'🚻',dir:'Output',cats:['Urine','Catheter urine'],items:['Passed urine','Catheter bag'],amounts:[100,200,300,400,500,600]},
+    {key:'drain',label:'Drain',icon:'🩸',dir:'Output',cats:['Drain'],items:[],amounts:[10,25,50,100,200]},
+    {key:'vomit',label:'Vomit',icon:'🤢',dir:'Output',cats:['Vomit'],items:[],amounts:[50,100,150,200,300]},
+    {key:'stool',label:'Stool',icon:'🧻',dir:'Output',cats:['Stool'],items:[],amounts:[]},
+    {key:'other',label:'Other',icon:'➕',dir:null,cats:['Other intake','Other output'],items:['Other intake','Other output'],amounts:[50,100,200,300,500]}
+  ];
+  const IO_SLOT_H=2,IO_SLOTS=24/IO_SLOT_H;
+  const ioSlotStart=(day,i)=>new Date(new Date(`${day}T07:00:00+05:30`).getTime()+i*IO_SLOT_H*3600000);
+  const ioSlotOf=(day,at)=>Math.floor((new Date(at).getTime()-ioSlotStart(day,0).getTime())/(IO_SLOT_H*3600000));
+  const ioHour=d=>{const h=Number(ioIndiaParts(d).hh);return `${((h+11)%12)+1}${h<12?' AM':' PM'}`};
+  const ioSlotLabel=(day,i)=>{const a=ioSlotStart(day,i),b=ioSlotStart(day,i+1);return `${ioHour(a).replace(/ (AM|PM)$/,ioHour(a).slice(-2)===ioHour(b).slice(-2)?'':' $1')}–${ioHour(b)}`};
+  const ioColOf=category=>IO_COLS.find(c=>c.cats.includes(category))||IO_COLS[IO_COLS.length-1];
+
   function IntakeOutput({profile,onNavigate}){
     const [patients]=usePatients();
     const [settings,setSettings]=React.useState([]);
@@ -29845,8 +29891,8 @@ function RoomsBeds({profile,onNavigate}){
     const [openRow,setOpenRow]=React.useState('');
     const [startForm,setStartForm]=React.useState({reason:'',urine:'300',balance:'1000'});
     const [editLimits,setEditLimits]=React.useState(null);
-    const blank={direction:'Intake',category:'Oral fluids',item:'',volume:'',stool_count:'1',stool_type:'Formed',at:ioLocalInput(),remarks:''};
-    const [form,setForm]=React.useState(blank);
+    const [cell,setCell]=React.useState(null); // {col, slot}
+    const [cf,setCf]=React.useState(null);     // popup form
     const [focus,clearFocus]=useRecordFocus('Intake / Output');
     const canManage=ioCanManage(profile);
     const setting=settings.find(s=>s.patient_id===patientId);
@@ -29917,26 +29963,40 @@ function RoomsBeds({profile,onNavigate}){
       showSamaraActionToast('success',stop?'Chart stopped':'Limits saved',stop?'The Intake / Output chart is stopped for this Guest.':'The new alert limits apply from the next shift.');
       setEditLimits(null);const l=await loadSettings();loadToday(l);
     }
-    async function saveEntry(e){
-      e.preventDefault();if(busy)return;
-      if(!patientId||!chartOn)return showSamaraActionToast('error','Select a Guest','Choose a Guest whose Intake / Output chart is ON.');
-      const at=ioFromLocal(form.at);
+    function openCell(col,slot){
+      const st=ioSlotStart(chartDate,slot),en=ioSlotStart(chartDate,slot+1),now=new Date();
+      if(st>now)return showSamaraActionToast('warning','Not yet','This time slot has not started yet.');
+      const at=now>=st&&now<en?now:new Date(Math.min(st.getTime()+60*60000,now.getTime()));
+      const catheter=/cath/i.test(setting?.reason||'');
+      const item=col.key==='urine'?(catheter?'Catheter bag':'Passed urine'):col.key==='other'?'Other intake':'';
+      setCell({col,slot});
+      setCf({item,custom:'',volume:'',stool_count:'1',stool_type:'Formed',at:ioLocalInput(at),remarks:''});
+    }
+    async function saveCell(){
+      if(busy||!cell||!cf)return;
+      const col=cell.col;
+      if(!patientId||!chartOn)return showSamaraActionToast('error','Chart is not ON','Start the Intake / Output chart for this Guest first.');
+      const at=ioFromLocal(cf.at);
       if(Number.isNaN(at.getTime()))return showSamaraActionToast('error','Check the time','Enter a valid date and time.');
       if(at.getTime()>Date.now()+5*60000)return showSamaraActionToast('error','Time is in the future','Enter the time it was actually given / measured.');
       const maxBack=(canManage?72:24)*3600000;
       if(Date.now()-at.getTime()>maxBack)return showSamaraActionToast('error','Too old',canManage?'Entries can be added up to 3 days back.':'Nurses can add entries up to 24 hours back. Ask the Nursing Manager for older corrections.');
-      const isStool=form.category==='Stool';
-      const vol=form.volume===''?null:Number(form.volume);
-      if(!isStool&&!(vol>0&&vol<=5000))return showSamaraActionToast('error','Enter the amount','Enter the amount in ml (1–5000).');
-      if(isStool&&!(Number(form.stool_count)>0))return showSamaraActionToast('error','Enter the count','Enter how many times (1 or more).');
+      const isStool=col.key==='stool';
+      const category=col.key==='urine'?(cf.item==='Catheter bag'?'Catheter urine':'Urine'):col.key==='other'?(cf.item==='Other output'?'Other output':'Other intake'):col.cats[0];
+      const direction=col.dir||(category==='Other output'?'Output':'Intake');
+      const vol=cf.volume===''?null:Number(cf.volume);
+      if(!isStool&&!(vol>0&&vol<=5000))return showSamaraActionToast('error','Choose the amount','Tap an amount or type the ml (1–5000).');
+      if(isStool&&!(Number(cf.stool_count)>0))return showSamaraActionToast('error','Enter the count','How many times (1 or more).');
+      const item=(cf.item==='Other…'?cf.custom:(['urine','other'].includes(col.key)?cf.custom:cf.item)).trim()||null;
+      if(cf.item==='Other…'&&!item)return showSamaraActionToast('error','Type the item','Type what was given (e.g. Glucon-D, Horlicks).');
       setBusy(true);
-      const payload={patient_id:patientId,entry_at:at.toISOString(),direction:form.direction,category:form.category,item:form.item.trim()||null,volume_ml:vol,stool_count:isStool?Math.round(Number(form.stool_count)):null,stool_type:isStool?form.stool_type:null,remarks:form.remarks.trim()||null,recorded_by:profile.id,recorded_by_name:profile.full_name||null};
+      const payload={patient_id:patientId,entry_at:at.toISOString(),direction,category,item,volume_ml:vol,stool_count:isStool?Math.round(Number(cf.stool_count)):null,stool_type:isStool?cf.stool_type:null,remarks:cf.remarks.trim()||null,recorded_by:profile.id,recorded_by_name:profile.full_name||null};
       const {data,error}=await client.from('io_entries').insert(payload).select('id').single();
       setBusy(false);
       if(error)return showSamaraActionToast('error','Not saved',error.message);
-      writeAuditEvent('Intake/Output Recorded','Intake / Output',data?.id||patientId,{patient_id:patientId,direction:payload.direction,category:payload.category,volume_ml:payload.volume_ml,stool_count:payload.stool_count,summary:`${payload.direction}: ${payload.category} ${isStool?`× ${payload.stool_count}`:ioMl(vol)}`},'Success');
-      showSamaraActionToast('success',`${form.direction} saved`,`${form.category}${isStool?` × ${payload.stool_count} (${payload.stool_type})`:` — ${ioMl(vol)}`} for ${guestLabel(patientRow)}.`);
-      setForm({...blank,direction:form.direction,category:form.category,at:ioLocalInput()});
+      writeAuditEvent('Intake/Output Recorded','Intake / Output',data?.id||patientId,{patient_id:patientId,direction,category,volume_ml:vol,stool_count:payload.stool_count,summary:`${direction}: ${category}${item?` (${item})`:''} ${isStool?`× ${payload.stool_count}`:ioMl(vol)}`},'Success');
+      showSamaraActionToast('success',`${direction} saved`,`${item?item+' · ':''}${category}${isStool?` × ${payload.stool_count} (${payload.stool_type})`:` — ${ioMl(vol)}`} · ${ioTime(at)}`);
+      setCell(null);setCf(null);
       const day=ioChartDay(at);if(day!==chartDate){setChartDate(day);setDraftDate(day)}else loadChart();
       loadToday();
     }
@@ -29968,7 +30028,6 @@ function RoomsBeds({profile,onNavigate}){
     const catTotals=[...IO_INTAKE,...IO_OUTPUT].map(([c])=>[c,rows.filter(x=>x.category===c&&!x.voided).reduce((s,x)=>s+x.ml,0)]).filter(([,v])=>v>0);
     const today=ioChartDay(new Date());
     const onGuests=settings.filter(s=>s.enabled).map(s=>({s,p:patients.find(p=>p.id===s.patient_id)})).filter(x=>x.p);
-    const choices=form.direction==='Intake'?IO_INTAKE:IO_OUTPUT;
 
     const totalBox=(label,t,highlight)=>h('div',{className:`io-total${highlight?' io-total-main':''}`},
       h('small',null,label),
@@ -30002,6 +30061,42 @@ function RoomsBeds({profile,onNavigate}){
 .io-datebar{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:8px}
 .io-row-voided td{text-decoration:line-through;color:#9a8a92}
 .io-src{font-size:11px;border-radius:8px;padding:1px 6px;background:#eef6ff;color:#1f4f87}
+.io-help{display:block;color:#6b5560;margin:2px 0 8px}
+.io-gwrap{overflow-x:hidden;overflow-y:auto;max-height:70vh;border:1px solid #ead7e1;border-radius:12px;background:#fff}
+.io-grid{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;font-size:13px}
+.io-grid col.io-c-time{width:84px}
+.io-grid th,.io-grid td{border-bottom:1px solid #f0e4ea;border-right:1px solid #f0e4ea;padding:0;text-align:center;white-space:nowrap;overflow:hidden}
+.io-grid thead th{position:sticky;top:0;z-index:2;background:#fbf2f7;color:#5d1039;font-weight:800;padding:5px 2px}
+.io-grid thead tr.io-dirrow th{position:static;font-size:11px;letter-spacing:.03em;padding:3px}
+.io-grid thead tr:nth-child(2) th{top:0}
+.io-grid th.io-in{background:#eaf4ff;color:#1d4f91}.io-grid th.io-out{background:#fff3e0;color:#8a4b00}
+.io-grid .io-ic{display:block;font-size:15px;line-height:1.1}
+.io-grid td.io-time,.io-grid th.io-time{text-align:left;padding:4px 6px;font-weight:700;color:#3f2a35;font-size:12px;white-space:normal}
+.io-grid td.io-time small{display:inline-block;margin-left:4px;background:#a91360;color:#fff;border-radius:6px;padding:0 5px;font-size:10px}
+.io-grid tr.io-now td{background:#fff7fb}
+.io-grid tr.io-nightrow td.io-time{background:#f3f4fb}
+.io-cell{width:100%;height:40px;border:0;background:transparent;cursor:pointer;font-weight:800;font-size:13px;color:#b9a5af;position:relative}
+.io-cell.io-has.io-i{background:#e7f1ff;color:#1d4f91}.io-cell.io-has.io-o{background:#fff1dc;color:#8a4b00}
+.io-cell:disabled{cursor:not-allowed;color:transparent;background:#faf8f9}
+.io-bev{position:absolute;top:1px;right:2px;font-size:10px}
+.io-grid tr.io-subtotal td{background:#f6eaf0;font-weight:800;color:#790c44;padding:5px 2px;font-size:12px}
+.io-grid tr.io-shiftbal td{background:#fff;text-align:left;padding:5px 8px;font-size:12px;color:#5d4a54;white-space:normal}
+.io-daybal{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin-top:10px;padding:10px 12px;border-radius:12px;background:#fff4f9;border:1px solid #e3a5c2;font-size:14px}
+.io-daybal strong{margin-left:auto;color:#790c44}
+.io-daybal-warn{background:#ffe9ec;border-color:#f2a3ae}
+.io-pop{width:min(520px,96vw);max-height:90vh;overflow:auto}
+.io-lbl{display:block;font-weight:700;color:#5d1039;margin:10px 0 4px;font-size:13px}
+.io-chips{display:flex;flex-wrap:wrap;gap:6px}
+.io-chip{border:1px solid #e8b6cd;background:#fff;border-radius:999px;padding:8px 14px;font-weight:700;color:#7a0b44;cursor:pointer;font-size:14px;min-width:52px}
+.io-chip.on{background:#b01264;color:#fff;border-color:#b01264}
+.io-ml{margin-top:8px;width:100%;max-width:220px}
+.io-here{background:#fbf7f9;border-radius:10px;padding:6px 10px;margin:6px 0}
+.io-here>small{font-weight:700;color:#7b6871}
+.io-here-row{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:13px;padding:3px 0}
+.io-more{margin-top:10px}.io-more summary{cursor:pointer;color:#7a0b44;font-weight:600;font-size:13px}
+.io-list summary{cursor:pointer;color:#7a0b44;font-weight:700;margin-bottom:8px}
+@media (max-width:760px){.io-grid col.io-c-time{width:58px}.io-grid{font-size:11px}.io-grid td.io-time,.io-grid th.io-time{font-size:10px;padding:3px}.io-grid thead th{font-size:10px;padding:4px 0}.io-grid .io-ic{font-size:13px}.io-cell{height:38px;font-size:11px}.io-grid td.io-time small{display:block;margin:2px 0 0;width:max-content}}
+
 `),
       h(Section,{title:'Intake / Output Chart',subtitle:'Fluid balance for Guests on the chart · chart day 7 AM to 7 AM · Day 7 AM–7 PM / Night 7 PM–7 AM'},
         focus&&h(RecordFocusBanner,{focus,onShowAll:()=>clearFocus()}),
@@ -30028,28 +30123,48 @@ function RoomsBeds({profile,onNavigate}){
           miniInput('Low urine per 12-hour shift below (ml)',editLimits.urine,v=>setEditLimits({...editLimits,urine:v}),true,'number'),
           miniInput('24-hour balance beyond ± (ml)',editLimits.balance,v=>setEditLimits({...editLimits,balance:v}),true,'number'),
           h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>saveLimits(false)},'Save limits')),
-        h('form',{onSubmit:saveEntry},
-          h('div',{className:'io-toggle'},['Intake','Output'].map(d=>h('button',{type:'button',key:d,className:form.direction===d?'on':'',onClick:()=>setForm({...form,direction:d,category:(d==='Intake'?IO_INTAKE:IO_OUTPUT)[0][0],item:''})},d==='Intake'?'⬇ Intake (given)':'⬆ Output (passed)'))),
-          h('div',{className:'io-cats'},choices.map(([c,icon,hint])=>h('button',{type:'button',key:c,className:`io-cat${form.category===c?' on':''}`,onClick:()=>setForm({...form,category:c})},h('b',null,`${icon} ${c}`),h('small',null,hint)))),
-          h('div',{className:'modal-grid'},
-            form.category==='Stool'
-              ?h(React.Fragment,null,miniInput('How many times',form.stool_count,v=>setForm({...form,stool_count:v}),true,'number'),miniSelect('Type',form.stool_type,IO_STOOL_TYPES,v=>setForm({...form,stool_type:v})),miniInput('Amount in ml (optional)',form.volume,v=>setForm({...form,volume:v}),false,'number'))
-              :miniInput('Amount (ml)',form.volume,v=>setForm({...form,volume:v}),true,'number'),
-            ['IV fluids','Tube feed','Other intake','Drain','Other output','Oral fluids'].includes(form.category)&&miniInput(form.category==='IV fluids'?'Fluid (e.g. NS, DNS, RL)':form.category==='Tube feed'?'Feed (e.g. Ensure, kanji)':form.category==='Drain'?'Drain site':form.category==='Oral fluids'?'What (e.g. water, soup) — tea / milk from Food Intake are added automatically':'Details',form.item,v=>setForm({...form,item:v})),
-            h('div',{className:'field'},h('label',null,'Time given / measured'),h(StrictDateTimeInput,{value:form.at,max:ioLocalInput(),onChange:e=>setForm({...form,at:e.target.value}),required:true})),
-            miniInput('Remarks',form.remarks,v=>setForm({...form,remarks:v})),
-            h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':`Save ${form.direction.toLowerCase()}`)))
-      ),
-      patientId&&(chartOn||entries.length>0)&&h(Section,{title:`Chart — ${formatDateWithDayIN(chartDate)} (7 AM to next day 7 AM)`,subtitle:'Includes tea / milk / juice from Resident Food Intake automatically (marked "Food Intake"). Tap a row for full details.'},
         h('div',{className:'io-datebar'},
-          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{const d=ioAddDays(chartDate,-1);setChartDate(d);setDraftDate(d)}},'← Previous day'),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{const d=ioAddDays(chartDate,-1);setChartDate(d);setDraftDate(d)}},'‹ Previous day'),
           h('div',{className:'field'},h('label',null,'Chart date'),h(StrictDateInput,{value:draftDate,max:today,onChange:e=>setDraftDate(e.target.value)})),
-          h('button',{type:'button',className:'btn btn-primary',onClick:()=>setChartDate(draftDate||today)},'Apply'),
-          h('button',{type:'button',className:'btn btn-secondary',disabled:chartDate>=today,onClick:()=>{const d=ioAddDays(chartDate,1);setChartDate(d);setDraftDate(d)}},'Next day →'),
-          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setChartDate(today);setDraftDate(today)}},'Today')),
+          draftDate&&draftDate!==chartDate?h('button',{type:'button',className:'btn btn-primary',onClick:()=>setChartDate(draftDate||today)},'Apply'):null,
+          h('button',{type:'button',className:'btn btn-secondary',disabled:chartDate>=today,onClick:()=>{const d=ioAddDays(chartDate,1);setChartDate(d);setDraftDate(d)}},'Next day ›'),
+          h('button',{type:'button',className:'btn btn-secondary',disabled:chartDate===today,onClick:()=>{setChartDate(today);setDraftDate(today)}},'Today')),
         overLimit&&h('div',{className:'io-warn',role:'status'},`Balance ${balance>=0?'+':'−'}${ioMl(Math.abs(balance))} is beyond the limit of ± ${ioMl(setting.balance_limit_ml)}. Inform the Nursing Manager / treating doctor.`),
-        h('div',{className:'io-totals'},totalBox('Day shift (7 AM–7 PM)',day),totalBox('Night shift (7 PM–7 AM)',night),totalBox(chartDate===today?'24 hours — so far':'24 hours',total,true)),
-        catTotals.length?h('small',{style:{display:'block',marginBottom:'8px',color:'#6b5560'}},catTotals.map(([c,v])=>`${c} ${ioMl(v)}`).join(' · ')):null,
+        h('small',{className:'io-help'},'Tap a box → choose what and how much → Save. ☕ = tea / milk / juice from Resident Food Intake (added automatically).'),
+        h('div',{className:'io-gwrap'},h('table',{className:'io-grid'},
+          h('colgroup',null,h('col',{className:'io-c-time'}),IO_COLS.map(c=>h('col',{key:c.key}))),
+          h('thead',null,
+            h('tr',{className:'io-dirrow'},h('th',null,''),h('th',{colSpan:3,className:'io-in'},'⬇ INTAKE'),h('th',{colSpan:4,className:'io-out'},'⬆ OUTPUT'),h('th',null,'±')),
+            h('tr',null,h('th',{className:'io-time'},'Time'),IO_COLS.map(c=>h('th',{key:c.key,className:c.dir==='Intake'?'io-in':c.dir==='Output'?'io-out':''},h('span',{className:'io-ic'},c.icon),h('span',null,c.label))))),
+          h('tbody',null,Array.from({length:IO_SLOTS},(_,i)=>{
+            const st=ioSlotStart(chartDate,i),en=ioSlotStart(chartDate,i+1),now=new Date();
+            const future=st>now,current=now>=st&&now<en;
+            const rowsHere=rows.filter(x=>!x.voided&&ioSlotOf(chartDate,x.at)===i);
+            const tr=h('tr',{key:`s${i}`,className:`${current?'io-now':''} ${i>=IO_SLOTS/2?'io-nightrow':''}`},
+              h('td',{className:'io-time'},ioSlotLabel(chartDate,i),current?h('small',null,'now'):null),
+              IO_COLS.map(c=>{
+                const here=rowsHere.filter(x=>ioColOf(x.category)===c);
+                const ml=here.reduce((t,x)=>t+x.ml,0),stool=here.reduce((t,x)=>t+x.stool,0),bev=here.some(x=>x.src==='Food Intake');
+                const otherOut=c.key==='other'&&here.some(x=>x.direction==='Output');
+                const text=c.key==='stool'?(stool?`${stool}×`:''):ml?Math.round(ml).toLocaleString('en-IN'):'';
+                return h('td',{key:c.key},h('button',{type:'button',className:`io-cell ${text?'io-has':''} ${c.dir==='Output'||otherOut?'io-o':'io-i'}`,disabled:future||!chartOn,title:future?'Not yet':here.length?here.map(x=>`${ioTime(x.at)} ${x.what||x.category} ${x.ml?ioMl(x.ml):''}`).join('\n'):`Add ${c.label} · ${ioSlotLabel(chartDate,i)}`,'aria-label':`${c.label} ${ioSlotLabel(chartDate,i)}: ${text||'empty'}`,onClick:()=>openCell(c,i)},
+                  text||(future||!chartOn?'':'+'),bev?h('span',{className:'io-bev'},'☕'):null));
+              }));
+            if(i===IO_SLOTS/2-1||i===IO_SLOTS-1){
+              const t=i===IO_SLOTS/2-1?day:night;
+              const sub=c=>{const l=rows.filter(x=>!x.voided&&ioColOf(x.category)===c&&x.shift===(i===IO_SLOTS/2-1?IO_DAY:IO_NIGHT));return c.key==='stool'?(l.reduce((a,x)=>a+x.stool,0)||''):(Math.round(l.reduce((a,x)=>a+x.ml,0))||'')};
+              return [tr,h('tr',{key:`t${i}`,className:'io-subtotal'},h('td',{className:'io-time'},i===IO_SLOTS/2-1?'Day total':'Night total'),IO_COLS.map(c=>h('td',{key:c.key},String(sub(c)).replace(/^(\d+)$/,m=>c.key==='stool'?`${m}×`:Number(m).toLocaleString('en-IN'))))),
+                h('tr',{key:`b${i}`,className:'io-shiftbal'},h('td',{colSpan:IO_COLS.length+1},`${i===IO_SLOTS/2-1?'Day 7 AM–7 PM':'Night 7 PM–7 AM'}: In ${ioMl(t.intake)} · Out ${ioMl(t.output)} · Urine ${ioMl(t.urine)} · Balance ${t.intake-t.output>=0?'+':'−'}${ioMl(Math.abs(t.intake-t.output))}`))];
+            }
+            return tr;
+          })))),
+        h('div',{className:`io-daybal ${overLimit?'io-daybal-warn':''}`},
+          h('span',null,chartDate===today?'24 hours so far':'24 hours'),
+          h('span',null,`In ${ioMl(total.intake)}`),h('span',null,`Out ${ioMl(total.output)}`),h('span',null,`Urine ${ioMl(total.urine)}`),
+          h('strong',null,`Balance ${balance>=0?'+':'−'}${ioMl(Math.abs(balance))}`))
+      ),
+      patientId&&(chartOn||entries.length>0)&&h(Section,{title:`All entries — ${formatDateWithDayIN(chartDate)} (${rows.length})`,subtitle:'Every entry with time and nurse. Tap a row for full details; Remove wrong entries here.'},
+        h('details',{className:'io-list'},h('summary',null,'Show the list'),
         h('div',{className:'table-wrap'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Time','Shift','In / Out','Type','Details','Amount','By',''].map(x=>h('th',{key:x},x)))),
           h('tbody',null,rows.length?rows.map(x=>h(React.Fragment,{key:x.key},
@@ -30060,8 +30175,29 @@ function RoomsBeds({profile,onNavigate}){
               h('td',null,x.src==='Chart'&&!x.voided?h('button',{type:'button',className:'btn btn-secondary',style:{padding:'4px 10px'},onClick:ev=>{ev.stopPropagation();voidEntry(x.r)}},'Remove'):x.voided?'Removed':'')),
             openRow===x.key&&h('tr',null,h('td',{colSpan:8,style:{background:'#fff7fb'}},
               [`Recorded: ${fmt(x.r.created_at||x.at)}${x.by?` by ${x.by}`:''}`,`Time given / measured: ${fmt(x.at)}`,x.remarks?`Remarks: ${x.remarks}`:'',x.src==='Food Intake'?'From Resident Food Intake — edit it there if it is wrong.':'',x.voided?`Removed by ${x.r.voided_by_name||'—'} on ${fmt(x.r.voided_at)} — ${x.r.voided_reason||''}`:''].filter(Boolean).join(' · ')))))
-            :h('tr',null,h('td',{colSpan:8,className:'empty'},'Nothing recorded for this chart day yet.')))))
-      )
+            :h('tr',null,h('td',{colSpan:8,className:'empty'},'Nothing recorded for this chart day yet.'))))))
+      ),
+      cell&&cf&&(()=>{const c=cell.col;const here=rows.filter(x=>ioSlotOf(chartDate,x.at)===cell.slot&&ioColOf(x.category)===c);
+        const chips=(list,val,set)=>h('div',{className:'io-chips'},list.map(v=>h('button',{type:'button',key:v,className:`io-chip ${val===v?'on':''}`,onClick:()=>set(v)},v)));
+        return h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget){setCell(null);setCf(null)}}},
+          h('div',{className:'card modal io-pop',role:'dialog','aria-modal':true,'aria-label':`${c.label} entry`},
+            h('div',{className:'panel-head'},h('div',null,h('h3',null,`${c.icon} ${c.label} · ${ioSlotLabel(chartDate,cell.slot)}`),h('small',null,guestLabel(patientRow))),h('button',{type:'button',className:'close',onClick:()=>{setCell(null);setCf(null)}},'×')),
+            here.length?h('div',{className:'io-here'},h('small',null,'Already in this box'),here.map(x=>h('div',{key:x.key,className:`io-here-row ${x.voided?'io-row-voided':''}`},
+              h('span',null,`${ioTime(x.at)} · ${x.what||x.category} · ${x.category==='Stool'?'':ioMl(x.ml)}${x.by?` · ${x.by}`:''}`,x.src==='Food Intake'?h('span',{className:'io-src'},'Food Intake'):null),
+              x.src==='Chart'&&!x.voided?h('button',{type:'button',className:'btn btn-secondary',style:{padding:'2px 8px'},onClick:()=>voidEntry(x.r)},'Remove'):x.voided?h('small',null,'Removed'):null))):null,
+            c.items.length?h(React.Fragment,null,h('label',{className:'io-lbl'},c.key==='urine'?'How':c.key==='other'?'In or out':'What'),chips(c.key==='urine'||c.key==='other'?c.items:[...c.items,'Other…'],cf.item,v=>setCf({...cf,item:v}))):null,
+            (cf.item==='Other…'||['drain','vomit','other'].includes(c.key))&&miniInput(c.key==='drain'?'Drain site (optional)':cf.item==='Other…'?'Type the item':'Details (optional)',cf.custom,v=>setCf({...cf,custom:v})),
+            c.key==='stool'
+              ?h(React.Fragment,null,h('label',{className:'io-lbl'},'How many times'),chips(['1','2','3','4'],cf.stool_count,v=>setCf({...cf,stool_count:v})),h('label',{className:'io-lbl'},'Type'),chips(IO_STOOL_TYPES,cf.stool_type,v=>setCf({...cf,stool_type:v})),miniInput('Amount in ml (optional)',cf.volume,v=>setCf({...cf,volume:v}),false,'number'))
+              :h(React.Fragment,null,h('label',{className:'io-lbl'},'Amount (ml)'),chips(c.amounts.map(String),cf.volume,v=>setCf({...cf,volume:v})),
+                h('input',{className:'io-ml',type:'number',inputMode:'numeric',min:1,max:5000,placeholder:'Other amount (ml)',value:c.amounts.map(String).includes(cf.volume)?'':cf.volume,onChange:e=>setCf({...cf,volume:e.target.value})})),
+            h('details',{className:'io-more'},h('summary',null,`Time: ${ioTime(ioFromLocal(cf.at))} · change time / add remarks`),
+              h('div',{className:'field'},h('label',null,'Time given / measured'),h(StrictDateTimeInput,{value:cf.at,max:ioLocalInput(),onChange:e=>setCf({...cf,at:e.target.value})})),
+              miniInput('Remarks',cf.remarks,v=>setCf({...cf,remarks:v}))),
+            h('div',{className:'actions',style:{display:'flex',gap:'8px',marginTop:'10px'}},
+              h('button',{type:'button',className:'btn btn-secondary',style:{flex:1},onClick:()=>{setCell(null);setCf(null)}},'Cancel'),
+              h('button',{type:'button',className:'btn btn-primary',style:{flex:2},disabled:busy,onClick:saveCell},busy?'Saving…':`Save ${c.label}`))));
+      })()
     );
   }
   function DischargeMedicationReview(){
