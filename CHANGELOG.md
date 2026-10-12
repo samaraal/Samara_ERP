@@ -1,3 +1,9 @@
+## 2.16.27 — Fix: "Save completed assessment" refused (visit_address)
+
+- Cause: the database still requires two fields of the older Spot form before an assessment can be **Completed** — *Visit address* and *Bedsores present?*. The simplified form (2.16.24) merged them into **Home address** and **Wounds / bedsores present?**, so Completed was refused with "Complete required assessment field: visit_address". Drafts were not affected.
+- Now these two are filled automatically on every save (visit address = home address; bedsores answer from the wound list), kept in step whenever the new fields change, and not shown as "Earlier format details". Old records with their own visit address are left as they were.
+- No SQL. Files: spot-assessment.js, version files, app.js (rebuilt).
+
 ## 2.16.26 — Fix: Spot Assessment "Unable to save" after Admission started
 
 - Cause: **Convert to Guest** and **Fill from Spot Assessment** stamp the assessment "Admission started", which saves a new version of it. A Spot Assessment that was open (or reopened from an older screen) still held the older version, so the next Save was refused as "Another staff member changed this assessment".

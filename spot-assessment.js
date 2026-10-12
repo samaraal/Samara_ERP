@@ -77,12 +77,13 @@
     stay_type:'Stay requirement',care_requirements:'Care requirements',review_required:'Further review required from',additional_notes:'Additional information',
     relationship_review:'Client relationship manager review',centre_review:'Centre manager review',nursing_review:'Nursing head review',doctor_review:'Resident doctor review'
   };
-  const systemKeys=new Set(['wounds','reviews','converted_admission','enquiry_id','enquiry_label','caller_is_contact1','spot_id']);
+  const systemKeys=new Set(['wounds','reviews','converted_admission','enquiry_id','enquiry_label','caller_is_contact1','spot_id','compat_fields']);
   const newKeys=new Set(sections.flatMap(s=>s.fields.map(f=>f.key)));
   function legacyEntries(data){
     return Object.keys(data||{}).filter(k=>!newKeys.has(k)&&!systemKeys.has(k)&&!k.startsWith('_')).map(k=>{
       // a lead reference is already shown by the linked-enquiry field
       if(k==='lead_reference'&&data.enquiry_id)return null;
+      if(Array.isArray(data.compat_fields)&&data.compat_fields.includes(k))return null; // filled automatically for the database
       const v=data[k];const shown=Array.isArray(v)?v.join(', '):txt(v);
       return shown?[legacyLabels[k]||k.replace(/_/g,' '),shown]:null;
     }).filter(Boolean);
@@ -187,6 +188,16 @@
         if(clean.caller_is_contact1===true){clean.caller_name='';clean.caller_relationship='';clean.caller_phone=''}
         if(!atHospital(clean))clean.hospital_name='';
         if(!onSupport(clean))clean.respiratory_notes='';
+        // 2.16.27: the database still checks two fields of the older form before a record can be Completed
+        // (visit address, bedsores answer). Fill them from the new fields so Completed is accepted.
+        const compat=new Set(Array.isArray(clean.compat_fields)?clean.compat_fields:[]);
+        if(!txt(clean.visit_address)||compat.has('visit_address')){clean.visit_address=txt(clean.home_address);compat.add('visit_address')}
+        if(!txt(clean.bedsores_present)||compat.has('bedsores_present')){
+          const sore=(clean.wounds||[]).some(w=>/bedsore|pressure/i.test(w.kind||''));
+          clean.bedsores_present=clean.wounds_present==='Yes'?(sore?'Yes':'No'):(clean.wounds_present||'');
+          compat.add('bedsores_present');
+        }
+        clean.compat_fields=[...compat];
         const payload={person_name:clean.person_name.trim(),visit_date:clean.visit_date,assessor_name:txt(clean.assessor_name),status,details:clean};
         let query=record?client.from('spot_assessments').update(payload).eq('id',record.id).eq('version',record.version):client.from('spot_assessments').insert(payload);
         let result=await query.select('*').maybeSingle();
