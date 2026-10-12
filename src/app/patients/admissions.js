@@ -1683,9 +1683,10 @@
 
 Family Portal access has been created for ${credential.patient_name||form.full_name||'the patient'}.
 
-Resident ID: ${credential.patient_id||'—'}
+Guest ID: ${credential.patient_id||'—'}
 Temporary PIN: ${credential.pin||'—'}
-Portal: https://family.samaraassistedliving.com
+Portal: ${familyPortalLoginLink(credential.patient_id)}
+(Open the link — the Guest ID fills in by itself; enter only the PIN.)
 
 Please keep these login details confidential.`;
         if(!automatic)setMsg(`Family Portal WhatsApp API failed: ${apiError.message||apiError}. Use the Existing Method / Send Login PIN button only if you want to send manually.`);
@@ -2277,7 +2278,7 @@ Please keep these login details confidential.`;
           h('div',{className:'employee-actions',style:{marginTop:'8px'}},
             h('button',{type:'button',className:admissionWhatsAppStatus==='sent'||admissionWhatsAppStatus==='already-sent'?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:admissionWhatsAppStatus==='sending',onClick:()=>sendAdmissionWhatsAppApi(familyCredential,{patient:consentRecord?.patient||null,resend:admissionWhatsAppStatus==='sent'||admissionWhatsAppStatus==='already-sent'})},admissionWhatsAppStatus==='sending'?'Sending Admission WhatsApp…':admissionWhatsAppStatus==='sent'||admissionWhatsAppStatus==='already-sent'?'Resend Admission WhatsApp':'Send Admission WhatsApp API'),
             h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>sendFamilyPortalAccessWhatsAppApi(familyCredential)},'Send Family Portal Access API'),
-            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${familyCredential.mobile}?text=${encodeURIComponent(brandWhatsAppText(`Welcome to Samara Assisted Living Family Portal.\nResident ID: ${familyCredential.patient_id||''}\nTemporary PIN: ${familyCredential.pin}\nPortal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send Login PIN (Existing Method)')
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${familyCredential.mobile}?text=${encodeURIComponent(brandWhatsAppText(`Welcome to Samara Assisted Living Family Portal.\nGuest ID: ${familyCredential.patient_id||''}\nTemporary PIN: ${familyCredential.pin}\nPortal: ${familyPortalLoginLink(familyCredential.patient_id)}\n(Open the link — the Guest ID fills in by itself; enter only the PIN.)`))}`,'_blank','noopener')},'Send Login PIN (Existing Method)')
           )
         )
       ),

@@ -1,3 +1,9 @@
+## 2.16.18 — Family Portal personal login link (with Family Portal 1.0.35)
+
+- The WhatsApp texts that send Family Portal login details (Send Login PIN / Send PIN by Existing Method / Existing Method, and the fallback text when the API fails) now say **Guest ID** (not Resident ID) and carry a **personal link**, e.g. https://family.samaraassistedliving.com/?id=MOG-2026-10-008 — opening it fills the Guest ID, so the family enters only the PIN.
+- The approved WhatsApp API template keeps its fixed portal button (Meta template); after the first login the portal remembers the Guest ID on that phone anyway.
+- No SQL. Files: src/app/core/05-whatsapp-phone-helpers.js, src/app/patients/admissions.js, src/app/patients/patients.js, version files, app.js (rebuilt).
+
 ## 2.16.17 — Kitchen petty cash: Nursing Manager hands over the cash (SQL 214)
 
 - New flow: **STD requests → Admin / Director approves → Nursing Manager hands over the cash → STD confirms cash received.**

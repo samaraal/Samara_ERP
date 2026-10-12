@@ -147,4 +147,5 @@
     if(!providerMessageId)throw new Error('Meta did not return a WhatsApp message ID. The message is NOT confirmed as accepted.');
     return {...result,provider_message_id:providerMessageId};
   }
-
+  // 2.16.18: personal Family Portal link — opens the login with the Guest ID already filled (Family Portal 1.0.35).
+  function familyPortalLoginLink(guestId){const id=String(guestId||'').trim();return 'https://family.samaraassistedliving.com/'+(id?`?id=${encodeURIComponent(id)}`:'')}

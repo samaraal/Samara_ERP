@@ -2651,7 +2651,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
                   h('button',{type:'button',className:'btn btn-secondary',disabled:familyResetBusy===access.id,onClick:()=>resetSelectedFamilyPin(access)},familyResetBusy===access.id?'Resetting…':'Forgot / Reset PIN'),
                   h('button',{type:'button',className:portalWhatsAppSent?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:portalWhatsAppSent||familyPortalWaBusy===access.id,onClick:()=>sendPatientPortalWhatsApp(access)},familyPortalWaBusy===access.id?'Sending…':portalWhatsAppSent?'Portal Access WhatsApp Sent ✓':'Send Portal Access WhatsApp API'),
                   portalWhatsAppSent?h('button',{type:'button',className:'btn btn-secondary',disabled:familyPortalWaBusy===access.id,onClick:()=>sendPatientPortalWhatsApp(access,{resend:true})},familyPortalWaBusy===access.id?'Resending…':'Resend Portal Access WhatsApp'):null,
-                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/${normalizeWhatsAppRecipient(access.mobile)}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal\nResident ID: ${selected?.patient_id||''}\nPortal: https://family.samaraassistedliving.com\nIf the PIN is forgotten, please contact Samara to reset it.`))}`,'_blank','noopener')},'Existing Method')
+                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/${normalizeWhatsAppRecipient(access.mobile)}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal\nGuest ID: ${selected?.patient_id||''}\nPortal: ${familyPortalLoginLink(selected?.patient_id)}\n(Open the link — the Guest ID fills in by itself; enter only the PIN.)\nIf the PIN is forgotten, please contact Samara to reset it.`))}`,'_blank','noopener')},'Existing Method')
                 )})()
               )))
               :h('div',null,sectionEmpty('Family Portal access has not been created for this resident.'),h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEditPatient(selected)},'Create Family Portal Access')),
@@ -2663,9 +2663,10 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
                 h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{try{await navigator.clipboard.writeText(String(familyResetCredential.pin||''));showPatientToast('success','Temporary PIN copied.')}catch(_){showPatientToast('error','Unable to copy automatically. Please copy the PIN manually.')}}},'Copy PIN'),
                 h('button',{type:'button',className:'btn btn-whatsapp',disabled:familyPortalWaBusy==='new-pin',onClick:async()=>{setFamilyPortalWaBusy('new-pin');try{await sendPatientPortalWhatsApp({id:'new-pin',relative_name:familyResetCredential.relative_name||'Family Member',mobile:familyResetCredential.mobile},{resend:true});showPatientToast('success','Family Portal access template sent. Keep this PIN visible until it is securely shared with the family member.')}catch(_error){}finally{setFamilyPortalWaBusy('')}}},familyPortalWaBusy==='new-pin'?'Sending…':'Send Portal Access WhatsApp API'),
                 h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/${normalizeWhatsAppRecipient(familyResetCredential.mobile)}?text=${encodeURIComponent(brandWhatsAppText(`Samara Family Portal login
-Resident ID: ${selected?.patient_id||''}
+Guest ID: ${selected?.patient_id||''}
 Temporary PIN: ${familyResetCredential.pin}
-Portal: https://family.samaraassistedliving.com`))}`,'_blank','noopener')},'Send PIN by Existing Method')
+Portal: ${familyPortalLoginLink(selected?.patient_id)}
+(Open the link — the Guest ID fills in by itself; enter only the PIN.)`))}`,'_blank','noopener')},'Send PIN by Existing Method')
               ),
               h('small',{style:{display:'block',marginTop:'8px'}},'The approved Portal Access API template does not contain the temporary PIN. Copy/share this PIN separately, then close this confirmation.')
             )
