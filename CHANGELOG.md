@@ -1,3 +1,13 @@
+## 2.16.31 — Kitchen / Food Stores: one unit per item, fixed pack sizes, standard South Indian item list (SQL 217)
+
+- **Run supabase/sql/217_kitchen_units_standard.sql** once in Supabase → SQL Editor (safe to run again). It converts existing kitchen items kept in Grams → Kg and ml → Litres (balance, low-stock level and past stock movements ÷ 1000 — real quantity unchanged), allows new kitchen items only in Kg / Litres / Nos, and lists any item still in another unit (Packets, Bottles …) for Admin to decide.
+- **One unit per kitchen item** — Kg, Litres or Nos. Stock is never kept two ways (e.g. Milk only in Litres).
+- **Record Purchase**: after choosing the item, choose the **Pack size** from that item's fixed list (Milk: 500 ml or 1 L only; Oil: 500 ml / 1 L / 5 L; Tea powder: 100 g / 250 g / 500 g / 1 kg …), then **Number of packets** and **Price per packet**. The ERP converts it (4 × 500 ml = 2 Litres) and shows "Adds 2 Litres to kitchen stock" before saving. Vegetables, rice, dal etc. also allow **Loose** (enter Kg directly).
+- **Add Kitchen Items**: dropdown of ~115 standard South Indian kitchen items in groups (Rice & Flour, Dals, Oil & Ghee, Milk & Dairy, Tea / Coffee, Spices & Masala, Vegetables, Fruits, Eggs / Bread / Snacks, Gas / Disposables / Cleaning) with the unit fixed automatically; items already in the list are greyed out. **Quick add** — tick several items at once. "Other item" still allowed, unit limited to Kg / Litres / Nos.
+- **Record Usage / Wastage**: enter in the item's unit or as whole packets (2 × 500 ml = 1 Litre); shows the balance and "Reduces stock by …".
+- Kitchen Stock shows a note for items still in an old unit until SQL 217 is run.
+- Files: src/app/stores/kitchen-cash.js, supabase/sql/217_kitchen_units_standard.sql (new), version files, app.js (rebuilt).
+
 ## 2.16.30 — Spot Assessment: photos with consent, decision & outcome, get-ready list, legal wording (SQL 216)
 
 - **Run supabase/sql/216_spot_assessment_enquiry_sync.sql** once in Supabase → SQL Editor (safe to run again). Until it is run, everything works except the automatic enquiry update (a note asks staff to tell Akshi / Admin).
