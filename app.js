@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.16';
+  const APP_VERSION = '2.16.17';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '12-Oct-2026 Approve and hand over indents together';
+  const APP_BUILD_DATE = '12-Oct-2026 Kitchen cash handover by Nursing Manager';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -7160,7 +7160,9 @@ https://samaraassistedliving.com/`;
     const isNursing=role==='nurse'||(role==='manager'&&isNursingManagerProfile(profile));
     const foodAdmin=['admin','administrator','director'].includes(role);
     const foodManager=!!profile?.__foodVendor?.read;
-    const canReceive=isManagement||isAccounts||isNursing||foodManager;
+    // 2.16.17: kitchen petty cash steps (SQL 214) — Admin approves, Nursing Manager hands over, STD confirms receipt.
+    const kitchenCash=foodAdmin||isNursingManagerProfile(profile)||!!profile?.__kitchen?.read;
+    const canReceive=isManagement||isAccounts||isNursing||foodManager||kitchenCash;
     const dismiss=current=>{
       if(current?.key){
         closed.current.add(current.key);
@@ -7200,7 +7202,9 @@ https://samaraassistedliving.com/`;
         // 2.16.11: Intake / Output chart alerts (SQL 211) for the nurse and the Nursing Manager.
         if(isNursing)jobs.push(client.rpc('io_chart_alerts'));
         else jobs.push(Promise.resolve({data:[],error:null}));
-        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts]=await Promise.all(jobs);
+        if(kitchenCash)jobs.push(client.rpc('kitchen_cash_alerts'));
+        else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts,kitchenAlerts]=await Promise.all(jobs);
         const candidates=[];
         (dis.data||[]).forEach(row=>{
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
@@ -7272,11 +7276,17 @@ https://samaraassistedliving.com/`;
             page:'Staff Leave Calendar',record:{id:first.leave_id,date:first.due_date,label:staffReturnLabel(first)},urgent:true,at:first.alert_at});
         }
         backRows.forEach(a=>candidates.push({key:`staff-back-${a.leave_id}`,kind:'Staff Leave',title:`${a.employee_name||'Staff'} is back on duty`,detail:staffReturnLine(a)+'.',page:'Staff Leave Calendar',record:{id:a.leave_id,date:a.due_date,label:staffReturnLabel(a)},at:a.recorded_at}));
+        const kitchenRows=(!kitchenAlerts?.error&&Array.isArray(kitchenAlerts?.data))?kitchenAlerts.data:[];
+        kitchenRows.forEach(a=>{const amt='₹'+Number(a.amount||0).toLocaleString('en-IN');const step={
+          'Requested':[`Kitchen cash request ${amt} — approve`,`${a.requested_by_name||a.recipient_name||'STD'} asked for ${amt} kitchen petty cash (${a.purpose||'kitchen'}). Approve or decline.`],
+          'Approved':[`Hand over kitchen cash ${amt}`,`Admin approved ${amt} kitchen petty cash for ${a.recipient_name||'STD'}. Give the cash and tap Hand Over Cash.`],
+          'Handed over':[`Kitchen cash ${amt} handed over — confirm`,`The Nursing Manager has handed over ${amt}. Count it and tap Confirm Cash Received.`]}[a.stage];
+          if(step)candidates.push({key:`kitchen-cash-${a.funding_id}-${a.stage}`,kind:'Kitchen Petty Cash',title:step[0],detail:step[1],page:'Kitchen / Food Stores',record:{id:a.funding_id,label:step[0]},at:a.stage_at});});
         candidates.sort((a,b)=>Number(!!b.urgent)-Number(!!a.urgent)||new Date(b.at||0)-new Date(a.at||0));
         const next=candidates.find(x=>!closed.current.has(x.key));
         setItem(current=>current&&candidates.some(x=>x.key===current.key)?current:(next||null));
       }catch(error){console.warn('Workflow action pop-up unavailable:',error)}
-    },[profile?.id,role,isManagement,isAccounts,isNursing,foodManager]);
+    },[profile?.id,role,isManagement,isAccounts,isNursing,foodManager,kitchenCash]);
     React.useEffect(()=>{load();const timer=setInterval(load,30000);window.addEventListener('focus',load);window.addEventListener('samara-discharge-workflow-changed',load);return()=>{clearInterval(timer);window.removeEventListener('focus',load);window.removeEventListener('samara-discharge-workflow-changed',load)}},[load]);
     if(!item||(item.food&&!foodManager))return null;
     // v2.14.39: compact alert card with its own classes, so phone "full-screen form" rules
@@ -11463,6 +11473,16 @@ https://samaraassistedliving.com/`;
 "Untick an item to leave it for later; change the quantity if needed.": "பிறகு செய்ய ஒரு பொருளின் டிக்கை எடுக்கவும்; தேவைப்பட்டால் அளவை மாற்றவும்.",
 "Approve qty": "அனுமதி அளவு",
 "Hand over qty": "ஒப்படைப்பு அளவு",
+"Kitchen Petty Cash — Hand Over Cash": "கிச்சன் சில்லறை பணம் — பணம் ஒப்படைப்பு",
+"Requests approved by Admin / Director. Give the cash, then tap Hand Over Cash. The STD confirms when she receives it.": "அட்மின் / டைரக்டர் அனுமதித்த கோரிக்கைகள். பணத்தைக் கொடுத்து, பிறகு Hand Over Cash தொடவும். பணம் கிடைத்ததும் STD உறுதி செய்வார்.",
+"STD requests → Admin / Director approves → Nursing Manager hands over the cash → STD confirms cash received.": "STD கோருகிறார் → அட்மின் / டைரக்டர் அனுமதி → நர்சிங் மேனேஜர் பணம் ஒப்படைப்பு → STD பணம் பெற்றதை உறுதி செய்கிறார்.",
+"Hand Over Cash": "பணம் ஒப்படை",
+"Handed over by": "ஒப்படைத்தவர்",
+"Waiting for Admin / Director approval.": "அட்மின் / டைரக்டர் அனுமதிக்காக காத்திருக்கிறது.",
+"Approved — waiting for the Nursing Manager to hand over the cash. Confirm receipt after you get it.": "அனுமதிக்கப்பட்டது — நர்சிங் மேனேஜர் பணம் ஒப்படைக்கக் காத்திருக்கிறது. பணம் கிடைத்த பிறகு உறுதி செய்யவும்.",
+"Cash handed over (amount and to whom)": "ஒப்படைத்த பணம் (தொகை, யாருக்கு)",
+"Record Cash Handed Over (Nursing Manager away)": "பணம் ஒப்படைத்ததைப் பதிவு செய் (நர்சிங் மேனேஜர் இல்லாதபோது)",
+"Showing only the request from the alert. ": "அலர்ட்டில் உள்ள கோரிக்கை மட்டும் காட்டப்படுகிறது. ",
 };
   // 2.15.70: EN | தமிழ் screen-language switch (trial for STD; Admin can also check).
   // Translates only fixed screen wording (menu, titles, buttons, labels, statuses) using SAMARA_TA.
@@ -11727,6 +11747,9 @@ https://samaraassistedliving.com/`;
     const [data,setData]=React.useState(null),[error,setError]=React.useState(''),[notice,setNotice]=React.useState(''),[busy,setBusy]=React.useState(false),[tab,setTab]=React.useState('home');
     const [dialog,setDialog]=React.useState(null),[form,setForm]=React.useState({}),[receipt,setReceipt]=React.useState(null);
     const lock=React.useRef(false),token=React.useRef(null);
+    // 2.16.17: a kitchen-cash alert opens Cash Requests showing only that request (global record-focus rule).
+    const [cashFocus,clearCashFocus]=useRecordFocus('Kitchen / Food Stores');
+    React.useEffect(()=>{if(cashFocus)setTab('funding')},[cashFocus]);
     const emptyLine=()=>({item_id:'',name:'',unit:'',quantity:'1',price:'',stock:true});
     // 2.15.55: kitchen item list with automatic KIT- codes; several items can be added at once (SQL 190).
     const emptyNewItem=()=>({name:'',unit:'Kg',low_level:''});
@@ -11759,12 +11782,28 @@ https://samaraassistedliving.com/`;
     function exportCash(){const rows=[['Date','Type','Details','Cash in','Cash out','Balance','Recorded by','Reference'],...data.cash.slice().reverse().map(x=>[formatDateTimeIN(x.created_at),x.kind,x.details,x.amount>0?x.amount:'',x.amount<0?-x.amount:'',x.balance_after,x.actor_name,x.reference_id||x.id])];const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/^[=+@-]/,"'$&").replaceAll('"','""')+'"').join(',')).join('\r\n');const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='Kitchen-Cash-Book-'+todayISOIndia()+'.csv';a.click();URL.revokeObjectURL(url)}
     if(!data)return h(Section,{title:'Kitchen & Pantry'},h('p',{role:'status'},error||'Loading kitchen cash book…'),h('p',null,'If this workspace is not installed, apply SQL 186 before using this release.'));
     const admin=data.access.admin,spend=data.access.spend,actor=data.access.actor,w=data.wallet;
+    // 2.16.17: STD requests → Admin / Director approves → Nursing Manager hands over cash → STD confirms receipt (SQL 214).
+    const nm=!!data.access.nm,handoverOnly=!!data.access.handover_only;
     const pendingHandover=data.handovers.find(x=>['Awaiting outgoing','Awaiting receipt'].includes(x.status));
     const month=t=>String(t).slice(0,7)===todayISOIndia().slice(0,7);
     const expense=data.purchases.filter(x=>x.status!=='Reversed'&&month(x.expense_date)).reduce((s,x)=>s+Number(x.total),0);
     const tabs=[['home','Overview'],['purchase','Record Purchase'],['purchases','Purchase Register'],['funding','Cash Requests'],['stock','Kitchen Stock'],['handover','In-charge & Handover'],['cash','Cash Book & Reports'],...(admin?[['legacy','Historical Stores Register']]:[])].filter(([k])=>k!=='purchase'||spend);
     const table=(heads,rows)=>h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,heads.map(x=>h('th',{key:x},x)))),h('tbody',null,rows.length?rows.map((r,i)=>h('tr',{key:i},r.map((c,j)=>h('td',{key:j,style:{whiteSpace:'normal'}},c)))):h('tr',null,h('td',{colSpan:heads.length},'No entries yet.')))));
     const actions=(...children)=>h('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}},...children);
+    const fundingRows=cashFocus?.id?data.funding.filter(x=>String(x.id)===String(cashFocus.id)):data.funding;
+    const waitNote=t=>h('small',{style:{display:'block',color:'#7a5566'}},t);
+    const fundingSection=h(Section,{title:'Cash requests and handovers',subtitle:'STD requests → Admin / Director approves → Nursing Manager hands over the cash → STD confirms cash received.'},
+      cashFocus?.id&&h('p',{className:'message',role:'status'},'Showing only the request from the alert. ',h('button',{type:'button',className:'btn btn-secondary',onClick:clearCashFocus},'Show all')),
+      spend&&button('Request Cash','request_cash',{amount:2000,note:''},true),
+      table(['Purpose','Recipient','Requested','Approved','Status','Handed over by','Action'],fundingRows.map(x=>[x.purpose,name(x.recipient),money(x.requested_amount),x.amount?money(x.amount):'—',x.status,x.handed_by?`${name(x.handed_by)}${x.handed_at?' · '+formatDateTimeIN(x.handed_at):''}`:'—',actions(
+        admin&&x.status==='Requested'&&button('Approve Amount','approve_funding',{id:x.id,amount:x.requested_amount,note:''}),admin&&x.status==='Requested'&&button('Decline','decline_funding',{id:x.id,note:''}),
+        x.status==='Requested'&&!admin&&waitNote('Waiting for Admin / Director approval.'),
+        nm&&x.status==='Approved'&&button('Hand Over Cash','handover_cash',{id:x.id,note:`Cash ${money(x.amount)} given to ${name(x.recipient)}`},true),
+        !nm&&admin&&x.status==='Approved'&&button('Record Cash Handed Over (Nursing Manager away)','handover_cash',{id:x.id,note:''}),
+        x.status==='Approved'&&!nm&&!admin&&waitNote('Approved — waiting for the Nursing Manager to hand over the cash. Confirm receipt after you get it.'),
+        admin&&['Requested','Approved'].includes(x.status)&&button('Cancel Request','cancel_funding',{id:x.id,note:''}),
+        x.status==='Handed over'&&x.recipient===actor&&button('Confirm Cash Received','receive_cash',{id:x.id,amount:x.amount,note:''},true),
+        x.status==='Handed over'&&x.recipient!==actor&&waitNote(`Waiting for ${name(x.recipient)} to confirm cash received.`))])));
     const field=(label,key,type='text',opts={})=>h('div',{className:'field'},h('label',null,label),h('input',{type,value:purchase[key],onChange:e=>setPurchase(v=>({...v,[key]:e.target.value})),...opts}));
     const lineChange=(i,key,value)=>setPurchase(v=>({...v,items:v.items.map((x,j)=>j===i?{...x,[key]:value}:x)}));
     const kitchenItems=(data.stock||[]).filter(x=>x.active!==false).slice().sort((a,b)=>String(a.item_code||'').localeCompare(String(b.item_code||''),undefined,{numeric:true}));
@@ -11799,6 +11838,21 @@ https://samaraassistedliving.com/`;
         h('div',{style:{display:'flex',gap:'8px',justifyContent:'flex-end',marginTop:'12px',flexWrap:'wrap'}},
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setNewItems(null)},'Cancel'),
           h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':`Save ${newItems.length} item${newItems.length===1?'':'s'}`)))));
+    const dialogEl=dialog&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:submit,role:'dialog','aria-modal':true},h('h3',null,dialog.title),error&&h('p',{role:'alert',className:'message error'},error),h('fieldset',{disabled:busy,style:{border:0,padding:0}},
+        ['amount'].filter(k=>k in form).map(k=>input(dialog.action==='adjust'?'Signed cash correction (₹); negative reduces cash':'Counted / approved amount (₹)',k,'number',{required:true,step:'0.01',min:dialog.action==='adjust'?undefined:0})),
+        'quantity' in form&&input('Quantity','quantity','number',{required:true,min:'0.001',step:'0.001'}),
+        dialog.action==='review'&&select('Review decision','status',[['Reviewed','Reviewed'],['Query','Needs clarification']]),
+        dialog.action==='use_stock'&&select('Movement','kind',[['Usage','Used in kitchen / pantry'],['Wastage','Wastage']]),
+        dialog.action==='handover_create'&&h(React.Fragment,null,select('Assignment type','kind',[['Leave cover','Temporary leave cover'],['Return','Handback after Return to Duty'],['Permanent','Change primary in-charge']]),select('Incoming staff','staff',data.people.map(x=>[x.id,x.name+' · '+x.role])),form.kind==='Leave cover'&&select('Primary staff approved leave','leave',data.leaves.map(x=>[x.id,formatDateIN(x.from_date)+' to '+formatDateIN(x.to_date)]))),
+        h('div',{className:'field'},h('label',null,dialog.action==='handover_cash'?'Cash handed over (amount and to whom)':dialog.action.startsWith('handover_')?'Confirm stock / cash handover and reason':'Purpose / reason / confirmation'),h('textarea',{required:true,minLength:3,value:form.note||'',onChange:e=>setForm(v=>({...v,note:e.target.value}))})),
+        dialog.action==='reverse'&&h('p',null,'Confirm the cash has actually been restored or the original entry was incorrect. This credits cash and reverses purchased stock. It cannot undo stock already consumed.'),
+        dialog.action==='adjust'&&h('p',null,'Admin correction only. Record the physical evidence and reason. Original cash-book entries remain unchanged.'),
+        h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Confirm'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>setDialog(null)},'Cancel'))));
+    // 2.16.17: Nursing Manager without other kitchen access — only the cash requests to hand over.
+    if(handoverOnly)return h('div',{className:'kitchen-cash'},
+      h('div',{className:'card panel dr-head'},h('div',{className:'dr-head-text'},h('h2',null,'Kitchen Petty Cash — Hand Over Cash'),h('small',null,'Requests approved by Admin / Director. Give the cash, then tap Hand Over Cash. The STD confirms when she receives it.')),h('button',{className:'btn btn-secondary',onClick:load},'Refresh')),
+      error&&h('p',{className:'message error',role:'alert'},error),notice&&h('p',{className:'message success',role:'status'},notice),
+      fundingSection,dialogEl);
     return h('div',{className:'kitchen-cash'},
       h('style',null,`@media(max-width:760px){
         .app:has(.kitchen-cash) .samara-float-nav{display:none!important}
@@ -11836,12 +11890,7 @@ https://samaraassistedliving.com/`;
       tab==='purchases'&&h(Section,{title:'Purchase Register — Admin review afterward'},...data.purchases.map(x=>h('details',{key:x.id,className:'card panel'},h('summary',null,`${formatDateIN(x.expense_date)} · ${x.vendor} · ${money(x.total)} · ${x.status}`),h('p',null,`Entered by ${x.entered_name} · Bill: ${x.bill_no||'—'}`),table(['Item','Quantity','Unit price','Total','Stock'],x.items.map(l=>[(codeFor(l.name,l.unit)?codeFor(l.name,l.unit)+' · ':'')+l.name,l.quantity+' '+l.unit,money(l.price),money(l.total),l.stock?'Added to stock':'Used immediately'])),
         x.receipt_path?h('button',{className:'btn btn-secondary',onClick:()=>viewReceipt(x.receipt_path)},'View Receipt'):h('p',null,'No receipt: '+x.no_receipt_reason),x.review_note&&h('p',null,'Review: '+x.review_note),
         admin&&x.status!=='Reversed'&&actions(button('Review / Query','review',{id:x.id,status:'Reviewed',note:''}),button('Reverse / Correct','reverse',{id:x.id,note:''})))),!data.purchases.length&&h('p',null,'No purchases yet.')),
-      tab==='funding'&&h(Section,{title:'Cash requests and handovers'},spend&&button('Request Cash','request_cash',{amount:2000,note:''},true),table(['Purpose','Recipient','Requested','Approved','Status','Action'],data.funding.map(x=>[x.purpose,name(x.recipient),money(x.requested_amount),x.amount?money(x.amount):'—',x.status,actions(
-        admin&&x.status==='Requested'&&button('Approve Amount','approve_funding',{id:x.id,amount:x.requested_amount,note:''}),admin&&x.status==='Requested'&&button('Decline','decline_funding',{id:x.id,note:''}),
-        admin&&x.status==='Approved'&&button('Record Cash Handed Over','handover_cash',{id:x.id,note:''}),
-        admin&&['Requested','Approved'].includes(x.status)&&button('Cancel Request','cancel_funding',{id:x.id,note:''}),
-        x.status==='Approved'&&!admin&&h('p',null,'Awaiting Admin to record cash handed over. Receipt confirmation becomes available after that.'),
-        x.status==='Handed over'&&x.recipient===actor&&button('Confirm Cash Received','receive_cash',{id:x.id,amount:x.amount,note:''},true))]))),
+      tab==='funding'&&fundingSection,
       tab==='stock'&&h(Section,{title:'Kitchen stock and usage'},h('p',null,'Kitchen item list with automatic codes. Purchases marked “Add to kitchen stock” add to these balances. Existing Stores stock remains in its historical register; it is not silently imported or charged again.'),canAddItems&&h('button',{type:'button',className:'btn btn-primary',onClick:openNewItems},'＋ New Kitchen Items'),table(['Code','Item','Balance','Low level','Action'],data.stock.slice().sort((a,b)=>String(a.item_code||'').localeCompare(String(b.item_code||''),undefined,{numeric:true})).map(x=>[x.item_code||'—',x.name,x.quantity+' '+x.unit,x.low_level,actions(spend&&button('Record Usage / Wastage','use_stock',{id:x.id,quantity:'',kind:'Usage',note:''}), (spend||admin)&&button('Set Stock Alert','stock_limit',{id:x.id,amount:x.low_level,note:''}))])),
         h('details',null,h('summary',null,'Stock movement history'),table(['When','Item','Movement','Quantity','Reason','Staff'],data.movements.map(x=>[formatDateTimeIN(x.created_at),(s=>s?`${s.item_code?s.item_code+' · ':''}${s.name}`:'—')(data.stock.find(s=>s.id===x.item_id)),x.kind,x.quantity,x.reason,name(x.actor)])))),
       tab==='handover'&&h(Section,{title:'Responsibility, leave cover and cash handover'},h('p',null,`Primary: ${name(w.primary_staff)}. Current custodian: ${name(w.custodian)}.`),h('p',null,'Leave cover continues beyond the planned leave end date. After the existing Return to Duty approval, spending pauses until cash and stock are handed back. Each handover retains the stock snapshot and both confirmations.'),
@@ -11856,16 +11905,7 @@ https://samaraassistedliving.com/`;
         h('details',null,h('summary',null,'Physical cash counts and discrepancies'),table(['When','Book cash','Physical cash','Difference','Staff','Note'],data.reconciliations.map(x=>[formatDateTimeIN(x.created_at),money(x.book_cash),money(x.physical_cash),money(x.difference),name(x.actor),x.note]))),
         h('details',null,h('summary',null,'Assignment and action audit history'),table(['When','Action','Staff','Details'],data.audit.map(x=>[formatDateTimeIN(x.created_at),x.action,x.actor_name||'Initial setup',JSON.stringify(x.details)])))),
       newItemsDialog,
-      dialog&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:submit,role:'dialog','aria-modal':true},h('h3',null,dialog.title),error&&h('p',{role:'alert',className:'message error'},error),h('fieldset',{disabled:busy,style:{border:0,padding:0}},
-        ['amount'].filter(k=>k in form).map(k=>input(dialog.action==='adjust'?'Signed cash correction (₹); negative reduces cash':'Counted / approved amount (₹)',k,'number',{required:true,step:'0.01',min:dialog.action==='adjust'?undefined:0})),
-        'quantity' in form&&input('Quantity','quantity','number',{required:true,min:'0.001',step:'0.001'}),
-        dialog.action==='review'&&select('Review decision','status',[['Reviewed','Reviewed'],['Query','Needs clarification']]),
-        dialog.action==='use_stock'&&select('Movement','kind',[['Usage','Used in kitchen / pantry'],['Wastage','Wastage']]),
-        dialog.action==='handover_create'&&h(React.Fragment,null,select('Assignment type','kind',[['Leave cover','Temporary leave cover'],['Return','Handback after Return to Duty'],['Permanent','Change primary in-charge']]),select('Incoming staff','staff',data.people.map(x=>[x.id,x.name+' · '+x.role])),form.kind==='Leave cover'&&select('Primary staff approved leave','leave',data.leaves.map(x=>[x.id,formatDateIN(x.from_date)+' to '+formatDateIN(x.to_date)]))),
-        h('div',{className:'field'},h('label',null,dialog.action.startsWith('handover_')?'Confirm stock / cash handover and reason':'Purpose / reason / confirmation'),h('textarea',{required:true,minLength:3,value:form.note||'',onChange:e=>setForm(v=>({...v,note:e.target.value}))})),
-        dialog.action==='reverse'&&h('p',null,'Confirm the cash has actually been restored or the original entry was incorrect. This credits cash and reverses purchased stock. It cannot undo stock already consumed.'),
-        dialog.action==='adjust'&&h('p',null,'Admin correction only. Record the physical evidence and reason. Original cash-book entries remain unchanged.'),
-        h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Confirm'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>setDialog(null)},'Cancel')))));
+      dialogEl);
   }
   function App(){
     React.useEffect(()=>{ensureCleanWorkspaceLayout();ensureCompactDataEntryStyle();ensureSmartHoverStyles()},[]);

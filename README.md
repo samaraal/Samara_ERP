@@ -10,7 +10,7 @@ Assisted-living ERP for Samara Health Care. React (loaded from CDN) + Supabase, 
 | `src/app/` | The editable source of `app.js`, split into small files. See `src/app/README.md`. |
 | `tools/build-app.js` | Joins `src/app/` into `app.js`. |
 | `.github/workflows/build-app.yml` | Rebuilds `app.js` automatically when `src/app/` changes. |
-| `supabase/sql/` | Database scripts (run in Supabase → SQL Editor). Next new number: **138**. |
+| `supabase/sql/` | Database scripts (run in Supabase → SQL Editor). Next new number: **215**. |
 | `supabase/functions/` | Supabase Edge Function sources. |
 | `supabase/function-copies/` | Older loose copies of Edge Function code, kept for reference. |
 | `assets/`, `icons/`, `vendor/` | Images, app icons, bundled libraries. |

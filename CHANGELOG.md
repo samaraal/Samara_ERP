@@ -1,3 +1,15 @@
+## 2.16.17 — Kitchen petty cash: Nursing Manager hands over the cash (SQL 214)
+
+- New flow: **STD requests → Admin / Director approves → Nursing Manager hands over the cash → STD confirms cash received.**
+- **Run supabase/sql/214_kitchen_cash_nursing_manager_handover.sql** in Supabase → SQL Editor (safe to run again). Until it is run, everything works as before.
+- Nursing Manager: Kitchen / Food Stores opens **"Kitchen Petty Cash — Hand Over Cash"** with only the cash requests (no cash book, purchases, receipts or balance). Approved requests show **Hand Over Cash** (note filled as "Cash ₹… given to Akshi").
+- Admin / Director approves (or declines / changes the amount) as before; Admin keeps a backup button "Record Cash Handed Over (Nursing Manager away)".
+- STD sees "Waiting for Admin / Director approval" → "waiting for the Nursing Manager to hand over" → **Confirm Cash Received** (cash book increases only then, as before).
+- Cash Requests now show **Handed over by** (name + time).
+- Pop-up alerts at each step: new request → Admin / Director; approved → Nursing Manager; handed over → STD. "Open & Take Action" opens that one request.
+- Tested on a copy of the database: nurses / Nursing Manager cannot approve; Nursing Manager cannot spend or see the cash book; STD cannot hand over to herself.
+- Files: src/app/stores/kitchen-cash.js, src/app/global-ui/06-bell-notifications-popups.js, src/app/global-ui/09-tamil-dictionary.js, version files, app.js (rebuilt), supabase/sql/214_kitchen_cash_nursing_manager_handover.sql.
+
 ## 2.16.16 — Nursing Manager: approve / hand over all items of a Guest together
 
 - At the top of the Indent Register, the Nursing Manager now sees **Approve together**: one box per Guest who has 2 or more items waiting, listing every item with the store balance and an **Approve qty** box (filled with the requested quantity).

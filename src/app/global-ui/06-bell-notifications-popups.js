@@ -256,7 +256,9 @@
     const isNursing=role==='nurse'||(role==='manager'&&isNursingManagerProfile(profile));
     const foodAdmin=['admin','administrator','director'].includes(role);
     const foodManager=!!profile?.__foodVendor?.read;
-    const canReceive=isManagement||isAccounts||isNursing||foodManager;
+    // 2.16.17: kitchen petty cash steps (SQL 214) — Admin approves, Nursing Manager hands over, STD confirms receipt.
+    const kitchenCash=foodAdmin||isNursingManagerProfile(profile)||!!profile?.__kitchen?.read;
+    const canReceive=isManagement||isAccounts||isNursing||foodManager||kitchenCash;
     const dismiss=current=>{
       if(current?.key){
         closed.current.add(current.key);
@@ -296,7 +298,9 @@
         // 2.16.11: Intake / Output chart alerts (SQL 211) for the nurse and the Nursing Manager.
         if(isNursing)jobs.push(client.rpc('io_chart_alerts'));
         else jobs.push(Promise.resolve({data:[],error:null}));
-        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts]=await Promise.all(jobs);
+        if(kitchenCash)jobs.push(client.rpc('kitchen_cash_alerts'));
+        else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts,kitchenAlerts]=await Promise.all(jobs);
         const candidates=[];
         (dis.data||[]).forEach(row=>{
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
@@ -368,11 +372,17 @@
             page:'Staff Leave Calendar',record:{id:first.leave_id,date:first.due_date,label:staffReturnLabel(first)},urgent:true,at:first.alert_at});
         }
         backRows.forEach(a=>candidates.push({key:`staff-back-${a.leave_id}`,kind:'Staff Leave',title:`${a.employee_name||'Staff'} is back on duty`,detail:staffReturnLine(a)+'.',page:'Staff Leave Calendar',record:{id:a.leave_id,date:a.due_date,label:staffReturnLabel(a)},at:a.recorded_at}));
+        const kitchenRows=(!kitchenAlerts?.error&&Array.isArray(kitchenAlerts?.data))?kitchenAlerts.data:[];
+        kitchenRows.forEach(a=>{const amt='₹'+Number(a.amount||0).toLocaleString('en-IN');const step={
+          'Requested':[`Kitchen cash request ${amt} — approve`,`${a.requested_by_name||a.recipient_name||'STD'} asked for ${amt} kitchen petty cash (${a.purpose||'kitchen'}). Approve or decline.`],
+          'Approved':[`Hand over kitchen cash ${amt}`,`Admin approved ${amt} kitchen petty cash for ${a.recipient_name||'STD'}. Give the cash and tap Hand Over Cash.`],
+          'Handed over':[`Kitchen cash ${amt} handed over — confirm`,`The Nursing Manager has handed over ${amt}. Count it and tap Confirm Cash Received.`]}[a.stage];
+          if(step)candidates.push({key:`kitchen-cash-${a.funding_id}-${a.stage}`,kind:'Kitchen Petty Cash',title:step[0],detail:step[1],page:'Kitchen / Food Stores',record:{id:a.funding_id,label:step[0]},at:a.stage_at});});
         candidates.sort((a,b)=>Number(!!b.urgent)-Number(!!a.urgent)||new Date(b.at||0)-new Date(a.at||0));
         const next=candidates.find(x=>!closed.current.has(x.key));
         setItem(current=>current&&candidates.some(x=>x.key===current.key)?current:(next||null));
       }catch(error){console.warn('Workflow action pop-up unavailable:',error)}
-    },[profile?.id,role,isManagement,isAccounts,isNursing,foodManager]);
+    },[profile?.id,role,isManagement,isAccounts,isNursing,foodManager,kitchenCash]);
     React.useEffect(()=>{load();const timer=setInterval(load,30000);window.addEventListener('focus',load);window.addEventListener('samara-discharge-workflow-changed',load);return()=>{clearInterval(timer);window.removeEventListener('focus',load);window.removeEventListener('samara-discharge-workflow-changed',load)}},[load]);
     if(!item||(item.food&&!foodManager))return null;
     // v2.14.39: compact alert card with its own classes, so phone "full-screen form" rules
