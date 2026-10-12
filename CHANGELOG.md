@@ -1,3 +1,10 @@
+## 2.16.32 — Kitchen: hide "Dinner (Meals)" item (SQL 218)
+
+- **Run supabase/sql/onetime_218_hide_kitchen_dinner_meals.sql** once in Supabase → SQL Editor (safe to run again). It hides KIT-0001 "Dinner" (unit Meals) — meals come through Food Vendor Management, not kitchen stock. Nothing is deleted; its old purchase / cash / movement entries stay in history.
+- Kitchen Stock, the Low Stock box and the old-unit note now show only active items (hidden items were already left out of the purchase dropdown).
+- A meal bought with kitchen petty cash is recorded as "Other expense (not a stock item)".
+- Files: src/app/stores/kitchen-cash.js, supabase/sql/onetime_218_hide_kitchen_dinner_meals.sql (new), version files, app.js (rebuilt).
+
 ## 2.16.31 — Kitchen / Food Stores: one unit per item, fixed pack sizes, standard South Indian item list (SQL 217)
 
 - **Run supabase/sql/217_kitchen_units_standard.sql** once in Supabase → SQL Editor (safe to run again). It also gives kitchen items their KIT- codes if SQL 190 was never run, converts existing kitchen items kept in Grams → Kg and ml → Litres (balance, low-stock level and past stock movements ÷ 1000 — real quantity unchanged), allows new kitchen items only in Kg / Litres / Nos, and lists any item still in another unit (Packets, Bottles …) for Admin to decide.
