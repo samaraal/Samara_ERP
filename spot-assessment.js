@@ -14,6 +14,18 @@
   const atHospital=d=>['Hospital','Old age home','Other'].includes(d.visit_location);
   const callerSeparate=d=>d.caller_is_contact1===false||(d.caller_is_contact1==null&&!!txt(d.caller_name)&&txt(d.caller_name)!==txt(d.family_name));
   const onSupport=d=>!!d.airway&&!['Room air','Not assessed'].includes(d.airway);
+  // 2.16.28: address in the same parts as the Admission form (district / taluk lists shared with Admission)
+  const talukMap=()=>window.SamaraTNDistrictTaluks||{};
+  const districtList=()=>Object.keys(talukMap()).sort((a,b)=>a.localeCompare(b));
+  const addressKeys=['state','district','taluk','village_town','locality_area','street_name','house_no','apartment_name','flat_no','landmark','pincode'];
+  const hasStructuredAddress=d=>addressKeys.some(k=>k!=='state'&&txt(d[k]));
+  function composeAddress(d){
+    const line1=[d.house_no,d.street_name,d.apartment_name,d.flat_no?`Flat ${d.flat_no}`:''].map(txt).filter(Boolean).join(', ');
+    const line2=[d.locality_area,d.village_town,d.taluk,d.district,d.state,d.pincode].map(txt).filter(Boolean).join(', ');
+    return [line1,line2,txt(d.landmark)?`Landmark: ${txt(d.landmark)}`:''].filter(Boolean).join('\n');
+  }
+  // an address typed as free text in an older form is shown (read only) until the parts are filled
+  const oldFreeAddress=d=>!d.address_from_parts&&!hasStructuredAddress(d)&&txt(d.home_address);
   const sections=[
     {title:'1. Visit and enquiry',fields:fields(
       ['visit_date','Visit date','date'],['visit_time','Visit time','time'],
@@ -25,7 +37,15 @@
     {title:'2. Guest and family',fields:fields(
       ['person_name','Person’s full name'],['age','Age (years)','number'],['gender','Gender','select',['Female','Male','Other']],
       ['person_phone','Person’s own phone (if any)','tel'],
-      ['home_address','Home address','textarea'],
+      ['_addr','Home address (same parts as the Admission form)','note'],
+      ['_oldaddr','Address noted earlier','oldaddress',null,oldFreeAddress],
+      ['state','State'],
+      ['district','District','dselect',()=>districtList()],
+      ['taluk','Taluk','dselect',d=>talukMap()[d.district]||[]],
+      ['village_town','Village / Town / City'],['locality_area','Locality / Area'],
+      ['street_name','Street / Road Name'],['house_no','Door / House No.'],
+      ['apartment_name','Apartment / Building'],['flat_no','Flat No.'],
+      ['landmark','Landmark'],['pincode','PIN Code','pin'],
       ['living_arrangement','Why assisted living / current support at home','textarea'],
       ['_c1','Family Contact 1 (main contact — becomes Contact 1 in Admission)','note'],
       ['family_name','Contact 1 name'],['family_relationship','Contact 1 relationship','select',relationships],['family_phone','Contact 1 phone / WhatsApp','tel'],
@@ -70,14 +90,14 @@
   ];
   const woundFields=fields(['kind','Type','select',['Wound','Bedsore / pressure injury','Other']],['location','Body location'],['size','Size / depth if measured'],['appearance','Appearance / discharge / surrounding skin'],['stage','Stage if documented by qualified clinician'],['dressing','Current dressing / care instructions']);
   const legacyLabels={
-    visit_address:'Visit address',lead_reference:'Enquiry / lead reference',information_source:'Information provided by',language:'Preferred language',
+    visit_address:'Visit address',earlier_address:'Address noted earlier (free text)',lead_reference:'Enquiry / lead reference',information_source:'Information provided by',language:'Preferred language',
     general_notes:'Other observations',mobility_notes:'Positioning, transfer aids and other support',skin_condition:'General skin condition',
     bedsores_present:'Bedsores / pressure injuries present?',skin_notes:'Skin care, dressings and existing care instructions',
     nutrition_notes:'Appetite, hydration and nutrition observations',equipment_notes:'Other equipment / service requirements',
     stay_type:'Stay requirement',care_requirements:'Care requirements',review_required:'Further review required from',additional_notes:'Additional information',
     relationship_review:'Client relationship manager review',centre_review:'Centre manager review',nursing_review:'Nursing head review',doctor_review:'Resident doctor review'
   };
-  const systemKeys=new Set(['wounds','reviews','converted_admission','enquiry_id','enquiry_label','caller_is_contact1','spot_id','compat_fields']);
+  const systemKeys=new Set(['wounds','reviews','converted_admission','enquiry_id','enquiry_label','caller_is_contact1','spot_id','compat_fields','address_from_parts','home_address']);
   const newKeys=new Set(sections.flatMap(s=>s.fields.map(f=>f.key)));
   function legacyEntries(data){
     return Object.keys(data||{}).filter(k=>!newKeys.has(k)&&!systemKeys.has(k)&&!k.startsWith('_')).map(k=>{
@@ -92,7 +112,7 @@
   function initial(name='',designation=''){
     const now=new Date();const date=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
     const time=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    return {visit_date:date,visit_time:time,assessor_name:name,assessor_designation:designation,caller_is_contact1:true,wounds:[],reviews:[]};
+    return {visit_date:date,visit_time:time,assessor_name:name,assessor_designation:designation,caller_is_contact1:true,state:'Tamil Nadu',wounds:[],reviews:[]};
   }
   function validate(data,status){
     if(!txt(data.person_name))return 'Enter the person’s full name.';
@@ -103,9 +123,10 @@
       if(d&&d.length<10)return `${label} phone looks incomplete — enter 10 digits or leave it blank.`;
     }
     if(status==='Completed'){
-      for(const [key,label] of [['assessor_name','visiting staff name'],['home_address','home address'],['general_condition','general condition'],['mobility','mobility'],['wounds_present','wounds / bedsores answer'],['summary','assessment summary']]){
-        // old records kept the address in “Visit address”
-        if(key==='home_address'&&txt(data.visit_address))continue;
+      if(!hasStructuredAddress(data)&&!txt(data.home_address)&&!txt(data.visit_address))return 'Enter the home address (at least District and Village / Town) before completing the assessment.';
+      if(hasStructuredAddress(data)&&(!txt(data.district)||!txt(data.village_town)))return 'Address: select the District and enter the Village / Town / City before completing the assessment.';
+      if(txt(data.pincode)&&!/^\d{6}$/.test(txt(data.pincode)))return 'PIN Code must be 6 digits.';
+      for(const [key,label] of [['assessor_name','visiting staff name'],['general_condition','general condition'],['mobility','mobility'],['wounds_present','wounds / bedsores answer'],['summary','assessment summary']]){
         if(!txt(data[key]))return `Enter the ${label} before completing the assessment.`;
       }
       if(!txt(data.family_name)||!txt(data.family_phone))return 'Enter Family Contact 1 name and phone before completing the assessment.';
@@ -150,7 +171,7 @@
       window.addEventListener('beforeunload',warn);document.addEventListener('click',nav,true);
       return ()=>{window.removeEventListener('beforeunload',warn);document.removeEventListener('click',nav,true)};
     },[dirty]);
-    function change(key,value){setData(old=>({...old,[key]:value}));setDirty(true);setNotice('')}
+    function change(key,value){setData(old=>({...old,[key]:value,...(key==='district'&&value!==old.district?{taluk:''}:{})}));setDirty(true);setNotice('')}
     function pickEnquiry(id){
       const e=(enquiries||[]).find(x=>String(x.id)===String(id));
       if(!e){setData(old=>({...old,enquiry_id:'',enquiry_label:''}));setDirty(true);return}
@@ -174,7 +195,7 @@
       try{
         const result=await client.from('spot_assessments').select('*').eq('id',id).single();
         if(result.error)throw result.error;
-        setRecord(result.data);setData({...result.data.details,wounds:result.data.details?.wounds||[]});setDirty(false);
+        setRecord(result.data);setData({...result.data.details,state:result.data.details?.state||'Tamil Nadu',wounds:result.data.details?.wounds||[]});setDirty(false);
       }catch(e){setError(`Unable to open assessment: ${e.message||e}`)}finally{setBusy(false)}
     }
     async function save(status){
@@ -190,6 +211,10 @@
         if(!onSupport(clean))clean.respiratory_notes='';
         // 2.16.27: the database still checks two fields of the older form before a record can be Completed
         // (visit address, bedsores answer). Fill them from the new fields so Completed is accepted.
+        if(hasStructuredAddress(clean)){
+          if(!clean.address_from_parts&&txt(clean.home_address)&&!txt(clean.earlier_address))clean.earlier_address=txt(clean.home_address); // keep the old free-text address
+          clean.home_address=composeAddress(clean);clean.address_from_parts=true;
+        }
         const compat=new Set(Array.isArray(clean.compat_fields)?clean.compat_fields:[]);
         if(!txt(clean.visit_address)||compat.has('visit_address')){clean.visit_address=txt(clean.home_address);compat.add('visit_address')}
         if(!txt(clean.bedsores_present)||compat.has('bedsores_present')){
@@ -247,6 +272,17 @@
       const id=`${prefix}-${field.key}`,value=values[field.key]??'';
       if(field.type==='note')return h('div',{className:'spot-wide spot-subhead',key:field.key},field.label);
       if(field.type==='tick')return h('label',{className:'spot-wide spot-tick',key:field.key},h('input',{type:'checkbox',disabled:busy,checked:tickOn(values,field.key),onChange:e=>onChange(field.key,e.target.checked)}),field.label);
+      if(field.type==='oldaddress')return h('div',{className:'field spot-wide',key:field.key},h('label',null,field.label),h('div',{className:'small-note',style:{whiteSpace:'pre-wrap',padding:'6px 8px',border:'1px dashed #e0a9c4',borderRadius:'8px',background:'#fff'}},txt(values.home_address)),h('small',{className:'small-note'},'Please re-enter it in the parts below (District, Taluk …). It is kept as it is until you do.'));
+      if(field.type==='dselect'){
+        const opts=field.options(values)||[];
+        const extra=value&&!opts.includes(value)?[value]:[];
+        const noDistrict=field.key==='taluk'&&!values.district;
+        return h('div',{className:'field',key:field.key},h('label',{htmlFor:id},field.label),
+          h('select',{id,value,disabled:busy||noDistrict,onChange:e=>onChange(field.key,e.target.value)},
+            h('option',{value:''},field.key==='district'?'Select District':noDistrict?'Select District first':'Select Taluk'),
+            [...extra,...opts].map(o=>h('option',{key:o,value:o},o))));
+      }
+      if(field.type==='pin')return h('div',{className:'field',key:field.key},h('label',{htmlFor:id},field.label),h('input',{id,value,disabled:busy,inputMode:'numeric',maxLength:6,placeholder:'6-digit PIN',onChange:e=>onChange(field.key,e.target.value.replace(/\D/g,'').slice(0,6))}));
       if(field.type==='enquiry'){
         const list=enquiries||[];
         const known=list.some(e=>String(e.id)===String(values.enquiry_id));
@@ -280,6 +316,7 @@
     function printValue(field,d){
       if(field.type==='enquiry')return d.enquiry_label||d.lead_reference||'Not linked';
       if(field.type==='tick')return tickOn(d,field.key)?'Yes':'No';
+      if(field.type==='oldaddress')return txt(d.home_address);
       if(field.type==='reviews')return (Array.isArray(d.reviews)?d.reviews:[]).map(r=>`${r.by}${r.role?` (${r.role})`:''} · ${stampText(r.at)}: ${r.text}`).join('\n')||'None';
       const v=d[field.key];
       if(Array.isArray(v))return v.join(', ')||'Not recorded';

@@ -1,3 +1,11 @@
+## 2.16.28 — Spot Assessment address in the same parts as the Admission form
+
+- The Spot Assessment "Home address" box is replaced by the **same address fields as Admission**: State (Tamil Nadu by default), **District** (dropdown), **Taluk** (dropdown for the chosen district — clears when the district changes), Village / Town / City, Locality / Area, Street / Road Name, Door / House No., Apartment / Building, Flat No., Landmark, PIN Code (6 digits only). Same district / taluk list as Admission (one shared list, so the two can never differ).
+- **Convert to Guest / Fill from Spot Assessment** now copies every address part straight into the Admission form — nurses no longer re-type the address; the pink box just says "check it".
+- To complete an assessment: District and Village / Town / City are needed.
+- Older assessments: the free-text address is shown read-only ("Address noted earlier") until the parts are filled; after that it is kept under "Earlier format details". The full address line is still saved for print and for the database check.
+- No SQL. Files: spot-assessment.js, src/app/patients/admissions.js, version files, app.js (rebuilt).
+
 ## 2.16.27 — Fix: "Save completed assessment" refused (visit_address)
 
 - Cause: the database still requires two fields of the older Spot form before an assessment can be **Completed** — *Visit address* and *Bedsores present?*. The simplified form (2.16.24) merged them into **Home address** and **Wounds / bedsores present?**, so Completed was refused with "Complete required assessment field: visit_address". Drafts were not affected.

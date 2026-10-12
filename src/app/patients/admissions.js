@@ -39,6 +39,7 @@
     'Virudhunagar':['Aruppukkottai','Kariapatti','Rajapalayam','Sattur','Sivakasi','Srivilliputhur','Tiruchuli','Vembakottai','Virudhunagar','Watrap']
   };
   const TAMIL_NADU_DISTRICTS=Object.keys(TAMIL_NADU_DISTRICT_TALUKS).sort((a,b)=>a.localeCompare(b));
+  try{window.SamaraTNDistrictTaluks=TAMIL_NADU_DISTRICT_TALUKS}catch(_){} // 2.16.28: same list used by the Spot Assessment address
 
   function Admissions({profile,onNavigate}){
     const today=new Date().toISOString().slice(0,10);
@@ -298,6 +299,8 @@
             admission_type:fromHospital?'Previous Hospital / Care Centre':(category==='Respite Care'||category==='Short Stay')?'Short Stay / Respite Care':'Direct Admission – Elderly Care',
             patient_category:category||current.patient_category,
             full_name:keep('full_name',txt(sp.person_name)),
+            // 2.16.28: Spot Assessment records the address in the same parts as this form
+            ...(sp.district||sp.village_town||sp.street_name?Object.fromEntries(['state','district','taluk','village_town','locality_area','street_name','house_no','apartment_name','flat_no','landmark','pincode'].map(k=>[k,k==='state'?(txt(sp.state)||current.state):keep(k,txt(sp[k]))])):{}),
             age:keep('age',sp.age!=null&&sp.age!==''?String(sp.age):''),
             gender:['Male','Female','Other'].includes(sp.gender)?sp.gender:current.gender,
             mobile:keep('mobile',phone(sp.person_phone)),
@@ -326,6 +329,7 @@
           medicines:txt(sp.medications),
           medicineSupport:sp.medication_support&&sp.medication_support!=='Not assessed'?sp.medication_support:'',
           address:txt(sp.home_address)||txt(sp.visit_address),
+          addressParts:!!(sp.district||sp.village_town||sp.street_name),
           vitals:[sp.blood_pressure&&`BP ${sp.blood_pressure}`,sp.pulse&&`Pulse ${sp.pulse}`,sp.temperature&&`Temp ${sp.temperature}`,sp.oxygen_saturation&&`SpO2 ${sp.oxygen_saturation}`].filter(Boolean).join(' · '),
           contact2Relationship:!!c2&&!c2.relationship,contact1Relationship:!!(c1.name&&!c1.relationship),
           enquiryNo:txt(sp.lead_reference),
@@ -2193,7 +2197,9 @@ Please keep these login details confidential.`;
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setSpotPrefill(null)},'Hide')),
         h('p',{className:'small-note'},'Name, age, gender, phone, family contacts, condition, doctor, allergies, care needs, diet and risk ticks are already filled — please check them. Fill only:'),
         h('ol',{style:{margin:'4px 0 8px 18px'}},
-          h('li',null,h('strong',null,'Address'),' (State / District / Taluk / Street…)',spotPrefill.address?` — noted at visit: ${spotPrefill.address}`:''),
+          spotPrefill.addressParts
+            ?h('li',null,h('strong',null,'Address'),' — filled from the visit; only check it and add anything missing (e.g. PIN Code)')
+            :h('li',null,h('strong',null,'Address'),' (State / District / Taluk / Street…)',spotPrefill.address?` — noted at visit: ${spotPrefill.address}`:''),
           (spotPrefill.contact1Relationship||spotPrefill.contact2Relationship)&&h('li',null,h('strong',null,'Family contact relationship'),' (choose from the list)'),
           h('li',null,h('strong',null,'Attendant staying? '),'Yes / No'),
           h('li',null,h('strong',null,'Photo and Aadhaar / ID')),
