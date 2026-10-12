@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.15';
+  const APP_VERSION = '2.16.16';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '12-Oct-2026 Multiple items in one indent';
+  const APP_BUILD_DATE = '12-Oct-2026 Approve and hand over indents together';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -11458,6 +11458,11 @@ https://samaraassistedliving.com/`;
 "Add each item, then initiate all together.": "ஒவ்வொரு பொருளையும் சேர்த்து, பிறகு எல்லாவற்றையும் ஒன்றாக இண்டென்ட் தொடங்கவும்.",
 "Reason / Remarks (for all items above)": "காரணம் / குறிப்பு (மேலே உள்ள எல்லா பொருட்களுக்கும்)",
 "Store balance": "ஸ்டோர் இருப்பு",
+"Approve together — Guests with several items waiting": "ஒன்றாக அனுமதிக்கவும் — பல பொருட்கள் காத்திருக்கும் கெஸ்ட்கள்",
+"Hand over together — approved items waiting": "ஒன்றாக ஒப்படைக்கவும் — அனுமதித்த பொருட்கள் காத்திருக்கின்றன",
+"Untick an item to leave it for later; change the quantity if needed.": "பிறகு செய்ய ஒரு பொருளின் டிக்கை எடுக்கவும்; தேவைப்பட்டால் அளவை மாற்றவும்.",
+"Approve qty": "அனுமதி அளவு",
+"Hand over qty": "ஒப்படைப்பு அளவு",
 };
   // 2.15.70: EN | தமிழ் screen-language switch (trial for STD; Admin can also check).
   // Translates only fixed screen wording (menu, titles, buttons, labels, statuses) using SAMARA_TA.
@@ -38621,6 +38626,84 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       const remarks=prompt('Handover remarks (optional):','')||'';setBusy(true);const res=await client.rpc('handover_patient_consumable_indent_v2',{p_indent_id:row.id,p_handed_over_qty:qty,p_remarks:remarks||null});setBusy(false);
       if(res.error)notify('error',res.error.message);else{notify('success','Handed over and deducted from Stores. Awaiting Nurse receipt.');await load()}
     }
+    // 2.16.16: Nursing Manager approves / hands over all items of a Guest together (instead of item by item).
+    // Each item still goes through the same approve / handover function as the single-row buttons.
+    const [bulkQty,setBulkQty]=React.useState({}),[bulkOff,setBulkOff]=React.useState({});
+    const bulkKey=(mode,r)=>`${mode}-${r.id}`;
+    const bulkDefault=(mode,r)=>mode==='approve'?Number(r.requested_qty||0):Number(r.approved_qty||0);
+    const bulkQtyOf=(mode,r)=>bulkQty[bulkKey(mode,r)]??String(bulkDefault(mode,r));
+    function bulkGroups(statuses){
+      const m=new Map();
+      rows.filter(r=>statuses.includes(r.status)).forEach(r=>{const k=String(r.patient_id);if(!m.has(k))m.set(k,{patient_id:r.patient_id,items:[]});m.get(k).items.push(r)});
+      const t=r=>String(r.initiated_at||r.created_at||'');
+      return [...m.values()].filter(g=>g.items.length>1).map(g=>({...g,items:g.items.slice().sort((a,b)=>t(a).localeCompare(t(b))||Number(a.indent_no||0)-Number(b.indent_no||0))})).sort((a,b)=>t(a.items[0]).localeCompare(t(b.items[0])));
+    }
+    async function bulkRun(group,mode,reject=false){
+      if(!storeController||busy)return;
+      const picked=group.items.filter(r=>!bulkOff[bulkKey(mode,r)]);
+      if(!picked.length){notify('error','Tick at least one item.');return}
+      if(!reject){
+        const bad=picked.find(r=>{const q=Number(bulkQtyOf(mode,r));return !Number.isFinite(q)||q<=0||q>bulkDefault(mode,r)});
+        if(bad){notify('error',`${bad.item_name}: enter a quantity more than 0 and not more than ${mode==='approve'?'requested':'approved'} (${bulkDefault(mode,bad)} ${bad.unit}).`);return}
+      }
+      const verb=reject?'Reject':mode==='approve'?'Approve':'Hand over';
+      if(!confirm(`${verb} ${picked.length} item(s) for ${patientLabel(group.patient_id)}?`))return;
+      const remarks=prompt(reject?'Reason for rejection:':mode==='approve'?'Approval remarks (optional):':'Handover remarks (optional):',reject?'Not approved':'');
+      if(remarks===null)return;
+      if(reject&&!String(remarks).trim()){notify('error','Enter the reason for rejection.');return}
+      setBusy(true);let ok=0;const fails=[];
+      for(const r of picked){
+        const q=Number(bulkQtyOf(mode,r));
+        const res=mode==='approve'
+          ?await client.rpc('approve_patient_consumable_indent_v2',{p_indent_id:r.id,p_approved_qty:reject?0:q,p_decision:reject?'Rejected':'Approved',p_remarks:remarks||null})
+          :await client.rpc('handover_patient_consumable_indent_v2',{p_indent_id:r.id,p_handed_over_qty:q,p_remarks:remarks||null});
+        if(res.error)fails.push(`${r.item_name}: ${res.error.message}`);else ok++;
+      }
+      setBusy(false);
+      const done=reject?'rejected':mode==='approve'?'approved':'handed over';
+      if(fails.length)notify('error',`${ok} item(s) ${done}. Not done — ${fails.join(' · ')}`);
+      else notify('success',mode==='handover'?`${ok} item(s) handed over and deducted from Stores. Awaiting Nurse receipt.`:`${ok} item(s) ${done}.`);
+      setBulkQty(x=>{const c={...x};picked.forEach(r=>delete c[bulkKey(mode,r)]);return c});
+      setBulkOff(x=>{const c={...x};picked.forEach(r=>delete c[bulkKey(mode,r)]);return c});
+      await load();
+    }
+    function bulkCard(group,mode){
+      const picked=group.items.filter(r=>!bulkOff[bulkKey(mode,r)]).length;
+      const first=group.items[0];
+      return h('div',{key:`${mode}-${group.patient_id}`,className:'card',style:{padding:'12px',marginBottom:'12px',border:'1px solid #ead2dd'}},
+        h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',flexWrap:'wrap',alignItems:'baseline'}},
+          h('strong',null,patientLabel(group.patient_id)),
+          h('small',{style:{color:'#7a5566'}},`${group.items.length} items · ${first.initiated_by_name||'—'}${first.initiated_at||first.created_at?` · ${formatDateTimeIN(first.initiated_at||first.created_at)}`:''}`)
+        ),
+        h('div',{className:'table-wrap',style:{marginTop:'8px'}},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['✓','Indent','Item','Requested',mode==='approve'?'Store balance':'Approved','Store balance',mode==='approve'?'Approve qty':'Hand over qty'].filter((x,i)=>!(mode==='approve'&&i===5)).map((x,i)=>h('th',{key:i},x)))),
+          h('tbody',null,group.items.map(r=>{const st=stockFor(r);const bal=Number(st?.balance_qty??0);const k=bulkKey(mode,r);const on=!bulkOff[k];const q=Number(bulkQtyOf(mode,r));const short=on&&q>bal;
+            return h('tr',{key:k,style:{opacity:on?1:.55}},
+              h('td',null,h('input',{type:'checkbox',checked:on,disabled:busy,'aria-label':`Include ${r.item_name}`,onChange:e=>setBulkOff(x=>({...x,[k]:!e.target.checked}))})),
+              h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),
+              h('td',null,h('strong',null,r.item_name),r.request_remarks&&h('small',{style:{display:'block'}},r.request_remarks)),
+              h('td',null,`${r.requested_qty} ${r.unit}`),
+              mode==='handover'&&h('td',null,`${r.approved_qty??'—'} ${r.unit}`),
+              h('td',{style:{color:short?'#b42318':undefined,fontWeight:short?800:undefined}},st?`${bal} ${st.unit||r.unit}${short?' — less than this':''}`:'—'),
+              h('td',null,h('input',{type:'number',min:'0.01',step:'0.01',disabled:busy||!on,'aria-label':`Quantity for ${r.item_name}`,value:bulkQtyOf(mode,r),onChange:e=>setBulkQty(x=>({...x,[k]:e.target.value})),style:{width:'90px'}}),' ',r.unit)
+            )}))
+        )),
+        h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'10px'}},
+          mode==='approve'
+            ?[h('button',{key:'a',type:'button',className:'btn btn-primary',disabled:busy||!picked,onClick:()=>bulkRun(group,'approve',false)},busy?'Saving…':`Approve ticked (${picked})`),h('button',{key:'r',type:'button',className:'btn btn-secondary',disabled:busy||!picked,onClick:()=>bulkRun(group,'approve',true)},`Reject ticked (${picked})`)]
+            :h('button',{type:'button',className:'btn btn-primary',disabled:busy||!picked,onClick:()=>bulkRun(group,'handover',false)},busy?'Saving…':`Hand over ticked (${picked})`)
+        )
+      );
+    }
+    function bulkPanel(){
+      if(!storeController)return null;
+      const ap=bulkGroups(['Initiated']),ho=bulkGroups(['Approved','Partially Approved']);
+      if(!ap.length&&!ho.length)return null;
+      return h('div',{style:{marginBottom:'16px'}},
+        ap.length>0&&h('div',null,h('h3',{style:{margin:'4px 0 4px',fontSize:'16px'}},'Approve together — Guests with several items waiting'),h('small',{style:{display:'block',marginBottom:'8px',color:'#7a5566'}},'Untick an item to leave it for later; change the quantity if needed.'),ap.map(g=>bulkCard(g,'approve'))),
+        ho.length>0&&h('div',null,h('h3',{style:{margin:'10px 0 8px',fontSize:'16px'}},'Hand over together — approved items waiting'),ho.map(g=>bulkCard(g,'handover')))
+      );
+    }
     async function receive(row){
       if(!nurse||busy)return;const input=prompt(`Handed over: ${row.handed_over_qty} ${row.unit}. Confirm actual quantity physically received:`,String(row.handed_over_qty||''));if(input===null)return;
       const qty=Number(input);if(!qty||qty<=0||qty>Number(row.handed_over_qty||0)){notify('error','Enter a valid quantity not exceeding the handed-over quantity.');return}
@@ -38724,6 +38807,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       )),
       (!section||section==='register')&&h('div',{id:'consumables-indent-register',style:{scrollMarginTop:'90px'}},h(Section,{title:categoryFilter?`${categoryFilter} Indent Register`:'Consumables Indent Register',actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:refreshIndents},busy?'Refreshing…':'↻ Refresh'),['Open','Initiated','Awaiting Handover','Handed Over','Receipt Discrepancy','Received','Rejected','All'].map(x=>h('button',{type:'button',key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>navigateIndentFilter(x),'aria-pressed':filter===x},x)))},
         focusId?h(RecordFocusBanner,{focus:recordFocus,onShowAll:clearRecordFocus}):null,
+        !focusId&&bulkPanel(),
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Indent','Patient','Item / Store Balance','Requested','Approved','Handed Over','Received','Status','Initiated By / Time','Approval / Handover','Receipt','Action'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,visible.length?visible.map(r=>{const st=stockFor(r);const late=r.status==='Handed Over'?receiptOverdue[String(r.id)]:null;return h('tr',{key:r.id,id:`indent-row-${r.id}`,className:'row-clickable',onClick:rowClick(()=>setIndentDetail(indentFields(r)))},
             h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),h('td',null,patientLabel(r.patient_id)),h('td',null,h('strong',null,r.item_name),h('small',{style:{display:'block'}},`Store: ${st?.balance_qty??'—'} ${st?.unit||r.unit}`),r.request_remarks&&h('small',{style:{display:'block'}},r.request_remarks)),

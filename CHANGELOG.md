@@ -1,3 +1,12 @@
+## 2.16.16 — Nursing Manager: approve / hand over all items of a Guest together
+
+- At the top of the Indent Register, the Nursing Manager now sees **Approve together**: one box per Guest who has 2 or more items waiting, listing every item with the store balance and an **Approve qty** box (filled with the requested quantity).
+- Untick any item to leave it for later, change quantities if needed, then **Approve ticked (N)** or **Reject ticked (N)** — one remarks / reason for all.
+- After approval the same Guest's items appear under **Hand over together** with **Hand over qty** (filled with the approved quantity) → **Hand over ticked (N)**. Store balance turns red when it is less than the quantity.
+- Each item is still approved / handed over exactly as before (same checks, same stock deduction, same 20-minute receipt alert). If one item fails (e.g. not enough stock), the others still go through and the message names the item that was not done.
+- The single-row Approve / Reject / Hand Over buttons are unchanged. Tamil words added. No SQL.
+- Files: src/app/stores/patient-consumables.js, src/app/global-ui/09-tamil-dictionary.js, version files, app.js (rebuilt).
+
 ## 2.16.15 — Raise Indent: several items in one indent
 
 - Nurses can now request **many items at once** for a Guest: choose Patient → Category → Item → Quantity → **+ Add item to list**, repeat for each item, then tap **Initiate N Indents**.

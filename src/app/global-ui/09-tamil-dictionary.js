@@ -3771,4 +3771,9 @@
 "Add each item, then initiate all together.": "ஒவ்வொரு பொருளையும் சேர்த்து, பிறகு எல்லாவற்றையும் ஒன்றாக இண்டென்ட் தொடங்கவும்.",
 "Reason / Remarks (for all items above)": "காரணம் / குறிப்பு (மேலே உள்ள எல்லா பொருட்களுக்கும்)",
 "Store balance": "ஸ்டோர் இருப்பு",
+"Approve together — Guests with several items waiting": "ஒன்றாக அனுமதிக்கவும் — பல பொருட்கள் காத்திருக்கும் கெஸ்ட்கள்",
+"Hand over together — approved items waiting": "ஒன்றாக ஒப்படைக்கவும் — அனுமதித்த பொருட்கள் காத்திருக்கின்றன",
+"Untick an item to leave it for later; change the quantity if needed.": "பிறகு செய்ய ஒரு பொருளின் டிக்கை எடுக்கவும்; தேவைப்பட்டால் அளவை மாற்றவும்.",
+"Approve qty": "அனுமதி அளவு",
+"Hand over qty": "ஒப்படைப்பு அளவு",
 };
