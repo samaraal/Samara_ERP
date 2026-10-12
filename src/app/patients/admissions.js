@@ -266,7 +266,10 @@
         const numbered=items=>items.map((item,index)=>`${index+1}. ${item}`).join('\n');
         const care=Array.isArray(sp.care_requirements)?sp.care_requirements:[];
         const services=Array.isArray(sp.services)?sp.services:[];
-        const category=care.includes('Palliative / end-of-life care')?'Palliative Care'
+        const categoryList=['Short Stay','Respite Care','Post-Surgery','Rehabilitation','Stroke Recovery','Dementia Care','Parkinsonism','Palliative Care','Long-Term Assisted Living','Observation','Elderly Care'];
+        // 2.16.24 forms record the Admission category directly; older forms are mapped from stay type / care requirements
+        const category=categoryList.includes(sp.patient_category)?sp.patient_category
+          :care.includes('Palliative / end-of-life care')?'Palliative Care'
           :care.includes('Dementia care')?'Dementia Care'
           :care.includes('Post-hospital / post-surgery care')?'Post-Surgery'
           :care.includes('Respite care')?'Respite Care'
@@ -278,9 +281,10 @@
         // Contact 1 = primary family contact (or the caller when no family contact was entered)
         const c1={name:txt(sp.family_name)||txt(sp.caller_name),relationship:rel(sp.family_relationship)||rel(sp.caller_relationship),phone:phone(sp.family_phone)||phone(sp.caller_phone)};
         // Contact 2 = emergency contact (or the caller) when it is a different number
-        const c2cand=[{name:txt(sp.emergency_name),phone:phone(sp.emergency_phone),relationship:''},{name:txt(sp.caller_name),phone:phone(sp.caller_phone),relationship:rel(sp.caller_relationship)}];
+        const c2cand=[{name:txt(sp.emergency_name),phone:phone(sp.emergency_phone),relationship:rel(sp.emergency_relationship)},{name:txt(sp.caller_name),phone:phone(sp.caller_phone),relationship:rel(sp.caller_relationship)}];
         const c2=c2cand.find(c=>c.name&&c.phone&&c.phone!==c1.phone)||null;
         const woundYes=sp.wounds_present==='Yes'||sp.bedsores_present==='Yes';
+        const bedsore=sp.bedsores_present==='Yes'||(Array.isArray(sp.wounds)?sp.wounds:[]).some(w=>/bedsore|pressure/i.test(w.kind||''));
         const woundText=(Array.isArray(sp.wounds)?sp.wounds:[]).map(w=>[w.kind,w.location,w.size,txt(w.stage)?`Stage ${txt(w.stage)}`:'',w.dressing].map(txt).filter(Boolean).join(' — ')).filter(Boolean);
         const instr=[
           sp.mobility&&sp.mobility!=='Not assessed'?`Mobility: ${sp.mobility}`:'',
@@ -288,7 +292,7 @@
           sp.continence&&sp.continence!=='Not assessed'?`Continence: ${sp.continence}`:'',
           txt(sp.cognition)?`Memory / behaviour: ${txt(sp.cognition)}`:'',
           lines(sp.falls_history).length?`Falls / balance: ${txt(sp.falls_history)}`:'',
-          txt(sp.mobility_notes),txt(sp.pain)?`Pain: ${txt(sp.pain)}`:''
+          txt(sp.mobility_notes),txt(sp.pain)?`Pain: ${txt(sp.pain)}`:'',txt(sp.care_notes)
         ].filter(Boolean).join('\n');
         const feeding=[txt(sp.diet),sp.swallowing==='Yes'?'Swallowing concern noted at Spot Assessment':'',txt(sp.nutrition_notes)].filter(Boolean).join('\n');
         setForm(current=>{
@@ -308,7 +312,8 @@
             feeding_instruction:keep('feeding_instruction',feeding),
             diet_plan:['NG / Ryles tube','PEG'].includes(sp.feeding_route)?'Tube feeding':current.diet_plan,
             fall_risk:current.fall_risk||!!lines(sp.falls_history).length,
-            pressure_sore_risk:current.pressure_sore_risk||sp.bedsores_present==='Yes',
+            pressure_sore_risk:current.pressure_sore_risk||bedsore,
+            referring_source:fromHospital?current.referring_source:keep('referring_source',txt(sp.living_arrangement)), // reason for assisted living / respite (direct routes only)
             aspiration_risk:current.aspiration_risk||sp.swallowing==='Yes',
             oxygen_required:current.oxygen_required||sp.airway==='Oxygen'||services.includes('Oxygen cylinder / concentrator'),
             oxygen_instruction:keep('oxygen_instruction',sp.airway==='Oxygen'?txt(sp.respiratory_notes):''),
@@ -326,6 +331,7 @@
           address:txt(sp.home_address)||txt(sp.visit_address),
           vitals:[sp.blood_pressure&&`BP ${sp.blood_pressure}`,sp.pulse&&`Pulse ${sp.pulse}`,sp.temperature&&`Temp ${sp.temperature}`,sp.oxygen_saturation&&`SpO2 ${sp.oxygen_saturation}`].filter(Boolean).join(' · '),
           contact2Relationship:!!c2&&!c2.relationship,contact1Relationship:!!(c1.name&&!c1.relationship),
+          enquiryNo:txt(sp.lead_reference),
           tariff:txt(sp.tariff_notes),careLevel:sp.care_level&&sp.care_level!=='To be reviewed'?sp.care_level:''
         });
         setMsg(`Details taken from the Spot Assessment of ${txt(sp.person_name)}. Fill only the items listed in the pink box, then check the ticks and complete the admission.`);
@@ -2138,7 +2144,8 @@ Please keep these login details confidential.`;
           h('li',null,h('strong',null,'Master care plan'),' (Section 4)'),
           h('li',null,h('strong',null,'Package, room / bed'),' (Section 6)',[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).length?` — noted at visit: ${[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).join(' · ')}`:'')
         ),
-        spotPrefill.vitals?h('p',{className:'small-note'},`Vitals at visit: ${spotPrefill.vitals}`):null
+        spotPrefill.vitals?h('p',{className:'small-note'},`Vitals at visit: ${spotPrefill.vitals}`):null,
+        spotPrefill.enquiryNo?h('p',{className:'small-note'},`Linked enquiry ${spotPrefill.enquiryNo} — after admission, mark it "Admitted" in the Enquiry Register.`):null
       ),
       // 2.15.5: Unfinished Admissions — continue any admission in progress, on any device
       (otherDrafts.length>0||draftsMissing)&&h('div',{className:'admission-drafts-panel'},

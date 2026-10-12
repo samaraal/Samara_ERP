@@ -1,3 +1,17 @@
+## 2.16.24 — Spot Assessment simplified (5 sections), matched to the Admission form
+
+- **8 sections → 5:** 1. Visit and enquiry · 2. Guest and family · 3. Health · 4. Care needs · 5. Decision and follow-up. About 15 repeated fields removed.
+- **Family contacts asked once:** Family Contact 1 and Contact 2 with the **same relationship list as Admission** (they become Contact 1 / Contact 2 there). Tick **"The caller is Contact 1"** (on by default) — caller fields appear only when unticked. Contact phones checked for 10 digits.
+- **Linked enquiry:** pick from the Enquiry Register instead of typing a reference — fills name, age and Contact 1.
+- Visit time fills itself; hospital / facility name appears only when the person was seen in a hospital / other facility; oxygen settings appear only when breathing support is not room air.
+- **One "Wounds / bedsores present?"** question opens the wound list (Type: Wound / Bedsore).
+- **"Care needed"** uses the Admission patient-category list (replaces Stay requirement + Care requirements). "Why assisted living / current support at home" carries into Admission's reason field (direct / respite admissions).
+- **Review notes:** one box with **Add note** — name, role and time stamped automatically (replaces the four review boxes and "review required from").
+- **Old assessments open unchanged:** anything recorded in the old 8-section form that has no place in the new layout shows under **"Earlier format details (read only)"** on screen and in print — nothing lost. Old free-text relationships stay visible.
+- Completing an assessment now also needs the home address and Contact 1 name + phone. Register rows are clickable; all dates DD-MM-YYYY.
+- **Admission form works independently as before** — the Spot details are only an optional pre-fill via Convert to Guest; opened directly, the form is unchanged. The pink box now also reminds staff to mark a linked enquiry "Admitted".
+- No SQL. Files: spot-assessment.js, src/app/patients/admissions.js, version files, app.js (rebuilt).
+
 ## 2.16.23 — Spot Assessment: Convert to Guest (Start Admission)
 
 - New button **Convert to Guest (Start Admission)** inside a saved Spot Assessment (shown to staff who can do admissions). It opens a new Admission form with everything already recorded at the visit filled in, and stamps the assessment "Admission started by … on …" (register shows "→ Admission started").
