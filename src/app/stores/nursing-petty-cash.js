@@ -83,7 +83,7 @@
     }
     const table=(heads,rows,onRow,keys)=>h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,heads.map(x=>h('th',{key:x},x)))),
       h('tbody',null,rows.length?rows.map((r,i)=>h('tr',{key:keys[i],className:'row-clickable',onClick:rowClick(()=>onRow(i))},r.map((c,j)=>h('td',{key:j,style:{whiteSpace:'normal'}},c)))):h('tr',null,h('td',{colSpan:heads.length,style:{textAlign:'center',padding:'20px'}},'No entries yet.')))));
-    const tabs=[['book','Cash Book'],['requests','Cash Requests'],...(nm?[['expense','Record Expense']]:[])];
+    const tabs=[['book','Cash Book'],['ledger','Ledger & Statement'],['requests','Cash Requests'],...(nm?[['expense','Record Expense']]:[])];
     const field=(label,key,type='text',opts={})=>h('div',{className:'field'},h('label',null,label),h('input',{type,value:expense[key],onChange:e=>setExpense(v=>({...v,[key]:e.target.value})),...opts}));
     return h('div',{className:'nm-petty-cash'},
       detail&&h(RowDetailModal,{title:detail.title,subtitle:detail.subtitle,fields:detail.fields,onClose:()=>setDetail(null)}),
@@ -94,6 +94,8 @@
       h('div',{className:'dr-boxes'},[['Cash in Hand',money(balance),'book',balance<0],['Expenses This Month',money(monthExpense),'book'],['Kitchen Cash to STD This Month',money(monthKitchen),'book'],['Open Requests',openReq.length,'requests'],['Expenses to Review',pendingReview.length,'book']].map(([label,value,key,red])=>h('button',{key:label,type:'button',className:'dr-box',onClick:()=>setTab(key)},h('span',{className:'dr-box-label'},label),h('b',{className:'dr-box-value',style:red?{color:'#b42318'}:undefined},value)))),
       actions(...tabs.map(([k,l])=>h('button',{key:k,type:'button',className:'btn '+(tab===k?'btn-primary':'btn-secondary'),onClick:()=>setTab(k)},l))),
       focus?.id&&h('p',{className:'message',role:'status'},'Showing only the entry from the alert. ',h('button',{type:'button',className:'btn btn-secondary',onClick:clearFocus},'Show all')),
+      // 2.16.22: ledger + printable statement with Today / This Week / This Month / Pick period.
+      tab==='ledger'&&h(CashLedgerStatement,{bookTitle:'Nursing Manager Petty Cash',holder:nm&&data.access.name?`Maintained by: ${data.access.name} (Nursing Manager)`:'Maintained by: Nursing Manager',fileName:'Petty-Cash-Statement',entries:data.entries.map(x=>({id:x.id,date:day(x),at:x.created_at,kind:x.kind,details:x.details+(x.paid_to?` (paid to ${x.paid_to})`:''),amount:Number(x.amount),by:x.actor_name,extra:[['Bill number',x.bill_no||''],['Review',x.review_status||''],['Review note',x.review_note||'']]}))}),
       tab==='requests'&&h(Section,{title:'Cash Requests'},
         table(['Purpose','Requested','Approved','Status','Requested by','Handed over by','Action'],requests.map(x=>[x.purpose,money(x.requested_amount),x.amount!=null?money(x.amount):'—',pill(x.status,reqTone(x.status)),[x.requested_by_name,formatDateTimeIN(x.requested_at)].filter(Boolean).join(' · '),x.handed_by_name?`${x.handed_by_name} · ${formatDateTimeIN(x.handed_at)}`:'—',reqActions(x)]),i=>setDetail(reqDetail(requests[i])),requests.map(x=>x.id))),
       tab==='book'&&h(Section,{title:'Cash Book',actions:h('button',{type:'button',className:'btn btn-secondary',onClick:exportBook},'Export CSV')},

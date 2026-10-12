@@ -42,7 +42,7 @@
     const pendingHandover=data.handovers.find(x=>['Awaiting outgoing','Awaiting receipt'].includes(x.status));
     const month=t=>String(t).slice(0,7)===todayISOIndia().slice(0,7);
     const expense=data.purchases.filter(x=>x.status!=='Reversed'&&month(x.expense_date)).reduce((s,x)=>s+Number(x.total),0);
-    const tabs=[['home','Overview'],['purchase','Record Purchase'],['purchases','Purchase Register'],['funding','Cash Requests'],['stock','Kitchen Stock'],['handover','In-charge & Handover'],['cash','Cash Book & Reports'],...(admin?[['legacy','Historical Stores Register']]:[])].filter(([k])=>k!=='purchase'||spend);
+    const tabs=[['home','Overview'],['purchase','Record Purchase'],['purchases','Purchase Register'],['funding','Cash Requests'],['stock','Kitchen Stock'],['handover','In-charge & Handover'],['cash','Cash Book & Reports'],['ledger','Ledger & Statement'],...(admin?[['legacy','Historical Stores Register']]:[])].filter(([k])=>k!=='purchase'||spend);
     const table=(heads,rows)=>h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,heads.map(x=>h('th',{key:x},x)))),h('tbody',null,rows.length?rows.map((r,i)=>h('tr',{key:i},r.map((c,j)=>h('td',{key:j,style:{whiteSpace:'normal'}},c)))):h('tr',null,h('td',{colSpan:heads.length},'No entries yet.')))));
     const actions=(...children)=>h('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}},...children);
     const fundingRows=cashFocus?.id?data.funding.filter(x=>String(x.id)===String(cashFocus.id)):data.funding;
@@ -154,6 +154,8 @@
           x.status==='Awaiting outgoing'&&(x.from_staff===actor||admin)&&button(admin&&actor!==x.from_staff?'Emergency Admin Handover':'Confirm Outgoing Cash / Stock','handover_out',{id:x.id,amount:x.expected_cash,note:''}),
           x.status==='Awaiting receipt'&&x.to_staff===actor&&button('Accept Cash / Stock','handover_receive',{id:x.id,amount:x.counted_cash,note:''},true),
           admin&&['Awaiting outgoing','Awaiting receipt'].includes(x.status)&&button('Cancel Handover','handover_cancel',{id:x.id,note:''}))))),
+      // 2.16.22: ledger + printable statement with Today / This Week / This Month / Pick period.
+      tab==='ledger'&&h(CashLedgerStatement,{bookTitle:'Kitchen Petty Cash',holder:`Kitchen in-charge: ${name(w.custodian)}`,fileName:'Kitchen-Petty-Cash-Statement',entries:data.cash.map(x=>({id:x.id,date:new Date(x.created_at).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'}),at:x.created_at,kind:x.kind,details:x.details,amount:Number(x.amount),by:x.actor_name,extra:[['Reference',x.reference_id||'']]}))}),
       tab==='cash'&&h(Section,{title:'Cash Book & Accounts Reports'},h('p',null,'Kitchen cash subledger: funding is a cash transfer; purchases are expenses. Use these references when reconciling the central cash book. No resident ledger charges are generated.'),
         actions(h('button',{className:'btn btn-secondary',onClick:exportCash},'Download Cash Book (CSV)'),spend&&button('Count / Reconcile Cash','reconcile',{amount:data.balance,note:''}),admin&&button('Record Cash Correction','adjust',{amount:'',note:''})),
         table(['Date','Type','Details','In','Out','Balance','Staff'],data.cash.map(x=>[formatDateTimeIN(x.created_at),x.kind,x.details,x.amount>0?money(x.amount):'—',x.amount<0?money(-x.amount):'—',money(x.balance_after),x.actor_name])),

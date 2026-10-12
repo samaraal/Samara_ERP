@@ -1,3 +1,11 @@
+## 2.16.22 — Ledger & Statement for Petty Cash and Kitchen petty cash
+
+- New tab **Ledger & Statement** in **Petty Cash** (Nursing Manager, Admin) and in **Kitchen / Food Stores** (STD, Admin, Accounts).
+- Period: **Today / This Week / This Month / Pick period** (From – To) with **Apply**.
+- Shows Opening balance, Cash in, Cash out, Closing balance (red when below zero), totals by type (Cash received, Purchase, Expense, Kitchen cash to STD …), and the ledger with a running balance between an Opening and a Closing row; tap a row for full details. Closing balance in words.
+- **Print / Save PDF:** Samara statement with logo, period, summary, ledger, closing balance in words and signature lines (Prepared by / Verified by Admin / Received). **Download CSV** for the same period.
+- No SQL. Files: src/app/shared/04-cash-ledger-statement.js (new), src/app/manifest.json, src/app/stores/nursing-petty-cash.js, src/app/stores/kitchen-cash.js, version files, app.js (rebuilt).
+
 ## 2.16.21 — Fix: Petty Cash page crashed on opening
 
 - The Petty Cash page (2.16.19) showed "This page had a problem" for everyone: a small row-click helper was missing in the page. Fixed; all pages changed today were re-checked for any other missing names (none).
