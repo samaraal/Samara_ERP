@@ -1,5 +1,5 @@
-const APP_VERSION = '2.16.29';
-const CACHE = 'samara-erp-2.16.29-spot-medicines';
+const APP_VERSION = '2.16.30';
+const CACHE = 'samara-erp-2.16.30-spot-decision-photos';
 const SHELL = [
   './',
   './index.html',

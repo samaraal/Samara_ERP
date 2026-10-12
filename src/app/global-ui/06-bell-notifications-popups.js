@@ -259,7 +259,8 @@
     // 2.16.17: kitchen petty cash steps (SQL 214) — Admin approves, Nursing Manager hands over, STD confirms receipt.
     const kitchenCash=foodAdmin||isNursingManagerProfile(profile)||!!profile?.__kitchen?.read;
     const pettyCash=foodAdmin||isNursingManagerProfile(profile); // 2.16.19 Nursing Manager petty cash (SQL 215)
-    const canReceive=isManagement||isAccounts||isNursing||foodManager||kitchenCash||pettyCash;
+    const spotPrep=isNursingManagerProfile(profile); // 2.16.30
+    const canReceive=isManagement||isAccounts||isNursing||foodManager||kitchenCash||pettyCash||spotPrep;
     const dismiss=current=>{
       if(current?.key){
         closed.current.add(current.key);
@@ -303,7 +304,13 @@
         else jobs.push(Promise.resolve({data:[],error:null}));
         if(pettyCash)jobs.push(client.rpc('nm_petty_alerts'));
         else jobs.push(Promise.resolve({data:[],error:null}));
-        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts,kitchenAlerts,pettyAlerts]=await Promise.all(jobs);
+        // 2.16.30: Spot Assessment "Get ready before arrival" → Nursing Manager, from 2 days before the proposed admission date
+        if(spotPrep){
+          const ymd=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          const now=new Date();
+          jobs.push(client.from('spot_assessments').select('id,person_name,details').gte('details->>planned_admission',ymd(new Date(now.getTime()-86400000))).lte('details->>planned_admission',ymd(new Date(now.getTime()+2*86400000))).limit(50));
+        }else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts,kitchenAlerts,pettyAlerts,spotPrepRows]=await Promise.all(jobs);
         const candidates=[];
         (dis.data||[]).forEach(row=>{
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
@@ -388,11 +395,18 @@
           'Handed over':[`Petty cash ${amt} handed over — confirm`,`Admin / Director has handed over ${amt}. Count it and tap Confirm Cash Received.`],
           'Query':[`Expense query — ${amt}`,`${a.person||'Admin'} has a query on your expense "${a.details||''}". Open it to see the note.`]}[a.stage];
           if(step)candidates.push({key:`petty-${a.ref_id}-${a.stage}`,kind:'Petty Cash',title:step[0],detail:step[1],page:'Petty Cash',record:{id:a.ref_id,kind:a.stage==='Query'?'entry':'request',label:step[0]},at:a.stage_at});});
+        const SM=window.SamaraSpotAssessmentModel;
+        if(SM&&!spotPrepRows?.error)(spotPrepRows?.data||[]).forEach(r=>{
+          const d=r.details||{};if(!SM.prepActive(d))return;
+          const pending=SM.prepPending(d);if(!pending.length)return;
+          const day=String(d.planned_admission).split('-').reverse().join('-');
+          candidates.push({key:`spot-prep-${r.id}-${pending.length}`,kind:'Spot Assessment',title:`Get ready: ${r.person_name} — arriving ${day}`,detail:`Still to prepare: ${pending.join(', ')}. Tick each item in the Spot Assessment when it is ready.`,page:'Spot Assessment',record:{id:r.id,label:r.person_name},at:d.planned_admission});
+        });
         candidates.sort((a,b)=>Number(!!b.urgent)-Number(!!a.urgent)||new Date(b.at||0)-new Date(a.at||0));
         const next=candidates.find(x=>!closed.current.has(x.key));
         setItem(current=>current&&candidates.some(x=>x.key===current.key)?current:(next||null));
       }catch(error){console.warn('Workflow action pop-up unavailable:',error)}
-    },[profile?.id,role,isManagement,isAccounts,isNursing,foodManager,kitchenCash,pettyCash]);
+    },[profile?.id,role,isManagement,isAccounts,isNursing,foodManager,kitchenCash,pettyCash,spotPrep]);
     React.useEffect(()=>{load();const timer=setInterval(load,30000);window.addEventListener('focus',load);window.addEventListener('samara-discharge-workflow-changed',load);return()=>{clearInterval(timer);window.removeEventListener('focus',load);window.removeEventListener('samara-discharge-workflow-changed',load)}},[load]);
     if(!item||(item.food&&!foodManager))return null;
     // v2.14.39: compact alert card with its own classes, so phone "full-screen form" rules

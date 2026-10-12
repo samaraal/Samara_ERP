@@ -26,6 +26,27 @@
   }
   // an address typed as free text in an older form is shown (read only) until the parts are filled
   const oldFreeAddress=d=>!d.address_from_parts&&!hasStructuredAddress(d)&&txt(d.home_address);
+  // 2.16.30: decision, outcome and get-ready list
+  const DECISIONS=['Suitable','Suitable with conditions','Not suitable'];
+  // care-related reasons only (a refusal must rest on care needs, not on who the person is)
+  const NOT_SUITABLE=['Needs hospital / ICU-level care','Care needs beyond what we can safely provide now','Needs equipment or a facility we do not have','Risk of harm to self or others','No suitable room / bed available','Person does not agree to stay','Other'];
+  const NOT_CONVERTED=['Chose another facility','Price / budget','Location / distance','Guest\'s condition not suitable','Family decided home care','No response after follow-ups','Guest passed away','Other']; // same as the Enquiry Register closing reasons
+  const PHOTO_KINDS=['Wound / bedsore','Prescription','Discharge summary / report','Other'];
+  function prepItems(d){
+    const out=['Room / bed ready'];
+    const add=x=>{if(!out.includes(x))out.push(x)};
+    const sv=Array.isArray(d?.services)?d.services:[];const cs=Array.isArray(d?.consumables)?d.consumables:[];
+    if(sv.includes('Air mattress'))add('Air mattress');
+    if(sv.includes('Oxygen cylinder / concentrator')||d?.airway==='Oxygen')add('Oxygen cylinder / concentrator');
+    if(sv.includes('Suction apparatus'))add('Suction apparatus');
+    if(d?.mobility==='Wheelchair')add('Wheelchair');
+    cs.forEach(add);
+    if(sv.includes('Wound dressing'))add('Dressing supplies');
+    if(['NG / Ryles tube','PEG'].includes(d?.feeding_route))add('Feeding supplies');
+    return out;
+  }
+  const prepPending=d=>{const r=d?.prep_ready||{};return prepItems(d).filter(x=>!r[x])};
+  const prepActive=d=>d?.decision!=='Not suitable'&&d?.outcome!=='Not converted';
   const sections=[
     {title:'1. Visit and enquiry',fields:fields(
       ['visit_date','Visit date','date'],['visit_time','Visit time','time'],
@@ -33,7 +54,8 @@
       ['enquiry_id','Linked enquiry (optional)','enquiry'],
       ['visit_location','Where the person was seen','select',['Home','Hospital','Old age home','Other']],
       ['hospital_name','Hospital / facility name','text',null,atHospital],
-      ['assessment_consent','Permission for assessment','select',['Obtained from person','Obtained from representative','Not obtained','Not recorded']])},
+      ['assessment_consent','Permission for assessment','select',['Obtained from person','Obtained from representative','Not obtained','Not recorded']],
+      ['consent_given_by','Permission given by (name and relationship)','text',null,d=>d.assessment_consent==='Obtained from representative'])},
     {title:'2. Guest and family',fields:fields(
       ['person_name','Person’s full name'],['age','Age (years)','number'],['gender','Gender','select',['Female','Male','Other']],
       ['person_phone','Person’s own phone (if any)','tel'],
@@ -79,8 +101,12 @@
       ['respiratory_notes','Breathing support settings (e.g. oxygen 2 L/min)','text',null,onSupport],
       ['consumables','Daily consumables','checks',['Diapers','Underpads','Gloves','Wet wipes','Dressing supplies','Feeding supplies']],
       ['services','Services / equipment needed','checks',['Physiotherapy','Speech therapy','Doctor review','Psychiatrist assessment','Lab tests','Air mattress','Oxygen cylinder / concentrator','Suction apparatus','Wound dressing']],
-      ['care_notes','Other care notes (skin, positioning, equipment)','textarea'])},
+      ['care_notes','Other care notes (skin, positioning, equipment)','textarea'],
+      ['_photos','Visit photos (wounds / bedsores, prescription, reports)','photos'])},
     {title:'5. Decision and follow-up',fields:fields(
+      ['decision','Can Samara take this person?','select',DECISIONS],
+      ['decision_reason','Main reason','select',NOT_SUITABLE,d=>d.decision==='Not suitable'],
+      ['decision_note','Conditions / reason in detail','textarea',null,d=>!!d.decision&&d.decision!=='Suitable'],
       ['patient_category','Care needed (same list as Admission)','select',categories],
       ['preferred_centre','Preferred centre / location'],
       ['care_level','Proposed level of care','select',['To be reviewed','Level 1','Level 2','Level 3 / one-to-one care']],
@@ -88,6 +114,8 @@
       ['tariff_notes','Tariff discussed / quotation reference','textarea'],
       ['summary','Assessment summary and recommended follow-up','textarea'],
       ['followup_date','Follow-up date','date'],
+      ['_prep','Get ready before arrival','prep'],
+      ['_outcome','Outcome','outcome'],
       ['_reviews','Review notes','reviews'])}
   ];
   const woundFields=fields(['kind','Type','select',['Wound','Bedsore / pressure injury','Other']],['location','Body location'],['size','Size / depth if measured'],['appearance','Appearance / discharge / surrounding skin'],['stage','Stage if documented by qualified clinician'],['dressing','Current dressing / care instructions']);
@@ -99,7 +127,7 @@
     stay_type:'Stay requirement',care_requirements:'Care requirements',review_required:'Further review required from',additional_notes:'Additional information',
     relationship_review:'Client relationship manager review',centre_review:'Centre manager review',nursing_review:'Nursing head review',doctor_review:'Resident doctor review'
   };
-  const systemKeys=new Set(['meds','medications','wounds','reviews','converted_admission','enquiry_id','enquiry_label','caller_is_contact1','spot_id','compat_fields','address_from_parts','home_address']);
+  const systemKeys=new Set(['photos','photo_consent','prep_ready','outcome','outcome_reason','outcome_note','outcome_at','outcome_by','meds','medications','wounds','reviews','converted_admission','enquiry_id','enquiry_label','caller_is_contact1','spot_id','compat_fields','address_from_parts','home_address']);
   const newKeys=new Set(sections.flatMap(s=>s.fields.map(f=>f.key)));
   function legacyEntries(data){
     return Object.keys(data||{}).filter(k=>!newKeys.has(k)&&!systemKeys.has(k)&&!k.startsWith('_')).map(k=>{
@@ -151,17 +179,24 @@
           if(m.duration==='Custom'&&!(Number(m.custom_duration_days)>0))return `Medicines: enter the number of days for ${m.medicine_name}.`;
         }
       }
+      if(!data.decision)return 'Choose “Can Samara take this person?” before completing the assessment.';
+      if(data.decision==='Not suitable'&&!data.decision_reason)return 'Choose the main reason the person is not suitable.';
+      if(data.decision!=='Suitable'&&!txt(data.decision_note))return 'Write the conditions / reason in detail.';
+      if(data.assessment_consent==='Obtained from representative'&&!txt(data.consent_given_by))return 'Write who gave permission for the assessment (name and relationship).';
       if(!txt(data.family_name)||!txt(data.family_phone))return 'Enter Family Contact 1 name and phone before completing the assessment.';
       if((data.wounds_present==='Yes'||data.bedsores_present==='Yes')&&!(data.wounds||[]).some(w=>txt(w.location)))return 'Add a body location in the wound / bedsore details.';
     }
     return '';
   }
-  window.SamaraSpotAssessmentModel={sections,woundFields,initial,validate,relationships,categories,legacyEntries};
+  window.SamaraSpotAssessmentModel={sections,woundFields,initial,validate,relationships,categories,legacyEntries,prepItems,prepPending,prepActive};
   window.SamaraSpotAssessment=function SpotAssessment({profile,client,onNavigate,canAdmit}){
     const R=window.React,h=R.createElement;
     const [rows,setRows]=R.useState([]),[record,setRecord]=R.useState(null),[data,setData]=R.useState(null),[dirty,setDirty]=R.useState(false);
     const [busy,setBusy]=R.useState(false),[loading,setLoading]=R.useState(false),[error,setError]=R.useState(''),[notice,setNotice]=R.useState(''),[search,setSearch]=R.useState(''),[filter,setFilter]=R.useState('All');
     const [enquiries,setEnquiries]=R.useState(null),[reviewDraft,setReviewDraft]=R.useState('');
+    const [photoKind,setPhotoKind]=R.useState(PHOTO_KINDS[0]),[photoCaption,setPhotoCaption]=R.useState(''),[consentDraft,setConsentDraft]=R.useState({tick:false,by:''});
+    const [outcomeDraft,setOutcomeDraft]=R.useState({outcome:'',reason:'',note:''});
+    const isAdmin=/admin|director/i.test(String(profile?.role||''));
     const saving=R.useRef(false);
     async function load(){
       setLoading(true);
@@ -185,6 +220,13 @@
       }catch(e){console.warn('Spot Assessment: enquiries not available',e);setEnquiries([])}
     }
     R.useEffect(()=>{load()},[]);
+    // 2.16.30: an alert / link for one assessment opens that assessment directly
+    R.useEffect(()=>{
+      const take=f=>{if(f&&f.page==='Spot Assessment'&&f.id!=null&&Date.now()-Number(f.at||0)<120000){try{sessionStorage.removeItem('samara-record-focus')}catch(_){}open(f.id,true)}};
+      try{take(JSON.parse(sessionStorage.getItem('samara-record-focus')||'null'))}catch(_){}
+      const on=e=>take(e.detail);window.addEventListener('samara-record-focus',on);
+      return()=>window.removeEventListener('samara-record-focus',on);
+    },[]);
     R.useEffect(()=>{if(data)loadEnquiries()},[!!data]);
     R.useEffect(()=>{
       if(!dirty)return;
@@ -210,14 +252,15 @@
       setReviewDraft('');
     }
     function canLeave(){return !dirty||window.confirm('Discard unsaved Spot Assessment changes?')}
-    function create(){if(!canLeave())return;setRecord(null);setData(initial(profile?.full_name||'',profile?.designation||profile?.employee_designation||profile?.job_title||profile?.position||profile?.role||''));setDirty(false);setError('');setNotice('');setReviewDraft('')}
-    async function open(id){
-      if(!canLeave()||saving.current)return;
+    function create(){if(!canLeave())return;setOutcomeDraft({outcome:'',reason:'',note:''});setConsentDraft({tick:false,by:''});setRecord(null);setData(initial(profile?.full_name||'',profile?.designation||profile?.employee_designation||profile?.job_title||profile?.position||profile?.role||''));setDirty(false);setError('');setNotice('');setReviewDraft('')}
+    async function open(id,fromAlert){
+      if((!fromAlert&&!canLeave())||saving.current)return;
       setBusy(true);setError('');setNotice('');setReviewDraft('');
       try{
         const result=await client.from('spot_assessments').select('*').eq('id',id).single();
         if(result.error)throw result.error;
         setRecord(result.data);setData({...result.data.details,state:result.data.details?.state||'Tamil Nadu',wounds:result.data.details?.wounds||[]});setDirty(false);
+        const dd=result.data.details||{};setOutcomeDraft({outcome:dd.outcome||'',reason:dd.outcome_reason||'',note:dd.outcome_note||''});setConsentDraft({tick:false,by:''});setPhotoCaption('');
       }catch(e){setError(`Unable to open assessment: ${e.message||e}`)}finally{setBusy(false)}
     }
     async function save(status){
@@ -269,6 +312,67 @@
         setRecord(result.data);setData({...result.data.details,wounds:result.data.details?.wounds||[]});setDirty(false);setNotice(`Assessment saved as ${status}.`);await load();
       }catch(e){setError(`Unable to save: ${e.message||e}`)}finally{saving.current=false;setBusy(false)}
     }
+    // 2.16.30: save a few fields straight away (photos, consent, get-ready ticks, outcome) without changing
+    // the assessment status and without touching any unsaved typing on screen.
+    async function saveDetails(patch,okText){
+      if(!record||saving.current)return false;
+      saving.current=true;setBusy(true);setError('');
+      try{
+        let base=record;
+        for(let attempt=0;attempt<2;attempt++){
+          const r=await client.from('spot_assessments').update({details:{...(base.details||{}),...patch}}).eq('id',base.id).eq('version',base.version).select('*').maybeSingle();
+          if(r.error)throw r.error;
+          if(r.data){setRecord(r.data);setData(old=>({...old,...patch}));if(okText)setNotice(okText);load();return true}
+          const latest=await client.from('spot_assessments').select('*').eq('id',base.id).maybeSingle();
+          if(latest.error)throw latest.error;
+          if(!latest.data||latest.data.version===base.version)throw new Error('The ERP did not accept the change. Please ask Admin to check your access to Spot Assessment.');
+          base=latest.data; // someone else saved meanwhile — add this change on top of the latest version
+        }
+        throw new Error('Another staff member is saving this assessment right now. Please try again.');
+      }catch(e){setError(`Unable to save: ${e.message||e}`);return false}finally{saving.current=false;setBusy(false)}
+    }
+    async function syncEnquiry(){
+      if(!record||!(data?.enquiry_id))return;
+      try{
+        const r=await client.rpc('spot_enquiry_sync',{p_spot_id:String(record.id)});
+        if(r.error)throw r.error;
+        if(r.data?.updated)setNotice(n=>`${n?n+' ':''}Enquiry ${r.data.enquiry_no||''} updated to “${r.data.status}”.`);
+      }catch(e){console.warn('Spot Assessment: enquiry not updated',e);setNotice(n=>`${n?n+' ':''}The linked enquiry was not updated automatically — please tell Akshi / Admin.`)}
+    }
+    async function uploadPhotos(files){
+      const list=Array.from(files||[]);if(!list.length||!record)return;
+      setBusy(true);setError('');
+      const added=[];
+      try{
+        for(const file of list){
+          const safe=String(file.name||'photo').replace(/[^a-zA-Z0-9._-]/g,'_');
+          const path=`spot-assessments/${record.id}/${Date.now()}-${Math.random().toString(36).slice(2,8)}-${safe}`;
+          const up=await client.storage.from('patient-documents').upload(path,file,{upsert:false,contentType:file.type||undefined});
+          if(up.error)throw up.error;
+          added.push({path,name:file.name||safe,type:file.type||'',kind:photoKind,caption:txt(photoCaption),at:new Date().toISOString(),by:profile?.full_name||'staff'});
+        }
+      }catch(e){setError(`Upload failed: ${e.message||e}`)}finally{setBusy(false)}
+      if(added.length){
+        const current=Array.isArray(record.details?.photos)?record.details.photos:[];
+        if(await saveDetails({photos:[...current,...added]},`${added.length} photo(s) saved with this assessment.`))setPhotoCaption('');
+      }
+    }
+    async function viewPhoto(p){
+      try{const r=await client.storage.from('patient-documents').createSignedUrl(p.path,900);if(r.error)throw r.error;window.open(r.data.signedUrl,'_blank','noopener')}
+      catch(e){setError(`Unable to open the photo: ${e.message||e}`)}
+    }
+    async function togglePrep(item){
+      const cur={...(record?.details?.prep_ready||{})};
+      if(cur[item])delete cur[item];else cur[item]={by:profile?.full_name||'staff',at:new Date().toISOString()};
+      await saveDetails({prep_ready:cur});
+    }
+    async function saveOutcome(){
+      const o=outcomeDraft;
+      if(!o.outcome){setError('Choose the outcome.');return}
+      if(o.outcome==='Not converted'&&!o.reason){setError('Choose why the person did not come to Samara.');return}
+      const ok=await saveDetails({outcome:o.outcome,outcome_reason:o.outcome==='Not converted'?o.reason:'',outcome_note:txt(o.note),outcome_at:new Date().toISOString(),outcome_by:profile?.full_name||'staff'},'Outcome saved.');
+      if(ok&&o.outcome==='Not converted')await syncEnquiry();
+    }
     // 2.16.23: Convert to Guest — carries everything already recorded into a new Admission form,
     // so staff fill only what is left (medicines, room / bed, package, photo / ID, family portal option).
     async function convertToGuest(){
@@ -285,16 +389,65 @@
         setRecord(result.data);setData({...result.data.details,wounds:result.data.details?.wounds||[]}); // 2.16.26: keep the new version, so a later Save works
         sessionStorage.setItem('samara-spot-admission',JSON.stringify({spot_id:record.id,...data}));
         setDirty(false);
+        if(data.enquiry_id)try{await client.rpc('spot_enquiry_sync',{p_spot_id:String(record.id)})}catch(_){} // 2.16.30: linked enquiry → Admitted
         if(typeof onNavigate==='function')onNavigate('Admissions');
       }catch(e){setError(`Unable to start admission: ${e.message||e}`)}finally{saving.current=false;setBusy(false)}
     }
+    const BOX={padding:'10px 12px',border:'1px solid #efdbe4',borderRadius:'10px',background:'#fff8fb'};
     const fmtDate=v=>String(v||'').slice(0,10).split('-').reverse().join('-');
     const stampText=at=>window.SamaraDateTime?.dateTime?window.SamaraDateTime.dateTime(at):at;
-    const tickOn=(values,key)=>values[key]===true||(values[key]==null&&!callerSeparate(values));
+    const tickOn=(values,key)=>values[key]===true||(key==='caller_is_contact1'&&values[key]==null&&!callerSeparate(values));
     function control(field,values,onChange,prefix='spot'){
       const id=`${prefix}-${field.key}`,value=values[field.key]??'';
       if(field.type==='note')return h('div',{className:'spot-wide spot-subhead',key:field.key},field.label);
       if(field.type==='tick')return h('label',{className:'spot-wide spot-tick',key:field.key},h('input',{type:'checkbox',disabled:busy,checked:tickOn(values,field.key),onChange:e=>onChange(field.key,e.target.checked)}),field.label);
+      if(field.type==='photos'){
+        const photos=(Array.isArray(values.photos)?values.photos:[]).map((p,i)=>({...p,_i:i}));
+        const shown=photos.filter(p=>!p.removed);
+        const consent=values.photo_consent;
+        return h('div',{className:'field spot-wide',key:field.key},h('label',null,field.label),
+          h('div',{style:BOX},
+            !record?h('small',{className:'small-note'},'Save the assessment once (Save draft), then add photos here.')
+            :!consent?.given?h('div',null,
+              h('label',{className:'spot-tick'},h('input',{type:'checkbox',checked:consentDraft.tick,disabled:busy,onChange:e=>setConsentDraft(c=>({...c,tick:e.target.checked}))}),'The person / family agreed to photos being taken for Samara’s care records'),
+              h('div',{className:'field'},h('label',null,'Agreed by (name and relationship)'),h('input',{value:consentDraft.by,disabled:busy,placeholder:'e.g. Ravi, son',onChange:e=>setConsentDraft(c=>({...c,by:e.target.value}))})),
+              h('button',{type:'button',className:'btn btn-secondary',disabled:busy||!consentDraft.tick||!txt(consentDraft.by),onClick:()=>saveDetails({photo_consent:{given:true,by_name:txt(consentDraft.by),recorded_by:profile?.full_name||'staff',at:new Date().toISOString()}},'Photo consent recorded.')},'Record consent'),
+              h('small',{className:'small-note',style:{display:'block',marginTop:'4px'}},'Photos are taken only after consent. They are kept privately for care records, never shared on WhatsApp or social media.'))
+            :h('div',null,
+              h('small',{className:'small-note'},`Consent for photos: ${consent.by_name} · recorded by ${consent.recorded_by} · ${stampText(consent.at)}`),
+              h('div',{className:'spot-grid',style:{marginTop:'8px'}},
+                h('div',{className:'field'},h('label',null,'Photo of'),h('select',{value:photoKind,disabled:busy,onChange:e=>setPhotoKind(e.target.value)},PHOTO_KINDS.map(k=>h('option',{key:k,value:k},k)))),
+                h('div',{className:'field'},h('label',null,'Note (optional)'),h('input',{value:photoCaption,disabled:busy,placeholder:'e.g. Sacrum, 3 cm',onChange:e=>setPhotoCaption(e.target.value)}))),
+              h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',margin:'8px 0'}},
+                h('label',{className:'btn btn-primary',style:{cursor:'pointer'}},'Take photo',h('input',{type:'file',accept:'image/*',capture:'environment',style:{display:'none'},disabled:busy,onChange:e=>{uploadPhotos(e.target.files);e.target.value=''}})),
+                h('label',{className:'btn btn-secondary',style:{cursor:'pointer'}},'Choose photo / PDF',h('input',{type:'file',accept:'image/*,application/pdf',multiple:true,style:{display:'none'},disabled:busy,onChange:e=>{uploadPhotos(e.target.files);e.target.value=''}}))),
+              shown.length?h('ul',{className:'spot-reviews'},shown.map(p=>h('li',{key:p.path},
+                h('strong',null,p.kind),` · ${stampText(p.at)} · ${p.by}`,p.caption?` · ${p.caption}`:'',' ',
+                h('button',{type:'button',className:'btn btn-secondary',style:{padding:'2px 10px',minHeight:0},onClick:()=>viewPhoto(p)},'View'),' ',
+                isAdmin?h('button',{type:'button',className:'btn btn-secondary',style:{padding:'2px 10px',minHeight:0},disabled:busy,onClick:()=>{if(window.confirm('Remove this photo from the list? (The file is kept for records.)'))saveDetails({photos:photos.map(({_i,...q})=>_i===p._i?{...q,removed:{by:profile?.full_name||'Admin',at:new Date().toISOString()}}:q)},'Photo removed from the list.')}},'Remove'):null))):h('small',{className:'small-note'},'No photos yet. A dated wound / bedsore photo shows the condition before admission.'))));
+      }
+      if(field.type==='prep'){
+        if(!record||!prepActive(values))return null;
+        const items=prepItems(values);const ready=values.prep_ready||{};
+        return h('div',{className:'field spot-wide',key:field.key},h('label',null,field.label),
+          h('div',{style:BOX},
+            items.map(it=>h('label',{key:it,className:'spot-tick'},h('input',{type:'checkbox',checked:!!ready[it],disabled:busy,onChange:()=>togglePrep(it)}),it,ready[it]?h('small',{className:'small-note',style:{marginLeft:'6px'}},`ready · ${ready[it].by} · ${stampText(ready[it].at)}`):null)),
+            h('small',{className:'small-note'},values.planned_admission?`The Nursing Manager is reminded from 2 days before ${fmtDate(values.planned_admission)} until everything is ticked. Each tick saves at once.`:'Enter the proposed admission date above to remind the Nursing Manager. Each tick saves at once.')));
+      }
+      if(field.type==='outcome'){
+        if(!record)return null;
+        if(values.converted_admission)return h('div',{className:'field spot-wide',key:field.key},h('label',null,field.label),h('div',{className:'message success'},`Admission started by ${values.converted_admission.started_by||'staff'} on ${stampText(values.converted_admission.started_at)}.`));
+        const o=outcomeDraft;
+        return h('div',{className:'field spot-wide',key:field.key},h('label',null,field.label),
+          h('div',{style:BOX},
+            values.outcome?h('small',{className:'small-note',style:{display:'block',marginBottom:'6px'}},`Last outcome: ${values.outcome}${values.outcome_reason?` — ${values.outcome_reason}`:''} · ${values.outcome_by||''} · ${stampText(values.outcome_at)}`):null,
+            h('div',{className:'spot-grid'},
+              h('div',{className:'field'},h('label',null,'Outcome'),h('select',{value:o.outcome,disabled:busy,onChange:e=>setOutcomeDraft({...o,outcome:e.target.value})},h('option',{value:''},'Select'),['Waiting for family decision','Not converted'].map(x=>h('option',{key:x,value:x},x)))),
+              o.outcome==='Not converted'?h('div',{className:'field'},h('label',null,'Why not'),h('select',{value:o.reason,disabled:busy,onChange:e=>setOutcomeDraft({...o,reason:e.target.value})},h('option',{value:''},'Select'),NOT_CONVERTED.map(x=>h('option',{key:x,value:x},x)))):null,
+              h('div',{className:'field spot-wide'},h('label',null,'Note (optional)'),h('input',{value:o.note,disabled:busy,onChange:e=>setOutcomeDraft({...o,note:e.target.value})}))),
+            h('button',{type:'button',className:'btn btn-secondary',disabled:busy||!o.outcome,onClick:saveOutcome},'Save outcome'),
+            h('small',{className:'small-note',style:{display:'block',marginTop:'4px'}},'When the person is admitted, use Convert to Guest — the outcome is set automatically. A linked enquiry is updated automatically.')));
+      }
       if(field.type==='oldaddress')return h('div',{className:'field spot-wide',key:field.key},h('label',null,field.label),h('div',{className:'small-note',style:{whiteSpace:'pre-wrap',padding:'6px 8px',border:'1px dashed #e0a9c4',borderRadius:'8px',background:'#fff'}},txt(values.home_address)),h('small',{className:'small-note'},'Please re-enter it in the parts below (District, Taluk …). It is kept as it is until you do.'));
       if(field.type==='oldmeds')return h('div',{className:'field spot-wide',key:field.key},h('label',null,field.label),h('div',{className:'small-note',style:{whiteSpace:'pre-wrap',padding:'6px 8px',border:'1px dashed #e0a9c4',borderRadius:'8px',background:'#fff'}},txt(values.medications)),namedMeds(values).length?null:h('small',{className:'small-note'},values.on_medication==='Yes'?'Please enter these as medicines below (one per row). This note is kept as it is.':'Choose “Yes” above, then enter these as medicines (one per row). This note is kept as it is.'));
       if(field.type==='meds'){
@@ -364,6 +517,9 @@
       if(field.type==='tick')return tickOn(d,field.key)?'Yes':'No';
       if(field.type==='oldaddress')return txt(d.home_address);
       if(field.type==='oldmeds')return txt(d.medications);
+      if(field.type==='photos'){const ps=(Array.isArray(d.photos)?d.photos:[]).filter(p=>!p.removed);return (d.photo_consent?.given?`Consent: ${d.photo_consent.by_name} (${stampText(d.photo_consent.at)})\n`:'')+(ps.map((p,i)=>`${i+1}. ${p.kind} — ${stampText(p.at)} — ${p.by}${p.caption?` — ${p.caption}`:''}`).join('\n')||'None')}
+      if(field.type==='prep'){const r=d.prep_ready||{};return prepItems(d).map(x=>`${r[x]?'✓':'☐'} ${x}`).join('\n')}
+      if(field.type==='outcome')return d.converted_admission?`Admission started (${stampText(d.converted_admission.started_at)})`:d.outcome?`${d.outcome}${d.outcome_reason?` — ${d.outcome_reason}`:''}${d.outcome_note?` — ${d.outcome_note}`:''}`:'Open';
       if(field.type==='meds')return namedMeds(d).map((m,i)=>`${i+1}. ${medLine(m)}`).join('\n')||'None entered';
       if(field.type==='reviews')return (Array.isArray(d.reviews)?d.reviews:[]).map(r=>`${r.by}${r.role?` (${r.role})`:''} · ${stampText(r.at)}: ${r.text}`).join('\n')||'None';
       const v=d[field.key];
@@ -380,6 +536,13 @@
       sections.map(section=>h('section',{key:section.title},h('h2',null,section.title),h('dl',null,section.fields.filter(f=>f.type!=='note'&&visible(f,data)).map(field=>h('div',{key:field.key},h('dt',null,field.label),h('dd',null,printValue(field,data))))),
         isCareSection(section.title)?(data.wounds||[]).map((w,i)=>h('div',{key:i},h('h3',null,`Wound / bedsore ${i+1}`),h('dl',null,woundFields.map(field=>h('div',{key:field.key},h('dt',null,field.label),h('dd',null,w[field.key]||'Not recorded')))))):null)),
       legacy.length?h('section',null,h('h2',null,'Earlier format details'),h('dl',null,legacy.map(([k,v])=>h('div',{key:k},h('dt',null,k),h('dd',null,v))))):null,
+      h('section',null,h('h2',null,'Please note'),
+        h('p',null,'This is a care-needs assessment made by Samara staff during a visit. It is not a medical diagnosis or prescription; medicines are continued only as prescribed by the treating doctor.'),
+        h('p',null,'Conditions recorded here — including any wounds or bedsores — were present at the time of this visit. Any tariff mentioned is an estimate; the final tariff is as per the admission agreement.'),
+        h('p',null,'Personal and health details are used only for the person’s care and kept confidential by Samara.')),
+      h('section',{className:'spot-sign'},
+        h('div',null,h('p',null,'Assessed by (name & signature)'),h('p',null,`${data.assessor_name||''}`),h('p',null,'Date: ______________')),
+        h('div',null,h('p',null,'Person / family representative (name, relationship & signature)'),h('p',null,' '),h('p',null,'Date: ______________'))),
       h('p',null,`Last saved by ${record?.updated_by_name||'—'} · ${record?.updated_at?stampText(record.updated_at): 'Not saved'}`)):null;
     return h('div',{className:'spot-assessment'},h('style',null,`
       .spot-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.spot-wide{grid-column:1/-1}
@@ -398,7 +561,7 @@
       .spot-assessment legend{font-weight:750;color:#8b124d;padding:0 7px}.spot-wound{background:#fff8fb;border:1px solid #efdbe4;border-radius:10px;padding:12px;margin:12px 0}
       .spot-print{display:none}.spot-assessment .spot-save-bar{position:static;clear:both;padding:12px;background:#fff9fc;border:1px solid #ead4df;border-radius:12px}
       @media(max-width:700px){.spot-grid{grid-template-columns:1fr}.spot-actions .btn{flex:1 1 140px}.spot-assessment fieldset{padding:12px}.spot-assessment .spot-legacy dl>div{grid-template-columns:1fr}}
-      @media print{body *{visibility:hidden}.spot-print,.spot-print *{visibility:visible}.spot-print{display:block;position:absolute;left:0;top:0;width:100%;color:#000;background:white;padding:14px;box-sizing:border-box;font:11pt Arial}.spot-print h1{font-size:18pt}.spot-print h2{font-size:13pt;margin-top:18px}.spot-print dl{margin:0}.spot-print dl>div{display:grid;grid-template-columns:36% 64%;border-bottom:1px solid #ddd;padding:5px 0;break-inside:avoid}.spot-print dt{font-weight:bold}.spot-print dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}.spot-editor,.spot-register,.spot-screen{display:none!important}}
+      @media print{body *{visibility:hidden}.spot-print,.spot-print *{visibility:visible}.spot-print{display:block;position:absolute;left:0;top:0;width:100%;color:#000;background:white;padding:14px;box-sizing:border-box;font:11pt Arial}.spot-print h1{font-size:18pt}.spot-print h2{font-size:13pt;margin-top:18px}.spot-print dl{margin:0}.spot-print dl>div{display:grid;grid-template-columns:36% 64%;border-bottom:1px solid #ddd;padding:5px 0;break-inside:avoid}.spot-print dt{font-weight:bold}.spot-print dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}.spot-print .spot-sign{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:28px}.spot-print .spot-sign div{border-top:1px solid #000;padding-top:6px}.spot-editor,.spot-register,.spot-screen{display:none!important}}
     `),h('div',{className:'spot-screen'},h('h3',null,'Spot Assessment'),h('p',null,'Record observations during a visit. All logged-in ERP staff can create, view and update assessments.')),
     !data&&error?h('div',{className:'message error spot-screen',role:'alert'},error):null,!data&&notice?h('div',{className:'message success spot-screen',role:'status'},notice):null,
     data?h('div',{className:'card panel spot-editor'},h('div',{className:'spot-actions'},button('Back to register',()=>{if(canLeave()){setData(null);setRecord(null);setDirty(false);setError('');setNotice('');setReviewDraft('')}}),button('Print / Save PDF',()=>window.print()),canAdmit&&record?button(data?.converted_admission?'Convert to Guest again':'Convert to Guest (Start Admission)',convertToGuest,true):null),

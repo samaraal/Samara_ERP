@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.29';
+  const APP_VERSION = '2.16.30';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '12-Oct-2026 Spot medicines like Admission';
+  const APP_BUILD_DATE = '12-Oct-2026 Spot photos, decision, get-ready';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -7254,7 +7254,8 @@ https://samaraassistedliving.com/`;
     // 2.16.17: kitchen petty cash steps (SQL 214) — Admin approves, Nursing Manager hands over, STD confirms receipt.
     const kitchenCash=foodAdmin||isNursingManagerProfile(profile)||!!profile?.__kitchen?.read;
     const pettyCash=foodAdmin||isNursingManagerProfile(profile); // 2.16.19 Nursing Manager petty cash (SQL 215)
-    const canReceive=isManagement||isAccounts||isNursing||foodManager||kitchenCash||pettyCash;
+    const spotPrep=isNursingManagerProfile(profile); // 2.16.30
+    const canReceive=isManagement||isAccounts||isNursing||foodManager||kitchenCash||pettyCash||spotPrep;
     const dismiss=current=>{
       if(current?.key){
         closed.current.add(current.key);
@@ -7298,7 +7299,13 @@ https://samaraassistedliving.com/`;
         else jobs.push(Promise.resolve({data:[],error:null}));
         if(pettyCash)jobs.push(client.rpc('nm_petty_alerts'));
         else jobs.push(Promise.resolve({data:[],error:null}));
-        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts,kitchenAlerts,pettyAlerts]=await Promise.all(jobs);
+        // 2.16.30: Spot Assessment "Get ready before arrival" → Nursing Manager, from 2 days before the proposed admission date
+        if(spotPrep){
+          const ymd=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          const now=new Date();
+          jobs.push(client.from('spot_assessments').select('id,person_name,details').gte('details->>planned_admission',ymd(new Date(now.getTime()-86400000))).lte('details->>planned_admission',ymd(new Date(now.getTime()+2*86400000))).limit(50));
+        }else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts,kitchenAlerts,pettyAlerts,spotPrepRows]=await Promise.all(jobs);
         const candidates=[];
         (dis.data||[]).forEach(row=>{
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
@@ -7383,11 +7390,18 @@ https://samaraassistedliving.com/`;
           'Handed over':[`Petty cash ${amt} handed over — confirm`,`Admin / Director has handed over ${amt}. Count it and tap Confirm Cash Received.`],
           'Query':[`Expense query — ${amt}`,`${a.person||'Admin'} has a query on your expense "${a.details||''}". Open it to see the note.`]}[a.stage];
           if(step)candidates.push({key:`petty-${a.ref_id}-${a.stage}`,kind:'Petty Cash',title:step[0],detail:step[1],page:'Petty Cash',record:{id:a.ref_id,kind:a.stage==='Query'?'entry':'request',label:step[0]},at:a.stage_at});});
+        const SM=window.SamaraSpotAssessmentModel;
+        if(SM&&!spotPrepRows?.error)(spotPrepRows?.data||[]).forEach(r=>{
+          const d=r.details||{};if(!SM.prepActive(d))return;
+          const pending=SM.prepPending(d);if(!pending.length)return;
+          const day=String(d.planned_admission).split('-').reverse().join('-');
+          candidates.push({key:`spot-prep-${r.id}-${pending.length}`,kind:'Spot Assessment',title:`Get ready: ${r.person_name} — arriving ${day}`,detail:`Still to prepare: ${pending.join(', ')}. Tick each item in the Spot Assessment when it is ready.`,page:'Spot Assessment',record:{id:r.id,label:r.person_name},at:d.planned_admission});
+        });
         candidates.sort((a,b)=>Number(!!b.urgent)-Number(!!a.urgent)||new Date(b.at||0)-new Date(a.at||0));
         const next=candidates.find(x=>!closed.current.has(x.key));
         setItem(current=>current&&candidates.some(x=>x.key===current.key)?current:(next||null));
       }catch(error){console.warn('Workflow action pop-up unavailable:',error)}
-    },[profile?.id,role,isManagement,isAccounts,isNursing,foodManager,kitchenCash,pettyCash]);
+    },[profile?.id,role,isManagement,isAccounts,isNursing,foodManager,kitchenCash,pettyCash,spotPrep]);
     React.useEffect(()=>{load();const timer=setInterval(load,30000);window.addEventListener('focus',load);window.addEventListener('samara-discharge-workflow-changed',load);return()=>{clearInterval(timer);window.removeEventListener('focus',load);window.removeEventListener('samara-discharge-workflow-changed',load)}},[load]);
     if(!item||(item.food&&!foodManager))return null;
     // v2.14.39: compact alert card with its own classes, so phone "full-screen form" rules
@@ -21209,7 +21223,7 @@ Thank you.`;
         setSpotPrefill({
           person:txt(sp.person_name),
           medicines:txt(sp.medications),
-          medsCopied:spotMeds.length,medsNone:!spotMeds.length&&sp.on_medication==='No',
+          medsCopied:spotMeds.length,photos:(Array.isArray(sp.photos)?sp.photos:[]).filter(p=>!p.removed).length,medsNone:!spotMeds.length&&sp.on_medication==='No',
           medicineSupport:sp.medication_support&&sp.medication_support!=='Not assessed'?sp.medication_support:'',
           address:txt(sp.home_address)||txt(sp.visit_address),
           addressParts:!!(sp.district||sp.village_town||sp.street_name),
@@ -21256,6 +21270,7 @@ Thank you.`;
         const u=await client.from('spot_assessments').update({details:{...details,converted_admission:stamp}}).eq('id',id).eq('version',r.data.version).select('id').maybeSingle();
         if(u.error)console.warn('Spot Assessment stamp not saved:',u.error); // filling still goes ahead
         applySpotDetails({spot_id:id,...details});
+        if(details.enquiry_id)try{await client.rpc('spot_enquiry_sync',{p_spot_id:String(id)})}catch(_){} // 2.16.30: linked enquiry → Admitted
         setSpotPick(p=>({...p,open:false,loading:false,id:'',list:null}));
       }catch(e){setSpotPick(p=>({...p,loading:false,error:`Unable to fill from Spot Assessment: ${e.message||e}`}))}
     }
@@ -23097,6 +23112,7 @@ Please keep these login details confidential.`;
           h('li',null,h('strong',null,'Package, room / bed'),' (Section 6)',[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).length?` — noted at visit: ${[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).join(' · ')}`:'')
         ),
         spotPrefill.vitals?h('p',{className:'small-note'},`Vitals at visit: ${spotPrefill.vitals}`):null,
+        spotPrefill.photos?h('p',{className:'small-note'},`${spotPrefill.photos} visit photo(s) (wounds, prescription, reports) are kept in the Spot Assessment.`):null,
         spotPrefill.enquiryNo?h('p',{className:'small-note'},`Linked enquiry ${spotPrefill.enquiryNo} — after admission, mark it "Admitted" in the Enquiry Register.`):null
       ),
       // 2.15.5: Unfinished Admissions — continue any admission in progress, on any device

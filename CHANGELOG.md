@@ -1,3 +1,16 @@
+## 2.16.30 — Spot Assessment: photos with consent, decision & outcome, get-ready list, legal wording (SQL 216)
+
+- **Run supabase/sql/216_spot_assessment_enquiry_sync.sql** once in Supabase → SQL Editor (safe to run again). Until it is run, everything works except the automatic enquiry update (a note asks staff to tell Akshi / Admin).
+- **Visit photos** (Section 4): Wound / bedsore, Prescription, Discharge summary / report, Other — "Take photo" (phone camera) or "Choose photo / PDF". Only after **photo consent** is recorded (tick + "Agreed by" name and relationship; stamped with who recorded it and when). Each photo is stamped with date, time and staff name, kept privately in storage (opened with a 15-minute link), saved at once. Only Admin / Director can remove a photo from the list — the file itself is kept.
+- **Decision** (Section 5): "Can Samara take this person?" Suitable / Suitable with conditions / Not suitable. Not suitable needs a care-related main reason; conditions / reason in detail needed for both. Required to complete the assessment.
+- **Outcome**: Waiting for family decision / Not converted (reason = the Enquiry Register closing reasons) — saved at once, without changing the assessment status. Convert to Guest sets "Admission started" automatically. A **linked enquiry is updated automatically** (Admitted / Closed with the reason, written in the enquiry history) — no second entry by Akshi.
+- **Get ready before arrival**: list built from what was ticked (Room / bed, air mattress, oxygen, suction, wheelchair, consumables, dressing / feeding supplies). Each tick saves at once with name and time. The **Nursing Manager gets a pop-up** from 2 days before the proposed admission date (and the day after) until all items are ticked; tapping it opens that assessment. Not shown for Not suitable / Not converted.
+- **Permission for assessment**: "given by (name and relationship)" when obtained from a representative.
+- **Print**: decision, outcome, photo list, get-ready list; a "Please note" block (care-needs assessment, not a medical diagnosis; conditions incl. wounds / bedsores present at the visit; tariff is an estimate; details kept confidential) and signature lines for the assessor and the person / family representative.
+- Admission (Convert to Guest / Fill from Spot Assessment): linked enquiry → Admitted; the pink box says how many visit photos are kept in the Spot Assessment.
+- An alert or link for one assessment now opens that assessment directly.
+- Files: spot-assessment.js, src/app/global-ui/06-bell-notifications-popups.js, src/app/patients/admissions.js, supabase/sql/216_spot_assessment_enquiry_sync.sql (new), version files, app.js (rebuilt).
+
 ## 2.16.29 — Spot Assessment medicines in the same entry as the Admission form
 
 - **Taking prescribed medicines?** Yes / No / Not known. On **Yes**, medicines are entered row by row exactly like Admission Section 3: Medicine, **Strength** (number + unit list), **Frequency** (sets the usual times automatically), Route, **Time** (same time picker), Food, Duration (+ custom days), Prescribed Doctor, Special instruction. **+ Add Medicine** / Remove. The Strength and Time pickers are the very same ones Admission uses (shared, so they can never differ).

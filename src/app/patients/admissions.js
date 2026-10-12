@@ -335,7 +335,7 @@
         setSpotPrefill({
           person:txt(sp.person_name),
           medicines:txt(sp.medications),
-          medsCopied:spotMeds.length,medsNone:!spotMeds.length&&sp.on_medication==='No',
+          medsCopied:spotMeds.length,photos:(Array.isArray(sp.photos)?sp.photos:[]).filter(p=>!p.removed).length,medsNone:!spotMeds.length&&sp.on_medication==='No',
           medicineSupport:sp.medication_support&&sp.medication_support!=='Not assessed'?sp.medication_support:'',
           address:txt(sp.home_address)||txt(sp.visit_address),
           addressParts:!!(sp.district||sp.village_town||sp.street_name),
@@ -382,6 +382,7 @@
         const u=await client.from('spot_assessments').update({details:{...details,converted_admission:stamp}}).eq('id',id).eq('version',r.data.version).select('id').maybeSingle();
         if(u.error)console.warn('Spot Assessment stamp not saved:',u.error); // filling still goes ahead
         applySpotDetails({spot_id:id,...details});
+        if(details.enquiry_id)try{await client.rpc('spot_enquiry_sync',{p_spot_id:String(id)})}catch(_){} // 2.16.30: linked enquiry → Admitted
         setSpotPick(p=>({...p,open:false,loading:false,id:'',list:null}));
       }catch(e){setSpotPick(p=>({...p,loading:false,error:`Unable to fill from Spot Assessment: ${e.message||e}`}))}
     }
@@ -2223,6 +2224,7 @@ Please keep these login details confidential.`;
           h('li',null,h('strong',null,'Package, room / bed'),' (Section 6)',[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).length?` — noted at visit: ${[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).join(' · ')}`:'')
         ),
         spotPrefill.vitals?h('p',{className:'small-note'},`Vitals at visit: ${spotPrefill.vitals}`):null,
+        spotPrefill.photos?h('p',{className:'small-note'},`${spotPrefill.photos} visit photo(s) (wounds, prescription, reports) are kept in the Spot Assessment.`):null,
         spotPrefill.enquiryNo?h('p',{className:'small-note'},`Linked enquiry ${spotPrefill.enquiryNo} — after admission, mark it "Admitted" in the Enquiry Register.`):null
       ),
       // 2.15.5: Unfinished Admissions — continue any admission in progress, on any device
