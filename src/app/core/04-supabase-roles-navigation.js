@@ -139,7 +139,7 @@
     { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiry Register','Enquiries & Feedback'] },
     { title:'ADMISSION', items:['Spot Assessment','Admissions','Admission Register'] }, // 2.15.67: Enquiries moved to DIRECTOR'S OFFICE → Enquiry Register
     { title:'PATIENTS', items:['Patients','Discharge','Documents','Recovery Timeline','Intelligent Reports','Family Communication','Incidents','Medication Errors'] }, // 2.15.58: Guest Ledger / Final Billing live only under ACCOUNTS
-    { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports'] },
+    { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Petty Cash'] }, // 2.16.19: Petty Cash = Nursing Manager's book (Admin + Nursing Manager)
     { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Approval Requests','Charge Register','Physiotherapy','Special Nurse','Shift Handover'] },
     { title:'PHARMACY & STORES', items:['Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
@@ -151,7 +151,7 @@
   const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
   const ROLE_NAV={
     Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&!NURSING_ENTRY_NAV.includes(item)),
-    Manager:ALL_NAV.filter(item=>!['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements',"Director's Office",'Enquiries & Feedback','System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
+    Manager:ALL_NAV.filter(item=>!['Petty Cash','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements',"Director's Office",'Enquiries & Feedback','System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
 
     Nurse:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Approval Requests','Raise Indent','Received Indents / Used Balance','Oxygen Cylinders','Biomedical Equipment','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
@@ -194,7 +194,7 @@
       'Clinical Dashboard','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiry Register','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Approval Requests','Charge Register',
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
-      'Patient Consumables','Stores','Stores In-charge Assignment','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
+      'Patient Consumables','Stores','Stores In-charge Assignment','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Petty Cash','Biomedical Equipment','Oxygen Cylinders','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
     if(!pages.includes('Spot Assessment'))pages.push('Spot Assessment');

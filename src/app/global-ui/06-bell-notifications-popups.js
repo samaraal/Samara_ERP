@@ -258,7 +258,8 @@
     const foodManager=!!profile?.__foodVendor?.read;
     // 2.16.17: kitchen petty cash steps (SQL 214) — Admin approves, Nursing Manager hands over, STD confirms receipt.
     const kitchenCash=foodAdmin||isNursingManagerProfile(profile)||!!profile?.__kitchen?.read;
-    const canReceive=isManagement||isAccounts||isNursing||foodManager||kitchenCash;
+    const pettyCash=foodAdmin||isNursingManagerProfile(profile); // 2.16.19 Nursing Manager petty cash (SQL 215)
+    const canReceive=isManagement||isAccounts||isNursing||foodManager||kitchenCash||pettyCash;
     const dismiss=current=>{
       if(current?.key){
         closed.current.add(current.key);
@@ -300,7 +301,9 @@
         else jobs.push(Promise.resolve({data:[],error:null}));
         if(kitchenCash)jobs.push(client.rpc('kitchen_cash_alerts'));
         else jobs.push(Promise.resolve({data:[],error:null}));
-        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts,kitchenAlerts]=await Promise.all(jobs);
+        if(pettyCash)jobs.push(client.rpc('nm_petty_alerts'));
+        else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts,kitchenAlerts,pettyAlerts]=await Promise.all(jobs);
         const candidates=[];
         (dis.data||[]).forEach(row=>{
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
@@ -378,11 +381,18 @@
           'Approved':[`Hand over kitchen cash ${amt}`,`Admin approved ${amt} kitchen petty cash for ${a.recipient_name||'STD'}. Give the cash and tap Hand Over Cash.`],
           'Handed over':[`Kitchen cash ${amt} handed over — confirm`,`The Nursing Manager has handed over ${amt}. Count it and tap Confirm Cash Received.`]}[a.stage];
           if(step)candidates.push({key:`kitchen-cash-${a.funding_id}-${a.stage}`,kind:'Kitchen Petty Cash',title:step[0],detail:step[1],page:'Kitchen / Food Stores',record:{id:a.funding_id,label:step[0]},at:a.stage_at});});
+        const pettyRows=(!pettyAlerts?.error&&Array.isArray(pettyAlerts?.data))?pettyAlerts.data:[];
+        pettyRows.forEach(a=>{const amt='₹'+Number(a.amount||0).toLocaleString('en-IN');const step={
+          'Requested':[`Petty cash request ${amt} — approve`,`${a.person||'Nursing Manager'} asked for ${amt} petty cash (${a.details||''}). Approve & hand over, or decline.`],
+          'Approved':[`Hand over petty cash ${amt}`,`You approved ${amt} petty cash for ${a.person||'the Nursing Manager'}. Give the cash and tap Hand Over Cash.`],
+          'Handed over':[`Petty cash ${amt} handed over — confirm`,`Admin / Director has handed over ${amt}. Count it and tap Confirm Cash Received.`],
+          'Query':[`Expense query — ${amt}`,`${a.person||'Admin'} has a query on your expense "${a.details||''}". Open it to see the note.`]}[a.stage];
+          if(step)candidates.push({key:`petty-${a.ref_id}-${a.stage}`,kind:'Petty Cash',title:step[0],detail:step[1],page:'Petty Cash',record:{id:a.ref_id,kind:a.stage==='Query'?'entry':'request',label:step[0]},at:a.stage_at});});
         candidates.sort((a,b)=>Number(!!b.urgent)-Number(!!a.urgent)||new Date(b.at||0)-new Date(a.at||0));
         const next=candidates.find(x=>!closed.current.has(x.key));
         setItem(current=>current&&candidates.some(x=>x.key===current.key)?current:(next||null));
       }catch(error){console.warn('Workflow action pop-up unavailable:',error)}
-    },[profile?.id,role,isManagement,isAccounts,isNursing,foodManager,kitchenCash]);
+    },[profile?.id,role,isManagement,isAccounts,isNursing,foodManager,kitchenCash,pettyCash]);
     React.useEffect(()=>{load();const timer=setInterval(load,30000);window.addEventListener('focus',load);window.addEventListener('samara-discharge-workflow-changed',load);return()=>{clearInterval(timer);window.removeEventListener('focus',load);window.removeEventListener('samara-discharge-workflow-changed',load)}},[load]);
     if(!item||(item.food&&!foodManager))return null;
     // v2.14.39: compact alert card with its own classes, so phone "full-screen form" rules

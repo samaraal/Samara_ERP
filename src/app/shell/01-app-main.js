@@ -711,6 +711,7 @@
           page==='Pharmacy'&&h(StoresDashboard,{profile,categoryFilter:'Pharmacy'}),
           page==='Housekeeping & General'&&h(StoresDashboard,{profile,categoryFilter:'Housekeeping & General'}),
           page==='Kitchen / Food Stores'&&h(KitchenCashWorkspace,{profile}),
+          page==='Petty Cash'&&h(NursingPettyCash,{profile}), // 2.16.19
           page==='Biomedical Equipment'&&h(BiomedicalEquipmentDashboard,{profile}),
           page==='Oxygen Cylinders'&&h(OxygenCylindersDashboard,{profile}),
           page==='Stores In-charge Assignment'&&h(StoresInchargeAssignmentPage,{profile}),

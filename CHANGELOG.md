@@ -1,3 +1,16 @@
+## 2.16.19 — Nursing Manager Petty Cash (SQL 215)
+
+- **Run supabase/sql/215_nursing_manager_petty_cash.sql** in Supabase → SQL Editor (needs 214; safe to run again). Until it is run, the new page shows a "apply SQL 215" note and the kitchen handover works as before.
+- New page **MANAGER → Petty Cash** (Nursing Manager and Admin / Directors). Only the Nursing Manager maintains it.
+- Flow: Nursing Manager **Request Cash** → Admin / Director **Approve & Hand Over** (or Approve only, then Hand Over Cash later; Decline / Cancel with reason) → Nursing Manager **Confirm Cash Received** (counted amount must match) → added to her cash book.
+- **Record Expense** (Nursing Manager): date, amount, purpose, paid to, bill number, optional bill photo / PDF. Admin can **Review / Query** or **Reverse** (adds the amount back).
+- **Kitchen cash to STD:** when the Nursing Manager taps Hand Over Cash in Kitchen / Food Stores, the amount is **deducted from her Petty Cash automatically** ("Kitchen cash to STD" line). Admin's backup handover does not touch her book.
+- The balance may go **below zero** — shown in red with a "needs a top-up" message.
+- Cash Book: running balance, period filter (Today / This Week / This Month / Selected period / All) with Apply, Export CSV, tap a row for full details. Boxes: Cash in Hand, Expenses This Month, Kitchen Cash to STD This Month, Open Requests, Expenses to Review.
+- Pop-up alerts: request → Admin / Director (approve, then hand over); handed over → Nursing Manager (confirm); expense query → Nursing Manager.
+- Tested on a copy of the database: nurses / STD / generic Managers have no access; only Admin approves, hands over, reviews or reverses.
+- Files: src/app/stores/nursing-petty-cash.js (new), src/app/manifest.json, src/app/shell/01-app-main.js, src/app/core/04-supabase-roles-navigation.js, src/app/global-ui/06-bell-notifications-popups.js, src/app/stores/kitchen-cash.js, version files, app.js (rebuilt), supabase/sql/215_nursing_manager_petty_cash.sql.
+
 ## 2.16.18 — Family Portal personal login link (with Family Portal 1.0.35)
 
 - The WhatsApp texts that send Family Portal login details (Send Login PIN / Send PIN by Existing Method / Existing Method, and the fallback text when the API fails) now say **Guest ID** (not Resident ID) and carry a **personal link**, e.g. https://family.samaraassistedliving.com/?id=MOG-2026-10-008 — opening it fills the Guest ID, so the family enters only the PIN.

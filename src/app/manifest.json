@@ -141,6 +141,10 @@
    "about": "Kitchen petty cash and custody workflow"
   },
   {
+   "file": "stores/nursing-petty-cash.js",
+   "about": "Nursing Manager petty cash book (2.16.19, SQL 215)"
+  },
+  {
    "file": "shell/01-app-main.js",
    "about": "App() - the main shell: login state, page switching, global watchers switched on here",
    "lines": 788

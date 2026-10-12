@@ -93,7 +93,7 @@
         h('div',{style:{display:'flex',gap:'8px',justifyContent:'flex-end',marginTop:'12px',flexWrap:'wrap'}},
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setNewItems(null)},'Cancel'),
           h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':`Save ${newItems.length} item${newItems.length===1?'':'s'}`)))));
-    const dialogEl=dialog&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:submit,role:'dialog','aria-modal':true},h('h3',null,dialog.title),error&&h('p',{role:'alert',className:'message error'},error),h('fieldset',{disabled:busy,style:{border:0,padding:0}},
+    const dialogEl=dialog&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:submit,role:'dialog','aria-modal':true},h('h3',null,dialog.title),dialog.action==='handover_cash'&&nm&&h('p',{className:'small-note'},'This amount is taken out of your Petty Cash book automatically (2.16.19).'),error&&h('p',{role:'alert',className:'message error'},error),h('fieldset',{disabled:busy,style:{border:0,padding:0}},
         ['amount'].filter(k=>k in form).map(k=>input(dialog.action==='adjust'?'Signed cash correction (₹); negative reduces cash':'Counted / approved amount (₹)',k,'number',{required:true,step:'0.01',min:dialog.action==='adjust'?undefined:0})),
         'quantity' in form&&input('Quantity','quantity','number',{required:true,min:'0.001',step:'0.001'}),
         dialog.action==='review'&&select('Review decision','status',[['Reviewed','Reviewed'],['Query','Needs clarification']]),
