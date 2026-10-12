@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.20';
+  const APP_VERSION = '2.16.21';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '12-Oct-2026 Petty Cash menu for Nursing Manager';
+  const APP_BUILD_DATE = '12-Oct-2026 Petty Cash page fix';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -11929,6 +11929,7 @@ https://samaraassistedliving.com/`;
     const [dialog,setDialog]=React.useState(null),[form,setForm]=React.useState({}),[detail,setDetail]=React.useState(null);
     const [expense,setExpense]=React.useState({date:todayISOIndia(),amount:'',note:'',paid_to:'',bill:''}),[bill,setBill]=React.useState(null);
     const lock=React.useRef(false),token=React.useRef(null),uploadRef=React.useRef(null);
+    const rowClick=fn=>e=>{if(e&&e.target&&e.target.closest&&e.target.closest('button,a,input,select,textarea,label'))return;fn()}; // 2.16.21: local helper (was missing → page crash)
     const [focus,clearFocus]=useRecordFocus('Petty Cash');
     // Cash book period filter (Apply button, global filter rule).
     const [period,setPeriod]=React.useState('month'),[from,setFrom]=React.useState(todayISOIndia()),[to,setTo]=React.useState(todayISOIndia());

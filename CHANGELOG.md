@@ -1,3 +1,8 @@
+## 2.16.21 — Fix: Petty Cash page crashed on opening
+
+- The Petty Cash page (2.16.19) showed "This page had a problem" for everyone: a small row-click helper was missing in the page. Fixed; all pages changed today were re-checked for any other missing names (none).
+- No SQL. Files: src/app/stores/nursing-petty-cash.js, version files, app.js (rebuilt).
+
 ## 2.16.20 — Nursing Manager menu: own PETTY CASH section
 
 - The Nursing Manager's side menu now has a separate **PETTY CASH** section (after Pharmacy & Stores) with the Petty Cash page. Her menu has no MANAGER section, so the page was not reachable from it in 2.16.19. Admin still finds it under MANAGER → Petty Cash.

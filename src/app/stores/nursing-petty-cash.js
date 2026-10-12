@@ -7,6 +7,7 @@
     const [dialog,setDialog]=React.useState(null),[form,setForm]=React.useState({}),[detail,setDetail]=React.useState(null);
     const [expense,setExpense]=React.useState({date:todayISOIndia(),amount:'',note:'',paid_to:'',bill:''}),[bill,setBill]=React.useState(null);
     const lock=React.useRef(false),token=React.useRef(null),uploadRef=React.useRef(null);
+    const rowClick=fn=>e=>{if(e&&e.target&&e.target.closest&&e.target.closest('button,a,input,select,textarea,label'))return;fn()}; // 2.16.21: local helper (was missing → page crash)
     const [focus,clearFocus]=useRecordFocus('Petty Cash');
     // Cash book period filter (Apply button, global filter rule).
     const [period,setPeriod]=React.useState('month'),[from,setFrom]=React.useState(todayISOIndia()),[to,setTo]=React.useState(todayISOIndia());
