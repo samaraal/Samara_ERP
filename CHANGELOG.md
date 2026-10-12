@@ -1,3 +1,12 @@
+## 2.16.29 — Spot Assessment medicines in the same entry as the Admission form
+
+- **Taking prescribed medicines?** Yes / No / Not known. On **Yes**, medicines are entered row by row exactly like Admission Section 3: Medicine, **Strength** (number + unit list), **Frequency** (sets the usual times automatically), Route, **Time** (same time picker), Food, Duration (+ custom days), Prescribed Doctor, Special instruction. **+ Add Medicine** / Remove. The Strength and Time pickers are the very same ones Admission uses (shared, so they can never differ).
+- **Convert to Guest / Fill from Spot Assessment** copies every medicine row into Admission Section 3 (and sets "Undergoing prescribed medication" to Yes, or No when the visit recorded No). Rows stay open so the nurse checks each against the prescription; "Starts from" defaults to the admission time as before. Nothing is copied if medicines were already typed in the Admission form.
+- To complete an assessment with "Yes": at least one medicine, each with strength + unit, a time (except STAT / SOS) and days for a Custom duration. Empty rows are dropped on save.
+- Older assessments: the free-text medicine note is shown read-only ("Medicines noted earlier") and is kept; staff can re-enter it as rows.
+- Print shows one line per medicine.
+- No SQL. Files: spot-assessment.js, src/app/patients/medication-helpers.js, src/app/patients/admissions.js, version files, app.js (rebuilt).
+
 ## 2.16.28 — Spot Assessment address in the same parts as the Admission form
 
 - The Spot Assessment "Home address" box is replaced by the **same address fields as Admission**: State (Tamil Nadu by default), **District** (dropdown), **Taluk** (dropdown for the chosen district — clears when the district changes), Village / Town / City, Locality / Area, Street / Road Name, Door / House No., Apartment / Building, Flat No., Landmark, PIN Code (6 digits only). Same district / taluk list as Admission (one shared list, so the two can never differ).

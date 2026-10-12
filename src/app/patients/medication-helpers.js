@@ -284,3 +284,5 @@
     }
     return null;
   }
+  // 2.16.29: the same medicine-entry pieces are used by the Spot Assessment (spot-assessment.js)
+  try{window.SamaraMedicationKit={MEDICATION_FREQUENCY_TIMES,normalizeMedicationTime,medicationTimeLabel,MedicationStrengthInput,MedicationTimeSelector,medicationStrengthValid,blankMedicine}}catch(_){}

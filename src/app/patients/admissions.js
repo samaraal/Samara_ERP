@@ -322,11 +322,20 @@
             physio_required:current.physio_required||services.includes('Physiotherapy')
           };
         });
+        // 2.16.29: medicines entered at the Spot Assessment in the same parts as Section 3 → copied as rows to verify
+        const spotMeds=(Array.isArray(sp.meds)?sp.meds:[]).filter(m=>txt(m.medicine_name));
+        if(spotMeds.length){
+          setMeds(cur=>cur.some(m=>txt(m.medicine_name))?cur:spotMeds.map(m=>({...blankMedicine(),...m,effective_from:'',is_locked:false})));
+          setForm(cur=>({...cur,undergoing_prescribed_medication:'Yes'}));
+        }else if(sp.on_medication==='No'){
+          setForm(cur=>({...cur,undergoing_prescribed_medication:'No'}));
+        }
         if(c1.name||c1.phone)setFamilyAccess(cur=>({...cur,relative_name:cur.relative_name||c1.name,relationship:cur.relationship||c1.relationship,mobile:String(cur.mobile||'').replace(/\D/g,'').length>2?cur.mobile:(c1.phone||cur.mobile)}));
         if(c2)setFamilyAccess2(cur=>cur.relative_name?cur:({...cur,enabled:true,relative_name:c2.name,relationship:c2.relationship,mobile:c2.phone}));
         setSpotPrefill({
           person:txt(sp.person_name),
           medicines:txt(sp.medications),
+          medsCopied:spotMeds.length,medsNone:!spotMeds.length&&sp.on_medication==='No',
           medicineSupport:sp.medication_support&&sp.medication_support!=='Not assessed'?sp.medication_support:'',
           address:txt(sp.home_address)||txt(sp.visit_address),
           addressParts:!!(sp.district||sp.village_town||sp.street_name),
@@ -2204,7 +2213,11 @@ Please keep these login details confidential.`;
           h('li',null,h('strong',null,'Attendant staying? '),'Yes / No'),
           h('li',null,h('strong',null,'Photo and Aadhaar / ID')),
           h('li',null,h('strong',null,'Family Communication option'),' (Family Portal / Daily Report / Both)'),
-          h('li',null,h('strong',null,'Current medicines'),' — enter each medicine in Section 3',
+          spotPrefill.medsCopied
+            ?h('li',null,h('strong',null,'Current medicines'),` — ${spotPrefill.medsCopied} medicine(s) copied into Section 3 from the visit. Check each one against the prescription, and set "Starts from" if needed.`)
+          :spotPrefill.medsNone
+            ?h('li',null,h('strong',null,'Current medicines'),' — "No prescribed medicines" was recorded at the visit (already set in Section 3). Confirm with the family.')
+          :h('li',null,h('strong',null,'Current medicines'),' — enter each medicine in Section 3',
             spotPrefill.medicines?h('div',{style:{whiteSpace:'pre-wrap',marginTop:'4px',padding:'6px 8px',background:'#fff',border:'1px dashed #e0a9c4',borderRadius:'8px'}},`Noted at visit${spotPrefill.medicineSupport?` (${spotPrefill.medicineSupport})`:''}:\n${spotPrefill.medicines}`):null),
           h('li',null,h('strong',null,'Master care plan'),' (Section 4)'),
           h('li',null,h('strong',null,'Package, room / bed'),' (Section 6)',[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).length?` — noted at visit: ${[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).join(' · ')}`:'')

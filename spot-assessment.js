@@ -59,7 +59,9 @@
       ['recent_hospitalisation','Recent hospital stay / surgery','textarea'],
       ['treating_doctor','Treating doctor'],
       ['allergies','Allergies (one per line, or “Not known”)','textarea'],
-      ['medications','Current medicines (note only — entered properly at Admission)','textarea'],
+      ['on_medication','Taking prescribed medicines?','select',['Yes','No','Not known']],
+      ['_oldmeds','Medicines noted earlier (free text)','oldmeds',null,d=>!!txt(d.medications)],
+      ['meds','Current medicines (same entry as the Admission form)','meds',null,d=>d.on_medication==='Yes'],
       ['medication_support','Medicine support needed','select',['Self-administered','Supervised','Fully administered','Not assessed']],
       ['consciousness','Alertness / communication','select',['Alert and communicates','Drowsy','Confused','Limited communication','Unresponsive','Not assessed']],
       ['cognition','Memory, orientation and behaviour','textarea'],['pain','Pain — where / how much','textarea'],
@@ -97,7 +99,7 @@
     stay_type:'Stay requirement',care_requirements:'Care requirements',review_required:'Further review required from',additional_notes:'Additional information',
     relationship_review:'Client relationship manager review',centre_review:'Centre manager review',nursing_review:'Nursing head review',doctor_review:'Resident doctor review'
   };
-  const systemKeys=new Set(['wounds','reviews','converted_admission','enquiry_id','enquiry_label','caller_is_contact1','spot_id','compat_fields','address_from_parts','home_address']);
+  const systemKeys=new Set(['meds','medications','wounds','reviews','converted_admission','enquiry_id','enquiry_label','caller_is_contact1','spot_id','compat_fields','address_from_parts','home_address']);
   const newKeys=new Set(sections.flatMap(s=>s.fields.map(f=>f.key)));
   function legacyEntries(data){
     return Object.keys(data||{}).filter(k=>!newKeys.has(k)&&!systemKeys.has(k)&&!k.startsWith('_')).map(k=>{
@@ -109,6 +111,16 @@
     }).filter(Boolean);
   }
   const visible=(field,data)=>!field.show||field.show(data);
+  // 2.16.29: medicines in the same parts as the Admission form (shared Strength / Time pickers)
+  const FREQUENCIES=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'];
+  const ROUTES=['Oral','IV','IM','Subcutaneous','Topical','Inhalation','Other'];
+  const FOOD=['Before food','After food','With food','No restriction'];
+  const DURATIONS=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','30 Days','Until Doctor Review','Long Term','Custom'];
+  const kit=()=>window.SamaraMedicationKit||{};
+  const blankMed=()=>({prescribed_by_doctor:'',medicine_name:'',strength:'',route:'Oral',food_instruction:'After food',times:'08:00',frequency:'Once Daily (OD)',duration:'Long Term',custom_duration_days:'',special_instruction:''});
+  const namedMeds=d=>(Array.isArray(d.meds)?d.meds:[]).filter(m=>txt(m.medicine_name));
+  const timeLabel=t=>(kit().medicationTimeLabel||(x=>x))(t);
+  const medLine=m=>`${txt(m.medicine_name)} ${txt(m.strength)} — ${m.frequency}, ${m.route}, ${String(m.times||'').split(',').map(x=>x.trim()).filter(Boolean).map(timeLabel).join(' / ')||'time not set'}, ${m.food_instruction}, ${m.duration==='Custom'?`${m.custom_duration_days||'?'} days`:m.duration}${txt(m.prescribed_by_doctor)?` · Dr: ${txt(m.prescribed_by_doctor)}`:''}${txt(m.special_instruction)?` · ${txt(m.special_instruction)}`:''}`;
   function initial(name='',designation=''){
     const now=new Date();const date=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
     const time=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -128,6 +140,16 @@
       if(txt(data.pincode)&&!/^\d{6}$/.test(txt(data.pincode)))return 'PIN Code must be 6 digits.';
       for(const [key,label] of [['assessor_name','visiting staff name'],['general_condition','general condition'],['mobility','mobility'],['wounds_present','wounds / bedsores answer'],['summary','assessment summary']]){
         if(!txt(data[key]))return `Enter the ${label} before completing the assessment.`;
+      }
+      if(data.on_medication==='Yes'){
+        const rows=namedMeds(data);
+        if(!rows.length)return 'Medicines: add at least one medicine, or change “Taking prescribed medicines?”.';
+        const valid=kit().medicationStrengthValid||(v=>!!txt(v));
+        for(const m of rows){
+          if(!valid(m.strength))return `Medicines: enter the strength with its unit for ${m.medicine_name}.`;
+          if(!['STAT','SOS / PRN'].includes(m.frequency)&&!txt(m.times))return `Medicines: select the time for ${m.medicine_name}.`;
+          if(m.duration==='Custom'&&!(Number(m.custom_duration_days)>0))return `Medicines: enter the number of days for ${m.medicine_name}.`;
+        }
       }
       if(!txt(data.family_name)||!txt(data.family_phone))return 'Enter Family Contact 1 name and phone before completing the assessment.';
       if((data.wounds_present==='Yes'||data.bedsores_present==='Yes')&&!(data.wounds||[]).some(w=>txt(w.location)))return 'Add a body location in the wound / bedsore details.';
@@ -209,6 +231,7 @@
         if(clean.caller_is_contact1===true){clean.caller_name='';clean.caller_relationship='';clean.caller_phone=''}
         if(!atHospital(clean))clean.hospital_name='';
         if(!onSupport(clean))clean.respiratory_notes='';
+        clean.meds=clean.on_medication==='Yes'?namedMeds(clean):[];
         // 2.16.27: the database still checks two fields of the older form before a record can be Completed
         // (visit address, bedsores answer). Fill them from the new fields so Completed is accepted.
         if(hasStructuredAddress(clean)){
@@ -273,6 +296,29 @@
       if(field.type==='note')return h('div',{className:'spot-wide spot-subhead',key:field.key},field.label);
       if(field.type==='tick')return h('label',{className:'spot-wide spot-tick',key:field.key},h('input',{type:'checkbox',disabled:busy,checked:tickOn(values,field.key),onChange:e=>onChange(field.key,e.target.checked)}),field.label);
       if(field.type==='oldaddress')return h('div',{className:'field spot-wide',key:field.key},h('label',null,field.label),h('div',{className:'small-note',style:{whiteSpace:'pre-wrap',padding:'6px 8px',border:'1px dashed #e0a9c4',borderRadius:'8px',background:'#fff'}},txt(values.home_address)),h('small',{className:'small-note'},'Please re-enter it in the parts below (District, Taluk …). It is kept as it is until you do.'));
+      if(field.type==='oldmeds')return h('div',{className:'field spot-wide',key:field.key},h('label',null,field.label),h('div',{className:'small-note',style:{whiteSpace:'pre-wrap',padding:'6px 8px',border:'1px dashed #e0a9c4',borderRadius:'8px',background:'#fff'}},txt(values.medications)),namedMeds(values).length?null:h('small',{className:'small-note'},values.on_medication==='Yes'?'Please enter these as medicines below (one per row). This note is kept as it is.':'Choose “Yes” above, then enter these as medicines (one per row). This note is kept as it is.'));
+      if(field.type==='meds'){
+        const rows=Array.isArray(values.meds)&&values.meds.length?values.meds:[blankMed()];
+        const K=kit();
+        const set=(i,key,val)=>onChange('meds',rows.map((r,n)=>n===i?{...r,[key]:val}:r));
+        const sel=(i,label,key,opts,extra)=>h('div',{className:'field'},h('label',null,label),h('select',{value:rows[i][key]||'',disabled:busy,onChange:e=>extra?extra(e.target.value):set(i,key,e.target.value)},[...(rows[i][key]&&!opts.includes(rows[i][key])?[rows[i][key]]:[]),...opts].map(o=>h('option',{key:o,value:o},o))));
+        const inp=(i,label,key,props={})=>h('div',{className:'field'},h('label',null,label),h('input',{value:rows[i][key]||'',disabled:busy,onChange:e=>set(i,key,e.target.value),...props}));
+        return h('div',{className:'field spot-wide',key:field.key},h('label',null,field.label),
+          rows.map((m,i)=>h('div',{className:'spot-wound',key:i},h('h4',null,`Medicine ${i+1}`),
+            h('div',{className:'spot-grid'},
+              inp(i,'Medicine','medicine_name',{placeholder:'e.g. Metformin'}),
+              K.MedicationStrengthInput?h(K.MedicationStrengthInput,{label:'Strength',value:m.strength,onChange:v=>set(i,'strength',v)}):inp(i,'Strength','strength'),
+              sel(i,'Frequency','frequency',FREQUENCIES,v=>{const t=(K.MEDICATION_FREQUENCY_TIMES||{})[v];onChange('meds',rows.map((r,n)=>n===i?{...r,frequency:v,times:t?t.join(', '):r.times}:r))}),
+              sel(i,'Route','route',ROUTES),
+              K.MedicationTimeSelector?h(K.MedicationTimeSelector,{label:'Time',value:m.times,onChange:v=>set(i,'times',v)}):inp(i,'Time','times'),
+              sel(i,'Food','food_instruction',FOOD),
+              sel(i,'Duration','duration',DURATIONS),
+              m.duration==='Custom'?inp(i,'Custom days','custom_duration_days',{type:'number',min:1}):null,
+              inp(i,'Prescribed Doctor','prescribed_by_doctor'),
+              inp(i,'Special instruction','special_instruction')),
+            h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>{if(!txt(m.medicine_name)||window.confirm(`Remove ${m.medicine_name}?`))onChange('meds',rows.length>1?rows.filter((_,n)=>n!==i):[blankMed()])}},'Remove this medicine'))),
+          h('div',null,h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>onChange('meds',[...rows,blankMed()])},'+ Add Medicine')));
+      }
       if(field.type==='dselect'){
         const opts=field.options(values)||[];
         const extra=value&&!opts.includes(value)?[value]:[];
@@ -317,6 +363,8 @@
       if(field.type==='enquiry')return d.enquiry_label||d.lead_reference||'Not linked';
       if(field.type==='tick')return tickOn(d,field.key)?'Yes':'No';
       if(field.type==='oldaddress')return txt(d.home_address);
+      if(field.type==='oldmeds')return txt(d.medications);
+      if(field.type==='meds')return namedMeds(d).map((m,i)=>`${i+1}. ${medLine(m)}`).join('\n')||'None entered';
       if(field.type==='reviews')return (Array.isArray(d.reviews)?d.reviews:[]).map(r=>`${r.by}${r.role?` (${r.role})`:''} · ${stampText(r.at)}: ${r.text}`).join('\n')||'None';
       const v=d[field.key];
       if(Array.isArray(v))return v.join(', ')||'Not recorded';
