@@ -1,3 +1,8 @@
+## 2.16.20 — Nursing Manager menu: own PETTY CASH section
+
+- The Nursing Manager's side menu now has a separate **PETTY CASH** section (after Pharmacy & Stores) with the Petty Cash page. Her menu has no MANAGER section, so the page was not reachable from it in 2.16.19. Admin still finds it under MANAGER → Petty Cash.
+- No SQL. Files: src/app/core/04-supabase-roles-navigation.js, src/app/core/03-brand-theme-css.js (section icon), version files, app.js (rebuilt).
+
 ## 2.16.19 — Nursing Manager Petty Cash (SQL 215)
 
 - **Run supabase/sql/215_nursing_manager_petty_cash.sql** in Supabase → SQL Editor (needs 214; safe to run again). Until it is run, the new page shows a "apply SQL 215" note and the kitchen handover works as before.
