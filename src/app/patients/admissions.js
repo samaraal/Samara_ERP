@@ -251,6 +251,87 @@
       }catch(error){console.warn('Unable to open enquiry in Admission:',error)}
     },[]);
 
+    // 2.16.23: "Convert to Guest" from Spot Assessment — fill everything already recorded at the visit,
+    // so staff complete only what is left (medicines, room / bed, package, photo / ID, family portal option).
+    const [spotPrefill,setSpotPrefill]=React.useState(null);
+    React.useEffect(()=>{
+      try{
+        const raw=sessionStorage.getItem('samara-spot-admission');
+        if(!raw)return;
+        sessionStorage.removeItem('samara-spot-admission');
+        const sp=JSON.parse(raw)||{};
+        const txt=v=>String(v==null?'':v).trim();
+        const phone=v=>{const d=txt(v).replace(/\D/g,'');const ten=d.length>10?d.slice(-10):d;return ten.length===10?`+91 ${ten}`:''};
+        const lines=v=>txt(v).split(/\n|;/).map(x=>x.replace(/^\s*\d+[.)]\s*/,'').trim()).filter(x=>x&&!/^(nil|none|no|na|n\/a|not known|nkda)$/i.test(x));
+        const numbered=items=>items.map((item,index)=>`${index+1}. ${item}`).join('\n');
+        const care=Array.isArray(sp.care_requirements)?sp.care_requirements:[];
+        const services=Array.isArray(sp.services)?sp.services:[];
+        const category=care.includes('Palliative / end-of-life care')?'Palliative Care'
+          :care.includes('Dementia care')?'Dementia Care'
+          :care.includes('Post-hospital / post-surgery care')?'Post-Surgery'
+          :care.includes('Respite care')?'Respite Care'
+          :/long stay/i.test(sp.stay_type||'')||care.includes('General assisted living')?'Long-Term Assisted Living'
+          :/short stay/i.test(sp.stay_type||'')?'Short Stay':'';
+        const fromHospital=sp.visit_location==='Hospital'||!!txt(sp.hospital_name);
+        const relOptions=['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend'];
+        const rel=v=>relOptions.find(o=>o.toLowerCase()===txt(v).toLowerCase())||'';
+        // Contact 1 = primary family contact (or the caller when no family contact was entered)
+        const c1={name:txt(sp.family_name)||txt(sp.caller_name),relationship:rel(sp.family_relationship)||rel(sp.caller_relationship),phone:phone(sp.family_phone)||phone(sp.caller_phone)};
+        // Contact 2 = emergency contact (or the caller) when it is a different number
+        const c2cand=[{name:txt(sp.emergency_name),phone:phone(sp.emergency_phone),relationship:''},{name:txt(sp.caller_name),phone:phone(sp.caller_phone),relationship:rel(sp.caller_relationship)}];
+        const c2=c2cand.find(c=>c.name&&c.phone&&c.phone!==c1.phone)||null;
+        const woundYes=sp.wounds_present==='Yes'||sp.bedsores_present==='Yes';
+        const woundText=(Array.isArray(sp.wounds)?sp.wounds:[]).map(w=>[w.kind,w.location,w.size,txt(w.stage)?`Stage ${txt(w.stage)}`:'',w.dressing].map(txt).filter(Boolean).join(' — ')).filter(Boolean);
+        const instr=[
+          sp.mobility&&sp.mobility!=='Not assessed'?`Mobility: ${sp.mobility}`:'',
+          ['transferring','bathing','toileting','feeding'].map(k=>sp[k]&&sp[k]!=='Not assessed'?`${k==='bathing'?'Bathing / dressing':k[0].toUpperCase()+k.slice(1)}: ${sp[k]}`:'').filter(Boolean).join('; '),
+          sp.continence&&sp.continence!=='Not assessed'?`Continence: ${sp.continence}`:'',
+          txt(sp.cognition)?`Memory / behaviour: ${txt(sp.cognition)}`:'',
+          lines(sp.falls_history).length?`Falls / balance: ${txt(sp.falls_history)}`:'',
+          txt(sp.mobility_notes),txt(sp.pain)?`Pain: ${txt(sp.pain)}`:''
+        ].filter(Boolean).join('\n');
+        const feeding=[txt(sp.diet),sp.swallowing==='Yes'?'Swallowing concern noted at Spot Assessment':'',txt(sp.nutrition_notes)].filter(Boolean).join('\n');
+        setForm(current=>{
+          const keep=(k,v)=>{const cur=current[k];const empty=cur==null||cur===''||cur===false||String(cur).trim()==='+91';return empty&&v!==''&&v!=null&&v!==false?v:cur};
+          return {...current,
+            admission_type:fromHospital?'Previous Hospital / Care Centre':(category==='Respite Care'||category==='Short Stay')?'Short Stay / Respite Care':'Direct Admission – Elderly Care',
+            patient_category:category||current.patient_category,
+            full_name:keep('full_name',txt(sp.person_name)),
+            age:keep('age',sp.age!=null&&sp.age!==''?String(sp.age):''),
+            gender:['Male','Female','Other'].includes(sp.gender)?sp.gender:current.gender,
+            mobile:keep('mobile',phone(sp.person_phone)),
+            hospital_name:keep('hospital_name',txt(sp.hospital_name)),
+            diagnosis:keep('diagnosis',numbered(lines(sp.current_ailments))),
+            treating_doctor:keep('treating_doctor',txt(sp.treating_doctor)),
+            allergies:keep('allergies',numbered(lines(sp.allergies))),
+            special_instructions:keep('special_instructions',instr),
+            feeding_instruction:keep('feeding_instruction',feeding),
+            diet_plan:['NG / Ryles tube','PEG'].includes(sp.feeding_route)?'Tube feeding':current.diet_plan,
+            fall_risk:current.fall_risk||!!lines(sp.falls_history).length,
+            pressure_sore_risk:current.pressure_sore_risk||sp.bedsores_present==='Yes',
+            aspiration_risk:current.aspiration_risk||sp.swallowing==='Yes',
+            oxygen_required:current.oxygen_required||sp.airway==='Oxygen'||services.includes('Oxygen cylinder / concentrator'),
+            oxygen_instruction:keep('oxygen_instruction',sp.airway==='Oxygen'?txt(sp.respiratory_notes):''),
+            dressing_required:current.dressing_required||woundYes||services.includes('Wound dressing'),
+            dressing_instruction:keep('dressing_instruction',[...woundText,txt(sp.skin_notes)].filter(Boolean).join('\n')),
+            physio_required:current.physio_required||services.includes('Physiotherapy')
+          };
+        });
+        if(c1.name||c1.phone)setFamilyAccess(cur=>({...cur,relative_name:cur.relative_name||c1.name,relationship:cur.relationship||c1.relationship,mobile:String(cur.mobile||'').replace(/\D/g,'').length>2?cur.mobile:(c1.phone||cur.mobile)}));
+        if(c2)setFamilyAccess2(cur=>cur.relative_name?cur:({...cur,enabled:true,relative_name:c2.name,relationship:c2.relationship,mobile:c2.phone}));
+        setSpotPrefill({
+          person:txt(sp.person_name),
+          medicines:txt(sp.medications),
+          medicineSupport:sp.medication_support&&sp.medication_support!=='Not assessed'?sp.medication_support:'',
+          address:txt(sp.home_address)||txt(sp.visit_address),
+          vitals:[sp.blood_pressure&&`BP ${sp.blood_pressure}`,sp.pulse&&`Pulse ${sp.pulse}`,sp.temperature&&`Temp ${sp.temperature}`,sp.oxygen_saturation&&`SpO2 ${sp.oxygen_saturation}`].filter(Boolean).join(' · '),
+          contact2Relationship:!!c2&&!c2.relationship,contact1Relationship:!!(c1.name&&!c1.relationship),
+          tariff:txt(sp.tariff_notes),careLevel:sp.care_level&&sp.care_level!=='To be reviewed'?sp.care_level:''
+        });
+        setMsg(`Details taken from the Spot Assessment of ${txt(sp.person_name)}. Fill only the items listed in the pink box, then check the ticks and complete the admission.`);
+      }catch(error){console.warn('Unable to open Spot Assessment in Admission:',error)}
+    },[]);
+
     const hasMeaningfulData=Boolean(
       form.full_name||String(form.mobile||'').replace(/\D/g,'').length>2||form.district||form.village_town||form.street_name||form.house_no||form.attendant_name||
       form.diagnosis||form.room_no||form.billing_package||meds.some(m=>m.medicine_name)||care.some(c=>c.task_name)||draftFiles.length
@@ -2041,6 +2122,24 @@ Please keep these login details confidential.`;
     const otherDrafts=draftRows.filter(d=>!(d.id&&String(d.id)===String(draftId)));
     return h('form',{className:'card panel admission-form',onSubmit:submit,ref:formRef,onFocusCapture:e=>{try{const i=Array.from(formRef.current.querySelectorAll('input,select,textarea')).indexOf(e.target);if(i>=0)lastFieldRef.current=i}catch(_){}}},
       h('div',{className:'panel-head'},h('div',null,h('h3',null,'Unified Patient Admission'),h('small',null,'Hospital discharge, direct admission, doctor referral or transfer'))),
+      spotPrefill&&h('div',{className:'section-card',style:{background:'#fff4f9',borderColor:'#e7b6cf'}},
+        h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
+          h('h4',{style:{margin:0}},`From Spot Assessment — ${spotPrefill.person}`),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setSpotPrefill(null)},'Hide')),
+        h('p',{className:'small-note'},'Name, age, gender, phone, family contacts, condition, doctor, allergies, care needs, diet and risk ticks are already filled — please check them. Fill only:'),
+        h('ol',{style:{margin:'4px 0 8px 18px'}},
+          h('li',null,h('strong',null,'Address'),' (State / District / Taluk / Street…)',spotPrefill.address?` — noted at visit: ${spotPrefill.address}`:''),
+          (spotPrefill.contact1Relationship||spotPrefill.contact2Relationship)&&h('li',null,h('strong',null,'Family contact relationship'),' (choose from the list)'),
+          h('li',null,h('strong',null,'Attendant staying? '),'Yes / No'),
+          h('li',null,h('strong',null,'Photo and Aadhaar / ID')),
+          h('li',null,h('strong',null,'Family Communication option'),' (Family Portal / Daily Report / Both)'),
+          h('li',null,h('strong',null,'Current medicines'),' — enter each medicine in Section 3',
+            spotPrefill.medicines?h('div',{style:{whiteSpace:'pre-wrap',marginTop:'4px',padding:'6px 8px',background:'#fff',border:'1px dashed #e0a9c4',borderRadius:'8px'}},`Noted at visit${spotPrefill.medicineSupport?` (${spotPrefill.medicineSupport})`:''}:\n${spotPrefill.medicines}`):null),
+          h('li',null,h('strong',null,'Master care plan'),' (Section 4)'),
+          h('li',null,h('strong',null,'Package, room / bed'),' (Section 6)',[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).length?` — noted at visit: ${[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).join(' · ')}`:'')
+        ),
+        spotPrefill.vitals?h('p',{className:'small-note'},`Vitals at visit: ${spotPrefill.vitals}`):null
+      ),
       // 2.15.5: Unfinished Admissions — continue any admission in progress, on any device
       (otherDrafts.length>0||draftsMissing)&&h('div',{className:'admission-drafts-panel'},
         h('button',{type:'button',className:'admission-drafts-head',onClick:()=>setShowDraftList(v=>!v),'aria-expanded':showDraftList},

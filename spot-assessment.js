@@ -73,7 +73,7 @@
     return '';
   }
   window.SamaraSpotAssessmentModel={sections,woundFields,initial,validate};
-  window.SamaraSpotAssessment=function SpotAssessment({profile,client}){
+  window.SamaraSpotAssessment=function SpotAssessment({profile,client,onNavigate,canAdmit}){
     const R=window.React,h=R.createElement;
     const [rows,setRows]=R.useState([]),[record,setRecord]=R.useState(null),[data,setData]=R.useState(null),[dirty,setDirty]=R.useState(false);
     const [busy,setBusy]=R.useState(false),[loading,setLoading]=R.useState(false),[error,setError]=R.useState(''),[notice,setNotice]=R.useState(''),[search,setSearch]=R.useState(''),[filter,setFilter]=R.useState('All');
@@ -83,7 +83,7 @@
       try{
         const result=[];
         for(let offset=0;;offset+=500){
-          const response=await client.from('spot_assessments').select('id,person_name,visit_date,status,assessor_name,updated_at,updated_by_name,version').order('visit_date',{ascending:false}).order('id',{ascending:false}).range(offset,offset+499);
+          const response=await client.from('spot_assessments').select('id,person_name,visit_date,status,assessor_name,updated_at,updated_by_name,version,converted:details->converted_admission').order('visit_date',{ascending:false}).order('id',{ascending:false}).range(offset,offset+499);
           if(response.error)throw response.error;
           result.push(...(response.data||[]));
           if((response.data||[]).length<500)break;
@@ -124,6 +124,24 @@
         setRecord(result.data);setData({...result.data.details,wounds:result.data.details?.wounds||[]});setDirty(false);setNotice(`Assessment saved as ${status}.`);await load();
       }catch(e){setError(`Unable to save: ${e.message||e}`)}finally{saving.current=false;setBusy(false)}
     }
+    // 2.16.23: Convert to Guest — carries everything already recorded into a new Admission form,
+    // so staff fill only what is left (medicines, room / bed, package, photo / ID, family portal option).
+    async function convertToGuest(){
+      if(!record||saving.current)return;
+      if(dirty){setError('Save this assessment first, then tap Convert to Guest.');return}
+      if(!window.confirm(`Start admission for ${data.person_name} as a Guest?\n\nDetails from this Spot Assessment will be filled in the Admission form. Staff then fill only the remaining items (medicines, room / bed, package, photo / ID).`))return;
+      saving.current=true;setBusy(true);setError('');
+      try{
+        const stamp={started_at:new Date().toISOString(),started_by:profile?.full_name||'staff'};
+        const details={...data,converted_admission:stamp};
+        const result=await client.from('spot_assessments').update({details}).eq('id',record.id).eq('version',record.version).select('id').maybeSingle();
+        if(result.error)throw result.error;
+        if(!result.data)throw new Error('Another staff member changed this assessment. Go back to the register, reopen it and try again.');
+        sessionStorage.setItem('samara-spot-admission',JSON.stringify({spot_id:record.id,...data}));
+        setDirty(false);
+        if(typeof onNavigate==='function')onNavigate('Admissions');
+      }catch(e){setError(`Unable to start admission: ${e.message||e}`)}finally{saving.current=false;setBusy(false)}
+    }
     function control(field,values,onChange,prefix='spot'){
       const id=`${prefix}-${field.key}`,value=values[field.key]??'';
       const identity=['assessor_name','assessor_designation'].includes(field.key);
@@ -154,7 +172,9 @@
       @media print{body *{visibility:hidden}.spot-print,.spot-print *{visibility:visible}.spot-print{display:block;position:absolute;left:0;top:0;width:100%;color:#000;background:white;padding:14px;box-sizing:border-box;font:11pt Arial}.spot-print h1{font-size:18pt}.spot-print h2{font-size:13pt;margin-top:18px}.spot-print dl{margin:0}.spot-print dl>div{display:grid;grid-template-columns:36% 64%;border-bottom:1px solid #ddd;padding:5px 0;break-inside:avoid}.spot-print dt{font-weight:bold}.spot-print dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}.spot-editor,.spot-register,.spot-screen{display:none!important}}
     `),h('div',{className:'spot-screen'},h('h3',null,'Spot Assessment'),h('p',null,'Record observations during a visit. All logged-in ERP staff can create, view and update assessments.')),
     !data&&error?h('div',{className:'message error spot-screen',role:'alert'},error):null,!data&&notice?h('div',{className:'message success spot-screen',role:'status'},notice):null,
-    data?h('div',{className:'card panel spot-editor'},h('div',{className:'spot-actions'},button('Back to register',()=>{if(canLeave()){setData(null);setRecord(null);setDirty(false);setError('');setNotice('')}}),button('Print / Save PDF',()=>window.print())),
+    data?h('div',{className:'card panel spot-editor'},h('div',{className:'spot-actions'},button('Back to register',()=>{if(canLeave()){setData(null);setRecord(null);setDirty(false);setError('');setNotice('')}}),button('Print / Save PDF',()=>window.print()),canAdmit&&record?button(data?.converted_admission?'Convert to Guest again':'Convert to Guest (Start Admission)',convertToGuest,true):null),
+      data?.converted_admission?h('div',{className:'message success'},`Admission started from this assessment by ${data.converted_admission.started_by||'staff'} on ${window.SamaraDateTime?.dateTime?window.SamaraDateTime.dateTime(data.converted_admission.started_at):data.converted_admission.started_at}.`):null,
+      canAdmit&&!record?h('p',{className:'small-note'},'After saving, use Convert to Guest to start the admission with these details already filled.'):null,
       h('p',null,`${record?.status||'New draft'}${dirty?' · Unsaved changes':''}${record?` · Last saved by ${record.updated_by_name||'staff'}`:''}`),
       h('p',null,'* Person name and visit date are required to save a draft. Complete the visit observations and summary before marking it completed.'),
       h('form',{onSubmit:e=>{e.preventDefault();save('Draft')}},sections.map(section=>h('fieldset',{key:section.title,disabled:busy},h('legend',null,section.title),h('div',{className:'spot-grid'},section.fields.map(field=>control(field,data,change))),
@@ -163,7 +183,7 @@
       h('div',{className:'card panel spot-register'},h('div',{className:'spot-actions'},button('New Spot Assessment',create,true),button('Refresh',()=>{setError('');load()})),
         h('div',{className:'spot-grid'},h('div',{className:'field'},h('label',{htmlFor:'spot-search'},'Search person or visiting staff'),h('input',{id:'spot-search',value:search,onChange:e=>setSearch(e.target.value)})),h('div',{className:'field'},h('label',{htmlFor:'spot-status'},'Status'),h('select',{id:'spot-status',value:filter,onChange:e=>setFilter(e.target.value)},['All','Draft','Completed'].map(s=>h('option',{key:s},s))))),
         loading?h('p',{role:'status'},'Loading assessments…'):h('p',null,`${list.length} assessment(s)`),
-        h('div',{className:'table-wrap'},h('table',null,h('thead',null,h('tr',null,['Person','Visit date','Visiting staff','Status','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,list.map(row=>h('tr',{key:row.id},h('td',null,row.person_name),h('td',null,row.visit_date),h('td',null,row.assessor_name||'—'),h('td',null,row.status),h('td',null,button('Open assessment',()=>open(row.id)))))))),
+        h('div',{className:'table-wrap'},h('table',null,h('thead',null,h('tr',null,['Person','Visit date','Visiting staff','Status','Action'].map(x=>h('th',{key:x},x)))),h('tbody',null,list.map(row=>h('tr',{key:row.id},h('td',null,row.person_name),h('td',null,String(row.visit_date||'').split('-').reverse().join('-')),h('td',null,row.assessor_name||'—'),h('td',null,row.status,row.converted?h('div',{className:'small-note'},'→ Admission started'):null),h('td',null,button('Open assessment',()=>open(row.id)))))))),
         !loading&&!error&&!list.length?h('p',{className:'empty'},'No assessments found. Use New Spot Assessment to record a visit.'):null),printable);
   };
 })();

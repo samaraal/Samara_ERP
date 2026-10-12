@@ -682,7 +682,7 @@
           page==='Career Applications'&&h(CareerApplications,{profile,onNavigate:setPage}),
           page==='Interviews'&&h(HRInterviews,{profile,onNavigate:setPage}),
           (page==='Enquiry Register'||page==='Enquiries')&&h(EnquiryRegister,{profile,onNavigate:setPage}),
-          page==='Spot Assessment'&&h(window.SamaraSpotAssessment,{profile,client}),
+          page==='Spot Assessment'&&h(window.SamaraSpotAssessment,{profile,client,onNavigate:setPage,canAdmit:allowed.includes('Admissions')}),
           page==='Admissions'&&h(Admissions,{profile,onNavigate:setPage}),
           page==='Clinical Dashboard'&&h(ClinicalDashboard,{profile,onNavigate:setPage,alertEngine}),
           page==='Clinical Alerts'&&h(ClinicalAlertsPage,{engine:alertEngine,setPage}),

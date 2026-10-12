@@ -1,3 +1,11 @@
+## 2.16.23 — Spot Assessment: Convert to Guest (Start Admission)
+
+- New button **Convert to Guest (Start Admission)** inside a saved Spot Assessment (shown to staff who can do admissions). It opens a new Admission form with everything already recorded at the visit filled in, and stamps the assessment "Admission started by … on …" (register shows "→ Admission started").
+- Filled automatically: name, age, gender, Guest phone, admission source (hospital / direct / respite) and patient category, hospital name, condition / diagnosis (numbered), treating doctor, allergies (numbered), daily care needs (mobility, ADLs, continence, memory, falls, pain), feeding instructions / tube feeding, risk ticks (fall, pressure sore, aspiration), oxygen, wound dressing (with wound details), physiotherapy, **Family Contact 1** (primary family contact, or the caller) and **Family Contact 2** (emergency contact / caller, if a different number).
+- A pink **"From Spot Assessment"** box at the top of the Admission form lists only what staff still have to fill: address fields, relationship (if not matched), attendant staying, photo / Aadhaar, family communication option, **current medicines** (with the visit's medicine note shown for reference — medicines are entered one by one, never copied blindly), master care plan, package and room / bed. Vitals, care level and tariff noted at the visit are shown for reference.
+- Spot Assessment register visit date now DD-MM-YYYY.
+- No SQL (the conversion stamp is kept inside the assessment's details). Files: spot-assessment.js, src/app/patients/admissions.js, src/app/shell/01-app-main.js, version files, app.js (rebuilt).
+
 ## 2.16.22 — Ledger & Statement for Petty Cash and Kitchen petty cash
 
 - New tab **Ledger & Statement** in **Petty Cash** (Nursing Manager, Admin) and in **Kitchen / Food Stores** (STD, Admin, Accounts).
