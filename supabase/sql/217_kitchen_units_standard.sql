@@ -5,6 +5,7 @@
 -- (e.g. Milk 500 ml / 1 L) and converts to the item's one unit.
 --
 -- This file:
+--  0. Makes sure kitchen items have their KIT- codes (the SQL 190 step — skipped if already done).
 --  1. New kitchen items can be added only in Kg, Litres or Nos (kitchen_add_items).
 --  2. Existing items in Grams become Kg, and items in ml become Litres — balance, low-stock level and
 --     every past stock movement are divided by 1000, so nothing changes in real quantity.
@@ -13,6 +14,37 @@
 -- Cash book, purchases (amounts) and Admin reviews are NOT changed.
 
 begin;
+
+-- 0. Kitchen item codes (KIT-0001 …) — same as SQL 190, included here in case 190 was not run (safe to repeat)
+create sequence if not exists public.samara_kitchen_code_seq;
+
+alter table public.kitchen_stock
+  add column if not exists item_code text,
+  add column if not exists active boolean not null default true,
+  add column if not exists created_by uuid,
+  add column if not exists created_at timestamptz not null default now();
+
+create or replace function public.kitchen_stock_assign_code()
+returns trigger language plpgsql set search_path=public,pg_temp as $$
+begin
+  if nullif(trim(coalesce(new.item_code,'')),'') is null then
+    new.item_code := 'KIT-'||lpad(nextval('public.samara_kitchen_code_seq')::text,4,'0');
+  end if;
+  return new;
+end $$;
+drop trigger if exists kitchen_stock_assign_code on public.kitchen_stock;
+create trigger kitchen_stock_assign_code before insert on public.kitchen_stock
+  for each row execute function public.kitchen_stock_assign_code();
+
+-- Number the existing kitchen items (alphabetical), only those without a code.
+do $$
+declare r record;
+begin
+  for r in select id from public.kitchen_stock where nullif(trim(coalesce(item_code,'')),'') is null order by lower(name), unit loop
+    update public.kitchen_stock set item_code = 'KIT-'||lpad(nextval('public.samara_kitchen_code_seq')::text,4,'0') where id = r.id;
+  end loop;
+end $$;
+create unique index if not exists kitchen_stock_item_code_key on public.kitchen_stock(item_code);
 
 -- 1. Kitchen items: Kg, Litres or Nos only
 create or replace function public.kitchen_add_items(p_items jsonb)
