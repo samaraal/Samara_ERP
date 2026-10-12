@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.24';
+  const APP_VERSION = '2.16.25';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '12-Oct-2026 Spot Assessment simplified';
+  const APP_BUILD_DATE = '12-Oct-2026 Spot picker in Admission';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -21126,12 +21126,9 @@ Thank you.`;
     // 2.16.23: "Convert to Guest" from Spot Assessment — fill everything already recorded at the visit,
     // so staff complete only what is left (medicines, room / bed, package, photo / ID, family portal option).
     const [spotPrefill,setSpotPrefill]=React.useState(null);
-    React.useEffect(()=>{
-      try{
-        const raw=sessionStorage.getItem('samara-spot-admission');
-        if(!raw)return;
-        sessionStorage.removeItem('samara-spot-admission');
-        const sp=JSON.parse(raw)||{};
+    // 2.16.25: shared fill logic — used by Convert to Guest (Spot page) and by the picker inside this form
+    function applySpotDetails(sp){
+        sp=sp||{};
         const txt=v=>String(v==null?'':v).trim();
         const phone=v=>{const d=txt(v).replace(/\D/g,'');const ten=d.length>10?d.slice(-10):d;return ten.length===10?`+91 ${ten}`:''};
         const lines=v=>txt(v).split(/\n|;/).map(x=>x.replace(/^\s*\d+[.)]\s*/,'').trim()).filter(x=>x&&!/^(nil|none|no|na|n\/a|not known|nkda)$/i.test(x));
@@ -21207,8 +21204,46 @@ Thank you.`;
           tariff:txt(sp.tariff_notes),careLevel:sp.care_level&&sp.care_level!=='To be reviewed'?sp.care_level:''
         });
         setMsg(`Details taken from the Spot Assessment of ${txt(sp.person_name)}. Fill only the items listed in the pink box, then check the ticks and complete the admission.`);
+    }
+    React.useEffect(()=>{
+      try{
+        const raw=sessionStorage.getItem('samara-spot-admission');
+        if(!raw)return;
+        sessionStorage.removeItem('samara-spot-admission');
+        applySpotDetails(JSON.parse(raw)||{});
       }catch(error){console.warn('Unable to open Spot Assessment in Admission:',error)}
     },[]);
+    // 2.16.25: pick a Spot Assessment from inside the Admission form (optional — the form works without it)
+    const [spotPick,setSpotPick]=React.useState({open:false,list:null,loading:false,error:'',id:'',search:''});
+    async function openSpotPicker(){
+      setSpotPick(p=>({...p,open:true,error:''}));
+      if(spotPick.list)return;
+      setSpotPick(p=>({...p,loading:true}));
+      try{
+        const r=await client.from('spot_assessments').select('id,person_name,visit_date,status,assessor_name,converted:details->converted_admission').order('visit_date',{ascending:false}).order('id',{ascending:false}).limit(300);
+        if(r.error)throw r.error;
+        setSpotPick(p=>({...p,loading:false,list:r.data||[]}));
+      }catch(e){setSpotPick(p=>({...p,loading:false,list:[],error:`Unable to load Spot Assessments: ${e.message||e}`}))}
+    }
+    async function fillFromSpot(){
+      const id=spotPick.id;if(!id)return;
+      setSpotPick(p=>({...p,loading:true,error:''}));
+      try{
+        const r=await client.from('spot_assessments').select('id,version,details').eq('id',id).single();
+        if(r.error)throw r.error;
+        const details=r.data.details||{};
+        const started=details.converted_admission;
+        const ask=[`Fill this admission from the Spot Assessment of ${details.person_name||'this person'}?`,
+          started?`\nNote: an admission was already started from it by ${started.started_by||'staff'}. Check that this Guest is not being admitted twice.`:'',
+          hasMeaningfulData?'\nAnything you have already typed is kept; only empty boxes are filled (admission source, category and gender take the Spot values).':''].join('');
+        if(!window.confirm(ask)){setSpotPick(p=>({...p,loading:false}));return}
+        const stamp={started_at:new Date().toISOString(),started_by:profile?.full_name||'staff'};
+        const u=await client.from('spot_assessments').update({details:{...details,converted_admission:stamp}}).eq('id',id).eq('version',r.data.version).select('id').maybeSingle();
+        if(u.error)console.warn('Spot Assessment stamp not saved:',u.error); // filling still goes ahead
+        applySpotDetails({spot_id:id,...details});
+        setSpotPick(p=>({...p,open:false,loading:false,id:'',list:null}));
+      }catch(e){setSpotPick(p=>({...p,loading:false,error:`Unable to fill from Spot Assessment: ${e.message||e}`}))}
+    }
 
     const hasMeaningfulData=Boolean(
       form.full_name||String(form.mobile||'').replace(/\D/g,'').length>2||form.district||form.village_town||form.street_name||form.house_no||form.attendant_name||
@@ -23000,6 +23035,30 @@ Please keep these login details confidential.`;
     const otherDrafts=draftRows.filter(d=>!(d.id&&String(d.id)===String(draftId)));
     return h('form',{className:'card panel admission-form',onSubmit:submit,ref:formRef,onFocusCapture:e=>{try{const i=Array.from(formRef.current.querySelectorAll('input,select,textarea')).indexOf(e.target);if(i>=0)lastFieldRef.current=i}catch(_){}}},
       h('div',{className:'panel-head'},h('div',null,h('h3',null,'Unified Patient Admission'),h('small',null,'Hospital discharge, direct admission, doctor referral or transfer'))),
+      // 2.16.25: optional — fill from a Spot Assessment done earlier
+      !spotPrefill&&h('div',{className:'section-card',style:{borderStyle:'dashed',borderColor:'#e7b6cf',padding:'10px 14px'}},
+        !spotPick.open
+          ?h('div',{style:{display:'flex',gap:'10px',alignItems:'center',flexWrap:'wrap',justifyContent:'space-between'}},
+            h('span',{className:'small-note',style:{margin:0}},'Was this Guest seen at a Spot Assessment? Fill the details from it (optional).'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:openSpotPicker},'Fill from Spot Assessment'))
+          :h('div',null,
+            h('h4',{style:{marginTop:0}},'Fill from Spot Assessment'),
+            spotPick.loading&&!spotPick.list?h('p',{role:'status'},'Loading Spot Assessments…'):null,
+            spotPick.list?(()=>{
+              const q=spotPick.search.toLowerCase().trim();
+              const rows=spotPick.list.filter(r=>!q||`${r.person_name} ${r.assessor_name||''}`.toLowerCase().includes(q));
+              const d=v=>String(v||'').slice(0,10).split('-').reverse().join('-');
+              return h('div',{className:'form-grid'},
+                h('div',{className:'field'},h('label',null,'Search name / visiting staff'),h('input',{value:spotPick.search,placeholder:'Type a name',onChange:e=>setSpotPick(p=>({...p,search:e.target.value,id:''}))})),
+                h('div',{className:'field'},h('label',null,`Spot Assessment (${rows.length})`),h('select',{value:spotPick.id,onChange:e=>setSpotPick(p=>({...p,id:e.target.value}))},
+                  h('option',{value:''},rows.length?'Select the assessment':'No assessments found'),
+                  rows.map(r=>h('option',{key:r.id,value:r.id},`${r.person_name} · ${d(r.visit_date)} · ${r.status}${r.converted?' · admission already started':''}`)))));
+            })():null,
+            spotPick.error?h('div',{className:'message error',role:'alert'},spotPick.error):null,
+            h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'8px'}},
+              h('button',{type:'button',className:'btn btn-primary',disabled:!spotPick.id||spotPick.loading,onClick:fillFromSpot},spotPick.loading&&spotPick.list?'Filling…':'Fill the form'),
+              h('button',{type:'button',className:'btn btn-secondary',disabled:spotPick.loading&&!!spotPick.list,onClick:()=>setSpotPick(p=>({...p,open:false,id:'',error:''}))},'Cancel')))
+      ),
       spotPrefill&&h('div',{className:'section-card',style:{background:'#fff4f9',borderColor:'#e7b6cf'}},
         h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
           h('h4',{style:{margin:0}},`From Spot Assessment — ${spotPrefill.person}`),

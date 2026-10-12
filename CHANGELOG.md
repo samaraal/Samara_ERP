@@ -1,3 +1,11 @@
+## 2.16.25 — Admission form: Fill from Spot Assessment (optional)
+
+- New dashed box at the top of the Admission form: **Fill from Spot Assessment**. Search by name / visiting staff, pick the assessment (name · visit date DD-MM-YYYY · status · "admission already started" where it applies) and tap **Fill the form**.
+- Uses exactly the same filling as **Convert to Guest** on the Spot page (same fields, same pink "left to fill" box), and stamps the Spot Assessment "Admission started by … on …".
+- Safety: warns if an admission was already started from that assessment (to avoid admitting a Guest twice); on a form already being typed, anything entered is kept and only empty boxes are filled.
+- The Admission form works fully without it — the box is optional and disappears once a Spot Assessment has been used.
+- No SQL. Files: src/app/patients/admissions.js, version files, app.js (rebuilt).
+
 ## 2.16.24 — Spot Assessment simplified (5 sections), matched to the Admission form
 
 - **8 sections → 5:** 1. Visit and enquiry · 2. Guest and family · 3. Health · 4. Care needs · 5. Decision and follow-up. About 15 repeated fields removed.
