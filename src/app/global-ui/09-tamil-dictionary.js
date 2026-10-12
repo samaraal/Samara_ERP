@@ -3766,5 +3766,9 @@
 "‹ Previous day": "‹ முந்தைய நாள்",
 "Chart date": "சார்ட் தேதி",
 "Tap a box → choose what and how much → Save. ☕ = tea / milk / juice from Resident Food Intake (added automatically).": "கட்டத்தைத் தொடவும் → என்ன, எவ்வளவு என்று தேர்வு செய்யவும் → Save. ☕ = Resident Food Intake-இல் பதிந்த டீ / பால் / ஜூஸ் (தானாகச் சேர்க்கப்படும்).",
-"Every entry with time and nurse. Tap a row for full details; Remove wrong entries here.": "ஒவ்வொரு பதிவும் நேரம், நர்ஸ் பெயருடன். முழு விவரத்துக்கு வரிசையைத் தொடவும்; தவறான பதிவை இங்கே நீக்கவும்."
+"Every entry with time and nurse. Tap a row for full details; Remove wrong entries here.": "ஒவ்வொரு பதிவும் நேரம், நர்ஸ் பெயருடன். முழு விவரத்துக்கு வரிசையைத் தொடவும்; தவறான பதிவை இங்கே நீக்கவும்.",
+"+ Add item to list": "+ பட்டியலில் சேர்",
+"Add each item, then initiate all together.": "ஒவ்வொரு பொருளையும் சேர்த்து, பிறகு எல்லாவற்றையும் ஒன்றாக இண்டென்ட் தொடங்கவும்.",
+"Reason / Remarks (for all items above)": "காரணம் / குறிப்பு (மேலே உள்ள எல்லா பொருட்களுக்கும்)",
+"Store balance": "ஸ்டோர் இருப்பு",
 };

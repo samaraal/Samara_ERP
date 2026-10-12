@@ -1,3 +1,13 @@
+## 2.16.15 — Raise Indent: several items in one indent
+
+- Nurses can now request **many items at once** for a Guest: choose Patient → Category → Item → Quantity → **+ Add item to list**, repeat for each item, then tap **Initiate N Indents**.
+- The list shows each item with its code, category, quantity (can be changed) and the current store balance (red when the store has less than asked), with **Remove** for a wrong line.
+- Adding the same item again adds the quantity to the existing line. An item still selected in the boxes when Initiate is tapped is included too.
+- Patient and Reason / Remarks apply to all items in the list. All items are saved together (all or none).
+- Each item is still its own indent, so Nursing Manager approval, handover, nurse receipt, Received / Used Balance, returns, charging and the 20-minute receipt alert work exactly as before. A single item works as before ("Initiate Indent").
+- Tamil words added for the new buttons. No SQL.
+- Files: src/app/stores/patient-consumables.js, src/app/global-ui/09-tamil-dictionary.js, version files, app.js (rebuilt).
+
 ## 2.16.14 — Intake / Output chart: simple grid entry (like the Duty Roster)
 
 - The long Intake / Output form is replaced by a **grid**: rows = 2-hour slots for the chart day (7–9 AM … 5–7 AM), columns = **Oral · IV · Tube** (intake) and **Urine · Drain · Vomit · Stool** (output), plus **Other**.

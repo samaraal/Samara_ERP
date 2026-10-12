@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.14';
+  const APP_VERSION = '2.16.15';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '09-Oct-2026 Medicine withhold fixes';
+  const APP_BUILD_DATE = '12-Oct-2026 Multiple items in one indent';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -11453,7 +11453,11 @@ https://samaraassistedliving.com/`;
 "‹ Previous day": "‹ முந்தைய நாள்",
 "Chart date": "சார்ட் தேதி",
 "Tap a box → choose what and how much → Save. ☕ = tea / milk / juice from Resident Food Intake (added automatically).": "கட்டத்தைத் தொடவும் → என்ன, எவ்வளவு என்று தேர்வு செய்யவும் → Save. ☕ = Resident Food Intake-இல் பதிந்த டீ / பால் / ஜூஸ் (தானாகச் சேர்க்கப்படும்).",
-"Every entry with time and nurse. Tap a row for full details; Remove wrong entries here.": "ஒவ்வொரு பதிவும் நேரம், நர்ஸ் பெயருடன். முழு விவரத்துக்கு வரிசையைத் தொடவும்; தவறான பதிவை இங்கே நீக்கவும்."
+"Every entry with time and nurse. Tap a row for full details; Remove wrong entries here.": "ஒவ்வொரு பதிவும் நேரம், நர்ஸ் பெயருடன். முழு விவரத்துக்கு வரிசையைத் தொடவும்; தவறான பதிவை இங்கே நீக்கவும்.",
+"+ Add item to list": "+ பட்டியலில் சேர்",
+"Add each item, then initiate all together.": "ஒவ்வொரு பொருளையும் சேர்த்து, பிறகு எல்லாவற்றையும் ஒன்றாக இண்டென்ட் தொடங்கவும்.",
+"Reason / Remarks (for all items above)": "காரணம் / குறிப்பு (மேலே உள்ள எல்லா பொருட்களுக்கும்)",
+"Store balance": "ஸ்டோர் இருப்பு",
 };
   // 2.15.70: EN | தமிழ் screen-language switch (trial for STD; Admin can also check).
   // Translates only fixed screen wording (menu, titles, buttons, labels, statuses) using SAMARA_TA.
@@ -38571,11 +38575,38 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     React.useEffect(()=>{const timer=setInterval(loadReceiptOverdue,60000);return()=>clearInterval(timer)},[]);
     React.useEffect(()=>{if(registerFilter)setFilter(registerFilter)},[registerFilter,section]);
     function chooseItem(id){const st=stock.find(x=>x.item_id===id);setForm(f=>({...f,store_item_id:id,item_name:displayStoreItemName(st?.item_name)||'',unit:st?.unit||'Nos'}))}
+    // 2.16.15: several items in one go. The nurse adds items to a list (same patient), then one tap
+    // initiates one indent per item — each item keeps its own approval / handover / receipt / balance, as before.
+    const [indentLines,setIndentLines]=React.useState([]);
+    function lineFromForm(){
+      const st=stock.find(x=>x.item_id===form.store_item_id),qty=Number(form.requested_qty);
+      if(!st||!form.item_name)return {error:'Select category and item.'};
+      if(!Number.isFinite(qty)||qty<=0)return {error:'Enter a valid quantity.'};
+      return {line:{key:`${form.store_item_id}-${Date.now()}`,store_item_id:form.store_item_id,item_name:form.item_name,category:form.category||categoryOfStock(st),code:codeOfStock(st),unit:form.unit||st.unit||'Nos',requested_qty:qty}};
+    }
+    // Same item added twice → quantities are added together on one line.
+    const mergeLine=(list,line)=>{const i=list.findIndex(l=>String(l.store_item_id)===String(line.store_item_id));if(i<0)return [...list,line];const c=list.slice();c[i]={...c[i],requested_qty:Number(c[i].requested_qty||0)+Number(line.requested_qty||0)};return c};
+    function addIndentLine(){
+      const r=lineFromForm();if(r.error){notify('error',r.error);return}
+      setIndentLines(ls=>mergeLine(ls,r.line));
+      setForm(f=>({...f,store_item_id:'',item_name:'',requested_qty:'1',unit:'Nos'}));
+    }
+    const setLineQty=(key,v)=>setIndentLines(ls=>ls.map(l=>l.key===key?{...l,requested_qty:v}:l));
+    const removeIndentLine=key=>setIndentLines(ls=>ls.filter(l=>l.key!==key));
     async function initiate(e){
       e.preventDefault();if(!nurse||busy)return;
-      if(!form.patient_id||!stock.some(x=>x.item_id===form.store_item_id)||!form.item_name||!Number.isFinite(Number(form.requested_qty))||Number(form.requested_qty)<=0){notify('error','Select patient, consumable and valid quantity.');return}
-      setBusy(true);const result=await client.from('patient_consumable_indents').insert({patient_id:form.patient_id,store_item_id:form.store_item_id||null,item_name:form.item_name,requested_qty:Number(form.requested_qty),unit:form.unit||'Nos',request_remarks:form.request_remarks||null,initiated_by:profile.id,initiated_by_name:actorName,status:'Initiated'});setBusy(false);
-      if(result.error)notify('error',result.error.message);else{notify('success','Patient consumable indent initiated and sent to Nurse Manager.');setForm(f=>({...f,store_item_id:'',item_name:'',requested_qty:'1',unit:'Nos',request_remarks:''}));await load()}
+      if(!form.patient_id){notify('error','Select patient.');return}
+      let all=indentLines.slice();
+      // An item still selected in the boxes (not yet added) is included too.
+      if(form.store_item_id){const r=lineFromForm();if(r.error){notify('error',r.error);return}all=mergeLine(all,r.line)}
+      if(!all.length){notify('error','Select patient, consumable and valid quantity.');return}
+      const bad=all.find(l=>!stock.some(x=>x.item_id===l.store_item_id)||!Number.isFinite(Number(l.requested_qty))||Number(l.requested_qty)<=0);
+      if(bad){notify('error',`Check the quantity / item for ${bad.item_name||'an item'}.`);return}
+      const payload=all.map(l=>({patient_id:form.patient_id,store_item_id:l.store_item_id||null,item_name:l.item_name,requested_qty:Number(l.requested_qty),unit:l.unit||'Nos',request_remarks:form.request_remarks||null,initiated_by:profile.id,initiated_by_name:actorName,status:'Initiated'}));
+      // One insert for the whole list: either all items are saved or none (no half-saved list).
+      setBusy(true);const result=await client.from('patient_consumable_indents').insert(payload);setBusy(false);
+      if(result.error)notify('error',result.error.message);
+      else{notify('success',payload.length===1?'Patient consumable indent initiated and sent to Nurse Manager.':`${payload.length} indents initiated for ${patientLabel(form.patient_id)} and sent to Nurse Manager.`);setIndentLines([]);setForm(f=>({...f,store_item_id:'',item_name:'',requested_qty:'1',unit:'Nos',request_remarks:''}));await load()}
     }
     async function approve(row,reject=false){
       if(!storeController||busy)return;let qty=0,remarks='';const st=stockFor(row);
@@ -38661,11 +38692,27 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       !section&&nurse&&h('div',{id:'patient-raise-indent',style:{scrollMarginTop:'90px'}},h(Section,{title:'New Patient Indent',subtitle:'Select an active patient and a consumable or pharmacy item. Available store balance refreshes automatically; stock is issued at handover.'},
         h('form',{onSubmit:initiate},h('div',{className:'grid two'},
           h('div',{className:'field'},h('label',null,'Patient *'),h('select',{value:form.patient_id,onChange:e=>setForm({...form,patient_id:e.target.value}),required:true},h('option',{value:''},'Select active patient'),patients.map(p=>h('option',{key:p.id,value:p.id},patientLabel(p.id))))),
-          h('div',{className:'field'},h('label',null,'Category *'),h('select',{'aria-label':'Category',value:form.category,onChange:e=>setForm(f=>({...f,category:e.target.value,store_item_id:'',item_name:''})),required:true},h('option',{value:''},'Select category'),indentCategories.map(c=>h('option',{key:c,value:c},`${c} (${stock.filter(x=>categoryOfStock(x)===c).length})`)))),
-          h('div',{className:'field'},h('label',null,'Item *'),h('select',{'aria-label':'Consumable / Pharmacy Item',value:form.store_item_id,onChange:e=>chooseItem(e.target.value),required:stock.length>0,disabled:!form.category},h('option',{value:''},form.category?`Select ${form.category} item (${options.length})`:'Select a category first'),options.map(x=>h('option',{key:x.item_id,value:x.item_id},`${codeOfStock(x)?`${codeOfStock(x)} · `:''}${x.item_name} · Store balance ${x.balance_qty} ${x.unit}`)))),
-          h('div',{className:'field'},h('label',null,'Quantity *'),h('input',{type:'number',min:'0.01',step:'0.01',value:form.requested_qty,onChange:e=>setForm({...form,requested_qty:e.target.value}),required:true})),
+          h('div',{className:'field'},h('label',null,'Category *'),h('select',{'aria-label':'Category',value:form.category,onChange:e=>setForm(f=>({...f,category:e.target.value,store_item_id:'',item_name:''}))},h('option',{value:''},'Select category'),indentCategories.map(c=>h('option',{key:c,value:c},`${c} (${stock.filter(x=>categoryOfStock(x)===c).length})`)))),
+          h('div',{className:'field'},h('label',null,'Item *'),h('select',{'aria-label':'Consumable / Pharmacy Item',value:form.store_item_id,onChange:e=>chooseItem(e.target.value),disabled:!form.category},h('option',{value:''},form.category?`Select ${form.category} item (${options.length})`:'Select a category first'),options.map(x=>h('option',{key:x.item_id,value:x.item_id},`${codeOfStock(x)?`${codeOfStock(x)} · `:''}${x.item_name} · Store balance ${x.balance_qty} ${x.unit}`)))),
+          h('div',{className:'field'},h('label',null,'Quantity *'),h('input',{type:'number',min:'0.01',step:'0.01',value:form.requested_qty,onChange:e=>setForm({...form,requested_qty:e.target.value})})),
           h('div',{className:'field'},h('label',null,'Unit'),h('input',{value:form.unit,readOnly:true}))
-        ),h(PharmacyStockPanel,{stock:stockInfo,itemId:form.store_item_id,quantity:form.requested_qty,unit:form.unit,showSelector:false}),h('div',{className:'field'},h('label',null,'Reason / Remarks'),h('textarea',{rows:2,value:form.request_remarks,onChange:e=>setForm({...form,request_remarks:e.target.value}),placeholder:'Optional clinical/use note'})),h('button',{className:'btn btn-primary',disabled:busy||!form.item_name},busy?'Saving…':'Initiate Indent'))
+        ),h(PharmacyStockPanel,{stock:stockInfo,itemId:form.store_item_id,quantity:form.requested_qty,unit:form.unit,showSelector:false}),
+        h('div',{style:{margin:'8px 0 14px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy||!form.item_name,onClick:addIndentLine},'+ Add item to list'),h('small',{style:{marginLeft:'10px',color:'#7a5566'}},'Add each item, then initiate all together.')),
+        indentLines.length>0&&h('div',{className:'field'},h('label',null,`Items in this indent (${indentLines.length})`),
+          h('div',{className:'table-wrap'},h('table',{className:'table'},
+            h('thead',null,h('tr',null,['#','Item','Category','Quantity','Store balance',''].map((x,i)=>h('th',{key:i},x)))),
+            h('tbody',null,indentLines.map((l,i)=>{const st=stock.find(x=>x.item_id===l.store_item_id);const bal=Number(st?.balance_qty??0);const short=Number(l.requested_qty)>bal;return h('tr',{key:l.key},
+              h('td',null,i+1),
+              h('td',null,h('strong',null,l.item_name),l.code&&h('small',{style:{display:'block',color:'#7a5566'}},l.code)),
+              h('td',null,l.category||'—'),
+              h('td',null,h('input',{type:'number',min:'0.01',step:'0.01','aria-label':`Quantity for ${l.item_name}`,value:l.requested_qty,onChange:e=>setLineQty(l.key,e.target.value),style:{width:'90px'}}),' ',l.unit),
+              h('td',{style:{color:short?'#b42318':undefined,fontWeight:short?800:undefined}},st?`${bal} ${st.unit||l.unit}${short?' — less than asked':''}`:'—'),
+              h('td',null,h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:()=>removeIndentLine(l.key)},'Remove'))
+            )}))
+          ))
+        ),
+        h('div',{className:'field'},h('label',null,indentLines.length?'Reason / Remarks (for all items above)':'Reason / Remarks'),h('textarea',{rows:2,value:form.request_remarks,onChange:e=>setForm({...form,request_remarks:e.target.value}),placeholder:'Optional clinical/use note'})),
+        (()=>{const n=indentLines.length+(form.item_name&&!indentLines.some(l=>String(l.store_item_id)===String(form.store_item_id))?1:0);return h('button',{className:'btn btn-primary',disabled:busy||n===0},busy?'Saving…':n>1?`Initiate ${n} Indents`:'Initiate Indent')})())
       )),
       (!section||section==='balance')&&h('div',{id:'patient-received-balance',style:{scrollMarginTop:'90px'}},h(Section,{title:`${categoryFilter?categoryFilter+' — ':''}Received Indents / Used Balance`,subtitle:'Patient-specific received stock. Charge Raised automatically reduces this balance; unused items can be returned only after Stores Manager confirms physical receipt.'},
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Indent','Item','Received','Charged','Return Pending / Returned','Balance','Action'].map(x=>h('th',{key:x},x)))),
