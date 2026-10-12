@@ -1,5 +1,5 @@
-const APP_VERSION = '2.16.25';
-const CACHE = 'samara-erp-2.16.25-spot-picker';
+const APP_VERSION = '2.16.26';
+const CACHE = 'samara-erp-2.16.26-spot-save-fix';
 const SHELL = [
   './',
   './index.html',

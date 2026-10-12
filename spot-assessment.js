@@ -189,9 +189,24 @@
         if(!onSupport(clean))clean.respiratory_notes='';
         const payload={person_name:clean.person_name.trim(),visit_date:clean.visit_date,assessor_name:txt(clean.assessor_name),status,details:clean};
         let query=record?client.from('spot_assessments').update(payload).eq('id',record.id).eq('version',record.version):client.from('spot_assessments').insert(payload);
-        const result=await query.select('*').maybeSingle();
+        let result=await query.select('*').maybeSingle();
         if(result.error)throw result.error;
-        if(!result.data)throw new Error('Another staff member changed this assessment. Your entries are still on screen. Copy any needed changes, then return to the register and reopen the latest record.');
+        if(!result.data&&record){
+          // 2.16.26: nothing was saved — find out why instead of guessing
+          const latest=await client.from('spot_assessments').select('*').eq('id',record.id).maybeSingle();
+          if(latest.error)throw latest.error;
+          if(!latest.data)throw new Error('This assessment could not be found any more (it may have been removed). Your entries are still on screen.');
+          if(latest.data.version===record.version)throw new Error('The ERP did not accept the change (permission). Your entries are still on screen — please ask Admin to check your access to Spot Assessment.');
+          // Changed meanwhile. If the only change was the "Admission started" stamp (Convert to Guest /
+          // Fill from Spot Assessment), keep that stamp and save again automatically.
+          const strip=d=>{const c={...(d||{})};delete c.converted_admission;return JSON.stringify(Object.keys(c).sort().map(k=>[k,c[k]]))};
+          if(strip(latest.data.details)!==strip(record.details))throw new Error('Another staff member changed this assessment while you were editing. Your entries are still on screen. Copy any needed changes, then go back to the register and reopen the latest record.');
+          const merged={...payload,details:{...payload.details,converted_admission:latest.data.details?.converted_admission||payload.details.converted_admission}};
+          result=await client.from('spot_assessments').update(merged).eq('id',record.id).eq('version',latest.data.version).select('*').maybeSingle();
+          if(result.error)throw result.error;
+          if(!result.data)throw new Error('Another staff member changed this assessment while you were editing. Your entries are still on screen. Go back to the register and reopen the latest record.');
+        }
+        if(!result.data)throw new Error('The assessment was not saved. Please try again.');
         setRecord(result.data);setData({...result.data.details,wounds:result.data.details?.wounds||[]});setDirty(false);setNotice(`Assessment saved as ${status}.`);await load();
       }catch(e){setError(`Unable to save: ${e.message||e}`)}finally{saving.current=false;setBusy(false)}
     }
@@ -205,9 +220,10 @@
       try{
         const stamp={started_at:new Date().toISOString(),started_by:profile?.full_name||'staff'};
         const details={...data,converted_admission:stamp};
-        const result=await client.from('spot_assessments').update({details}).eq('id',record.id).eq('version',record.version).select('id').maybeSingle();
+        const result=await client.from('spot_assessments').update({details}).eq('id',record.id).eq('version',record.version).select('*').maybeSingle();
         if(result.error)throw result.error;
         if(!result.data)throw new Error('Another staff member changed this assessment. Go back to the register, reopen it and try again.');
+        setRecord(result.data);setData({...result.data.details,wounds:result.data.details?.wounds||[]}); // 2.16.26: keep the new version, so a later Save works
         sessionStorage.setItem('samara-spot-admission',JSON.stringify({spot_id:record.id,...data}));
         setDirty(false);
         if(typeof onNavigate==='function')onNavigate('Admissions');

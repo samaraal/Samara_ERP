@@ -1,3 +1,10 @@
+## 2.16.26 — Fix: Spot Assessment "Unable to save" after Admission started
+
+- Cause: **Convert to Guest** and **Fill from Spot Assessment** stamp the assessment "Admission started", which saves a new version of it. A Spot Assessment that was open (or reopened from an older screen) still held the older version, so the next Save was refused as "Another staff member changed this assessment".
+- Now: if the only change since opening was that stamp, the Save goes through automatically and keeps the stamp. Convert to Guest also keeps the new version on screen.
+- If a save is still refused, the message now says the real reason: another staff member really edited it, a permission block (ask Admin), or the record no longer exists.
+- No SQL. Files: spot-assessment.js, version files, app.js (rebuilt).
+
 ## 2.16.25 — Admission form: Fill from Spot Assessment (optional)
 
 - New dashed box at the top of the Admission form: **Fill from Spot Assessment**. Search by name / visiting staff, pick the assessment (name · visit date DD-MM-YYYY · status · "admission already started" where it applies) and tap **Fill the form**.
