@@ -1,3 +1,16 @@
+## 2.16.34 — Talk to Guest: automatic Bangla / Hindi interpretation
+
+- New nursing workspace page and clinical dashboard shortcut for nurses, caregivers and managers. **STD** also has it (under Communication; Admin sees it there too).
+- Guest language is detected automatically every time. Spoken Hindi that the recogniser labels "Urdu" is accepted as Hindi.
+- AI: uses the current Gemini models in the same order as the Help assistant (gemini-3.8-flash → 3.5-flash → 3.5-flash-lite → 2.5-flash; a retired model is skipped automatically and the working one remembered). If no Gemini model answers, OpenAI (Whisper + text model) takes over.
+- Consent line shown in English, Bangla and Hindi so the Guest can read what they agree to. Tamil words added for the EN | தமிழ் switch.
+- Staff switched off in either the is_active or the older active column cannot use it.
+- Guest audio detects Bangla/Bengali or Hindi; translation is displayed and spoken in Tamil. Tamil nurse replies return in the latest detected guest language.
+- Short turns stop after a pause or the Stop & translate button. New guest clears the language and conversation; cancellation/navigation stops capture and playback.
+- Reuses GEMINI_API_KEY, OPENAI_API_KEY and SAMARA_TTS_MODEL from the existing Samara AI services in a dedicated authenticated function. No conversation logging or ERP record changes.
+- Before enabling: run supabase/sql/talk_to_guest_rate_limit.sql and deploy supabase/functions/talk-to-guest. Staff role checks, origin restrictions and a shared request budget apply.
+- Live Bengali/Hindi/Tamil accuracy, latency and mobile microphone/playback checks remain required after deployment.
+
 ## 2.16.33 — Discharge Approval: Trial Guest discount fills in automatically
 
 - **Trial (test) Guests only**: when Admin opens Discharge Approval, the **Discount Amount** is filled with the full outstanding amount and the **Discount Reason** with "Trial (test) Guest — full amount waived, not a real bill". Admin can still change or clear both before approving.

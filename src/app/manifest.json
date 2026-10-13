@@ -149,6 +149,10 @@
    "about": "Nursing Manager petty cash book (2.16.19, SQL 215)"
   },
   {
+   "file": "communication/talk-to-guest.js",
+   "about": "Auto-detect Bangla/Hindi guest speech, translate to Tamil and translate nurse replies back; authenticated AI service; ephemeral conversation"
+  },
+  {
    "file": "shell/01-app-main.js",
    "about": "App() - the main shell: login state, page switching, global watchers switched on here",
    "lines": 788
