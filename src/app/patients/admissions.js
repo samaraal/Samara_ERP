@@ -1,3 +1,105 @@
+  const ADMISSION_FEED_OPTIONS={
+    route:['Oral','NG / Ryles tube','PEG','NJ tube','Jejunostomy','Other tube'],
+    type:['Oral / self feeding','Assisted oral feeding','Bolus','Intermittent','Continuous'],
+    interval:['As prescribed','Every 1 hour','Every 2 hours','Every 3 hours','Every 4 hours','Every 6 hours','At meal times'],
+    formula:['Kitchen feeds','Fresubin HP','Fresubin HP + kitchen feeds','Commercial formula','Commercial formula + kitchen feeds'],
+    item:['Fresubin HP','Multigrain porridge','Vegetable soup','Chicken soup','Rice porridge','Milk','Water','Commercial formula','Kitchen feed'],
+    consistency:['Thin','Thick','Liquid','Pureed','Soft','Regular'],
+    preparation:['As prescribed','Filtered','Blended','Cooked','Ready to use'],
+    volume:['30','50','60','90','100','120','150','180','200','250','300'],
+    scoops:['1','2','3','4','5','6','7','8','9','10'],
+    percent:Array.from({length:101},(_,i)=>String(i)),
+    fluid:['500','750','1000','1200','1250','1350','1500','1750','1800','2000','2250','2500'],
+    npc:['500','750','1000','1200','1500','1800','2000','2200','2500'],
+    nitrogen:['5','6','8','10','12','14','16','18','20'],
+    ratio:['80:1','100:1','110:1','120:1','150:1','180:1','200:1']
+  };
+  function blankAdmissionFeed(){return {id:'feed-'+Date.now()+'-'+Math.random().toString(36).slice(2),time:'',item:'',scoops:'',water_ml:'',volume_ml:'',consistency:'',preparation:'',note:''}}
+  function admissionFeedRowEntered(row){return ['time','item','scoops','water_ml','volume_ml','consistency','preparation','note'].some(key=>String(row[key]||'').trim())}
+  function normaliseAdmissionFeedingPlan(value){
+    const p=value&&typeof value==='object'&&!Array.isArray(value)?value:{};
+    return {version:1,route:String(p.route||''),type:String(p.type||''),interval:String(p.interval||''),rate_ml_hr:String(p.rate_ml_hr||''),formula:String(p.formula||''),
+      rows:Array.isArray(p.rows)?p.rows.map((row,i)=>({...blankAdmissionFeed(),...(row&&typeof row==='object'?row:{}),id:row?.id||'existing-feed-'+i})):[],
+      total_fluid_ml:String(p.total_fluid_ml||''),protein_percent:String(p.protein_percent||''),cho_percent:String(p.cho_percent||''),fat_percent:String(p.fat_percent||''),npc_kcal:String(p.npc_kcal||''),nitrogen_g:String(p.nitrogen_g||''),npc_n_ratio:String(p.npc_n_ratio||''),instructions:String(p.instructions||'')};
+  }
+  function admissionFeedingSummary(value){
+    const p=normaliseAdmissionFeedingPlan(value),lines=[];
+    if(p.route)lines.push(`Feeding route: ${p.route}`);
+    if(p.type)lines.push(`Type of feeding: ${p.type}`);
+    if(p.interval)lines.push(`Feeding interval: ${p.interval}`);
+    if(p.rate_ml_hr)lines.push(`Feeding rate: ${p.rate_ml_hr} ml/hour`);
+    if(p.formula)lines.push(`Feeding formula: ${p.formula}`);
+    const rows=p.rows.filter(admissionFeedRowEntered);
+    if(rows.length)lines.push('TIME — FEEDS');
+    rows.forEach(r=>{
+      const time=r.time?new Date(`2000-01-01T${r.time}:00`).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}):'Time not entered';
+      const parts=[r.item,r.scoops?`${r.scoops} scoop(s)`:'',r.water_ml?`in ${r.water_ml} ml water`:'',r.volume_ml?`feed volume ${r.volume_ml} ml`:'',r.consistency,r.preparation,r.note].filter(Boolean);
+      lines.push(`${time} — ${parts.join('; ')}`);
+    });
+    const totals=[p.total_fluid_ml?`Total fluid: ${p.total_fluid_ml} ml/day`:'',p.protein_percent?`Protein: ${p.protein_percent}%`:'',p.cho_percent?`CHO: ${p.cho_percent}%`:'',p.fat_percent?`Fat: ${p.fat_percent}%`:'',p.npc_kcal?`NPC: ${p.npc_kcal} kcal/day`:'',p.nitrogen_g?`Nitrogen: ${p.nitrogen_g} g/day`:'',p.npc_n_ratio?`NPC:N: ${p.npc_n_ratio}`:''].filter(Boolean);
+    if(totals.length)lines.push(totals.join(' · '));
+    if(p.instructions)lines.push(`Additional feeding instructions: ${p.instructions}`);
+    return lines.join('\n');
+  }
+  function admissionFeedingPlanError(value){
+    const p=normaliseAdmissionFeedingPlan(value);
+    const numeric=[['rate_ml_hr','Feeding rate'],['total_fluid_ml','Total fluid'],['npc_kcal','NPC'],['nitrogen_g','Nitrogen'],['protein_percent','Protein'],['cho_percent','CHO'],['fat_percent','Fat']];
+    for(const [key,label] of numeric){if(p[key]&&(!/^\d+(\.\d+)?$/.test(p[key])||!Number.isFinite(Number(p[key]))))return `${label} must be a non-negative number.`;if(key.endsWith('_percent')&&Number(p[key])>100)return `${label} percentage must be between 0 and 100.`}
+    if(p.npc_n_ratio&&!/^\d+(\.\d+)?(\s*:\s*\d+(\.\d+)?)?$/.test(p.npc_n_ratio))return 'Enter NPC:N as a number or ratio, for example 110 or 110:1.';
+    if(p.npc_n_ratio&&Number(p.npc_n_ratio.split(':')[1])===0)return 'The NPC:N ratio denominator must be greater than zero.';
+    for(let i=0;i<p.rows.length;i++){
+      const row=p.rows[i];if(!admissionFeedRowEntered(row))continue;
+      if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(row.time)||!String(row.item||'').trim())return `Feed row ${i+1}: choose a time and feed item.`;
+      for(const key of ['scoops','water_ml','volume_ml'])if(row[key]&&(!/^\d+(\.\d+)?$/.test(String(row[key]))||!Number.isFinite(Number(row[key]))))return `Feed row ${i+1}: quantities must be non-negative numbers.`;
+    }
+    return '';
+  }
+  function AdmissionDietChoice({label,value,options,onChange,numeric=false}){
+    const h=React.createElement,[custom,setCustom]=React.useState(false),[open,setOpen]=React.useState(false);
+    const known=options.includes(String(value??''));const isCustom=custom||Boolean(value&&!known);
+    // Keep custom entry open while typing, including a value that matches a preset.
+    React.useEffect(()=>{if(!open)setCustom(Boolean(value&&!known))},[value,known,open]);
+    return h('div',{className:'field'},h('label',null,label),
+      h('select',{'aria-label':label,value:isCustom?'__custom__':String(value||''),onChange:e=>{const other=e.target.value==='__custom__';setCustom(other);setOpen(other);if(!other)onChange(e.target.value);else if(known)onChange('')}},
+        h('option',{value:''},'Select'),options.map(option=>h('option',{key:option,value:option},option)),h('option',{value:'__custom__'},'Other / enter value')),
+      isCustom?h('input',{'aria-label':`${label} custom value`,type:numeric?'number':'text',min:numeric?'0':undefined,step:numeric?'any':undefined,value:value||'',placeholder:'Enter value',onFocus:()=>setOpen(true),onBlur:()=>setOpen(false),onChange:e=>onChange(e.target.value),style:{marginTop:'6px'}}):null);
+  }
+  function AdmissionDietFields({form,setForm}){
+    const h=React.createElement;
+    const p=normaliseAdmissionFeedingPlan(form.feeding_plan);
+    if(!form.feeding_plan)p.instructions=form.feeding_instruction||'';
+    const update=patch=>setForm(old=>{
+      const previous=normaliseAdmissionFeedingPlan(old.feeding_plan);if(!old.feeding_plan)previous.instructions=old.feeding_instruction||'';
+      const next={...previous,...(typeof patch==='function'?patch(previous):patch)};
+      return {...old,feeding_plan:next,feeding_instruction:admissionFeedingSummary(next)};
+    });
+    const choice=(label,key,options,numeric=false)=>h(AdmissionDietChoice,{label,value:p[key],options,numeric,onChange:value=>update({[key]:value})});
+    const rowChoice=(label,key,index,options,numeric=false)=>h(AdmissionDietChoice,{label,value:p.rows[index][key],options,numeric,onChange:value=>update(previous=>({rows:previous.rows.map((r,i)=>i===index?{...r,[key]:value}:r)}))});
+    const times=Array.from({length:48},(_,i)=>`${String(Math.floor(i/2)).padStart(2,'0')}:${i%2?'30':'00'}`);
+    return h('div',{className:'span-3 admission-diet-plan',style:{gridColumn:'1 / -1',marginTop:'12px',borderTop:'1px solid #ead4df',paddingTop:'12px'}},
+      h('h4',null,'Diet and feeding timetable'),
+      h('div',{className:'form-grid'},
+        h(AdmissionDietChoice,{label:'Diet plan',value:form.diet_plan,options:['Normal diet','Soft diet','Liquid diet','Diabetic diet','Low-salt diet','Renal diet','High-protein diet','Tube feeding','Custom diet'],onChange:diet_plan=>setForm(old=>({...old,diet_plan}))}),
+        choice('Feeding route','route',ADMISSION_FEED_OPTIONS.route),choice('Type of feeding','type',ADMISSION_FEED_OPTIONS.type),
+        choice('Feeding interval','interval',ADMISSION_FEED_OPTIONS.interval),choice('Feeding rate (ml/hour)','rate_ml_hr',ADMISSION_FEED_OPTIONS.volume,true),choice('Feeding formula','formula',ADMISSION_FEED_OPTIONS.formula)),
+      h('h5',null,'Time and feeds'),
+      p.rows.map((row,index)=>h('div',{key:row.id,className:'section-card',style:{margin:'10px 0',padding:'12px'}},
+        h('strong',null,`Feed ${index+1}`),h('div',{className:'form-grid'},
+          rowChoice('Time (24-hour)','time',index,times),rowChoice('Feed item','item',index,ADMISSION_FEED_OPTIONS.item),rowChoice('Scoops','scoops',index,ADMISSION_FEED_OPTIONS.scoops,true),
+          rowChoice('Water for mixing (ml)','water_ml',index,ADMISSION_FEED_OPTIONS.volume,true),rowChoice('Feed volume (ml)','volume_ml',index,ADMISSION_FEED_OPTIONS.volume,true),
+          rowChoice('Consistency','consistency',index,ADMISSION_FEED_OPTIONS.consistency),rowChoice('Preparation','preparation',index,ADMISSION_FEED_OPTIONS.preparation),
+          h('div',{className:'field'},h('label',null,'Feed instructions (optional)'),h('input',{'aria-label':`Feed ${index+1} instructions`,value:row.note,onChange:e=>{const note=e.target.value;update(previous=>({rows:previous.rows.map((r,i)=>i===index?{...r,note}:r)}))}}))),
+        h('button',{type:'button',className:'btn btn-danger',onClick:()=>update(previous=>({rows:previous.rows.filter((_,i)=>i!==index)}))},'Remove feed'))),
+      h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>update(previous=>({rows:[...previous.rows,blankAdmissionFeed()]}))},'+ Add feed'),
+        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>update(previous=>({rows:[...previous.rows,...['06:00','08:00','10:00','12:00','14:00','16:00','18:00','20:00','22:00'].map(time=>({...blankAdmissionFeed(),time}))]}))},'Add 6 am–10 pm time rows')),
+      h('h5',null,'Daily fluid and nutrition values'),h('div',{className:'form-grid'},
+        choice('Total fluid (ml/day)','total_fluid_ml',ADMISSION_FEED_OPTIONS.fluid,true),choice('Protein (%)','protein_percent',ADMISSION_FEED_OPTIONS.percent,true),choice('CHO / carbohydrate (%)','cho_percent',ADMISSION_FEED_OPTIONS.percent,true),
+        choice('Fat (%)','fat_percent',ADMISSION_FEED_OPTIONS.percent,true),choice('NPC (kcal/day)','npc_kcal',ADMISSION_FEED_OPTIONS.npc,true),choice('Nitrogen (g/day)','nitrogen_g',ADMISSION_FEED_OPTIONS.nitrogen,true),choice('NPC:N ratio','npc_n_ratio',ADMISSION_FEED_OPTIONS.ratio)),
+      h('small',{className:'small-note'},'Enter the prescribed values. Dropdowns are suggestions; choose Other / enter value for any different item or amount. Nutrient values and fluid totals are entered separately.'),
+      h('div',{className:'field'},h('label',null,'Additional feeding instructions'),h('textarea',{'aria-label':'Additional feeding instructions',rows:3,value:p.instructions,onChange:e=>update({instructions:e.target.value})})),
+      form.feeding_plan?h('details',null,h('summary',null,'Feeding summary for care records'),h('pre',{style:{whiteSpace:'pre-wrap',fontFamily:'inherit'}},admissionFeedingSummary(p))):null);
+  }
+
   const TAMIL_NADU_DISTRICT_TALUKS={
     'Ariyalur':['Andimadam','Ariyalur','Sendurai','Udayarpalayam'],
     'Chengalpattu':['Cheyyur','Madurantakam','Pallavaram','Tambaram','Thirukalukundram','Tiruporur','Vandalur'],
@@ -45,7 +147,7 @@
 
   function Admissions({profile,onNavigate}){
     const today=new Date().toISOString().slice(0,10);
-    const initial={record_type:'',admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',date_of_birth:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',country:'India',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,admission_time:localDateTimeValue().slice(11,16),vitals_time_1:'06:00',vitals_time_2:'14:00',vitals_time_3:'22:00',hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_staying:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
+    const initial={record_type:'',admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',date_of_birth:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',country:'India',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,admission_time:localDateTimeValue().slice(11,16),vitals_time_1:'06:00',vitals_time_2:'14:00',vitals_time_3:'22:00',hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_staying:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_plan:null,feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
     const [form,setForm]=React.useState(initial),[meds,setMeds]=React.useState([blankMedicine()]),[care,setCare]=React.useState([blankCare()]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [familyAccess,setFamilyAccess]=React.useState({delivery_mode:'Family Portal Access',enabled:true,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:true,daily_whatsapp_time:'20:00'});
     const [familyAccess2,setFamilyAccess2]=React.useState({enabled:false,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:false});
@@ -520,7 +622,7 @@
       let alive=true;
       async function loadPreviousPatients(){
         const {data,error}=await client.from('patients')
-          .select('id,patient_id,patient_code,title,full_name,date_of_birth,age,gender,blood_group,profession,profession_field,employment_status,mobile,address,state,district,taluk,village_town,locality_area,street_name,house_no,apartment_name,flat_no,landmark,pincode,attendant_staying,attendant_name,attendant_phone,attendant_alternative_phone,allergies,diagnosis,treating_doctor,doctor_phone,hospital_name,photo_storage_path,is_active,admission_date,discharge_date,patient_category,billing_package,diet_plan,feeding_instruction,special_instructions')
+          .select('id,patient_id,patient_code,title,full_name,date_of_birth,age,gender,blood_group,profession,profession_field,employment_status,mobile,address,state,district,taluk,village_town,locality_area,street_name,house_no,apartment_name,flat_no,landmark,pincode,attendant_staying,attendant_name,attendant_phone,attendant_alternative_phone,allergies,diagnosis,treating_doctor,doctor_phone,hospital_name,photo_storage_path,is_active,admission_date,discharge_date,patient_category,billing_package,diet_plan,feeding_plan,feeding_instruction,special_instructions')
           .order('full_name',{ascending:true});
         if(!alive)return;
         if(error){
@@ -704,6 +806,7 @@
         hospital_name:patient.hospital_name||'',
         diet_plan:patient.diet_plan||'Normal diet',
         feeding_instruction:patient.feeding_instruction||'',
+        feeding_plan:patient.feeding_plan||null,
         billing_package:patient.billing_package||'Standard Assisted Care',
         undergoing_prescribed_medication:patient.undergoing_prescribed_medication===false?'No':'Yes',
         special_instructions:patient.special_instructions||'',
@@ -1399,7 +1502,7 @@
 
   <p><b>Prescribed medication status:</b> ${admission.undergoing_prescribed_medication===false?'No prescribed medication declared at admission':'Prescribed medication list recorded below'}</p>
   <p><b>Risks / special arrangements:</b> ${consentEscape(risks)}</p>
-  <p><b>Diet / feeding instructions:</b> ${consentEscape(admission.diet_plan)}; ${consentEscape(admission.feeding_instruction||'No additional instruction')}</p>
+  <p><b>Diet / feeding instructions:</b> ${consentEscape(admission.diet_plan)}; ${consentEscape(admission.feeding_instruction||'No additional instruction').replace(/\n/g,'<br>')}</p>
 
   <h2>4. Fees, Package and Additional Charges</h2>
   <p>The Resident or Representative acknowledges the selected package or daily-billing arrangement, room category, payment obligations, deposits, discounts approved by authorised management, and separately chargeable services. Doctor visits, medicines, investigations, ambulance or transport, external hospital expenses, special nursing, physiotherapy and other non-included services may be charged separately where applicable. Detailed bills and payment records will be maintained by Samara Care.</p>
@@ -1855,6 +1958,8 @@ Please keep these login details confidential.`;
 
     async function submit(e){
       e.preventDefault();
+      const feedingProblem=admissionFeedingPlanError(form.feeding_plan);
+      if(feedingProblem){setMsg(feedingProblem);showAdmissionError(feedingProblem);return}
       setAdmissionSaveAttempt(value=>value+1);
       setAdmissionErrorToast('');
       setBusy(true);
@@ -1959,7 +2064,7 @@ Please keep these login details confidential.`;
       const pendingAdmissionResume=Boolean(admissionExistingPatient&&String(admissionExistingPatient.admission_status||'').toLowerCase()==='admission pending');
       let patientCode=admissionExistingPatient?.patient_code||admissionExistingPatient?.patient_id||null;
       const attendantStaying=form.attendant_staying==='Yes';
-      const payload={...form,full_name:String(form.full_name||'').trim().toUpperCase(),
+      const payload={...form,feeding_instruction:form.feeding_plan?admissionFeedingSummary(form.feeding_plan):form.feeding_instruction,full_name:String(form.full_name||'').trim().toUpperCase(),
         date_of_birth:form.date_of_birth||null,
         attendant_staying:attendantStaying,
         attendant_name:attendantStaying?String(form.attendant_name||'').trim():'',
@@ -2644,8 +2749,7 @@ Please keep these login details confidential.`;
           h('button',{type:'button',className:'btn btn-secondary',onClick:addCareEntry},'+ Add Care Task')
         ),
         h('div',{className:'form-grid'},
-          selectField('Diet plan','diet_plan',form,setForm,['Normal diet','Soft diet','Liquid diet','Diabetic diet','Low-salt diet','Renal diet','High-protein diet','Tube feeding','Custom diet']),
-          textareaField('Feeding instructions','feeding_instruction',form,setForm,'span-2')
+          h(AdmissionDietFields,{form,setForm})
         )
       ),
       h('div',{className:'section-card'},h('h4',null,'5. Risks, special nurse and physiotherapy'),h('div',{className:'check-grid'},riskItems.map(([key,label])=>h('label',{className:'check-card',key},h('input',{type:'checkbox',checked:!!form[key],onChange:e=>setForm({...form,[key]:e.target.checked})}),h('span',null,label))),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.oxygen_required,onChange:e=>setForm({...form,oxygen_required:e.target.checked})}),h('span',null,'Oxygen required')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.dressing_required,onChange:e=>setForm({...form,dressing_required:e.target.checked})}),h('span',null,'Wound dressing required')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.special_nurse_required,onChange:e=>setForm({...form,special_nurse_required:e.target.checked})}),h('span',null,'Special / dedicated nurse')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.physio_required,onChange:e=>setForm({...form,physio_required:e.target.checked})}),h('span',null,'Physiotherapy advised'))),form.special_nurse_required&&h('div',{className:'form-grid'},field('Special nurse name','special_nurse_name',form,setForm,true),selectField('Coverage','special_nurse_shift',form,setForm,['Day Shift','Night Shift','Both shifts / 24-hour coverage']),textareaField('Special nursing instructions','special_nurse_instructions',form,setForm,'span-2')),form.physio_required&&h('div',{className:'form-grid'},field('Therapy / exercise','therapy_type',form,setForm,true),field('Physiotherapist name','physiotherapist_name',form,setForm,false),field('Frequency','physio_frequency',form,setForm,false),field('Preferred time','physio_time',form,setForm,false,'time'),textareaField('Precautions','physio_precautions',form,setForm,'span-2'))),
@@ -2768,4 +2872,5 @@ Please keep these login details confidential.`;
       cameraConfig?h(CameraCaptureModal,{config:cameraConfig,onClose:()=>setCameraConfig(null)}):null
     );
   }
+
 
