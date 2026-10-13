@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.32';
+  const APP_VERSION = '2.16.33';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -27901,6 +27901,17 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
         if(!data?.token||data.patient_id!==row.patient_id)throw new Error('Unable to verify this patient account.');
         setManagementBilling(data.ledger||[]);
         setManagementSnapshot(data);
+        // 2.16.33: Trial (test) Guests only — pre-fill the discount with the full outstanding
+        // amount and a standard reason, so the test bill closes at ₹0. Admin can still edit or
+        // clear it. Skipped while charge requests are pending (a discount is blocked then).
+        if(profile?.role==='Admin'&&patientFor(row.patient_id).is_trial&&!(Number(data.pending_count||0)>0)){
+          const t=managementBillingTotals(data.ledger||[]);
+          const full=Math.max(0,Number(t.Charge||0)-Number(t.Payment||0)-Number(t.Advance||0)-Number(t.Discount||0)+Number(t.Refund||0));
+          if(full>0){
+            setManagementDiscount(String(Math.round(full*100)/100));
+            setManagementDiscountReason('Trial (test) Guest — full amount waived, not a real bill');
+          }
+        }
       }catch(error){
         if(sequence!==managementReviewSequence.current)return;
         setManagementReviewError(error.message||'Account verification failed.');
@@ -29141,7 +29152,11 @@ Doctor / Hospital: ${doctorHospital}`;
               ),
               profile?.role==='Admin'&&h(React.Fragment,null,
                 miniInput('Discount Amount (₹)',managementDiscount,v=>setManagementDiscount(v),false,'number'),
-                miniInput('Discount Reason',managementDiscountReason,v=>setManagementDiscountReason(v))
+                miniInput('Discount Reason',managementDiscountReason,v=>setManagementDiscountReason(v)),
+                patientFor(managementReviewRow?.patient_id).is_trial&&h('div',{className:'field span-2'},
+                  h('small',{className:'muted'},Number(managementSnapshot?.pending_count||0)>0
+                    ?'🧪 Trial Guest — the full-amount discount fills in automatically once Accounts clears the pending charge requests (reopen this review then).'
+                    :'🧪 Trial Guest — full outstanding amount and reason filled in automatically. You can change them before approving.'))
               )
             ),
             h('div',{className:'actions mdr-actions'},

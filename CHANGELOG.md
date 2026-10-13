@@ -1,3 +1,10 @@
+## 2.16.33 — Discharge Approval: Trial Guest discount fills in automatically
+
+- **Trial (test) Guests only**: when Admin opens Discharge Approval, the **Discount Amount** is filled with the full outstanding amount and the **Discount Reason** with "Trial (test) Guest — full amount waived, not a real bill". Admin can still change or clear both before approving.
+- Real Guests are unchanged — the discount stays empty and optional.
+- If Accounts still has pending charge requests, nothing is filled (a discount is blocked then); a note says to reopen the review after Accounts clears them.
+- No SQL. Files: src/app/patients/discharge.js, version files, app.js (rebuilt).
+
 ## 2.16.32 — Kitchen: hide "Dinner (Meals)" item (SQL 218)
 
 - **Run supabase/sql/onetime_218_hide_kitchen_dinner_meals.sql** once in Supabase → SQL Editor (safe to run again). It hides KIT-0001 "Dinner" (unit Meals) — meals come through Food Vendor Management, not kitchen stock. Nothing is deleted; its old purchase / cash / movement entries stay in history.
