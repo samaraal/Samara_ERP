@@ -25224,6 +25224,37 @@ Please keep these login details confidential.`;
       h('div',{className:'modal-bottom-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:onClose},'Close'))
     ));
   }
+  function patientDietUpdatePayload(form){
+    const issue=admissionFeedingPlanError(form.feeding_plan);if(issue)throw new Error(issue);
+    return {diet_plan:form.diet_plan||null,feeding_plan:form.feeding_plan?normaliseAdmissionFeedingPlan(form.feeding_plan):null,feeding_instruction:form.feeding_plan?admissionFeedingSummary(form.feeding_plan):(form.feeding_instruction||'')};
+  }
+  function PatientDietEditor({patient,client,onSaved,onClose}){
+    const h=React.createElement,[form,setForm]=React.useState(null),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState('');
+    React.useEffect(()=>{
+      let active=true;setForm(null);setMessage('');
+      client.from('patients').select('id,patient_id,full_name,diet_plan,feeding_plan,feeding_instruction').eq('id',patient.id).single().then(({data,error})=>{
+        if(!active)return;if(error){setMessage(error.message||'Unable to load the diet plan.');return}
+        setForm({...data,diet_plan:data.diet_plan||'Normal diet',feeding_plan:data.feeding_plan||null,feeding_instruction:data.feeding_instruction||''});
+      }).catch(error=>{if(active)setMessage(error.message||'Unable to load the diet plan.')});
+      return ()=>{active=false};
+    },[patient.id,client]);
+    async function save(e){
+      e.preventDefault();if(!form||busy)return;
+      setMessage('');setBusy(true);
+      try{
+        const payload=patientDietUpdatePayload(form);
+        const {data,error}=await client.from('patients').update(payload).eq('id',patient.id).select('*').single();
+        if(error)throw error;if(!data)throw new Error('The diet plan was not saved. Please try again.');
+        onSaved(data);
+      }catch(error){setMessage(error.message||'Unable to save the diet plan.')}finally{setBusy(false)}
+    }
+    return h('div',{className:'modal-backdrop',onClick:e=>e.stopPropagation()},h('form',{className:'card modal patient-edit-modal',role:'dialog','aria-modal':true,'aria-label':'Edit patient diet plan',onClick:e=>e.stopPropagation(),onSubmit:save},
+      h('div',{className:'panel-head'},h('div',null,h('h3',null,'Edit diet and feeding timetable'),h('small',null,`${patient.patient_id||''} · ${patient.full_name||''}`)),h('button',{type:'button',className:'close',disabled:busy,'aria-label':'Close diet editor',onClick:onClose},'×')),
+      message?h('div',{className:'message error',role:'alert'},message):null,
+      form?h('fieldset',{disabled:busy,style:{border:0,padding:0,margin:0}},h(AdmissionDietFields,{form,setForm})):h('p',{role:'status'},message?'Close this window and try again.':'Loading current diet plan…'),
+      h('div',{className:'actions',style:{marginTop:'16px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:onClose},'Cancel'),h('button',{type:'submit',className:'btn btn-primary',disabled:busy||!form},busy?'Saving…':'Save diet plan'))));
+  }
+
   // 2.16.45: family WhatsApp numbers keep their country code outside India (shared Guest kit)
   const keepFamilyMobile=v=>{const K=window.SamaraGuestAddress;return K?K.storedMobile(v):String(v||'').replace(/\D/g,'').slice(-10)};
   function familyWhatsAppInput(value,onChange){
@@ -25262,6 +25293,7 @@ Please keep these login details confidential.`;
         return ['active','assigned','awaiting','high-risk','duplicates','pending-consent'].includes(requested)?requested:'active';
       }catch(_error){return 'active'}
     });
+    const [dietEditPatient,setDietEditPatient]=React.useState(null);
     const [editTarget,setEditTarget]=React.useState(null),[editForm,setEditForm]=React.useState(null),[editBusy,setEditBusy]=React.useState(false),[editMsg,setEditMsg]=React.useState('');
     const [editFamilyAccess,setEditFamilyAccess]=React.useState({enabled:false,id:null,family_user_id:'',relative_name:'',relationship:'',country_code:'+91',mobile:'',email:'',primary_contact:true,is_active:true});
     const [editFamilyAccess2,setEditFamilyAccess2]=React.useState({enabled:false,id:null,family_user_id:'',relative_name:'',relationship:'',country_code:'+91',mobile:'',email:'',primary_contact:false,is_active:true});
@@ -26043,8 +26075,9 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
         const conflict=(mobilePatients||[]).find(row=>row.id!==editTarget.id&&String(row.mobile||'').replace(/\D/g,'').slice(-10)===normalizedEditMobile);
         if(conflict){const text=`This mobile number is already registered to ${formalName(conflict)||conflict.full_name} · ${conflict.patient_id||conflict.patient_code||'Resident ID unavailable'}. Patient details were not changed.`;setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
       }
-      const allowed=['title','full_name','age','gender','mobile','address','state','district','taluk','village_town','locality_area','street_name','house_no','apartment_name','flat_no','landmark','pincode','attendant_name','attendant_phone','attendant_alternative_phone','diagnosis','referring_doctor','treating_doctor','doctor_phone','hospital_name','admission_type','patient_category','room_no','bed_no','allergies','special_instructions','admission_date','is_active','diet_plan','feeding_instruction','fall_risk','pressure_sore_risk','aspiration_risk','wandering_risk','infection_risk','seizure_history','special_nurse_required','special_nurse_name','special_nurse_shift'];
+      const allowed=['title','full_name','age','gender','mobile','address','state','district','taluk','village_town','locality_area','street_name','house_no','apartment_name','flat_no','landmark','pincode','attendant_name','attendant_phone','attendant_alternative_phone','diagnosis','referring_doctor','treating_doctor','doctor_phone','hospital_name','admission_type','patient_category','room_no','bed_no','allergies','special_instructions','admission_date','is_active','diet_plan','feeding_plan','feeding_instruction','fall_risk','pressure_sore_risk','aspiration_risk','wandering_risk','infection_risk','seizure_history','special_nurse_required','special_nurse_name','special_nurse_shift'];
       const payload={};allowed.forEach(k=>payload[k]=editForm[k]===''?null:editForm[k]);
+      try{Object.assign(payload,patientDietUpdatePayload(editForm))}catch(error){setEditMsg(error.message);showPatientToast('error',error.message);setEditBusy(false);return}
       payload.address=composePatientAddressGlobal(editForm);
       payload.age=editForm.age===''?null:Number(editForm.age);
       // 2.16.45: country (column from supabase/sql/220_guest_country.sql; saved without it until that is run)
@@ -27771,7 +27804,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
           tab==='Nursing'&&h('div',{className:'section-card'},h('h4',null,'Master Care Plan'),details.care.length?details.care.map(c=>h('div',{className:'timeline-item',key:c.id},h('strong',null,c.care_type),h('span',null,`${c.shift} · ${c.frequency} · ${careWindowLabel(c)} · ${c.instruction||''}`),h(TamilAssist,{text:c.instruction,context:'Care Plan Instruction'}))):sectionEmpty('No care orders.'),h('h4',{style:{marginTop:'18px'}},'Recent Care Records'),details.careLogs.length?details.careLogs.slice(0,30).map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.care_date)} · ${x.shift} · ${x.status}`),h('span',{className:'patient-file-detail'},` · ${x.remarks||'—'}`),h(TamilAssist,{text:x.remarks,context:'Nursing Care Remark'}))):sectionEmpty('No care records.')),
           tab==='Vitals'&&h('div',{className:'section-card'},h('h4',null,'Vital Signs History'),details.vitals.length?details.vitals.map(v=>h('div',{className:'timeline-item',key:v.id},h('strong',null,`${fmt(v.recorded_at)} · BP ${v.systolic||'—'}/${v.diastolic||'—'}`),h('span',{className:'patient-file-detail'},` · Pulse ${v.pulse||'—'} · SpO₂ ${v.spo2||'—'} · Temp ${v.temperature||'—'} · Sugar ${v.blood_sugar_type||'Not Taken'} ${v.blood_sugar||'—'} · ${v.alert_level||'Normal'}`))):sectionEmpty('No vital signs recorded.')),
           tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${x.preferred_time||'—'} · ${x.precautions||''}`),h(TamilAssist,{text:x.precautions,context:'Physiotherapy Precaution'}))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'),h(TamilAssist,{text:x.notes,context:'Physiotherapy Note'}))):sectionEmpty('No physiotherapy sessions.')),
-          tab==='Diet'&&h('div',{className:'section-card'},h('h4',null,`Diet Plan: ${selected.diet_plan||'Not recorded'}`),h('p',null,selected.feeding_instruction||'No special feeding instruction.'),h('h4',{style:{marginTop:'18px'}},'Food & Beverage Records'),(()=>{
+          tab==='Diet'&&h('div',{className:'section-card'},h('h4',null,`Diet Plan: ${selected.diet_plan||'Not recorded'}`),canEdit?h('button',{type:'button',className:'btn btn-primary',onClick:()=>setDietEditPatient(selected)},'Edit diet plan'):null,h('p',{style:{whiteSpace:'pre-wrap'}},selected.feeding_plan?admissionFeedingSummary(selected.feeding_plan):(selected.feeding_instruction||'No special feeding instruction.')),h('h4',{style:{marginTop:'18px'}},'Food & Beverage Records'),(()=>{
             // 2.15.34: meals and separate beverage servings, newest first.
             const items=[...(details.meals||[]).map(x=>({k:`m${x.id}`,at:x.served_at||x.meal_date,x,t:'meal'})),...(details.beverages||[]).map(x=>({k:`b${x.id}`,at:x.given_at,x,t:'bev'}))].sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
             return items.length?items.map(({k,x,t})=>t==='meal'
@@ -27950,6 +27983,11 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
           )
         )
       ),
+      canEdit&&dietEditPatient&&h(PatientDietEditor,{patient:dietEditPatient,client,onClose:()=>setDietEditPatient(null),onSaved:updated=>{
+        setRows(previous=>previous.map(row=>row.id===updated.id?{...row,...updated}:row));
+        setSelected(previous=>previous?.id===updated.id?{...previous,...updated}:previous);
+        setDietEditPatient(null);showPatientToast('success','Diet plan saved successfully.');
+      }}),
       canEdit&&editTarget&&editForm&&h('div',{className:'modal-backdrop',onClick:e=>e.stopPropagation()},h('form',{className:'card modal patient-edit-modal',onClick:e=>e.stopPropagation(),onSubmit:savePatientEdit},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Edit Patient Information'),h('small',null,`${editTarget.patient_id||'—'} · Correct duplicate or wrongly entered details`)),h('button',{type:'button',className:'close',onClick:()=>{setEditTarget(null);setEditForm(null)}},'×')),
         editMsg&&h('div',{className:`message ${editMsg.includes('successfully')?'success':'error'}`},editMsg),
@@ -28023,7 +28061,7 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
           ))):h('p',{className:'small-note'},'No current or upcoming medication is recorded.'),
           h('div',{className:'message',style:{marginTop:'10px'}},'Safety rule: modifying or stopping a medicine creates a new prescription version with doctor details and an effective date/time. The previous order is never overwritten.')
         ),
-        h('div',{className:'section-card'},h('h4',null,'4. Master care plan'),h('div',{className:'check-grid'},['Bathing assistance','Restroom/toileting assistance','Oral hygiene','Dressing assistance','Feeding assistance','Walking/mobility assistance','Diaper change','Position change / bedsore prevention','Fluid intake monitoring','Sleep assistance'].map(name=>h('label',{className:'check-card',key:name},h('input',{type:'checkbox',checked:editCare.some(x=>x.care_type===name),onChange:e=>e.target.checked?setEditCare([...editCare,{...blankCare(),care_type:name}]):setEditCare(editCare.filter(x=>x.care_type!==name))}),h('span',null,name)))),editCare.map((c,i)=>h('div',{className:'repeat-row care',key:c.id||c.care_type+i},miniInput('Care task',c.care_type,v=>updateEditCare(i,'care_type',v),true),miniSelect('Shift',c.shift,['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Both shifts'],v=>updateEditCare(i,'shift',v)),miniSelect('Frequency',c.frequency,['Daily','Each shift','Twice daily','As required'],v=>updateEditCare(i,'frequency',v)),miniInput('Instruction',c.instruction,v=>updateEditCare(i,'instruction',v)),miniInput('Preferred from (optional)',careTimeValue(c.preferred_from),v=>updateEditCare(i,'preferred_from',v),false,'time'),miniInput('Preferred to (optional)',careTimeValue(c.preferred_to),v=>updateEditCare(i,'preferred_to',v),false,'time'),h('button',{type:'button',className:'icon-btn',onClick:()=>setEditCare(editCare.filter((_,n)=>n!==i))},'Remove'))),h('div',{className:'form-grid'},selectField('Diet plan','diet_plan',editForm,setEditForm,['Normal diet','Soft diet','Liquid diet','Diabetic diet','Low-salt diet','Renal diet','High-protein diet','Tube feeding','Custom diet']),textareaField('Feeding instructions','feeding_instruction',editForm,setEditForm,'span-2'))),
+        h('div',{className:'section-card'},h('h4',null,'4. Master care plan'),h('div',{className:'check-grid'},['Bathing assistance','Restroom/toileting assistance','Oral hygiene','Dressing assistance','Feeding assistance','Walking/mobility assistance','Diaper change','Position change / bedsore prevention','Fluid intake monitoring','Sleep assistance'].map(name=>h('label',{className:'check-card',key:name},h('input',{type:'checkbox',checked:editCare.some(x=>x.care_type===name),onChange:e=>e.target.checked?setEditCare([...editCare,{...blankCare(),care_type:name}]):setEditCare(editCare.filter(x=>x.care_type!==name))}),h('span',null,name)))),editCare.map((c,i)=>h('div',{className:'repeat-row care',key:c.id||c.care_type+i},miniInput('Care task',c.care_type,v=>updateEditCare(i,'care_type',v),true),miniSelect('Shift',c.shift,['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Both shifts'],v=>updateEditCare(i,'shift',v)),miniSelect('Frequency',c.frequency,['Daily','Each shift','Twice daily','As required'],v=>updateEditCare(i,'frequency',v)),miniInput('Instruction',c.instruction,v=>updateEditCare(i,'instruction',v)),miniInput('Preferred from (optional)',careTimeValue(c.preferred_from),v=>updateEditCare(i,'preferred_from',v),false,'time'),miniInput('Preferred to (optional)',careTimeValue(c.preferred_to),v=>updateEditCare(i,'preferred_to',v),false,'time'),h('button',{type:'button',className:'icon-btn',onClick:()=>setEditCare(editCare.filter((_,n)=>n!==i))},'Remove'))),h('div',{className:'form-grid'},h(AdmissionDietFields,{form:editForm,setForm:setEditForm}))),
         h('div',{className:'section-card'},h('h4',null,'5. Risks and special nurse'),h('div',{className:'check-grid'},[['fall_risk','Fall risk'],['pressure_sore_risk','Pressure sore risk'],['aspiration_risk','Aspiration risk'],['wandering_risk','Wandering / confusion risk'],['infection_risk','Infection-control precautions'],['seizure_history','Seizure history']].map(([key,label])=>h('label',{className:'check-card',key},h('input',{type:'checkbox',checked:!!editForm[key],onChange:e=>setEditForm({...editForm,[key]:e.target.checked})}),h('span',null,label)))),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!editForm.special_nurse_required,onChange:e=>setEditForm({...editForm,special_nurse_required:e.target.checked})}),h('span',null,'Special nurse required')),editForm.special_nurse_required&&h('div',{className:'form-grid'},field('Special nurse name','special_nurse_name',editForm,setEditForm,false),selectField('Special nurse shift','special_nurse_shift',editForm,setEditForm,['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Both shifts']))),
 
         h('div',{className:'section-card'},
