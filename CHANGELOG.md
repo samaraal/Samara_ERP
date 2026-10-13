@@ -1,3 +1,9 @@
+## 2.16.41 — Talk to Guest Live: staff replies now translated
+
+- Fix: in ⚡ Live mode the Guest was translated but staff Tamil replies were not, because the Guest's language was not recognised from Google's reply, so the staff → Guest translator never opened.
+- The Guest's language is now taken from Google's code **or** language name (e.g. "Bengali"), and otherwise from the **script of the Guest's words** (Bangla / Devanagari / Malayalam / Telugu / Kannada / English letters). If it still cannot tell, the language buttons appear immediately so the reply can be translated.
+- Screen only — no Edge Function or SQL change. Browser tests: language as code, as name and missing → staff reply translated in all three.
+
 ## 2.16.40 — Talk to Guest: ⚡ Live mode (translates while the person is speaking)
 
 - New **Mode: ⚡ Live (fastest) / Standard** (Live is the default, remembered per phone). Live uses Google **Gemini Live Translate** (preview model gemini-3.5-live-translate-preview): the translation streams **while the person is still speaking**, a moment behind, in a voice like the speaker's (male / female kept automatically). No waiting for a pause, no buttons.

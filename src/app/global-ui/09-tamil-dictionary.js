@@ -3864,4 +3864,6 @@
 "What you just said is translated straight away after the tap.": "நீங்கள் சொன்னது தொட்டவுடன் மொழிபெயர்க்கப்படும்.",
 "Which language does the guest speak? Tap it below — what you said is translated straight away.": "கெஸ்ட் எந்த மொழி பேசுகிறார்? கீழே தொடுங்கள் — நீங்கள் சொன்னது உடனே மொழிபெயர்க்கப்படும்.",
 "Which language does the guest speak? Tap it below.": "கெஸ்ட் எந்த மொழி பேசுகிறார்? கீழே தொடுங்கள்.",
+// 2.16.41
+"Which language does the guest speak? Tap it below so your reply can be translated.": "கெஸ்ட் எந்த மொழி பேசுகிறார்? உங்கள் பதில் மொழிபெயர்க்கப்பட கீழே தொடுங்கள்.",
 };

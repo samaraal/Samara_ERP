@@ -1,6 +1,9 @@
   // 2.16.34: ephemeral nurse–guest interpretation; no patient records or chat logging. Open to Admin, Manager, Nurse, Caregiver and STD.
   // 2.16.35: hands-free conversation — ONE Start button, the microphone stays open, each sentence is sent after a short
   // pause and the spoken language decides who is talking (Tamil / English = staff, Bangla / Hindi = guest).
+  // 2.16.41: Live — staff replies were not translated when Google did not report the guest's language as a short code. The guest
+  // language is now also read from language names and from the script of the guest's words; if still unknown, the language
+  // buttons appear at once (not only at the end of a sentence).
   // 2.16.40: ⚡ LIVE mode (default) — Gemini Live Translate streams the translation while the person is still speaking, in a voice
   // like the speaker's. Two live sessions share the microphone: A = anything → Tamil (silent for Tamil), B = anything → guest
   // language (silent for that language), so nobody presses buttons. Each session is muted while the other is speaking its output
@@ -221,7 +224,20 @@
     }
     // ================= ⚡ LIVE MODE (Gemini Live Translate) =================
     const LIVE_WS='wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=';
-    const lang2=c=>String(c||'').slice(0,2).toLowerCase();
+    // Language from Google's code OR name ("bn", "bn-IN", "Bengali", "ben" …); '' when unknown.
+    const LANG_NAMES={bengali:'bn',bangla:'bn',ben:'bn',hindi:'hi',hin:'hi',urdu:'hi',urd:'hi',ur:'hi',tamil:'ta',tam:'ta',english:'en',eng:'en',malayalam:'ml',mal:'ml',telugu:'te',tel:'te',kannada:'kn',kan:'kn'};
+    const KNOWN=['ta','en','hi','bn','ml','te','kn'];
+    const lang2=c=>{const v=String(c||'').trim().toLowerCase();if(!v)return '';if(LANG_NAMES[v])return LANG_NAMES[v];const first=v.split(/[-_\s]/)[0];if(LANG_NAMES[first])return LANG_NAMES[first];return KNOWN.includes(first)?first:'';};
+    // Language from the letters of the transcript (each of these languages has its own script).
+    function scriptLang(text){
+      const t=String(text||'');let c={ta:0,hi:0,bn:0,ml:0,te:0,kn:0,en:0};
+      for(const ch of t){const u=ch.codePointAt(0);
+        if(u>=0x0B80&&u<=0x0BFF)c.ta++;else if(u>=0x0900&&u<=0x097F)c.hi++;else if(u>=0x0980&&u<=0x09FF)c.bn++;
+        else if(u>=0x0D00&&u<=0x0D7F)c.ml++;else if(u>=0x0C00&&u<=0x0C7F)c.te++;else if(u>=0x0C80&&u<=0x0CFF)c.kn++;
+        else if(u>=0x0600&&u<=0x06FF)c.hi++; // Urdu script → Hindi (spoken Hindi / Urdu are nearly the same)
+        else if((u>=65&&u<=90)||(u>=97&&u<=122))c.en++;}
+      const best=Object.entries(c).sort((a,b)=>b[1]-a[1])[0];return best[1]>=2?best[0]:'';
+    }
     function b64FromBytes(u8){let s='';for(let i=0;i<u8.length;i+=32768)s+=String.fromCharCode.apply(null,u8.subarray(i,i+32768));return btoa(s);}
     // Microphone samples → 16 kHz 16-bit PCM (resampled if the phone could not open a 16 kHz capture).
     function toPcm16(input,rate){
@@ -269,12 +285,19 @@
         if(d&&d.data&&!(s.key==='A'&&!r.tamilVoice)){s.player.push(d.data);setPhase('playing');}
       }
       if(sc.inputTranscription){
-        const it=sc.inputTranscription,code=lang2(it.languageCode);
+        const it=sc.inputTranscription;
+        // Google's language field (code or name) → else the script of everything heard so far in this sentence.
+        const code=lang2(it.languageCode||it.language_code||it.language)||scriptLang(s.inText+(it.text||''));
         if(code)onLiveLanguage(s,code);
         // Only speech that this session translates is shown (Tamil into A / guest language into B is silent by design).
         if(it.text&&code!==s.target){s.inText+=it.text;if(code)s.inLang=code;}
       }
       if(sc.outputTranscription&&sc.outputTranscription.text)s.outText+=sc.outputTranscription.text;
+      if(s.key==='A'&&s.outText&&!r.guest&&!r.pending){ // still unknown after the guest spoke → ask now, don't wait for the sentence end
+        const guess=scriptLang(s.inText);
+        if(GUEST_CODES.includes(guess))onLiveLanguage(s,guess);
+        else{setPendingRow({live:true});setStatus('Which language does the guest speak? Tap it below so your reply can be translated.');}
+      }
       showLiveNow();
       if(sc.turnComplete||sc.generationComplete){
         if(s.outText.trim()){
