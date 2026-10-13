@@ -3840,4 +3840,7 @@
 "Which language does the guest speak? Tap it below — your sentence will be spoken in it.": "கெஸ்ட் எந்த மொழி பேசுகிறார்? கீழே அதைத் தொடுங்கள் — உங்கள் வாக்கியம் அந்த மொழியில் பேசப்படும்.",
 "Auto · 6 languages": "தானாக · 6 மொழிகள்",
 "🎙 Talk to Guest · 6 languages": "🎙 கெஸ்ட்டுடன் பேசு · 6 மொழிகள்",
+// 2.16.37: Talk to Guest voice
+"Voice:": "குரல்:",
+"Auto (match speaker)": "தானாக (பேசுபவருக்கு ஏற்ப)",
 };

@@ -1,3 +1,12 @@
+## 2.16.37 — Talk to Guest: translation spoken in a voice matching the speaker (male / female)
+
+- When a man speaks, the translation is read in a **male voice**; when a woman speaks, in a **female voice** — automatically, for staff and Guest.
+- How: the AI judges how the voice sounds while translating (no extra delay); if it is unsure (or the OpenAI backup is used) the phone's measured voice pitch decides (below ~165 Hz = male). Default female.
+- **Voice: Auto (match speaker) / Female / Male** buttons to override if it guesses wrong. Each translation shows "male voice" / "female voice". Listen again and the staff-first language tap keep the same voice.
+- The voice judgement is used only to choose the synthetic voice for that reply — never saved.
+- Voices: female "coral", male "ash" (change with Supabase secrets TALK_VOICE_FEMALE / TALK_VOICE_MALE if wanted).
+- **Redeploy the talk-to-guest Edge Function** (dashboard single-file index.ts) to switch voices on. Screen and function work in either order. No SQL. 34 mocked tests.
+
 ## 2.16.36 — Talk to Guest: 6 guest languages (English, Hindi, Bangla, Malayalam, Telugu, Kannada)
 
 - Staff speak **Tamil** (Tamil with English words mixed in still counts as staff). The Guest can speak **English, Hindi, Bangla, Malayalam, Telugu or Kannada** — detected automatically each sentence; the Tamil reply goes back in the Guest's latest language.

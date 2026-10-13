@@ -1,5 +1,5 @@
-const APP_VERSION = '2.16.36';
-const CACHE = 'samara-erp-2.16.36-talk-six-languages';
+const APP_VERSION = '2.16.37';
+const CACHE = 'samara-erp-2.16.37-talk-matching-voice';
 const SHELL = [
   './',
   './index.html',
