@@ -1,6 +1,8 @@
   // 2.16.34: ephemeral nurse–guest interpretation; no patient records or chat logging. Open to Admin, Manager, Nurse, Caregiver and STD.
   // 2.16.35: hands-free conversation — ONE Start button, the microphone stays open, each sentence is sent after a short
   // pause and the spoken language decides who is talking (Tamil / English = staff, Bangla / Hindi = guest).
+  // 2.16.38: speed — translated text shown the moment it arrives; voice streamed and played while it is still being generated;
+  // server woken on Start; 0.8 s pause; each translation shows how long it took.
   // 2.16.37: translation spoken in a voice matching the speaker (male / female sounding); phone pitch as backup; Voice: Auto / Female / Male.
   // 2.16.36: staff = Tamil; guest = English, Hindi, Bangla, Malayalam, Telugu or Kannada (auto-detected).
   // Staff may speak first: the guest's language is chosen with one tap and the same sentence is used (no repeat).
@@ -20,7 +22,7 @@
     const GUEST_LANGS=[['en','English'],['hi','हिन्दी Hindi'],['bn','বাংলা Bangla'],['ml','മലയാളം Malayalam'],['te','తెలుగు Telugu'],['kn','ಕನ್ನಡ Kannada']];
     const GUEST_CODES=GUEST_LANGS.map(x=>x[0]);
     const labels={en:'English',hi:'Hindi · हिन्दी',bn:'Bangla · বাংলা',ml:'Malayalam · മലയാളം',te:'Telugu · తెలుగు',kn:'Kannada · ಕನ್ನಡ',ta:'Tamil · தமிழ்'};
-    const SILENCE_MS=900,MIN_SPEECH_MS=350,IDLE_RESTART_MS=8000,MAX_MS=25000;
+    const SILENCE_MS=800,MIN_SPEECH_MS=350,IDLE_RESTART_MS=8000,MAX_MS=25000;
     const box={border:'1px solid #e6ccd9',borderRadius:18,padding:18,background:'#fff'};
     const setGuest=v=>{run.current.guest=v;setGuestState(v);};
     const setTamilVoice=v=>{run.current.tamilVoice=v;setTamilVoiceState(v);};
@@ -38,7 +40,7 @@
     const setPendingRow=v=>{run.current.pending=v;setPending(v);};
 
     function stopListening(){const r=run.current;clearInterval(r.timer);r.timer=null;if(r.recorder&&r.recorder.state!=='inactive'){r.discard=true;r.recorder.stop();}r.recorder=null;setLevel(0);}
-    function stopPlayback(){const r=run.current;if(r.source){try{r.source.stop()}catch(_){}r.source=null;}}
+    function stopPlayback(){const r=run.current;if(r.source){try{r.source.stop()}catch(_){}r.source=null;}(r.sources||[]).forEach(x=>{try{x.stop()}catch(_){}});r.sources=[];}
     function releaseMic(){const r=run.current;if(r.input){try{r.input.disconnect()}catch(_){}r.input=null;}r.analyser=null;if(r.stream)r.stream.getTracks().forEach(t=>t.stop());r.stream=null;}
     function stopAll(message){const r=run.current;r.epoch++;r.live=false;stopListening();if(r.request)r.request.abort();r.request=null;stopPlayback();releaseMic();setLive(false);setPhase('idle');if(message)setStatus(message);}
     React.useEffect(()=>{const pause=()=>{if(document.hidden&&run.current.live)stopAll('Paused because the screen was switched. Tap Start conversation to continue.');};document.addEventListener('visibilitychange',pause);return()=>{document.removeEventListener('visibilitychange',pause);stopAll();if(run.current.context)run.current.context.close().catch(()=>{});};},[]);
@@ -68,6 +70,33 @@
       setPhase('playing');setStatus('Speaking the translation…');
       await new Promise((resolve,reject)=>{const source=r.context.createBufferSource();r.source=source;source.buffer=decoded;source.connect(r.context.destination);source.onended=()=>{source.disconnect();if(r.source===source)r.source=null;resolve();};try{source.start();}catch(e){reject(e);}});
     }
+    // 2.16.38: streamed voice = raw 24 kHz 16-bit mono PCM chunks, scheduled back-to-back so playback starts with the first chunk.
+    function fromBase64Bytes(text){const s=atob(text),bytes=new Uint8Array(s.length);for(let i=0;i<s.length;i++)bytes[i]=s.charCodeAt(i);return bytes;}
+    function pcmBuffer(bytes){const ctx=run.current.context,n=bytes.length>>1,buf=ctx.createBuffer(1,Math.max(1,n),24000),ch=buf.getChannelData(0),dv=new DataView(bytes.buffer,bytes.byteOffset,n*2);for(let i=0;i<n;i++)ch[i]=dv.getInt16(i*2,true)/32768;return buf;}
+    function pcmPlayer(epoch,onFirst){
+      const r=run.current,ctx=r.context;let t=0,carry=null,started=false;const parts=[];r.sources=[];
+      return {
+        push(b64){
+          if(!ctx||epoch!==r.epoch)return;let bytes=fromBase64Bytes(b64);
+          if(carry){const m=new Uint8Array(carry.length+bytes.length);m.set(carry);m.set(bytes,carry.length);bytes=m;carry=null;}
+          if(bytes.length%2){carry=bytes.slice(-1);bytes=bytes.slice(0,-1);}
+          if(!bytes.length)return;parts.push(bytes);
+          const src=ctx.createBufferSource();src.buffer=pcmBuffer(bytes);src.connect(ctx.destination);
+          const now=ctx.currentTime;if(t<now+.04)t=now+(started?.04:.1); // tiny lead; catches up if the network is slower than speech
+          src.start(t);t+=src.buffer.duration;r.sources.push(src);
+          if(!started){started=true;onFirst&&onFirst();}
+        },
+        async finish(){if(!ctx)return;while(epoch===r.epoch&&ctx.currentTime<t)await new Promise(res=>setTimeout(res,Math.min(200,Math.max(20,(t-ctx.currentTime)*1000))));r.sources=[];},
+        bytes(){const n=parts.reduce((a,p)=>a+p.length,0),all=new Uint8Array(n);let o=0;for(const p of parts){all.set(p,o);o+=p.length;}return all;}
+      };
+    }
+    async function playPcm(bytes,epoch){
+      const r=run.current;if(!r.context)throw Error('Audio playback is unavailable on this device.');
+      await r.context.resume();if(epoch!==r.epoch)return;setPhase('playing');setStatus('Speaking the translation…');
+      await new Promise(resolve=>{const src=r.context.createBufferSource();r.source=src;src.buffer=pcmBuffer(bytes);src.connect(r.context.destination);src.onended=()=>{src.disconnect();if(r.source===src)r.source=null;resolve();};src.start();});
+    }
+    // Wakes the server function as soon as Start is tapped, so the first sentence is not slowed by a cold start.
+    async function warmUp(){try{const {data:{session}}=await client.auth.getSession();if(session)fetch(`${cfg.supabaseUrl}/functions/v1/talk-to-guest`,{method:'POST',headers:{Authorization:`Bearer ${session.access_token}`,apikey:cfg.supabasePublishableKey,'x-talk-mode':'ping'}}).catch(()=>{});}catch(_){}}
     async function speechFor(text,language,voice){const response=await request({mode:'speech',text,language,voice:run.current.voicePref&&run.current.voicePref!=='auto'?run.current.voicePref:(voice||'female')});return await response.arrayBuffer();}
 
     // ---- continuous listening: one recorder per sentence on the same open microphone ----
@@ -103,26 +132,54 @@
     }
     async function translate(blob,epoch,voiceHint){
       const r=run.current;if(epoch!==r.epoch)return;
+      const t0=Date.now(),secs=ms=>(ms/1000).toFixed(1)+' s';
       setPhase('translating');setStatus('Translating…');
-      try{
-        if(blob.size<1200){listen(true);return;}
-        const fd=new FormData();const ext=blob.type.includes('mp4')?'m4a':blob.type.includes('ogg')?'ogg':'webm';
-        fd.append('audio',blob,'conversation.'+ext);fd.append('actor','auto');fd.append('speak','1');fd.append('speak_tamil',r.tamilVoice?'1':'0');fd.append('voice',r.voicePref||'auto');if(voiceHint)fd.append('voice_hint',voiceHint);
-        if(r.guest)fd.append('guest_language',r.guest);
-        const response=await request(fd);const x=await response.json();if(epoch!==r.epoch)return;
+      // First message of a reply: shows the text at once. Returns the new row, or null when staff spoke first (language needed).
+      function accept(x){
         r.failures=0;
         if(x.needs_language){
-          const row={id:Date.now(),actor:'staff',source:x.source,transcript:x.transcript,translations:x.translations,target:'',translation:'',voice:x.voice};
+          const row={id:Date.now(),actor:'staff',source:x.source,transcript:x.transcript,translations:x.translations,target:'',translation:'',voice:x.voice,took:'Text '+secs(Date.now()-t0)};
           setRows(old=>[row,...old].slice(0,6));setPendingRow(row);
           setStatus('Which language does the guest speak? Tap it below — your sentence will be spoken in it.');
-          listen(true);return;
+          return null;
         }
         if(!x.transcript||!x.translation||!x.target)throw Error('The translation was incomplete. Please speak again.');
         const isGuest=GUEST_CODES.includes(x.source);
         if(isGuest){setGuest(x.source);const p=r.pending;if(p){setPendingRow(null);setRows(old=>old.map(o=>o.id===p.id?{...o,target:x.source,translation:o.translations[x.source]}:o));}} // guest answered before the chip was tapped: show the earlier sentence in that language
-        const row={id:Date.now(),actor:isGuest?'guest':'staff',source:x.source,target:x.target,transcript:x.transcript,translation:x.translation,voice:x.voice,audio:x.audio?fromBase64(x.audio):null};
+        const row={id:Date.now(),actor:isGuest?'guest':'staff',source:x.source,target:x.target,transcript:x.transcript,translation:x.translation,voice:x.voice,audio:x.audio?fromBase64(x.audio):null,took:'Text '+secs(Date.now()-t0)};
         setRows(old=>[row,...old].slice(0,6));
-        if(row.audio){try{await playBytes(row.audio,epoch);}catch(_){if(epoch===r.epoch)setStatus('Voice unavailable. Please read the translation.');}}
+        return row;
+      }
+      const note=(row,extra)=>setRows(old=>old.map(o=>o.id===row.id?{...o,...extra}:o));
+      try{
+        if(blob.size<1200){listen(true);return;}
+        const fd=new FormData();const ext=blob.type.includes('mp4')?'m4a':blob.type.includes('ogg')?'ogg':'webm';
+        fd.append('audio',blob,'conversation.'+ext);fd.append('actor','auto');fd.append('speak','1');fd.append('stream','1');fd.append('speak_tamil',r.tamilVoice?'1':'0');fd.append('voice',r.voicePref||'auto');if(voiceHint)fd.append('voice_hint',voiceHint);
+        if(r.guest)fd.append('guest_language',r.guest);
+        const response=await request(fd);if(epoch!==r.epoch)return;
+        if(!(response.headers.get('content-type')||'').includes('ndjson')||!response.body){
+          // Server function not yet updated: whole reply at once (text + mp3).
+          const x=await response.json();if(epoch!==r.epoch)return;
+          const row=accept(x);if(!row){listen(true);return;}
+          if(row.audio){note(row,{took:row.took+' · Voice '+secs(Date.now()-t0)});try{await playBytes(row.audio,epoch);}catch(_){if(epoch===r.epoch)setStatus('Voice unavailable. Please read the translation.');}}
+          if(epoch===r.epoch&&r.live)listen();return;
+        }
+        // Streamed reply: line 1 = text (shown now), then voice chunks played as they arrive.
+        const reader=response.body.getReader(),dec=new TextDecoder();let buf='',row,first=true,player=null,voiceAt=0;
+        for(;;){
+          const {done,value}=await reader.read();
+          if(epoch!==r.epoch){reader.cancel().catch(()=>{});return;}
+          if(value)buf+=dec.decode(value,{stream:true});
+          let k;
+          while((k=buf.indexOf('\n'))>=0){
+            const text=buf.slice(0,k);buf=buf.slice(k+1);if(!text.trim())continue;const m=JSON.parse(text);
+            if(first){first=false;row=accept(m);if(!row){reader.cancel().catch(()=>{});listen(true);return;}if(m.audio_stream){setStatus('Translation ready — voice starting…');await r.context?.resume();}continue;}
+            if(m.pcm){if(!player)player=pcmPlayer(epoch,()=>{voiceAt=Date.now();setPhase('playing');setStatus('Speaking the translation…');});player.push(m.pcm);}
+            if(m.audio_error)setStatus('Voice unavailable. Please read the translation.');
+          }
+          if(done)break;
+        }
+        if(player){if(voiceAt)note(row,{took:row.took+' · Voice '+secs(voiceAt-t0)});await player.finish();if(epoch!==r.epoch)return;note(row,{pcm:player.bytes()});}
         if(epoch===r.epoch&&r.live)listen();
       }catch(e){
         if(epoch!==r.epoch)return;
@@ -135,7 +192,7 @@
     async function start(){
       const r=run.current;if(r.live||!consent)return;
       if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){setStatus('Please use a current Chrome or Safari browser with microphone access.');return;}
-      unlockAudio();r.epoch++;r.failures=0;setStatus('Opening microphone…');
+      unlockAudio();warmUp();r.epoch++;r.failures=0;setStatus('Opening microphone…');
       try{
         const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
         r.stream=stream;r.live=true;setLive(true);
@@ -155,7 +212,7 @@
     }
     async function replay(row){
       const r=run.current;stopListening();stopPlayback();const epoch=++r.epoch;unlockAudio();
-      try{let bytes=row.audio;if(!bytes){setPhase('translating');setStatus('Preparing the voice…');bytes=await speechFor(row.translation,row.target,row.voice);if(epoch!==r.epoch)return;setRows(old=>old.map(o=>o.id===row.id?{...o,audio:bytes}:o));}await playBytes(bytes,epoch);}
+      try{if(row.pcm){await playPcm(row.pcm,epoch);if(epoch===r.epoch){if(r.live)listen();else{setPhase('idle');setStatus('Tap Start conversation to continue.');}}return;}let bytes=row.audio;if(!bytes){setPhase('translating');setStatus('Preparing the voice…');bytes=await speechFor(row.translation,row.target,row.voice);if(epoch!==r.epoch)return;setRows(old=>old.map(o=>o.id===row.id?{...o,audio:bytes}:o));}await playBytes(bytes,epoch);}
       catch(_){if(epoch===r.epoch)setStatus('Voice unavailable. The translated text is shown below.');}
       if(epoch===r.epoch){if(r.live)listen();else{setPhase('idle');setStatus('Tap Start conversation to continue.');}}
     }
@@ -191,7 +248,7 @@
         h('p',{lang:row.source,style:{fontSize:20,lineHeight:1.7,overflowWrap:'anywhere'}},row.transcript),
         h('hr',{style:{border:0,borderTop:'1px solid #eee'}}),
         row.translation?h(React.Fragment,null,
-          h('p',{style:{fontSize:13,color:'#78636f'}},'Translation · '+labels[row.target]+(row.voice?' · '+(row.voice==='male'?'male voice':'female voice'):'')),
+          h('p',{style:{fontSize:13,color:'#78636f'}},'Translation · '+labels[row.target]+(row.voice?' · '+(row.voice==='male'?'male voice':'female voice'):'')+(row.took?' · '+row.took:'')),
           h('p',{lang:row.target,style:{fontSize:22,lineHeight:1.7,overflowWrap:'anywhere'}},row.translation),
           h('button',{type:'button',className:'ttg-secondary',disabled:phase==='translating',onClick:()=>replay(row)},'▶ Listen again'))
         :h('p',{style:{fontSize:15,color:'#b01264'}},'Tap the guest’s language above to hear this sentence.')

@@ -1,4 +1,6 @@
 // Same provider secrets as Ask Samara AI. No transcripts, recordings or patient data are logged/stored.
+// 2.16.38: speed — voice STREAMED as it is generated (text line first, then audio chunks), profile + budget checks in parallel,
+// fastest Gemini thinking level, warm-up ping, timings returned.
 // 2.16.37: the translation is spoken in a voice matching the speaker (male / female sounding) — AI judgement, else the phone's pitch hint; staff can force Female / Male.
 // 2.16.36: Guest languages English, Hindi, Bangla, Malayalam, Telugu, Kannada; staff language Tamil (Tamil mixed with English words is still Tamil).
 // 2.16.35: actor "auto" — one open microphone; the spoken language decides who is talking
@@ -50,30 +52,40 @@ function instruction(actor,guest){
   return head+RULES+` Identify the spoken language: ta, ${GUEST.join(', ')} or unknown. If it is a guest language, put the Tamil translation in "translation". If it is ta (staff), ${staffTarget}. Return only JSON: {"source":"ta|${codes}|unknown","transcript":"original utterance","translation":"","translations":{${GUEST.map(c=>'"'+c+'":""').join(',')}},"voice":"male|female|unknown"} — leave unused fields empty.`+VOICE_FIELD;
 }
 
-export function createHandler({env,fetch:send=fetch,authorize,consume}){
+export function createHandler({env,fetch:send=fetch,authorize,verify,profile,consume}){
   return async function handle(req){
     const origin=req.headers.get('origin');
     const allowed=(env('TALK_TO_GUEST_ORIGINS')||'https://app.samaraassistedliving.com').split(',').map(x=>x.trim());
-    const headers={'Access-Control-Allow-Origin':origin&&allowed.includes(origin)?origin:allowed[0],'Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info','Access-Control-Allow-Methods':'POST, OPTIONS','Vary':'Origin','Cache-Control':'no-store'};
+    const headers={'Access-Control-Allow-Origin':origin&&allowed.includes(origin)?origin:allowed[0],'Access-Control-Allow-Headers':'authorization, apikey, content-type, x-client-info, x-talk-mode','Access-Control-Allow-Methods':'POST, OPTIONS','Vary':'Origin','Cache-Control':'no-store'};
     const out=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{...headers,'Content-Type':'application/json'}});
     if(origin&&!allowed.includes(origin))return out({error:'Origin not allowed.'},403);
     if(req.method==='OPTIONS')return new Response('ok',{headers});
     if(req.method!=='POST')return out({error:'Method not allowed.'},405);
     const token=(req.headers.get('authorization')||'').replace(/^Bearer\s+/i,'');
     if(!token)return out({error:'Please sign in to the ERP again.'},401);
-    let staff;
-    try{staff=await authorize(token);}catch(_){return out({error:'Staff access could not be checked. Please try again.'},503);}
+    const t0=Date.now(),ping=req.headers.get('x-talk-mode')==='ping';
+    let staff,budget=null;
+    try{
+      if(verify&&profile){
+        // Faster: verify the login, then read the staff profile AND take the request budget at the same time.
+        const id=await verify(token);
+        if(id){const [p,b]=await Promise.all([profile(id),ping?Promise.resolve(true):consume(id).then(v=>({ok:v}),e=>({error:e}))]);staff=p?{id,...p}:null;budget=b;}
+      }else staff=await authorize(token);
+    }catch(_){return out({error:'Staff access could not be checked. Please try again.'},503);}
     if(!staff?.id)return out({error:'Please sign in to the ERP again.'},401);
     if(staff.is_active===false||staff.active===false||!STAFF_ROLES.includes(staff.role))return out({error:'This feature is available to nursing staff, STD and managers.'},403);
+    if(ping)return out({ok:true}); // warm-up when Start is tapped: wakes the function, no AI call, no budget used
     try{
       // Shared database budget, not per-isolate memory; avoids bypass across edge instances.
-      if(!await consume(staff.id))return out({error:'Too many requests. Please wait a minute.'},429);
+      if(budget?.error)throw budget.error;
+      if(!(budget?budget.ok:await consume(staff.id)))return out({error:'Too many requests. Please wait a minute.'},429);
+      const tAuth=Date.now()-t0;
       const size=Number(req.headers.get('content-length')||0);if(size>3*1024*1024)throw new Failure('Please record a shorter sentence.',413);
       const deadline=Date.now()+60000;
       async function provider(url,options){const remaining=deadline-Date.now();if(remaining<1000)throw new Failure('Translation timed out. Please try again.');const r=await send(url,{...options,signal:AbortSignal.timeout(Math.min(30000,remaining))});if(!r.ok)throw new Failure('AI translation service is temporarily unavailable. Please try again.');return r;}
       const key=env('OPENAI_API_KEY'),geminiKey=env('GEMINI_API_KEY');
-      async function speak(text,language,voice){
-        const r=await provider('https://api.openai.com/v1/audio/speech',{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({model:env('SAMARA_TTS_MODEL')||'gpt-4o-mini-tts',voice:voice==='male'?(env('TALK_VOICE_MALE')||'ash'):(env('TALK_VOICE_FEMALE')||'coral'),input:text,response_format:'mp3',instructions:`Read the supplied text exactly in ${names[language]}, calmly and clearly. Preserve every number, name and unit. Do not translate, add, remove or change words.`})});
+      async function speak(text,language,voice,format='mp3'){
+        const r=await provider('https://api.openai.com/v1/audio/speech',{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({model:env('SAMARA_TTS_MODEL')||'gpt-4o-mini-tts',voice:voice==='male'?(env('TALK_VOICE_MALE')||'ash'):(env('TALK_VOICE_FEMALE')||'coral'),input:text,response_format:format,instructions:`Read the supplied text exactly in ${names[language]}, calmly and clearly. Preserve every number, name and unit. Do not translate, add, remove or change words.`})});
         return r;
       }
       if((req.headers.get('content-type')||'').includes('application/json')){
@@ -83,17 +95,35 @@ export function createHandler({env,fetch:send=fetch,authorize,consume}){
         return new Response(r.body,{headers:{...headers,'Content-Type':'audio/mpeg'}});
       }
       if(!(req.headers.get('content-type')||'').includes('multipart/form-data'))throw new Failure('Audio recording required.',400);
-      const fd=await req.formData(),file=fd.get('audio'),actor=String(fd.get('actor')||''),guestRaw=String(fd.get('guest_language')||''),wantVoice=String(fd.get('speak')||'')==='1',tamilVoice=String(fd.get('speak_tamil')||'1')!=='0',voicePref=String(fd.get('voice')||'auto'),voiceHint=String(fd.get('voice_hint')||'');
+      const fd=await req.formData(),file=fd.get('audio'),actor=String(fd.get('actor')||''),guestRaw=String(fd.get('guest_language')||''),wantVoice=String(fd.get('speak')||'')==='1',tamilVoice=String(fd.get('speak_tamil')||'1')!=='0',voicePref=String(fd.get('voice')||'auto'),voiceHint=String(fd.get('voice_hint')||''),stream=String(fd.get('stream')||'')==='1';
       const guest=GUEST.includes(guestRaw)?guestRaw:'';
       if(!['guest','nurse','auto'].includes(actor)||actor==='nurse'&&!guest)throw new Failure('Let the guest speak first.',400);
       if(!(file instanceof File)||file.size<1200||file.size>2*1024*1024)throw new Failure('Please record one clear sentence, up to 30 seconds.',413);
       if(!/^(audio\/(webm|mp4|mpeg|ogg|wav|x-wav)|video\/webm)(;.*)?$/.test(file.type))throw new Failure('Unsupported recording format.',415);
       const system=instruction(actor,guest);
 
-      // Adds the spoken translation (base64 mp3) to the same reply — saves a second round trip.
+      let tAi=0;const aiStart=Date.now();
+      // stream=1 (2.16.38 screen): reply is NDJSON — line 1 = translation (shown at once), then {"pcm":base64} chunks of
+      // 24 kHz 16-bit mono audio as the voice is generated (playback starts after the first chunk), then {"done":true}.
+      // Older screens: translation + whole mp3 in one JSON reply.
       async function finish(result,heardVoice){
         result.voice=pickVoice(voicePref,heardVoice,voiceHint); // staff choice → AI judgement → phone pitch hint → female
-        if(wantVoice&&key&&result.translation&&result.target&&(result.target!=='ta'||tamilVoice)){ // staff may switch off the spoken Tamil (they can read it)
+        tAi=Date.now()-aiStart;result.timing={auth_ms:tAuth,ai_ms:tAi};
+        const voiced=wantVoice&&key&&result.translation&&result.target&&(result.target!=='ta'||tamilVoice); // staff may switch off the spoken Tamil (they can read it)
+        if(stream){
+          const enc=new TextEncoder();
+          const body=new ReadableStream({async start(ctrl){
+            const line=o=>ctrl.enqueue(enc.encode(JSON.stringify(o)+'\n'));
+            line({...result,audio_stream:voiced?'pcm24k':''});
+            if(voiced){
+              try{const r=await speak(result.translation,result.target,result.voice,'pcm');const reader=r.body.getReader();for(;;){const {done,value}=await reader.read();if(done)break;if(value?.length)line({pcm:base64(value)});}line({done:true});}
+              catch(_){line({audio_error:'Voice unavailable. Please read the translation.',done:true});}
+            }else line({done:true});
+            ctrl.close();
+          }});
+          return new Response(body,{headers:{...headers,'Content-Type':'application/x-ndjson'}});
+        }
+        if(voiced){
           try{const r=await speak(result.translation,result.target,result.voice);result.audio=base64(new Uint8Array(await r.arrayBuffer()));result.audio_type='audio/mpeg';}
           catch(_){result.audio_error='Voice unavailable. Please read the translation.';}
         }
@@ -107,11 +137,11 @@ export function createHandler({env,fetch:send=fetch,authorize,consume}){
           let result=null,last='';
           for(const model of models){
             const older=/^gemini-2\./i.test(model);
-            for(const thinking of [true,false]){
+            // Fastest thinking first: newer models minimal → low → model default; older Flash: budget 0 → default.
+            for(const thinking of older?[{thinkingBudget:0},null]:[{thinkingLevel:'minimal'},{thinkingLevel:'low'},null]){
               const remaining=deadline-Date.now();if(remaining<1000)throw new Failure('Translation timed out. Please try again.');
               const config={responseMimeType:'application/json',temperature:.1,maxOutputTokens:older?1800:6000};
-              // Speed: no / low thinking. Older Flash: budget 0; newer: low level (retried without it if the model refuses the setting).
-              if(thinking)config.thinkingConfig=older?{thinkingBudget:0}:{thinkingLevel:'low'};
+              if(thinking)config.thinkingConfig=thinking;
               const r=await send(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':geminiKey},signal:AbortSignal.timeout(Math.min(30000,remaining)),body:JSON.stringify({system_instruction:{parts:[{text:system}]},contents:[{role:'user',parts:[{inline_data:{mime_type:mime,data:audio}}]}],generationConfig:config})});
               if(r.status===400&&thinking){const body=await r.text().catch(()=>'');if(/thinking/i.test(body))continue;last=model+' 400';break;}
               if(r.status===404||r.status===400){last=model+' '+r.status;break;} // model not available to this key → next one

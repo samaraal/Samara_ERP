@@ -3843,4 +3843,6 @@
 // 2.16.37: Talk to Guest voice
 "Voice:": "குரல்:",
 "Auto (match speaker)": "தானாக (பேசுபவருக்கு ஏற்ப)",
+// 2.16.38: Talk to Guest speed
+"Translation ready — voice starting…": "மொழிபெயர்ப்பு தயார் — குரல் தொடங்குகிறது…",
 };

@@ -1,3 +1,13 @@
+## 2.16.38 — Talk to Guest: faster replies (streamed voice)
+
+- **Voice starts while it is still being made**: the server streams the spoken translation in small pieces and the phone plays from the first piece, instead of waiting for the whole voice file. The translated **text appears the moment it is ready**.
+- Server checks faster: after the login is verified, the staff profile and request budget are read **at the same time**. Gemini uses its fastest thinking setting (minimal → low → default if a model refuses).
+- **Warm-up** when Start is tapped, so the first sentence is not slowed by the server waking up (no AI call, no budget used).
+- Pause before translating: 0.9 → 0.8 s.
+- Each translation shows **how long it took** ("Text 1.4 s · Voice 1.9 s", counted from the end of the sentence) — please share these numbers for further tuning.
+- Listen again replays the saved voice instantly. Screen and Edge Function work in either order (older function → whole reply at once, as before).
+- **Redeploy the talk-to-guest Edge Function** (dashboard single-file index.ts) to get the speed-up. No SQL. 41 mocked tests.
+
 ## 2.16.37 — Talk to Guest: translation spoken in a voice matching the speaker (male / female)
 
 - When a man speaks, the translation is read in a **male voice**; when a woman speaks, in a **female voice** — automatically, for staff and Guest.
