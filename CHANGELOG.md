@@ -1,3 +1,10 @@
+## 2.16.42 — Talk to Guest Live: two-way conversation no longer freezes
+
+- Found in a recorded real test: Google's live translator streams near-silent audio non-stop and never sends an end-of-sentence signal. The protection that mutes one translator while the other is speaking took that silence for speech, so once both directions were open **each kept muting the other** and neither heard anyone (Guest worked alone; staff replies — or anything after the second translator opened — were lost).
+- Now only **audible** translated speech counts as speaking (near-silence is neither played nor counted), the two translators are **never muted at the same time**, and a sentence is finished after a 1.6 s pause in the translated text (no end signal needed).
+- Staff speak first: Google reports the language only after the sentence, so the "send what staff just said" step now goes back 6 s (was 0.8 s) — the first staff sentence is no longer missed.
+- Screen only — no Edge Function or SQL change. Browser test reproducing Google's real behaviour: staff-first → tap language → guest → staff → guest, all translated.
+
 ## 2.16.41 — Talk to Guest Live: staff replies now translated
 
 - Fix: in ⚡ Live mode the Guest was translated but staff Tamil replies were not, because the Guest's language was not recognised from Google's reply, so the staff → Guest translator never opened.

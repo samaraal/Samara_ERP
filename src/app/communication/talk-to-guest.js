@@ -1,6 +1,9 @@
   // 2.16.34: ephemeral nurse–guest interpretation; no patient records or chat logging. Open to Admin, Manager, Nurse, Caregiver and STD.
   // 2.16.35: hands-free conversation — ONE Start button, the microphone stays open, each sentence is sent after a short
   // pause and the spoken language decides who is talking (Tamil / English = staff, Bangla / Hindi = guest).
+  // 2.16.42: Live fix from a real test — Google streams near-silent audio non-stop and never sends turnComplete, so the old
+  // "other translator is speaking" mute stayed on for both and neither heard anyone. Now only AUDIBLE output counts as speaking
+  // (silence is not played), both are never muted together, and a sentence is finished after a short pause in the translated text.
   // 2.16.41: Live — staff replies were not translated when Google did not report the guest's language as a short code. The guest
   // language is now also read from language names and from the script of the guest's words; if still unknown, the language
   // buttons appear at once (not only at the end of a sentence).
@@ -246,12 +249,23 @@
       return out;
     }
     // Continuous 24 kHz PCM player for one live session.
+    // Continuous 24 kHz PCM player for one live session. Google also streams near-silent audio between sentences: that is not
+    // played (except short gaps inside speech) and does not count as speaking.
     function livePlayer(){
-      const r=run.current,ctx=r.context;let t=0;const srcs=[];
+      const r=run.current,ctx=r.context;let t=0,audibleEnd=0,lastAudible=0;const srcs=[];
+      const rmsOf=bytes=>{const n=bytes.length>>1;if(!n)return 0;const dv=new DataView(bytes.buffer,bytes.byteOffset,n*2);let sum=0;for(let i=0;i<n;i+=2){const v=dv.getInt16(i*2,true)/32768;sum+=v*v;}return Math.sqrt(sum/Math.ceil(n/2));};
       return {
-        push(b64){if(!ctx)return;const bytes=fromBase64Bytes(b64);if(bytes.length<2)return;const src=ctx.createBufferSource();src.buffer=pcmBuffer(bytes.length%2?bytes.slice(0,-1):bytes);src.connect(ctx.destination);const now=ctx.currentTime;if(t<now+.03)t=now+.12;src.start(t);t+=src.buffer.duration;srcs.push(src);src.onended=()=>{const k=srcs.indexOf(src);if(k>=0)srcs.splice(k,1);};},
-        clear(){srcs.splice(0).forEach(x=>{try{x.stop()}catch(_){}});t=0;},
-        busy(){return !!ctx&&ctx.currentTime<t+.3;} // still speaking (+0.3 s tail)
+        push(b64){
+          if(!ctx)return false;let bytes=fromBase64Bytes(b64);if(bytes.length%2)bytes=bytes.slice(0,-1);if(bytes.length<2)return false;
+          const audible=rmsOf(bytes)>=.008,nowMs=Date.now();
+          if(audible)lastAudible=nowMs;else if(nowMs-lastAudible>600)return false; // silence outside speech: skip
+          const src=ctx.createBufferSource();src.buffer=pcmBuffer(bytes);src.connect(ctx.destination);
+          const now=ctx.currentTime;if(t<now+.03)t=now+.12;src.start(t);t+=src.buffer.duration;if(audible)audibleEnd=t;
+          srcs.push(src);src.onended=()=>{const k=srcs.indexOf(src);if(k>=0)srcs.splice(k,1);};
+          return audible;
+        },
+        clear(){srcs.splice(0).forEach(x=>{try{x.stop()}catch(_){}});t=0;audibleEnd=0;},
+        busy(){return !!ctx&&ctx.currentTime<audibleEnd+.3;} // really speaking (+0.3 s tail)
       };
     }
     async function liveToken(){const response=await request({mode:'live_token'});const x=await response.json();if(!x.token)throw Error('Live mode is not available right now.');return x;}
@@ -282,7 +296,7 @@
       if(sc.interrupted)s.player.clear();
       for(const part of (sc.modelTurn&&sc.modelTurn.parts)||[]){
         const d=part.inlineData||part.inline_data;
-        if(d&&d.data&&!(s.key==='A'&&!r.tamilVoice)){s.player.push(d.data);setPhase('playing');}
+        if(d&&d.data&&!(s.key==='A'&&!r.tamilVoice)){if(s.player.push(d.data))setPhase('playing');}
       }
       if(sc.inputTranscription){
         const it=sc.inputTranscription;
@@ -292,14 +306,18 @@
         // Only speech that this session translates is shown (Tamil into A / guest language into B is silent by design).
         if(it.text&&code!==s.target){s.inText+=it.text;if(code)s.inLang=code;}
       }
-      if(sc.outputTranscription&&sc.outputTranscription.text)s.outText+=sc.outputTranscription.text;
+      if(sc.outputTranscription&&sc.outputTranscription.text){s.outText+=sc.outputTranscription.text;clearTimeout(s.commitTimer);s.commitTimer=setTimeout(()=>commitLive(s),1600);} // Google may never send turnComplete: finish the sentence after a 1.6 s pause in the translation
       if(s.key==='A'&&s.outText&&!r.guest&&!r.pending){ // still unknown after the guest spoke → ask now, don't wait for the sentence end
         const guess=scriptLang(s.inText);
         if(GUEST_CODES.includes(guess))onLiveLanguage(s,guess);
         else{setPendingRow({live:true});setStatus('Which language does the guest speak? Tap it below so your reply can be translated.');}
       }
       showLiveNow();
-      if(sc.turnComplete||sc.generationComplete){
+      if(sc.turnComplete||sc.generationComplete)commitLive(s);
+    }
+    function commitLive(s){
+      const r=run.current;clearTimeout(s.commitTimer);if(!r.L||r.L.sessions[s.key]!==s)return;
+      {
         if(s.outText.trim()){
           const row={id:Date.now()+Math.random(),actor:s.key==='A'?'guest':'staff',source:s.inLang||(s.key==='A'?r.guest:'ta'),target:s.target,transcript:s.inText.trim()||'…',translation:s.outText.trim(),took:'Live'};
           setRows(old=>[row,...old].slice(0,6));
@@ -324,7 +342,8 @@
       try{
         const s=await openLiveSession('B',code);
         if(replay&&L.ring.length){ // staff spoke first: send what they already said (last 12 s), then continue live
-          const from=L.staffSince?L.staffSince-800:Date.now()-8000; // unknown start → last 8 s (guest-language parts stay silent in B)
+          // Google reports the language only AFTER the sentence, so go back 6 s before that (8 s if unknown); guest-language parts stay silent in B.
+          const from=L.staffSince?L.staffSince-6000:Date.now()-8000;
           for(const c of L.ring)if(c.t>=from&&s.ws.readyState===1)s.ws.send(JSON.stringify({realtimeInput:{audio:{data:c.b64,mimeType:'audio/pcm;rate=16000'}}}));
         }
         L.staffSince=0;
@@ -375,9 +394,11 @@
         LL.ring.push({t:now,b64});while(LL.ring.length&&now-LL.ring[0].t>12000)LL.ring.shift();
         const quiet=b64FromBytes(new Uint8Array(silence16.buffer,0,pcm.length*2));
         const A=LL.sessions.A,B=LL.sessions.B;
-        for(const [s,other] of [[A,B],[B,A]]){
+        const aBusy=!!(A&&A.player.busy()),bBusy=!!(B&&B.player.busy());
+        for(const [s,otherBusy,selfBusy] of [[A,bBusy,aBusy],[B,aBusy,bBusy]]){
           if(!s||!s.ready||s.ws.readyState!==1)continue;
-          s.ws.send(JSON.stringify({realtimeInput:{audio:{data:other&&other.player.busy()?quiet:b64,mimeType:'audio/pcm;rate=16000'}}}));
+          const mute=otherBusy&&!selfBusy; // mute only while the OTHER translator is really speaking — never both at once
+          s.ws.send(JSON.stringify({realtimeInput:{audio:{data:mute?quiet:b64,mimeType:'audio/pcm;rate=16000'}}}));
         }
       };
       setLiveOn(true);setPhase('listening');
