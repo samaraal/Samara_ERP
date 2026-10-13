@@ -7,22 +7,30 @@
   const assistance=['Independent','Minimal assistance','Full assistance','Not assessed'];
   const yesNo=['No','Yes','Not assessed'];
   // Same lists as the Admission form, so values carry over exactly.
-  const relationships=['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend'];
+  const relationships=['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'];
+  const titles=['Dr.','Mr.','Mrs.','Ms.','Miss','Shri','Smt.','Master','Baby','Kumari','Other']; // same as Admission (without "Late")
   const categories=['Short Stay','Respite Care','Post-Surgery','Rehabilitation','Stroke Recovery','Dementia Care','Parkinsonism','Palliative Care','Long-Term Assisted Living','Observation','Elderly Care'];
   const txt=v=>String(v==null?'':v).trim();
   const fields=(...items)=>items.map(([key,label,type='text',options,show])=>({key,label,type,options,show}));
   const atHospital=d=>['Hospital','Old age home','Other'].includes(d.visit_location);
   const callerSeparate=d=>d.caller_is_contact1===false||(d.caller_is_contact1==null&&!!txt(d.caller_name)&&txt(d.caller_name)!==txt(d.family_name));
   const onSupport=d=>!!d.airway&&!['Room air','Not assessed'].includes(d.airway);
-  // 2.16.28: address in the same parts as the Admission form (district / taluk lists shared with Admission)
-  const talukMap=()=>window.SamaraTNDistrictTaluks||{};
-  const districtList=()=>Object.keys(talukMap()).sort((a,b)=>a.localeCompare(b));
-  const addressKeys=['state','district','taluk','village_town','locality_area','street_name','house_no','apartment_name','flat_no','landmark','pincode'];
-  const hasStructuredAddress=d=>addressKeys.some(k=>k!=='state'&&txt(d[k]));
-  function composeAddress(d){
-    const line1=[d.house_no,d.street_name,d.apartment_name,d.flat_no?`Flat ${d.flat_no}`:''].map(txt).filter(Boolean).join(', ');
-    const line2=[d.locality_area,d.village_town,d.taluk,d.district,d.state,d.pincode].map(txt).filter(Boolean).join(', ');
-    return [line1,line2,txt(d.landmark)?`Landmark: ${txt(d.landmark)}`:''].filter(Boolean).join('\n');
+  // 2.16.45: address and phones from the shared Guest kit (guest-address.js) — exactly the same fields as
+  // Admission and Patients → Edit: Country → State / Division → District → Taluk / Upazila (Tamil Nadu and
+  // Bangladesh lists; other states / countries typed), phones with country code.
+  const G=()=>window.SamaraGuestAddress;
+  const addressKeys=['country','state','district','taluk','village_town','locality_area','street_name','house_no','apartment_name','flat_no','landmark','pincode'];
+  const hasStructuredAddress=d=>addressKeys.some(k=>!['country','state'].includes(k)&&txt(d[k]));
+  const composeAddress=d=>G().composeAddress(d);
+  const countryOf=d=>G()?G().countryOf(d):'India';
+  // the main contact's phone country code follows the address country until a number is typed
+  const homeDial=d=>G()?G().dialForCountry(countryOf(d)):'+91';
+  // "Name, relationship" typed in one box (older records) → name + relationship
+  function splitNameRelationship(text){
+    const t=txt(text);if(!t)return {name:'',relationship:''};
+    const m=t.match(/^(.*?)[\s]*[,(\-–\/]+\s*([A-Za-z -]+?)\)?\s*$/);
+    const rel=m&&relationships.find(r=>r.toLowerCase()===m[2].trim().toLowerCase());
+    return rel&&txt(m[1])?{name:txt(m[1]),relationship:rel}:{name:t,relationship:''};
   }
   // an address typed as free text in an older form is shown (read only) until the parts are filled
   const oldFreeAddress=d=>!d.address_from_parts&&!hasStructuredAddress(d)&&txt(d.home_address);
@@ -72,19 +80,14 @@
       ['visit_location','Where the person was seen','select',['Home','Hospital','Old age home','Other']],
       ['hospital_name','Hospital / facility name','text',null,atHospital],
       ['assessment_consent','Permission for assessment','select',['Obtained from person','Obtained from representative','Not obtained','Not recorded']],
-      ['consent_given_by','Permission given by (name and relationship)','text',null,d=>d.assessment_consent==='Obtained from representative'])},
+      ['consent_given_by_name','Permission given by — name','text',null,d=>d.assessment_consent==='Obtained from representative'],
+      ['consent_given_by_relationship','Permission given by — relationship','select',relationships,d=>d.assessment_consent==='Obtained from representative'])},
     {title:'2. Guest and family',fields:fields(
-      ['person_name','Person’s full name'],['age','Age (years)','number'],['gender','Gender','select',['Female','Male','Other']],
+      ['title','Title / Salutation','select',titles],['person_name','Person’s full name','name'],['age','Age (years)','number'],['gender','Gender','select',['Male','Female','Other']],
       ['person_phone','Person’s own phone (if any)','tel'],
-      ['_addr','Home address (same parts as the Admission form)','note'],
+      ['_addr','Home address (same parts as the Admission form — choose the Country first)','note'],
       ['_oldaddr','Address noted earlier','oldaddress',null,oldFreeAddress],
-      ['state','State'],
-      ['district','District','dselect',()=>districtList()],
-      ['taluk','Taluk','dselect',d=>talukMap()[d.district]||[]],
-      ['village_town','Village / Town / City'],['locality_area','Locality / Area'],
-      ['street_name','Street / Road Name'],['house_no','Door / House No.'],
-      ['apartment_name','Apartment / Building'],['flat_no','Flat No.'],
-      ['landmark','Landmark'],['pincode','PIN Code','pin'],
+      ['_address','Home address','address'],
       ['living_arrangement','Why assisted living / current support at home','textarea'],
       ['_c1','Family Contact 1 (main contact — becomes Contact 1 in Admission)','note'],
       ['family_name','Contact 1 name'],['family_relationship','Contact 1 relationship','select',relationships],['family_phone','Contact 1 phone / WhatsApp','tel'],
@@ -144,7 +147,7 @@
     stay_type:'Stay requirement',care_requirements:'Care requirements',review_required:'Further review required from',additional_notes:'Additional information',
     relationship_review:'Client relationship manager review',centre_review:'Centre manager review',nursing_review:'Nursing head review',doctor_review:'Resident doctor review'
   };
-  const systemKeys=new Set(['photos','photo_consent','prep_ready','outcome','outcome_reason','outcome_note','outcome_at','outcome_by','meds','medications','wounds','reviews','converted_admission','enquiry_id','enquiry_label','caller_is_contact1','spot_id','compat_fields','address_from_parts','home_address']);
+  const systemKeys=new Set([...addressKeys,'consent_given_by','photos','photo_consent','prep_ready','outcome','outcome_reason','outcome_note','outcome_at','outcome_by','meds','medications','wounds','reviews','converted_admission','enquiry_id','enquiry_label','caller_is_contact1','spot_id','compat_fields','address_from_parts','home_address']);
   const newKeys=new Set(sections.flatMap(s=>s.fields.map(f=>f.key)));
   function legacyEntries(data){
     return Object.keys(data||{}).filter(k=>!newKeys.has(k)&&!systemKeys.has(k)&&!k.startsWith('_')).map(k=>{
@@ -169,20 +172,26 @@
   function initial(name='',designation=''){
     const now=new Date();const date=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
     const time=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    return {visit_date:date,visit_time:time,assessor_name:name,assessor_designation:designation,caller_is_contact1:true,state:'Tamil Nadu',wounds:[],reviews:[]};
+    return {visit_date:date,visit_time:time,assessor_name:name,assessor_designation:designation,caller_is_contact1:true,country:'India',state:'Tamil Nadu',wounds:[],reviews:[]};
   }
   function validate(data,status){
     if(!txt(data.person_name))return 'Enter the person’s full name.';
     if(!data.visit_date)return 'Enter the visit date.';
     if(data.age!==''&&data.age!=null&&(!Number.isInteger(Number(data.age))||Number(data.age)<0||Number(data.age)>130))return 'Enter an age between 0 and 130, or leave it blank.';
-    for(const [p,label] of [['family_phone','Contact 1'],['emergency_phone','Contact 2'],['person_phone','Person’s'],['caller_phone','Caller']]){
-      const d=txt(data[p]).replace(/\D/g,'');
-      if(d&&d.length<10)return `${label} phone looks incomplete — enter 10 digits or leave it blank.`;
+    for(const [p,label] of [['family_phone','Contact 1 phone'],['emergency_phone','Contact 2 phone'],['person_phone','Person’s phone'],['caller_phone','Caller phone']]){
+      const issue=G()?G().phoneProblem(data[p],label):'';
+      if(issue)return issue;
     }
+    if(G()&&!G().pinValid(data))return `${G().labels(data).pin} looks wrong — check it or leave it blank.`;
     if(status==='Completed'){
       if(!hasStructuredAddress(data)&&!txt(data.home_address)&&!txt(data.visit_address))return 'Enter the home address (at least District and Village / Town) before completing the assessment.';
-      if(hasStructuredAddress(data)&&(!txt(data.district)||!txt(data.village_town)))return 'Address: select the District and enter the Village / Town / City before completing the assessment.';
-      if(txt(data.pincode)&&!/^\d{6}$/.test(txt(data.pincode)))return 'PIN Code must be 6 digits.';
+      if(hasStructuredAddress(data)){
+        const c=countryOf(data),L=G().labels(data);
+        if(!c||c==='Other')return 'Address: choose the Country (type the country name for “Other country”).';
+        if(['India','Bangladesh'].includes(c)&&!txt(data.state))return `Address: select the ${L.state} before completing the assessment.`;
+        if(['India','Bangladesh'].includes(c)&&!txt(data.district))return `Address: ${c==='India'&&data.state==='Tamil Nadu'?'select':'enter'} the District before completing the assessment.`;
+        if(!txt(data.village_town))return `Address: enter the ${L.village} before completing the assessment.`;
+      }
       for(const [key,label] of [['assessor_name','visiting staff name'],['general_condition','general condition'],['mobility','mobility'],['wounds_present','wounds / bedsores answer'],['summary','assessment summary']]){
         if(!txt(data[key]))return `Enter the ${label} before completing the assessment.`;
       }
@@ -199,20 +208,20 @@
       if(!data.decision)return 'Choose “Can Samara take this person?” before completing the assessment.';
       if(data.decision==='Not suitable'&&!data.decision_reason)return 'Choose the main reason the person is not suitable.';
       if(data.decision!=='Suitable'&&!txt(data.decision_note))return 'Write the conditions / reason in detail.';
-      if(data.assessment_consent==='Obtained from representative'&&!txt(data.consent_given_by))return 'Write who gave permission for the assessment (name and relationship).';
+      if(data.assessment_consent==='Obtained from representative'&&(!txt(data.consent_given_by_name)||!txt(data.consent_given_by_relationship)))return 'Enter who gave permission for the assessment — name and relationship.';
       if(!txt(data.family_name)||!txt(data.family_phone))return 'Enter Family Contact 1 name and phone before completing the assessment.';
       if((data.wounds_present==='Yes'||data.bedsores_present==='Yes')&&!(data.wounds||[]).some(w=>txt(w.location)))return 'Add a body location in the wound / bedsore details.';
     }
     return '';
   }
-  window.SamaraSpotAssessmentModel={sections,woundFields,initial,validate,relationships,categories,legacyEntries,prepItems,prepPending,prepActive,PHOTO_KINDS,mergePhotos,imageFile};
+  window.SamaraSpotAssessmentModel={sections,woundFields,initial,validate,relationships,categories,titles,splitNameRelationship,legacyEntries,prepItems,prepPending,prepActive,PHOTO_KINDS,mergePhotos,imageFile};
   window.SamaraSpotAssessment=function SpotAssessment({profile,client,onNavigate,canAdmit}){
     const R=window.React,h=R.createElement;
     const [rows,setRows]=R.useState([]),[record,setRecord]=R.useState(null),[data,setData]=R.useState(null),[dirty,setDirty]=R.useState(false);
     const [busy,setBusy]=R.useState(false),[loading,setLoading]=R.useState(false),[error,setError]=R.useState(''),[notice,setNotice]=R.useState(''),[search,setSearch]=R.useState(''),[filter,setFilter]=R.useState('All');
     const [enquiries,setEnquiries]=R.useState(null),[reviewDraft,setReviewDraft]=R.useState('');
     const [photoBodySite,setPhotoBodySite]=R.useState('');
-    const [photoKind,setPhotoKind]=R.useState(PHOTO_KINDS[0]),[photoCaption,setPhotoCaption]=R.useState(''),[consentDraft,setConsentDraft]=R.useState({tick:false,by:''});
+    const [photoKind,setPhotoKind]=R.useState(PHOTO_KINDS[0]),[photoCaption,setPhotoCaption]=R.useState(''),[consentDraft,setConsentDraft]=R.useState({tick:false,by:'',rel:''});
     const [outcomeDraft,setOutcomeDraft]=R.useState({outcome:'',reason:'',note:''});
     const isAdmin=/admin|director/i.test(String(profile?.role||''));
     const saving=R.useRef(false);
@@ -253,7 +262,8 @@
       window.addEventListener('beforeunload',warn);document.addEventListener('click',nav,true);
       return ()=>{window.removeEventListener('beforeunload',warn);document.removeEventListener('click',nav,true)};
     },[dirty]);
-    function change(key,value){setData(old=>({...old,[key]:value,...(key==='district'&&value!==old.district?{taluk:''}:{})}));setDirty(true);setNotice('')}
+    function change(key,value){setData(old=>({...old,[key]:value}));setDirty(true);setNotice('')}
+    function changeMany(patch){setData(old=>({...old,...patch}));setDirty(true);setNotice('')}
     function pickEnquiry(id){
       const e=(enquiries||[]).find(x=>String(x.id)===String(id));
       if(!e){setData(old=>({...old,enquiry_id:'',enquiry_label:''}));setDirty(true);return}
@@ -270,15 +280,20 @@
       setReviewDraft('');
     }
     function canLeave(){return !dirty||window.confirm('Discard unsaved Spot Assessment changes?')}
-    function create(){if(!canLeave())return;setPhotoKind(PHOTO_KINDS[0]);setPhotoBodySite('');setPhotoCaption('');setOutcomeDraft({outcome:'',reason:'',note:''});setConsentDraft({tick:false,by:''});setRecord(null);setData(initial(profile?.full_name||'',profile?.designation||profile?.employee_designation||profile?.job_title||profile?.position||profile?.role||''));setDirty(false);setError('');setNotice('');setReviewDraft('')}
+    function create(){if(!canLeave())return;setPhotoKind(PHOTO_KINDS[0]);setPhotoBodySite('');setPhotoCaption('');setOutcomeDraft({outcome:'',reason:'',note:''});setConsentDraft({tick:false,by:'',rel:''});setRecord(null);setData(initial(profile?.full_name||'',profile?.designation||profile?.employee_designation||profile?.job_title||profile?.position||profile?.role||''));setDirty(false);setError('');setNotice('');setReviewDraft('')}
     async function open(id,fromAlert){
       if((!fromAlert&&!canLeave())||saving.current)return;
       setBusy(true);setError('');setNotice('');setReviewDraft('');
       try{
         const result=await client.from('spot_assessments').select('*').eq('id',id).single();
         if(result.error)throw result.error;
-        setRecord(result.data);setData({...result.data.details,state:result.data.details?.state||'Tamil Nadu',wounds:result.data.details?.wounds||[]});setDirty(false);
-        const dd=result.data.details||{};setOutcomeDraft({outcome:dd.outcome||'',reason:dd.outcome_reason||'',note:dd.outcome_note||''});setConsentDraft({tick:false,by:''});setPhotoCaption('');setPhotoBodySite('');setPhotoKind(PHOTO_KINDS[0]);
+        const det={...(result.data.details||{})};
+        det.country=countryOf(det);
+        if(det.country==='India'&&!txt(det.state))det.state='Tamil Nadu';
+        // 2.16.45: older records kept "name and relationship" in one box — split it for the two new boxes
+        if(txt(det.consent_given_by)&&!txt(det.consent_given_by_name)){const sp=splitNameRelationship(det.consent_given_by);det.consent_given_by_name=sp.name;det.consent_given_by_relationship=det.consent_given_by_relationship||sp.relationship}
+        setRecord(result.data);setData({...det,wounds:det.wounds||[]});setDirty(false);
+        const dd=result.data.details||{};setOutcomeDraft({outcome:dd.outcome||'',reason:dd.outcome_reason||'',note:dd.outcome_note||''});setConsentDraft({tick:false,by:'',rel:''});setPhotoCaption('');setPhotoBodySite('');setPhotoKind(PHOTO_KINDS[0]);
       }catch(e){setError(`Unable to open assessment: ${e.message||e}`)}finally{setBusy(false)}
     }
     async function save(status){
@@ -292,6 +307,14 @@
         if(clean.caller_is_contact1===true){clean.caller_name='';clean.caller_relationship='';clean.caller_phone=''}
         if(!atHospital(clean))clean.hospital_name='';
         if(!onSupport(clean))clean.respiratory_notes='';
+        clean.person_name=txt(clean.person_name).toUpperCase();
+        // a country code chosen without a number is not a phone number
+        for(const k of ['person_phone','family_phone','caller_phone','emergency_phone'])if(G()&&txt(clean[k])){const n=G().localNumber(clean[k]);clean[k]=n?`${G().dialOf(clean[k])} ${n}`:''}
+        // 2.16.45: name and relationship are entered separately; the older single box is kept filled
+        // (as "Name (Relationship)") for anything that still reads it
+        if(clean.assessment_consent==='Obtained from representative'){
+          clean.consent_given_by=[txt(clean.consent_given_by_name),txt(clean.consent_given_by_relationship)?`(${txt(clean.consent_given_by_relationship)})`:''].filter(Boolean).join(' ');
+        }else{clean.consent_given_by_name='';clean.consent_given_by_relationship='';clean.consent_given_by=''}
         clean.meds=clean.on_medication==='Yes'?namedMeds(clean):[];
         // 2.16.27: the database still checks two fields of the older form before a record can be Completed
         // (visit address, bedsores answer). Fill them from the new fields so Completed is accepted.
@@ -441,11 +464,13 @@
             !record?h('small',{className:'small-note'},'Save the assessment once (Save draft), then add photos here.')
             :!consent?.given?h('div',null,
               h('label',{className:'spot-tick'},h('input',{type:'checkbox',checked:consentDraft.tick,disabled:busy,onChange:e=>setConsentDraft(c=>({...c,tick:e.target.checked}))}),'The person / family agreed to photos being taken for Samara’s care records'),
-              h('div',{className:'field'},h('label',null,'Agreed by (name and relationship)'),h('input',{value:consentDraft.by,disabled:busy,placeholder:'e.g. Ravi, son',onChange:e=>setConsentDraft(c=>({...c,by:e.target.value}))})),
-              h('button',{type:'button',className:'btn btn-secondary',disabled:busy||!consentDraft.tick||!txt(consentDraft.by),onClick:()=>saveDetails({photo_consent:{given:true,by_name:txt(consentDraft.by),recorded_by:profile?.full_name||'staff',at:new Date().toISOString()}},'Photo consent recorded.')},'Record consent'),
+              h('div',{className:'spot-grid'},
+                h('div',{className:'field'},h('label',null,'Agreed by — name'),h('input',{value:consentDraft.by,disabled:busy,placeholder:'e.g. Ravi',onChange:e=>setConsentDraft(c=>({...c,by:e.target.value}))})),
+                h('div',{className:'field'},h('label',null,'Agreed by — relationship'),h('select',{value:consentDraft.rel,disabled:busy,onChange:e=>setConsentDraft(c=>({...c,rel:e.target.value}))},h('option',{value:''},'Select'),['Self (the person)',...relationships].map(x=>h('option',{key:x,value:x},x))))),
+              h('button',{type:'button',className:'btn btn-secondary',disabled:busy||!consentDraft.tick||!txt(consentDraft.by)||!consentDraft.rel,onClick:()=>saveDetails({photo_consent:{given:true,by_name:txt(consentDraft.by),by_relationship:consentDraft.rel,recorded_by:profile?.full_name||'staff',at:new Date().toISOString()}},'Photo consent recorded.')},'Record consent'),
               h('small',{className:'small-note',style:{display:'block',marginTop:'4px'}},'Photos are taken only after consent. They are kept privately for care records, never shared on WhatsApp or social media.'))
             :h('div',null,
-              h('small',{className:'small-note'},`Consent for photos: ${consent.by_name} · recorded by ${consent.recorded_by} · ${stampText(consent.at)}`),
+              h('small',{className:'small-note'},`Consent for photos: ${consent.by_name}${consent.by_relationship?` (${consent.by_relationship})`:''} · recorded by ${consent.recorded_by} · ${stampText(consent.at)}`),
               h('div',{className:'spot-grid',style:{marginTop:'8px'}},
                 h('div',{className:'field'},h('label',null,'Photo of'),h('select',{value:photoKind,disabled:busy,onChange:e=>setPhotoKind(e.target.value)},PHOTO_KINDS.map(k=>h('option',{key:k,value:k},k)))),
                 h('div',{className:'field'},h('label',null,'Body location / side (optional)'),h('input',{value:photoBodySite,disabled:busy,placeholder:'e.g. Left hand, right ankle, both legs',onChange:e=>setPhotoBodySite(e.target.value)})),
@@ -505,6 +530,16 @@
             h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>{if(!txt(m.medicine_name)||window.confirm(`Remove ${m.medicine_name}?`))onChange('meds',rows.length>1?rows.filter((_,n)=>n!==i):[blankMed()])}},'Remove this medicine'))),
           h('div',null,h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>onChange('meds',[...rows,blankMed()])},'+ Add Medicine')));
       }
+      if(field.type==='address'){
+        const K=G();
+        if(!K)return h('div',{className:'field spot-wide',key:field.key},h('small',{className:'small-note'},'Address fields are loading — please refresh the page.'));
+        return h(K.AddressFields,{key:field.key,value:values,disabled:busy,idPrefix:prefix,onChange:changeMany});
+      }
+      if(field.type==='tel'&&G()){
+        const v=txt(values[field.key])?values[field.key]:`${['family_phone','caller_phone','emergency_phone','person_phone'].includes(field.key)?homeDial(values):'+91'} `;
+        return h(G().PhoneInput,{key:field.key,id,label:field.label,value:v,disabled:busy,onChange:val=>onChange(field.key,val)});
+      }
+      if(field.type==='name')return h('div',{className:'field',key:field.key},h('label',{htmlFor:id},field.label,' *'),h('input',{id,value,disabled:busy,autoCapitalize:'characters',style:{textTransform:'uppercase'},'data-samara-voice':'on',onChange:e=>onChange(field.key,e.target.value.toUpperCase())}));
       if(field.type==='dselect'){
         const opts=field.options(values)||[];
         const extra=value&&!opts.includes(value)?[value]:[];
@@ -549,8 +584,10 @@
       if(field.type==='enquiry')return d.enquiry_label||d.lead_reference||'Not linked';
       if(field.type==='tick')return tickOn(d,field.key)?'Yes':'No';
       if(field.type==='oldaddress')return txt(d.home_address);
+      if(field.type==='address')return hasStructuredAddress(d)?composeAddress(d):'Not recorded';
+      if(field.type==='tel'){const v=txt(d[field.key]);return G()&&G().localOf(v)?`${G().dialOf(v)} ${G().localOf(v)}`:(v||'Not recorded')}
       if(field.type==='oldmeds')return txt(d.medications);
-      if(field.type==='photos'){const ps=(Array.isArray(d.photos)?d.photos:[]).filter(p=>!p.removed);return (d.photo_consent?.given?`Consent: ${d.photo_consent.by_name} (${stampText(d.photo_consent.at)})\n`:'')+(ps.map((p,i)=>`${i+1}. ${p.kind} — ${stampText(p.at)} — ${p.by}${p.body_site?` — ${p.body_site}`:''}${p.caption?` — ${p.caption}`:''}`).join('\n')||'None')}
+      if(field.type==='photos'){const ps=(Array.isArray(d.photos)?d.photos:[]).filter(p=>!p.removed);return (d.photo_consent?.given?`Consent: ${d.photo_consent.by_name}${d.photo_consent.by_relationship?`, ${d.photo_consent.by_relationship}`:''} (${stampText(d.photo_consent.at)})\n`:'')+(ps.map((p,i)=>`${i+1}. ${p.kind} — ${stampText(p.at)} — ${p.by}${p.body_site?` — ${p.body_site}`:''}${p.caption?` — ${p.caption}`:''}`).join('\n')||'None')}
       if(field.type==='prep'){const r=d.prep_ready||{};return prepItems(d).map(x=>`${r[x]?'✓':'☐'} ${x}`).join('\n')}
       if(field.type==='outcome')return d.converted_admission?`Admission started (${stampText(d.converted_admission.started_at)})`:d.outcome?`${d.outcome}${d.outcome_reason?` — ${d.outcome_reason}`:''}${d.outcome_note?` — ${d.outcome_note}`:''}`:'Open';
       if(field.type==='meds')return namedMeds(d).map((m,i)=>`${i+1}. ${medLine(m)}`).join('\n')||'None entered';

@@ -1,3 +1,20 @@
+## 2.16.45 — Guests from other states and other countries; name and relationship separate (SQL 220)
+
+- **Run supabase/sql/220_guest_country.sql** once in Supabase → SQL Editor (safe to run again). It adds a "country" column to patients. Until it is run, admissions still save; the country is then kept inside the written address.
+- **Same address fields in Spot Assessment, Admission and Patients → Edit** (one shared file, guest-address.js): **Country** first (India, Bangladesh, Nepal, Sri Lanka, Bhutan, Myanmar, Maldives, Gulf countries, UK, USA … or "Other country" typed), then:
+  - India – Tamil Nadu: District and Taluk lists (as before).
+  - India – other states: State / UT list (all 36); District and Taluk / Tehsil / Mandal typed.
+  - Bangladesh: Division list (8), District list (64, by division), Upazila / Thana typed, 4-digit Postcode.
+  - Other countries: State / Province, District / City typed, Postal code.
+  - Street and Door No. are compulsory only for Indian addresses. The full address shows the country for Guests from outside India. Earlier Guests are read as India.
+- **Phones with country code** in Spot Assessment too (Person, Contact 1, Caller, Contact 2), same list as Admission (+880 Bangladesh, +977 Nepal, +975 Bhutan, +95 Myanmar, +960 Maldives added). Empty phone boxes take the code of the address country. A leading 0 (e.g. Bangladesh 01712…) is dropped automatically. Checks: India 10 digits, Bangladesh 10 digits after +880.
+- **Fix — family WhatsApp numbers outside India**: Admission and Patients (Daily Report recipient / quick edit) cut every number to its last 10 digits, so a Bangladeshi family's messages would have gone to a wrong Indian number. Numbers outside India now keep their country code (e.g. "+880 1712345678"); Indian numbers are stored as before. "Send Login PIN (Existing Method)" no longer forces +91.
+- **Name and relationship separate** (staff no longer type both in one box): Spot Assessment "Permission given by" → name + relationship list; photo consent "Agreed by" → name + relationship list. Older records ("Ravi, son") are split automatically when opened.
+- **Spot Assessment matches Admission**: Title / Salutation added, name in capitals, same Gender order and relationship list (with "Other"). Convert to Guest now carries Title, Country, the whole address and phones with their country code.
+- **Identity document** wording follows the country: Aadhaar / Identity Card for India; Passport / National ID card (and visa page) for others.
+- Tamil words added for the new labels.
+- Files: guest-address.js (new), index.html, spot-assessment.js, src/app/patients/admissions.js, src/app/patients/patients.js, src/app/global-ui/09-tamil-dictionary.js, supabase/sql/220_guest_country.sql (new), tests/guest-address.test.mjs (new), version files, app.js (rebuilt). No Edge Function change.
+
 ## 2.16.43 — System Health: the ERP notices its own problems; Talk to Guest adjusts itself (SQL 219)
 
 - **Run supabase/sql/219_system_health.sql** once in Supabase → SQL Editor (safe to run again). It adds details and "resolved" marks to the existing fault log (client_errors) and lets only Admin mark faults resolved. Until it is run, faults are still recorded (details inside the message) and the page shows a note.

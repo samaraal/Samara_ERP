@@ -1,4 +1,12 @@
+  // 2.16.45: family WhatsApp numbers keep their country code outside India (shared Guest kit)
+  const keepFamilyMobile=v=>{const K=window.SamaraGuestAddress;return K?K.storedMobile(v):String(v||'').replace(/\D/g,'').slice(-10)};
+  function familyWhatsAppInput(value,onChange){
+    const K=window.SamaraGuestAddress;
+    if(K)return h(K.PhoneInput,{label:'WhatsApp Number',required:true,value:K.localOf(value)?value:'+91 ',onChange});
+    return h('div',{className:'field'},h('label',null,'WhatsApp Number'),h('input',{required:true,inputMode:'numeric',maxLength:10,value:value||'',onChange:e=>onChange(e.target.value.replace(/\D/g,'').slice(0,10))}));
+  }
   function composePatientAddressGlobal(source={}){
+    if(window.SamaraGuestAddress)return window.SamaraGuestAddress.composeAddress(source); // 2.16.45: country for Guests from outside India
     const line1=[source.house_no,source.street_name,source.apartment_name,source.flat_no?`Flat ${source.flat_no}`:''].filter(Boolean).join(', ');
     const line2=[source.locality_area,source.village_town,source.taluk,source.district,source.state,source.pincode].filter(Boolean).join(', ');
     return [line1,line2,source.landmark?`Landmark: ${source.landmark}`:''].filter(Boolean).join('\n');
@@ -199,10 +207,10 @@
       const access=primaryFamilyContact();
       const recipientName=String(pref?.recipient_name||access?.relative_name||selected?.attendant_name||'').trim();
       const relationship=String(pref?.relationship||access?.relationship||'').trim()||null;
-      const mobile=String(pref?.recipient_mobile||access?.mobile||selected?.attendant_phone||'').replace(/\D/g,'').slice(-10);
+      const mobile=keepFamilyMobile(pref?.recipient_mobile||access?.mobile||selected?.attendant_phone||'');
       const email=String(pref?.recipient_email||access?.email||'').trim()||null;
       const portalEnabled=pref?!!pref.family_portal_enabled:!!access;
-      if(!currentlyEnabled&&(!recipientName||mobile.length!==10)){
+      if(!currentlyEnabled&&(!recipientName||!mobile)){
         showPatientToast('error','Please set the authorised family member and WhatsApp number first.');
         await openEditPatient(selected);
         return;
@@ -544,7 +552,8 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
       setEditTarget(row);setEditMsg('');setEditUploads({photo:[],identity:[],prescription:[],discharge:[],reports:[],other:[]});setEditDocs([]);setEditPhotoUrl('');
       setEditForm({...row,
         title:row.title||'',full_name:row.full_name||'',age:row.age||'',gender:row.gender||'Male',mobile:row.mobile||'',address:row.address||'',
-        state:row.state||'Tamil Nadu',district:row.district||'',taluk:row.taluk||'',village_town:row.village_town||'',
+        country:window.SamaraGuestAddress?window.SamaraGuestAddress.countryOf(row):'India',
+        state:row.state||((window.SamaraGuestAddress?window.SamaraGuestAddress.countryOf(row):'India')==='India'?'Tamil Nadu':''),district:row.district||'',taluk:row.taluk||'',village_town:row.village_town||'',
         locality_area:row.locality_area||'',street_name:row.street_name||'',house_no:row.house_no||'',
         apartment_name:row.apartment_name||'',flat_no:row.flat_no||'',landmark:row.landmark||'',pincode:row.pincode||'',
         attendant_name:row.attendant_name||'',attendant_phone:row.attendant_phone||'',diagnosis:row.diagnosis||'',
@@ -567,7 +576,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
       const secondaryPhone=splitGlobalPhone(secondaryFamily?.mobile||row.attendant_alternative_phone||'');
       setEditFamilyAccess(primaryFamily?{enabled:true,...primaryFamily,...primaryPhone}:{enabled:false,id:null,family_user_id:'',relative_name:row.attendant_name||'',relationship:'',...primaryPhone,email:'',primary_contact:true,is_active:true});
       setEditFamilyAccess2(secondaryFamily?{enabled:true,...secondaryFamily,...secondaryPhone,primary_contact:false}:{enabled:false,id:null,family_user_id:'',relative_name:'',relationship:'',...secondaryPhone,email:'',primary_contact:false,is_active:true});
-      setEditDailyWhatsApp({enabled:!!existingComm?.daily_whatsapp_enabled,recipient_name:existingComm?.recipient_name||primaryFamily?.relative_name||row.attendant_name||'',relationship:existingComm?.relationship||primaryFamily?.relationship||'',mobile:String(existingComm?.recipient_mobile||primaryFamily?.mobile||row.attendant_phone||'').replace(/\D/g,'').slice(-10),email:existingComm?.recipient_email||primaryFamily?.email||'',daily_report_time:String(existingComm?.daily_report_time||'20:00').slice(0,5)});
+      setEditDailyWhatsApp({enabled:!!existingComm?.daily_whatsapp_enabled,recipient_name:existingComm?.recipient_name||primaryFamily?.relative_name||row.attendant_name||'',relationship:existingComm?.relationship||primaryFamily?.relationship||'',mobile:keepFamilyMobile(existingComm?.recipient_mobile||primaryFamily?.mobile||row.attendant_phone||''),email:existingComm?.recipient_email||primaryFamily?.email||'',daily_report_time:String(existingComm?.daily_report_time||'20:00').slice(0,5)});
       setEditFamilyCredential(null);setEditFamilyCredential2(null);
       setEditMeds(currentUpcomingMedicineOrders(existingMeds||[]).map(m=>({...blankMedicine(),...m,times:Array.isArray(m.scheduled_times)?m.scheduled_times.join(', '):(m.times||''),custom_duration_days:m.duration_days||''})));
       setEditCare((existingCare||[]).map(c=>({...blankCare(),...c})));
@@ -707,8 +716,8 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
       const recipientName=String(editDailyWhatsApp.recipient_name||editFamilyAccess.relative_name||editForm.attendant_name||'').trim();
       const relationship=String(editDailyWhatsApp.relationship||editFamilyAccess.relationship||'').trim();
       const portalMobile=portalEnabled?validateGlobalPhone(editFamilyAccess.country_code,editFamilyAccess.mobile,'family WhatsApp number'):'';
-      const dailyRaw=String(editDailyWhatsApp.mobile||'').trim();
-      const dailyMobile=dailyRaw?(dailyRaw.startsWith('+')?dailyRaw:(portalMobile||dailyRaw)):portalMobile;
+      const dailyRaw=keepFamilyMobile(editDailyWhatsApp.mobile); // 2.16.45: the number typed for the daily report is used as typed (country code kept)
+      const dailyMobile=dailyRaw||portalMobile;
       const mobile=String(dailyMobile||editForm.attendant_phone||'').trim();
       if(active&&!recipientName)throw new Error('Enter the authorised family member name for family communication.');
       if(active&&!mobile)throw new Error('Enter a valid family WhatsApp number.');
@@ -754,7 +763,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
         patient_id:row?.id||selected?.id||'',
         recipient_name:pref.recipient_name||family?.relative_name||row?.attendant_name||'',
         relationship:pref.relationship||family?.relationship||'',
-        mobile:String(pref.recipient_mobile||family?.mobile||row?.attendant_phone||'').replace(/\D/g,'').slice(-10),
+        mobile:keepFamilyMobile(pref.recipient_mobile||family?.mobile||row?.attendant_phone||''),
         daily_report_time:String(pref.daily_report_time||'20:00').slice(0,5)
       });
     }
@@ -763,10 +772,10 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
       e.preventDefault();
       if(!selected?.id||!dailyQuickEdit)return;
       const recipientName=String(dailyQuickEdit.recipient_name||'').trim();
-      const mobile=String(dailyQuickEdit.mobile||'').replace(/\D/g,'').slice(-10);
+      const mobile=keepFamilyMobile(dailyQuickEdit.mobile);
       const time=String(dailyQuickEdit.daily_report_time||'').trim();
       if(!recipientName){setDailyQuickEditMsg('Enter the authorised recipient name.');return;}
-      if(mobile.length!==10){setDailyQuickEditMsg('Enter a valid 10-digit WhatsApp number.');return;}
+      {const issue=!mobile?'Enter the WhatsApp number.':(window.SamaraGuestAddress?window.SamaraGuestAddress.phoneProblem(dailyQuickEdit.mobile,'WhatsApp number'):(mobile.length===10?'':'Enter a valid 10-digit WhatsApp number.'));if(issue){setDailyQuickEditMsg(issue);return;}}
       if(!time){setDailyQuickEditMsg('Select the daily report time.');return;}
       setDailyQuickEditBusy(true);setDailyQuickEditMsg('');
       try{
@@ -812,7 +821,11 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
       const payload={};allowed.forEach(k=>payload[k]=editForm[k]===''?null:editForm[k]);
       payload.address=composePatientAddressGlobal(editForm);
       payload.age=editForm.age===''?null:Number(editForm.age);
-      const {data,error}=await client.from('patients').update(payload).eq('id',editTarget.id).select().single();
+      // 2.16.45: country (column from supabase/sql/220_guest_country.sql; saved without it until that is run)
+      {const K=window.SamaraGuestAddress;const issue=K?K.addressProblem(editForm):'';if(issue){setEditMsg(issue);showPatientToast('error',issue);setEditBusy(false);return}
+       if(K)payload.country=K.countryOf(editForm);}
+      let {data,error}=await client.from('patients').update(payload).eq('id',editTarget.id).select().single();
+      if(error&&/country/i.test(String(error.message||''))&&/column|schema/i.test(String(error.message||''))){delete payload.country;({data,error}=await client.from('patients').update(payload).eq('id',editTarget.id).select().single())}
       if(error){const text=error.message||'Unable to update patient';setEditMsg(text);showPatientToast('error',text);setEditBusy(false);return}
       let familySaveResult=null,familySaveResult2=null;
       try{familySaveResult=await saveEditedFamilyPortalAccess();familySaveResult2=await saveEditedSecondFamilyPortalAccess();await saveEditedFamilyCommunicationPreference();}
@@ -2702,7 +2715,7 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
           h('div',{className:'form-grid daily-report-quick-grid'},
             h('div',{className:'field'},h('label',null,'Authorised Recipient Name'),h('input',{required:true,value:dailyQuickEdit.recipient_name||'',onChange:e=>setDailyQuickEdit({...dailyQuickEdit,recipient_name:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Relationship'),h('input',{value:dailyQuickEdit.relationship||'',onChange:e=>setDailyQuickEdit({...dailyQuickEdit,relationship:e.target.value})})),
-            h('div',{className:'field'},h('label',null,'WhatsApp Number'),h('input',{required:true,inputMode:'numeric',maxLength:10,value:dailyQuickEdit.mobile||'',onChange:e=>setDailyQuickEdit({...dailyQuickEdit,mobile:e.target.value.replace(/\D/g,'').slice(0,10)})})),
+            familyWhatsAppInput(dailyQuickEdit.mobile,v=>setDailyQuickEdit({...dailyQuickEdit,mobile:v})),
             h('div',{className:'field'},h('label',null,'Daily Report Time'),h('input',{type:'time',step:'300',required:true,value:dailyQuickEdit.daily_report_time||'20:00',onChange:e=>setDailyQuickEdit({...dailyQuickEdit,daily_report_time:e.target.value})}))
           ),
           h('div',{className:'modal-bottom-actions'},
@@ -2729,37 +2742,9 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
           selectField('Patient Category','patient_category',editForm,setEditForm,['Short Stay','Respite Care','Post-Surgery','Rehabilitation','Stroke Recovery','Dementia Care','Parkinsonism','Palliative Care','Long-Term Assisted Living','Observation','Elderly Care']),
           roomBedSelect(roomBeds,editForm.room_no,editForm.bed_no,(room_no,bed_no)=>setEditForm({...editForm,room_no,bed_no}),false,editTarget.id),field('Admission Date','admission_date',editForm,setEditForm,false,'date'),
           field('Known Allergies','allergies',editForm,setEditForm,false),
-          field('State','state',editForm,setEditForm,false),
-          h('div',{className:'field'},
-            h('label',null,'District'),
-            h('select',{
-              required:true,
-              value:editForm.district||'',
-              onChange:e=>setEditForm({...editForm,district:e.target.value,taluk:''})
-            },
-              h('option',{value:''},'Select District'),
-              TAMIL_NADU_DISTRICTS.map(name=>h('option',{key:name,value:name},name))
-            )
-          ),
-          h('div',{className:'field'},
-            h('label',null,'Taluk'),
-            h('select',{
-              value:editForm.taluk||'',
-              disabled:!editForm.district,
-              onChange:e=>setEditForm({...editForm,taluk:e.target.value})
-            },
-              h('option',{value:''},editForm.district?'Select Taluk':'Select District first'),
-              ...(TAMIL_NADU_DISTRICT_TALUKS[editForm.district]||[]).map(name=>h('option',{key:name,value:name},name))
-            )
-          ),
-          field('Village / Town / City','village_town',editForm,setEditForm,true),
-          field('Locality / Area','locality_area',editForm,setEditForm,false),
-          field('Street / Road Name','street_name',editForm,setEditForm,true),
-          field('Door / House No.','house_no',editForm,setEditForm,true),
-          field('Apartment / Building','apartment_name',editForm,setEditForm,false),
-          field('Flat No.','flat_no',editForm,setEditForm,false),
-          field('Landmark','landmark',editForm,setEditForm,false),
-          field('PIN Code','pincode',editForm,setEditForm,false),
+          // 2.16.45: same address fields as Spot Assessment and Admission (Country first)
+          window.SamaraGuestAddress?h(window.SamaraGuestAddress.AddressFields,{key:'guest-address',value:editForm,strict:true,idPrefix:'edit-address',onChange:patch=>setEditForm(current=>({...current,...patch}))})
+            :h('div',{className:'small-note span-2'},'Address fields are loading — please refresh the page.'),
           h('div',{className:'small-note span-2'},composePatientAddressGlobal(editForm)||'Complete address will be assembled automatically.'),
           textareaField('Special Instructions / Precautions','special_instructions',editForm,setEditForm,'span-2'),
           h('label',{className:'check-card span-2'},h('input',{type:'checkbox',checked:editForm.is_active!==false,onChange:e=>setEditForm({...editForm,is_active:e.target.checked})}),h('span',null,'Active Patient Record'))
@@ -2796,7 +2781,7 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
           editDailyWhatsApp.enabled&&h('div',{className:'form-grid',style:{marginTop:'12px'}},
             h('div',{className:'field'},h('label',null,'Authorised Recipient Name'),h('input',{required:true,value:editDailyWhatsApp.recipient_name||'',onChange:e=>setEditDailyWhatsApp({...editDailyWhatsApp,recipient_name:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Relationship'),h('input',{value:editDailyWhatsApp.relationship||'',onChange:e=>setEditDailyWhatsApp({...editDailyWhatsApp,relationship:e.target.value})})),
-            h('div',{className:'field'},h('label',null,'WhatsApp Number'),h('input',{required:true,inputMode:'numeric',maxLength:10,value:editDailyWhatsApp.mobile||'',onChange:e=>setEditDailyWhatsApp({...editDailyWhatsApp,mobile:e.target.value.replace(/\D/g,'').slice(0,10)})})),
+            familyWhatsAppInput(editDailyWhatsApp.mobile,v=>setEditDailyWhatsApp({...editDailyWhatsApp,mobile:v})),
             h('div',{className:'field'},h('label',null,'Daily Report Time'),h('input',{type:'time',step:'300',required:true,value:editDailyWhatsApp.daily_report_time||'20:00',onChange:e=>setEditDailyWhatsApp({...editDailyWhatsApp,daily_report_time:e.target.value})})),
             h('div',{className:'field span-2'},h('label',null,'Email (optional)'),h('input',{type:'email',value:editDailyWhatsApp.email||'',onChange:e=>setEditDailyWhatsApp({...editDailyWhatsApp,email:e.target.value})}))
           )

@@ -40,13 +40,25 @@
   };
   const TAMIL_NADU_DISTRICTS=Object.keys(TAMIL_NADU_DISTRICT_TALUKS).sort((a,b)=>a.localeCompare(b));
   try{window.SamaraTNDistrictTaluks=TAMIL_NADU_DISTRICT_TALUKS}catch(_){} // 2.16.28: same list used by the Spot Assessment address
+  // 2.16.45: shared Guest address / phone kit (guest-address.js) — Spot Assessment, Admission and Patients → Edit
+  const guestKit=()=>window.SamaraGuestAddress||null;
 
   function Admissions({profile,onNavigate}){
     const today=new Date().toISOString().slice(0,10);
-    const initial={record_type:'',admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',date_of_birth:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,admission_time:localDateTimeValue().slice(11,16),vitals_time_1:'06:00',vitals_time_2:'14:00',vitals_time_3:'22:00',hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_staying:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
+    const initial={record_type:'',admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',date_of_birth:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',country:'India',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,admission_time:localDateTimeValue().slice(11,16),vitals_time_1:'06:00',vitals_time_2:'14:00',vitals_time_3:'22:00',hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_staying:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
     const [form,setForm]=React.useState(initial),[meds,setMeds]=React.useState([blankMedicine()]),[care,setCare]=React.useState([blankCare()]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [familyAccess,setFamilyAccess]=React.useState({delivery_mode:'Family Portal Access',enabled:true,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:true,daily_whatsapp_time:'20:00'});
     const [familyAccess2,setFamilyAccess2]=React.useState({enabled:false,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:false});
+    // 2.16.45: empty phone boxes take the country code of the Guest's address country (e.g. +880 for Bangladesh);
+    // a number already typed is never changed, and staff can still pick another code.
+    React.useEffect(()=>{
+      const K=guestKit();if(!K)return;
+      const dial=K.dialForCountry(K.countryOf(form));
+      const fix=(obj,keys)=>{let changed=false;const next={...obj};keys.forEach(k=>{if(!K.localOf(obj[k])&&K.dialOf(obj[k]||'+91 ')!==dial){next[k]=`${dial} `;changed=true}});return changed?next:obj};
+      setForm(cur=>fix(cur,['mobile','attendant_phone','attendant_alternative_phone']));
+      setFamilyAccess(cur=>fix(cur,['mobile']));
+      setFamilyAccess2(cur=>fix(cur,['mobile']));
+    },[form.country]);
     const [familyCredential2,setFamilyCredential2]=React.useState(null);
     const familyPortalEnabled=['Family Portal Access','Both'].includes(familyAccess.delivery_mode);
     const dailyWhatsAppEnabled=['Daily WhatsApp Update','Both'].includes(familyAccess.delivery_mode);
@@ -259,7 +271,8 @@
     function applySpotDetails(sp){
         sp=sp||{};
         const txt=v=>String(v==null?'':v).trim();
-        const phone=v=>{const d=txt(v).replace(/\D/g,'');const ten=d.length>10?d.slice(-10):d;return ten.length===10?`+91 ${ten}`:''};
+        // 2.16.45: keeps the country code (e.g. +880 Bangladesh); an old bare 10-digit number is Indian
+        const phone=v=>{const K=guestKit();if(K){const local=K.localNumber(v);return local?`${K.dialOf(v)} ${local}`:''}const d=txt(v).replace(/\D/g,'');const ten=d.length>10?d.slice(-10):d;return ten.length===10?`+91 ${ten}`:''};
         const lines=v=>txt(v).split(/\n|;/).map(x=>x.replace(/^\s*\d+[.)]\s*/,'').trim()).filter(x=>x&&!/^(nil|none|no|na|n\/a|not known|nkda)$/i.test(x));
         const numbered=items=>items.map((item,index)=>`${index+1}. ${item}`).join('\n');
         const care=Array.isArray(sp.care_requirements)?sp.care_requirements:[];
@@ -274,7 +287,7 @@
           :/long stay/i.test(sp.stay_type||'')||care.includes('General assisted living')?'Long-Term Assisted Living'
           :/short stay/i.test(sp.stay_type||'')?'Short Stay':'';
         const fromHospital=sp.visit_location==='Hospital'||!!txt(sp.hospital_name);
-        const relOptions=['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend'];
+        const relOptions=['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'];
         const rel=v=>relOptions.find(o=>o.toLowerCase()===txt(v).toLowerCase())||'';
         // Contact 1 = primary family contact (or the caller when no family contact was entered)
         const c1={name:txt(sp.family_name)||txt(sp.caller_name),relationship:rel(sp.family_relationship)||rel(sp.caller_relationship),phone:phone(sp.family_phone)||phone(sp.caller_phone)};
@@ -298,9 +311,11 @@
           return {...current,
             admission_type:fromHospital?'Previous Hospital / Care Centre':(category==='Respite Care'||category==='Short Stay')?'Short Stay / Respite Care':'Direct Admission – Elderly Care',
             patient_category:category||current.patient_category,
-            full_name:keep('full_name',txt(sp.person_name)),
-            // 2.16.28: Spot Assessment records the address in the same parts as this form
-            ...(sp.district||sp.village_town||sp.street_name?Object.fromEntries(['state','district','taluk','village_town','locality_area','street_name','house_no','apartment_name','flat_no','landmark','pincode'].map(k=>[k,k==='state'?(txt(sp.state)||current.state):keep(k,txt(sp[k]))])):{}),
+            title:PATIENT_TITLES.includes(sp.title)?keep('title',sp.title):current.title,
+            full_name:keep('full_name',txt(sp.person_name).toUpperCase()),
+            // 2.16.28 / 2.16.45: Spot Assessment records the address in the same parts as this form (country included)
+            ...(sp.district||sp.village_town||sp.street_name?Object.fromEntries(['country','state','district','taluk','village_town','locality_area','street_name','house_no','apartment_name','flat_no','landmark','pincode'].map(k=>[k,
+              k==='country'?(guestKit()?guestKit().countryOf(sp):'India'):k==='state'?(txt(sp.state)||current.state):keep(k,txt(sp[k]))])):{}),
             age:keep('age',sp.age!=null&&sp.age!==''?String(sp.age):''),
             gender:['Male','Female','Other'].includes(sp.gender)?sp.gender:current.gender,
             mobile:keep('mobile',phone(sp.person_phone)),
@@ -339,6 +354,7 @@
           medicineSupport:sp.medication_support&&sp.medication_support!=='Not assessed'?sp.medication_support:'',
           address:txt(sp.home_address)||txt(sp.visit_address),
           addressParts:!!(sp.district||sp.village_town||sp.street_name),
+          idLabel:guestKit()?guestKit().idDocLabel(sp):'Aadhaar / ID',
           vitals:[sp.blood_pressure&&`BP ${sp.blood_pressure}`,sp.pulse&&`Pulse ${sp.pulse}`,sp.temperature&&`Temp ${sp.temperature}`,sp.oxygen_saturation&&`SpO2 ${sp.oxygen_saturation}`].filter(Boolean).join(' · '),
           contact2Relationship:!!c2&&!c2.relationship,contact1Relationship:!!(c1.name&&!c1.relationship),
           enquiryNo:txt(sp.lead_reference),
@@ -520,7 +536,7 @@
     },[]);
 
     const normalizePhone=value=>String(value||'').replace(/\D/g,'').slice(-10);
-    const ADMISSION_COUNTRY_CODES=[
+    const ADMISSION_COUNTRY_CODES=guestKit()?.DIAL_CODES||[
       ['India','+91'],['United Arab Emirates','+971'],['United States / Canada','+1'],['United Kingdom','+44'],
       ['Singapore','+65'],['Australia','+61'],['Saudi Arabia','+966'],['Qatar','+974'],['Oman','+968'],['Kuwait','+965'],
       ['Bahrain','+973'],['Malaysia','+60'],['New Zealand','+64'],['Germany','+49'],['France','+33'],['Ireland','+353'],
@@ -565,7 +581,7 @@
         h('label',null,`${label}${required?' *':''}`),
         h('div',{style:{display:'grid',gridTemplateColumns:'minmax(118px,42%) 1fr',gap:'6px'}},
           h('select',{value:code,'aria-label':`${label} country code`,onChange:e=>setForm(current=>({...current,[key]:formatInternationalMobile(e.target.value,local)}))},
-            ADMISSION_COUNTRY_CODES.map(([country,dial])=>h('option',{key:`${country}-${dial}`,value:dial},`${country} (${dial})`))
+            ADMISSION_COUNTRY_CODES.map(([country,dial])=>h('option',{key:`${country}-${dial}`,value:dial},`${dial} ${country}`))
           ),
           h('input',{type:'tel',inputMode:'tel',required,value:local,placeholder:'Mobile number',
             onChange:e=>setForm(current=>({...current,[key]:formatInternationalMobile(code,e.target.value)})),onBlur
@@ -666,7 +682,8 @@
         employment_status:patient.employment_status||'',
         mobile:patient.mobile||'',
         address:patient.address||'',
-        state:patient.state||'Tamil Nadu',
+        country:guestKit()?guestKit().countryOf(patient):'India',
+        state:patient.state||((guestKit()?guestKit().countryOf(patient):'India')==='India'?'Tamil Nadu':''),
         district:patient.district||'',
         taluk:patient.taluk||'',
         village_town:patient.village_town||'',
@@ -940,7 +957,9 @@
       return Boolean(occupantId&&String(occupantId)===String(currentAdmissionPatientId));
     }
 
+    const guestIdLabel=guestKit()?guestKit().idDocLabel(form):'Aadhaar / Identity Card'; // 2.16.45: Passport / National ID outside India
     function composePatientAddress(source=form){
+      if(guestKit())return guestKit().composeAddress(source); // 2.16.45: adds the country for Guests from outside India
       const line1=[source.house_no,source.street_name,source.apartment_name,source.flat_no?`Flat ${source.flat_no}`:'']
         .filter(Boolean).join(', ');
       const line2=[source.locality_area,source.village_town,source.taluk,source.district,source.state,source.pincode]
@@ -1565,9 +1584,14 @@
       cleanAdmissionAfterConsent();
     }
 
+    // 2.16.45: family WhatsApp numbers — Indian numbers stored as 10 digits (as before); numbers of other
+    // countries keep their country code (e.g. "+880 1712345678"), so messages reach the right phone.
+    const familyMobile=value=>guestKit()?guestKit().storedMobile(value):String(value||'').replace(/\D/g,'').slice(-10);
+    const familyMobileProblem=(value,label)=>{if(!familyMobile(value))return `Enter the ${label}.`;return guestKit()?guestKit().phoneProblem(value,label):(familyMobile(value).length===10?'':`Enter a valid 10-digit ${label}.`)};
+    const sameFamilyMobile=(a,b)=>guestKit()?guestKit().samePhone(a,b):familyMobile(a)===familyMobile(b);
     async function saveFamilyPortalAccess(patient){
       if(!familyPortalEnabled)return null;
-      const mobile=String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10);
+      const mobile=familyMobile(familyAccess.mobile);
       if(!String(familyAccess.relative_name||'').trim())throw new Error('Enter the authorised family member name.');
       if(!String(familyAccess.relationship||'').trim())throw new Error('Enter the relationship to the resident.');
             const {data:existingRows}=await client.from('family_portal_access').select('id,mobile,relative_name,is_active').eq('patient_id',patient.id).eq('is_active',true);
@@ -1591,12 +1615,11 @@
     }
     async function saveSecondFamilyPortalAccess(patient){
       if(!familyAccess2.enabled)return null;
-      const mobile=String(familyAccess2.mobile||'').replace(/\D/g,'').slice(-10);
-      const primaryMobile=String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10);
+      const mobile=familyMobile(familyAccess2.mobile);
       if(!String(familyAccess2.relative_name||'').trim())throw new Error('Enter Family Contact 2 authorised relative name.');
       if(!String(familyAccess2.relationship||'').trim())throw new Error('Enter Family Contact 2 relationship to the resident.');
-      if(mobile.length!==10)throw new Error('Enter a valid 10-digit mobile number for Family Contact 2.');
-      if(mobile===primaryMobile)throw new Error('Family Contact 2 must use a different mobile number from Family Contact 1.');
+      {const issue=familyMobileProblem(familyAccess2.mobile,'Family Contact 2 mobile number');if(issue)throw new Error(issue)}
+      if(sameFamilyMobile(familyAccess2.mobile,familyAccess.mobile))throw new Error('Family Contact 2 must use a different mobile number from Family Contact 1.');
       const {data:existingRows}=await client.from('family_portal_access').select('id,mobile').eq('patient_id',patient.id);
       const existing=(existingRows||[]).find(row=>normalizeWhatsAppRecipient(row.mobile)===normalizeWhatsAppRecipient(mobile));
       const pin=String(Math.floor(100000+Math.random()*900000));
@@ -1608,10 +1631,10 @@
     }
     async function saveFamilyCommunicationPreference(patient){
       if(!patient?.id)return null;
-      const mobile=String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10);
+      const mobile=familyMobile(familyAccess.mobile);
       if(!String(familyAccess.relative_name||'').trim())throw new Error('Enter the authorised family member name.');
       if(!String(familyAccess.relationship||'').trim())throw new Error('Enter the relationship to the resident.');
-      if(mobile.length!==10)throw new Error('Enter a valid 10-digit family WhatsApp number.');
+      {const issue=familyMobileProblem(familyAccess.mobile,'family WhatsApp number');if(issue)throw new Error(issue)}
       if(dailyWhatsAppEnabled&&!String(familyAccess.daily_whatsapp_time||'').trim())throw new Error('Select the daily WhatsApp report time.');
       const payload={
         patient_id:patient.id,
@@ -1840,14 +1863,15 @@ Please keep these login details confidential.`;
       // 2.15.17: Real / Trial must be chosen for a new Guest (an existing record keeps its type).
       if(!effectiveExistingPatient&&!['Real','Trial'].includes(form.record_type)){setMsg('Choose at the top of the form: Real Guest or Trial (test) Guest.');setBusy(false);return}
       if(!familyPortalEnabled&&!dailyWhatsAppEnabled){setMsg('Choose the family communication option: Family Portal Access, Daily Intelligent Report, or Both.');setBusy(false);return}
-      if(!String(familyAccess.relative_name||'').trim()||!String(familyAccess.relationship||'').trim()||String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10).length!==10){setMsg('Complete the mandatory Family Contact 1 details: authorised relative name, relationship and valid mobile number.');setBusy(false);return}
+      if(!String(familyAccess.relative_name||'').trim()||!String(familyAccess.relationship||'').trim()||!familyMobile(familyAccess.mobile)){setMsg('Complete the mandatory Family Contact 1 details: authorised relative name, relationship and valid mobile number.');setBusy(false);return}
+      {const issue=familyMobileProblem(familyAccess.mobile,'Family Contact 1 WhatsApp number');if(issue){setMsg(issue);setBusy(false);return}}
       if(familyPortalEnabled&&familyAccess2.enabled){
-        const mobile2=String(familyAccess2.mobile||'').replace(/\D/g,'').slice(-10);
-        const mobile1=String(familyAccess.mobile||'').replace(/\D/g,'').slice(-10);
-        if(!String(familyAccess2.relative_name||'').trim()||!String(familyAccess2.relationship||'').trim()||mobile2.length!==10){setMsg('Complete Family Portal Contact 2 details or turn off Contact 2.');setBusy(false);return}
-        if(mobile1===mobile2){setMsg('Family Contact 2 must use a different mobile number from Family Contact 1.');setBusy(false);return}
+        if(!String(familyAccess2.relative_name||'').trim()||!String(familyAccess2.relationship||'').trim()||!familyMobile(familyAccess2.mobile)){setMsg('Complete Family Portal Contact 2 details or turn off Contact 2.');setBusy(false);return}
+        {const issue=familyMobileProblem(familyAccess2.mobile,'Family Contact 2 WhatsApp number');if(issue){setMsg(issue);setBusy(false);return}}
+        if(sameFamilyMobile(familyAccess.mobile,familyAccess2.mobile)){setMsg('Family Contact 2 must use a different mobile number from Family Contact 1.');setBusy(false);return}
       }
       if(!numberedItems(form.diagnosis).length){setMsg('Add at least one diagnosis / condition at admission.');setBusy(false);return}
+      {const issue=guestKit()?guestKit().addressProblem(form):'';if(issue){setMsg(issue);setBusy(false);return}} // 2.16.45
       // 2.15.12: attendant is optional — ask whether one stays with the Guest.
       if(!['Yes','No'].includes(form.attendant_staying)){setMsg('Choose whether an attendant is staying with the Guest (Yes / No).');setBusy(false);return}
       if(form.attendant_staying==='Yes'&&!String(form.attendant_name||'').trim()){setMsg('Enter the attendant name, or choose "No" if no attendant is staying with the Guest.');setBusy(false);return}
@@ -1864,6 +1888,7 @@ Please keep these login details confidential.`;
         const local=internationalLocalPart(value);
         if(required&&!local){setMsg(`${label} is required.`);setBusy(false);return}
         if(local&&!validInternationalMobile(value)){setMsg(`${label} must contain a valid international mobile number including the country code.`);setBusy(false);return}
+        {const issue=local&&guestKit()?guestKit().phoneProblem(value,label):'';if(issue){setMsg(issue);setBusy(false);return}} // 2.16.45: India 10 digits, Bangladesh 10 after +880
       }
       if(duplicateMobilePatient&&!returningPatient&&!interruptedAdmissionPatient){
         setMsg(`This mobile number is already registered to ${formalName(duplicateMobilePatient)||duplicateMobilePatient.full_name} · ${duplicateMobilePatient.patient_id||duplicateMobilePatient.patient_code||'Resident ID unavailable'}. A different patient cannot use the same mobile number. If this is the same previous resident, use Re-admission; otherwise correct the mobile number.`);
@@ -1913,7 +1938,7 @@ Please keep these login details confidential.`;
       if(isFutureDateIndia(form.admission_date)){setMsg(`Admission date cannot be later than today (${formatDateIN(todayISOIndia())}). Please correct the date.`);setBusy(false);return}
       if(!idFiles.length&&!returningPatient){
         const continueWithoutId=window.confirm(
-          'Aadhaar / Identity Card has not been uploaded.\n\nContinue this admission under the temporary ID-document exception? The document can be added later from Patient Documents.'
+          `${guestIdLabel} has not been uploaded.\n\nContinue this admission under the temporary ID-document exception? The document can be added later from Patient Documents.`
         );
         if(!continueWithoutId){setBusy(false);return}
       }
@@ -1953,6 +1978,11 @@ Please keep these login details confidential.`;
       // an existing / returning Guest's record never changes type, so a real Guest can never become erasable.
       delete payload.record_type;delete payload.is_trial;
       const newGuestTrialFlag=form.record_type==='Trial'?{is_trial:true}:{};
+      // 2.16.45: the "country" column comes with supabase/sql/220_guest_country.sql. Until it is run the
+      // admission still saves (the country stays written in the assembled address).
+      payload.country=guestKit()?guestKit().countryOf(form):'India';
+      const countryColumnMissing=err=>/country/i.test(String(err?.message||''))&&/column|schema/i.test(String(err?.message||''));
+      const withoutCountry=row=>{const copy={...row};delete copy.country;return copy};
 
       if(admissionExistingPatient){
         // v2.14.35: a pending admission gets its room only once, in the final commit below.
@@ -1965,11 +1995,13 @@ Please keep these login details confidential.`;
           if(roomAssignError){setMsg(roomAssignError.message||'Unable to allot the selected room for re-admission.');setBusy(false);return}
         }
 
-        const {data:updated,error:updateError}=await client.from('patients')
-          .update({...payload,patient_id:patientCode,patient_code:patientCode,created_by:admissionExistingPatient.created_by||user.id})
+        const runUpdate=body=>client.from('patients')
+          .update(body)
           .eq('id',admissionExistingPatient.id)
           .select()
           .single();
+        let {data:updated,error:updateError}=await runUpdate({...payload,patient_id:patientCode,patient_code:patientCode,created_by:admissionExistingPatient.created_by||user.id});
+        if(updateError&&countryColumnMissing(updateError))({data:updated,error:updateError}=await runUpdate(withoutCountry({...payload,patient_id:patientCode,patient_code:patientCode,created_by:admissionExistingPatient.created_by||user.id})));
         if(updateError){
           setMsg(updateError.message);
           setBusy(false);
@@ -1993,10 +2025,9 @@ Please keep these login details confidential.`;
         // Safe admission commit: create a non-active staging row first. The resident
         // is not considered admitted, and the bed is not occupied, until every
         // admission setup step below succeeds.
-        const {data:created,error:createError}=await client.from('patients')
-          .insert({...payload,...newGuestTrialFlag,is_active:false,admission_status:'Admission Pending',patient_id:patientCode,patient_code:patientCode,created_by:user.id})
-          .select()
-          .single();
+        const newRow={...payload,...newGuestTrialFlag,is_active:false,admission_status:'Admission Pending',patient_id:patientCode,patient_code:patientCode,created_by:user.id};
+        let {data:created,error:createError}=await client.from('patients').insert(newRow).select().single();
+        if(createError&&countryColumnMissing(createError))({data:created,error:createError}=await client.from('patients').insert(withoutCountry(newRow)).select().single());
         if(createError){setMsg(/is_trial/.test(createError.message||'')?'Trial Guests need a one-time database update: run supabase/sql/171_trial_guest_purge.sql in Supabase, then save again.':createError.message);setBusy(false);return}
         patient=created;
         // Link the browser draft to the newly created patient immediately. If a
@@ -2212,7 +2243,7 @@ Please keep these login details confidential.`;
             :h('li',null,h('strong',null,'Address'),' (State / District / Taluk / Street…)',spotPrefill.address?` — noted at visit: ${spotPrefill.address}`:''),
           (spotPrefill.contact1Relationship||spotPrefill.contact2Relationship)&&h('li',null,h('strong',null,'Family contact relationship'),' (choose from the list)'),
           h('li',null,h('strong',null,'Attendant staying? '),'Yes / No'),
-          h('li',null,h('strong',null,'Photo and Aadhaar / ID')),
+          h('li',null,h('strong',null,`Photo and ${spotPrefill.idLabel||'Aadhaar / ID'}`)),
           h('li',null,h('strong',null,'Family Communication option'),' (Family Portal / Daily Report / Both)'),
           spotPrefill.medsCopied
             ?h('li',null,h('strong',null,'Current medicines'),` — ${spotPrefill.medsCopied} medicine(s) copied into Section 3 from the visit. Check each one against the prescription, and set "Starts from" if needed.`)
@@ -2359,41 +2390,10 @@ Please keep these login details confidential.`;
           ?selectField('Employment Status','employment_status',form,setForm,EMPLOYMENT_SERVICE_STATUS)
           :null,
         mobileField('Mobile','mobile',true,autoDetectReturningPatient),
-        field('State','state',form,setForm,false),
-        h('div',{className:'field'},
-          h('label',null,'District'),
-          h('select',{
-            required:true,
-            value:form.district,
-            onChange:e=>setForm({...form,district:e.target.value,taluk:''})
-          },
-            h('option',{value:''},'Select District'),
-            TAMIL_NADU_DISTRICTS.map(name=>h('option',{key:name,value:name},name))
-          )
-        ),
-        h('div',{className:'field'},
-          h('label',null,'Taluk'),
-          h('select',{
-            value:form.taluk,
-            disabled:!form.district,
-            onChange:e=>setForm({...form,taluk:e.target.value})
-          },
-            h('option',{value:''},form.district?'Select Taluk':'Select District first'),
-            ...(TAMIL_NADU_DISTRICT_TALUKS[form.district]||[]).map(name=>h('option',{key:name,value:name},name))
-          )
-        ),
-        field('Village / Town / City','village_town',form,setForm,true),
-        field('Locality / Area','locality_area',form,setForm,false),
-        field('Street / Road Name','street_name',form,setForm,true),
-        field('Door / House No.','house_no',form,setForm,true),
-        field('Apartment / Building','apartment_name',form,setForm,false),
-        field('Flat No.','flat_no',form,setForm,false),
-        field('Landmark','landmark',form,setForm,false),
-        h('div',{className:'field'},h('label',null,'PIN Code'),h('input',{
-          value:form.pincode,inputMode:'numeric',maxLength:6,pattern:'[0-9]{6}',
-          onChange:e=>setForm({...form,pincode:e.target.value.replace(/\D/g,'').slice(0,6)}),
-          placeholder:'6-digit PIN'
-        })),
+        // 2.16.45: same address fields as Spot Assessment / Patients → Edit — Country first, then
+        // State / Division, District, Taluk / Upazila (lists for Tamil Nadu and Bangladesh, typed elsewhere)
+        guestKit()?h(guestKit().AddressFields,{key:'guest-address',value:form,strict:true,idPrefix:'admission-address',onChange:patch=>setForm(current=>({...current,...patch}))})
+          :h('div',{className:'small-note span-2'},'Address fields are loading — please refresh the page.'),
         h('div',{className:'small-note span-2'},composePatientAddress(form)||'The complete residential address will be assembled automatically from the above fields.'),
         h('div',{className:'field'},h('label',null,'Is an attendant staying with the Guest?'),h('select',{
           required:true,value:form.attendant_staying||'',
@@ -2406,7 +2406,9 @@ Please keep these login details confidential.`;
         form.attendant_staying==='Yes'?mobileField('Alternative Mobile No.','attendant_alternative_phone',false):null
       ),
       h('div',{className:'small-note',style:{marginBottom:'8px'}},
-        'Only Aadhaar / Identity Card is the standard identity document. A temporary exception permits admission without it for now. Photo and all other supporting documents are optional and may be added later.'
+        guestIdLabel==='Aadhaar / Identity Card'
+          ?'Only Aadhaar / Identity Card is the standard identity document. A temporary exception permits admission without it for now. Photo and all other supporting documents are optional and may be added later.'
+          :'Guest from outside India: upload the Passport (photo page) or National ID card — and the visa page, if any. A temporary exception permits admission without it for now. Photo and other documents are optional and may be added later.'
       ),
       h('div',{className:'upload-grid'},
         patientCaptureInput(
@@ -2417,7 +2419,7 @@ Please keep these login details confidential.`;
           true
         ),
         patientCaptureInput(
-          returningPatient?'New Aadhaar / ID Card (only if changed)':'Aadhaar / Identity Card (temporary exception allowed)',
+          returningPatient?`New ${guestIdLabel} (only if changed)`:`${guestIdLabel} (temporary exception allowed)`,
           idFiles,
           setIdFiles,
           'image/*,.pdf',
@@ -2447,7 +2449,7 @@ Please keep these login details confidential.`;
           ),
           h('div',{className:'field'},h('label',null,'Authorised Relative Name'),h('input',{required:true,value:familyAccess.relative_name,onChange:e=>setFamilyAccess({...familyAccess,relative_name:e.target.value})})),
           h('div',{className:'field'},h('label',null,'Relationship'),h('select',{required:true,value:familyAccess.relationship||'',onChange:e=>setFamilyAccess({...familyAccess,relationship:e.target.value})},h('option',{value:''},'Select relationship'),...['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].map(x=>h('option',{key:x,value:x},x)))),
-          h('div',{className:'field'},h('label',null,'Family WhatsApp Number'),h('div',{style:{display:'grid',gridTemplateColumns:'minmax(118px,42%) 1fr',gap:'6px'}},h('select',{value:admissionDialCode(familyAccess.mobile),'aria-label':'Family WhatsApp country code',onChange:e=>setFamilyAccess({...familyAccess,mobile:formatInternationalMobile(e.target.value,internationalLocalPart(familyAccess.mobile))})},ADMISSION_COUNTRY_CODES.map(([country,dial])=>h('option',{key:`wa-${country}-${dial}`,value:dial},`${country} (${dial})`))),h('input',{required:true,type:'tel',inputMode:'tel',value:internationalLocalPart(familyAccess.mobile),placeholder:'Mobile number',onChange:e=>setFamilyAccess({...familyAccess,mobile:formatInternationalMobile(admissionDialCode(familyAccess.mobile),e.target.value)})}))),
+          h('div',{className:'field'},h('label',null,'Family WhatsApp Number'),h('div',{style:{display:'grid',gridTemplateColumns:'minmax(118px,42%) 1fr',gap:'6px'}},h('select',{value:admissionDialCode(familyAccess.mobile),'aria-label':'Family WhatsApp country code',onChange:e=>setFamilyAccess({...familyAccess,mobile:formatInternationalMobile(e.target.value,internationalLocalPart(familyAccess.mobile))})},ADMISSION_COUNTRY_CODES.map(([country,dial])=>h('option',{key:`wa-${country}-${dial}`,value:dial},`${dial} ${country}`))),h('input',{required:true,type:'tel',inputMode:'tel',value:internationalLocalPart(familyAccess.mobile),placeholder:'Mobile number',onChange:e=>setFamilyAccess({...familyAccess,mobile:formatInternationalMobile(admissionDialCode(familyAccess.mobile),e.target.value)})}))),
           h('div',{className:'field'},h('label',null,'Email (optional)'),h('input',{type:'email',value:familyAccess.email,onChange:e=>setFamilyAccess({...familyAccess,email:e.target.value})})),
           h('div',{className:'small-note span-3'},'Contact 1 is the Primary Family Contact'+(familyPortalEnabled?' and receives the Family Portal login.':'.')),
           familyPortalEnabled&&h('div',{className:'span-2',style:{borderTop:'1px solid #ecd6e2',marginTop:'8px',paddingTop:'12px'}},
@@ -2455,7 +2457,7 @@ Please keep these login details confidential.`;
           ),
           familyPortalEnabled&&familyAccess2.enabled&&h('div',{className:'field'},h('label',null,'Contact 2 Authorised Relative Name *'),h('input',{required:true,value:familyAccess2.relative_name,onChange:e=>setFamilyAccess2({...familyAccess2,relative_name:e.target.value})})),
           familyPortalEnabled&&familyAccess2.enabled&&h('div',{className:'field'},h('label',null,'Contact 2 Relationship *'),h('select',{required:true,value:familyAccess2.relationship||'',onChange:e=>setFamilyAccess2({...familyAccess2,relationship:e.target.value})},h('option',{value:''},'Select relationship'),...['Wife','Husband','Son','Daughter','Father','Mother','Brother','Sister','Son-in-law','Daughter-in-law','Grandson','Granddaughter','Nephew','Niece','Guardian','Caregiver','Friend','Other'].map(x=>h('option',{key:`fam2-${x}`,value:x},x)))),
-          familyPortalEnabled&&familyAccess2.enabled&&h('div',{className:'field'},h('label',null,'Contact 2 WhatsApp Number *'),h('div',{style:{display:'grid',gridTemplateColumns:'minmax(118px,42%) 1fr',gap:'6px'}},h('select',{value:admissionDialCode(familyAccess2.mobile),'aria-label':'Family Contact 2 country code',onChange:e=>setFamilyAccess2({...familyAccess2,mobile:formatInternationalMobile(e.target.value,internationalLocalPart(familyAccess2.mobile))})},ADMISSION_COUNTRY_CODES.map(([country,dial])=>h('option',{key:`wa2-${country}-${dial}`,value:dial},`${country} (${dial})`))),h('input',{required:true,type:'tel',inputMode:'tel',value:internationalLocalPart(familyAccess2.mobile),placeholder:'Mobile number',onChange:e=>setFamilyAccess2({...familyAccess2,mobile:formatInternationalMobile(admissionDialCode(familyAccess2.mobile),e.target.value)})}))),
+          familyPortalEnabled&&familyAccess2.enabled&&h('div',{className:'field'},h('label',null,'Contact 2 WhatsApp Number *'),h('div',{style:{display:'grid',gridTemplateColumns:'minmax(118px,42%) 1fr',gap:'6px'}},h('select',{value:admissionDialCode(familyAccess2.mobile),'aria-label':'Family Contact 2 country code',onChange:e=>setFamilyAccess2({...familyAccess2,mobile:formatInternationalMobile(e.target.value,internationalLocalPart(familyAccess2.mobile))})},ADMISSION_COUNTRY_CODES.map(([country,dial])=>h('option',{key:`wa2-${country}-${dial}`,value:dial},`${dial} ${country}`))),h('input',{required:true,type:'tel',inputMode:'tel',value:internationalLocalPart(familyAccess2.mobile),placeholder:'Mobile number',onChange:e=>setFamilyAccess2({...familyAccess2,mobile:formatInternationalMobile(admissionDialCode(familyAccess2.mobile),e.target.value)})}))),
           familyPortalEnabled&&familyAccess2.enabled&&h('div',{className:'field'},h('label',null,'Contact 2 Email (optional)'),h('input',{type:'email',value:familyAccess2.email,onChange:e=>setFamilyAccess2({...familyAccess2,email:e.target.value})}))
         ),
       familyCredential&&h('div',{className:'message success',style:{marginTop:'12px'}},
@@ -2464,7 +2466,7 @@ Please keep these login details confidential.`;
           h('div',{className:'employee-actions',style:{marginTop:'8px'}},
             h('button',{type:'button',className:admissionWhatsAppStatus==='sent'||admissionWhatsAppStatus==='already-sent'?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:admissionWhatsAppStatus==='sending',onClick:()=>sendAdmissionWhatsAppApi(familyCredential,{patient:consentRecord?.patient||null,resend:admissionWhatsAppStatus==='sent'||admissionWhatsAppStatus==='already-sent'})},admissionWhatsAppStatus==='sending'?'Sending Admission WhatsApp…':admissionWhatsAppStatus==='sent'||admissionWhatsAppStatus==='already-sent'?'Resend Admission WhatsApp':'Send Admission WhatsApp API'),
             h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>sendFamilyPortalAccessWhatsAppApi(familyCredential)},'Send Family Portal Access API'),
-            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/91${familyCredential.mobile}?text=${encodeURIComponent(brandWhatsAppText(`Welcome to Samara Assisted Living Family Portal.\nGuest ID: ${familyCredential.patient_id||''}\nTemporary PIN: ${familyCredential.pin}\nPortal: ${familyPortalLoginLink(familyCredential.patient_id)}\n(Open the link — the Guest ID fills in by itself; enter only the PIN.)`))}`,'_blank','noopener')},'Send Login PIN (Existing Method)')
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.open(`https://wa.me/${normalizeWhatsAppRecipient(familyCredential.mobile)}?text=${encodeURIComponent(brandWhatsAppText(`Welcome to Samara Assisted Living Family Portal.\nGuest ID: ${familyCredential.patient_id||''}\nTemporary PIN: ${familyCredential.pin}\nPortal: ${familyPortalLoginLink(familyCredential.patient_id)}\n(Open the link — the Guest ID fills in by itself; enter only the PIN.)`))}`,'_blank','noopener')},'Send Login PIN (Existing Method)')
           )
         )
       ),
