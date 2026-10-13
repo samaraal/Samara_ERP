@@ -659,7 +659,7 @@
           h('button',{type:'button',className:'btn btn-secondary',onClick:refreshCurrentPage,title:'Reload the current page data','aria-label':'Refresh current page'},'↻ Refresh'),
           h('button',{type:'button',className:'btn btn-secondary mobile-global-signout',onClick:async()=>{if(!window.confirm('Are you sure you want to sign out?'))return;await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');await client.auth.signOut()},title:'Sign out of Samara Care','aria-label':'Sign out'},'⇥ Sign Out')),
         h(NursingMobileQuickActions,{profile,page,onNavigate:setPage}),
-        page==='Clinical Dashboard'&&allowed.includes('Talk to Guest')&&h('div',{style:{padding:'12px 16px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPage('Talk to Guest')},'🎙 Talk to Guest · Auto Bangla / Hindi')),
+        page==='Clinical Dashboard'&&allowed.includes('Talk to Guest')&&h('div',{style:{padding:'12px 16px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPage('Talk to Guest')},'🎙 Talk to Guest · 6 languages')),
         h(window.SamaraDutySwap.DailyNotice,dutyNotice),
         h(window.SamaraDischargeWorkflow.Banner,{client,profile,onNavigate:setPage}),
         h(PageErrorBoundary,{page,resetKey:page+':'+pageRefreshKey,onHome:()=>setPage(homePageForProfile(profile)||allowed[0])},h('section',{className:'content',key:window.SamaraDutySwap.signature(profile)+':'+pageRefreshKey,onChangeCapture:()=>{pageEditedRef.current=true},onInputCapture:()=>{pageEditedRef.current=true}},

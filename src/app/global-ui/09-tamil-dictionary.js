@@ -3835,4 +3835,9 @@
 "Conversation stopped.": "உரையாடல் நிறுத்தப்பட்டது.",
 "Tick the consent box, then tap Start conversation. Anyone can speak first.": "ஒப்புதல் பெட்டியில் டிக் செய்து, Start conversation தொடுங்கள். யார் வேண்டுமானாலும் முதலில் பேசலாம்.",
 "Leave on Auto-detect: the guest’s language is found when they speak. If staff speak first, you will be asked to tap the language once.": "Auto-detect-லேயே விடுங்கள்: கெஸ்ட் பேசும்போது மொழி தானாகக் கண்டறியப்படும். ஊழியர் முதலில் பேசினால், மொழியை ஒருமுறை தொடச் சொல்லும்.",
+// 2.16.36: Talk to Guest 6 languages
+"Tap Start once, then just talk. Staff speak Tamil. Guest: English, Hindi, Bangla, Malayalam, Telugu or Kannada.": "ஒருமுறை Start தொடுங்கள், பிறகு பேசினால் போதும். ஊழியர் தமிழில் பேசுங்கள். கெஸ்ட்: ஆங்கிலம், ஹிந்தி, பெங்காலி, மலையாளம், தெலுங்கு அல்லது கன்னடம்.",
+"Which language does the guest speak? Tap it below — your sentence will be spoken in it.": "கெஸ்ட் எந்த மொழி பேசுகிறார்? கீழே அதைத் தொடுங்கள் — உங்கள் வாக்கியம் அந்த மொழியில் பேசப்படும்.",
+"Auto · 6 languages": "தானாக · 6 மொழிகள்",
+"🎙 Talk to Guest · 6 languages": "🎙 கெஸ்ட்டுடன் பேசு · 6 மொழிகள்",
 };

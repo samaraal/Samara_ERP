@@ -1,3 +1,11 @@
+## 2.16.36 — Talk to Guest: 6 guest languages (English, Hindi, Bangla, Malayalam, Telugu, Kannada)
+
+- Staff speak **Tamil** (Tamil with English words mixed in still counts as staff). The Guest can speak **English, Hindi, Bangla, Malayalam, Telugu or Kannada** — detected automatically each sentence; the Tamil reply goes back in the Guest's latest language.
+- **English now counts as a Guest language** (before 2.16.36 English was treated as staff speech).
+- Staff speak first: the sentence is translated into all six at once, and the six language buttons appear — one tap speaks it (no repeat). Language chips at the top for all six; consent line shown in all six languages.
+- Menu subtitle / dashboard button: "6 languages".
+- **Redeploy the talk-to-guest Edge Function first** (dashboard single-file index.ts), then the ERP files. No SQL. 28 mocked tests.
+
 ## 2.16.35 — Talk to Guest: hands-free conversation, staff can speak first, faster replies
 
 - **One button**: tap **Start conversation** once. The microphone stays open; each sentence is translated automatically after a short pause (about 1 second). No Guest / Nurse buttons — the spoken language decides who is talking: **Tamil or English = staff**, **Bangla or Hindi = Guest**.

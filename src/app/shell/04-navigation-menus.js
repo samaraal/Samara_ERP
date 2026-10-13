@@ -161,7 +161,7 @@
       ['Daily Care','♡','Daily Care','Complete care'],
       ['Food & Diet','♨','Food & Beverages','Record intake'],
       ['Shift Tasks','☷','Tasks','Current shift'],
-      ['Talk to Guest','🎙','Talk to Guest','Auto · Bangla / Hindi']
+      ['Talk to Guest','🎙','Talk to Guest','Auto · 6 languages']
     ];
     if(profile?.role==='Nurse'||isNursingManagerProfile(profile))actions.push(['My To-Do List','＋','To-Do','Voice / personal']);
     return h('section',{className:'nursing-mobile-quick-actions','aria-label':'Nursing quick actions'},

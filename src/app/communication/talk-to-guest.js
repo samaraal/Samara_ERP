@@ -1,6 +1,7 @@
   // 2.16.34: ephemeral nurse–guest interpretation; no patient records or chat logging. Open to Admin, Manager, Nurse, Caregiver and STD.
   // 2.16.35: hands-free conversation — ONE Start button, the microphone stays open, each sentence is sent after a short
   // pause and the spoken language decides who is talking (Tamil / English = staff, Bangla / Hindi = guest).
+  // 2.16.36: staff = Tamil; guest = English, Hindi, Bangla, Malayalam, Telugu or Kannada (auto-detected).
   // Staff may speak first: the guest's language is chosen with one tap and the same sentence is used (no repeat).
   // Translation + voice come back in one reply; the microphone does not record while the translation is playing.
   function TalkToGuest(){
@@ -14,7 +15,9 @@
     const [tamilVoice,setTamilVoiceState]=React.useState(true);
     const [level,setLevel]=React.useState(0);
     const run=React.useRef({epoch:0,live:false,stream:null,context:null,analyser:null,input:null,recorder:null,timer:null,request:null,source:null,guest:'',tamilVoice:true,discard:false,failures:0});
-    const labels={bn:'Bangla · বাংলা',hi:'Hindi · हिन्दी',ta:'Tamil · தமிழ்',en:'English'};
+    const GUEST_LANGS=[['en','English'],['hi','हिन्दी Hindi'],['bn','বাংলা Bangla'],['ml','മലയാളം Malayalam'],['te','తెలుగు Telugu'],['kn','ಕನ್ನಡ Kannada']];
+    const GUEST_CODES=GUEST_LANGS.map(x=>x[0]);
+    const labels={en:'English',hi:'Hindi · हिन्दी',bn:'Bangla · বাংলা',ml:'Malayalam · മലയാളം',te:'Telugu · తెలుగు',kn:'Kannada · ಕನ್ನಡ',ta:'Tamil · தமிழ்'};
     const SILENCE_MS=900,MIN_SPEECH_MS=350,IDLE_RESTART_MS=8000,MAX_MS=25000;
     const box={border:'1px solid #e6ccd9',borderRadius:18,padding:18,background:'#fff'};
     const setGuest=v=>{run.current.guest=v;setGuestState(v);};
@@ -98,11 +101,11 @@
         if(x.needs_language){
           const row={id:Date.now(),actor:'staff',source:x.source,transcript:x.transcript,translations:x.translations,target:'',translation:''};
           setRows(old=>[row,...old].slice(0,6));setPendingRow(row);
-          setStatus('Which language does the guest speak? Tap বাংলা or हिन्दी below — your sentence will be spoken in it.');
+          setStatus('Which language does the guest speak? Tap it below — your sentence will be spoken in it.');
           listen(true);return;
         }
         if(!x.transcript||!x.translation||!x.target)throw Error('The translation was incomplete. Please speak again.');
-        const isGuest=['bn','hi'].includes(x.source);
+        const isGuest=GUEST_CODES.includes(x.source);
         if(isGuest){setGuest(x.source);const p=r.pending;if(p){setPendingRow(null);setRows(old=>old.map(o=>o.id===p.id?{...o,target:x.source,translation:o.translations[x.source]}:o));}} // guest answered before the chip was tapped: show the earlier sentence in that language
         const row={id:Date.now(),actor:isGuest?'guest':'staff',source:x.source,target:x.target,transcript:x.transcript,translation:x.translation,audio:x.audio?fromBase64(x.audio):null};
         setRows(old=>[row,...old].slice(0,6));
@@ -145,26 +148,26 @@
     }
     function newGuest(){stopAll('New guest. Tick the consent box, then tap Start conversation.');setGuest('');setRows([]);setPendingRow(null);setConsent(false);}
 
-    const chip=(code,text)=>h('button',{type:'button',className:'ttg-chip'+(guest===code?' on':''),'aria-pressed':guest===code,onClick:()=>{setGuest(code);if(code&&pending)chooseLanguage(code,pending);}},text);
+    const chip=(code,text)=>h('button',{key:code||'auto',type:'button',className:'ttg-chip'+(guest===code?' on':''),'aria-pressed':guest===code,onClick:()=>{setGuest(code);if(code&&pending)chooseLanguage(code,pending);}},text);
     const phaseText={idle:'Not listening',listening:'Listening',hearing:'Hearing',translating:'Translating',playing:'Speaking'}[phase];
     return h('section',{className:'talk-to-guest',style:{maxWidth:960,margin:'0 auto',padding:16,color:'#5d1039'}},
       h('style',null,'.talk-to-guest *{box-sizing:border-box}.ttg-main{width:100%;min-height:72px;border:0;border-radius:16px;color:#fff;background:#087667;font-family:inherit;font-size:21px;font-weight:700;cursor:pointer;padding:14px}.ttg-main.stop{background:#b01264}.ttg-main:disabled{opacity:.45;cursor:default}.talk-to-guest button:focus-visible{outline:3px solid #187c70;outline-offset:3px}.ttg-secondary{padding:10px 16px;border:1px solid #d8b9ca;border-radius:12px;background:#fff;color:#5d1039;cursor:pointer;min-height:44px;font-family:inherit}.ttg-secondary:disabled{opacity:.45}.ttg-chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.ttg-chip{min-height:44px;padding:8px 16px;border-radius:999px;border:1px solid #d8b9ca;background:#fff;color:#5d1039;font-size:16px;cursor:pointer;font-family:inherit}.ttg-chip.on{background:#5d1039;color:#fff;border-color:#5d1039}.ttg-big{font-size:20px;min-height:56px;padding:10px 22px}.ttg-meter{height:8px;border-radius:8px;background:#eadbe3;overflow:hidden;margin-top:10px}.ttg-meter>i{display:block;height:100%;background:#087667;transition:width .1s}.ttg-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;background:#bbb}.ttg-dot.live{background:#087667;animation:ttgp 1.2s infinite}@keyframes ttgp{50%{opacity:.35}}@media(max-width:600px){.talk-to-guest{padding:8px!important}}'),
       h('div',{style:{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'center'}},
-        h('div',null,h('h1',{style:{margin:'0 0 6px',fontSize:30}},'Talk to Guest'),h('p',{style:{margin:'0 0 16px',color:'#78636f'}},'Tap Start once. Then just talk — Tamil, Bangla or Hindi.')),
+        h('div',null,h('h1',{style:{margin:'0 0 6px',fontSize:30}},'Talk to Guest'),h('p',{style:{margin:'0 0 16px',color:'#78636f'}},'Tap Start once, then just talk. Staff speak Tamil. Guest: English, Hindi, Bangla, Malayalam, Telugu or Kannada.')),
         h('button',{type:'button',className:'ttg-secondary',onClick:newGuest},'New guest / Clear')),
       h('div',{style:{...box,background:'#fff6fa',marginBottom:14}},
         h('strong',null,'Guest language'),
-        h('div',{className:'ttg-chips'},chip('','Auto-detect'),chip('bn','বাংলা Bangla'),chip('hi','हिन्दी Hindi')),
-        h('p',{style:{margin:'0 0 10px',lineHeight:1.6,fontSize:14}},guest?'Your Tamil is translated into '+labels[guest]+'. If the guest speaks another of these languages, it switches automatically.':'Leave on Auto-detect: the guest’s language is found when they speak. If staff speak first, you will be asked to tap the language once.'),
+        h('div',{className:'ttg-chips'},chip('','Auto-detect'),...GUEST_LANGS.map(([c,t])=>chip(c,t))),
+        h('p',{style:{margin:'0 0 10px',lineHeight:1.6,fontSize:14}},guest?'Your Tamil is translated into '+labels[guest]+'. If the guest speaks another listed language, it switches automatically.':'Leave on Auto-detect: the guest’s language is found when they speak. If staff speak first, you will be asked to tap the language once.'),
         h('label',{style:{display:'flex',gap:10,alignItems:'flex-start',lineHeight:1.6}},h('input',{type:'checkbox',checked:consent,disabled:live,onChange:e=>setConsent(e.target.checked),style:{marginTop:6}}),
-          h('span',null,'Guest agrees to send this conversation audio and text to Samara’s AI services for translation.',h('span',{lang:'bn',style:{display:'block',fontSize:15}},'বাংলা: অনুবাদের জন্য এই কথোপকথনের অডিও ও লেখা সামারার AI পরিষেবায় পাঠাতে আমি রাজি।'),h('span',{lang:'hi',style:{display:'block',fontSize:15}},'हिन्दी: अनुवाद के लिए इस बातचीत की आवाज़ और लिखित बातें सामरा की AI सेवा को भेजने के लिए मैं सहमत हूँ।')))),
+          h('span',null,'Guest agrees to send this conversation audio and text to Samara’s AI services for translation.',h('span',{lang:'bn',style:{display:'block',fontSize:15}},'বাংলা: অনুবাদের জন্য এই কথোপকথনের অডিও ও লেখা সামারার AI পরিষেবায় পাঠাতে আমি রাজি।'),h('span',{lang:'hi',style:{display:'block',fontSize:15}},'हिन्दी: अनुवाद के लिए इस बातचीत की आवाज़ और लिखित बातें सामरा की AI सेवा को भेजने के लिए मैं सहमत हूँ।'),h('span',{lang:'ml',style:{display:'block',fontSize:15}},'മലയാളം: വിവർത്തനത്തിനായി ഈ സംഭാഷണത്തിന്റെ ശബ്ദവും എഴുത്തും സമാറയുടെ AI സേവനത്തിലേക്ക് അയയ്ക്കാൻ ഞാൻ സമ്മതിക്കുന്നു.'),h('span',{lang:'te',style:{display:'block',fontSize:15}},'తెలుగు: అనువాదం కోసం ఈ సంభాషణ యొక్క ఆడియో మరియు వచనాన్ని సమారా AI సేవకు పంపడానికి నేను అంగీకరిస్తున్నాను.'),h('span',{lang:'kn',style:{display:'block',fontSize:15}},'ಕನ್ನಡ: ಅನುವಾದಕ್ಕಾಗಿ ಈ ಸಂಭಾಷಣೆಯ ಧ್ವನಿ ಮತ್ತು ಬರಹವನ್ನು ಸಮಾರಾ AI ಸೇವೆಗೆ ಕಳುಹಿಸಲು ನಾನು ಒಪ್ಪುತ್ತೇನೆ.')))),
       h('button',{type:'button',className:'ttg-main'+(live?' stop':''),disabled:!live&&!consent,onClick:()=>live?stopAll('Conversation stopped.'):start()},live?'■ Stop conversation':'▶ Start conversation'),
       h('div',{role:'status','aria-live':'polite',style:{...box,background:'#f5fbf9',margin:'14px 0',lineHeight:1.6}},
         h('div',null,h('span',{className:'ttg-dot'+(live?' live':'')}),h('strong',null,phaseText),' · ',status),
         live&&h('div',{className:'ttg-meter','aria-hidden':true},h('i',{style:{width:Math.round(level*100)+'%'}}))),
       pending&&h('div',{style:{...box,border:'2px solid #b01264',marginBottom:14}},
         h('strong',null,'Which language does the guest speak?'),
-        h('div',{className:'ttg-chips'},h('button',{type:'button',className:'ttg-chip ttg-big',onClick:()=>chooseLanguage('bn',pending)},'বাংলা Bangla'),h('button',{type:'button',className:'ttg-chip ttg-big',onClick:()=>chooseLanguage('hi',pending)},'हिन्दी Hindi')),
+        h('div',{className:'ttg-chips'},...GUEST_LANGS.map(([c,t])=>h('button',{key:c,type:'button',className:'ttg-chip ttg-big',onClick:()=>chooseLanguage(c,pending)},t))),
         h('p',{style:{margin:0,fontSize:13,color:'#78636f'}},'Your sentence is already translated — it will be spoken straight away.')),
       h('label',{style:{display:'flex',gap:8,alignItems:'center',fontSize:14,margin:'0 0 10px'}},h('input',{type:'checkbox',checked:tamilVoice,onChange:e=>setTamilVoice(e.target.checked)}),'Read the Tamil translation aloud'),
       h('p',{style:{fontSize:13,lineHeight:1.6,color:'#78636f'}},'Speak one sentence, then pause — it is translated automatically. Keep the phone between you, away from TV noise. Internet required. Voice is AI-generated. Confirm important details with the guest.'),
