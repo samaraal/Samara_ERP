@@ -1,3 +1,8 @@
+## 2.16.46 — Tamil brand spelling: சமரா
+
+- The Tamil (தமிழ்) screens now spell the brand **சமரா** everywhere (was சமாரா in 30 places, e.g. "சமரா கேர் — ஸ்பாட் அசெஸ்மென்ட்").
+- Files: src/app/global-ui/09-tamil-dictionary.js, version files, app.js (rebuilt). No SQL, no Edge Function change.
+
 ## 2.16.45 — Guests from other states and other countries; name and relationship separate (SQL 220)
 
 - **Run supabase/sql/220_guest_country.sql** once in Supabase → SQL Editor (safe to run again). It adds a "country" column to patients. Until it is run, admissions still save; the country is then kept inside the written address.
