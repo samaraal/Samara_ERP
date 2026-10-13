@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '2.16.43';
+  const VERSION = '2.16.44';
   let rendering = false;
 
   const escapeHtml = value => String(value ?? '')
@@ -119,7 +119,7 @@
     show('Application request error', reason?.stack || reason?.message || String(reason));
   });
 
-  // 2.16.43 System Health: watch the app's own requests to the database / server functions (installed before the
+  // 2.16.44 System Health: watch the app's own requests to the database / server functions (installed before the
   // database client is created, so every save goes through it). Records only: failed saves (write refused / server
   // error), unreachable server, and requests slower than 8 s. Stores the table / function NAME and status only —
   // never the request contents, filters or answers. Does not change any request or response.

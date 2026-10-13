@@ -31,7 +31,24 @@
   // care-related reasons only (a refusal must rest on care needs, not on who the person is)
   const NOT_SUITABLE=['Needs hospital / ICU-level care','Care needs beyond what we can safely provide now','Needs equipment or a facility we do not have','Risk of harm to self or others','No suitable room / bed available','Person does not agree to stay','Other'];
   const NOT_CONVERTED=['Chose another facility','Price / budget','Location / distance','Guest\'s condition not suitable','Family decided home care','No response after follow-ups','Guest passed away','Other']; // same as the Enquiry Register closing reasons
-  const PHOTO_KINDS=['Wound / bedsore','Prescription','Discharge summary / report','Other'];
+  const PHOTO_KINDS=['Patient portrait / face','Injured hand / arm','Injured leg / foot','Swelling','Wound / bedsore','Other clinical finding','Prescription','Discharge summary / report','Other'];
+  const DOCUMENT_PHOTO_KINDS=['Prescription','Discharge summary / report','Other'];
+  const imageFile=file=>/^image\//i.test(file.type||'')||(!file.type&&/\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/i.test(file.name||''));
+  function mergePhotos(current,added){
+    const result=Array.isArray(current)?[...current]:[];
+    const paths=new Set(result.map(p=>p.path));
+    for(const p of added){if(!paths.has(p.path)){result.push(p);paths.add(p.path)}}
+    return result;
+  }
+  function SpotPhotoPreview({photo,client}){
+    const R=window.React,h=R.createElement,[url,setUrl]=R.useState('');
+    R.useEffect(()=>{
+      let active=true;
+      if(imageFile(photo))client.storage.from('patient-documents').createSignedUrl(photo.path,900).then(r=>{if(active&&!r.error)setUrl(r.data?.signedUrl||'')}).catch(()=>{});
+      return ()=>{active=false};
+    },[client,photo.path]);
+    return url?h('img',{src:url,alt:photo.body_site||photo.caption||photo.kind||'Assessment photo',loading:'lazy',style:{display:'block',width:'160px',height:'120px',objectFit:'contain',border:'1px solid #ead4df',borderRadius:'8px',margin:'6px 0'},onError:()=>setUrl('')}):null;
+  }
   function prepItems(d){
     const out=['Room / bed ready'];
     const add=x=>{if(!out.includes(x))out.push(x)};
@@ -102,7 +119,7 @@
       ['consumables','Daily consumables','checks',['Diapers','Underpads','Gloves','Wet wipes','Dressing supplies','Feeding supplies']],
       ['services','Services / equipment needed','checks',['Physiotherapy','Speech therapy','Doctor review','Psychiatrist assessment','Lab tests','Air mattress','Oxygen cylinder / concentrator','Suction apparatus','Wound dressing']],
       ['care_notes','Other care notes (skin, positioning, equipment)','textarea'],
-      ['_photos','Visit photos (wounds / bedsores, prescription, reports)','photos'])},
+      ['_photos','Patient and clinical photos (injuries, swelling, wounds) / documents','photos'])},
     {title:'5. Decision and follow-up',fields:fields(
       ['decision','Can Samara take this person?','select',DECISIONS],
       ['decision_reason','Main reason','select',NOT_SUITABLE,d=>d.decision==='Not suitable'],
@@ -188,12 +205,13 @@
     }
     return '';
   }
-  window.SamaraSpotAssessmentModel={sections,woundFields,initial,validate,relationships,categories,legacyEntries,prepItems,prepPending,prepActive};
+  window.SamaraSpotAssessmentModel={sections,woundFields,initial,validate,relationships,categories,legacyEntries,prepItems,prepPending,prepActive,PHOTO_KINDS,mergePhotos,imageFile};
   window.SamaraSpotAssessment=function SpotAssessment({profile,client,onNavigate,canAdmit}){
     const R=window.React,h=R.createElement;
     const [rows,setRows]=R.useState([]),[record,setRecord]=R.useState(null),[data,setData]=R.useState(null),[dirty,setDirty]=R.useState(false);
     const [busy,setBusy]=R.useState(false),[loading,setLoading]=R.useState(false),[error,setError]=R.useState(''),[notice,setNotice]=R.useState(''),[search,setSearch]=R.useState(''),[filter,setFilter]=R.useState('All');
     const [enquiries,setEnquiries]=R.useState(null),[reviewDraft,setReviewDraft]=R.useState('');
+    const [photoBodySite,setPhotoBodySite]=R.useState('');
     const [photoKind,setPhotoKind]=R.useState(PHOTO_KINDS[0]),[photoCaption,setPhotoCaption]=R.useState(''),[consentDraft,setConsentDraft]=R.useState({tick:false,by:''});
     const [outcomeDraft,setOutcomeDraft]=R.useState({outcome:'',reason:'',note:''});
     const isAdmin=/admin|director/i.test(String(profile?.role||''));
@@ -252,7 +270,7 @@
       setReviewDraft('');
     }
     function canLeave(){return !dirty||window.confirm('Discard unsaved Spot Assessment changes?')}
-    function create(){if(!canLeave())return;setOutcomeDraft({outcome:'',reason:'',note:''});setConsentDraft({tick:false,by:''});setRecord(null);setData(initial(profile?.full_name||'',profile?.designation||profile?.employee_designation||profile?.job_title||profile?.position||profile?.role||''));setDirty(false);setError('');setNotice('');setReviewDraft('')}
+    function create(){if(!canLeave())return;setPhotoKind(PHOTO_KINDS[0]);setPhotoBodySite('');setPhotoCaption('');setOutcomeDraft({outcome:'',reason:'',note:''});setConsentDraft({tick:false,by:''});setRecord(null);setData(initial(profile?.full_name||'',profile?.designation||profile?.employee_designation||profile?.job_title||profile?.position||profile?.role||''));setDirty(false);setError('');setNotice('');setReviewDraft('')}
     async function open(id,fromAlert){
       if((!fromAlert&&!canLeave())||saving.current)return;
       setBusy(true);setError('');setNotice('');setReviewDraft('');
@@ -260,7 +278,7 @@
         const result=await client.from('spot_assessments').select('*').eq('id',id).single();
         if(result.error)throw result.error;
         setRecord(result.data);setData({...result.data.details,state:result.data.details?.state||'Tamil Nadu',wounds:result.data.details?.wounds||[]});setDirty(false);
-        const dd=result.data.details||{};setOutcomeDraft({outcome:dd.outcome||'',reason:dd.outcome_reason||'',note:dd.outcome_note||''});setConsentDraft({tick:false,by:''});setPhotoCaption('');
+        const dd=result.data.details||{};setOutcomeDraft({outcome:dd.outcome||'',reason:dd.outcome_reason||'',note:dd.outcome_note||''});setConsentDraft({tick:false,by:''});setPhotoCaption('');setPhotoBodySite('');setPhotoKind(PHOTO_KINDS[0]);
       }catch(e){setError(`Unable to open assessment: ${e.message||e}`)}finally{setBusy(false)}
     }
     async function save(status){
@@ -320,9 +338,10 @@
       try{
         let base=record;
         for(let attempt=0;attempt<2;attempt++){
-          const r=await client.from('spot_assessments').update({details:{...(base.details||{}),...patch}}).eq('id',base.id).eq('version',base.version).select('*').maybeSingle();
+          const applied=typeof patch==='function'?patch(base.details||{}):patch;
+          const r=await client.from('spot_assessments').update({details:{...(base.details||{}),...applied}}).eq('id',base.id).eq('version',base.version).select('*').maybeSingle();
           if(r.error)throw r.error;
-          if(r.data){setRecord(r.data);setData(old=>({...old,...patch}));if(okText)setNotice(okText);load();return true}
+          if(r.data){setRecord(r.data);setData(old=>({...old,...applied}));if(okText)setNotice(okText);load();return true}
           const latest=await client.from('spot_assessments').select('*').eq('id',base.id).maybeSingle();
           if(latest.error)throw latest.error;
           if(!latest.data||latest.data.version===base.version)throw new Error('The ERP did not accept the change. Please ask Admin to check your access to Spot Assessment.');
@@ -340,22 +359,34 @@
       }catch(e){console.warn('Spot Assessment: enquiry not updated',e);setNotice(n=>`${n?n+' ':''}The linked enquiry was not updated automatically — please tell Akshi / Admin.`)}
     }
     async function uploadPhotos(files){
-      const list=Array.from(files||[]);if(!list.length||!record)return;
-      setBusy(true);setError('');
-      const added=[];
+      const list=Array.from(files||[]);if(!list.length||!record||saving.current)return;
+      if(!record.details?.photo_consent?.given){setError('Record photo consent before adding photos.');return}
+      const allowPdf=DOCUMENT_PHOTO_KINDS.includes(photoKind);
+      if(list.some(file=>!imageFile(file)&&!(allowPdf&&(file.type==='application/pdf'||(!file.type&&/\.pdf$/i.test(file.name||'')))))){
+        setError(allowPdf?'Choose image files or PDF documents.':'Choose image files for patient and clinical photos. Select a document category to attach a PDF.');return;
+      }
+      saving.current=true;setBusy(true);setError('');setNotice('');
+      const added=[];let uploadError='';
+      const metadata={kind:photoKind,body_site:txt(photoBodySite),caption:txt(photoCaption)};
       try{
         for(const file of list){
           const safe=String(file.name||'photo').replace(/[^a-zA-Z0-9._-]/g,'_');
           const path=`spot-assessments/${record.id}/${Date.now()}-${Math.random().toString(36).slice(2,8)}-${safe}`;
           const up=await client.storage.from('patient-documents').upload(path,file,{upsert:false,contentType:file.type||undefined});
           if(up.error)throw up.error;
-          added.push({path,name:file.name||safe,type:file.type||'',kind:photoKind,caption:txt(photoCaption),at:new Date().toISOString(),by:profile?.full_name||'staff'});
+          added.push({path,name:file.name||safe,type:file.type||'',...metadata,at:new Date().toISOString(),by:profile?.full_name||'staff'});
         }
-      }catch(e){setError(`Upload failed: ${e.message||e}`)}finally{setBusy(false)}
+      }catch(e){uploadError=`Upload failed: ${e.message||e}. Only successfully uploaded files will be saved; retry the remaining files.`}
+      saving.current=false;
       if(added.length){
-        const current=Array.isArray(record.details?.photos)?record.details.photos:[];
-        if(await saveDetails({photos:[...current,...added]},`${added.length} photo(s) saved with this assessment.`))setPhotoCaption('');
-      }
+        const ok=await saveDetails(latest=>({photos:mergePhotos(latest.photos,added)}),`${added.length} photo(s) saved with this assessment.`);
+        if(ok&&!uploadError){setPhotoCaption('');setPhotoBodySite('')}
+        else if(!ok){
+          // Confirm these files are unlinked before cleanup: a network error can hide a successful save.
+          try{const check=await client.from('spot_assessments').select('*').eq('id',record.id).maybeSingle();if(!check.error&&check.data){const linked=new Set((check.data.details?.photos||[]).map(p=>p.path));const unlinked=added.filter(p=>!linked.has(p.path)).map(p=>p.path);if(unlinked.length){const cleanup=await client.storage.from('patient-documents').remove(unlinked);if(cleanup.error)console.warn('Spot photo cleanup failed',cleanup.error)}}}catch(e){console.warn('Spot photo cleanup failed',e)}
+        }
+      }else setBusy(false);
+      if(uploadError)setError(old=>old?old+' '+uploadError:uploadError);
     }
     async function viewPhoto(p){
       try{const r=await client.storage.from('patient-documents').createSignedUrl(p.path,900);if(r.error)throw r.error;window.open(r.data.signedUrl,'_blank','noopener')}
@@ -417,14 +448,16 @@
               h('small',{className:'small-note'},`Consent for photos: ${consent.by_name} · recorded by ${consent.recorded_by} · ${stampText(consent.at)}`),
               h('div',{className:'spot-grid',style:{marginTop:'8px'}},
                 h('div',{className:'field'},h('label',null,'Photo of'),h('select',{value:photoKind,disabled:busy,onChange:e=>setPhotoKind(e.target.value)},PHOTO_KINDS.map(k=>h('option',{key:k,value:k},k)))),
-                h('div',{className:'field'},h('label',null,'Note (optional)'),h('input',{value:photoCaption,disabled:busy,placeholder:'e.g. Sacrum, 3 cm',onChange:e=>setPhotoCaption(e.target.value)}))),
+                h('div',{className:'field'},h('label',null,'Body location / side (optional)'),h('input',{value:photoBodySite,disabled:busy,placeholder:'e.g. Left hand, right ankle, both legs',onChange:e=>setPhotoBodySite(e.target.value)})),
+                h('div',{className:'field'},h('label',null,'Note (optional)'),h('input',{value:photoCaption,disabled:busy,placeholder:'e.g. Swelling around left ankle, bruise on palm',onChange:e=>setPhotoCaption(e.target.value)}))),
               h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',margin:'8px 0'}},
-                h('label',{className:'btn btn-primary',style:{cursor:'pointer'}},'Take photo',h('input',{type:'file',accept:'image/*',capture:'environment',style:{display:'none'},disabled:busy,onChange:e=>{uploadPhotos(e.target.files);e.target.value=''}})),
-                h('label',{className:'btn btn-secondary',style:{cursor:'pointer'}},'Choose photo / PDF',h('input',{type:'file',accept:'image/*,application/pdf',multiple:true,style:{display:'none'},disabled:busy,onChange:e=>{uploadPhotos(e.target.files);e.target.value=''}}))),
+                h('label',{className:'btn btn-primary',style:{cursor:'pointer'}},'Take photo',h('input',{type:'file',accept:'image/*',capture:photoKind==='Patient portrait / face'?'user':'environment',style:{display:'none'},disabled:busy,onChange:e=>{uploadPhotos(e.target.files);e.target.value=''}})),
+                h('label',{className:'btn btn-secondary',style:{cursor:'pointer'}},DOCUMENT_PHOTO_KINDS.includes(photoKind)?'Choose photos / PDF':'Choose photos (multiple)',h('input',{type:'file',accept:DOCUMENT_PHOTO_KINDS.includes(photoKind)?'image/*,application/pdf':'image/*',multiple:true,style:{display:'none'},disabled:busy,onChange:e=>{uploadPhotos(e.target.files);e.target.value=''}}))),
+              h('small',{className:'small-note'},'Add as many photos as needed: injured hands or legs, swelling, wounds, or other findings. The category, location and note apply to each file selected in this batch. Add another batch for a different area.'),
               shown.length?h('ul',{className:'spot-reviews'},shown.map(p=>h('li',{key:p.path},
-                h('strong',null,p.kind),` · ${stampText(p.at)} · ${p.by}`,p.caption?` · ${p.caption}`:'',' ',
+                h(SpotPhotoPreview,{photo:p,client}),h('strong',null,p.kind),p.body_site?` · ${p.body_site}`:'',` · ${stampText(p.at)} · ${p.by}`,p.caption?` · ${p.caption}`:'',' ',
                 h('button',{type:'button',className:'btn btn-secondary',style:{padding:'2px 10px',minHeight:0},onClick:()=>viewPhoto(p)},'View'),' ',
-                isAdmin?h('button',{type:'button',className:'btn btn-secondary',style:{padding:'2px 10px',minHeight:0},disabled:busy,onClick:()=>{if(window.confirm('Remove this photo from the list? (The file is kept for records.)'))saveDetails({photos:photos.map(({_i,...q})=>_i===p._i?{...q,removed:{by:profile?.full_name||'Admin',at:new Date().toISOString()}}:q)},'Photo removed from the list.')}},'Remove'):null))):h('small',{className:'small-note'},'No photos yet. A dated wound / bedsore photo shows the condition before admission.'))));
+                isAdmin?h('button',{type:'button',className:'btn btn-secondary',style:{padding:'2px 10px',minHeight:0},disabled:busy,onClick:()=>{if(window.confirm('Remove this photo from the list? (The file is kept for records.)'))saveDetails(latest=>({photos:(latest.photos||[]).map(q=>q.path===p.path?{...q,removed:{by:profile?.full_name||'Admin',at:new Date().toISOString()}}:q)}),'Photo removed from the list.')}},'Remove'):null))):h('small',{className:'small-note'},'No photos yet. Add a portrait and any necessary injury, swelling or wound photos to document the condition before admission.'))));
       }
       if(field.type==='prep'){
         if(!record||!prepActive(values))return null;
@@ -517,7 +550,7 @@
       if(field.type==='tick')return tickOn(d,field.key)?'Yes':'No';
       if(field.type==='oldaddress')return txt(d.home_address);
       if(field.type==='oldmeds')return txt(d.medications);
-      if(field.type==='photos'){const ps=(Array.isArray(d.photos)?d.photos:[]).filter(p=>!p.removed);return (d.photo_consent?.given?`Consent: ${d.photo_consent.by_name} (${stampText(d.photo_consent.at)})\n`:'')+(ps.map((p,i)=>`${i+1}. ${p.kind} — ${stampText(p.at)} — ${p.by}${p.caption?` — ${p.caption}`:''}`).join('\n')||'None')}
+      if(field.type==='photos'){const ps=(Array.isArray(d.photos)?d.photos:[]).filter(p=>!p.removed);return (d.photo_consent?.given?`Consent: ${d.photo_consent.by_name} (${stampText(d.photo_consent.at)})\n`:'')+(ps.map((p,i)=>`${i+1}. ${p.kind} — ${stampText(p.at)} — ${p.by}${p.body_site?` — ${p.body_site}`:''}${p.caption?` — ${p.caption}`:''}`).join('\n')||'None')}
       if(field.type==='prep'){const r=d.prep_ready||{};return prepItems(d).map(x=>`${r[x]?'✓':'☐'} ${x}`).join('\n')}
       if(field.type==='outcome')return d.converted_admission?`Admission started (${stampText(d.converted_admission.started_at)})`:d.outcome?`${d.outcome}${d.outcome_reason?` — ${d.outcome_reason}`:''}${d.outcome_note?` — ${d.outcome_note}`:''}`:'Open';
       if(field.type==='meds')return namedMeds(d).map((m,i)=>`${i+1}. ${medLine(m)}`).join('\n')||'None entered';
@@ -580,3 +613,4 @@
         !loading&&!error&&!list.length?h('p',{className:'empty'},'No assessments found. Use New Spot Assessment to record a visit.'):null),printable);
   };
 })();
+
