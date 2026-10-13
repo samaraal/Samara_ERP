@@ -1,4 +1,6 @@
 // Same provider secrets as Ask Samara AI. No transcripts, recordings or patient data are logged/stored.
+// 2.16.40: Live mode — mode "live_token" returns a short-lived Gemini Live token (model locked, 30 min) so the phone streams
+// straight to Gemini Live Translate; the API key never leaves the server. Same staff / role / budget checks.
 // 2.16.38: speed — voice STREAMED as it is generated (text line first, then audio chunks), profile + budget checks in parallel,
 // fastest Gemini thinking level, warm-up ping, timings returned.
 // 2.16.37: the translation is spoken in a voice matching the speaker (male / female sounding) — AI judgement, else the phone's pitch hint; staff can force Female / Male.
@@ -89,7 +91,17 @@ export function createHandler({env,fetch:send=fetch,authorize,verify,profile,con
         return r;
       }
       if((req.headers.get('content-type')||'').includes('application/json')){
-        const j=await req.json();if(j.mode!=='speech'||!names[j.language]||typeof j.text!=='string'||!j.text.trim()||j.text.length>3000)throw new Failure('Invalid spoken translation request.',400);
+        const j=await req.json();
+        if(j.mode==='live_token'){
+          if(!geminiKey)throw new Failure('Live mode is awaiting AI service setup. Please contact Admin.',503);
+          const model=env('GEMINI_LIVE_TRANSLATE_MODEL')||'gemini-3.5-live-translate-preview',now=Date.now(),iso=ms=>new Date(now+ms).toISOString();
+          // Model + audio-only locked in the token; the phone sets only the translation target language per session.
+          const r=await send('https://generativelanguage.googleapis.com/v1alpha/auth_tokens',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':geminiKey},signal:AbortSignal.timeout(15000),body:JSON.stringify({uses:40,expireTime:iso(30*60000),newSessionExpireTime:iso(30*60000),bidiGenerateContentSetup:{model:'models/'+model,generationConfig:{responseModalities:['AUDIO']}},fieldMask:'model,generationConfig.responseModalities'})});
+          if(!r.ok)throw new Failure('Live mode is not available right now ('+r.status+').',r.status===404||r.status===400||r.status===403?424:503);
+          const t=await r.json();if(!t?.name)throw new Failure('Live mode is not available right now.',503);
+          return out({token:t.name,model,expires_at:iso(30*60000)});
+        }
+        if(j.mode!=='speech'||!names[j.language]||typeof j.text!=='string'||!j.text.trim()||j.text.length>3000)throw new Failure('Invalid spoken translation request.',400);
         if(!key)throw new Failure('Spoken translation is awaiting AI service setup. Please contact Admin.');
         const r=await speak(j.text,j.language,pickVoice(j.voice));
         return new Response(r.body,{headers:{...headers,'Content-Type':'audio/mpeg'}});

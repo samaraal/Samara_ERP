@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.39';
+  const APP_VERSION = '2.16.40';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -11662,6 +11662,20 @@ https://samaraassistedliving.com/`;
 "✓ Translate now": "✓ இப்போதே மொழிபெயர்",
 "Wait after speaker stops:": "பேசுபவர் நிறுத்திய பின் காத்திரு:",
 "Speak normally — it translates when the speaker stops (or tap Translate now). Keep the phone between you, away from TV noise. Internet required. Voice is AI-generated. Confirm important details with the guest.": "இயல்பாகப் பேசுங்கள் — பேசுபவர் நிறுத்தியதும் மொழிபெயர்க்கும் (அல்லது Translate now தொடுங்கள்). போனை உங்கள் இருவருக்கும் நடுவில், டிவி சத்தத்திலிருந்து தள்ளி வையுங்கள். இன்டர்நெட் தேவை. குரல் AI மூலம் உருவாக்கப்படுகிறது. முக்கிய விவரங்களை கெஸ்ட்டிடம் மீண்டும் உறுதி செய்யுங்கள்.",
+// 2.16.40: Talk to Guest Live mode
+"Mode:": "முறை:",
+"⚡ Live (fastest)": "⚡ லைவ் (மிக வேகம்)",
+"Standard": "சாதாரணம்",
+"Translates while the person speaks, in a voice like theirs. Preview service.": "பேசும்போதே, அவரைப் போன்ற குரலில் மொழிபெயர்க்கும். முன்னோட்ட சேவை.",
+"Translates after the speaker stops.": "பேசுபவர் நிறுத்திய பின் மொழிபெயர்க்கும்.",
+"Connecting ⚡ Live translation…": "⚡ லைவ் மொழிபெயர்ப்பு இணைகிறது…",
+"⚡ Live — speak naturally. The translation follows a moment behind.": "⚡ லைவ் — இயல்பாகப் பேசுங்கள். மொழிபெயர்ப்பு சில நொடிகளில் தொடரும்.",
+"⚡ Live — speak naturally. The guest’s language is found when they speak.": "⚡ லைவ் — இயல்பாகப் பேசுங்கள். கெஸ்ட் பேசும்போது மொழி கண்டறியப்படும்.",
+"Guest → Staff (live)": "கெஸ்ட் → ஊழியர் (லைவ்)",
+"Staff → Guest (live)": "ஊழியர் → கெஸ்ட் (லைவ்)",
+"What you just said is translated straight away after the tap.": "நீங்கள் சொன்னது தொட்டவுடன் மொழிபெயர்க்கப்படும்.",
+"Which language does the guest speak? Tap it below — what you said is translated straight away.": "கெஸ்ட் எந்த மொழி பேசுகிறார்? கீழே தொடுங்கள் — நீங்கள் சொன்னது உடனே மொழிபெயர்க்கப்படும்.",
+"Which language does the guest speak? Tap it below.": "கெஸ்ட் எந்த மொழி பேசுகிறார்? கீழே தொடுங்கள்.",
 };
   // 2.15.70: EN | தமிழ் screen-language switch (trial for STD; Admin can also check).
   // Translates only fixed screen wording (menu, titles, buttons, labels, statuses) using SAMARA_TA.
@@ -12321,6 +12335,11 @@ https://samaraassistedliving.com/`;
   // 2.16.34: ephemeral nurse–guest interpretation; no patient records or chat logging. Open to Admin, Manager, Nurse, Caregiver and STD.
   // 2.16.35: hands-free conversation — ONE Start button, the microphone stays open, each sentence is sent after a short
   // pause and the spoken language decides who is talking (Tamil / English = staff, Bangla / Hindi = guest).
+  // 2.16.40: ⚡ LIVE mode (default) — Gemini Live Translate streams the translation while the person is still speaking, in a voice
+  // like the speaker's. Two live sessions share the microphone: A = anything → Tamil (silent for Tamil), B = anything → guest
+  // language (silent for that language), so nobody presses buttons. Each session is muted while the other is speaking its output
+  // (stops them translating each other). Staff first: the last 12 s of audio is replayed into B after one language tap.
+  // If Live is not available / drops, the conversation continues in Standard mode automatically. Standard mode unchanged.
   // 2.16.39: waits for the speaker — softer voices detected (start / keep thresholds), pause setting 0.8 / 1.2 / 2 s (default 1.2,
   // longer right after speech starts), up to 45 s per turn, "Translate now" button; smooth voice (short buffer, no gaps); AI time shown.
   // 2.16.38: speed — translated text shown the moment it arrives; voice streamed and played while it is still being generated;
@@ -12343,6 +12362,10 @@ https://samaraassistedliving.com/`;
     const [voicePref,setVoicePrefState]=React.useState('auto'); // auto | female | male
     const [pauseMs,setPauseState]=React.useState(savedPause);
     const [level,setLevel]=React.useState(0);
+    const savedMode=React.useMemo(()=>{try{return localStorage.getItem('samara.ttg.mode')==='standard'?'standard':'live';}catch(_){return 'live';}},[]);
+    const [mode,setModeState]=React.useState(savedMode); // live | standard (remembered on this phone)
+    const [liveOn,setLiveOn]=React.useState(false); // Live actually running for this conversation
+    const [liveNow,setLiveNow]=React.useState(null); // text of the sentence being translated right now
     const run=React.useRef({pauseMs:savedPause,epoch:0,live:false,stream:null,context:null,analyser:null,input:null,recorder:null,timer:null,request:null,source:null,guest:'',tamilVoice:true,discard:false,failures:0});
     const GUEST_LANGS=[['en','English'],['hi','हिन्दी Hindi'],['bn','বাংলা Bangla'],['ml','മലയാളം Malayalam'],['te','తెలుగు Telugu'],['kn','ಕನ್ನಡ Kannada']];
     const GUEST_CODES=GUEST_LANGS.map(x=>x[0]);
@@ -12352,6 +12375,7 @@ https://samaraassistedliving.com/`;
     const setGuest=v=>{run.current.guest=v;setGuestState(v);};
     const setTamilVoice=v=>{run.current.tamilVoice=v;setTamilVoiceState(v);};
     const setVoicePref=v=>{run.current.voicePref=v;setVoicePrefState(v);};
+    const setMode=v=>{setModeState(v);try{localStorage.setItem('samara.ttg.mode',v);}catch(_){}};
     const setPause=v=>{run.current.pauseMs=v;setPauseState(v);try{localStorage.setItem('samara.ttg.pause',String(v));}catch(_){}};
     // Pitch of one 2048-sample frame (autocorrelation, 70–350 Hz). Used only as a backup hint for the male / female voice choice.
     function pitchOf(buf,rate){
@@ -12368,7 +12392,7 @@ https://samaraassistedliving.com/`;
     function stopListening(){const r=run.current;clearInterval(r.timer);r.timer=null;if(r.recorder&&r.recorder.state!=='inactive'){r.discard=true;r.recorder.stop();}r.recorder=null;setLevel(0);}
     function stopPlayback(){const r=run.current;if(r.source){try{r.source.stop()}catch(_){}r.source=null;}(r.sources||[]).forEach(x=>{try{x.stop()}catch(_){}});r.sources=[];}
     function releaseMic(){const r=run.current;if(r.input){try{r.input.disconnect()}catch(_){}r.input=null;}r.analyser=null;if(r.stream)r.stream.getTracks().forEach(t=>t.stop());r.stream=null;}
-    function stopAll(message){const r=run.current;r.epoch++;r.live=false;stopListening();if(r.request)r.request.abort();r.request=null;stopPlayback();releaseMic();setLive(false);setPhase('idle');if(message)setStatus(message);}
+    function stopAll(message){const r=run.current;r.epoch++;r.live=false;stopLive();stopListening();if(r.request)r.request.abort();r.request=null;stopPlayback();releaseMic();setLive(false);setPhase('idle');if(message)setStatus(message);}
     React.useEffect(()=>{const pause=()=>{if(document.hidden&&run.current.live)stopAll('Paused because the screen was switched. Tap Start conversation to continue.');};document.addEventListener('visibilitychange',pause);return()=>{document.removeEventListener('visibilitychange',pause);stopAll();if(run.current.context)run.current.context.close().catch(()=>{});};},[]);
 
     async function request(body){
@@ -12436,7 +12460,7 @@ https://samaraassistedliving.com/`;
 
     // ---- continuous listening: one recorder per sentence on the same open microphone ----
     function listen(keepStatus){
-      const r=run.current;if(!r.live||!r.stream)return;
+      const r=run.current;if(!r.live||!r.stream||r.liveMode)return;
       stopListening();r.discard=false;
       const epoch=r.epoch;
       const type=['audio/webm;codecs=opus','audio/mp4','audio/ogg;codecs=opus'].find(t=>window.MediaRecorder&&MediaRecorder.isTypeSupported(t));
@@ -12529,6 +12553,147 @@ https://samaraassistedliving.com/`;
         if(r.live)listen(true);
       }
     }
+    // ================= ⚡ LIVE MODE (Gemini Live Translate) =================
+    const LIVE_WS='wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=';
+    const lang2=c=>String(c||'').slice(0,2).toLowerCase();
+    function b64FromBytes(u8){let s='';for(let i=0;i<u8.length;i+=32768)s+=String.fromCharCode.apply(null,u8.subarray(i,i+32768));return btoa(s);}
+    // Microphone samples → 16 kHz 16-bit PCM (resampled if the phone could not open a 16 kHz capture).
+    function toPcm16(input,rate){
+      const ratio=rate/16000,n=Math.floor(input.length/ratio),out=new Int16Array(n);
+      for(let i=0;i<n;i++){const x=i*ratio,j=Math.floor(x),f=x-j,v=(input[j]||0)*(1-f)+(input[j+1]||input[j]||0)*f;out[i]=Math.max(-32768,Math.min(32767,Math.round(v*32767)));}
+      return out;
+    }
+    // Continuous 24 kHz PCM player for one live session.
+    function livePlayer(){
+      const r=run.current,ctx=r.context;let t=0;const srcs=[];
+      return {
+        push(b64){if(!ctx)return;const bytes=fromBase64Bytes(b64);if(bytes.length<2)return;const src=ctx.createBufferSource();src.buffer=pcmBuffer(bytes.length%2?bytes.slice(0,-1):bytes);src.connect(ctx.destination);const now=ctx.currentTime;if(t<now+.03)t=now+.12;src.start(t);t+=src.buffer.duration;srcs.push(src);src.onended=()=>{const k=srcs.indexOf(src);if(k>=0)srcs.splice(k,1);};},
+        clear(){srcs.splice(0).forEach(x=>{try{x.stop()}catch(_){}});t=0;},
+        busy(){return !!ctx&&ctx.currentTime<t+.3;} // still speaking (+0.3 s tail)
+      };
+    }
+    async function liveToken(){const response=await request({mode:'live_token'});const x=await response.json();if(!x.token)throw Error('Live mode is not available right now.');return x;}
+    function openLiveSession(key,target){
+      const r=run.current,L=r.L;
+      return new Promise((resolve,reject)=>{
+        const ws=new WebSocket(LIVE_WS+encodeURIComponent(L.token));
+        const s={ws,key,target,ready:false,inText:'',outText:'',inLang:'',player:livePlayer()};
+        const timer=setTimeout(()=>{if(!s.ready){try{ws.close()}catch(_){}reject(Error('Live connection timed out.'));}},10000);
+        ws.onopen=()=>ws.send(JSON.stringify({setup:{model:'models/'+L.model,generationConfig:{responseModalities:['AUDIO'],translationConfig:{targetLanguageCode:target,echoTargetLanguage:false}},inputAudioTranscription:{},outputAudioTranscription:{}}}));
+        ws.onmessage=async ev=>{
+          let text;try{text=typeof ev.data==='string'?ev.data:ev.data instanceof Blob?await ev.data.text():new TextDecoder().decode(ev.data);}catch(_){return;}
+          let m;try{m=JSON.parse(text);}catch(_){return;}
+          if(m.setupComplete&&!s.ready){s.ready=true;clearTimeout(timer);resolve(s);return;}
+          if(L.sessions[key]===s)onLiveMessage(s,m);
+        };
+        ws.onerror=()=>{};
+        ws.onclose=ev=>{clearTimeout(timer);s.ready=false;if(!s.opened){reject(Error((ev&&ev.reason)||'Live connection closed.'));return;}if(L.sessions[key]===s)onLiveClosed(s);};
+        s.markOpen=()=>{s.opened=true;};
+      }).then(s=>{s.markOpen();L.sessions[key]=s;return s;});
+    }
+    function closeLiveSession(key){const L=run.current.L;const s=L&&L.sessions[key];if(!s)return;delete L.sessions[key];s.player.clear();try{s.ws.close();}catch(_){}}
+    function showLiveNow(){const L=run.current.L;if(!L)return;const a=L.sessions.A,b=L.sessions.B;const s=[a,b].find(x=>x&&(x.inText||x.outText));setLiveNow(s?{who:s.key==='A'?'guest':'staff',source:s.inLang,target:s.target,original:s.inText,translation:s.outText}:null);}
+    function onLiveMessage(s,m){
+      const r=run.current,L=r.L,sc=m.serverContent;
+      if(m.goAway){refreshLive(s.key);return;}
+      if(!sc)return;
+      if(sc.interrupted)s.player.clear();
+      for(const part of (sc.modelTurn&&sc.modelTurn.parts)||[]){
+        const d=part.inlineData||part.inline_data;
+        if(d&&d.data&&!(s.key==='A'&&!r.tamilVoice)){s.player.push(d.data);setPhase('playing');}
+      }
+      if(sc.inputTranscription){
+        const it=sc.inputTranscription,code=lang2(it.languageCode);
+        if(code)onLiveLanguage(s,code);
+        // Only speech that this session translates is shown (Tamil into A / guest language into B is silent by design).
+        if(it.text&&code!==s.target){s.inText+=it.text;if(code)s.inLang=code;}
+      }
+      if(sc.outputTranscription&&sc.outputTranscription.text)s.outText+=sc.outputTranscription.text;
+      showLiveNow();
+      if(sc.turnComplete||sc.generationComplete){
+        if(s.outText.trim()){
+          const row={id:Date.now()+Math.random(),actor:s.key==='A'?'guest':'staff',source:s.inLang||(s.key==='A'?r.guest:'ta'),target:s.target,transcript:s.inText.trim()||'…',translation:s.outText.trim(),took:'Live'};
+          setRows(old=>[row,...old].slice(0,6));
+          // Guest spoke but Google did not report which language: ask once so staff replies can be translated back.
+          if(s.key==='A'&&!r.guest&&!r.pending){setPendingRow({live:true});setStatus('Which language does the guest speak? Tap it below.');}
+        }
+        s.inText='';s.outText='';showLiveNow();
+        const settle=()=>{const LL=run.current.L;if(!LL)return;if(Object.values(LL.sessions).some(x=>x.player.busy()))setTimeout(settle,250);else setPhase('listening');};setTimeout(settle,300);
+      }
+    }
+    // Language heard by session A decides the guest language (and re-targets session B); Tamil first → ask once.
+    function onLiveLanguage(s,code){
+      const r=run.current,L=r.L;
+      if(s.key!=='A')return;
+      if(GUEST_CODES.includes(code)&&code!==r.guest){setGuest(code);setPendingRow(null);openGuestSession(code,false);return;}
+      if(code==='ta'&&!r.guest&&!r.pending){if(!L.staffSince)L.staffSince=Date.now();setPendingRow({live:true});setStatus('Which language does the guest speak? Tap it below — what you said is translated straight away.');}
+    }
+    async function openGuestSession(code,replay){
+      const r=run.current,L=r.L;if(!L)return;
+      const old=L.sessions.B;if(old&&old.target===code)return;
+      closeLiveSession('B');
+      try{
+        const s=await openLiveSession('B',code);
+        if(replay&&L.ring.length){ // staff spoke first: send what they already said (last 12 s), then continue live
+          const from=L.staffSince?L.staffSince-800:Date.now()-8000; // unknown start → last 8 s (guest-language parts stay silent in B)
+          for(const c of L.ring)if(c.t>=from&&s.ws.readyState===1)s.ws.send(JSON.stringify({realtimeInput:{audio:{data:c.b64,mimeType:'audio/pcm;rate=16000'}}}));
+        }
+        L.staffSince=0;
+      }catch(e){liveFailed(e);}
+    }
+    async function refreshLive(key){ // token / connection renewal (Google asks to reconnect about every 10 min)
+      const r=run.current,L=r.L;if(!L||!r.live)return;
+      try{if(Date.now()-L.tokenAt>20*60000){const t=await liveToken();L.token=t.token;L.model=t.model;L.tokenAt=Date.now();}
+        const target=key==='A'?'ta':r.guest;closeLiveSession(key);if(target)await openLiveSession(key,target);}
+      catch(e){liveFailed(e);}
+    }
+    function onLiveClosed(s){const r=run.current;if(!r.live||!r.L)return;if((r.L.drops=(r.L.drops||0)+1)>3){liveFailed(Error('Live connection keeps dropping.'));return;}refreshLive(s.key);}
+    function stopLive(){
+      const r=run.current,L=r.L;if(!L)return;r.L=null;r.liveMode=false;setLiveOn(false);setLiveNow(null);
+      Object.keys(L.sessions).forEach(k=>{const s=L.sessions[k];s.player.clear();try{s.ws.close();}catch(_){}});
+      if(L.proc){L.proc.onaudioprocess=null;try{L.proc.disconnect();}catch(_){}}
+      if(L.src)try{L.src.disconnect();}catch(_){}
+      if(L.capCtx)L.capCtx.close().catch(()=>{});
+    }
+    // Live failed (not available for this account, network, …): keep the conversation going in Standard mode.
+    const liveReason=e=>{const m=String((e&&e.message)||'');return '⚡ '+(/^Live/i.test(m)?m:'Live mode is not available now'+(m?' ('+m+')':'.'));};
+    function liveFailed(e){
+      const r=run.current;if(!r.L)return;stopLive();
+      if(!r.live)return;
+      setStatus(liveReason(e)+' Continuing in Standard mode.');
+      if(r.context&&r.stream&&!r.analyser){const analyser=r.context.createAnalyser();analyser.fftSize=2048;const input=r.context.createMediaStreamSource(r.stream);input.connect(analyser);r.input=input;r.analyser=analyser;}
+      listen(true);
+    }
+    async function startLive(){
+      const r=run.current;setStatus('Connecting ⚡ Live translation…');
+      const t=await liveToken();
+      const L=r.L={token:t.token,model:t.model,tokenAt:Date.now(),sessions:{},ring:[],staffSince:0,drops:0};
+      r.liveMode=true;
+      const sessions=[openLiveSession('A','ta')];
+      if(r.guest)sessions.push(openLiveSession('B',r.guest));
+      await Promise.all(sessions);
+      // Microphone → 16 kHz PCM chunks (~128 ms) → both sessions; each muted while the OTHER session is speaking its output.
+      let cap;try{cap=new (window.AudioContext||window.webkitAudioContext)({sampleRate:16000});}catch(_){cap=new (window.AudioContext||window.webkitAudioContext)();}
+      L.capCtx=cap;await cap.resume();
+      const src=cap.createMediaStreamSource(r.stream),proc=cap.createScriptProcessor(cap.sampleRate>20000?4096:2048,1,1);
+      L.src=src;L.proc=proc;src.connect(proc);proc.connect(cap.destination);
+      let lastLevel=0;const silence16=new Int16Array(2048);
+      proc.onaudioprocess=e=>{
+        const LL=run.current.L;if(!LL)return;
+        const input=e.inputBuffer.getChannelData(0),pcm=toPcm16(input,cap.sampleRate);
+        const now=Date.now();if(now-lastLevel>120){lastLevel=now;let sum=0;for(let i=0;i<input.length;i+=4)sum+=input[i]*input[i];setLevel(Math.min(1,Math.sqrt(sum/(input.length/4))*12));}
+        const b64=b64FromBytes(new Uint8Array(pcm.buffer));
+        LL.ring.push({t:now,b64});while(LL.ring.length&&now-LL.ring[0].t>12000)LL.ring.shift();
+        const quiet=b64FromBytes(new Uint8Array(silence16.buffer,0,pcm.length*2));
+        const A=LL.sessions.A,B=LL.sessions.B;
+        for(const [s,other] of [[A,B],[B,A]]){
+          if(!s||!s.ready||s.ws.readyState!==1)continue;
+          s.ws.send(JSON.stringify({realtimeInput:{audio:{data:other&&other.player.busy()?quiet:b64,mimeType:'audio/pcm;rate=16000'}}}));
+        }
+      };
+      setLiveOn(true);setPhase('listening');
+      setStatus(r.guest?'⚡ Live — speak naturally. The translation follows a moment behind.':'⚡ Live — speak naturally. The guest’s language is found when they speak.');
+    }
     async function start(){
       const r=run.current;if(r.live||!consent)return;
       if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){setStatus('Please use a current Chrome or Safari browser with microphone access.');return;}
@@ -12536,13 +12701,19 @@ https://samaraassistedliving.com/`;
       try{
         const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
         r.stream=stream;r.live=true;setLive(true);
+        if(mode==='live'){
+          try{await startLive();return;}
+          catch(e){if(!r.live)return;stopLive();setStatus(liveReason(e)+' Using Standard mode.');}
+        }
         if(r.context){const analyser=r.context.createAnalyser();analyser.fftSize=2048;const input=r.context.createMediaStreamSource(stream);input.connect(analyser);r.input=input;r.analyser=analyser;}
-        listen();
+        listen(mode==='live');
       }catch(e){stopAll(e.name==='NotAllowedError'?'Microphone access was denied. Allow it in browser settings and try again.':'Could not open the microphone. Please try again.');}
     }
     // Staff spoke first: one tap chooses the guest's language and the SAME sentence is spoken (no repeat).
     async function chooseLanguage(code,row){
-      const r=run.current;setGuest(code);setPendingRow(null);
+      const r=run.current;
+      if(row&&row.live){setGuest(code);setPendingRow(null);setStatus('⚡ Live — translating into '+labels[code]+'…');openGuestSession(code,true);return;}
+      setGuest(code);setPendingRow(null);
       setRows(old=>old.map(o=>o.id===row.id?{...o,target:code,translation:o.translations[code]}:o));
       const text=row.translations[code];
       stopListening();const epoch=++r.epoch;setPhase('translating');setStatus('Preparing the voice…');
@@ -12558,13 +12729,17 @@ https://samaraassistedliving.com/`;
     }
     function newGuest(){stopAll('New guest. Tick the consent box, then tap Start conversation.');setGuest('');setRows([]);setPendingRow(null);setConsent(false);}
 
-    const chip=(code,text)=>h('button',{key:code||'auto',type:'button',className:'ttg-chip'+(guest===code?' on':''),'aria-pressed':guest===code,onClick:()=>{setGuest(code);if(code&&pending)chooseLanguage(code,pending);}},text);
-    const phaseText={idle:'Not listening',listening:'Listening',hearing:'Hearing',translating:'Translating',playing:'Speaking'}[phase];
+    const chip=(code,text)=>h('button',{key:code||'auto',type:'button',className:'ttg-chip'+(guest===code?' on':''),'aria-pressed':guest===code,onClick:()=>{setGuest(code);if(code&&pending)chooseLanguage(code,pending);else if(code&&run.current.L)openGuestSession(code,!run.current.L.sessions.B);}},text);
+    const phaseText=liveOn&&phase!=='playing'?'⚡ Live':{idle:'Not listening',listening:'Listening',hearing:'Hearing',translating:'Translating',playing:'Speaking'}[phase];
     return h('section',{className:'talk-to-guest',style:{maxWidth:960,margin:'0 auto',padding:16,color:'#5d1039'}},
       h('style',null,'.talk-to-guest *{box-sizing:border-box}.ttg-main{width:100%;min-height:72px;border:0;border-radius:16px;color:#fff;background:#087667;font-family:inherit;font-size:21px;font-weight:700;cursor:pointer;padding:14px}.ttg-main.stop{background:#b01264}.ttg-main:disabled{opacity:.45;cursor:default}.talk-to-guest button:focus-visible{outline:3px solid #187c70;outline-offset:3px}.ttg-secondary{padding:10px 16px;border:1px solid #d8b9ca;border-radius:12px;background:#fff;color:#5d1039;cursor:pointer;min-height:44px;font-family:inherit}.ttg-secondary:disabled{opacity:.45}.ttg-chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.ttg-chip{min-height:44px;padding:8px 16px;border-radius:999px;border:1px solid #d8b9ca;background:#fff;color:#5d1039;font-size:16px;cursor:pointer;font-family:inherit}.ttg-chip.on{background:#5d1039;color:#fff;border-color:#5d1039}.ttg-big{font-size:20px;min-height:56px;padding:10px 22px}.ttg-meter{height:8px;border-radius:8px;background:#eadbe3;overflow:hidden;margin-top:10px}.ttg-meter>i{display:block;height:100%;background:#087667;transition:width .1s}.ttg-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;background:#bbb}.ttg-dot.live{background:#087667;animation:ttgp 1.2s infinite}@keyframes ttgp{50%{opacity:.35}}@media(max-width:600px){.talk-to-guest{padding:8px!important}}'),
       h('div',{style:{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'center'}},
         h('div',null,h('h1',{style:{margin:'0 0 6px',fontSize:30}},'Talk to Guest'),h('p',{style:{margin:'0 0 16px',color:'#78636f'}},'Tap Start once, then just talk. Staff speak Tamil. Guest: English, Hindi, Bangla, Malayalam, Telugu or Kannada.')),
         h('button',{type:'button',className:'ttg-secondary',onClick:newGuest},'New guest / Clear')),
+      h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',margin:'0 0 12px'}},h('strong',null,'Mode:'),
+        h('button',{type:'button',className:'ttg-chip'+(mode==='live'?' on':''),'aria-pressed':mode==='live',disabled:live,onClick:()=>setMode('live')},'⚡ Live (fastest)'),
+        h('button',{type:'button',className:'ttg-chip'+(mode==='standard'?' on':''),'aria-pressed':mode==='standard',disabled:live,onClick:()=>setMode('standard')},'Standard'),
+        h('span',{style:{fontSize:13,color:'#78636f'}},mode==='live'?'Translates while the person speaks, in a voice like theirs. Preview service.':'Translates after the speaker stops.')),
       h('div',{style:{...box,background:'#fff6fa',marginBottom:14}},
         h('strong',null,'Guest language'),
         h('div',{className:'ttg-chips'},chip('','Auto-detect'),...GUEST_LANGS.map(([c,t])=>chip(c,t))),
@@ -12575,15 +12750,19 @@ https://samaraassistedliving.com/`;
       h('div',{role:'status','aria-live':'polite',style:{...box,background:'#f5fbf9',margin:'14px 0',lineHeight:1.6}},
         h('div',null,h('span',{className:'ttg-dot'+(live?' live':'')}),h('strong',null,phaseText),' · ',status),
         live&&h('div',{className:'ttg-meter','aria-hidden':true},h('i',{style:{width:Math.round(level*100)+'%'}}))),
-      live&&phase==='hearing'&&h('button',{type:'button',className:'ttg-secondary',style:{width:'100%',marginBottom:14,fontSize:18,minHeight:52},onClick:()=>run.current.finishNow&&run.current.finishNow()},'✓ Translate now'),
+      liveOn&&liveNow&&h('div',{style:{...box,border:'2px solid #087667',marginBottom:14}},
+        h('strong',null,liveNow.who==='guest'?'Guest → Staff (live)':'Staff → Guest (live)'),
+        liveNow.original&&h('p',{lang:liveNow.source,style:{fontSize:18,lineHeight:1.6,margin:'6px 0'}},liveNow.original),
+        liveNow.translation&&h('p',{lang:liveNow.target,style:{fontSize:22,lineHeight:1.6,margin:'6px 0',color:'#087667'}},liveNow.translation)),
+      !liveOn&&live&&phase==='hearing'&&h('button',{type:'button',className:'ttg-secondary',style:{width:'100%',marginBottom:14,fontSize:18,minHeight:52},onClick:()=>run.current.finishNow&&run.current.finishNow()},'✓ Translate now'),
       pending&&h('div',{style:{...box,border:'2px solid #b01264',marginBottom:14}},
         h('strong',null,'Which language does the guest speak?'),
         h('div',{className:'ttg-chips'},...GUEST_LANGS.map(([c,t])=>h('button',{key:c,type:'button',className:'ttg-chip ttg-big',onClick:()=>chooseLanguage(c,pending)},t))),
-        h('p',{style:{margin:0,fontSize:13,color:'#78636f'}},'Your sentence is already translated — it will be spoken straight away.')),
-      h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',fontSize:14,margin:'0 0 8px'}},h('span',null,'Wait after speaker stops:'),...PAUSES.map(([v,t])=>h('button',{key:v,type:'button',className:'ttg-chip'+(pauseMs===v?' on':''),'aria-pressed':pauseMs===v,onClick:()=>setPause(v)},t))),
-      h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',fontSize:14,margin:'0 0 8px'}},h('span',null,'Voice:'),...[['auto','Auto (match speaker)'],['female','Female'],['male','Male']].map(([v,t])=>h('button',{key:v,type:'button',className:'ttg-chip'+(voicePref===v?' on':''),'aria-pressed':voicePref===v,onClick:()=>setVoicePref(v)},t))),
+        h('p',{style:{margin:0,fontSize:13,color:'#78636f'}},pending&&pending.live?'What you just said is translated straight away after the tap.':'Your sentence is already translated — it will be spoken straight away.')),
+      mode!=='live'&&h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',fontSize:14,margin:'0 0 8px'}},h('span',null,'Wait after speaker stops:'),...PAUSES.map(([v,t])=>h('button',{key:v,type:'button',className:'ttg-chip'+(pauseMs===v?' on':''),'aria-pressed':pauseMs===v,onClick:()=>setPause(v)},t))),
+      mode!=='live'&&h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',fontSize:14,margin:'0 0 8px'}},h('span',null,'Voice:'),...[['auto','Auto (match speaker)'],['female','Female'],['male','Male']].map(([v,t])=>h('button',{key:v,type:'button',className:'ttg-chip'+(voicePref===v?' on':''),'aria-pressed':voicePref===v,onClick:()=>setVoicePref(v)},t))),
       h('label',{style:{display:'flex',gap:8,alignItems:'center',fontSize:14,margin:'0 0 10px'}},h('input',{type:'checkbox',checked:tamilVoice,onChange:e=>setTamilVoice(e.target.checked)}),'Read the Tamil translation aloud'),
-      h('p',{style:{fontSize:13,lineHeight:1.6,color:'#78636f'}},'Speak normally — it translates when the speaker stops (or tap Translate now). Keep the phone between you, away from TV noise. Internet required. Voice is AI-generated. Confirm important details with the guest.'),
+      h('p',{style:{fontSize:13,lineHeight:1.6,color:'#78636f'}},(mode==='live'?'⚡ Live: speak naturally — the translation follows a moment behind, in a voice like the speaker’s.':'Speak normally — it translates when the speaker stops (or tap Translate now).')+' Keep the phone between you, away from TV noise. Internet required. Voice is AI-generated. Confirm important details with the guest.'),
       rows.length?h('div',null,rows.map(row=>h('article',{key:row.id,style:{...box,marginBottom:12}},
         h('strong',null,row.actor==='guest'?'Guest → Staff':'Staff → Guest'),
         h('p',{style:{fontSize:13,color:'#78636f'}},'Original · '+(labels[row.source]||row.source)),

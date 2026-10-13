@@ -3850,4 +3850,18 @@
 "✓ Translate now": "✓ இப்போதே மொழிபெயர்",
 "Wait after speaker stops:": "பேசுபவர் நிறுத்திய பின் காத்திரு:",
 "Speak normally — it translates when the speaker stops (or tap Translate now). Keep the phone between you, away from TV noise. Internet required. Voice is AI-generated. Confirm important details with the guest.": "இயல்பாகப் பேசுங்கள் — பேசுபவர் நிறுத்தியதும் மொழிபெயர்க்கும் (அல்லது Translate now தொடுங்கள்). போனை உங்கள் இருவருக்கும் நடுவில், டிவி சத்தத்திலிருந்து தள்ளி வையுங்கள். இன்டர்நெட் தேவை. குரல் AI மூலம் உருவாக்கப்படுகிறது. முக்கிய விவரங்களை கெஸ்ட்டிடம் மீண்டும் உறுதி செய்யுங்கள்.",
+// 2.16.40: Talk to Guest Live mode
+"Mode:": "முறை:",
+"⚡ Live (fastest)": "⚡ லைவ் (மிக வேகம்)",
+"Standard": "சாதாரணம்",
+"Translates while the person speaks, in a voice like theirs. Preview service.": "பேசும்போதே, அவரைப் போன்ற குரலில் மொழிபெயர்க்கும். முன்னோட்ட சேவை.",
+"Translates after the speaker stops.": "பேசுபவர் நிறுத்திய பின் மொழிபெயர்க்கும்.",
+"Connecting ⚡ Live translation…": "⚡ லைவ் மொழிபெயர்ப்பு இணைகிறது…",
+"⚡ Live — speak naturally. The translation follows a moment behind.": "⚡ லைவ் — இயல்பாகப் பேசுங்கள். மொழிபெயர்ப்பு சில நொடிகளில் தொடரும்.",
+"⚡ Live — speak naturally. The guest’s language is found when they speak.": "⚡ லைவ் — இயல்பாகப் பேசுங்கள். கெஸ்ட் பேசும்போது மொழி கண்டறியப்படும்.",
+"Guest → Staff (live)": "கெஸ்ட் → ஊழியர் (லைவ்)",
+"Staff → Guest (live)": "ஊழியர் → கெஸ்ட் (லைவ்)",
+"What you just said is translated straight away after the tap.": "நீங்கள் சொன்னது தொட்டவுடன் மொழிபெயர்க்கப்படும்.",
+"Which language does the guest speak? Tap it below — what you said is translated straight away.": "கெஸ்ட் எந்த மொழி பேசுகிறார்? கீழே தொடுங்கள் — நீங்கள் சொன்னது உடனே மொழிபெயர்க்கப்படும்.",
+"Which language does the guest speak? Tap it below.": "கெஸ்ட் எந்த மொழி பேசுகிறார்? கீழே தொடுங்கள்.",
 };

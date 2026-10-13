@@ -1,3 +1,13 @@
+## 2.16.40 — Talk to Guest: ⚡ Live mode (translates while the person is speaking)
+
+- New **Mode: ⚡ Live (fastest) / Standard** (Live is the default, remembered per phone). Live uses Google **Gemini Live Translate** (preview model gemini-3.5-live-translate-preview): the translation streams **while the person is still speaking**, a moment behind, in a voice like the speaker's (male / female kept automatically). No waiting for a pause, no buttons.
+- How it works: two live translators share the microphone — one turns anything into Tamil (silent for Tamil), the other turns anything into the Guest's language (silent for that language). The Guest's language is detected from their speech and the second translator switches automatically. Each translator is muted while the other is speaking its translation, so they never translate each other.
+- **Staff speak first**: the language buttons appear; after one tap the last few seconds of what staff said are translated straight away (no repeating). If Google does not report the Guest's language, it asks once.
+- The text of the sentence being translated is shown live; finished sentences are listed as before ("Live" tag); Listen again uses the normal voice.
+- **Automatic fallback**: if Live is not available for the account (preview) or the connection keeps dropping, the conversation continues in Standard mode with a note.
+- Security: the Gemini key stays on the server. The Edge Function gives the phone a 30-minute Live token (mode "live_token") with the model locked, after the same staff / role / budget checks.
+- Optional secret GEMINI_LIVE_TRANSLATE_MODEL to change the model name. **Redeploy the talk-to-guest Edge Function** (dashboard single-file index.ts) to enable Live; until then the screen falls back to Standard. No SQL. 43 mocked tests; browser tests with a simulated Gemini Live (guest-first, staff-first, fallback) passed.
+
 ## 2.16.39 — Talk to Guest: waits for the speaker to finish, smoother voice
 
 - **No more cutting off**: softer / quieter voices are picked up (once speech starts, a lower level keeps the sentence open); thinking pauses inside a sentence are allowed; up to 45 s per turn; the listener no longer resets after 8 s when a quiet voice was not picked up (now 15 s of real silence).
