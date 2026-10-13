@@ -1,3 +1,12 @@
+## 2.16.35 — Talk to Guest: hands-free conversation, staff can speak first, faster replies
+
+- **One button**: tap **Start conversation** once. The microphone stays open; each sentence is translated automatically after a short pause (about 1 second). No Guest / Nurse buttons — the spoken language decides who is talking: **Tamil or English = staff**, **Bangla or Hindi = Guest**.
+- **Staff can speak first**: if the Guest's language is not known yet, the sentence is translated into both Bangla and Hindi at once; staff tap **বাংলা** or **हिन्दी** one time and the same sentence is spoken straight away (no repeating). If the Guest answers first instead, the earlier sentence is shown in the detected language automatically. The language can also be preset with the chips at the top.
+- **Faster**: translation and spoken voice come back in ONE reply (one round trip instead of two); Gemini runs with low thinking for speed. The microphone does not record while the translation is being spoken, so the phone does not translate itself.
+- Live level bar and status (Listening / Hearing / Translating / Speaking); option to switch off reading the Tamil translation aloud; Listen again replays without a new request. Coughs / short noises are ignored; screen switch stops the conversation; repeated service errors stop it with a clear message.
+- **Redeploy the talk-to-guest Edge Function** (dashboard: single-file index.ts) BEFORE this frontend — the new screen needs the new function. No SQL.
+- Files: src/app/communication/talk-to-guest.js, supabase/functions/talk-to-guest/handler.mjs, src/app/global-ui/09-tamil-dictionary.js, tests/talk-to-guest.test.mjs (25 tests), version files, app.js (rebuilt).
+
 ## 2.16.34 — Talk to Guest: automatic Bangla / Hindi interpretation
 
 - New nursing workspace page and clinical dashboard shortcut for nurses, caregivers and managers. **STD** also has it (under Communication; Admin sees it there too).
