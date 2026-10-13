@@ -1,3 +1,16 @@
+## 2.16.43 — System Health: the ERP notices its own problems; Talk to Guest adjusts itself (SQL 219)
+
+- **Run supabase/sql/219_system_health.sql** once in Supabase → SQL Editor (safe to run again). It adds details and "resolved" marks to the existing fault log (client_errors) and lets only Admin mark faults resolved. Until it is run, faults are still recorded (details inside the message) and the page shows a note.
+- **Automatic fault log** (everyone, silently): besides page crashes, the ERP now records **failed saves** (database refused a save), **server errors**, **server unreachable / offline**, **slow requests (> 8 s)** and **Talk to Guest events**. Only the table / function name, status and timing are kept — never what was typed or saved; phone numbers and e-mails in messages are masked. Up to 60 per session, same fault at most once a minute. Kept 90 days.
+- **New Admin page: ADMIN → System Health** — tiles (faults, open problems, staff affected, most affected page), Period Today / This Week / This Month / Selected period and Show Open / Resolved / All with **Apply**, faults grouped with counts and first / last time (DD-MM-YYYY), tap a group for every occurrence (date & time, staff, role, page, version, details), **Mark resolved** with a short note. Admin only (not Managers).
+- **Talk to Guest adjusts itself while in use** (each adjustment recorded):
+  - Live **echo**: if a translator hears the other's voice again, the echo is dropped and muting made stronger automatically.
+  - Live **missed speech**: people talking but nothing heard for 12 s → both translators restart by themselves; twice in 5 minutes → continues in Standard mode.
+  - Standard: **3 sentences in a row not caught** → the wait after the speaker stops is raised one step automatically.
+  - Live drops, Live unavailable, slow translations (> 7 s), errors and microphone problems are recorded.
+  - When Live falls back, the Standard settings (wait, voice) are shown.
+- Files: bootstrap-error.js, src/app/core/09-error-safety.js, src/app/global-ui/12-system-health.js (new), src/app/communication/talk-to-guest.js, navigation + menu icon, manifest, supabase/sql/219_system_health.sql (new), tests/system-health.test.mjs (new), version files, app.js (rebuilt). No Edge Function change.
+
 ## 2.16.42 — Talk to Guest Live: two-way conversation no longer freezes
 
 - Found in a recorded real test: Google's live translator streams near-silent audio non-stop and never sends an end-of-sentence signal. The protection that mutes one translator while the other is speaking took that silence for speech, so once both directions were open **each kept muting the other** and neither heard anyone (Guest worked alone; staff replies — or anything after the second translator opened — were lost).

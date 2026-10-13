@@ -126,6 +126,11 @@
    "lines": 108
   },
   {
+   "file": "global-ui/12-system-health.js",
+   "about": "System Health (Admin): automatic fault log — grouped faults, details, mark resolved",
+   "lines": 138
+  },
+  {
    "file": "global-ui/09-tamil-dictionary.js",
    "about": "English to Tamil screen words for the EN | தமிழ் switch",
    "lines": 0

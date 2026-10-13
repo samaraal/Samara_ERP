@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '2.16.42';
+  const VERSION = '2.16.43';
   let rendering = false;
 
   const escapeHtml = value => String(value ?? '')
@@ -118,6 +118,53 @@
     }
     show('Application request error', reason?.stack || reason?.message || String(reason));
   });
+
+  // 2.16.43 System Health: watch the app's own requests to the database / server functions (installed before the
+  // database client is created, so every save goes through it). Records only: failed saves (write refused / server
+  // error), unreachable server, and requests slower than 8 s. Stores the table / function NAME and status only —
+  // never the request contents, filters or answers. Does not change any request or response.
+  (function watchRequests(){
+    const original = window.fetch;
+    if (typeof original !== 'function' || original.__samaraWatched) return;
+    const queue = window.__samaraFaultQueue = window.__samaraFaultQueue || [];
+    const fault = (kind, message, detail) => {
+      try {
+        if (window.__samaraFaultReady && window.SamaraFault) window.SamaraFault(kind, message, detail);
+        else if (queue.length < 20) queue.push({ kind, message, detail });
+      } catch (_) {}
+    };
+    const describe = (input, init) => {
+      try {
+        const url = new URL(typeof input === 'string' ? input : input.url, window.location.href);
+        const method = String((init && init.method) || (typeof input !== 'string' && input.method) || 'GET').toUpperCase();
+        const m = url.pathname.match(/\/(rest\/v1|functions\/v1|storage\/v1\/object|auth\/v1)\/([^/?]+)/);
+        if (!m) return null;
+        const area = { 'rest/v1': 'table', 'functions/v1': 'function', 'storage/v1/object': 'storage', 'auth/v1': 'auth' }[m[1]];
+        return { area, name: m[2], method };
+      } catch (_) { return null; }
+    };
+    const watched = function (input, init) {
+      const info = describe(input, init);
+      if (!info || info.name === 'client_errors' || info.area === 'auth') return original.apply(window, arguments);
+      const started = Date.now();
+      const isWrite = info.method !== 'GET' && info.method !== 'HEAD';
+      return original.apply(window, arguments).then(response => {
+        const ms = Date.now() - started;
+        try {
+          const what = `${info.area} ${info.name}`;
+          if (response.status >= 500) fault('server-error', `${what} failed (${response.status})`, { ...info, status: response.status, ms });
+          else if (isWrite && response.status >= 400 && response.status !== 409 && info.area === 'table') fault('save-failed', `Save to ${info.name} refused (${response.status})`, { ...info, status: response.status, ms });
+          else if (ms > 8000) fault('slow-request', `${what} took ${(ms / 1000).toFixed(1)} s`, { ...info, status: response.status, ms });
+        } catch (_) {}
+        return response;
+      }, error => {
+        try { if (!(error && error.name === 'AbortError')) fault(navigator.onLine === false ? 'offline' : 'network-error', `${info.area} ${info.name} unreachable`, { ...info, ms: Date.now() - started, online: navigator.onLine }); } catch (_) {}
+        throw error;
+      });
+    };
+    watched.__samaraWatched = true;
+    window.fetch = watched;
+  })();
 
   window.SAMARA_SHOW_STARTUP_ERROR = show;
   window.SAMARA_REPAIR_APP = repairApp;

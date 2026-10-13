@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.42';
+  const APP_VERSION = '2.16.43';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1456,6 +1456,11 @@ function initSamaraInaugurationInvitation(){
         -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2M4 4l3 1-1 3'/%3E%3C/svg%3E")!important;
         mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2M4 4l3 1-1 3'/%3E%3C/svg%3E")!important;
       }
+      .sidebar .nav-submenu button[data-nav='System Health']::before{ /* 2.16.43 */
+        color:#087667!important;
+        -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12h4l2-5 4 10 2-5h6'/%3E%3C/svg%3E")!important;
+        mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12h4l2-5 4 10 2-5h6'/%3E%3C/svg%3E")!important;
+      }
       .sidebar .nav-submenu button[data-nav='Alert Settings']::before{
         color:#e24c7f!important;
         -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9'/%3E%3Cpath d='M10 21h4M12 4V2'/%3E%3C/svg%3E")!important;
@@ -1707,7 +1712,7 @@ function initSamaraInaugurationInvitation(){
   });
   const NAV_SECTIONS = [
     { title:'OVERVIEW', items:['Dashboard','Notifications'] },
-    { title:'ADMIN', items:['Temporary Duty Swap','Additional Duty Assignment','Rooms','Care Packages','Shift Management','Stores Master','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance'] },
+    { title:'ADMIN', items:['Temporary Duty Swap','Additional Duty Assignment','Rooms','Care Packages','Shift Management','Stores Master','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance','System Health'] }, // 2.16.43: System Health (Admin)
     { title:'CHARGE MASTER', items:['Charge Master',...CHARGE_MASTER_PAGES] },
     { title:'HR', items:['HR Dashboard','Employees','Duty Assignment','Duty Calendar','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiry Register','Enquiries & Feedback'] },
@@ -1725,7 +1730,7 @@ function initSamaraInaugurationInvitation(){
   const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
   const ROLE_NAV={
     Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&!NURSING_ENTRY_NAV.includes(item)),
-    Manager:ALL_NAV.filter(item=>!['Petty Cash','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements',"Director's Office",'Enquiries & Feedback','System Maintenance','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
+    Manager:ALL_NAV.filter(item=>!['Petty Cash','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements',"Director's Office",'Enquiries & Feedback','System Maintenance','System Health','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
 
     Nurse:['Clinical Dashboard','Clinical Alerts','Talk to Guest','Duty Assignment','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Approval Requests','Raise Indent','Received Indents / Used Balance','Oxygen Cylinders','Biomedical Equipment','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Talk to Guest','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
@@ -2696,6 +2701,9 @@ https://samaraassistedliving.com/`;
   };
 
 
+  // 2.16.43: System Health — also records failed saves / server errors / slow requests (from bootstrap-error.js) and
+  // Talk to Guest events with a small `detail` object; phone numbers / e-mails are masked; up to 60 per session.
+  // window.SamaraFault(kind,message,detail) is the one call any module uses. Admin reads them on the System Health page.
   // v2.14.15: Error safety.
   // 1) reportClientError() saves an error to the client_errors table (never throws, rate-limited).
   // 2) PageErrorBoundary: if ONE page crashes, only that page shows "This page had a problem";
@@ -2703,12 +2711,15 @@ https://samaraassistedliving.com/`;
   //    shell/01-app-main.js and around the whole app in z-end/01-form-helpers-and-start-app.js.
   let samaraLastKnownPage='';
   let samaraErrorLogCount=0;
-  const SAMARA_ERROR_LOG_LIMIT=25;
+  const SAMARA_ERROR_LOG_LIMIT=60;
+  let samaraDetailColumn=true; // false until SQL 219 is run → rows are saved without detail
+  // Never store personal details in the fault log: mask phone numbers, e-mails and long digit runs.
+  const samaraScrub=text=>String(text||'').replace(/[\w.+-]+@[\w-]+\.[\w.]+/g,'[email]').replace(/(\+?\d[\d\s-]{8,}\d)/g,'[number]');
   const samaraRecentErrorKeys=new Map();
 
   function reportClientError(kind,error,extra={}){
     try{
-      const message=String(error?.message||error||'Unknown error').slice(0,1000);
+      const message=samaraScrub(String(error?.message||error||'Unknown error')).slice(0,1000);
       const page=String(extra.page||samaraLastKnownPage||'').slice(0,120);
       const key=`${kind}|${page}|${message}`;
       const now=Date.now();
@@ -2726,12 +2737,18 @@ https://samaraassistedliving.com/`;
         url:String(window.location.pathname+window.location.search).slice(0,300),
         user_agent:String(navigator.userAgent||'').slice(0,300)
       };
-      Promise.resolve(client.from('client_errors').insert(row))
-        .then(result=>{if(result?.error)console.warn('[Samara] Error log not saved:',result.error.message)})
-        .catch(()=>{});
+      if(extra.detail&&samaraDetailColumn){try{const d=JSON.parse(samaraScrub(JSON.stringify(extra.detail)));if(JSON.stringify(d).length<=3800)row.detail=d;}catch(_){}}
+      const save=r=>Promise.resolve(client.from('client_errors').insert(r)).then(result=>{
+        if(result?.error&&r.detail&&/detail/i.test(result.error.message||'')){samaraDetailColumn=false;const {detail,...plain}=r;plain.message=(plain.message+' · '+JSON.stringify(detail)).slice(0,1000);return save(plain);} // SQL 219 not run yet
+        if(result?.error)console.warn('[Samara] Error log not saved:',result.error.message);
+      }).catch(()=>{});
+      save(row);
     }catch(_){}
   }
   window.SamaraReportError=reportClientError;
+  window.SamaraFault=(kind,message,detail)=>reportClientError(kind,message,{detail});
+  // Faults noticed before the app started (bootstrap-error.js keeps them in a small queue).
+  try{(window.__samaraFaultQueue||[]).splice(0).forEach(f=>reportClientError(f.kind,f.message,{detail:f.detail}));window.__samaraFaultReady=true;}catch(_){}
 
   class PageErrorBoundary extends React.Component{
     constructor(props){
@@ -7810,6 +7827,144 @@ https://samaraassistedliving.com/`;
     );
   }
 
+  // 2.16.43: System Health (Admin only) — the ERP's automatic fault log (table client_errors, SQL 137 + 219).
+  // Faults are grouped (same kind + same message), newest first. Filters use Apply. Every group opens its full details
+  // (staff, role, page, time, version, device, detail). Admin can mark a group as resolved with a short note.
+  // Recorded automatically: page crashes, JavaScript errors, failed saves, server errors, unreachable server, slow
+  // requests (> 8 s) and Talk to Guest events. No Guest names, audio or clinical details are stored.
+  const SYSTEM_HEALTH_KINDS={
+    'page-crash':['Screen crashed','A page stopped working and showed "This page had a problem".'],
+    'app-crash':['App crashed','The whole app stopped working.'],
+    'window-error':['Program error','An error in the app code (the page kept working).'],
+    'unhandled-rejection':['Unfinished action','An action failed in the background.'],
+    'save-failed':['Save refused','The database refused a save (permission or data rule).'],
+    'server-error':['Server error','The server failed to answer correctly.'],
+    'network-error':['Server unreachable','The phone could not reach the server (internet).'],
+    'offline':['Phone offline','The phone had no internet.'],
+    'slow-request':['Slow screen','A request took longer than 8 seconds.'],
+    'ttg-live-fallback':['Talk to Guest: Live unavailable','Live mode could not start or kept failing; Standard mode was used.'],
+    'ttg-live-drop':['Talk to Guest: Live dropped','The live connection dropped and reconnected.'],
+    'ttg-live-stall':['Talk to Guest: speech missed','People were speaking but Live heard nothing; it restarted itself.'],
+    'ttg-echo':['Talk to Guest: echo','The translation was heard again by the microphone; muting was made stronger automatically.'],
+    'ttg-auto-pause':['Talk to Guest: wait increased','Speech was cut too often; the wait after the speaker stops was increased automatically.'],
+    'ttg-not-caught':['Talk to Guest: not understood','Several sentences in a row were not understood.'],
+    'ttg-slow':['Talk to Guest: slow translation','A translation took longer than 7 seconds.'],
+    'ttg-error':['Talk to Guest: error','Translation failed.'],
+    'ttg-mic':['Talk to Guest: microphone','The microphone could not be opened.']
+  };
+  function SystemHealth({profile}){
+    const isAdmin=profile?.role==='Admin';
+    const [period,setPeriod]=React.useState('week');
+    const [from,setFrom]=React.useState('');
+    const [to,setTo]=React.useState('');
+    const [showResolved,setShowResolved]=React.useState('open');
+    const filters=useAppliedFilters({period,from,to,showResolved});
+    const [rows,setRows]=React.useState([]);
+    const [staff,setStaff]=React.useState({});
+    const [loading,setLoading]=React.useState(false);
+    const [error,setError]=React.useState('');
+    const [open,setOpen]=React.useState(null);
+    const [note,setNote]=React.useState('');
+    const [saving,setSaving]=React.useState(false);
+    const [canResolve,setCanResolve]=React.useState(true);
+    const range=f=>{
+      const now=new Date(),start=new Date(now);start.setHours(0,0,0,0);
+      if(f.period==='today')return [start,now];
+      if(f.period==='week'){start.setDate(start.getDate()-6);return [start,now];}
+      if(f.period==='month'){start.setDate(1);return [start,now];}
+      const a=f.from?new Date(`${f.from}T00:00:00`):start,b=f.to?new Date(`${f.to}T23:59:59`):now;return [a,b];
+    };
+    const load=React.useCallback(async()=>{
+      if(!isAdmin)return;setLoading(true);setError('');
+      try{
+        const [a,b]=range(filters.applied);
+        const {data,error:e}=await client.from('client_errors').select('*').gte('created_at',a.toISOString()).lte('created_at',b.toISOString()).order('created_at',{ascending:false}).limit(2000);
+        if(e)throw e;
+        const list=data||[];setRows(list);
+        setCanResolve(!list.length||list.some(x=>Object.prototype.hasOwnProperty.call(x,'resolved_at'))); // column exists once SQL 219 is run
+        const ids=[...new Set(list.map(r=>r.user_id).filter(Boolean))];
+        if(ids.length){const {data:ps}=await client.from('profiles').select('id,auth_user_id,full_name,role').or(`id.in.(${ids.join(',')}),auth_user_id.in.(${ids.join(',')})`);const m={};(ps||[]).forEach(p=>{m[p.id]=p;if(p.auth_user_id)m[p.auth_user_id]=p;});setStaff(m);}
+      }catch(e){setError(e.message||'Could not load the fault log.');}
+      finally{setLoading(false);}
+    },[isAdmin,JSON.stringify(filters.applied)]);
+    React.useEffect(()=>{load();},[load]);
+    if(!isAdmin)return h('div',{className:'section-card'},h('h3',null,'System Health'),h('p',null,'This page is restricted to the Administrator.'));
+
+    // Group same kind + same message (numbers inside messages ignored), newest first.
+    const norm=t=>String(t||'').replace(/\d+(\.\d+)?/g,'#').slice(0,220);
+    const groups=[];const byKey=new Map();
+    for(const r of rows){
+      const k=r.kind+'|'+norm(r.message);let g=byKey.get(k);
+      if(!g){g={key:k,kind:r.kind,message:r.message,items:[],pages:new Set(),roles:new Set(),versions:new Set(),users:new Set()};byKey.set(k,g);groups.push(g);}
+      g.items.push(r);if(r.page)g.pages.add(r.page);if(r.app_version)g.versions.add(r.app_version);if(r.user_id){g.users.add(r.user_id);const p=staff[r.user_id];if(p?.role)g.roles.add(p.role);}
+    }
+    groups.forEach(g=>{g.open=g.items.filter(x=>!x.resolved_at).length;g.last=g.items[0].created_at;g.first=g.items[g.items.length-1].created_at;});
+    const shown=groups.filter(g=>filters.applied.showResolved==='all'||(filters.applied.showResolved==='open'?g.open>0:g.open===0));
+    const label=k=>(SYSTEM_HEALTH_KINDS[k]||[k||'Fault'])[0];
+    const explain=k=>(SYSTEM_HEALTH_KINDS[k]||[,''])[1];
+    const tone=k=>/crash|server|save-failed|ttg-error|fallback/.test(k||'')?'#b01264':/slow|stall|echo|not-caught|network|offline|drop/.test(k||'')?'#b7791f':'#087667';
+    const openGroups=groups.filter(g=>g.open>0).length;
+    const people=new Set(rows.map(r=>r.user_id).filter(Boolean)).size;
+    const topPage=(()=>{const c={};rows.forEach(r=>{if(r.page)c[r.page]=(c[r.page]||0)+1;});return Object.entries(c).sort((a,b)=>b[1]-a[1])[0];})();
+
+    async function resolve(g){
+      if(!note.trim()){setError('Please write a short note on what was fixed.');return;}
+      setSaving(true);setError('');
+      try{
+        const {data:{user}}=await client.auth.getUser();
+        const ids=g.items.filter(x=>!x.resolved_at).map(x=>x.id);
+        for(let i=0;i<ids.length;i+=100){const {error:e}=await client.from('client_errors').update({resolved_at:new Date().toISOString(),resolved_by:user?.id||null,resolution_note:note.trim().slice(0,500)}).in('id',ids.slice(i,i+100));if(e)throw e;}
+        setNote('');setOpen(null);await load();
+      }catch(e){setError(/resolved|column|permission|policy/i.test(e.message||'')?'Marking as resolved needs SQL 219 to be run once in Supabase.':(e.message||'Could not save.'));}
+      finally{setSaving(false);}
+    }
+    const tile=(title,value,sub,color)=>h('div',{className:'section-card',style:{padding:14,borderLeft:`5px solid ${color||'#5d1039'}`}},h('small',null,title),h('div',{style:{fontSize:26,fontWeight:800,margin:'4px 0'}},value),h('small',{style:{color:'#78636f'}},sub));
+    const g=open&&groups.find(x=>x.key===open);
+
+    return h('div',{className:'stack system-health-page'},
+      h('div',{className:'page-hero'},h('div',null,h('div',{className:'eyebrow'},'ADMIN / APPLICATION'),h('h2',null,'System Health'),
+        h('p',null,'Problems the ERP noticed by itself while staff were using it: crashes, failed saves, server errors, slow screens and Talk to Guest issues. No Guest names, audio or medical details are recorded.'))),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:12}},
+        tile('Faults in period',rows.length,'all recorded events',rows.length?'#b7791f':'#087667'),
+        tile('Open problems',openGroups,'different problems not yet resolved',openGroups?'#b01264':'#087667'),
+        tile('Staff affected',people,'people who met a problem'),
+        tile('Most affected page',topPage?topPage[0]:'—',topPage?topPage[1]+' events':'no events')),
+      h('div',{className:'section-card',style:{display:'flex',gap:10,flexWrap:'wrap',alignItems:'flex-end'}},
+        h('label',null,h('small',null,'Period'),h('select',{className:'input',value:period,onChange:e=>setPeriod(e.target.value)},
+          h('option',{value:'today'},'Today'),h('option',{value:'week'},'This Week (7 days)'),h('option',{value:'month'},'This Month'),h('option',{value:'custom'},'Selected period'))),
+        period==='custom'&&h('label',null,h('small',null,'From'),h('input',{className:'input',type:'date',value:from,onChange:e=>setFrom(e.target.value)})),
+        period==='custom'&&h('label',null,h('small',null,'To'),h('input',{className:'input',type:'date',value:to,onChange:e=>setTo(e.target.value)})),
+        h('label',null,h('small',null,'Show'),h('select',{className:'input',value:showResolved,onChange:e=>setShowResolved(e.target.value)},
+          h('option',{value:'open'},'Open problems'),h('option',{value:'resolved'},'Resolved'),h('option',{value:'all'},'All'))),
+        h(ApplyFilterButton,{dirty:filters.dirty,onApply:filters.apply}),
+        h('button',{type:'button',className:'btn btn-secondary',onClick:load,disabled:loading},loading?'Loading…':'↻ Refresh')),
+      error&&h('div',{className:'section-card',style:{color:'#b01264'}},error),
+      !canResolve&&h('div',{className:'section-card',style:{background:'#fff6fa'}},'Run supabase/sql/219_system_health.sql once in Supabase → SQL Editor to enable details and "Mark resolved".'),
+      !loading&&!shown.length&&h('div',{className:'section-card',style:{textAlign:'center',color:'#087667',padding:30}},filters.applied.showResolved==='open'?'✓ No open problems in this period.':'Nothing to show for this period.'),
+      shown.map(x=>h('button',{key:x.key,type:'button',className:'section-card',onClick:()=>{setOpen(open===x.key?null:x.key);setNote('');},
+          style:{textAlign:'left',width:'100%',cursor:'pointer',borderLeft:`5px solid ${tone(x.kind)}`,display:'block'}},
+        h('div',{style:{display:'flex',justifyContent:'space-between',gap:10,flexWrap:'wrap'}},
+          h('strong',{style:{color:tone(x.kind)}},label(x.kind)),
+          h('span',{style:{fontWeight:700}},x.items.length+'×'+(x.open?'':' · resolved'))),
+        h('div',{style:{margin:'6px 0',overflowWrap:'anywhere'}},x.message),
+        h('small',{style:{color:'#78636f'}},'Last: '+formatDateTimeIN(x.last)+' · First: '+formatDateTimeIN(x.first)+(x.pages.size?' · Page: '+[...x.pages].slice(0,3).join(', '):'')+(x.roles.size?' · Role: '+[...x.roles].join(', '):'')))),
+      g&&h('div',{className:'section-card',style:{border:'2px solid #5d1039'}},
+        h('div',{style:{display:'flex',justifyContent:'space-between',gap:10}},h('h3',{style:{margin:0}},label(g.kind)),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setOpen(null)},'Close')),
+        h('p',{style:{color:'#78636f'}},explain(g.kind)),
+        h('p',{style:{overflowWrap:'anywhere'}},h('strong',null,'Message: '),g.message),
+        h('p',null,h('strong',null,'Versions: '),[...g.versions].join(', ')||'—',' · ',h('strong',null,'Staff affected: '),g.users.size),
+        g.open?h('div',{style:{display:'flex',gap:8,flexWrap:'wrap',margin:'10px 0'}},
+          h('input',{className:'input',style:{flex:'1 1 260px'},placeholder:'What was fixed / why it can be closed',value:note,onChange:e=>setNote(e.target.value)}),
+          h('button',{type:'button',className:'btn btn-primary',disabled:saving||!canResolve,onClick:()=>resolve(g)},saving?'Saving…':'✓ Mark resolved'))
+          :h('p',{style:{color:'#087667'}},'Resolved'+(g.items[0].resolution_note?': '+g.items[0].resolution_note:'')+(g.items[0].resolved_at?' ('+formatDateTimeIN(g.items[0].resolved_at)+')':'')),
+        h('div',{style:{overflowX:'auto'}},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['Date & time','Staff','Role','Page','Version','Details'].map(t=>h('th',{key:t},t)))),
+          h('tbody',null,g.items.slice(0,50).map(r=>{const p=staff[r.user_id]||{};return h('tr',{key:r.id},
+            h('td',null,formatDateTimeIN(r.created_at)),h('td',null,p.full_name||'—'),h('td',null,p.role||'—'),h('td',null,r.page||'—'),h('td',null,r.app_version||'—'),
+            h('td',{style:{fontSize:12,maxWidth:420,overflowWrap:'anywhere'}},r.detail?Object.entries(r.detail).map(([k,v])=>k+': '+(typeof v==='object'?JSON.stringify(v):v)).join(' · '):(r.stack?String(r.stack).split('\n')[0]:'—')));})))),
+        g.items.length>50&&h('small',null,'Showing the latest 50 of '+g.items.length+'.'))
+    );
+  }
   // 2.15.70: English → Tamil words for the EN | தமிழ் switch (simple Tamil + common English work words).
   // Add a line here to translate more screen text. Names, notes and data typed by staff are never translated.
   const SAMARA_TA={
@@ -12337,6 +12492,11 @@ https://samaraassistedliving.com/`;
   // 2.16.34: ephemeral nurse–guest interpretation; no patient records or chat logging. Open to Admin, Manager, Nurse, Caregiver and STD.
   // 2.16.35: hands-free conversation — ONE Start button, the microphone stays open, each sentence is sent after a short
   // pause and the spoken language decides who is talking (Tamil / English = staff, Bangla / Hindi = guest).
+  // 2.16.43: SELF-ADJUSTING while in use (and every adjustment recorded for Admin → System Health):
+  //  • Live echo: a translator hearing the other translator's voice again → echo dropped, muting made stronger.
+  //  • Live missed speech: people talking ~6 s but nothing heard for 12 s → both translators restart; twice in 5 min → Standard.
+  //  • Live drops / unavailable, Standard misses, slow translations, microphone problems → recorded.
+  //  • Standard: 3 sentences in a row not caught → wait after speaker stops raised one step automatically.
   // 2.16.42: Live fix from a real test — Google streams near-silent audio non-stop and never sends turnComplete, so the old
   // "other translator is speaking" mute stayed on for both and neither heard anyone. Now only AUDIBLE output counts as speaking
   // (silence is not played), both are never muted together, and a sentence is finished after a short pause in the translated text.
@@ -12396,6 +12556,8 @@ https://samaraassistedliving.com/`;
     }
     const voiceHintFrom=pitches=>{if(pitches.length<3)return '';const sorted=[...pitches].sort((a,b)=>a-b),mid=sorted[Math.floor(sorted.length/2)];return mid<165?'male':'female';};
     const setPendingRow=v=>{run.current.pending=v;setPending(v);};
+    // Record a Talk to Guest event for System Health (no Guest words, names or audio — only what happened).
+    const ttgFault=(kind,message,detail)=>{try{window.SamaraFault&&window.SamaraFault(kind,message,{mode:run.current.liveMode?'live':'standard',guest_language:run.current.guest||'',...(detail||{})});}catch(_){}};
 
     function stopListening(){const r=run.current;clearInterval(r.timer);r.timer=null;if(r.recorder&&r.recorder.state!=='inactive'){r.discard=true;r.recorder.stop();}r.recorder=null;setLevel(0);}
     function stopPlayback(){const r=run.current;if(r.source){try{r.source.stop()}catch(_){}r.source=null;}(r.sources||[]).forEach(x=>{try{x.stop()}catch(_){}});r.sources=[];}
@@ -12508,7 +12670,8 @@ https://samaraassistedliving.com/`;
       setPhase('translating');setStatus('Translating…');
       // First message of a reply: shows the text at once. Returns the new row, or null when staff spoke first (language needed).
       function accept(x){
-        r.failures=0;
+        r.failures=0;r.notCaught=0;
+        {const ms=Date.now()-t0;if(ms>7000)ttgFault('ttg-slow','Translation took '+(ms/1000).toFixed(1)+' s',{text_ms:ms,ai_ms:x.timing&&x.timing.ai_ms||0,auth_ms:x.timing&&x.timing.auth_ms||0});}
         if(x.needs_language){
           const row={id:Date.now(),actor:'staff',source:x.source,transcript:x.transcript,translations:x.translations,target:'',translation:'',voice:x.voice,took:'Text '+secs(Date.now()-t0)+(x.timing?.ai_ms?' (AI '+secs(x.timing.ai_ms)+')':'')};
           setRows(old=>[row,...old].slice(0,6));setPendingRow(row);
@@ -12556,8 +12719,16 @@ https://samaraassistedliving.com/`;
       }catch(e){
         if(epoch!==r.epoch)return;
         if(e.name==='AbortError'){r.failures++;setStatus('That took too long. Listening again…');}
-        else if(e.status===422){setStatus((e.message||'Did not catch that.')+' Listening again…');}
-        else{r.failures++;if([401,403,404,429].includes(e.status)||r.failures>=3){stopAll(e.message||'Translation failed. Tap Start conversation to try again.');return;}setStatus((e.message||'Translation failed.')+' Listening again…');}
+        else if(e.status===422){
+          r.notCaught=(r.notCaught||0)+1;
+          if(r.notCaught>=3){
+            const steps=PAUSES.map(p=>p[0]),cur=r.pauseMs||1200,next=steps.find(v=>v>cur);
+            ttgFault('ttg-not-caught','Several sentences in a row were not understood',{in_a_row:r.notCaught,wait_ms:cur});
+            if(next){setPause(next);ttgFault('ttg-auto-pause','Wait after speaker stops raised automatically',{from_ms:cur,to_ms:next});r.notCaught=0;setStatus('Speech was being cut — wait time raised to '+(next/1000)+' s automatically. Listening again…');}
+            else setStatus((e.message||'Did not catch that.')+' Listening again…');
+          }else setStatus((e.message||'Did not catch that.')+' Listening again…');
+        }
+        else{r.failures++;ttgFault('ttg-error',String(e.message||'Translation failed').slice(0,200),{status:e.status||0});if([401,403,404,429].includes(e.status)||r.failures>=3){stopAll(e.message||'Translation failed. Tap Start conversation to try again.');return;}setStatus((e.message||'Translation failed.')+' Listening again…');}
         if(r.live)listen(true);
       }
     }
@@ -12601,7 +12772,7 @@ https://samaraassistedliving.com/`;
           return audible;
         },
         clear(){srcs.splice(0).forEach(x=>{try{x.stop()}catch(_){}});t=0;audibleEnd=0;},
-        busy(){return !!ctx&&ctx.currentTime<audibleEnd+.3;} // really speaking (+0.3 s tail)
+        busy(){return !!ctx&&ctx.currentTime<audibleEnd+((run.current.L&&run.current.L.tail)||.3);} // really speaking (+ tail; longer after echo was detected)
       };
     }
     async function liveToken(){const response=await request({mode:'live_token'});const x=await response.json();if(!x.token)throw Error('Live mode is not available right now.');return x;}
@@ -12625,14 +12796,21 @@ https://samaraassistedliving.com/`;
     }
     function closeLiveSession(key){const L=run.current.L;const s=L&&L.sessions[key];if(!s)return;delete L.sessions[key];s.player.clear();try{s.ws.close();}catch(_){}}
     function showLiveNow(){const L=run.current.L;if(!L)return;const a=L.sessions.A,b=L.sessions.B;const s=[a,b].find(x=>x&&(x.inText||x.outText));setLiveNow(s?{who:s.key==='A'?'guest':'staff',source:s.inLang,target:s.target,original:s.inText,translation:s.outText}:null);}
+    // Same words? (≥ 3 words and ≥ 60 % of what was heard appears in the other translator's output)
+    function isEcho(heard,said){
+      const words=t=>String(t||'').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu,' ').split(/\s+/).filter(w=>w.length>1);
+      const h=words(heard),s=new Set(words(said));if(h.length<3||!s.size)return false;
+      return h.filter(w=>s.has(w)).length/h.length>=.6;
+    }
     function onLiveMessage(s,m){
       const r=run.current,L=r.L,sc=m.serverContent;
       if(m.goAway){refreshLive(s.key);return;}
       if(!sc)return;
       if(sc.interrupted)s.player.clear();
+      if(s.suppressUntil&&Date.now()<s.suppressUntil){if(sc.inputTranscription||sc.outputTranscription||sc.modelTurn){s.inText='';s.outText='';}return;} // translating an echo — drop it
       for(const part of (sc.modelTurn&&sc.modelTurn.parts)||[]){
         const d=part.inlineData||part.inline_data;
-        if(d&&d.data&&!(s.key==='A'&&!r.tamilVoice)){if(s.player.push(d.data))setPhase('playing');}
+        if(d&&d.data&&!(s.key==='A'&&!r.tamilVoice)){if(s.player.push(d.data)){setPhase('playing');L.lastActivity=Date.now();L.speechMs=0;}}
       }
       if(sc.inputTranscription){
         const it=sc.inputTranscription;
@@ -12641,8 +12819,17 @@ https://samaraassistedliving.com/`;
         if(code)onLiveLanguage(s,code);
         // Only speech that this session translates is shown (Tamil into A / guest language into B is silent by design).
         if(it.text&&code!==s.target){s.inText+=it.text;if(code)s.inLang=code;}
+        if(it.text&&it.text.trim()){L.lastActivity=Date.now();L.speechMs=0;}
+        // Echo: this translator is hearing the OTHER translator's recent output again (speaker → microphone).
+        const other=L.sessions[s.key==='A'?'B':'A'];
+        if(other&&s.inText&&isEcho(s.inText,(other.outText||'')+' '+(Date.now()-(other.lastOutAt||0)<10000?other.lastOut||'':''))){
+          L.tail=Math.min(1.5,(L.tail||.3)+.4);s.player.clear();s.inText='';s.outText='';clearTimeout(s.commitTimer);s.suppressUntil=Date.now()+3000; // ignore this translator's translation of the echo
+          ttgFault('ttg-echo','Translation heard again by the microphone — muting made stronger',{tail_s:L.tail});
+          setStatus('⚡ Echo noticed — adjusted automatically. Lower the phone volume a little if it continues.');
+          return;
+        }
       }
-      if(sc.outputTranscription&&sc.outputTranscription.text){s.outText+=sc.outputTranscription.text;clearTimeout(s.commitTimer);s.commitTimer=setTimeout(()=>commitLive(s),1600);} // Google may never send turnComplete: finish the sentence after a 1.6 s pause in the translation
+      if(sc.outputTranscription&&sc.outputTranscription.text){s.outText+=sc.outputTranscription.text;L.lastActivity=Date.now();L.speechMs=0;clearTimeout(s.commitTimer);s.commitTimer=setTimeout(()=>commitLive(s),1600);} // Google may never send turnComplete: finish the sentence after a 1.6 s pause in the translation
       if(s.key==='A'&&s.outText&&!r.guest&&!r.pending){ // still unknown after the guest spoke → ask now, don't wait for the sentence end
         const guess=scriptLang(s.inText);
         if(GUEST_CODES.includes(guess))onLiveLanguage(s,guess);
@@ -12656,7 +12843,7 @@ https://samaraassistedliving.com/`;
       {
         if(s.outText.trim()){
           const row={id:Date.now()+Math.random(),actor:s.key==='A'?'guest':'staff',source:s.inLang||(s.key==='A'?r.guest:'ta'),target:s.target,transcript:s.inText.trim()||'…',translation:s.outText.trim(),took:'Live'};
-          setRows(old=>[row,...old].slice(0,6));
+          setRows(old=>[row,...old].slice(0,6));s.lastOut=s.outText;s.lastOutAt=Date.now();
           // Guest spoke but Google did not report which language: ask once so staff replies can be translated back.
           if(s.key==='A'&&!r.guest&&!r.pending){setPendingRow({live:true});setStatus('Which language does the guest speak? Tap it below.');}
         }
@@ -12691,7 +12878,7 @@ https://samaraassistedliving.com/`;
         const target=key==='A'?'ta':r.guest;closeLiveSession(key);if(target)await openLiveSession(key,target);}
       catch(e){liveFailed(e);}
     }
-    function onLiveClosed(s){const r=run.current;if(!r.live||!r.L)return;if((r.L.drops=(r.L.drops||0)+1)>3){liveFailed(Error('Live connection keeps dropping.'));return;}refreshLive(s.key);}
+    function onLiveClosed(s){const r=run.current;if(!r.live||!r.L)return;ttgFault('ttg-live-drop','Live connection dropped — reconnecting',{translator:s.key==='A'?'to Tamil':'to guest language',drops:(r.L.drops||0)+1});if((r.L.drops=(r.L.drops||0)+1)>3){liveFailed(Error('Live connection keeps dropping.'));return;}refreshLive(s.key);}
     function stopLive(){
       const r=run.current,L=r.L;if(!L)return;r.L=null;r.liveMode=false;setLiveOn(false);setLiveNow(null);
       Object.keys(L.sessions).forEach(k=>{const s=L.sessions[k];s.player.clear();try{s.ws.close();}catch(_){}});
@@ -12702,7 +12889,7 @@ https://samaraassistedliving.com/`;
     // Live failed (not available for this account, network, …): keep the conversation going in Standard mode.
     const liveReason=e=>{const m=String((e&&e.message)||'');return '⚡ '+(/^Live/i.test(m)?m:'Live mode is not available now'+(m?' ('+m+')':'.'));};
     function liveFailed(e){
-      const r=run.current;if(!r.L)return;stopLive();
+      const r=run.current;if(!r.L)return;ttgFault('ttg-live-fallback',String((e&&e.message)||'Live failed').slice(0,200));stopLive();
       if(!r.live)return;
       setStatus(liveReason(e)+' Continuing in Standard mode.');
       if(r.context&&r.stream&&!r.analyser){const analyser=r.context.createAnalyser();analyser.fftSize=2048;const input=r.context.createMediaStreamSource(r.stream);input.connect(analyser);r.input=input;r.analyser=analyser;}
@@ -12711,7 +12898,7 @@ https://samaraassistedliving.com/`;
     async function startLive(){
       const r=run.current;setStatus('Connecting ⚡ Live translation…');
       const t=await liveToken();
-      const L=r.L={token:t.token,model:t.model,tokenAt:Date.now(),sessions:{},ring:[],staffSince:0,drops:0};
+      const L=r.L={token:t.token,model:t.model,tokenAt:Date.now(),sessions:{},ring:[],staffSince:0,drops:0,tail:.3,lastActivity:Date.now(),speechMs:0,stalls:[]};
       r.liveMode=true;
       const sessions=[openLiveSession('A','ta')];
       if(r.guest)sessions.push(openLiveSession('B',r.guest));
@@ -12725,7 +12912,17 @@ https://samaraassistedliving.com/`;
       proc.onaudioprocess=e=>{
         const LL=run.current.L;if(!LL)return;
         const input=e.inputBuffer.getChannelData(0),pcm=toPcm16(input,cap.sampleRate);
-        const now=Date.now();if(now-lastLevel>120){lastLevel=now;let sum=0;for(let i=0;i<input.length;i+=4)sum+=input[i]*input[i];setLevel(Math.min(1,Math.sqrt(sum/(input.length/4))*12));}
+        const now=Date.now();
+        // Missed speech: someone has been talking (~6 s in total) but Live has produced nothing for 12 s → restart both.
+        {let e2=0;for(let i=0;i<input.length;i+=8)e2+=input[i]*input[i];const loud=Math.sqrt(e2/(input.length/8))>.03;
+         if(loud)LL.speechMs+=input.length/cap.sampleRate*1000;
+         if(LL.speechMs>6000&&now-LL.lastActivity>12000){
+           LL.stalls=LL.stalls.filter(t=>now-t<5*60000);LL.stalls.push(now);LL.speechMs=0;LL.lastActivity=now;
+           ttgFault('ttg-live-stall','People were speaking but Live heard nothing — restarted automatically',{stalls_in_5_min:LL.stalls.length});
+           if(LL.stalls.length>=2){liveFailed(Error('Live kept missing speech'));return;}
+           setStatus('⚡ Speech was not being picked up — reconnected automatically.');refreshLive('A');if(LL.sessions.B)refreshLive('B');
+         }}
+        if(now-lastLevel>120){lastLevel=now;let sum=0;for(let i=0;i<input.length;i+=4)sum+=input[i]*input[i];setLevel(Math.min(1,Math.sqrt(sum/(input.length/4))*12));}
         const b64=b64FromBytes(new Uint8Array(pcm.buffer));
         LL.ring.push({t:now,b64});while(LL.ring.length&&now-LL.ring[0].t>12000)LL.ring.shift();
         const quiet=b64FromBytes(new Uint8Array(silence16.buffer,0,pcm.length*2));
@@ -12749,11 +12946,11 @@ https://samaraassistedliving.com/`;
         r.stream=stream;r.live=true;setLive(true);
         if(mode==='live'){
           try{await startLive();return;}
-          catch(e){if(!r.live)return;stopLive();setStatus(liveReason(e)+' Using Standard mode.');}
+          catch(e){if(!r.live)return;stopLive();ttgFault('ttg-live-fallback','Live could not start: '+String((e&&e.message)||'error').slice(0,180));setStatus(liveReason(e)+' Using Standard mode.');}
         }
         if(r.context){const analyser=r.context.createAnalyser();analyser.fftSize=2048;const input=r.context.createMediaStreamSource(stream);input.connect(analyser);r.input=input;r.analyser=analyser;}
         listen(mode==='live');
-      }catch(e){stopAll(e.name==='NotAllowedError'?'Microphone access was denied. Allow it in browser settings and try again.':'Could not open the microphone. Please try again.');}
+      }catch(e){ttgFault('ttg-mic','Microphone could not be opened: '+(e&&e.name||'error'));stopAll(e.name==='NotAllowedError'?'Microphone access was denied. Allow it in browser settings and try again.':'Could not open the microphone. Please try again.');}
     }
     // Staff spoke first: one tap chooses the guest's language and the SAME sentence is spoken (no repeat).
     async function chooseLanguage(code,row){
@@ -12805,8 +13002,8 @@ https://samaraassistedliving.com/`;
         h('strong',null,'Which language does the guest speak?'),
         h('div',{className:'ttg-chips'},...GUEST_LANGS.map(([c,t])=>h('button',{key:c,type:'button',className:'ttg-chip ttg-big',onClick:()=>chooseLanguage(c,pending)},t))),
         h('p',{style:{margin:0,fontSize:13,color:'#78636f'}},pending&&pending.live?'What you just said is translated straight away after the tap.':'Your sentence is already translated — it will be spoken straight away.')),
-      mode!=='live'&&h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',fontSize:14,margin:'0 0 8px'}},h('span',null,'Wait after speaker stops:'),...PAUSES.map(([v,t])=>h('button',{key:v,type:'button',className:'ttg-chip'+(pauseMs===v?' on':''),'aria-pressed':pauseMs===v,onClick:()=>setPause(v)},t))),
-      mode!=='live'&&h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',fontSize:14,margin:'0 0 8px'}},h('span',null,'Voice:'),...[['auto','Auto (match speaker)'],['female','Female'],['male','Male']].map(([v,t])=>h('button',{key:v,type:'button',className:'ttg-chip'+(voicePref===v?' on':''),'aria-pressed':voicePref===v,onClick:()=>setVoicePref(v)},t))),
+      (mode!=='live'||(live&&!liveOn))&&h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',fontSize:14,margin:'0 0 8px'}},h('span',null,'Wait after speaker stops:'),...PAUSES.map(([v,t])=>h('button',{key:v,type:'button',className:'ttg-chip'+(pauseMs===v?' on':''),'aria-pressed':pauseMs===v,onClick:()=>setPause(v)},t))),
+      (mode!=='live'||(live&&!liveOn))&&h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',fontSize:14,margin:'0 0 8px'}},h('span',null,'Voice:'),...[['auto','Auto (match speaker)'],['female','Female'],['male','Male']].map(([v,t])=>h('button',{key:v,type:'button',className:'ttg-chip'+(voicePref===v?' on':''),'aria-pressed':voicePref===v,onClick:()=>setVoicePref(v)},t))),
       h('label',{style:{display:'flex',gap:8,alignItems:'center',fontSize:14,margin:'0 0 10px'}},h('input',{type:'checkbox',checked:tamilVoice,onChange:e=>setTamilVoice(e.target.checked)}),'Read the Tamil translation aloud'),
       h('p',{style:{fontSize:13,lineHeight:1.6,color:'#78636f'}},(mode==='live'?'⚡ Live: speak naturally — the translation follows a moment behind, in a voice like the speaker’s.':'Speak normally — it translates when the speaker stops (or tap Translate now).')+' Keep the phone between you, away from TV noise. Internet required. Voice is AI-generated. Confirm important details with the guest.'),
       rows.length?h('div',null,rows.map(row=>h('article',{key:row.id,style:{...box,marginBottom:12}},
@@ -13575,7 +13772,8 @@ https://samaraassistedliving.com/`;
           page==='Audit Trail'&&h(AuditTrail),
           page==='Alert Settings'&&h(AlertSettings,{profile,engine:alertEngine}),
           ['Dashboard','HR Dashboard','Clinical Dashboard','Accounts Dashboard',"Director's Office"].includes(page)&&h(GeneralHandoverWorklist,{profile}),
-          page==='System Maintenance'&&h(SystemMaintenance,{profile})
+          page==='System Maintenance'&&h(SystemMaintenance,{profile}),
+          page==='System Health'&&h(SystemHealth,{profile})
         )),
         clinicalPopupVisible&&topClinicalAlert&&h('div',{className:`clinical-alert-popup ${String(topClinicalAlert.priority||'Routine').toLowerCase()}`},
           h('div',{className:'clinical-alert-popup-head'},h('strong',null,topClinicalAlert.priority==='Critical'?'🔴 ':topClinicalAlert.priority==='Urgent'?'🟠 ':'🔵 ',topClinicalAlert.title)),

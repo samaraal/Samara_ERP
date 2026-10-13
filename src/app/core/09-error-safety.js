@@ -1,4 +1,7 @@
 
+  // 2.16.43: System Health — also records failed saves / server errors / slow requests (from bootstrap-error.js) and
+  // Talk to Guest events with a small `detail` object; phone numbers / e-mails are masked; up to 60 per session.
+  // window.SamaraFault(kind,message,detail) is the one call any module uses. Admin reads them on the System Health page.
   // v2.14.15: Error safety.
   // 1) reportClientError() saves an error to the client_errors table (never throws, rate-limited).
   // 2) PageErrorBoundary: if ONE page crashes, only that page shows "This page had a problem";
@@ -6,12 +9,15 @@
   //    shell/01-app-main.js and around the whole app in z-end/01-form-helpers-and-start-app.js.
   let samaraLastKnownPage='';
   let samaraErrorLogCount=0;
-  const SAMARA_ERROR_LOG_LIMIT=25;
+  const SAMARA_ERROR_LOG_LIMIT=60;
+  let samaraDetailColumn=true; // false until SQL 219 is run → rows are saved without detail
+  // Never store personal details in the fault log: mask phone numbers, e-mails and long digit runs.
+  const samaraScrub=text=>String(text||'').replace(/[\w.+-]+@[\w-]+\.[\w.]+/g,'[email]').replace(/(\+?\d[\d\s-]{8,}\d)/g,'[number]');
   const samaraRecentErrorKeys=new Map();
 
   function reportClientError(kind,error,extra={}){
     try{
-      const message=String(error?.message||error||'Unknown error').slice(0,1000);
+      const message=samaraScrub(String(error?.message||error||'Unknown error')).slice(0,1000);
       const page=String(extra.page||samaraLastKnownPage||'').slice(0,120);
       const key=`${kind}|${page}|${message}`;
       const now=Date.now();
@@ -29,12 +35,18 @@
         url:String(window.location.pathname+window.location.search).slice(0,300),
         user_agent:String(navigator.userAgent||'').slice(0,300)
       };
-      Promise.resolve(client.from('client_errors').insert(row))
-        .then(result=>{if(result?.error)console.warn('[Samara] Error log not saved:',result.error.message)})
-        .catch(()=>{});
+      if(extra.detail&&samaraDetailColumn){try{const d=JSON.parse(samaraScrub(JSON.stringify(extra.detail)));if(JSON.stringify(d).length<=3800)row.detail=d;}catch(_){}}
+      const save=r=>Promise.resolve(client.from('client_errors').insert(r)).then(result=>{
+        if(result?.error&&r.detail&&/detail/i.test(result.error.message||'')){samaraDetailColumn=false;const {detail,...plain}=r;plain.message=(plain.message+' · '+JSON.stringify(detail)).slice(0,1000);return save(plain);} // SQL 219 not run yet
+        if(result?.error)console.warn('[Samara] Error log not saved:',result.error.message);
+      }).catch(()=>{});
+      save(row);
     }catch(_){}
   }
   window.SamaraReportError=reportClientError;
+  window.SamaraFault=(kind,message,detail)=>reportClientError(kind,message,{detail});
+  // Faults noticed before the app started (bootstrap-error.js keeps them in a small queue).
+  try{(window.__samaraFaultQueue||[]).splice(0).forEach(f=>reportClientError(f.kind,f.message,{detail:f.detail}));window.__samaraFaultReady=true;}catch(_){}
 
   class PageErrorBoundary extends React.Component{
     constructor(props){

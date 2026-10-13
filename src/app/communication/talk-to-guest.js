@@ -1,6 +1,11 @@
   // 2.16.34: ephemeral nurse–guest interpretation; no patient records or chat logging. Open to Admin, Manager, Nurse, Caregiver and STD.
   // 2.16.35: hands-free conversation — ONE Start button, the microphone stays open, each sentence is sent after a short
   // pause and the spoken language decides who is talking (Tamil / English = staff, Bangla / Hindi = guest).
+  // 2.16.43: SELF-ADJUSTING while in use (and every adjustment recorded for Admin → System Health):
+  //  • Live echo: a translator hearing the other translator's voice again → echo dropped, muting made stronger.
+  //  • Live missed speech: people talking ~6 s but nothing heard for 12 s → both translators restart; twice in 5 min → Standard.
+  //  • Live drops / unavailable, Standard misses, slow translations, microphone problems → recorded.
+  //  • Standard: 3 sentences in a row not caught → wait after speaker stops raised one step automatically.
   // 2.16.42: Live fix from a real test — Google streams near-silent audio non-stop and never sends turnComplete, so the old
   // "other translator is speaking" mute stayed on for both and neither heard anyone. Now only AUDIBLE output counts as speaking
   // (silence is not played), both are never muted together, and a sentence is finished after a short pause in the translated text.
@@ -60,6 +65,8 @@
     }
     const voiceHintFrom=pitches=>{if(pitches.length<3)return '';const sorted=[...pitches].sort((a,b)=>a-b),mid=sorted[Math.floor(sorted.length/2)];return mid<165?'male':'female';};
     const setPendingRow=v=>{run.current.pending=v;setPending(v);};
+    // Record a Talk to Guest event for System Health (no Guest words, names or audio — only what happened).
+    const ttgFault=(kind,message,detail)=>{try{window.SamaraFault&&window.SamaraFault(kind,message,{mode:run.current.liveMode?'live':'standard',guest_language:run.current.guest||'',...(detail||{})});}catch(_){}};
 
     function stopListening(){const r=run.current;clearInterval(r.timer);r.timer=null;if(r.recorder&&r.recorder.state!=='inactive'){r.discard=true;r.recorder.stop();}r.recorder=null;setLevel(0);}
     function stopPlayback(){const r=run.current;if(r.source){try{r.source.stop()}catch(_){}r.source=null;}(r.sources||[]).forEach(x=>{try{x.stop()}catch(_){}});r.sources=[];}
@@ -172,7 +179,8 @@
       setPhase('translating');setStatus('Translating…');
       // First message of a reply: shows the text at once. Returns the new row, or null when staff spoke first (language needed).
       function accept(x){
-        r.failures=0;
+        r.failures=0;r.notCaught=0;
+        {const ms=Date.now()-t0;if(ms>7000)ttgFault('ttg-slow','Translation took '+(ms/1000).toFixed(1)+' s',{text_ms:ms,ai_ms:x.timing&&x.timing.ai_ms||0,auth_ms:x.timing&&x.timing.auth_ms||0});}
         if(x.needs_language){
           const row={id:Date.now(),actor:'staff',source:x.source,transcript:x.transcript,translations:x.translations,target:'',translation:'',voice:x.voice,took:'Text '+secs(Date.now()-t0)+(x.timing?.ai_ms?' (AI '+secs(x.timing.ai_ms)+')':'')};
           setRows(old=>[row,...old].slice(0,6));setPendingRow(row);
@@ -220,8 +228,16 @@
       }catch(e){
         if(epoch!==r.epoch)return;
         if(e.name==='AbortError'){r.failures++;setStatus('That took too long. Listening again…');}
-        else if(e.status===422){setStatus((e.message||'Did not catch that.')+' Listening again…');}
-        else{r.failures++;if([401,403,404,429].includes(e.status)||r.failures>=3){stopAll(e.message||'Translation failed. Tap Start conversation to try again.');return;}setStatus((e.message||'Translation failed.')+' Listening again…');}
+        else if(e.status===422){
+          r.notCaught=(r.notCaught||0)+1;
+          if(r.notCaught>=3){
+            const steps=PAUSES.map(p=>p[0]),cur=r.pauseMs||1200,next=steps.find(v=>v>cur);
+            ttgFault('ttg-not-caught','Several sentences in a row were not understood',{in_a_row:r.notCaught,wait_ms:cur});
+            if(next){setPause(next);ttgFault('ttg-auto-pause','Wait after speaker stops raised automatically',{from_ms:cur,to_ms:next});r.notCaught=0;setStatus('Speech was being cut — wait time raised to '+(next/1000)+' s automatically. Listening again…');}
+            else setStatus((e.message||'Did not catch that.')+' Listening again…');
+          }else setStatus((e.message||'Did not catch that.')+' Listening again…');
+        }
+        else{r.failures++;ttgFault('ttg-error',String(e.message||'Translation failed').slice(0,200),{status:e.status||0});if([401,403,404,429].includes(e.status)||r.failures>=3){stopAll(e.message||'Translation failed. Tap Start conversation to try again.');return;}setStatus((e.message||'Translation failed.')+' Listening again…');}
         if(r.live)listen(true);
       }
     }
@@ -265,7 +281,7 @@
           return audible;
         },
         clear(){srcs.splice(0).forEach(x=>{try{x.stop()}catch(_){}});t=0;audibleEnd=0;},
-        busy(){return !!ctx&&ctx.currentTime<audibleEnd+.3;} // really speaking (+0.3 s tail)
+        busy(){return !!ctx&&ctx.currentTime<audibleEnd+((run.current.L&&run.current.L.tail)||.3);} // really speaking (+ tail; longer after echo was detected)
       };
     }
     async function liveToken(){const response=await request({mode:'live_token'});const x=await response.json();if(!x.token)throw Error('Live mode is not available right now.');return x;}
@@ -289,14 +305,21 @@
     }
     function closeLiveSession(key){const L=run.current.L;const s=L&&L.sessions[key];if(!s)return;delete L.sessions[key];s.player.clear();try{s.ws.close();}catch(_){}}
     function showLiveNow(){const L=run.current.L;if(!L)return;const a=L.sessions.A,b=L.sessions.B;const s=[a,b].find(x=>x&&(x.inText||x.outText));setLiveNow(s?{who:s.key==='A'?'guest':'staff',source:s.inLang,target:s.target,original:s.inText,translation:s.outText}:null);}
+    // Same words? (≥ 3 words and ≥ 60 % of what was heard appears in the other translator's output)
+    function isEcho(heard,said){
+      const words=t=>String(t||'').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu,' ').split(/\s+/).filter(w=>w.length>1);
+      const h=words(heard),s=new Set(words(said));if(h.length<3||!s.size)return false;
+      return h.filter(w=>s.has(w)).length/h.length>=.6;
+    }
     function onLiveMessage(s,m){
       const r=run.current,L=r.L,sc=m.serverContent;
       if(m.goAway){refreshLive(s.key);return;}
       if(!sc)return;
       if(sc.interrupted)s.player.clear();
+      if(s.suppressUntil&&Date.now()<s.suppressUntil){if(sc.inputTranscription||sc.outputTranscription||sc.modelTurn){s.inText='';s.outText='';}return;} // translating an echo — drop it
       for(const part of (sc.modelTurn&&sc.modelTurn.parts)||[]){
         const d=part.inlineData||part.inline_data;
-        if(d&&d.data&&!(s.key==='A'&&!r.tamilVoice)){if(s.player.push(d.data))setPhase('playing');}
+        if(d&&d.data&&!(s.key==='A'&&!r.tamilVoice)){if(s.player.push(d.data)){setPhase('playing');L.lastActivity=Date.now();L.speechMs=0;}}
       }
       if(sc.inputTranscription){
         const it=sc.inputTranscription;
@@ -305,8 +328,17 @@
         if(code)onLiveLanguage(s,code);
         // Only speech that this session translates is shown (Tamil into A / guest language into B is silent by design).
         if(it.text&&code!==s.target){s.inText+=it.text;if(code)s.inLang=code;}
+        if(it.text&&it.text.trim()){L.lastActivity=Date.now();L.speechMs=0;}
+        // Echo: this translator is hearing the OTHER translator's recent output again (speaker → microphone).
+        const other=L.sessions[s.key==='A'?'B':'A'];
+        if(other&&s.inText&&isEcho(s.inText,(other.outText||'')+' '+(Date.now()-(other.lastOutAt||0)<10000?other.lastOut||'':''))){
+          L.tail=Math.min(1.5,(L.tail||.3)+.4);s.player.clear();s.inText='';s.outText='';clearTimeout(s.commitTimer);s.suppressUntil=Date.now()+3000; // ignore this translator's translation of the echo
+          ttgFault('ttg-echo','Translation heard again by the microphone — muting made stronger',{tail_s:L.tail});
+          setStatus('⚡ Echo noticed — adjusted automatically. Lower the phone volume a little if it continues.');
+          return;
+        }
       }
-      if(sc.outputTranscription&&sc.outputTranscription.text){s.outText+=sc.outputTranscription.text;clearTimeout(s.commitTimer);s.commitTimer=setTimeout(()=>commitLive(s),1600);} // Google may never send turnComplete: finish the sentence after a 1.6 s pause in the translation
+      if(sc.outputTranscription&&sc.outputTranscription.text){s.outText+=sc.outputTranscription.text;L.lastActivity=Date.now();L.speechMs=0;clearTimeout(s.commitTimer);s.commitTimer=setTimeout(()=>commitLive(s),1600);} // Google may never send turnComplete: finish the sentence after a 1.6 s pause in the translation
       if(s.key==='A'&&s.outText&&!r.guest&&!r.pending){ // still unknown after the guest spoke → ask now, don't wait for the sentence end
         const guess=scriptLang(s.inText);
         if(GUEST_CODES.includes(guess))onLiveLanguage(s,guess);
@@ -320,7 +352,7 @@
       {
         if(s.outText.trim()){
           const row={id:Date.now()+Math.random(),actor:s.key==='A'?'guest':'staff',source:s.inLang||(s.key==='A'?r.guest:'ta'),target:s.target,transcript:s.inText.trim()||'…',translation:s.outText.trim(),took:'Live'};
-          setRows(old=>[row,...old].slice(0,6));
+          setRows(old=>[row,...old].slice(0,6));s.lastOut=s.outText;s.lastOutAt=Date.now();
           // Guest spoke but Google did not report which language: ask once so staff replies can be translated back.
           if(s.key==='A'&&!r.guest&&!r.pending){setPendingRow({live:true});setStatus('Which language does the guest speak? Tap it below.');}
         }
@@ -355,7 +387,7 @@
         const target=key==='A'?'ta':r.guest;closeLiveSession(key);if(target)await openLiveSession(key,target);}
       catch(e){liveFailed(e);}
     }
-    function onLiveClosed(s){const r=run.current;if(!r.live||!r.L)return;if((r.L.drops=(r.L.drops||0)+1)>3){liveFailed(Error('Live connection keeps dropping.'));return;}refreshLive(s.key);}
+    function onLiveClosed(s){const r=run.current;if(!r.live||!r.L)return;ttgFault('ttg-live-drop','Live connection dropped — reconnecting',{translator:s.key==='A'?'to Tamil':'to guest language',drops:(r.L.drops||0)+1});if((r.L.drops=(r.L.drops||0)+1)>3){liveFailed(Error('Live connection keeps dropping.'));return;}refreshLive(s.key);}
     function stopLive(){
       const r=run.current,L=r.L;if(!L)return;r.L=null;r.liveMode=false;setLiveOn(false);setLiveNow(null);
       Object.keys(L.sessions).forEach(k=>{const s=L.sessions[k];s.player.clear();try{s.ws.close();}catch(_){}});
@@ -366,7 +398,7 @@
     // Live failed (not available for this account, network, …): keep the conversation going in Standard mode.
     const liveReason=e=>{const m=String((e&&e.message)||'');return '⚡ '+(/^Live/i.test(m)?m:'Live mode is not available now'+(m?' ('+m+')':'.'));};
     function liveFailed(e){
-      const r=run.current;if(!r.L)return;stopLive();
+      const r=run.current;if(!r.L)return;ttgFault('ttg-live-fallback',String((e&&e.message)||'Live failed').slice(0,200));stopLive();
       if(!r.live)return;
       setStatus(liveReason(e)+' Continuing in Standard mode.');
       if(r.context&&r.stream&&!r.analyser){const analyser=r.context.createAnalyser();analyser.fftSize=2048;const input=r.context.createMediaStreamSource(r.stream);input.connect(analyser);r.input=input;r.analyser=analyser;}
@@ -375,7 +407,7 @@
     async function startLive(){
       const r=run.current;setStatus('Connecting ⚡ Live translation…');
       const t=await liveToken();
-      const L=r.L={token:t.token,model:t.model,tokenAt:Date.now(),sessions:{},ring:[],staffSince:0,drops:0};
+      const L=r.L={token:t.token,model:t.model,tokenAt:Date.now(),sessions:{},ring:[],staffSince:0,drops:0,tail:.3,lastActivity:Date.now(),speechMs:0,stalls:[]};
       r.liveMode=true;
       const sessions=[openLiveSession('A','ta')];
       if(r.guest)sessions.push(openLiveSession('B',r.guest));
@@ -389,7 +421,17 @@
       proc.onaudioprocess=e=>{
         const LL=run.current.L;if(!LL)return;
         const input=e.inputBuffer.getChannelData(0),pcm=toPcm16(input,cap.sampleRate);
-        const now=Date.now();if(now-lastLevel>120){lastLevel=now;let sum=0;for(let i=0;i<input.length;i+=4)sum+=input[i]*input[i];setLevel(Math.min(1,Math.sqrt(sum/(input.length/4))*12));}
+        const now=Date.now();
+        // Missed speech: someone has been talking (~6 s in total) but Live has produced nothing for 12 s → restart both.
+        {let e2=0;for(let i=0;i<input.length;i+=8)e2+=input[i]*input[i];const loud=Math.sqrt(e2/(input.length/8))>.03;
+         if(loud)LL.speechMs+=input.length/cap.sampleRate*1000;
+         if(LL.speechMs>6000&&now-LL.lastActivity>12000){
+           LL.stalls=LL.stalls.filter(t=>now-t<5*60000);LL.stalls.push(now);LL.speechMs=0;LL.lastActivity=now;
+           ttgFault('ttg-live-stall','People were speaking but Live heard nothing — restarted automatically',{stalls_in_5_min:LL.stalls.length});
+           if(LL.stalls.length>=2){liveFailed(Error('Live kept missing speech'));return;}
+           setStatus('⚡ Speech was not being picked up — reconnected automatically.');refreshLive('A');if(LL.sessions.B)refreshLive('B');
+         }}
+        if(now-lastLevel>120){lastLevel=now;let sum=0;for(let i=0;i<input.length;i+=4)sum+=input[i]*input[i];setLevel(Math.min(1,Math.sqrt(sum/(input.length/4))*12));}
         const b64=b64FromBytes(new Uint8Array(pcm.buffer));
         LL.ring.push({t:now,b64});while(LL.ring.length&&now-LL.ring[0].t>12000)LL.ring.shift();
         const quiet=b64FromBytes(new Uint8Array(silence16.buffer,0,pcm.length*2));
@@ -413,11 +455,11 @@
         r.stream=stream;r.live=true;setLive(true);
         if(mode==='live'){
           try{await startLive();return;}
-          catch(e){if(!r.live)return;stopLive();setStatus(liveReason(e)+' Using Standard mode.');}
+          catch(e){if(!r.live)return;stopLive();ttgFault('ttg-live-fallback','Live could not start: '+String((e&&e.message)||'error').slice(0,180));setStatus(liveReason(e)+' Using Standard mode.');}
         }
         if(r.context){const analyser=r.context.createAnalyser();analyser.fftSize=2048;const input=r.context.createMediaStreamSource(stream);input.connect(analyser);r.input=input;r.analyser=analyser;}
         listen(mode==='live');
-      }catch(e){stopAll(e.name==='NotAllowedError'?'Microphone access was denied. Allow it in browser settings and try again.':'Could not open the microphone. Please try again.');}
+      }catch(e){ttgFault('ttg-mic','Microphone could not be opened: '+(e&&e.name||'error'));stopAll(e.name==='NotAllowedError'?'Microphone access was denied. Allow it in browser settings and try again.':'Could not open the microphone. Please try again.');}
     }
     // Staff spoke first: one tap chooses the guest's language and the SAME sentence is spoken (no repeat).
     async function chooseLanguage(code,row){
@@ -469,8 +511,8 @@
         h('strong',null,'Which language does the guest speak?'),
         h('div',{className:'ttg-chips'},...GUEST_LANGS.map(([c,t])=>h('button',{key:c,type:'button',className:'ttg-chip ttg-big',onClick:()=>chooseLanguage(c,pending)},t))),
         h('p',{style:{margin:0,fontSize:13,color:'#78636f'}},pending&&pending.live?'What you just said is translated straight away after the tap.':'Your sentence is already translated — it will be spoken straight away.')),
-      mode!=='live'&&h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',fontSize:14,margin:'0 0 8px'}},h('span',null,'Wait after speaker stops:'),...PAUSES.map(([v,t])=>h('button',{key:v,type:'button',className:'ttg-chip'+(pauseMs===v?' on':''),'aria-pressed':pauseMs===v,onClick:()=>setPause(v)},t))),
-      mode!=='live'&&h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',fontSize:14,margin:'0 0 8px'}},h('span',null,'Voice:'),...[['auto','Auto (match speaker)'],['female','Female'],['male','Male']].map(([v,t])=>h('button',{key:v,type:'button',className:'ttg-chip'+(voicePref===v?' on':''),'aria-pressed':voicePref===v,onClick:()=>setVoicePref(v)},t))),
+      (mode!=='live'||(live&&!liveOn))&&h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',fontSize:14,margin:'0 0 8px'}},h('span',null,'Wait after speaker stops:'),...PAUSES.map(([v,t])=>h('button',{key:v,type:'button',className:'ttg-chip'+(pauseMs===v?' on':''),'aria-pressed':pauseMs===v,onClick:()=>setPause(v)},t))),
+      (mode!=='live'||(live&&!liveOn))&&h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',fontSize:14,margin:'0 0 8px'}},h('span',null,'Voice:'),...[['auto','Auto (match speaker)'],['female','Female'],['male','Male']].map(([v,t])=>h('button',{key:v,type:'button',className:'ttg-chip'+(voicePref===v?' on':''),'aria-pressed':voicePref===v,onClick:()=>setVoicePref(v)},t))),
       h('label',{style:{display:'flex',gap:8,alignItems:'center',fontSize:14,margin:'0 0 10px'}},h('input',{type:'checkbox',checked:tamilVoice,onChange:e=>setTamilVoice(e.target.checked)}),'Read the Tamil translation aloud'),
       h('p',{style:{fontSize:13,lineHeight:1.6,color:'#78636f'}},(mode==='live'?'⚡ Live: speak naturally — the translation follows a moment behind, in a voice like the speaker’s.':'Speak normally — it translates when the speaker stops (or tap Translate now).')+' Keep the phone between you, away from TV noise. Internet required. Voice is AI-generated. Confirm important details with the guest.'),
       rows.length?h('div',null,rows.map(row=>h('article',{key:row.id,style:{...box,marginBottom:12}},
