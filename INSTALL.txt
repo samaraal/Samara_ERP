@@ -1,0 +1,14 @@
+ADMISSION DIET / FEEDING TIMETABLE - ERP 2.16.47
+Base: your Samara_ERP-main (1).zip, ERP 2.16.46.
+
+1. First run supabase/sql/222_admission_feeding_plan.sql in Supabase SQL Editor. It adds one nullable JSON column to patients, retains existing data and refreshes the API schema. Safe to run again.
+2. Replace the matching files from this ZIP in your ERP repository, preserving the src and supabase paths. app.js has already been rebuilt. Existing deployment process can then publish the changes.
+3. Refresh the ERP after deployment. The version and service-worker cache are updated.
+
+Admission now includes dropdowns plus Other / enter value for diet, feeding route, type, interval, rate, formula, time, feed item, quantities, consistency, preparation and fluid/nutrition values. Add one feed row or create 6 am to 10 pm time rows, then enter the prescribed feeds. Notes are free text. Selecting time rows does not supply a feed regimen or amounts.
+
+Structured fields save with the patient and admission draft. A readable summary remains in feeding_instruction for existing clinical views and consent reports. Old free-text instructions are kept as Additional feeding instructions when the new fields are edited.
+
+Checked: 22 automated tests including diet field behavior, custom values, drafts, legacy instructions, validation, guest-address and System Health regressions; app source/bundle consistency and syntax; desktop/phone preview interactions. Production SQL and authenticated admission saves have not been run. Test a draft, reopening and a returning admission with sample data after applying SQL in staging.
+
+Original ZIP and D: backups were not changed. This package has not been deployed.
