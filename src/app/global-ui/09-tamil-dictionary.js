@@ -3845,4 +3845,9 @@
 "Auto (match speaker)": "தானாக (பேசுபவருக்கு ஏற்ப)",
 // 2.16.38: Talk to Guest speed
 "Translation ready — voice starting…": "மொழிபெயர்ப்பு தயார் — குரல் தொடங்குகிறது…",
+// 2.16.39: Talk to Guest patience
+"Hearing… it will translate when the speaker stops.": "கேட்கிறது… பேசுபவர் நிறுத்தியதும் மொழிபெயர்க்கும்.",
+"✓ Translate now": "✓ இப்போதே மொழிபெயர்",
+"Wait after speaker stops:": "பேசுபவர் நிறுத்திய பின் காத்திரு:",
+"Speak normally — it translates when the speaker stops (or tap Translate now). Keep the phone between you, away from TV noise. Internet required. Voice is AI-generated. Confirm important details with the guest.": "இயல்பாகப் பேசுங்கள் — பேசுபவர் நிறுத்தியதும் மொழிபெயர்க்கும் (அல்லது Translate now தொடுங்கள்). போனை உங்கள் இருவருக்கும் நடுவில், டிவி சத்தத்திலிருந்து தள்ளி வையுங்கள். இன்டர்நெட் தேவை. குரல் AI மூலம் உருவாக்கப்படுகிறது. முக்கிய விவரங்களை கெஸ்ட்டிடம் மீண்டும் உறுதி செய்யுங்கள்.",
 };

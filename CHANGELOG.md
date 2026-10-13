@@ -1,3 +1,12 @@
+## 2.16.39 — Talk to Guest: waits for the speaker to finish, smoother voice
+
+- **No more cutting off**: softer / quieter voices are picked up (once speech starts, a lower level keeps the sentence open); thinking pauses inside a sentence are allowed; up to 45 s per turn; the listener no longer resets after 8 s when a quiet voice was not picked up (now 15 s of real silence).
+- **Wait after speaker stops: 0.8 s / 1.2 s / 2 s** (default 1.2 s, remembered on the phone). In the first 2 s of speech it waits 0.5 s longer (people often pause after the first words).
+- **✓ Translate now** button while someone is speaking — sends at once without waiting.
+- **Smoother voice**: a short buffer (about 0.35 s) before playing, and again if the network falls behind, so there are no gaps; the voice is asked for a natural, brisk pace instead of "calm".
+- Each translation also shows the **AI time**: "Text 1.6 s (AI 1.4 s) · Voice 2.0 s".
+- Redeploy the talk-to-guest Edge Function (dashboard single-file index.ts) for the brisker voice; everything else is in the screen. Either order works. No SQL.
+
 ## 2.16.38 — Talk to Guest: faster replies (streamed voice)
 
 - **Voice starts while it is still being made**: the server streams the spoken translation in small pieces and the phone plays from the first piece, instead of waiting for the whole voice file. The translated **text appears the moment it is ready**.

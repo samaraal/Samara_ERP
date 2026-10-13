@@ -1,6 +1,8 @@
   // 2.16.34: ephemeral nurse–guest interpretation; no patient records or chat logging. Open to Admin, Manager, Nurse, Caregiver and STD.
   // 2.16.35: hands-free conversation — ONE Start button, the microphone stays open, each sentence is sent after a short
   // pause and the spoken language decides who is talking (Tamil / English = staff, Bangla / Hindi = guest).
+  // 2.16.39: waits for the speaker — softer voices detected (start / keep thresholds), pause setting 0.8 / 1.2 / 2 s (default 1.2,
+  // longer right after speech starts), up to 45 s per turn, "Translate now" button; smooth voice (short buffer, no gaps); AI time shown.
   // 2.16.38: speed — translated text shown the moment it arrives; voice streamed and played while it is still being generated;
   // server woken on Start; 0.8 s pause; each translation shows how long it took.
   // 2.16.37: translation spoken in a voice matching the speaker (male / female sounding); phone pitch as backup; Voice: Auto / Female / Male.
@@ -8,6 +10,8 @@
   // Staff may speak first: the guest's language is chosen with one tap and the same sentence is used (no repeat).
   // Translation + voice come back in one reply; the microphone does not record while the translation is playing.
   function TalkToGuest(){
+    const PAUSES=[[800,'0.8 s'],[1200,'1.2 s'],[2000,'2 s']]; // wait after the speaker stops (remembered on this phone)
+    const savedPause=React.useMemo(()=>{try{const v=Number(localStorage.getItem('samara.ttg.pause'));return PAUSES.some(p=>p[0]===v)?v:1200;}catch(_){return 1200;}},[]);
     const [guest,setGuestState]=React.useState('');
     const [consent,setConsent]=React.useState(false);
     const [live,setLive]=React.useState(false);
@@ -17,16 +21,18 @@
     const [pending,setPending]=React.useState(null); // staff spoke before the guest's language was known
     const [tamilVoice,setTamilVoiceState]=React.useState(true);
     const [voicePref,setVoicePrefState]=React.useState('auto'); // auto | female | male
+    const [pauseMs,setPauseState]=React.useState(savedPause);
     const [level,setLevel]=React.useState(0);
-    const run=React.useRef({epoch:0,live:false,stream:null,context:null,analyser:null,input:null,recorder:null,timer:null,request:null,source:null,guest:'',tamilVoice:true,discard:false,failures:0});
+    const run=React.useRef({pauseMs:savedPause,epoch:0,live:false,stream:null,context:null,analyser:null,input:null,recorder:null,timer:null,request:null,source:null,guest:'',tamilVoice:true,discard:false,failures:0});
     const GUEST_LANGS=[['en','English'],['hi','हिन्दी Hindi'],['bn','বাংলা Bangla'],['ml','മലയാളം Malayalam'],['te','తెలుగు Telugu'],['kn','ಕನ್ನಡ Kannada']];
     const GUEST_CODES=GUEST_LANGS.map(x=>x[0]);
     const labels={en:'English',hi:'Hindi · हिन्दी',bn:'Bangla · বাংলা',ml:'Malayalam · മലയാളം',te:'Telugu · తెలుగు',kn:'Kannada · ಕನ್ನಡ',ta:'Tamil · தமிழ்'};
-    const SILENCE_MS=800,MIN_SPEECH_MS=350,IDLE_RESTART_MS=8000,MAX_MS=25000;
+    const MIN_SPEECH_MS=350,IDLE_RESTART_MS=15000,MAX_MS=45000;
     const box={border:'1px solid #e6ccd9',borderRadius:18,padding:18,background:'#fff'};
     const setGuest=v=>{run.current.guest=v;setGuestState(v);};
     const setTamilVoice=v=>{run.current.tamilVoice=v;setTamilVoiceState(v);};
     const setVoicePref=v=>{run.current.voicePref=v;setVoicePrefState(v);};
+    const setPause=v=>{run.current.pauseMs=v;setPauseState(v);try{localStorage.setItem('samara.ttg.pause',String(v));}catch(_){}};
     // Pitch of one 2048-sample frame (autocorrelation, 70–350 Hz). Used only as a backup hint for the male / female voice choice.
     function pitchOf(buf,rate){
       const minLag=Math.floor(rate/350),maxLag=Math.min(Math.floor(rate/70),buf.length-200),n=buf.length-maxLag;let r0=0;for(let i=0;i<n;i++)r0+=buf[i]*buf[i];if(r0<=0)return 0;
@@ -73,20 +79,29 @@
     // 2.16.38: streamed voice = raw 24 kHz 16-bit mono PCM chunks, scheduled back-to-back so playback starts with the first chunk.
     function fromBase64Bytes(text){const s=atob(text),bytes=new Uint8Array(s.length);for(let i=0;i<s.length;i++)bytes[i]=s.charCodeAt(i);return bytes;}
     function pcmBuffer(bytes){const ctx=run.current.context,n=bytes.length>>1,buf=ctx.createBuffer(1,Math.max(1,n),24000),ch=buf.getChannelData(0),dv=new DataView(bytes.buffer,bytes.byteOffset,n*2);for(let i=0;i<n;i++)ch[i]=dv.getInt16(i*2,true)/32768;return buf;}
+    // Short buffer before playing (and again if the network falls behind) so the voice flows without gaps.
     function pcmPlayer(epoch,onFirst){
-      const r=run.current,ctx=r.context;let t=0,carry=null,started=false;const parts=[];r.sources=[];
+      const r=run.current,ctx=r.context;let t=0,carry=null,started=false,pending=[],pendingBytes=0;const parts=[];r.sources=[];
+      const START_S=.35,REFILL_S=.25,BPS=48000; // 24 kHz × 2 bytes
+      function flush(){
+        if(!pendingBytes||!ctx||epoch!==r.epoch)return;
+        const all=new Uint8Array(pendingBytes);let o=0;for(const p of pending){all.set(p,o);o+=p.length;}pending=[];pendingBytes=0;
+        const src=ctx.createBufferSource();src.buffer=pcmBuffer(all);src.connect(ctx.destination);
+        const now=ctx.currentTime;if(t<now+.03)t=now+.06;
+        src.start(t);t+=src.buffer.duration;r.sources.push(src);
+        if(!started){started=true;onFirst&&onFirst();}
+      }
       return {
         push(b64){
           if(!ctx||epoch!==r.epoch)return;let bytes=fromBase64Bytes(b64);
           if(carry){const m=new Uint8Array(carry.length+bytes.length);m.set(carry);m.set(bytes,carry.length);bytes=m;carry=null;}
           if(bytes.length%2){carry=bytes.slice(-1);bytes=bytes.slice(0,-1);}
-          if(!bytes.length)return;parts.push(bytes);
-          const src=ctx.createBufferSource();src.buffer=pcmBuffer(bytes);src.connect(ctx.destination);
-          const now=ctx.currentTime;if(t<now+.04)t=now+(started?.04:.1); // tiny lead; catches up if the network is slower than speech
-          src.start(t);t+=src.buffer.duration;r.sources.push(src);
-          if(!started){started=true;onFirst&&onFirst();}
+          if(!bytes.length)return;parts.push(bytes);pending.push(bytes);pendingBytes+=bytes.length;
+          const queued=pendingBytes/BPS,ahead=started?t-ctx.currentTime:0;
+          if(!started){if(queued>=START_S)flush();}
+          else if(ahead>.15||queued>=REFILL_S)flush(); // healthy → keep feeding; fell behind → wait for a little more first
         },
-        async finish(){if(!ctx)return;while(epoch===r.epoch&&ctx.currentTime<t)await new Promise(res=>setTimeout(res,Math.min(200,Math.max(20,(t-ctx.currentTime)*1000))));r.sources=[];},
+        async finish(){if(!ctx)return;flush();while(epoch===r.epoch&&ctx.currentTime<t)await new Promise(res=>setTimeout(res,Math.min(200,Math.max(20,(t-ctx.currentTime)*1000))));r.sources=[];},
         bytes(){const n=parts.reduce((a,p)=>a+p.length,0),all=new Uint8Array(n);let o=0;for(const p of parts){all.set(p,o);o+=p.length;}return all;}
       };
     }
@@ -110,6 +125,7 @@
       rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
       rec.onerror=()=>{if(epoch===r.epoch)stopAll('Recording failed. Tap Start conversation to try again.');};
       rec.onstop=()=>{if(r.recorder===rec)r.recorder=null;const discard=r.discard;r.discard=false;if(!discard&&epoch===r.epoch&&r.live)translate(new Blob(chunks,{type:rec.mimeType||'audio/webm'}),epoch,voiceHintFrom(pitches));};
+      r.finishNow=()=>{if(rec.state==='recording'){clearInterval(r.timer);r.timer=null;setLevel(0);rec.stop();}};
       rec.start(250);
       setPhase('listening');if(!keepStatus)setStatus('Listening… anyone can speak now.');
       const began=Date.now();let heard=false,voiceStart=0,lastVoice=0,floor=.006;const pitches=[];
@@ -118,11 +134,15 @@
         if(rec.state!=='recording')return;const now=Date.now();
         if(!r.analyser){if(now-began>MAX_MS){clearInterval(r.timer);r.timer=null;rec.stop();}return;}
         r.analyser.getFloatTimeDomainData(data);let sum=0;for(const n of data)sum+=n*n;const rms=Math.sqrt(sum/data.length);
-        const voice=rms>Math.max(.018,floor*2.5);
-        if(!voice)floor=floor*.95+rms*.05;
+        // Softer voices: a lower level keeps the sentence open once speech has started (start / keep thresholds).
+        const startAt=Math.max(.012,floor*3),keepAt=Math.max(.007,startAt*.55);
+        const voice=rms>(heard?keepAt:startAt);
+        if(rms<keepAt)floor=floor*.95+rms*.05;
         setLevel(Math.min(1,rms*12));
-        if(voice){if(!heard){heard=true;voiceStart=now;setPhase('hearing');setStatus('Hearing… pause briefly when the sentence is finished.');}lastVoice=now;const f=pitchOf(data,r.context.sampleRate);if(f)pitches.push(f);}
-        if(heard&&now-lastVoice>SILENCE_MS){
+        if(voice){if(!heard){heard=true;voiceStart=now;setPhase('hearing');setStatus('Hearing… it will translate when the speaker stops.');}lastVoice=now;if(rms>startAt){const f=pitchOf(data,r.context.sampleRate);if(f)pitches.push(f);}}
+        // Wait for the speaker: chosen pause (default 1.2 s), +0.5 s in the first 2 s of speech (people pause after the first words).
+        const wait=(r.pauseMs||1200)+(lastVoice-voiceStart<2000?500:0);
+        if(heard&&now-lastVoice>wait){
           if(lastVoice-voiceStart<MIN_SPEECH_MS){listen(true);return;} // a cough / short noise — ignore
           clearInterval(r.timer);r.timer=null;setLevel(0);rec.stop();return;
         }
@@ -138,7 +158,7 @@
       function accept(x){
         r.failures=0;
         if(x.needs_language){
-          const row={id:Date.now(),actor:'staff',source:x.source,transcript:x.transcript,translations:x.translations,target:'',translation:'',voice:x.voice,took:'Text '+secs(Date.now()-t0)};
+          const row={id:Date.now(),actor:'staff',source:x.source,transcript:x.transcript,translations:x.translations,target:'',translation:'',voice:x.voice,took:'Text '+secs(Date.now()-t0)+(x.timing?.ai_ms?' (AI '+secs(x.timing.ai_ms)+')':'')};
           setRows(old=>[row,...old].slice(0,6));setPendingRow(row);
           setStatus('Which language does the guest speak? Tap it below — your sentence will be spoken in it.');
           return null;
@@ -146,7 +166,7 @@
         if(!x.transcript||!x.translation||!x.target)throw Error('The translation was incomplete. Please speak again.');
         const isGuest=GUEST_CODES.includes(x.source);
         if(isGuest){setGuest(x.source);const p=r.pending;if(p){setPendingRow(null);setRows(old=>old.map(o=>o.id===p.id?{...o,target:x.source,translation:o.translations[x.source]}:o));}} // guest answered before the chip was tapped: show the earlier sentence in that language
-        const row={id:Date.now(),actor:isGuest?'guest':'staff',source:x.source,target:x.target,transcript:x.transcript,translation:x.translation,voice:x.voice,audio:x.audio?fromBase64(x.audio):null,took:'Text '+secs(Date.now()-t0)};
+        const row={id:Date.now(),actor:isGuest?'guest':'staff',source:x.source,target:x.target,transcript:x.transcript,translation:x.translation,voice:x.voice,audio:x.audio?fromBase64(x.audio):null,took:'Text '+secs(Date.now()-t0)+(x.timing?.ai_ms?' (AI '+secs(x.timing.ai_ms)+')':'')};
         setRows(old=>[row,...old].slice(0,6));
         return row;
       }
@@ -235,13 +255,15 @@
       h('div',{role:'status','aria-live':'polite',style:{...box,background:'#f5fbf9',margin:'14px 0',lineHeight:1.6}},
         h('div',null,h('span',{className:'ttg-dot'+(live?' live':'')}),h('strong',null,phaseText),' · ',status),
         live&&h('div',{className:'ttg-meter','aria-hidden':true},h('i',{style:{width:Math.round(level*100)+'%'}}))),
+      live&&phase==='hearing'&&h('button',{type:'button',className:'ttg-secondary',style:{width:'100%',marginBottom:14,fontSize:18,minHeight:52},onClick:()=>run.current.finishNow&&run.current.finishNow()},'✓ Translate now'),
       pending&&h('div',{style:{...box,border:'2px solid #b01264',marginBottom:14}},
         h('strong',null,'Which language does the guest speak?'),
         h('div',{className:'ttg-chips'},...GUEST_LANGS.map(([c,t])=>h('button',{key:c,type:'button',className:'ttg-chip ttg-big',onClick:()=>chooseLanguage(c,pending)},t))),
         h('p',{style:{margin:0,fontSize:13,color:'#78636f'}},'Your sentence is already translated — it will be spoken straight away.')),
+      h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',fontSize:14,margin:'0 0 8px'}},h('span',null,'Wait after speaker stops:'),...PAUSES.map(([v,t])=>h('button',{key:v,type:'button',className:'ttg-chip'+(pauseMs===v?' on':''),'aria-pressed':pauseMs===v,onClick:()=>setPause(v)},t))),
       h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',fontSize:14,margin:'0 0 8px'}},h('span',null,'Voice:'),...[['auto','Auto (match speaker)'],['female','Female'],['male','Male']].map(([v,t])=>h('button',{key:v,type:'button',className:'ttg-chip'+(voicePref===v?' on':''),'aria-pressed':voicePref===v,onClick:()=>setVoicePref(v)},t))),
       h('label',{style:{display:'flex',gap:8,alignItems:'center',fontSize:14,margin:'0 0 10px'}},h('input',{type:'checkbox',checked:tamilVoice,onChange:e=>setTamilVoice(e.target.checked)}),'Read the Tamil translation aloud'),
-      h('p',{style:{fontSize:13,lineHeight:1.6,color:'#78636f'}},'Speak one sentence, then pause — it is translated automatically. Keep the phone between you, away from TV noise. Internet required. Voice is AI-generated. Confirm important details with the guest.'),
+      h('p',{style:{fontSize:13,lineHeight:1.6,color:'#78636f'}},'Speak normally — it translates when the speaker stops (or tap Translate now). Keep the phone between you, away from TV noise. Internet required. Voice is AI-generated. Confirm important details with the guest.'),
       rows.length?h('div',null,rows.map(row=>h('article',{key:row.id,style:{...box,marginBottom:12}},
         h('strong',null,row.actor==='guest'?'Guest → Staff':'Staff → Guest'),
         h('p',{style:{fontSize:13,color:'#78636f'}},'Original · '+(labels[row.source]||row.source)),
