@@ -1,3 +1,11 @@
+## SQL 221 (database only, no app change) — Erase Trial Guest leaves nothing behind
+
+- Found: Admin → Rooms → **Room Shift History** still listed erased Trial Guests. Those rows pointed to a Guest record that no longer existed (e.g. an earlier duplicate record of the same Trial Guest), so the erase — which looks for the Guest's own id — never saw them. The audit log also kept every Trial Guest's name.
+- **Run supabase/sql/221_trial_erase_complete.sql** (installs the fix, then shows a PREVIEW — no data changed), then **onetime_221_trial_leftovers_STEP2_erase.sql** once to remove the earlier leftovers.
+- From now on "Erase Trial Guest" and "Erase all Trial Guests" also remove: rows in any table that carry the Guest's name / id but point to no Guest record (and every other row of those records, e.g. ledger rows), and every audit-log entry about the Guest. Stock history keeps quantities but loses the name.
+- The one TRIAL_GUEST_PURGED audit record stays for accounts (Resident ID, receipt voucher numbers, PAID Razorpay IDs) but never the Guest's name (database trigger).
+- Real Guests are never touched; their tariff adjustments stay permanent. Tested on a Postgres copy: real Guest and unrelated rows kept; preview changes nothing; safe to run again.
+
 ## 2.16.46 — Tamil brand spelling: சமரா
 
 - The Tamil (தமிழ்) screens now spell the brand **சமரா** everywhere (was சமாரா in 30 places, e.g. "சமரா கேர் — ஸ்பாட் அசெஸ்மென்ட்").
