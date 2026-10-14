@@ -33416,6 +33416,8 @@ function RoomsBeds({profile,onNavigate}){
       reason:'',
       notes:''
     });
+    const [rescheduleDate,setRescheduleDate]=React.useState(todayISOIndia());
+    const [rescheduleTime,setRescheduleTime]=React.useState('');
 
     const timeOptions=Array.from({length:24},(_,hour)=>{
       const h12=hour%12||12;
@@ -33500,6 +33502,7 @@ function RoomsBeds({profile,onNavigate}){
 
     function openEntry(plan){
       setEditingSession(null);
+      setRescheduleDate(todayISOIndia());setRescheduleTime('');
       setEntryPlan(plan);
       setForm({
         session_date:todayISOIndia(),
@@ -33520,6 +33523,16 @@ function RoomsBeds({profile,onNavigate}){
     async function saveSession(e){
       e.preventDefault();
       if(!canEnter||!entryPlan||saving)return;
+      if(form.status==='Reschedule'){
+        if(!form.reason.trim()||!rescheduleDate||!rescheduleTime){showToast('error','Enter the new date, time and reason.');return;}
+        setSaving(true);
+        try{
+          const {error}=await client.rpc('request_planned_physio_reschedule',{p_plan:entryPlan.id,p_original_date:form.session_date,p_new_date:rescheduleDate,p_new_time:rescheduleTime,p_reason:form.reason.trim()});
+          if(error)throw error;
+          setEntryPlan(null);showToast('success','Reschedule submitted for Nursing Manager/Admin approval. The session has not been marked Completed.');await load();
+        }catch(error){showToast('error',error.message||'Unable to request reschedule.');}finally{setSaving(false);}
+        return;
+      }
       {const pt=patientFor(entryPlan.patient_id);if(pt.id&&(pt.is_active===false||pt.admission_status==='Discharged')){showToast('error','This patient has been discharged. Physiotherapy sessions can no longer be recorded.');return;}}
       if(isFutureDateIndia(form.session_date)){
         showToast('error','Future physiotherapy session dates are not permitted.');
@@ -33690,10 +33703,10 @@ function RoomsBeds({profile,onNavigate}){
               onChange:e=>setForm({...form,session_date:e.target.value})
             })),
             h('div',{className:'field'},h('label',null,'Preferred / Scheduled Time'),h('select',{
-              value:form.scheduled_time,onChange:e=>setForm({...form,scheduled_time:e.target.value})
+              value:form.scheduled_time,disabled:form.status==='Reschedule',onChange:e=>setForm({...form,scheduled_time:e.target.value})
             },h('option',{value:''},'Select time'),timeOptions.map(option=>h('option',{key:option.value,value:option.value},option.label)))),
             h('div',{className:'field'},h('label',null,'Status'),h('div',{role:'group','aria-label':'Session Status',style:{display:'flex',flexWrap:'wrap',gap:'6px'}},
-              ['Completed','Pending','Not Done'].map(status=>h('button',{
+              ['Completed','Pending','Not Done','Reschedule'].map(status=>h('button',{
                 key:status,type:'button',className:`btn ${form.status===status?'btn-primary':'btn-secondary'}`,
                 'aria-pressed':form.status===status,disabled:saving,
                 onClick:()=>setForm(current=>({...current,status,reason:status==='Completed'&&!editingSession?'':current.reason}))
@@ -33701,7 +33714,11 @@ function RoomsBeds({profile,onNavigate}){
             h('div',{className:'field'},h('label',null,'Physiotherapist Name'),h('input',{
               value:entryPlan.physiotherapist_name||'',readOnly:true
             })),
-            (editingSession||['Pending','Not Done'].includes(form.status))&&h('div',{key:'session-reason',className:'field span-2'},h('label',null,editingSession?'Reason for correction':'Reason (mandatory)'),h('textarea',{
+            form.status==='Reschedule'&&h(React.Fragment,null,
+              h('div',{className:'field'},h('label',null,'New session date'),h('input',{'aria-label':'New session date',type:'date',required:true,min:todayISOIndia(),value:rescheduleDate,onChange:e=>setRescheduleDate(e.target.value)})),
+              h('div',{className:'field'},h('label',null,'New session time'),h('input',{'aria-label':'New session time',type:'time',required:true,value:rescheduleTime,onChange:e=>setRescheduleTime(e.target.value)})),
+              h('p',{className:'small-note span-2'},'The scheduled session remains Pending until Nursing Manager/Admin approves the new date and time.')),
+            (editingSession||['Pending','Not Done','Reschedule'].includes(form.status))&&h('div',{key:'session-reason',className:'field span-2'},h('label',null,editingSession?'Reason for correction':'Reason (mandatory)'),h('textarea',{
               required:true,rows:3,value:form.reason,onChange:e=>setForm({...form,reason:e.target.value}),
               placeholder:editingSession?'Example: Marked completed by mistake; session rescheduled':form.status==='Pending'?'Example: Patient temporarily unavailable / session rescheduled':'Example: Patient refused / medically unfit / therapist unavailable'
             })),
@@ -33712,7 +33729,7 @@ function RoomsBeds({profile,onNavigate}){
           ),
           h('div',{className:'actions'},
             h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setEntryPlan(null)},'Cancel'),
-            h('button',{className:'btn btn-primary',disabled:saving},saving?'Saving…':'Save Session')
+            h('button',{className:'btn btn-primary',disabled:saving},saving?'Saving…':form.status==='Reschedule'?'Submit reschedule for approval':'Save Session')
           )
         )
       ),
