@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.52';
+  const APP_VERSION = '2.16.53';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -13141,6 +13141,7 @@ https://samaraassistedliving.com/`;
     const [recoveryMode,setRecoveryMode]=React.useState(false);
     const [clinicalPopupSnooze,setClinicalPopupSnooze]=React.useState({key:'',until:0});
     const alertEngine=useClinicalAlertEngine(profile,setPage);
+    const physioNotifications=usePhysiotherapyApprovalNotifications(profile);
     const topClinicalAlert=alertEngine.alerts[0]||null;
     const topClinicalAlertKey=topClinicalAlert?.key||topClinicalAlert?.id||topClinicalAlert?.source_id||'';
     const clinicalPopupVisible=profile?.role!=='STD'&&Boolean(topClinicalAlert)&&!(
@@ -13735,6 +13736,7 @@ https://samaraassistedliving.com/`;
           h(GlobalSearch,{onNavigate:setPage,profile}),
           h(StoreIndentAlerts,{profile,onNavigate:setPage}),
           profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
+          h(PhysioApprovalNotification,{notifications:physioNotifications,onNavigate:setPage}),
           (SamaraLang.allowed(profile)||['Admin','Manager','STD','Nurse','Caregiver'].some(r=>hasDutyRole(profile,r)))&&h('div',{className:'topbar-quick-tools'},h(OnDutyToday,{profile}),h(LanguageSwitch,{profile})), // 2.15.72: one row on phones
           h('span',{className:'badge'},profile.role)
         ),
@@ -13833,7 +13835,7 @@ https://samaraassistedliving.com/`;
           page==='Reports'&&h(Reports,{profile,onNavigate:setPage}),
           page==='Intelligent Reports'&&h(IntelligentReports,{profile}),
           page==='Medication Errors'&&h(MedicationErrors,{profile,onNavigate:setPage}),
-          page==='Notifications'&&h(Notifications,{profile,onNavigate:setPage,engine:alertEngine}),
+          page==='Notifications'&&h(Notifications,{profile,onNavigate:setPage,engine:alertEngine,physioAlerts:physioNotifications.alerts}),
           page==='Audit Trail'&&h(AuditTrail),
           page==='Alert Settings'&&h(AlertSettings,{profile,engine:alertEngine}),
           ['Dashboard','HR Dashboard','Clinical Dashboard','Accounts Dashboard',"Director's Office"].includes(page)&&h(GeneralHandoverWorklist,{profile}),
