@@ -1,3 +1,6 @@
+## 2.16.61 — Scheduled and actual physiotherapy session time
+
+Completed entry forms collect Actual Session Time (IST) separately from Scheduled Time, with minute precision. Actual occurrence updates the session event timestamp; recorded/updated timestamps remain separate. New completions require a real, non-future actual time. History, Admin session accounts, posted fee snapshots, ledger, statement PDFs and CSV include both times. Old records show actual time as Not recorded; existing save timestamps are not backfilled as treatment time. Modify uses approval; approved Reschedule/Pending/Not Done clears actual time. Active supplier fees must be reversed before actual-time corrections change their snapshot. Historical deleted entries can be restored without inventing actual time. Install SQL 230 after 229.
 ## 2.16.60 — Nurse-entered physiotherapist directory
 
 Nurse selects an organisation and enters the attending therapist. Saving a session atomically registers or reuses the name under that organisation and links the session to the directory ID. Admin sees it under Physiotherapist Accounts > Physiotherapists and can set the fee without retyping the name. Clinical autocomplete suggests matching names after three letters, scoped to active people within the selected organisation; switching organisation clears the previous name. Capitalisation/extra spaces reuse canonical names. Pending correction proposals register new names only upon approval. Existing session-linked individual names populate the directory without rewriting clinical history or money entries. Safe clinical lookup exposes only IDs, organisation IDs and names; rates remain Admin-only.
@@ -2247,6 +2250,7 @@ The full original notes for older releases are kept in [`docs/release-notes/`](d
 - Minimal erp patch
 - Database: `01_complete_setup.sql`, `02_first_admin.sql`, `105_patient_family_daily_whatsapp_reports.sql`, `135_received_stock_charge_link.sql`
 - Notes: [START_HERE_FULL_PDF_WHATSAPP_FIX.txt](docs/release-notes/START_HERE_FULL_PDF_WHATSAPP_FIX.txt), [START_HERE_DAILY_INTELLIGENT_REPORT_WHATSAPP.txt](docs/release-notes/START_HERE_DAILY_INTELLIGENT_REPORT_WHATSAPP.txt), [START_HERE_135_RECEIVED_BEFORE_CHARGE.txt](docs/release-notes/START_HERE_135_RECEIVED_BEFORE_CHARGE.txt), [SETUP_FOR_BOOMI.md](docs/release-notes/SETUP_FOR_BOOMI.md), [README_FIRST.txt](docs/release-notes/README_FIRST.txt)
+
 
 
 
