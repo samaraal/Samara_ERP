@@ -1,3 +1,6 @@
+## 2.16.59 — Individual physiotherapist session rates
+
+Admin can set an optional positive default fee for each physiotherapist. Blank uses the organisation default. Post session fee selects the recorded therapist when matched and fills that person's default; changing the attending therapist refreshes the default. Admin can override the agreed fee for a session. SQL also falls back to therapist/organisation rates when a fee is omitted. Updating defaults does not rewrite posted fees. Rates remain inaccessible to nurses. Install SQL 228 after 227.
 ## 2.16.58 — Existing Pending physiotherapy entry
 
 Existing Pending entries expose Record Session directly beside Session options. Both plan entry and the Pending-row action retain the session's approved scheduled time. Legacy Vinayaga organisation labels default to Vinayaga Physio Point in Record Session and Modify, without putting the organisation into the attending therapist name. Nurses enter the actual attending name. Clinical outcome changes still follow the existing recording/approval rules. No SQL migration needed.
@@ -2239,6 +2242,7 @@ The full original notes for older releases are kept in [`docs/release-notes/`](d
 - Minimal erp patch
 - Database: `01_complete_setup.sql`, `02_first_admin.sql`, `105_patient_family_daily_whatsapp_reports.sql`, `135_received_stock_charge_link.sql`
 - Notes: [START_HERE_FULL_PDF_WHATSAPP_FIX.txt](docs/release-notes/START_HERE_FULL_PDF_WHATSAPP_FIX.txt), [START_HERE_DAILY_INTELLIGENT_REPORT_WHATSAPP.txt](docs/release-notes/START_HERE_DAILY_INTELLIGENT_REPORT_WHATSAPP.txt), [START_HERE_135_RECEIVED_BEFORE_CHARGE.txt](docs/release-notes/START_HERE_135_RECEIVED_BEFORE_CHARGE.txt), [SETUP_FOR_BOOMI.md](docs/release-notes/SETUP_FOR_BOOMI.md), [README_FIRST.txt](docs/release-notes/README_FIRST.txt)
+
 
 
 
