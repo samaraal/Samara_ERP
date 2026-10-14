@@ -1,3 +1,8 @@
+## 2.16.56 — Organisation selection and attending physiotherapist
+
+Record Session includes an organisation dropdown from Admin-managed active organisations and a manual attending physiotherapist name. Completed sessions require both, preserve organisation IDs, and appear in counts and Admin accounts before fee posting. Initial organisation: Vinayaga Physio Point. Admin can add more using Physiotherapist Accounts > Add organisation. Provider corrections use the existing approval workflow and posted-fee guard. Older sessions retain their original details.
+
+SQL 227 exposes only organisation IDs/names to clinical staff and links session/account queries by organisation ID. Financial access remains Admin-only.
 ## 2.16.55 — Physiotherapy escalation and outsourced accounts
 
 Pending sessions remain due at their scheduled time. Approved future reschedules suppress the old slot; completed, not-done and moved slots close stale physiotherapy escalations. Reverted due slots reopen through the existing escalation processor and configured thresholds.
@@ -2228,6 +2233,7 @@ The full original notes for older releases are kept in [`docs/release-notes/`](d
 - Minimal erp patch
 - Database: `01_complete_setup.sql`, `02_first_admin.sql`, `105_patient_family_daily_whatsapp_reports.sql`, `135_received_stock_charge_link.sql`
 - Notes: [START_HERE_FULL_PDF_WHATSAPP_FIX.txt](docs/release-notes/START_HERE_FULL_PDF_WHATSAPP_FIX.txt), [START_HERE_DAILY_INTELLIGENT_REPORT_WHATSAPP.txt](docs/release-notes/START_HERE_DAILY_INTELLIGENT_REPORT_WHATSAPP.txt), [START_HERE_135_RECEIVED_BEFORE_CHARGE.txt](docs/release-notes/START_HERE_135_RECEIVED_BEFORE_CHARGE.txt), [SETUP_FOR_BOOMI.md](docs/release-notes/SETUP_FOR_BOOMI.md), [README_FIRST.txt](docs/release-notes/README_FIRST.txt)
+
 
 
 
