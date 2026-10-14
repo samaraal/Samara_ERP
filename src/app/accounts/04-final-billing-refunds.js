@@ -247,6 +247,7 @@
 
   <div class="grid">
     <div class="field"><b>Patient Name</b><span>${escapeHtml(formalName(patient)||patient.full_name||'—')}</span></div>
+    <div class="field"><b>Address</b><span>${escapeHtml(patient.address||'—')}</span></div>
     <div class="field"><b>Resident ID</b><span>${escapeHtml(patient.patient_id||'—')}</span></div>
     <div class="field"><b>Room / Bed</b><span>${escapeHtml(roomBed)}</span></div>
     <div class="field"><b>Admission Date</b><span>${escapeHtml(formatDateIN(patient.admission_date))}</span></div>
