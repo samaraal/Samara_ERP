@@ -323,6 +323,11 @@
    "lines": 248
   },
   {
+   "file": "clinical/physiotherapist-accounts.js",
+   "about": "Admin outsourced physiotherapy organisations, practitioners, session fees, payments and ledger; clinical session counts",
+   "lines": 1
+  },
+  {
    "file": "nursing/special-nurse.js",
    "about": "Special nurse management",
    "lines": 268
