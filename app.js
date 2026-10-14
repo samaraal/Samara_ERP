@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.57';
+  const APP_VERSION = '2.16.58';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -33499,6 +33499,17 @@ function RoomsBeds({profile,onNavigate}){
       clearTaskNavigationContext();
     },[loading,plans]);
 
+    function organisationFor(record,plan={}){
+      const linked=organisations.find(row=>row.id===(record?.organisation_id||plan.organisation_id));if(linked)return linked;
+      const name=String(record?.physiotherapist_name||plan.physiotherapist_name||'').trim().toLowerCase();
+      return organisations.find(row=>row.name.trim().toLowerCase()===name||(row.name.trim().toLowerCase()==='vinayaga physio point'&&name==='vinayaga physiotherapy point'))||(organisations.length===1?organisations[0]:null);
+    }
+    function attendingName(record,plan={}){
+      const name=String(record?.physiotherapist_name||'').trim();
+      if(!name)return '';
+      const organisation=organisationFor(record,plan);
+      return name.toLowerCase()===organisation?.name?.trim().toLowerCase()||['vinayaga physiotherapy point','vinayaga physio point'].includes(name.toLowerCase())?'':name;
+    }
     const patientFor=id=>patients.find(p=>p.id===id)||{};
     const planFor=id=>plans.find(p=>p.id===id)||{};
     const patientLabel=id=>{
@@ -33508,16 +33519,17 @@ function RoomsBeds({profile,onNavigate}){
         : 'Patient not linked';
     };
 
-    function openEntry(plan){
+    function openEntry(plan,session=null){
+      const pending=session||sessions.find(row=>(row.plan_id||row.order_id)===plan.id&&row.session_date===todayISOIndia()&&row.status==='Pending'&&!row.session_at);
       setEditingSession(null);
       setRescheduleDate(todayISOIndia());setRescheduleTime('');
       setEntryPlan(plan);
       setForm({
-        session_date:todayISOIndia(),
-        scheduled_time:String(plan.preferred_time||'').slice(0,5),
+        session_date:pending?.session_date||todayISOIndia(),
+        scheduled_time:String(pending?.scheduled_time||plan.preferred_time||'').slice(0,5),
         status:'Completed',
-        organisation_id:organisations.find(row=>row.name.toLowerCase()===String(plan.physiotherapist_name||'').trim().toLowerCase())?.id||(organisations.length===1?organisations[0].id:''),
-        physiotherapist_name:'',
+        organisation_id:organisationFor(pending,plan)?.id||'',
+        physiotherapist_name:attendingName(pending,plan),
         reason:'',
         notes:''
       });
@@ -33527,7 +33539,7 @@ function RoomsBeds({profile,onNavigate}){
       const plan=planFor(session.plan_id||session.order_id);
       setEntryPlan(null);setRequestAction('');setRequestReason('');
       setEditingSession(session);
-      setForm({organisation_id:session.organisation_id||'',physiotherapist_name:session.physiotherapist_name||'',session_date:session.session_date,scheduled_time:String(session.scheduled_time||plan.preferred_time||'').slice(0,5),status:session.status||'Completed',reason:session.reason||'',notes:session.notes||''});
+      setForm({organisation_id:organisationFor(session,plan)?.id||'',physiotherapist_name:attendingName(session,plan),session_date:session.session_date,scheduled_time:String(session.scheduled_time||plan.preferred_time||'').slice(0,5),status:session.status||'Completed',reason:session.reason||'',notes:session.notes||''});
     }
 
     async function saveSession(e){
@@ -33663,7 +33675,7 @@ function RoomsBeds({profile,onNavigate}){
         session.status||'—',
         session.reason||session.notes||'—',
         fmt(session.updated_at||session.created_at),
-        canEnter?h('button',{type:'button',className:'btn btn-secondary',disabled:requests.some(request=>request.session_id===session.id&&request.state==='Pending'),onClick:()=>openCorrection(session)},requests.some(request=>request.session_id===session.id&&request.state==='Pending')?'Awaiting approval':'Session options'):h('span',{className:'small-note'},'View only')
+        canEnter?(session.status==='Pending'&&!session.session_at?h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-primary',disabled:requests.some(request=>request.session_id===session.id&&request.state==='Pending'),onClick:()=>openEntry({...plan,id:session.plan_id||session.order_id,patient_id:session.patient_id},session)},'Record Session'),h('button',{type:'button',className:'btn btn-secondary',disabled:requests.some(request=>request.session_id===session.id&&request.state==='Pending'),onClick:()=>openCorrection(session)},requests.some(request=>request.session_id===session.id&&request.state==='Pending')?'Awaiting approval':'Session options')):h('button',{type:'button',className:'btn btn-secondary',disabled:requests.some(request=>request.session_id===session.id&&request.state==='Pending'),onClick:()=>openCorrection(session)},requests.some(request=>request.session_id===session.id&&request.state==='Pending')?'Awaiting approval':'Session options')):h('span',{className:'small-note'},'View only')
       ];
     });
 
