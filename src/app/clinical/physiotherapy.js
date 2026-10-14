@@ -279,6 +279,7 @@
         heads:['Date','Patient','Therapy','Physiotherapist','Scheduled Time','Status','Reason / Notes','Recorded','Action'],
         rows:recentRows
       }),
+      h(PhysioSessionCounts,{profile}),
       h(LogTable,{title:canReview?'Physiotherapy Correction Approvals':'My Correction Requests',subtitle:'Original sessions remain unchanged until approval',heads:['Patient','Original date','Action','Original','Requested change','Reason','Status','Submitted','Review'],rows:requestRows}),
       editingSession&&h('div',{className:'modal-backdrop'},
         h('form',{className:'card modal',onSubmit:submitCorrection},
