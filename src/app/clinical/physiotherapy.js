@@ -25,6 +25,10 @@
     });
     const [rescheduleDate,setRescheduleDate]=React.useState(todayISOIndia());
     const [rescheduleTime,setRescheduleTime]=React.useState('');
+    const [organisations,setOrganisations]=React.useState([]);
+    const organisationFields=()=>h(React.Fragment,null,
+      h('div',{className:'field'},h('label',null,'Physiotherapy Organisation'),h('select',{'aria-label':'Physiotherapy Organisation',required:form.status!=='Reschedule',value:form.organisation_id||'',onChange:e=>setForm({...form,organisation_id:e.target.value})},h('option',{value:''},'Choose organisation'),organisations.map(row=>h('option',{key:row.id,value:row.id},row.name)))),
+      h('div',{className:'field'},h('label',null,'Physiotherapist Name'),h('input',{'aria-label':'Physiotherapist Name',required:form.status==='Completed',value:form.physiotherapist_name||'',placeholder:'Enter attending physiotherapist name',onChange:e=>setForm({...form,physiotherapist_name:e.target.value})}))); 
 
     const timeOptions=Array.from({length:24},(_,hour)=>{
       const h12=hour%12||12;
@@ -51,11 +55,12 @@
 
     async function load(){
       setLoading(true);setMessage('');
-      const [plansResult,patientsResult,sessionsResult,requestsResult]=await Promise.all([
+      const [plansResult,patientsResult,sessionsResult,requestsResult,organisationsResult]=await Promise.all([
         client.from('physiotherapy_plans').select('*').order('created_at',{ascending:false}),
         client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active,admission_status').order('full_name'),
         client.from('physiotherapy_sessions').select('*').order('session_date',{ascending:false}).order('created_at',{ascending:false}).limit(300),
-        client.from('physiotherapy_corrections').select('*').order('requested_at',{ascending:false}).limit(300)
+        client.from('physiotherapy_corrections').select('*').order('requested_at',{ascending:false}).limit(300),
+        client.rpc('physio_organisation_options')
       ]);
       if(plansResult.error){
         setMessage(plansResult.error.message||'Unable to load physiotherapy plans.');
@@ -69,6 +74,7 @@
       if(!patientsResult.error)setPatients(patientsResult.data||[]);
       if(!sessionsResult.error)setSessions(sessionsResult.data||[]);
       if(requestsResult.error)setMessage('Unable to load correction requests: '+requestsResult.error.message);else setRequests(requestsResult.data||[]);
+      if(organisationsResult.error)setMessage('Unable to load physiotherapy organisations: '+organisationsResult.error.message);else setOrganisations(organisationsResult.data||[]);
       setLoading(false);
     }
 
@@ -115,6 +121,8 @@
         session_date:todayISOIndia(),
         scheduled_time:String(plan.preferred_time||'').slice(0,5),
         status:'Completed',
+        organisation_id:organisations.find(row=>row.name.toLowerCase()===String(plan.physiotherapist_name||'').trim().toLowerCase())?.id||(organisations.length===1?organisations[0].id:''),
+        physiotherapist_name:'',
         reason:'',
         notes:''
       });
@@ -124,7 +132,7 @@
       const plan=planFor(session.plan_id||session.order_id);
       setEntryPlan(null);setRequestAction('');setRequestReason('');
       setEditingSession(session);
-      setForm({session_date:session.session_date,scheduled_time:String(session.scheduled_time||plan.preferred_time||'').slice(0,5),status:session.status||'Completed',reason:session.reason||'',notes:session.notes||''});
+      setForm({organisation_id:session.organisation_id||'',physiotherapist_name:session.physiotherapist_name||'',session_date:session.session_date,scheduled_time:String(session.scheduled_time||plan.preferred_time||'').slice(0,5),status:session.status||'Completed',reason:session.reason||'',notes:session.notes||''});
     }
 
     async function saveSession(e){
@@ -140,6 +148,7 @@
         }catch(error){showToast('error',error.message||'Unable to request reschedule.');}finally{setSaving(false);}
         return;
       }
+      if(!form.organisation_id||(form.status==='Completed'&&!form.physiotherapist_name?.trim())){showToast('error','Choose the organisation and enter the attending physiotherapist name for a completed session.');return;}
       {const pt=patientFor(entryPlan.patient_id);if(pt.id&&(pt.is_active===false||pt.admission_status==='Discharged')){showToast('error','This patient has been discharged. Physiotherapy sessions can no longer be recorded.');return;}}
       if(isFutureDateIndia(form.session_date)){
         showToast('error','Future physiotherapy session dates are not permitted.');
@@ -164,15 +173,16 @@
         performed_by:user?.id||profile?.id,
         reason:form.reason||null,
         notes:form.notes||null,
-        physiotherapist_name:entryPlan.physiotherapist_name||null,
+        organisation_id:form.organisation_id,
+        physiotherapist_name:form.physiotherapist_name?.trim()||null,
         updated_at:new Date().toISOString()
       };
       const existing=sessions.find(row=>(row.order_id||row.plan_id)===entryPlan.id&&row.session_date===form.session_date);
       let query;
       if(existing){
         if(existing.status!=='Pending'||existing.session_at||!['Completed','Not Done'].includes(form.status))throw new Error('A session exists for this date. Open its Session options to request a correction.');
-        const {status,session_at,performed_by,reason,notes,updated_at}=payload;
-        query=client.from('physiotherapy_sessions').update({status,session_at,performed_by,reason,notes,updated_at}).eq('id',existing.id).eq('status','Pending');
+        const {status,session_at,performed_by,reason,notes,updated_at,organisation_id,physiotherapist_name}=payload;
+        query=client.from('physiotherapy_sessions').update({status,session_at,performed_by,reason,notes,updated_at,organisation_id,physiotherapist_name}).eq('id',existing.id).eq('status','Pending');
         query=existing.updated_at?query.eq('updated_at',existing.updated_at):query.is('updated_at',null);
       }else{query=client.from('physiotherapy_sessions').insert(payload);}
       const {data,error}=await query
@@ -207,7 +217,7 @@
       if(!requestAction||!requestReason.trim()){showToast('error','Choose an action and enter a reason.');return;}
       setSaving(true);
       try{
-        const {error}=await client.rpc('request_physiotherapy_correction',{p_session:editingSession.id,p_action:requestAction,p_reason:requestReason.trim(),p_proposed:requestAction==='Delete'?{}:{session_date:form.session_date,scheduled_time:form.scheduled_time,status:form.status,notes:form.notes}});
+        const {error}=await client.rpc('request_physiotherapy_correction',{p_session:editingSession.id,p_action:requestAction,p_reason:requestReason.trim(),p_proposed:requestAction==='Delete'?{}:{session_date:form.session_date,scheduled_time:form.scheduled_time,status:form.status,notes:form.notes,...(requestAction==='Modify'?{organisation_id:form.organisation_id||null,physiotherapist_name:form.physiotherapist_name?.trim()||null}:{})}});
         if(error)throw error;
         setEditingSession(null);showToast('success','Request submitted. The session stays unchanged until Nursing Manager or Admin approves.');await load();
       }catch(error){showToast('error',error.message||'Unable to submit correction.');}finally{setSaving(false);}
@@ -253,7 +263,7 @@
         formatDateIN(session.session_date),
         patientLabel(session.patient_id),
         plan.therapy_type||'—',
-        session.physiotherapist_name||plan.physiotherapist_name||'—',
+        [organisations.find(row=>row.id===session.organisation_id)?.name,session.physiotherapist_name||plan.physiotherapist_name].filter(Boolean).join(' · ')||'—',
         clockLabel(session.scheduled_time||plan.preferred_time),
         session.status||'—',
         session.reason||session.notes||'—',
@@ -291,6 +301,7 @@
               h('div',{className:'field'},h('label',null,requestAction==='Reschedule'?'New session date':'Correct date'),h('input',{'aria-label':'Revised session date',type:'date',required:true,value:form.session_date,min:requestAction==='Reschedule'?todayISOIndia():undefined,max:requestAction==='Modify'&&form.status==='Completed'?todayISOIndia():undefined,onChange:e=>setForm({...form,session_date:e.target.value})})),
               h('div',{className:'field'},h('label',null,'Time'),h('input',{'aria-label':'Revised session time',type:'time',required:true,value:form.scheduled_time,onChange:e=>setForm({...form,scheduled_time:e.target.value})})),
               requestAction==='Modify'&&h('div',{className:'field'},h('label',null,'Correct status'),h('select',{'aria-label':'Correct status',value:form.status,onChange:e=>setForm({...form,status:e.target.value})},['Completed','Pending','Not Done'].map(status=>h('option',{key:status,value:status},status)))),
+              requestAction==='Modify'&&organisationFields(),
               requestAction==='Modify'&&h('div',{className:'field span-2'},h('label',null,'Correct notes'),h('textarea',{'aria-label':'Correct notes',rows:2,value:form.notes,onChange:e=>setForm({...form,notes:e.target.value})}))),
             h('div',{className:'field span-2'},h('label',null,'Reason'),h('textarea',{'aria-label':'Correction request reason',required:true,rows:2,value:requestReason,onChange:e=>setRequestReason(e.target.value),'data-samara-voice':'off'})),
             h('p',{className:'small-note span-2'},requestAction==='Delete'?'Approval removes this entry from active records. Its original details are kept for audit and can be restored.':'The existing session is unchanged until approval. Rescheduling moves it to the new date/time with Pending status.')),
@@ -319,9 +330,7 @@
                 'aria-pressed':form.status===status,disabled:saving,
                 onClick:()=>setForm(current=>({...current,status,reason:status==='Completed'&&!editingSession?'':current.reason}))
               },status)))),
-            h('div',{className:'field'},h('label',null,'Physiotherapist Name'),h('input',{
-              value:entryPlan.physiotherapist_name||'',readOnly:true
-            })),
+            form.status!=='Reschedule'&&organisationFields(),
             form.status==='Reschedule'&&h(React.Fragment,null,
               h('div',{className:'field'},h('label',null,'New session date'),h('input',{'aria-label':'New session date',type:'date',required:true,min:todayISOIndia(),value:rescheduleDate,onChange:e=>setRescheduleDate(e.target.value)})),
               h('div',{className:'field'},h('label',null,'New session time'),h('input',{'aria-label':'New session time',type:'time',required:true,value:rescheduleTime,onChange:e=>setRescheduleTime(e.target.value)})),
