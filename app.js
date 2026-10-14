@@ -37115,6 +37115,7 @@ function ShiftHandover({profile,onNavigate}){
 
   <div class="grid">
     <div class="field"><b>Patient Name</b><span>${escapeHtml(formalName(patient)||patient.full_name||'—')}</span></div>
+    <div class="field"><b>Address</b><span>${escapeHtml(patient.address||'—')}</span></div>
     <div class="field"><b>Resident ID</b><span>${escapeHtml(patient.patient_id||'—')}</span></div>
     <div class="field"><b>Room / Bed</b><span>${escapeHtml(roomBed)}</span></div>
     <div class="field"><b>Admission Date</b><span>${escapeHtml(formatDateIN(patient.admission_date))}</span></div>
@@ -37823,7 +37824,7 @@ function ShiftHandover({profile,onNavigate}){
         <div class="top"><img class="logo" src="${patientLedgerSamaraLogo}" alt="Samara Assisted Living"><div class="org"><strong>SAMARA HEALTH CARE LLP</strong><span>Assisted Living Management System</span><span>Compassion • Comfort • Dignity</span></div></div>
         <div class="title"><h1>PATIENT ACCOUNT LEDGER</h1><p>System-generated resident financial statement · Generated on ${escapeExcel(generatedOn)}</p></div>
         <div class="patient">
-          <div class="field"><span class="label">Patient Name</span><span>${escapeExcel(patientName)}</span></div><div class="field"><span class="label">Resident ID</span><span>${escapeExcel(selected.patient_id||'—')}</span></div>
+          <div class="field"><span class="label">Patient Name</span><span>${escapeExcel(patientName)}</span></div><div class="field"><span class="label">Address</span><span>${escapeExcel(selected.address||'—')}</span></div><div class="field"><span class="label">Resident ID</span><span>${escapeExcel(selected.patient_id||'—')}</span></div>
           <div class="field"><span class="label">Room / Bed</span><span>${escapeExcel(roomText)}</span></div><div class="field"><span class="label">Admission Date</span><span>${escapeExcel(admissionDate?fmt(admissionDate):'—')}</span></div>
           <div class="field"><span class="label">Mobile</span><span>${escapeExcel(mobile)}</span></div><div class="field"><span class="label">Treating Doctor</span><span>${escapeExcel(doctor)}</span></div>
         </div>
