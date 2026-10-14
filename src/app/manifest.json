@@ -328,6 +328,10 @@
    "lines": 1
   },
   {
+   "file": "nursing/outside-nursing.js",
+   "about": "Outside nursing register, Admin approval, invoices and statements"
+  },
+  {
    "file": "nursing/special-nurse.js",
    "about": "Special nurse management",
    "lines": 268
