@@ -1,3 +1,7 @@
+## 2.16.65 — Samara branded bills, invoices and statements
+
+Outside nursing invoices and statements use the Samara logo, magenta headers, pink accents and single-line Samara address footer. Patient name, address and mobile appear above the charge table. Shared physiotherapy PDFs and food supplier statements use the same branding. Resident complete bills and patient ledgers now include patient address above their tables. Logo loading failures prevent unbranded nursing/physiotherapy PDF generation. Financial calculations and stored invoice snapshots are unchanged.
+
 ## 2.16.61 — Scheduled and actual physiotherapy session time
 
 Completed entry forms collect Actual Session Time (IST) separately from Scheduled Time, with minute precision. Actual occurrence updates the session event timestamp; recorded/updated timestamps remain separate. New completions require a real, non-future actual time. History, Admin session accounts, posted fee snapshots, ledger, statement PDFs and CSV include both times. Old records show actual time as Not recorded; existing save timestamps are not backfilled as treatment time. Modify uses approval; approved Reschedule/Pending/Not Done clears actual time. Active supplier fees must be reversed before actual-time corrections change their snapshot. Historical deleted entries can be restored without inventing actual time. Install SQL 230 after 229.
