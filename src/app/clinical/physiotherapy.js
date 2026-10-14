@@ -242,9 +242,12 @@
             h('div',{className:'field'},h('label',null,'Preferred / Scheduled Time'),h('select',{
               value:form.scheduled_time,onChange:e=>setForm({...form,scheduled_time:e.target.value})
             },h('option',{value:''},'Select time'),timeOptions.map(option=>h('option',{key:option.value,value:option.value},option.label)))),
-            h('div',{className:'field'},h('label',null,'Status'),h('select',{
-              value:form.status,onChange:e=>setForm({...form,status:e.target.value,reason:e.target.value==='Completed'?'':form.reason})
-            },['Completed','Pending','Not Done'].map(x=>h('option',{key:x,value:x},x)))),
+            h('div',{className:'field'},h('label',null,'Status'),h('div',{role:'group','aria-label':'Session Status',style:{display:'flex',flexWrap:'wrap',gap:'6px'}},
+              ['Completed','Pending','Not Done'].map(status=>h('button',{
+                key:status,type:'button',className:`btn ${form.status===status?'btn-primary':'btn-secondary'}`,
+                'aria-pressed':form.status===status,disabled:saving,
+                onClick:()=>setForm({...form,status,reason:status==='Completed'?'':form.reason})
+              },status)))),
             h('div',{className:'field'},h('label',null,'Physiotherapist Name'),h('input',{
               value:entryPlan.physiotherapist_name||'',readOnly:true
             })),
