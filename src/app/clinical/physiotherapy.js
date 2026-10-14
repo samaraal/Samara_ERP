@@ -26,9 +26,11 @@
     const [rescheduleDate,setRescheduleDate]=React.useState(todayISOIndia());
     const [rescheduleTime,setRescheduleTime]=React.useState('');
     const [organisations,setOrganisations]=React.useState([]);
+    const [practitioners,setPractitioners]=React.useState([]),[nameSuggestionsOpen,setNameSuggestionsOpen]=React.useState(false);
+    const nameMatches=()=>String(form.physiotherapist_name||'').trim().length<3?[]:practitioners.filter(row=>row.organisation_id===form.organisation_id&&row.full_name.toLowerCase().includes(form.physiotherapist_name.trim().toLowerCase()));
     const organisationFields=()=>h(React.Fragment,null,
-      h('div',{className:'field'},h('label',null,'Physiotherapy Organisation'),h('select',{'aria-label':'Physiotherapy Organisation',required:form.status!=='Reschedule',value:form.organisation_id||'',onChange:e=>setForm({...form,organisation_id:e.target.value})},h('option',{value:''},'Choose organisation'),organisations.map(row=>h('option',{key:row.id,value:row.id},row.name)))),
-      h('div',{className:'field'},h('label',null,'Physiotherapist Name'),h('input',{'aria-label':'Physiotherapist Name',required:form.status==='Completed',value:form.physiotherapist_name||'',placeholder:'Enter attending physiotherapist name',onChange:e=>setForm({...form,physiotherapist_name:e.target.value})}))); 
+      h('div',{className:'field'},h('label',null,'Physiotherapy Organisation'),h('select',{'aria-label':'Physiotherapy Organisation',required:form.status!=='Reschedule',value:form.organisation_id||'',onChange:e=>{setForm({...form,organisation_id:e.target.value,physiotherapist_name:''});setNameSuggestionsOpen(false)}},h('option',{value:''},'Choose organisation'),organisations.map(row=>h('option',{key:row.id,value:row.id},row.name)))),
+      h('div',{className:'field'},h('label',null,'Physiotherapist Name'),h('input',{'aria-label':'Physiotherapist Name',role:'combobox','aria-autocomplete':'list','aria-expanded':nameSuggestionsOpen&&nameMatches().length>0,'aria-controls':'physio-name-options',autoComplete:'off',required:form.status==='Completed',value:form.physiotherapist_name||'',placeholder:'Type 3 letters or enter a new name',onFocus:()=>setNameSuggestionsOpen(true),onChange:e=>{setForm({...form,physiotherapist_name:e.target.value});setNameSuggestionsOpen(true)}}),nameSuggestionsOpen&&nameMatches().length>0&&h('div',{id:'physio-name-options',role:'listbox','aria-label':'Recorded physiotherapists',className:'actions'},nameMatches().map(row=>h('button',{type:'button',key:row.id,role:'option','aria-selected':form.physiotherapist_name===row.full_name,className:'btn btn-secondary',onClick:()=>{setForm({...form,physiotherapist_name:row.full_name});setNameSuggestionsOpen(false)}},row.full_name))),h('small',{className:'small-note'},'Choose a recorded name after typing 3 letters, or enter a new name. New names are saved for Admin when the session is saved.'))); 
 
     const timeOptions=Array.from({length:24},(_,hour)=>{
       const h12=hour%12||12;
@@ -55,12 +57,13 @@
 
     async function load(){
       setLoading(true);setMessage('');
-      const [plansResult,patientsResult,sessionsResult,requestsResult,organisationsResult]=await Promise.all([
+      const [plansResult,patientsResult,sessionsResult,requestsResult,organisationsResult,practitionersResult]=await Promise.all([
         client.from('physiotherapy_plans').select('*').order('created_at',{ascending:false}),
         client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active,admission_status').order('full_name'),
         client.from('physiotherapy_sessions').select('*').order('session_date',{ascending:false}).order('created_at',{ascending:false}).limit(300),
         client.from('physiotherapy_corrections').select('*').order('requested_at',{ascending:false}).limit(300),
-        client.rpc('physio_organisation_options')
+        client.rpc('physio_organisation_options'),
+        client.rpc('physio_practitioner_options')
       ]);
       if(plansResult.error){
         setMessage(plansResult.error.message||'Unable to load physiotherapy plans.');
@@ -75,6 +78,7 @@
       if(!sessionsResult.error)setSessions(sessionsResult.data||[]);
       if(requestsResult.error)setMessage('Unable to load correction requests: '+requestsResult.error.message);else setRequests(requestsResult.data||[]);
       if(organisationsResult.error)setMessage('Unable to load physiotherapy organisations: '+organisationsResult.error.message);else setOrganisations(organisationsResult.data||[]);
+      if(practitionersResult.error)setMessage('Unable to load physiotherapist names: '+practitionersResult.error.message);else setPractitioners(practitionersResult.data||[]);
       setLoading(false);
     }
 
@@ -125,6 +129,7 @@
     };
 
     function openEntry(plan,session=null){
+      setNameSuggestionsOpen(false);
       const pending=session||sessions.find(row=>(row.plan_id||row.order_id)===plan.id&&row.session_date===todayISOIndia()&&row.status==='Pending'&&!row.session_at);
       setEditingSession(null);
       setRescheduleDate(todayISOIndia());setRescheduleTime('');
@@ -141,6 +146,7 @@
     }
 
     function openCorrection(session){
+      setNameSuggestionsOpen(false);
       const plan=planFor(session.plan_id||session.order_id);
       setEntryPlan(null);setRequestAction('');setRequestReason('');
       setEditingSession(session);

@@ -49,7 +49,7 @@
       setError('');setNotice('');
       if(kind==='organisation')setForm({kind,id:row.id||crypto.randomUUID(),existing:!!row.id,name:row.name||'',contact_person:row.contact_person||'',phone:row.phone||'',email:row.email||'',address:row.address||'',gst_number:row.gst_number||'',payment_terms:row.payment_terms||'',default_fee:row.default_fee??'',is_active:row.is_active!==false,opening_amount:'0',opening_date:from});
       else if(kind==='practitioner')setForm({kind,id:row.id||crypto.randomUUID(),full_name:row.full_name||'',phone:row.phone||'',qualification:row.qualification||'',default_fee:row.default_fee??'',is_active:row.is_active!==false});
-      else if(kind==='post_fee'){const practitioner=data.practitioners.find(p=>p.is_active&&p.full_name.trim().toLowerCase()===String(row.physiotherapist_name||'').trim().toLowerCase());setForm({kind,session:row,practitioner_id:practitioner?.id||'',rate:(practitioner?.default_fee??org?.default_fee)||'',notes:'',request_key:crypto.randomUUID()});}
+      else if(kind==='post_fee'){const practitioner=data.practitioners.find(p=>p.is_active&&(p.id===row.practitioner_id||p.full_name.trim().toLowerCase()===String(row.physiotherapist_name||'').trim().toLowerCase()));setForm({kind,session:row,practitioner_id:practitioner?.id||'',rate:(practitioner?.default_fee??org?.default_fee)||'',notes:'',request_key:crypto.randomUUID()});}
       else if(kind==='reverse')setForm({kind,entry:row,reason:'',request_key:crypto.randomUUID()});
       else setForm({kind,amount:'',entry_date:todayISOIndia(),method:'Bank transfer',reference:'',recipient:'',notes:'',request_key:crypto.randomUUID()});
     }
