@@ -7062,6 +7062,41 @@ https://samaraassistedliving.com/`;
   function openIoAlert(a){openRecord('Intake / Output',{patient_id:a?.patient_id,chart_date:a?.chart_date,label:ioAlertLabel(a)})}
   function openIndentReceipt(a){openRecord('Patient Consumables',{id:a?.indent_id,patient_id:a?.patient_id,label:indentReceiptLabel(a)})}
 
+  function usePhysiotherapyApprovalNotifications(profile){
+    const enabled=profile?.role==='Admin'||isNursingManagerProfile(profile);
+    const [alerts,setAlerts]=React.useState([]),[notice,setNotice]=React.useState(null);
+    React.useEffect(()=>{
+      let disposed=false,busy=false;const seen=new Set();
+      setAlerts([]);setNotice(null);
+      if(!enabled||!profile?.id)return;
+      const refresh=async()=>{
+        if(busy||disposed)return;busy=true;
+        try{
+          const {data,error}=await client.rpc('physiotherapy_correction_alerts');
+          if(disposed||error)return;
+          const rows=Array.isArray(data)?data:[],fresh=rows.filter(row=>!seen.has(row.request_id));
+          rows.forEach(row=>seen.add(row.request_id));setAlerts(rows);
+          if(fresh.length)setNotice({ids:fresh.map(row=>row.request_id),text:fresh.length===1?`${fresh[0].action} requested by ${fresh[0].requested_by_name}. Review in Physiotherapy.`:`${fresh.length} physiotherapy correction requests need approval.`});
+          else setNotice(current=>current&&current.ids.some(id=>rows.some(row=>row.request_id===id))?current:null);
+        }catch(_error){/* Retry on the next live event, focus or timer tick. */}finally{busy=false;}
+      };
+      refresh();
+      const channel=client.channel('physio-approval-notifications-'+profile.id).on('postgres_changes',{event:'*',schema:'public',table:'physiotherapy_corrections'},refresh).subscribe();
+      const timer=setInterval(refresh,30000);window.addEventListener('focus',refresh);
+      return()=>{disposed=true;clearInterval(timer);window.removeEventListener('focus',refresh);client.removeChannel(channel)};
+    },[profile?.id,enabled]);
+    return {alerts,notice,dismiss:()=>setNotice(null)};
+  }
+  function PhysioApprovalNotification({notifications,onNavigate}){
+    const rows=notifications.alerts;
+    const open=()=>{notifications.dismiss();onNavigate('Physiotherapy')};
+    return h(React.Fragment,null,
+      rows.length>0&&h('button',{type:'button',className:'btn btn-secondary','aria-label':`${rows.length} physiotherapy corrections awaiting your approval`,onClick:open},`🔔 Physio approvals (${rows.length})`),
+      notifications.notice&&h('div',{role:'status','aria-live':'polite',style:{position:'fixed',right:'16px',bottom:'18px',zIndex:100050,maxWidth:'min(400px,calc(100vw - 32px))',padding:'16px',background:'#fff8ec',border:'1px solid #d9a54a',borderRadius:'14px',boxShadow:'0 8px 24px #0002'}},
+        h('strong',null,'Physiotherapy approval needed'),h('p',null,notifications.notice.text),
+        h('button',{type:'button',className:'btn btn-primary',onClick:open},'Review requests'),h('button',{type:'button',className:'btn btn-secondary',onClick:notifications.dismiss},'Dismiss')));
+  }
+
   function ClinicalAlertBell({engine,onOpen}){
     const [preview,setPreview]=React.useState(false);
     const rows=(engine?.alerts||[]).slice().sort((a,b)=>{
@@ -7094,7 +7129,7 @@ https://samaraassistedliving.com/`;
     );
   }
 
-  function Notifications({profile,onNavigate,engine}){
+  function Notifications({profile,onNavigate,engine,physioAlerts=[]}){
     const [storeRequests,setStoreRequests]=React.useState([]),[patientsById,setPatientsById]=React.useState({}),[loading,setLoading]=React.useState(false),[message,setMessage]=React.useState('');
     const foodAccess=!!profile?.__foodVendor?.read;
     const cutoffAdmin=['admin','administrator','director'].includes(String(profile?.role||'').trim().toLowerCase());
@@ -7202,6 +7237,8 @@ https://samaraassistedliving.com/`;
     return h('div',{className:'card panel'},
       h('div',{className:'panel-head'},h('div',null,h('h3',null,'Notifications'),h('small',null,nursingManager?'Pharmacy & Stores requests and 30-minute nursing escalations.':cutoffAdmin?'Bills & Charges not attended by Accounts, food cutoff attempts and clinical items requiring attention.':'Clinical items requiring attention.')),h('button',{type:'button',className:'btn btn-primary',disabled:loading,onClick:loadNotifications},loading?'Refreshing…':'↻ Refresh')),
       message?h('div',{className:'message error'},message):null,
+      (profile?.role==='Admin'||isNursingManagerProfile(profile))&&h('section',{style:{marginBottom:'20px'}},h('h4',null,'Physiotherapy Corrections Awaiting Approval'),
+        physioAlerts.length?physioAlerts.map(alert=>h('button',{key:alert.request_id,type:'button',className:'btn btn-secondary',style:{display:'block',width:'100%',textAlign:'left',marginBottom:'8px'},onClick:()=>navigate('Physiotherapy')},`${alert.patient_name} · ${alert.action} · ${formatDateIN(alert.session_date)} · ${alert.requested_by_name}: ${alert.reason}`)):h('p',{className:'small-note'},'No physiotherapy corrections awaiting your approval.')),
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(165px,1fr))',gap:'12px',marginBottom:'18px'}},nursingManager?metric('Store Requests',awaitingApproval.length,'Patient Consumables'):null,nursingManager?metric('Awaiting Handover',awaitingHandover.length,'Patient Consumables'):null,metric('Medication > 30 min',medicineAlerts.length,'Clinical Escalations','#efb6b6'),metric('Care > 30 min',careAlerts.length,'Clinical Escalations','#efcf9c'),nursingManager?metric('Store Discrepancies',discrepancies.length,'Patient Consumables','#efb6b6'):null),
       nursingManager?h('section',{style:{marginBottom:'20px'}},h('h4',null,'Pharmacy & Stores Requests'),h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Item','Quantity','Status','Requested'].map(x=>h('th',{key:x},x)))),h('tbody',null,storeRequests.map(r=>h('tr',{key:r.id,role:'button',tabIndex:0,onClick:()=>navigate('Patient Consumables'),style:{cursor:'pointer',touchAction:'manipulation'}},h('td',null,patientName(r)),h('td',null,r.item_name||'Consumable'),h('td',null,`${r.requested_qty||'—'} ${r.unit||''}`),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)))),storeRequests.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No open Pharmacy & Stores requests.')):null)))):null,
       staffReturnAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Staff Back on Duty after Leave'),h('small',null,cutoffAdmin?'Not back = leave has ended but no Manager has marked her back on duty 2 hours after her rostered shift started (10 AM if no roster). Back on duty = marked in the last 24 hours. Tap a row to open that leave.':'Staff of your department whose leave has ended but who are not marked back on duty. Tap a row, then Mark Back on Duty once she reports.'),
