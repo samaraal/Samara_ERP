@@ -33361,6 +33361,11 @@ function RoomsBeds({profile,onNavigate}){
     const [message,setMessage]=React.useState('');
     const [entryPlan,setEntryPlan]=React.useState(null);
     const [editingSession,setEditingSession]=React.useState(null);
+    const canReview=profile?.role==='Admin'||isNursingManagerProfile(profile);
+    const [requests,setRequests]=React.useState([]);
+    const [requestAction,setRequestAction]=React.useState('');
+    const [requestReason,setRequestReason]=React.useState('');
+    const [reviewNotes,setReviewNotes]=React.useState({});
     const [saving,setSaving]=React.useState(false);
     const [toast,setToast]=React.useState(null);
     const [returnPage,setReturnPage]=React.useState('');
@@ -33398,10 +33403,11 @@ function RoomsBeds({profile,onNavigate}){
 
     async function load(){
       setLoading(true);setMessage('');
-      const [plansResult,patientsResult,sessionsResult]=await Promise.all([
+      const [plansResult,patientsResult,sessionsResult,requestsResult]=await Promise.all([
         client.from('physiotherapy_plans').select('*').order('created_at',{ascending:false}),
         client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active,admission_status').order('full_name'),
-        client.from('physiotherapy_sessions').select('*').order('session_date',{ascending:false}).order('created_at',{ascending:false}).limit(300)
+        client.from('physiotherapy_sessions').select('*').order('session_date',{ascending:false}).order('created_at',{ascending:false}).limit(300),
+        client.from('physiotherapy_corrections').select('*').order('requested_at',{ascending:false}).limit(300)
       ]);
       if(plansResult.error){
         setMessage(plansResult.error.message||'Unable to load physiotherapy plans.');
@@ -33414,6 +33420,7 @@ function RoomsBeds({profile,onNavigate}){
       }
       if(!patientsResult.error)setPatients(patientsResult.data||[]);
       if(!sessionsResult.error)setSessions(sessionsResult.data||[]);
+      if(requestsResult.error)setMessage('Unable to load correction requests: '+requestsResult.error.message);else setRequests(requestsResult.data||[]);
       setLoading(false);
     }
 
@@ -33422,6 +33429,7 @@ function RoomsBeds({profile,onNavigate}){
       const channel=client.channel('physiotherapy-live')
         .on('postgres_changes',{event:'*',schema:'public',table:'physiotherapy_plans'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'physiotherapy_sessions'},load)
+        .on('postgres_changes',{event:'*',schema:'public',table:'physiotherapy_corrections'},load)
         .subscribe();
       return()=>client.removeChannel(channel);
     },[]);
@@ -33465,7 +33473,7 @@ function RoomsBeds({profile,onNavigate}){
 
     function openCorrection(session){
       const plan=planFor(session.plan_id||session.order_id);
-      setEntryPlan(plan.id?plan:{id:session.plan_id||session.order_id,patient_id:session.patient_id,physiotherapist_name:session.physiotherapist_name});
+      setEntryPlan(null);setRequestAction('');setRequestReason('');
       setEditingSession(session);
       setForm({session_date:session.session_date,scheduled_time:String(session.scheduled_time||plan.preferred_time||'').slice(0,5),status:session.status||'Completed',reason:session.reason||'',notes:session.notes||''});
     }
@@ -33473,8 +33481,6 @@ function RoomsBeds({profile,onNavigate}){
     async function saveSession(e){
       e.preventDefault();
       if(!canEnter||!entryPlan||saving)return;
-      if(editingSession&&!form.reason.trim()){showToast('error','Enter the reason for this correction.');return;}
-      if(editingSession&&(editingSession.billable||editingSession.charge_request_id)){showToast('error','This session is linked to billing. Ask Admin or Accounts to review its charge before correcting it.');return;}
       {const pt=patientFor(entryPlan.patient_id);if(pt.id&&(pt.is_active===false||pt.admission_status==='Discharged')){showToast('error','This patient has been discharged. Physiotherapy sessions can no longer be recorded.');return;}}
       if(isFutureDateIndia(form.session_date)){
         showToast('error','Future physiotherapy session dates are not permitted.');
@@ -33502,12 +33508,14 @@ function RoomsBeds({profile,onNavigate}){
         physiotherapist_name:entryPlan.physiotherapist_name||null,
         updated_at:new Date().toISOString()
       };
+      const existing=sessions.find(row=>(row.order_id||row.plan_id)===entryPlan.id&&row.session_date===form.session_date);
       let query;
-      if(editingSession){
-        const {plan_id,order_id,patient_id,session_date,...changes}=payload;
-        query=client.from('physiotherapy_sessions').update(changes).eq('id',editingSession.id).eq('status',editingSession.status);
-        query=editingSession.updated_at?query.eq('updated_at',editingSession.updated_at):query.is('updated_at',null);
-      }else{query=client.from('physiotherapy_sessions').upsert(payload,{onConflict:'order_id,session_date'});}
+      if(existing){
+        if(existing.status!=='Pending'||existing.session_at||!['Completed','Not Done'].includes(form.status))throw new Error('A session exists for this date. Open its Session options to request a correction.');
+        const {status,session_at,performed_by,reason,notes,updated_at}=payload;
+        query=client.from('physiotherapy_sessions').update({status,session_at,performed_by,reason,notes,updated_at}).eq('id',existing.id).eq('status','Pending');
+        query=existing.updated_at?query.eq('updated_at',existing.updated_at):query.is('updated_at',null);
+      }else{query=client.from('physiotherapy_sessions').insert(payload);}
       const {data,error}=await query
         .select('id')
         .single();
@@ -33535,6 +33543,41 @@ function RoomsBeds({profile,onNavigate}){
       finally{setSaving(false);}
     }
 
+    async function submitCorrection(e){
+      e.preventDefault();if(saving||!editingSession||!canEnter)return;
+      if(!requestAction||!requestReason.trim()){showToast('error','Choose an action and enter a reason.');return;}
+      setSaving(true);
+      try{
+        const {error}=await client.rpc('request_physiotherapy_correction',{p_session:editingSession.id,p_action:requestAction,p_reason:requestReason.trim(),p_proposed:requestAction==='Delete'?{}:{session_date:form.session_date,scheduled_time:form.scheduled_time,status:form.status,notes:form.notes}});
+        if(error)throw error;
+        setEditingSession(null);showToast('success','Request submitted. The session stays unchanged until Nursing Manager or Admin approves.');await load();
+      }catch(error){showToast('error',error.message||'Unable to submit correction.');}finally{setSaving(false);}
+    }
+    async function reviewRequest(request,approve){
+      if(saving||!canReview)return;setSaving(true);
+      try{
+        const {error}=await client.rpc('review_physiotherapy_correction',{p_request:request.id,p_approve:approve,p_note:reviewNotes[request.id]||''});
+        if(error)throw error;showToast('success',approve?'Approved. The session has been corrected.':'Request rejected. The session is unchanged.');await load();
+      }catch(error){showToast('error',error.message||'Unable to review request.');}finally{setSaving(false);}
+    }
+    async function restoreDeletion(request){
+      if(saving||!canReview)return;setSaving(true);
+      try{const {error}=await client.rpc('restore_physiotherapy_deletion',{p_request:request.id});if(error)throw error;showToast('success','Original session restored.');await load();}
+      catch(error){showToast('error',error.message||'Unable to restore session.');}finally{setSaving(false);}
+    }
+    const requestRows=requests.map(request=>[
+      patientLabel(request.original.patient_id),formatDateIN(request.original.session_date),
+      request.action,request.original.status+' / '+clockLabel(request.original.scheduled_time),
+      request.action==='Delete'?'Remove incorrect entry':formatDateIN(request.proposed.session_date)+' / '+clockLabel(request.proposed.scheduled_time)+' / '+(request.action==='Reschedule'?'Pending':request.proposed.status),
+      request.reason,request.state,fmt(request.requested_at),
+      canReview&&request.state==='Pending'?h('div',null,
+        h('input',{'aria-label':'Review note',value:reviewNotes[request.id]||'',placeholder:'Reason required to reject',onChange:e=>setReviewNotes({...reviewNotes,[request.id]:e.target.value})}),
+        h('button',{type:'button',className:'btn btn-primary',disabled:saving,onClick:()=>reviewRequest(request,true)},'Approve'),
+        h('button',{type:'button',className:'btn btn-secondary',disabled:saving,onClick:()=>reviewRequest(request,false)},'Reject')):
+      canReview&&request.state==='Approved'&&request.action==='Delete'?h('button',{type:'button',className:'btn btn-secondary',disabled:saving,onClick:()=>restoreDeletion(request)},'Restore entry'):
+      request.review_note||'—'
+    ]);
+
     const planRows=plans.map(plan=>[
       patientLabel(plan.patient_id),
       plan.therapy_type||plan.therapy||plan.exercise_name||'—',
@@ -33556,7 +33599,7 @@ function RoomsBeds({profile,onNavigate}){
         session.status||'—',
         session.reason||session.notes||'—',
         fmt(session.updated_at||session.created_at),
-        canEnter?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openCorrection(session)},'Correct Session'):h('span',{className:'small-note'},'View only')
+        canEnter?h('button',{type:'button',className:'btn btn-secondary',disabled:requests.some(request=>request.session_id===session.id&&request.state==='Pending'),onClick:()=>openCorrection(session)},requests.some(request=>request.session_id===session.id&&request.state==='Pending')?'Awaiting approval':'Session options'):h('span',{className:'small-note'},'View only')
       ];
     });
 
@@ -33577,6 +33620,21 @@ function RoomsBeds({profile,onNavigate}){
         heads:['Date','Patient','Therapy','Physiotherapist','Scheduled Time','Status','Reason / Notes','Recorded','Action'],
         rows:recentRows
       }),
+      h(LogTable,{title:canReview?'Physiotherapy Correction Approvals':'My Correction Requests',subtitle:'Original sessions remain unchanged until approval',heads:['Patient','Original date','Action','Original','Requested change','Reason','Status','Submitted','Review'],rows:requestRows}),
+      editingSession&&h('div',{className:'modal-backdrop'},
+        h('form',{className:'card modal',onSubmit:submitCorrection},
+          h('div',{className:'panel-head'},h('h3',null,'Session options'),h('button',{type:'button',className:'close',disabled:saving,onClick:()=>setEditingSession(null)},'×')),
+          h('p',null,patientLabel(editingSession.patient_id)+' · '+formatDateIN(editingSession.session_date)+' · '+editingSession.status),
+          h('div',{role:'group','aria-label':'Correction action',className:'actions'},['Delete','Modify','Reschedule'].map(action=>h('button',{type:'button',key:action,className:'btn '+(requestAction===action?'btn-primary':'btn-secondary'),'aria-pressed':requestAction===action,disabled:saving,onClick:()=>setRequestAction(action)},action))),
+          requestAction&&h('div',{className:'modal-grid'},
+            requestAction!=='Delete'&&h(React.Fragment,null,
+              h('div',{className:'field'},h('label',null,requestAction==='Reschedule'?'New session date':'Correct date'),h('input',{'aria-label':'Revised session date',type:'date',required:true,value:form.session_date,min:requestAction==='Reschedule'?todayISOIndia():undefined,max:requestAction==='Modify'&&form.status==='Completed'?todayISOIndia():undefined,onChange:e=>setForm({...form,session_date:e.target.value})})),
+              h('div',{className:'field'},h('label',null,'Time'),h('input',{'aria-label':'Revised session time',type:'time',required:true,value:form.scheduled_time,onChange:e=>setForm({...form,scheduled_time:e.target.value})})),
+              requestAction==='Modify'&&h('div',{className:'field'},h('label',null,'Correct status'),h('select',{'aria-label':'Correct status',value:form.status,onChange:e=>setForm({...form,status:e.target.value})},['Completed','Pending','Not Done'].map(status=>h('option',{key:status,value:status},status)))),
+              requestAction==='Modify'&&h('div',{className:'field span-2'},h('label',null,'Correct notes'),h('textarea',{'aria-label':'Correct notes',rows:2,value:form.notes,onChange:e=>setForm({...form,notes:e.target.value})}))),
+            h('div',{className:'field span-2'},h('label',null,'Reason'),h('textarea',{'aria-label':'Correction request reason',required:true,rows:2,value:requestReason,onChange:e=>setRequestReason(e.target.value),'data-samara-voice':'off'})),
+            h('p',{className:'small-note span-2'},requestAction==='Delete'?'Approval removes this entry from active records. Its original details are kept for audit and can be restored.':'The existing session is unchanged until approval. Rescheduling moves it to the new date/time with Pending status.')),
+          h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:saving,onClick:()=>setEditingSession(null)},'Cancel'),h('button',{className:'btn btn-primary',disabled:saving||!requestAction},saving?'Submitting…':'Submit for approval')))),
       entryPlan&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setEntryPlan(null)}},
         h('form',{className:'card modal',onSubmit:saveSession},
           h('div',{className:'panel-head'},
