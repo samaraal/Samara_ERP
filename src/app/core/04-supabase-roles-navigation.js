@@ -150,7 +150,7 @@
   const ALL_NAV = NAV_SECTIONS.flatMap(section=>section.items);
   const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
   const ROLE_NAV={
-    Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&!NURSING_ENTRY_NAV.includes(item)),
+    Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&(!NURSING_ENTRY_NAV.includes(item)||item==='Physiotherapy')),
     Manager:ALL_NAV.filter(item=>!['Petty Cash','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements',"Director's Office",'Enquiries & Feedback','System Maintenance','System Health','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
 
     Nurse:['Clinical Dashboard','Clinical Alerts','Talk to Guest','Duty Assignment','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Approval Requests','Raise Indent','Received Indents / Used Balance','Oxygen Cylinders','Biomedical Equipment','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
@@ -190,7 +190,7 @@
     if(profile?.__dutyContext?.leave_cover&&!profile.__leaveNavResolved){const c=profile.__dutyContext;return [...new Set([...allowedPagesForProfile({...profile,__leaveNavResolved:true}),...allowedPagesForProfile({...profile,__leaveNavResolved:true,role:c.regular_role,designation:c.regular_designation,department:c.regular_department}),...allowedPagesForProfile({...profile,__leaveNavResolved:true,role:c.leave_cover.covering_role,designation:c.leave_cover.covering_designation})])];}
     if(profile?.__paymentsTrial&&!profile.__paymentsNavResolved){const a=profile.__paymentsTrial;return [...allowedPagesForProfile({...profile,__paymentsNavResolved:true}).filter(x=>!['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(x)),...(a.full?['Payments & Vouchers']:[]),'Payment Requests',...(a.pay?['Approved—Ready to Pay']:[]),'Payment Vouchers','Payment Statements'];}
     if(isNursingManagerProfile(profile))return [
-      'Admission Register',
+      'Admission Register','Physiotherapy',
       'Clinical Dashboard','Talk to Guest','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiry Register','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Approval Requests','Charge Register',
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
