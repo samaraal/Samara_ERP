@@ -163,6 +163,7 @@
       ['Shift Tasks','☷','Tasks','Current shift'],
       ['Talk to Guest','🎙','Talk to Guest','Auto · 6 languages']
     ];
+    if(profile?.role==='Nurse'||isNursingManagerProfile(profile))actions.push(['Outside Samara Nursing Procedures','✚','Outside Nursing','Submit completed procedure']);
     if(profile?.role==='Nurse'||isNursingManagerProfile(profile))actions.push(['My To-Do List','＋','To-Do','Voice / personal']);
     return h('section',{className:'nursing-mobile-quick-actions','aria-label':'Nursing quick actions'},
       actions.map(([target,icon,label,sub])=>h('button',{
