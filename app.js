@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.55';
+  const APP_VERSION = '2.16.57';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -33420,6 +33420,10 @@ function RoomsBeds({profile,onNavigate}){
     });
     const [rescheduleDate,setRescheduleDate]=React.useState(todayISOIndia());
     const [rescheduleTime,setRescheduleTime]=React.useState('');
+    const [organisations,setOrganisations]=React.useState([]);
+    const organisationFields=()=>h(React.Fragment,null,
+      h('div',{className:'field'},h('label',null,'Physiotherapy Organisation'),h('select',{'aria-label':'Physiotherapy Organisation',required:form.status!=='Reschedule',value:form.organisation_id||'',onChange:e=>setForm({...form,organisation_id:e.target.value})},h('option',{value:''},'Choose organisation'),organisations.map(row=>h('option',{key:row.id,value:row.id},row.name)))),
+      h('div',{className:'field'},h('label',null,'Physiotherapist Name'),h('input',{'aria-label':'Physiotherapist Name',required:form.status==='Completed',value:form.physiotherapist_name||'',placeholder:'Enter attending physiotherapist name',onChange:e=>setForm({...form,physiotherapist_name:e.target.value})}))); 
 
     const timeOptions=Array.from({length:24},(_,hour)=>{
       const h12=hour%12||12;
@@ -33446,11 +33450,12 @@ function RoomsBeds({profile,onNavigate}){
 
     async function load(){
       setLoading(true);setMessage('');
-      const [plansResult,patientsResult,sessionsResult,requestsResult]=await Promise.all([
+      const [plansResult,patientsResult,sessionsResult,requestsResult,organisationsResult]=await Promise.all([
         client.from('physiotherapy_plans').select('*').order('created_at',{ascending:false}),
         client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active,admission_status').order('full_name'),
         client.from('physiotherapy_sessions').select('*').order('session_date',{ascending:false}).order('created_at',{ascending:false}).limit(300),
-        client.from('physiotherapy_corrections').select('*').order('requested_at',{ascending:false}).limit(300)
+        client.from('physiotherapy_corrections').select('*').order('requested_at',{ascending:false}).limit(300),
+        client.rpc('physio_organisation_options')
       ]);
       if(plansResult.error){
         setMessage(plansResult.error.message||'Unable to load physiotherapy plans.');
@@ -33464,6 +33469,7 @@ function RoomsBeds({profile,onNavigate}){
       if(!patientsResult.error)setPatients(patientsResult.data||[]);
       if(!sessionsResult.error)setSessions(sessionsResult.data||[]);
       if(requestsResult.error)setMessage('Unable to load correction requests: '+requestsResult.error.message);else setRequests(requestsResult.data||[]);
+      if(organisationsResult.error)setMessage('Unable to load physiotherapy organisations: '+organisationsResult.error.message);else setOrganisations(organisationsResult.data||[]);
       setLoading(false);
     }
 
@@ -33510,6 +33516,8 @@ function RoomsBeds({profile,onNavigate}){
         session_date:todayISOIndia(),
         scheduled_time:String(plan.preferred_time||'').slice(0,5),
         status:'Completed',
+        organisation_id:organisations.find(row=>row.name.toLowerCase()===String(plan.physiotherapist_name||'').trim().toLowerCase())?.id||(organisations.length===1?organisations[0].id:''),
+        physiotherapist_name:'',
         reason:'',
         notes:''
       });
@@ -33519,7 +33527,7 @@ function RoomsBeds({profile,onNavigate}){
       const plan=planFor(session.plan_id||session.order_id);
       setEntryPlan(null);setRequestAction('');setRequestReason('');
       setEditingSession(session);
-      setForm({session_date:session.session_date,scheduled_time:String(session.scheduled_time||plan.preferred_time||'').slice(0,5),status:session.status||'Completed',reason:session.reason||'',notes:session.notes||''});
+      setForm({organisation_id:session.organisation_id||'',physiotherapist_name:session.physiotherapist_name||'',session_date:session.session_date,scheduled_time:String(session.scheduled_time||plan.preferred_time||'').slice(0,5),status:session.status||'Completed',reason:session.reason||'',notes:session.notes||''});
     }
 
     async function saveSession(e){
@@ -33535,6 +33543,7 @@ function RoomsBeds({profile,onNavigate}){
         }catch(error){showToast('error',error.message||'Unable to request reschedule.');}finally{setSaving(false);}
         return;
       }
+      if(!form.organisation_id||(form.status==='Completed'&&!form.physiotherapist_name?.trim())){showToast('error','Choose the organisation and enter the attending physiotherapist name for a completed session.');return;}
       {const pt=patientFor(entryPlan.patient_id);if(pt.id&&(pt.is_active===false||pt.admission_status==='Discharged')){showToast('error','This patient has been discharged. Physiotherapy sessions can no longer be recorded.');return;}}
       if(isFutureDateIndia(form.session_date)){
         showToast('error','Future physiotherapy session dates are not permitted.');
@@ -33559,15 +33568,16 @@ function RoomsBeds({profile,onNavigate}){
         performed_by:user?.id||profile?.id,
         reason:form.reason||null,
         notes:form.notes||null,
-        physiotherapist_name:entryPlan.physiotherapist_name||null,
+        organisation_id:form.organisation_id,
+        physiotherapist_name:form.physiotherapist_name?.trim()||null,
         updated_at:new Date().toISOString()
       };
       const existing=sessions.find(row=>(row.order_id||row.plan_id)===entryPlan.id&&row.session_date===form.session_date);
       let query;
       if(existing){
         if(existing.status!=='Pending'||existing.session_at||!['Completed','Not Done'].includes(form.status))throw new Error('A session exists for this date. Open its Session options to request a correction.');
-        const {status,session_at,performed_by,reason,notes,updated_at}=payload;
-        query=client.from('physiotherapy_sessions').update({status,session_at,performed_by,reason,notes,updated_at}).eq('id',existing.id).eq('status','Pending');
+        const {status,session_at,performed_by,reason,notes,updated_at,organisation_id,physiotherapist_name}=payload;
+        query=client.from('physiotherapy_sessions').update({status,session_at,performed_by,reason,notes,updated_at,organisation_id,physiotherapist_name}).eq('id',existing.id).eq('status','Pending');
         query=existing.updated_at?query.eq('updated_at',existing.updated_at):query.is('updated_at',null);
       }else{query=client.from('physiotherapy_sessions').insert(payload);}
       const {data,error}=await query
@@ -33602,7 +33612,7 @@ function RoomsBeds({profile,onNavigate}){
       if(!requestAction||!requestReason.trim()){showToast('error','Choose an action and enter a reason.');return;}
       setSaving(true);
       try{
-        const {error}=await client.rpc('request_physiotherapy_correction',{p_session:editingSession.id,p_action:requestAction,p_reason:requestReason.trim(),p_proposed:requestAction==='Delete'?{}:{session_date:form.session_date,scheduled_time:form.scheduled_time,status:form.status,notes:form.notes}});
+        const {error}=await client.rpc('request_physiotherapy_correction',{p_session:editingSession.id,p_action:requestAction,p_reason:requestReason.trim(),p_proposed:requestAction==='Delete'?{}:{session_date:form.session_date,scheduled_time:form.scheduled_time,status:form.status,notes:form.notes,...(requestAction==='Modify'?{organisation_id:form.organisation_id||null,physiotherapist_name:form.physiotherapist_name?.trim()||null}:{})}});
         if(error)throw error;
         setEditingSession(null);showToast('success','Request submitted. The session stays unchanged until Nursing Manager or Admin approves.');await load();
       }catch(error){showToast('error',error.message||'Unable to submit correction.');}finally{setSaving(false);}
@@ -33648,7 +33658,7 @@ function RoomsBeds({profile,onNavigate}){
         formatDateIN(session.session_date),
         patientLabel(session.patient_id),
         plan.therapy_type||'—',
-        session.physiotherapist_name||plan.physiotherapist_name||'—',
+        [organisations.find(row=>row.id===session.organisation_id)?.name,session.physiotherapist_name||plan.physiotherapist_name].filter(Boolean).join(' · ')||'—',
         clockLabel(session.scheduled_time||plan.preferred_time),
         session.status||'—',
         session.reason||session.notes||'—',
@@ -33686,6 +33696,7 @@ function RoomsBeds({profile,onNavigate}){
               h('div',{className:'field'},h('label',null,requestAction==='Reschedule'?'New session date':'Correct date'),h('input',{'aria-label':'Revised session date',type:'date',required:true,value:form.session_date,min:requestAction==='Reschedule'?todayISOIndia():undefined,max:requestAction==='Modify'&&form.status==='Completed'?todayISOIndia():undefined,onChange:e=>setForm({...form,session_date:e.target.value})})),
               h('div',{className:'field'},h('label',null,'Time'),h('input',{'aria-label':'Revised session time',type:'time',required:true,value:form.scheduled_time,onChange:e=>setForm({...form,scheduled_time:e.target.value})})),
               requestAction==='Modify'&&h('div',{className:'field'},h('label',null,'Correct status'),h('select',{'aria-label':'Correct status',value:form.status,onChange:e=>setForm({...form,status:e.target.value})},['Completed','Pending','Not Done'].map(status=>h('option',{key:status,value:status},status)))),
+              requestAction==='Modify'&&organisationFields(),
               requestAction==='Modify'&&h('div',{className:'field span-2'},h('label',null,'Correct notes'),h('textarea',{'aria-label':'Correct notes',rows:2,value:form.notes,onChange:e=>setForm({...form,notes:e.target.value})}))),
             h('div',{className:'field span-2'},h('label',null,'Reason'),h('textarea',{'aria-label':'Correction request reason',required:true,rows:2,value:requestReason,onChange:e=>setRequestReason(e.target.value),'data-samara-voice':'off'})),
             h('p',{className:'small-note span-2'},requestAction==='Delete'?'Approval removes this entry from active records. Its original details are kept for audit and can be restored.':'The existing session is unchanged until approval. Rescheduling moves it to the new date/time with Pending status.')),
@@ -33714,9 +33725,7 @@ function RoomsBeds({profile,onNavigate}){
                 'aria-pressed':form.status===status,disabled:saving,
                 onClick:()=>setForm(current=>({...current,status,reason:status==='Completed'&&!editingSession?'':current.reason}))
               },status)))),
-            h('div',{className:'field'},h('label',null,'Physiotherapist Name'),h('input',{
-              value:entryPlan.physiotherapist_name||'',readOnly:true
-            })),
+            form.status!=='Reschedule'&&organisationFields(),
             form.status==='Reschedule'&&h(React.Fragment,null,
               h('div',{className:'field'},h('label',null,'New session date'),h('input',{'aria-label':'New session date',type:'date',required:true,min:todayISOIndia(),value:rescheduleDate,onChange:e=>setRescheduleDate(e.target.value)})),
               h('div',{className:'field'},h('label',null,'New session time'),h('input',{'aria-label':'New session time',type:'time',required:true,value:rescheduleTime,onChange:e=>setRescheduleTime(e.target.value)})),
@@ -33744,6 +33753,20 @@ function RoomsBeds({profile,onNavigate}){
     );
   }
   
+  function physioStatementPDF(model){
+    const pages=[],W=794,H=1123,M=45,scale=2,widths=[76,106,252,84,84,102];let canvas,ctx,y,page=0;
+    const font=(size,bold=false)=>{ctx.font=(bold?'bold ':'')+size+'px Arial';ctx.fillStyle='#302330'};
+    const wrap=(value,width,size=11,bold=false)=>{font(size,bold);const lines=[];let line='';for(const char of String(value??'—')){if(char==='\n'||(line&&ctx.measureText(line+char).width>width)){lines.push(line);line=char==='\n'?'':char;}else line+=char;}lines.push(line);return lines;};
+    const text=(value,x,top,size=11,bold=false)=>{font(size,bold);ctx.fillText(String(value??''),x,top)};
+    const finish=()=>{if(!canvas)return;text('Page '+page,M,H-24,10);const bytes=atob(canvas.toDataURL('image/jpeg',0.94).split(',')[1]);pages.push({width:canvas.width,height:canvas.height,bytes:Uint8Array.from(bytes,c=>c.charCodeAt(0))});};
+    const newPage=()=>{finish();page++;canvas=document.createElement('canvas');canvas.width=W*scale;canvas.height=H*scale;ctx=canvas.getContext('2d');ctx.scale(scale,scale);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);text('Samara Assisted Living',M,45,20,true);text('Physiotherapy Statement',M,76,16,true);y=104;for(const line of wrap(model.organisation,W-2*M,15,true)){text(line,M,y,15,true);y+=20;}text(model.period,M,y,11);y+=24;};
+    const row=(values,header=false)=>{const lines=values.map((value,i)=>wrap(value,widths[i]-10,11,header));const height=Math.max(...lines.map(x=>x.length))*15+12;let x=M;values.forEach((_,i)=>{ctx.fillStyle=header?'#f4e9f0':'#fff';ctx.fillRect(x,y,widths[i],height);ctx.strokeStyle='#bbb';ctx.strokeRect(x,y,widths[i],height);lines[i].forEach((line,j)=>text(line,x+5,y+17+j*15,11,header));x+=widths[i];});y+=height;};
+    newPage();for(const line of wrap(model.contact,W-2*M)){text(line,M,y,11);y+=15;}y+=10;row(model.heads,true);
+    for(const values of model.rows){const height=Math.max(...values.map((value,i)=>wrap(value,widths[i]-10).length))*15+12;if(y+height>H-55){newPage();row(model.heads,true);}row(values);}
+    for(const note of model.notes){const lines=wrap(note,W-2*M,12);if(y+lines.length*16+20>H-55)newPage();y+=20;for(const line of lines){text(line,M,y,12);y+=16;}}
+    finish();if(!window.SamaraFoodCore?.pdfFromJpegs)throw Error('PDF tools are still loading. Refresh and try again.');return window.SamaraFoodCore.pdfFromJpegs(pages);
+  }
+
   function PhysioSessionCounts({profile}){
     const [from,setFrom]=React.useState(todayISOIndia().slice(0,8)+'01'),[to,setTo]=React.useState(todayISOIndia());
     const [rows,setRows]=React.useState([]),[error,setError]=React.useState('');
@@ -33760,7 +33783,8 @@ function RoomsBeds({profile,onNavigate}){
     const [organisation,setOrganisation]=React.useState(''),[tab,setTab]=React.useState('Organisations');
     const [from,setFrom]=React.useState(todayISOIndia().slice(0,8)+'01'),[to,setTo]=React.useState(todayISOIndia());
     const [form,setForm]=React.useState(null),[busy,setBusy]=React.useState(false),[error,setError]=React.useState(''),[notice,setNotice]=React.useState('');
-    const [loading,setLoading]=React.useState(false);const loadVersion=React.useRef(0);
+    const [loading,setLoading]=React.useState(false);const loadVersion=React.useRef(0);const statementFile=React.useRef(null);
+    React.useEffect(()=>()=>{if(statementFile.current?.url)URL.revokeObjectURL(statementFile.current.url)},[]);
     const money=value=>Number(value||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
     const voucher=row=>'PT-'+String(row.voucher_number||'').padStart(6,'0');
     const org=data.organisations.find(row=>row.id===organisation);
@@ -33780,7 +33804,7 @@ function RoomsBeds({profile,onNavigate}){
       setError('');setNotice('');
       if(kind==='organisation')setForm({kind,id:row.id||crypto.randomUUID(),existing:!!row.id,name:row.name||'',contact_person:row.contact_person||'',phone:row.phone||'',email:row.email||'',address:row.address||'',gst_number:row.gst_number||'',payment_terms:row.payment_terms||'',default_fee:row.default_fee??'',is_active:row.is_active!==false,opening_amount:'0',opening_date:from});
       else if(kind==='practitioner')setForm({kind,id:row.id||crypto.randomUUID(),full_name:row.full_name||'',phone:row.phone||'',qualification:row.qualification||'',is_active:row.is_active!==false});
-      else if(kind==='post_fee')setForm({kind,session:row,practitioner_id:'',rate:org?.default_fee||'',notes:'',request_key:crypto.randomUUID()});
+      else if(kind==='post_fee')setForm({kind,session:row,practitioner_id:data.practitioners.find(p=>p.is_active&&p.full_name.trim().toLowerCase()===String(row.physiotherapist_name||'').trim().toLowerCase())?.id||'',rate:org?.default_fee||'',notes:'',request_key:crypto.randomUUID()});
       else if(kind==='reverse')setForm({kind,entry:row,reason:'',request_key:crypto.randomUUID()});
       else setForm({kind,amount:'',entry_date:todayISOIndia(),method:'Bank transfer',reference:'',recipient:'',notes:'',request_key:crypto.randomUUID()});
     }
@@ -33800,6 +33824,19 @@ function RoomsBeds({profile,onNavigate}){
     const text=(label,key)=>h('div',{className:'field span-2'},h('label',null,label),h('textarea',{'aria-label':label,rows:2,value:form[key]||'',onChange:e=>setForm({...form,[key]:e.target.value})}));
     const select=(label,key,options)=>h('div',{className:'field'},h('label',null,label),h('select',{'aria-label':label,required:true,value:form[key],onChange:e=>setForm({...form,[key]:e.target.value})},h('option',{value:''},'Select…'),options.map(row=>h('option',{key:row.value,value:row.value},row.label))));
     const ledgerRows=()=>{let balance=Number(data.opening||0);return data.entries.map(row=>{balance=Math.round((balance+Number(row.amount))*100)/100;return {...row,balance}})};
+    function statementModel(){
+      if(!org)throw Error('Select an organisation for the statement.');
+      if(loading||busy||!from||!to||from>to)throw Error('Wait for a valid selected period to load.');
+      const rows=ledgerRows(),sum=predicate=>rows.filter(predicate).reduce((total,row)=>total+Number(row.amount),0),closing=rows.at(-1)?.balance??Number(data.opening||0);
+      return {organisation:org.name,period:formatDateIN(from)+' to '+formatDateIN(to),contact:[org.contact_person,org.phone,org.email,org.address,org.gst_number?'GST: '+org.gst_number:''].filter(Boolean).join(' · '),heads:['Date','Type / Voucher','Session / Reference details','Debit / payments INR','Credit / fees INR','Balance payable INR'],rows:rows.map(row=>[formatDateIN(row.entry_date),row.kind+(row.reversed_at?' (reversed)':'')+'\n'+voucher(row),[row.snapshot?.physiotherapist,row.snapshot?.patient_name,row.snapshot?.resident_id,row.snapshot?.room?'Room '+row.snapshot.room:'',row.snapshot?.session_date?formatDateIN(row.snapshot.session_date)+' '+(row.snapshot.session_time||''):'',row.rate?'Fee INR '+money(row.rate):'',row.method,row.reference,row.recipient,row.notes].filter(Boolean).join('\n'),row.amount<0?money(-row.amount):'—',row.amount>0?money(row.amount):'—',money(row.balance)]),notes:['Opening payable INR '+money(data.opening),'Period credits / charges INR '+money(sum(row=>row.amount>0))+' · Period debits / payments INR '+money(-sum(row=>row.amount<0)),closing<0?'Advance with organisation INR '+money(-closing):'Closing payable INR '+money(closing),'Only posted completed-session fees are included. Unposted sessions are excluded. Reversals remain visible and offset the original entries.']};
+    }
+    function getStatementFile(){
+      const model=statementModel(),key=JSON.stringify(model);if(statementFile.current?.key===key)return statementFile.current;
+      const file=new File([physioStatementPDF(model)],'Samara-physiotherapy-statement-'+from+'-to-'+to+'.pdf',{type:'application/pdf'});
+      if(statementFile.current?.url)URL.revokeObjectURL(statementFile.current.url);statementFile.current={key,file,url:URL.createObjectURL(file)};return statementFile.current;
+    }
+    function printPDF(){try{const {url}=getStatementFile();if(!window.open(url,'_blank'))throw Error('Allow the PDF window to open.');setNotice('Use the PDF viewer to print or save. WhatsApp shares this same statement PDF.');}catch(error){setError(error.message);}}
+    async function whatsappPDF(){try{const {file,url}=getStatementFile();if(navigator.canShare?.({files:[file]})&&navigator.share){await navigator.share({files:[file],title:'Samara Physiotherapy Statement'});return;}const a=document.createElement('a');a.href=url;a.download=file.name;a.click();setNotice('Statement PDF downloaded. Attach it as a document in WhatsApp, as in Food Vendor.');}catch(error){if(error.name!=='AbortError')setError(error.message||'Unable to share statement.');}}
     function exportCSV(){
       const safe=value=>'"'+String(value??'').replace(/^[=+\-@]/,"'$&").replace(/"/g,'""')+'"';
       const rows=[['SAMARA ASSISTED LIVING — PHYSIOTHERAPY LEDGER'],['Organisation',org?.name],['Contact',org?.contact_person,org?.phone,org?.email],['Address',org?.address],['Period',from,to],['Opening payable',data.opening],['Date','Voucher','Type','Organisation','Physiotherapist','Patient','Resident ID','Room','Session date','Session time','Fee rate','Debit / payments','Credit / fees','Balance payable','Method','Reference','Recipient / payer','Notes'],...ledgerRows().map(row=>[row.entry_date,voucher(row),row.kind,row.snapshot?.organisation||org?.name,row.snapshot?.physiotherapist,row.snapshot?.patient_name,row.snapshot?.resident_id,row.snapshot?.room,row.snapshot?.session_date,row.snapshot?.session_time,row.rate,row.amount<0?-Number(row.amount):'',row.amount>0?Number(row.amount):'',row.balance,row.method,row.reference,row.recipient,row.notes]),['Closing payable',ledgerRows().at(-1)?.balance??data.opening]];
@@ -33817,15 +33854,16 @@ function RoomsBeds({profile,onNavigate}){
     return h('div',null,
       h('section',{className:'card panel'},h('h3',null,'Outsourced Physiotherapy Accounts'),h('p',{className:'small-note'},'Admin access. Fees are posted only for completed sessions. Payment entries record money already paid; they do not transfer money.'),
         error&&h('div',{className:'message error'},error),notice&&h('div',{className:'message success'},notice),
-        h('div',{className:'actions'},['Organisations','Physiotherapists','Sessions','Payments','Ledger','Session Counts'].map(name=>button(name,()=>setTab(name),tab===name))),
+        h('div',{className:'actions'},['Organisations','Physiotherapists','Sessions','Payments','Ledger','Statement','Session Counts'].map(name=>button(name,()=>setTab(name),tab===name))),
         h('div',{className:'form-grid'},h('div',{className:'field'},h('label',null,'Organisation'),h('select',{'aria-label':'Organisation',value:organisation,onChange:e=>{setOrganisation(e.target.value);setForm(null)}},h('option',{value:''},'Select organisation'),data.organisations.map(row=>h('option',{key:row.id,value:row.id},row.name+(row.is_active?'':' (inactive)'))))),h('div',{className:'field'},h('label',null,'From'),h('input',{type:'date',value:from,onChange:e=>setFrom(e.target.value)})),h('div',{className:'field'},h('label',null,'To'),h('input',{type:'date',value:to,onChange:e=>setTo(e.target.value)}))),
         h('div',{className:'actions'},button('Refresh',load),button('Add organisation',()=>begin('organisation'))),
         org&&h('p',null,h('strong',null,org.name+' · '),data.balance<0?'Advance with organisation ₹'+money(-data.balance):'Total payable ₹'+money(data.balance))),
       tab==='Organisations'&&h(LogTable,{title:'Physiotherapy Organisations',heads:['Organisation','Contact person','Phone','Email','Address','GST','Terms','Fee / session ₹','Active','Action'],rows:data.organisations.map(row=>[row.name,row.contact_person||'—',row.phone||'—',row.email||'—',row.address||'—',row.gst_number||'—',row.payment_terms||'—',money(row.default_fee),row.is_active?'Yes':'No',button('Edit details',()=>begin('organisation',row))])}),
       tab==='Physiotherapists'&&h('section',{className:'card panel'},button('Add physiotherapist',()=>begin('practitioner')),h(LogTable,{title:'Physiotherapists — '+(org?.name||'Select organisation'),heads:['Name','Phone','Qualification','Active','Action'],rows:data.practitioners.map(row=>[row.full_name,row.phone||'—',row.qualification||'—',row.is_active?'Yes':'No',button('Edit details',()=>begin('practitioner',row))])})),
-      tab==='Sessions'&&h('section',{className:'card panel'},h('p',{className:'small-note'},'Completed sessions not yet posted. Choose the attending physiotherapist and confirm the fee. Posted fees retain their rate and patient details.'),h(LogTable,{title:'Completed sessions awaiting fee posting',heads:['Date','Time','Patient','Resident ID','Room','Recorded physiotherapy name','Notes','Action'],rows:data.sessions.map(row=>[formatDateIN(row.date),row.time||'—',row.patient_name,row.resident_id,row.room,row.physiotherapy_name,row.notes||'—',button('Post session fee',()=>begin('post_fee',row))])})),
+      tab==='Sessions'&&h('section',{className:'card panel'},h('p',{className:'small-note'},'Completed sessions not yet posted. Choose the attending physiotherapist and confirm the fee. Posted fees retain their rate and patient details.'),h(LogTable,{title:'Completed sessions awaiting fee posting',heads:['Date','Time','Patient','Resident ID','Room','Organisation','Recorded physiotherapist','Notes','Action'],rows:data.sessions.map(row=>[formatDateIN(row.date),row.time||'—',row.patient_name,row.resident_id,row.room,row.physiotherapy_name,row.physiotherapist_name||'—',row.notes||'—',button('Post session fee',()=>begin('post_fee',row))])})),
       tab==='Payments'&&h('section',{className:'card panel'},h('div',{className:'actions'},button('Record payment',()=>begin('payment')),button('Record refund received',()=>begin('refund'))),h(LogTable,{title:'Payments and refunds',heads:['Date','Voucher','Type','Amount ₹','Method','Reference','Recipient / payer','Notes','Action'],rows:data.entries.filter(row=>['Payment','Refund'].includes(row.kind)).map(row=>[formatDateIN(row.entry_date),voucher(row),row.kind,money(Math.abs(row.amount)),row.method,row.reference||'—',row.recipient||'—',row.notes||'—',h('div',{className:'actions'},button('Print voucher',()=>printStatement(row)),!row.reversed_at&&button('Reverse',()=>begin('reverse',row)))])})),
-      tab==='Ledger'&&h('section',{className:'card panel'},h('div',{className:'actions'},button('Export CSV',exportCSV),button('Print / Save PDF',()=>printStatement())),h('p',null,'Period opening payable ₹'+money(data.opening)+' · Closing payable ₹'+money(ledgerRows().at(-1)?.balance??data.opening)),h(LogTable,{title:'Organisation Ledger — '+(org?.name||''),heads:['Date','Voucher','Type','Physiotherapist','Patient / Resident ID','Room','Session date / time','Rate ₹','Debit / payments ₹','Credit / fees ₹','Balance payable ₹','Reference / notes','Action'],rows:ledgerRows().map(row=>[formatDateIN(row.entry_date),voucher(row),row.kind+(row.reversed_at?' (reversed)':''),row.snapshot?.physiotherapist||'—',[row.snapshot?.patient_name,row.snapshot?.resident_id].filter(Boolean).join(' · ')||'—',row.snapshot?.room||'—',[row.snapshot?.session_date?formatDateIN(row.snapshot.session_date):'',row.snapshot?.session_time].filter(Boolean).join(' · ')||'—',row.rate?money(row.rate):'—',row.amount<0?money(-row.amount):'—',row.amount>0?money(row.amount):'—',money(row.balance),[row.reference,row.notes].filter(Boolean).join(' · ')||'—',row.kind!=='Reversal'&&!row.reversed_at?button('Reverse',()=>begin('reverse',row)):'—'])})),
+      tab==='Ledger'&&h('section',{className:'card panel'},h('div',{className:'actions'},button('Export CSV',exportCSV),button('Print / Save PDF',printPDF),button('Send WhatsApp (PDF)',whatsappPDF)),h('p',null,'Period opening payable ₹'+money(data.opening)+' · Closing payable ₹'+money(ledgerRows().at(-1)?.balance??data.opening)),h(LogTable,{title:'Organisation Ledger — '+(org?.name||''),heads:['Date','Voucher','Type','Physiotherapist','Patient / Resident ID','Room','Session date / time','Rate ₹','Debit / payments ₹','Credit / fees ₹','Balance payable ₹','Reference / notes','Action'],rows:ledgerRows().map(row=>[formatDateIN(row.entry_date),voucher(row),row.kind+(row.reversed_at?' (reversed)':''),row.snapshot?.physiotherapist||'—',[row.snapshot?.patient_name,row.snapshot?.resident_id].filter(Boolean).join(' · ')||'—',row.snapshot?.room||'—',[row.snapshot?.session_date?formatDateIN(row.snapshot.session_date):'',row.snapshot?.session_time].filter(Boolean).join(' · ')||'—',row.rate?money(row.rate):'—',row.amount<0?money(-row.amount):'—',row.amount>0?money(row.amount):'—',money(row.balance),[row.reference,row.notes].filter(Boolean).join(' · ')||'—',row.kind!=='Reversal'&&!row.reversed_at?button('Reverse',()=>begin('reverse',row)):'—'])})),
+      tab==='Statement'&&h('section',{className:'card panel'},h('h3',null,'Physiotherapy Statement'),h('p',{className:'small-note'},'Filter by Organisation and From / To above. Print and WhatsApp use the same statement PDF.'),h('div',{className:'actions'},button('Print / Save PDF',printPDF),button('Send WhatsApp (PDF)',whatsappPDF),button('Export CSV',exportCSV)),org?h(React.Fragment,null,h('h4',null,org.name),h('p',null,formatDateIN(from)+' to '+formatDateIN(to)),h('p',null,'Opening payable ₹'+money(data.opening)+' · Closing payable ₹'+money(ledgerRows().at(-1)?.balance??data.opening)),h(LogTable,{title:'Statement entries',heads:['Date','Voucher','Type','Physiotherapist / Patient','Debit ₹','Credit ₹','Balance payable ₹'],rows:ledgerRows().map(row=>[formatDateIN(row.entry_date),voucher(row),row.kind+(row.reversed_at?' (reversed)':''),[row.snapshot?.physiotherapist,row.snapshot?.patient_name,row.snapshot?.resident_id].filter(Boolean).join(' · ')||row.reference||row.notes||'—',row.amount<0?money(-row.amount):'—',row.amount>0?money(row.amount):'—',money(row.balance)])})):h('p',null,'Choose an organisation to view its statement.')),
       tab==='Session Counts'&&h(PhysioSessionCounts,{profile}),
       form&&h('div',{className:'modal-backdrop'},h('form',{className:'card modal',onSubmit:submit},h('div',{className:'panel-head'},h('h3',null,({organisation:'Organisation details',practitioner:'Physiotherapist details',post_fee:'Post completed-session fee',payment:'Record payment made',refund:'Record refund received',reverse:'Reverse ledger entry'})[form.kind]),button('Close',()=>{if(!busy)setForm(null)})),error&&h('div',{className:'message error'},error),
         h('div',{className:'modal-grid'},
