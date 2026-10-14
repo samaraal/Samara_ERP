@@ -312,17 +312,17 @@
     function indentStory(ind){
       if(!ind)return [];
       const u=ind.unit||'';
-      const charged=allocations.filter(a=>String(a.indent_id)===String(ind.id)).reduce((n,a)=>n+Number(a.allocated_qty||0),0);
+      const charged=ind.outside_visit_id?Math.min(Number(ind.outside_used_qty||0),Math.max(0,Number(ind.received_qty||0)-Number(ind.outside_wastage_qty||0))):allocations.filter(a=>String(a.indent_id)===String(ind.id)).reduce((n,a)=>n+Number(a.allocated_qty||0),0);
       const rets=storeReturns.filter(x=>String(x.indent_id)===String(ind.id)&&x.status!=='Rejected');
       const returned=rets.reduce((n,x)=>n+Number(x.quantity||0),0);
-      const bal=Math.max(0,Number(ind.received_qty||0)-charged-returned);
+      const bal=ind.outside_visit_id?0:Math.max(0,Number(ind.received_qty||0)-charged-returned);
       return [
-        ['Resident',patientFull(ind.patient_id)],['Indent',`CI-${String(ind.indent_no||'').padStart(5,'0')} · ${ind.status}`],
+        [ind.outside_visit_id?'Outside patient':'Resident',ind.outside_visit_id?ind.outside_patient_name:patientFull(ind.patient_id)],['Indent',`CI-${String(ind.indent_no||'').padStart(5,'0')} · ${ind.status}`],
         ['Requested',`${ind.requested_qty} ${u}`],['Raised by (nurse)',whenBy(ind.initiated_by_name,ind.initiated_at||ind.created_at)],['Request remarks',ind.request_remarks],
         ['Approved',ind.approved_qty!=null?`${ind.approved_qty} ${u} · ${whenBy(ind.approved_by_name,ind.approved_at)}`:''],
         ['Handed over',ind.handed_over_qty!=null?`${ind.handed_over_qty} ${u} · ${whenBy(ind.handed_over_by_name,ind.handed_over_at)}`:''],
         ['Received by (nurse)',ind.received_qty!=null?`${ind.received_qty} ${u} · ${whenBy(ind.received_by_name,ind.received_at)}`:''],
-        ['Used (charged to resident)',ind.received_qty!=null?`${charged} ${u}`:''],
+        [ind.outside_visit_id?'Used for outside nursing (invoice reviewed separately)':'Used (charged to resident)',ind.received_qty!=null?`${charged} ${u}`:''],
         ['Returned to Stores',rets.length?rets.map(x=>`${x.quantity} ${x.unit||u} ${x.status} · ${whenBy(x.requested_by_name,x.requested_at)}${x.confirmed_by_name?' · confirmed by '+x.confirmed_by_name:''}`).join('; '):(ind.received_qty!=null?`0 ${u}`:'')],
         ['Unused balance with resident',ind.received_qty!=null?`${bal} ${u}`:'']
       ];
