@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.61';
+  const APP_VERSION = '2.16.62';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1719,7 +1719,7 @@ function initSamaraInaugurationInvitation(){
     { title:'ADMISSION', items:['Spot Assessment','Admissions','Admission Register'] }, // 2.15.67: Enquiries moved to DIRECTOR'S OFFICE → Enquiry Register
     { title:'PATIENTS', items:['Patients','Discharge','Documents','Recovery Timeline','Intelligent Reports','Family Communication','Incidents','Medication Errors'] }, // 2.15.58: Guest Ledger / Final Billing live only under ACCOUNTS
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Petty Cash'] }, // 2.16.19: Petty Cash = Nursing Manager's book (Admin + Nursing Manager)
-    { title:'NURSING', items:['Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Approval Requests','Charge Register','Physiotherapy','Special Nurse','Shift Handover'] },
+    { title:'NURSING', items:['Outside Samara Nursing Procedures','Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Approval Requests','Charge Register','Physiotherapy','Special Nurse','Shift Handover'] },
     { title:'PHARMACY & STORES', items:['Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Physiotherapist Accounts','Accounts Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Reports'] }, // keep in step with ACCOUNTS_NAV_GROUPS
@@ -1732,9 +1732,9 @@ function initSamaraInaugurationInvitation(){
     Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&(!NURSING_ENTRY_NAV.includes(item)||item==='Physiotherapy')),
     Manager:ALL_NAV.filter(item=>!['Petty Cash','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements',"Director's Office",'Enquiries & Feedback','System Maintenance','System Health','Alert Settings','Payments','Patient Ledger','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
 
-    Nurse:['Clinical Dashboard','Clinical Alerts','Talk to Guest','Duty Assignment','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Approval Requests','Raise Indent','Received Indents / Used Balance','Oxygen Cylinders','Biomedical Equipment','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
+    Nurse:['Outside Samara Nursing Procedures','Clinical Dashboard','Clinical Alerts','Talk to Guest','Duty Assignment','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Approval Requests','Raise Indent','Received Indents / Used Balance','Oxygen Cylinders','Biomedical Equipment','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Talk to Guest','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
-    Accounts:['Accounts Dashboard','Duty Assignment','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
+    Accounts:['Outside Samara Nursing Procedures','Accounts Dashboard','Duty Assignment','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
     Kitchen:['Notifications','Duty Assignment','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission'],
     STD:["Director's Office",'Enquiry Register','Enquiries & Feedback','Notifications','Food & Diet','Duty Assignment','Patient Consumables','Stores','Housekeeping & General','Kitchen / Food Stores','Talk to Guest','WhatsApp Inbox','Feedback','My Leave & Permission']
   };
@@ -1770,7 +1770,7 @@ function initSamaraInaugurationInvitation(){
     if(profile?.__dutyContext?.leave_cover&&!profile.__leaveNavResolved){const c=profile.__dutyContext;return [...new Set([...allowedPagesForProfile({...profile,__leaveNavResolved:true}),...allowedPagesForProfile({...profile,__leaveNavResolved:true,role:c.regular_role,designation:c.regular_designation,department:c.regular_department}),...allowedPagesForProfile({...profile,__leaveNavResolved:true,role:c.leave_cover.covering_role,designation:c.leave_cover.covering_designation})])];}
     if(profile?.__paymentsTrial&&!profile.__paymentsNavResolved){const a=profile.__paymentsTrial;return [...allowedPagesForProfile({...profile,__paymentsNavResolved:true}).filter(x=>!['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(x)),...(a.full?['Payments & Vouchers']:[]),'Payment Requests',...(a.pay?['Approved—Ready to Pay']:[]),'Payment Vouchers','Payment Statements'];}
     if(isNursingManagerProfile(profile))return [
-      'Admission Register','Physiotherapy',
+      'Outside Samara Nursing Procedures','Admission Register','Physiotherapy',
       'Clinical Dashboard','Talk to Guest','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiry Register','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Approval Requests','Charge Register',
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
@@ -13810,6 +13810,7 @@ https://samaraassistedliving.com/`;
           ['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(page)&&allowed.includes(page)&&window.SamaraOutgoingPayments&&h(window.SamaraOutgoingPayments,{key:page,client,profile,CameraCaptureModal,initialView:page==='Payment Statements'?'Statements':page==='Payment Vouchers'?'Vouchers':page==='Approved—Ready to Pay'?'Ready':'Requests'}),
           page==='Physiotherapy'&&h(Physiotherapy,{profile,onNavigate:setPage}),
           page==='Physiotherapist Accounts'&&h(PhysiotherapistAccounts,{profile}),
+          page==='Outside Samara Nursing Procedures'&&h(OutsideNursing,{profile}),
           page==='Duty Assignment'&&h(DutyAssignmentPage,{profile}), // 2.16.1: Roster grid + list
           page==='Duty Calendar'&&h(DutyAssignment,{profile,viewMode:'team'}),
           page==='Staff Duty Assignment'&&h(DutyAssignmentPage,{profile,viewMode:'team'}), // 2.16.2: Roster grid for Nursing Manager / Admin
@@ -33783,7 +33784,7 @@ function RoomsBeds({profile,onNavigate}){
     const wrap=(value,width,size=11,bold=false)=>{font(size,bold);const lines=[];let line='';for(const char of String(value??'—')){if(char==='\n'||(line&&ctx.measureText(line+char).width>width)){lines.push(line);line=char==='\n'?'':char;}else line+=char;}lines.push(line);return lines;};
     const text=(value,x,top,size=11,bold=false)=>{font(size,bold);ctx.fillText(String(value??''),x,top)};
     const finish=()=>{if(!canvas)return;text('Page '+page,M,H-24,10);const bytes=atob(canvas.toDataURL('image/jpeg',0.94).split(',')[1]);pages.push({width:canvas.width,height:canvas.height,bytes:Uint8Array.from(bytes,c=>c.charCodeAt(0))});};
-    const newPage=()=>{finish();page++;canvas=document.createElement('canvas');canvas.width=W*scale;canvas.height=H*scale;ctx=canvas.getContext('2d');ctx.scale(scale,scale);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);text('Samara Assisted Living',M,45,20,true);text('Physiotherapy Statement',M,76,16,true);y=104;for(const line of wrap(model.organisation,W-2*M,15,true)){text(line,M,y,15,true);y+=20;}text(model.period,M,y,11);y+=24;};
+    const newPage=()=>{finish();page++;canvas=document.createElement('canvas');canvas.width=W*scale;canvas.height=H*scale;ctx=canvas.getContext('2d');ctx.scale(scale,scale);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);text('Samara Assisted Living',M,45,20,true);text(model.title||'Physiotherapy Statement',M,76,16,true);y=104;for(const line of wrap(model.organisation,W-2*M,15,true)){text(line,M,y,15,true);y+=20;}text(model.period,M,y,11);y+=24;};
     const row=(values,header=false)=>{const lines=values.map((value,i)=>wrap(value,widths[i]-10,11,header));const height=Math.max(...lines.map(x=>x.length))*15+12;let x=M;values.forEach((_,i)=>{ctx.fillStyle=header?'#f4e9f0':'#fff';ctx.fillRect(x,y,widths[i],height);ctx.strokeStyle='#bbb';ctx.strokeRect(x,y,widths[i],height);lines[i].forEach((line,j)=>text(line,x+5,y+17+j*15,11,header));x+=widths[i];});y+=height;};
     newPage();for(const line of wrap(model.contact,W-2*M)){text(line,M,y,11);y+=15;}y+=10;row(model.heads,true);
     for(const values of model.rows){const height=Math.max(...values.map((value,i)=>wrap(value,widths[i]-10).length))*15+12;if(y+height>H-55){newPage();row(model.heads,true);}row(values);}
@@ -33898,6 +33899,52 @@ function RoomsBeds({profile,onNavigate}){
           form.kind==='reverse'&&h(React.Fragment,null,h('p',{className:'span-2'},voucher(form.entry)+' · '+form.entry.kind+' · ₹'+money(Math.abs(form.entry.amount))),h('div',{className:'field span-2'},h('label',null,'Reason'),h('textarea',{required:true,rows:2,value:form.reason,onChange:e=>setForm({...form,reason:e.target.value})})))),
         h('div',{className:'actions'},h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save'),button('Cancel',()=>setForm(null))))));
   }
+  function OutsideNursing({profile}){
+    const admin=profile?.role==='Admin',finance=['Admin','Accounts'].includes(profile?.role);
+    const [data,setData]=React.useState({patients:[],rates:[],visits:[],payments:[]});
+    const [form,setForm]=React.useState(null),[error,setError]=React.useState(''),[busy,setBusy]=React.useState(false),[loading,setLoading]=React.useState(true);
+    const [patientId,setPatientId]=React.useState(''),[from,setFrom]=React.useState(todayISOIndia().slice(0,8)+'01'),[to,setTo]=React.useState(todayISOIndia());
+    const fileRef=React.useRef(null),version=React.useRef(0);
+    const money=n=>Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const invoice=v=>'SN-'+String(v.invoice_number).padStart(6,'0');
+    const patient=id=>data.patients.find(p=>p.id===id)||{};
+    const paid=id=>data.payments.filter(p=>p.visit_id===id).reduce((sum,p)=>sum+Number(p.amount),0);
+    async function load(){const seq=++version.current;setLoading(true);try{const r=await client.rpc('outside_nursing',{p_action:'load',p_data:{}});if(seq!==version.current)return;if(r.error)throw r.error;setData(r.data);setError('');}catch(e){if(seq===version.current)setError(e.message);}finally{if(seq===version.current)setLoading(false);}}
+    React.useEffect(()=>{load();return()=>{++version.current;if(fileRef.current)URL.revokeObjectURL(fileRef.current);}},[]);
+    const button=(label,fn)=>h('button',{type:'button',className:'btn btn-secondary',disabled:busy||loading,onClick:fn},label);
+    function start(kind,row={}){
+      setError('');
+      if(kind==='patient')setForm({kind,id:crypto.randomUUID(),full_name:'',phone:'',address:''});
+      if(kind==='rate')setForm({kind,id:row.id||crypto.randomUUID(),name:row.name||'',rate:row.rate??'',active:true});
+      if(kind==='visit'||kind==='resubmit')setForm({kind,id:row.id||crypto.randomUUID(),patient_id:row.patient_id||patientId,service_date:row.service_date||todayISOIndia(),procedure_name:row.procedure_name||'',nurse_name:row.nurse_name||profile.full_name||'',location:row.location||'At Samara',notes:row.notes||''});
+      if(kind==='bill')setForm({kind,visit_id:row.id,quantity:'1',rate:data.rates.find(r=>r.active&&r.name===row.procedure_name)?.rate??'',concession:'0',review_note:''});
+      if(kind==='return')setForm({kind,visit_id:row.id,review_note:''});
+      if(kind==='payment')setForm({kind,id:crypto.randomUUID(),visit_id:row.id,amount:Math.max(0,Number(row.total)-paid(row.id)).toFixed(2),payment_date:todayISOIndia(),method:'Cash',reference:''});
+    }
+    async function submit(e){e.preventDefault();if(busy)return;setBusy(true);setError('');try{const {kind,...payload}=form;const r=await client.rpc('outside_nursing',{p_action:kind,p_data:payload});if(r.error)throw r.error;if(kind==='patient')setPatientId(payload.id);setForm(null);await load();}catch(e){setError(e.message);}finally{setBusy(false);}}
+    const field=(key,label,type='text',required=true)=>h('div',{className:'field'},h('label',null,label),h('input',{type,required,value:form[key]??'',min:type==='number'?0:undefined,step:type==='number'?'0.01':undefined,max:type==='date'?todayISOIndia():undefined,onChange:e=>setForm({...form,[key]:e.target.value})}));
+    const select=(key,label,options)=>h('div',{className:'field'},h('label',null,label),h('select',{required:true,value:form[key],onChange:e=>setForm({...form,[key]:e.target.value})},h('option',{value:''},'Select'),options.map(([value,text])=>h('option',{key:value,value},text))));
+    function pdf(model,filename){try{const blob=physioStatementPDF({...model,title:model.title,organisation:'Samara Health Care LLP',contact:'RBK VILLA, 23-A, Reddipalayam Road, Jeswant Nagar Phase 1, Mogappair West, Chennai 600037\n9976735577 / 7395961616 · care@samaraassistedliving.com'});if(fileRef.current)URL.revokeObjectURL(fileRef.current);const url=URL.createObjectURL(blob);fileRef.current=url;const a=document.createElement('a');a.href=url;a.download=filename;a.click();}catch(e){setError(e.message);}}
+    function downloadInvoice(v){const p=v.snapshot||patient(v.patient_id);pdf({title:'Nursing Procedure Invoice '+invoice(v),period:'Service date: '+v.service_date+' · Approved: '+new Date(v.billed_at).toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata'}),heads:['Date','Procedure','Patient / Location','Quantity','Rate INR','Amount INR'],rows:[[v.service_date,v.procedure_name,p.full_name+'\n'+p.phone+'\n'+p.address+'\n'+v.location,v.quantity,money(v.rate),money(Number(v.quantity)*Number(v.rate))]],notes:['Concession INR '+money(v.concession),'Invoice total INR '+money(v.total),'Received INR '+money(paid(v.id))+' · Balance INR '+money(Number(v.total)-paid(v.id)),v.total==0?'Free / fully concessional care':'', 'Completed by: '+v.nurse_name, 'Computer-generated invoice.']},invoice(v)+'.pdf');}
+    const visible=data.visits.filter(v=>(!patientId||v.patient_id===patientId)&&v.service_date>=from&&v.service_date<=to);
+    function statement(){if(!patientId){setError('Select a patient for the statement.');return;}if(from>to){setError('From date must precede To date.');return;}const visits=data.visits.filter(v=>v.patient_id===patientId&&v.billed_at),ids=new Set(visits.map(v=>v.id));const entries=[...visits.map(v=>({date:v.service_date,ref:invoice(v),detail:v.procedure_name,debit:Number(v.total),credit:0})),...data.payments.filter(p=>ids.has(p.visit_id)).map(p=>({date:p.payment_date,ref:invoice(visits.find(v=>v.id===p.visit_id)),detail:'Payment / '+p.method,debit:0,credit:Number(p.amount)}))].sort((a,b)=>a.date.localeCompare(b.date)||a.credit-b.credit);let balance=entries.filter(e=>e.date<from).reduce((s,e)=>s+e.debit-e.credit,0),opening=balance;const rows=entries.filter(e=>e.date>=from&&e.date<=to).map(e=>{balance+=e.debit-e.credit;return[e.date,e.ref,e.detail,money(e.debit),money(e.credit),money(balance)];});const p=patient(patientId);pdf({title:'Nursing Procedure Statement',period:from+' to '+to,heads:['Date','Invoice','Description','Charge INR','Paid INR','Balance INR'],rows,notes:[p.full_name+' · '+p.phone,'Opening balance INR '+money(opening),'Closing balance INR '+money(balance),'Unapproved procedures are excluded.']},'Nursing-Statement-'+from+'-'+to+'.pdf');}
+    return h('section',{className:'card panel'},h('h2',null,'Outside Samara Nursing Procedures'),h('p',null,'Nurse submits completed care → Admin approves and sets fees → Invoice and payments.'),
+      error&&h('p',{className:'message error',role:'alert'},error),
+      h('div',{className:'form-grid'},h('div',{className:'field'},h('label',null,'Patient'),h('select',{value:patientId,onChange:e=>setPatientId(e.target.value)},h('option',{value:''},'All patients'),data.patients.map(p=>h('option',{key:p.id,value:p.id},p.full_name+' · '+p.phone)))),h('div',{className:'field'},h('label',null,'From'),h('input',{type:'date',value:from,onChange:e=>setFrom(e.target.value)})),h('div',{className:'field'},h('label',null,'To'),h('input',{type:'date',value:to,onChange:e=>setTo(e.target.value)}))),
+      h('div',{className:'actions'},button('Refresh',load),profile.role!=='Accounts'&&button('Add outside patient',()=>start('patient')),profile.role!=='Accounts'&&button('Submit completed procedure',()=>start('visit')),finance&&button('Download patient statement PDF',statement),admin&&button('Add procedure rate',()=>start('rate'))),
+      loading&&h('p',null,'Loading nursing register…'),
+      form&&h('form',{onSubmit:submit},h('h3',null,({patient:'Outside patient',visit:'Completed nursing procedure',resubmit:'Correct returned procedure',bill:'Admin approval and fees',return:'Return to nurse',payment:'Receive payment',rate:'Procedure rate'})[form.kind]),h('div',{className:'form-grid'},
+        form.kind==='patient'&&[field('full_name','Patient name'),field('phone','Contact phone'),field('address','Address', 'text',false)],
+        ['visit','resubmit'].includes(form.kind)&&[form.kind==='visit'&&select('patient_id','Patient',data.patients.map(p=>[p.id,p.full_name+' · '+p.phone])),field('service_date','Completed on (IST)','date'),h('div',{className:'field'},h('label',null,'Procedure performed'),h('input',{required:true,list:'outside-nursing-procedures',value:form.procedure_name,onChange:e=>setForm({...form,procedure_name:e.target.value})}),h('datalist',{id:'outside-nursing-procedures'},data.rates.filter(r=>r.active).map(r=>h('option',{key:r.id,value:r.name})))),field('nurse_name','Nurse who completed the procedure'),select('location','Service location',[['At Samara','At Samara'],['Home / outside visit','Home / outside visit']]),field('notes','Completion notes','text',false)],
+        form.kind==='bill'&&[field('quantity','Quantity','number'),field('rate','Admin fee per unit (INR)','number'),field('concession','Concession / free care amount (INR)','number'),field('review_note','Admin remarks','text',false),h('p',null,'Invoice total INR '+money(Number(form.quantity)*Number(form.rate)-Number(form.concession)))],
+        form.kind==='return'&&field('review_note','Reason for returning to nurse'),
+        form.kind==='payment'&&[field('amount','Amount received (INR)','number'),field('payment_date','Payment date (IST)','date'),select('method','Payment method',['Cash','UPI','Bank transfer','Card'].map(x=>[x,x])),field('reference','Payment reference','text',false)],
+        form.kind==='rate'&&[field('name','Procedure name'),field('rate','Default fee (INR)','number')]),
+        h('button',{className:'btn btn-primary',disabled:busy||loading,type:'submit'},busy?'Saving…':form.kind==='bill'?'Approve and issue invoice':form.kind==='visit'||form.kind==='resubmit'?'Confirm completed and submit':'Save'),button('Cancel',()=>setForm(null))),
+      admin&&h(LogTable,{title:'Admin procedure rates',heads:['Procedure','Default fee INR','Action'],rows:data.rates.map(r=>[r.name,money(r.rate),button('Edit rate',()=>start('rate',r))])}),
+      h(LogTable,{title:'Outside Samara Nursing Procedure Register',heads:['Date','Patient','Procedure','Nurse','Location','Completion notes','Status','Admin / nurse action',...(finance?['Invoice INR','Received INR','Balance INR','Invoice / payment']:[])],rows:visible.map(v=>[v.service_date,patient(v.patient_id).full_name,v.procedure_name,v.nurse_name,v.location,v.notes,v.review_status+(v.review_note?' · '+v.review_note:''),h('div',null,admin&&v.review_status==='Submitted'&&button('Review, approve and set fee',()=>start('bill',v)),admin&&v.review_status==='Submitted'&&button('Return to nurse',()=>start('return',v)),v.review_status==='Returned'&&(v.recorded_by===profile.auth_user_id||v.recorded_by===profile.id||admin)&&button('Correct and resubmit',()=>start('resubmit',v))),...(finance?[v.billed_at?money(v.total):'Awaiting approval',v.billed_at?money(paid(v.id)):'—',v.billed_at?money(Number(v.total)-paid(v.id)):'—',v.billed_at&&h('div',null,button('Invoice PDF',()=>downloadInvoice(v)),Number(v.total)>paid(v.id)&&button('Receive payment',()=>start('payment',v)))]:[])])}));
+  }
+
   function SpecialNurseManagement({profile}){
     const canManage=['Admin','Manager'].includes(profile?.role);
     const canUpdate=['Admin','Manager','Nurse','Caregiver'].includes(profile?.role);
