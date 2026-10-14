@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.63';
+  const APP_VERSION = '2.16.64';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -39922,17 +39922,17 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     function indentStory(ind){
       if(!ind)return [];
       const u=ind.unit||'';
-      const charged=allocations.filter(a=>String(a.indent_id)===String(ind.id)).reduce((n,a)=>n+Number(a.allocated_qty||0),0);
+      const charged=ind.outside_visit_id?Math.min(Number(ind.outside_used_qty||0),Math.max(0,Number(ind.received_qty||0)-Number(ind.outside_wastage_qty||0))):allocations.filter(a=>String(a.indent_id)===String(ind.id)).reduce((n,a)=>n+Number(a.allocated_qty||0),0);
       const rets=storeReturns.filter(x=>String(x.indent_id)===String(ind.id)&&x.status!=='Rejected');
       const returned=rets.reduce((n,x)=>n+Number(x.quantity||0),0);
-      const bal=Math.max(0,Number(ind.received_qty||0)-charged-returned);
+      const bal=ind.outside_visit_id?0:Math.max(0,Number(ind.received_qty||0)-charged-returned);
       return [
-        ['Resident',patientFull(ind.patient_id)],['Indent',`CI-${String(ind.indent_no||'').padStart(5,'0')} · ${ind.status}`],
+        [ind.outside_visit_id?'Outside patient':'Resident',ind.outside_visit_id?ind.outside_patient_name:patientFull(ind.patient_id)],['Indent',`CI-${String(ind.indent_no||'').padStart(5,'0')} · ${ind.status}`],
         ['Requested',`${ind.requested_qty} ${u}`],['Raised by (nurse)',whenBy(ind.initiated_by_name,ind.initiated_at||ind.created_at)],['Request remarks',ind.request_remarks],
         ['Approved',ind.approved_qty!=null?`${ind.approved_qty} ${u} · ${whenBy(ind.approved_by_name,ind.approved_at)}`:''],
         ['Handed over',ind.handed_over_qty!=null?`${ind.handed_over_qty} ${u} · ${whenBy(ind.handed_over_by_name,ind.handed_over_at)}`:''],
         ['Received by (nurse)',ind.received_qty!=null?`${ind.received_qty} ${u} · ${whenBy(ind.received_by_name,ind.received_at)}`:''],
-        ['Used (charged to resident)',ind.received_qty!=null?`${charged} ${u}`:''],
+        [ind.outside_visit_id?'Used for outside nursing (invoice reviewed separately)':'Used (charged to resident)',ind.received_qty!=null?`${charged} ${u}`:''],
         ['Returned to Stores',rets.length?rets.map(x=>`${x.quantity} ${x.unit||u} ${x.status} · ${whenBy(x.requested_by_name,x.requested_at)}${x.confirmed_by_name?' · confirmed by '+x.confirmed_by_name:''}`).join('; '):(ind.received_qty!=null?`0 ${u}`:'')],
         ['Unused balance with resident',ind.received_qty!=null?`${bal} ${u}`:'']
       ];
@@ -40393,7 +40393,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const fallbackItems=['Adult Diapers','Examination Gloves','Sterile Gloves','Syringes','Dressing Materials','PPE','Feeding Tubes','Catheters','Oxygen Consumables','Underpads','Cotton / Gauze','Other Consumables'];
     const actorName=formalName(profile)||profile?.full_name||profile?.login_id||profile?.role||'Staff';
     const notify=(type,text)=>showSamaraActionToast(type,type==='success'?'Consumables updated':'Consumables action failed',text);
-    const patientLabel=id=>{const p=patients.find(x=>x.id===id);return p?[formalName(p),p.patient_id&&`(${p.patient_id})`,p.room_no&&`Room ${p.room_no}${p.bed_no?`/${p.bed_no}`:''}`].filter(Boolean).join(' · '):'—'};
+    const patientLabel=(id,row)=>{if(row?.outside_visit_id)return 'Outside · '+(row.outside_patient_name||'Patient')+' · Procedure '+String(row.outside_visit_id).slice(0,8);const p=patients.find(x=>x.id===id);return p?[formalName(p),p.patient_id&&`(${p.patient_id})`,p.room_no&&`Room ${p.room_no}${p.bed_no?`/${p.bed_no}`:''}`].filter(Boolean).join(' · '):'—'};
     const stockFor=r=>stock.find(x=>x.item_id===r.store_item_id)||stock.find(x=>String(x.item_name).toLowerCase()===String(r.item_name).toLowerCase());
     // 2.14.96: click an indent row for its full details (who, when, every step)
     const [indentDetail,setIndentDetail]=React.useState(null);
@@ -40410,8 +40410,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     function indentFields(r){
       const u=indentUsage(r);const m=(masterItems||[]).find(x=>String(x.id)===String(r.store_item_id));const when=v=>v?formatDateTimeIN(v):'';
       const rel=returns.filter(x=>String(x.indent_id)===String(r.id));
-      return {title:`CI-${String(r.indent_no||'').padStart(5,'0')} · ${r.status}`,subtitle:patientLabel(r.patient_id),fields:[
-        ['Resident',patientLabel(r.patient_id)],['Item',`${m?.item_code?m.item_code+' · ':''}${r.item_name}`],['Section',m?.item_category||''],
+      return {title:`CI-${String(r.indent_no||'').padStart(5,'0')} · ${r.status}`,subtitle:patientLabel(r.patient_id,r),fields:[
+        ['Resident',patientLabel(r.patient_id,r)],['Item',`${m?.item_code?m.item_code+' · ':''}${r.item_name}`],['Section',m?.item_category||''],
         ['Requested',`${r.requested_qty} ${r.unit}`],['Raised by (nurse)',[r.initiated_by_name,when(r.initiated_at||r.created_at)].filter(Boolean).join(' · ')],['Request remarks',r.request_remarks],
         ['Approved',r.approved_qty!=null?`${r.approved_qty} ${r.unit}`:''],['Approved by',[r.approved_by_name,when(r.approved_at)].filter(Boolean).join(' · ')],['Approval remarks',r.approval_remarks],
         ['Handed over',r.handed_over_qty!=null?`${r.handed_over_qty} ${r.unit}`:''],['Handed over by',[r.handed_over_by_name,when(r.handed_over_at)].filter(Boolean).join(' · ')],['Handover remarks',r.handover_remarks],
@@ -40507,7 +40507,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const bulkQtyOf=(mode,r)=>bulkQty[bulkKey(mode,r)]??String(bulkDefault(mode,r));
     function bulkGroups(statuses){
       const m=new Map();
-      rows.filter(r=>statuses.includes(r.status)).forEach(r=>{const k=String(r.patient_id);if(!m.has(k))m.set(k,{patient_id:r.patient_id,items:[]});m.get(k).items.push(r)});
+      rows.filter(r=>statuses.includes(r.status)).forEach(r=>{const k=String(r.outside_visit_id||r.patient_id);if(!m.has(k))m.set(k,{patient_id:r.patient_id,items:[]});m.get(k).items.push(r)});
       const t=r=>String(r.initiated_at||r.created_at||'');
       return [...m.values()].filter(g=>g.items.length>1).map(g=>({...g,items:g.items.slice().sort((a,b)=>t(a).localeCompare(t(b))||Number(a.indent_no||0)-Number(b.indent_no||0))})).sort((a,b)=>t(a.items[0]).localeCompare(t(b.items[0])));
     }
@@ -40520,7 +40520,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         if(bad){notify('error',`${bad.item_name}: enter a quantity more than 0 and not more than ${mode==='approve'?'requested':'approved'} (${bulkDefault(mode,bad)} ${bad.unit}).`);return}
       }
       const verb=reject?'Reject':mode==='approve'?'Approve':'Hand over';
-      if(!confirm(`${verb} ${picked.length} item(s) for ${patientLabel(group.patient_id)}?`))return;
+      if(!confirm(`${verb} ${picked.length} item(s) for ${patientLabel(group.patient_id,group.items[0])}?`))return;
       const remarks=prompt(reject?'Reason for rejection:':mode==='approve'?'Approval remarks (optional):':'Handover remarks (optional):',reject?'Not approved':'');
       if(remarks===null)return;
       if(reject&&!String(remarks).trim()){notify('error','Enter the reason for rejection.');return}
@@ -40543,9 +40543,9 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     function bulkCard(group,mode){
       const picked=group.items.filter(r=>!bulkOff[bulkKey(mode,r)]).length;
       const first=group.items[0];
-      return h('div',{key:`${mode}-${group.patient_id}`,className:'card',style:{padding:'12px',marginBottom:'12px',border:'1px solid #ead2dd'}},
+      return h('div',{key:`${mode}-${group.items[0]?.outside_visit_id||group.patient_id}`,className:'card',style:{padding:'12px',marginBottom:'12px',border:'1px solid #ead2dd'}},
         h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',flexWrap:'wrap',alignItems:'baseline'}},
-          h('strong',null,patientLabel(group.patient_id)),
+          h('strong',null,patientLabel(group.patient_id,group.items[0])),
           h('small',{style:{color:'#7a5566'}},`${group.items.length} items · ${first.initiated_by_name||'—'}${first.initiated_at||first.created_at?` · ${formatDateTimeIN(first.initiated_at||first.created_at)}`:''}`)
         ),
         h('div',{className:'table-wrap',style:{marginTop:'8px'}},h('table',{className:'table'},
@@ -40590,6 +40590,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       if(res.error)notify('error',res.error.message);else{notify('success','Discrepancy returned to Stores and reconciled.');await load()}
     }
     function indentUsage(row){
+      if(row.outside_visit_id)return {charged:Math.min(Number(row.outside_used_qty||0),Math.max(0,Number(row.received_qty||0)-Number(row.outside_wastage_qty||0))),returned:0,balance:0};
       const charged=allocations.filter(a=>String(a.indent_id)===String(row.id)).reduce((n,a)=>n+Number(a.allocated_qty||0),0);
       const returned=returns.filter(x=>String(x.indent_id)===String(row.id)&&x.status!=='Rejected').reduce((n,x)=>n+Number(x.quantity||0),0);
       return {charged,returned,balance:Math.max(0,Number(row.received_qty||0)-charged-returned)};
@@ -40673,7 +40674,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       (!section||section==='balance')&&h('div',{id:'patient-received-balance',style:{scrollMarginTop:'90px'}},h(Section,{title:`${categoryFilter?categoryFilter+' — ':''}Received Indents / Used Balance`,subtitle:'Patient-specific received stock. Charge Raised automatically reduces this balance; unused items can be returned only after Stores Manager confirms physical receipt.'},
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Indent','Item','Received','Charged','Return Pending / Returned','Balance','Action'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,rows.filter(r=>r.status==='Received').map(r=>{const u=indentUsage(r);const related=returns.filter(x=>String(x.indent_id)===String(r.id));const pending=related.filter(x=>x.status==='Pending').reduce((n,x)=>n+Number(x.quantity||0),0);const confirmed=related.filter(x=>x.status==='Confirmed').reduce((n,x)=>n+Number(x.quantity||0),0);return h('tr',{key:`balance-${r.id}`,className:'row-clickable',onClick:rowClick(()=>setIndentDetail(indentFields(r)))},
-            h('td',null,patientLabel(r.patient_id)),h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),h('td',null,r.item_name),h('td',null,`${r.received_qty||0} ${r.unit}`),h('td',null,`${u.charged} ${r.unit}`),h('td',null,`${pending} pending / ${confirmed} returned`),h('td',null,h('strong',null,`${u.balance} ${r.unit}`)),
+            h('td',null,patientLabel(r.patient_id,r)),h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),h('td',null,r.item_name),h('td',null,`${r.received_qty||0} ${r.unit}`),h('td',null,`${u.charged} ${r.unit}`),h('td',null,`${pending} pending / ${confirmed} returned`),h('td',null,h('strong',null,`${u.balance} ${r.unit}`)),
             h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},nurse&&u.balance>0&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>requestUnusedReturn(r)},'Return Unused'),storeController&&related.filter(x=>x.status==='Pending').map(ret=>h('button',{type:'button',key:ret.id,className:'btn btn-primary',disabled:busy,onClick:()=>confirmUnusedReturn(ret)},`Confirm Return ${ret.quantity}`)),(!nurse&&!related.some(x=>x.status==='Pending'))&&h('span',null,'—')))
           )}),rows.filter(r=>r.status==='Received').length===0?h('tr',null,h('td',{colSpan:8,style:{textAlign:'center',padding:'24px'}},'No received patient indents yet.')):null)
         ))
@@ -40683,7 +40684,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         !focusId&&bulkPanel(),
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Indent','Patient','Item / Store Balance','Requested','Approved','Handed Over','Received','Status','Initiated By / Time','Approval / Handover','Receipt','Action'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,visible.length?visible.map(r=>{const st=stockFor(r);const late=r.status==='Handed Over'?receiptOverdue[String(r.id)]:null;return h('tr',{key:r.id,id:`indent-row-${r.id}`,className:'row-clickable',onClick:rowClick(()=>setIndentDetail(indentFields(r)))},
-            h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),h('td',null,patientLabel(r.patient_id)),h('td',null,h('strong',null,r.item_name),h('small',{style:{display:'block'}},`Store: ${st?.balance_qty??'—'} ${st?.unit||r.unit}`),r.request_remarks&&h('small',{style:{display:'block'}},r.request_remarks)),
+            h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),h('td',null,patientLabel(r.patient_id,r)),h('td',null,h('strong',null,r.item_name),h('small',{style:{display:'block'}},`Store: ${st?.balance_qty??'—'} ${st?.unit||r.unit}`),r.request_remarks&&h('small',{style:{display:'block'}},r.request_remarks)),
             h('td',null,`${r.requested_qty} ${r.unit}`),h('td',null,r.approved_qty!=null?`${r.approved_qty} ${r.unit}`:'—'),h('td',null,r.handed_over_qty!=null?`${r.handed_over_qty} ${r.unit}`:'—'),h('td',null,r.received_qty!=null?`${r.received_qty} ${r.unit}`:'—'),h('td',null,h('span',{style:stageStyle(r.status)},r.status),late&&h('small',{style:{display:'block',marginTop:'5px',color:'#b2192d',fontWeight:800}},`Not received · ${late.minutes} min`)),
             h('td',null,h('strong',null,r.initiated_by_name||'—'),h('small',{style:{display:'block'}},r.initiated_at?formatDateTimeIN(r.initiated_at):'—')),
             h('td',null,r.approved_by_name&&h('div',null,h('strong',null,`Approved: ${r.approved_by_name}`),h('small',{style:{display:'block'}},r.approved_at?formatDateTimeIN(r.approved_at):'')),r.handed_over_by_name&&h('div',{style:{marginTop:'5px'}},h('strong',null,`Handed over: ${r.handed_over_by_name}`),h('small',{style:{display:'block'}},r.handed_over_at?formatDateTimeIN(r.handed_over_at):''))),
