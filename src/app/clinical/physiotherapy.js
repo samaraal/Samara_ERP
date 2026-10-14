@@ -6,6 +6,8 @@
     const [loading,setLoading]=React.useState(true);
     const [message,setMessage]=React.useState('');
     const [entryPlan,setEntryPlan]=React.useState(null);
+    const [editingSession,setEditingSession]=React.useState(null);
+    const [correctionReason,setCorrectionReason]=React.useState('');
     const [saving,setSaving]=React.useState(false);
     const [toast,setToast]=React.useState(null);
     const [returnPage,setReturnPage]=React.useState('');
@@ -97,6 +99,7 @@
     };
 
     function openEntry(plan){
+      setEditingSession(null);setCorrectionReason('');
       setEntryPlan(plan);
       setForm({
         session_date:todayISOIndia(),
@@ -107,9 +110,18 @@
       });
     }
 
+    function openCorrection(session){
+      const plan=planFor(session.plan_id||session.order_id);
+      setEntryPlan(plan.id?plan:{id:session.plan_id||session.order_id,patient_id:session.patient_id,physiotherapist_name:session.physiotherapist_name});
+      setEditingSession(session);setCorrectionReason('');
+      setForm({session_date:session.session_date,scheduled_time:String(session.scheduled_time||plan.preferred_time||'').slice(0,5),status:session.status||'Completed',reason:session.reason||'',notes:session.notes||''});
+    }
+
     async function saveSession(e){
       e.preventDefault();
-      if(!entryPlan||saving)return;
+      if(!canEnter||!entryPlan||saving)return;
+      if(editingSession&&!correctionReason.trim()){showToast('error','Enter a reason for correcting this session.');return;}
+      if(editingSession&&(editingSession.billable||editingSession.charge_request_id)){showToast('error','This session is linked to billing. Ask Admin or Accounts to review its charge before correcting it.');return;}
       {const pt=patientFor(entryPlan.patient_id);if(pt.id&&(pt.is_active===false||pt.admission_status==='Discharged')){showToast('error','This patient has been discharged. Physiotherapy sessions can no longer be recorded.');return;}}
       if(isFutureDateIndia(form.session_date)){
         showToast('error','Future physiotherapy session dates are not permitted.');
@@ -120,7 +132,9 @@
         return;
       }
       setSaving(true);
-      const {data:{user}}=await client.auth.getUser();
+      try{
+      const {data:{user},error:authError}=await client.auth.getUser();
+      if(authError||!user)throw new Error('Please sign in again before saving this session.');
       const payload={
         plan_id:entryPlan.id,
         order_id:entryPlan.id,
@@ -128,20 +142,25 @@
         session_date:form.session_date,
         scheduled_time:form.scheduled_time||entryPlan.preferred_time||null,
         status:form.status,
-        session_at:form.status==='Completed'?new Date().toISOString():null,
+        session_at:form.status==='Completed'?(editingSession?.session_at||new Date().toISOString()):null,
         performed_by:user?.id||profile?.id,
         reason:form.reason||null,
         notes:form.notes||null,
         physiotherapist_name:entryPlan.physiotherapist_name||null,
         updated_at:new Date().toISOString()
       };
-      const {data,error}=await client.from('physiotherapy_sessions')
-        .upsert(payload,{onConflict:'order_id,session_date'})
+      let query;
+      if(editingSession){
+        const {plan_id,order_id,patient_id,session_date,...changes}=payload;
+        query=client.from('physiotherapy_sessions').update(changes).eq('id',editingSession.id).eq('status',editingSession.status);
+        query=editingSession.updated_at?query.eq('updated_at',editingSession.updated_at):query.is('updated_at',null);
+      }else{query=client.from('physiotherapy_sessions').upsert(payload,{onConflict:'order_id,session_date'});}
+      const {data,error}=await query
         .select('id')
         .single();
       setSaving(false);
       if(error){
-        showToast('error',error.message||'Unable to save physiotherapy session.');
+        showToast('error',error.code==='23502'&&String(error.message).includes('session_at')?'Apply the physiotherapy database timestamp repair before saving Pending / Not Done.':error.code==='PGRST116'?'This session changed or is no longer available. Close the form, refresh and try again.':error.message||'Unable to save physiotherapy session.');
         return;
       }
       showToast('success',`Physiotherapy session marked as ${form.status}.`);
@@ -151,12 +170,16 @@
         returnPage,
         onNavigate
       });
-      writeAuditEvent('Physiotherapy Session Recorded','Physiotherapy',data?.id||entryPlan.id,{
+      writeAuditEvent(editingSession?'Physiotherapy Session Corrected':'Physiotherapy Session Recorded','Physiotherapy',data?.id||entryPlan.id,{
         patient_id:entryPlan.patient_id,
         therapy:entryPlan.therapy_type,
         status:form.status,
-        reason:form.reason||null
+        reason:form.reason||null,
+        correction_reason:editingSession?correctionReason.trim():null,
+        previous:editingSession?{status:editingSession.status,session_at:editingSession.session_at,reason:editingSession.reason,notes:editingSession.notes,scheduled_time:editingSession.scheduled_time}:null
       },'Success');
+      }catch(error){showToast('error',error.message||'Unable to save physiotherapy session.');}
+      finally{setSaving(false);}
     }
 
     const planRows=plans.map(plan=>[
@@ -179,7 +202,8 @@
         clockLabel(session.scheduled_time||plan.preferred_time),
         session.status||'—',
         session.reason||session.notes||'—',
-        fmt(session.updated_at||session.created_at)
+        fmt(session.updated_at||session.created_at),
+        canEnter?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openCorrection(session)},'Correct Session'):h('span',{className:'small-note'},'View only')
       ];
     });
 
@@ -197,21 +221,22 @@
       h(LogTable,{
         title:'Recent Physiotherapy Sessions',
         subtitle:'Completion, pending and not-done records entered by the care team',
-        heads:['Date','Patient','Therapy','Physiotherapist','Scheduled Time','Status','Reason / Notes','Recorded'],
+        heads:['Date','Patient','Therapy','Physiotherapist','Scheduled Time','Status','Reason / Notes','Recorded','Action'],
         rows:recentRows
       }),
       entryPlan&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setEntryPlan(null)}},
         h('form',{className:'card modal',onSubmit:saveSession},
           h('div',{className:'panel-head'},
             h('div',null,
-              h('h3',null,'Record Physiotherapy Session'),
+              h('h3',null,editingSession?'Correct Physiotherapy Session':'Record Physiotherapy Session'),
               h('small',null,`${patientLabel(entryPlan.patient_id)} · ${entryPlan.therapy_type||'Therapy'}`)
             ),
             h('button',{type:'button',className:'close',onClick:()=>setEntryPlan(null)},'×')
           ),
           h('div',{className:'modal-grid'},
+            editingSession&&h('div',{className:'field span-2'},h('p',{className:'small-note'},'To revert an incorrectly completed session, choose Pending and enter the rescheduling reason. The original session date is retained.'),h('label',null,'Correction Reason'),h('textarea',{required:true,rows:2,value:correctionReason,onChange:e=>setCorrectionReason(e.target.value),placeholder:'Why is this existing record being corrected?'})),
             h('div',{className:'field'},h('label',null,'Session Date'),h('input',{
-              type:'date',value:form.session_date,max:todayISOIndia(),
+              type:'date',value:form.session_date,max:todayISOIndia(),required:true,disabled:!!editingSession,
               onChange:e=>setForm({...form,session_date:e.target.value})
             })),
             h('div',{className:'field'},h('label',null,'Preferred / Scheduled Time'),h('select',{
