@@ -1,3 +1,6 @@
+## 2.16.58 — Existing Pending physiotherapy entry
+
+Existing Pending entries expose Record Session directly beside Session options. Both plan entry and the Pending-row action retain the session's approved scheduled time. Legacy Vinayaga organisation labels default to Vinayaga Physio Point in Record Session and Modify, without putting the organisation into the attending therapist name. Nurses enter the actual attending name. Clinical outcome changes still follow the existing recording/approval rules. No SQL migration needed.
 ## 2.16.57 — Filtered physiotherapy statements
 
 Admin Physiotherapist Accounts > Statement: select Organisation and From/To period; review opening/closing payable and patient-linked ledger entries. Print / Save PDF and Send WhatsApp (PDF) use the exact same paginated PDF. Native sharing is available on supported devices; desktop fallback downloads the PDF for manual WhatsApp attachment, matching Food Vendor. Files are generated locally and are not automatically sent. Nurses retain count-only access.
@@ -2236,6 +2239,7 @@ The full original notes for older releases are kept in [`docs/release-notes/`](d
 - Minimal erp patch
 - Database: `01_complete_setup.sql`, `02_first_admin.sql`, `105_patient_family_daily_whatsapp_reports.sql`, `135_received_stock_charge_link.sql`
 - Notes: [START_HERE_FULL_PDF_WHATSAPP_FIX.txt](docs/release-notes/START_HERE_FULL_PDF_WHATSAPP_FIX.txt), [START_HERE_DAILY_INTELLIGENT_REPORT_WHATSAPP.txt](docs/release-notes/START_HERE_DAILY_INTELLIGENT_REPORT_WHATSAPP.txt), [START_HERE_135_RECEIVED_BEFORE_CHARGE.txt](docs/release-notes/START_HERE_135_RECEIVED_BEFORE_CHARGE.txt), [SETUP_FOR_BOOMI.md](docs/release-notes/SETUP_FOR_BOOMI.md), [README_FIRST.txt](docs/release-notes/README_FIRST.txt)
+
 
 
 
