@@ -1,3 +1,9 @@
+## 2.16.49 — Physiotherapy corrections
+
+- Add Correct Session to revert an incorrectly completed session to Pending with a mandatory correction reason and preserved original date.
+- Preserve prior values in audit details; reject concurrent edits and billing-linked corrections.
+- Apply physiotherapy_timestamp_repair.sql in Supabase to permit empty completion timestamps for Pending / Not Done.
+
 ## SQL 221 (database only, no app change) — Erase Trial Guest leaves nothing behind
 
 - Found: Admin → Rooms → **Room Shift History** still listed erased Trial Guests. Those rows pointed to a Guest record that no longer existed (e.g. an earlier duplicate record of the same Trial Guest), so the erase — which looks for the Guest's own id — never saw them. The audit log also kept every Trial Guest's name.
