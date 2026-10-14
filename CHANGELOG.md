@@ -1,3 +1,10 @@
+## 2.16.55 — Physiotherapy escalation and outsourced accounts
+
+Pending sessions remain due at their scheduled time. Approved future reschedules suppress the old slot; completed, not-done and moved slots close stale physiotherapy escalations. Reverted due slots reopen through the existing escalation processor and configured thresholds.
+
+Admin: Accounts / Billing > Physiotherapist Accounts. Organisation and practitioner details, agreed fees per completed session, patient/resident/room snapshots, payments/refunds, vouchers, reversible ledger entries, CSV and print/PDF. Rates are frozen when fees are posted. Posted fees must be reversed before clinical deletion or outcome/date changes. Duplicate postings and payment retries are protected.
+
+Nurses see organisation/practitioner session counts under Physiotherapy; financial tables and RPCs enforce Admin-only access. Install SQL 225 and 226 after SQL 222–224.
 ## 2.16.54 — Reschedule directly from session entry
 
 - Add Reschedule to Record Session: enter new date/time and reason, then submit for Nursing Manager/Admin approval and notification.
@@ -2221,6 +2228,7 @@ The full original notes for older releases are kept in [`docs/release-notes/`](d
 - Minimal erp patch
 - Database: `01_complete_setup.sql`, `02_first_admin.sql`, `105_patient_family_daily_whatsapp_reports.sql`, `135_received_stock_charge_link.sql`
 - Notes: [START_HERE_FULL_PDF_WHATSAPP_FIX.txt](docs/release-notes/START_HERE_FULL_PDF_WHATSAPP_FIX.txt), [START_HERE_DAILY_INTELLIGENT_REPORT_WHATSAPP.txt](docs/release-notes/START_HERE_DAILY_INTELLIGENT_REPORT_WHATSAPP.txt), [START_HERE_135_RECEIVED_BEFORE_CHARGE.txt](docs/release-notes/START_HERE_135_RECEIVED_BEFORE_CHARGE.txt), [SETUP_FOR_BOOMI.md](docs/release-notes/SETUP_FOR_BOOMI.md), [README_FIRST.txt](docs/release-notes/README_FIRST.txt)
+
 
 
 
