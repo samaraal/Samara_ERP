@@ -7,7 +7,6 @@
     const [message,setMessage]=React.useState('');
     const [entryPlan,setEntryPlan]=React.useState(null);
     const [editingSession,setEditingSession]=React.useState(null);
-    const [correctionReason,setCorrectionReason]=React.useState('');
     const [saving,setSaving]=React.useState(false);
     const [toast,setToast]=React.useState(null);
     const [returnPage,setReturnPage]=React.useState('');
@@ -99,7 +98,7 @@
     };
 
     function openEntry(plan){
-      setEditingSession(null);setCorrectionReason('');
+      setEditingSession(null);
       setEntryPlan(plan);
       setForm({
         session_date:todayISOIndia(),
@@ -113,14 +112,14 @@
     function openCorrection(session){
       const plan=planFor(session.plan_id||session.order_id);
       setEntryPlan(plan.id?plan:{id:session.plan_id||session.order_id,patient_id:session.patient_id,physiotherapist_name:session.physiotherapist_name});
-      setEditingSession(session);setCorrectionReason('');
+      setEditingSession(session);
       setForm({session_date:session.session_date,scheduled_time:String(session.scheduled_time||plan.preferred_time||'').slice(0,5),status:session.status||'Completed',reason:session.reason||'',notes:session.notes||''});
     }
 
     async function saveSession(e){
       e.preventDefault();
       if(!canEnter||!entryPlan||saving)return;
-      if(editingSession&&!correctionReason.trim()){showToast('error','Enter a reason for correcting this session.');return;}
+      if(editingSession&&!form.reason.trim()){showToast('error','Enter the reason for this correction.');return;}
       if(editingSession&&(editingSession.billable||editingSession.charge_request_id)){showToast('error','This session is linked to billing. Ask Admin or Accounts to review its charge before correcting it.');return;}
       {const pt=patientFor(entryPlan.patient_id);if(pt.id&&(pt.is_active===false||pt.admission_status==='Discharged')){showToast('error','This patient has been discharged. Physiotherapy sessions can no longer be recorded.');return;}}
       if(isFutureDateIndia(form.session_date)){
@@ -175,7 +174,7 @@
         therapy:entryPlan.therapy_type,
         status:form.status,
         reason:form.reason||null,
-        correction_reason:editingSession?correctionReason.trim():null,
+        correction_reason:editingSession?form.reason.trim():null,
         previous:editingSession?{status:editingSession.status,session_at:editingSession.session_at,reason:editingSession.reason,notes:editingSession.notes,scheduled_time:editingSession.scheduled_time}:null
       },'Success');
       }catch(error){showToast('error',error.message||'Unable to save physiotherapy session.');}
@@ -234,7 +233,7 @@
             h('button',{type:'button',className:'close',onClick:()=>setEntryPlan(null)},'×')
           ),
           h('div',{className:'modal-grid'},
-            editingSession&&h('div',{className:'field span-2'},h('p',{className:'small-note'},'To revert an incorrectly completed session, choose Pending and enter the rescheduling reason. The original session date is retained.'),h('label',null,'Correction Reason'),h('textarea',{required:true,rows:2,value:correctionReason,onChange:e=>setCorrectionReason(e.target.value),placeholder:'Why is this existing record being corrected?'})),
+            editingSession&&h('p',{className:'small-note span-2'},'Choose the correct status, enter one reason, and save. The original date and previous values are retained in the audit trail.'),
             h('div',{className:'field'},h('label',null,'Session Date'),h('input',{
               type:'date',value:form.session_date,max:todayISOIndia(),required:true,disabled:!!editingSession,
               onChange:e=>setForm({...form,session_date:e.target.value})
@@ -246,14 +245,14 @@
               ['Completed','Pending','Not Done'].map(status=>h('button',{
                 key:status,type:'button',className:`btn ${form.status===status?'btn-primary':'btn-secondary'}`,
                 'aria-pressed':form.status===status,disabled:saving,
-                onClick:()=>setForm({...form,status,reason:status==='Completed'?'':form.reason})
+                onClick:()=>setForm(current=>({...current,status,reason:status==='Completed'&&!editingSession?'':current.reason}))
               },status)))),
             h('div',{className:'field'},h('label',null,'Physiotherapist Name'),h('input',{
               value:entryPlan.physiotherapist_name||'',readOnly:true
             })),
-            ['Pending','Not Done'].includes(form.status)&&h('div',{className:'field span-2'},h('label',null,'Reason (mandatory)'),h('textarea',{
+            (editingSession||['Pending','Not Done'].includes(form.status))&&h('div',{key:'session-reason',className:'field span-2'},h('label',null,editingSession?'Reason for correction':'Reason (mandatory)'),h('textarea',{
               required:true,rows:3,value:form.reason,onChange:e=>setForm({...form,reason:e.target.value}),
-              placeholder:form.status==='Pending'?'Example: Patient temporarily unavailable / session rescheduled':'Example: Patient refused / medically unfit / therapist unavailable'
+              placeholder:editingSession?'Example: Marked completed by mistake; session rescheduled':form.status==='Pending'?'Example: Patient temporarily unavailable / session rescheduled':'Example: Patient refused / medically unfit / therapist unavailable'
             })),
             h('div',{className:'field span-2'},h('label',null,'Session Notes'),h('textarea',{
               rows:3,value:form.notes,onChange:e=>setForm({...form,notes:e.target.value}),
