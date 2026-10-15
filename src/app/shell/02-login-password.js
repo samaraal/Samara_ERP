@@ -201,6 +201,7 @@
           h('button',{className:'btn btn-primary full login-v3-button',disabled:recoveryBusy},recoveryBusy?'Sending secure link…':'Send Password Reset Link'),
           h('button',{type:'button',className:'login-link-button',onClick:()=>{setForgot(false);setRecoveryMessage('')}},'← Back to Sign in'),
           h('p',{className:'small-note'},'No email access? Ask the Administrator to use Reset Password in Employee Master.'),
+          h('a',{href:'./training.html',style:{display:'block',textAlign:'center',marginTop:'12px',color:'#86114c',fontWeight:'700'}},'Training login · dummy records · view only'),
           h('div',{className:'login-v3-version'},`Samara ERP ${APP_VERSION}`)
         ):h('form',{className:'login-v3-form',onSubmit:submit},
           h('div',{className:'login-v3-kicker login-v3-kicker-dark'},'SECURE STAFF ACCESS'),
@@ -218,6 +219,7 @@
               h('button',{type:'button',onClick:samaraOpenAppHelp},'App Help / Repair')
             )
           ),
+          h('a',{href:'./training.html',style:{display:'block',textAlign:'center',marginTop:'12px',color:'#86114c',fontWeight:'700'}},'Training login · dummy records · view only'),
           h('div',{className:'login-v3-version'},`Samara ERP ${APP_VERSION}`)
         ),
         h('a',{href:'tel:+919176735577',style:{display:'block',gridColumn:'1 / -1',marginTop:'14px',textAlign:'center',color:'#7a1247',fontWeight:'800',textDecoration:'none'}},'Developed by Boomi R - 9176735577')
