@@ -1,3 +1,35 @@
+  // Read-only accounting projection: never copies receipts into resident billing.
+  function outsideNursingFinanceProjection(data){
+    const rows=[],patients=[],seen=new Set(),visits=new Map();
+    const cents=value=>Math.round(Number(value||0)*100);
+    for(const v of data.visits||[]){
+      if(!v.billed_at||v.review_status!=='Approved'||seen.has(v.id))continue;
+      if(v.total===undefined)throw Error('Outside nursing financial access is required.');
+      seen.add(v.id);visits.set(v.id,v);
+      const invoice='SN-'+String(v.invoice_number).padStart(6,'0');
+      // Keep each outside invoice separate from resident balances and other visits.
+      const id='outside:'+v.id,p=v.snapshot||data.patients?.find(p=>p.id===v.patient_id)||{};
+      const patient={...p,id,patient_id:invoice,is_active:false,room_no:'',bed_no:''};patients.push(patient);
+      const base={patient_id:id,patients:patient,source:'Outside Nursing',invoice_number:invoice,transaction_date:v.service_date+'T12:00:00+05:30',entered_by:v.billed_by};
+      const materials=cents(v.materials_total),discount=cents(v.concession),total=cents(v.total);
+      rows.push({...base,id:'outside-charge:'+v.id,transaction_type:'Charge',category:'Outside Nursing - Procedure',amount:(total+discount-materials)/100,description:invoice+' · '+v.procedure_name});
+      if(materials)rows.push({...base,id:'outside-items:'+v.id,transaction_type:'Charge',category:'Outside Nursing - Consumables / Pharmacy',amount:materials/100,description:invoice+' · Used consumables / pharmacy'});
+      if(discount)rows.push({...base,id:'outside-discount:'+v.id,transaction_type:'Discount',category:'Outside Nursing',amount:discount/100,description:invoice+' · Concession'});
+    }
+    const paidSeen=new Set();
+    for(const p of data.payments||[]){
+      const v=visits.get(p.visit_id);if(!v||paidSeen.has(p.id))continue;paidSeen.add(p.id);
+      const patient=patients.find(x=>x.id==='outside:'+v.id);
+      rows.push({id:'outside-payment:'+p.id,patient_id:patient.id,patients:patient,source:'Outside Nursing',invoice_number:patient.patient_id,transaction_type:'Payment',category:'Outside Nursing',amount:cents(p.amount)/100,payment_mode:p.gateway_payment_id?'Razorpay':p.method,payment_reference:p.reference||p.gateway_payment_id||('SNR-'+p.id),description:patient.patient_id+' · '+v.procedure_name+' · Receipt SNR-'+p.id,transaction_date:p.payment_date+'T12:00:00+05:30',entered_by:p.recorded_by});
+    }
+    const charge=rows.filter(r=>r.transaction_type==='Charge').reduce((s,r)=>s+cents(r.amount),0),discount=rows.filter(r=>r.transaction_type==='Discount').reduce((s,r)=>s+cents(r.amount),0),received=rows.filter(r=>r.transaction_type==='Payment').reduce((s,r)=>s+cents(r.amount),0);
+    const outstanding=patients.reduce((s,p)=>s+Math.max(0,rows.filter(r=>r.patient_id===p.id).reduce((n,r)=>n+(r.transaction_type==='Charge'?1:-1)*cents(r.amount),0)),0);
+    return {rows,patients,charges:(charge-discount)/100,received:received/100,outstanding:outstanding/100,count:visits.size,pending:(data.visits||[]).filter(v=>!v.billed_at&&v.review_status==='Submitted').length,error:''};
+  }
+  async function loadOutsideNursingFinance(){
+    try{const {data,error}=await client.rpc('outside_nursing',{p_action:'load',p_data:{}});if(error)throw error;return outsideNursingFinanceProjection(data||{});}
+    catch(error){return {rows:[],patients:[],charges:0,received:0,outstanding:0,count:0,error:'Outside nursing totals could not be loaded. Refresh to retry. '+(error.message||'')};}
+  }
   function outsideNursingInvoiceModel(v,patient,received=0){const money=n=>Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}),invoice=v=>'SN-'+String(v.invoice_number).padStart(6,'0'),paid=()=>received;const p=patient;return {title:'Nursing Procedure Invoice '+invoice(v),period:'Service date: '+v.service_date+' · Approved: '+new Date(v.billed_at).toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata'}),patient:p,columnWidths:[76,260,98,84,84,102],heads:['Date','Procedure','Reference','Quantity','Rate INR','Amount INR'],rows:[[v.service_date,v.procedure_name,v.location,v.quantity,money(v.rate),money(Number(v.quantity)*Number(v.rate))],...(v.material_lines||[]).map(l=>[v.service_date,(l.category||'Item')+' · '+l.item_name+(l.included?' (included)':''),'CI-'+String(l.indent_no).padStart(5,'0')+' · '+l.unit,l.quantity,money(l.rate),money(l.amount)])],notes:['Nursing charge INR '+money(Number(v.quantity)*Number(v.rate))+' · Consumables/pharmacy INR '+money(v.materials_total),'Concession INR '+money(v.concession),'Invoice total INR '+money(v.total),'Received INR '+money(paid(v.id))+' · Balance INR '+money(Number(v.total)-paid(v.id)),v.total==0?'Free / fully concessional care':'', 'Completed by: '+v.nurse_name, v.invoice_amended_at?'Invoice amended '+new Date(v.invoice_amended_at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata'})+' · '+v.invoice_amendment_reason:'','Computer-generated invoice.']};}
   async function outsideNursingPaymentAPI(action,fields={}){
     const {data:{session}}=await client.auth.getSession();if(!session)throw Error('Your ERP session has expired. Sign in again.');
