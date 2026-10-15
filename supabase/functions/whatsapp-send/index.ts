@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
       const paymentMode = String(logPayload.payment_mode || "").trim();
       const reference = String(logPayload.reference || "").trim();
       const role = String(caller.profile.role || "");
-      if (patientId && Number.isFinite(amount) && amount > 0 && ["Admin", "Manager", "Accounts"].includes(role)) {
+      if (patientId && Number.isFinite(amount) && amount > 0 && ["Admin", "Manager", "Accounts", "STD"].includes(role)) {
         const { data: patient } = await caller.db.from("patients")
           .select("id,attendant_phone,mobile").eq("id", patientId).maybeSingle();
         const { data: familyRows, error: familyError } = await caller.db.from("family_portal_access")
