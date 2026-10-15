@@ -1,5 +1,5 @@
 const APP_VERSION = '2.16.79';
-const CACHE = 'samara-erp-2.16.79-existing-patient-diet';
+const CACHE = 'samara-erp-2.16.79-green-existing-patient-diet';
 const SHELL = [
   './',
   './index.html',
@@ -11,7 +11,7 @@ const SHELL = [
   `./food-vendor.js?v=${APP_VERSION}`,
   `./food-vendor.css?v=${APP_VERSION}`,
   `./styles.css?v=${APP_VERSION}`,
-  `./app.js?v=${APP_VERSION}`,
+  `./app.js?v=${APP_VERSION}-green`,
   `./erp-help.js?v=${APP_VERSION}`,
   `./erp-help.css?v=${APP_VERSION}`,
   `./consent-panel.js?v=${APP_VERSION}`,
@@ -194,4 +194,5 @@ self.addEventListener('fetch', event => {
     }
   })());
 });
+
 
