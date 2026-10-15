@@ -1,3 +1,7 @@
+## 2.16.80 - Approval-gated direct WhatsApp invoice sending
+
+Prepare the direct API route for sender 7395961616 and samara_invoice_payment. Keep current phone sharing until Meta reports APPROVED Utility with the expected document header. Recheck readiness while the panel is open. Direct sends use the saved family number, a privately stored invoice PDF, canonical invoice/request details and recorded family opt-in confirmation. Serialize sends and block uncertain outcomes from automatic retry. Record acceptance and use existing Inbox delivery updates separately. No real patient test messages are sent during deployment.
+
 ## 2.16.79 - Invoice attachment through phone sharing
 
 Send via WhatsApp opens the native share sheet with the prepared full Samara invoice PDF and payment message included. Staff choose WhatsApp, select the family contact and send. The invoice itself includes the secure link. Use the same file-sharing flow for verified receipts. Do not download or open a text-only draft; unsupported browsers explain how to use iPhone Safari. Highlight Send via WhatsApp in green with white text. Keep Create payment link and Send via WhatsApp together and visible, with Send disabled while a link or PDF is unavailable.
