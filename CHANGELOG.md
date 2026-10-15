@@ -1,3 +1,9 @@
+## 2.16.85
+
+- Include approved outside nursing invoices and saved receipts in Accounts dashboard, reports, payment-mode totals and CSV exports using one read-only projection of canonical records. SN invoice identifiers keep outside care separate from resident accounts.
+- Main Dashboard includes outside nursing receivables and a direct summary card. No duplicate ledger postings or changes to resident census / discharge billing.
+- Reports provide Resident Billing / Outside Nursing filters; exclude pending and voided invoices and expose load failures.
+
 ## 2.16.84
 
 - Refresh the current balance before manual payment recording. Settled invoices and already-saved retries open the existing receipt without another entry; gateway settlement races recover to the receipt.
