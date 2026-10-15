@@ -55,7 +55,7 @@
       return()=>{document.body.style.overflow=previous;viewport?.removeEventListener('resize',resize);viewport?.removeEventListener('scroll',resize);window.removeEventListener('resize',resize)};
     },[isMobile,selectedPhone]);
     const [subjectFilter,setSubjectFilter]=React.useState('All Subjects');
-    const [waFolder,setWaFolder]=React.useState(()=>{const folder=sessionStorage.getItem('samara_whatsapp_folder');sessionStorage.removeItem('samara_whatsapp_folder');return foodOnly?'All':folder==='Admission Enquiries'||String(profile?.role||'')==='STD'?'Admission Enquiries':'All';});
+    const [waFolder,setWaFolder]=React.useState(()=>{const folder=sessionStorage.getItem('samara_whatsapp_folder');sessionStorage.removeItem('samara_whatsapp_folder');return foodOnly?'All':folder==='Admission Enquiries'?'Admission Enquiries':'All';});
     const [dateFrom,setDateFrom]=React.useState('');
     const [dateTo,setDateTo]=React.useState('');
     const waDateApply=useAppliedFilters({from:dateFrom,to:dateTo});const waDateA=waDateApply.applied; // 2.14.96: dates apply on "Apply"
@@ -68,8 +68,8 @@
     ];
     const [templateName,setTemplateName]=React.useState(foodOnly?'samara_callback_request':'samara_general_followup'),[templateLanguage]=React.useState('en'),[templateRegarding,setTemplateRegarding]=React.useState(foodOnly?'food supply and delivery':'your assisted living enquiry'),[mediaBusyId,setMediaBusyId]=React.useState('');
     // 2.15.24: real-inbox features — approved template texts, hide/restore, attachments.
-    const canDeleteMsg=['Admin','Manager'].includes(String(profile?.role||''));
-    const canRestoreMsg=String(profile?.role||'')==='Admin';
+    const canDeleteMsg=['Admin','Manager','STD'].includes(String(profile?.role||''));
+    const canRestoreMsg=['Admin','STD'].includes(String(profile?.role||''));
     const [waTemplates,setWaTemplates]=React.useState({});
     const [templateSync,setTemplateSync]=React.useState({busy:false,note:''});
     const [showDeleted,setShowDeleted]=React.useState(false);
@@ -140,7 +140,7 @@
         const reason=window.prompt('Delete this message from the Samara inbox?\n\nIt will NOT be deleted from the recipient\'s phone (WhatsApp does not allow that for business messages). An Admin can restore it.\n\nReason (optional):','');
         if(reason===null)return;
         const {error}=await client.rpc('wa_hide_message',{p_id:r.id,p_hide:true,p_reason:reason||null});
-        setMessage(error?`Could not delete: ${/wa_hide_message|function/i.test(error.message)?'run supabase/sql/174_whatsapp_inbox_real.sql first.':error.message}`:'✓ Message deleted from the inbox. Admin can restore it from "Show deleted".');
+        setMessage(error?`Could not delete: ${/wa_hide_message|function/i.test(error.message)?'run supabase/sql/174_whatsapp_inbox_real.sql first.':error.message}`:'✓ Message deleted from the inbox. Admin or STD can restore it from "Show deleted".');
       }else{
         const {error}=await client.rpc('wa_hide_message',{p_id:r.id,p_hide:false});
         setMessage(error?`Could not restore: ${error.message}`:'✓ Message restored.');
@@ -521,18 +521,6 @@ Samara Assisted Living`;
       if(wantedCode&&codes.includes(wantedCode))return true;
       return false;
     }
-    function stdAllowedRow(row){
-      if(!isSTD)return true;
-      if(foodDesk&&foodScope.ids.has(row?.id))return true; // 2.15.94: food order / received messages (incl. "receipt" templates)
-      if(row?.career_application_id||row?.application_id)return false;
-      const template=String(row?.template_name||'').toLowerCase();
-      if(template==='employee_welcome_samara')return false;
-      const source=String(row?.source_type||'').toLowerCase();
-      const comm=String(row?.communication_type||'').toLowerCase();
-      if(/patient|family|emergency|hr applicant|employee/.test(source))return false;
-      if(/payment|receipt|daily report|discharge|employee|emergency|family portal|patient/.test(comm))return false;
-      return true;
-    }
     function enquirySubject(msgs){
       const text=(msgs||[]).map(r=>`${r.message_content||''} ${r.communication_type||''} ${r.template_name||''}`).join(' ').toLowerCase();
       if(/admission|admit|care enquiry|assisted living|tracheost|bed|stay/.test(text))return 'Admission / Care';
@@ -543,7 +531,7 @@ Samara Assisted Living`;
       return 'General Enquiry';
     }
     const deletedCount=rows.filter(r=>r.deleted_at).length;
-    const visibleRows=(patientContext?rows.filter(row=>patientLinkedMessage(row,patientContext)):rows).filter(stdAllowedRow).filter(r=>!r.deleted_at||(showDeleted&&canRestoreMsg));
+    const visibleRows=(patientContext?rows.filter(row=>patientLinkedMessage(row,patientContext)):rows).filter(r=>!r.deleted_at||(showDeleted&&canRestoreMsg));
     // 2.15.95: all rows grouped by phone once (rows are already oldest-first), instead of re-scanning every row per chat.
     const allRowsByPhone={};
     if(isSTD)rows.forEach(r=>{const p=phoneOf(r);if(p)(allRowsByPhone[p]||(allRowsByPhone[p]=[])).push(r)});
@@ -560,7 +548,7 @@ Samara Assisted Living`;
       const subject=isFood?'Food Orders':enquirySubject(sorted);
       const folder=isFood?'Food Vendors':whatsAppFolder(isSTD?(allRowsByPhone[phone]||sorted):sorted);
       return {phone,msgs:sorted,last,name,source,subject,folder,unread,lastAt:last.created_at,hasInbound:Boolean(inbound),isFood};
-    }).filter(c=>!isSTD||c.isFood||(c.hasInbound&&c.folder!=='Payment Follow-ups')).sort((a,b)=>new Date(b.lastAt)-new Date(a.lastAt));
+    }).sort((a,b)=>new Date(b.lastAt)-new Date(a.lastAt));
     const filtered=conversations.filter(c=>{
       if(waFolder!=='All'&&c.folder!==waFolder)return false;
       if(showUnread&&!c.unread)return false;
@@ -880,14 +868,14 @@ Thank you.`;
     }
     const unreadTotal=conversations.filter(c=>waFolder==='All'||c.folder===waFolder).reduce((n,c)=>n+c.unread,0);
     return h(React.Fragment,null,
-      h(Section,{title:foodOnly?(leaveCover?'WhatsApp — Food Vendors & Enquiries':'WhatsApp — Food Vendors'):patientContext?`WhatsApp — ${patientContext.patient_name}`:(isSTD?(foodDesk?'WhatsApp Enquiry Desk & Food Orders':'WhatsApp Enquiry Desk'):'WhatsApp Inbox'),subtitle:foodOnly?(leaveCover?'Food vendors and STD enquiries. Sending remains limited to food vendors.':'Food-vendor conversations · view, send templates and reply.'):isMobile?null:(patientContext?'Patient-linked WhatsApp messages only. Other WhatsApp conversations are hidden in this view.':(isSTD?(foodDesk?'Incoming public enquiries, and food-vendor order messages (Food Vendors folder). Filter by subject, name/mobile and date.':'Incoming public enquiries only. Filter by subject, name/mobile and date.'):'Website/public enquiries, applicant replies and WhatsApp conversations in one place'))},
+      h(Section,{title:foodOnly?(leaveCover?'WhatsApp — Food Vendors & Enquiries':'WhatsApp — Food Vendors'):patientContext?`WhatsApp — ${patientContext.patient_name}`:'WhatsApp Inbox',subtitle:foodOnly?(leaveCover?'Food vendors and STD enquiries. Sending remains limited to food vendors.':'Food-vendor conversations · view, send templates and reply.'):isMobile?null:(patientContext?'Patient-linked WhatsApp messages only. Other WhatsApp conversations are hidden in this view.':'Enquiries, patient/family, payment, staff and vendor conversations in one place')},
         foodDesk&&foodScope.note?h('div',{className:'notice',style:{marginBottom:'10px'}},foodScope.note):null,
         patientContext?h('div',{className:'notice',style:{marginBottom:'12px',display:'flex',gap:'10px',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
           h('div',null,h('strong',null,patientContext.patient_name),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},patientContext.patient_code?`· ${patientContext.patient_code}`:''),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},`· +${patientContext.phone}`)),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPatientContext(null);setSelectedPhone('');setQuery('');setShowUnread(false);}},'Show All WhatsApp')
         ):null,
         (!isMobile||!selectedPhone)?h('nav',{'aria-label':'WhatsApp folders',style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'12px'}},
-          (foodOnly?(leaveCover?['All','Admission Enquiries','Other']:['All','Food Vendors']):isSTD?['Admission Enquiries',...(foodDesk?['Food Vendors']:[]),'Other']:['All','Admission Enquiries','Payment Follow-ups',...(foodDesk?['Food Vendors']:[]),'Other']).map(folder=>h('button',{type:'button',key:folder,'aria-pressed':waFolder===folder,className:`btn ${waFolder===folder?'btn-primary':'btn-secondary'}`,onClick:()=>{setWaFolder(folder);setSelectedPhone('');setSubjectFilter('All Subjects');setQuery('');setShowUnread(false);setDateFrom('');setDateTo('');}},`${folder} (${conversations.filter(c=>folder==='All'||c.folder===folder).length})`))
+          (foodOnly?(leaveCover?['All','Admission Enquiries','Other']:['All','Food Vendors']):['All','Admission Enquiries','Payment Follow-ups',...(foodDesk?['Food Vendors']:[]),'Other']).map(folder=>h('button',{type:'button',key:folder,'aria-pressed':waFolder===folder,className:`btn ${waFolder===folder?'btn-primary':'btn-secondary'}`,onClick:()=>{setWaFolder(folder);setSelectedPhone('');setSubjectFilter('All Subjects');setQuery('');setShowUnread(false);setDateFrom('');setDateTo('');}},`${folder} (${conversations.filter(c=>folder==='All'||c.folder===folder).length})`))
         ):null,
         (!isMobile||!selectedPhone)?h('div',{className:'wa-inbox-toolbar',style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginBottom:'14px'}},
           h('input',{value:query,onChange:e=>setQuery(e.target.value),placeholder:isSTD?'Search name, mobile, subject or message…':'Search name, mobile or message…',style:{flex:'1 1 280px',minWidth:'220px'}}),
