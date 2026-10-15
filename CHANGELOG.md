@@ -1,3 +1,8 @@
+## 2.16.81
+
+- Outside nursing: nurse submits procedure and used-item indents together, without prices. Stores retains indent approval and handover.
+- Admin / Director enters one procedure charge and approves; item prices and totals are calculated on the server from Store Master. Standard procedure tariffs and manual invoice item-rate entry removed. Existing invoices preserved.
+
 ## 2.16.80 - Approval-gated direct WhatsApp invoice sending
 
 Prepare the direct API route for sender 7395961616 and samara_invoice_payment. Keep current phone sharing until Meta reports APPROVED Utility with the expected document header. Recheck readiness while the panel is open. Direct sends use the saved family number, a privately stored invoice PDF, canonical invoice/request details and recorded family opt-in confirmation. Serialize sends and block uncertain outcomes from automatic retry. Record acceptance and use existing Inbox delivery updates separately. No real patient test messages are sent during deployment.
