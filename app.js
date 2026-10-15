@@ -33918,10 +33918,18 @@ function RoomsBeds({profile,onNavigate}){
     const response=await fetch(cfg.supabaseUrl+'/functions/v1/outside-nursing-payment',{method:'POST',headers:{'Content-Type':'application/json',apikey:cfg.supabasePublishableKey,Authorization:'Bearer '+session.access_token},body:JSON.stringify({action,...fields})});
     const result=await response.json();if(!response.ok||result.success===false)throw Error(result.error||'Online payment request failed.');return result;
   }
+  async function outsideNursingWhatsAppAPI(action,requestId,invoice,visit,optIn){
+    const send=async session=>{const form=invoice?new FormData():null;if(form){form.append('action',action);form.append('request_id',requestId);form.append('invoice',invoice,invoice.name);form.append('invoice_total',String(visit.total));form.append('invoice_revision',String(visit.invoice_amended_at||visit.billed_at));form.append('opt_in',String(optIn));}
+      const response=await fetch(cfg.supabaseUrl+'/functions/v1/outside-nursing-whatsapp',{method:'POST',headers:{apikey:cfg.supabasePublishableKey,Authorization:'Bearer '+session.access_token,...(form?{}:{'Content-Type':'application/json'})},body:form||JSON.stringify({action,request_id:requestId})});return await response.json();};
+    let {data:{session}}=await client.auth.getSession();if(!session)throw Error('Sign in to Samara ERP.');let result=await send(session);
+    if(result.success===false&&/sign in|session/i.test(result.error||'')&&client.auth.refreshSession){const refreshed=await client.auth.refreshSession();if(refreshed.data?.session)result=await send(refreshed.data.session);}
+    if(result.success!==true){const e=Error(result.error||result.message||'Direct WhatsApp is not available.');e.fallbackAvailable=result.fallback_available;e.uncertain=result.uncertain;throw e;}return result;
+  }
   function OutsideNursingOnlinePayment({visit,patient,balance,receiptPayments=[],onRefresh,onClose}){
     const [request,setRequest]=React.useState(null),[amount,setAmount]=React.useState(String(balance)),[phone,setPhone]=React.useState(patient.phone||''),[name,setName]=React.useState(patient.full_name||''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState(''),[error,setError]=React.useState('');
     const [receiptFile,setReceiptFile]=React.useState(null),[receiptPreparing,setReceiptPreparing]=React.useState(false);
     const [invoiceFile,setInvoiceFile]=React.useState(null),[invoicePreparing,setInvoicePreparing]=React.useState(false);
+    const [direct,setDirect]=React.useState(null),[familyOptIn,setFamilyOptIn]=React.useState(false);
     const active=request&&['Creating','Pending'].includes(request.status);
     const receivedRows=receiptPayments.filter(p=>p.online_request_id===request?.id&&p.gateway_payment_id);
     React.useEffect(()=>{
@@ -33957,6 +33965,7 @@ function RoomsBeds({profile,onNavigate}){
       }catch(e){if(!stopped)setError(e.message);}finally{if(!stopped)setInvoicePreparing(false);}})();return()=>{stopped=true};
     },[request?.id,request?.status,request?.payment_url,request?.amount,JSON.stringify(visit),JSON.stringify(patient),balance]);
     async function sendInvoiceWhatsApp(){if(busy||!invoiceFile||!active)return;setBusy(true);setError('');
+      if(direct?.ready){try{const result=await outsideNursingWhatsAppAPI('send',request.id,invoiceFile,visit,familyOptIn);setDirect({...direct,last_send:result.last_send});setMessage(result.message);}catch(e){setError(e.message);if(e.fallbackAvailable){setDirect({...direct,ready:false});setMessage('Direct sending is not available. Tap Send via WhatsApp again to use the current phone-sharing method.');}if(e.uncertain)setDirect({...direct,last_send:{status:'Unknown'}});}finally{setBusy(false);}return;}
       try{await sharePreparedPDF(invoiceFile,shareText(),'Samara invoice and payment link');setMessage('Share sheet closed. Check WhatsApp to confirm the invoice and payment link were sent to the intended family contact.');}catch(e){if(e.name!=='AbortError')setError(e.message);}finally{setBusy(false);}
     }
     // Recheck pending links while this panel is open and when staff return from WhatsApp.
@@ -33972,6 +33981,10 @@ function RoomsBeds({profile,onNavigate}){
       await onRefresh();
     }catch(e){setError(e.message);}finally{setBusy(false);}}
     React.useEffect(()=>{let stopped=false;outsideNursingPaymentAPI('list',{visit_id:visit.id}).then(r=>{if(!stopped){const found=r.requests.find(x=>['Creating','Pending'].includes(x.status))||r.requests[0]||null;setRequest(found);if(found){setPhone(found.recipient_phone||patient.phone||'');setName(found.recipient_name||patient.full_name||'');if(['Creating','Pending'].includes(found.status))setAmount(String(found.amount));}}}).catch(e=>{if(!stopped)setError(e.message)});return()=>{stopped=true}},[visit.id]);
+    React.useEffect(()=>{let stopped=false;setDirect(null);setFamilyOptIn(false);if(!request?.id||request.status!=='Pending')return;
+      const check=async()=>{try{const result=await outsideNursingWhatsAppAPI('status',request.id);if(!stopped){setDirect(result);if(result.recipient_phone)setPhone(result.recipient_phone);if(result.recipient_name)setName(result.recipient_name);}}catch(e){if(!stopped)setDirect({ready:false,reason:'Current phone sharing is available. Direct API check: '+e.message});}};
+      check();const timer=window.setInterval?.(check,60000);window.addEventListener?.('focus',check);return()=>{stopped=true;if(timer)window.clearInterval(timer);window.removeEventListener?.('focus',check)};
+    },[request?.id,request?.status]);
     const button=(label,fn,disabled=false)=>h('button',{type:'button',className:label==='Send via WhatsApp'?'btn btn-secondary samara-action-save':'btn btn-secondary',style:label==='Send via WhatsApp'?{background:'#167346',color:'#fff',border:'1px solid #12613b',fontWeight:700}:undefined,disabled:busy||disabled,onClick:fn},label);
     return h('section',{id:'outside-nursing-online-payment',tabIndex:-1,'aria-label':'Online payment request',className:'card panel',style:{border:'1px solid #edbdd3',background:'#fff6fa',scrollMarginTop:16}},
       h('button',{type:'button',className:'btn btn-secondary','aria-label':'Close online payment',onClick:onClose,style:{float:'right'}},'×'),h('img',{src:BRAND_LOGO_SRC,alt:'Samara Assisted Living',style:{width:150,height:'auto'}}),h('h3',{style:{color:'#a00050'}},'Online payment - SN-'+String(visit.invoice_number).padStart(6,'0')),
@@ -33979,13 +33992,14 @@ function RoomsBeds({profile,onNavigate}){
       error&&h('p',{className:'message error',role:'alert'},error),message&&h('p',{role:'status'},message),
       h('p',null,'Create the link after invoice approval. Sending is a separate action. Patient or family can pay without an ERP login.'),
       h('label',null,'Amount to request (INR)',h('input',{type:'number',min:1,max:balance,step:'0.01',value:amount,disabled:busy||!!active,onChange:e=>setAmount(e.target.value)})),
-      h('div',{className:'actions'},balance>=1&&button('Create payment link',()=>run('create'),!!active),button('Send via WhatsApp',request?.status==='Paid'?receiptWhatsApp:sendInvoiceWhatsApp,request?.status==='Paid'?!receiptFile:!invoiceFile||!active)),
+      h('div',{className:'actions'},balance>=1&&button('Create payment link',()=>run('create'),!!active),button('Send via WhatsApp',request?.status==='Paid'?receiptWhatsApp:sendInvoiceWhatsApp,request?.status==='Paid'?!receiptFile:!invoiceFile||!active||(direct?.ready&&!familyOptIn)||['Preparing','Accepted','Unknown'].includes(direct?.last_send?.status))),
+      active&&h('div',null,h('p',{role:'status'},direct?.ready?'Direct WhatsApp API ready — invoice PDF and payment link will go to the saved family number.':direct?.reason||'Current phone sharing is available while direct sending is checked.'),direct?.ready&&h('label',null,h('input',{type:'checkbox',checked:familyOptIn,onChange:e=>setFamilyOptIn(e.target.checked)}),' Family agreed to receive this invoice by WhatsApp'),direct?.last_send&&h('p',{role:'status'},'WhatsApp: '+(direct.last_send.delivery_status||direct.last_send.status)+(direct.last_send.status==='Accepted'?' (accepted by Meta; delivery tracked separately)':''))),
       request&&h('div',null,h('p',null,'Status: '+request.status+' · Request amount INR '+Number(request.amount).toFixed(2)),
         
-        (active||request.status==='Paid')&&request.payment_url&&h('div',{className:'form-grid'},h('label',null,'Recipient name / relationship',h('input',{value:name,disabled:busy,onChange:e=>setName(e.target.value)})),h('label',null,'Patient / family WhatsApp number (with country code)',h('input',{type:'tel',value:phone,disabled:busy,onChange:e=>setPhone(e.target.value)}))),
+        (active||request.status==='Paid')&&request.payment_url&&h('div',{className:'form-grid'},h('label',null,'Recipient name / relationship',h('input',{value:name,disabled:busy||!!direct?.ready,onChange:e=>setName(e.target.value)})),h('label',null,'Patient / family WhatsApp number (with country code)',h('input',{type:'tel',value:phone,disabled:busy||!!direct?.ready,onChange:e=>setPhone(e.target.value)}))),
         request.status==='Paid'&&h('p',{role:'status'},receiptPreparing?'Preparing verified receipt PDF…':receiptFile?'Payment verified. Samara receipt PDF is ready.':'Refreshing verified receipt entries…'),
         active&&invoicePreparing&&h('p',{role:'status'},'Preparing Samara invoice PDF…'),
-        h('p',{className:'small-note'},request.status==='Paid'?'The receipt PDF is attached to your phone’s share sheet. Choose WhatsApp, select the intended family contact and press Send.':'The invoice PDF and payment link are included automatically. Choose WhatsApp in your phone’s share sheet, select the intended family contact and press Send. No Downloads selection is needed. Payment status updates automatically.')));
+        h('p',{className:'small-note'},request.status==='Paid'?'The receipt PDF is attached to your phone’s share sheet. Choose WhatsApp, select the intended family contact and press Send.':direct?.ready?'The saved family number is used automatically. Meta attaches the invoice PDF and includes the secure payment link.': 'The invoice PDF and payment link are included automatically. Choose WhatsApp in your phone’s share sheet, select the intended family contact and press Send. No Downloads selection is needed. Payment status updates automatically.')));
   }
 
   function OutsideNursing({profile}){
