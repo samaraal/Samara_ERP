@@ -1,3 +1,7 @@
+## 2.16.67 — Restore Bills & Charges register loading
+
+Move paginated register loader into ClinicalCharges scope so requests load successfully. Manual patient/status/category/date changes clear notification request focus; dashboard quick views clear period focus.
+
 ## 2.16.66 — Bills & Charges period filters and totals
 
 Add day, Monday–Sunday week, month and inclusive custom date filters alongside Patient, Status and Category. Show matching entry count and request/approved totals; preserve nursing amount privacy. Load all register pages so totals include older entries. Fix Approved Today filtering initialization.
