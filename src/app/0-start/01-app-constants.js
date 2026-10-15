@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.69';
+  const APP_VERSION = '2.16.70';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -117,5 +117,6 @@
     schemaVersion: APP_SCHEMA_VERSION
   });
   console.info(`Samara Care ERP ${APP_VERSION} | Build: ${APP_BUILD_DATE} | Schema: ${APP_SCHEMA_VERSION}`);
+
 
 
