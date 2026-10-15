@@ -1,3 +1,7 @@
+## 2.16.78 - Simple WhatsApp invoice and payment request
+
+Keep Create payment link and Send via WhatsApp as the payment actions. Prepare the full branded invoice with nursing and consumables/pharmacy charges and the secure Razorpay link. Send via WhatsApp downloads the PDF and opens a recipient-specific draft for staff to attach and send. Reuse active links and refresh payment status when returning from WhatsApp and every 30 seconds while the panel is open; verified paid receipts use the same Send via WhatsApp action. Remove separate share, copy, cloud-send, status-check and cancel buttons.
+
 ## 2.16.77 - Visible online payment panel on mobile
 
 Bring the online payment panel into view and focus it whenever Online payment is tapped, including repeated taps on the same invoice. Prevent the above-register panel from appearing unresponsive on iPhone. Opening the panel does not create a link or send a message.
