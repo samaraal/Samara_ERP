@@ -1,3 +1,9 @@
+## 2.16.76 - Compact nursing register, document dates and footer icons
+
+Use the existing ERP-wide DD-MM-YYYY display formatter in shared nursing/physiotherapy invoice, receipt and statement PDFs and payment statement text. Payment statement CSV date columns also use DD-MM-YYYY. Database dates, filters and gateway payloads remain ISO. Draw phone and envelope icons beside Samara footer contacts so PDF icons do not depend on emoji fonts.
+
+Keep the nursing register compact with expandable procedure summaries. Move clinical notes, reasons, detailed actions and invoice balances into View details; collapse voided history, procedure rates and the indent register by default. Preserve role restrictions, audit history and financial amounts.
+
 ## 2.16.75 - Nursing invoice column layout
 
 Widen the Procedure column and narrow the Reference column; rename Location / Reference to Reference. Place Samara phone numbers and email below the single-line footer address, remove repeated Samara contact details from the header, and reserve footer space on every page. Make Outside Nursing tables wrap within the page and stack as labelled cards on smaller screens, eliminating horizontal register scrolling. Invoice values remain unchanged.
