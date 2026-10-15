@@ -1,3 +1,7 @@
+## 2.16.72 - Nurse-only procedure entries and duplicate review
+
+Only nurses may create outside patients, procedure entries and used-item indents or confirm indent receipt. Admin reviews, sets fees, approves, returns or voids unbilled duplicates with a reason and retained-record reference. Same-day patient care requires a separate-care reason, including concurrent submissions. Voided records retain history and cannot be billed or edited. Indent and payment safeguards prevent discarding stock or financial records. Requires SQL 234. Existing records are not automatically changed.
+
 ## 2.16.71 - Verified nursing receipts for WhatsApp Web
 
 Paid online requests prepare a Samara-branded PDF acknowledgement from verified nursing receipt entries. Admin/Accounts can download it or open an existing WhatsApp Web draft for the checked patient/family number. Staff attach the PDF and press Send. No automatic WhatsApp delivery, browser-session credentials, or new Meta template. Unverified/pending requests cannot produce a receipt.
