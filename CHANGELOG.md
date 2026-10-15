@@ -1,3 +1,9 @@
+## 2.16.86 — STD Communication Inbox access
+
+- STD can view all inbox conversations, replies, payment messages and attachments; hide/restore messages and refresh approved templates.
+- Server checks require an active STD profile. Other ERP roles and financial permissions are unchanged.
+- Requires SQL 239 and deployment of whatsapp-send, whatsapp-media and whatsapp-templates-sync.
+
 ## 2.16.85
 
 - Include approved outside nursing invoices and saved receipts in Accounts dashboard, reports, payment-mode totals and CSV exports using one read-only projection of canonical records. SN invoice identifiers keep outside care separate from resident accounts.
