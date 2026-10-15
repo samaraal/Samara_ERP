@@ -37,7 +37,7 @@ async function reconcile(r){
 }
 function phone(raw){let p=String(raw||'').replace(/[\s()\-]/g,'');if(/^\d{10}$/.test(p))p='91'+p;p=p.replace(/^\+/,'');if(!/^[1-9]\d{7,14}$/.test(p))throw Error('Enter a valid WhatsApp number with country code.');return p;}
 const publicRequest=r=>({id:r.id,visit_id:r.visit_id,amount:r.amount,status:r.status,payment_url:r.payment_url,expires_at:r.expires_at,recipient_phone:r.recipient_phone,recipient_name:r.recipient_name,shared_at:r.shared_at});
-function callbackPage(ok){return new Response(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Samara Payment</title></head><body style="font:18px Arial;background:#fff0f7;color:#a00050;text-align:center;padding:40px"><img src="https://app.samaraassistedliving.com/assets/samara-logo.png" alt="Samara Assisted Living" width="200"><h1>${ok?'Payment confirmed':'Payment confirmation pending'}</h1><p>${ok?'Your payment has been recorded against the Samara invoice.':'Please contact Samara Accounts. Do not pay again until the payment status is checked.'}</p><p>Samara Assisted Living · 9976735577</p></body></html>`,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});}
+function callbackPage(ok){return Response.redirect('https://app.samaraassistedliving.com/outside-nursing-payment-return.html?status='+(ok?'confirmed':'pending'),303);}
 Deno.serve(async req=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers:cors});
  if(req.method==='GET'){
@@ -94,4 +94,5 @@ Deno.serve(async req=>{
   return json({success:false,error:'Unsupported action'},400);
  }catch(e){return json({success:false,error:e.message||'Payment request failed'},400);}
 });
+
 
