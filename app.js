@@ -43437,7 +43437,7 @@ function Reports(){
     to:todayISOIndia(),
     patient_id:'',
     payment_mode:'All',
-    transaction_type:'All'
+    transaction_type:'All',source:'All'
   });
 
   const money=value=>`₹${Number(value||0).toLocaleString('en-IN',{maximumFractionDigits:2})}`;
@@ -43445,19 +43445,20 @@ function Reports(){
 
   async function load(){
     setState(current=>({...current,loading:true}));
-    const [patients,billing,incidents,discharges,profiles]=await Promise.all([
+    const [patients,billing,incidents,discharges,profiles,outside]=await Promise.all([
       client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active,admission_date'),
       client.from('billing_transactions')
         .select('id,patient_id,transaction_type,category,amount,payment_mode,payment_reference,description,transaction_date,entered_by,patients(title,full_name,patient_id,room_no,bed_no)')
         .order('transaction_date',{ascending:false}).limit(5000),
       client.from('incidents').select('id,status'),
       client.from('patient_discharges').select('id,status,management_status,accounts_status,created_at'),
-      client.from('profiles').select('id,auth_user_id,title,full_name,login_id,role')
+      client.from('profiles').select('id,auth_user_id,title,full_name,login_id,role'),
+      loadOutsideNursingFinance()
     ]);
     setState({
       loading:false,
-      patients:patients.data||[],
-      billing:billing.data||[],
+      patients:[...(patients.data||[]),...outside.patients],
+      billing:[...(billing.data||[]),...outside.rows],outside,
       incidents:incidents.data||[],
       discharges:discharges.data||[],
       profiles:profiles.data||[]
@@ -43471,6 +43472,8 @@ function Reports(){
   };
 
   const filtered=state.billing.filter(row=>{
+    if(filters.source==='Outside Nursing'&&row.source!=='Outside Nursing')return false;
+    if(filters.source==='Resident Billing'&&row.source==='Outside Nursing')return false;
     const date=dateOnly(row.transaction_date);
     if(filters.from&&date<filters.from)return false;
     if(filters.to&&date>filters.to)return false;
@@ -43500,7 +43503,9 @@ function Reports(){
   const collections=sum(['Payment','Advance']);
   const discounts=sum(['Discount']);
   const refunds=sum(['Refund']);
-  const outstanding=Math.max(0,charges-collections-discounts+refunds);
+  const accountBalances=new Map();
+  filtered.forEach(row=>{const sign=row.transaction_type==='Charge'||row.transaction_type==='Refund'?1:-1;accountBalances.set(row.patient_id,(accountBalances.get(row.patient_id)||0)+sign*Number(row.amount||0));});
+  const outstanding=[...accountBalances.values()].reduce((sum,value)=>sum+Math.max(0,value),0);
 
   const patientLedger=state.patients.map(patient=>{
     const rows=filtered.filter(row=>row.patient_id===patient.id);
@@ -43524,7 +43529,7 @@ function Reports(){
     else ageing.over30+=value;
   });
 
-  const modeTotals=['Cash','UPI','RTGS','Card Payment'].map(mode=>[
+  const modeTotals=['Cash','UPI','RTGS','Card Payment','Razorpay'].map(mode=>[
     mode,
     filtered.filter(row=>['Payment','Advance'].includes(row.transaction_type)&&String(row.payment_mode||'')===mode)
       .reduce((sum,row)=>sum+Number(row.amount||0),0)
@@ -43544,7 +43549,7 @@ function Reports(){
 
   function exportPaymentsCSV(){
     const header=[
-      'Date & Time','Voucher / Reference No.','Resident ID','Patient Name',
+      'Date & Time','Voucher / Reference No.','Patient / Invoice ID','Patient Name',
       'Transaction Type','Payment Mode','Amount','Received / Entered By','Description'
     ];
     const lines=paymentRows.map(row=>[
@@ -43568,7 +43573,7 @@ function Reports(){
   }
 
   function exportCSV(){
-    const header=['Date','Patient','Resident ID','Type','Category','Payment Mode','Voucher / Reference','Amount','Description'];
+    const header=['Date','Patient','Patient / Invoice ID','Type','Category','Payment Mode','Voucher / Reference','Amount','Description'];
     const lines=filtered.map(row=>[
       formatDateIN(row.transaction_date),
       formalName(row.patients||{})||row.patients?.full_name||'',
@@ -43604,6 +43609,8 @@ function Reports(){
       )
     ),
 
+    state.outside?.error&&h('p',{role:'alert'},state.outside.error),
+    h('p',null,'Includes approved Outside Nursing invoices and saved receipts, identified by SN invoice number. Pending and voided procedures are excluded.'),
     h(Section,{title:'Payment Report Filters',subtitle:'Choose period, patient, transaction type and payment mode'},
       h('div',{className:'accounts-report-filters'},
         miniInput('From Date',filters.from,v=>setFilters({...filters,from:v}),false,'date'),
@@ -43613,8 +43620,9 @@ function Reports(){
         },h('option',{value:''},'All patients'),state.patients.map(patient=>h('option',{key:patient.id,value:patient.id},
           `${formalName(patient)||patient.full_name} · ${patient.patient_id||'No ID'}`
         )))),
+        miniSelect('Service',filters.source,['All','Resident Billing','Outside Nursing'],v=>setFilters({...filters,source:v})),
         miniSelect('Transaction Type',filters.transaction_type,['All','Payment','Advance','Refund'],v=>setFilters({...filters,transaction_type:v})),
-        miniSelect('Payment Mode',filters.payment_mode,['All','Cash','UPI','RTGS','Card Payment'],v=>setFilters({...filters,payment_mode:v})),
+        miniSelect('Payment Mode',filters.payment_mode,['All','Cash','UPI','RTGS','Card Payment','Razorpay'],v=>setFilters({...filters,payment_mode:v})),
         h('div',{className:'field'},h('label',null,'Quick Report'),h('button',{type:'button',className:'btn btn-secondary',onClick:setToday},'Today / Daily Collection'))
       )
     ),
@@ -43636,7 +43644,7 @@ function Reports(){
     h(LogTable,{
       title:`Payment Report (${paymentRows.length})`,
       subtitle:'Date-wise receipt, voucher/reference number and payment mode register',
-      heads:['Date & Time','Voucher / Reference No.','Resident ID','Patient Name','Type','Mode','Amount','Received / Entered By'],
+      heads:['Date & Time','Voucher / Reference No.','Patient / Invoice ID','Patient Name','Type','Mode','Amount','Received / Entered By'],
       rows:paymentRows.map(row=>[
         formatDateTimeIN(row.transaction_date),
         row.payment_reference||'—',
@@ -43709,9 +43717,9 @@ function Reports(){
     ),
 
     h(LogTable,{
-      title:`Resident-wise Financial Ledger (${patientLedger.length})`,
+      title:`Patient / Outside Invoice Financial Ledger (${patientLedger.length})`,
       subtitle:'Charges, receipts, concessions, refunds and balance',
-      heads:['Patient','Resident ID','Room / Bed','Charges','Paid / Advance','Discount','Refund','Balance','Status'],
+      heads:['Patient','Patient / Invoice ID','Room / Bed','Charges','Paid / Advance','Discount','Refund','Balance','Status'],
       rows:patientLedger.map(row=>[
         formalName(row.patient)||row.patient.full_name,
         row.patient.patient_id||'—',
@@ -43727,7 +43735,7 @@ function Reports(){
     h(LogTable,{
       title:`Detailed Transaction Register (${filtered.length})`,
       subtitle:'Filtered billing, payment, discount and refund history',
-      heads:['Date','Patient','Resident ID','Type','Category','Mode','Voucher / Reference','Amount','Description'],
+      heads:['Date','Patient','Patient / Invoice ID','Type','Category','Mode','Voucher / Reference','Amount','Description'],
       rows:filtered.map(row=>[
         formatDateTimeIN(row.transaction_date),
         formalName(row.patients||{})||row.patients?.full_name||'—',
