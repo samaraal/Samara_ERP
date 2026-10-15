@@ -1,3 +1,8 @@
+## 2.16.82
+
+- Outside care: nurses enter items already used; Stores approval completes the indent and posts stock usage once, without a nurse receipt step. In-house receipt workflow retained.
+- Rename manual collection to Record payment received; display invoice balance and a saved-payment confirmation. Payment recording validated with rollback-only partial/full settlement and overpayment tests.
+
 ## 2.16.81
 
 - Outside nursing: nurse submits procedure and used-item indents together, without prices. Stores retains indent approval and handover.
