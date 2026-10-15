@@ -1,3 +1,7 @@
+## 2.16.69 — Training menu opens sample screens
+
+Clicking a training sidebar section opens its first sample screen and expands the matching submenu. Individual module buttons continue to open their screens. On small screens, navigation brings the content into view. Version training assets to refresh cached scripts.
+
 ## 2.16.68 — Read-only staff training walkthrough
 
 Add a separate training.html login with 94 sample module screens and fictional records. Browse/search/detail views and sample billing period totals only; no production configuration, Supabase SDK, live authentication or messaging. Content Security Policy blocks network connections and form submissions. Add a training link to staff sign-in. Demo identity: training.viewer; public demo access code: SamaraDemo2026. This is a walkthrough, not a full functional copy of the ERP.
