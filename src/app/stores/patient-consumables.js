@@ -34,8 +34,8 @@
         ['Resident',patientLabel(r.patient_id,r)],['Item',`${m?.item_code?m.item_code+' · ':''}${r.item_name}`],['Section',m?.item_category||''],
         ['Requested',`${r.requested_qty} ${r.unit}`],['Raised by (nurse)',[r.initiated_by_name,when(r.initiated_at||r.created_at)].filter(Boolean).join(' · ')],['Request remarks',r.request_remarks],
         ['Approved',r.approved_qty!=null?`${r.approved_qty} ${r.unit}`:''],['Approved by',[r.approved_by_name,when(r.approved_at)].filter(Boolean).join(' · ')],['Approval remarks',r.approval_remarks],
-        ['Handed over',r.handed_over_qty!=null?`${r.handed_over_qty} ${r.unit}`:''],['Handed over by',[r.handed_over_by_name,when(r.handed_over_at)].filter(Boolean).join(' · ')],['Handover remarks',r.handover_remarks],
-        ['Received',r.received_qty!=null?`${r.received_qty} ${r.unit}`:''],['Received by (nurse)',[r.received_by_name,when(r.received_at)].filter(Boolean).join(' · ')],['Receipt remarks',r.receipt_remarks],
+        [r.outside_usage_approved_at?'Stock usage posted':'Handed over',r.handed_over_qty!=null?`${r.handed_over_qty} ${r.unit}`:''],['Handed over by',[r.handed_over_by_name,when(r.handed_over_at)].filter(Boolean).join(' · ')],['Handover remarks',r.handover_remarks],
+        ['Received',r.received_qty!=null?`${r.received_qty} ${r.unit}`:''],[r.outside_usage_approved_at?'Usage approved by Stores':'Received by (nurse)',[r.received_by_name,when(r.received_at)].filter(Boolean).join(' · ')],['Receipt remarks',r.receipt_remarks],
         ['Charged',r.status==='Received'?`${u.charged} ${r.unit}`:''],['Returned / return pending',rel.length?rel.map(x=>`${x.quantity} ${x.unit||r.unit} ${x.status}${x.requested_by_name?' · by '+x.requested_by_name:''}${x.confirmed_by_name?' · confirmed '+x.confirmed_by_name:''}`).join('; '):''],
         ['Unused balance',r.status==='Received'?`${u.balance} ${r.unit}`:'']]};
     }
@@ -108,13 +108,14 @@
     }
     async function approve(row,reject=false){
       if(!storeController||busy)return;let qty=0,remarks='';const st=stockFor(row);
-      if(!reject){const input=prompt(`Requested: ${row.requested_qty} ${row.unit}. Current Stores balance: ${st?.balance_qty??'—'} ${st?.unit||row.unit}. Enter quantity to approve:`,String(row.requested_qty));if(input===null)return;qty=Number(input);if(!qty||qty<=0||qty>Number(row.requested_qty)){notify('error','Enter a valid quantity not exceeding the requested quantity.');return}}
+      if(!reject&&row.outside_visit_id){qty=Number(row.requested_qty);if(!confirm(`Approve ${qty} ${row.unit} of ${row.item_name} already used in outside care? Stock usage will be posted; no nurse receipt is needed.`))return;}
+      if(!reject&&!row.outside_visit_id){const input=prompt(`Requested: ${row.requested_qty} ${row.unit}. Current Stores balance: ${st?.balance_qty??'—'} ${st?.unit||row.unit}. Enter quantity to approve:`,String(row.requested_qty));if(input===null)return;qty=Number(input);if(!qty||qty<=0||qty>Number(row.requested_qty)){notify('error','Enter a valid quantity not exceeding the requested quantity.');return}}
       remarks=prompt(reject?'Reason for rejection:':'Approval remarks (optional):',reject?'Not approved':'')||'';
       setBusy(true);const res=await client.rpc('approve_patient_consumable_indent_v2',{p_indent_id:row.id,p_approved_qty:qty,p_decision:reject?'Rejected':'Approved',p_remarks:remarks||null});setBusy(false);
-      if(res.error)notify('error',res.error.message);else{notify('success',reject?'Indent rejected.':'Indent approved.');await load()}
+      if(res.error)notify('error',res.error.message);else{notify('success',reject?'Indent rejected.':row.outside_visit_id?'Used items approved and stock usage posted. Ready for invoice.':'Indent approved.');await load()}
     }
     async function handover(row){
-      if(!storeController||busy)return;const st=stockFor(row);const input=prompt(`Approved: ${row.approved_qty} ${row.unit}. Stores available: ${st?.balance_qty??'—'} ${st?.unit||row.unit}. Enter actual quantity handed over:`,String(row.approved_qty||''));if(input===null)return;
+      if(!storeController||busy)return;if(row.outside_visit_id){if(!confirm('Confirm these recorded outside-care items were already used? No nurse receipt is required.'))return;setBusy(true);const res=await client.rpc('handover_patient_consumable_indent_v2',{p_indent_id:row.id,p_handed_over_qty:Number(row.requested_qty),p_remarks:'Reconcile already-used outside items'});setBusy(false);if(res.error)notify('error',res.error.message);else{notify('success','Used items approved. Ready for invoice.');await load();}return;}const st=stockFor(row);const input=prompt(`Approved: ${row.approved_qty} ${row.unit}. Stores available: ${st?.balance_qty??'—'} ${st?.unit||row.unit}. Enter actual quantity handed over:`,String(row.approved_qty||''));if(input===null)return;
       const qty=Number(input);if(!qty||qty<=0||qty>Number(row.approved_qty||0)){notify('error','Enter a valid quantity not exceeding the approved quantity.');return}
       const remarks=prompt('Handover remarks (optional):','')||'';setBusy(true);const res=await client.rpc('handover_patient_consumable_indent_v2',{p_indent_id:row.id,p_handed_over_qty:qty,p_remarks:remarks||null});setBusy(false);
       if(res.error)notify('error',res.error.message);else{notify('success','Handed over and deducted from Stores. Awaiting Nurse receipt.');await load()}
@@ -155,7 +156,7 @@
       setBusy(false);
       const done=reject?'rejected':mode==='approve'?'approved':'handed over';
       if(fails.length)notify('error',`${ok} item(s) ${done}. Not done — ${fails.join(' · ')}`);
-      else notify('success',mode==='handover'?`${ok} item(s) handed over and deducted from Stores. Awaiting Nurse receipt.`:`${ok} item(s) ${done}.`);
+      else notify('success',group.items[0]?.outside_visit_id&&!reject?`${ok} used-item indent(s) approved and stock usage reconciled. No nurse receipt required.`:mode==='handover'?`${ok} item(s) handed over and deducted from Stores. Awaiting Nurse receipt.`:`${ok} item(s) ${done}.`);
       setBulkQty(x=>{const c={...x};picked.forEach(r=>delete c[bulkKey(mode,r)]);return c});
       setBulkOff(x=>{const c={...x};picked.forEach(r=>delete c[bulkKey(mode,r)]);return c});
       await load();
@@ -178,7 +179,7 @@
               h('td',null,`${r.requested_qty} ${r.unit}`),
               mode==='handover'&&h('td',null,`${r.approved_qty??'—'} ${r.unit}`),
               h('td',{style:{color:short?'#b42318':undefined,fontWeight:short?800:undefined}},st?`${bal} ${st.unit||r.unit}${short?' — less than this':''}`:'—'),
-              h('td',null,h('input',{type:'number',min:'0.01',step:'0.01',disabled:busy||!on,'aria-label':`Quantity for ${r.item_name}`,value:bulkQtyOf(mode,r),onChange:e=>setBulkQty(x=>({...x,[k]:e.target.value})),style:{width:'90px'}}),' ',r.unit)
+              h('td',null,h('input',{type:'number',min:'0.01',step:'0.01',disabled:busy||!on,readOnly:!!r.outside_visit_id,'aria-label':`Quantity for ${r.item_name}`,value:bulkQtyOf(mode,r),onChange:e=>setBulkQty(x=>({...x,[k]:e.target.value})),style:{width:'90px'}}),' ',r.unit)
             )}))
         )),
         h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'10px'}},
@@ -198,7 +199,7 @@
       );
     }
     async function receive(row){
-      if(!nurse||busy)return;const input=prompt(`Handed over: ${row.handed_over_qty} ${row.unit}. Confirm actual quantity physically received:`,String(row.handed_over_qty||''));if(input===null)return;
+      if(!nurse||busy||row.outside_visit_id)return;const input=prompt(`Handed over: ${row.handed_over_qty} ${row.unit}. Confirm actual quantity physically received:`,String(row.handed_over_qty||''));if(input===null)return;
       const qty=Number(input);if(!qty||qty<=0||qty>Number(row.handed_over_qty||0)){notify('error','Enter a valid quantity not exceeding the handed-over quantity.');return}
       const remarks=prompt(qty<Number(row.handed_over_qty||0)?'Quantity differs from handover. Please state the discrepancy:':'Receipt remarks (optional):','')||'';
       setBusy(true);const res=await client.rpc('receive_patient_consumable_indent',{p_indent_id:row.id,p_received_qty:qty,p_remarks:remarks||null});setBusy(false);
@@ -303,13 +304,13 @@
         focusId?h(RecordFocusBanner,{focus:recordFocus,onShowAll:clearRecordFocus}):null,
         !focusId&&bulkPanel(),
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Indent','Patient','Item / Store Balance','Requested','Approved','Handed Over','Received','Status','Initiated By / Time','Approval / Handover','Receipt','Action'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,visible.length?visible.map(r=>{const st=stockFor(r);const late=r.status==='Handed Over'?receiptOverdue[String(r.id)]:null;return h('tr',{key:r.id,id:`indent-row-${r.id}`,className:'row-clickable',onClick:rowClick(()=>setIndentDetail(indentFields(r)))},
+          h('tbody',null,visible.length?visible.map(r=>{const st=stockFor(r);const late=!r.outside_visit_id&&r.status==='Handed Over'?receiptOverdue[String(r.id)]:null;return h('tr',{key:r.id,id:`indent-row-${r.id}`,className:'row-clickable',onClick:rowClick(()=>setIndentDetail(indentFields(r)))},
             h('td',null,`CI-${String(r.indent_no||'').padStart(5,'0')}`),h('td',null,patientLabel(r.patient_id,r)),h('td',null,h('strong',null,r.item_name),h('small',{style:{display:'block'}},`Store: ${st?.balance_qty??'—'} ${st?.unit||r.unit}`),r.request_remarks&&h('small',{style:{display:'block'}},r.request_remarks)),
-            h('td',null,`${r.requested_qty} ${r.unit}`),h('td',null,r.approved_qty!=null?`${r.approved_qty} ${r.unit}`:'—'),h('td',null,r.handed_over_qty!=null?`${r.handed_over_qty} ${r.unit}`:'—'),h('td',null,r.received_qty!=null?`${r.received_qty} ${r.unit}`:'—'),h('td',null,h('span',{style:stageStyle(r.status)},r.status),late&&h('small',{style:{display:'block',marginTop:'5px',color:'#b2192d',fontWeight:800}},`Not received · ${late.minutes} min`)),
+            h('td',null,`${r.requested_qty} ${r.unit}`),h('td',null,r.approved_qty!=null?`${r.approved_qty} ${r.unit}`:'—'),h('td',null,r.handed_over_qty!=null?`${r.handed_over_qty} ${r.unit}`:'—'),h('td',null,r.received_qty!=null?`${r.received_qty} ${r.unit}`:'—'),h('td',null,h('span',{style:stageStyle(r.status)},r.outside_visit_id&&r.status==='Received'?'Used items approved':r.status),late&&h('small',{style:{display:'block',marginTop:'5px',color:'#b2192d',fontWeight:800}},`Not received · ${late.minutes} min`)),
             h('td',null,h('strong',null,r.initiated_by_name||'—'),h('small',{style:{display:'block'}},r.initiated_at?formatDateTimeIN(r.initiated_at):'—')),
-            h('td',null,r.approved_by_name&&h('div',null,h('strong',null,`Approved: ${r.approved_by_name}`),h('small',{style:{display:'block'}},r.approved_at?formatDateTimeIN(r.approved_at):'')),r.handed_over_by_name&&h('div',{style:{marginTop:'5px'}},h('strong',null,`Handed over: ${r.handed_over_by_name}`),h('small',{style:{display:'block'}},r.handed_over_at?formatDateTimeIN(r.handed_over_at):''))),
+            h('td',null,r.approved_by_name&&h('div',null,h('strong',null,`Approved: ${r.approved_by_name}`),h('small',{style:{display:'block'}},r.approved_at?formatDateTimeIN(r.approved_at):'')),r.handed_over_by_name&&h('div',{style:{marginTop:'5px'}},h('strong',null,`${r.outside_usage_approved_at?'Usage posted':'Handed over'}: ${r.handed_over_by_name}`),h('small',{style:{display:'block'}},r.handed_over_at?formatDateTimeIN(r.handed_over_at):''))),
             h('td',null,r.received_by_name?h('div',null,h('strong',null,r.received_by_name),h('small',{style:{display:'block'}},r.received_at?formatDateTimeIN(r.received_at):''),r.receipt_remarks&&h('small',{style:{display:'block'}},r.receipt_remarks)):'—'),
-            h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},storeController&&r.status==='Initiated'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>approve(r,false)},'Approve'),storeController&&r.status==='Initiated'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>approve(r,true)},'Reject'),storeController&&['Approved','Partially Approved'].includes(r.status)&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>handover(r)},'Hand Over'),nurse&&r.status==='Handed Over'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>receive(r)},'Received'),storeController&&r.status==='Receipt Discrepancy'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>resolveDiscrepancy(r)},'Return & Reconcile'),!((storeController&&['Initiated','Approved','Partially Approved','Receipt Discrepancy'].includes(r.status))||(nurse&&r.status==='Handed Over'))&&h('span',null,'—')))
+            h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},storeController&&r.status==='Initiated'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>approve(r,false)},r.outside_visit_id?'Approve used items':'Approve'),storeController&&r.status==='Initiated'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>approve(r,true)},'Reject'),storeController&&(['Approved','Partially Approved'].includes(r.status)||(r.outside_visit_id&&r.status==='Handed Over'))&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>handover(r)},r.outside_visit_id?'Confirm used items':'Hand Over'),nurse&&!r.outside_visit_id&&r.status==='Handed Over'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>receive(r)},'Received'),storeController&&r.status==='Receipt Discrepancy'&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>resolveDiscrepancy(r)},'Return & Reconcile'),!((storeController&&['Initiated','Approved','Partially Approved','Receipt Discrepancy'].includes(r.status))||(nurse&&!r.outside_visit_id&&r.status==='Handed Over'))&&h('span',null,'—')))
           )}):h('tr',null,h('td',{colSpan:12,style:{textAlign:'center',padding:'24px'}},'No consumable indents in this view.')))
         ))
       ))
