@@ -24,8 +24,8 @@ Deno.serve(async (req) => {
   if (!user) return json({ error: "An active ERP session is required." }, 403);
   const { data: profile } = await db.from("duty_profiles").select("id,role,is_active,active")
     .or(`id.eq.${user.id},auth_user_id.eq.${user.id}`).maybeSingle();
-  if (!profile || !(profile.is_active ?? profile.active ?? false) || !["Admin", "Manager"].includes(String(profile.role)))
-    return json({ error: "Only Admin or Manager can refresh WhatsApp templates." }, 403);
+  if (!profile || !(profile.is_active ?? profile.active ?? false) || !["Admin", "Manager", "STD"].includes(String(profile.role)))
+    return json({ error: "Only Admin, Manager or STD can refresh WhatsApp templates." }, 403);
 
   const accessToken = Deno.env.get("WHATSAPP_ACCESS_TOKEN") || "";
   const waba = Deno.env.get("WHATSAPP_BUSINESS_ACCOUNT_ID") || "";
