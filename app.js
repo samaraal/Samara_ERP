@@ -15259,7 +15259,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
 
     React.useEffect(()=>{(async()=>{
       const today=new Date().toISOString().slice(0,10);
-      const [emp,pat,beds,med,care,bill,inc,dis,vis,enq,esc]=await Promise.all([
+      const [emp,pat,beds,med,care,bill,inc,dis,vis,enq,esc,outside]=await Promise.all([
         client.from('profiles').select('*').eq('is_active',true),
         client.from('patients').select('*').eq('is_active',true),
         client.from('room_beds').select('*').order('room_no',{ascending:true}).order('bed_no',{ascending:true}),
@@ -15270,7 +15270,8 @@ function Dashboard({profile,onNavigate,alertEngine}){
         client.from('patient_discharges').select('id,patient_id,status,management_status,accounts_status'),
         client.from('family_visit_requests').select('*',{count:'exact',head:true}).eq('status','Pending'),
         loadAdmissionIntake(true),
-        client.from('clinical_alert_escalations').select('*',{count:'exact',head:true}).is('resolved_at',null)
+        client.from('clinical_alert_escalations').select('*',{count:'exact',head:true}).is('resolved_at',null),
+        ['Admin','Accounts'].includes(profile?.role)?loadOutsideNursingFinance():Promise.resolve(null)
       ]);
       const patients=pat.data||[];
 
@@ -15357,7 +15358,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
         reservationOverdue,
         meds:med.count||0,
         care:care.count||0,
-        outstanding,
+        outstanding:outstanding+(outside?.outstanding||0),outside,
         risks,
         incidents:inc.count||0,
         discharges:activeDischarges.length,
@@ -15393,12 +15394,13 @@ function Dashboard({profile,onNavigate,alertEngine}){
       {label:'Care actions today',value:careActionsToday,page:'Clinical Alerts',icon:'✅',clinicalFocus:'Daily Care',status:careActionsToday?`${careActionsToday} pending / due care action${careActionsToday===1?'':'s'}`:'No care actions due'},
       {label:'Open incidents',value:stats.incidents,page:'Incidents',icon:'🚨',incidentFilter:'open'},
       {label:'Clinical escalations',value:stats.escalations,page:'Clinical Escalations',icon:'🔔',escalationFilter:'open',status:stats.escalations?`${stats.escalations} awaiting Manager/Admin action`:'No open escalations'},
-      {label:'Outstanding Amount',value:`₹${stats.outstanding.toLocaleString('en-IN')}`,page:'Payments',icon:'₹',paymentFilter:'outstanding'},
+      {label:'Outstanding Amount',value:`₹${stats.outstanding.toLocaleString('en-IN')}`,page:'Accounts Reports',icon:'₹',status:'Resident and outside nursing receivables'},
       {label:'Package Expiry',value:stats.packageExpiry,page:'Package Expiry Dashboard',icon:'📦',status:stats.packageExpiry?`${stats.packageExpiry} expired / expiring within 2 days`:'No package expiry due'},
       {label:'Admission Enquiries',value:stats.enquiries,page:'Enquiry Register',icon:'☎',enquiryFilter:'active',status:stats.enquiries?`${stats.enquiries} awaiting follow-up`:'No new enquiries'},
       {label:'Visit Requests',value:stats.visitRequests,page:'Family Communication',icon:'📅',visitFilter:'pending',status:stats.visitRequests?`${stats.visitRequests} pending approval`:'No pending requests'},
       {label:'Discharge',value:stats.discharges,page:'Discharge',icon:'🚪',dischargeFilter:'open',status:stats.dischargeStatus}
     ];
+    if(stats.outside)cards.push({label:'Outside Nursing',value:stats.outside.error?'Unavailable':`₹${stats.outside.received.toLocaleString('en-IN')} received`,page:'Outside Samara Nursing Procedures',icon:'₹',status:stats.outside.error||`${stats.outside.count} invoices · ₹${stats.outside.outstanding.toLocaleString('en-IN')} outstanding`});
     return h(React.Fragment,null,
       h('div',{className:'shift-summary'},h('div',null,h('strong',null,currentShift()),h('span',null,'Admin and Manager control dashboard')),h('span',{className:'badge'},formalName(profile))),
       profile?.role==='Manager'?h('button',{
