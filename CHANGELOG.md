@@ -1,3 +1,7 @@
+## 2.16.66 — Bills & Charges period filters and totals
+
+Add day, Monday–Sunday week, month and inclusive custom date filters alongside Patient, Status and Category. Show matching entry count and request/approved totals; preserve nursing amount privacy. Load all register pages so totals include older entries. Fix Approved Today filtering initialization.
+
 ## 2.16.65 — Samara branded bills, invoices and statements
 
 Outside nursing invoices and statements use the Samara logo, magenta headers, pink accents and single-line Samara address footer. Patient name, address and mobile appear above the charge table. Shared physiotherapy PDFs and food supplier statements use the same branding. Resident complete bills and patient ledgers now include patient address above their tables. Logo loading failures prevent unbranded nursing/physiotherapy PDF generation. Financial calculations and stored invoice snapshots are unchanged.
