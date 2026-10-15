@@ -1,3 +1,7 @@
+## 2.16.68 — Read-only staff training walkthrough
+
+Add a separate training.html login with 94 sample module screens and fictional records. Browse/search/detail views and sample billing period totals only; no production configuration, Supabase SDK, live authentication or messaging. Content Security Policy blocks network connections and form submissions. Add a training link to staff sign-in. Demo identity: training.viewer; public demo access code: SamaraDemo2026. This is a walkthrough, not a full functional copy of the ERP.
+
 ## 2.16.67 — Restore Bills & Charges register loading
 
 Move paginated register loader into ClinicalCharges scope so requests load successfully. Manual patient/status/category/date changes clear notification request focus; dashboard quick views clear period focus.
