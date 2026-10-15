@@ -27,16 +27,6 @@
       notify('success',`${category}: approval ${next?'ON':'OFF'}.`);loadApprovalSettings();
     }
     React.useEffect(()=>{loadApprovalSettings()},[]);
-    async function loadRegisterRequests(){
-      const data=[];const pageSize=500;
-      for(let offset=0;;offset+=pageSize){
-        const result=await client.from('bill_charge_requests').select('*')
-          .order('created_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+pageSize-1);
-        if(result.error)return {data:null,error:result.error};
-        data.push(...(result.data||[]));
-        if((result.data||[]).length<pageSize)return {data,error:null};
-      }
-    }
     async function load(){
       const [services,stores]=await Promise.all([
         client.from('charge_tariff_master').select('*').order('category').order('display_order').order('service_name'),
@@ -300,6 +290,8 @@
 
     const notify=(type,text)=>{showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);setToast({type,text});setTimeout(()=>setToast(null),4500)};
     function openChargeView(view){
+      setWorkflowRequestId('');
+      setPeriod(current=>({...current,mode:'All dates'}));
       setQuickView(view);
       if(view==='Pending')setFilter(current=>({...current,status:'Pending'}));
       else if(view==='Approved')setFilter(current=>({...current,status:'All'}));
@@ -315,6 +307,16 @@
     const {pFor,pLabel}=usePatientLookup(patients,[...rows.map(r=>r.patient_id),...diagnostics.map(d=>d.patient_id)]);
     const money=v=>v!==null&&v!==undefined&&v!==''?`₹${Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'—';
 
+    async function loadRegisterRequests(){
+      const data=[];const pageSize=500;
+      for(let offset=0;;offset+=pageSize){
+        const result=await client.from('bill_charge_requests').select('*')
+          .order('created_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+pageSize-1);
+        if(result.error)return {data:null,error:result.error};
+        data.push(...(result.data||[]));
+        if((result.data||[]).length<pageSize)return {data,error:null};
+      }
+    }
     async function load(){
       const authResult=await client.auth.getUser();
       const authUserId=authResult.data?.user?.id||null;
@@ -963,14 +965,14 @@
       tariffPanel,
       h(Section,{title:'Bills & Charges Register',subtitle:'Doctor, nursing, physiotherapy, laboratory, hospital, transport and other expenses'},
         h('div',{className:'clinical-charge-filters'},
-          patientSelect(patients,filter.patient_id,v=>setFilter({...filter,patient_id:v})),
-          miniSelect('Status',filter.status,['All','Pending','Approved','Partially Approved','Rejected'],v=>{setQuickView('All');setFilter({...filter,status:v})}),
-          miniSelect('Category',filter.category,['All',...[...new Set([...Object.keys(categories),...rows.map(r=>r.category).filter(Boolean)])].sort(samaraAlpha)],v=>{setQuickView('All');setFilter({...filter,category:v})}),
-          miniSelect('Period',period.mode,['All dates','Day','Week','Month','Custom period'],v=>{setQuickView('All');setPeriod({...period,mode:v})}),
-          ['Day','Week'].includes(period.mode)&&miniInput(period.mode==='Week'?'Choose a date in the week (Mon–Sun)':'Date',period.date,v=>setPeriod({...period,date:v}),false,'date'),
-          period.mode==='Month'&&miniInput('Month',period.month,v=>setPeriod({...period,month:v}),false,'month'),
-          period.mode==='Custom period'&&miniInput('From date',period.from,v=>setPeriod({...period,from:v}),false,'date'),
-          period.mode==='Custom period'&&miniInput('To date',period.to,v=>setPeriod({...period,to:v}),false,'date')
+          patientSelect(patients,filter.patient_id,v=>{setWorkflowRequestId('');setFilter({...filter,patient_id:v})}),
+          miniSelect('Status',filter.status,['All','Pending','Approved','Partially Approved','Rejected'],v=>{setWorkflowRequestId('');setQuickView('All');setFilter({...filter,status:v})}),
+          miniSelect('Category',filter.category,['All',...[...new Set([...Object.keys(categories),...rows.map(r=>r.category).filter(Boolean)])].sort(samaraAlpha)],v=>{setWorkflowRequestId('');setQuickView('All');setFilter({...filter,category:v})}),
+          miniSelect('Period',period.mode,['All dates','Day','Week','Month','Custom period'],v=>{setWorkflowRequestId('');setQuickView('All');setPeriod({...period,mode:v})}),
+          ['Day','Week'].includes(period.mode)&&miniInput(period.mode==='Week'?'Choose a date in the week (Mon–Sun)':'Date',period.date,v=>{setWorkflowRequestId('');setQuickView('All');setPeriod({...period,date:v})},false,'date'),
+          period.mode==='Month'&&miniInput('Month',period.month,v=>{setWorkflowRequestId('');setQuickView('All');setPeriod({...period,month:v})},false,'month'),
+          period.mode==='Custom period'&&miniInput('From date',period.from,v=>{setWorkflowRequestId('');setQuickView('All');setPeriod({...period,from:v})},false,'date'),
+          period.mode==='Custom period'&&miniInput('To date',period.to,v=>{setWorkflowRequestId('');setQuickView('All');setPeriod({...period,to:v})},false,'date')
         ),
         periodInvalid&&h('p',{role:'alert',style:{color:'#a00050'}},'Select a valid period. From date must be on or before To date.'),
         !periodInvalid&&periodFrom&&h('p',null,`Charge dates: ${formatDateIN(periodFrom)} to ${formatDateIN(periodTo)} (inclusive)`),
