@@ -1,3 +1,11 @@
+## 2.16.74 - Audited consolidation of nursing invoice items
+
+Admin may review received items from another unbilled record for the same patient/date into an unpaid approved invoice, with an amendment reason and explicit item rates. Retain original nursing notes, indent links and stock movements; void the source as consolidated, record previous/new totals in audit, and mark the PDF amended. Payments and active online links block amendments. Requires SQL 235. Includes the pending charge-label correction from 2.16.73.
+
+## 2.16.73 - Clear nursing charge labels
+
+Rename the approval fields to Nursing procedure charge (INR) and Item rate (INR). These are existing nursing and material charges, not an additional administration fee. Calculations and database rules are unchanged.
+
 ## 2.16.72 - Nurse-only procedure entries and duplicate review
 
 Only nurses may create outside patients, procedure entries and used-item indents or confirm indent receipt. Admin reviews, sets fees, approves, returns or voids unbilled duplicates with a reason and retained-record reference. Same-day patient care requires a separate-care reason, including concurrent submissions. Voided records retain history and cannot be billed or edited. Indent and payment safeguards prevent discarding stock or financial records. Requires SQL 234. Existing records are not automatically changed.
