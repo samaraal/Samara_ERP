@@ -1,3 +1,8 @@
+## 2.16.83
+
+- Outside nursing: every saved payment opens a branded receipt panel automatically. Download the receipt PDF or share the prepared PDF and payment acknowledgement through WhatsApp.
+- Existing saved payments remain available through Payment receipts. Each receipt identifies its payment, amount, date, mode, invoice and current balance; unrecorded payments cannot produce a receipt.
+
 ## 2.16.82
 
 - Outside care: nurses enter items already used; Stores approval completes the indent and posts stock usage once, without a nurse receipt step. In-house receipt workflow retained.
