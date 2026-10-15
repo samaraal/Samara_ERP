@@ -1,3 +1,7 @@
+## 2.16.71 - Verified nursing receipts for WhatsApp Web
+
+Paid online requests prepare a Samara-branded PDF acknowledgement from verified nursing receipt entries. Admin/Accounts can download it or open an existing WhatsApp Web draft for the checked patient/family number. Staff attach the PDF and press Send. No automatic WhatsApp delivery, browser-session credentials, or new Meta template. Unverified/pending requests cannot produce a receipt.
+
 ## 2.16.70 - Outside nursing online payments
 
 Approved outside nursing invoices have a Razorpay payment-link workspace for Admin/Accounts, explicit branded WhatsApp sharing to a checked patient/family number, partial-amount requests, status checks, cancellation and synchronisation. Server-side captured-payment verification posts atomic, idempotent receipts to outside nursing statements only. Manual receipts are blocked while a link is open. Requires SQL 233 and outside-nursing-payment Edge Function. No automatic messages or real payment tests.
