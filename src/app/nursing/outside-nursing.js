@@ -19,17 +19,19 @@
         if(total!==Math.round(Number(request.amount)*100))throw Error('Receipt entries are still refreshing. Check payment status again.');
         const logoImage=await samaraDocumentLogo();
         const blob=physioStatementPDF({title:'Payment Receipt - SN-'+String(visit.invoice_number).padStart(6,'0'),organisation:'Samara Health Care LLP',period:'Verified online payment · Receipt date: '+receivedRows.map(p=>p.payment_date).sort().at(-1),contact:'9976735577 / 7395961616 · care@samaraassistedliving.com',patient,logoImage,columnWidths:[76,100,240,100,100,88],heads:['Date','Payment mode','Payment reference','Invoice','Received INR','Status'],rows:receivedRows.map(p=>[p.payment_date,'Razorpay Online',p.gateway_payment_id,'SN-'+String(visit.invoice_number).padStart(6,'0'),Number(p.amount).toFixed(2),'Received']),notes:['Amount received INR '+(total/100).toFixed(2),'Current invoice balance INR '+Number(balance).toFixed(2),'Receipt reference: '+request.id,'Payment verified with Razorpay and posted to the outside nursing account.','Thank you for your payment. Samara Assisted Living.']});
-        if(!stopped){setReceiptFile(new File([blob],'Samara-Receipt-SN-'+String(visit.invoice_number).padStart(6,'0')+'-'+request.id.slice(0,8)+'.pdf',{type:'application/pdf'}));setMessage('Verified receipt prepared. Check the recipient, then open WhatsApp Web and attach the downloaded PDF.');}
+        if(!stopped){setReceiptFile(new File([blob],'Samara-Receipt-SN-'+String(visit.invoice_number).padStart(6,'0')+'-'+request.id.slice(0,8)+'.pdf',{type:'application/pdf'}));setMessage('Verified receipt prepared. Choose WhatsApp and the intended family contact in the share sheet.');}
       }catch(e){if(!stopped)setError(e.message);}finally{if(!stopped)setReceiptPreparing(false);}})();
       return()=>{stopped=true};
     },[request?.id,request?.status,JSON.stringify(receivedRows),balance,patient.full_name,patient.phone,patient.address]);
     function downloadReceipt(){if(!receiptFile)return;const link=URL.createObjectURL(receiptFile),a=document.createElement('a');a.href=link;a.download=receiptFile.name;a.click();setTimeout(()=>URL.revokeObjectURL(link),60000);}
-    function receiptWhatsApp(){
-      let to=phone.replace(/[^0-9]/g,'');if(to.length===10)to='91'+to;
-      if(!/^[1-9][0-9]{7,14}$/.test(to)){setError('Check the patient / family WhatsApp number with country code.');return;}
-      const text='Samara Assisted Living\nDear '+(name||'Patient / Family')+',\nThank you. Payment received: INR '+Number(request.amount).toFixed(2)+'\nInvoice: SN-'+String(visit.invoice_number).padStart(6,'0')+'\nYour payment has been verified and recorded.\nCurrent invoice balance: INR '+Number(balance).toFixed(2)+'\nFor help: 9976735577\nSamara Health Care LLP';
-      const draft=window.open('https://web.whatsapp.com/send?phone='+to+'&text='+encodeURIComponent(text),'_blank','noopener');
-      downloadReceipt();setMessage('Receipt PDF downloaded. In WhatsApp Web, attach the PDF, check the recipient and press Send.');
+    async function sharePreparedPDF(file,text,title){
+      if(!file)return;
+      if(!navigator.share||!navigator.canShare?.({files:[file]}))throw Error('This browser cannot attach the invoice automatically. Open Samara ERP in Safari on your iPhone, then choose WhatsApp from the share sheet.');
+      await navigator.share({files:[file],title,text});
+    }
+    async function receiptWhatsApp(){if(busy||!receiptFile)return;setBusy(true);setError('');
+      const text='Samara Assisted Living\nDear '+(name||'Patient / Family')+',\nThank you. Payment received: INR '+Number(request.amount).toFixed(2)+'\nInvoice: SN-'+String(visit.invoice_number).padStart(6,'0')+'\nYour payment has been verified and recorded.\nCurrent invoice balance: INR '+Number(balance).toFixed(2)+'\nFor help: 9976735577';
+      try{await sharePreparedPDF(receiptFile,text,'Samara payment receipt');setMessage('Share sheet closed. Check WhatsApp to confirm the receipt was sent to the intended family contact.');}catch(e){if(e.name!=='AbortError')setError(e.message);}finally{setBusy(false);}
     }
 
     const shareText=()=> 'Samara Assisted Living\nInvoice SN-'+String(visit.invoice_number).padStart(6,'0')+'\nAmount requested: INR '+Number(request.amount).toFixed(2)+'\nPay securely: '+request.payment_url+'\nFor help: 9976735577';
@@ -40,10 +42,8 @@
         if(!stopped)setInvoiceFile(new File([blob],'Samara-Invoice-SN-'+String(visit.invoice_number).padStart(6,'0')+'.pdf',{type:'application/pdf'}));
       }catch(e){if(!stopped)setError(e.message);}finally{if(!stopped)setInvoicePreparing(false);}})();return()=>{stopped=true};
     },[request?.id,request?.status,request?.payment_url,request?.amount,JSON.stringify(visit),JSON.stringify(patient),balance]);
-    function sendInvoiceWhatsApp(){if(busy||!invoiceFile||!active)return;const to=recipient();if(!/^[1-9][0-9]{7,14}$/.test(to)){setError('Check the patient / family WhatsApp number with country code.');return;}
-      window.open('https://wa.me/'+to+'?text='+encodeURIComponent(shareText()),'_blank','noopener');
-      const url=URL.createObjectURL(invoiceFile),a=document.createElement('a');a.href=url;a.download=invoiceFile.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
-      setMessage('Samara invoice PDF downloaded with the payment link. In WhatsApp, attach this PDF, check the recipient and press Send.');
+    async function sendInvoiceWhatsApp(){if(busy||!invoiceFile||!active)return;setBusy(true);setError('');
+      try{await sharePreparedPDF(invoiceFile,shareText(),'Samara invoice and payment link');setMessage('Share sheet closed. Check WhatsApp to confirm the invoice and payment link were sent to the intended family contact.');}catch(e){if(e.name!=='AbortError')setError(e.message);}finally{setBusy(false);}
     }
     // Recheck pending links while this panel is open and when staff return from WhatsApp.
     React.useEffect(()=>{if(!active||!request?.payment_url||!window.addEventListener)return;let stopped=false,running=false;const check=async()=>{if(running)return;running=true;try{const r=await outsideNursingPaymentAPI('reconcile',{visit_id:visit.id,request_id:request.id});if(!stopped&&r.request){setRequest(r.request);if(r.request.status==='Paid')await onRefresh();}}catch(e){if(!stopped)setError(e.message);}finally{running=false}};window.addEventListener('focus',check);const timer=window.setInterval?.(check,30000);return()=>{stopped=true;window.removeEventListener('focus',check);if(timer)window.clearInterval(timer)};},[request?.id,request?.status]);
@@ -58,21 +58,20 @@
       await onRefresh();
     }catch(e){setError(e.message);}finally{setBusy(false);}}
     React.useEffect(()=>{let stopped=false;outsideNursingPaymentAPI('list',{visit_id:visit.id}).then(r=>{if(!stopped){const found=r.requests.find(x=>['Creating','Pending'].includes(x.status))||r.requests[0]||null;setRequest(found);if(found){setPhone(found.recipient_phone||patient.phone||'');setName(found.recipient_name||patient.full_name||'');if(['Creating','Pending'].includes(found.status))setAmount(String(found.amount));}}}).catch(e=>{if(!stopped)setError(e.message)});return()=>{stopped=true}},[visit.id]);
-    const button=(label,fn,disabled=false)=>h('button',{type:'button',className:'btn btn-secondary',disabled:busy||disabled,onClick:fn},label);
+    const button=(label,fn,disabled=false)=>h('button',{type:'button',className:'btn btn-secondary',style:label==='Send via WhatsApp'?{background:'#167346',color:'#fff',border:'1px solid #12613b',fontWeight:700}:undefined,disabled:busy||disabled,onClick:fn},label);
     return h('section',{id:'outside-nursing-online-payment',tabIndex:-1,'aria-label':'Online payment request',className:'card panel',style:{border:'1px solid #edbdd3',background:'#fff6fa',scrollMarginTop:16}},
       h('button',{type:'button',className:'btn btn-secondary','aria-label':'Close online payment',onClick:onClose,style:{float:'right'}},'×'),h('img',{src:BRAND_LOGO_SRC,alt:'Samara Assisted Living',style:{width:150,height:'auto'}}),h('h3',{style:{color:'#a00050'}},'Online payment - SN-'+String(visit.invoice_number).padStart(6,'0')),
       h('p',null,patient.full_name+' · Invoice balance INR '+Number(balance).toFixed(2)),
       error&&h('p',{className:'message error',role:'alert'},error),message&&h('p',{role:'status'},message),
       h('p',null,'Create the link after invoice approval. Sending is a separate action. Patient or family can pay without an ERP login.'),
       h('label',null,'Amount to request (INR)',h('input',{type:'number',min:1,max:balance,step:'0.01',value:amount,disabled:busy||!!active,onChange:e=>setAmount(e.target.value)})),
-      balance>=1&&button('Create payment link',()=>run('create'),!!active),
+      h('div',{className:'actions'},balance>=1&&button('Create payment link',()=>run('create'),!!active),button('Send via WhatsApp',request?.status==='Paid'?receiptWhatsApp:sendInvoiceWhatsApp,request?.status==='Paid'?!receiptFile:!invoiceFile||!active)),
       request&&h('div',null,h('p',null,'Status: '+request.status+' · Request amount INR '+Number(request.amount).toFixed(2)),
         
         (active||request.status==='Paid')&&request.payment_url&&h('div',{className:'form-grid'},h('label',null,'Recipient name / relationship',h('input',{value:name,disabled:busy,onChange:e=>setName(e.target.value)})),h('label',null,'Patient / family WhatsApp number (with country code)',h('input',{type:'tel',value:phone,disabled:busy,onChange:e=>setPhone(e.target.value)}))),
         request.status==='Paid'&&h('p',{role:'status'},receiptPreparing?'Preparing verified receipt PDF…':receiptFile?'Payment verified. Samara receipt PDF is ready.':'Refreshing verified receipt entries…'),
         active&&invoicePreparing&&h('p',{role:'status'},'Preparing Samara invoice PDF…'),
-        h('div',{className:'actions'},button('Send via WhatsApp',request.status==='Paid'?receiptWhatsApp:sendInvoiceWhatsApp,request.status==='Paid'?!receiptFile:!invoiceFile||!active)),
-        h('p',{className:'small-note'},request.status==='Paid'?'Opens WhatsApp and downloads the Samara receipt. Attach the PDF and press Send.':'Opens WhatsApp and downloads the Samara invoice, including nursing and item charges and the payment link. Attach the PDF and press Send. Payment status updates automatically while this panel is open.')));
+        h('p',{className:'small-note'},request.status==='Paid'?'The receipt PDF is attached to your phone’s share sheet. Choose WhatsApp, select the intended family contact and press Send.':'The invoice PDF and payment link are included automatically. Choose WhatsApp in your phone’s share sheet, select the intended family contact and press Send. No Downloads selection is needed. Payment status updates automatically.')));
   }
 
   function OutsideNursing({profile}){
