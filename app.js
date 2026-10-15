@@ -36846,7 +36846,7 @@ function ShiftHandover({profile,onNavigate}){
   function AccountsDashboard({profile,onNavigate}){
     React.useEffect(()=>{ensureAccountsWorkspaceStyle()},[]);
     const [state,setState]=React.useState({
-      loading:true,transactions:[],requests:[],discharges:[],patients:[]
+      loading:true,transactions:[],requests:[],discharges:[],patients:[],outside:null
     });
 
     const money=value=>`₹${Number(value||0).toLocaleString('en-IN',{maximumFractionDigits:2})}`;
@@ -36854,7 +36854,7 @@ function ShiftHandover({profile,onNavigate}){
     const monthKey=value=>dateKey(value).slice(0,7);
 
     async function load(){
-      const [transactions,requests,discharges,patients]=await Promise.all([
+      const [transactions,requests,discharges,patients,outside]=await Promise.all([
         client.from('billing_transactions')
           .select('id,patient_id,transaction_type,category,amount,payment_mode,transaction_date,description')
           .order('transaction_date',{ascending:false}).limit(3000),
@@ -36863,11 +36863,12 @@ function ShiftHandover({profile,onNavigate}){
         client.from('patient_discharges')
           .select('id,status,management_status,accounts_status,created_at'),
         client.from('patients')
-          .select('id,full_name,title,patient_id,is_active,admission_date,room_no,bed_no,package_id,package_end_date')
+          .select('id,full_name,title,patient_id,is_active,admission_date,room_no,bed_no,package_id,package_end_date'),
+        loadOutsideNursingFinance()
       ]);
       setState({
         loading:false,
-        transactions:transactions.data||[],
+        transactions:[...(transactions.data||[]),...outside.rows],outside,
         requests:requests.data||[],
         discharges:discharges.data||[],
         patients:patients.data||[]
@@ -36878,6 +36879,8 @@ function ShiftHandover({profile,onNavigate}){
       load();
       const channel=client.channel('accounts-dashboard-live-v230')
         .on('postgres_changes',{event:'*',schema:'public',table:'billing_transactions'},load)
+        .on('postgres_changes',{event:'*',schema:'public',table:'outside_nursing_visits'},load)
+        .on('postgres_changes',{event:'*',schema:'public',table:'outside_nursing_payments'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'bill_charge_requests'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'patient_discharges'},load)
         .subscribe();
@@ -36973,20 +36976,20 @@ function ShiftHandover({profile,onNavigate}){
       return realisedDays.length?realisedRevenue/realisedDays.length:0;
     })();
 
-    const modeTotals=['Cash','UPI','RTGS','Card Payment'].map(mode=>[
+    const modeTotals=['Cash','UPI','RTGS','Card Payment','Razorpay'].map(mode=>[
       mode,
       sum(rows.filter(row=>String(row.payment_mode||'').toLowerCase()===mode.toLowerCase()),['Payment','Advance'])
     ]);
     const maxMode=Math.max(1,...modeTotals.map(([,value])=>value));
 
     const kpis=[
-      ['Collections Today',todayCollections,'Payments','green','Received today'],
-      ['Collections This Month',monthCollections,'Payments','blue','Payment and advance receipts'],
+      ['Collections Today',todayCollections,'Accounts Reports','green','Received today'],
+      ['Collections This Month',monthCollections,'Accounts Reports','blue','Payment and advance receipts'],
       ['Gross Charges This Month',monthGrossCharges,'Accounts Reports','teal','Approved charges raised this month'],
       ['Discounts This Month',monthDiscounts,'Accounts Reports','purple','Approved discounts granted this month'],
       ['Net Charges This Month',monthNetCharges,'Accounts Reports','blue','Gross charges less approved discounts'],
       ['Realised Revenue This Month',monthRealisedRevenue,'Accounts Reports','green','Revenue materialised against charges'],
-      ['Outstanding Receivables',outstanding,'Final Billing','red','Approved net charges still unpaid'],
+      ['Outstanding Receivables',outstanding,'Accounts Reports','red','Approved net charges still unpaid'],
       ['Unadjusted Advances',unadjustedAdvance,'Payments','blue','Receipts not yet materialised against charges'],
       ['Pending Approvals',pendingApprovals,'Charge Approvals','orange','Clinical charges awaiting decision',true],
       ['Pending Final Bills',finalBills,'Final Billing','purple','Active patients with balance',true],
@@ -37012,6 +37015,9 @@ function ShiftHandover({profile,onNavigate}){
         )
       ),
 
+      state.outside?.error&&h('p',{role:'alert'},state.outside.error),
+      h('button',{className:'btn btn-secondary',onClick:()=>onNavigate('Outside Samara Nursing Procedures')},'Outside nursing invoices & receipts'),
+      h('p',null,'Totals include resident billing and approved outside nursing invoices. Outside nursing: '+money(state.outside?.charges)+' invoiced · '+money(state.outside?.received)+' received · '+money(state.outside?.outstanding)+' outstanding.'),
       h('div',{className:'accounts-kpi-grid'},
         kpis.map(([label,value,page,tone,note,isCount])=>h('button',{
           type:'button',className:`accounts-kpi ${tone}`,key:label,onClick:()=>dashboardNavigate(onNavigate,page,label,{source:'Accounts Dashboard'})
