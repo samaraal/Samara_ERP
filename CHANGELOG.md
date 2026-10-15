@@ -1,3 +1,7 @@
+## 2.16.77 - Visible online payment panel on mobile
+
+Bring the online payment panel into view and focus it whenever Online payment is tapped, including repeated taps on the same invoice. Prevent the above-register panel from appearing unresponsive on iPhone. Opening the panel does not create a link or send a message.
+
 ## 2.16.76 - Compact nursing register, document dates and footer icons
 
 Use the existing ERP-wide DD-MM-YYYY display formatter in shared nursing/physiotherapy invoice, receipt and statement PDFs and payment statement text. Payment statement CSV date columns also use DD-MM-YYYY. Database dates, filters and gateway payloads remain ISO. Draw phone and envelope icons beside Samara footer contacts so PDF icons do not depend on emoji fonts.
