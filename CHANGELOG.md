@@ -1,3 +1,7 @@
+## 2.16.75 - Nursing invoice column layout
+
+Widen the Procedure column and narrow the Reference column; rename Location / Reference to Reference. Place Samara phone numbers and email below the single-line footer address, remove repeated Samara contact details from the header, and reserve footer space on every page. Make Outside Nursing tables wrap within the page and stack as labelled cards on smaller screens, eliminating horizontal register scrolling. Invoice values remain unchanged.
+
 ## 2.16.74 - Audited consolidation of nursing invoice items
 
 Admin may review received items from another unbilled record for the same patient/date into an unpaid approved invoice, with an amendment reason and explicit item rates. Retain original nursing notes, indent links and stock movements; void the source as consolidated, record previous/new totals in audit, and mark the PDF amended. Payments and active online links block amendments. Requires SQL 235. Includes the pending charge-label correction from 2.16.73.
