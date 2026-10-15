@@ -1,3 +1,9 @@
+## 2.16.84
+
+- Refresh the current balance before manual payment recording. Settled invoices and already-saved retries open the existing receipt without another entry; gateway settlement races recover to the receipt.
+- Green success confirmation after saving; grey inactive payment button for fully paid invoices and completed receipt actions. Prevent concurrent form submissions and retain server overpayment protection.
+- Receipt payment selector uses DD-MM-YYYY.
+
 ## 2.16.83
 
 - Outside nursing: every saved payment opens a branded receipt panel automatically. Download the receipt PDF or share the prepared PDF and payment acknowledgement through WhatsApp.
