@@ -11,6 +11,7 @@ function Reports(){
 
   const money=value=>`₹${Number(value||0).toLocaleString('en-IN',{maximumFractionDigits:2})}`;
   const dateOnly=value=>String(value||'').slice(0,10);
+  const transactionDate=row=>row.source==='Outside Nursing'?formatDateIN(row.transaction_date):formatDateTimeIN(row.transaction_date);
 
   async function load(){
     setState(current=>({...current,loading:true}));
@@ -122,7 +123,7 @@ function Reports(){
       'Transaction Type','Payment Mode','Amount','Received / Entered By','Description'
     ];
     const lines=paymentRows.map(row=>[
-      formatDateTimeIN(row.transaction_date),
+      transactionDate(row),
       row.payment_reference||'',
       row.patients?.patient_id||'',
       formalName(row.patients||{})||row.patients?.full_name||'',
@@ -215,7 +216,7 @@ function Reports(){
       subtitle:'Date-wise receipt, voucher/reference number and payment mode register',
       heads:['Date & Time','Voucher / Reference No.','Patient / Invoice ID','Patient Name','Type','Mode','Amount','Received / Entered By'],
       rows:paymentRows.map(row=>[
-        formatDateTimeIN(row.transaction_date),
+        transactionDate(row),
         row.payment_reference||'—',
         row.patients?.patient_id||'—',
         formalName(row.patients||{})||row.patients?.full_name||'—',
@@ -236,7 +237,7 @@ function Reports(){
           h('tbody',null,
             cashVoucherRows.map(row=>h('tr',{key:row.id},
               h('td',null,row.payment_reference||'—'),
-              h('td',null,formatDateTimeIN(row.transaction_date)),
+              h('td',null,transactionDate(row)),
               h('td',null,formalName(row.patients||{})||row.patients?.full_name||'—'),
               h('td',null,row.transaction_type||'—'),
               h('td',null,money(row.amount))
@@ -254,7 +255,7 @@ function Reports(){
           h('tbody',null,
             cardVoucherRows.map(row=>h('tr',{key:row.id},
               h('td',null,row.payment_reference||'—'),
-              h('td',null,formatDateTimeIN(row.transaction_date)),
+              h('td',null,transactionDate(row)),
               h('td',null,formalName(row.patients||{})||row.patients?.full_name||'—'),
               h('td',null,row.transaction_type||'—'),
               h('td',null,money(row.amount))
@@ -306,7 +307,7 @@ function Reports(){
       subtitle:'Filtered billing, payment, discount and refund history',
       heads:['Date','Patient','Patient / Invoice ID','Type','Category','Mode','Voucher / Reference','Amount','Description'],
       rows:filtered.map(row=>[
-        formatDateTimeIN(row.transaction_date),
+        transactionDate(row),
         formalName(row.patients||{})||row.patients?.full_name||'—',
         row.patients?.patient_id||'—',
         row.transaction_type||'—',
