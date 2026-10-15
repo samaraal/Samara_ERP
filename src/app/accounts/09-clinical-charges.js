@@ -27,6 +27,16 @@
       notify('success',`${category}: approval ${next?'ON':'OFF'}.`);loadApprovalSettings();
     }
     React.useEffect(()=>{loadApprovalSettings()},[]);
+    async function loadRegisterRequests(){
+      const data=[];const pageSize=500;
+      for(let offset=0;;offset+=pageSize){
+        const result=await client.from('bill_charge_requests').select('*')
+          .order('created_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+pageSize-1);
+        if(result.error)return {data:null,error:result.error};
+        data.push(...(result.data||[]));
+        if((result.data||[]).length<pageSize)return {data,error:null};
+      }
+    }
     async function load(){
       const [services,stores]=await Promise.all([
         client.from('charge_tariff_master').select('*').order('category').order('display_order').order('service_name'),
@@ -255,6 +265,7 @@
     });
     const [form,setForm]=React.useState(fresh());
     const [filter,setFilter]=React.useState({patient_id:initialPatientId,status:initialPatientId?'Pending':'All',category:'All'});
+    const [period,setPeriod]=React.useState({mode:'All dates',date:todayISOIndia(),month:todayISOIndia().slice(0,7),from:todayISOIndia(),to:todayISOIndia()});
     const [quickView,setQuickView]=React.useState('All');
     const [workflowRequestId,setWorkflowRequestId]=React.useState('');
     // v2.14.45: only an "Open & Take Action" click from the last 2 minutes focuses one request.
@@ -312,10 +323,7 @@
         ?client.from('charge_tariff_master').select('*').order('category').order('display_order').order('service_name')
         :client.rpc('get_charge_service_catalog');
       const [a,b,c,d,e,f,g]=await Promise.all([
-        client.from('bill_charge_requests')
-          .select('*')
-          .order('created_at',{ascending:false})
-          .limit(1000),
+        loadRegisterRequests(),
         client.from('diagnostic_services')
           .select('*')
           .order('ordered_at',{ascending:false})
@@ -678,7 +686,19 @@
       }
     }
 
+    let periodFrom='',periodTo='';
+    if(period.mode==='Day')periodFrom=periodTo=period.date;
+    if(period.mode==='Week'&&period.date){periodFrom=mondayOfWeek(period.date);periodTo=addDaysISO(periodFrom,6);}
+    if(period.mode==='Month'&&/^\d{4}-\d{2}$/.test(period.month)){
+      periodFrom=period.month+'-01';
+      const [year,month]=period.month.split('-').map(Number);
+      periodTo=new Date(Date.UTC(year,month,0)).toISOString().slice(0,10);
+    }
+    if(period.mode==='Custom period'){periodFrom=period.from;periodTo=period.to;}
+    const periodInvalid=period.mode!=='All dates'&&(!periodFrom||!periodTo||periodFrom>periodTo);
     const filtered=rows.filter(r=>
+      !periodInvalid&&(!periodFrom||String(r.charge_date||'').slice(0,10)>=periodFrom)&&
+      (!periodTo||String(r.charge_date||'').slice(0,10)<=periodTo)&&
       (!workflowRequestId||String(r.id)===workflowRequestId)&&
       (!filter.patient_id||r.patient_id===filter.patient_id)&&
       (filter.status==='All'||(r.approval_status||'Pending')===filter.status)&&
@@ -687,13 +707,20 @@
       (quickView!=='Approved'||['Approved','Partially Approved'].includes(r.approval_status))&&
       (quickView!=='Approved Today'||isApprovedToday(r))
     );
+    const registerTotals=filtered.reduce((totals,row)=>{
+      const requested=currentStoreRequestAmount(row).amount;
+      const approved=Number(row.approved_amount??row.final_amount??0);
+      totals.requested+=Number.isFinite(requested)?requested:0;
+      totals.approved+=Number.isFinite(approved)?approved:0;
+      return totals;
+    },{requested:0,approved:0});
     const pending=rows.filter(r=>(r.approval_status||'Pending')==='Pending').length;
     const approved=rows.filter(r=>['Approved','Partially Approved'].includes(r.approval_status));
 
     // Dashboard summary should be operational, not a lifetime cumulative total.
     // "Approved Today" is based on the actual decision timestamp when available.
     // For legacy approved rows without decision_at, charge_date is used only as a fallback.
-    const isApprovedToday=row=>{
+    function isApprovedToday(row){
       if(!['Approved','Partially Approved'].includes(row.approval_status))return false;
       if(row.decision_at){
         const d=new Date(row.decision_at);
@@ -938,7 +965,19 @@
         h('div',{className:'clinical-charge-filters'},
           patientSelect(patients,filter.patient_id,v=>setFilter({...filter,patient_id:v})),
           miniSelect('Status',filter.status,['All','Pending','Approved','Partially Approved','Rejected'],v=>{setQuickView('All');setFilter({...filter,status:v})}),
-          miniSelect('Category',filter.category,['All',...[...new Set([...Object.keys(categories),...rows.map(r=>r.category).filter(Boolean)])].sort(samaraAlpha)],v=>{setQuickView('All');setFilter({...filter,category:v})})
+          miniSelect('Category',filter.category,['All',...[...new Set([...Object.keys(categories),...rows.map(r=>r.category).filter(Boolean)])].sort(samaraAlpha)],v=>{setQuickView('All');setFilter({...filter,category:v})}),
+          miniSelect('Period',period.mode,['All dates','Day','Week','Month','Custom period'],v=>{setQuickView('All');setPeriod({...period,mode:v})}),
+          ['Day','Week'].includes(period.mode)&&miniInput(period.mode==='Week'?'Choose a date in the week (Mon–Sun)':'Date',period.date,v=>setPeriod({...period,date:v}),false,'date'),
+          period.mode==='Month'&&miniInput('Month',period.month,v=>setPeriod({...period,month:v}),false,'month'),
+          period.mode==='Custom period'&&miniInput('From date',period.from,v=>setPeriod({...period,from:v}),false,'date'),
+          period.mode==='Custom period'&&miniInput('To date',period.to,v=>setPeriod({...period,to:v}),false,'date')
+        ),
+        periodInvalid&&h('p',{role:'alert',style:{color:'#a00050'}},'Select a valid period. From date must be on or before To date.'),
+        !periodInvalid&&periodFrom&&h('p',null,`Charge dates: ${formatDateIN(periodFrom)} to ${formatDateIN(periodTo)} (inclusive)`),
+        h('div',{className:'grid stats','aria-live':'polite'},
+          h('div',{className:'card stat'},h('span',null,'Matching Entries'),h('strong',null,filtered.length)),
+          profile?.role!=='Nurse'&&h('div',{className:'card stat'},h('span',null,'Total Request Amount'),h('strong',null,money(registerTotals.requested))),
+          profile?.role!=='Nurse'&&h('div',{className:'card stat'},h('span',null,'Total Approved Amount'),h('strong',null,money(registerTotals.approved)))
         )
       ),
       h('div',{id:'bill-charge-register',style:{scrollMarginTop:'90px'}},
