@@ -1,3 +1,7 @@
+## 2.16.70 - Outside nursing online payments
+
+Approved outside nursing invoices have a Razorpay payment-link workspace for Admin/Accounts, explicit branded WhatsApp sharing to a checked patient/family number, partial-amount requests, status checks, cancellation and synchronisation. Server-side captured-payment verification posts atomic, idempotent receipts to outside nursing statements only. Manual receipts are blocked while a link is open. Requires SQL 233 and outside-nursing-payment Edge Function. No automatic messages or real payment tests.
+
 ## 2.16.69 — Training menu opens sample screens
 
 Clicking a training sidebar section opens its first sample screen and expands the matching submenu. Individual module buttons continue to open their screens. On small screens, navigation brings the content into view. Version training assets to refresh cached scripts.
@@ -2270,6 +2274,7 @@ The full original notes for older releases are kept in [`docs/release-notes/`](d
 - Minimal erp patch
 - Database: `01_complete_setup.sql`, `02_first_admin.sql`, `105_patient_family_daily_whatsapp_reports.sql`, `135_received_stock_charge_link.sql`
 - Notes: [START_HERE_FULL_PDF_WHATSAPP_FIX.txt](docs/release-notes/START_HERE_FULL_PDF_WHATSAPP_FIX.txt), [START_HERE_DAILY_INTELLIGENT_REPORT_WHATSAPP.txt](docs/release-notes/START_HERE_DAILY_INTELLIGENT_REPORT_WHATSAPP.txt), [START_HERE_135_RECEIVED_BEFORE_CHARGE.txt](docs/release-notes/START_HERE_135_RECEIVED_BEFORE_CHARGE.txt), [SETUP_FOR_BOOMI.md](docs/release-notes/SETUP_FOR_BOOMI.md), [README_FIRST.txt](docs/release-notes/README_FIRST.txt)
+
 
 
 

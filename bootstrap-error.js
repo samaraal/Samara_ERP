@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '2.16.69';
+  const VERSION = '2.16.70';
   let rendering = false;
 
   const escapeHtml = value => String(value ?? '')
@@ -169,3 +169,4 @@
   window.SAMARA_SHOW_STARTUP_ERROR = show;
   window.SAMARA_REPAIR_APP = repairApp;
 })();
+
