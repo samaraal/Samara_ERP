@@ -251,7 +251,11 @@
     const physio=allowed.includes('Physiotherapy Dashboard');
     sections.forEach(section=>{section.items=section.items.filter(x=>!['Physiotherapy','Physiotherapist Accounts','Physiotherapy Dashboard'].includes(x));});
     if(physio)sections.splice(Math.min(2,sections.length),0,{title:'PHYSIOTHERAPY',items:['Physiotherapy Dashboard']});
-    return sections.filter(section=>section.items.length);
+    // Keep daily work first for each role; specialist modules follow the core workflow.
+    const generalOrder=['OVERVIEW','ADMISSION','PATIENTS','NURSING','NURSING WORKSPACE','NURSING OVERVIEW','FOOD & DIET','PHYSIOTHERAPY','PHARMACY & STORES','OUTSIDE NURSING','ACCOUNTS / BILLING','MANAGER',"DIRECTOR'S OFFICE",'DUTY ROSTER & LEAVE','NURSING STAFF','HR','ROOMS & PACKAGES','PETTY CASH','CLINICAL REVIEW','COMMUNICATION','CHARGE MASTER','ADMIN','MY ACCOUNT'];
+    const roleFirst=role==='Accounts'?['OVERVIEW','ACCOUNTS / BILLING','PATIENTS','OUTSIDE NURSING','PHYSIOTHERAPY']:CLINICAL_ROLES.includes(role)?['NURSING WORKSPACE','ADMISSION','PHYSIOTHERAPY','PHARMACY & STORES','DUTY ROSTER & LEAVE','OUTSIDE NURSING']:role==='Manager'&&allowed.includes('My To-Do List')?['NURSING OVERVIEW','PATIENTS','ADMISSION','NURSING STAFF','DUTY ROSTER & LEAVE','PHYSIOTHERAPY','PHARMACY & STORES','FOOD & DIET','OUTSIDE NURSING']:role==='Manager'?['OVERVIEW','MANAGER','PATIENTS','NURSING','ADMISSION']:role==='Kitchen'?['OVERVIEW','FOOD & DIET','PHARMACY & STORES','PATIENTS']:role==='STD'?['OVERVIEW',"DIRECTOR'S OFFICE",'COMMUNICATION','PHARMACY & STORES','FOOD & DIET']:[];
+    const order=[...new Set([...roleFirst,...generalOrder])],rank=title=>{const i=order.indexOf(title);return i<0?order.length:i};
+    return sections.filter(section=>section.items.length).sort((a,b)=>rank(a.title)-rank(b.title));
   };
   const sectionsForRaw = (allowed,role,canManageDuties=role==='Admin') => {
     if(allowed.some(item=>['Temporary Duty Swap','Leave Cover','Additional Duty Assignment'].includes(item))){const dutyItems=allowed.filter(item=>['Temporary Duty Swap','Leave Cover','Additional Duty Assignment'].includes(item));const sections=sectionsFor(allowed.filter(item=>!dutyItems.includes(item)),role,canManageDuties);const title=canManageDuties?'ADMIN':'MY ACCOUNT';let section=sections.find(item=>item.title===title);if(!section){section={title,items:[]};sections.splice(canManageDuties?1:sections.length,0,section)}section.items.push(...dutyItems);return sections;}
