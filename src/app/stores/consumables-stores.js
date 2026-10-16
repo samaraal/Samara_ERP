@@ -322,9 +322,9 @@
         ['Approved',ind.approved_qty!=null?`${ind.approved_qty} ${u} · ${whenBy(ind.approved_by_name,ind.approved_at)}`:''],
         ['Handed over',ind.handed_over_qty!=null?`${ind.handed_over_qty} ${u} · ${whenBy(ind.handed_over_by_name,ind.handed_over_at)}`:''],
         ['Received by (nurse)',ind.received_qty!=null?`${ind.received_qty} ${u} · ${whenBy(ind.received_by_name,ind.received_at)}`:''],
-        [ind.outside_visit_id?'Used for outside nursing (invoice reviewed separately)':'Used (charged to resident)',ind.received_qty!=null?`${charged} ${u}`:''],
+        [ind.outside_visit_id?'Used for outside nursing (invoice reviewed separately)':'Charged quantity',ind.received_qty!=null?`${charged} ${u}`:''],
         ['Returned to Stores',rets.length?rets.map(x=>`${x.quantity} ${x.unit||u} ${x.status} · ${whenBy(x.requested_by_name,x.requested_at)}${x.confirmed_by_name?' · confirmed by '+x.confirmed_by_name:''}`).join('; '):(ind.received_qty!=null?`0 ${u}`:'')],
-        ['Unused balance with resident',ind.received_qty!=null?`${bal} ${u}`:'']
+        ['Uncharged / unreturned reconciliation balance (not physical patient balance)',ind.received_qty!=null?`${bal} ${u}`:'']
       ];
     }
     const indentFor=r=>indents.find(x=>String(x.id)===String(r.indent_id||r.reference_id||''));
