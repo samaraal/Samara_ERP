@@ -1,3 +1,9 @@
+## 2.16.90 — Patient-specific physiotherapy billing
+
+- Admin / Director sets each patient’s agreed session rate with an effective date and approval notes. Accounts can view pricing and approve resulting session charge requests. No generic tariff fallback.
+- Completed sessions without a patient rate remain visible as awaiting pricing. Saving a rate queues eligible completed sessions; later completions queue automatically. Duplicate requests and existing manual charges are guarded. Existing requests retain their rate.
+- Add the patient billing panel to Accounts Dashboard and Admin’s Physiotherapist Accounts. Supplier fees remain separate. Apply 240_patient_physio_billing.sql before this release.
+
 ## 2.16.89 — Collection Breakup
 
 - Add a navigable Accounts Dashboard box with month/category drilldowns and Total Charges (after discounts), Realised and Pending. General receipts and advances settle oldest charges first per patient; discounts are proportional, refunds reduce receipts, and outside nursing invoices remain separate. Unused advances are shown separately.
