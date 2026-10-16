@@ -15,7 +15,7 @@ test('India date boundary includes late UTC posting on next day',()=>{const r=ca
 
 test('expanded dashboard and category drilldown render without errors',()=>{
  let call=0;const data={loading:false,transactions:[row('Charge',10,'Room Charges')],patients:[],requests:[],discharges:[],outside:{}};
- const sandbox=vm.createContext({Intl,Date,Map,todayISOIndia:()=> '2026-10-16',React:{Fragment:'fragment',useEffect:()=>{},useState:()=>[ [data,true,'2026-10','Room Rent'][call++],()=>{}]},h:(tag,props,...children)=>({tag,props,children}),Section:'section'});
+ const sandbox=vm.createContext({Intl,Date,Map,todayISOIndia:()=> '2026-10-16',React:{Fragment:'fragment',useEffect:()=>{},useState:()=>[ [data,true,'2026-10','Room Rent'][call++],()=>{}]},h:(tag,props,...children)=>({tag,props,children}),Section:'section',PatientPhysioBilling:'PatientPhysioBilling'});
  vm.runInContext(source,sandbox);const tree=sandbox.AccountsDashboard({profile:{role:'Accounts'},onNavigate:()=>{}});const str=JSON.stringify(tree);assert.match(str,/Room Rent — charge details/);assert.match(str,/Total Charges/);assert.match(str,/₹10/);
 });
 test('historical discounts do not dilute current month charges',()=>{const r=calc([row('Charge',100,'Room Charges','p','2026-09-01'),row('Discount',50,'Other','p','2026-09-02'),row('Charge',100,'Room Charges'),row('Discount',10),row('Payment',100)]);assert.equal(r.totals.total,90);assert.equal(r.totals.realised,50);assert.equal(r.totals.pending,40)});

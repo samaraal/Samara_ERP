@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+const full=fs.readFileSync('src/app/clinical/physiotherapist-accounts.js','utf8');
+const source=full.slice(full.indexOf('  function patientPhysioBillingStatus'));
+const ctx=vm.createContext({});vm.runInContext(source,ctx);
+test('unpriced completed sessions stay visible, with no generic tariff',()=>{assert.equal(ctx.patientPhysioBillingStatus({},false),'Awaiting Admin / Director patient rate');assert.equal(ctx.patientPhysioBillingStatus({manual_charge_exists:true},false),'Existing charge — reconcile before billing');assert.equal(ctx.patientPhysioBillingStatus({},true),'Clinical approval required')});
+test('requests distinguish pending, posted and rejected',()=>{assert.equal(ctx.patientPhysioBillingStatus({request_id:'r',approval_status:'Approved'}),'Posted to patient bill');assert.equal(ctx.patientPhysioBillingStatus({request_id:'r',approval_status:'Pending'}),'Pending');assert.match(ctx.patientPhysioBillingStatus({request_id:'r',approval_status:'Rejected'}),/Accounts review/)});
+function render(role,{form=null}={}){let index=0;const state=[true,{patients:[{id:'p',full_name:'Test Resident',patient_id:'TEST'}],rates:[],sessions:[{id:'s',patient_id:'p',session_date:'2026-10-14',billing_rate:null}]},'p',form,false,false,'',''];const sandbox=vm.createContext({React:{Fragment:'Fragment',useState:()=>[state[index++],()=>{}],useEffect:()=>{},useRef:()=>({current:0})},todayISOIndia:()=> '2026-10-16',formatDateIN:v=>v,LogTable:'LogTable',h:(tag,props,...children)=>({tag,props,children})});vm.runInContext(source,sandbox);return sandbox.PatientPhysioBilling({profile:{id:'u',role}})}
+test('Admin sees patient rate form; Accounts can view but cannot configure',()=>{assert.match(JSON.stringify(render('Admin',{form:{amount:'',effective_from:'2026-10-14',notes:''}})),/Save patient rate & queue sessions/);const account=JSON.stringify(render('Accounts'));assert.match(account,/only by Admin/);assert.doesNotMatch(account,/Set patient session rate/);assert.doesNotMatch(account,/1500/)});
+test('clinical roles receive no patient financial report',()=>{for(const role of ['Nurse','Caregiver','Manager','Stores'])assert.equal(render(role),null)});
