@@ -1,3 +1,7 @@
+## 2.16.95 — Payment patient search
+- Added Active, Inactive / Discharged and All patient filters with name / ID search from three characters in payment history and manual entry.
+- Kept patient selection consistent between history and payment entry, including discharged residents.
+
 ## 2.16.94 — Completed staff return notifications
 - Stop login action popups for staff already marked back on duty; retain their recorded return in Notifications and leave history.
 - Continue action alerts for staff who have not returned after leave.
