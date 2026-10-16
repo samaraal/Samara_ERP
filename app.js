@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.89';
+  const APP_VERSION = '2.16.90';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -37177,6 +37177,7 @@ function ShiftHandover({profile,onNavigate}){
         )
       ),
 
+      h(PatientPhysioBilling,{profile,onNavigate}),
       state.outside?.error&&h('p',{role:'alert'},state.outside.error),
       h('button',{className:'btn btn-secondary',onClick:()=>onNavigate('Outside Samara Nursing Procedures')},'Outside nursing invoices & receipts'),
       h('p',null,'Totals include resident billing and approved outside nursing invoices. Outside nursing: '+money(state.outside?.charges)+' invoiced · '+money(state.outside?.received)+' received · '+money(state.outside?.outstanding)+' outstanding.'),
