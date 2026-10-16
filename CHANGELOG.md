@@ -1,3 +1,9 @@
+## 2.16.87 — Tube feeds in Family Portal preview
+
+- Include the selected guest's non-voided tube-feed entries in Preview Family Portal, showing the same item, volume and entry time as the family portal.
+- Wait for feed loading before sending preview data; no staff identities or internal clinical remarks are sent.
+- Family Portal code and family_portal_tube_feeds SQL migration are maintained in Samara_Family_Portal.
+
 ## 2.16.86 — STD Communication Inbox access
 
 - STD can view all inbox conversations, replies, payment messages and attachments; hide/restore messages and refresh approved templates.
