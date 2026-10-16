@@ -80,7 +80,7 @@ create trigger patient_physio_charge_guard before insert or update on public.bil
 
 create or replace function public.patient_physio_billing(p_action text,p_data jsonb default '{}') returns jsonb
 language plpgsql security definer set search_path=public,pg_temp as $$
-declare pid uuid;day date;price numeric;rid uuid;s record;queued integer:=0;request_id uuid;next_day date;
+declare pid uuid;day date;price numeric;rid uuid;queued_session record;queued integer:=0;request_id uuid;next_day date;
 begin
  if auth.uid() is null or not public.current_user_has_role(array['Admin','Accounts']) then raise exception 'Admin or Accounts access required';end if;
  if p_action='load' then
@@ -100,8 +100,8 @@ begin
  if exists(select 1 from public.physiotherapy_sessions where patient_id=pid and charge_request_id is not null and session_date>=day and (next_day is null or session_date<next_day)) then raise exception 'A billing request already exists in this rate period. Existing requests keep their approved rate; choose a different effective date';end if;
  if exists(select 1 from public.patient_physio_rates where patient_id=pid and effective_from=day) then raise exception 'A rate is already approved from this date. Rate history cannot be overwritten';end if;
  insert into public.patient_physio_rates(patient_id,effective_from,amount,notes,approved_by) values(pid,day,price,trim(p_data->>'notes'),auth.uid()) returning id into rid;
- for s in select id from public.physiotherapy_sessions where patient_id=pid and status='Completed' and charge_request_id is null and session_date>=day and session_date<=(now() at time zone 'Asia/Kolkata')::date order by session_date,id loop
- request_id:=public.queue_patient_physio_charge(s.id);if request_id is not null then queued:=queued+1;end if;
+ for queued_session in select id from public.physiotherapy_sessions where patient_id=pid and status='Completed' and charge_request_id is null and session_date>=day and session_date<=(now() at time zone 'Asia/Kolkata')::date order by session_date,id loop
+ request_id:=public.queue_patient_physio_charge(queued_session.id);if request_id is not null then queued:=queued+1;end if;
  end loop;
  perform public.record_audit_event('Patient Physiotherapy Rate Approved','Physiotherapy',pid::text,jsonb_build_object('rate_id',rid,'amount',price,'effective_from',day,'notes',p_data->>'notes','requests_queued',queued),'Success');
  return jsonb_build_object('rate_id',rid,'queued',queued);
