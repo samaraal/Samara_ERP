@@ -21,12 +21,12 @@
     finish();if(!window.SamaraFoodCore?.pdfFromJpegs)throw Error('PDF tools are still loading. Refresh and try again.');return window.SamaraFoodCore.pdfFromJpegs(pages);
   }
 
-  function PhysioSessionCounts({profile}){
+  function PhysioSessionCounts({profile,filters=null}){
     const [from,setFrom]=React.useState(todayISOIndia().slice(0,8)+'01'),[to,setTo]=React.useState(todayISOIndia());
     const [rows,setRows]=React.useState([]),[error,setError]=React.useState('');
-    React.useEffect(()=>{let stopped=false;const load=async()=>{try{const {data,error}=await client.rpc('physio_session_counts',{p_from:from,p_to:to});if(stopped)return;setError(error?.message||'');setRows(error?[]:data||[])}catch(error){if(!stopped)setError(error.message||'Unable to load counts.')}};load();const channel=client.channel('physio-counts-'+profile?.id).on('postgres_changes',{event:'*',schema:'public',table:'physiotherapy_sessions'},load).subscribe();const timer=setInterval(load,30000);window.addEventListener('focus',load);return()=>{stopped=true;clearInterval(timer);window.removeEventListener('focus',load);client.removeChannel(channel)}},[from,to,profile?.id]);
+    React.useEffect(()=>{let stopped=false;const load=async()=>{try{const {data,error}=filters?await loadPhysioFilteredCounts(filters):await client.rpc('physio_session_counts',{p_from:from,p_to:to});if(stopped)return;setError(error?.message||'');setRows(error?[]:data||[])}catch(error){if(!stopped)setError(error.message||'Unable to load counts.')}};load();const channel=client.channel('physio-counts-'+profile?.id).on('postgres_changes',{event:'*',schema:'public',table:'physiotherapy_sessions'},load).subscribe();const timer=setInterval(load,30000);window.addEventListener('focus',load);return()=>{stopped=true;clearInterval(timer);window.removeEventListener('focus',load);client.removeChannel(channel)}},[from,to,profile?.id,filters?.key]);
     return h('section',{className:'card panel'},h('h3',null,'Physiotherapy Session Counts'),
-      h('div',{className:'form-grid'},h('div',{className:'field'},h('label',null,'From'),h('input',{type:'date',value:from,onChange:e=>setFrom(e.target.value)})),h('div',{className:'field'},h('label',null,'To'),h('input',{type:'date',value:to,onChange:e=>setTo(e.target.value)}))),
+      !filters&&h('div',{className:'form-grid'},h('div',{className:'field'},h('label',null,'From'),h('input',{type:'date',value:from,onChange:e=>setFrom(e.target.value)})),h('div',{className:'field'},h('label',null,'To'),h('input',{type:'date',value:to,onChange:e=>setTo(e.target.value)}))),
       error&&h('p',{className:'message error'},error),
       h(LogTable,{title:'Sessions in selected period',heads:['Organisation / Physiotherapy name','Physiotherapist','Completed','Pending','Not Done'],rows:rows.map(row=>[row.organisation_name,row.physiotherapist_name,row.completed,row.pending,row.not_done])}));
   }
@@ -36,6 +36,7 @@
     const [data,setData]=React.useState({organisations:[],practitioners:[],sessions:[],entries:[],opening:0,balance:0});
     const [organisation,setOrganisation]=React.useState(''),[tab,setTab]=React.useState('Organisations');
     const [from,setFrom]=React.useState(todayISOIndia().slice(0,8)+'01'),[to,setTo]=React.useState(todayISOIndia());
+    const [supplierPeriod,setSupplierPeriod]=React.useState({mode:'Month',month:todayISOIndia().slice(0,7),from:todayISOIndia().slice(0,8)+'01',to:todayISOIndia()});
     const [form,setForm]=React.useState(null),[busy,setBusy]=React.useState(false),[error,setError]=React.useState(''),[notice,setNotice]=React.useState('');
     const [loading,setLoading]=React.useState(false);const loadVersion=React.useRef(0);const statementFile=React.useRef(null);
     React.useEffect(()=>()=>{if(statementFile.current?.url)URL.revokeObjectURL(statementFile.current.url)},[]);
@@ -109,7 +110,9 @@
       h('section',{className:'card panel'},h('h3',null,'Outsourced Physiotherapy Accounts'),h('p',{className:'small-note'},'Admin access. Fees are posted only for completed sessions. Payment entries record money already paid; they do not transfer money.'),
         error&&h('div',{className:'message error'},error),notice&&h('div',{className:'message success'},notice),
         h('div',{className:'actions'},['Organisations','Physiotherapists','Sessions','Payments','Ledger','Statement','Session Counts'].map(name=>button(name,()=>setTab(name),tab===name))),
-        h('div',{className:'form-grid'},h('div',{className:'field'},h('label',null,'Organisation'),h('select',{'aria-label':'Organisation',value:organisation,onChange:e=>{setOrganisation(e.target.value);setForm(null)}},h('option',{value:''},'Select organisation'),data.organisations.map(row=>h('option',{key:row.id,value:row.id},row.name+(row.is_active?'':' (inactive)'))))),h('div',{className:'field'},h('label',null,'From'),h('input',{type:'date',value:from,onChange:e=>setFrom(e.target.value)})),h('div',{className:'field'},h('label',null,'To'),h('input',{type:'date',value:to,onChange:e=>setTo(e.target.value)}))),
+        h('div',{className:'form-grid'},h('label',null,'Organisation',h('select',{'aria-label':'Organisation',value:organisation,onChange:e=>{setOrganisation(e.target.value);setForm(null)}},h('option',{value:''},'Select organisation'),data.organisations.map(row=>h('option',{key:row.id,value:row.id},row.name+(row.is_active?'':' (inactive)')))))),
+        h(PhysioPeriodControls,{value:supplierPeriod,onChange:next=>{setSupplierPeriod(next);const range=physioPeriodRange(next,todayISOIndia());if(range.error){setError(range.error+' Report still shows '+from+' to '+to);return}setError('');setFrom(range.from);setTo(range.to)}}),
+        h('p',{className:'small-note'},'Organisation report period: '+formatDateIN(from)+' to '+formatDateIN(to)),
         h('div',{className:'actions'},button('Refresh',load),button('Add organisation',()=>begin('organisation'))),
         org&&h('p',null,h('strong',null,org.name+' · '),data.balance<0?'Advance with organisation ₹'+money(-data.balance):'Total payable ₹'+money(data.balance))),
       tab==='Organisations'&&h(LogTable,{title:'Physiotherapy Organisations',heads:['Organisation','Contact person','Phone','Email','Address','GST','Terms','Fee / session ₹','Active','Action'],rows:data.organisations.map(row=>[row.name,row.contact_person||'—',row.phone||'—',row.email||'—',row.address||'—',row.gst_number||'—',row.payment_terms||'—',money(row.default_fee),row.is_active?'Yes':'No',button('Edit details',()=>begin('organisation',row))])}),
@@ -135,7 +138,7 @@
     if(clinicalApproval)return 'Clinical approval required';
     return 'Awaiting Admin / Director patient rate';
   }
-  function PatientPhysioBilling({profile,onNavigate,embedded=false}){
+  function PatientPhysioBilling({profile,onNavigate,embedded=false,filters=null}){
     const admin=profile?.role==='Admin',finance=admin||profile?.role==='Accounts';
     const [open,setOpen]=React.useState(embedded),[data,setData]=React.useState({patients:[],rates:[],sessions:[]});
     const [patient,setPatient]=React.useState(''),[form,setForm]=React.useState(null),[busy,setBusy]=React.useState(false),[loading,setLoading]=React.useState(true),[error,setError]=React.useState(''),[notice,setNotice]=React.useState('');
@@ -149,11 +152,13 @@
     React.useEffect(()=>{load();if(!finance)return;const channel=client.channel('patient-physio-billing-'+profile.id).on('postgres_changes',{event:'*',schema:'public',table:'physiotherapy_sessions'},load).on('postgres_changes',{event:'*',schema:'public',table:'bill_charge_requests'},load).subscribe();return()=>{++loadVersion.current;client.removeChannel(channel)}},[finance,profile?.id]);
     const money=v=>'₹'+Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
     const pending=data.sessions.filter(s=>!s.request_id).length;
-    const sessions=data.sessions.filter(s=>s.patient_id===patient),rates=data.rates.filter(r=>r.patient_id===patient);
+    const billingPatient=filters?filters.patientId:patient;
+    const sessions=data.sessions.filter(s=>filters?physioMatchesFilter(s,filters):s.patient_id===patient),rates=data.rates.filter(r=>billingPatient?r.patient_id===billingPatient:!filters||filters.patientIds===null||filters.patientIds.includes(r.patient_id));
+    React.useEffect(()=>{setForm(null);setNotice('')},[filters?.patientId]);
     function beginRate(){setNotice('');setForm({amount:'',effective_from:sessions.filter(s=>!s.request_id).map(s=>s.session_date).sort()[0]||todayISOIndia(),notes:''})}
     async function save(e){
       e.preventDefault();if(!admin||busy)return;setBusy(true);setError('');
-      try{const result=await client.rpc('patient_physio_billing',{p_action:'save_rate',p_data:{patient_id:patient,...form}});if(result.error)throw result.error;setNotice('Patient rate saved. '+result.data.queued+' completed session(s) sent to Accounts for approval.');setForm(null);await load()}
+      try{const result=await client.rpc('patient_physio_billing',{p_action:'save_rate',p_data:{patient_id:billingPatient,...form}});if(result.error)throw result.error;setNotice('Patient rate saved. '+result.data.queued+' completed session(s) sent to Accounts for approval.');setForm(null);await load()}
       catch(e){setError(e.message||'Unable to save patient rate')}finally{setBusy(false)}
     }
     async function decideSession(session,decision){
@@ -173,10 +178,12 @@
       error&&h('p',{role:'alert'},error),
       open&&h(React.Fragment,null,h('h3',null,'Patient Physiotherapy Billing'),h('p',null,'Admin / Director sets the agreed patient rate and effective date. Completed sessions then go to Accounts for approval before appearing in charges and Collection Breakup. The general Charge Master and therapist supplier fee are separate.'),
         notice&&h('p',{role:'status'},notice),
-        h('div',{className:'actions'},h('label',null,'Physiotherapy patient ',h('select',{'aria-label':'Physiotherapy patient',value:patient,onChange:e=>{setPatient(e.target.value);setForm(null);setNotice('')}},h('option',{value:''},'Select patient'),data.patients.map(p=>h('option',{key:p.id,value:p.id},p.full_name+' · '+p.patient_id)))),button('Refresh physiotherapy billing',load),
-          admin&&patient&&button('Set patient session rate',beginRate),
+        h('div',{className:'actions'},!filters&&h('label',null,'Physiotherapy patient ',h('select',{'aria-label':'Physiotherapy patient',value:patient,onChange:e=>{setPatient(e.target.value);setForm(null);setNotice('')}},h('option',{value:''},'Select patient'),data.patients.map(p=>h('option',{key:p.id,value:p.id},p.full_name+' · '+p.patient_id)))),button('Refresh physiotherapy billing',load),
+          admin&&billingPatient&&button('Set patient session rate',beginRate),
           !admin&&h('small',null,'Patient rates can be set only by Admin / Director.'),
           onNavigate&&button('Open Accounts charge approvals',()=>onNavigate('Charge Approvals'))),
+        filters&&admin&&!billingPatient&&h('p',null,'Select one patient above to set an agreed rate. The session list follows your patient search and period.'),
+        filters&&h('p',null,'Approved rate history is shown in full for the selected patients; the period filters completed sessions.'),
         data.clinical_approval_required&&h('p',{role:'alert'},'Physiotherapy requires clinical approval. Use Nursing Approval Requests; automatic billing requests are paused.'),
         !loading&&data.patients.length===0&&h('p',null,'No active patient has a physiotherapy plan or session.'),
         form&&h('form',{onSubmit:save,className:'form-grid'},
@@ -185,9 +192,9 @@
           h('label',null,'Approval notes / agreed terms',h('textarea',{'aria-label':'Patient rate approval notes',required:true,minLength:5,value:form.notes,onChange:e=>setForm({...form,notes:e.target.value})})),
           h('p',null,'Saving queues unbilled completed sessions on or after this date at this rate. Existing requests keep their original rate. Enter a new later effective date for future changes.'),
           h('div',{className:'actions'},h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save patient rate & queue sessions'),button('Cancel patient rate',()=>setForm(null)))),
-        patient&&h(LogTable,{title:'Approved patient rate history',heads:['Effective from','Rate per session','Approval notes'],rows:rates.map(r=>[formatDateIN(r.effective_from),money(r.amount),r.notes])}),
-        patient&&rates.length===0&&h('p',null,'No patient-specific rate has been approved. No generic tariff will be applied.'),
-        patient&&h(LogTable,{title:'Completed sessions — patient billing status',heads:['Session date','Physiotherapist','Treatment notes','Patient rate','Billing status',...(profile?.role==='Accounts'?['Accounts decision']:[])],rows:sessions.map(s=>[formatDateIN(s.session_date),s.physiotherapist||'—',s.notes||'—',s.billing_rate==null?'Awaiting rate':money(s.billing_rate),patientPhysioBillingStatus(s,data.clinical_approval_required),...(profile?.role==='Accounts'?[s.request_id&&s.approval_status==='Pending'?h('div',{className:'actions'},button('Approve agreed rate',()=>decideSession(s,'Approved')),button('Reject charge',()=>decideSession(s,'Rejected'))):'—']:[])])})
+        (patient||filters)&&h(LogTable,{title:'Approved patient rate history',heads:[...(filters?['Patient']:[]),'Effective from','Rate per session','Approval notes'],rows:rates.map(r=>[...(filters?[data.patients.find(p=>p.id===r.patient_id)?.full_name||'Patient']:[]),formatDateIN(r.effective_from),money(r.amount),r.notes])}),
+        (patient||filters)&&rates.length===0&&h('p',null,'No patient-specific rate has been approved. No generic tariff will be applied.'),
+        (patient||filters)&&h(LogTable,{title:'Completed sessions — patient billing status',heads:['Session date',...(filters?['Patient']:[]),'Physiotherapist','Treatment notes','Patient rate','Billing status',...(profile?.role==='Accounts'?['Accounts decision']:[])],rows:sessions.map(s=>[formatDateIN(s.session_date),...(filters?[data.patients.find(p=>p.id===s.patient_id)?.full_name||'Patient']:[]),s.physiotherapist||'—',s.notes||'—',s.billing_rate==null?'Awaiting rate':money(s.billing_rate),patientPhysioBillingStatus(s,data.clinical_approval_required),...(profile?.role==='Accounts'?[s.request_id&&s.approval_status==='Pending'?h('div',{className:'actions'},button('Approve agreed rate',()=>decideSession(s,'Approved')),button('Reject charge',()=>decideSession(s,'Rejected'))):'—']:[])])})
       )
     );
   }
@@ -202,6 +209,12 @@
     const [tab,setTab]=React.useState(tabs.includes(initialTab)?initialTab:'Overview');
     const selected=tabs.includes(tab)?tab:'Overview';
     const [summary,setSummary]=React.useState(null),[error,setError]=React.useState(''),[loading,setLoading]=React.useState(false);
+    const [selection,setSelection]=React.useState({patientId:'',search:'',mode:'Month',month:todayISOIndia().slice(0,7),from:todayISOIndia().slice(0,8)+'01',to:todayISOIndia()});
+    const [patientOptions,setPatientOptions]=React.useState([]),[patientError,setPatientError]=React.useState('');
+    const matchingPatients=physioPatientOptions(patientOptions,selection.search);
+    const computedFilters=physioMakeFilters(selection,patientOptions,todayISOIndia());
+    const filters={...computedFilters,error:computedFilters.error||patientError,key:computedFilters.key+'|'+patientError};
+    React.useEffect(()=>{if(!access.allowed)return;let stopped=false;client.from('patients').select('id,full_name,patient_id,room_no,bed_no,is_active').eq('is_active',true).order('full_name').then(result=>{if(stopped)return;if(result.error)setPatientError(result.error.message);else{setPatientOptions(result.data||[]);setPatientError('')}}).catch(e=>{if(!stopped)setPatientError(e.message)});return()=>{stopped=true}},[access.allowed,profile?.id]);
     React.useEffect(()=>{
       if(!access.allowed||!access.finance||selected!=='Overview')return;
       let stopped=false;
@@ -211,20 +224,64 @@
     },[access.allowed,access.finance,selected,profile?.id]);
     if(!access.allowed)return h('p',null,'Physiotherapy access is not assigned to this role.');
     const money=v=>'₹'+Number(v||0).toLocaleString('en-IN',{maximumFractionDigits:2});
-    const sessions=summary?.sessions||[],unbilled=sessions.filter(s=>!s.request_id),pending=sessions.filter(s=>s.request_id&&s.approval_status==='Pending'),posted=sessions.filter(s=>s.approval_status==='Approved');
+    const sessions=(summary?.sessions||[]).filter(s=>physioMatchesFilter(s,filters)),unbilled=sessions.filter(s=>!s.request_id),pending=sessions.filter(s=>s.request_id&&s.approval_status==='Pending'),posted=sessions.filter(s=>s.approval_status==='Approved');
     const cards=[...(access.clinical?[['Sessions','Sessions & Clinical Review','Record completed sessions, review treatment history and handle corrections.']]:[]),...(access.finance?[['Patient Rates & Billing',access.supplier?'Set Patient Rates & Review Billing':'Review Patient Charges','Patient-specific rates, completed sessions and Accounts approval in one place.']]:[]),...(access.supplier?[['Therapist Accounts','Therapist Accounts','Organisation fees, payments and supplier statements.']]:[])];
     return h('div',null,
       h('div',{className:'accounts-hero'},h('div',null,h('small',null,'PHYSIOTHERAPY · CARE · BILLING'),h('h3',null,'Physiotherapy Dashboard'),h('p',null,'One workspace for physiotherapy sessions, patient billing and therapist accounts.'))),
       h('nav',{className:'actions','aria-label':'Physiotherapy workspace',style:{margin:'16px 0'}},tabs.map(name=>h('button',{type:'button',key:name,className:'btn '+(selected===name?'btn-primary':'btn-secondary'),'aria-pressed':selected===name,onClick:()=>setTab(name)},name==='Sessions'?'Sessions & Clinical Review':name))),
+      selected!=='Therapist Accounts'&&h('section',{className:'accounts-panel',style:{margin:'16px 0'}},
+        h('div',{className:'form-grid'},
+          h('label',null,'Search patients (3 characters)',h('input',{'aria-label':'Search physiotherapy patients',type:'search',placeholder:'Name, patient ID or room — type 3 characters',value:selection.search,onChange:e=>setSelection({...selection,search:e.target.value,patientId:''})})),
+          h('label',null,'Patient',h('select',{'aria-label':'Dashboard patient',value:selection.patientId,onChange:e=>setSelection({...selection,patientId:e.target.value,search:''})},h('option',{value:''},'All patients'),matchingPatients.map(p=>h('option',{key:p.id,value:p.id},p.full_name+' · '+p.patient_id+(p.room_no?' · Room '+p.room_no+(p.bed_no?'-'+p.bed_no:''):'')))))),
+        selection.search.trim().length>0&&selection.search.trim().length<3&&h('small',null,'Enter at least 3 characters to search.'),
+        selection.search.trim().length>=3&&!matchingPatients.length&&h('p',null,'No patients match this search.'),
+        h(PhysioPeriodControls,{value:selection,onChange:setSelection}),
+        patientError&&h('p',{role:'alert'},patientError),filters.error&&h('p',{role:'alert'},filters.error)),
       selected==='Overview'&&h(React.Fragment,null,
         h('div',{className:'accounts-workflow-grid'},cards.map(([target,title,note])=>h('button',{type:'button',key:target,className:'accounts-workflow-card',onClick:()=>setTab(target)},h('strong',null,title),h('p',null,note),h('span',null,'Open →')))),
-        access.finance&&h('section',{className:'accounts-panel',style:{margin:'16px 0'}},h('h3',null,'Active Patient Billing Overview'),h('p',null,'Completed sessions for current patients. Charges appear in Accounts and Collection Breakup only after Accounts approval.'),
-          error?h('p',{role:'alert'},error):loading||!summary?h('p',null,'Loading physiotherapy billing…'):
+        access.finance&&h('section',{className:'accounts-panel',style:{margin:'16px 0'}},h('h3',null,'Active Patient Billing Overview'),h('p',null,'Completed sessions for selected patients and period. Charges appear in Accounts and Collection Breakup only after Accounts approval.'),
+          error||filters.error?h('p',{role:'alert'},error||filters.error):loading||!summary?h('p',null,'Loading physiotherapy billing…'):
           h('div',{className:'accounts-kpi-grid'},[['Completed Sessions',sessions.length],['Awaiting Patient Rate / Billing Review',unbilled.length],['Pending Accounts Approval',pending.length],['Posted Patient Charges',money(posted.reduce((n,s)=>n+Number(s.amount||0),0))]].map(([label,value])=>h('button',{type:'button',key:label,className:'accounts-kpi teal',onClick:()=>setTab('Patient Rates & Billing')},h('span',null,label),h('strong',null,value),h('small',null,'Open Patient Rates & Billing →'))))),
-        access.counts&&h(PhysioSessionCounts,{profile})
+        access.counts&&h(PhysioSessionCounts,{profile,filters})
       ),
-      selected==='Sessions'&&access.clinical&&h(Physiotherapy,{profile,onNavigate}),
-      selected==='Patient Rates & Billing'&&access.finance&&h(PatientPhysioBilling,{profile,embedded:true}),
+      selected==='Sessions'&&access.clinical&&h(Physiotherapy,{profile,onNavigate,filters}),
+      selected==='Patient Rates & Billing'&&access.finance&&h(PatientPhysioBilling,{profile,embedded:true,filters}),
       selected==='Therapist Accounts'&&access.supplier&&h(PhysiotherapistAccounts,{profile})
     );
+  }
+  function physioPatientOptions(rows,search=''){
+    const q=String(search).trim().toLowerCase();return (rows||[]).filter(p=>q.length<3||[p.full_name,p.patient_id,p.room_no,p.bed_no].join(' ').toLowerCase().includes(q));
+  }
+  function physioPeriodRange(value,today){
+    const valid=v=>/^\d{4}-\d{2}-\d{2}$/.test(v||'')&&!Number.isNaN(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
+    let from,to;
+    if(value.mode==='Today')from=to=today;
+    else if(value.mode==='This Week'){const d=new Date(today+'T00:00:00Z');d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+6)%7));from=d.toISOString().slice(0,10);to=today}
+    else if(value.mode==='Month'){const m=value.month||today.slice(0,7);if(!/^\d{4}-\d{2}$/.test(m)||m>today.slice(0,7))return {error:'Choose a valid month up to this month.'};from=m+'-01';if(!valid(from))return {error:'Choose a valid month.'};const d=new Date(from+'T00:00:00Z');d.setUTCMonth(d.getUTCMonth()+1);d.setUTCDate(0);to=d.toISOString().slice(0,10);if(to>today)to=today}
+    else {from=value.from;to=value.to}
+    return !valid(from)||!valid(to)||from>to||to>today?{from,to,error:'Choose valid From and To dates, with From before To and no future dates.'}:{from,to,error:''};
+  }
+  function physioMakeFilters(selection,patients,today){
+    const q=String(selection.search||'').trim(),patientIds=selection.patientId?[selection.patientId]:q.length>=3?physioPatientOptions(patients,q).map(p=>p.id):null;
+    const range=physioPeriodRange(selection,today);return {...range,patientId:selection.patientId,patientIds,key:JSON.stringify([patientIds,range.from,range.to,range.error])};
+  }
+  function physioMatchesFilter(row,filters,dateKey='session_date'){
+    if(!filters)return true;if(filters.error)return false;
+    const d=String(row[dateKey]||'').slice(0,10);return (filters.patientIds===null||filters.patientIds.includes(row.patient_id))&&d>=filters.from&&d<=filters.to;
+  }
+  function PhysioPeriodControls({value,onChange}){
+    return h('div',null,h('div',{className:'actions',role:'group','aria-label':'Physiotherapy period'},['Today','This Week','Month','Period'].map(mode=>h('button',{type:'button',key:mode,className:'btn '+(value.mode===mode?'btn-primary':'btn-secondary'),'aria-pressed':value.mode===mode,onClick:()=>onChange({...value,mode})},mode))),
+      value.mode==='Month'&&h('label',null,'Month ',h('input',{'aria-label':'Physiotherapy month',type:'month',value:value.month,max:todayISOIndia().slice(0,7),onChange:e=>onChange({...value,month:e.target.value})})),
+      value.mode==='Period'&&h('div',{className:'form-grid'},h('label',null,'From',h('input',{'aria-label':'Physiotherapy period from',type:'date',value:value.from,max:todayISOIndia(),onChange:e=>onChange({...value,from:e.target.value})})),h('label',null,'To',h('input',{'aria-label':'Physiotherapy period to',type:'date',value:value.to,max:todayISOIndia(),onChange:e=>onChange({...value,to:e.target.value})}))));
+  }
+  async function loadPhysioFilteredSessions(filters){
+    if(filters.error)return {data:[],error:{message:filters.error}};
+    if(filters.patientIds!==null&&!filters.patientIds.length)return {data:[],error:null};
+    const data=[];for(let offset=0;;offset+=1000){let query=client.from('physiotherapy_sessions').select('*').gte('session_date',filters.from).lte('session_date',filters.to).order('session_date',{ascending:false}).order('id',{ascending:true}).range(offset,offset+999);if(filters.patientIds!==null)query=query.in('patient_id',filters.patientIds);const result=await query;if(result.error)return {data:[],error:result.error};data.push(...(result.data||[]));if((result.data||[]).length<1000)return {data,error:null}}
+  }
+  async function loadPhysioFilteredCounts(filters){
+    const result=await loadPhysioFilteredSessions(filters);if(result.error)return result;
+    const organisations=await client.rpc('physio_organisation_options');if(organisations.error)return {data:[],error:organisations.error};
+    const groups=new Map();for(const s of result.data){const organisation_name=(organisations.data||[]).find(o=>o.id===s.organisation_id)?.name||'Unassigned',physiotherapist_name=s.physiotherapist_name||'Not recorded',key=organisation_name+'\0'+physiotherapist_name;if(!groups.has(key))groups.set(key,{organisation_name,physiotherapist_name,completed:0,pending:0,not_done:0});const r=groups.get(key);if(s.status==='Completed')r.completed++;else if(s.status==='Pending')r.pending++;else if(s.status==='Not Done')r.not_done++}
+    return {data:[...groups.values()].sort((a,b)=>a.organisation_name.localeCompare(b.organisation_name)||a.physiotherapist_name.localeCompare(b.physiotherapist_name)),error:null};
   }

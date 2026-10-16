@@ -1,4 +1,4 @@
-  function Physiotherapy({profile,onNavigate}){
+  function Physiotherapy({profile,onNavigate,filters=null}){
     const canEnter=['Admin','Manager','Nurse','Caregiver'].includes(profile?.role);
     const [plans,setPlans]=React.useState([]);
     const [patients,setPatients]=React.useState([]);
@@ -61,7 +61,7 @@
       const [plansResult,patientsResult,sessionsResult,requestsResult,organisationsResult,practitionersResult]=await Promise.all([
         client.from('physiotherapy_plans').select('*').order('created_at',{ascending:false}),
         client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active,admission_status').order('full_name'),
-        client.from('physiotherapy_sessions').select('*').order('session_date',{ascending:false}).order('created_at',{ascending:false}).limit(300),
+        filters?loadPhysioFilteredSessions(filters):client.from('physiotherapy_sessions').select('*').order('session_date',{ascending:false}).order('created_at',{ascending:false}).limit(300),
         client.from('physiotherapy_corrections').select('*').order('requested_at',{ascending:false}).limit(300),
         client.rpc('physio_organisation_options'),
         client.rpc('physio_practitioner_options')
@@ -76,7 +76,7 @@
         setPlans((plansResult.data||[]).filter(row=>row.is_active!==false&&(!admitted||admitted.has(row.patient_id))));
       }
       if(!patientsResult.error)setPatients(patientsResult.data||[]);
-      if(!sessionsResult.error)setSessions(sessionsResult.data||[]);
+      if(!sessionsResult.error)setSessions(sessionsResult.data||[]);else{setSessions([]);setMessage(sessionsResult.error.message||'Unable to load physiotherapy sessions.');}
       if(requestsResult.error)setMessage('Unable to load correction requests: '+requestsResult.error.message);else setRequests(requestsResult.data||[]);
       if(organisationsResult.error)setMessage('Unable to load physiotherapy organisations: '+organisationsResult.error.message);else setOrganisations(organisationsResult.data||[]);
       if(practitionersResult.error)setMessage('Unable to load physiotherapist names: '+practitionersResult.error.message);else setPractitioners(practitionersResult.data||[]);
@@ -91,7 +91,7 @@
         .on('postgres_changes',{event:'*',schema:'public',table:'physiotherapy_corrections'},load)
         .subscribe();
       return()=>client.removeChannel(channel);
-    },[]);
+    },[filters?.key]);
 
     const taskNavigationHandled=React.useRef(false);
     React.useEffect(()=>{
@@ -257,7 +257,7 @@
       try{const {error}=await client.rpc('restore_physiotherapy_deletion',{p_request:request.id});if(error)throw error;showToast('success','Original session restored.');await load();}
       catch(error){showToast('error',error.message||'Unable to restore session.');}finally{setSaving(false);}
     }
-    const requestRows=requests.map(request=>[
+    const requestRows=requests.filter(r=>!filters||physioMatchesFilter(r.original||{},filters)).map(request=>[
       patientLabel(request.original.patient_id),formatDateIN(request.original.session_date),
       request.action,request.original.status+' / '+clockLabel(request.original.scheduled_time)+(request.original.actual_time?' · Actual: '+clockLabel(request.original.actual_time):''),
       request.action==='Delete'?'Remove incorrect entry':formatDateIN(request.proposed.session_date)+' / '+clockLabel(request.proposed.scheduled_time)+' / '+(request.action==='Reschedule'?'Pending':request.proposed.status)+(request.action==='Modify'&&request.proposed.status==='Completed'?' · Actual: '+clockLabel(request.proposed.actual_time):''),
@@ -270,7 +270,7 @@
       request.review_note||'—'
     ]);
 
-    const planRows=plans.map(plan=>[
+    const planRows=plans.filter(p=>!filters||(!filters.error&&(filters.patientIds===null||filters.patientIds.includes(p.patient_id))&&(!p.start_date||p.start_date<=filters.to)&&(!p.end_date||p.end_date>=filters.from))).map(plan=>[
       patientLabel(plan.patient_id),
       plan.therapy_type||plan.therapy||plan.exercise_name||'—',
       plan.physiotherapist_name||'—',
@@ -313,7 +313,7 @@
         heads:['Date','Patient','Therapy','Physiotherapist','Scheduled Time','Actual Time (IST)','Status','Reason / Notes','Recorded','Action'],
         rows:recentRows
       }),
-      h(PhysioSessionCounts,{profile}),
+      h(PhysioSessionCounts,{profile,filters}),
       h(LogTable,{title:canReview?'Physiotherapy Correction Approvals':'My Correction Requests',subtitle:'Original sessions remain unchanged until approval',heads:['Patient','Original date','Action','Original','Requested change','Reason','Status','Submitted','Review'],rows:requestRows}),
       editingSession&&h('div',{className:'modal-backdrop'},
         h('form',{className:'card modal',onSubmit:submitCorrection},
