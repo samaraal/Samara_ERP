@@ -1,3 +1,8 @@
+## 2.16.98 — Actual patient item consumption
+- Nurses record dated patient consumption against received indents, with quantities, remarks, staff history and audited void/correction.
+- Patient remaining balance subtracts actual use and confirmed returns; pending returns reserve availability. Charged quantity remains separate, with no additional billing or stock deduction.
+- Item Usage Register includes resident recorded use, remaining balances and full consumption history. Requires SQL 241.
+
 ## 2.16.97 — Item Usage Register
 - Added item-wise stock reconciliation and patient / Outside Nursing procedure / department breakdowns, with full linked details on tap.
 - Added patient and item search, status filters and Today / This Week / Month / From–To periods; charged quantities remain separate from recorded use and wastage.
