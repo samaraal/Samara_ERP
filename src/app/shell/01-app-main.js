@@ -638,7 +638,7 @@
       h(GlobalMobileTableAdapter),
       h(GlobalFormRequirementManager,{page,profile}),
       h(GlobalNursingVoiceInput,{profile,page}),
-      h(Sidebar,{profile,page,setPage,allowed}),
+      h(Sidebar,{profile,page:['Physiotherapy','Physiotherapist Accounts'].includes(page)?'Physiotherapy Dashboard':page,setPage,allowed}),
       h('main',{className:'main'},
         h('header',{className:'topbar'},
           h('div',{className:'mobile-brand-header'},
@@ -721,8 +721,7 @@
           page==='Stores In-charge Assignment'&&h(StoresInchargeAssignmentPage,{profile}),
           page==='Food & Diet'&&h(FoodDiet,{profile}),
           ['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(page)&&allowed.includes(page)&&window.SamaraOutgoingPayments&&h(window.SamaraOutgoingPayments,{key:page,client,profile,CameraCaptureModal,initialView:page==='Payment Statements'?'Statements':page==='Payment Vouchers'?'Vouchers':page==='Approved—Ready to Pay'?'Ready':'Requests'}),
-          page==='Physiotherapy'&&h(Physiotherapy,{profile,onNavigate:setPage}),
-          page==='Physiotherapist Accounts'&&h(PhysiotherapistAccounts,{profile}),
+          ['Physiotherapy Dashboard','Physiotherapy','Physiotherapist Accounts'].includes(page)&&allowed.includes(page)&&h(PhysiotherapyDashboard,{key:page,profile,onNavigate:setPage,initialTab:page==='Physiotherapy'?'Sessions':page==='Physiotherapist Accounts'?'Therapist Accounts':'Overview'}),
           page==='Outside Nursing Dashboard'&&allowed.includes('Outside Nursing Dashboard')&&h(OutsideNursingDashboard,{profile,onNavigate:setPage}),
           page==='Outside Samara Nursing Procedures'&&h(OutsideNursing,{profile,onNavigate:setPage}),
           page==='Duty Assignment'&&h(DutyAssignmentPage,{profile}), // 2.16.1: Roster grid + list
