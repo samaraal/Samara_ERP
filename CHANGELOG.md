@@ -1,3 +1,8 @@
+## 2.16.97 — Item Usage Register
+- Added item-wise stock reconciliation and patient / Outside Nursing procedure / department breakdowns, with full linked details on tap.
+- Added patient and item search, status filters and Today / This Week / Month / From–To periods; charged quantities remain separate from recorded use and wastage.
+- Current Stock item names open their usage register; stock balances stay organisation-wide.
+
 ## 2.16.96 — Discharged patient ledger and bill search
 - Added Active, Inactive / Discharged and All patient selection to Guest Ledger and Final Billing.
 - Search the selected status by name or resident ID from three characters; retain full financial history for discharged residents.
