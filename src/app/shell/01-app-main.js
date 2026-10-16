@@ -723,7 +723,8 @@
           ['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(page)&&allowed.includes(page)&&window.SamaraOutgoingPayments&&h(window.SamaraOutgoingPayments,{key:page,client,profile,CameraCaptureModal,initialView:page==='Payment Statements'?'Statements':page==='Payment Vouchers'?'Vouchers':page==='Approved—Ready to Pay'?'Ready':'Requests'}),
           page==='Physiotherapy'&&h(Physiotherapy,{profile,onNavigate:setPage}),
           page==='Physiotherapist Accounts'&&h(PhysiotherapistAccounts,{profile}),
-          page==='Outside Samara Nursing Procedures'&&h(OutsideNursing,{profile}),
+          page==='Outside Nursing Dashboard'&&allowed.includes('Outside Nursing Dashboard')&&h(OutsideNursingDashboard,{profile,onNavigate:setPage}),
+          page==='Outside Samara Nursing Procedures'&&h(OutsideNursing,{profile,onNavigate:setPage}),
           page==='Duty Assignment'&&h(DutyAssignmentPage,{profile}), // 2.16.1: Roster grid + list
           page==='Duty Calendar'&&h(DutyAssignment,{profile,viewMode:'team'}),
           page==='Staff Duty Assignment'&&h(DutyAssignmentPage,{profile,viewMode:'team'}), // 2.16.2: Roster grid for Nursing Manager / Admin
