@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.16.90';
+  const APP_VERSION = '2.16.91';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1721,6 +1721,7 @@ function initSamaraInaugurationInvitation(){
     { title:'PATIENTS', items:['Patients','Discharge','Documents','Recovery Timeline','Intelligent Reports','Family Communication','Incidents','Medication Errors'] }, // 2.15.58: Guest Ledger / Final Billing live only under ACCOUNTS
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Petty Cash'] }, // 2.16.19: Petty Cash = Nursing Manager's book (Admin + Nursing Manager)
     { title:'NURSING', items:['Outside Nursing Dashboard','Outside Samara Nursing Procedures','Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Approval Requests','Charge Register','Physiotherapy','Special Nurse','Shift Handover'] },
+    { title:'PHYSIOTHERAPY', items:['Physiotherapy Dashboard'] },
     { title:'PHARMACY & STORES', items:['Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Physiotherapist Accounts','Accounts Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Reports'] }, // keep in step with ACCOUNTS_NAV_GROUPS
@@ -1740,6 +1741,7 @@ function initSamaraInaugurationInvitation(){
     STD:["Director's Office",'Enquiry Register','Enquiries & Feedback','Notifications','Food & Diet','Duty Assignment','Patient Consumables','Stores','Housekeeping & General','Kitchen / Food Stores','Talk to Guest','WhatsApp Inbox','Feedback','My Leave & Permission']
   };
   Object.keys(ROLE_NAV).forEach(role=>{
+    if(role!=='Kitchen'&&(ROLE_NAV[role].includes('Physiotherapy')||role==='Accounts')&&!ROLE_NAV[role].includes('Physiotherapy Dashboard'))ROLE_NAV[role].push('Physiotherapy Dashboard');
     if(role!=='Admin')ROLE_NAV[role]=ROLE_NAV[role].filter(page=>page!=='Physiotherapist Accounts');
     if(!ROLE_NAV[role].includes('Temporary Duty Swap'))ROLE_NAV[role].push('Temporary Duty Swap');
     if(!ROLE_NAV[role].includes('Leave Cover'))ROLE_NAV[role].push('Leave Cover');
@@ -1771,7 +1773,7 @@ function initSamaraInaugurationInvitation(){
     if(profile?.__dutyContext?.leave_cover&&!profile.__leaveNavResolved){const c=profile.__dutyContext;return [...new Set([...allowedPagesForProfile({...profile,__leaveNavResolved:true}),...allowedPagesForProfile({...profile,__leaveNavResolved:true,role:c.regular_role,designation:c.regular_designation,department:c.regular_department}),...allowedPagesForProfile({...profile,__leaveNavResolved:true,role:c.leave_cover.covering_role,designation:c.leave_cover.covering_designation})])];}
     if(profile?.__paymentsTrial&&!profile.__paymentsNavResolved){const a=profile.__paymentsTrial;return [...allowedPagesForProfile({...profile,__paymentsNavResolved:true}).filter(x=>!['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(x)),...(a.full?['Payments & Vouchers']:[]),'Payment Requests',...(a.pay?['Approved—Ready to Pay']:[]),'Payment Vouchers','Payment Statements'];}
     if(isNursingManagerProfile(profile))return [
-      'Outside Nursing Dashboard','Outside Samara Nursing Procedures','Admission Register','Physiotherapy',
+      'Outside Nursing Dashboard','Outside Samara Nursing Procedures','Admission Register','Physiotherapy','Physiotherapy Dashboard',
       'Clinical Dashboard','Talk to Guest','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiry Register','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Approval Requests','Charge Register',
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
@@ -1814,6 +1816,7 @@ function initSamaraInaugurationInvitation(){
   };
   const displayNavLabel=(item,role)=>{
     if(item==='Admissions')return 'New Admission';
+    if(['Physiotherapy','Physiotherapist Accounts'].includes(item))return 'Physiotherapy Dashboard';
     if(String(item).startsWith(CM_PAGE_PREFIX))return String(item).slice(CM_PAGE_PREFIX.length);
     // v2.14.66: the Nursing Manager (store keeper) sees every patient indent here.
     if(item==='Patient Consumables'&&role==='Manager')return 'Indent Register';
@@ -1825,6 +1828,9 @@ function initSamaraInaugurationInvitation(){
     const outside=['Outside Nursing Dashboard','Outside Samara Nursing Procedures'].filter(x=>allowed.includes(x));
     sections.forEach(section=>{section.items=section.items.filter(x=>!outside.includes(x));});
     if(outside.length)sections.splice(Math.min(1,sections.length),0,{title:'OUTSIDE NURSING',items:outside});
+    const physio=allowed.includes('Physiotherapy Dashboard');
+    sections.forEach(section=>{section.items=section.items.filter(x=>!['Physiotherapy','Physiotherapist Accounts','Physiotherapy Dashboard'].includes(x));});
+    if(physio)sections.splice(Math.min(2,sections.length),0,{title:'PHYSIOTHERAPY',items:['Physiotherapy Dashboard']});
     return sections.filter(section=>section.items.length);
   };
   const sectionsForRaw = (allowed,role,canManageDuties=role==='Admin') => {
@@ -13732,7 +13738,7 @@ https://samaraassistedliving.com/`;
       h(GlobalMobileTableAdapter),
       h(GlobalFormRequirementManager,{page,profile}),
       h(GlobalNursingVoiceInput,{profile,page}),
-      h(Sidebar,{profile,page,setPage,allowed}),
+      h(Sidebar,{profile,page:['Physiotherapy','Physiotherapist Accounts'].includes(page)?'Physiotherapy Dashboard':page,setPage,allowed}),
       h('main',{className:'main'},
         h('header',{className:'topbar'},
           h('div',{className:'mobile-brand-header'},
@@ -13815,8 +13821,7 @@ https://samaraassistedliving.com/`;
           page==='Stores In-charge Assignment'&&h(StoresInchargeAssignmentPage,{profile}),
           page==='Food & Diet'&&h(FoodDiet,{profile}),
           ['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(page)&&allowed.includes(page)&&window.SamaraOutgoingPayments&&h(window.SamaraOutgoingPayments,{key:page,client,profile,CameraCaptureModal,initialView:page==='Payment Statements'?'Statements':page==='Payment Vouchers'?'Vouchers':page==='Approved—Ready to Pay'?'Ready':'Requests'}),
-          page==='Physiotherapy'&&h(Physiotherapy,{profile,onNavigate:setPage}),
-          page==='Physiotherapist Accounts'&&h(PhysiotherapistAccounts,{profile}),
+          ['Physiotherapy Dashboard','Physiotherapy','Physiotherapist Accounts'].includes(page)&&allowed.includes(page)&&h(PhysiotherapyDashboard,{key:page,profile,onNavigate:setPage,initialTab:page==='Physiotherapy'?'Sessions':page==='Physiotherapist Accounts'?'Therapist Accounts':'Overview'}),
           page==='Outside Nursing Dashboard'&&allowed.includes('Outside Nursing Dashboard')&&h(OutsideNursingDashboard,{profile,onNavigate:setPage}),
           page==='Outside Samara Nursing Procedures'&&h(OutsideNursing,{profile,onNavigate:setPage}),
           page==='Duty Assignment'&&h(DutyAssignmentPage,{profile}), // 2.16.1: Roster grid + list
@@ -33894,7 +33899,6 @@ function RoomsBeds({profile,onNavigate}){
     }
     if(!admin)return h(PhysioSessionCounts,{profile});
     return h('div',null,
-      h(PatientPhysioBilling,{profile}),
       h('section',{className:'card panel'},h('h3',null,'Outsourced Physiotherapy Accounts'),h('p',{className:'small-note'},'Admin access. Fees are posted only for completed sessions. Payment entries record money already paid; they do not transfer money.'),
         error&&h('div',{className:'message error'},error),notice&&h('div',{className:'message success'},notice),
         h('div',{className:'actions'},['Organisations','Physiotherapists','Sessions','Payments','Ledger','Statement','Session Counts'].map(name=>button(name,()=>setTab(name),tab===name))),
@@ -33924,9 +33928,9 @@ function RoomsBeds({profile,onNavigate}){
     if(clinicalApproval)return 'Clinical approval required';
     return 'Awaiting Admin / Director patient rate';
   }
-  function PatientPhysioBilling({profile,onNavigate}){
+  function PatientPhysioBilling({profile,onNavigate,embedded=false}){
     const admin=profile?.role==='Admin',finance=admin||profile?.role==='Accounts';
-    const [open,setOpen]=React.useState(false),[data,setData]=React.useState({patients:[],rates:[],sessions:[]});
+    const [open,setOpen]=React.useState(embedded),[data,setData]=React.useState({patients:[],rates:[],sessions:[]});
     const [patient,setPatient]=React.useState(''),[form,setForm]=React.useState(null),[busy,setBusy]=React.useState(false),[loading,setLoading]=React.useState(true),[error,setError]=React.useState(''),[notice,setNotice]=React.useState('');
     const loadVersion=React.useRef(0);
     async function load(){
@@ -33945,10 +33949,20 @@ function RoomsBeds({profile,onNavigate}){
       try{const result=await client.rpc('patient_physio_billing',{p_action:'save_rate',p_data:{patient_id:patient,...form}});if(result.error)throw result.error;setNotice('Patient rate saved. '+result.data.queued+' completed session(s) sent to Accounts for approval.');setForm(null);await load()}
       catch(e){setError(e.message||'Unable to save patient rate')}finally{setBusy(false)}
     }
+    async function decideSession(session,decision){
+      if(profile?.role!=='Accounts'||busy||!session.request_id)return;
+      const amount=Number(session.billing_rate||0);
+      if(decision==='Approved'&&!(amount>0)){setError('Admin must set the patient rate before approval.');return}
+      const remarks=window.prompt(decision==='Approved'?'Approve this session at the patient’s agreed rate of '+money(amount)+'? Enter verification notes:':'Reason for rejecting this session charge:');
+      if(remarks===null)return;if(!remarks.trim()){setError('Enter decision notes.');return}
+      setBusy(true);setError('');
+      try{const result=await client.rpc('decide_bill_charge_request_v5',{p_request_id:session.request_id,p_decision:decision,p_approved_amount:decision==='Approved'?amount:0,p_remarks:remarks.trim()});if(result.error)throw result.error;setNotice(decision==='Approved'?'Session charge posted to the patient bill.':'Session charge rejected for Accounts review.');await load()}
+      catch(e){setError(e.message||'Unable to decide the session charge')}finally{setBusy(false)}
+    }
     if(!finance)return null;
     const button=(text,fn)=>h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:fn},text);
     return h('section',{className:'accounts-panel',style:{margin:'16px 0'}},
-      h('button',{type:'button',className:'btn btn-secondary','aria-expanded':open,onClick:()=>setOpen(v=>!v)},'Patient Physiotherapy Billing'+(loading?' — loading…':error?' — needs attention':' · '+pending+' completed session(s) awaiting billing')),
+      !embedded&&h('button',{type:'button',className:'btn btn-secondary','aria-expanded':open,onClick:()=>setOpen(v=>!v)},'Patient Physiotherapy Billing'+(loading?' — loading…':error?' — needs attention':' · '+pending+' completed session(s) awaiting billing')),
       error&&h('p',{role:'alert'},error),
       open&&h(React.Fragment,null,h('h3',null,'Patient Physiotherapy Billing'),h('p',null,'Admin / Director sets the agreed patient rate and effective date. Completed sessions then go to Accounts for approval before appearing in charges and Collection Breakup. The general Charge Master and therapist supplier fee are separate.'),
         notice&&h('p',{role:'status'},notice),
@@ -33966,8 +33980,44 @@ function RoomsBeds({profile,onNavigate}){
           h('div',{className:'actions'},h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save patient rate & queue sessions'),button('Cancel patient rate',()=>setForm(null)))),
         patient&&h(LogTable,{title:'Approved patient rate history',heads:['Effective from','Rate per session','Approval notes'],rows:rates.map(r=>[formatDateIN(r.effective_from),money(r.amount),r.notes])}),
         patient&&rates.length===0&&h('p',null,'No patient-specific rate has been approved. No generic tariff will be applied.'),
-        patient&&h(LogTable,{title:'Completed sessions — patient billing status',heads:['Session date','Physiotherapist','Treatment notes','Patient rate','Billing status'],rows:sessions.map(s=>[formatDateIN(s.session_date),s.physiotherapist||'—',s.notes||'—',s.billing_rate==null?'Awaiting rate':money(s.billing_rate),patientPhysioBillingStatus(s,data.clinical_approval_required)])})
+        patient&&h(LogTable,{title:'Completed sessions — patient billing status',heads:['Session date','Physiotherapist','Treatment notes','Patient rate','Billing status',...(profile?.role==='Accounts'?['Accounts decision']:[])],rows:sessions.map(s=>[formatDateIN(s.session_date),s.physiotherapist||'—',s.notes||'—',s.billing_rate==null?'Awaiting rate':money(s.billing_rate),patientPhysioBillingStatus(s,data.clinical_approval_required),...(profile?.role==='Accounts'?[s.request_id&&s.approval_status==='Pending'?h('div',{className:'actions'},button('Approve agreed rate',()=>decideSession(s,'Approved')),button('Reject charge',()=>decideSession(s,'Rejected'))):'—']:[])])})
       )
+    );
+  }
+  function physiotherapyDashboardAccess(profile){
+    const pages=allowedPagesForProfile(profile),admin=profile?.role==='Admin';
+    return {allowed:pages.includes('Physiotherapy Dashboard'),clinical:pages.includes('Physiotherapy')&&profile?.role!=='Kitchen',finance:admin||profile?.role==='Accounts',supplier:admin,counts:['Admin','Manager','Nurse','Caregiver'].includes(profile?.role)};
+  }
+  function PhysiotherapyDashboard({profile,onNavigate,initialTab='Overview'}){
+    const access=physiotherapyDashboardAccess(profile);
+    const tabs=['Overview',...(access.clinical?['Sessions']:[]),...(access.finance?['Patient Rates & Billing']:[]),...(access.supplier?['Therapist Accounts']:[])];
+    const [tab,setTab]=React.useState(tabs.includes(initialTab)?initialTab:'Overview');
+    const selected=tabs.includes(tab)?tab:'Overview';
+    const [summary,setSummary]=React.useState(null),[error,setError]=React.useState(''),[loading,setLoading]=React.useState(false);
+    React.useEffect(()=>{
+      if(!access.allowed||!access.finance||selected!=='Overview')return;
+      let stopped=false;
+      async function load(){setLoading(true);setError('');try{const result=await client.rpc('patient_physio_billing',{p_action:'load'});if(stopped)return;if(result.error)throw result.error;setSummary(result.data)}catch(e){if(!stopped){setError(e.message||'Unable to load physiotherapy billing overview');setSummary(null)}}finally{if(!stopped)setLoading(false)}}
+      load();const channel=client.channel('physio-dashboard-summary-'+profile.id).on('postgres_changes',{event:'*',schema:'public',table:'physiotherapy_sessions'},load).on('postgres_changes',{event:'*',schema:'public',table:'bill_charge_requests'},load).subscribe();
+      return()=>{stopped=true;client.removeChannel(channel)};
+    },[access.allowed,access.finance,selected,profile?.id]);
+    if(!access.allowed)return h('p',null,'Physiotherapy access is not assigned to this role.');
+    const money=v=>'₹'+Number(v||0).toLocaleString('en-IN',{maximumFractionDigits:2});
+    const sessions=summary?.sessions||[],unbilled=sessions.filter(s=>!s.request_id),pending=sessions.filter(s=>s.request_id&&s.approval_status==='Pending'),posted=sessions.filter(s=>s.approval_status==='Approved');
+    const cards=[...(access.clinical?[['Sessions','Sessions & Clinical Review','Record completed sessions, review treatment history and handle corrections.']]:[]),...(access.finance?[['Patient Rates & Billing',access.supplier?'Set Patient Rates & Review Billing':'Review Patient Charges','Patient-specific rates, completed sessions and Accounts approval in one place.']]:[]),...(access.supplier?[['Therapist Accounts','Therapist Accounts','Organisation fees, payments and supplier statements.']]:[])];
+    return h('div',null,
+      h('div',{className:'accounts-hero'},h('div',null,h('small',null,'PHYSIOTHERAPY · CARE · BILLING'),h('h3',null,'Physiotherapy Dashboard'),h('p',null,'One workspace for physiotherapy sessions, patient billing and therapist accounts.'))),
+      h('nav',{className:'actions','aria-label':'Physiotherapy workspace',style:{margin:'16px 0'}},tabs.map(name=>h('button',{type:'button',key:name,className:'btn '+(selected===name?'btn-primary':'btn-secondary'),'aria-pressed':selected===name,onClick:()=>setTab(name)},name==='Sessions'?'Sessions & Clinical Review':name))),
+      selected==='Overview'&&h(React.Fragment,null,
+        h('div',{className:'accounts-workflow-grid'},cards.map(([target,title,note])=>h('button',{type:'button',key:target,className:'accounts-workflow-card',onClick:()=>setTab(target)},h('strong',null,title),h('p',null,note),h('span',null,'Open →')))),
+        access.finance&&h('section',{className:'accounts-panel',style:{margin:'16px 0'}},h('h3',null,'Active Patient Billing Overview'),h('p',null,'Completed sessions for current patients. Charges appear in Accounts and Collection Breakup only after Accounts approval.'),
+          error?h('p',{role:'alert'},error):loading||!summary?h('p',null,'Loading physiotherapy billing…'):
+          h('div',{className:'accounts-kpi-grid'},[['Completed Sessions',sessions.length],['Awaiting Patient Rate / Billing Review',unbilled.length],['Pending Accounts Approval',pending.length],['Posted Patient Charges',money(posted.reduce((n,s)=>n+Number(s.amount||0),0))]].map(([label,value])=>h('button',{type:'button',key:label,className:'accounts-kpi teal',onClick:()=>setTab('Patient Rates & Billing')},h('span',null,label),h('strong',null,value),h('small',null,'Open Patient Rates & Billing →'))))),
+        access.counts&&h(PhysioSessionCounts,{profile})
+      ),
+      selected==='Sessions'&&access.clinical&&h(Physiotherapy,{profile,onNavigate}),
+      selected==='Patient Rates & Billing'&&access.finance&&h(PatientPhysioBilling,{profile,embedded:true}),
+      selected==='Therapist Accounts'&&access.supplier&&h(PhysiotherapistAccounts,{profile})
     );
   }
   // Outside nursing only: amounts never mix with resident billing.
@@ -37177,7 +37227,7 @@ function ShiftHandover({profile,onNavigate}){
         )
       ),
 
-      h(PatientPhysioBilling,{profile,onNavigate}),
+      h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('Physiotherapy Dashboard')},'Open Physiotherapy Dashboard'),
       state.outside?.error&&h('p',{role:'alert'},state.outside.error),
       h('button',{className:'btn btn-secondary',onClick:()=>onNavigate('Outside Samara Nursing Procedures')},'Outside nursing invoices & receipts'),
       h('p',null,'Totals include resident billing and approved outside nursing invoices. Outside nursing: '+money(state.outside?.charges)+' invoiced · '+money(state.outside?.received)+' received · '+money(state.outside?.outstanding)+' outstanding.'),
