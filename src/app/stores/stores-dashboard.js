@@ -106,6 +106,14 @@
         if(inPeriod(date)){g.charged+=qty;g.hasPeriod=true;}
       }
     }
+    for(const ind of (data.housekeepingIndents||[]).filter(i=>i.store_item_id===itemId)){
+      const g=get('housekeeping:'+ind.id,'Housekeeping · HK-'+String(ind.indent_no).padStart(5,'0'),'Housekeeping',null,null);g.housekeeping=ind;indentGroup.set(ind.id,g);
+      if(inPeriod(ind.handed_over_at)){g.issued+=n(ind.handed_over_qty);g.hasPeriod=true;}
+      if(inPeriod(ind.received_at)){g.received+=n(ind.received_qty);g.hasPeriod=true;}
+      if(through(ind.received_at))g.remaining+=n(ind.received_qty);
+      for(const u of (data.housekeepingUsage||[]).filter(u=>u.indent_id===ind.id)){g.consumptions.push(u);if(u.voided_at)continue;if(inPeriod(u.used_on)){g.used+=n(u.quantity);g.hasPeriod=true;}if(through(u.used_on))g.remaining-=n(u.quantity);}
+      if(inPeriod(ind.requested_at))g.hasPeriod=true;
+    }
     for(const m of movements){
       const g=indentGroup.get(m.indent_id||m.reference_id);
       if(g){g.movements.push(m);continue;}
@@ -125,9 +133,9 @@
     const [detail,setDetail]=React.useState(null),requestNo=React.useRef(0);
     async function load(){const ticket=++requestNo.current;setLoading(true);setError('');setDetail(null);
       async function all(table,columns='*',order='id'){let rows=[];for(let offset=0;;offset+=500){const r=await client.from(table).select(columns).order(order).range(offset,offset+499);if(r.error)throw new Error(`${table}: ${r.error.message}`);rows.push(...(r.data||[]));if((r.data||[]).length<500)return rows;}}
-      try{const names=['consumable_store_items','consumable_store_stock','consumable_store_ledger','patient_consumable_indents','bill_charge_store_allocations','patient_store_returns','bill_charge_requests','patients','patient_item_consumption'];
+      try{const names=['consumable_store_items','consumable_store_stock','consumable_store_ledger','patient_consumable_indents','bill_charge_store_allocations','patient_store_returns','bill_charge_requests','patients','patient_item_consumption','housekeeping_indents','housekeeping_item_usage'];
         const [results,outside]=await Promise.all([Promise.all(names.map(t=>all(t,t==='patients'?'id,title,full_name,patient_id,is_active':'*',t==='consumable_store_stock'?'item_id':'id'))),client.rpc('outside_nursing',{p_action:'load',p_data:{}})]);
-        if(ticket===requestNo.current)setData({...Object.fromEntries(['items','stock','ledger','indents','allocations','returns','charges','patients','consumptions'].map((k,i)=>[k,results[i]])),visits:outside.error?[]:outside.data?.visits||[],outsideWarning:outside.error||(outside.data?.visits||[]).some(v=>v.billed_at&&!Array.isArray(v.material_lines))?'Outside Nursing invoice details are unavailable for this account. Outside charged quantities cannot be confirmed and are excluded from totals.':''});
+        if(ticket===requestNo.current)setData({...Object.fromEntries(['items','stock','ledger','indents','allocations','returns','charges','patients','consumptions','housekeepingIndents','housekeepingUsage'].map((k,i)=>[k,results[i]])),visits:outside.error?[]:outside.data?.visits||[],outsideWarning:outside.error||(outside.data?.visits||[]).some(v=>v.billed_at&&!Array.isArray(v.material_lines))?'Outside Nursing invoice details are unavailable for this account. Outside charged quantities cannot be confirmed and are excluded from totals.':''});
       }catch(e){if(ticket===requestNo.current){setError(e.message||'Usage register could not be loaded.');setData(null);}}finally{if(ticket===requestNo.current)setLoading(false);}}
     React.useEffect(()=>{load();return()=>{requestNo.current++}},[]);
     let start=from,end=to;
@@ -170,19 +178,20 @@
           h('h3',null,`${displayStoreItemName(report.item.item_name)} · ${report.item.unit}`),
           table(['Opening store stock','Stock in','Stock out','Closing store stock','Current store balance'],[row('stock',[report.opening,report.incoming,report.outgoing,report.closing,report.stock?.balance_qty??'Unavailable'])]),
           h('details',null,h('summary',null,'Store movements in period — receipts, issues, returns and adjustments'),table(['Date','Movement','In','Out','Reference','By'],report.periodMoves.map(m=>row(m.id,[formatDateTimeIN(m.movement_at),m.movement_type,m.qty_in,m.qty_out,m.reference_text,m.actor_name],()=>setDetail({movement:m}))))),
-          h('div',{className:'payment-filter-grid'},select('Usage source',source,setSource,[['all','All sources'],['Resident','Residents'],['Outside Nursing','Outside Nursing procedures'],['Department','Departments']]),
+          h('div',{className:'payment-filter-grid'},select('Usage source',source,setSource,[['all','All sources'],['Resident','Residents'],['Outside Nursing','Outside Nursing procedures'],['Department','Departments'],['Housekeeping','Housekeeping']]),
             select('Patient status',status,v=>{setStatus(v);setPatientId('')},[['all','All patients / sources'],['active','Active residents'],['inactive','Inactive / Discharged residents'],['outside','Outside Nursing patients']]),
             field('Search patient / ID',h('input',{'aria-label':'Search patient / ID',value:patientQuery,onChange:e=>{setPatientQuery(e.target.value);setPatientId('')},placeholder:'At least 3 characters'})),
             select('Patient / procedure',patientId,setPatientId,[['','All matching patients / procedures'],...patientOptions.map(p=>[p.id,p.label])])),
           h('p',{className:'small-note'},'Patient balance = received − recorded use − confirmed returns through the To date; billing does not reduce it. Historical consumption is not inferred from charges. Pending returns reserve current availability. Outside Nursing use and wastage come from approved used-item indents.'),
-          table(['Patient / procedure — tap for full details','Source','Issued in period','Received in period','Recorded use','Wastage','Charged quantity','Confirmed returns','Pending returns (current, requested by To)','Remaining patient balance at To date'],groups.map(g=>row(g.key,[g.label,g.kind,g.issued,g.kind==='Resident'?g.received:'—',g.kind==='Outside Nursing'||g.kind==='Resident'?g.used:'—',g.kind==='Outside Nursing'?g.waste:'—',g.kind==='Outside Nursing'&&data.outsideWarning?'Unavailable':g.charged,g.returned,g.pending,g.kind==='Resident'?g.remaining:'—'],()=>setDetail({group:g})))),
+          table(['Patient / procedure — tap for full details','Source','Issued in period','Received in period','Recorded use','Wastage','Charged quantity','Confirmed returns','Pending returns (current, requested by To)','Remaining patient / Housekeeping balance at To date'],groups.map(g=>row(g.key,[g.label,g.kind,g.issued,g.kind==='Resident'||g.kind==='Housekeeping'?g.received:'—',['Outside Nursing','Resident','Housekeeping'].includes(g.kind)?g.used:'—',g.kind==='Outside Nursing'?g.waste:'—',g.kind==='Outside Nursing'&&data.outsideWarning?'Unavailable':g.charged,g.returned,g.pending,g.kind==='Resident'||g.kind==='Housekeeping'?g.remaining:'—'],()=>setDetail({group:g})))),
           table(['Filtered totals','Issued','Received','Recorded use','Outside wastage','Charged quantity','Confirmed returns','Pending returns'],[row('totals',[`${groups.length} patient / procedure / department row(s)`,...['issued','received','used','waste','charged','returned','pending'].map(k=>qty(groups.reduce((s,g)=>s+g[k],0),report.item.unit))])])
         )
       ),
       detail&&h(RowDetailModal,{title:detail.group?.label||detail.movement?.movement_type,subtitle:`${report?.item.item_name||''} · ${formatDateIN(start)} to ${formatDateIN(end)}`,onClose:()=>setDetail(null),fields:detail.movement?Object.entries(detail.movement).map(([k,v])=>[k,String(v??'—')]):[['Source',detail.group.kind],['Procedure',detail.group.visit?.procedure_name||'—'],['Procedure date',detail.group.visit?.service_date||'—'],['Nurse',detail.group.visit?.nurse_name||'—'],['Procedure status',detail.group.visit?.review_status||'—'],['Notes',detail.group.visit?.notes||'—']]},
         detail.group&&h('div',null,
+          detail.group.housekeeping&&table(['Housekeeping step','Details'],[['Requested',`${detail.group.housekeeping.requested_qty} · ${detail.group.housekeeping.requested_by_name} · ${formatDateTimeIN(detail.group.housekeeping.requested_at)} · ${detail.group.housekeeping.purpose}`],['Nursing Manager approval',`${detail.group.housekeeping.approved_qty??'Pending'} · ${detail.group.housekeeping.approved_by_name||''}`],['Stores handover',`${detail.group.housekeeping.handed_over_qty??'Pending'} · ${detail.group.housekeeping.handed_over_by_name||''}`],['STD receipt',`${detail.group.housekeeping.received_qty??'Pending'} · ${detail.group.housekeeping.received_by_name||''}`]].map(([k,v])=>row(k,[k,v]))),
           h('h4',null,'Complete linked indent history (includes carried-forward supply)'),detail.group.indents.map(ind=>h('details',{key:ind.id},h('summary',null,`CI-${String(ind.indent_no).padStart(5,'0')} · ${ind.requested_qty} ${ind.unit} · ${ind.status}`),table(['Field','Details'],story(ind).map(([k,v])=>row(k,[k,v]))))),
-          h('h4',null,'Recorded resident consumption — full history'),table(['Used on','Quantity','Recorded by / at','Remarks','Status / correction'],detail.group.consumptions.map(e=>row(e.id,[formatDateIN(e.used_on),e.quantity,`${e.recorded_by_name} · ${formatDateTimeIN(e.recorded_at)}`,e.remarks||'—',e.voided_at?`Voided · ${e.voided_by_name} · ${e.void_reason}`:'Recorded']))),
+          h('h4',null,'Recorded consumption — full history'),table(['Used on','Quantity','Recorded by / at','Remarks','Status / correction'],detail.group.consumptions.map(e=>row(e.id,[formatDateIN(e.used_on),e.quantity,`${e.recorded_by_name} · ${formatDateTimeIN(e.recorded_at)}`,e.remarks||'—',e.voided_at?`Voided · ${e.voided_by_name} · ${e.void_reason}`:'Recorded']))),
           h('h4',null,'Charges (separate from consumption)'),table(['Date','Quantity','Status','Amount','By / notes'],detail.group.charges.map((c,i)=>row(c.id+':'+i,[formatDateIN(c.date),c.qty,c.status,c.amount??'—',[c.by,c.remarks].filter(Boolean).join(' · ')]))),
           h('h4',null,'Returns'),table(['Requested','Quantity','Status','Confirmed','By / notes'],detail.group.returns.map(r=>row(r.id,[formatDateTimeIN(r.requested_at),r.quantity,r.status,r.confirmed_at?formatDateTimeIN(r.confirmed_at):'—',[r.requested_by_name,r.confirmed_by_name,r.confirmation_remarks].filter(Boolean).join(' · ')]))),
           h('h4',null,'Linked stock movements'),table(['Date','Type','In','Out','By / reference'],detail.group.movements.map(m=>row(m.id,[formatDateTimeIN(m.movement_at),m.movement_type,m.qty_in,m.qty_out,[m.actor_name,m.reference_text,m.remarks].filter(Boolean).join(' · ')])))
@@ -213,7 +222,8 @@
     );
   }
 
-  function StoresDashboard({profile,categoryFilter}){
+  function StoresDashboard(props){return props.categoryFilter==='Housekeeping & General'?h(HousekeepingWorkspace,{profile:props.profile}):h(StoreSectionDashboard,props);}
+  function StoreSectionDashboard({profile,categoryFilter}){
     const {view,openView,backToDashboard}=useDashboardView();
     const [refreshKey,setRefreshKey]=React.useState(0);
     const [usageItem,setUsageItem]=React.useState('');
