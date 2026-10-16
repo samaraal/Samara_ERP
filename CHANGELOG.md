@@ -1,3 +1,8 @@
+## 2.16.88 — Dedicated Outside Nursing dashboard
+
+- Add an Outside Nursing menu with a dedicated dashboard and filtered procedure register. Admin sees the full overview; nurses see procedure and correction tasks; managers see clinical and item queues; Accounts sees approved invoices, receipts and balances. Existing server permissions remain in force.
+- Date and patient filters apply throughout. Voided records are excluded, consolidated item links are respected, and collections use receipt dates. No resident charges are mixed into these totals. Load failures are shown explicitly.
+
 ## 2.16.87 — Tube feeds in Family Portal preview
 
 - Include the selected guest's non-voided tube-feed entries in Preview Family Portal, showing the same item, volume and entry time as the family portal.
