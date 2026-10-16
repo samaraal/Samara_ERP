@@ -410,7 +410,7 @@
           detail:`${ioAlertLine(a)}. ${a.kind==='Low urine'?'Check the Guest, check catheter / bladder, encourage fluids as advised and inform the doctor if needed.':'Review the chart and inform the doctor if needed.'}`,
           page:'Intake / Output',record:{patient_id:a.patient_id,chart_date:a.chart_date,label:ioAlertLabel(a)},urgent:true,at:a.ended_at}));
         const staffRows=(!staffReturn?.error&&Array.isArray(staffReturn?.data))?staffReturn.data:[];
-        const notBack=staffRows.filter(a=>a.alert==='Not back'),backRows=staffRows.filter(a=>a.alert!=='Not back');
+        const notBack=staffRows.filter(a=>a.alert==='Not back');
         if(notBack.length){
           const first=notBack[0];
           candidates.push({key:`staff-notback-${notBack.map(a=>a.leave_id).join('-')}-${Math.floor(Date.now()/3600000)}`,kind:'Staff Leave',
@@ -418,7 +418,8 @@
             detail:`${notBack.slice(0,4).map(staffReturnLine).join('; ')}${notBack.length>4?`; + ${notBack.length-4} more (see Alerts)`:''}. ${foodAdmin?'Check with the Manager.':'If she has reported, open the leave and tap Mark Back on Duty.'}`,
             page:'Staff Leave Calendar',record:{id:first.leave_id,date:first.due_date,label:staffReturnLabel(first)},urgent:true,at:first.alert_at});
         }
-        backRows.forEach(a=>candidates.push({key:`staff-back-${a.leave_id}`,kind:'Staff Leave',title:`${a.employee_name||'Staff'} is back on duty`,detail:staffReturnLine(a)+'.',page:'Staff Leave Calendar',record:{id:a.leave_id,date:a.due_date,label:staffReturnLabel(a)},at:a.recorded_at}));
+        // A recorded return completes this workflow. Keep it in Notifications and leave history,
+        // rather than interrupting each login with an already completed action.
         const kitchenRows=(!kitchenAlerts?.error&&Array.isArray(kitchenAlerts?.data))?kitchenAlerts.data:[];
         kitchenRows.forEach(a=>{const amt='₹'+Number(a.amount||0).toLocaleString('en-IN');const step={
           'Requested':[`Kitchen cash request ${amt} — approve`,`${a.requested_by_name||a.recipient_name||'STD'} asked for ${amt} kitchen petty cash (${a.purpose||'kitchen'}). Approve or decline.`],
