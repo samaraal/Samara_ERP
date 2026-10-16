@@ -1,6 +1,8 @@
   function FinalBillingView({profile,onNavigate}){
     React.useEffect(()=>{ensureAccountsWorkspaceStyle()},[]);
-    const [patients]=usePatients();
+    const [patients]=usePatients(true);
+    const [patientScope,setPatientScope]=React.useState('active');
+    const scopedPatients=patients.filter(p=>patientScope==='all'||(patientScope==='inactive'?p.is_active===false:p.is_active!==false));
     const [patientId,setPatientId]=React.useState('');
     // 2.15.82: find the Guest by name, mobile number or Resident ID (any 3 characters).
     const [guestQuery,setGuestQuery]=React.useState('');
@@ -334,12 +336,15 @@
 
       h(Section,{title:'Select Patient',subtitle:'Choose one patient to prepare the complete bill'},
         h('div',{className:'payment-filter-grid'},
+          h('div',{className:'field'},h('label',{htmlFor:'final-bill-patient-scope'},'Patient status'),
+            h('select',{id:'final-bill-patient-scope',value:patientScope,onChange:e=>{setPatientScope(e.target.value);setPatientId('');setGuestQuery('');setGuestPicked(false);setRows([]);}},
+              h('option',{value:'active'},'Active patients'),h('option',{value:'inactive'},'Inactive / Discharged patients'),h('option',{value:'all'},'All patients'))),
           h('div',{className:'field'},
             h('label',null,'Patient'),
             h('select',{value:patientId,onChange:e=>setPatientId(e.target.value)},
               h('option',{value:''},'Select patient'),
-              patients.map(row=>h('option',{key:row.id,value:row.id},
-                `${formalName(row)||row.full_name} · ${row.patient_id||'No ID'} · Room ${row.room_no||'—'}${row.bed_no?`-${row.bed_no}`:''}`
+              scopedPatients.map(row=>h('option',{key:row.id,value:row.id},
+                `${formalName(row)||row.full_name} · ${row.patient_id||'No ID'}${row.is_active===false?' · Inactive / Discharged':` · Room ${row.room_no||'—'}${row.bed_no?`-${row.bed_no}`:''}`}`
               ))
             )
           ),
@@ -353,7 +358,7 @@
                 if(!q||guestPicked)return null;
                 if(q.length<3)return h('div',{className:'fb-search-results'},h('div',{className:'small-note',style:{padding:'12px 14px'}},'Type at least 3 characters'));
                 const digits=q.replace(/\D/g,'');
-                const found=patients.filter(p=>{
+                const found=scopedPatients.filter(p=>{
                   const hay=[formalName(p),p.full_name,p.patient_id,p.room_no,p.attendant_name].filter(Boolean).join(' ').toLowerCase();
                   const phones=[p.mobile,p.attendant_phone,p.alternate_mobile,p.emergency_contact].filter(Boolean).join(' ').replace(/\D/g,'');
                   return hay.includes(q)||(digits.length>=3&&phones.includes(digits));
@@ -361,7 +366,7 @@
                 return h('div',{className:'fb-search-results'},
                   found.length?found.map(p=>h('button',{key:p.id,type:'button',className:'fb-search-result',onClick:()=>{setPatientId(p.id);setGuestQuery(formalName(p)||p.full_name||'');setGuestPicked(true);}},
                     h('strong',null,formalName(p)||p.full_name||'Guest'),
-                    h('div',{className:'small-note'},`${p.patient_id||'No ID'}${p.room_no?` · Room ${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:''}${p.mobile?` · ${p.mobile}`:''}`)
+                    h('div',{className:'small-note'},`${p.patient_id||'No ID'}${p.is_active===false?' · Inactive / Discharged':p.room_no?` · Room ${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:''}${p.mobile?` · ${p.mobile}`:''}`)
                   )):h('div',{className:'small-note',style:{padding:'12px 14px'}},'No Guest found'));
               })()
             ),
