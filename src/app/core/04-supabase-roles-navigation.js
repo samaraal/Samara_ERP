@@ -141,6 +141,7 @@
     { title:'PATIENTS', items:['Patients','Discharge','Documents','Recovery Timeline','Intelligent Reports','Family Communication','Incidents','Medication Errors'] }, // 2.15.58: Guest Ledger / Final Billing live only under ACCOUNTS
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Petty Cash'] }, // 2.16.19: Petty Cash = Nursing Manager's book (Admin + Nursing Manager)
     { title:'NURSING', items:['Outside Nursing Dashboard','Outside Samara Nursing Procedures','Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Approval Requests','Charge Register','Physiotherapy','Special Nurse','Shift Handover'] },
+    { title:'PHYSIOTHERAPY', items:['Physiotherapy Dashboard'] },
     { title:'PHARMACY & STORES', items:['Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Physiotherapist Accounts','Accounts Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Reports'] }, // keep in step with ACCOUNTS_NAV_GROUPS
@@ -160,6 +161,7 @@
     STD:["Director's Office",'Enquiry Register','Enquiries & Feedback','Notifications','Food & Diet','Duty Assignment','Patient Consumables','Stores','Housekeeping & General','Kitchen / Food Stores','Talk to Guest','WhatsApp Inbox','Feedback','My Leave & Permission']
   };
   Object.keys(ROLE_NAV).forEach(role=>{
+    if(role!=='Kitchen'&&(ROLE_NAV[role].includes('Physiotherapy')||role==='Accounts')&&!ROLE_NAV[role].includes('Physiotherapy Dashboard'))ROLE_NAV[role].push('Physiotherapy Dashboard');
     if(role!=='Admin')ROLE_NAV[role]=ROLE_NAV[role].filter(page=>page!=='Physiotherapist Accounts');
     if(!ROLE_NAV[role].includes('Temporary Duty Swap'))ROLE_NAV[role].push('Temporary Duty Swap');
     if(!ROLE_NAV[role].includes('Leave Cover'))ROLE_NAV[role].push('Leave Cover');
@@ -191,7 +193,7 @@
     if(profile?.__dutyContext?.leave_cover&&!profile.__leaveNavResolved){const c=profile.__dutyContext;return [...new Set([...allowedPagesForProfile({...profile,__leaveNavResolved:true}),...allowedPagesForProfile({...profile,__leaveNavResolved:true,role:c.regular_role,designation:c.regular_designation,department:c.regular_department}),...allowedPagesForProfile({...profile,__leaveNavResolved:true,role:c.leave_cover.covering_role,designation:c.leave_cover.covering_designation})])];}
     if(profile?.__paymentsTrial&&!profile.__paymentsNavResolved){const a=profile.__paymentsTrial;return [...allowedPagesForProfile({...profile,__paymentsNavResolved:true}).filter(x=>!['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements'].includes(x)),...(a.full?['Payments & Vouchers']:[]),'Payment Requests',...(a.pay?['Approved—Ready to Pay']:[]),'Payment Vouchers','Payment Statements'];}
     if(isNursingManagerProfile(profile))return [
-      'Outside Nursing Dashboard','Outside Samara Nursing Procedures','Admission Register','Physiotherapy',
+      'Outside Nursing Dashboard','Outside Samara Nursing Procedures','Admission Register','Physiotherapy','Physiotherapy Dashboard',
       'Clinical Dashboard','Talk to Guest','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiry Register','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Approval Requests','Charge Register',
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
@@ -234,6 +236,7 @@
   };
   const displayNavLabel=(item,role)=>{
     if(item==='Admissions')return 'New Admission';
+    if(['Physiotherapy','Physiotherapist Accounts'].includes(item))return 'Physiotherapy Dashboard';
     if(String(item).startsWith(CM_PAGE_PREFIX))return String(item).slice(CM_PAGE_PREFIX.length);
     // v2.14.66: the Nursing Manager (store keeper) sees every patient indent here.
     if(item==='Patient Consumables'&&role==='Manager')return 'Indent Register';
@@ -245,6 +248,9 @@
     const outside=['Outside Nursing Dashboard','Outside Samara Nursing Procedures'].filter(x=>allowed.includes(x));
     sections.forEach(section=>{section.items=section.items.filter(x=>!outside.includes(x));});
     if(outside.length)sections.splice(Math.min(1,sections.length),0,{title:'OUTSIDE NURSING',items:outside});
+    const physio=allowed.includes('Physiotherapy Dashboard');
+    sections.forEach(section=>{section.items=section.items.filter(x=>!['Physiotherapy','Physiotherapist Accounts','Physiotherapy Dashboard'].includes(x));});
+    if(physio)sections.splice(Math.min(2,sections.length),0,{title:'PHYSIOTHERAPY',items:['Physiotherapy Dashboard']});
     return sections.filter(section=>section.items.length);
   };
   const sectionsForRaw = (allowed,role,canManageDuties=role==='Admin') => {
