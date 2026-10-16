@@ -28221,10 +28221,10 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
         :h('p',{className:'small-note'},family===null?'Loading contact numbers…':'No contact numbers recorded. Add them in Family Details or Edit Patient.'),
       family===null&&calls.length>0&&h('small',{className:'small-note'},'Loading family contacts…'));
   }
-  function usePatients(){
+  function usePatients(includeInactive=false){
     const [rows,setRows]=React.useState([]);
     const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
-    const load=React.useCallback(async()=>{const {data,error}=await client.from('patients').select('*').eq('is_active',true).order('full_name');if(error)console.error(error);setRows(data||[])},[]);
+    const load=React.useCallback(async()=>{let request=client.from('patients').select('*');if(!includeInactive)request=request.eq('is_active',true);const {data,error}=await request.order('full_name');if(error)console.error(error);setRows(data||[])},[includeInactive]);
     React.useEffect(()=>{load();const ch=client.channel(`active-patients-${Math.random()}`).on('postgres_changes',{event:'*',schema:'public',table:'patients'},load).subscribe();return()=>client.removeChannel(ch)},[load]);
     return [rows,load];
   }
