@@ -204,7 +204,7 @@
         )
       ),
 
-      h(PatientPhysioBilling,{profile,onNavigate}),
+      h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('Physiotherapy Dashboard')},'Open Physiotherapy Dashboard'),
       state.outside?.error&&h('p',{role:'alert'},state.outside.error),
       h('button',{className:'btn btn-secondary',onClick:()=>onNavigate('Outside Samara Nursing Procedures')},'Outside nursing invoices & receipts'),
       h('p',null,'Totals include resident billing and approved outside nursing invoices. Outside nursing: '+money(state.outside?.charges)+' invoiced · '+money(state.outside?.received)+' received · '+money(state.outside?.outstanding)+' outstanding.'),
