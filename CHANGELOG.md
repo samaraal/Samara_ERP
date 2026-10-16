@@ -1,3 +1,8 @@
+## 2.17.0 — Stores quantities and usage reconciliation
+- Whole-number stock quantities for receipts, indents, handovers, returns, resident use and Housekeeping. Currency precision is unchanged.
+- Item Usage Register separates actual resident / Outside Nursing use, Housekeeping holdings and charged quantity; all-history view avoids treating prior-period balances as additional receipts.
+- Superseded stock entries are excluded from active register calculations while audit history is retained.
+
 ## 2.16.99 — Housekeeping indent and usage workflow
 - STD has permanent Housekeeping request, receipt and usage access. Nursing Manager approval and assigned Stores In-charge handover remain separate stages.
 - Handover deducts stock once; STD records dated usage and remaining Housekeeping balance with full staff history and audited corrections. No patient billing.
