@@ -1,3 +1,8 @@
+## 2.16.89 — Collection Breakup
+
+- Add a navigable Accounts Dashboard box with month/category drilldowns and Total Charges (after discounts), Realised and Pending. General receipts and advances settle oldest charges first per patient; discounts are proportional, refunds reduce receipts, and outside nursing invoices remain separate. Unused advances are shown separately.
+- Load complete resident billing history with pagination; suppress the breakup on partial data errors. Read-only reporting, with no bill or receipt changes.
+
 ## 2.16.88 — Dedicated Outside Nursing dashboard
 
 - Add an Outside Nursing menu with a dedicated dashboard and filtered procedure register. Admin sees the full overview; nurses see procedure and correction tasks; managers see clinical and item queues; Accounts sees approved invoices, receipts and balances. Existing server permissions remain in force.
