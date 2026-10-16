@@ -1,4 +1,4 @@
-  function ConsumablesStores({profile,categoryFilter='',section='',onSummary=null,onOpenSection=null}){
+  function ConsumablesStores({profile,categoryFilter='',section='',onSummary=null,onOpenSection=null,onOpenUsage=null}){
     // 2.14.91: section = '' (full page, as before) | 'none' | 'stock' | 'receive' | 'receipts' | 'movement' | 'expiry' — used by the Pharmacy & Stores dashboard
     const show=key=>!section||section===key;
     const authority=useStoreAuthority(profile);
@@ -530,7 +530,7 @@
           h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:openCleanupNames},'Clean Up Item Names (remove trailing quantity)')
         ),
         h('div',{className:'stores-stock-mobile'},displayStock.length?displayStock.map(r=>h('article',{className:'stores-stock-card',key:`mobile-${r.item_id}`},
-          h('div',{className:'stores-stock-card-head'},h('strong',null,`${masterById.get(r.item_id)?.item_code?`${masterById.get(r.item_id).item_code} · `:''}${displayStoreItemName(r.item_name)}`),h('span',{style:statusStyle(r)},stockStatus(r))),
+          h('div',{className:'stores-stock-card-head'},onOpenUsage?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onOpenUsage(r.item_id)},`${masterById.get(r.item_id)?.item_code||''} · ${displayStoreItemName(r.item_name)} — Usage`):h('strong',null,displayStoreItemName(r.item_name)),h('span',{style:statusStyle(r)},stockStatus(r))),
           h('div',{className:'stores-stock-card-values'},
             h('span',null,h('small',null,'Unit'),h('b',null,unitLabel(r.unit)||'—',unitWarn(r.unit))),
             h('span',null,h('small',null,'Total In'),h('b',null,r.total_in)),
@@ -547,7 +547,7 @@
         h('div',{className:'table-wrap stores-stock-desktop'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Item ID','Item','Unit','Total In','Total Out','Balance','Reorder Level','Status','Action'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,displayStock.length?displayStock.map(r=>h('tr',{key:r.item_id},
-            h('td',null,masterById.get(r.item_id)?.item_code||'—'),h('td',null,h('strong',null,displayStoreItemName(r.item_name)),unitWarn(r.unit)),h('td',null,unitLabel(r.unit)||'—'),h('td',null,r.total_in),h('td',null,r.total_out),h('td',null,h('strong',null,r.balance_qty)),h('td',null,r.reorder_level),h('td',null,h('span',{style:statusStyle(r)},stockStatus(r))),
+            h('td',null,masterById.get(r.item_id)?.item_code||'—'),h('td',null,onOpenUsage?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onOpenUsage(r.item_id)},displayStoreItemName(r.item_name)):h('strong',null,displayStoreItemName(r.item_name)),unitWarn(r.unit)),h('td',null,unitLabel(r.unit)||'—'),h('td',null,r.total_in),h('td',null,r.total_out),h('td',null,h('strong',null,r.balance_qty)),h('td',null,r.reorder_level),h('td',null,h('span',{style:statusStyle(r)},stockStatus(r))),
             h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap',alignItems:'center'}},
               controller?h('div',{key:'controller-actions',style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>openReceiveFor(r)},'Receive Stock'),thisSection.departmentIssue&&typeof onOpenSection==='function'&&Number(r.balance_qty)>0?h('button',{key:'issue',className:'btn btn-secondary',disabled:busy,onClick:()=>openIssueFor(r)},'Issue to Dept'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setReorder(r)},'Set Minimum'),oversight?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>reconcile(r)},'Physical Tally'):null,h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openItemHistory(r)},'History'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openExpiryEdit(r)},'Expiry'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreItem(r)},'Edit Item'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>openCategoryEdit(r)},masterById.get(r.item_id)?.standard_category?`Category: ${masterById.get(r.item_id).standard_category}`:'Set Category'),canEditChargeRate?h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreChargeRate(r)},`Rate ₹${Number(masterById.get(r.item_id)?.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`):null):h('span',{key:'view-only'},'View only'),
               oversight?h('button',{key:'remove',className:'btn btn-danger',disabled:busy,onClick:()=>removeItem(r)},'Remove'):null
