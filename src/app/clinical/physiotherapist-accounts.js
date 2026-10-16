@@ -106,6 +106,7 @@
     }
     if(!admin)return h(PhysioSessionCounts,{profile});
     return h('div',null,
+      h(PatientPhysioBilling,{profile}),
       h('section',{className:'card panel'},h('h3',null,'Outsourced Physiotherapy Accounts'),h('p',{className:'small-note'},'Admin access. Fees are posted only for completed sessions. Payment entries record money already paid; they do not transfer money.'),
         error&&h('div',{className:'message error'},error),notice&&h('div',{className:'message success'},notice),
         h('div',{className:'actions'},['Organisations','Physiotherapists','Sessions','Payments','Ledger','Statement','Session Counts'].map(name=>button(name,()=>setTab(name),tab===name))),
@@ -127,4 +128,57 @@
           ['payment','refund'].includes(form.kind)&&h(React.Fragment,null,field('Amount ₹','amount','number',true),field('Actual transaction date','entry_date','date',true),select('Payment method','method',['Bank transfer','UPI','Cheque','Cash','Other'].map(value=>({value,label:value}))),field('Transaction reference','reference','text',form.method!=='Cash'),field('Recipient / payer','recipient','text',form.method==='Cash'),text('Notes / invoice reference','notes')),
           form.kind==='reverse'&&h(React.Fragment,null,h('p',{className:'span-2'},voucher(form.entry)+' · '+form.entry.kind+' · ₹'+money(Math.abs(form.entry.amount))),h('div',{className:'field span-2'},h('label',null,'Reason'),h('textarea',{required:true,rows:2,value:form.reason,onChange:e=>setForm({...form,reason:e.target.value})})))),
         h('div',{className:'actions'},h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save'),button('Cancel',()=>setForm(null))))));
+  }
+
+  function patientPhysioBillingStatus(session,clinicalApproval){
+    if(session.request_id)return session.approval_status==='Approved'?'Posted to patient bill':session.approval_status==='Rejected'?'Rejected — Accounts review':session.approval_status||'Pending Accounts approval';
+    if(session.manual_charge_exists)return 'Existing charge — reconcile before billing';
+    if(clinicalApproval)return 'Clinical approval required';
+    return 'Awaiting Admin / Director patient rate';
+  }
+  function PatientPhysioBilling({profile,onNavigate}){
+    const admin=profile?.role==='Admin',finance=admin||profile?.role==='Accounts';
+    const [open,setOpen]=React.useState(false),[data,setData]=React.useState({patients:[],rates:[],sessions:[]});
+    const [patient,setPatient]=React.useState(''),[form,setForm]=React.useState(null),[busy,setBusy]=React.useState(false),[loading,setLoading]=React.useState(true),[error,setError]=React.useState(''),[notice,setNotice]=React.useState('');
+    const loadVersion=React.useRef(0);
+    async function load(){
+      if(!finance)return;const version=++loadVersion.current;setLoading(true);setError('');
+      try{const result=await client.rpc('patient_physio_billing',{p_action:'load'});if(version!==loadVersion.current)return;if(result.error)throw result.error;setData(result.data);setPatient(current=>current||result.data.patients[0]?.id||'')}
+      catch(e){if(version===loadVersion.current)setError(e.message||'Unable to load patient physiotherapy billing')}
+      finally{if(version===loadVersion.current)setLoading(false)}
+    }
+    React.useEffect(()=>{load();if(!finance)return;const channel=client.channel('patient-physio-billing-'+profile.id).on('postgres_changes',{event:'*',schema:'public',table:'physiotherapy_sessions'},load).on('postgres_changes',{event:'*',schema:'public',table:'bill_charge_requests'},load).subscribe();return()=>{++loadVersion.current;client.removeChannel(channel)}},[finance,profile?.id]);
+    const money=v=>'₹'+Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const pending=data.sessions.filter(s=>!s.request_id).length;
+    const sessions=data.sessions.filter(s=>s.patient_id===patient),rates=data.rates.filter(r=>r.patient_id===patient);
+    function beginRate(){setNotice('');setForm({amount:'',effective_from:sessions.filter(s=>!s.request_id).map(s=>s.session_date).sort()[0]||todayISOIndia(),notes:''})}
+    async function save(e){
+      e.preventDefault();if(!admin||busy)return;setBusy(true);setError('');
+      try{const result=await client.rpc('patient_physio_billing',{p_action:'save_rate',p_data:{patient_id:patient,...form}});if(result.error)throw result.error;setNotice('Patient rate saved. '+result.data.queued+' completed session(s) sent to Accounts for approval.');setForm(null);await load()}
+      catch(e){setError(e.message||'Unable to save patient rate')}finally{setBusy(false)}
+    }
+    if(!finance)return null;
+    const button=(text,fn)=>h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:fn},text);
+    return h('section',{className:'accounts-panel',style:{margin:'16px 0'}},
+      h('button',{type:'button',className:'btn btn-secondary','aria-expanded':open,onClick:()=>setOpen(v=>!v)},'Patient Physiotherapy Billing'+(loading?' — loading…':error?' — needs attention':' · '+pending+' completed session(s) awaiting billing')),
+      error&&h('p',{role:'alert'},error),
+      open&&h(React.Fragment,null,h('h3',null,'Patient Physiotherapy Billing'),h('p',null,'Admin / Director sets the agreed patient rate and effective date. Completed sessions then go to Accounts for approval before appearing in charges and Collection Breakup. The general Charge Master and therapist supplier fee are separate.'),
+        notice&&h('p',{role:'status'},notice),
+        h('div',{className:'actions'},h('label',null,'Physiotherapy patient ',h('select',{'aria-label':'Physiotherapy patient',value:patient,onChange:e=>{setPatient(e.target.value);setForm(null);setNotice('')}},h('option',{value:''},'Select patient'),data.patients.map(p=>h('option',{key:p.id,value:p.id},p.full_name+' · '+p.patient_id)))),button('Refresh physiotherapy billing',load),
+          admin&&patient&&button('Set patient session rate',beginRate),
+          !admin&&h('small',null,'Patient rates can be set only by Admin / Director.'),
+          onNavigate&&button('Open Accounts charge approvals',()=>onNavigate('Charge Approvals'))),
+        data.clinical_approval_required&&h('p',{role:'alert'},'Physiotherapy requires clinical approval. Use Nursing Approval Requests; automatic billing requests are paused.'),
+        !loading&&data.patients.length===0&&h('p',null,'No active patient has a physiotherapy plan or session.'),
+        form&&h('form',{onSubmit:save,className:'form-grid'},
+          h('label',null,'Agreed patient rate per session ₹',h('input',{'aria-label':'Agreed patient rate per session',type:'number',min:'0.01',step:'0.01',required:true,value:form.amount,onChange:e=>setForm({...form,amount:e.target.value})})),
+          h('label',null,'Effective from',h('input',{'aria-label':'Patient rate effective from',type:'date',required:true,max:todayISOIndia(),value:form.effective_from,onChange:e=>setForm({...form,effective_from:e.target.value})})),
+          h('label',null,'Approval notes / agreed terms',h('textarea',{'aria-label':'Patient rate approval notes',required:true,minLength:5,value:form.notes,onChange:e=>setForm({...form,notes:e.target.value})})),
+          h('p',null,'Saving queues unbilled completed sessions on or after this date at this rate. Existing requests keep their original rate. Enter a new later effective date for future changes.'),
+          h('div',{className:'actions'},h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save patient rate & queue sessions'),button('Cancel patient rate',()=>setForm(null)))),
+        patient&&h(LogTable,{title:'Approved patient rate history',heads:['Effective from','Rate per session','Approval notes'],rows:rates.map(r=>[formatDateIN(r.effective_from),money(r.amount),r.notes])}),
+        patient&&rates.length===0&&h('p',null,'No patient-specific rate has been approved. No generic tariff will be applied.'),
+        patient&&h(LogTable,{title:'Completed sessions — patient billing status',heads:['Session date','Physiotherapist','Treatment notes','Patient rate','Billing status'],rows:sessions.map(s=>[formatDateIN(s.session_date),s.physiotherapist||'—',s.notes||'—',s.billing_rate==null?'Awaiting rate':money(s.billing_rate),patientPhysioBillingStatus(s,data.clinical_approval_required)])})
+      )
+    );
   }
