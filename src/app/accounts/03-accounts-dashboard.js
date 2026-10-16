@@ -11,10 +11,18 @@
     for(const r of rows||[]){const d=day(r.transaction_date);if(!d||d>through)continue;const key=r.patient_id||'unassigned:'+r.id;if(!patients.has(key))patients.set(key,[]);patients.get(key).push({...r,_day:d})}
     patients.forEach(list=>{
       const charges=list.filter(r=>r.transaction_type==='Charge'&&cents(r.amount)>0).sort((a,b)=>new Date(a.transaction_date)-new Date(b.transaction_date)||String(a.id).localeCompare(String(b.id)));
-      const total=charges.reduce((n,r)=>n+cents(r.amount),0);
-      const discount=Math.min(total,Math.max(0,list.filter(r=>r.transaction_type==='Discount').reduce((n,r)=>n+cents(r.amount),0)));
-      let cash=Math.max(0,list.reduce((n,r)=>n+(['Payment','Advance'].includes(r.transaction_type)?cents(r.amount):r.transaction_type==='Refund'?-cents(r.amount):0),0)),gross=0,usedDiscount=0;
-      charges.forEach(r=>{gross+=cents(r.amount);const cumulative=total?Math.round(discount*gross/total):0;const net=cents(r.amount)-(cumulative-usedDiscount);usedDiscount=cumulative;const realised=Math.min(net,cash);cash-=realised;if(r._day.slice(0,7)===month)details.push({...r,group:category(r),total:net/100,realised:realised/100,pending:(net-realised)/100})});advances+=cash/100;
+      const reductions=new Map(),byMonth=new Map();
+      charges.forEach(r=>{const m=r._day.slice(0,7);if(!byMonth.has(m))byMonth.set(m,[]);byMonth.get(m).push(r)});
+      const discountMonths=new Map();list.filter(r=>r.transaction_type==='Discount').forEach(r=>{const m=r._day.slice(0,7);discountMonths.set(m,(discountMonths.get(m)||0)+cents(r.amount))});
+      let excess=0;
+      [...discountMonths.entries()].sort().forEach(([m,amount])=>{
+        const group=byMonth.get(m)||[],total=group.reduce((n,r)=>n+cents(r.amount),0),discount=Math.min(total,Math.max(0,amount));let gross=0,used=0;
+        group.forEach(r=>{gross+=cents(r.amount);const cumulative=total?Math.round(discount*gross/total):0;reductions.set(r.id,cumulative-used);used=cumulative});excess+=Math.max(0,amount-discount);
+      });
+      // Surplus discounts settle remaining charges oldest first, never below zero.
+      charges.forEach(r=>{const reduction=reductions.get(r.id)||0,extra=Math.min(excess,cents(r.amount)-reduction);reductions.set(r.id,reduction+extra);excess-=extra});
+      let cash=Math.max(0,list.reduce((n,r)=>n+(['Payment','Advance'].includes(r.transaction_type)?cents(r.amount):r.transaction_type==='Refund'?-cents(r.amount):0),0));
+      charges.forEach(r=>{const net=cents(r.amount)-(reductions.get(r.id)||0),realised=Math.min(net,cash);cash-=realised;if(r._day.slice(0,7)===month)details.push({...r,group:category(r),total:net/100,realised:realised/100,pending:(net-realised)/100})});advances+=cash/100;
     });
     const categories=['Room Rent','Consumables','Pharmacy','Samara Outside Nursing Procedures','Nursing & Procedures','Physiotherapy','Food & Diet','Doctor Visits','Laboratory','Ambulance / Transport','Other Services'].map(name=>({name,...details.filter(r=>r.group===name).reduce((a,r)=>({total:a.total+r.total,realised:a.realised+r.realised,pending:a.pending+r.pending}),{total:0,realised:0,pending:0})}));
     const totals=categories.reduce((a,r)=>({total:a.total+r.total,realised:a.realised+r.realised,pending:a.pending+r.pending}),{total:0,realised:0,pending:0});return {categories,details,totals,advances};
@@ -212,7 +220,7 @@
 
       breakupOpen&&h('section',{id:'collection-breakup',className:'accounts-panel',style:{marginBottom:20}},
         h('div',{className:'accounts-panel-head'},h('h3',null,'Collection Breakup'),h('label',null,'Charge month ',h('input',{type:'month',value:breakupMonth,max:month,onChange:e=>{if(e.target.value){setBreakupMonth(e.target.value);setBreakupCategory(null)}}})),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setBreakupOpen(false)},'Close')),
-        h('p',null,'Charges posted in the selected month, after discounts; settled through '+today+'. Payments and advances cover each patient’s oldest charges first (FIFO). Discounts are spread proportionately across that patient’s charges. Refunds reduce available receipts. Outside nursing stays within its own invoice.'),
+        h('p',null,'Charges posted in the selected month, after discounts; settled through '+today+'. Payments and advances cover each patient’s oldest charges first (FIFO). Discounts are spread proportionately across that patient’s charges in the discount’s posting month; any excess reduces other charges oldest first. Refunds reduce available receipts. Outside nursing stays within its own invoice.'),
         h('p',null,'Realised here is the settlement of the selected month’s charges, and can differ from revenue realised during that month. Select a category for details.'),
         state.loading?h('p',null,'Loading complete billing history…'):state.error||state.outside?.error?h('p',{role:'alert'},'Collection Breakup unavailable: '+(state.error||state.outside.error)):
         h(React.Fragment,null,
