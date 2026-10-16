@@ -106,7 +106,6 @@
     }
     if(!admin)return h(PhysioSessionCounts,{profile});
     return h('div',null,
-      h(PatientPhysioBilling,{profile}),
       h('section',{className:'card panel'},h('h3',null,'Outsourced Physiotherapy Accounts'),h('p',{className:'small-note'},'Admin access. Fees are posted only for completed sessions. Payment entries record money already paid; they do not transfer money.'),
         error&&h('div',{className:'message error'},error),notice&&h('div',{className:'message success'},notice),
         h('div',{className:'actions'},['Organisations','Physiotherapists','Sessions','Payments','Ledger','Statement','Session Counts'].map(name=>button(name,()=>setTab(name),tab===name))),
@@ -136,9 +135,9 @@
     if(clinicalApproval)return 'Clinical approval required';
     return 'Awaiting Admin / Director patient rate';
   }
-  function PatientPhysioBilling({profile,onNavigate}){
+  function PatientPhysioBilling({profile,onNavigate,embedded=false}){
     const admin=profile?.role==='Admin',finance=admin||profile?.role==='Accounts';
-    const [open,setOpen]=React.useState(false),[data,setData]=React.useState({patients:[],rates:[],sessions:[]});
+    const [open,setOpen]=React.useState(embedded),[data,setData]=React.useState({patients:[],rates:[],sessions:[]});
     const [patient,setPatient]=React.useState(''),[form,setForm]=React.useState(null),[busy,setBusy]=React.useState(false),[loading,setLoading]=React.useState(true),[error,setError]=React.useState(''),[notice,setNotice]=React.useState('');
     const loadVersion=React.useRef(0);
     async function load(){
@@ -157,10 +156,20 @@
       try{const result=await client.rpc('patient_physio_billing',{p_action:'save_rate',p_data:{patient_id:patient,...form}});if(result.error)throw result.error;setNotice('Patient rate saved. '+result.data.queued+' completed session(s) sent to Accounts for approval.');setForm(null);await load()}
       catch(e){setError(e.message||'Unable to save patient rate')}finally{setBusy(false)}
     }
+    async function decideSession(session,decision){
+      if(profile?.role!=='Accounts'||busy||!session.request_id)return;
+      const amount=Number(session.billing_rate||0);
+      if(decision==='Approved'&&!(amount>0)){setError('Admin must set the patient rate before approval.');return}
+      const remarks=window.prompt(decision==='Approved'?'Approve this session at the patient’s agreed rate of '+money(amount)+'? Enter verification notes:':'Reason for rejecting this session charge:');
+      if(remarks===null)return;if(!remarks.trim()){setError('Enter decision notes.');return}
+      setBusy(true);setError('');
+      try{const result=await client.rpc('decide_bill_charge_request_v5',{p_request_id:session.request_id,p_decision:decision,p_approved_amount:decision==='Approved'?amount:0,p_remarks:remarks.trim()});if(result.error)throw result.error;setNotice(decision==='Approved'?'Session charge posted to the patient bill.':'Session charge rejected for Accounts review.');await load()}
+      catch(e){setError(e.message||'Unable to decide the session charge')}finally{setBusy(false)}
+    }
     if(!finance)return null;
     const button=(text,fn)=>h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:fn},text);
     return h('section',{className:'accounts-panel',style:{margin:'16px 0'}},
-      h('button',{type:'button',className:'btn btn-secondary','aria-expanded':open,onClick:()=>setOpen(v=>!v)},'Patient Physiotherapy Billing'+(loading?' — loading…':error?' — needs attention':' · '+pending+' completed session(s) awaiting billing')),
+      !embedded&&h('button',{type:'button',className:'btn btn-secondary','aria-expanded':open,onClick:()=>setOpen(v=>!v)},'Patient Physiotherapy Billing'+(loading?' — loading…':error?' — needs attention':' · '+pending+' completed session(s) awaiting billing')),
       error&&h('p',{role:'alert'},error),
       open&&h(React.Fragment,null,h('h3',null,'Patient Physiotherapy Billing'),h('p',null,'Admin / Director sets the agreed patient rate and effective date. Completed sessions then go to Accounts for approval before appearing in charges and Collection Breakup. The general Charge Master and therapist supplier fee are separate.'),
         notice&&h('p',{role:'status'},notice),
@@ -178,7 +187,43 @@
           h('div',{className:'actions'},h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save patient rate & queue sessions'),button('Cancel patient rate',()=>setForm(null)))),
         patient&&h(LogTable,{title:'Approved patient rate history',heads:['Effective from','Rate per session','Approval notes'],rows:rates.map(r=>[formatDateIN(r.effective_from),money(r.amount),r.notes])}),
         patient&&rates.length===0&&h('p',null,'No patient-specific rate has been approved. No generic tariff will be applied.'),
-        patient&&h(LogTable,{title:'Completed sessions — patient billing status',heads:['Session date','Physiotherapist','Treatment notes','Patient rate','Billing status'],rows:sessions.map(s=>[formatDateIN(s.session_date),s.physiotherapist||'—',s.notes||'—',s.billing_rate==null?'Awaiting rate':money(s.billing_rate),patientPhysioBillingStatus(s,data.clinical_approval_required)])})
+        patient&&h(LogTable,{title:'Completed sessions — patient billing status',heads:['Session date','Physiotherapist','Treatment notes','Patient rate','Billing status',...(profile?.role==='Accounts'?['Accounts decision']:[])],rows:sessions.map(s=>[formatDateIN(s.session_date),s.physiotherapist||'—',s.notes||'—',s.billing_rate==null?'Awaiting rate':money(s.billing_rate),patientPhysioBillingStatus(s,data.clinical_approval_required),...(profile?.role==='Accounts'?[s.request_id&&s.approval_status==='Pending'?h('div',{className:'actions'},button('Approve agreed rate',()=>decideSession(s,'Approved')),button('Reject charge',()=>decideSession(s,'Rejected'))):'—']:[])])})
       )
+    );
+  }
+  function physiotherapyDashboardAccess(profile){
+    const pages=allowedPagesForProfile(profile),admin=profile?.role==='Admin';
+    return {allowed:pages.includes('Physiotherapy Dashboard'),clinical:pages.includes('Physiotherapy')&&profile?.role!=='Kitchen',finance:admin||profile?.role==='Accounts',supplier:admin,counts:['Admin','Manager','Nurse','Caregiver'].includes(profile?.role)};
+  }
+  function PhysiotherapyDashboard({profile,onNavigate,initialTab='Overview'}){
+    const access=physiotherapyDashboardAccess(profile);
+    const tabs=['Overview',...(access.clinical?['Sessions']:[]),...(access.finance?['Patient Rates & Billing']:[]),...(access.supplier?['Therapist Accounts']:[])];
+    const [tab,setTab]=React.useState(tabs.includes(initialTab)?initialTab:'Overview');
+    const selected=tabs.includes(tab)?tab:'Overview';
+    const [summary,setSummary]=React.useState(null),[error,setError]=React.useState(''),[loading,setLoading]=React.useState(false);
+    React.useEffect(()=>{
+      if(!access.allowed||!access.finance||selected!=='Overview')return;
+      let stopped=false;
+      async function load(){setLoading(true);setError('');try{const result=await client.rpc('patient_physio_billing',{p_action:'load'});if(stopped)return;if(result.error)throw result.error;setSummary(result.data)}catch(e){if(!stopped){setError(e.message||'Unable to load physiotherapy billing overview');setSummary(null)}}finally{if(!stopped)setLoading(false)}}
+      load();const channel=client.channel('physio-dashboard-summary-'+profile.id).on('postgres_changes',{event:'*',schema:'public',table:'physiotherapy_sessions'},load).on('postgres_changes',{event:'*',schema:'public',table:'bill_charge_requests'},load).subscribe();
+      return()=>{stopped=true;client.removeChannel(channel)};
+    },[access.allowed,access.finance,selected,profile?.id]);
+    if(!access.allowed)return h('p',null,'Physiotherapy access is not assigned to this role.');
+    const money=v=>'₹'+Number(v||0).toLocaleString('en-IN',{maximumFractionDigits:2});
+    const sessions=summary?.sessions||[],unbilled=sessions.filter(s=>!s.request_id),pending=sessions.filter(s=>s.request_id&&s.approval_status==='Pending'),posted=sessions.filter(s=>s.approval_status==='Approved');
+    const cards=[...(access.clinical?[['Sessions','Sessions & Clinical Review','Record completed sessions, review treatment history and handle corrections.']]:[]),...(access.finance?[['Patient Rates & Billing',access.supplier?'Set Patient Rates & Review Billing':'Review Patient Charges','Patient-specific rates, completed sessions and Accounts approval in one place.']]:[]),...(access.supplier?[['Therapist Accounts','Therapist Accounts','Organisation fees, payments and supplier statements.']]:[])];
+    return h('div',null,
+      h('div',{className:'accounts-hero'},h('div',null,h('small',null,'PHYSIOTHERAPY · CARE · BILLING'),h('h3',null,'Physiotherapy Dashboard'),h('p',null,'One workspace for physiotherapy sessions, patient billing and therapist accounts.'))),
+      h('nav',{className:'actions','aria-label':'Physiotherapy workspace',style:{margin:'16px 0'}},tabs.map(name=>h('button',{type:'button',key:name,className:'btn '+(selected===name?'btn-primary':'btn-secondary'),'aria-pressed':selected===name,onClick:()=>setTab(name)},name==='Sessions'?'Sessions & Clinical Review':name))),
+      selected==='Overview'&&h(React.Fragment,null,
+        h('div',{className:'accounts-workflow-grid'},cards.map(([target,title,note])=>h('button',{type:'button',key:target,className:'accounts-workflow-card',onClick:()=>setTab(target)},h('strong',null,title),h('p',null,note),h('span',null,'Open →')))),
+        access.finance&&h('section',{className:'accounts-panel',style:{margin:'16px 0'}},h('h3',null,'Active Patient Billing Overview'),h('p',null,'Completed sessions for current patients. Charges appear in Accounts and Collection Breakup only after Accounts approval.'),
+          error?h('p',{role:'alert'},error):loading||!summary?h('p',null,'Loading physiotherapy billing…'):
+          h('div',{className:'accounts-kpi-grid'},[['Completed Sessions',sessions.length],['Awaiting Patient Rate / Billing Review',unbilled.length],['Pending Accounts Approval',pending.length],['Posted Patient Charges',money(posted.reduce((n,s)=>n+Number(s.amount||0),0))]].map(([label,value])=>h('button',{type:'button',key:label,className:'accounts-kpi teal',onClick:()=>setTab('Patient Rates & Billing')},h('span',null,label),h('strong',null,value),h('small',null,'Open Patient Rates & Billing →'))))),
+        access.counts&&h(PhysioSessionCounts,{profile})
+      ),
+      selected==='Sessions'&&access.clinical&&h(Physiotherapy,{profile,onNavigate}),
+      selected==='Patient Rates & Billing'&&access.finance&&h(PatientPhysioBilling,{profile,embedded:true}),
+      selected==='Therapist Accounts'&&access.supplier&&h(PhysiotherapistAccounts,{profile})
     );
   }
