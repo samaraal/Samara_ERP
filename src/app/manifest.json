@@ -422,6 +422,9 @@
    "lines": 181
   },
   {
+   "file": "stores/housekeeping-workspace.js", "about": "Housekeeping STD indent workflow and consumption", "lines": 60
+  },
+  {
    "file": "stores/stores-dashboard.js",
    "about": "Pharmacy & Stores dashboard (Consumables / Pharmacy): navigable boxes, Back to Dashboard",
    "lines": 106
