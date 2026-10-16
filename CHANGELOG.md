@@ -1,3 +1,7 @@
+## 2.16.94 — Completed staff return notifications
+- Stop login action popups for staff already marked back on duty; retain their recorded return in Notifications and leave history.
+- Continue action alerts for staff who have not returned after leave.
+
 ## 2.16.93 — Menu order by daily workflow
 - Prioritised patient care for clinical roles, billing for Accounts, and the patient workflow for Admin; specialist modules now follow core daily tasks.
 - Preserved page permissions, dedicated dashboards and Accounts subgroups across desktop and mobile navigation.
