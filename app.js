@@ -25554,6 +25554,12 @@ Please keep these login details confidential.`;
         billing:details.billing||[],documents:details.docs||[],
         daily_moments:details.dailyMoments||[]
       };
+      // Match the family portal: only non-voided tube feeds, without internal notes.
+      const tubeFeedsReady=client.from('io_entries').select('id,entry_at,item,volume_ml')
+        .eq('patient_id',selected.id).eq('direction','Intake').eq('category','Tube feed').eq('voided',false)
+        .gte('entry_at',new Date(Date.now()-120*86400000).toISOString()).order('entry_at',{ascending:false})
+        .then(({data,error})=>{if(error){showPatientToast('error','Tube feeds could not be loaded for the Family Portal preview.');return}dashboard.tube_feeds=data||[];})
+        .catch(()=>showPatientToast('error','Tube feeds could not be loaded for the Family Portal preview.'));
       const session={
         admin_preview:true,access_id:access.id||'admin-preview',patient_uuid:selected.id,
         patient_code:selected.patient_id||selected.patient_code||'',patient_name:formalName(selected)||selected.full_name||'Resident',
@@ -25561,9 +25567,10 @@ Please keep these login details confidential.`;
         relative_name:access.relative_name||'Authorised Family Member',relationship:access.relationship||'Authorised Relative'
       };
       let popup=null;
-      const handler=event=>{
+      const handler=async event=>{
         if(event.origin!==portalOrigin||event.source!==popup)return;
         if(event.data?.type!=='SAMARA_FAMILY_ADMIN_PREVIEW_REQUEST'||event.data?.preview_id!==previewId)return;
+        await tubeFeedsReady;
         popup.postMessage({type:'SAMARA_FAMILY_ADMIN_PREVIEW_DATA',preview_id:previewId,session,dashboard},portalOrigin);
       };
       window.addEventListener('message',handler);
@@ -25574,7 +25581,7 @@ Please keep these login details confidential.`;
       // This avoids relying on window.opener, which some browsers/privacy settings sever
       // for cross-origin tabs. The Family Portal validates both origin and preview_id.
       const previewMessage={type:'SAMARA_FAMILY_ADMIN_PREVIEW_DATA',preview_id:previewId,session,dashboard};
-      const sendPreview=()=>{try{if(popup&&!popup.closed)popup.postMessage(previewMessage,portalOrigin)}catch(_){}};
+      const sendPreview=async()=>{await tubeFeedsReady;try{if(popup&&!popup.closed)popup.postMessage(previewMessage,portalOrigin)}catch(_){}};
       [400,900,1600,2800,4500,7000].forEach(ms=>window.setTimeout(sendPreview,ms));
       window.setTimeout(()=>window.removeEventListener('message',handler),15000);
     }
