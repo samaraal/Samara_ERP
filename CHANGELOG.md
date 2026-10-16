@@ -1,3 +1,7 @@
+## 2.16.96 — Discharged patient ledger and bill search
+- Added Active, Inactive / Discharged and All patient selection to Guest Ledger and Final Billing.
+- Search the selected status by name or resident ID from three characters; retain full financial history for discharged residents.
+
 ## 2.16.95 — Payment patient search
 - Added Active, Inactive / Discharged and All patient filters with name / ID search from three characters in payment history and manual entry.
 - Kept patient selection consistent between history and payment entry, including discharged residents.
