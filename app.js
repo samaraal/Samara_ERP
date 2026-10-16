@@ -38555,22 +38555,24 @@ function ShiftHandover({profile,onNavigate}){
   }
 
   function BillingPayments({profile}){
-    const [patients]=usePatients();
-    // Accounts history must remain available after discharge.  Keep the existing
-    // active-patient list for new manual entries, and load a separate all-patient
-    // list only for financial history / receipt resend selection.
+    const [activePatients]=usePatients();
+    // Payments and financial history remain available after discharge.
     const [financialPatients,setFinancialPatients]=React.useState([]);
+    const [patientListLoading,setPatientListLoading]=React.useState(true);
+    const [patientListError,setPatientListError]=React.useState('');
+    const [patientScope,setPatientScope]=React.useState('active');
+    const [patientSearch,setPatientSearch]=React.useState('');
+    const patients=financialPatients.length?financialPatients:activePatients;
     React.useEffect(()=>{
       let cancelled=false;
       (async()=>{
         const {data,error}=await client.from('patients').select('*').order('full_name');
-        if(error){console.error('Accounts patient history list could not be loaded:',error);return}
-        if(!cancelled)setFinancialPatients(data||[]);
+        if(!cancelled){setPatientListLoading(false);setPatientListError(error?'Patient list could not be loaded. Refresh this page to retry.':'');if(!error)setFinancialPatients(data||[]);}
       })();
       const ch=client.channel(`accounts-all-patients-${Math.random()}`)
         .on('postgres_changes',{event:'*',schema:'public',table:'patients'},async()=>{
           const {data,error}=await client.from('patients').select('*').order('full_name');
-          if(!error&&!cancelled)setFinancialPatients(data||[]);
+          if(!cancelled){setPatientListError(error?'Patient list could not be refreshed. Refresh this page to retry.':'');if(!error)setFinancialPatients(data||[]);}
         }).subscribe();
       return()=>{cancelled=true;client.removeChannel(ch)};
     },[]);
@@ -38629,6 +38631,29 @@ function ShiftHandover({profile,onNavigate}){
       description:'',
       closure_remarks:'All payments received and final account settled.'
     });
+
+    const patientQuery=patientSearch.trim().toLowerCase();
+    const matchingPatients=patients.filter(p=>
+      (patientScope==='all'||(patientScope==='inactive'?p.is_active===false:p.is_active!==false))&&
+      (patientQuery.length<3||`${p.full_name||''} ${p.patient_id||''}`.toLowerCase().includes(patientQuery))
+    );
+    // Keep a selected resident visible when the search is refined or a discharge target opens.
+    const selectablePatients=[...matchingPatients,...patients.filter(p=>
+      [patientFilter,form.patient_id].includes(p.id)&&!matchingPatients.some(m=>m.id===p.id)
+    )];
+    function choosePaymentPatient(value){
+      setPatientFilter(value);
+      setForm(current=>({...current,patient_id:value}));
+    }
+    function patientSearchFields(prefix){return h(React.Fragment,null,
+      h('div',{className:'field'},h('label',{htmlFor:prefix+'-scope'},'Patient status'),
+        h('select',{id:prefix+'-scope',value:patientScope,disabled:!!dischargeTarget,onChange:e=>{setPatientScope(e.target.value);choosePaymentPatient('');}},
+          h('option',{value:'active'},'Active patients'),h('option',{value:'inactive'},'Inactive / Discharged patients'),h('option',{value:'all'},'All patients'))),
+      h('div',{className:'field'},h('label',{htmlFor:prefix+'-search'},'Search patient name / ID'),
+        h('input',{id:prefix+'-search',type:'search',value:patientSearch,disabled:!!dischargeTarget,placeholder:'Type at least 3 characters',onChange:e=>setPatientSearch(e.target.value)}),
+        h('small',{role:'status'},patientListLoading?'Loading patients…':patientListError||
+          (patientQuery.length>0&&patientQuery.length<3?'Type at least 3 characters to filter patients.':matchingPatients.length?`${matchingPatients.length} matching patient(s)`:'No patients match this status and search.')))
+    );}
 
     const isAutoVoucherTransaction=
       ['Cash','Card Payment'].includes(form.payment_mode) &&
@@ -39639,6 +39664,7 @@ Please access the Samara Family Portal for detailed account information.`;
         subtitle:'Select one patient to display only that patient’s financial records'
       },
         h('div',{className:'payment-filter-grid'},
+          patientSearchFields('payment-history'),
           h('div',{className:'field'},
             h('label',null,'Patient'),
             h('select',{
@@ -39646,12 +39672,11 @@ Please access the Samara Family Portal for detailed account information.`;
               disabled:!!dischargeTarget,
               onChange:e=>{
                 const value=e.target.value;
-                setPatientFilter(value);
-                setForm(current=>({...current,patient_id:value}));
+                choosePaymentPatient(value);
               }
             },
               h('option',{value:''},'Select patient'),
-              financialPatients.map(patient=>h('option',{key:patient.id,value:patient.id},
+              selectablePatients.map(patient=>h('option',{key:patient.id,value:patient.id},
                 `${formalName(patient)||patient.full_name} · ${patient.patient_id||'No ID'}${patient.is_active===false?' · Discharged / Inactive':' · Active'}`
               ))
             )
@@ -39777,16 +39802,17 @@ Please access the Samara Family Portal for detailed account information.`;
           :'Accounts, Admin and Manager only'
       },
         h('form',{className:'payment-entry-grid',onSubmit:savePaymentAndPossiblyClose},
+          patientSearchFields('payment-entry'),
           h('div',{className:'field'},
             h('label',null,'Patient'),
             h('select',{
               value:form.patient_id,
               disabled:!!dischargeTarget,
-              onChange:e=>setForm({...form,patient_id:e.target.value})
+              onChange:e=>choosePaymentPatient(e.target.value)
             },
               h('option',{value:''},'Select patient'),
-              patients.map(patient=>h('option',{key:patient.id,value:patient.id},
-                `${patient.patient_id||'No ID'} · ${formalName(patient)||patient.full_name} · Room ${patient.room_no||'—'}-${patient.bed_no||'—'}`
+              selectablePatients.map(patient=>h('option',{key:patient.id,value:patient.id},
+                `${patient.patient_id||'No ID'} · ${formalName(patient)||patient.full_name}${patient.is_active===false?' · Inactive / Discharged':` · Room ${patient.room_no||'—'}-${patient.bed_no||'—'}`}`
               ))
             )
           ),
