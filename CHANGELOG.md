@@ -1,3 +1,7 @@
+## 2.16.93 — Menu order by daily workflow
+- Prioritised patient care for clinical roles, billing for Accounts, and the patient workflow for Admin; specialist modules now follow core daily tasks.
+- Preserved page permissions, dedicated dashboards and Accounts subgroups across desktop and mobile navigation.
+
 ## 2.16.92 — Physiotherapy patient and period filters
 - Added patient dropdown and name / ID search from three characters across the dashboard, sessions and patient billing.
 - Added Today, This Week, Month and custom From / To periods with matching counts and totals; retained organisation-scoped therapist reports.
