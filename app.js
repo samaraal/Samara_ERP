@@ -33989,6 +33989,7 @@ function RoomsBeds({profile,onNavigate}){
     return {allowed:pages.includes('Physiotherapy Dashboard'),clinical:pages.includes('Physiotherapy')&&profile?.role!=='Kitchen',finance:admin||profile?.role==='Accounts',supplier:admin,counts:['Admin','Manager','Nurse','Caregiver'].includes(profile?.role)};
   }
   function PhysiotherapyDashboard({profile,onNavigate,initialTab='Overview'}){
+    React.useEffect(()=>{ensureAccountsWorkspaceStyle()},[]);
     const access=physiotherapyDashboardAccess(profile);
     const tabs=['Overview',...(access.clinical?['Sessions']:[]),...(access.finance?['Patient Rates & Billing']:[]),...(access.supplier?['Therapist Accounts']:[])];
     const [tab,setTab]=React.useState(tabs.includes(initialTab)?initialTab:'Overview');
