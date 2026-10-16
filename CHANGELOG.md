@@ -1,3 +1,8 @@
+## 2.16.99 — Housekeeping indent and usage workflow
+- STD has permanent Housekeeping request, receipt and usage access. Nursing Manager approval and assigned Stores In-charge handover remain separate stages.
+- Handover deducts stock once; STD records dated usage and remaining Housekeeping balance with full staff history and audited corrections. No patient billing.
+- Added period/item/status filters and Housekeeping usage to Item Usage Register. Requires SQL 242.
+
 ## 2.16.98 — Actual patient item consumption
 - Nurses record dated patient consumption against received indents, with quantities, remarks, staff history and audited void/correction.
 - Patient remaining balance subtracts actual use and confirmed returns; pending returns reserve availability. Charged quantity remains separate, with no additional billing or stock deduction.
