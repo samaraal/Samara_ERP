@@ -1,3 +1,7 @@
+## 2.16.92 — Physiotherapy patient and period filters
+- Added patient dropdown and name / ID search from three characters across the dashboard, sessions and patient billing.
+- Added Today, This Week, Month and custom From / To periods with matching counts and totals; retained organisation-scoped therapist reports.
+
 ## 2.16.91 — Dedicated Physiotherapy Dashboard
 
 - Consolidate physiotherapy into one sidebar section. Sessions and clinical review, patient rates and billing, and Admin therapist accounts open inside one dashboard with role-specific tabs. Old task links continue to open the sessions workspace.
