@@ -49,9 +49,10 @@
     const n=v=>Number(v)||0,inPeriod=v=>{const d=storeUsageDay(v);return !!d&&d>=from&&d<=to;},through=v=>{const d=storeUsageDay(v);return !!d&&d<=to;};
     const item=data.items.find(x=>x.id===itemId)||{};
     const stock=data.stock.find(x=>x.item_id===itemId);
-    const movements=data.ledger.filter(x=>x.item_id===itemId);
+    const movements=data.ledger.filter(x=>x.item_id===itemId&&!x.voided_at);
     const opening=movements.filter(x=>storeUsageDay(x.movement_at)<from).reduce((s,x)=>s+n(x.qty_in)-n(x.qty_out),0);
     const periodMoves=movements.filter(x=>inPeriod(x.movement_at));
+    const vendorReceived=movements.filter(x=>x.movement_type==='Vendor Receipt'&&through(x.movement_at)).reduce((s,x)=>s+n(x.qty_in),0);
     const incoming=periodMoves.reduce((s,x)=>s+n(x.qty_in),0),outgoing=periodMoves.reduce((s,x)=>s+n(x.qty_out),0);
     const groups=new Map(),indentGroup=new Map();
     const get=(key,label,kind,patientId,visit)=>{
@@ -122,14 +123,14 @@
         if(inPeriod(m.movement_at)){d.issued+=n(m.qty_out);d.hasPeriod=true;}
       }
     }
-    return {item,stock,opening,incoming,outgoing,closing:opening+incoming-outgoing,periodMoves,
+    return {item,stock,vendorReceived,opening,incoming,outgoing,closing:opening+incoming-outgoing,periodMoves,
       groups:[...groups.values()].filter(g=>g.hasPeriod||g.uncharged!==0||g.remaining!==0).sort((a,b)=>a.label.localeCompare(b.label))};
   }
   function StoreItemUsageRegister({profile,categoryFilter='',initialItem=''}){
     const [data,setData]=React.useState(null),[loading,setLoading]=React.useState(true),[error,setError]=React.useState('');
     const [itemId,setItemId]=React.useState(initialItem),[section,setSection]=React.useState(categoryFilter||'all'),[itemQuery,setItemQuery]=React.useState('');
     const [source,setSource]=React.useState('all'),[patientId,setPatientId]=React.useState(''),[patientQuery,setPatientQuery]=React.useState(''),[status,setStatus]=React.useState('all');
-    const today=todayISOIndia(),[period,setPeriod]=React.useState('month'),[month,setMonth]=React.useState(today.slice(0,7)),[from,setFrom]=React.useState(today.slice(0,8)+'01'),[to,setTo]=React.useState(today);
+    const today=todayISOIndia(),[period,setPeriod]=React.useState('all'),[month,setMonth]=React.useState(today.slice(0,7)),[from,setFrom]=React.useState(today.slice(0,8)+'01'),[to,setTo]=React.useState(today);
     const [detail,setDetail]=React.useState(null),requestNo=React.useRef(0);
     async function load(){const ticket=++requestNo.current;setLoading(true);setError('');setDetail(null);
       async function all(table,columns='*',order='id'){let rows=[];for(let offset=0;;offset+=500){const r=await client.from(table).select(columns).order(order).range(offset,offset+499);if(r.error)throw new Error(`${table}: ${r.error.message}`);rows.push(...(r.data||[]));if((r.data||[]).length<500)return rows;}}
@@ -139,6 +140,7 @@
       }catch(e){if(ticket===requestNo.current){setError(e.message||'Usage register could not be loaded.');setData(null);}}finally{if(ticket===requestNo.current)setLoading(false);}}
     React.useEffect(()=>{load();return()=>{requestNo.current++}},[]);
     let start=from,end=to;
+    if(period==='all'){start='0001-01-01';end=today;}
     if(period==='today'){start=today;end=today;}
     if(period==='week'){const d=new Date(today+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+6)%7));start=d.toISOString().slice(0,10);end=today;}
     if(period==='month'){start=month+'-01';const d=new Date(start+'T12:00:00Z');if(Number.isFinite(d.getTime())){d.setUTCMonth(d.getUTCMonth()+1);d.setUTCDate(0);end=d.toISOString().slice(0,10);}else end='';}
@@ -154,7 +156,7 @@
       (status==='all'||(status==='outside'?g.kind==='Outside Nursing':g.kind==='Resident'&&((data.patients.find(p=>p.id===g.patientId)?.is_active===false)===(status==='inactive'))))&&(pq.length<3||g.label.toLowerCase().includes(pq)));
     const field=(label,control)=>h('div',{className:'field'},h('label',null,label),control);
     const select=(label,value,set,options)=>field(label,h('select',{'aria-label':label,value,onChange:e=>set(e.target.value)},options.map(([v,l])=>h('option',{key:v,value:v},l))));
-    const qty=(v,u)=>`${Number(v||0).toLocaleString('en-IN',{maximumFractionDigits:3})} ${u||''}`;
+    const qty=(v,u)=>`${Number(v||0).toLocaleString('en-IN',{maximumFractionDigits:20})} ${u||''}`;
     const table=(heads,rows)=>h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,heads.map(x=>h('th',{key:x},x)))),h('tbody',null,rows.length?rows:h('tr',null,h('td',{colSpan:heads.length},'No records for these filters.')))));
     const row=(key,cells,onClick)=>h('tr',{key,className:onClick?'row-clickable':'',onClick:onClick||undefined,tabIndex:onClick?0:undefined,onKeyDown:onClick?e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onClick()}}:undefined},cells.map((c,i)=>h('td',{key:i},c)));
     function story(ind){return [['Indent',`CI-${String(ind.indent_no).padStart(5,'0')} · ${ind.status}`],['Requested',qty(ind.requested_qty,ind.unit)],['Raised',[ind.initiated_by_name,formatDateTimeIN(ind.initiated_at||ind.created_at)].filter(Boolean).join(' · ')],['Approved',[qty(ind.approved_qty,ind.unit),ind.approved_by_name,ind.approved_at&&formatDateTimeIN(ind.approved_at)].filter(Boolean).join(' · ')],['Issued',[qty(ind.handed_over_qty,ind.unit),ind.handed_over_by_name,ind.handed_over_at&&formatDateTimeIN(ind.handed_over_at)].filter(Boolean).join(' · ')],['Received',[qty(ind.received_qty,ind.unit),ind.received_by_name,ind.received_at&&formatDateTimeIN(ind.received_at)].filter(Boolean).join(' · ')],['Outside recorded use / wastage',ind.outside_visit_id?`${ind.outside_used_qty||0} / ${ind.outside_wastage_qty||0} ${ind.unit}`:'Not separately recorded'],['Remarks',[ind.request_remarks,ind.approval_remarks,ind.handover_remarks,ind.receipt_remarks].filter(Boolean).join(' · ')]];}
@@ -164,7 +166,7 @@
         select('Store section',section,v=>{setSection(v);setItemId('');setDetail(null)},[['all','All store sections'],...['Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores'].map(x=>[x,x])]),
         field('Search item / code',h('input',{'aria-label':'Search item / code',value:itemQuery,onChange:e=>{setItemQuery(e.target.value);setItemId('')},placeholder:'At least 3 characters'})),
         select('Store item',itemId,v=>{setItemId(v);setDetail(null)},[['','All items — tap a row'],...items.map(x=>[x.id,`${x.item_code||''} · ${displayStoreItemName(x.item_name)}${x.active===false?' · Inactive':''}`])]),
-        select('Period',period,setPeriod,[['today','Today'],['week','This Week'],['month','Month'],['custom','Period (From–To)']]),
+        select('Period',period,setPeriod,[['all','All recorded history'],['today','Today'],['week','This Week'],['month','Month'],['custom','Period (From–To)']]),
         period==='month'&&field('Month',h('input',{type:'month','aria-label':'Month',value:month,onChange:e=>setMonth(e.target.value)})),
         period==='custom'&&field('From',h(StrictDateInput,{value:from,onChange:e=>setFrom(e.target.value)})),period==='custom'&&field('To',h(StrictDateInput,{value:to,onChange:e=>setTo(e.target.value)}))
       ),
@@ -172,19 +174,21 @@
       loading&&h('p',{role:'status'},'Loading complete stock and patient histories…'),error&&h('p',{role:'alert',className:'message error'},error),
       !loading&&!error&&valid&&h(React.Fragment,null,
         data?.outsideWarning&&h('p',{role:'alert',className:'message error'},data.outsideWarning),
-        h('p',null,`${formatDateIN(start)} to ${formatDateIN(end)} · Store balances cover the whole organisation and are not changed by patient filters.`),
-        !itemId&&table(['Item / code','Unit','Opening stock','Stock in','Stock out','Closing stock','Current store balance'],reports.map(r=>row(r.item.id,[h('button',{type:'button',className:'btn btn-secondary',onClick:e=>{e.stopPropagation();setItemId(r.item.id)}},`${r.item.item_code||''} · ${displayStoreItemName(r.item.item_name)}`),r.item.unit,r.opening,r.incoming,r.outgoing,r.closing,r.stock?.balance_qty??'Unavailable'],()=>setItemId(r.item.id)))),
+        h('p',null,`${period==='all'?'All recorded history':formatDateIN(start)+' to '+formatDateIN(end)} · Store balances cover the whole organisation and are not changed by patient filters.`),
+        !itemId&&table(['Item / code','Unit','Brought forward before period','Stock in','Stock out','Closing stock','Current store balance'],reports.map(r=>row(r.item.id,[h('button',{type:'button',className:'btn btn-secondary',onClick:e=>{e.stopPropagation();setItemId(r.item.id)}},`${r.item.item_code||''} · ${displayStoreItemName(r.item.item_name)}`),r.item.unit,r.opening,r.incoming,r.outgoing,r.closing,r.stock?.balance_qty??'Unavailable'],()=>setItemId(r.item.id)))),
         report&&h(React.Fragment,null,
           h('h3',null,`${displayStoreItemName(report.item.item_name)} · ${report.item.unit}`),
-          table(['Opening store stock','Stock in','Stock out','Closing store stock','Current store balance'],[row('stock',[report.opening,report.incoming,report.outgoing,report.closing,report.stock?.balance_qty??'Unavailable'])]),
+          table(['Filtered actual resident use in period','Filtered actual Outside Nursing use in period','Filtered Housekeeping balance at To date','Filtered charged quantity in period (separate)'],[row('usage-summary',[...['Resident','Outside Nursing'].map(kind=>qty(groups.filter(g=>g.kind===kind).reduce((n,g)=>n+g.used,0),report.item.unit)),qty(groups.filter(g=>g.kind==='Housekeeping').reduce((n,g)=>n+g.remaining,0),report.item.unit),data.outsideWarning?'Outside charges unavailable':qty(groups.reduce((n,g)=>n+g.charged,0),report.item.unit)])]),
+          h('p',null,`Total vendor receipts through To date: ${qty(report.vendorReceived,report.item.unit)}. Brought forward is the prior-period balance, not an extra receipt or opening-stock entry.`),
+          table(['Brought forward before period','Stock in','Stock out','Closing store stock','Current store balance'],[row('stock',[report.opening,report.incoming,report.outgoing,report.closing,report.stock?.balance_qty??'Unavailable'])]),
           h('details',null,h('summary',null,'Store movements in period — receipts, issues, returns and adjustments'),table(['Date','Movement','In','Out','Reference','By'],report.periodMoves.map(m=>row(m.id,[formatDateTimeIN(m.movement_at),m.movement_type,m.qty_in,m.qty_out,m.reference_text,m.actor_name],()=>setDetail({movement:m}))))),
           h('div',{className:'payment-filter-grid'},select('Usage source',source,setSource,[['all','All sources'],['Resident','Residents'],['Outside Nursing','Outside Nursing procedures'],['Department','Departments'],['Housekeeping','Housekeeping']]),
             select('Patient status',status,v=>{setStatus(v);setPatientId('')},[['all','All patients / sources'],['active','Active residents'],['inactive','Inactive / Discharged residents'],['outside','Outside Nursing patients']]),
             field('Search patient / ID',h('input',{'aria-label':'Search patient / ID',value:patientQuery,onChange:e=>{setPatientQuery(e.target.value);setPatientId('')},placeholder:'At least 3 characters'})),
             select('Patient / procedure',patientId,setPatientId,[['','All matching patients / procedures'],...patientOptions.map(p=>[p.id,p.label])])),
           h('p',{className:'small-note'},'Patient balance = received − recorded use − confirmed returns through the To date; billing does not reduce it. Historical consumption is not inferred from charges. Pending returns reserve current availability. Outside Nursing use and wastage come from approved used-item indents.'),
-          table(['Patient / procedure — tap for full details','Source','Issued in period','Received in period','Recorded use','Wastage','Charged quantity','Confirmed returns','Pending returns (current, requested by To)','Remaining patient / Housekeeping balance at To date'],groups.map(g=>row(g.key,[g.label,g.kind,g.issued,g.kind==='Resident'||g.kind==='Housekeeping'?g.received:'—',['Outside Nursing','Resident','Housekeeping'].includes(g.kind)?g.used:'—',g.kind==='Outside Nursing'?g.waste:'—',g.kind==='Outside Nursing'&&data.outsideWarning?'Unavailable':g.charged,g.returned,g.pending,g.kind==='Resident'||g.kind==='Housekeeping'?g.remaining:'—'],()=>setDetail({group:g})))),
-          table(['Filtered totals','Issued','Received','Recorded use','Outside wastage','Charged quantity','Confirmed returns','Pending returns'],[row('totals',[`${groups.length} patient / procedure / department row(s)`,...['issued','received','used','waste','charged','returned','pending'].map(k=>qty(groups.reduce((s,g)=>s+g[k],0),report.item.unit))])])
+          table(['Patient / procedure — tap for full details','Source','Issued in period','Received in period','Actual used quantity','Wastage','Charged quantity','Confirmed returns','Pending returns (current, requested by To)','Remaining patient / Housekeeping balance at To date'],groups.map(g=>row(g.key,[g.label,g.kind,g.issued,g.kind==='Resident'||g.kind==='Housekeeping'?g.received:'—',['Outside Nursing','Resident','Housekeeping'].includes(g.kind)?g.used:'—',g.kind==='Outside Nursing'?g.waste:'—',g.kind==='Outside Nursing'&&data.outsideWarning?'Unavailable':g.charged,g.returned,g.pending,g.kind==='Resident'||g.kind==='Housekeeping'?g.remaining:'—'],()=>setDetail({group:g})))),
+          table(['Filtered totals','Issued','Received','Actual used quantity','Outside wastage','Charged quantity','Confirmed returns','Pending returns'],[row('totals',[`${groups.length} patient / procedure / department row(s)`,...['issued','received','used','waste','charged','returned','pending'].map(k=>qty(groups.reduce((s,g)=>s+g[k],0),report.item.unit))])])
         )
       ),
       detail&&h(RowDetailModal,{title:detail.group?.label||detail.movement?.movement_type,subtitle:`${report?.item.item_name||''} · ${formatDateIN(start)} to ${formatDateIN(end)}`,onClose:()=>setDetail(null),fields:detail.movement?Object.entries(detail.movement).map(([k,v])=>[k,String(v??'—')]):[['Source',detail.group.kind],['Procedure',detail.group.visit?.procedure_name||'—'],['Procedure date',detail.group.visit?.service_date||'—'],['Nurse',detail.group.visit?.nurse_name||'—'],['Procedure status',detail.group.visit?.review_status||'—'],['Notes',detail.group.visit?.notes||'—']]},

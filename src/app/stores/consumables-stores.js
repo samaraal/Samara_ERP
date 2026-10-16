@@ -94,8 +94,8 @@
         const missing=stockRes.error.code==='42P01'||/relation .* does not exist/i.test(stockRes.error.message||'');
         notifyStore('error',missing?'Stores database is not installed yet. Please run 91_consumables_store_inventory.sql once in Supabase.':`Stock list could not be loaded just now (${stockRes.error.message||stockRes.error.code||'network'}). Tap ↻ Refresh in a moment.`);
       } else setStock(stockRes.data||[]);
-      if(!rRes.error)setReceipts(rRes.data||[]);
-      if(!lRes.error)setLedger(lRes.data||[]);
+      if(!rRes.error)setReceipts((rRes.data||[]).filter(r=>!r.voided_at));
+      if(!lRes.error)setLedger((lRes.data||[]).filter(r=>!r.voided_at));
       if(!pRes.error)setPatients(pRes.data||[]); if(!mRes.error)setItemMaster(mRes.data||[]);
       if(!iRes.error)setIndents(iRes.data||[]);if(!aRes.error)setAllocations(aRes.data||[]);if(!tRes.error)setStoreReturns(tRes.data||[]);
       setLoadedOnce(true);
@@ -171,7 +171,7 @@
     async function receiveStock(e){
       e.preventDefault();if(!controller||busy)return;
       if(!form.item_id&&!String(form.new_item_name||'').trim()){notifyStore('error','Select an item or enter a new item name.');return}
-      if(!String(form.vendor_name||'').trim()||Number(form.quantity)<=0){notifyStore('error','Vendor and valid received quantity are required.');return}
+      if(!String(form.vendor_name||'').trim()||(!Number.isSafeInteger(Number(form.quantity))||Number(form.quantity)<=0)){notifyStore('error','Vendor and a positive whole-number received quantity are required.');return}
       setBusy(true);
       const receiveArgs={
         p_item_id:form.item_id||null,p_item_name:String(form.new_item_name||'').trim()||null,p_unit:form.unit||'Nos',p_vendor_name:String(form.vendor_name||'').trim(),
@@ -207,7 +207,7 @@
     }
     async function reconcile(row){
       if(!controller||busy)return;const input=prompt(`ERP balance: ${row.balance_qty} ${row.unit}. Enter PHYSICAL stock counted:`,String(row.balance_qty));if(input===null)return;
-      const qty=Number(input);if(!Number.isFinite(qty)||qty<0){notifyStore('error','Enter a valid physical stock quantity.');return}
+      const qty=Number(input);if(!Number.isSafeInteger(qty)||qty<0){notifyStore('error','Enter a whole-number physical stock quantity.');return}
       if(qty===Number(row.balance_qty)){notifyStore('success','Physical stock already tallies with ERP balance.');return}
       const reason=prompt('Reason for stock difference / reconciliation:','Physical stock verification');if(!String(reason||'').trim())return;
       setBusy(true);const res=await client.rpc('reconcile_consumable_store_stock',{p_item_id:row.item_id,p_physical_qty:qty,p_reason:String(reason).trim()});setBusy(false);
@@ -292,7 +292,7 @@
       const item=itemById(issueForm.item_id);const qty=Number(issueForm.quantity);
       if(!item)return notifyStore('error','Select the item to issue.');
       if(!issueForm.department)return notifyStore('error','Select the department.');
-      if(!(qty>0))return notifyStore('error','Enter a valid quantity.');
+      if(!Number.isSafeInteger(qty)||!(qty>0))return notifyStore('error','Enter a positive whole-number quantity.');
       if(qty>Number(item.balance_qty||0))return notifyStore('error',`Only ${item.balance_qty} ${item.unit} is in stock.`);
       setBusy(true);
       const res=await client.rpc('store_issue_to_department',{p_item_id:item.item_id,p_quantity:qty,p_department:issueForm.department,p_issued_to:String(issueForm.issued_to||'').trim()||null,p_remarks:String(issueForm.remarks||'').trim()||null});
@@ -359,15 +359,15 @@
     async function openItemHistory(row){
       setHistoryItem(row);setHistoryBusy(true);setHistoryLedger([]);setHistoryReceipts([]);
       const [l,r]=await Promise.all([
-        client.from('consumable_store_ledger').select('*').eq('item_id',row.item_id).order('movement_at',{ascending:false}).limit(1000),
-        client.from('consumable_store_receipts').select('*').eq('item_id',row.item_id).order('received_at',{ascending:false}).limit(500)
+        client.from('consumable_store_ledger').select('*').is('voided_at',null).eq('item_id',row.item_id).order('movement_at',{ascending:false}).limit(1000),
+        client.from('consumable_store_receipts').select('*').is('voided_at',null).eq('item_id',row.item_id).order('received_at',{ascending:false}).limit(500)
       ]);
       if(!l.error)setHistoryLedger(l.data||[]);if(!r.error)setHistoryReceipts(r.data||[]);setHistoryBusy(false);
     }
     async function openExpiryEdit(row,focusReceiptId=''){
       if(!controller||!row)return;
       setExpiryItem(row);setExpiryFocus(focusReceiptId);setExpiryLoading(true);setExpiryRows([]);setExpiryEdits({});
-      const r=await client.from('consumable_store_receipts').select('*').eq('item_id',row.item_id).order('received_at',{ascending:false}).limit(300);
+      const r=await client.from('consumable_store_receipts').select('*').is('voided_at',null).eq('item_id',row.item_id).order('received_at',{ascending:false}).limit(300);
       const list=r.error?[]:(r.data||[]);
       setExpiryRows(list);
       setExpiryEdits(Object.fromEntries(list.map(x=>[x.id,{batch_no:x.batch_no||'',expiry_date:x.expiry_date||''}])));
@@ -501,7 +501,7 @@
             h('div',{className:'field'},h('label',null,'Existing Inventory Item'),h('select',{value:form.item_id,onChange:e=>selectItem(e.target.value)},h('option',{value:''},'Select existing item'),((stockSearchText.length>=3?standardCategoryStock.filter(x=>String(x.item_name||'').toLowerCase().includes(stockSearchText)):standardCategoryStock)).map(x=>h('option',{key:x.item_id,value:x.item_id},`${masterById.get(x.item_id)?.item_code?`${masterById.get(x.item_id).item_code} · `:''}${displayStoreItemName(x.item_name)} · Balance ${x.balance_qty} ${x.unit}`))),form.catalog_item&&h('small',null,standardCategoryFilterActive?`Showing only items tagged "${form.catalog_item}".`:`No items are tagged "${form.catalog_item}" yet, so every ${form.item_category} item is shown below — use the Category button on an item, or Assign Category to All, to start filtering.`)),
             h('div',{className:'field'},h('label',null,'Add Item Manually'),h('input',{value:form.new_item_name,onChange:e=>setForm({...form,new_item_name:e.target.value,catalog_item:'',item_id:''}),placeholder:form.item_category==='Pharmacy'?'Enter medicine / pharmacy item':'Enter Stores item'})),
             h('div',{className:'field'},h('label',null,'Unit'),h('select',{value:form.unit,onChange:e=>setForm({...form,unit:e.target.value}),disabled:Boolean(form.item_id)},units.map(x=>h('option',{key:x,value:x},x)))),
-            h('div',{className:'field'},h('label',null,'Quantity Received *'),h('input',{type:'number',min:'0.01',step:'0.01',value:form.quantity,onChange:e=>setForm({...form,quantity:e.target.value}),required:true})),
+            h('div',{className:'field'},h('label',null,'Quantity Received *'),h('input',{type:'number',min:'1',step:'1',value:form.quantity,onChange:e=>setForm({...form,quantity:e.target.value}),required:true})),
             h('div',{className:'field'},h('label',null,'Vendor *'),h('input',{value:form.vendor_name,onChange:e=>setForm({...form,vendor_name:e.target.value}),required:true,placeholder:'Vendor / Supplier name'})),
             h('div',{className:'field'},h('label',null,'Invoice / Bill No.'),h('input',{value:form.invoice_no,onChange:e=>setForm({...form,invoice_no:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Invoice Date'),h(StrictDateInput,{value:form.invoice_date,onChange:e=>setForm({...form,invoice_date:e.target.value})})),
@@ -581,7 +581,7 @@
           h('form',{onSubmit:issueToDepartment},
             h('div',{className:'grid two'},
               h('div',{className:'field'},h('label',null,'Item *'),h('select',{value:issueForm.item_id,required:true,onChange:e=>setIssueForm({...issueForm,item_id:e.target.value})},h('option',{value:''},'Select item in stock'),categoryStock.filter(x=>Number(x.balance_qty)>0).map(x=>h('option',{key:x.item_id,value:x.item_id},`${masterById.get(x.item_id)?.item_code?masterById.get(x.item_id).item_code+' · ':''}${displayStoreItemName(x.item_name)} — ${x.balance_qty} ${x.unit} in stock`)))),
-              h('div',{className:'field'},h('label',null,`Quantity *${issueForm.item_id&&itemById(issueForm.item_id)?` (${itemById(issueForm.item_id).unit})`:''}`),h('input',{type:'number',min:'0.01',step:'0.01',required:true,value:issueForm.quantity,onChange:e=>setIssueForm({...issueForm,quantity:e.target.value})})),
+              h('div',{className:'field'},h('label',null,`Quantity *${issueForm.item_id&&itemById(issueForm.item_id)?` (${itemById(issueForm.item_id).unit})`:''}`),h('input',{type:'number',min:'1',step:'1',required:true,value:issueForm.quantity,onChange:e=>setIssueForm({...issueForm,quantity:e.target.value})})),
               h('div',{className:'field'},h('label',null,'Issue to Department *'),h('select',{value:issueForm.department,required:true,onChange:e=>setIssueForm({...issueForm,department:e.target.value})},h('option',{value:''},'Select department'),STORE_DEPARTMENTS.map(x=>h('option',{key:x,value:x},x)))),
               h('div',{className:'field'},h('label',null,'Received by (staff name)'),h('input',{value:issueForm.issued_to,onChange:e=>setIssueForm({...issueForm,issued_to:e.target.value}),placeholder:'Who took the items'}))
             ),

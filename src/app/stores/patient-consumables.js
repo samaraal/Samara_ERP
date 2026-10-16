@@ -29,7 +29,7 @@
     const quantities=r=>patientIndentQuantities(r,entries,returns,allocations,charges);
     function open(r){setMessage('');setForm({id:crypto.randomUUID(),indent:r,quantity:'',used_on:today,remarks:''});}
     async function save(e){e.preventDefault();if(saving||busy||!form||!nurse||error)return;const q=Number(form.quantity),u=quantities(form.indent);
-      if(!Number.isFinite(q)||q<=0||Number(q.toFixed(2))!==q||q>u.available){setMessage(`Enter a quantity above 0 and up to ${u.available} ${form.indent.unit} (maximum two decimal places).`);return;}
+      if(!Number.isSafeInteger(q)||q<=0||q>u.available){setMessage(`Enter a quantity above 0 and up to ${u.available} ${form.indent.unit} (whole numbers only).`);return;}
       setSaving(true);setMessage('');
       try{const res=await client.rpc('record_patient_item_consumption',{p_entry_id:form.id,p_indent_id:form.indent.id,p_quantity:q,p_used_on:form.used_on,p_remarks:form.remarks||null});if(res.error)throw res.error;setForm(null);await onReload();showSamaraActionToast('success','Consumption recorded',`${q} ${form.indent.unit} used. Patient balance updated; no new bill charge.`);}catch(e){setMessage(e.message||'Could not save. Retry with the same entry reference.');}finally{setSaving(false);}
     }
@@ -39,7 +39,7 @@
       error&&h('p',{role:'alert',className:'message error'},error),message&&h('p',{role:'alert',className:'message error'},message),
       h('p',{className:'small-note'},'Current patient balance = received − recorded use − confirmed returns. Pending returns are reserved and cannot be consumed. Historical use is not inferred from billing: check physical stock and record any missing usage before relying on the remaining balance. Billed returns still require Accounts reconciliation.'),
       !error&&table(['Patient','Item / Indent','Received','Recorded use (all dates)','Charged quantity','Confirmed returns','Remaining patient balance','Pending returns','Available to use / return','Action'],received.map(r=>{const u=quantities(r);return tr(r.id,[label(r.patient_id),`${r.item_name} · CI-${String(r.indent_no).padStart(5,'0')}`,`${r.received_qty} ${r.unit}`,u.used,u.charged,u.confirmed,u.remaining,u.pending,u.available,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},nurse&&h('button',{type:'button',className:'btn btn-primary',disabled:busy||saving||u.available<=0,onClick:()=>open(r)},'Record Use'),nurse&&u.available>0&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy||saving,onClick:()=>onReturn(r)},'Return Unused'),returns.filter(x=>x.indent_id===r.id&&x.status==='Pending').map(ret=>onConfirm&&h('button',{key:ret.id,type:'button',className:'btn btn-secondary',disabled:busy||saving,onClick:()=>onConfirm(ret)},`Confirm Return ${ret.quantity}`)))]);})),
-      form&&h('form',{onSubmit:save,className:'card',style:{padding:'16px',marginTop:'12px'}},h('h4',null,`Record Use · ${label(form.indent.patient_id)} · ${form.indent.item_name}`),h('p',null,`CI-${String(form.indent.indent_no).padStart(5,'0')} · Available ${quantities(form.indent).available} ${form.indent.unit}`),h('div',{className:'grid two'},field('Used on',h(StrictDateInput,{'aria-label':'Consumption date',required:true,value:form.used_on,min:storeUsageDay(form.indent.received_at),max:today,onChange:e=>setForm({...form,used_on:e.target.value})})),field(`Used quantity (${form.indent.unit})`,h('input',{'aria-label':'Actual used quantity',type:'number',required:true,min:'.01',step:'.01',max:quantities(form.indent).available,value:form.quantity,onChange:e=>setForm({...form,quantity:e.target.value})})),field('Remarks / purpose',h('textarea',{'aria-label':'Consumption remarks',value:form.remarks,maxLength:2000,onChange:e=>setForm({...form,remarks:e.target.value})}))),h('button',{className:'btn btn-primary',disabled:saving||busy},saving?'Saving…':'Save Consumption'),h('button',{type:'button',className:'btn btn-secondary',disabled:saving,onClick:()=>{setForm(null);setMessage('');}},'Cancel')),
+      form&&h('form',{onSubmit:save,className:'card',style:{padding:'16px',marginTop:'12px'}},h('h4',null,`Record Use · ${label(form.indent.patient_id)} · ${form.indent.item_name}`),h('p',null,`CI-${String(form.indent.indent_no).padStart(5,'0')} · Available ${quantities(form.indent).available} ${form.indent.unit}`),h('div',{className:'grid two'},field('Used on',h(StrictDateInput,{'aria-label':'Consumption date',required:true,value:form.used_on,min:storeUsageDay(form.indent.received_at),max:today,onChange:e=>setForm({...form,used_on:e.target.value})})),field(`Used quantity (${form.indent.unit})`,h('input',{'aria-label':'Actual used quantity',type:'number',required:true,min:'1',step:'1',max:quantities(form.indent).available,value:form.quantity,onChange:e=>setForm({...form,quantity:e.target.value})})),field('Remarks / purpose',h('textarea',{'aria-label':'Consumption remarks',value:form.remarks,maxLength:2000,onChange:e=>setForm({...form,remarks:e.target.value})}))),h('button',{className:'btn btn-primary',disabled:saving||busy},saving?'Saving…':'Save Consumption'),h('button',{type:'button',className:'btn btn-secondary',disabled:saving,onClick:()=>{setForm(null);setMessage('');}},'Cancel')),
       h('h4',null,'Recorded consumption history'),h('div',{className:'payment-filter-grid'},sel('Consumption period',period,setPeriod,[['today','Today'],['week','This Week'],['month','Month'],['custom','Period (From–To)']]),period==='month'&&field('Month',h('input',{type:'month','aria-label':'Consumption month',value:month,onChange:e=>setMonth(e.target.value)})),period==='custom'&&field('From',h(StrictDateInput,{'aria-label':'Consumption From',value:from,onChange:e=>setFrom(e.target.value)})),period==='custom'&&field('To',h(StrictDateInput,{'aria-label':'Consumption To',value:to,onChange:e=>setTo(e.target.value)}))),
       !valid&&h('p',{role:'alert'},'Enter a valid date range; From must not be after To.'),valid&&!error&&h(React.Fragment,null,h('p',null,`${formatDateIN(start)} to ${formatDateIN(end)} · Used in period: ${Object.entries(totals).map(([u,q])=>`${q} ${u}`).join(' · ')||'0 recorded'}. Current balances above cover all dates.`),table(['Used on','Patient','Item / Indent','Quantity','Recorded by / at','Remarks','Status / correction','Action'],history.map(e=>{const r=rows.find(r=>r.id===e.indent_id);return tr(e.id,[formatDateIN(e.used_on),label(e.patient_id),`${r?.item_name||'Item'} · CI-${String(r?.indent_no||'').padStart(5,'0')}`,`${e.quantity} ${r?.unit||''}`,`${e.recorded_by_name} · ${formatDateTimeIN(e.recorded_at)}`,e.remarks||'—',e.voided_at?`Voided · ${e.voided_by_name} · ${formatDateTimeIN(e.voided_at)} · ${e.void_reason}`:'Recorded',!e.voided_at&&(manager||(nurse&&e.recorded_by===profile.id))?h('button',{type:'button',className:'btn btn-secondary',disabled:saving||busy,onClick:()=>voidEntry(e)},'Void / Correct'):'—']);})))
     );
@@ -120,7 +120,7 @@
     function lineFromForm(){
       const st=stock.find(x=>x.item_id===form.store_item_id),qty=Number(form.requested_qty);
       if(!st||!form.item_name)return {error:'Select category and item.'};
-      if(!Number.isFinite(qty)||qty<=0)return {error:'Enter a valid quantity.'};
+      if(!Number.isSafeInteger(qty)||qty<=0)return {error:'Enter a valid quantity.'};
       return {line:{key:`${form.store_item_id}-${Date.now()}`,store_item_id:form.store_item_id,item_name:form.item_name,category:form.category||categoryOfStock(st),code:codeOfStock(st),unit:form.unit||st.unit||'Nos',requested_qty:qty}};
     }
     // Same item added twice → quantities are added together on one line.
@@ -139,7 +139,7 @@
       // An item still selected in the boxes (not yet added) is included too.
       if(form.store_item_id){const r=lineFromForm();if(r.error){notify('error',r.error);return}all=mergeLine(all,r.line)}
       if(!all.length){notify('error','Select patient, consumable and valid quantity.');return}
-      const bad=all.find(l=>!stock.some(x=>x.item_id===l.store_item_id)||!Number.isFinite(Number(l.requested_qty))||Number(l.requested_qty)<=0);
+      const bad=all.find(l=>!stock.some(x=>x.item_id===l.store_item_id)||!Number.isSafeInteger(Number(l.requested_qty))||Number(l.requested_qty)<=0);
       if(bad){notify('error',`Check the quantity / item for ${bad.item_name||'an item'}.`);return}
       const payload=all.map(l=>({patient_id:form.patient_id,store_item_id:l.store_item_id||null,item_name:l.item_name,requested_qty:Number(l.requested_qty),unit:l.unit||'Nos',request_remarks:form.request_remarks||null,initiated_by:profile.id,initiated_by_name:actorName,status:'Initiated'}));
       // One insert for the whole list: either all items are saved or none (no half-saved list).
@@ -150,14 +150,14 @@
     async function approve(row,reject=false){
       if(!storeController||busy)return;let qty=0,remarks='';const st=stockFor(row);
       if(!reject&&row.outside_visit_id){qty=Number(row.requested_qty);if(!confirm(`Approve ${qty} ${row.unit} of ${row.item_name} already used in outside care? Stock usage will be posted; no nurse receipt is needed.`))return;}
-      if(!reject&&!row.outside_visit_id){const input=prompt(`Requested: ${row.requested_qty} ${row.unit}. Current Stores balance: ${st?.balance_qty??'—'} ${st?.unit||row.unit}. Enter quantity to approve:`,String(row.requested_qty));if(input===null)return;qty=Number(input);if(!qty||qty<=0||qty>Number(row.requested_qty)){notify('error','Enter a valid quantity not exceeding the requested quantity.');return}}
+      if(!reject&&!row.outside_visit_id){const input=prompt(`Requested: ${row.requested_qty} ${row.unit}. Current Stores balance: ${st?.balance_qty??'—'} ${st?.unit||row.unit}. Enter quantity to approve:`,String(row.requested_qty));if(input===null)return;qty=Number(input);if(!Number.isSafeInteger(qty)||qty<=0||qty>Number(row.requested_qty)){notify('error','Enter a valid quantity not exceeding the requested quantity.');return}}
       remarks=prompt(reject?'Reason for rejection:':'Approval remarks (optional):',reject?'Not approved':'')||'';
       setBusy(true);const res=await client.rpc('approve_patient_consumable_indent_v2',{p_indent_id:row.id,p_approved_qty:qty,p_decision:reject?'Rejected':'Approved',p_remarks:remarks||null});setBusy(false);
       if(res.error)notify('error',res.error.message);else{notify('success',reject?'Indent rejected.':row.outside_visit_id?'Used items approved and stock usage posted. Ready for invoice.':'Indent approved.');await load()}
     }
     async function handover(row){
       if(!storeController||busy)return;if(row.outside_visit_id){if(!confirm('Confirm these recorded outside-care items were already used? No nurse receipt is required.'))return;setBusy(true);const res=await client.rpc('handover_patient_consumable_indent_v2',{p_indent_id:row.id,p_handed_over_qty:Number(row.requested_qty),p_remarks:'Reconcile already-used outside items'});setBusy(false);if(res.error)notify('error',res.error.message);else{notify('success','Used items approved. Ready for invoice.');await load();}return;}const st=stockFor(row);const input=prompt(`Approved: ${row.approved_qty} ${row.unit}. Stores available: ${st?.balance_qty??'—'} ${st?.unit||row.unit}. Enter actual quantity handed over:`,String(row.approved_qty||''));if(input===null)return;
-      const qty=Number(input);if(!qty||qty<=0||qty>Number(row.approved_qty||0)){notify('error','Enter a valid quantity not exceeding the approved quantity.');return}
+      const qty=Number(input);if(!Number.isSafeInteger(qty)||qty<=0||qty>Number(row.approved_qty||0)){notify('error','Enter a valid quantity not exceeding the approved quantity.');return}
       const remarks=prompt('Handover remarks (optional):','')||'';setBusy(true);const res=await client.rpc('handover_patient_consumable_indent_v2',{p_indent_id:row.id,p_handed_over_qty:qty,p_remarks:remarks||null});setBusy(false);
       if(res.error)notify('error',res.error.message);else{notify('success','Handed over and deducted from Stores. Awaiting Nurse receipt.');await load()}
     }
@@ -178,7 +178,7 @@
       const picked=group.items.filter(r=>!bulkOff[bulkKey(mode,r)]);
       if(!picked.length){notify('error','Tick at least one item.');return}
       if(!reject){
-        const bad=picked.find(r=>{const q=Number(bulkQtyOf(mode,r));return !Number.isFinite(q)||q<=0||q>bulkDefault(mode,r)});
+        const bad=picked.find(r=>{const q=Number(bulkQtyOf(mode,r));return !Number.isSafeInteger(q)||q<=0||q>bulkDefault(mode,r)});
         if(bad){notify('error',`${bad.item_name}: enter a quantity more than 0 and not more than ${mode==='approve'?'requested':'approved'} (${bulkDefault(mode,bad)} ${bad.unit}).`);return}
       }
       const verb=reject?'Reject':mode==='approve'?'Approve':'Hand over';
@@ -220,7 +220,7 @@
               h('td',null,`${r.requested_qty} ${r.unit}`),
               mode==='handover'&&h('td',null,`${r.approved_qty??'—'} ${r.unit}`),
               h('td',{style:{color:short?'#b42318':undefined,fontWeight:short?800:undefined}},st?`${bal} ${st.unit||r.unit}${short?' — less than this':''}`:'—'),
-              h('td',null,h('input',{type:'number',min:'0.01',step:'0.01',disabled:busy||!on,readOnly:!!r.outside_visit_id,'aria-label':`Quantity for ${r.item_name}`,value:bulkQtyOf(mode,r),onChange:e=>setBulkQty(x=>({...x,[k]:e.target.value})),style:{width:'90px'}}),' ',r.unit)
+              h('td',null,h('input',{type:'number',min:'1',step:'1',disabled:busy||!on,readOnly:!!r.outside_visit_id,'aria-label':`Quantity for ${r.item_name}`,value:bulkQtyOf(mode,r),onChange:e=>setBulkQty(x=>({...x,[k]:e.target.value})),style:{width:'90px'}}),' ',r.unit)
             )}))
         )),
         h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'10px'}},
@@ -241,7 +241,7 @@
     }
     async function receive(row){
       if(!nurse||busy||row.outside_visit_id)return;const input=prompt(`Handed over: ${row.handed_over_qty} ${row.unit}. Confirm actual quantity physically received:`,String(row.handed_over_qty||''));if(input===null)return;
-      const qty=Number(input);if(!qty||qty<=0||qty>Number(row.handed_over_qty||0)){notify('error','Enter a valid quantity not exceeding the handed-over quantity.');return}
+      const qty=Number(input);if(!Number.isSafeInteger(qty)||qty<=0||qty>Number(row.handed_over_qty||0)){notify('error','Enter a valid quantity not exceeding the handed-over quantity.');return}
       const remarks=prompt(qty<Number(row.handed_over_qty||0)?'Quantity differs from handover. Please state the discrepancy:':'Receipt remarks (optional):','')||'';
       setBusy(true);const res=await client.rpc('receive_patient_consumable_indent',{p_indent_id:row.id,p_received_qty:qty,p_remarks:remarks||null});setBusy(false);
       if(res.error)notify('error',res.error.message);else{notify('success',qty<Number(row.handed_over_qty||0)?'Receipt recorded with discrepancy. Nurse Manager must reconcile the difference.':'Consumables received. Indent completed.');await load()}
@@ -258,7 +258,7 @@
     async function requestUnusedReturn(row){
       if(profile?.role!=='Nurse'||busy||consumptionError)return;const u=indentUsage(row);if(!(u.balance>0)){notify('error','No unused received balance is available to return.');return}
       const input=prompt(`Unused received balance: ${u.balance} ${row.unit}. Enter quantity to return to Stores:`,String(u.balance));if(input===null)return;
-      const qty=Number(input);if(!qty||qty<=0||qty>u.balance){notify('error',`Enter a valid quantity up to ${u.balance} ${row.unit}.`);return}
+      const qty=Number(input);if(!Number.isSafeInteger(qty)||qty<=0||qty>u.balance){notify('error',`Enter a valid quantity up to ${u.balance} ${row.unit}.`);return}
       const remarks=prompt('Return remarks (optional):','Unused patient item returned')||'';setBusy(true);
       const res=await client.rpc('request_patient_store_return',{p_indent_id:row.id,p_quantity:qty,p_remarks:remarks||null});setBusy(false);
       if(res.error)notify('error',res.error.message);else{notify('success','Unused item return sent to Stores Manager for confirmation.');await load()}
@@ -311,7 +311,7 @@
           h('div',{className:'field'},h('label',null,'Patient *'),h('select',{value:form.patient_id,onChange:e=>setForm({...form,patient_id:e.target.value}),required:true},h('option',{value:''},'Select active patient'),patients.filter(p=>p.is_active!==false).map(p=>h('option',{key:p.id,value:p.id},patientLabel(p.id))))),
           h('div',{className:'field'},h('label',null,'Category *'),h('select',{'aria-label':'Category',value:form.category,onChange:e=>setForm(f=>({...f,category:e.target.value,store_item_id:'',item_name:''}))},h('option',{value:''},'Select category'),indentCategories.map(c=>h('option',{key:c,value:c},`${c} (${stock.filter(x=>categoryOfStock(x)===c).length})`)))),
           h('div',{className:'field'},h('label',null,'Item *'),h('select',{'aria-label':'Consumable / Pharmacy Item',value:form.store_item_id,onChange:e=>chooseItem(e.target.value),disabled:!form.category},h('option',{value:''},form.category?`Select ${form.category} item (${options.length})`:'Select a category first'),options.map(x=>h('option',{key:x.item_id,value:x.item_id},`${codeOfStock(x)?`${codeOfStock(x)} · `:''}${x.item_name} · Store balance ${x.balance_qty} ${x.unit}`)))),
-          h('div',{className:'field'},h('label',null,'Quantity *'),h('input',{type:'number',min:'0.01',step:'0.01',value:form.requested_qty,onChange:e=>setForm({...form,requested_qty:e.target.value})})),
+          h('div',{className:'field'},h('label',null,'Quantity *'),h('input',{type:'number',min:'1',step:'1',value:form.requested_qty,onChange:e=>setForm({...form,requested_qty:e.target.value})})),
           h('div',{className:'field'},h('label',null,'Unit'),h('input',{value:form.unit,readOnly:true}))
         ),h(PharmacyStockPanel,{stock:stockInfo,itemId:form.store_item_id,quantity:form.requested_qty,unit:form.unit,showSelector:false}),
         h('div',{style:{margin:'8px 0 14px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy||!form.item_name,onClick:addIndentLine},'+ Add item to list'),h('small',{style:{marginLeft:'10px',color:'#7a5566'}},'Add each item, then initiate all together.')),
@@ -322,7 +322,7 @@
               h('td',null,i+1),
               h('td',null,h('strong',null,l.item_name),l.code&&h('small',{style:{display:'block',color:'#7a5566'}},l.code)),
               h('td',null,l.category||'—'),
-              h('td',null,h('input',{type:'number',min:'0.01',step:'0.01','aria-label':`Quantity for ${l.item_name}`,value:l.requested_qty,onChange:e=>setLineQty(l.key,e.target.value),style:{width:'90px'}}),' ',l.unit),
+              h('td',null,h('input',{type:'number',min:'1',step:'1','aria-label':`Quantity for ${l.item_name}`,value:l.requested_qty,onChange:e=>setLineQty(l.key,e.target.value),style:{width:'90px'}}),' ',l.unit),
               h('td',{style:{color:short?'#b42318':undefined,fontWeight:short?800:undefined}},st?`${bal} ${st.unit||l.unit}${short?' — less than asked':''}`:'—'),
               h('td',null,h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:()=>removeIndentLine(l.key)},'Remove'))
             )}))
