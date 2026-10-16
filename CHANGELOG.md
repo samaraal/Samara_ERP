@@ -1,3 +1,9 @@
+## 2.16.91 — Dedicated Physiotherapy Dashboard
+
+- Consolidate physiotherapy into one sidebar section. Sessions and clinical review, patient rates and billing, and Admin therapist accounts open inside one dashboard with role-specific tabs. Old task links continue to open the sessions workspace.
+- Admin sets patient-specific rates; Accounts reviews and approves session charges directly within the dashboard. Clinical staff see session tasks and counts without patient prices or supplier accounts.
+- Replace the embedded physiotherapy panel in Accounts Dashboard with a shortcut to the dedicated dashboard; remove duplicate Nursing and Accounts menu entries. Existing Supabase permissions and pricing rules stay in force.
+
 ## 2.16.90 — Patient-specific physiotherapy billing
 
 - Admin / Director sets each patient’s agreed session rate with an effective date and approval notes. Accounts can view pricing and approve resulting session charge requests. No generic tariff fallback.
