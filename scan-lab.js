@@ -1,4 +1,4 @@
-/* Samara Care ERP — Scan Lab (TRIAL) v1.0.1 · 17-10-2026
+/* Samara Care ERP — Scan Lab (TRIAL) v1.0.2 · 17-10-2026
  * Separate page, Admin only. Reads a prescription / ID card through the "prescription-scan" Edge Function
  * and fills Admission-form fields for checking. NOTHING is written to the database.
  * The only database read is the Pharmacy item list (for the spelling check).
@@ -15,8 +15,10 @@
   const FOODS = ['Before food', 'After food', 'With food', 'No restriction'];
   const DURATIONS = ['Single Dose', '1 Day', '3 Days', '5 Days', '7 Days', '10 Days', '14 Days', '21 Days', '30 Days', 'Until Doctor Review', 'Long Term', 'Custom'];
   const UNITS = ['mg', 'mcg', 'g', 'ml', 'mg/ml', 'mg/5 ml', 'IU', 'units', '%', 'drops', 'tablet', 'capsule', 'puff', 'sachet', 'patch'];
-  const FREQ_TIMES = { 'Once Daily (OD)': ['08:00'], 'Twice Daily (BD)': ['08:00', '20:00'], 'Three Times Daily (TDS)': ['06:00', '14:00', '22:00'], 'Four Times Daily (QID)': ['06:00', '12:00', '18:00', '22:00'], 'HS': ['22:00'], 'STAT': [] };
-  const SLOT_TIMES = ['08:00', '14:00', '20:00']; // Morning – Afternoon – Night (used for OD / BD patterns such as 0-0-1, 1-1-0)
+  // 1.0.2: medicine times follow Samara's meal times (breakfast ~8 AM, lunch ~1 PM, dinner ~8 PM).
+  // After / with food = at the meal; before food = 1 hour earlier; bedtime (HS / 4th dose) = 10 PM.
+  const MEAL_TIMES = { 'Before food': ['07:00', '12:00', '19:00'], 'After food': ['08:00', '13:00', '20:00'], 'With food': ['08:00', '13:00', '20:00'], 'No restriction': ['08:00', '13:00', '20:00'] };
+  const BEDTIME = '22:00';
   const HOURS = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}:00`);
   const RELATIONS = ['', 'S/O', 'D/O', 'W/O', 'C/O', 'H/O'];
   const GENDERS = ['', 'Male', 'Female', 'Other'];
@@ -198,15 +200,22 @@
     const nums = parts.map((x) => Number(x));
     return nums.every((n) => Number.isFinite(n)) ? nums : null;
   }
-  function timesFor(frequency, pattern) {
+  function timesFor(frequency, pattern, food) {
+    const meal = MEAL_TIMES[food] || MEAL_TIMES['After food'];
+    if (frequency === 'HS') return [BEDTIME];
+    if (frequency === 'STAT' || frequency === 'SOS / PRN') return [];
     const slots = parseSlots(pattern);
-    if (slots && slots.length === 3 && ['Once Daily (OD)', 'Twice Daily (BD)', 'Weekly', 'Monthly', ''].includes(frequency)) {
-      const t = slots.map((n, i) => (n > 0 ? SLOT_TIMES[i] : null)).filter(Boolean);
-      if (t.length) return t;
+    if (slots) {
+      const t = slots.map((n, i) => (n > 0 ? (i < 3 ? meal[i] : BEDTIME) : null)).filter(Boolean);
+      if (t.length) return [...new Set(t)].sort();
     }
-    if (FREQ_TIMES[frequency]) return FREQ_TIMES[frequency].slice();
-    if (frequency === 'Weekly' || frequency === 'Monthly') return ['08:00'];
-    return [];
+    switch (frequency) {
+      case 'Once Daily (OD)': case 'Weekly': case 'Monthly': return [meal[0]];
+      case 'Twice Daily (BD)': return [meal[0], meal[2]];
+      case 'Three Times Daily (TDS)': return meal.slice();
+      case 'Four Times Daily (QID)': return [...meal, BEDTIME];
+      default: return [];
+    }
   }
   function freqFromPattern(pattern) {
     const slots = parseSlots(pattern); if (!slots) return '';
@@ -226,7 +235,7 @@
       const flags = new Set((m.unclear_fields || []).map((f) => UNCLEAR_MAP[String(f).toLowerCase()] || null).filter(Boolean));
       const frequency = m.frequency || freqFromPattern(m.dose_pattern);
       if (!frequency) flags.add('frequency');
-      const times = timesFor(frequency, m.dose_pattern);
+      const times = timesFor(frequency, m.dose_pattern, m.food_instruction || 'After food');
       if (!times.length && !['SOS / PRN', 'STAT'].includes(frequency)) flags.add('times');
       const dose = String(m.dose_per_time || '').trim();
       const plainOne = /^1\s*(tab|tablet|cap|capsule)s?\.?$/i.test(dose);
@@ -304,7 +313,7 @@
       onchange: () => renderMeds() });
   }
   function select(row, key, list, allowBlank) {
-    const s = el('select', { 'data-k': key, onchange: (e) => { setVal(row, key, e.target.value); if (key === 'frequency') { const t = timesFor(e.target.value, ''); if (t.length || ['SOS / PRN', 'STAT'].includes(e.target.value)) setVal(row, 'times', t); } renderMeds(); } },
+    const s = el('select', { 'data-k': key, onchange: (e) => { const prev = row.v[key]; setVal(row, key, e.target.value); if (key === 'frequency') { const t = timesFor(e.target.value, '', row.v.food_instruction); if (t.length || ['SOS / PRN', 'STAT'].includes(e.target.value)) setVal(row, 'times', t); } if (key === 'food_instruction') { const was = timesFor(row.v.frequency, row.pattern, prev).join(','); if ((row.v.times || []).join(',') === was) setVal(row, 'times', timesFor(row.v.frequency, row.pattern, e.target.value)); } renderMeds(); } },
       allowBlank ? el('option', { value: '', text: '—' }) : null,
       list.map((o) => el('option', { value: o, text: o, selected: row.v[key] === o })));
     return s;
@@ -312,7 +321,7 @@
   function timesControl(row) {
     const wrap = el('div', { class: 'times' });
     const chosen = new Set(row.v.times || []);
-    const shown = HOURS.filter((h) => chosen.has(h) || ['06:00', '08:00', '12:00', '14:00', '18:00', '20:00', '22:00'].includes(h));
+    const shown = HOURS.filter((h) => chosen.has(h) || ['07:00', '08:00', '12:00', '13:00', '19:00', '20:00', '22:00'].includes(h));
     for (const h of shown) wrap.append(el('button', { type: 'button', class: 'chip' + (chosen.has(h) ? ' on' : ''), text: hourLabel(h),
       onclick: () => { const next = new Set(row.v.times || []); next.has(h) ? next.delete(h) : next.add(h); setVal(row, 'times', [...next].sort()); renderMeds(); } }));
     const more = el('select', { class: 'more', 'aria-label': 'Add another time', onchange: (e) => { if (!e.target.value) return; const next = new Set(row.v.times || []); next.add(e.target.value); setVal(row, 'times', [...next].sort()); renderMeds(); } },
