@@ -1,4 +1,4 @@
-/* Samara Care ERP — Scan Lab (TRIAL) v1.0.5 · 17-10-2026
+/* Samara Care ERP — Scan Lab (TRIAL) v1.0.6 · 17-10-2026
  * Separate page, Admin only. Reads a prescription / ID card through the "prescription-scan" Edge Function
  * and fills Admission-form fields for checking. NOTHING is written to the database.
  * The only database read is the Pharmacy item list (for the spelling check).
@@ -43,7 +43,7 @@
   const state = {
     client: null, session: null,
     pages: { rx: [], id: [] }, active: { rx: 0, id: 0 },
-    meds: [], rxMeta: null, rxNotes: [], idData: null, groups: [],
+    meds: [], rxMeta: null, rxNotes: [], idData: null, groups: [], readCount: 0, pageOffset: 0,
     pharmacy: [], pharmacyLoaded: false,
     scores: [] // {kind, total, correct, missed, extra, verifiedAt}
   };
@@ -106,7 +106,12 @@
       $(kind + '-clear').addEventListener('click', () => { state.pages[kind].forEach((p) => URL.revokeObjectURL(p.url)); state.pages[kind] = []; state.active[kind] = 0; renderPages(kind); });
       $(kind + '-read').addEventListener('click', () => readScan(kind));
     }
-    $('rx-add').addEventListener('click', () => { state.meds.push(blankRow(true)); renderMeds(); });
+    $('rx-add').addEventListener('click', () => { state.meds.push(blankRow(true)); renderMeds(); updateReadLabel('rx'); });
+    $('rx-fresh').addEventListener('click', () => {
+      if (!confirm('Clear ALL medicine rows and start a fresh list? (Use this for a different Guest.)')) return;
+      state.meds = []; state.groups = []; state.rxNotes = []; state.rxMeta = null; state.pageOffset = 0; state.removedAi = 0;
+      setStatus('rx', ''); renderMeds(); updateReadLabel('rx');
+    });
     window.addEventListener('beforeunload', (e) => { if (state.meds.length || state.idData) { e.preventDefault(); e.returnValue = ''; } });
   }
 
@@ -145,7 +150,7 @@
     const n = pages.length;
     $(kind + '-file-label').textContent = n ? '+ Add more pages' : 'Upload file';
     $(kind + '-cam-label').textContent = n ? `+ Photo of page ${n + 1}` : 'Mobile camera';
-    $(kind + '-read').textContent = (kind === 'rx' ? '✨ Read & Fill Medicines' : '✨ Read & Fill Guest Details') + (n > 1 ? ` (${n} pages)` : '');
+    updateReadLabel(kind);
   }
 
   // Shrink large photos (phone cameras) before sending; keeps handwriting readable.
@@ -174,7 +179,7 @@
   async function readScan(kind) {
     const pages = state.pages[kind];
     if (!pages.length) return;
-    if (kind === 'rx' && state.meds.length && !confirm('Replace the medicine rows below with a fresh reading of these pages?')) return;
+    const adding = kind === 'rx' && state.meds.length > 0;
     if (kind === 'id' && state.idData && !confirm('Replace the Guest details below with a fresh reading?')) return;
     const btn = $(kind + '-read'); btn.disabled = true;
     const t0 = Date.now();
@@ -190,7 +195,12 @@
       }
       if (!data?.result) throw new Error(data?.error || 'No result returned.');
       const secs = Math.round((Date.now() - t0) / 1000);
-      if (kind === 'rx') { applyRx(data.result); setStatus('rx', `Read in ${secs} s. Check every yellow row against the prescription, correct anything wrong, then tick ✓ Verified.`, 'ok'); }
+      if (kind === 'rx') {
+        const n = applyRx(data.result, pages.length, adding);
+        setStatus('rx', adding
+          ? `Read in ${secs} s — ${n} medicine(s) ADDED; the list now has ${state.meds.length}. To add another doctor's prescription: Clear pages, upload it, and press Read & Add again.`
+          : `Read in ${secs} s. Check every yellow row against the prescription, correct anything wrong, then tick ✓ Verified. Another doctor's prescription? Clear pages, upload it, and press Read & Add.`, 'ok');
+      }
       else { applyId(data.result); setStatus('id', `Read in ${secs} s. Check each field against the ID card, then tick ✓ Verified.`, 'ok'); }
     } catch (e) {
       setStatus(kind, e.message || 'Could not read the file.', 'error');
@@ -232,22 +242,29 @@
     const v = { prescribed_by_doctor: (state.groups[0] && state.groups[0].doctor) || state.rxMeta?.doctor_name || '', medicine_name: '', variable_dose: false, strength_amount: '', strength_unit: '', frequency: 'Once Daily (OD)', times: ['09:00'], route: 'Oral', food_instruction: 'After food', duration: 'Long Term', custom_duration_days: '', special_instruction: '' };
     return { id: ++rowSeq, group: state.groups[0] ? state.groups[0].key : '', v, ai: manual ? null : { ...v, times: v.times.slice() }, flags: new Set(), notes: {}, raw: '', form: '', confidence: manual ? 'manual' : 'high', verified: false, manual: !!manual, edited: new Set() };
   }
-  function applyRx(r) {
-    state.rxMeta = { doctor_name: r.doctor_name || '', hospital_or_clinic: r.hospital_or_clinic || '', prescription_date: r.prescription_date || '', patient_name: r.patient_name_on_prescription || '', page_quality: r.page_quality || '' };
-    state.rxNotes = r.other_notes || [];
+  // 1.0.6: a second reading ADDS to the medicine list (e.g. another doctor's prescription read separately);
+  // "Start a fresh list" clears it.
+  function applyRx(r, pagesRead, add) {
+    const meta = { doctor_name: r.doctor_name || '', hospital_or_clinic: r.hospital_or_clinic || '', prescription_date: r.prescription_date || '', patient_name: r.patient_name_on_prescription || '', page_quality: r.page_quality || '' };
+    if (!add) { state.meds = []; state.groups = []; state.rxNotes = []; state.pageOffset = 0; state.rxMeta = meta; }
+    else if (state.rxMeta) { if (meta.page_quality === 'poor') state.rxMeta.page_quality = 'poor'; if (!state.rxMeta.patient_name) state.rxMeta.patient_name = meta.patient_name; }
+    else state.rxMeta = meta;
+    state.rxNotes = state.rxNotes.concat(r.other_notes || []);
+    const readNo = ++state.readCount, offset = state.pageOffset;
     // 1.0.5: medicines are grouped by prescription (doctor, else page) — one doctor entry fills the whole group.
-    state.groups = [];
     const perMedDoctor = (r.medicines || []).some((m) => String(m.doctor_name || '').trim());
     const groupFor = (m) => {
-      const doc = perMedDoctor ? String(m.doctor_name || '').trim() : state.rxMeta.doctor_name;
-      const key = doc ? 'd:' + doc.toLowerCase().replace(/[^a-z]/g, '') : 'p:' + (m.page || 1);
+      const doc = perMedDoctor ? String(m.doctor_name || '').trim() : meta.doctor_name;
+      const key = doc ? 'd:' + doc.toLowerCase().replace(/[^a-z]/g, '') : `r${readNo}:p${m.page || 1}`;
       let g = state.groups.find((x) => x.key === key);
-      if (!g) { g = { key, doctor: doc, aiDoctor: doc, pages: new Set(), count: 0 }; state.groups.push(g); }
-      if (m.page) g.pages.add(Number(m.page));
+      if (!g) { g = { key, doctor: doc, aiDoctor: doc, pages: new Set(), count: 0, hospital: meta.hospital_or_clinic, date: meta.prescription_date }; state.groups.push(g); }
+      g.pages.add(Number(m.page || 1) + offset);
       g.count++;
       return g;
     };
-    state.meds = (r.medicines || []).map((m) => {
+    state.pageOffset += Math.max(1, pagesRead || 1);
+    const known = new Set(state.meds.map((x) => baseName(x.v.medicine_name)).filter(Boolean));
+    const added = (r.medicines || []).map((m) => {
       const g = groupFor(m);
       const row = blankRow(false); row.group = g.key;
       const flags = new Set((m.unclear_fields || []).map((f) => UNCLEAR_MAP[String(f).toLowerCase()] || null).filter(Boolean));
@@ -280,10 +297,19 @@
       if (!m.food_instruction) { flags.add('food_instruction'); notes.food_instruction = 'Not written — confirm'; }
       if (!m.duration) { flags.add('duration'); notes.duration = 'Not written — confirm (pre-set to Long Term)'; }
       if (v.duration === 'Custom' && !v.custom_duration_days) flags.add('custom_duration_days');
+      if (add && known.has(baseName(v.medicine_name))) { flags.add('medicine_name'); notes.medicine_name = 'This medicine is already in the list from an earlier prescription — remove one if it is the same.'; }
       Object.assign(row, { v, ai: { ...v, times: times.slice() }, flags, notes, raw: m.raw_text || '', form: m.form || '', pattern: m.dose_pattern || '', confidence: m.confidence || 'low' });
       return row;
     });
-    renderMeds();
+    state.meds = state.meds.concat(added);
+    renderMeds(); updateReadLabel('rx');
+    return added.length;
+  }
+  function updateReadLabel(kind) {
+    const n = state.pages[kind].length;
+    const base = kind === 'rx' ? (state.meds.length ? '✨ Read & Add to Medicines' : '✨ Read & Fill Medicines') : '✨ Read & Fill Guest Details';
+    $(kind + '-read').textContent = base + (n > 1 ? ` (${n} pages)` : '');
+    const fresh = $('rx-fresh'); if (fresh) fresh.hidden = !state.meds.length;
   }
 
   // ---------- spelling check against Pharmacy list ----------
@@ -389,7 +415,7 @@
         const inp = el('input', { type: 'text', value: g.doctor || '', list: 'doctor-list', autocomplete: 'off', placeholder: 'Doctor’s name (e.g. Dr. Maneesha)', 'data-group': g.key,
           onchange: (e) => { applyGroupDoctor(g, e.target.value.trim()); renderMeds(); } });
         return el('div', { class: 'group' + (g.doctor ? '' : ' flag') },
-          el('span', { class: 'gname', text: `${multi ? 'Prescription ' + (i + 1) : 'All'}${pages.length ? ' · page ' + pages.join(', ') : ''} · ${n} medicine${n === 1 ? '' : 's'}` }),
+          el('span', { class: 'gname', text: `${multi ? 'Prescription ' + (i + 1) : 'All'}${pages.length ? ' · page ' + pages.join(', ') : ''} · ${n} medicine${n === 1 ? '' : 's'}${multi && g.date ? ' · ' + g.date : ''}` }),
           inp,
           !g.doctor ? el('small', { class: 'fnote', text: 'Not printed on the prescription — type it once here; it fills every medicine in this group.' }) : null);
       }),

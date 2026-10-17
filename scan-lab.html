@@ -8,10 +8,10 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' blob: data:; frame-src blob:; object-src 'none'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; base-uri 'none'; form-action 'none'">
   <title>Scan Lab · Samara Care (Trial)</title>
   <link rel="icon" type="image/png" href="./icons/favicon.png">
-  <link rel="stylesheet" href="./scan-lab.css?v=1.0.5">
+  <link rel="stylesheet" href="./scan-lab.css?v=1.0.6">
   <script src="./config.js?v=scanlab-1.0.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-  <script defer src="./scan-lab.js?v=1.0.5"></script>
+  <script defer src="./scan-lab.js?v=1.0.6"></script>
 </head>
 <body>
   <header class="topbar">
@@ -57,7 +57,7 @@
         <div class="results">
           <div class="results-head">
             <h2>Section 3 · Current medicines <span class="count" id="rx-count"></span></h2>
-            <button type="button" class="btn ghost" id="rx-add">+ Add medicine manually</button>
+            <span class="head-btns"><button type="button" class="btn ghost" id="rx-add">+ Add medicine manually</button> <button type="button" class="btn ghost danger" id="rx-fresh" hidden>Start a fresh list</button></span>
           </div>
           <p class="hint">Medicine times follow meal times (meals about 8 AM, 1 PM, 8 PM). After food: 9 AM, 2 PM, 9 PM · Before food: 7 AM, 12 PM, 7 PM · With food: 8 AM, 1 PM, 8 PM · Bedtime (HS): 10 PM.</p>
           <div id="rx-meta" class="meta" hidden></div>
@@ -99,6 +99,6 @@
     </section>
   </main>
 
-  <footer class="foot">Scan Lab trial · separate from the live ERP · v1.0.5</footer>
+  <footer class="foot">Scan Lab trial · separate from the live ERP · v1.0.6</footer>
 </body>
 </html>
