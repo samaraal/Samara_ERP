@@ -1,4 +1,4 @@
-## 2.17.6 — Bills & Charges in the Nursing Manager menu
+## 2.17.7 — Bills & Charges in the Nursing Manager menu (2.17.6 + page access)
 - Nursing Manager (Manager role): NURSING OVERVIEW now has **Bills & Charges** (raise outside bills and other charges with "+ Raise Bill / Charge"). Charge Register stays as the view-only list. No SQL.
 
 ## 2.17.5 — Outside Services paid by Samara
