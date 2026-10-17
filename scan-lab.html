@@ -12,13 +12,14 @@
   <script src="./config.js?v=scanlab-1.0.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
   <script defer src="./scan-lab.js?v=1.0.6"></script>
+  <script defer src="./store-scan.js?v=1.0.0"></script>
 </head>
 <body>
   <header class="topbar">
     <img src="./assets/samara-logo.png" alt="Samara Assisted Living" class="logo">
     <div class="title">
       <span class="eyebrow">SAMARA CARE ERP · TRIAL</span>
-      <h1>Scan Lab — Prescription &amp; ID Auto-fill</h1>
+      <h1>Scan Lab — Document Auto-fill Trial</h1>
     </div>
     <span class="pill trial">Admin only · Nothing is saved</span>
   </header>
@@ -35,7 +36,8 @@
     <nav class="tabs" role="tablist">
       <button type="button" class="tab active" data-tab="rx" role="tab">① Prescription → Medicines</button>
       <button type="button" class="tab" data-tab="id" role="tab">② ID card → Guest details</button>
-      <button type="button" class="tab" data-tab="score" role="tab">③ Trial score</button>
+      <button type="button" class="tab" data-tab="store" role="tab">③ Delivery invoice → Store stock</button>
+      <button type="button" class="tab" data-tab="score" role="tab">④ Trial score</button>
     </nav>
 
     <!-- PRESCRIPTION -->
@@ -91,6 +93,30 @@
       </div>
     </section>
 
+    <!-- STORE ARRIVAL: TRIAL PREVIEW ONLY -->
+    <section class="panel" data-panel="store" hidden>
+      <div class="notice store-notice"><strong>Trial preview only.</strong> Read a supplier invoice or delivery note, check and correct the extracted stock details, then use the existing ERP Stores form to enter them manually. This trial does not save or change ERP data.</div>
+      <div class="split">
+        <div class="docs">
+          <h2>Supplier invoice / delivery note</h2>
+          <p class="hint">Upload up to 8 pages from one delivery. The AI reads supplier and invoice details plus every stock line it can identify.</p>
+          <div class="upload-row">
+            <label class="btn secondary"><span id="store-file-label">Upload file</span><input type="file" id="store-file" accept="image/*,application/pdf" multiple hidden></label>
+            <label class="btn secondary"><span id="store-cam-label">Mobile camera</span><input type="file" id="store-cam" accept="image/*" capture="environment" hidden></label>
+            <button type="button" class="btn ghost" id="store-clear">Clear pages</button>
+          </div>
+          <div class="thumbs" id="store-thumbs"></div>
+          <div class="viewer" id="store-viewer"><p class="empty">The supplier document you upload shows here for comparison.</p></div>
+          <button type="button" class="btn primary big" id="store-read" disabled>✨ Read &amp; Fill Stock Arrival</button>
+          <p class="status" id="store-status" aria-live="polite"></p>
+        </div>
+        <div class="results">
+          <div class="results-head"><h2>Stock arrival details <span class="count" id="store-count"></span></h2><button type="button" class="btn ghost" id="store-reset">Clear extracted details</button></div>
+          <p class="hint">Yellow fields need a careful check. Missing or unclear values stay blank. No receipt is created here.</p>
+          <div id="store-results"><p class="empty">Upload a supplier invoice or delivery note and press <b>Read &amp; Fill Stock Arrival</b>.</p></div>
+        </div>
+      </div>
+    </section>
     <!-- SCORE -->
     <section class="panel" data-panel="score" hidden>
       <h2>How well is the auto-fill doing?</h2>
@@ -99,6 +125,6 @@
     </section>
   </main>
 
-  <footer class="foot">Scan Lab trial · separate from the live ERP · v1.0.6</footer>
+  <footer class="foot">Scan Lab trial · separate from the live ERP · v1.0.7</footer>
 </body>
 </html>
