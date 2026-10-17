@@ -53,7 +53,11 @@
       try{return JSON.parse(sessionStorage.getItem('samara_discharge_payment_target')||'null')}catch(_error){return null}
     });
 
-    const [patientFilter,setPatientFilter]=React.useState(dischargeTarget?.patient_id||'');
+    // 2.17.9: "Receive Payment" from Discharged – Dues Pending opens Payments with that Guest selected.
+    const [guestFromDues]=React.useState(()=>{
+      try{const v=sessionStorage.getItem('samara-payment-patient')||'';sessionStorage.removeItem('samara-payment-patient');return v}catch(_error){return ''}
+    });
+    const [patientFilter,setPatientFilter]=React.useState(dischargeTarget?.patient_id||guestFromDues||'');
     const [dashboardPaymentFocus,setDashboardPaymentFocus]=React.useState(()=>{
       try{
         const value=sessionStorage.getItem('samara-payment-filter')||'';
@@ -66,7 +70,7 @@
     const clearanceBlocked=!ledgerReady||chargeReadiness.loading||!!chargeReadiness.error||chargeReadiness.rows.length>0;
     const [quickView,setQuickView]=React.useState(dischargeTarget?'Complete Transaction History':'Pending Bills');
     const [form,setForm]=React.useState({
-      patient_id:dischargeTarget?.patient_id||'',
+      patient_id:dischargeTarget?.patient_id||guestFromDues||'',
       transaction_type:'Payment',
       category:'Final Settlement',
       amount:'',

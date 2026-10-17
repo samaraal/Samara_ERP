@@ -49,6 +49,12 @@
     const canInitiate=!isAccountsClearance&&['Nurse','Manager'].includes(profile?.role)&&!isAssignedDirector;
     const canApprove=!isAccountsClearance&&(['Admin','Manager'].includes(profile?.role)||isAssignedDirector);
     const canDecideDiscount=!isAccountsClearance&&(profile?.role==='Admin'||isAssignedDirector);
+    // 2.17.9: emergency departure with dues pending — Admin / Director only; register also for Accounts.
+    const canAllowDues=profile?.role==='Admin'||isAssignedDirector;
+    const canViewDues=canAllowDues||profile?.role==='Accounts';
+    const [duesRows,setDuesRows]=React.useState([]);
+    const [duesError,setDuesError]=React.useState('');
+    const [duesShowSettled,setDuesShowSettled]=React.useState(false);
     const canCloseAccounts=isAccountsClearance&&['Admin','Accounts'].includes(profile?.role);
     const [rows,setRows]=React.useState([]);
     const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
@@ -224,6 +230,11 @@
         );
       };
       if(!p.error)setPatients(p.data||[]);
+      if(canViewDues){
+        const dr=await client.rpc('discharged_dues_register');
+        if(dr.error){setDuesRows([]);setDuesError(/discharged_dues_register|schema cache|does not exist/i.test(dr.error.message||'')?'Run supabase/sql/248_discharge_with_dues_pending.sql in Supabase to turn on Dues Pending discharges.':dr.error.message)}
+        else{setDuesRows(Array.isArray(dr.data)?dr.data:[]);setDuesError('')}
+      }
     }
     React.useEffect(()=>{
       load();
@@ -857,6 +868,64 @@
       await load();
     }
 
+    // 2.17.9: Admin / Director allow departure while dues are outstanding (emergency). Nothing is discounted:
+    // the balance stays in the Ledger / Family Portal and is reminded by WhatsApp every 3 days until paid.
+    async function allowDepartureWithDues(row){
+      if(!canAllowDues||busy)return;
+      const patient=patientFor(row.patient_id);
+      const name=formalName(patient)||patient.full_name||'Guest';
+      const reason=prompt(`Allow ${name} to leave with dues pending?\n\nThe outstanding amount is NOT discounted. It stays in the Patient Ledger and Family Portal as due, and the family gets a WhatsApp reminder every 3 days until it is paid.\n\nReason (compulsory):`,row.discharge_type==='Transfer to Hospital'?'Emergency transfer to hospital':'Emergency discharge')||'';
+      if(!reason.trim())return;
+      if(reason.trim().length<5){notify('error','Not saved','Enter a clear reason (at least 5 letters).');return}
+      setBusy(true);
+      const {data,error}=await client.rpc('allow_discharge_with_dues',{p_discharge_id:row.id,p_reason:reason.trim()});
+      setBusy(false);
+      if(error){
+        const missing=/allow_discharge_with_dues|schema cache|does not exist/i.test(error.message||'');
+        notify('error','Not allowed',missing?'Run supabase/sql/248_discharge_with_dues_pending.sql in Supabase first.':error.message);return;
+      }
+      notify('success','Departure allowed — dues pending',`Dues of ₹${Number(data?.dues_amount||0).toLocaleString('en-IN')} stay on the Guest's account. The nurse can now complete Final Discharge; the room will be released then.`);
+      await load();
+    }
+    function openPaymentsForGuest(patientId){
+      try{sessionStorage.removeItem('samara_discharge_payment_target');sessionStorage.setItem('samara-payment-patient',patientId)}catch(_error){}
+      if(onNavigate)onNavigate('Payments');
+      else window.dispatchEvent(new CustomEvent('samara-open-page',{detail:{page:'Payments'}}));
+    }
+    async function sendDuesReminderNow(d){
+      if(busy)return;
+      const to=d.family_phone||'';
+      if(!to){notify('error','No WhatsApp number','Family / Guest mobile is not available in the Patient File.');return}
+      const amount=Number(d.current_balance||0);
+      if(amount<=0.009){notify('error','Nothing due','This Guest has no outstanding amount now.');return}
+      if(!window.confirm(`Send the dues reminder WhatsApp to ${d.family_name||'the family'} (${to}) for ₹${amount.toLocaleString('en-IN')}?`))return;
+      const recipient=d.family_name||'Family Member';
+      const guestName=d.guest_name||'Guest';
+      const amountText=amount.toLocaleString('en-IN',{maximumFractionDigits:2});
+      const dueDate=formatDateIN(todayISOIndia());
+      setBusy(true);
+      try{
+        await sendWhatsAppTemplate({to,templateName:'samara_bill_reminder',languageCode:'en',bodyParams:[recipient,guestName,amountText,dueDate],
+          communicationLog:{communication_type:'Discharged Guest Dues Reminder · Manual',
+            message_content:`Dear ${recipient},\n\nThis is a gentle reminder regarding the outstanding amount for ${guestName}.\n\nAmount Due: ₹${amountText}\nDue Date: ${dueDate}`,
+            contact_name:recipient,source_type:'Patient / Family · Accounts',sent_by:profile?.id||null,sent_by_name:formalName(profile)||'Accounts',
+            message_payload:{patient_id:d.patient_id,discharge_id:d.discharge_id,amount}}});
+        await client.rpc('record_discharge_dues_reminder',{p_discharge_id:d.discharge_id});
+        notify('success','Reminder sent',`Meta accepted the ₹${amountText} dues reminder.`);
+      }catch(error){notify('error','WhatsApp not sent',error?.message||String(error))}
+      setBusy(false);
+      await load();
+    }
+    async function toggleDuesReminders(d){
+      if(busy)return;
+      setBusy(true);
+      const {error}=await client.rpc('set_discharge_dues_reminders',{p_discharge_id:d.discharge_id,p_paused:!d.reminders_paused});
+      setBusy(false);
+      if(error){notify('error','Not changed',error.message);return}
+      notify('success',d.reminders_paused?'Reminders resumed':'Reminders paused',d.reminders_paused?'Automatic WhatsApp reminders will continue every 3 days.':'No automatic WhatsApp reminders until resumed.');
+      await load();
+    }
+
     async function openFinalDischarge(row){
       finalDischargeSubmitting.current=false;
       const reviewResult=await client.rpc('discharge_workflow_workspace');
@@ -1238,6 +1307,9 @@ Doctor / Hospital: ${doctorHospital}`;
         canCloseAccounts&&row.management_status==='Approved'&&row.status!=='Completed'&&row.discount_request_status==='Pending'&&h('span',{className:'small-note'},'Discount Approval Pending — Admin / Director'),
         canCloseAccounts&&profile?.role==='Accounts'&&row.management_status==='Approved'&&row.status!=='Completed'&&row.discount_request_status!=='Pending'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>requestDiscountApproval(row)},'Request Discount Approval'),
         canCloseAccounts&&row.management_status==='Approved'&&row.status!=='Completed'&&h('button',{className:'btn btn-secondary',onClick:()=>openPayments(row)},'View Payments'),
+        canAllowDues&&row.management_status==='Approved'&&row.status!=='Completed'&&String(row.accounts_status||'').trim().toLowerCase()!=='cleared'&&row.discount_request_status!=='Pending'&&!isHistoricalDuplicate(row)&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,style:{borderColor:'#b42336',color:'#b42336',fontWeight:800},onClick:()=>allowDepartureWithDues(row)},'🚨 Allow Departure – Dues Pending'),
+        row.dues_status==='Pending'&&h('span',{className:'small-note',style:{color:'#b42336',fontWeight:800}},`Dues pending ₹${Number(row.final_outstanding??row.dues_amount??0).toLocaleString('en-IN')} — departure allowed by ${row.dues_approved_by_name||'Admin / Director'}`),
+        row.dues_status==='Settled'&&h('span',{className:'small-note',style:{color:'#16814d',fontWeight:800}},`Dues settled · ${fmt(row.dues_settled_at)}`),
         canCloseAccounts&&row.management_status==='Approved'&&row.status!=='Completed'&&row.accounts_status==='Ready to Close'&&h('span',{className:'small-note'},'Financial closure must be completed through Payments with full transaction evidence.'),
         isNurse&&!isAssignedDirector&&String(row.accounts_status||'').trim().toLowerCase()==='cleared'&&String(row.status||'').trim().toLowerCase()!=='completed'&&h('button',{
           type:'button',
@@ -1385,6 +1457,7 @@ Doctor / Hospital: ${doctorHospital}`;
         ['Management',row.management_status||'Pending'],['Decision by',row.management_approved_by_name],['Decision time',row.management_approved_at?fmt(row.management_approved_at):''],['Management remarks',row.management_remarks],
         ['Discount request',row.discount_request_status],['Discount reason',row.discount_request_reason],['Suggested discount',row.discount_suggested_amount!=null?`₹${Number(row.discount_suggested_amount).toLocaleString('en-IN')}`:''],
         ['Accounts',row.accounts_status],['Cleared by',row.accounts_cleared_by_name],['Cleared at',row.accounts_cleared_at?fmt(row.accounts_cleared_at):''],['Accounts remarks',row.accounts_remarks],
+        ['Dues',row.dues_status==='Pending'?'Pending (departure allowed with dues)':row.dues_status==='Settled'?'Settled':''],['Dues at departure',row.dues_amount!=null?`₹${Number(row.dues_amount).toLocaleString('en-IN')}`:''],['Dues reason',row.dues_reason],['Dues allowed by',row.dues_approved_by_name],['Dues allowed at',row.dues_approved_at?fmt(row.dues_approved_at):''],['Dues settled at',row.dues_settled_at?fmt(row.dues_settled_at):''],['Dues reminders sent',row.dues_status?String(row.dues_reminder_count||0)+(row.dues_last_reminder_at?` · last ${fmt(row.dues_last_reminder_at)}`:''):''],
         ['Departed',row.actual_departure_at?fmt(row.actual_departure_at):''],['Completed by',row.completed_by_name],['Transport',row.transport_arrangement],
         ...(row.handover_details?[
           ['Discharge summary',row.handover_details.discharge_summary],
@@ -1433,7 +1506,7 @@ Doctor / Hospital: ${doctorHospital}`;
           message&&h('div',{className:'message error',style:{marginTop:'8px'}},message),
           h('p',{className:'small-note'},
             isAccountsClearance
-              ?'Open Payments to verify all charges and settle the balance. Accounts clearance is saved there; Nursing then confirms actual departure. Earlier clearances remain in the timeline.'
+              ?'Open Payments to verify all charges and settle the balance. Accounts clearance is saved there; Nursing then confirms actual departure. Earlier clearances remain in the timeline. Emergency departure before payment: Admin / Director uses "🚨 Allow Departure – Dues Pending".'
               :isNurse
                 ?(
                 rows.some(row=>row.accounts_status==='Cleared'&&row.status!=='Completed')
@@ -1466,6 +1539,28 @@ Doctor / Hospital: ${doctorHospital}`;
       hiddenTrialOpen.length>0&&!recordFocus&&h('div',{className:'dr-trial-hidden-note',role:'status'},
         h('span',null,`🧪 ${hiddenTrialOpen.length} Trial Guest discharge${hiddenTrialOpen.length>1?'s':''} open (${hiddenTrialStages.join(', ')}) — hidden because Guest record is "Real only".`),
         h('button',{type:'button',className:'btn btn-secondary',onClick:showTrialCases},'Show Trial cases')),
+      // 2b. 2.17.9 Discharged Guests with dues pending (Admin / Director / Accounts)
+      canViewDues&&(duesError||duesRows.length>0)&&h('div',{className:'card panel',style:{border:'2px solid #f3b4bf',background:'#fff7f8'}},
+        h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',flexWrap:'wrap'}},
+          h('div',null,
+            h('h3',{style:{margin:0,color:'#b42336'}},`🚨 Discharged – Dues Pending (${duesRows.filter(d=>d.dues_status==='Pending').length})`),
+            h('small',null,'Guests allowed to leave with an outstanding amount. Not discounted — the family gets a WhatsApp reminder every 3 days (10 AM–6 PM) until paid. Marked Settled automatically on full payment.')),
+          duesRows.some(d=>d.dues_status==='Settled')&&h('label',{className:'small-note',style:{display:'flex',gap:'6px',alignItems:'center'}},h('input',{type:'checkbox',checked:duesShowSettled,onChange:e=>setDuesShowSettled(e.target.checked)}),'Show settled')),
+        duesError&&h('div',{className:'message warning',style:{marginTop:'8px'}},duesError),
+        duesRows.length>0&&h('div',{className:'table-wrap',style:{marginTop:'10px'}},h('table',null,
+          h('thead',null,h('tr',null,['Guest','Departed','Dues at departure','Balance now','Allowed by','Reminders','Action'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,duesRows.filter(d=>duesShowSettled||d.dues_status==='Pending').map(d=>h('tr',{key:d.discharge_id},
+            h('td',{'data-label':'Guest'},h('b',null,d.guest_name||'Guest'),h('br'),h('small',null,`${d.patient_code||''}${d.is_trial?' · 🧪 Trial':''}`),d.dues_reason&&h('div',null,h('small',null,d.dues_reason))),
+            h('td',{'data-label':'Departed'},d.status==='Completed'&&d.departed_at?fmt(d.departed_at):h('span',{className:'small-note'},'Awaiting Final Discharge')),
+            h('td',{'data-label':'Dues at departure'},`₹${Number(d.dues_amount||0).toLocaleString('en-IN')}`),
+            h('td',{'data-label':'Balance now'},d.dues_status==='Settled'?h('b',{style:{color:'#16814d'}},`Settled ✓ ${d.settled_at?fmt(d.settled_at):''}`):h('b',{style:{color:'#b42336'}},`₹${Number(d.current_balance||0).toLocaleString('en-IN')}`)),
+            h('td',{'data-label':'Allowed by'},d.approved_by||'—',h('br'),h('small',null,d.approved_at?fmt(d.approved_at):'')),
+            h('td',{'data-label':'Reminders'},d.dues_status==='Settled'?'—':h(React.Fragment,null,`${d.reminder_count||0} sent`,h('br'),h('small',null,d.reminders_paused?'⏸ Paused':d.last_reminder_at?`Last ${fmt(d.last_reminder_at)}`:'First after 3 days'))),
+            h('td',{'data-label':'Action'},d.dues_status==='Pending'&&h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
+              ['Admin','Accounts'].includes(profile?.role)&&h('button',{type:'button',className:'btn btn-primary',onClick:()=>openPaymentsForGuest(d.patient_id)},'Receive Payment'),
+              d.status==='Completed'&&h('button',{type:'button',className:'btn btn-whatsapp',disabled:busy,onClick:()=>sendDuesReminderNow(d)},'Send Reminder Now'),
+              d.status==='Completed'&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>toggleDuesReminders(d)},d.reminders_paused?'▶ Resume reminders':'⏸ Pause reminders')))
+          )))))),
       // 3. Discharge Register
       h('div',{id:'discharge-register',className:'card panel dr-register',style:{scrollMarginTop:'120px'}},
         h('div',{className:'dr-register-head'},
@@ -1827,6 +1922,8 @@ Doctor / Hospital: ${doctorHospital}`;
             finalDischargeCompleted?'Final discharge completed successfully. The patient has been discharged and the room and bed released.':
             'Accounts clearance completed. For each item choose Handed over or None, tick the two clinical confirmations, and record the actual departure before releasing the room and bed.'
           ),
+          !finalDischargeCompleted&&finalDischargeRow.dues_status==='Pending'&&h('div',{className:'message warning'},
+            `🚨 Emergency departure allowed with dues pending (₹${Number(finalDischargeRow.dues_amount||0).toLocaleString('en-IN')}) by ${finalDischargeRow.dues_approved_by_name||'Admin / Director'}. No payment is to be collected by Nursing — Accounts follows up with the family.`),
           h('fieldset',{disabled:busy||finalDischargeCompleted,style:{border:0,padding:0,margin:0,minWidth:0}},
           h('div',{className:'final-discharge-checklist'},
             h('div',{className:'handover-summary-auto'},

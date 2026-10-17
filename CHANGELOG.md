@@ -1,3 +1,8 @@
+## 2.17.9 — Emergency discharge with dues pending
+- Patient Discharge / Discharge Clearance: Admin / Director can use **🚨 Allow Departure – Dues Pending** (reason compulsory) when a Guest must leave before paying, e.g. emergency transfer to hospital. All charge requests must be resolved first. Nothing is discounted — the balance stays in the Patient Ledger / Family Portal as due. The nurse then completes Final Discharge as usual (room / bed released, discharge WhatsApp + Discharge Summary as usual).
+- New **Discharged – Dues Pending** list (Admin, Director, Accounts): dues at departure, balance now, Receive Payment (opens Payments with the Guest selected), Send Reminder Now, Pause / Resume reminders. Marked **Settled** automatically when the balance becomes zero.
+- Family gets the existing **samara_bill_reminder** WhatsApp every 3 days (10 AM–6 PM IST) until paid — new Edge Function discharge-dues-reminder-dispatch, run hourly by pg_cron. Requires SQL 248.
+
 ## 2.17.8 — Bill file picker fix when adding several charges
 - Bills & Charges: after "+ Add Charge" the file picker is cleared, so it no longer shows the previous charge's file name, and choosing the next bill (even the same file name) is always attached. A line under the picker now shows exactly which file(s) are attached to the current charge. No SQL.
 
