@@ -1,3 +1,6 @@
+## 2.17.8 — Bill file picker fix when adding several charges
+- Bills & Charges: after "+ Add Charge" the file picker is cleared, so it no longer shows the previous charge's file name, and choosing the next bill (even the same file name) is always attached. A line under the picker now shows exactly which file(s) are attached to the current charge. No SQL.
+
 ## 2.17.7 — Bills & Charges in the Nursing Manager menu (2.17.6 + page access)
 - Nursing Manager (Manager role): NURSING OVERVIEW now has **Bills & Charges** (raise outside bills and other charges with "+ Raise Bill / Charge"). Charge Register stays as the view-only list. No SQL.
 

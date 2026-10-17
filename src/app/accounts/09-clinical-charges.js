@@ -188,6 +188,9 @@
     const [busy,setBusy]=React.useState(false);
     const [toast,setToast]=React.useState(null);
     const [files,setFiles]=React.useState([]);
+    // 2.17.8: the file picker is re-created (new key) whenever the attached files are cleared, so it never
+    // shows a previous charge's file name and choosing the same file again always registers.
+    const [fileInputKey,setFileInputKey]=React.useState(0);
     const [batchItems,setBatchItems]=React.useState([]);
     const [tariffs,setTariffs]=React.useState([]);
     const [catalog,setCatalog]=React.useState([]);
@@ -469,7 +472,7 @@
         return {...next,service_name:first,...stockDefaults(current.category,first),description:first};
       });
     }
-    function openNew(){const base=fresh();const availableCategories=Object.keys(categories);if(profile?.role==='Nurse'&&!availableCategories.length){notify('error','No charge categories are available. Ask Admin to check Charge Master and Stores.');return}const firstCategory=availableCategories[0]||base.category;const firstService=storeCategories.includes(firstCategory)?firstServiceFor(firstCategory,base.patient_id):((categories[firstCategory]||[])[0]||base.service_name);setFiles([]);setBatchItems([]);setForm({...base,category:firstCategory,service_name:firstService,description:firstService,...stockDefaults(firstCategory,firstService)});setShow(true)}
+    function openNew(){const base=fresh();const availableCategories=Object.keys(categories);if(profile?.role==='Nurse'&&!availableCategories.length){notify('error','No charge categories are available. Ask Admin to check Charge Master and Stores.');return}const firstCategory=availableCategories[0]||base.category;const firstService=storeCategories.includes(firstCategory)?firstServiceFor(firstCategory,base.patient_id):((categories[firstCategory]||[])[0]||base.service_name);setFiles([]);setFileInputKey(k=>k+1);setBatchItems([]);setForm({...base,category:firstCategory,service_name:firstService,description:firstService,...stockDefaults(firstCategory,firstService)});setShow(true)}
     function changeCategory(value){
       setForm(current=>{const first=storeCategories.includes(value)?firstServiceFor(value,current.patient_id):((categories[value]||[])[0]||'Others');const outside=value===OUTSIDE_CATEGORY;return {...current,category:value,service_name:first,...stockDefaults(value,first),other_service_name:'',description:first==='Others'?'':first,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(value)&&first!=='Others'?first:'',...(outside?{bill_available:true,quantity:'1',unit:'Bill',billable:true}:{outside_paid_by:'',outside_bill_amount:'',outside_route:''})}});
     }
@@ -536,7 +539,7 @@
       const signature=draftSignature(form,files);
       if(batchItems.some(item=>item.signature===signature)){notify('error','This charge is already added to the list. Change the service/details before adding another.');return}
       setBatchItems(current=>[...current,{form:{...form},files:[...files],signature}]);
-      setFiles([]);
+      setFiles([]);setFileInputKey(k=>k+1);
       notify('success',`${form.service_name==='Others'?(form.other_service_name||'Other item'):form.service_name} added. You can now change the service/details and add another charge.`);
     }
     function removeBatchItem(index){setBatchItems(current=>current.filter((_,i)=>i!==index))}
@@ -651,7 +654,7 @@
         const user=auth.data?.user;
         for(const item of items)await saveOne(item.form,item.files,user);
         notify('success',`${items.length} bill / charge request${items.length===1?'':'s'} forwarded for approval.`);
-        setBatchItems([]);setFiles([]);
+        setBatchItems([]);setFiles([]);setFileInputKey(k=>k+1);
         finishSuccessfulAction({close:()=>setShow(false),refresh:load});
       }catch(error){notify('error',error.message||'Unable to save clinical charges.')}
       setBusy(false);
@@ -945,11 +948,13 @@
     basicFields.push(h('div',{className:'field span-2'},
       h('label',null,profile?.role==='Nurse'?'Upload Supporting Bill / Report (when available)':'Supporting Bill / Report'),
       h('input',{
+        key:'bill-file-'+fileInputKey,
         type:'file',
         multiple:true,
         accept:'image/*,.pdf',
         onChange:e=>setFiles(Array.from(e.target.files||[]))
       }),
+      h('small',{style:{display:'block',fontWeight:700,color:files.length?'#0b5a40':'#8b6b79',marginTop:'4px'}},files.length?`✓ Attached to this charge: ${files.map(f=>f.name).join(', ')}`:'No file attached to this charge yet'),
       outsideForm?h('small',{className:'small-note'},'Bill photo / PDF is compulsory for outside bills. The family will also see this bill in the Family Portal.'):profile?.role==='Nurse'&&h('small',{className:'small-note'},form.bill_available?'Bill / invoice upload is mandatory because Bill available is selected.':'No amount is shown or entered by Nursing. Accounts will apply the Admin-fixed tariff.')
     ));
 
