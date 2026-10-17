@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.17.1';
+  const APP_VERSION = '2.17.2';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2596,6 +2596,13 @@ function billItemsSummary(items){
   }
   return [...groups.values()].map(g=>g.unit?`${g.name} (${billQty(g.qty)} × ${billRupees(g.price)})`:(g.count>1?`${g.name} × ${g.count}`:g.name)).join(', ')||'—';
 }
+// Service day of a bill row in India time (source_date when present, else the entry date).
+function billRowDayISO(row){
+  const raw=row?.source_date||row?.transaction_date||row?.created_at;if(!raw)return '';
+  const t=String(raw);if(/^\d{4}-\d{2}-\d{2}$/.test(t))return t;
+  const d=new Date(t);if(Number.isNaN(d.getTime()))return t.slice(0,10);
+  return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+}
 // Itemised lines for one charge category, always Qty × Rate = Amount (Final Bill):
 //  • daily charges → "Room rent (30-09-2026 to 01-10-2026)" 2 days × ₹3,200
 //  • Bills & Charges items → "Examination Gloves" 17 × ₹30 (no recorded quantity: entries × amount)
@@ -2607,9 +2614,15 @@ function billChargeLines(items){
     if(m){daily.push({kind:m[1],iso:`${m[4]}-${m[3]}-${m[2]}`,amount:Number(it.amount||0)});continue;}
     const q=Number(it?.bill_quantity),p=Number(it?.bill_unit_price),unit=q>0&&p>0;
     const amt=Number(it.amount||0),rate=unit?p:amt,key=`${name}|${rate}`;
-    const g=other.get(key)||{label:name,qty:0,rate,amount:0,unit:''};
+    const g=other.get(key)||{label:name,qty:0,rate,amount:0,unit:'',first:'',last:''};
     g.qty+=unit?q:1;g.amount+=amt;other.set(key,g);
+    const day=billRowDayISO(it);
+    if(day){if(!g.first||day<g.first)g.first=day;if(!g.last||day>g.last)g.last=day;}
   }
+  // 2.17.2: same item charged at two or more rates (Charge Master rate changed during the stay)
+  // → show the dates against each rate line, e.g. "Suction Catheter - 14 Fr (01-10-2026 to 08-10-2026)".
+  const rateCount=new Map();
+  for(const g of other.values())rateCount.set(g.label,(rateCount.get(g.label)||0)+1);
   const dmy=iso=>`${iso.slice(8,10)}-${iso.slice(5,7)}-${iso.slice(0,4)}`;
   daily.sort((a,b)=>a.kind.localeCompare(b.kind)||a.iso.localeCompare(b.iso));
   let run=null;
@@ -2619,7 +2632,15 @@ function billChargeLines(items){
     if(next){run.to=d.iso;run.n+=1;}else{flush();run={kind:d.kind,from:d.iso,to:d.iso,n:1,rate:d.amount};}
   }
   flush();
-  return out.concat([...other.values()]);
+  const others=[...other.values()];
+  // keep the original item order, but put each item's rate lines together, earliest dates first
+  const order=[...new Set([...other.values()].map(g=>g.label))];
+  others.sort((a,b)=>order.indexOf(a.label)-order.indexOf(b.label)||String(a.first).localeCompare(String(b.first)));
+  return out.concat(others.map(g=>{
+    const {first,last,...line}=g;
+    if(rateCount.get(g.label)>1&&first)line.label=`${g.label} (${first===last?dmy(first):`${dmy(first)} to ${dmy(last)}`})`;
+    return line;
+  }));
 }
 // Amount in words, Indian system: 1,23,45,678.50 → "Rupees One Crore Twenty Three Lakh Forty Five Thousand Six Hundred Seventy Eight and Fifty Paise Only".
 function billAmountInWords(value){
@@ -43602,7 +43623,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
 
   // All Categories: one box per Charge Master category (new categories appear here automatically)
   function ChargeMasterOverview({profile,onNavigate}){
-    const [rows,setRows]=React.useState(null),[stores,setStores]=React.useState([]),[settings,setSettings]=React.useState({}),[openCat,setOpenCat]=React.useState(''),[classic,setClassic]=React.useState(false);
+    const [rows,setRows]=React.useState(null),[stores,setStores]=React.useState([]),[settings,setSettings]=React.useState({}),[openCat,setOpenCat]=React.useState(''),[classic,setClassic]=React.useState(false),[history,setHistory]=React.useState(false);
     React.useEffect(()=>{(async()=>{
       const [t,s,a]=await Promise.all([
         client.from('charge_tariff_master').select('category,is_active,amount'),
@@ -43614,16 +43635,58 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     })()},[]);
     if(profile?.role!=='Admin')return h(Section,{title:'Charge Master'},h('p',null,'Administrator access only.'));
     if(classic)return h('div',null,h('div',{className:'equip-actions',style:{marginBottom:'10px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setClassic(false)},'← All Categories')),h(ChargeMasterPage,{profile}));
+    if(history)return h('div',null,h('div',{className:'equip-actions',style:{marginBottom:'10px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setHistory(false)},'← All Categories')),h(ChargeRateHistoryView));
     if(openCat)return h('div',null,h('div',{className:'equip-actions',style:{marginBottom:'10px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setOpenCat('')},'← All Categories')),h(ChargeMasterDashboard,{profile,category:openCat,onNavigate}));
     const cats=[...new Set([...CHARGE_MASTER_CATEGORIES,...(rows||[]).map(r=>String(r.category||'').trim()).filter(Boolean)])].sort(samaraAlpha);
     const tiles=[...cats.map(c=>{const r=(rows||[]).filter(x=>String(x.category||'').trim()===c);const active=r.filter(x=>x.is_active!==false);const missing=active.filter(x=>!(Number(x.amount)>0)).length;
         return {key:c,icon:'₹',title:c,value:rows?active.length:null,unit:'active items',lines:[`${missing} without a rate`,settings[c]?'Approval Requests':'Bills & Charges'],alert:missing>0}}),
       {key:'Stores Item Rates',icon:'▦',title:'Stores Item Rates',value:stores.filter(x=>x.active!==false).length,unit:'items',lines:[`${stores.filter(x=>x.active!==false&&!(Number(x.charge_rate)>0)).length} without a rate`,'Consumables · Pharmacy · Housekeeping · Kitchen']},
-      {key:'__classic',icon:'☰',title:'Full List (all categories)',valueText:'All',unit:'items',lines:['The complete Charge Master table, Assign Codes']}];
+      {key:'__classic',icon:'☰',title:'Full List (all categories)',valueText:'All',unit:'items',lines:['The complete Charge Master table, Assign Codes']},
+      {key:'__history',icon:'◷',title:'Rate Change History',valueText:'Log',unit:'',lines:['Old rate → new rate, who and when']}];
     return h('div',{className:'stores-dash-wrap'},h('div',{className:'stores-dash'},
       h(DashboardHero,{kicker:'CHARGE MASTER',title:'All Categories',blurb:'Every chargeable item, code and Admin-fixed rate — the single source for Bills & Charges, Approval Requests, Accounts approval and the Patient Ledger. Tap a category.'}),
-      h(DashboardTiles,{tiles,onOpen:key=>{if(key==='__classic')return setClassic(true);const page=CM_PAGE_PREFIX+key;if(CHARGE_MASTER_PAGES.includes(page)&&typeof onNavigate==='function')onNavigate(page);else setOpenCat(key)}})
+      h(DashboardTiles,{tiles,onOpen:key=>{if(key==='__classic')return setClassic(true);if(key==='__history')return setHistory(true);const page=CM_PAGE_PREFIX+key;if(CHARGE_MASTER_PAGES.includes(page)&&typeof onNavigate==='function')onNavigate(page);else setOpenCat(key)}})
     ));
+  }
+  // 2.17.2: Charge Master → "Rate Change History". Every patient charge-rate change (Stores / Pharmacy item
+  // rate or service tariff) is recorded by the database (SQL 246): old rate, new rate, who and when. Read-only.
+  function ChargeRateHistoryView(){
+    const [rows,setRows]=React.useState(null),[error,setError]=React.useState('');
+    const [period,setPeriod]=React.useState('all'),[from,setFrom]=React.useState(''),[to,setTo]=React.useState('');
+    const [search,setSearch]=React.useState('');
+    const {applied,apply,dirty}=useAppliedFilters({period,from,to,search});
+    React.useEffect(()=>{(async()=>{
+      const {data,error:e}=await client.from('charge_rate_history').select('*').order('changed_at',{ascending:false}).limit(5000);
+      if(e){setError(/charge_rate_history/.test(e.message||'')?'Rate history is not switched on yet. Run SQL 246_charge_rate_history.sql in Supabase.':(e.message||'Rate history could not be loaded.'));setRows([]);return;}
+      setRows(data||[]);
+    })()},[]);
+    const istDay=v=>{const d=new Date(v);return Number.isNaN(d.getTime())?'':new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(d)};
+    const rate=v=>v==null?'Not set':cmMoney(v);
+    const visible=(rows||[]).filter(r=>{
+      if(applied.period!=='all'){
+        const [a,b]=cmPeriodBounds({period:applied.period,from:applied.from,to:applied.to});const d=istDay(r.changed_at);
+        if(d<a||d>b)return false;
+      }
+      const q=applied.search.trim().toLowerCase();
+      if(q.length>=3&&![r.item_name,r.item_code,r.category].filter(Boolean).join(' ').toLowerCase().includes(q))return false;
+      return true;
+    });
+    const pBtn=(v,l)=>h('button',{type:'button',key:v,className:`btn ${period===v?'btn-primary':'btn-secondary'}`,onClick:()=>setPeriod(v)},l);
+    return h(React.Fragment,null,
+      h(Section,{title:'Rate Change History',subtitle:'Every change of a patient charge rate — old rate, new rate, who changed it and when. Charges already approved keep the rate that applied on their day.'},
+        h('div',{className:'actions',style:{flexWrap:'wrap',gap:'8px'}},pBtn('all','All'),pBtn('today','Today'),pBtn('week','This Week'),pBtn('month','This Month'),pBtn('custom','Period')),
+        h('div',{className:'payment-filter-grid',style:{marginTop:'10px'}},
+          period==='custom'&&h('div',{className:'field'},h('label',{htmlFor:'crh-from'},'From'),h('input',{id:'crh-from',type:'date',value:from,onChange:e=>setFrom(e.target.value)})),
+          period==='custom'&&h('div',{className:'field'},h('label',{htmlFor:'crh-to'},'To'),h('input',{id:'crh-to',type:'date',value:to,onChange:e=>setTo(e.target.value)})),
+          h('div',{className:'field'},h('label',{htmlFor:'crh-search'},'Item'),h('input',{id:'crh-search',type:'search',value:search,placeholder:'Item name or code (any 3 characters)',onChange:e=>setSearch(e.target.value)}))),
+        h(ApplyFilterButton,{dirty,onApply:apply,style:{marginTop:'10px'}}),
+        error&&h('div',{className:'message warning'},error)),
+      h(LogTable,{
+        title:rows===null?'Loading rate history…':`Rate changes (${visible.length})`,
+        heads:['Date & Time','Item ID','Item','Category','Old Rate','New Rate','Changed By'],
+        rows:visible.map(r=>[formatDateTimeIN(r.changed_at),r.item_code||'—',r.item_name||'—',r.category||r.source,rate(r.old_rate),rate(r.new_rate),`${r.changed_by_name||'—'}${r.changed_by_role?` (${r.changed_by_role})`:''}`])
+      })
+    );
   }
   function WhatsAppDeliveryLogs({profile}){
     const [rows,setRows]=React.useState([]),[patients,setPatients]=React.useState([]),[busy,setBusy]=React.useState(false),[status,setStatus]=React.useState('All'),[search,setSearch]=React.useState('');

@@ -98,7 +98,7 @@
 
   // All Categories: one box per Charge Master category (new categories appear here automatically)
   function ChargeMasterOverview({profile,onNavigate}){
-    const [rows,setRows]=React.useState(null),[stores,setStores]=React.useState([]),[settings,setSettings]=React.useState({}),[openCat,setOpenCat]=React.useState(''),[classic,setClassic]=React.useState(false);
+    const [rows,setRows]=React.useState(null),[stores,setStores]=React.useState([]),[settings,setSettings]=React.useState({}),[openCat,setOpenCat]=React.useState(''),[classic,setClassic]=React.useState(false),[history,setHistory]=React.useState(false);
     React.useEffect(()=>{(async()=>{
       const [t,s,a]=await Promise.all([
         client.from('charge_tariff_master').select('category,is_active,amount'),
@@ -110,14 +110,16 @@
     })()},[]);
     if(profile?.role!=='Admin')return h(Section,{title:'Charge Master'},h('p',null,'Administrator access only.'));
     if(classic)return h('div',null,h('div',{className:'equip-actions',style:{marginBottom:'10px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setClassic(false)},'← All Categories')),h(ChargeMasterPage,{profile}));
+    if(history)return h('div',null,h('div',{className:'equip-actions',style:{marginBottom:'10px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setHistory(false)},'← All Categories')),h(ChargeRateHistoryView));
     if(openCat)return h('div',null,h('div',{className:'equip-actions',style:{marginBottom:'10px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setOpenCat('')},'← All Categories')),h(ChargeMasterDashboard,{profile,category:openCat,onNavigate}));
     const cats=[...new Set([...CHARGE_MASTER_CATEGORIES,...(rows||[]).map(r=>String(r.category||'').trim()).filter(Boolean)])].sort(samaraAlpha);
     const tiles=[...cats.map(c=>{const r=(rows||[]).filter(x=>String(x.category||'').trim()===c);const active=r.filter(x=>x.is_active!==false);const missing=active.filter(x=>!(Number(x.amount)>0)).length;
         return {key:c,icon:'₹',title:c,value:rows?active.length:null,unit:'active items',lines:[`${missing} without a rate`,settings[c]?'Approval Requests':'Bills & Charges'],alert:missing>0}}),
       {key:'Stores Item Rates',icon:'▦',title:'Stores Item Rates',value:stores.filter(x=>x.active!==false).length,unit:'items',lines:[`${stores.filter(x=>x.active!==false&&!(Number(x.charge_rate)>0)).length} without a rate`,'Consumables · Pharmacy · Housekeeping · Kitchen']},
-      {key:'__classic',icon:'☰',title:'Full List (all categories)',valueText:'All',unit:'items',lines:['The complete Charge Master table, Assign Codes']}];
+      {key:'__classic',icon:'☰',title:'Full List (all categories)',valueText:'All',unit:'items',lines:['The complete Charge Master table, Assign Codes']},
+      {key:'__history',icon:'◷',title:'Rate Change History',valueText:'Log',unit:'',lines:['Old rate → new rate, who and when']}];
     return h('div',{className:'stores-dash-wrap'},h('div',{className:'stores-dash'},
       h(DashboardHero,{kicker:'CHARGE MASTER',title:'All Categories',blurb:'Every chargeable item, code and Admin-fixed rate — the single source for Bills & Charges, Approval Requests, Accounts approval and the Patient Ledger. Tap a category.'}),
-      h(DashboardTiles,{tiles,onOpen:key=>{if(key==='__classic')return setClassic(true);const page=CM_PAGE_PREFIX+key;if(CHARGE_MASTER_PAGES.includes(page)&&typeof onNavigate==='function')onNavigate(page);else setOpenCat(key)}})
+      h(DashboardTiles,{tiles,onOpen:key=>{if(key==='__classic')return setClassic(true);if(key==='__history')return setHistory(true);const page=CM_PAGE_PREFIX+key;if(CHARGE_MASTER_PAGES.includes(page)&&typeof onNavigate==='function')onNavigate(page);else setOpenCat(key)}})
     ));
   }

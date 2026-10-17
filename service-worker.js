@@ -1,5 +1,5 @@
-const APP_VERSION = '2.17.1';
-const CACHE = 'samara-erp-2.17.1-breakup-bill';
+const APP_VERSION = '2.17.2';
+const CACHE = 'samara-erp-2.17.2-rate-history';
 const SHELL = [
   './',
   './index.html',

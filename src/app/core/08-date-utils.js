@@ -61,6 +61,13 @@ function billItemsSummary(items){
   }
   return [...groups.values()].map(g=>g.unit?`${g.name} (${billQty(g.qty)} × ${billRupees(g.price)})`:(g.count>1?`${g.name} × ${g.count}`:g.name)).join(', ')||'—';
 }
+// Service day of a bill row in India time (source_date when present, else the entry date).
+function billRowDayISO(row){
+  const raw=row?.source_date||row?.transaction_date||row?.created_at;if(!raw)return '';
+  const t=String(raw);if(/^\d{4}-\d{2}-\d{2}$/.test(t))return t;
+  const d=new Date(t);if(Number.isNaN(d.getTime()))return t.slice(0,10);
+  return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+}
 // Itemised lines for one charge category, always Qty × Rate = Amount (Final Bill):
 //  • daily charges → "Room rent (30-09-2026 to 01-10-2026)" 2 days × ₹3,200
 //  • Bills & Charges items → "Examination Gloves" 17 × ₹30 (no recorded quantity: entries × amount)
@@ -72,9 +79,15 @@ function billChargeLines(items){
     if(m){daily.push({kind:m[1],iso:`${m[4]}-${m[3]}-${m[2]}`,amount:Number(it.amount||0)});continue;}
     const q=Number(it?.bill_quantity),p=Number(it?.bill_unit_price),unit=q>0&&p>0;
     const amt=Number(it.amount||0),rate=unit?p:amt,key=`${name}|${rate}`;
-    const g=other.get(key)||{label:name,qty:0,rate,amount:0,unit:''};
+    const g=other.get(key)||{label:name,qty:0,rate,amount:0,unit:'',first:'',last:''};
     g.qty+=unit?q:1;g.amount+=amt;other.set(key,g);
+    const day=billRowDayISO(it);
+    if(day){if(!g.first||day<g.first)g.first=day;if(!g.last||day>g.last)g.last=day;}
   }
+  // 2.17.2: same item charged at two or more rates (Charge Master rate changed during the stay)
+  // → show the dates against each rate line, e.g. "Suction Catheter - 14 Fr (01-10-2026 to 08-10-2026)".
+  const rateCount=new Map();
+  for(const g of other.values())rateCount.set(g.label,(rateCount.get(g.label)||0)+1);
   const dmy=iso=>`${iso.slice(8,10)}-${iso.slice(5,7)}-${iso.slice(0,4)}`;
   daily.sort((a,b)=>a.kind.localeCompare(b.kind)||a.iso.localeCompare(b.iso));
   let run=null;
@@ -84,7 +97,15 @@ function billChargeLines(items){
     if(next){run.to=d.iso;run.n+=1;}else{flush();run={kind:d.kind,from:d.iso,to:d.iso,n:1,rate:d.amount};}
   }
   flush();
-  return out.concat([...other.values()]);
+  const others=[...other.values()];
+  // keep the original item order, but put each item's rate lines together, earliest dates first
+  const order=[...new Set([...other.values()].map(g=>g.label))];
+  others.sort((a,b)=>order.indexOf(a.label)-order.indexOf(b.label)||String(a.first).localeCompare(String(b.first)));
+  return out.concat(others.map(g=>{
+    const {first,last,...line}=g;
+    if(rateCount.get(g.label)>1&&first)line.label=`${g.label} (${first===last?dmy(first):`${dmy(first)} to ${dmy(last)}`})`;
+    return line;
+  }));
 }
 // Amount in words, Indian system: 1,23,45,678.50 → "Rupees One Crore Twenty Three Lakh Forty Five Thousand Six Hundred Seventy Eight and Fifty Paise Only".
 function billAmountInWords(value){

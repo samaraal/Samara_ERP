@@ -454,6 +454,10 @@
    "lines": 123
   },
   {
+   "file": "accounts/10a-charge-rate-history.js",
+   "about": "Charge Master Rate Change History (old → new rate, who, when) (2.17.2)"
+  },
+  {
    "file": "reports/whatsapp-delivery-logs.js",
    "about": "WhatsApp delivery logs",
    "lines": 51

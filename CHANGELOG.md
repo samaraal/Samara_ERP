@@ -1,3 +1,7 @@
+## 2.17.2 — Charge rate history and dated multi-rate bill lines
+- Charge Master → new "Rate Change History" tile: every patient charge-rate change (Stores / Pharmacy items and service tariffs) is recorded automatically with old rate, new rate, who and when. Requires SQL 246.
+- Final Bill and Bill with Breakup: when the same item was charged at different rates during the stay, each rate line shows its dates, e.g. "Suction Catheter - 14 Fr (02-10-2026 to 04-10-2026)". Item names unchanged, so ERP and Family Portal still match.
+
 ## 2.17.1 — Guest Bill with Breakup (PDF)
 - Complete Patient Bill: new "Bill with Breakup (PDF)" — choose Guest, choose period (Whole Stay / This Month / Month / Period), Apply, preview, then Download.
 - PDF carries the Samara logo and shows charges by category (Room Rent, Nursing, Pharmacy, Consumables, …) with item lines (Qty × Rate = Amount), payments in the period, previous balance, balance payable and amount in words. Same simple item names as the Final Bill / Family Portal. No SQL needed.
