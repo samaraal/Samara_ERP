@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="googlebot" content="noindex, nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' blob: data:; frame-src blob:; object-src 'none'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; base-uri 'none'; form-action 'none'">
+  <title>Scan Lab · Samara Care (Trial)</title>
+  <link rel="icon" type="image/png" href="./icons/favicon.png">
+  <link rel="stylesheet" href="./scan-lab.css?v=1.0.0">
+  <script src="./config.js?v=scanlab-1.0.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script defer src="./scan-lab.js?v=1.0.0"></script>
+</head>
+<body>
+  <header class="topbar">
+    <img src="./assets/samara-logo.png" alt="Samara Assisted Living" class="logo">
+    <div class="title">
+      <span class="eyebrow">SAMARA CARE ERP · TRIAL</span>
+      <h1>Scan Lab — Prescription &amp; ID Auto-fill</h1>
+    </div>
+    <span class="pill trial">Admin only · Nothing is saved</span>
+  </header>
+
+  <div id="gate" class="gate"><div class="card"><p id="gate-text">Checking your ERP login…</p><a id="gate-link" class="btn primary" href="./" hidden>Open ERP login</a></div></div>
+
+  <main id="app" hidden>
+    <div class="notice">
+      <strong>Trial workspace.</strong>
+      Upload a prescription or ID card and the system fills the Admission-form fields for you to check.
+      Nothing here is saved to the live ERP: no Guest, medicine or document is created or changed. Closing or refreshing the page clears everything.
+    </div>
+
+    <nav class="tabs" role="tablist">
+      <button type="button" class="tab active" data-tab="rx" role="tab">① Prescription → Medicines</button>
+      <button type="button" class="tab" data-tab="id" role="tab">② ID card → Guest details</button>
+      <button type="button" class="tab" data-tab="score" role="tab">③ Trial score</button>
+    </nav>
+
+    <!-- PRESCRIPTION -->
+    <section class="panel" data-panel="rx">
+      <div class="split">
+        <div class="docs">
+          <h2>Prescription pages</h2>
+          <p class="hint">Photo or PDF. Several pages / several doctors' prescriptions are fine — up to 8 at a time.</p>
+          <div class="upload-row">
+            <label class="btn secondary">Upload file<input type="file" id="rx-file" accept="image/*,application/pdf" multiple hidden></label>
+            <label class="btn secondary">Mobile camera<input type="file" id="rx-cam" accept="image/*" capture="environment" hidden></label>
+            <button type="button" class="btn ghost" id="rx-clear">Clear pages</button>
+          </div>
+          <div class="thumbs" id="rx-thumbs"></div>
+          <div class="viewer" id="rx-viewer"><p class="empty">The prescription you upload shows here, so you can compare it with each medicine row.</p></div>
+          <button type="button" class="btn primary big" id="rx-read" disabled>✨ Read &amp; Fill Medicines</button>
+          <p class="status" id="rx-status" aria-live="polite"></p>
+        </div>
+        <div class="results">
+          <div class="results-head">
+            <h2>Section 3 · Current medicines <span class="count" id="rx-count"></span></h2>
+            <button type="button" class="btn ghost" id="rx-add">+ Add medicine manually</button>
+          </div>
+          <div id="rx-meta" class="meta" hidden></div>
+          <div id="rx-rows"><p class="empty">No medicines yet. Upload the prescription and press <b>Read &amp; Fill Medicines</b>.</p></div>
+          <div id="rx-notes" class="other-notes" hidden></div>
+          <div id="rx-summary" class="summary" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ID CARD -->
+    <section class="panel" data-panel="id" hidden>
+      <div class="split">
+        <div class="docs">
+          <h2>ID card</h2>
+          <p class="hint">Aadhaar (front and back), Passport, Voter ID or other ID. Only the last 4 digits of the ID number are ever read.</p>
+          <div class="upload-row">
+            <label class="btn secondary">Upload file<input type="file" id="id-file" accept="image/*,application/pdf" multiple hidden></label>
+            <label class="btn secondary">Mobile camera<input type="file" id="id-cam" accept="image/*" capture="environment" hidden></label>
+            <button type="button" class="btn ghost" id="id-clear">Clear pages</button>
+          </div>
+          <div class="thumbs" id="id-thumbs"></div>
+          <div class="viewer" id="id-viewer"><p class="empty">The ID card you upload shows here.</p></div>
+          <button type="button" class="btn primary big" id="id-read" disabled>✨ Read &amp; Fill Guest Details</button>
+          <p class="status" id="id-status" aria-live="polite"></p>
+        </div>
+        <div class="results">
+          <div class="results-head"><h2>Section 1 · Guest details</h2></div>
+          <div id="id-form"><p class="empty">Upload the ID card and press <b>Read &amp; Fill Guest Details</b>.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCORE -->
+    <section class="panel" data-panel="score" hidden>
+      <h2>How well is the auto-fill doing?</h2>
+      <p class="hint">Every field you correct before ticking <b>Verified</b> is counted as an AI mistake. Use this during the trial to decide whether it is ready for the live Admission form. The score is kept only until this page is closed.</p>
+      <div id="score-body"></div>
+    </section>
+  </main>
+
+  <footer class="foot">Scan Lab trial · separate from the live ERP · v1.0.0</footer>
+</body>
+</html>

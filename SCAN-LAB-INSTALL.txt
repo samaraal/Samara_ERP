@@ -1,0 +1,52 @@
+Samara Care ERP — SCAN LAB (TRIAL) v1.0.0 · 17-10-2026
+Prescription & ID auto-fill — separate trial page, Admin only. Upload ONLY to GitHub repo: Samara_ERP
+
+WHAT IT IS
+  A separate page:  https://app.samaraassistedliving.com/scan-lab.html
+  - Upload / photograph a prescription (photo or PDF, up to 8 pages) → the medicine rows of the
+    Admission form (Section 3) are filled for checking, with the prescription shown alongside.
+  - Upload / photograph an ID card → Guest name, relation (S/O, W/O…), date of birth, gender, address,
+    and ONLY the last 4 digits of the ID number are filled.
+  - Unclear fields are yellow ("check"); nothing is guessed. Each row needs "✓ Verified".
+  - Medicine names are checked against the Samara Pharmacy item list ("Did you mean …?").
+  - "Trial score" tab: how many fields the AI got right, which fields need correcting most often.
+
+WHY THE LIVE ERP IS NOT AFFECTED
+  - NO existing file is changed: index.html, app.js, styles.css, service worker etc. are untouched.
+  - NO SQL. Nothing is written to the database. The page only READS the logged-in profile and the
+    Pharmacy item list. Closing / refreshing the page clears everything.
+  - New, separate Edge Function "prescription-scan" — no other function is changed.
+  - Admin only: checked on the page AND again inside the Edge Function.
+
+FILES IN THIS PACKAGE (all NEW)
+  scan-lab.html
+  scan-lab.js
+  scan-lab.css
+  supabase/functions/prescription-scan/index.ts
+
+STEP 1 — GitHub (repo Samara_ERP, main branch)
+  Upload scan-lab.html, scan-lab.js, scan-lab.css to the TOP folder of the repo (next to index.html).
+  Upload supabase/functions/prescription-scan/index.ts keeping the same folder path.
+
+STEP 2 — Supabase → Edge Functions → "Deploy a new function" (or "Via Editor")
+  Name: prescription-scan        (exactly this name)
+  Paste the contents of supabase/functions/prescription-scan/index.ts → Deploy.
+  Keep "Verify JWT" ON (default).
+  (CLI alternative:  supabase functions deploy prescription-scan)
+  Secrets: GEMINI_API_KEY is already set for ERP Help — nothing new to add.
+
+STEP 3 — Use it
+  Log in to the ERP as Admin in the browser, then open  https://app.samaraassistedliving.com/scan-lab.html
+  (On a phone: log in to the ERP in the phone's browser first, then open the link.)
+
+PRIVACY NOTE
+  - Make sure the Gemini API key is on Google's PAID tier (Google AI Studio → Billing). On the free tier
+    Google may use submitted content to improve its products; on the paid tier it does not.
+  - Only the last 4 digits of Aadhaar / ID numbers are ever returned; long numbers are masked again on
+    the server. Images are not stored by Scan Lab.
+  - For trial testing, prefer old / sample prescriptions or Trial Guests' documents where possible.
+
+LATER (after the trial is good)
+  The same "✨ Read & Fill" button moves into the live Admission form and Spot Assessment
+  (Admission still requires every auto-filled row to be verified before saving), and the
+  Edge Function's Admin-only check is widened to the roles that admit Guests.
