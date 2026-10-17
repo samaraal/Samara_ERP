@@ -94,7 +94,7 @@
     const items = (Array.isArray(x?.items) ? x.items : []).slice(0, 50).map((r) => {
       const values = Object.fromEntries(ITEM.map(([k]) => [k, String(r?.[k] ?? '')]));
       return {values, rawText: String(r?.raw_text || ''), unclear: new Set(Array.isArray(r?.unclear_fields) ? r.unclear_fields : []), confidence: ['high','medium','low'].includes(r?.confidence) ? r.confidence : 'low' };
-    }));
+    });
     return { header, headerUnclear: new Set(Array.isArray(x?.unclear_fields) ? x.unclear_fields : []), items };
   }
   function field(container, key, label, value, type, unclear, onChange) {
