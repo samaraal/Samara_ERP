@@ -1,4 +1,4 @@
-/* Samara Care ERP — Scan Lab (TRIAL) v1.0.2 · 17-10-2026
+/* Samara Care ERP — Scan Lab (TRIAL) v1.0.3 · 17-10-2026
  * Separate page, Admin only. Reads a prescription / ID card through the "prescription-scan" Edge Function
  * and fills Admission-form fields for checking. NOTHING is written to the database.
  * The only database read is the Pharmacy item list (for the spelling check).
@@ -15,9 +15,10 @@
   const FOODS = ['Before food', 'After food', 'With food', 'No restriction'];
   const DURATIONS = ['Single Dose', '1 Day', '3 Days', '5 Days', '7 Days', '10 Days', '14 Days', '21 Days', '30 Days', 'Until Doctor Review', 'Long Term', 'Custom'];
   const UNITS = ['mg', 'mcg', 'g', 'ml', 'mg/ml', 'mg/5 ml', 'IU', 'units', '%', 'drops', 'tablet', 'capsule', 'puff', 'sachet', 'patch'];
-  // 1.0.2: medicine times follow Samara's meal times (breakfast ~8 AM, lunch ~1 PM, dinner ~8 PM).
-  // After / with food = at the meal; before food = 1 hour earlier; bedtime (HS / 4th dose) = 10 PM.
-  const MEAL_TIMES = { 'Before food': ['07:00', '12:00', '19:00'], 'After food': ['08:00', '13:00', '20:00'], 'With food': ['08:00', '13:00', '20:00'], 'No restriction': ['08:00', '13:00', '20:00'] };
+  // 1.0.3: medicine times follow Samara's meal times (meals ~8 AM, 1 PM, 8 PM — confirmed by Admin 17-10-2026).
+  // After food = 1 hour after the meal (9 AM, 2 PM, 9 PM); before food = 1 hour before (7 AM, 12 PM, 7 PM);
+  // with food = at the meal (8 AM, 1 PM, 8 PM); no restriction = same as after food; bedtime (HS / 4th dose) = 10 PM.
+  const MEAL_TIMES = { 'Before food': ['07:00', '12:00', '19:00'], 'After food': ['09:00', '14:00', '21:00'], 'With food': ['08:00', '13:00', '20:00'], 'No restriction': ['09:00', '14:00', '21:00'] };
   const BEDTIME = '22:00';
   const HOURS = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}:00`);
   const RELATIONS = ['', 'S/O', 'D/O', 'W/O', 'C/O', 'H/O'];
@@ -224,7 +225,7 @@
     return ({ 1: 'Once Daily (OD)', 2: 'Twice Daily (BD)', 3: 'Three Times Daily (TDS)' })[n] || '';
   }
   function blankRow(manual) {
-    const v = { prescribed_by_doctor: state.rxMeta?.doctor_name || '', medicine_name: '', strength_amount: '', strength_unit: '', frequency: 'Once Daily (OD)', times: ['08:00'], route: 'Oral', food_instruction: 'After food', duration: 'Long Term', custom_duration_days: '', special_instruction: '' };
+    const v = { prescribed_by_doctor: state.rxMeta?.doctor_name || '', medicine_name: '', strength_amount: '', strength_unit: '', frequency: 'Once Daily (OD)', times: ['09:00'], route: 'Oral', food_instruction: 'After food', duration: 'Long Term', custom_duration_days: '', special_instruction: '' };
     return { id: ++rowSeq, v, ai: manual ? null : { ...v, times: v.times.slice() }, flags: new Set(), notes: {}, raw: '', form: '', confidence: manual ? 'manual' : 'high', verified: false, manual: !!manual, edited: new Set() };
   }
   function applyRx(r) {
@@ -321,7 +322,7 @@
   function timesControl(row) {
     const wrap = el('div', { class: 'times' });
     const chosen = new Set(row.v.times || []);
-    const shown = HOURS.filter((h) => chosen.has(h) || ['07:00', '08:00', '12:00', '13:00', '19:00', '20:00', '22:00'].includes(h));
+    const shown = HOURS.filter((h) => chosen.has(h) || ['07:00', '08:00', '09:00', '12:00', '13:00', '14:00', '19:00', '20:00', '21:00', '22:00'].includes(h));
     for (const h of shown) wrap.append(el('button', { type: 'button', class: 'chip' + (chosen.has(h) ? ' on' : ''), text: hourLabel(h),
       onclick: () => { const next = new Set(row.v.times || []); next.has(h) ? next.delete(h) : next.add(h); setVal(row, 'times', [...next].sort()); renderMeds(); } }));
     const more = el('select', { class: 'more', 'aria-label': 'Add another time', onchange: (e) => { if (!e.target.value) return; const next = new Set(row.v.times || []); next.add(e.target.value); setVal(row, 'times', [...next].sort()); renderMeds(); } },

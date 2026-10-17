@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="./scan-lab.css?v=1.0.1">
   <script src="./config.js?v=scanlab-1.0.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-  <script defer src="./scan-lab.js?v=1.0.2"></script>
+  <script defer src="./scan-lab.js?v=1.0.3"></script>
 </head>
 <body>
   <header class="topbar">
@@ -59,7 +59,7 @@
             <h2>Section 3 · Current medicines <span class="count" id="rx-count"></span></h2>
             <button type="button" class="btn ghost" id="rx-add">+ Add medicine manually</button>
           </div>
-          <p class="hint">Medicine times follow meal times — breakfast 8 AM, lunch 1 PM, dinner 8 PM. After / with food: at the meal · Before food: 1 hour earlier (7 AM, 12 PM, 7 PM) · Bedtime (HS): 10 PM.</p>
+          <p class="hint">Medicine times follow meal times (meals about 8 AM, 1 PM, 8 PM). After food: 9 AM, 2 PM, 9 PM · Before food: 7 AM, 12 PM, 7 PM · With food: 8 AM, 1 PM, 8 PM · Bedtime (HS): 10 PM.</p>
           <div id="rx-meta" class="meta" hidden></div>
           <div id="rx-rows"><p class="empty">No medicines yet. Upload the prescription and press <b>Read &amp; Fill Medicines</b>.</p></div>
           <div id="rx-notes" class="other-notes" hidden></div>
@@ -99,6 +99,6 @@
     </section>
   </main>
 
-  <footer class="foot">Scan Lab trial · separate from the live ERP · v1.0.2</footer>
+  <footer class="foot">Scan Lab trial · separate from the live ERP · v1.0.3</footer>
 </body>
 </html>
