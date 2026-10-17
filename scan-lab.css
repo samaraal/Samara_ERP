@@ -153,3 +153,10 @@ th{font-size:12px;color:var(--muted)}
   .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
   .tab{padding:7px 12px;font-size:14px}
 }
+
+/* 1.0.4 variable-dose medicines */
+.varies{min-height:38px;display:flex;align-items:center;padding:8px 10px;border-radius:8px;background:#eef6ff;border:1px dashed #8bb4e0;color:#1d4f86;font-size:13px;font-weight:600}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--ink);font-weight:500;cursor:pointer}
+.check input{width:18px;height:18px;min-height:0;margin-top:1px;flex:none;accent-color:var(--magenta)}
+.f.f-variable_dose.flag .check{background:var(--flag);border-radius:8px;padding:6px 8px}
+.f.flag label.check::after,.f.edited label.check::after{content:none}

@@ -1,4 +1,4 @@
-/* Samara Care ERP — Scan Lab (TRIAL) v1.0.3 · 17-10-2026
+/* Samara Care ERP — Scan Lab (TRIAL) v1.0.4 · 17-10-2026
  * Separate page, Admin only. Reads a prescription / ID card through the "prescription-scan" Edge Function
  * and fills Admission-form fields for checking. NOTHING is written to the database.
  * The only database read is the Pharmacy item list (for the spelling check).
@@ -23,8 +23,8 @@
   const HOURS = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}:00`);
   const RELATIONS = ['', 'S/O', 'D/O', 'W/O', 'C/O', 'H/O'];
   const GENDERS = ['', 'Male', 'Female', 'Other'];
-  const RX_FIELDS = ['prescribed_by_doctor', 'medicine_name', 'strength_amount', 'strength_unit', 'frequency', 'times', 'route', 'food_instruction', 'duration', 'custom_duration_days', 'special_instruction'];
-  const RX_LABEL = { prescribed_by_doctor: 'Prescribed Doctor', medicine_name: 'Medicine', strength_amount: 'Strength', strength_unit: 'Unit', frequency: 'Frequency', times: 'Time', route: 'Route', food_instruction: 'Food', duration: 'Duration', custom_duration_days: 'Custom days', special_instruction: 'Special instruction' };
+  const RX_FIELDS = ['prescribed_by_doctor', 'medicine_name', 'variable_dose', 'strength_amount', 'strength_unit', 'frequency', 'times', 'route', 'food_instruction', 'duration', 'custom_duration_days', 'special_instruction'];
+  const RX_LABEL = { prescribed_by_doctor: 'Prescribed Doctor', medicine_name: 'Medicine', variable_dose: 'Dose varies', strength_amount: 'Strength', strength_unit: 'Unit', frequency: 'Frequency', times: 'Time', route: 'Route', food_instruction: 'Food', duration: 'Duration', custom_duration_days: 'Custom days', special_instruction: 'Special instruction' };
   const ID_FIELDS = [
     ['full_name', 'Full name (as on ID)'], ['relation_type', 'Relation'], ['relation_name', 'Relation’s name'],
     ['date_of_birth', 'Date of birth (DD-MM-YYYY)'], ['gender', 'Gender'],
@@ -32,6 +32,10 @@
     ['village_town', 'Village / Town / City'], ['taluk', 'Taluk'], ['district', 'District'], ['state', 'State'], ['pincode', 'Pincode'], ['country', 'Country'],
     ['document_type', 'ID type'], ['id_last4', 'ID number — last 4 digits only']
   ];
+  // 1.0.4: sliding-scale / variable-dose medicines (e.g. insulin by blood-sugar level) have NO fixed strength —
+  // the nurse gives the dose after checking the sugar, as per the scale or the doctor's instruction.
+  const VARIABLE_DOSE_RE = /sliding\s*scale|depend(ing|s)?\s+on\s+(the\s+)?(blood\s*)?sugar|(as\s+per|according\s+to)\s+(the\s+)?(blood\s*)?sugar|\b(grbs|cbg|rbs)\b|blood\s*sugar|sugar\s*level|as\s+directed\s+by\s+(the\s+)?doctor/i;
+  const INSULIN_RE = /insulin|actrapid|mixtard|lantus|novorapid|novomix|humalog|huminsulin|insugen|basalog|tresiba|ryzodeg|levemir|apidra|glargine|aspart|lispro|degludec|detemir|wosulin/i;
   // Spot Assessment / Admission field names in the live ERP (shown for reference only).
   const UNCLEAR_MAP = { strength: 'strength_amount', dose: 'strength_amount', strength_amount: 'strength_amount', strength_unit: 'strength_unit', time: 'times', times: 'times', dose_pattern: 'times', frequency: 'frequency', route: 'route', food: 'food_instruction', food_instruction: 'food_instruction', duration: 'duration', custom_duration_days: 'custom_duration_days', medicine_name: 'medicine_name', name: 'medicine_name', special_instruction: 'special_instruction', doctor_name: 'prescribed_by_doctor', prescribed_by_doctor: 'prescribed_by_doctor' };
 
@@ -225,7 +229,7 @@
     return ({ 1: 'Once Daily (OD)', 2: 'Twice Daily (BD)', 3: 'Three Times Daily (TDS)' })[n] || '';
   }
   function blankRow(manual) {
-    const v = { prescribed_by_doctor: state.rxMeta?.doctor_name || '', medicine_name: '', strength_amount: '', strength_unit: '', frequency: 'Once Daily (OD)', times: ['09:00'], route: 'Oral', food_instruction: 'After food', duration: 'Long Term', custom_duration_days: '', special_instruction: '' };
+    const v = { prescribed_by_doctor: state.rxMeta?.doctor_name || '', medicine_name: '', variable_dose: false, strength_amount: '', strength_unit: '', frequency: 'Once Daily (OD)', times: ['09:00'], route: 'Oral', food_instruction: 'After food', duration: 'Long Term', custom_duration_days: '', special_instruction: '' };
     return { id: ++rowSeq, v, ai: manual ? null : { ...v, times: v.times.slice() }, flags: new Set(), notes: {}, raw: '', form: '', confidence: manual ? 'manual' : 'high', verified: false, manual: !!manual, edited: new Set() };
   }
   function applyRx(r) {
@@ -241,10 +245,12 @@
       const dose = String(m.dose_per_time || '').trim();
       const plainOne = /^1\s*(tab|tablet|cap|capsule)s?\.?$/i.test(dose);
       const extra = [dose && !plainOne ? `Dose: ${dose} each time` : '', m.special_instruction || ''].filter(Boolean).join('. ');
+      const variable = !m.strength_amount && VARIABLE_DOSE_RE.test(`${m.raw_text || ''} ${m.special_instruction || ''}`);
       const v = {
         prescribed_by_doctor: state.rxMeta.doctor_name,
         medicine_name: m.medicine_name || '',
-        strength_amount: m.strength_amount || '', strength_unit: m.strength_unit || '',
+        variable_dose: variable,
+        strength_amount: variable ? '' : (m.strength_amount || ''), strength_unit: variable ? (m.strength_unit || (INSULIN_RE.test(m.medicine_name || '') ? 'units' : '')) : (m.strength_unit || ''),
         frequency: frequency || 'Once Daily (OD)', times,
         route: m.route || 'Oral',
         food_instruction: m.food_instruction || 'After food',
@@ -253,8 +259,9 @@
       };
       if (!state.rxMeta.doctor_name) flags.add('prescribed_by_doctor');
       if (!v.medicine_name) flags.add('medicine_name');
-      if (!v.strength_amount) flags.add('strength_amount');
-      if (!v.strength_unit) flags.add('strength_unit');
+      if (!v.variable_dose && !v.strength_amount) flags.add('strength_amount');
+      if (!v.variable_dose && !v.strength_unit) flags.add('strength_unit');
+      if (v.variable_dose) { flags.add('variable_dose'); flags.delete('strength_amount'); flags.delete('strength_unit'); }
       if (!m.route) flags.add('route');
       const notes = {};
       if (!m.food_instruction) { flags.add('food_instruction'); notes.food_instruction = 'Not written — confirm'; }
@@ -335,7 +342,7 @@
     const p = [];
     if (!String(row.v.prescribed_by_doctor).trim()) p.push('Prescribed Doctor');
     if (!String(row.v.medicine_name).trim()) p.push('Medicine');
-    if (!String(row.v.strength_amount).trim() || !row.v.strength_unit) p.push('Strength (number and unit)');
+    if (!row.v.variable_dose && (!String(row.v.strength_amount).trim() || !row.v.strength_unit)) p.push('Strength (number and unit) — or tick “Dose varies”');
     if (!(row.v.times || []).length && !['SOS / PRN', 'STAT'].includes(row.v.frequency)) p.push('Time');
     if (row.v.duration === 'Custom' && !String(row.v.custom_duration_days).trim()) p.push('Custom days');
     return p;
@@ -377,15 +384,19 @@
         el('div', { class: 'grid' },
           field(row, 'prescribed_by_doctor', input(row, 'prescribed_by_doctor'), 'wide'),
           field(row, 'medicine_name', el('div', null, input(row, 'medicine_name'), spellNote(row, match)), 'wide'),
-          field(row, 'strength_amount', input(row, 'strength_amount')),
-          field(row, 'strength_unit', select(row, 'strength_unit', UNITS, true)),
+          row.v.variable_dose
+            ? field(row, 'strength_amount', el('div', { class: 'varies', text: 'No fixed strength — nurse gives the dose after checking blood sugar, as per the scale / doctor' }), 'wide')
+            : [field(row, 'strength_amount', input(row, 'strength_amount')), field(row, 'strength_unit', select(row, 'strength_unit', UNITS, true))],
           field(row, 'frequency', select(row, 'frequency', FREQUENCIES)),
           field(row, 'route', select(row, 'route', ROUTES)),
           field(row, 'times', timesControl(row), 'wide'),
           field(row, 'food_instruction', select(row, 'food_instruction', FOODS)),
           field(row, 'duration', select(row, 'duration', DURATIONS)),
           row.v.duration === 'Custom' ? field(row, 'custom_duration_days', input(row, 'custom_duration_days', 'number')) : null,
-          field(row, 'special_instruction', input(row, 'special_instruction'), 'full')),
+          field(row, 'special_instruction', input(row, 'special_instruction'), 'full'),
+          field(row, 'variable_dose', el('label', { class: 'check' },
+            el('input', { type: 'checkbox', 'data-k': 'variable_dose', checked: row.v.variable_dose ? true : null, onchange: (e) => { setVal(row, 'variable_dose', e.target.checked); if (e.target.checked) { setVal(row, 'strength_amount', ''); if (!row.v.strength_unit && INSULIN_RE.test(row.v.medicine_name)) setVal(row, 'strength_unit', 'units'); } renderMeds(); } }),
+            ' Dose varies — given as per blood sugar / doctor’s instruction (no fixed strength, e.g. sliding-scale insulin). Write the scale in Special instruction.'), 'full')),
         el('div', { class: 'med-actions' },
           problems.length && !row.verified ? el('span', { class: 'missing', text: 'Still needed: ' + problems.join(', ') }) : el('span'),
           el('button', { type: 'button', class: 'btn ghost danger', text: 'Remove', onclick: () => { if (row.verified || confirm('Remove this medicine row?')) { if (!row.manual) row.removed = true; state.removedAi = (state.removedAi || 0) + (row.manual ? 0 : 1); state.meds = state.meds.filter((r) => r !== row); renderMeds(); } } }),
