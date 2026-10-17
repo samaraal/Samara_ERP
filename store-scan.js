@@ -92,7 +92,7 @@
   function normalize(x) {
     const header = Object.fromEntries(HEAD.map(([k]) => [k, String(x?.[k] || '')]));
     const items = (Array.isArray(x?.items) ? x.items : []).slice(0, 50).map((r) => {
-      const values = Object.fromEntries(ITEM.map(([k]) => [[], 0]);
+      const values = Object.fromEntries(ITEM.map(([k]) => [k, String(r?.[k] ?? '')]));
       return {values, rawText: String(r?.raw_text || ''), unclear: new Set(Array.isArray(r?.unclear_fields) ? r.unclear_fields : []), confidence: ['high','medium','low'].includes(r?.confidence) ? r.confidence : 'low' };
     }));
     return { header, headerUnclear: new Set(Array.isArray(x?.unclear_fields) ? x.unclear_fields : []), items };
@@ -110,7 +110,7 @@
     const hg = el('div', { class: 'grid' });
     for (const [k, label, type] of HEAD) field(hg, k, label, d.header[k], type, d.headerUnclear.has(k), (v) => { d.header[k] = v; d.headerUnclear.delete(k); });
     box.append(hg);
-    if (d.headerUnclear.size) box.append(el('p', { class: 'warn', text: `Check unclear header fields: ${[...d.headerUnclear].join(', ')}` })));
+    if (d.headerUnclear.size) box.append(el('p', { class: 'warn', text: `Check unclear header fields: ${[...d.headerUnclear].join(', ')}` }));
     if (!d.items.length) box.append(el('p', { class: 'warn', text: 'No stock lines were confidently identified. Add the items manually in the ERP.' }));
     d.items.forEach((item, i) => {
       const card = el('article', { class: 'med' + (item.confidence === 'low' ? ' low' : '') });
