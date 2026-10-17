@@ -170,3 +170,9 @@ th{font-size:12px;color:var(--muted)}
 .group .fnote{grid-column:1/-1}
 @media (max-width:640px){.group{grid-template-columns:1fr}}
 .head-btns{display:flex;gap:8px;flex-wrap:wrap}
+/* 1.0.7 Stores stock-arrival trial */
+.store-notice{margin-bottom:14px}
+[data-panel="store"] .grid{margin:10px 0 14px}
+[data-panel="store"] .med{margin-top:12px}
+[data-panel="store"] .med-actions{justify-content:space-between}
+[data-panel="store"] .med-actions .hint{margin-right:auto}
