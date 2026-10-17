@@ -23,8 +23,23 @@ function RoomsBeds({profile,onNavigate}){
     const [reservationMsg,setReservationMsg]=React.useState('');
     const [reservationClock,setReservationClock]=React.useState(Date.now());
     const [form,setForm]=React.useState(empty);
-    const [transfer,setTransfer]=React.useState({patient_id:'',to_room_bed_id:'',reason:'',effective_at:new Date().toISOString().slice(0,16)});
     const [editing,setEditing]=React.useState(null);
+    // 2.17.4: later dated tariffs of the room being edited (so one edit can replace them all).
+    const [laterTariffs,setLaterTariffs]=React.useState([]);
+    React.useEffect(()=>{let stop=false;
+      if(!show||!editing?.id){setLaterTariffs([]);return;}
+      fetchLaterTariffs(editing.id,form.effective_from).then(list=>{if(!stop)setLaterTariffs(list)});
+      return()=>{stop=true};
+    },[show,editing?.id,form.effective_from]);
+    async function fetchLaterTariffs(roomBedId,fromDay){
+      if(!roomBedId||!/^\d{4}-\d{2}-\d{2}$/.test(String(fromDay||'')))return [];
+      const {data,error}=await client.from('room_tariff_changes').select('effective_from,room_daily_rate,nursing_daily_rate,special_nurse_daily_rate,revision,baseline')
+        .eq('room_bed_id',roomBedId).gt('effective_from',fromDay).order('effective_from',{ascending:true}).order('revision',{ascending:false});
+      if(error)return [];
+      const seen=new Set();
+      return (data||[]).filter(r=>!r.baseline&&!seen.has(r.effective_from)&&seen.add(r.effective_from));
+    }
+    const [transfer,setTransfer]=React.useState({patient_id:'',to_room_bed_id:'',reason:'',effective_at:new Date().toISOString().slice(0,16)});
     const [busy,setBusy]=React.useState(false);
     const [msg,setMsg]=React.useState('');
     const [toast,setToast]=React.useState(null);
@@ -119,7 +134,7 @@ function RoomsBeds({profile,onNavigate}){
         nursing_daily_rate:String(row.nursing_daily_rate??''),
         special_nurse_daily_rate:String(row.special_nurse_daily_rate??''),
         floor:row.floor||'',wing:row.wing||'',notes:row.notes||'',
-        effective_from:todayISOIndia(),tariff_reason:'',tariff_request_id:window.crypto.randomUUID(),
+        effective_from:todayISOIndia(),tariff_reason:'',tariff_request_id:window.crypto.randomUUID(),replace_later:false,
         reserved_for_name:row.reserved_for_name||'',
         reserved_for_contact:row.reserved_for_contact||'',
         reserved_by_name:row.reserved_by_name||formalName(profile)||profile?.full_name||'',
@@ -225,12 +240,24 @@ function RoomsBeds({profile,onNavigate}){
           if(!form.tariff_reason.trim())throw new Error('Please enter a reason for the tariff change.');
           result=await client.rpc('save_room_tariff',{p_room_bed_id:editing.id,p_effective_from:day,p_reason:form.tariff_reason.trim(),p_room:payload,p_request_id:form.tariff_request_id});
           if(result.error&&/PGRST202|42883/.test(result.error.code||''))throw new Error('This update needs database migration 182_room_tariff_effective_dates.sql. Ask Admin to apply it, then save again.');
+          // 2.17.4: "Replace all later tariffs" — re-save the same rates on every later tariff date, so the
+          // new rate runs from the chosen date up to today (same date + newer revision always wins).
+          if(!result.error&&form.replace_later){
+            const later=await fetchLaterTariffs(editing.id,day);
+            let posted=Number(result.data?.entries_posted||0),affected=Number(result.data?.patients_affected||0);
+            for(const t of later){
+              const r=await client.rpc('save_room_tariff',{p_room_bed_id:editing.id,p_effective_from:t.effective_from,p_reason:`${form.tariff_reason.trim()} (replaces later tariff from ${formatDateIN(t.effective_from)})`,p_room:payload,p_request_id:window.crypto.randomUUID()});
+              if(r.error)throw new Error(`Saved from ${formatDateIN(day)}, but the later tariff from ${formatDateIN(t.effective_from)} could not be replaced: ${r.error.message}. Please edit again with Effective from ${formatDateIN(t.effective_from)}.`);
+              posted+=Number(r.data?.entries_posted||0);affected=Math.max(affected,Number(r.data?.patients_affected||0));
+            }
+            result={...result,data:{...(result.data||{}),entries_posted:posted,patients_affected:affected,replaced_later:later.length}};
+          }
         }
         else result=await client.from('room_beds').insert(payload);
         if(result.error)throw result.error;
         const saved=result.data;
         setShow(false);
-        showToast('success',editing?`Tariff saved from ${formatDateIN(form.effective_from)}. ${saved?.entries_posted||0} ledger entries posted for ${saved?.patients_affected||0} resident(s). Original charges and payments are preserved.`:'Room, bed and tariffs saved successfully.');
+        showToast('success',editing?`Tariff saved from ${formatDateIN(form.effective_from)}${saved?.replaced_later?` (replaced ${saved.replaced_later} later tariff${saved.replaced_later===1?'':'s'})`:''}. ${saved?.entries_posted||0} ledger entries posted for ${saved?.patients_affected||0} resident(s). Original charges and payments are preserved.`:'Room, bed and tariffs saved successfully.');
         window.dispatchEvent(new Event('samara-refresh-charges'));
         await load();
       }catch(error){setMsg(error.message||'Unable to save room')}
@@ -489,6 +516,12 @@ function RoomsBeds({profile,onNavigate}){
             h('div',{className:'field'},h('label',null,'Effective from'),h(StrictDateInput,{value:form.effective_from,max:todayISOIndia(),required:true,onChange:e=>setForm({...form,effective_from:e.target.value})}),
               h('small',null,'Past dates are allowed. Applies from the selected date, including that day.'),
               editing.tariff_effective_from&&h('small',null,`Current tariff effective from ${formatDateIN(editing.tariff_effective_from)}`)),
+            laterTariffs.length>0&&h('div',{className:'span-2',style:{border:'1px solid #f0c3d6',background:'#fff6fa',borderRadius:'12px',padding:'10px 12px'}},
+              h('div',{style:{fontSize:'13px',color:'#7d1747',fontWeight:700}},`This room has ${laterTariffs.length===1?'a later tariff':'later tariffs'}: `+laterTariffs.map(t=>`₹${Number(t.room_daily_rate||0).toLocaleString('en-IN')} room rent from ${formatDateIN(t.effective_from)}`).join(', ')),
+              h('small',{style:{display:'block',margin:'4px 0 8px',color:'#6b5560'}},'Without the tick, your new rate applies only until the day before the next later tariff.'),
+              h('label',{style:{display:'flex',gap:'8px',alignItems:'center',fontWeight:700,cursor:'pointer'}},
+                h('input',{type:'checkbox',checked:!!form.replace_later,onChange:e=>setForm({...form,replace_later:e.target.checked})}),
+                `Replace all later tariffs from this date (new rate applies from ${formatDateIN(form.effective_from)} to today)`)),
             h('div',{className:'field'},h('label',null,'Reason for tariff change'),h('input',{value:form.tariff_reason,required:true,maxLength:500,onChange:e=>setForm({...form,tariff_reason:e.target.value}),placeholder:'Example: agreed tariff effective from admission'})),
             h('div',{className:'small-note span-2'},'Differences for already-posted automatic charges are added as separate charges or credits. Original entries and payments remain unchanged. Package-covered days are excluded; later dated tariffs remain in effect.')
           ),

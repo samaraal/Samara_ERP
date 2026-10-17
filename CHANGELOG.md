@@ -1,3 +1,7 @@
+## 2.17.4 — Replace later room tariffs; clean item names on bills
+- Rooms → Edit: when the room has later dated tariffs, they are listed and a tick box "Replace all later tariffs from this date" applies the new rate from the chosen date up to today (each later tariff is superseded and adjusted; nothing deleted).
+- Bills (Final Bill, Bill with Breakup, Guest Ledger) no longer show internal remarks typed into a charge description (e.g. "admission …", "user-authorised consolidation; correction recorded …", "100 Nos x Rs15"); real item details such as "Suction Catheter - 14 Fr" stay. Family Portal 1.0.39 matches. No SQL.
+
 ## 2.17.3 — Room rent shows only the final rate
 - Final Bill, Bill with Breakup and Guest Ledger: after a room tariff revision, each day's room / nursing charge is shown at the final rate only (e.g. "Room rent (13-10-2026 to 17-10-2026) 5 days × ₹6,000"). The old rate and separate "Room tariff adjustment" charge / discount lines are no longer shown. Totals and net payable unchanged; ledger entries not altered. Family Portal 1.0.38 matches. No SQL.
 

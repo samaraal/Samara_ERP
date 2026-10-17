@@ -23,6 +23,15 @@ function billIsAdvance(row){
   return type==='advance'||(type==='payment'&&/advance/i.test(String(row?.category||'')));
 }
 function billRupees(v){const n=Number(v);return Number.isFinite(n)?'₹'+n.toLocaleString('en-IN',{maximumFractionDigits:2}):String(v);}
+// 2.17.4: item name for bills — drops internal remarks typed into a description
+// ("admission 13-10-2026", "user-authorised consolidation; correction recorded 2026-10-16 18:26…",
+// "100 Nos x Rs15") but keeps real item details such as "Suction Catheter - 14 Fr".
+function billCleanItemName(text){
+  const internal=/admission\s*\d|consolidat|correct(ion|ed)|authori[sz]|recorded|approv|verified|remark|reason|\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}|^\d+(\.\d+)?\s*(nos?\.?|pcs|pieces|units?|qty)\s*[x×*]\s*(rs\.?|₹)/i;
+  const segs=String(text||'').split(/\s+-\s+/).map(x=>x.trim()).filter(Boolean);
+  const kept=segs.filter((seg,i)=>i===0||!internal.test(seg));
+  return kept.join(' - ');
+}
 function billItemName(row){
   const type=String(row?.transaction_type||'').toLowerCase();
   const cat=String(row?.category||'').trim();
@@ -41,7 +50,7 @@ function billItemName(row){
   }
   if(type==='discount')return cat?`Discount · ${cat}`:'Discount';
   if(type==='refund')return 'Refund';
-  return parts[0]||cat||'Charge';
+  return billCleanItemName(parts[0])||cat||'Charge';
 }
 function billQty(v){const n=Number(v);return Number.isInteger(n)?String(n):String(Math.round(n*100)/100);}
 // Item name, plus "(2 × ₹30)" when the charge came with a quantity (see attachBillUnits).
