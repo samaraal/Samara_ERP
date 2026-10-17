@@ -377,6 +377,9 @@
         message&&h('div',{className:'message error'},message)
       ),
 
+      // 2.17.1: Bill with Breakup — choose period, download Samara PDF with category breakup.
+      h(GuestBreakupBillPanel,{patient,profile,patients}),
+
       patient&&h(React.Fragment,null,
         h('div',{className:'payment-summary-grid'},
           [

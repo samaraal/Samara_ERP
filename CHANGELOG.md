@@ -1,3 +1,7 @@
+## 2.17.1 — Guest Bill with Breakup (PDF)
+- Complete Patient Bill: new "Bill with Breakup (PDF)" — choose Guest, choose period (Whole Stay / This Month / Month / Period), Apply, preview, then Download.
+- PDF carries the Samara logo and shows charges by category (Room Rent, Nursing, Pharmacy, Consumables, …) with item lines (Qty × Rate = Amount), payments in the period, previous balance, balance payable and amount in words. Same simple item names as the Final Bill / Family Portal. No SQL needed.
+
 ## 2.17.0 — Stores quantities and usage reconciliation
 - Whole-number stock quantities for receipts, indents, handovers, returns, resident use and Housekeeping. Currency precision is unchanged.
 - Item Usage Register separates actual resident / Outside Nursing use, Housekeeping holdings and charged quantity; all-history view avoids treating prior-period balances as additional receipts.
