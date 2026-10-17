@@ -9,7 +9,7 @@
 create table if not exists public.charge_rate_history (
   id uuid primary key default gen_random_uuid(),
   source text not null check (source in ('Stores / Pharmacy','Service Tariff')),
-  item_id uuid not null,
+  item_id text not null,
   item_code text,
   item_name text,
   category text,
@@ -41,17 +41,20 @@ begin
     v_old := old.amount; v_new := new.amount;
   end if;
   if v_old is not distinct from v_new then return new; end if;
+  begin -- history must never block a rate change
   select coalesce(nullif(full_name,''),login_id), role into v_name, v_role
     from public.profiles where id=auth.uid() or auth_user_id=auth.uid() limit 1;
   insert into public.charge_rate_history(source,item_id,item_code,item_name,category,old_rate,new_rate,changed_by,changed_by_name,changed_by_role)
   values (
     case when tg_table_name='consumable_store_items' then 'Stores / Pharmacy' else 'Service Tariff' end,
-    new.id,
+    new.id::text,
     coalesce(v_rec->>'item_code', v_rec->>'charge_code'),
     coalesce(v_rec->>'item_name', v_rec->>'service_name'),
     coalesce(v_rec->>'item_category', v_rec->>'category'),
     v_old, v_new, auth.uid(), coalesce(v_name,'System'), v_role
   );
+  exception when others then raise warning 'charge_rate_history not recorded: %', sqlerrm;
+  end;
   return new;
 end $$;
 
