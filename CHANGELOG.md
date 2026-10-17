@@ -1,3 +1,6 @@
+## 2.17.6 — Bills & Charges in the Nursing Manager menu
+- Nursing Manager (Manager role): NURSING OVERVIEW now has **Bills & Charges** (raise outside bills and other charges with "+ Raise Bill / Charge"). Charge Register stays as the view-only list. No SQL.
+
 ## 2.17.5 — Outside Services paid by Samara
 - Bills & Charges → new category **Outside Services** (outside pharmacy, lab, scan / X-ray / ECG, ambulance, taxi / auto, hospital OPD / bill). Nurse / Nursing Manager enters the shop / lab / hospital, bill no. + date, bill amount, who paid (NM Petty Cash, Admin / Director, Samara Bank / UPI, On credit - pay later, Family paid directly) and uploads the bill (compulsory); From → To for ambulance / taxi.
 - Accounts verifies the bill amount → Guest bill gets the item "(at actual)" plus a separate "Handling charge" line. Handling fee is set per item in Charge Master → Outside Services (fixed ₹ or % of bill). NM Petty Cash bills are written into her petty cash book automatically (not for Trial Guests). Family-paid bills are recorded only, never charged, and do not block discharge.
