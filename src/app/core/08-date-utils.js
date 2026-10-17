@@ -61,6 +61,48 @@ function billItemsSummary(items){
   }
   return [...groups.values()].map(g=>g.unit?`${g.name} (${billQty(g.qty)} × ${billRupees(g.price)})`:(g.count>1?`${g.name} × ${g.count}`:g.name)).join(', ')||'—';
 }
+// 2.17.3: Bills show ONLY the final room / nursing rate for each day.
+// A room tariff change keeps the original daily charge and posts a separate "Tariff adjustment"
+// (Charge when the rate goes up, Discount when it comes down). For display, each adjustment is
+// folded into that day's daily charge, so the bill reads e.g. "Room rent (13-10 to 17-10) 5 days × ₹6,000"
+// with no old-rate line and no adjustment line. Totals and net payable are unchanged; the ledger
+// entries themselves are never altered. KEEP IN STEP WITH the Family Portal familyFoldTariffAdjustments.
+function billFoldTariffAdjustments(rows){
+  const list=Array.isArray(rows)?rows:[];
+  const toIso=dmy=>{const m=String(dmy||'').match(/^(\d{2})-(\d{2})-(\d{4})$/);return m?`${m[3]}-${m[2]}-${m[1]}`:'';};
+  const dayOf=row=>{const d=String(row?.source_date||'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(d)?d:'';};
+  const isAdj=row=>row?.source_type==='Room Tariff Adjustment'||/^Tariff adjustment for \d{2}-\d{2}-\d{4}/i.test(String(row?.description||''));
+  const adjDay=row=>toIso((String(row?.description||'').match(/^Tariff adjustment for (\d{2}-\d{2}-\d{4})/i)||[])[1])||dayOf(row);
+  const DAILY={'Daily Room Charge':'room rent','Daily Nursing Charge':'daily nursing charge','Daily Special Nurse Charge':'daily special nurse charge'};
+  const dailyInfo=row=>{
+    if(String(row?.transaction_type||'')!=='Charge'||isAdj(row))return null;
+    const text=String(row?.description||'');
+    const m=text.match(/^(?:Automatic )?(room rent|(?:daily )?(?:special )?nurs\w* charge) for (\d{2}-\d{2}-\d{4})/i);
+    if(m)return {day:toIso(m[2])||dayOf(row)};
+    if(DAILY[row?.source_type]&&dayOf(row))return {day:dayOf(row)};
+    return null;
+  };
+  const daily=new Map();
+  list.forEach((row,i)=>{const info=dailyInfo(row);if(info&&info.day&&row.category)daily.set(`${row.category}|${info.day}`,i);});
+  const add=new Map(),drop=new Set();
+  list.forEach((row,i)=>{
+    if(!isAdj(row))return;
+    const type=String(row.transaction_type||'');if(type!=='Charge'&&type!=='Discount')return;
+    const key=`${row.category}|${adjDay(row)}`;if(!row.category||!daily.has(key))return;
+    const t=daily.get(key);add.set(t,(add.get(t)||0)+(type==='Charge'?1:-1)*Number(row.amount||0));drop.add(i);
+  });
+  if(!drop.size)return list;
+  return list.map((row,i)=>{
+    if(drop.has(i))return null;
+    if(!add.has(i))return row;
+    const out={...row,amount:Math.round((Number(row.amount||0)+add.get(i))*100)/100,tariff_folded:true};
+    // "Dated tariff accommodation charge" rows carry no date in the text: give them the standard daily wording.
+    if(!/ for \d{2}-\d{2}-\d{4}/.test(String(row.description||''))&&DAILY[row.source_type]){
+      const d=dayOf(row);out.description=`Automatic ${DAILY[row.source_type]} for ${d.slice(8,10)}-${d.slice(5,7)}-${d.slice(0,4)}`;
+    }
+    return out;
+  }).filter(row=>row&&!(row.tariff_folded&&Math.abs(Number(row.amount||0))<0.005));
+}
 // Service day of a bill row in India time (source_date when present, else the entry date).
 function billRowDayISO(row){
   const raw=row?.source_date||row?.transaction_date||row?.created_at;if(!raw)return '';

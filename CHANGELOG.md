@@ -1,3 +1,6 @@
+## 2.17.3 — Room rent shows only the final rate
+- Final Bill, Bill with Breakup and Guest Ledger: after a room tariff revision, each day's room / nursing charge is shown at the final rate only (e.g. "Room rent (13-10-2026 to 17-10-2026) 5 days × ₹6,000"). The old rate and separate "Room tariff adjustment" charge / discount lines are no longer shown. Totals and net payable unchanged; ledger entries not altered. Family Portal 1.0.38 matches. No SQL.
+
 ## 2.17.2 — Charge rate history and dated multi-rate bill lines
 - Charge Master → new "Rate Change History" tile: every patient charge-rate change (Stores / Pharmacy items and service tariffs) is recorded automatically with old rate, new rate, who and when. Requires SQL 246.
 - Final Bill and Bill with Breakup: when the same item was charged at different rates during the stay, each rate line shows its dates, e.g. "Suction Catheter - 14 Fr (02-10-2026 to 04-10-2026)". Item names unchanged, so ERP and Family Portal still match.

@@ -54,7 +54,7 @@
             .maybeSingle();
           if(!fallback.error)bed=fallback.data||null;
         }
-        setLedger(await attachBillUnits((ledgerRes.data||[]).map(row=>({...row,description:residentTariffDescription(row,patient.admission_date)})),patient.id));
+        setLedger(await attachBillUnits(billFoldTariffAdjustments((ledgerRes.data||[]).map(row=>({...row,description:residentTariffDescription(row,patient.admission_date)}))),patient.id));
         setRoomBed(bed);
         const context=await client.rpc('patient_room_tariff_context',{p_patient_id:patient.id});
         if(!context.error)setTariffContext(context.data);

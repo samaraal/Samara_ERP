@@ -218,7 +218,7 @@
         const {data,error:e}=await client.from('billing_transactions').select('*').eq('patient_id',patient.id).order('transaction_date',{ascending:true});
         if(stop)return;
         if(e){setError(e.message||'Bill entries could not be loaded.');setRows([]);return;}
-        const withUnits=await attachBillUnits((data||[]).map(r=>({...r,description:residentTariffDescription(r,patient.admission_date)})),patient.id);
+        const withUnits=await attachBillUnits(billFoldTariffAdjustments((data||[]).map(r=>({...r,description:residentTariffDescription(r,patient.admission_date)}))),patient.id);
         if(!stop)setRows(withUnits);
       })();
       return()=>{stop=true};

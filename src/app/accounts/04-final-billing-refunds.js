@@ -46,7 +46,7 @@
         setRows([]);
         setMessage(error.message||'Complete bill could not be loaded.');
       }else{
-        setRows(await attachBillUnits((data||[]).map(row=>({...row,description:residentTariffDescription(row,patients.find(p=>p.id===nextPatientId)?.admission_date)})),nextPatientId));
+        setRows(await attachBillUnits(billFoldTariffAdjustments((data||[]).map(row=>({...row,description:residentTariffDescription(row,patients.find(p=>p.id===nextPatientId)?.admission_date)}))),nextPatientId));
       }
       setLoading(false);
     }

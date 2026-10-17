@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.17.2';
+  const APP_VERSION = '2.17.3';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2595,6 +2595,48 @@ function billItemsSummary(items){
     const g=groups.get(key)||{name,unit,price:p,qty:0,count:0};g.qty+=unit?q:0;g.count+=1;groups.set(key,g);
   }
   return [...groups.values()].map(g=>g.unit?`${g.name} (${billQty(g.qty)} × ${billRupees(g.price)})`:(g.count>1?`${g.name} × ${g.count}`:g.name)).join(', ')||'—';
+}
+// 2.17.3: Bills show ONLY the final room / nursing rate for each day.
+// A room tariff change keeps the original daily charge and posts a separate "Tariff adjustment"
+// (Charge when the rate goes up, Discount when it comes down). For display, each adjustment is
+// folded into that day's daily charge, so the bill reads e.g. "Room rent (13-10 to 17-10) 5 days × ₹6,000"
+// with no old-rate line and no adjustment line. Totals and net payable are unchanged; the ledger
+// entries themselves are never altered. KEEP IN STEP WITH the Family Portal familyFoldTariffAdjustments.
+function billFoldTariffAdjustments(rows){
+  const list=Array.isArray(rows)?rows:[];
+  const toIso=dmy=>{const m=String(dmy||'').match(/^(\d{2})-(\d{2})-(\d{4})$/);return m?`${m[3]}-${m[2]}-${m[1]}`:'';};
+  const dayOf=row=>{const d=String(row?.source_date||'').slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(d)?d:'';};
+  const isAdj=row=>row?.source_type==='Room Tariff Adjustment'||/^Tariff adjustment for \d{2}-\d{2}-\d{4}/i.test(String(row?.description||''));
+  const adjDay=row=>toIso((String(row?.description||'').match(/^Tariff adjustment for (\d{2}-\d{2}-\d{4})/i)||[])[1])||dayOf(row);
+  const DAILY={'Daily Room Charge':'room rent','Daily Nursing Charge':'daily nursing charge','Daily Special Nurse Charge':'daily special nurse charge'};
+  const dailyInfo=row=>{
+    if(String(row?.transaction_type||'')!=='Charge'||isAdj(row))return null;
+    const text=String(row?.description||'');
+    const m=text.match(/^(?:Automatic )?(room rent|(?:daily )?(?:special )?nurs\w* charge) for (\d{2}-\d{2}-\d{4})/i);
+    if(m)return {day:toIso(m[2])||dayOf(row)};
+    if(DAILY[row?.source_type]&&dayOf(row))return {day:dayOf(row)};
+    return null;
+  };
+  const daily=new Map();
+  list.forEach((row,i)=>{const info=dailyInfo(row);if(info&&info.day&&row.category)daily.set(`${row.category}|${info.day}`,i);});
+  const add=new Map(),drop=new Set();
+  list.forEach((row,i)=>{
+    if(!isAdj(row))return;
+    const type=String(row.transaction_type||'');if(type!=='Charge'&&type!=='Discount')return;
+    const key=`${row.category}|${adjDay(row)}`;if(!row.category||!daily.has(key))return;
+    const t=daily.get(key);add.set(t,(add.get(t)||0)+(type==='Charge'?1:-1)*Number(row.amount||0));drop.add(i);
+  });
+  if(!drop.size)return list;
+  return list.map((row,i)=>{
+    if(drop.has(i))return null;
+    if(!add.has(i))return row;
+    const out={...row,amount:Math.round((Number(row.amount||0)+add.get(i))*100)/100,tariff_folded:true};
+    // "Dated tariff accommodation charge" rows carry no date in the text: give them the standard daily wording.
+    if(!/ for \d{2}-\d{2}-\d{4}/.test(String(row.description||''))&&DAILY[row.source_type]){
+      const d=dayOf(row);out.description=`Automatic ${DAILY[row.source_type]} for ${d.slice(8,10)}-${d.slice(5,7)}-${d.slice(0,4)}`;
+    }
+    return out;
+  }).filter(row=>row&&!(row.tariff_folded&&Math.abs(Number(row.amount||0))<0.005));
 }
 // Service day of a bill row in India time (source_date when present, else the entry date).
 function billRowDayISO(row){
@@ -37643,7 +37685,7 @@ function ShiftHandover({profile,onNavigate}){
         const {data,error:e}=await client.from('billing_transactions').select('*').eq('patient_id',patient.id).order('transaction_date',{ascending:true});
         if(stop)return;
         if(e){setError(e.message||'Bill entries could not be loaded.');setRows([]);return;}
-        const withUnits=await attachBillUnits((data||[]).map(r=>({...r,description:residentTariffDescription(r,patient.admission_date)})),patient.id);
+        const withUnits=await attachBillUnits(billFoldTariffAdjustments((data||[]).map(r=>({...r,description:residentTariffDescription(r,patient.admission_date)}))),patient.id);
         if(!stop)setRows(withUnits);
       })();
       return()=>{stop=true};
@@ -37779,7 +37821,7 @@ function ShiftHandover({profile,onNavigate}){
         setRows([]);
         setMessage(error.message||'Complete bill could not be loaded.');
       }else{
-        setRows(await attachBillUnits((data||[]).map(row=>({...row,description:residentTariffDescription(row,patients.find(p=>p.id===nextPatientId)?.admission_date)})),nextPatientId));
+        setRows(await attachBillUnits(billFoldTariffAdjustments((data||[]).map(row=>({...row,description:residentTariffDescription(row,patients.find(p=>p.id===nextPatientId)?.admission_date)}))),nextPatientId));
       }
       setLoading(false);
     }
@@ -38500,7 +38542,7 @@ function ShiftHandover({profile,onNavigate}){
             .maybeSingle();
           if(!fallback.error)bed=fallback.data||null;
         }
-        setLedger(await attachBillUnits((ledgerRes.data||[]).map(row=>({...row,description:residentTariffDescription(row,patient.admission_date)})),patient.id));
+        setLedger(await attachBillUnits(billFoldTariffAdjustments((ledgerRes.data||[]).map(row=>({...row,description:residentTariffDescription(row,patient.admission_date)}))),patient.id));
         setRoomBed(bed);
         const context=await client.rpc('patient_room_tariff_context',{p_patient_id:patient.id});
         if(!context.error)setTariffContext(context.data);
