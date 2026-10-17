@@ -1,3 +1,9 @@
+## 2.17.5 — Outside Services paid by Samara
+- Bills & Charges → new category **Outside Services** (outside pharmacy, lab, scan / X-ray / ECG, ambulance, taxi / auto, hospital OPD / bill). Nurse / Nursing Manager enters the shop / lab / hospital, bill no. + date, bill amount, who paid (NM Petty Cash, Admin / Director, Samara Bank / UPI, On credit - pay later, Family paid directly) and uploads the bill (compulsory); From → To for ambulance / taxi.
+- Accounts verifies the bill amount → Guest bill gets the item "(at actual)" plus a separate "Handling charge" line. Handling fee is set per item in Charge Master → Outside Services (fixed ₹ or % of bill). NM Petty Cash bills are written into her petty cash book automatically (not for Trial Guests). Family-paid bills are recorded only, never charged, and do not block discharge.
+- New "Outside Bills Paid by Samara" register in Bills & Charges (Accounts / Admin): Guest / status / period filters with Apply, totals, payables to vendors (all dates) with Mark Paid, full details and View Bill. "Hospital Bill Paid by Samara" and "Outside Pharmacy Purchase" under Hospital Visits are turned OFF (now under Outside Services).
+- Family Portal 1.0.40 shows outside bills with the original bill (View Bill). Requires SQL 247.
+
 ## 2.17.4 — Replace later room tariffs; clean item names on bills
 - Rooms → Edit: when the room has later dated tariffs, they are listed and a tick box "Replace all later tariffs from this date" applies the new rate from the chosen date up to today (each later tariff is superseded and adjusted; nothing deleted).
 - Bills (Final Bill, Bill with Breakup, Guest Ledger) no longer show internal remarks typed into a charge description (e.g. "admission …", "user-authorised consolidation; correction recorded …", "100 Nos x Rs15"); real item details such as "Suction Catheter - 14 Fr" stay. Family Portal 1.0.39 matches. No SQL.

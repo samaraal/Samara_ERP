@@ -446,7 +446,12 @@
   {
    "file": "accounts/09-clinical-charges.js",
    "about": "Charge master, clinical charges",
-   "lines": 959
+   "lines": 1070
+  },
+  {
+   "file": "accounts/09a-outside-bills.js",
+   "about": "Outside Bills paid by Samara (SQL 247): family bill links, register, Mark Paid to vendor",
+   "lines": 143
   },
   {
    "file": "accounts/10-charge-master-dashboard.js",

@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const APP_VERSION = '2.17.4';
+  const APP_VERSION = '2.17.5';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -45,7 +45,7 @@
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '12-Oct-2026 Kitchen hidden items';
+  const APP_BUILD_DATE = '17-Oct-2026 Outside Services paid by Samara';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -68,7 +68,7 @@
   // options for a unit dropdown: the standard list, plus the item's current unit if it is a (non-numeric) word not in the list
   const storeUnitOptions=current=>[...new Set([...(current&&!isNumericUnit(current)&&!STORE_UNITS.includes(current)?[current]:[]),...STORE_UNITS])];
   // 2.15.1: Charge Master categories — one sidebar item + dashboard each (page id "Charge Master · <category>")
-  const CHARGE_MASTER_CATEGORIES=['Biomedical Equipment','Diagnostic / Imaging','Doctor Services','Food & Nutrition','Hospital Visits','Laboratory Services','Miscellaneous','Nursing Procedures','Physiotherapy','Special Care','Transport'];
+  const CHARGE_MASTER_CATEGORIES=['Biomedical Equipment','Diagnostic / Imaging','Doctor Services','Food & Nutrition','Hospital Visits','Laboratory Services','Miscellaneous','Nursing Procedures','Outside Services','Physiotherapy','Special Care','Transport'];
   const CM_PAGE_PREFIX='Charge Master · ';
   const CM_STORES_PAGE=CM_PAGE_PREFIX+'Stores Item Rates';
   const CHARGE_MASTER_PAGES=[...CHARGE_MASTER_CATEGORIES.map(c=>CM_PAGE_PREFIX+c),CM_STORES_PAGE];

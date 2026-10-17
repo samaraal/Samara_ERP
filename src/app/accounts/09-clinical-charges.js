@@ -1,6 +1,13 @@
   // v2.14.62: every Charge Master / Bills & Charges list is alphabetical (A→Z, case-insensitive), with "Others" always last.
   const samaraAlpha=(a,b)=>{const x=String(a||'').trim(),y=String(b||'').trim();const xo=x.toLowerCase()==='others',yo=y.toLowerCase()==='others';if(xo!==yo)return xo?1:-1;return x.localeCompare(y,'en',{sensitivity:'base',numeric:true})};
   const samaraSortCategoryMap=map=>Object.fromEntries(Object.keys(map||{}).sort(samaraAlpha).map(k=>[k,[...new Set(map[k]||[])].sort(samaraAlpha)]));
+  // 2.17.5: Outside Services — bills Samara pays outside for a Guest (SQL 247). Charged "at actual" plus a
+  // Charge Master handling fee; paid from NM Petty Cash / office / bank, on credit, or by the family (record only).
+  const OUTSIDE_CATEGORY='Outside Services';
+  const OUTSIDE_PAID_BY=['NM Petty Cash','Admin / Director','Samara Bank / UPI','On credit - pay later','Family paid directly'];
+  const outsideFeeText=row=>{const t=row?.handling_fee_type,v=Number(row?.handling_fee_value||0);if(t==='Fixed'&&v>0)return `Handling fee ₹${v.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;if(t==='Percent'&&v>0)return `Handling fee ${v}% of bill`;return 'No handling fee'};
+  const outsideFeeAmount=(row,bill)=>{const t=row?.handling_fee_type,v=Number(row?.handling_fee_value||0),b=Number(bill||0);if(t==='Fixed')return v;if(t==='Percent')return Math.round(b*v)/100;return 0};
+  const outsideNeedsRoute=name=>/ambulance|taxi|auto|transport|vehicle/i.test(String(name||''));
   function ChargeMasterPage({profile,lockedCategory='',section='',onSummary=null}){
     // 2.14.99: lockedCategory = one Charge Master category (or 'Stores Item Rates'); section = '' (full page) | 'none' | 'items' | 'inactive' | 'approval' | 'missing'
     const storesMode=lockedCategory==='Stores Item Rates';
@@ -43,7 +50,7 @@
     const findSimilarService=(category,name,excludeId='')=>{const n=normalizeChargeName(name),a=chargeNameTokens(name);let best=null,bestScore=0;for(const x of serviceRows){if(String(x.id)===String(excludeId)||String(x.category)!==String(category))continue;const xn=normalizeChargeName(x.service_name);if(xn===n)return {...x,_score:1};const b=chargeNameTokens(x.service_name),intersection=[...a].filter(t=>b.has(t)).length,union=new Set([...a,...b]).size,score=union?intersection/union:0;const numsA=[...a].filter(t=>/^\d+(?:\.\d+)?$/.test(t)).sort().join('|'),numsB=[...b].filter(t=>/^\d+(?:\.\d+)?$/.test(t)).sort().join('|');if(numsA!==numsB)continue;const onlyA=[...a].filter(t=>!b.has(t)),onlyB=[...b].filter(t=>!a.has(t));if(onlyA.length&&onlyB.length)continue;if(score>bestScore){bestScore=score;best=x}}return bestScore>=0.72?best:null};
     // v2.14.49: auto-generated Charge Master IDs, one short prefix per category
     // (same idea as the Stores Master CON-/PHA- codes). No manual entry needed.
-    const CATEGORY_CODE_PREFIX={'Doctor Services':'DOC','Nursing Procedures':'NUR','Physiotherapy':'PHY','Laboratory Services':'LAB','Diagnostic / Imaging':'DIA','Hospital Visits':'HOS','Transport':'TRN','Special Care':'SPC','Food & Nutrition':'FNT','Miscellaneous':'MSC','Biomedical Equipment':'BIO'};
+    const CATEGORY_CODE_PREFIX={'Doctor Services':'DOC','Nursing Procedures':'NUR','Physiotherapy':'PHY','Laboratory Services':'LAB','Diagnostic / Imaging':'DIA','Hospital Visits':'HOS','Transport':'TRN','Special Care':'SPC','Food & Nutrition':'FNT','Miscellaneous':'MSC','Biomedical Equipment':'BIO','Outside Services':'OUT'};
     const prefixForCategory=category=>{const known=CATEGORY_CODE_PREFIX[String(category||'').trim()];if(known)return known;const letters=String(category||'').toUpperCase().replace(/[^A-Z]/g,'');return (letters.slice(0,3)||'SVC').padEnd(3,'X')};
     const maxCodeNumberForPrefix=(prefix,rows)=>{let max=0;(rows||[]).forEach(r=>{const code=String(r.charge_code||'').toUpperCase();const m=code.match(new RegExp('^'+prefix+'-(\\d+)$'));if(m)max=Math.max(max,parseInt(m[1],10))});return max};
     const nextCodeForCategory=(category,rows)=>{const prefix=prefixForCategory(category);return `${prefix}-${String(maxCodeNumberForPrefix(prefix,rows)+1).padStart(4,'0')}`};
@@ -52,9 +59,20 @@
       if(stockCategories.includes(String(category).trim())){notify('error','Consumables and Pharmacy items are controlled only from Stores Master. Add or edit the item there so the same item name, ID and rate are used everywhere.');return}
       const serviceName=prompt('Chargeable service / item:',row?.service_name||''); if(serviceName===null||!String(serviceName).trim())return;
       const duplicate=findSimilarService(String(category).trim(),String(serviceName).trim(),row?.id||'');if(duplicate){notify('error',`${duplicate.charge_code?duplicate.charge_code+' · ':''}Possible duplicate: ${duplicate.service_name} is already in ${duplicate.category}. Use/edit the existing procedure instead; genuine variants must include their distinguishing detail.`);return}
-      const entered=prompt('Admin-fixed tariff when no external bill is available (leave blank to set later):',row?.amount!=null?String(row.amount):''); if(entered===null)return;
-      const amount=String(entered).trim()===''?null:Number(entered); if(amount!==null&&(!Number.isFinite(amount)||amount<=0)){notify('error','Enter a valid tariff greater than zero, or leave it blank.');return}
-      setBusy(true); const trimmedCategory=String(category).trim(); const payload={category:trimmedCategory,service_name:String(serviceName).trim(),amount,is_active:row?.is_active!==false,updated_by:profile.id,updated_at:new Date().toISOString()};
+      const trimmedCategory=String(category).trim();
+      let amount=null,feeFields={};
+      if(trimmedCategory===OUTSIDE_CATEGORY){
+        // Outside bills are always charged at the actual bill amount; Admin sets only the handling fee here.
+        const cur=row?.handling_fee_type==='Fixed'?String(row.handling_fee_value):row?.handling_fee_type==='Percent'?`${row.handling_fee_value}%`:'';
+        const feeIn=prompt('Handling / service fee added to the Guest bill for this outside item.\nType 100 for ₹100, or 10% for 10% of the bill. Leave blank for no fee.',cur); if(feeIn===null)return;
+        const t=String(feeIn).trim().replace(/\s+/g,'');
+        if(!t)feeFields={handling_fee_type:'None',handling_fee_value:0};
+        else{const pct=t.endsWith('%');const v=Number(pct?t.slice(0,-1):t.replace(/^₹/,''));if(!Number.isFinite(v)||v<0||(pct&&v>100)){notify('error','Enter the fee as an amount (e.g. 100) or a percentage up to 100 (e.g. 10%).');return}feeFields={handling_fee_type:v===0?'None':(pct?'Percent':'Fixed'),handling_fee_value:v};}
+      }else{
+        const entered=prompt('Admin-fixed tariff when no external bill is available (leave blank to set later):',row?.amount!=null?String(row.amount):''); if(entered===null)return;
+        amount=String(entered).trim()===''?null:Number(entered); if(amount!==null&&(!Number.isFinite(amount)||amount<=0)){notify('error','Enter a valid tariff greater than zero, or leave it blank.');return}
+      }
+      setBusy(true); const payload={category:trimmedCategory,service_name:String(serviceName).trim(),amount,...feeFields,is_active:row?.is_active!==false,updated_by:profile.id,updated_at:new Date().toISOString()};
       if(!row?.charge_code)payload.charge_code=nextCodeForCategory(trimmedCategory,serviceRows);
       const result=row?.id?await client.from('charge_tariff_master').update(payload).eq('id',row.id):await client.from('charge_tariff_master').insert(payload); setBusy(false);
       if(result.error)notify('error',result.error.message); else {notify('success',row?.id?'Charge Master service updated.':`Charge Master service added${payload.charge_code?` as ${payload.charge_code}`:''}.`);load()}
@@ -100,7 +118,7 @@
     const catServices=lockedCategory&&!storesMode?serviceRows.filter(r=>String(r.category||'').trim()===lockedCategory):serviceRows;
     const cmSummary=storesMode
       ?{loaded:storeRows.length>0,active:storeRows.filter(r=>r.active!==false).length,inactive:storeRows.filter(r=>r.active===false).length,missing:storeRows.filter(r=>r.active!==false&&!(Number(r.charge_rate)>0)).length,approvalOn:false}
-      :{loaded:serviceRows.length>0,active:catServices.filter(r=>r.is_active!==false).length,inactive:catServices.filter(r=>r.is_active===false).length,missing:catServices.filter(r=>r.is_active!==false&&!(Number(r.amount)>0)).length,approvalOn:!!approvalSettings[lockedCategory],registerControlled:REGISTER_CONTROLLED_CHARGE_CATEGORIES.includes(lockedCategory)};
+      :{loaded:serviceRows.length>0,active:catServices.filter(r=>r.is_active!==false).length,inactive:catServices.filter(r=>r.is_active===false).length,missing:catServices.filter(r=>r.is_active!==false&&r.category!==OUTSIDE_CATEGORY&&!(Number(r.amount)>0)).length,approvalOn:!!approvalSettings[lockedCategory],registerControlled:REGISTER_CONTROLLED_CHARGE_CATEGORIES.includes(lockedCategory)};
     const cmSummaryKey=JSON.stringify(cmSummary);
     React.useEffect(()=>{if(typeof onSummary==='function')onSummary(cmSummary)},[cmSummaryKey]);
     if(profile?.role!=='Admin')return h(Section,{title:'Charge Master'},h('p',null,'Administrator access only.'));
@@ -110,7 +128,7 @@
     const match=row=>{
       if(lockedCategory&&!storesMode&&categoryOf(row)!==lockedCategory)return false;
       if(!lockedCategory&&categoryFilter!=='All'&&categoryOf(row)!==categoryFilter)return false;
-      if(section==='missing'&&(Number(row.amount??row.charge_rate)>0))return false;
+      if(section==='missing'&&(Number(row.amount??row.charge_rate)>0||row.category===OUTSIDE_CATEGORY))return false;
       if(!statusOk(row,row.is_active!==undefined?row.is_active:row.active))return false;
       return q.length<3||`${categoryOf(row)} ${row.service_name||row.item_name||''}`.toLowerCase().includes(q);
     };
@@ -139,7 +157,7 @@
             REGISTER_CONTROLLED_CHARGE_CATEGORIES.includes(c)&&!approvalSettings[c]?h('small',{style:{fontWeight:700,color:'#5a5055'}},'Always OFF — controlled by the Biomedical Equipment register'):h('button',{className:approvalSettings[c]?'btn btn-secondary':'btn btn-primary',disabled:busy,onClick:()=>toggleApproval(c)},approvalSettings[c]?'Turn OFF':'Turn ON')
           ])}),
         (!lockedCategory||storesMode)&&(!section||['items','inactive','missing'].includes(section))&&h(LogTable,{title:`Stores / Pharmacy Items (${visibleStores.length})`,heads:['Item ID','Category','Exact Stores Item','Unit','Fixed Charge Rate','Status','Action'],rows:visibleStores.map(row=>[row.item_code||'—',row.item_category||'Consumables',row.item_name,row.unit||'—',row.charge_rate!=null?`₹${Number(row.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.active===false?'Inactive':'Active',h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreRate(row)},'Edit Rate')])}),
-        !storesMode&&(!section||['items','inactive','missing'].includes(section))&&h(LogTable,{title:`${lockedCategory||'Non-stock Service'} Charges (${visibleServices.length})`,heads:['ID','Category','Service','Fixed Tariff (No Bill)','Status','Action'],rows:visibleServices.map(row=>[row.charge_code||'—',row.category,row.service_name,row.amount!=null?`₹${Number(row.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveService(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggleService(row)},row.is_active===false?'Activate':'Deactivate'))])})
+        !storesMode&&(!section||['items','inactive','missing'].includes(section))&&h(LogTable,{title:`${lockedCategory||'Non-stock Service'} Charges (${visibleServices.length})`,heads:['ID','Category','Service','Fixed Tariff (No Bill)','Status','Action'],rows:visibleServices.map(row=>[row.charge_code||'—',row.category,row.service_name,row.category===OUTSIDE_CATEGORY?`At actual bill · ${outsideFeeText(row)}`:row.amount!=null?`₹${Number(row.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveService(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggleService(row)},row.is_active===false?'Activate':'Deactivate'))])})
       )
     );
   }
@@ -251,7 +269,8 @@
       hospital_name:'',visit_reason:'',out_time:'',return_time:'',escort_staff:'',
       relative_accompanied:false,admission_required:false,
       laboratory_name:'',test_name:'',sample_type:'',sample_collected_at:'',
-      report_status:'Ordered',report_received_at:'',transport_type:'',paid_by_samara:false,remarks:''
+      report_status:'Ordered',report_received_at:'',transport_type:'',paid_by_samara:false,remarks:'',
+      outside_paid_by:'',outside_bill_amount:'',outside_route:''
     });
     const [form,setForm]=React.useState(fresh());
     const [filter,setFilter]=React.useState({patient_id:initialPatientId,status:initialPatientId?'Pending':'All',category:'All'});
@@ -394,6 +413,7 @@
     }
     React.useEffect(()=>{
       load();
+      outsideFillMissingFamilyLinks();
       const refreshTimer=setInterval(load,15000);
       window.addEventListener('focus',load);
       const ch=client.channel('clinical-charges-v2')
@@ -451,7 +471,7 @@
     }
     function openNew(){const base=fresh();const availableCategories=Object.keys(categories);if(profile?.role==='Nurse'&&!availableCategories.length){notify('error','No charge categories are available. Ask Admin to check Charge Master and Stores.');return}const firstCategory=availableCategories[0]||base.category;const firstService=storeCategories.includes(firstCategory)?firstServiceFor(firstCategory,base.patient_id):((categories[firstCategory]||[])[0]||base.service_name);setFiles([]);setBatchItems([]);setForm({...base,category:firstCategory,service_name:firstService,description:firstService,...stockDefaults(firstCategory,firstService)});setShow(true)}
     function changeCategory(value){
-      setForm(current=>{const first=storeCategories.includes(value)?firstServiceFor(value,current.patient_id):((categories[value]||[])[0]||'Others');return {...current,category:value,service_name:first,...stockDefaults(value,first),other_service_name:'',description:first==='Others'?'':first,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(value)&&first!=='Others'?first:''}});
+      setForm(current=>{const first=storeCategories.includes(value)?firstServiceFor(value,current.patient_id):((categories[value]||[])[0]||'Others');const outside=value===OUTSIDE_CATEGORY;return {...current,category:value,service_name:first,...stockDefaults(value,first),other_service_name:'',description:first==='Others'?'':first,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(value)&&first!=='Others'?first:'',...(outside?{bill_available:true,quantity:'1',unit:'Bill',billable:true}:{outside_paid_by:'',outside_bill_amount:'',outside_route:''})}});
     }
     function changeService(value){
       setForm(current=>({...current,service_name:value,...stockDefaults(current.category,value),other_service_name:value==='Others'?current.other_service_name:'',description:value==='Others'?current.other_service_name:value,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(current.category)&&value!=='Others'?value:current.test_name}));
@@ -489,6 +509,14 @@
         if(!(receivedAvailable>0))return 'This item has not been received for this patient through the Indent → Hand Over → Received workflow. Complete the patient indent and receipt before raising the charge.';
         if(Number(draft.quantity)>receivedAvailable)return `Only ${receivedAvailable} ${stockItem.unit||draft.unit||''} received and not yet charged for this patient. Reduce the quantity or complete another indent.`;
       }
+      if(draft.category===OUTSIDE_CATEGORY){
+        if(!OUTSIDE_PAID_BY.includes(draft.outside_paid_by))return 'Outside bill: choose who paid the bill.';
+        if(!(Number(draft.outside_bill_amount)>0))return 'Outside bill: enter the bill amount exactly as printed on the bill.';
+        if(!String(draft.service_provider||'').trim())return 'Outside bill: enter the shop / lab / hospital / vehicle that issued the bill.';
+        if(!String(draft.bill_number||'').trim()||!draft.bill_date)return 'Outside bill: enter the bill number and bill date.';
+        if(!(draftFiles||[]).length)return 'Outside bill: upload a photo or PDF of the bill — it is compulsory (the family will also see it).';
+        if(outsideNeedsRoute(draft.service_name==='Others'?draft.other_service_name:draft.service_name)&&!String(draft.outside_route||'').trim())return 'Enter From → To (and purpose) for this trip.';
+      }
       if(draft.service_name==='Others'&&!String(draft.other_service_name||'').trim())return 'Enter the Other charge / service item.';
       if(isFutureDateIndia(draft.charge_date)||isFutureDateIndia(draft.bill_date))return 'Future dates are not permitted.';
       if(draft.bill_available&&(draftFiles||[]).length===0)return 'Upload the supporting bill / invoice when Bill available is selected.';
@@ -513,6 +541,7 @@
     }
     function removeBatchItem(index){setBatchItems(current=>current.filter((_,i)=>i!==index))}
     async function uploadFiles(requestId,draft,draftFiles){
+      const uploaded=[];
       for(const file of (draftFiles||[])){
         const safe=String(file.name||'bill').replace(/[^a-zA-Z0-9._-]/g,'_');
         const path=`${draft.patient_id}/clinical-charges/${requestId}/${Date.now()}-${safe}`;
@@ -524,7 +553,9 @@
           remarks:`Clinical charge ${requestId}`,uploaded_by:profile.id,is_verified:true
         });
         if(doc.error)throw doc.error;
+        uploaded.push({path,name:file.name});
       }
+      return uploaded;
     }
     async function saveOne(draft,draftFiles,user){
       const qty=Number(draft.quantity);
@@ -561,6 +592,12 @@
         transport_type:draft.transport_type||null,paid_by_samara:draft.paid_by_samara,
         remarks:draft.remarks||null,raised_by:user?.id||profile.id,raised_by_name:formalName(profile)||profile?.full_name||profile?.username||'Nursing staff',raised_at:new Date().toISOString(),returned_to_nurse_at:null,updated_at:new Date().toISOString()
       };
+      if(draft.category===OUTSIDE_CATEGORY){
+        const bill=Math.round(Number(draft.outside_bill_amount)*100)/100;
+        Object.assign(payload,{quantity:1,unit:'Bill',unit_cost:bill,estimated_amount:bill,requested_amount:bill,billable:true,bill_available:true,
+          outside_paid_by:draft.outside_paid_by,outside_route:String(draft.outside_route||'').trim()||null,paid_by_samara:draft.outside_paid_by!=='Family paid directly',
+          charge_item_code:isOther?null:((catalog||[]).find(x=>x.category===OUTSIDE_CATEGORY&&x.service_name===effectiveService&&x.is_active!==false)?.charge_code||null)});
+      }
       const saved=await client.from('bill_charge_requests').insert(payload).select('*').single();
       if(saved.error)throw saved.error;
       if(nurseRaised&&storeCategories.includes(draft.category)&&draft.store_item_id){
@@ -580,7 +617,8 @@
         }
         if(remaining>0){await client.from('bill_charge_store_allocations').delete().eq('charge_request_id',saved.data.id);await client.from('bill_charge_requests').delete().eq('id',saved.data.id);throw new Error('Received patient stock changed while saving. Refresh and try again.');}
       }
-      if((draftFiles||[]).length)await uploadFiles(saved.data.id,draft,draftFiles);
+      const uploaded=(draftFiles||[]).length?await uploadFiles(saved.data.id,draft,draftFiles):[];
+      if(draft.category===OUTSIDE_CATEGORY&&uploaded.length)await outsideSaveFamilyLinks(saved.data.id,uploaded);
       if(['Laboratory Services','Diagnostic / Imaging'].includes(draft.category)){
         const diag=await client.from('diagnostic_services').insert({
           charge_request_id:saved.data.id,patient_id:draft.patient_id,service_type:draft.category,
@@ -641,8 +679,34 @@
       const saved=Number(row?.requested_amount||row?.estimated_amount||0);
       return saved>0?{amount:saved,fromMaster:false}: {amount:0,fromMaster:false,rate:rate||0,item};
     }
+    // 2.17.5: outside bill (SQL 247) — Accounts verifies the bill amount; the handling fee from Charge Master
+    // is added as a separate Guest bill line; NM Petty Cash / credit / family-paid are handled in the database.
+    async function decideOutside(row,decision){
+      let amount=0;
+      if(decision!=='Rejected'){
+        const master=(tariffs||[]).find(t=>t.category===OUTSIDE_CATEGORY&&((row.charge_item_code&&t.charge_code===row.charge_item_code)||t.service_name===row.service_name)&&t.is_active!==false);
+        const familyPaid=row.outside_paid_by==='Family paid directly';
+        const entered=prompt(`${row.service_name||'Outside bill'} · ${row.service_provider||''} · Bill ${row.bill_number||'—'}\nPaid by: ${row.outside_paid_by}\n\nOpen and check the uploaded bill, then enter the bill amount exactly as printed:`,row.requested_amount!=null?String(row.requested_amount):'');
+        if(entered===null)return;
+        amount=Number(entered);
+        if(!Number.isFinite(amount)||amount<=0){notify('error','Enter the verified bill amount greater than zero.');return}
+        const fee=familyPaid?0:outsideFeeAmount(master,amount);
+        if(!confirm(familyPaid
+          ?`Family paid this bill directly (${money(amount)}).\nIt will be kept for the record only — nothing is charged to the Guest. Continue?`
+          :`Guest bill will get:\n• ${row.service_name} (at actual): ${money(amount)}${fee>0?`\n• Handling charge: ${money(fee)}`:''}\nTotal: ${money(amount+fee)}${row.outside_paid_by==='NM Petty Cash'?'\n\nThe bill amount is also written into the Nursing Manager\'s Petty Cash book.':''}${row.outside_paid_by==='On credit - pay later'?'\n\nThe bill stays in Outside Bills as payable to the vendor until marked paid.':''}`))return;
+      }
+      const remarks=prompt('Decision remarks:',decision)||decision;
+      setBusy(true);
+      const result=await client.rpc('decide_bill_charge_request_v5',{p_request_id:row.id,p_decision:decision,p_approved_amount:decision==='Rejected'?0:amount,p_remarks:remarks});
+      setBusy(false);
+      if(result.error){notify('error',result.error.message);return}
+      notify('success',decision==='Rejected'?'Outside bill rejected.':result.data?.family_paid?'Outside bill recorded (paid by family — not charged).':`Outside bill posted: ${money(result.data?.bill_amount)}${Number(result.data?.handling_fee)>0?` + handling ${money(result.data?.handling_fee)}`:''}.`);
+      outsideFillMissingFamilyLinks();
+      await load();
+    }
     async function decide(row,decision){
       if(!canApprove||busy)return;
+      if(row.outside_paid_by)return decideOutside(row,decision);
       const isOther=String(row.service_code||'').toUpperCase()==='OTHER';
       const tariff=(isOther||storeCategories.includes(row.category))?null:tariffs.find(t=>(row.charge_item_code&&t.charge_code===row.charge_item_code)||(t.category===row.category&&t.service_name===row.service_name&&t.is_active!==false));
       const storeAmount=currentStoreRequestAmount(row);
@@ -834,6 +898,7 @@
       ])
     });
 
+    const outsideForm=form.category===OUTSIDE_CATEGORY;
     const basicFields=[
       patientSelect(patients,form.patient_id,changePatient),
       h('div',{className:'field'},h('label',null,'Category'),h('select',{value:form.category,onChange:e=>changeCategory(e.target.value)},Object.keys(categories).map(x=>h('option',{key:x,value:x},x)))),
@@ -842,36 +907,39 @@
       form.service_name==='Others'&&miniInput('Other Charge / Service Item',form.other_service_name,v=>setForm({...form,other_service_name:v,description:v}),true),
       miniInput('Service Date',form.charge_date,v=>setForm({...form,charge_date:v}),true,'date'),
       miniInput('Service Date & Time',form.service_datetime,v=>setForm({...form,service_datetime:v}),true,'datetime-local'),
-      miniInput('Provider / Organisation',form.service_provider,v=>setForm({...form,service_provider:v})),
+      miniInput(outsideForm?'Shop / Lab / Hospital / Vehicle (as on the bill)':'Provider / Organisation',form.service_provider,v=>setForm({...form,service_provider:v}),outsideForm),
       miniInput('Doctor / Consultant',form.doctor_name,v=>setForm({...form,doctor_name:v})),
-      miniInput('Quantity',form.quantity,v=>setForm({...form,quantity:v}),true,'number'),
-      form.store_item_id?h('div',{className:'field'},h('label',null,'Unit'),h('input',{value:form.unit,readOnly:true})):miniInput('Unit',form.unit,v=>setForm({...form,unit:v})),
+      outsideForm&&h('div',{className:'field'},h('label',null,'Who paid the bill? *'),h('select',{value:form.outside_paid_by,required:true,onChange:e=>setForm({...form,outside_paid_by:e.target.value})},h('option',{value:''},'Select who paid'),OUTSIDE_PAID_BY.map(x=>h('option',{key:x,value:x},x==='NM Petty Cash'?'Nursing Manager Petty Cash':x)))),
+      outsideForm&&miniInput('Bill Amount (₹, as printed on the bill)',form.outside_bill_amount,v=>setForm({...form,outside_bill_amount:v}),true,'number'),
+      outsideForm&&outsideNeedsRoute(form.service_name==='Others'?form.other_service_name:form.service_name)&&miniInput('From → To (and purpose)',form.outside_route,v=>setForm({...form,outside_route:v}),true),
+      outsideForm&&h('p',{className:'span-2',style:{background:'#fff7e6',border:'1px solid #f0d49a',borderRadius:'10px',padding:'8px 10px',margin:0}},form.outside_paid_by==='Family paid directly'?'Family paid directly: kept for the record only — not charged to the Guest.':form.outside_paid_by==='NM Petty Cash'?'Paid from Nursing Manager Petty Cash: after Accounts verifies, the amount is written into the petty cash book automatically — do not enter it again there.':form.outside_paid_by==='On credit - pay later'?'On credit: Accounts will pay the vendor later from Outside Bills.':'Upload the bill photo / PDF below (compulsory). Accounts verifies it; the Guest is charged the bill amount plus the handling fee, and the family can see the bill.'),
+      !outsideForm&&miniInput('Quantity',form.quantity,v=>setForm({...form,quantity:v}),true,'number'),
+      !outsideForm&&(form.store_item_id?h('div',{className:'field'},h('label',null,'Unit'),h('input',{value:form.unit,readOnly:true})):miniInput('Unit',form.unit,v=>setForm({...form,unit:v}))),
       STORE_CHARGE_CATEGORIES.includes(form.category)&&h(PharmacyStockPanel,{stock:chargeStock,itemId:form.store_item_id,quantity:form.quantity,unit:form.unit,onSelect:id=>{const item=chargeStock.items.find(x=>x.item_id===id);setForm(current=>({...current,store_item_id:id,unit:item?.unit||current.unit}))}}),
       STORE_CHARGE_CATEGORIES.includes(form.category)&&h('p',{className:'span-2'},'Only the quantity already Received for this patient and not yet charged can be raised here. Stores stock was already deducted at Hand Over; raising the charge will not deduct Stores again.'),
       form.category==='Biomedical Equipment'&&h('p',{className:'span-2'},'Biomedical Equipment: enter the number of days as Quantity (charge = Charge Master daily rate × days). Only equipment issued to this resident in the Biomedical Equipment register is listed.'),
       form.category==='Pharmacy & Basic Supplies'&&h('p',{className:'span-2'},'Record the exact brand, size, concentration or pack size in Remarks where applicable. Reusable equipment and general supplies are subject to Accounts review before patient billing.'),
-      profile?.role==='Accounts'&&miniInput('Unit Cost',form.unit_cost,v=>setForm({...form,unit_cost:v}),false,'number'),
-      profile?.role==='Accounts'&&miniInput('Total Amount',form.requested_amount,v=>setForm({...form,requested_amount:v}),false,'number'),
+      profile?.role==='Accounts'&&!outsideForm&&miniInput('Unit Cost',form.unit_cost,v=>setForm({...form,unit_cost:v}),false,'number'),
+      profile?.role==='Accounts'&&!outsideForm&&miniInput('Total Amount',form.requested_amount,v=>setForm({...form,requested_amount:v}),false,'number'),
       miniSelect('Urgency',form.urgency,['Routine','Urgent','Emergency'],v=>setForm({...form,urgency:v})),
-      h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.billable,onChange:e=>setForm({...form,billable:e.target.checked})}),h('span',null,'Billable')),
-      h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.bill_available,onChange:e=>setForm({...form,bill_available:e.target.checked})}),h('span',null,'Bill available'))
+      !outsideForm&&h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.billable,onChange:e=>setForm({...form,billable:e.target.checked})}),h('span',null,'Billable')),
+      h('label',{className:'check-card'},h('input',{type:'checkbox',checked:outsideForm||form.bill_available,disabled:outsideForm,onChange:e=>setForm({...form,bill_available:e.target.checked})}),h('span',null,outsideForm?'Bill available (compulsory)':'Bill available'))
     ];
-    if(form.bill_available){
-      basicFields.push(miniInput('Bill Number',form.bill_number,v=>setForm({...form,bill_number:v})));
-      basicFields.push(miniInput('Bill Date',form.bill_date,v=>setForm({...form,bill_date:v}),false,'date'));
-    }
-    if(form.category==='Hospital Visits'){
-      basicFields.push(miniInput('Hospital Name',form.hospital_name,v=>setForm({...form,hospital_name:v})));
-      basicFields.push(miniInput('Reason for Visit',form.visit_reason,v=>setForm({...form,visit_reason:v})));
-      basicFields.push(miniInput('Out Time',form.out_time,v=>setForm({...form,out_time:v}),false,'datetime-local'));
-      basicFields.push(miniInput('Return Time',form.return_time,v=>setForm({...form,return_time:v}),false,'datetime-local'));
-      basicFields.push(miniInput('Escort Staff',form.escort_staff,v=>setForm({...form,escort_staff:v})));
-    }
-    if(['Laboratory Services','Diagnostic / Imaging'].includes(form.category)){
-      basicFields.push(miniInput('Lab / Diagnostic Centre',form.laboratory_name,v=>setForm({...form,laboratory_name:v})));
-      basicFields.push(miniInput('Test / Investigation',form.test_name,v=>setForm({...form,test_name:v}),true));
-      basicFields.push(miniSelect('Report Status',form.report_status,['Ordered','Sample Collected','In Process','Report Received','Cancelled'],v=>setForm({...form,report_status:v})));
-    }
+    // 2.17.5: every optional field keeps its own slot (false when hidden), so showing / hiding one never
+    // makes React reuse the next field's input (e.g. the file picker) for a different field.
+    const billShown=form.bill_available||outsideForm;
+    basicFields.push(billShown&&miniInput('Bill Number',form.bill_number,v=>setForm({...form,bill_number:v}),outsideForm));
+    basicFields.push(billShown&&miniInput('Bill Date',form.bill_date,v=>setForm({...form,bill_date:v}),outsideForm,'date'));
+    const hospital=form.category==='Hospital Visits';
+    basicFields.push(hospital&&miniInput('Hospital Name',form.hospital_name,v=>setForm({...form,hospital_name:v})));
+    basicFields.push(hospital&&miniInput('Reason for Visit',form.visit_reason,v=>setForm({...form,visit_reason:v})));
+    basicFields.push(hospital&&miniInput('Out Time',form.out_time,v=>setForm({...form,out_time:v}),false,'datetime-local'));
+    basicFields.push(hospital&&miniInput('Return Time',form.return_time,v=>setForm({...form,return_time:v}),false,'datetime-local'));
+    basicFields.push(hospital&&miniInput('Escort Staff',form.escort_staff,v=>setForm({...form,escort_staff:v})));
+    const labForm=['Laboratory Services','Diagnostic / Imaging'].includes(form.category);
+    basicFields.push(labForm&&miniInput('Lab / Diagnostic Centre',form.laboratory_name,v=>setForm({...form,laboratory_name:v})));
+    basicFields.push(labForm&&miniInput('Test / Investigation',form.test_name,v=>setForm({...form,test_name:v}),true));
+    basicFields.push(labForm&&miniSelect('Report Status',form.report_status,['Ordered','Sample Collected','In Process','Report Received','Cancelled'],v=>setForm({...form,report_status:v})));
     basicFields.push(miniInput('Description',form.description,v=>setForm({...form,description:v}),true));
     basicFields.push(miniInput('Remarks',form.remarks,v=>setForm({...form,remarks:v})));
     basicFields.push(h('div',{className:'field span-2'},
@@ -882,7 +950,7 @@
         accept:'image/*,.pdf',
         onChange:e=>setFiles(Array.from(e.target.files||[]))
       }),
-      profile?.role==='Nurse'&&h('small',{className:'small-note'},form.bill_available?'Bill / invoice upload is mandatory because Bill available is selected.':'No amount is shown or entered by Nursing. Accounts will apply the Admin-fixed tariff.')
+      outsideForm?h('small',{className:'small-note'},'Bill photo / PDF is compulsory for outside bills. The family will also see this bill in the Family Portal.'):profile?.role==='Nurse'&&h('small',{className:'small-note'},form.bill_available?'Bill / invoice upload is mandatory because Bill available is selected.':'No amount is shown or entered by Nursing. Accounts will apply the Admin-fixed tariff.')
     ));
 
     const modal=show?h('div',{className:'modal-backdrop'},
@@ -899,9 +967,9 @@
         ),
         h('div',{className:'modal-grid'},
           profile?.role==='Nurse'&&h('div',{className:'clinical-charge-note'},
-            'Nursing staff record only the service/expense occurrence. Financial amounts are not visible here. Pharmacy / Consumable charges can be raised only after the item has been handed over and the Nurse has confirmed Received for that patient, and the Stores item has a fixed charge rate. If a bill is available, upload it; Accounts will verify it. Items that need Nursing Manager approval are not listed here — raise them from NURSING → Approval Requests.'
+            'Nursing staff record only the service/expense occurrence. Financial amounts are not visible here. Pharmacy / Consumable charges can be raised only after the item has been handed over and the Nurse has confirmed Received for that patient, and the Stores item has a fixed charge rate. If a bill is available, upload it; Accounts will verify it. Items that need Nursing Manager approval are not listed here — raise them from NURSING → Approval Requests. Outside bills (outside pharmacy, lab, scan, ambulance, taxi, hospital): choose Outside Services, enter the bill amount and who paid, and upload the bill.'
           ),
-          ...basicFields.filter(Boolean)
+          ...basicFields
         ),
         batchItems.length>0&&h('div',{className:'card',style:{margin:'10px 0',padding:'10px'}},
           h('strong',null,`Charges added (${batchItems.length})`),
@@ -989,6 +1057,7 @@
         ),
         register
       ),
+      ['Accounts','Admin'].includes(profile?.role)&&h(OutsideBillsRegister,{profile,patients,pLabel,refreshKey:rows.length+':'+rows.filter(r=>r.outside_paid_by&&(r.approval_status||'Pending')!=='Pending').length}),
       diagTable,
       modal,
       toast&&h('div',{className:`samara-toast ${toast.type}`},

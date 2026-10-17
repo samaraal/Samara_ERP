@@ -1,5 +1,5 @@
-const APP_VERSION = '2.17.4';
-const CACHE = 'samara-erp-2.17.4-replace-later-tariffs';
+const APP_VERSION = '2.17.5';
+const CACHE = 'samara-erp-2.17.5-outside-services';
 const SHELL = [
   './',
   './index.html',

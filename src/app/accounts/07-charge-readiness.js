@@ -1,6 +1,8 @@
   // Unposted requests must remain visible even when the posted ledger is settled.
   function chargeNeedsReview(row){
     const status=String(row.approval_status||'Pending');
+    // 2.17.5: an outside bill the family paid directly is verified for the record only — never posted.
+    if(row.outside_paid_by==='Family paid directly'&&['Approved','Partially Approved'].includes(status))return false;
     return status!=='Rejected' && (!['Approved','Partially Approved'].includes(status)||!row.billing_transaction_id);
   }
   async function fetchUnpostedCharges(patientId){
