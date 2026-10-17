@@ -160,3 +160,12 @@ th{font-size:12px;color:var(--muted)}
 .check input{width:18px;height:18px;min-height:0;margin-top:1px;flex:none;accent-color:var(--magenta)}
 .f.f-variable_dose.flag .check{background:var(--flag);border-radius:8px;padding:6px 8px}
 .f.flag label.check::after,.f.edited label.check::after{content:none}
+
+/* 1.0.5 doctor per prescription */
+.groups{display:grid;gap:8px;margin:4px 0 6px}
+.group{display:grid;grid-template-columns:minmax(150px,auto) 1fr;gap:4px 10px;align-items:center;background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 10px}
+.group .gname{font-size:13px;font-weight:600;color:var(--wine)}
+.group input{width:100%;padding:8px 10px;border:1px solid #dcc6d2;border-radius:8px;min-height:38px;background:#fff}
+.group.flag input{background:var(--flag);border-color:var(--flagline)}
+.group .fnote{grid-column:1/-1}
+@media (max-width:640px){.group{grid-template-columns:1fr}}

@@ -1,4 +1,4 @@
-/* Samara Care ERP — Scan Lab (TRIAL) v1.0.4 · 17-10-2026
+/* Samara Care ERP — Scan Lab (TRIAL) v1.0.5 · 17-10-2026
  * Separate page, Admin only. Reads a prescription / ID card through the "prescription-scan" Edge Function
  * and fills Admission-form fields for checking. NOTHING is written to the database.
  * The only database read is the Pharmacy item list (for the spelling check).
@@ -43,7 +43,7 @@
   const state = {
     client: null, session: null,
     pages: { rx: [], id: [] }, active: { rx: 0, id: 0 },
-    meds: [], rxMeta: null, rxNotes: [], idData: null,
+    meds: [], rxMeta: null, rxNotes: [], idData: null, groups: [],
     pharmacy: [], pharmacyLoaded: false,
     scores: [] // {kind, total, correct, missed, extra, verifiedAt}
   };
@@ -229,14 +229,27 @@
     return ({ 1: 'Once Daily (OD)', 2: 'Twice Daily (BD)', 3: 'Three Times Daily (TDS)' })[n] || '';
   }
   function blankRow(manual) {
-    const v = { prescribed_by_doctor: state.rxMeta?.doctor_name || '', medicine_name: '', variable_dose: false, strength_amount: '', strength_unit: '', frequency: 'Once Daily (OD)', times: ['09:00'], route: 'Oral', food_instruction: 'After food', duration: 'Long Term', custom_duration_days: '', special_instruction: '' };
-    return { id: ++rowSeq, v, ai: manual ? null : { ...v, times: v.times.slice() }, flags: new Set(), notes: {}, raw: '', form: '', confidence: manual ? 'manual' : 'high', verified: false, manual: !!manual, edited: new Set() };
+    const v = { prescribed_by_doctor: (state.groups[0] && state.groups[0].doctor) || state.rxMeta?.doctor_name || '', medicine_name: '', variable_dose: false, strength_amount: '', strength_unit: '', frequency: 'Once Daily (OD)', times: ['09:00'], route: 'Oral', food_instruction: 'After food', duration: 'Long Term', custom_duration_days: '', special_instruction: '' };
+    return { id: ++rowSeq, group: state.groups[0] ? state.groups[0].key : '', v, ai: manual ? null : { ...v, times: v.times.slice() }, flags: new Set(), notes: {}, raw: '', form: '', confidence: manual ? 'manual' : 'high', verified: false, manual: !!manual, edited: new Set() };
   }
   function applyRx(r) {
     state.rxMeta = { doctor_name: r.doctor_name || '', hospital_or_clinic: r.hospital_or_clinic || '', prescription_date: r.prescription_date || '', patient_name: r.patient_name_on_prescription || '', page_quality: r.page_quality || '' };
     state.rxNotes = r.other_notes || [];
+    // 1.0.5: medicines are grouped by prescription (doctor, else page) — one doctor entry fills the whole group.
+    state.groups = [];
+    const perMedDoctor = (r.medicines || []).some((m) => String(m.doctor_name || '').trim());
+    const groupFor = (m) => {
+      const doc = perMedDoctor ? String(m.doctor_name || '').trim() : state.rxMeta.doctor_name;
+      const key = doc ? 'd:' + doc.toLowerCase().replace(/[^a-z]/g, '') : 'p:' + (m.page || 1);
+      let g = state.groups.find((x) => x.key === key);
+      if (!g) { g = { key, doctor: doc, aiDoctor: doc, pages: new Set(), count: 0 }; state.groups.push(g); }
+      if (m.page) g.pages.add(Number(m.page));
+      g.count++;
+      return g;
+    };
     state.meds = (r.medicines || []).map((m) => {
-      const row = blankRow(false);
+      const g = groupFor(m);
+      const row = blankRow(false); row.group = g.key;
       const flags = new Set((m.unclear_fields || []).map((f) => UNCLEAR_MAP[String(f).toLowerCase()] || null).filter(Boolean));
       const frequency = m.frequency || freqFromPattern(m.dose_pattern);
       if (!frequency) flags.add('frequency');
@@ -247,7 +260,7 @@
       const extra = [dose && !plainOne ? `Dose: ${dose} each time` : '', m.special_instruction || ''].filter(Boolean).join('. ');
       const variable = !m.strength_amount && VARIABLE_DOSE_RE.test(`${m.raw_text || ''} ${m.special_instruction || ''}`);
       const v = {
-        prescribed_by_doctor: state.rxMeta.doctor_name,
+        prescribed_by_doctor: g.doctor,
         medicine_name: m.medicine_name || '',
         variable_dose: variable,
         strength_amount: variable ? '' : (m.strength_amount || ''), strength_unit: variable ? (m.strength_unit || (INSULIN_RE.test(m.medicine_name || '') ? 'units' : '')) : (m.strength_unit || ''),
@@ -257,7 +270,7 @@
         duration: m.duration || 'Long Term', custom_duration_days: m.custom_duration_days || '',
         special_instruction: extra
       };
-      if (!state.rxMeta.doctor_name) flags.add('prescribed_by_doctor');
+      if (!g.doctor) flags.add('prescribed_by_doctor');
       if (!v.medicine_name) flags.add('medicine_name');
       if (!v.variable_dose && !v.strength_amount) flags.add('strength_amount');
       if (!v.variable_dose && !v.strength_unit) flags.add('strength_unit');
@@ -316,7 +329,7 @@
     row.verified = false;
   }
   function input(row, key, type) {
-    return el('input', { 'data-k': key, type: type || 'text', value: row.v[key] || '', inputmode: key === 'strength_amount' || key === 'custom_duration_days' ? 'decimal' : null,
+    return el('input', { 'data-k': key, type: type || 'text', value: row.v[key] || '', list: key === 'prescribed_by_doctor' ? 'doctor-list' : null, autocomplete: key === 'prescribed_by_doctor' ? 'off' : null, inputmode: key === 'strength_amount' || key === 'custom_duration_days' ? 'decimal' : null,
       oninput: (e) => { setVal(row, key, e.target.value); refreshRowState(row); } ,
       onchange: () => renderMeds() });
   }
@@ -351,6 +364,37 @@
     const card = document.querySelector(`[data-row="${row.id}"]`); if (!card) return;
     card.classList.toggle('verified', row.verified);
   }
+  function doctorList() {
+    const names = [...new Set([...state.groups.map((g) => g.doctor), ...state.meds.map((r) => r.v.prescribed_by_doctor)].map((x) => String(x || '').trim()).filter(Boolean))];
+    return el('datalist', { id: 'doctor-list' }, names.map((n) => el('option', { value: n })));
+  }
+  function applyGroupDoctor(g, value) {
+    const old = g.doctor || '';
+    g.doctor = value;
+    // Fill every medicine of this prescription, except rows the user has moved to another doctor.
+    for (const row of state.meds) if (row.group === g.key && (!String(row.v.prescribed_by_doctor || '').trim() || row.v.prescribed_by_doctor === old)) {
+      // A name that was simply not printed is not an AI mistake: don't count it as "corrected" in the Trial score.
+      if (row.ai && !String(row.ai.prescribed_by_doctor || '').trim()) row.ai.prescribed_by_doctor = value;
+      setVal(row, 'prescribed_by_doctor', value);
+    }
+  }
+  function groupPanel() {
+    if (!state.groups.length) return null;
+    const multi = state.groups.length > 1;
+    return el('div', { class: 'groups' },
+      el('b', { text: multi ? `${state.groups.length} prescriptions found — enter each doctor once:` : 'Prescribed Doctor — enter once for all medicines:' }),
+      state.groups.map((g, i) => {
+        const n = state.meds.filter((r) => r.group === g.key).length;
+        const pages = [...g.pages].sort((a, b) => a - b);
+        const inp = el('input', { type: 'text', value: g.doctor || '', list: 'doctor-list', autocomplete: 'off', placeholder: 'Doctor’s name (e.g. Dr. Maneesha)', 'data-group': g.key,
+          onchange: (e) => { applyGroupDoctor(g, e.target.value.trim()); renderMeds(); } });
+        return el('div', { class: 'group' + (g.doctor ? '' : ' flag') },
+          el('span', { class: 'gname', text: `${multi ? 'Prescription ' + (i + 1) : 'All'}${pages.length ? ' · page ' + pages.join(', ') : ''} · ${n} medicine${n === 1 ? '' : 's'}` }),
+          inp,
+          !g.doctor ? el('small', { class: 'fnote', text: 'Not printed on the prescription — type it once here; it fills every medicine in this group.' }) : null);
+      }),
+      multi ? el('small', { class: 'hint', text: 'A medicine in the wrong group? Change the doctor in that row — the list offers doctors already entered.' }) : null);
+  }
   // Re-render after the browser has moved focus, then put the cursor back where the user went.
   let renderTimer = 0;
   function renderMeds() { clearTimeout(renderTimer); renderTimer = setTimeout(renderMedsNow, 0); }
@@ -362,10 +406,11 @@
   }
   function drawMeds() {
     const box = clear($('rx-rows'));
+    box.append(doctorList());
     const meta = $('rx-meta');
     if (state.rxMeta) {
       meta.hidden = false; clear(meta).append(...[
-        el('div', null, el('b', { text: 'Doctor: ' }), state.rxMeta.doctor_name || '— not read (enter in each row)'),
+        groupPanel(),
         state.rxMeta.hospital_or_clinic ? el('div', null, el('b', { text: 'Hospital / Clinic: ' }), state.rxMeta.hospital_or_clinic) : null,
         state.rxMeta.prescription_date ? el('div', null, el('b', { text: 'Prescription date: ' }), state.rxMeta.prescription_date) : null,
         state.rxMeta.patient_name ? el('div', null, el('b', { text: 'Name on prescription: ' }), state.rxMeta.patient_name, el('span', { class: 'hint', text: ' — make sure this is the right Guest' })) : null,
