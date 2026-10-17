@@ -8,10 +8,10 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' blob: data:; frame-src blob:; object-src 'none'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; base-uri 'none'; form-action 'none'">
   <title>Scan Lab · Samara Care (Trial)</title>
   <link rel="icon" type="image/png" href="./icons/favicon.png">
-  <link rel="stylesheet" href="./scan-lab.css?v=1.0.0">
+  <link rel="stylesheet" href="./scan-lab.css?v=1.0.1">
   <script src="./config.js?v=scanlab-1.0.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-  <script defer src="./scan-lab.js?v=1.0.0"></script>
+  <script defer src="./scan-lab.js?v=1.0.1"></script>
 </head>
 <body>
   <header class="topbar">
@@ -43,10 +43,10 @@
       <div class="split">
         <div class="docs">
           <h2>Prescription pages</h2>
-          <p class="hint">Photo or PDF. Several pages / several doctors' prescriptions are fine — up to 8 at a time.</p>
+          <p class="hint">Photo or PDF. Add every page — several pages or several doctors' prescriptions — up to 8. All pages are read together into one medicine list.</p>
           <div class="upload-row">
-            <label class="btn secondary">Upload file<input type="file" id="rx-file" accept="image/*,application/pdf" multiple hidden></label>
-            <label class="btn secondary">Mobile camera<input type="file" id="rx-cam" accept="image/*" capture="environment" hidden></label>
+            <label class="btn secondary"><span id="rx-file-label">Upload file</span><input type="file" id="rx-file" accept="image/*,application/pdf" multiple hidden></label>
+            <label class="btn secondary"><span id="rx-cam-label">Mobile camera</span><input type="file" id="rx-cam" accept="image/*" capture="environment" hidden></label>
             <button type="button" class="btn ghost" id="rx-clear">Clear pages</button>
           </div>
           <div class="thumbs" id="rx-thumbs"></div>
@@ -74,8 +74,8 @@
           <h2>ID card</h2>
           <p class="hint">Aadhaar (front and back), Passport, Voter ID or other ID. Only the last 4 digits of the ID number are ever read.</p>
           <div class="upload-row">
-            <label class="btn secondary">Upload file<input type="file" id="id-file" accept="image/*,application/pdf" multiple hidden></label>
-            <label class="btn secondary">Mobile camera<input type="file" id="id-cam" accept="image/*" capture="environment" hidden></label>
+            <label class="btn secondary"><span id="id-file-label">Upload file</span><input type="file" id="id-file" accept="image/*,application/pdf" multiple hidden></label>
+            <label class="btn secondary"><span id="id-cam-label">Mobile camera</span><input type="file" id="id-cam" accept="image/*" capture="environment" hidden></label>
             <button type="button" class="btn ghost" id="id-clear">Clear pages</button>
           </div>
           <div class="thumbs" id="id-thumbs"></div>
@@ -98,6 +98,6 @@
     </section>
   </main>
 
-  <footer class="foot">Scan Lab trial · separate from the live ERP · v1.0.0</footer>
+  <footer class="foot">Scan Lab trial · separate from the live ERP · v1.0.1</footer>
 </body>
 </html>

@@ -1,4 +1,4 @@
-/* Samara Care ERP — Scan Lab (TRIAL) v1.0.0 · 17-10-2026
+/* Samara Care ERP — Scan Lab (TRIAL) v1.0.1 · 17-10-2026
  * Separate page, Admin only. Reads a prescription / ID card through the "prescription-scan" Edge Function
  * and fills Admission-form fields for checking. NOTHING is written to the database.
  * The only database read is the Pharmacy item list (for the spelling check).
@@ -134,6 +134,11 @@
       viewer.append(img, el('small', { class: 'hint', text: 'Tap the picture to zoom in / out.' }));
     }
     $(kind + '-read').disabled = !pages.length;
+    // 1.0.1: make multi-page use obvious — buttons say "add next page" and the Read button shows the page count.
+    const n = pages.length;
+    $(kind + '-file-label').textContent = n ? '+ Add more pages' : 'Upload file';
+    $(kind + '-cam-label').textContent = n ? `+ Photo of page ${n + 1}` : 'Mobile camera';
+    $(kind + '-read').textContent = (kind === 'rx' ? '✨ Read & Fill Medicines' : '✨ Read & Fill Guest Details') + (n > 1 ? ` (${n} pages)` : '');
   }
 
   // Shrink large photos (phone cameras) before sending; keeps handwriting readable.
