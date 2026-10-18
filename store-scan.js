@@ -165,12 +165,12 @@
   // Use the master item's section and unit (the ERP rule: same item, same code, one unit everywhere).
   function applyMaster(line, item, auto) {
     line.master = item;
-    if (item.item_category && SECTIONS.includes(item.item_category) && line.v.item_category !== item.item_category) { if (!auto) setVal(line, 'item_category', item.item_category); else line.v.item_category = item.item_category; }
+    if (item.item_category && SECTIONS.includes(item.item_category) && line.v.item_category !== item.item_category) { if (!auto) setSys(line, 'item_category', item.item_category); else line.v.item_category = item.item_category; }
     if (item.unit && line.v.unit !== item.unit) {
       if (line.v.unit && auto) line.notes.unit = `Invoice unit ${line.v.unit} — Stores keeps ${item.item_name} in ${item.unit}. Convert the quantity if needed.`;
-      if (!auto) setVal(line, 'unit', item.unit); else { line.flags.add('unit'); if (!line.v.unit) line.v.unit = item.unit; }
+      if (!auto) setSys(line, 'unit', item.unit); else { line.flags.add('unit'); if (!line.v.unit) line.v.unit = item.unit; }
     }
-    if (!auto) setVal(line, 'item_name', item.item_name);
+    if (!auto) setSys(line, 'item_name', item.item_name);
   }
   function checkLine(line) {
     const q = line.v.quantity;
@@ -180,6 +180,8 @@
     if (!line.v.unit) line.flags.add('unit');
     if (!q) line.flags.add('quantity');
   }
+  // Changes made by the page itself (Stores master values, pack conversion) are not AI reading mistakes.
+  function setSys(line, k, value) { if (line.ai) line.ai[k] = value; setVal(line, k, value); }
   function setVal(line, k, value) {
     line.v[k] = value;
     if (line.ai && String(line.ai[k] ?? '') !== String(value ?? '')) line.edited.add(k); else line.edited.delete(k);
@@ -255,10 +257,10 @@
         card.append(el('div', { class: 'warn' },
           `Pack ${line.v.pack_size}: ${total} pack(s) on the invoice = ${total * per} ${line.v.unit}. Is ${line.v.unit} the count of single pieces for this item? `,
           el('button', { type: 'button', class: 'link', text: `Convert to ${line.v.quantity * per} + ${(Number(line.v.free_quantity) || 0) * per} free ${line.v.unit}`, onclick: () => {
-            setVal(line, 'quantity', String((Number(line.v.quantity) || 0) * per));
-            if (line.v.free_quantity) setVal(line, 'free_quantity', String((Number(line.v.free_quantity) || 0) * per));
-            if (line.v.unit_cost) setVal(line, 'unit_cost', String(Math.round((Number(line.v.unit_cost) / per) * 100) / 100));
-            if (line.v.mrp) setVal(line, 'mrp', String(Math.round((Number(line.v.mrp) / per) * 100) / 100));
+            setSys(line, 'quantity', String((Number(line.v.quantity) || 0) * per));
+            if (line.v.free_quantity) setSys(line, 'free_quantity', String((Number(line.v.free_quantity) || 0) * per));
+            if (line.v.unit_cost) setSys(line, 'unit_cost', String(Math.round((Number(line.v.unit_cost) / per) * 100) / 100));
+            if (line.v.mrp) setSys(line, 'mrp', String(Math.round((Number(line.v.mrp) / per) * 100) / 100));
             line.converted = true; render(); } }),
           el('button', { type: 'button', class: 'link', text: ' Keep as packs', onclick: () => { line.converted = true; render(); } })));
       }
