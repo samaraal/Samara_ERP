@@ -1,3 +1,11 @@
+UPDATE 18-10-2026 (night) — Scan Lab v1.2.0: ➕ Add to Stores Master on a NEW stock line.
+  - Shown when an invoice item is not in the Stores Master and its Section + Unit are chosen.
+  - A confirm box shows name, section, unit (+ optional Guest charge rate); "Yes" calls the same
+    admin_add_store_item the Stores Master page uses — the ERP gives the next code (CON- / PHA- / HKG- / KIT-).
+  - Re-checks for a same / similar item first; the line then shows "✓ In Stores list: <code>".
+  - This is the only write Scan Lab makes. Stock quantities are still entered in the ERP Stores form.
+  - Biomedical Equipment items are not added here (they have their own register). No SQL needed.
+
 UPDATE 18-10-2026 (night) — Scan Lab v1.1.4: prescription pages are read in parallel (one request per page);
   two dense hospital pages in one request ran past Supabase's 150-second limit (504). Clear message when the ERP login expired.
 
