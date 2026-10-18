@@ -1,3 +1,7 @@
+## 2.18.4 — Discard a scanned bill; filled / unfilled fields in two colours
+- Stores → Receive from Vendor: **🗑 Discard this bill** (top and bottom) throws away the scanned pages and every line not yet received — e.g. when the wrong bill was scanned. Nothing that was not received is saved. Lines already received stay in stock (the confirmation says so; correct them with Physical Tally).
+- Colours, as in the trial: **light green** = read from the document — check it; **light yellow** = not filled / not clear — fill or confirm it. Used on every scanned bill line and header, and after an ID scan in Admission. Colours go away when the line is ✓ Verified / received, or the field is changed. A small legend explains them. No SQL.
+
 ## 2.18.3 — Supplier bill with Pharmacy and Consumables items together
 - Each scanned line is received into its OWN section (from the Stores Master, else as read from the bill), whichever Stores page the scan was opened from.
 - A line whose section is not clear on the bill takes the page's section but is marked **yellow** ("Section not clear — change it if this is a Pharmacy item").

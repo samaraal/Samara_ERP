@@ -60,6 +60,8 @@
   }
   function StoreBillScan({items,defaultSection,onReceived,notify}){
     const [busy,setBusy]=React.useState(false),[status,setStatus]=React.useState(''),[tone,setTone]=React.useState('');
+    // 2.18.4: Discard — throws away the scanned pages and every line not yet received (e.g. the wrong bill was scanned).
+    const [scanKey,setScanKey]=React.useState(0);
     const [head,setHead]=React.useState(null),[lines,setLines]=React.useState([]),[subtotal,setSubtotal]=React.useState('');
     const activeItems=(items||[]).filter(i=>i.active!==false);
     async function read(files){
@@ -75,7 +77,7 @@
         const fallback=BILL_SCAN_SECTIONS.includes(defaultSection)?defaultSection:'';
         const ls=billLines(x,activeItems).map(l=>l.section||!fallback?l:{...l,section:fallback,flags:[...new Set([...l.flags,'section'])],notes:{...l.notes,section:l.notes.section||`Section not clear on the bill — set to ${fallback} (this page). Change it if this is a ${fallback==='Pharmacy'?'Consumables / other':'Pharmacy / other'} item.`}});
         setLines(ls);setTone(ls.length?'ok':'error');
-        setStatus(ls.length?`${ls.length} line(s) read. Check every yellow field against the bill, tick ✓ Verified on each line, then press Receive.`:'No stock lines could be read. Use the manual form below.');
+        setStatus(ls.length?`${ls.length} line(s) read. Check the green fields against the bill, fill the yellow ones, tick ✓ Verified on each line, then press Receive.`:'No stock lines could be read. Use the manual form below.');
       }catch(e){setTone('error');setStatus(e.message||'Could not read the bill.')}
       finally{setBusy(false)}
     }
@@ -83,6 +85,14 @@
     const rematch=(key,name)=>setLines(ls=>ls.map(l=>l.key===key?{...l,item_name:name,match:billMatch(name,activeItems),verified:false}:l));
     const useItem=(l,it)=>setLines(ls=>ls.map(x=>x.key===l.key?{...x,item_name:it.item_name,section:BILL_SCAN_SECTIONS.includes(it.item_category)?it.item_category:x.section,unit:it.unit||x.unit,match:{kind:'exact',item:it},verified:false}:x));
     const asNew=l=>setLines(ls=>ls.map(x=>x.key===l.key?{...x,match:{kind:'none',forced:true},verified:false}:x));
+    function discard(){
+      const done=lines.filter(l=>l.done).length,open=lines.length-done;
+      const msg=done
+        ?`Discard this bill?\n\n${open} line(s) not yet received will be thrown away. The ${done} line(s) already received stay in stock (correct those with Physical Tally if they were wrong).`
+        :`Discard this scanned bill completely?\n\nThe pages and all ${lines.length} line(s) read are thrown away. Nothing has been saved to stock.`;
+      if((lines.length||head)&&!confirm(msg))return;
+      setLines([]);setHead(null);setSubtotal('');setTone('');setStatus(done?`Discarded. ${done} line(s) received earlier remain in stock.`:'Discarded — nothing was saved. Scan the correct bill.');setScanKey(k=>k+1);
+    }
     async function receive(){
       const todo=lines.filter(l=>l.verified&&!l.done);
       if(!head)return;
@@ -109,18 +119,25 @@
       notify(bad?'error':'success',`${ok} line(s) received into stock from ${head.vendor_name}.${bad?` ${bad} line(s) not received — see the red message on each.`:''}`);
       if(ok&&onReceived)onReceived();
     }
-    const fld=(l,k,label,input)=>h('div',{className:'field',key:k,style:l.flags.includes(k)&&!l.verified?{background:'#fff8e1',borderRadius:'8px',padding:'4px'}:undefined},h('label',null,label),input,l.notes[k]&&!l.verified?h('small',{style:{color:'#8a5a00'}},l.notes[k]):null);
+    // 2.18.4: colours as in the trial — light GREEN = read from the bill (check it), light YELLOW = not filled or
+    // not clear (fill / confirm it). No colour once the line is ✓ Verified or received.
+    const SCAN_GREEN={background:'#eaf7ee',borderRadius:'8px',padding:'4px',boxShadow:'0 0 0 1px #a7dcbc'},SCAN_YELLOW={background:'#fff8e1',borderRadius:'8px',padding:'4px',boxShadow:'0 0 0 1px #f2d27b'};
+    const fld=(l,k,label,input)=>h('div',{className:'field',key:k,style:l.verified||l.done?undefined:(l.flags.includes(k)||!String(l[k]??'').trim())?SCAN_YELLOW:SCAN_GREEN},h('label',null,label),input,l.notes[k]&&!l.verified?h('small',{style:{color:'#8a5a00'}},l.notes[k]):null);
     const txt=(l,k,extra={})=>h('input',{value:l[k]||'',disabled:l.done,onChange:e=>setLine(l.key,{[k]:e.target.value}),...extra});
     const total=lines.reduce((a,l)=>a+(Number(l.quantity)||0)*(Number(l.unit_cost)||0),0);
     const pendingCount=lines.filter(l=>l.verified&&!l.done).length;
     return h('div',{className:'section-card',style:{background:'#fff4f9',borderColor:'#e7b6cf',marginBottom:'12px'}},
       h('strong',null,'Fill from the supplier bill'),
       h('small',{className:'small-note',style:{display:'block',margin:'4px 0 8px'}},'Photo or PDF of the bill / delivery note, up to 8 pages. Every line is matched to the Stores Master. Check each line, tick ✓ Verified, then Receive. NEW items are added without a price.'),
-      h(SAMARA_SCAN.ScanButton,{label:'Scan supplier bill',readLabel:'Read & Fill Stock Arrival',busy,status,tone,onFiles:read}),
+      h(SAMARA_SCAN.ScanButton,{key:`bill-scan-${scanKey}`,label:'Scan supplier bill',readLabel:'Read & Fill Stock Arrival',busy,status,tone,onFiles:read}),
+      lines.length?h('div',{style:{display:'flex',gap:'14px',flexWrap:'wrap',alignItems:'center',marginTop:'8px',fontSize:'13px'}},
+        h('span',null,h('span',{style:{...SCAN_GREEN,display:'inline-block',width:'14px',height:'14px',padding:0,verticalAlign:'middle',marginRight:'6px'}}),'Read from the bill — check'),
+        h('span',null,h('span',{style:{...SCAN_YELLOW,display:'inline-block',width:'14px',height:'14px',padding:0,verticalAlign:'middle',marginRight:'6px'}}),'Not filled / not clear — fill or confirm')):null,
+      head&&!(lines.length&&lines.every(l=>l.done))&&h('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:'8px'}},h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:discard},'🗑 Discard this bill')),
       head&&h('div',{className:'grid two',style:{marginTop:'10px'}},
-        h('div',{className:'field'},h('label',null,'Vendor *'),h('input',{value:head.vendor_name,onChange:e=>setHead({...head,vendor_name:e.target.value})})),
-        h('div',{className:'field'},h('label',null,'Invoice / Bill No.'),h('input',{value:head.invoice_no,onChange:e=>setHead({...head,invoice_no:e.target.value})})),
-        h('div',{className:'field'},h('label',null,'Invoice Date'),h(StrictDateInput,{value:head.invoice_date,onChange:e=>setHead({...head,invoice_date:e.target.value})})),
+        h('div',{className:'field',style:String(head.vendor_name).trim()?SCAN_GREEN:SCAN_YELLOW},h('label',null,'Vendor *'),h('input',{value:head.vendor_name,onChange:e=>setHead({...head,vendor_name:e.target.value})})),
+        h('div',{className:'field',style:String(head.invoice_no).trim()?SCAN_GREEN:SCAN_YELLOW},h('label',null,'Invoice / Bill No.'),h('input',{value:head.invoice_no,onChange:e=>setHead({...head,invoice_no:e.target.value})})),
+        h('div',{className:'field',style:head.invoice_date?SCAN_GREEN:SCAN_YELLOW},h('label',null,'Invoice Date'),h(StrictDateInput,{value:head.invoice_date,onChange:e=>setHead({...head,invoice_date:e.target.value})})),
         h('div',{className:'field'},h('label',null,'Received Date *'),h(StrictDateInput,{value:head.received_date,required:true,onChange:e=>setHead({...head,received_date:e.target.value})}),h('small',null,'The day the goods actually arrived'))),
       head&&subtotal&&lines.length?(()=>{const diff=Math.abs(total-Number(subtotal)),tol=Math.max(1,Number(subtotal)*0.002);
         return h('div',{style:SAMARA_SCAN.noteStyle(diff<tol?'ok':'error')},diff<tol?`✓ Lines total ₹${total.toFixed(2)} matches the bill subtotal ₹${Number(subtotal).toFixed(2)} — no line missed.`:`Lines total ₹${total.toFixed(2)} does not match the bill subtotal ₹${Number(subtotal).toFixed(2)} (difference ₹${diff.toFixed(2)}). A line may be missing or a quantity / rate misread.`)})():null,
@@ -161,5 +178,6 @@
       lines.length?h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginTop:'8px'}},
         h('button',{type:'button',className:'btn btn-primary',disabled:busy||!pendingCount,onClick:receive},busy?'Receiving…':`Receive ${pendingCount} verified line(s) into stock`),
         h('small',{className:'small-note'},`${lines.filter(l=>l.done).length} received · ${pendingCount} verified · ${lines.filter(l=>!l.verified&&!l.done).length} still to check`),
-        lines.every(l=>l.done)?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setLines([]);setHead(null);setStatus('');setSubtotal('')}},'Clear — next bill'):null):null);
+        lines.every(l=>l.done)?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setLines([]);setHead(null);setStatus('');setSubtotal('');setScanKey(k=>k+1)}},'Clear — next bill')
+          :h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:discard,title:'Wrong bill? Throw away this reading — nothing not yet received is saved'},'🗑 Discard this bill')):null);
   }

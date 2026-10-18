@@ -1,5 +1,5 @@
-const APP_VERSION = '2.18.3';
-const CACHE = 'samara-erp-2.18.3-mixed-bill';
+const APP_VERSION = '2.18.4';
+const CACHE = 'samara-erp-2.18.4-discard-colours';
 const SHELL = [
   './',
   './index.html',

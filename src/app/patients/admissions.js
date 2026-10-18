@@ -861,12 +861,12 @@
     const [idMarks,setIdMarks]=React.useState(null);
     const ID_MARK_LABEL={full_name:'Patient name',date_of_birth:'Date of Birth',age:'Age',gender:'Gender'};
     React.useEffect(()=>{
-      if(!document.getElementById('samara-scan-check-style')){const st=document.createElement('style');st.id='samara-scan-check-style';st.textContent='.samara-scan-check{background:#fff8e1!important;border-radius:10px;box-shadow:0 0 0 2px #f2d27b;padding:4px 6px!important}.samara-scan-check input,.samara-scan-check select{background:#fffbea!important}';document.head.appendChild(st)}
+      if(!document.getElementById('samara-scan-check-style')){const st=document.createElement('style');st.id='samara-scan-check-style';st.textContent='.samara-scan-check{background:#fff8e1!important;border-radius:10px;box-shadow:0 0 0 2px #f2d27b;padding:4px 6px!important}.samara-scan-check input,.samara-scan-check select{background:#fffbea!important}.samara-scan-filled{background:#eaf7ee!important;border-radius:10px;box-shadow:0 0 0 2px #a7dcbc;padding:4px 6px!important}.samara-scan-filled input,.samara-scan-filled select{background:#f3fbf5!important}';document.head.appendChild(st)}
       const card=document.getElementById('admission-identity-card');if(!card)return;
-      card.querySelectorAll('.samara-scan-check').forEach(n=>n.classList.remove('samara-scan-check'));
+      card.querySelectorAll('.samara-scan-check,.samara-scan-filled').forEach(n=>n.classList.remove('samara-scan-check','samara-scan-filled'));
       if(!idMarks)return;
       const boxFor=k=>{const byId=document.getElementById(`admission-address-${k}`);if(byId)return byId.closest('.field');const lab=ID_MARK_LABEL[k];return lab?[...card.querySelectorAll('.field')].find(f=>String(f.querySelector('label')?.textContent||'').trim().startsWith(lab)):null};
-      for(const [k,v] of Object.entries(idMarks.filled))if(String(form[k]??'')===String(v))boxFor(k)?.classList.add('samara-scan-check');
+      for(const [k,v] of Object.entries(idMarks.filled))if(String(form[k]??'')===String(v))boxFor(k)?.classList.add('samara-scan-filled'); // 2.18.4: filled from the card = green
       for(const k of idMarks.missing)if(!String(form[k]??'').trim())boxFor(k)?.classList.add('samara-scan-check');
     });
     const [scanDoctor,setScanDoctor]=React.useState('');
@@ -2534,7 +2534,7 @@ Please keep these login details confidential.`;
           h(SAMARA_SCAN.ScanButton,{label:'Scan ID card',readLabel:'Read & Fill Guest Details',busy:idScan.busy,status:idScan.status,tone:idScan.tone,onFiles:scanIdFiles,beforePick:saveAdmissionDraftBeforeDocumentPicker,maxPages:4}),
           idScan.lines.length?h('ul',{className:'small-note',style:{margin:'6px 0 0 18px'}},idScan.lines.map((x,k)=>h('li',{key:`idl-${k}`},x))):null,
           idMarks&&h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginTop:'8px'}},
-            h('small',{style:{color:'#8a5a00',fontWeight:700}},'Yellow boxes below: check them against the card, or fill what the card did not give.'),
+            h('small',{style:{fontWeight:700}},h('span',{style:{color:'#14532d'}},'Green = filled from the card — check it.'),' ',h('span',{style:{color:'#8a5a00'}},'Yellow = not on the card — fill it.')),
             h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setIdMarks(null)},'✓ Checked against the card'))
         ),
         h('div',{className:'form-grid'},
