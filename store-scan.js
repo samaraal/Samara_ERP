@@ -1,4 +1,4 @@
-/* Scan Lab Stores stock-arrival trial · v1.1.0 · 18-10-2026. Preview only; this file contains no database writes.
+/* Scan Lab Stores stock-arrival trial · v1.1.1 · 18-10-2026 (1.1.1: pack-size conversion check). Preview only; this file contains no database writes.
  * 1.1.0: each line is matched to the Stores / Charge Master item list (item code, section, unit) so the same
  *        item is never created twice; section and unit are dropdowns (ERP lists); whole-number quantity check;
  *        Free qty, MRP and GST % read; expiry printed as MM/YY becomes the last day of that month (flagged);
@@ -138,6 +138,9 @@
     }
     return best && best.ratio >= 0.78 ? { kind: 'near', item: best.item } : { kind: 'none' };
   }
+  const PIECE_UNITS = ['Nos', 'Pieces', 'Tablets', 'Capsules'];
+  // "15's" / "1x15" / "10 x 10" / "100's" → pieces per pack (0 when not clear)
+  const packCount = (p) => { const t = String(p || '').toLowerCase().replace(/\s+/g, ''); let m = t.match(/^(\d+)x(\d+)$/); if (m) return Number(m[1]) * Number(m[2]); m = t.match(/^(\d+)(?:'?s|nos|pcs|tabs?|caps?)?$/); return m ? Number(m[1]) : 0; };
   const mapUnit = (u) => { const t = String(u || '').trim(); if (!t) return ''; if (UNITS.includes(t)) return t; return UNIT_ALIAS[t.toLowerCase().replace(/[^a-z]/g, '')] || ''; };
 
   function normalize(x) {
@@ -246,6 +249,19 @@
       card.append(grid);
       const total = (Number(line.v.quantity) || 0) + (Number(line.v.free_quantity) || 0);
       card.append(el('p', { class: 'hint', text: `Stock to receive: ${total || '—'} ${line.v.unit || ''}${Number(line.v.free_quantity) ? ` (${line.v.quantity} billed + ${line.v.free_quantity} free)` : ''}` }));
+      // 1.1.0: invoice quantity is usually in packs (e.g. 20 strips of 15's) — Stores may count single pieces.
+      const per = packCount(line.v.pack_size);
+      if (per > 1 && PIECE_UNITS.includes(line.v.unit) && !line.converted && total) {
+        card.append(el('div', { class: 'warn' },
+          `Pack ${line.v.pack_size}: ${total} pack(s) on the invoice = ${total * per} ${line.v.unit}. Is ${line.v.unit} the count of single pieces for this item? `,
+          el('button', { type: 'button', class: 'link', text: `Convert to ${line.v.quantity * per} + ${(Number(line.v.free_quantity) || 0) * per} free ${line.v.unit}`, onclick: () => {
+            setVal(line, 'quantity', String((Number(line.v.quantity) || 0) * per));
+            if (line.v.free_quantity) setVal(line, 'free_quantity', String((Number(line.v.free_quantity) || 0) * per));
+            if (line.v.unit_cost) setVal(line, 'unit_cost', String(Math.round((Number(line.v.unit_cost) / per) * 100) / 100));
+            if (line.v.mrp) setVal(line, 'mrp', String(Math.round((Number(line.v.mrp) / per) * 100) / 100));
+            line.converted = true; render(); } }),
+          el('button', { type: 'button', class: 'link', text: ' Keep as packs', onclick: () => { line.converted = true; render(); } })));
+      }
       card.append(el('div', { class: 'med-actions' },
         problems.length && !line.verified ? el('span', { class: 'missing', text: 'Still needed: ' + problems.join(', ') }) : el('span'),
         el('button', { type: 'button', class: 'btn ghost danger', text: 'Remove line', onclick: () => { if (!line.manual) d.removedAi++; d.lines.splice(i, 1); render(); } }),

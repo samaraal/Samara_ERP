@@ -1,6 +1,7 @@
 UPDATE 18-10-2026 — Scan Lab v1.1.0 (already deployed by Claude: GitHub + both Edge Functions)
   - Stock invoice tab: FIXED — every read failed ("No supported scan model") because store-scan only tried
     Gemini 2.5 / 2.0. It now uses the same model as prescription-scan (gemini-3.8-flash).
+  - Pack-size check (1.1.1): invoice qty in packs (e.g. 20 x 15's) vs Stores counting single pieces — one tap converts.
   - Stock lines are matched to the Stores / Charge Master item list (code, section, unit); new items are flagged.
   - Section and Unit are dropdowns (ERP lists); whole-number quantity check; Free qty, MRP, GST % read;
     expiry printed as MM/YY = last day of that month (flagged); all dates DD-MM-YYYY; ✓ Verified per line;
