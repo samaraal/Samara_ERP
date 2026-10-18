@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.1';
+  const APP_VERSION = '2.18.2';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '18-Oct-2026 Sign-out on this device only';
+  const APP_BUILD_DATE = '18-Oct-2026 Scan pages tray and yellow check boxes';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -3327,10 +3327,18 @@ https://samaraassistedliving.com/`;
 
     // ---------- ID card → Admission Guest fields ----------
     const norm=v=>String(v||'').toLowerCase().replace(/[^a-z]/g,'');
+    // Tamil spellings vary (Thoothukkudi / Thoothukudi / Tuticorin): compare without "h", doubled letters and spaces.
+    const loose=v=>norm(v).replace(/h/g,'').replace(/(.)\1+/g,'$1').replace(/[aeiou]+$/,'');
+    const ALIAS={tuticorin:'Thoothukudi',trichy:'Tiruchirappalli',tiruchi:'Tiruchirappalli',trichirappalli:'Tiruchirappalli',kanyakumari:'Kanniyakumari',nilgiris:'The Nilgiris',ooty:'The Nilgiris',villupuram:'Viluppuram',kanchipuram:'Kancheepuram',tirupur:'Tiruppur',sivagangai:'Sivaganga',nagai:'Nagapattinam',tanjore:'Thanjavur',madras:'Chennai',kovai:'Coimbatore',pondicherry:'Puducherry',tamilnadu:'Tamil Nadu'};
     function bestOf(value,options){
       const v=norm(value);if(!v)return '';
       const exact=options.find(o=>norm(o)===v);if(exact)return exact;
-      const part=options.filter(o=>norm(o).startsWith(v)||v.startsWith(norm(o)));return part.length===1?part[0]:'';
+      const al=ALIAS[v];if(al&&options.includes(al))return al;
+      const lv=loose(value);const same=options.filter(o=>loose(o)===lv);if(same.length===1)return same[0];
+      const part=options.filter(o=>norm(o).startsWith(v)||v.startsWith(norm(o)));if(part.length===1)return part[0];
+      // one or two letters different (e.g. Srivaikundam / Srivaikuntam)
+      const lev=(a,b)=>{const m=a.length,n=b.length;let prev=Array.from({length:n+1},(_,j)=>j);for(let i=1;i<=m;i++){const cur=[i];for(let j=1;j<=n;j++)cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));prev=cur}return prev[n]};
+      const close=options.filter(o=>lv.length>=5&&lev(loose(o),lv)<=2);return close.length===1?close[0]:'';
     }
     function idToGuest(r){
       const iso=(()=>{const m=String(r.date_of_birth||'').match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);if(!m)return '';const d=`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;return Number.isNaN(new Date(d+'T00:00:00Z').getTime())?'':d})();
@@ -3341,7 +3349,7 @@ https://samaraassistedliving.com/`;
       else if(/^\d{4}$/.test(String(r.year_of_birth||''))){out.age=String(new Date().getFullYear()-Number(r.year_of_birth));notes.push(`Only the year of birth (${r.year_of_birth}) is printed — age set to about ${out.age}.`)}
       if(['Male','Female','Other'].includes(r.gender))out.gender=r.gender;
       const GA=window.SamaraGuestAddress;
-      let country=String(r.country||'').trim()||(/aadhaar|pan|voter|driving/i.test(r.document_type||'')?'India':'');
+      let country=String(r.country||'').trim()||(/aadhaar|pan|voter|driving/i.test(r.document_type||'')||(GA&&bestOf(r.state,GA.INDIAN_STATES))?'India':'');
       if(GA&&country)country=GA.COUNTRIES.find(c=>norm(c)===norm(country))||country;
       if(country)out.country=country;
       if(country==='India'&&GA){
@@ -3361,13 +3369,31 @@ https://samaraassistedliving.com/`;
     // ---------- shared upload button ----------
     // onFiles(files) is called with the chosen pages. beforePick() runs before the file picker opens (Admission
     // saves its draft first, because a phone camera can reload the page).
-    function ScanButton({label,busy,status,tone,onFiles,beforePick,disabled}){
+    // 2.18.2: pages are collected first (front + back of an ID card, several prescription / bill pages), shown as
+    // thumbnails, then read together with the Read button — the same as the Scan Lab trial. "Clear" empties the pages.
+    function ScanButton({label,readLabel,busy,status,tone,onFiles,beforePick,disabled,maxPages=8}){
+      const [pages,setPages]=React.useState([]);
+      React.useEffect(()=>()=>pages.forEach(p=>URL.revokeObjectURL(p.url)),[]);
+      const add=list=>{
+        const ok=Array.from(list||[]).filter(f=>isPdf(f)||/^image\//.test(f.type||''));
+        setPages(cur=>[...cur,...ok.map(f=>({file:f,url:URL.createObjectURL(f),pdf:isPdf(f)}))].slice(0,maxPages));
+      };
+      const remove=i=>setPages(cur=>{URL.revokeObjectURL(cur[i].url);return cur.filter((_,n)=>n!==i)});
+      const clearAll=()=>{pages.forEach(p=>URL.revokeObjectURL(p.url));setPages([])};
+      const off=busy||disabled;const n=pages.length;
+      const pick=(text,cls,extra)=>h('label',{className:`btn ${cls} file-button${off||n>=maxPages?' disabled':''}`,style:{margin:0}},text,
+        h('input',{type:'file',accept:'image/*,.pdf',disabled:off||n>=maxPages,...extra,onClick:()=>beforePick&&beforePick(),onChange:e=>{const f=Array.from(e.target.files||[]);e.target.value='';if(f.length)add(f)}}));
       return h('div',{className:'samara-scan-box'},
         h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}},
-          h('label',{className:`btn btn-primary file-button${busy||disabled?' disabled':''}`,'aria-disabled':busy||disabled?'true':null},busy?'Reading…':`📷 ${label}`,
-            h('input',{type:'file',multiple:true,accept:'image/*,.pdf',disabled:busy||disabled,onClick:()=>beforePick&&beforePick(),onChange:e=>{const f=Array.from(e.target.files||[]);e.target.value='';if(f.length)onFiles(f)}})),
-          h('label',{className:`btn btn-secondary file-button${busy||disabled?' disabled':''}`},'Camera',
-            h('input',{type:'file',accept:'image/*',capture:'environment',disabled:busy||disabled,onClick:()=>beforePick&&beforePick(),onChange:e=>{const f=Array.from(e.target.files||[]);e.target.value='';if(f.length)onFiles(f)}}))),
+          pick(n?'+ Add more pages':`📷 ${label}`,n?'btn-secondary':'btn-primary',{multiple:true}),
+          pick(n?`+ Photo of page ${n+1}`:'Camera','btn-secondary',{capture:'environment'}),
+          n?h('button',{type:'button',className:'btn btn-secondary',disabled:off,onClick:clearAll},'Clear'):null),
+        n?h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',margin:'10px 0'}},pages.map((p,i)=>h('div',{key:p.url,style:{position:'relative',width:'84px',textAlign:'center'}},
+          p.pdf?h('div',{style:{width:'84px',height:'84px',display:'flex',alignItems:'center',justifyContent:'center',border:'1px solid #e2c9d6',borderRadius:'8px',background:'#fff',fontWeight:700,color:'#7a1247'}},'PDF')
+            :h('a',{href:p.url,target:'_blank',rel:'noopener'},h('img',{src:p.url,alt:`Page ${i+1}`,style:{width:'84px',height:'84px',objectFit:'cover',border:'1px solid #e2c9d6',borderRadius:'8px',display:'block'}})),
+          h('small',null,`Page ${i+1}`),
+          h('button',{type:'button','aria-label':`Remove page ${i+1}`,disabled:off,onClick:()=>remove(i),style:{position:'absolute',top:'-6px',right:'-6px',width:'22px',height:'22px',borderRadius:'50%',border:'none',background:'#b3134f',color:'#fff',fontWeight:700,cursor:'pointer',lineHeight:'20px',padding:0}},'×')))):null,
+        n?h('button',{type:'button',className:'btn btn-primary',disabled:off,style:{width:'100%',marginTop:'2px'},onClick:()=>onFiles(pages.map(p=>p.file))},busy?'Reading…':`✨ ${readLabel||'Read'}${n>1?` (${n} pages)`:''}`):null,
         status?h('div',{role:'status',style:scanNoteStyle(tone)},status):null);
     }
     // Plain styled note (not the ERP "message success" class, which the app turns into a "Saved" toast).
@@ -23029,6 +23055,19 @@ Thank you.`;
     // medicine must be ticked "✓ Verified" against the prescription before the admission can be saved.
     const [rxScan,setRxScan]=React.useState({busy:false,status:'',tone:'',metas:[],notes:[]});
     const [idScan,setIdScan]=React.useState({busy:false,status:'',tone:'',lines:[]});
+    // 2.18.2: after an ID scan, the fields it filled (to check) and the address fields it could not fill are shown in
+    // light yellow, as in the Scan Lab trial, until changed / filled or "✓ Checked against the card" is pressed.
+    const [idMarks,setIdMarks]=React.useState(null);
+    const ID_MARK_LABEL={full_name:'Patient name',date_of_birth:'Date of Birth',age:'Age',gender:'Gender'};
+    React.useEffect(()=>{
+      if(!document.getElementById('samara-scan-check-style')){const st=document.createElement('style');st.id='samara-scan-check-style';st.textContent='.samara-scan-check{background:#fff8e1!important;border-radius:10px;box-shadow:0 0 0 2px #f2d27b;padding:4px 6px!important}.samara-scan-check input,.samara-scan-check select{background:#fffbea!important}';document.head.appendChild(st)}
+      const card=document.getElementById('admission-identity-card');if(!card)return;
+      card.querySelectorAll('.samara-scan-check').forEach(n=>n.classList.remove('samara-scan-check'));
+      if(!idMarks)return;
+      const boxFor=k=>{const byId=document.getElementById(`admission-address-${k}`);if(byId)return byId.closest('.field');const lab=ID_MARK_LABEL[k];return lab?[...card.querySelectorAll('.field')].find(f=>String(f.querySelector('label')?.textContent||'').trim().startsWith(lab)):null};
+      for(const [k,v] of Object.entries(idMarks.filled))if(String(form[k]??'')===String(v))boxFor(k)?.classList.add('samara-scan-check');
+      for(const k of idMarks.missing)if(!String(form[k]??'').trim())boxFor(k)?.classList.add('samara-scan-check');
+    });
     const [scanDoctor,setScanDoctor]=React.useState('');
     const scannedPending=meds.filter(m=>m.scan&&!m.scan.verified&&String(m.medicine_name||'').trim());
     async function scanPrescriptionFiles(files){
@@ -23069,6 +23108,9 @@ Thank you.`;
         }
         if(patch.date_of_birth&&patch.date_of_birth!==cur.date_of_birth){const years=ageFromDateOfBirth(patch.date_of_birth);if(years!==null)patch.age=String(years)}
         setForm(c=>({...c,...patch}));
+        {const after={...cur,...patch};
+         const missing=['full_name','gender','district','taluk','village_town','street_name','house_no','pincode'].filter(k=>!String(after[k]??'').trim()&&!(k==='taluk'&&String(after.state||'')!=='Tamil Nadu'));
+         setIdMarks({filled:Object.fromEntries(Object.entries(patch).filter(([k])=>k!=='country'&&k!=='state'||!String(cur[k]||'').trim())),missing});}
         setIdFiles(prev=>[...(prev||[]),...files]);keepDraftFiles(setIdFiles,files,false);
         const lines=[...filled.map(x=>'Filled — '+x),...kept.map(x=>'Not changed — '+x),...g.notes,g.relation?`On the card: ${g.relation}`:'',g.documentType?`${g.documentType}${g.last4?` ending ${g.last4}`:''} (the full number is never read or stored)`:''].filter(Boolean);
         setIdScan({busy:false,tone:'ok',lines,status:`ID card read. ${filled.length} field(s) filled — check each against the card. The card is also attached as the identity document.`});
@@ -24684,12 +24726,15 @@ Please keep these login details confidential.`;
           h('div',{style:{marginTop:'5px'}},`${formalName(returningPatient)||returningPatient.full_name} · ${returningPatient.patient_id}. Permanent personal details and existing documents will be retained.`)
         )
       ),
-      h('div',{className:'section-card'},h('h4',null,'1. Admission route and patient identity'),
+      h('div',{className:'section-card',id:'admission-identity-card'},h('h4',null,'1. Admission route and patient identity'),
         !returningPatient&&h('div',{className:'section-card',style:{background:'#fff4f9',borderColor:'#e7b6cf',margin:'0 0 10px'}},
           h('strong',null,'Fill Guest details from the ID card'),
           h('small',{className:'small-note',style:{display:'block',margin:'4px 0 8px'}},`Scan the ${guestIdLabel} (front and back). Name, Date of Birth, Gender and address are filled where still empty. Only the last 4 digits of the ID number are ever read.`),
-          h(SAMARA_SCAN.ScanButton,{label:'Scan ID card',busy:idScan.busy,status:idScan.status,tone:idScan.tone,onFiles:scanIdFiles,beforePick:saveAdmissionDraftBeforeDocumentPicker}),
-          idScan.lines.length?h('ul',{className:'small-note',style:{margin:'6px 0 0 18px'}},idScan.lines.map((x,k)=>h('li',{key:`idl-${k}`},x))):null
+          h(SAMARA_SCAN.ScanButton,{label:'Scan ID card',readLabel:'Read & Fill Guest Details',busy:idScan.busy,status:idScan.status,tone:idScan.tone,onFiles:scanIdFiles,beforePick:saveAdmissionDraftBeforeDocumentPicker,maxPages:4}),
+          idScan.lines.length?h('ul',{className:'small-note',style:{margin:'6px 0 0 18px'}},idScan.lines.map((x,k)=>h('li',{key:`idl-${k}`},x))):null,
+          idMarks&&h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginTop:'8px'}},
+            h('small',{style:{color:'#8a5a00',fontWeight:700}},'Yellow boxes below: check them against the card, or fill what the card did not give.'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setIdMarks(null)},'✓ Checked against the card'))
         ),
         h('div',{className:'form-grid'},
         selectField('Admission source','admission_type',form,setForm,[
@@ -24896,7 +24941,7 @@ Please keep these login details confidential.`;
         h('div',{className:'section-card',style:{background:'#fff4f9',borderColor:'#e7b6cf',margin:'8px 0'}},
           h('strong',null,'Fill medicines from the prescription'),
           h('small',{className:'small-note',style:{display:'block',margin:'4px 0 8px'}},'Photo or PDF, up to 8 pages. Each medicine is added below for you to check and tick ✓ Verified. Another doctor’s prescription? Scan it too — it is added to the list.'),
-          h(SAMARA_SCAN.ScanButton,{label:'Scan prescription',busy:rxScan.busy,status:rxScan.status,tone:rxScan.tone,onFiles:scanPrescriptionFiles,beforePick:saveAdmissionDraftBeforeDocumentPicker}),
+          h(SAMARA_SCAN.ScanButton,{label:'Scan prescription',readLabel:meds.some(m=>m.scan)?'Read & Add to Medicines':'Read & Fill Medicines',busy:rxScan.busy,status:rxScan.status,tone:rxScan.tone,onFiles:scanPrescriptionFiles,beforePick:saveAdmissionDraftBeforeDocumentPicker}),
           rxScan.metas.filter(x=>x.patient||x.hospital||x.date||x.poor).map((x,k)=>h('small',{key:`rxm-${k}`,className:'small-note',style:{display:'block',marginTop:'4px'}},
             [x.hospital&&`${x.hospital}`,x.date&&`dated ${x.date}`,x.patient&&`name on prescription: ${x.patient} — make sure this is the right Guest`,x.poor&&'pages hard to read — check very carefully'].filter(Boolean).join(' · '))),
           rxScan.notes.length?h('small',{className:'small-note',style:{display:'block',marginTop:'4px'}},`Also on the prescription (not added as medicines): ${rxScan.notes.join('; ')}`):null,
@@ -41171,7 +41216,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     return h('div',{className:'section-card',style:{background:'#fff4f9',borderColor:'#e7b6cf',marginBottom:'12px'}},
       h('strong',null,'Fill from the supplier bill'),
       h('small',{className:'small-note',style:{display:'block',margin:'4px 0 8px'}},'Photo or PDF of the bill / delivery note, up to 8 pages. Every line is matched to the Stores Master. Check each line, tick ✓ Verified, then Receive. NEW items are added without a price.'),
-      h(SAMARA_SCAN.ScanButton,{label:'Scan supplier bill',busy,status,tone,onFiles:read}),
+      h(SAMARA_SCAN.ScanButton,{label:'Scan supplier bill',readLabel:'Read & Fill Stock Arrival',busy,status,tone,onFiles:read}),
       head&&h('div',{className:'grid two',style:{marginTop:'10px'}},
         h('div',{className:'field'},h('label',null,'Vendor *'),h('input',{value:head.vendor_name,onChange:e=>setHead({...head,vendor_name:e.target.value})})),
         h('div',{className:'field'},h('label',null,'Invoice / Bill No.'),h('input',{value:head.invoice_no,onChange:e=>setHead({...head,invoice_no:e.target.value})})),

@@ -1,5 +1,5 @@
-const APP_VERSION = '2.18.1';
-const CACHE = 'samara-erp-2.18.1-device-signout';
+const APP_VERSION = '2.18.2';
+const CACHE = 'samara-erp-2.18.2-scan-pages';
 const SHELL = [
   './',
   './index.html',

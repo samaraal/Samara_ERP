@@ -140,10 +140,18 @@
 
     // ---------- ID card → Admission Guest fields ----------
     const norm=v=>String(v||'').toLowerCase().replace(/[^a-z]/g,'');
+    // Tamil spellings vary (Thoothukkudi / Thoothukudi / Tuticorin): compare without "h", doubled letters and spaces.
+    const loose=v=>norm(v).replace(/h/g,'').replace(/(.)\1+/g,'$1').replace(/[aeiou]+$/,'');
+    const ALIAS={tuticorin:'Thoothukudi',trichy:'Tiruchirappalli',tiruchi:'Tiruchirappalli',trichirappalli:'Tiruchirappalli',kanyakumari:'Kanniyakumari',nilgiris:'The Nilgiris',ooty:'The Nilgiris',villupuram:'Viluppuram',kanchipuram:'Kancheepuram',tirupur:'Tiruppur',sivagangai:'Sivaganga',nagai:'Nagapattinam',tanjore:'Thanjavur',madras:'Chennai',kovai:'Coimbatore',pondicherry:'Puducherry',tamilnadu:'Tamil Nadu'};
     function bestOf(value,options){
       const v=norm(value);if(!v)return '';
       const exact=options.find(o=>norm(o)===v);if(exact)return exact;
-      const part=options.filter(o=>norm(o).startsWith(v)||v.startsWith(norm(o)));return part.length===1?part[0]:'';
+      const al=ALIAS[v];if(al&&options.includes(al))return al;
+      const lv=loose(value);const same=options.filter(o=>loose(o)===lv);if(same.length===1)return same[0];
+      const part=options.filter(o=>norm(o).startsWith(v)||v.startsWith(norm(o)));if(part.length===1)return part[0];
+      // one or two letters different (e.g. Srivaikundam / Srivaikuntam)
+      const lev=(a,b)=>{const m=a.length,n=b.length;let prev=Array.from({length:n+1},(_,j)=>j);for(let i=1;i<=m;i++){const cur=[i];for(let j=1;j<=n;j++)cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));prev=cur}return prev[n]};
+      const close=options.filter(o=>lv.length>=5&&lev(loose(o),lv)<=2);return close.length===1?close[0]:'';
     }
     function idToGuest(r){
       const iso=(()=>{const m=String(r.date_of_birth||'').match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);if(!m)return '';const d=`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;return Number.isNaN(new Date(d+'T00:00:00Z').getTime())?'':d})();
@@ -154,7 +162,7 @@
       else if(/^\d{4}$/.test(String(r.year_of_birth||''))){out.age=String(new Date().getFullYear()-Number(r.year_of_birth));notes.push(`Only the year of birth (${r.year_of_birth}) is printed — age set to about ${out.age}.`)}
       if(['Male','Female','Other'].includes(r.gender))out.gender=r.gender;
       const GA=window.SamaraGuestAddress;
-      let country=String(r.country||'').trim()||(/aadhaar|pan|voter|driving/i.test(r.document_type||'')?'India':'');
+      let country=String(r.country||'').trim()||(/aadhaar|pan|voter|driving/i.test(r.document_type||'')||(GA&&bestOf(r.state,GA.INDIAN_STATES))?'India':'');
       if(GA&&country)country=GA.COUNTRIES.find(c=>norm(c)===norm(country))||country;
       if(country)out.country=country;
       if(country==='India'&&GA){
@@ -174,13 +182,31 @@
     // ---------- shared upload button ----------
     // onFiles(files) is called with the chosen pages. beforePick() runs before the file picker opens (Admission
     // saves its draft first, because a phone camera can reload the page).
-    function ScanButton({label,busy,status,tone,onFiles,beforePick,disabled}){
+    // 2.18.2: pages are collected first (front + back of an ID card, several prescription / bill pages), shown as
+    // thumbnails, then read together with the Read button — the same as the Scan Lab trial. "Clear" empties the pages.
+    function ScanButton({label,readLabel,busy,status,tone,onFiles,beforePick,disabled,maxPages=8}){
+      const [pages,setPages]=React.useState([]);
+      React.useEffect(()=>()=>pages.forEach(p=>URL.revokeObjectURL(p.url)),[]);
+      const add=list=>{
+        const ok=Array.from(list||[]).filter(f=>isPdf(f)||/^image\//.test(f.type||''));
+        setPages(cur=>[...cur,...ok.map(f=>({file:f,url:URL.createObjectURL(f),pdf:isPdf(f)}))].slice(0,maxPages));
+      };
+      const remove=i=>setPages(cur=>{URL.revokeObjectURL(cur[i].url);return cur.filter((_,n)=>n!==i)});
+      const clearAll=()=>{pages.forEach(p=>URL.revokeObjectURL(p.url));setPages([])};
+      const off=busy||disabled;const n=pages.length;
+      const pick=(text,cls,extra)=>h('label',{className:`btn ${cls} file-button${off||n>=maxPages?' disabled':''}`,style:{margin:0}},text,
+        h('input',{type:'file',accept:'image/*,.pdf',disabled:off||n>=maxPages,...extra,onClick:()=>beforePick&&beforePick(),onChange:e=>{const f=Array.from(e.target.files||[]);e.target.value='';if(f.length)add(f)}}));
       return h('div',{className:'samara-scan-box'},
         h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}},
-          h('label',{className:`btn btn-primary file-button${busy||disabled?' disabled':''}`,'aria-disabled':busy||disabled?'true':null},busy?'Reading…':`📷 ${label}`,
-            h('input',{type:'file',multiple:true,accept:'image/*,.pdf',disabled:busy||disabled,onClick:()=>beforePick&&beforePick(),onChange:e=>{const f=Array.from(e.target.files||[]);e.target.value='';if(f.length)onFiles(f)}})),
-          h('label',{className:`btn btn-secondary file-button${busy||disabled?' disabled':''}`},'Camera',
-            h('input',{type:'file',accept:'image/*',capture:'environment',disabled:busy||disabled,onClick:()=>beforePick&&beforePick(),onChange:e=>{const f=Array.from(e.target.files||[]);e.target.value='';if(f.length)onFiles(f)}}))),
+          pick(n?'+ Add more pages':`📷 ${label}`,n?'btn-secondary':'btn-primary',{multiple:true}),
+          pick(n?`+ Photo of page ${n+1}`:'Camera','btn-secondary',{capture:'environment'}),
+          n?h('button',{type:'button',className:'btn btn-secondary',disabled:off,onClick:clearAll},'Clear'):null),
+        n?h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',margin:'10px 0'}},pages.map((p,i)=>h('div',{key:p.url,style:{position:'relative',width:'84px',textAlign:'center'}},
+          p.pdf?h('div',{style:{width:'84px',height:'84px',display:'flex',alignItems:'center',justifyContent:'center',border:'1px solid #e2c9d6',borderRadius:'8px',background:'#fff',fontWeight:700,color:'#7a1247'}},'PDF')
+            :h('a',{href:p.url,target:'_blank',rel:'noopener'},h('img',{src:p.url,alt:`Page ${i+1}`,style:{width:'84px',height:'84px',objectFit:'cover',border:'1px solid #e2c9d6',borderRadius:'8px',display:'block'}})),
+          h('small',null,`Page ${i+1}`),
+          h('button',{type:'button','aria-label':`Remove page ${i+1}`,disabled:off,onClick:()=>remove(i),style:{position:'absolute',top:'-6px',right:'-6px',width:'22px',height:'22px',borderRadius:'50%',border:'none',background:'#b3134f',color:'#fff',fontWeight:700,cursor:'pointer',lineHeight:'20px',padding:0}},'×')))):null,
+        n?h('button',{type:'button',className:'btn btn-primary',disabled:off,style:{width:'100%',marginTop:'2px'},onClick:()=>onFiles(pages.map(p=>p.file))},busy?'Reading…':`✨ ${readLabel||'Read'}${n>1?` (${n} pages)`:''}`):null,
         status?h('div',{role:'status',style:scanNoteStyle(tone)},status):null);
     }
     // Plain styled note (not the ERP "message success" class, which the app turns into a "Saved" toast).

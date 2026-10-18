@@ -111,7 +111,7 @@
     return h('div',{className:'section-card',style:{background:'#fff4f9',borderColor:'#e7b6cf',marginBottom:'12px'}},
       h('strong',null,'Fill from the supplier bill'),
       h('small',{className:'small-note',style:{display:'block',margin:'4px 0 8px'}},'Photo or PDF of the bill / delivery note, up to 8 pages. Every line is matched to the Stores Master. Check each line, tick ✓ Verified, then Receive. NEW items are added without a price.'),
-      h(SAMARA_SCAN.ScanButton,{label:'Scan supplier bill',busy,status,tone,onFiles:read}),
+      h(SAMARA_SCAN.ScanButton,{label:'Scan supplier bill',readLabel:'Read & Fill Stock Arrival',busy,status,tone,onFiles:read}),
       head&&h('div',{className:'grid two',style:{marginTop:'10px'}},
         h('div',{className:'field'},h('label',null,'Vendor *'),h('input',{value:head.vendor_name,onChange:e=>setHead({...head,vendor_name:e.target.value})})),
         h('div',{className:'field'},h('label',null,'Invoice / Bill No.'),h('input',{value:head.invoice_no,onChange:e=>setHead({...head,invoice_no:e.target.value})})),

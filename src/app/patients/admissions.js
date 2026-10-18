@@ -856,6 +856,19 @@
     // medicine must be ticked "✓ Verified" against the prescription before the admission can be saved.
     const [rxScan,setRxScan]=React.useState({busy:false,status:'',tone:'',metas:[],notes:[]});
     const [idScan,setIdScan]=React.useState({busy:false,status:'',tone:'',lines:[]});
+    // 2.18.2: after an ID scan, the fields it filled (to check) and the address fields it could not fill are shown in
+    // light yellow, as in the Scan Lab trial, until changed / filled or "✓ Checked against the card" is pressed.
+    const [idMarks,setIdMarks]=React.useState(null);
+    const ID_MARK_LABEL={full_name:'Patient name',date_of_birth:'Date of Birth',age:'Age',gender:'Gender'};
+    React.useEffect(()=>{
+      if(!document.getElementById('samara-scan-check-style')){const st=document.createElement('style');st.id='samara-scan-check-style';st.textContent='.samara-scan-check{background:#fff8e1!important;border-radius:10px;box-shadow:0 0 0 2px #f2d27b;padding:4px 6px!important}.samara-scan-check input,.samara-scan-check select{background:#fffbea!important}';document.head.appendChild(st)}
+      const card=document.getElementById('admission-identity-card');if(!card)return;
+      card.querySelectorAll('.samara-scan-check').forEach(n=>n.classList.remove('samara-scan-check'));
+      if(!idMarks)return;
+      const boxFor=k=>{const byId=document.getElementById(`admission-address-${k}`);if(byId)return byId.closest('.field');const lab=ID_MARK_LABEL[k];return lab?[...card.querySelectorAll('.field')].find(f=>String(f.querySelector('label')?.textContent||'').trim().startsWith(lab)):null};
+      for(const [k,v] of Object.entries(idMarks.filled))if(String(form[k]??'')===String(v))boxFor(k)?.classList.add('samara-scan-check');
+      for(const k of idMarks.missing)if(!String(form[k]??'').trim())boxFor(k)?.classList.add('samara-scan-check');
+    });
     const [scanDoctor,setScanDoctor]=React.useState('');
     const scannedPending=meds.filter(m=>m.scan&&!m.scan.verified&&String(m.medicine_name||'').trim());
     async function scanPrescriptionFiles(files){
@@ -896,6 +909,9 @@
         }
         if(patch.date_of_birth&&patch.date_of_birth!==cur.date_of_birth){const years=ageFromDateOfBirth(patch.date_of_birth);if(years!==null)patch.age=String(years)}
         setForm(c=>({...c,...patch}));
+        {const after={...cur,...patch};
+         const missing=['full_name','gender','district','taluk','village_town','street_name','house_no','pincode'].filter(k=>!String(after[k]??'').trim()&&!(k==='taluk'&&String(after.state||'')!=='Tamil Nadu'));
+         setIdMarks({filled:Object.fromEntries(Object.entries(patch).filter(([k])=>k!=='country'&&k!=='state'||!String(cur[k]||'').trim())),missing});}
         setIdFiles(prev=>[...(prev||[]),...files]);keepDraftFiles(setIdFiles,files,false);
         const lines=[...filled.map(x=>'Filled — '+x),...kept.map(x=>'Not changed — '+x),...g.notes,g.relation?`On the card: ${g.relation}`:'',g.documentType?`${g.documentType}${g.last4?` ending ${g.last4}`:''} (the full number is never read or stored)`:''].filter(Boolean);
         setIdScan({busy:false,tone:'ok',lines,status:`ID card read. ${filled.length} field(s) filled — check each against the card. The card is also attached as the identity document.`});
@@ -2511,12 +2527,15 @@ Please keep these login details confidential.`;
           h('div',{style:{marginTop:'5px'}},`${formalName(returningPatient)||returningPatient.full_name} · ${returningPatient.patient_id}. Permanent personal details and existing documents will be retained.`)
         )
       ),
-      h('div',{className:'section-card'},h('h4',null,'1. Admission route and patient identity'),
+      h('div',{className:'section-card',id:'admission-identity-card'},h('h4',null,'1. Admission route and patient identity'),
         !returningPatient&&h('div',{className:'section-card',style:{background:'#fff4f9',borderColor:'#e7b6cf',margin:'0 0 10px'}},
           h('strong',null,'Fill Guest details from the ID card'),
           h('small',{className:'small-note',style:{display:'block',margin:'4px 0 8px'}},`Scan the ${guestIdLabel} (front and back). Name, Date of Birth, Gender and address are filled where still empty. Only the last 4 digits of the ID number are ever read.`),
-          h(SAMARA_SCAN.ScanButton,{label:'Scan ID card',busy:idScan.busy,status:idScan.status,tone:idScan.tone,onFiles:scanIdFiles,beforePick:saveAdmissionDraftBeforeDocumentPicker}),
-          idScan.lines.length?h('ul',{className:'small-note',style:{margin:'6px 0 0 18px'}},idScan.lines.map((x,k)=>h('li',{key:`idl-${k}`},x))):null
+          h(SAMARA_SCAN.ScanButton,{label:'Scan ID card',readLabel:'Read & Fill Guest Details',busy:idScan.busy,status:idScan.status,tone:idScan.tone,onFiles:scanIdFiles,beforePick:saveAdmissionDraftBeforeDocumentPicker,maxPages:4}),
+          idScan.lines.length?h('ul',{className:'small-note',style:{margin:'6px 0 0 18px'}},idScan.lines.map((x,k)=>h('li',{key:`idl-${k}`},x))):null,
+          idMarks&&h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginTop:'8px'}},
+            h('small',{style:{color:'#8a5a00',fontWeight:700}},'Yellow boxes below: check them against the card, or fill what the card did not give.'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setIdMarks(null)},'✓ Checked against the card'))
         ),
         h('div',{className:'form-grid'},
         selectField('Admission source','admission_type',form,setForm,[
@@ -2723,7 +2742,7 @@ Please keep these login details confidential.`;
         h('div',{className:'section-card',style:{background:'#fff4f9',borderColor:'#e7b6cf',margin:'8px 0'}},
           h('strong',null,'Fill medicines from the prescription'),
           h('small',{className:'small-note',style:{display:'block',margin:'4px 0 8px'}},'Photo or PDF, up to 8 pages. Each medicine is added below for you to check and tick ✓ Verified. Another doctor’s prescription? Scan it too — it is added to the list.'),
-          h(SAMARA_SCAN.ScanButton,{label:'Scan prescription',busy:rxScan.busy,status:rxScan.status,tone:rxScan.tone,onFiles:scanPrescriptionFiles,beforePick:saveAdmissionDraftBeforeDocumentPicker}),
+          h(SAMARA_SCAN.ScanButton,{label:'Scan prescription',readLabel:meds.some(m=>m.scan)?'Read & Add to Medicines':'Read & Fill Medicines',busy:rxScan.busy,status:rxScan.status,tone:rxScan.tone,onFiles:scanPrescriptionFiles,beforePick:saveAdmissionDraftBeforeDocumentPicker}),
           rxScan.metas.filter(x=>x.patient||x.hospital||x.date||x.poor).map((x,k)=>h('small',{key:`rxm-${k}`,className:'small-note',style:{display:'block',marginTop:'4px'}},
             [x.hospital&&`${x.hospital}`,x.date&&`dated ${x.date}`,x.patient&&`name on prescription: ${x.patient} — make sure this is the right Guest`,x.poor&&'pages hard to read — check very carefully'].filter(Boolean).join(' · '))),
           rxScan.notes.length?h('small',{className:'small-note',style:{display:'block',marginTop:'4px'}},`Also on the prescription (not added as medicines): ${rxScan.notes.join('; ')}`):null,

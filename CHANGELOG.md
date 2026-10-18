@@ -1,3 +1,8 @@
+## 2.18.2 — Scan: add several pages, Clear, yellow check boxes (as in the Scan Lab trial)
+- All three scans (ID card, prescription, supplier bill) now collect pages first: **+ Add more pages** / **+ Photo of page N** (e.g. Aadhaar front + back), thumbnails with ×, **Clear**, then **✨ Read & Fill…** reads them together.
+- After an ID scan, the fields it filled (to check) and the identity / address fields it could not fill are shown in **light yellow** until filled or changed, or **✓ Checked against the card** is pressed.
+- District / taluk matching understands Tamil spelling variants (Thoothukkudi = Thoothukudi, Tuticorin, Srivaikundam = Srivaikuntam, Trichy, Tanjore …). No SQL.
+
 ## 2.18.1 — Sign-out on this device only
 - **Idle sign-out (30 minutes)** now signs out only the device that was left idle; the same staff member stays signed in on their other devices. Activity in any ERP tab of the same browser counts, so an idle second tab no longer signs out the tab being used.
 - **Sign Out** buttons (menu, mobile drawer, header) sign out this device only. A profile that fails to load because of a network problem also signs out this device only.

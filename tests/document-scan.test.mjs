@@ -61,3 +61,12 @@ test('Bill: MM/YY expiry → last day of month (flagged); Biomedical section not
   assert.equal(ls[0].expiry_date,'2027-02-28');assert.ok(ls[0].flags.includes('expiry_date'));
   assert.equal(ls[1].section,'');assert.match(ls[1].notes.section,/Biomedical Equipment register/);
 });
+test('ID card: Tamil spellings of districts match the list (Thoothukkudi, Tuticorin)',()=>{
+  const map={'Thoothukudi':['Srivaikuntam','Thoothukudi'],'Chennai':['Ambattur']};
+  const saved=ctx.window.SamaraTNDistrictTaluks;ctx.window.SamaraTNDistrictTaluks=map;
+  try{
+    assert.equal(S.idToGuest({full_name:'A',state:'Tamil Nadu',district:'Thoothukkudi',taluk:'Srivaikundam'}).fields.district,'Thoothukudi');
+    assert.equal(S.idToGuest({full_name:'A',state:'Tamil Nadu',district:'Thoothukkudi',taluk:'Srivaikundam'}).fields.taluk,'Srivaikuntam');
+    assert.equal(S.idToGuest({full_name:'A',state:'Tamil Nadu',district:'Tuticorin'}).fields.district,'Thoothukudi');
+  }finally{ctx.window.SamaraTNDistrictTaluks=saved}
+});
