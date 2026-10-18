@@ -11,8 +11,8 @@
   <link rel="stylesheet" href="./scan-lab.css?v=1.0.7">
   <script src="./config.js?v=scanlab-1.0.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-  <script defer src="./scan-lab.js?v=1.0.6"></script>
-  <script defer src="./store-scan.js?v=1.0.0"></script>
+  <script defer src="./scan-lab.js?v=1.0.7"></script>
+  <script defer src="./store-scan.js?v=1.1.0"></script>
 </head>
 <body>
   <header class="topbar">
@@ -112,7 +112,7 @@
         </div>
         <div class="results">
           <div class="results-head"><h2>Stock arrival details <span class="count" id="store-count"></span></h2><button type="button" class="btn ghost" id="store-reset">Clear extracted details</button></div>
-          <p class="hint">Yellow fields need a careful check. Missing or unclear values stay blank. No receipt is created here.</p>
+          <p class="hint">Yellow fields need a careful check. Each line is matched to the Stores / Charge Master item list (code, section, unit). Missing or unclear values stay blank. No receipt is created here.</p>
           <div id="store-results"><p class="empty">Upload a supplier invoice or delivery note and press <b>Read &amp; Fill Stock Arrival</b>.</p></div>
         </div>
       </div>
@@ -125,7 +125,7 @@
     </section>
   </main>
 
-  <footer class="foot">Scan Lab trial · separate from the live ERP · v1.0.7</footer>
+  <footer class="foot">Scan Lab trial · separate from the live ERP · v1.1.0</footer>
 </body>
 </html>
 

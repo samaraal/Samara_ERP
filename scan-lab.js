@@ -1,4 +1,4 @@
-/* Samara Care ERP — Scan Lab (TRIAL) v1.0.6 · 17-10-2026
+/* Samara Care ERP — Scan Lab (TRIAL) v1.0.7 · 18-10-2026 (1.0.7: night-dose fix, fixed insulin units, stock invoice score)
  * Separate page, Admin only. Reads a prescription / ID card through the "prescription-scan" Edge Function
  * and fills Admission-form fields for checking. NOTHING is written to the database.
  * The only database read is the Pharmacy item list (for the spelling check).
@@ -268,7 +268,11 @@
       const g = groupFor(m);
       const row = blankRow(false); row.group = g.key;
       const flags = new Set((m.unclear_fields || []).map((f) => UNCLEAR_MAP[String(f).toLowerCase()] || null).filter(Boolean));
-      const frequency = m.frequency || freqFromPattern(m.dose_pattern);
+      // 1.0.7: "0-0-1" without bedtime words is a night (after-dinner) dose, not HS — Samara gives it at 9 PM.
+      const bedtimeWords = /\b(hs|h\.s\.?|bed\s*time|at\s+bed)\b/i.test(`${m.raw_text || ''} ${m.special_instruction || ''}`);
+      const slots0 = parseSlots(m.dose_pattern);
+      const nightOnly = slots0 && slots0.length === 3 && !slots0[0] && !slots0[1] && slots0[2] > 0;
+      const frequency = (m.frequency === 'HS' && nightOnly && !bedtimeWords) ? 'Once Daily (OD)' : (m.frequency || freqFromPattern(m.dose_pattern));
       if (!frequency) flags.add('frequency');
       const times = timesFor(frequency, m.dose_pattern, m.food_instruction || 'After food');
       if (!times.length && !['SOS / PRN', 'STAT'].includes(frequency)) flags.add('times');
@@ -276,24 +280,27 @@
       const plainOne = /^1\s*(tab|tablet|cap|capsule)s?\.?$/i.test(dose);
       const extra = [dose && !plainOne ? `Dose: ${dose} each time` : '', m.special_instruction || ''].filter(Boolean).join('. ');
       const variable = !m.strength_amount && VARIABLE_DOSE_RE.test(`${m.raw_text || ''} ${m.special_instruction || ''}`);
+      // 1.0.7: fixed insulin dose (e.g. "Lantus 12 units at bedtime") — the units given ARE the dose to record.
+      const insulinUnits = !variable && !m.strength_amount && INSULIN_RE.test(m.medicine_name || '') ? (dose.match(/^(\d+(?:\.\d+)?)\s*(?:iu|units?|u)\b/i) || [])[1] : '';
       const v = {
         prescribed_by_doctor: g.doctor,
         medicine_name: m.medicine_name || '',
         variable_dose: variable,
-        strength_amount: variable ? '' : (m.strength_amount || ''), strength_unit: variable ? (m.strength_unit || (INSULIN_RE.test(m.medicine_name || '') ? 'units' : '')) : (m.strength_unit || ''),
+        strength_amount: variable ? '' : (m.strength_amount || insulinUnits || ''), strength_unit: variable ? (m.strength_unit || (INSULIN_RE.test(m.medicine_name || '') ? 'units' : '')) : (insulinUnits ? 'units' : (m.strength_unit || '')),
         frequency: frequency || 'Once Daily (OD)', times,
         route: m.route || 'Oral',
         food_instruction: m.food_instruction || 'After food',
         duration: m.duration || 'Long Term', custom_duration_days: m.custom_duration_days || '',
         special_instruction: extra
       };
+      const notes = {};
       if (!g.doctor) flags.add('prescribed_by_doctor');
       if (!v.medicine_name) flags.add('medicine_name');
       if (!v.variable_dose && !v.strength_amount) flags.add('strength_amount');
       if (!v.variable_dose && !v.strength_unit) flags.add('strength_unit');
       if (v.variable_dose) { flags.add('variable_dose'); flags.delete('strength_amount'); flags.delete('strength_unit'); }
+      if (insulinUnits) { flags.add('strength_amount'); notes.strength_amount = `Insulin dose from prescription: ${insulinUnits} units each time — check`; }
       if (!m.route) flags.add('route');
-      const notes = {};
       if (!m.food_instruction) { flags.add('food_instruction'); notes.food_instruction = 'Not written — confirm'; }
       if (!m.duration) { flags.add('duration'); notes.duration = 'Not written — confirm (pre-set to Long Term)'; }
       if (v.duration === 'Custom' && !v.custom_duration_days) flags.add('custom_duration_days');
@@ -573,18 +580,22 @@
     if (!state.scores.length) { box.append(el('p', { class: 'empty', text: 'No results recorded yet. After verifying a prescription or ID card, press “Record result in Trial score”.' })); return; }
     const sum = (k, f) => state.scores.filter(f || (() => true)).reduce((a, s) => a + s[k], 0);
     const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
-    const rxF = (s) => s.kind === 'Prescription', idF = (s) => s.kind === 'ID card';
+    const rxF = (s) => s.kind === 'Prescription', idF = (s) => s.kind === 'ID card', stF = (s) => s.kind === 'Stock invoice';
     box.append(el('div', { class: 'stats' },
       stat('Prescriptions tried', String(state.scores.filter(rxF).length)),
       stat('Medicine fields correct', `${pct(sum('correct', rxF), sum('total', rxF))}%`, `${sum('correct', rxF)} of ${sum('total', rxF)}`),
       stat('Medicines missed by AI', String(sum('missed', rxF)), 'added manually'),
       stat('Wrong extra rows', String(sum('extra', rxF)), 'removed'),
       stat('ID cards tried', String(state.scores.filter(idF).length)),
-      stat('ID fields correct', `${pct(sum('correct', idF), sum('total', idF))}%`, `${sum('correct', idF)} of ${sum('total', idF)}`)));
+      stat('ID fields correct', `${pct(sum('correct', idF), sum('total', idF))}%`, `${sum('correct', idF)} of ${sum('total', idF)}`),
+      stat('Stock invoices tried', String(state.scores.filter(stF).length)),
+      stat('Stock fields correct', `${pct(sum('correct', stF), sum('total', stF))}%`, `${sum('correct', stF)} of ${sum('total', stF)}`),
+      stat('Stock lines missed', String(sum('missed', stF)), 'added manually')));
     const wrongAll = {};
-    state.scores.forEach((s) => Object.entries(s.wrong).forEach(([k, n]) => { wrongAll[k] = (wrongAll[k] || 0) + n; }));
+    const labelOf = {};
+    state.scores.forEach((s) => Object.entries(s.wrong).forEach(([k, n]) => { const key = (s.kind === 'Stock invoice' ? 'Stock · ' : '') + k; wrongAll[key] = (wrongAll[key] || 0) + n; if (s.labels && s.labels[k]) labelOf[key] = 'Stock · ' + s.labels[k]; }));
     const top = Object.entries(wrongAll).sort((a, b) => b[1] - a[1]);
-    if (top.length) box.append(el('h3', { text: 'Fields corrected most often' }), el('ul', null, top.map(([k, n]) => el('li', { text: `${RX_LABEL[k] || (ID_FIELDS.find((f) => f[0] === k) || [k, k])[1]}: ${n}` }))));
+    if (top.length) box.append(el('h3', { text: 'Fields corrected most often' }), el('ul', null, top.map(([k, n]) => el('li', { text: `${labelOf[k] || RX_LABEL[k] || (ID_FIELDS.find((f) => f[0] === k) || [k, k])[1]}: ${n}` }))));
     box.append(el('h3', { text: 'Each scan' }), el('div', { class: 'table-wrap' }, el('table', null,
       el('thead', null, el('tr', null, ['Time', 'Type', 'Source', 'Rows', 'Fields correct', 'Missed', 'Extra'].map((t) => el('th', { text: t })))),
       el('tbody', null, state.scores.map((s) => el('tr', null,
@@ -593,5 +604,7 @@
   }
   function stat(label, value, sub) { return el('div', { class: 'stat' }, el('span', { text: label }), el('strong', { text: value }), sub ? el('small', { text: sub }) : null); }
 
+  // 1.0.7: the Stores tab (store-scan.js) records its results here too.
+  window.SamaraScanLab = { addScore: (s) => { state.scores.push(s); renderScore(); } };
   document.addEventListener('DOMContentLoaded', () => { start().catch((e) => { console.error(e); gate('Something went wrong while opening Scan Lab. Please refresh.', true); }); });
 })();

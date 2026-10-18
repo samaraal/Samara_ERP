@@ -1,3 +1,15 @@
+UPDATE 18-10-2026 — Scan Lab v1.1.0 (already deployed by Claude: GitHub + both Edge Functions)
+  - Stock invoice tab: FIXED — every read failed ("No supported scan model") because store-scan only tried
+    Gemini 2.5 / 2.0. It now uses the same model as prescription-scan (gemini-3.8-flash).
+  - Stock lines are matched to the Stores / Charge Master item list (code, section, unit); new items are flagged.
+  - Section and Unit are dropdowns (ERP lists); whole-number quantity check; Free qty, MRP, GST % read;
+    expiry printed as MM/YY = last day of that month (flagged); all dates DD-MM-YYYY; ✓ Verified per line;
+    stock results now counted in the Trial score tab.
+  - Prescription: "0-0-1" without bedtime words = once daily after dinner (9 PM), not HS 10 PM;
+    fixed insulin dose (e.g. Lantus 12 units) pre-filled as 12 units (flagged to check).
+  - store-scan source is now saved in supabase/functions/store-scan/index.ts (it was missing from GitHub).
+  - Synthetic test documents: tests/scan-fixtures/ (no real Guest data).
+
 Samara Care ERP — SCAN LAB (TRIAL) v1.0.0 · 17-10-2026
 Prescription & ID auto-fill — separate trial page, Admin only. Upload ONLY to GitHub repo: Samara_ERP
 

@@ -1,19 +1,27 @@
-/* Scan Lab Stores stock-arrival trial. Preview only; this file contains no database writes. */
+/* Scan Lab Stores stock-arrival trial · v1.1.0 · 18-10-2026. Preview only; this file contains no database writes.
+ * 1.1.0: each line is matched to the Stores / Charge Master item list (item code, section, unit) so the same
+ *        item is never created twice; section and unit are dropdowns (ERP lists); whole-number quantity check;
+ *        Free qty, MRP and GST % read; expiry printed as MM/YY becomes the last day of that month (flagged);
+ *        all dates shown DD-MM-YYYY; per-line ✓ Verified and a Trial score for stock invoices.
+ * The only database read is the Stores item list (consumable_store_items).
+ */
 (function () {
   'use strict';
   const cfg = window.SAMARA_CONFIG || {}, sdk = window.supabase;
   const $ = (id) => document.getElementById(id);
-  const state = { client: null, pages: [], active: 0, data: null };
-  const HEAD = [
-    ['vendor_name', 'Supplier / Vendor'], ['invoice_no', 'Invoice number'], ['invoice_date', 'Invoice date', 'date'],
-    ['received_date', 'Received date', 'date'], ['remarks', 'Receipt remarks']
+  const SECTIONS = ['Pharmacy', 'Consumables', 'Housekeeping & General', 'Kitchen / Food Stores', 'Biomedical Equipment'];
+  const UNITS = ['Nos', 'Pieces', 'Pairs', 'Sets', 'Packs', 'Packets', 'Boxes', 'Rolls', 'Bottles', 'Strips', 'Tablets', 'Capsules', 'Vials', 'Ampoules', 'Tubes', 'Sachets', 'Inhalers', 'Kg', 'Grams', 'Litres', 'ml', 'Dozens', 'Cans', 'Cylinders'];
+  const UNIT_ALIAS = { strip: 'Strips', strips: 'Strips', box: 'Boxes', boxes: 'Boxes', bottle: 'Bottles', btl: 'Bottles', bott: 'Bottles', nos: 'Nos', no: 'Nos', pcs: 'Pieces', pc: 'Pieces', piece: 'Pieces', pieces: 'Pieces', pair: 'Pairs', pairs: 'Pairs', pack: 'Packs', pkt: 'Packets', packet: 'Packets', roll: 'Rolls', rolls: 'Rolls', vial: 'Vials', amp: 'Ampoules', ampoule: 'Ampoules', tube: 'Tubes', sachet: 'Sachets', kg: 'Kg', g: 'Grams', gm: 'Grams', l: 'Litres', ltr: 'Litres', litre: 'Litres', ml: 'ml', doz: 'Dozens', tab: 'Tablets', cap: 'Capsules' };
+  const state = { client: null, pages: [], active: 0, data: null, items: [], itemsLoaded: false, scores: [] };
+  const HEAD = [['vendor_name', 'Supplier / Vendor'], ['invoice_no', 'Invoice number'], ['invoice_date', 'Invoice date (DD-MM-YYYY)', 'date'], ['received_date', 'Received date (DD-MM-YYYY)', 'date'], ['remarks', 'Receipt remarks']];
+  const LINE = [
+    ['item_name', 'Item name', 'text', 'wide'], ['item_category', 'Section', 'section'], ['unit', 'Unit', 'unit'],
+    ['quantity', 'Quantity (billed)', 'qty'], ['free_quantity', 'Free qty', 'qty'], ['pack_size', 'Pack size'],
+    ['batch_no', 'Batch / lot number'], ['expiry_date', 'Expiry (DD-MM-YYYY)', 'date'], ['unit_cost', 'Rate per unit (₹, before tax)', 'num'],
+    ['mrp', 'MRP (₹)', 'num'], ['gst_percent', 'GST %', 'num'], ['generic_name', 'Generic name'], ['brand_name', 'Brand name'],
+    ['strength', 'Strength'], ['dosage_form', 'Dosage form'], ['manufacturer', 'Manufacturer'], ['remarks', 'Line remarks', 'text', 'wide']
   ];
-  const ITEM = [
-    ['item_name', 'Item name'], ['item_category', 'Category'], ['unit', 'Unit'], ['quantity', 'Quantity', 'number'],
-    ['batch_no', 'Batch / lot number'], ['expiry_date', 'Expiry date', 'date'], ['unit_cost', 'Unit cost', 'number'],
-    ['generic_name', 'Generic name'], ['brand_name', 'Brand name'], ['strength', 'Strength'], ['dosage_form', 'Dosage form'],
-    ['manufacturer', 'Manufacturer'], ['pack_size', 'Pack size'], ['remarks', 'Line remarks']
-  ];
+  const LABEL = Object.fromEntries([...HEAD, ...LINE].map(([k, l]) => [k, l]));
   function el(tag, attrs, ...kids) {
     const n = document.createElement(tag);
     if (attrs) for (const [k, v] of Object.entries(attrs)) {
@@ -26,12 +34,26 @@
   }
   const clear = (n) => { while (n.firstChild) n.removeChild(n.firstChild); return n; };
   function status(text, tone) { $('store-status').textContent = text || ''; $('store-status').className = 'status' + (tone ? ' ' + tone : ''); }
+
+  // ---------- dates: ISO inside, DD-MM-YYYY on screen ----------
+  const isoToIn = (v) => { const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : String(v || ''); };
+  const inToIso = (v) => { const m = String(v || '').trim().match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/); if (!m) return ''; const d = new Date(Date.UTC(+m[3], +m[2] - 1, +m[1])); return d.getUTCDate() === +m[1] && d.getUTCMonth() === +m[2] - 1 ? `${m[3]}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}` : ''; };
+  const monthEnd = (ym) => { const m = String(ym || '').match(/^(\d{4})-(\d{2})$/); if (!m) return ''; const d = new Date(Date.UTC(+m[1], +m[2], 0)); return d.toISOString().slice(0, 10); };
+
   async function start() {
     if (!sdk || !cfg.supabaseUrl) return status('ERP connection did not load. Refresh the page and try again.', 'error');
     state.client = sdk.createClient(cfg.supabaseUrl, cfg.supabasePublishableKey, { auth: { persistSession: true, autoRefreshToken: true } });
     const { data } = await state.client.auth.getSession();
     if (!data?.session) return status('Please log in to the ERP as Admin first, then reopen Scan Lab.', 'error');
-    wire();
+    wire(); loadItems();
+  }
+  async function loadItems() {
+    try {
+      const { data, error } = await state.client.from('consumable_store_items').select('id,item_code,item_name,item_category,unit,strength,dosage_form,active').order('item_name');
+      if (error) throw error;
+      state.items = (data || []).filter((r) => r.active !== false).map((r) => ({ ...r, base: baseName(r.item_name) })).filter((r) => r.base);
+      state.itemsLoaded = true; render();
+    } catch (e) { console.warn('Stores item list not loaded (item matching off)', e); }
   }
   function wire() {
     for (const id of ['store-file', 'store-cam']) $(id).addEventListener('change', (e) => { addPages(e.target.files); e.target.value = ''; });
@@ -48,7 +70,7 @@
     }
     state.active = Math.max(0, state.pages.length - 1); renderPages();
   }
-  function clearPages() { state.pages.forEach((p) => URL.revokeObjectURL(p.url)); state.pages = []; state.active = 0; state.data = null; renderPages(); render(); status(''); }
+  function clearPages() { state.pages.forEach((p) => URL.revokeObjectURL(p.url)); state.pages = []; state.active = 0; renderPages(); status(''); }
   function renderPages() {
     const thumbs = clear($('store-thumbs')), viewer = clear($('store-viewer'));
     state.pages.forEach((p, i) => thumbs.append(el('div', { class: 'thumb' + (i === state.active ? ' active' : '') },
@@ -62,6 +84,7 @@
     $('store-read').disabled = !state.pages.length;
     $('store-file-label').textContent = state.pages.length ? '+ Add more pages' : 'Upload file';
     $('store-cam-label').textContent = state.pages.length ? `+ Photo of page ${state.pages.length + 1}` : 'Mobile camera';
+    $('store-read').textContent = '✨ Read & Fill Stock Arrival' + (state.pages.length > 1 ? ` (${state.pages.length} pages)` : '');
   }
   function blobToB64(blob) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(blob); }); }
   function loadImage(url) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; }); }
@@ -77,6 +100,7 @@
   }
   async function read() {
     if (!state.pages.length) return;
+    if (state.data && state.data.lines.some((l) => l.verified) && !confirm('Replace the checked lines below with a fresh reading?')) return;
     const btn = $('store-read'), started = Date.now(); btn.disabled = true;
     const tick = setInterval(() => status(`Reading ${state.pages.length} page(s)… ${Math.round((Date.now() - started) / 1000)} s`, 'busy'), 500);
     try {
@@ -85,48 +109,167 @@
       if (error) { let msg = 'Could not read the supplier document. Try again.'; try { const j = await error.context.json(); if (j?.error) msg = j.error; } catch (_) {} throw new Error(msg); }
       if (!data?.result) throw new Error(data?.error || 'No result returned.');
       state.data = normalize(data.result); render();
-      status(`Read in ${Math.round((Date.now() - started) / 1000)} s. Compare each field and item line with the original document. Nothing has been saved.`, 'ok');
+      status(`Read in ${Math.round((Date.now() - started) / 1000)} s. Check every yellow field against the invoice, then tick ✓ Verified on each line. Nothing has been saved.`, 'ok');
     } catch (e) { status(e.message || 'Could not read the document.', 'error'); }
     finally { clearInterval(tick); btn.disabled = !state.pages.length; }
   }
+
+  // ---------- item matching against the Stores / Charge Master list ----------
+  function baseName(name) {
+    return String(name || '').toLowerCase()
+      .replace(/\b(tab|tabs|tablet|tablets|cap|caps|capsule|capsules|syp|syr|syrup|susp|inj|injection|oint|cream|gel|drops?)\b\.?/g, ' ')
+      .replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  function lev(a, b) {
+    const m = a.length, n = b.length; if (!m) return n; if (!n) return m;
+    let prev = Array.from({ length: n + 1 }, (_, j) => j);
+    for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; }
+    return prev[n];
+  }
+  function matchItem(name) {
+    const b = baseName(name); if (!b || !state.items.length) return null;
+    let best = null;
+    for (const it of state.items) {
+      if (it.base === b) return { kind: 'exact', item: it };
+      const words = b.split(' '), iw = it.base.split(' ');
+      const contained = words.length > 1 && iw.length > 1 && (it.base.includes(b) || b.includes(it.base)) ? 0.9 : 0;
+      const ratio = Math.max(contained, 1 - lev(b, it.base) / Math.max(b.length, it.base.length));
+      if (!best || ratio > best.ratio) best = { ratio, item: it };
+    }
+    return best && best.ratio >= 0.78 ? { kind: 'near', item: best.item } : { kind: 'none' };
+  }
+  const mapUnit = (u) => { const t = String(u || '').trim(); if (!t) return ''; if (UNITS.includes(t)) return t; return UNIT_ALIAS[t.toLowerCase().replace(/[^a-z]/g, '')] || ''; };
+
   function normalize(x) {
     const header = Object.fromEntries(HEAD.map(([k]) => [k, String(x?.[k] || '')]));
-    const items = (Array.isArray(x?.items) ? x.items : []).slice(0, 50).map((r) => {
-      const values = Object.fromEntries(ITEM.map(([k]) => [k, String(r?.[k] ?? '')]));
-      return { values, rawText: String(r?.raw_text || ''), unclear: new Set(Array.isArray(r?.unclear_fields) ? r.unclear_fields : []), confidence: ['high','medium','low'].includes(r?.confidence) ? r.confidence : 'low' };
+    const lines = (Array.isArray(x?.items) ? x.items : []).slice(0, 50).map((r) => {
+      const v = Object.fromEntries(LINE.map(([k]) => [k, String(r?.[k] ?? '')]));
+      const flags = new Set(Array.isArray(r?.unclear_fields) ? r.unclear_fields : []);
+      const notes = {};
+      const printedUnit = v.unit; v.unit = mapUnit(v.unit);
+      if (printedUnit && !v.unit) { flags.add('unit'); notes.unit = `Printed as "${printedUnit}" — choose the ERP unit`; }
+      if (!v.expiry_date && r?.expiry_month) { v.expiry_date = monthEnd(r.expiry_month); flags.add('expiry_date'); notes.expiry_date = `Printed as ${r.expiry_text || r.expiry_month} (month / year) — set to the last day of that month`; }
+      if (!v.expiry_date && r?.expiry_text) { flags.add('expiry_date'); notes.expiry_date = `Printed as "${r.expiry_text}" — enter the date`; }
+      const m = matchItem(v.item_name);
+      const line = { v, ai: null, flags, notes, edited: new Set(), raw: String(r?.raw_text || ''), page: r?.page || 0, confidence: ['high', 'medium', 'low'].includes(r?.confidence) ? r.confidence : 'low', match: m, verified: false, manual: false };
+      if (m?.kind === 'exact') applyMaster(line, m.item, true);
+      line.ai = { ...v };
+      checkLine(line);
+      return line;
     });
-    return { header, headerUnclear: new Set(Array.isArray(x?.unclear_fields) ? x.unclear_fields : []), items };
+    return { header, headerUnclear: new Set(Array.isArray(x?.unclear_fields) ? x.unclear_fields : []), lines, removedAi: 0 };
   }
-  function field(container, key, label, value, type, unclear, onChange) {
-    const input = el('input', { type: type || 'text', value: value || '', oninput: (e) => onChange(e.target.value) });
-    if (type === 'number') { input.step = 'any'; input.min = '0'; }
-    container.append(el('div', { class: `f${unclear ? ' flag' : ''}` }, el('label', { text: label }), input));
+  // Use the master item's section and unit (the ERP rule: same item, same code, one unit everywhere).
+  function applyMaster(line, item, auto) {
+    line.master = item;
+    if (item.item_category && SECTIONS.includes(item.item_category) && line.v.item_category !== item.item_category) { if (!auto) setVal(line, 'item_category', item.item_category); else line.v.item_category = item.item_category; }
+    if (item.unit && line.v.unit !== item.unit) {
+      if (line.v.unit && auto) line.notes.unit = `Invoice unit ${line.v.unit} — Stores keeps ${item.item_name} in ${item.unit}. Convert the quantity if needed.`;
+      if (!auto) setVal(line, 'unit', item.unit); else { line.flags.add('unit'); if (!line.v.unit) line.v.unit = item.unit; }
+    }
+    if (!auto) setVal(line, 'item_name', item.item_name);
+  }
+  function checkLine(line) {
+    const q = line.v.quantity;
+    if (q !== '' && !/^\d+$/.test(String(q))) { line.flags.add('quantity'); line.notes.quantity = 'Stores counts whole numbers only — check the pack / unit'; }
+    if (line.v.free_quantity !== '' && !/^\d+$/.test(String(line.v.free_quantity))) line.flags.add('free_quantity');
+    if (!line.v.item_category) line.flags.add('item_category');
+    if (!line.v.unit) line.flags.add('unit');
+    if (!q) line.flags.add('quantity');
+  }
+  function setVal(line, k, value) {
+    line.v[k] = value;
+    if (line.ai && String(line.ai[k] ?? '') !== String(value ?? '')) line.edited.add(k); else line.edited.delete(k);
+    line.flags.delete(k); delete line.notes[k]; line.verified = false;
+  }
+  function lineProblems(l) {
+    const p = [];
+    if (!l.v.item_name.trim()) p.push('Item name');
+    if (!l.v.item_category) p.push('Section');
+    if (!l.v.unit) p.push('Unit');
+    if (!/^\d+$/.test(String(l.v.quantity)) || Number(l.v.quantity) <= 0) p.push('Quantity (whole number)');
+    if (l.v.free_quantity && !/^\d+$/.test(String(l.v.free_quantity))) p.push('Free qty (whole number)');
+    if (l.v.expiry_date && !/^\d{4}-\d{2}-\d{2}$/.test(l.v.expiry_date)) p.push('Expiry date (DD-MM-YYYY)');
+    return p;
+  }
+
+  // ---------- render ----------
+  function control(line, k, type) {
+    const val = line.v[k] || '';
+    const onSet = (value) => { setVal(line, k, value); if (k === 'item_name') line.match = matchItem(value); };
+    if (type === 'section') return el('select', { onchange: (e) => { onSet(e.target.value); render(); } }, el('option', { value: '', text: '—' }), SECTIONS.map((o) => el('option', { value: o, text: o, selected: val === o })));
+    if (type === 'unit') return el('select', { onchange: (e) => { onSet(e.target.value); render(); } }, el('option', { value: '', text: '—' }), UNITS.map((o) => el('option', { value: o, text: o, selected: val === o })));
+    if (type === 'date') return el('input', { type: 'text', value: isoToIn(val), placeholder: 'DD-MM-YYYY', inputmode: 'numeric', onchange: (e) => { const iso = inToIso(e.target.value); onSet(iso || e.target.value.trim()); render(); } });
+    return el('input', { type: 'text', value: val, inputmode: type === 'qty' ? 'numeric' : type === 'num' ? 'decimal' : null, oninput: (e) => onSet(e.target.value), onchange: () => render() });
+  }
+  function fieldBox(line, k, label, type, wide) {
+    const flagged = line.flags.has(k) && !line.verified;
+    return el('div', { class: `f${flagged ? ' flag' : ''}${line.edited.has(k) ? ' edited' : ''}${wide ? ' ' + wide : ''}` }, el('label', { text: label }), control(line, k, type),
+      line.notes[k] && !line.verified ? el('small', { class: 'fnote', text: line.notes[k] }) : null);
+  }
+  function matchNote(line) {
+    if (!state.itemsLoaded || !line.v.item_name.trim()) return null;
+    const m = line.match || matchItem(line.v.item_name);
+    if (m?.kind === 'exact') return el('small', { class: 'spell ok', text: `✓ In Stores list: ${m.item.item_code ? m.item.item_code + ' · ' : ''}${m.item.item_name} (${m.item.item_category || '—'}, ${m.item.unit || '—'})` });
+    if (m?.kind === 'near') return el('small', { class: 'spell near' }, `Same as ${m.item.item_code ? m.item.item_code + ' · ' : ''}${m.item.item_name}? `,
+      el('button', { type: 'button', class: 'link', text: 'Use this item', onclick: () => { applyMaster(line, m.item, false); line.match = { kind: 'exact', item: m.item }; render(); } }));
+    return el('small', { class: 'spell none', text: 'NEW item — not in the Stores / Charge Master list yet. Add it there first (with its code), so Indent and Bills show the same item.' });
   }
   function render() {
     const box = clear($('store-results')), d = state.data;
-    $('store-count').textContent = d ? `${d.items.length} line(s)` : '';
+    $('store-count').textContent = d ? `(${d.lines.filter((l) => l.verified).length} of ${d.lines.length} verified)` : '';
     if (!d) { box.append(el('p', { class: 'empty' }, 'Upload a supplier invoice or delivery note and press ', el('b', { text: 'Read & Fill Stock Arrival' }), '.')); return; }
     box.append(el('h3', { text: 'Supplier and receipt' }));
     const hg = el('div', { class: 'grid' });
-    for (const [k, label, type] of HEAD) field(hg, k, label, d.header[k], type, d.headerUnclear.has(k), (v) => { d.header[k] = v; d.headerUnclear.delete(k); });
+    for (const [k, label, type] of HEAD) {
+      const val = d.header[k];
+      const inp = type === 'date'
+        ? el('input', { type: 'text', value: isoToIn(val), placeholder: 'DD-MM-YYYY', onchange: (e) => { d.header[k] = inToIso(e.target.value) || e.target.value.trim(); d.headerUnclear.delete(k); render(); } })
+        : el('input', { type: 'text', value: val, oninput: (e) => { d.header[k] = e.target.value; d.headerUnclear.delete(k); } });
+      hg.append(el('div', { class: `f${d.headerUnclear.has(k) || (k === 'received_date' && !val) ? ' flag' : ''}` }, el('label', { text: label }), inp,
+        k === 'received_date' && !val ? el('small', { class: 'fnote', text: 'Not printed — enter the day the goods actually arrived' }) : null));
+    }
     box.append(hg);
-    if (d.headerUnclear.size) box.append(el('p', { class: 'warn', text: `Check unclear header fields: ${[...d.headerUnclear].join(', ')}` }));
-    if (!d.items.length) box.append(el('p', { class: 'warn', text: 'No stock lines were confidently identified. Add the items manually in the ERP.' }));
-    d.items.forEach((item, i) => {
-      const card = el('article', { class: 'med' + (item.confidence === 'low' ? ' low' : '') });
-      card.append(el('div', { class: 'med-head' }, el('span', { class: 'num', text: String(i + 1) }), el('div', { class: 'raw' }, el('small', { text: 'Document line' }), el('code', { text: item.rawText || 'No source text returned' })), el('span', { class: `conf c-${item.confidence}`, text: `${item.confidence} confidence` })));
+    if (!d.lines.length) box.append(el('p', { class: 'warn', text: 'No stock lines were confidently identified. Add the items manually in the ERP.' }));
+    d.lines.forEach((line, i) => {
+      const problems = lineProblems(line);
+      const card = el('article', { class: `med${line.verified ? ' verified' : ''}${line.confidence === 'low' && !line.verified ? ' low' : ''}` });
+      card.append(el('div', { class: 'med-head' }, el('span', { class: 'num', text: String(i + 1) }),
+        el('div', { class: 'raw' }, el('small', { text: line.manual ? 'Added manually' : `Invoice line${line.page ? ' · page ' + line.page : ''}` }), line.raw ? el('code', { text: line.raw }) : null),
+        el('span', { class: `conf c-${line.confidence}`, text: line.verified ? '✓ Verified' : line.manual ? 'Manual' : line.confidence === 'high' ? 'Check' : line.confidence === 'medium' ? 'Check carefully' : 'Hard to read' })));
       const grid = el('div', { class: 'grid' });
-      for (const [k, label, type] of ITEM) field(grid, k, label, item.values[k], type, item.unclear.has(k), (v) => { item.values[k] = v; item.unclear.delete(k); });
+      for (const [k, label, type, wide] of LINE) {
+        const box2 = fieldBox(line, k, label, type, wide);
+        if (k === 'item_name') box2.append(matchNote(line));
+        grid.append(box2);
+      }
       card.append(grid);
-      if (item.unclear.size) card.append(el('p', { class: 'warn', text: `Check unclear fields: ${[...item.unclear].join(', ')}` }));
-      card.append(el('div', { class: 'med-actions' }, el('button', { type: 'button', class: 'btn ghost danger', text: 'Remove line', onclick: () => { d.items.splice(i, 1); render(); } })));
+      const total = (Number(line.v.quantity) || 0) + (Number(line.v.free_quantity) || 0);
+      card.append(el('p', { class: 'hint', text: `Stock to receive: ${total || '—'} ${line.v.unit || ''}${Number(line.v.free_quantity) ? ` (${line.v.quantity} billed + ${line.v.free_quantity} free)` : ''}` }));
+      card.append(el('div', { class: 'med-actions' },
+        problems.length && !line.verified ? el('span', { class: 'missing', text: 'Still needed: ' + problems.join(', ') }) : el('span'),
+        el('button', { type: 'button', class: 'btn ghost danger', text: 'Remove line', onclick: () => { if (!line.manual) d.removedAi++; d.lines.splice(i, 1); render(); } }),
+        line.verified
+          ? el('button', { type: 'button', class: 'btn secondary', text: 'Undo verify', onclick: () => { line.verified = false; render(); } })
+          : el('button', { type: 'button', class: 'btn primary', text: '✓ Verified', disabled: problems.length ? true : null, title: problems.length ? 'Complete the missing fields first' : 'I have checked this line against the invoice', onclick: () => { line.verified = true; render(); } })));
       box.append(card);
     });
+    const allDone = d.lines.length && d.lines.every((l) => l.verified);
     box.append(el('div', { class: 'med-actions' },
-      el('button', { type: 'button', class: 'btn ghost', text: '+ Add line manually', onclick: () => { d.items.push({ values: Object.fromEntries(ITEM.map(([k]) => [k, ''])), unclear: new Set(), confidence: 'manual' }); render(); } }),
+      el('button', { type: 'button', class: 'btn ghost', text: '+ Add line manually', onclick: () => { const v = Object.fromEntries(LINE.map(([k]) => [k, ''])); d.lines.push({ v, ai: null, flags: new Set(), notes: {}, edited: new Set(), raw: '', page: 0, confidence: 'manual', match: null, verified: false, manual: true }); render(); } }),
+      allDone ? el('button', { type: 'button', class: 'btn primary', text: 'Record result in Trial score', onclick: recordScore }) : null,
       el('span', { class: 'hint', text: 'This page is a review preview only. It has no Save or Submit action.' })));
+  }
+  function recordScore() {
+    const d = state.data; let total = 0, correct = 0, missed = 0; const wrong = {};
+    for (const l of d.lines) {
+      if (l.manual) { missed++; continue; }
+      for (const [k] of LINE) { if (!String(l.ai[k] || '') && !String(l.v[k] || '')) continue; total++; if (l.edited.has(k)) wrong[k] = (wrong[k] || 0) + 1; else correct++; }
+    }
+    const s = { kind: 'Stock invoice', label: d.header.vendor_name || 'Invoice', rows: d.lines.length, total, correct, missed, extra: d.removedAi, wrong, labels: LABEL, at: new Date() };
+    if (window.SamaraScanLab && window.SamaraScanLab.addScore) window.SamaraScanLab.addScore(s);
+    d.removedAi = 0;
+    status(`Recorded in Trial score: ${correct} of ${total} fields correct (${total ? Math.round(correct / total * 100) : 0}%).`, 'ok');
   }
   document.addEventListener('DOMContentLoaded', () => { start().catch((e) => status(e.message || 'Could not open Stores trial.', 'error')); });
 })();
-
-

@@ -1,4 +1,5 @@
-// Samara Care ERP — Scan Lab (TRIAL) · Edge Function: prescription-scan · 17-10-2026 · 1.0.5: page + doctor per medicine
+// Samara Care ERP — Scan Lab (TRIAL) · Edge Function: prescription-scan · 1.0.6 · 18-10-2026
+// 1.0.5: page + doctor per medicine · 1.0.6: "0-0-1" without bedtime words = OD after dinner, not HS
 // Reads an uploaded prescription (photo / PDF, several pages) or a Guest ID card (Aadhaar / Passport / other)
 // and returns the fields in the exact shape of the ERP Admission form, for staff to VERIFY.
 //
@@ -41,7 +42,8 @@ SAFETY RULES (most important):
 
 HOW TO MAP (use exactly these option values):
 - dose_pattern: write the slots as Morning-Afternoon-Night using numbers, e.g. "1-0-1", "1-1-1", "0-0-1", "½-0-½", "1-1-1-1" (4 slots = QID). Use "" if the prescription uses words only.
-  OD/once daily = "1-0-0" unless night/HS is written ("0-0-1"). BD = "1-0-1". TDS = "1-1-1". QID = "1-1-1-1". HS/bedtime → frequency "HS".
+  OD/once daily = "1-0-0" unless night/HS is written ("0-0-1"). BD = "1-0-1". TDS = "1-1-1". QID = "1-1-1-1".
+  frequency "HS" ONLY when the words HS / bedtime / at bed time are written. A pattern "0-0-1" (or "night", "after dinner") WITHOUT those words is frequency "Once Daily (OD)" with dose_pattern "0-0-1" (given after dinner, not at bedtime).
 - frequency: one of ${JSON.stringify(FREQUENCIES)}. SOS / PRN / "if needed" / "when required" → "SOS / PRN". Once a week → "Weekly". Once a month → "Monthly". STAT/immediately once → "STAT".
 - dose_per_time: amount given each time as written, e.g. "1 tablet", "½ tablet", "2 puffs", "10 ml", "1 capsule", "5 units". "" if not written.
 - route: one of ${JSON.stringify(ROUTES)}. Tab/Cap/Syrup/Susp/Drops-by-mouth = Oral. Ointment/cream/gel/eye or ear drops = Topical. Inhaler/rotacap/nebulisation = Inhalation. Inj: IV, IM or SC (Subcutaneous) when written, else "Other" and mark route unclear. Insulin = Subcutaneous.
