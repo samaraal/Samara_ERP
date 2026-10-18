@@ -1,3 +1,8 @@
+UPDATE 18-10-2026 (evening) — Scan Lab v1.1.3, after the real Sun Surgicals bill test:
+  - invoice date "30-Sep-26" was dropped → dates in any Indian format accepted; "Each" = Nos, "bags" = Packs;
+    "100.00" counted as 100; size must agree when matching (Sterile Gloves 6½ is not Gloves (6));
+    lines total checked against the invoice subtotal (warns if a line was missed).
+
 UPDATE 18-10-2026 — Scan Lab v1.1.0 (already deployed by Claude: GitHub + both Edge Functions)
   - Stock invoice tab: FIXED — every read failed ("No supported scan model") because store-scan only tried
     Gemini 2.5 / 2.0. It now uses the same model as prescription-scan (gemini-3.8-flash).

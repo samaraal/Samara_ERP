@@ -1,4 +1,4 @@
-/* Scan Lab Stores stock-arrival trial · v1.1.1 · 18-10-2026 (1.1.1: pack-size conversion check). Preview only; this file contains no database writes.
+/* Scan Lab Stores stock-arrival trial · v1.1.3 · 18-10-2026 (1.1.1: pack-size conversion check; 1.1.3: real-bill fixes — Each/bags units, 100.00 = 100, size-safe item match, subtotal check). Preview only; this file contains no database writes.
  * 1.1.0: each line is matched to the Stores / Charge Master item list (item code, section, unit) so the same
  *        item is never created twice; section and unit are dropdowns (ERP lists); whole-number quantity check;
  *        Free qty, MRP and GST % read; expiry printed as MM/YY becomes the last day of that month (flagged);
@@ -11,7 +11,7 @@
   const $ = (id) => document.getElementById(id);
   const SECTIONS = ['Pharmacy', 'Consumables', 'Housekeeping & General', 'Kitchen / Food Stores', 'Biomedical Equipment'];
   const UNITS = ['Nos', 'Pieces', 'Pairs', 'Sets', 'Packs', 'Packets', 'Boxes', 'Rolls', 'Bottles', 'Strips', 'Tablets', 'Capsules', 'Vials', 'Ampoules', 'Tubes', 'Sachets', 'Inhalers', 'Kg', 'Grams', 'Litres', 'ml', 'Dozens', 'Cans', 'Cylinders'];
-  const UNIT_ALIAS = { strip: 'Strips', strips: 'Strips', box: 'Boxes', boxes: 'Boxes', bottle: 'Bottles', btl: 'Bottles', bott: 'Bottles', nos: 'Nos', no: 'Nos', pcs: 'Pieces', pc: 'Pieces', piece: 'Pieces', pieces: 'Pieces', pair: 'Pairs', pairs: 'Pairs', pack: 'Packs', pkt: 'Packets', packet: 'Packets', roll: 'Rolls', rolls: 'Rolls', vial: 'Vials', amp: 'Ampoules', ampoule: 'Ampoules', tube: 'Tubes', sachet: 'Sachets', kg: 'Kg', g: 'Grams', gm: 'Grams', l: 'Litres', ltr: 'Litres', litre: 'Litres', ml: 'ml', doz: 'Dozens', tab: 'Tablets', cap: 'Capsules' };
+  const UNIT_ALIAS = { strip: 'Strips', strips: 'Strips', box: 'Boxes', boxes: 'Boxes', bottle: 'Bottles', btl: 'Bottles', bott: 'Bottles', nos: 'Nos', no: 'Nos', pcs: 'Pieces', pc: 'Pieces', piece: 'Pieces', pieces: 'Pieces', pair: 'Pairs', pairs: 'Pairs', pack: 'Packs', pkt: 'Packets', packet: 'Packets', roll: 'Rolls', rolls: 'Rolls', vial: 'Vials', amp: 'Ampoules', ampoule: 'Ampoules', tube: 'Tubes', sachet: 'Sachets', kg: 'Kg', g: 'Grams', gm: 'Grams', l: 'Litres', ltr: 'Litres', litre: 'Litres', ml: 'ml', doz: 'Dozens', tab: 'Tablets', cap: 'Capsules', each: 'Nos', ea: 'Nos', unit: 'Nos', units: 'Nos', bag: 'Packs', bags: 'Packs', packs: 'Packs', pkts: 'Packets', set: 'Sets', sets: 'Sets', can: 'Cans', cyl: 'Cylinders' };
   const state = { client: null, pages: [], active: 0, data: null, items: [], itemsLoaded: false, scores: [] };
   const HEAD = [['vendor_name', 'Supplier / Vendor'], ['invoice_no', 'Invoice number'], ['invoice_date', 'Invoice date (DD-MM-YYYY)', 'date'], ['received_date', 'Received date (DD-MM-YYYY)', 'date'], ['remarks', 'Receipt remarks']];
   const LINE = [
@@ -126,10 +126,16 @@
     for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; }
     return prev[n];
   }
+  // Sizes / strengths in a name must agree: "Sterile Gloves 6 1/2" is NOT "Sterile Gloves (6)".
+  const sizeTokens = (name) => (String(name || '').toLowerCase().replace(/(\d+)\s*(?:1\/2|½)/g, (m, a) => `${a}.5`).replace(/(\d+)\s*(?:1\/4|¼)/g, (m, a) => `${a}.25`)
+    .match(/\d+(?:\.\d+)?/g) || []).map(Number).sort((a, b) => a - b).join(',');
   function matchItem(name) {
     const b = baseName(name); if (!b || !state.items.length) return null;
+    const sz = sizeTokens(name);
     let best = null;
     for (const it of state.items) {
+      const isz = sizeTokens(it.item_name);
+      if (sz && isz && sz !== isz) continue;
       if (it.base === b) return { kind: 'exact', item: it };
       const words = b.split(' '), iw = it.base.split(' ');
       const contained = words.length > 1 && iw.length > 1 && (it.base.includes(b) || b.includes(it.base)) ? 0.9 : 0;
@@ -147,6 +153,7 @@
     const header = Object.fromEntries(HEAD.map(([k]) => [k, String(x?.[k] || '')]));
     const lines = (Array.isArray(x?.items) ? x.items : []).slice(0, 50).map((r) => {
       const v = Object.fromEntries(LINE.map(([k]) => [k, String(r?.[k] ?? '')]));
+      for (const k of ['quantity', 'free_quantity']) v[k] = v[k].replace(/^(\d+)\.0+$/, '$1'); // "100.00" is 100
       const flags = new Set(Array.isArray(r?.unclear_fields) ? r.unclear_fields : []);
       const notes = {};
       const printedUnit = v.unit; v.unit = mapUnit(v.unit);
@@ -160,7 +167,7 @@
       checkLine(line);
       return line;
     });
-    return { header, headerUnclear: new Set(Array.isArray(x?.unclear_fields) ? x.unclear_fields : []), lines, removedAi: 0 };
+    return { header, subtotal: String(x?.subtotal || ''), headerUnclear: new Set(Array.isArray(x?.unclear_fields) ? x.unclear_fields : []), lines, removedAi: 0 };
   }
   // Use the master item's section and unit (the ERP rule: same item, same code, one unit everywhere).
   function applyMaster(line, item, auto) {
@@ -235,6 +242,14 @@
         k === 'received_date' && !val ? el('small', { class: 'fnote', text: 'Not printed — enter the day the goods actually arrived' }) : null));
     }
     box.append(hg);
+    // 1.1.3: lines total vs the invoice subtotal (before GST) — a quick way to spot a missed or misread line.
+    const linesTotal = d.lines.reduce((a, l) => a + (Number(l.v.quantity) || 0) * (Number(l.v.unit_cost) || 0), 0);
+    if (d.subtotal) {
+      const diff = Math.abs(linesTotal - Number(d.subtotal)), tol = Math.max(1, Number(d.subtotal) * 0.002); // pack conversion rounds the rate
+      box.append(el('p', { class: diff < tol ? 'spell ok' : 'warn', text: diff < tol
+        ? `✓ Lines total ₹${linesTotal.toFixed(2)} matches the invoice subtotal ₹${Number(d.subtotal).toFixed(2)} — no line missed.`
+        : `Lines total ₹${linesTotal.toFixed(2)} does not match the invoice subtotal ₹${Number(d.subtotal).toFixed(2)} (difference ₹${diff.toFixed(2)}). A line may be missing or a quantity / rate misread — check against the bill.` }));
+    }
     if (!d.lines.length) box.append(el('p', { class: 'warn', text: 'No stock lines were confidently identified. Add the items manually in the ERP.' }));
     d.lines.forEach((line, i) => {
       const problems = lineProblems(line);
