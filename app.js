@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.17.11';
+  const APP_VERSION = '2.18.0';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '18-Oct-2026 Nasal medicine route';
+  const APP_BUILD_DATE = '18-Oct-2026 Document scan in Admission and Stores';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -3185,6 +3185,201 @@ https://samaraassistedliving.com/`;
       h('p',{className:'small-note',style:{fontWeight:700}},`Closing balance in words: ${inWords(closing)}`)
     );
   }
+  // 2.18.0: Document scan in the live ERP (moved from the Scan Lab trial, tested there 17–18 Oct 2026).
+  //   * Admission: prescription → Section 3 medicine rows; ID card → Guest name / DOB / gender / address.
+  //   * Stores: supplier bill → Receive from Vendor lines.
+  // The AI only READS (Edge Functions prescription-scan / store-scan); staff check and verify every value
+  // before anything is saved. Who may scan = who can already use that form.
+  const SAMARA_SCAN = (()=>{
+    const MEAL_TIMES={'Before food':['07:00','12:00','19:00'],'After food':['09:00','14:00','21:00'],'With food':['08:00','13:00','20:00'],'No restriction':['09:00','14:00','21:00']};
+    const BEDTIME='22:00';
+    const FREQUENCIES=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'];
+    const ROUTES=['Oral','IV','IM','Subcutaneous','Topical','Inhalation','Nasal','Other'];
+    const FOODS=['Before food','After food','With food','No restriction'];
+    const DURATIONS=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','30 Days','Until Doctor Review','Long Term','Custom'];
+    const UNITS=['mg','mcg','g','ml','mg/ml','mg/5 ml','IU','units','%','drops','tablet','capsule','puff','sachet','patch'];
+    const VARIABLE_DOSE_RE=/sliding\s*scale|depend(ing|s)?\s+on\s+(the\s+)?(blood\s*)?sugar|(as\s+per|according\s+to)\s+(the\s+)?(blood\s*)?sugar|\b(grbs|cbg|rbs)\b|blood\s*sugar|sugar\s*level|as\s+directed\s+by\s+(the\s+)?doctor/i;
+    const INSULIN_RE=/insulin|actrapid|mixtard|lantus|novorapid|novomix|humalog|huminsulin|insugen|basalog|tresiba|ryzodeg|levemir|apidra|glargine|aspart|lispro|degludec|detemir|wosulin/i;
+    const FIELD_MAP={strength:'strength',dose:'strength',strength_amount:'strength',strength_unit:'strength',time:'times',times:'times',dose_pattern:'times',frequency:'frequency',route:'route',food:'food_instruction',food_instruction:'food_instruction',duration:'duration',custom_duration_days:'custom_duration_days',medicine_name:'medicine_name',name:'medicine_name',special_instruction:'special_instruction',doctor_name:'prescribed_by_doctor',prescribed_by_doctor:'prescribed_by_doctor'};
+    const LABEL={prescribed_by_doctor:'Prescribed Doctor',medicine_name:'Medicine',strength:'Strength',frequency:'Frequency',times:'Time',route:'Route',food_instruction:'Food',duration:'Duration',custom_duration_days:'Custom days',special_instruction:'Special instruction'};
+    const blobToB64=blob=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]||'');r.onerror=rej;r.readAsDataURL(blob)});
+    const loadImage=url=>new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url});
+    const isPdf=f=>f&&(f.type==='application/pdf'||/\.pdf$/i.test(f.name||''));
+    // Phone photos are shrunk (longest side 2400 px) before sending; handwriting stays readable.
+    async function payload(file){
+      if(isPdf(file)){if(file.size>10*1024*1024)throw new Error(`${file.name} is larger than 10 MB. Upload a smaller PDF or photos of the pages.`);return {mime:'application/pdf',data:await blobToB64(file)}}
+      const url=URL.createObjectURL(file);
+      try{
+        const bmp=await loadImage(url);const scale=Math.min(1,2400/Math.max(bmp.width,bmp.height));
+        const c=document.createElement('canvas');c.width=Math.round(bmp.width*scale);c.height=Math.round(bmp.height*scale);
+        const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(bmp,0,0,c.width,c.height);
+        const blob=await new Promise(res=>c.toBlob(res,'image/jpeg',0.9));if(blob)return {mime:'image/jpeg',data:await blobToB64(blob)};
+      }catch(_){}finally{URL.revokeObjectURL(url)}
+      return {mime:/^image\/(jpeg|png|webp|heic|heif)$/.test(file.type)?file.type:'image/jpeg',data:await blobToB64(file)};
+    }
+    function usable(files){
+      const list=Array.from(files||[]).filter(f=>isPdf(f)||/^image\//.test(f.type||''));
+      if(!list.length)throw new Error('Choose a photo or PDF of the document.');
+      if(list.length>8)throw new Error('At most 8 pages at a time.');
+      return list;
+    }
+    async function invoke(fn,body){
+      const {data,error}=await client.functions.invoke(fn,{body});
+      if(error){
+        let msg='Could not read the document just now. Please try again.',code='';
+        try{const j=await error.context.json();if(j?.error)msg=j.error;code=j?.code||''}catch(_){if(error.context?.status===504)msg='This page took too long to read. Try again, or take a closer photo with fewer lines.'}
+        if(code==='AUTH')msg='Your ERP login has expired. Please sign in again and scan once more.';
+        throw new Error(msg);
+      }
+      if(!data?.result)throw new Error(data?.error||'Nothing was read from the document.');
+      return data.result;
+    }
+    // Several prescription pages are read at the same time, one request per page (dense hospital pages in one
+    // request ran past the 150-second server limit). Returns {results:[...], failed:[page numbers]}.
+    async function readPrescription(files){
+      const list=usable(files);const pays=[];for(const f of list)pays.push(await payload(f));
+      const call=fs=>invoke('prescription-scan',{kind:'prescription',files:fs});
+      const settled=list.length>1?await Promise.allSettled(pays.map(p=>call([p]))):[{status:'fulfilled',value:await call(pays)}];
+      const failed=settled.map((r,i)=>r.status==='rejected'?i+1:0).filter(Boolean);
+      if(failed.length===settled.length)throw settled[0].reason;
+      return {results:settled.map((r,i)=>r.status==='fulfilled'?{...r.value,__page:i+1}:null).filter(Boolean),failed,pages:list.length,
+        failReason:failed.length?String(settled.find(r=>r.status==='rejected').reason?.message||''):''};
+    }
+    async function readId(files){const list=usable(files);const pays=[];for(const f of list)pays.push(await payload(f));return invoke('prescription-scan',{kind:'id',files:pays})}
+    async function readBill(files){const list=usable(files);const pays=[];for(const f of list)pays.push(await payload(f));return invoke('store-scan',{files:pays})}
+
+    // ---------- prescription → Admission medicine rows ----------
+    function parseSlots(pattern){
+      const t=String(pattern||'').replace(/½/g,'0.5').replace(/\b1\/2\b/g,'0.5').replace(/¼/g,'0.25');
+      const parts=t.split(/\s*[-–—]\s*/).filter(x=>x!=='');if(parts.length<3||parts.length>4)return null;
+      const nums=parts.map(Number);return nums.every(Number.isFinite)?nums:null;
+    }
+    function timesFor(frequency,pattern,food){
+      const meal=MEAL_TIMES[food]||MEAL_TIMES['After food'];
+      if(frequency==='HS')return [BEDTIME];
+      if(frequency==='STAT'||frequency==='SOS / PRN')return [];
+      const slots=parseSlots(pattern);
+      if(slots){const t=slots.map((n,i)=>n>0?(i<3?meal[i]:BEDTIME):null).filter(Boolean);if(t.length)return [...new Set(t)].sort()}
+      switch(frequency){
+        case 'Once Daily (OD)':case 'Weekly':case 'Monthly':return [meal[0]];
+        case 'Twice Daily (BD)':return [meal[0],meal[2]];
+        case 'Three Times Daily (TDS)':return meal.slice();
+        case 'Four Times Daily (QID)':return [...meal,BEDTIME];
+        default:return [];
+      }
+    }
+    function freqFromPattern(pattern){
+      const slots=parseSlots(pattern);if(!slots)return '';
+      const n=slots.filter(x=>x>0).length;if(slots.length===4&&n===4)return 'Four Times Daily (QID)';
+      return ({1:'Once Daily (OD)',2:'Twice Daily (BD)',3:'Three Times Daily (TDS)'})[n]||'';
+    }
+    const baseName=name=>String(name||'').toLowerCase()
+      .replace(/\b(tab|tabs|tablet|tablets|cap|caps|capsule|capsules|syp|syr|syrup|susp|suspension|inj|injection|oint|ointment|cream|gel|drops?|inhaler|rotacaps?|sachet)\b\.?/g,' ')
+      .replace(/\d+(\.\d+)?\s*(mg|mcg|g|ml|iu|%|units?)?/g,' ').replace(/[^a-z ]+/g,' ').replace(/\s+/g,' ').trim();
+    // Returns {rows, meta, notes}. Each row = an Admission medicine row + row.scan {raw, flags, notes, confidence, verified}.
+    function prescriptionToMedicines(reading,existingNames){
+      const known=new Set((existingNames||[]).map(baseName).filter(Boolean));
+      const rows=[],metas=[],notes=[];
+      for(const r of reading.results){
+        const meta={doctor:String(r.doctor_name||'').trim(),hospital:String(r.hospital_or_clinic||'').trim(),date:String(r.prescription_date||'').trim(),patient:String(r.patient_name_on_prescription||'').trim(),poor:r.page_quality==='poor',page:r.__page};
+        metas.push(meta);notes.push(...(Array.isArray(r.other_notes)?r.other_notes:[]));
+        const perMedDoctor=(r.medicines||[]).some(m=>String(m.doctor_name||'').trim());
+        for(const m of (r.medicines||[])){
+          const flags=new Set((m.unclear_fields||[]).map(f=>FIELD_MAP[String(f).toLowerCase()]).filter(Boolean));const why={};
+          const bedtimeWords=/\b(hs|h\.s\.?|bed\s*time|at\s+bed)\b/i.test(`${m.raw_text||''} ${m.special_instruction||''}`);
+          const s0=parseSlots(m.dose_pattern);const nightOnly=s0&&s0.length===3&&!s0[0]&&!s0[1]&&s0[2]>0;
+          // "0-0-1" without bedtime words is the after-dinner dose (9 PM), not HS.
+          let frequency=(m.frequency==='HS'&&nightOnly&&!bedtimeWords)?'Once Daily (OD)':(FREQUENCIES.includes(m.frequency)?m.frequency:freqFromPattern(m.dose_pattern));
+          if(!frequency){flags.add('frequency');frequency='Once Daily (OD)'}
+          const food=FOODS.includes(m.food_instruction)?m.food_instruction:'After food';
+          const times=timesFor(frequency,m.dose_pattern,food);
+          if(!times.length&&!['SOS / PRN','STAT'].includes(frequency))flags.add('times');
+          const dose=String(m.dose_per_time||'').trim();const plainOne=/^1\s*(tab|tablet|cap|capsule)s?\.?$/i.test(dose);
+          const variable=!m.strength_amount&&VARIABLE_DOSE_RE.test(`${m.raw_text||''} ${m.special_instruction||''}`);
+          const insulinUnits=!variable&&!m.strength_amount&&INSULIN_RE.test(m.medicine_name||'')?(dose.match(/^(\d+(?:\.\d+)?)\s*(?:iu|units?|u)\b/i)||[])[1]:'';
+          const amount=String(variable?'':(m.strength_amount||insulinUnits||'')).trim();
+          const unit=insulinUnits?'units':(UNITS.includes(m.strength_unit)?m.strength_unit:'');
+          const special=[variable?'Dose varies — as per blood sugar / doctor’s scale':'',dose&&!plainOne?`Dose: ${dose} each time`:'',String(m.special_instruction||'').trim()].filter(Boolean).join('. ');
+          const doctor=perMedDoctor?String(m.doctor_name||'').trim():meta.doctor;
+          const duration=DURATIONS.includes(m.duration)?m.duration:'Long Term';
+          const row={...blankMedicine(),
+            prescribed_by_doctor:doctor,medicine_name:String(m.medicine_name||'').trim(),
+            strength:amount&&unit?`${amount} ${unit}`:amount,
+            frequency,route:ROUTES.includes(m.route)?m.route:'Oral',food_instruction:food,times:times.join(', '),
+            duration,custom_duration_days:duration==='Custom'?String(m.custom_duration_days||''):'',
+            special_instruction:special,is_locked:true};
+          if(!doctor){flags.add('prescribed_by_doctor');why.prescribed_by_doctor='Not printed — enter the doctor'}
+          if(!row.medicine_name)flags.add('medicine_name');
+          if(variable){flags.add('strength');why.strength='Dose varies (sliding scale) — enter the dose the doctor wants recorded; the scale is in Special instruction'}
+          else if(!(amount&&unit)){flags.add('strength');why.strength=amount?'Choose the unit':'Not clear — enter the strength'}
+          if(insulinUnits){flags.add('strength');why.strength=`Insulin: ${insulinUnits} units each time — check`}
+          if(!m.route)flags.add('route');
+          if(!m.food_instruction){flags.add('food_instruction');why.food_instruction='Not written — confirm'}
+          if(!m.duration){flags.add('duration');why.duration='Not written — pre-set to Long Term'}
+          if(known.has(baseName(row.medicine_name))){flags.add('medicine_name');why.medicine_name='Already in the list — remove one if it is the same medicine'}
+          known.add(baseName(row.medicine_name));
+          row.scan={raw:String(m.raw_text||'').trim(),flags:[...flags],notes:why,confidence:['high','medium','low'].includes(m.confidence)?m.confidence:'low',verified:false,page:meta.page};
+          rows.push(row);
+        }
+      }
+      return {rows,metas,notes};
+    }
+
+    // ---------- ID card → Admission Guest fields ----------
+    const norm=v=>String(v||'').toLowerCase().replace(/[^a-z]/g,'');
+    function bestOf(value,options){
+      const v=norm(value);if(!v)return '';
+      const exact=options.find(o=>norm(o)===v);if(exact)return exact;
+      const part=options.filter(o=>norm(o).startsWith(v)||v.startsWith(norm(o)));return part.length===1?part[0]:'';
+    }
+    function idToGuest(r){
+      const iso=(()=>{const m=String(r.date_of_birth||'').match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);if(!m)return '';const d=`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;return Number.isNaN(new Date(d+'T00:00:00Z').getTime())?'':d})();
+      const out={},notes=[];
+      const put=(k,v)=>{v=String(v||'').trim();if(v)out[k]=v};
+      put('full_name',String(r.full_name||'').toUpperCase());
+      if(iso)out.date_of_birth=iso;
+      else if(/^\d{4}$/.test(String(r.year_of_birth||''))){out.age=String(new Date().getFullYear()-Number(r.year_of_birth));notes.push(`Only the year of birth (${r.year_of_birth}) is printed — age set to about ${out.age}.`)}
+      if(['Male','Female','Other'].includes(r.gender))out.gender=r.gender;
+      const GA=window.SamaraGuestAddress;
+      let country=String(r.country||'').trim()||(/aadhaar|pan|voter|driving/i.test(r.document_type||'')?'India':'');
+      if(GA&&country)country=GA.COUNTRIES.find(c=>norm(c)===norm(country))||country;
+      if(country)out.country=country;
+      if(country==='India'&&GA){
+        const st=bestOf(r.state,GA.INDIAN_STATES);if(st)out.state=st;else if(r.state)notes.push(`State "${r.state}" — choose it from the list.`);
+        if(st==='Tamil Nadu'){
+          const map=window.SamaraTNDistrictTaluks||{};const dist=bestOf(r.district,Object.keys(map));
+          if(dist){out.district=dist;const tk=bestOf(r.taluk,map[dist]||[]);if(tk)out.taluk=tk;else if(r.taluk)notes.push(`Taluk "${r.taluk}" — choose it from the list.`)}
+          else if(r.district)notes.push(`District "${r.district}" — choose it from the list.`);
+        }else{put('district',r.district);put('taluk',r.taluk)}
+      }else{put('state',r.state);put('district',r.district);put('taluk',r.taluk)}
+      for(const k of ['village_town','locality_area','street_name','house_no','apartment_name'])put(k,r[k]);
+      const pin=String(r.pincode||'').replace(/\D/g,'');if(pin)out.pincode=country==='India'?pin.slice(0,6):pin;
+      const relation=r.relation_type&&r.relation_name?`${r.relation_type} ${r.relation_name}`:'';
+      return {fields:out,notes,relation,documentType:String(r.document_type||'').trim(),last4:String(r.id_last4||'').trim()};
+    }
+
+    // ---------- shared upload button ----------
+    // onFiles(files) is called with the chosen pages. beforePick() runs before the file picker opens (Admission
+    // saves its draft first, because a phone camera can reload the page).
+    function ScanButton({label,busy,status,tone,onFiles,beforePick,disabled}){
+      return h('div',{className:'samara-scan-box'},
+        h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}},
+          h('label',{className:`btn btn-primary file-button${busy||disabled?' disabled':''}`,'aria-disabled':busy||disabled?'true':null},busy?'Reading…':`📷 ${label}`,
+            h('input',{type:'file',multiple:true,accept:'image/*,.pdf',disabled:busy||disabled,onClick:()=>beforePick&&beforePick(),onChange:e=>{const f=Array.from(e.target.files||[]);e.target.value='';if(f.length)onFiles(f)}})),
+          h('label',{className:`btn btn-secondary file-button${busy||disabled?' disabled':''}`},'Camera',
+            h('input',{type:'file',accept:'image/*',capture:'environment',disabled:busy||disabled,onClick:()=>beforePick&&beforePick(),onChange:e=>{const f=Array.from(e.target.files||[]);e.target.value='';if(f.length)onFiles(f)}}))),
+        status?h('div',{role:'status',style:scanNoteStyle(tone)},status):null);
+    }
+    // Plain styled note (not the ERP "message success" class, which the app turns into a "Saved" toast).
+    function scanNoteStyle(tone){return {marginTop:'8px',padding:'10px 12px',borderRadius:'10px',fontWeight:600,lineHeight:1.4,
+      background:tone==='error'?'#fdecea':tone==='ok'?'#e8f6ee':'#f4f1f6',color:tone==='error'?'#9b1c1c':tone==='ok'?'#14532d':'#4a3a55',border:`1px solid ${tone==='error'?'#f5b5ae':tone==='ok'?'#a7dcbc':'#e2d8ea'}`}}
+    // Ticks a "Reading… N s" counter while fn runs.
+    async function withTimer(setStatus,text,fn){
+      const t0=Date.now();const tick=setInterval(()=>setStatus(`${text} ${Math.round((Date.now()-t0)/1000)} s`),500);
+      try{return await fn()}finally{clearInterval(tick)}
+    }
+    return {readPrescription,readId,readBill,prescriptionToMedicines,idToGuest,ScanButton,withTimer,noteStyle:scanNoteStyle,LABEL,timesFor,baseName};
+  })();
   function showClinicalAlertPopup({
     heading='CLINICAL ALERT',
     patient='Patient',
@@ -22822,6 +23017,55 @@ Thank you.`;
     function careRowComplete(row){
       return Boolean(String(row.care_type||'').trim());
     }
+    // 2.18.0: scan the prescription / ID card (moved from the Scan Lab trial). The AI only reads; every scanned
+    // medicine must be ticked "✓ Verified" against the prescription before the admission can be saved.
+    const [rxScan,setRxScan]=React.useState({busy:false,status:'',tone:'',metas:[],notes:[]});
+    const [idScan,setIdScan]=React.useState({busy:false,status:'',tone:'',lines:[]});
+    const [scanDoctor,setScanDoctor]=React.useState('');
+    const scannedPending=meds.filter(m=>m.scan&&!m.scan.verified&&String(m.medicine_name||'').trim());
+    async function scanPrescriptionFiles(files){
+      setRxScan(s=>({...s,busy:true,status:'Reading the prescription…',tone:''}));
+      try{
+        const reading=await SAMARA_SCAN.withTimer(t=>setRxScan(s=>({...s,status:t})),`Reading ${files.length} page(s)…`,()=>SAMARA_SCAN.readPrescription(files));
+        const {rows,metas,notes}=SAMARA_SCAN.prescriptionToMedicines(reading,meds.map(m=>m.medicine_name));
+        if(!rows.length)throw new Error('No medicines could be read from this document. Enter them by hand, or take a clearer photo.');
+        setMeds(cur=>[...cur.filter(m=>String(m.medicine_name||'').trim()),...rows]);
+        setForm(cur=>({...cur,undergoing_prescribed_medication:'Yes'}));
+        setPrescriptionFiles(prev=>[...(prev||[]),...files]);keepDraftFiles(setPrescriptionFiles,files,false);
+        const failed=reading.failed.length?` Page ${reading.failed.join(', ')} could not be read (${reading.failReason}) — scan it again on its own.`:'';
+        setRxScan({busy:false,tone:failed?'error':'ok',metas,notes,
+          status:`${rows.length} medicine(s) read and added below.${failed} Check each one against the prescription, correct it with Edit if needed, then tick ✓ Verified. The prescription is also attached as a document.`});
+      }catch(e){setRxScan(s=>({...s,busy:false,tone:'error',status:e.message||'Could not read the prescription.'}))}
+    }
+    function verifyScannedMedicine(index){
+      const row=meds[index];
+      if(!medicineRowComplete(row)){setMsg('Complete Prescribed Doctor, Medicine, Strength (number and unit) and Time for this medicine first (use Edit).');return}
+      setMeds(meds.map((m,i)=>i===index?{...m,is_locked:true,scan:{...m.scan,verified:true}}:m));setMsg('');
+    }
+    function applyScanDoctor(){
+      const name=String(scanDoctor||'').trim();if(!name)return;
+      setMeds(meds.map(m=>m.scan&&!m.scan.verified&&!String(m.prescribed_by_doctor||'').trim()?{...m,prescribed_by_doctor:name}:m));setScanDoctor('');
+    }
+    async function scanIdFiles(files){
+      setIdScan(s=>({...s,busy:true,status:'Reading the ID card…',tone:''}));
+      try{
+        const r=await SAMARA_SCAN.withTimer(t=>setIdScan(s=>({...s,status:t})),'Reading the ID card…',()=>SAMARA_SCAN.readId(files));
+        const g=SAMARA_SCAN.idToGuest(r);
+        const filled=[],kept=[];
+        const label={full_name:'Name',date_of_birth:'Date of Birth',age:'Age',gender:'Gender',country:'Country',state:'State',district:'District',taluk:'Taluk',village_town:'Village / Town',locality_area:'Locality',street_name:'Street',house_no:'Door No.',apartment_name:'Apartment',pincode:'Pincode'};
+        const cur=form,patch={};
+        for(const [k,v] of Object.entries(g.fields)){
+          const now=String(cur[k]==null?'':cur[k]).trim();
+          const empty=!now||k==='gender'||(k==='country'&&now==='India'&&!String(cur.district||'').trim())||(k==='state'&&!String(cur.district||'').trim()); // gender starts with a default value, so the card decides
+          if(empty||now===v){patch[k]=v;if(now!==v)filled.push(`${label[k]||k}: ${k==='date_of_birth'?formatDateIN(v):v}${now&&k==='gender'?` (was ${now})`:''}`)}else kept.push(`${label[k]||k} on card "${k==='date_of_birth'?formatDateIN(v):v}" — kept "${now}"`);
+        }
+        if(patch.date_of_birth&&patch.date_of_birth!==cur.date_of_birth){const years=ageFromDateOfBirth(patch.date_of_birth);if(years!==null)patch.age=String(years)}
+        setForm(c=>({...c,...patch}));
+        setIdFiles(prev=>[...(prev||[]),...files]);keepDraftFiles(setIdFiles,files,false);
+        const lines=[...filled.map(x=>'Filled — '+x),...kept.map(x=>'Not changed — '+x),...g.notes,g.relation?`On the card: ${g.relation}`:'',g.documentType?`${g.documentType}${g.last4?` ending ${g.last4}`:''} (the full number is never read or stored)`:''].filter(Boolean);
+        setIdScan({busy:false,tone:'ok',lines,status:`ID card read. ${filled.length} field(s) filled — check each against the card. The card is also attached as the identity document.`});
+      }catch(e){setIdScan(s=>({...s,busy:false,tone:'error',status:e.message||'Could not read the ID card.'}))}
+    }
     function addMedicineEntry(){
       const editableIndex=meds.findIndex(row=>!row.is_locked);
       if(editableIndex>=0){
@@ -24024,6 +24268,8 @@ Please keep these login details confidential.`;
         setBusy(false);
         return;
       }
+      {const unverified=effectiveMeds.filter(m=>m.scan&&!m.scan.verified);
+       if(unverified.length){setMsg(`${unverified.length} scanned medicine(s) are not yet verified (${unverified.slice(0,3).map(m=>m.medicine_name).join(', ')}${unverified.length>3?' …':''}). Check each against the prescription and tick ✓ Verified in Section 3.`);setBusy(false);return;}}
       // 2.14.74: a medicine may start later (e.g. next weekly dose), but not more than 30 days ahead.
       {const tooFar=effectiveMeds.find(m=>{const t=new Date(medicationEffectiveValue(m)).getTime();return !Number.isFinite(t)||t>Date.now()+30*86400000;});
        if(tooFar){setMsg(`Check the Starts from date & time for ${tooFar.medicine_name||'a medicine'}: it must be a valid date within 30 days from now.`);setBusy(false);return;}}
@@ -24430,7 +24676,14 @@ Please keep these login details confidential.`;
           h('div',{style:{marginTop:'5px'}},`${formalName(returningPatient)||returningPatient.full_name} · ${returningPatient.patient_id}. Permanent personal details and existing documents will be retained.`)
         )
       ),
-      h('div',{className:'section-card'},h('h4',null,'1. Admission route and patient identity'),h('div',{className:'form-grid'},
+      h('div',{className:'section-card'},h('h4',null,'1. Admission route and patient identity'),
+        !returningPatient&&h('div',{className:'section-card',style:{background:'#fff4f9',borderColor:'#e7b6cf',margin:'0 0 10px'}},
+          h('strong',null,'Fill Guest details from the ID card'),
+          h('small',{className:'small-note',style:{display:'block',margin:'4px 0 8px'}},`Scan the ${guestIdLabel} (front and back). Name, Date of Birth, Gender and address are filled where still empty. Only the last 4 digits of the ID number are ever read.`),
+          h(SAMARA_SCAN.ScanButton,{label:'Scan ID card',busy:idScan.busy,status:idScan.status,tone:idScan.tone,onFiles:scanIdFiles,beforePick:saveAdmissionDraftBeforeDocumentPicker}),
+          idScan.lines.length?h('ul',{className:'small-note',style:{margin:'6px 0 0 18px'}},idScan.lines.map((x,k)=>h('li',{key:`idl-${k}`},x))):null
+        ),
+        h('div',{className:'form-grid'},
         selectField('Admission source','admission_type',form,setForm,[
           'Previous Hospital / Care Centre',
           'Direct Admission – Elderly Care',
@@ -24632,23 +24885,42 @@ Please keep these login details confidential.`;
             'No medicine entry is required. The consent form will record that no prescribed medication was declared at admission.'
           )
         ),
+        h('div',{className:'section-card',style:{background:'#fff4f9',borderColor:'#e7b6cf',margin:'8px 0'}},
+          h('strong',null,'Fill medicines from the prescription'),
+          h('small',{className:'small-note',style:{display:'block',margin:'4px 0 8px'}},'Photo or PDF, up to 8 pages. Each medicine is added below for you to check and tick ✓ Verified. Another doctor’s prescription? Scan it too — it is added to the list.'),
+          h(SAMARA_SCAN.ScanButton,{label:'Scan prescription',busy:rxScan.busy,status:rxScan.status,tone:rxScan.tone,onFiles:scanPrescriptionFiles,beforePick:saveAdmissionDraftBeforeDocumentPicker}),
+          rxScan.metas.filter(x=>x.patient||x.hospital||x.date||x.poor).map((x,k)=>h('small',{key:`rxm-${k}`,className:'small-note',style:{display:'block',marginTop:'4px'}},
+            [x.hospital&&`${x.hospital}`,x.date&&`dated ${x.date}`,x.patient&&`name on prescription: ${x.patient} — make sure this is the right Guest`,x.poor&&'pages hard to read — check very carefully'].filter(Boolean).join(' · '))),
+          rxScan.notes.length?h('small',{className:'small-note',style:{display:'block',marginTop:'4px'}},`Also on the prescription (not added as medicines): ${rxScan.notes.join('; ')}`):null,
+          scannedPending.some(m=>!String(m.prescribed_by_doctor||'').trim())&&h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'flex-end',marginTop:'8px'}},
+            h('div',{className:'field',style:{flex:'1 1 240px',margin:0}},h('label',null,`Prescribed Doctor for ${scannedPending.filter(m=>!String(m.prescribed_by_doctor||'').trim()).length} scanned medicine(s) — not printed`),
+              h('input',{value:scanDoctor,placeholder:'e.g. Dr. R. Kumar','data-scan-doctor':'1','data-samara-voice':'off',onChange:e=>setScanDoctor(e.target.value)})),
+            h('button',{type:'button',className:'btn btn-secondary',disabled:!String(scanDoctor).trim(),onClick:applyScanDoctor},'Fill for all of them')),
+          scannedPending.length?h('small',{style:{display:'block',marginTop:'6px',color:'#8a5a00',fontWeight:700}},`${scannedPending.length} scanned medicine(s) still to verify — the admission cannot be saved until each is ticked ✓ Verified.`):null
+        ),
         form.undergoing_prescribed_medication==='Yes'&&h(React.Fragment,null,
         meds.map((m,i)=>m.is_locked
-          ?h('div',{className:'admission-locked-row',key:`med-${i}`},
+          ?h('div',{className:'admission-locked-row',key:`med-${i}-locked`,style:m.scan&&!m.scan.verified?{background:'#fff8e1',borderColor:'#e0b84a'}:undefined},
             h('span',{className:'number'},i+1),
             h('div',{className:'summary'},
-              h('strong',null,`${m.medicine_name} ${m.strength}`),
+              m.scan&&!m.scan.verified&&h('small',{style:{color:'#8a5a00',fontWeight:700}},`⚠ Read from the prescription${m.scan.page?` (page ${m.scan.page})`:''} — check against it${m.scan.confidence==='low'?' carefully (hard to read)':''}`),
+              m.scan&&m.scan.raw&&!m.scan.verified&&h('small',{style:{fontFamily:'monospace',background:'#fff',padding:'2px 6px',borderRadius:'6px'}},`As written: ${m.scan.raw}`),
+              m.scan&&m.scan.verified&&h('small',{style:{color:'#1b7a43',fontWeight:700}},'✓ Verified against the prescription'),
+              h('strong',null,`${m.medicine_name||'Medicine name needed'} ${m.strength||''}`),
               h('small',null,`Prescribed by: ${m.prescribed_by_doctor||'Not recorded'}`),
               h('small',null,`${m.frequency} · ${m.route} · ${String(m.times||'').split(',').map(x=>medicationTimeLabel(x.trim())).join(', ')} · ${m.food_instruction} · ${m.duration}`),
               h('small',null,`Effective from: ${(()=>{const v=medicationEffectiveValue(m);return `${formatDateIN(v.slice(0,10))} ${medicationTimeLabel(v.slice(11,16))}`})()}`),
-              m.special_instruction&&h('small',null,`Instruction: ${m.special_instruction}`)
+              m.special_instruction&&h('small',null,`Instruction: ${m.special_instruction}`),
+              m.scan&&!m.scan.verified&&(m.scan.flags||[]).length?h('small',{style:{color:'#8a5a00'}},'Check: '+(m.scan.flags||[]).map(k=>`${SAMARA_SCAN.LABEL[k]||k}${m.scan.notes&&m.scan.notes[k]?` (${m.scan.notes[k]})`:''}`).join(' · ')):null,
+              m.scan&&!m.scan.verified&&!medicineRowComplete(m)?h('small',{className:'error-text'},'Still needed: '+[!String(m.prescribed_by_doctor||'').trim()&&'Prescribed Doctor',!String(m.medicine_name||'').trim()&&'Medicine',!medicationStrengthValid(m.strength)&&'Strength (number and unit)',!String(m.times||'').trim()&&'Time'].filter(Boolean).join(', ')+' — use Edit'):null
             ),
             h('div',{className:'admission-row-actions'},
+              m.scan&&!m.scan.verified&&h('button',{type:'button',className:'btn btn-primary',disabled:!medicineRowComplete(m),title:medicineRowComplete(m)?'I have checked this medicine against the prescription':'Complete the missing details first (Edit)',onClick:()=>verifyScannedMedicine(i)},'✓ Verified'),
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>editMedicineEntry(i)},'Edit'),
               h('button',{type:'button',className:'btn btn-danger',onClick:()=>removeMedicineEntry(i)},'Remove')
             )
           )
-          :h('div',{className:'repeat-row medicine-order-row admission-numbered-row',key:`med-${i}`},
+          :h('div',{className:'repeat-row medicine-order-row admission-numbered-row',key:`med-${i}-edit`},
             h('span',{className:'admission-row-number'},i+1),
             miniInput('Prescribed Doctor',m.prescribed_by_doctor,v=>updateRow(setMeds,meds,i,'prescribed_by_doctor',v),true),
             miniInput('Medicine',m.medicine_name,v=>updateRow(setMeds,meds,i,'medicine_name',v),true),
@@ -24673,6 +24945,8 @@ Please keep these login details confidential.`;
               );
             })(),
             miniInput('Special instruction',m.special_instruction,v=>updateRow(setMeds,meds,i,'special_instruction',v)),
+            m.scan&&m.scan.raw?h('small',{className:'small-note',style:{fontFamily:'monospace'}},`As written: ${m.scan.raw}`):null,
+            m.scan?h('button',{type:'button',className:'btn btn-primary',disabled:!medicineRowComplete(m),onClick:()=>verifyScannedMedicine(i)},'✓ Done & verified'):null,
             h('button',{type:'button',className:'btn btn-danger',onClick:()=>removeMedicineEntry(i),disabled:meds.length===1&&!m.medicine_name},'Remove')
           )
         ),
@@ -40776,6 +41050,166 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     ),h('div',{style:{display:'flex',gap:'8px',justifyContent:'flex-end',flexWrap:'wrap'}},h('button',{className:'btn btn-secondary',onClick:()=>setEditing(null)},'Close'),h('button',{className:'btn btn-primary',disabled:busy,onClick:save},busy?'Saving…':'Save Changes'))))))
   }
 
+  // 2.18.0: Scan a supplier bill / delivery note in Stores → Receive from Vendor (from the Scan Lab trial, tested
+  // on real Sun Surgicals / Jomed bills). The AI only reads (Edge Function store-scan). Staff check each line,
+  // tick ✓ Verified, then "Receive verified lines" receives them into stock through the same database function
+  // as the manual form. A line not in the Stores Master is created as a NEW item (the ERP gives its code) with
+  // NO price — the Guest charge rate is fixed only by Admin / Director in Charge Master.
+  const BILL_SCAN_SECTIONS=['Pharmacy','Consumables','Housekeeping & General','Kitchen / Food Stores'];
+  const BILL_UNIT_ALIAS={strip:'Strips',strips:'Strips',box:'Boxes',boxes:'Boxes',bottle:'Bottles',btl:'Bottles',bott:'Bottles',nos:'Nos',no:'Nos',pcs:'Pieces',pc:'Pieces',piece:'Pieces',pieces:'Pieces',pair:'Pairs',pairs:'Pairs',pack:'Packs',packs:'Packs',pkt:'Packets',pkts:'Packets',packet:'Packets',roll:'Rolls',rolls:'Rolls',vial:'Vials',amp:'Ampoules',ampoule:'Ampoules',tube:'Tubes',sachet:'Sachets',kg:'Kg',g:'Grams',gm:'Grams',l:'Litres',ltr:'Litres',litre:'Litres',ml:'ml',doz:'Dozens',tab:'Tablets',cap:'Capsules',each:'Nos',ea:'Nos',unit:'Nos',units:'Nos',bag:'Packs',bags:'Packs',set:'Sets',sets:'Sets',can:'Cans',cyl:'Cylinders'};
+  const billBase=name=>String(name||'').toLowerCase()
+    .replace(/\b(tab|tabs|tablet|tablets|cap|caps|capsule|capsules|syp|syr|syrup|susp|inj|injection|oint|cream|gel|drops?)\b\.?/g,' ')
+    .replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
+  function billLev(a,b){const m=a.length,n=b.length;if(!m)return n;if(!n)return m;let prev=Array.from({length:n+1},(_,j)=>j);for(let i=1;i<=m;i++){const cur=[i];for(let j=1;j<=n;j++)cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));prev=cur}return prev[n]}
+  // Sizes / strengths must agree: "Sterile Gloves 6 1/2" is NOT "Sterile Gloves (6)".
+  const billSizes=name=>(String(name||'').toLowerCase().replace(/(\d+)\s*(?:1\/2|½)/g,(m,a)=>`${a}.5`).replace(/(\d+)\s*(?:1\/4|¼)/g,(m,a)=>`${a}.25`).match(/\d+(?:\.\d+)?/g)||[]).map(Number).sort((a,b)=>a-b).join(',');
+  function billMatch(name,items){
+    const b=billBase(name);if(!b||!items.length)return {kind:'none'};
+    const sz=billSizes(name);let best=null;
+    for(const it of items){
+      const ib=billBase(it.item_name);if(!ib)continue;const isz=billSizes(it.item_name);
+      if(sz&&isz&&sz!==isz)continue;
+      if(ib===b)return {kind:'exact',item:it};
+      const contained=b.split(' ').length>1&&ib.split(' ').length>1&&(ib.includes(b)||b.includes(ib))?0.9:0;
+      const ratio=Math.max(contained,1-billLev(b,ib)/Math.max(b.length,ib.length));
+      if(!best||ratio>best.ratio)best={ratio,item:it};
+    }
+    return best&&best.ratio>=0.78?{kind:'near',item:best.item}:{kind:'none'};
+  }
+  const billPackCount=p=>{const t=String(p||'').toLowerCase().replace(/\s+/g,'');let m=t.match(/^(\d+)x(\d+)$/);if(m)return Number(m[1])*Number(m[2]);m=t.match(/^(\d+)(?:'?s|nos|pcs|tabs?|caps?)?$/);return m?Number(m[1]):0};
+  const billUnit=u=>{const t=String(u||'').trim();if(!t)return '';if(STORE_UNITS.includes(t))return t;return BILL_UNIT_ALIAS[t.toLowerCase().replace(/[^a-z]/g,'')]||''};
+  const billIso=v=>{const t=String(v||'').trim();if(/^\d{4}-\d{2}-\d{2}$/.test(t))return t;const m=t.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:''};
+  const billMonthEnd=ym=>{const m=String(ym||'').match(/^(\d{4})-(\d{2})$/);if(!m)return '';return new Date(Date.UTC(+m[1],+m[2],0)).toISOString().slice(0,10)};
+  function billLines(x,items){
+    return (Array.isArray(x?.items)?x.items:[]).slice(0,50).map((r,i)=>{
+      const s=k=>String(r?.[k]??'').trim();
+      const flags=new Set(Array.isArray(r?.unclear_fields)?r.unclear_fields:[]),notes={};
+      const l={key:`b${Date.now()}-${i}`,item_name:s('item_name'),section:BILL_SCAN_SECTIONS.includes(s('item_category'))?s('item_category'):'',unit:billUnit(s('unit')),
+        quantity:s('quantity').replace(/^(\d+)\.0+$/,'$1'),free_quantity:s('free_quantity').replace(/^(\d+)\.0+$/,'$1'),pack_size:s('pack_size'),batch_no:s('batch_no'),
+        expiry_date:billIso(s('expiry_date')),unit_cost:s('unit_cost'),mrp:s('mrp'),gst_percent:s('gst_percent'),generic_name:s('generic_name'),brand_name:s('brand_name'),
+        strength:s('strength'),dosage_form:s('dosage_form'),manufacturer:s('manufacturer'),remarks:s('remarks'),raw:s('raw_text'),page:r?.page||0,
+        confidence:['high','medium','low'].includes(r?.confidence)?r.confidence:'low',verified:false,done:false,error:'',converted:false};
+      if(s('item_category')==='Biomedical Equipment')notes.section='Biomedical Equipment is entered in the Biomedical Equipment register — remove this line, or choose a Stores section';
+      if(s('unit')&&!l.unit){flags.add('unit');notes.unit=`Printed as "${s('unit')}" — choose the ERP unit`}
+      if(!l.expiry_date&&r?.expiry_month){l.expiry_date=billMonthEnd(r.expiry_month);flags.add('expiry_date');notes.expiry_date=`Printed as ${r.expiry_text||r.expiry_month} — set to the last day of that month`}
+      if(!l.expiry_date&&r?.expiry_text){flags.add('expiry_date');notes.expiry_date=`Printed as "${r.expiry_text}" — enter the date`}
+      l.match=billMatch(l.item_name,items);
+      if(l.match.kind==='exact'){const it=l.match.item;if(it.item_category&&BILL_SCAN_SECTIONS.includes(it.item_category))l.section=it.item_category;if(it.unit&&l.unit!==it.unit){if(l.unit)notes.unit=`Bill unit ${l.unit} — Stores keeps this item in ${it.unit}. Convert the quantity if needed.`;l.unit=it.unit;flags.add('unit')}}
+      if(!l.section)flags.add('section');if(!l.unit)flags.add('unit');if(!/^\d+$/.test(l.quantity)){flags.add('quantity');notes.quantity='Stores counts whole numbers only — check the pack / unit'}
+      l.flags=[...flags];l.notes=notes;return l;
+    });
+  }
+  function billProblems(l){
+    const p=[];
+    if(!l.item_name.trim())p.push('Item name');
+    if(!BILL_SCAN_SECTIONS.includes(l.section))p.push('Section');
+    if(!STORE_UNITS.includes(l.unit))p.push('Unit');
+    if(!/^\d+$/.test(String(l.quantity))||Number(l.quantity)<=0)p.push('Quantity (whole number)');
+    if(l.free_quantity&&!/^\d+$/.test(String(l.free_quantity)))p.push('Free qty (whole number)');
+    if(l.unit_cost&&!(Number(l.unit_cost)>=0))p.push('Rate');
+    if(l.match.kind==='near')p.push('Choose: same as the Stores item, or a new item');
+    return p;
+  }
+  function StoreBillScan({items,defaultSection,onReceived,notify}){
+    const [busy,setBusy]=React.useState(false),[status,setStatus]=React.useState(''),[tone,setTone]=React.useState('');
+    const [head,setHead]=React.useState(null),[lines,setLines]=React.useState([]),[subtotal,setSubtotal]=React.useState('');
+    const activeItems=(items||[]).filter(i=>i.active!==false);
+    async function read(files){
+      if(lines.some(l=>l.verified&&!l.done)&&!confirm('Replace the checked lines below with this new bill?'))return;
+      setBusy(true);setTone('');
+      try{
+        const x=await SAMARA_SCAN.withTimer(setStatus,`Reading ${files.length} page(s)…`,()=>SAMARA_SCAN.readBill(files));
+        setHead({vendor_name:String(x.vendor_name||'').trim(),invoice_no:String(x.invoice_no||'').trim(),invoice_date:billIso(x.invoice_date),received_date:todayISOIndia(),remarks:String(x.remarks||'').trim()});
+        setSubtotal(String(x.subtotal||''));
+        const ls=billLines(x,activeItems).map(l=>({...l,section:l.section||(BILL_SCAN_SECTIONS.includes(defaultSection)?defaultSection:'')}));
+        setLines(ls);setTone(ls.length?'ok':'error');
+        setStatus(ls.length?`${ls.length} line(s) read. Check every yellow field against the bill, tick ✓ Verified on each line, then press Receive.`:'No stock lines could be read. Use the manual form below.');
+      }catch(e){setTone('error');setStatus(e.message||'Could not read the bill.')}
+      finally{setBusy(false)}
+    }
+    const setLine=(key,patch)=>setLines(ls=>ls.map(l=>l.key===key?{...l,...patch,verified:false,error:'',flags:l.flags.filter(f=>!(f in patch)),notes:Object.fromEntries(Object.entries(l.notes).filter(([k])=>!(k in patch)))}:l));
+    const rematch=(key,name)=>setLines(ls=>ls.map(l=>l.key===key?{...l,item_name:name,match:billMatch(name,activeItems),verified:false}:l));
+    const useItem=(l,it)=>setLines(ls=>ls.map(x=>x.key===l.key?{...x,item_name:it.item_name,section:BILL_SCAN_SECTIONS.includes(it.item_category)?it.item_category:x.section,unit:it.unit||x.unit,match:{kind:'exact',item:it},verified:false}:x));
+    const asNew=l=>setLines(ls=>ls.map(x=>x.key===l.key?{...x,match:{kind:'none',forced:true},verified:false}:x));
+    async function receive(){
+      const todo=lines.filter(l=>l.verified&&!l.done);
+      if(!head)return;
+      if(!String(head.vendor_name||'').trim())return notify('error','Enter the Supplier / Vendor name.');
+      if(!billIso(head.received_date))return notify('error','Enter the Received date (the day the goods arrived).');
+      if(!todo.length)return notify('error','Tick ✓ Verified on the lines to receive first.');
+      const fresh=todo.filter(l=>l.match.kind!=='exact').length;
+      if(!confirm(`Receive ${todo.length} verified line(s) from ${head.vendor_name} into stock?${fresh?`\n\n${fresh} NEW item(s) will be added to the Stores Master (no price — Admin / Director fixes the Guest rate in Charge Master).`:''}`))return;
+      setBusy(true);let ok=0,bad=0;
+      for(const l of todo){
+        const qty=Number(l.quantity)+(Number(l.free_quantity)||0);
+        const args={p_section:l.section,p_item_id:l.match.kind==='exact'?l.match.item.id:null,p_item_name:l.match.kind==='exact'?null:l.item_name.trim().replace(/\s+/g,' '),p_unit:l.unit,
+          p_vendor_name:head.vendor_name.trim(),p_invoice_no:head.invoice_no.trim()||null,p_invoice_date:billIso(head.invoice_date)||null,p_received_date:billIso(head.received_date),p_quantity:qty,
+          p_batch_no:l.batch_no.trim()||null,p_expiry_date:billIso(l.expiry_date)||null,p_unit_cost:String(l.unit_cost).trim()===''?null:Number(l.unit_cost),
+          p_remarks:[`Category: ${l.section}`,'Scanned from supplier bill',Number(l.free_quantity)?`Billed ${l.quantity} + free ${l.free_quantity}`:'',l.mrp&&`MRP: ₹${l.mrp}`,l.gst_percent&&`GST: ${l.gst_percent}%`,l.generic_name&&`Generic: ${l.generic_name}`,l.brand_name&&`Brand: ${l.brand_name}`,l.strength&&`Strength: ${l.strength}`,l.dosage_form&&`Dosage form: ${l.dosage_form}`,l.manufacturer&&`Manufacturer: ${l.manufacturer}`,l.pack_size&&`Pack size: ${l.pack_size}`,l.remarks,head.remarks].filter(Boolean).join(' | ')};
+        const {p_section,...legacy}=args;
+        let res=await client.rpc('store_receive_into_section',args);
+        if(res.error&&/store_receive_into_section|schema cache|could not find the function/i.test(res.error.message||'')&&['Consumables','Pharmacy'].includes(p_section))res=await client.rpc('receive_consumable_store_stock',legacy);
+        if(res.error){bad++;setLines(ls=>ls.map(x=>x.key===l.key?{...x,error:res.error.message}:x))}
+        else{ok++;setLines(ls=>ls.map(x=>x.key===l.key?{...x,done:true,error:''}:x))}
+      }
+      setBusy(false);
+      notify(bad?'error':'success',`${ok} line(s) received into stock from ${head.vendor_name}.${bad?` ${bad} line(s) not received — see the red message on each.`:''}`);
+      if(ok&&onReceived)onReceived();
+    }
+    const fld=(l,k,label,input)=>h('div',{className:'field',key:k,style:l.flags.includes(k)&&!l.verified?{background:'#fff8e1',borderRadius:'8px',padding:'4px'}:undefined},h('label',null,label),input,l.notes[k]&&!l.verified?h('small',{style:{color:'#8a5a00'}},l.notes[k]):null);
+    const txt=(l,k,extra={})=>h('input',{value:l[k]||'',disabled:l.done,onChange:e=>setLine(l.key,{[k]:e.target.value}),...extra});
+    const total=lines.reduce((a,l)=>a+(Number(l.quantity)||0)*(Number(l.unit_cost)||0),0);
+    const pendingCount=lines.filter(l=>l.verified&&!l.done).length;
+    return h('div',{className:'section-card',style:{background:'#fff4f9',borderColor:'#e7b6cf',marginBottom:'12px'}},
+      h('strong',null,'Fill from the supplier bill'),
+      h('small',{className:'small-note',style:{display:'block',margin:'4px 0 8px'}},'Photo or PDF of the bill / delivery note, up to 8 pages. Every line is matched to the Stores Master. Check each line, tick ✓ Verified, then Receive. NEW items are added without a price.'),
+      h(SAMARA_SCAN.ScanButton,{label:'Scan supplier bill',busy,status,tone,onFiles:read}),
+      head&&h('div',{className:'grid two',style:{marginTop:'10px'}},
+        h('div',{className:'field'},h('label',null,'Vendor *'),h('input',{value:head.vendor_name,onChange:e=>setHead({...head,vendor_name:e.target.value})})),
+        h('div',{className:'field'},h('label',null,'Invoice / Bill No.'),h('input',{value:head.invoice_no,onChange:e=>setHead({...head,invoice_no:e.target.value})})),
+        h('div',{className:'field'},h('label',null,'Invoice Date'),h(StrictDateInput,{value:head.invoice_date,onChange:e=>setHead({...head,invoice_date:e.target.value})})),
+        h('div',{className:'field'},h('label',null,'Received Date *'),h(StrictDateInput,{value:head.received_date,required:true,onChange:e=>setHead({...head,received_date:e.target.value})}),h('small',null,'The day the goods actually arrived'))),
+      head&&subtotal&&lines.length?(()=>{const diff=Math.abs(total-Number(subtotal)),tol=Math.max(1,Number(subtotal)*0.002);
+        return h('div',{style:SAMARA_SCAN.noteStyle(diff<tol?'ok':'error')},diff<tol?`✓ Lines total ₹${total.toFixed(2)} matches the bill subtotal ₹${Number(subtotal).toFixed(2)} — no line missed.`:`Lines total ₹${total.toFixed(2)} does not match the bill subtotal ₹${Number(subtotal).toFixed(2)} (difference ₹${diff.toFixed(2)}). A line may be missing or a quantity / rate misread.`)})():null,
+      lines.map((l,i)=>{
+        const problems=billProblems(l);const per=billPackCount(l.pack_size);const qtyTotal=(Number(l.quantity)||0)+(Number(l.free_quantity)||0);
+        const m=l.match;
+        return h('div',{key:l.key,className:'section-card',style:{borderLeft:`5px solid ${l.done?'#1b7a43':l.verified?'#2f7d32':l.confidence==='low'?'#c0392b':'#e0b84a'}`,margin:'10px 0',background:'#fff'}},
+          h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',flexWrap:'wrap'}},
+            h('strong',null,`${i+1}. ${l.done?'✓ Received':l.verified?'✓ Verified':l.confidence==='high'?'Check':l.confidence==='medium'?'Check carefully':'Hard to read'}`),
+            l.raw?h('small',{style:{fontFamily:'monospace'}},`On the bill${l.page?` (page ${l.page})`:''}: ${l.raw}`):null),
+          h('div',{className:'grid two'},
+            fld(l,'item_name','Item name',h('div',null,h('input',{value:l.item_name,disabled:l.done,onChange:e=>rematch(l.key,e.target.value)}),
+              m.kind==='exact'?h('small',{style:{color:'#1b7a43',fontWeight:700}},`✓ In Stores: ${m.item.item_code?m.item.item_code+' · ':''}${m.item.item_name} (${m.item.unit||'—'})`)
+              :m.kind==='near'?h('small',{style:{color:'#8a5a00'}},`Same as ${m.item.item_code?m.item.item_code+' · ':''}${m.item.item_name}? `,h('button',{type:'button',className:'btn btn-secondary',style:{padding:'2px 8px'},onClick:()=>useItem(l,m.item)},'Yes, same item'),' ',h('button',{type:'button',className:'btn btn-secondary',style:{padding:'2px 8px'},onClick:()=>asNew(l)},'No, new item'))
+              :h('small',{style:{color:l.done?'#1b7a43':'#8a5a00',fontWeight:l.done?700:400}},l.done?'✓ Added to the Stores Master as a new item — Guest rate to be fixed by Admin / Director in Charge Master.':'NEW item — added to the Stores Master when received (the ERP gives its code; no price).'))),
+            fld(l,'section','Section',h('select',{value:l.section,disabled:l.done||m.kind==='exact',onChange:e=>setLine(l.key,{section:e.target.value})},h('option',{value:''},'Choose section'),BILL_SCAN_SECTIONS.map(x=>h('option',{key:x,value:x},x)))),
+            fld(l,'unit','Unit',h('select',{value:l.unit,disabled:l.done||m.kind==='exact',onChange:e=>setLine(l.key,{unit:e.target.value})},h('option',{value:''},'Choose unit'),STORE_UNITS.map(x=>h('option',{key:x,value:x},x)))),
+            fld(l,'quantity','Quantity billed',txt(l,'quantity',{inputMode:'numeric'})),
+            fld(l,'free_quantity','Free qty',txt(l,'free_quantity',{inputMode:'numeric'})),
+            fld(l,'unit_cost','Rate per unit (₹, before tax)',txt(l,'unit_cost',{inputMode:'decimal'})),
+            fld(l,'batch_no','Batch / Lot No.',txt(l,'batch_no')),
+            fld(l,'expiry_date','Expiry Date',h(StrictDateInput,{value:l.expiry_date,disabled:l.done,onChange:e=>setLine(l.key,{expiry_date:e.target.value})})),
+            fld(l,'mrp','MRP (₹)',txt(l,'mrp',{inputMode:'decimal'})),
+            fld(l,'gst_percent','GST %',txt(l,'gst_percent',{inputMode:'decimal'})),
+            fld(l,'pack_size','Pack size',txt(l,'pack_size'))),
+          per>1&&['Nos','Pieces','Tablets','Capsules'].includes(l.unit)&&!l.converted&&qtyTotal&&!l.done?h('div',{style:SAMARA_SCAN.noteStyle('')},
+            `Pack ${l.pack_size}: ${qtyTotal} pack(s) on the bill = ${qtyTotal*per} ${l.unit}. Does Stores count single pieces for this item? `,
+            h('button',{type:'button',className:'btn btn-secondary',style:{padding:'2px 8px'},onClick:()=>setLines(ls=>ls.map(x=>x.key===l.key?{...x,converted:true,verified:false,quantity:String((Number(x.quantity)||0)*per),free_quantity:x.free_quantity?String((Number(x.free_quantity)||0)*per):'',unit_cost:x.unit_cost?String(Math.round(Number(x.unit_cost)/per*100)/100):'',mrp:x.mrp?String(Math.round(Number(x.mrp)/per*100)/100):''}:x))},`Convert to ${(Number(l.quantity)||0)*per} ${l.unit}`),' ',
+            h('button',{type:'button',className:'btn btn-secondary',style:{padding:'2px 8px'},onClick:()=>setLines(ls=>ls.map(x=>x.key===l.key?{...x,converted:true}:x))},'Keep as packs')):null,
+          h('small',{className:'small-note',style:{display:'block'}},`Stock to receive: ${qtyTotal||'—'} ${l.unit||''}${Number(l.free_quantity)?` (${l.quantity} billed + ${l.free_quantity} free)`:''}`),
+          l.error?h('div',{style:SAMARA_SCAN.noteStyle('error')},`Not received: ${l.error}`):null,
+          !l.done&&h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginTop:'8px'}},
+            problems.length&&!l.verified?h('small',{className:'error-text',style:{flex:'1 1 200px'}},'Still needed: '+problems.join(', ')):h('span',{style:{flex:'1 1 200px'}}),
+            h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:()=>setLines(ls=>ls.filter(x=>x.key!==l.key))},'Remove line'),
+            l.verified?h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>setLines(ls=>ls.map(x=>x.key===l.key?{...x,verified:false}:x))},'Undo verify')
+              :h('button',{type:'button',className:'btn btn-primary',disabled:busy||problems.length>0,title:problems.length?'Complete the missing details first':'I have checked this line against the bill',onClick:()=>setLines(ls=>ls.map(x=>x.key===l.key?{...x,verified:true}:x))},'✓ Verified')));
+      }),
+      lines.length?h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginTop:'8px'}},
+        h('button',{type:'button',className:'btn btn-primary',disabled:busy||!pendingCount,onClick:receive},busy?'Receiving…':`Receive ${pendingCount} verified line(s) into stock`),
+        h('small',{className:'small-note'},`${lines.filter(l=>l.done).length} received · ${pendingCount} verified · ${lines.filter(l=>!l.verified&&!l.done).length} still to check`),
+        lines.every(l=>l.done)?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setLines([]);setHead(null);setStatus('');setSubtotal('')}},'Clear — next bill'):null):null);
+  }
   function ConsumablesStores({profile,categoryFilter='',section='',onSummary=null,onOpenSection=null,onOpenUsage=null}){
     // 2.14.91: section = '' (full page, as before) | 'none' | 'stock' | 'receive' | 'receipts' | 'movement' | 'expiry' — used by the Pharmacy & Stores dashboard
     const show=key=>!section||section===key;
@@ -41271,6 +41705,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>document.getElementById('stores-current-stock')?.scrollIntoView({behavior:'smooth',block:'start'})},'⌕ Search / Edit Stock')
       ),
       controller&&(section==='receive'||((!section||section==='stock')&&showReceive))&&h('div',{id:'stores-receive-form',style:{scrollMarginTop:'90px'}},h(Section,{title:'Receive from Vendor',subtitle:'Every pharmacy or Stores item received from a vendor must first be entered here before issue.'},
+        h(StoreBillScan,{items:itemMaster,defaultSection:formToSection(form.item_category),onReceived:load,notify:notifyStore}), // 2.18.0
         h('div',{className:'field',style:{marginBottom:'12px'}},h('label',null,'Find item to receive (minimum 3 characters)'),h('input',{value:stockSearch,onChange:e=>setStockSearch(e.target.value),placeholder:categoryFilter==='Pharmacy'?'Example: dispo, syr, para':categoryFilter==='Kitchen / Food Stores'?'Example: ric, tea, bis':categoryFilter==='Housekeeping & General'?'Example: lin, tis, cle':'Example: dia, glo, syr'}),h('small',null,stockSearch.trim().length>0&&stockSearch.trim().length<3?'Enter at least 3 characters.':'Matching items appear below — tap one to select.'),stockSearchText.length>=3&&h('div',{style:{marginTop:'8px',border:'1px solid #ead2dd',borderRadius:'10px',padding:'6px',maxHeight:'220px',overflowY:'auto',background:'#fff'}},(()=>{const master=catalogFor(formToSection(form.item_category)).filter(x=>String(x||'').toLowerCase().includes(stockSearchText)).map(x=>({kind:'catalog',name:x,label:x}));const existing=categoryStock.filter(x=>String(x.item_name||'').toLowerCase().includes(stockSearchText)).map(x=>({kind:'existing',id:x.item_id,name:x.item_name,label:`${masterById.get(x.item_id)?.item_code?`${masterById.get(x.item_id).item_code} · `:''}${displayStoreItemName(x.item_name)} · Balance ${x.balance_qty} ${x.unit}`}));const seen=new Set();const matches=[...existing,...master].filter(x=>{const k=String(x.name||'').toLowerCase();if(seen.has(k))return false;seen.add(k);return true}).slice(0,30);return matches.length?matches.map((x,i)=>h('button',{key:`search-${x.kind}-${x.id||i}`,type:'button',className:'btn btn-secondary',style:{display:'block',width:'100%',textAlign:'left',margin:'3px 0'},onClick:()=>{x.kind==='existing'?selectItem(x.id):selectCatalogItem(x.name);setStockSearch('')}},x.label)):h('div',{style:{padding:'8px',color:'#7b6570'}},'No matching item found in this section.');})())),
         h('form',{onSubmit:receiveStock},
           h('div',{className:'grid two'},

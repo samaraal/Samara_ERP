@@ -1,3 +1,10 @@
+## 2.18.0 — Document scan in the live ERP (from the Scan Lab trial)
+- **Admission → Section 1: 📷 Scan ID card** (Aadhaar / Passport / other ID). Fills Name, Date of Birth (age), Gender and address where still empty — Tamil Nadu district / taluk matched to the lists. Shows what was filled and what was kept. Only the last 4 digits of the ID number are ever read. The card is attached as the identity document.
+- **Admission → Section 3: 📷 Scan prescription** (photo / PDF, up to 8 pages, read in parallel). Each medicine is added as a row with doctor, strength, frequency, times (Samara meal times), route (incl. Nasal), food and duration; unclear values are marked. A doctor not printed is entered once for all. Every scanned medicine must be ticked **✓ Verified** (or Edit → ✓ Done & verified) before the admission can be saved. The prescription is attached as a document.
+- **Stores → Receive from Vendor: 📷 Scan supplier bill.** Vendor, invoice no. / date and every line read; lines matched to the Stores Master (code, section, unit; sizes must agree); pack-size conversion, MM/YY expiry, subtotal check. Tick ✓ Verified per line, then **Receive verified lines** — received through the same database function as the manual form. A NEW item is added to the Stores Master without a price; the Guest charge rate is fixed only by Admin / Director in Charge Master.
+- Who can scan = who can already use the form. Edge Functions prescription-scan (1.1.0) and store-scan (1.2.0) now accept any active staff login. Scan Lab trial page stays (Admin only) for testing. No SQL.
+- Fixed: a stray "🎤 Voice" button could stay inside an Admission medicine row after the row was locked.
+
 ## 2.17.11 — "Nasal" medicine route
 - Medicine Route lists now include **Nasal** (nasal sprays / drops, e.g. Budecort nasal) in Admission, Spot Assessment and Medicines (Doctor Review / Modify). Scan Lab prescription reading fills Nasal when the prescription says so. No SQL.
 

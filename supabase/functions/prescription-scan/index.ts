@@ -1,10 +1,11 @@
-// Samara Care ERP — Scan Lab (TRIAL) · Edge Function: prescription-scan · 1.0.6 · 18-10-2026
+// Samara Care ERP — Edge Function: prescription-scan · 1.1.0 · 18-10-2026
+// 1.1.0: used by the live Admission form (any active staff — the form itself controls who can admit) and Scan Lab.
 // 1.0.7: "Nasal" route · 1.0.5: page + doctor per medicine · 1.0.6: "0-0-1" without bedtime words = OD after dinner, not HS
 // Reads an uploaded prescription (photo / PDF, several pages) or a Guest ID card (Aadhaar / Passport / other)
 // and returns the fields in the exact shape of the ERP Admission form, for staff to VERIFY.
 //
 // Trial rules:
-//  - Admin only (checked here from public.profiles.role). Nothing is written to the database.
+//  - Any active ERP staff login (public.profiles.is_active). Nothing is written to the database.
 //  - Images / PDFs are sent to Gemini only to be read; they are not stored by this function.
 //  - Full Aadhaar / ID numbers are NEVER returned: only the last 4 digits. Any 12-digit or long number that
 //    slips into another field is masked again here before the reply leaves the server.
@@ -183,10 +184,10 @@ Deno.serve(async (req) => {
   const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
   const { data: auth } = await admin.auth.getUser(token).catch(() => ({ data: null as any }));
   const user = auth?.user; if (!user) return out({ error: "Please log in to the ERP again.", code: "AUTH" }, 401);
-  const { data: prof } = await admin.from("profiles").select("role,full_name")
+  const { data: prof } = await admin.from("profiles").select("role,full_name,is_active")
     .or(`id.eq.${user.id},auth_user_id.eq.${user.id}`).limit(1).maybeSingle();
-  // TRIAL: Admin only. (When this moves into the live Admission form, widen to the roles that admit Guests.)
-  if (String(prof?.role || "") !== "Admin") return out({ error: "Scan Lab is in trial — Admin only.", code: "ROLE" }, 403);
+  // 1.1.0: live ERP — any active staff member (who may use the scan is decided by the Admission form).
+  if (!prof || prof.is_active === false) return out({ error: "Your ERP staff account is not active.", code: "ROLE" }, 403);
 
   try {
     const j = await req.json().catch(() => null);

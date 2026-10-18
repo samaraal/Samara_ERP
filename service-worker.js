@@ -1,5 +1,5 @@
-const APP_VERSION = '2.17.11';
-const CACHE = 'samara-erp-2.17.11-nasal-route';
+const APP_VERSION = '2.18.0';
+const CACHE = 'samara-erp-2.18.0-document-scan';
 const SHELL = [
   './',
   './index.html',

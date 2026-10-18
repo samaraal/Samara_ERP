@@ -852,6 +852,55 @@
     function careRowComplete(row){
       return Boolean(String(row.care_type||'').trim());
     }
+    // 2.18.0: scan the prescription / ID card (moved from the Scan Lab trial). The AI only reads; every scanned
+    // medicine must be ticked "✓ Verified" against the prescription before the admission can be saved.
+    const [rxScan,setRxScan]=React.useState({busy:false,status:'',tone:'',metas:[],notes:[]});
+    const [idScan,setIdScan]=React.useState({busy:false,status:'',tone:'',lines:[]});
+    const [scanDoctor,setScanDoctor]=React.useState('');
+    const scannedPending=meds.filter(m=>m.scan&&!m.scan.verified&&String(m.medicine_name||'').trim());
+    async function scanPrescriptionFiles(files){
+      setRxScan(s=>({...s,busy:true,status:'Reading the prescription…',tone:''}));
+      try{
+        const reading=await SAMARA_SCAN.withTimer(t=>setRxScan(s=>({...s,status:t})),`Reading ${files.length} page(s)…`,()=>SAMARA_SCAN.readPrescription(files));
+        const {rows,metas,notes}=SAMARA_SCAN.prescriptionToMedicines(reading,meds.map(m=>m.medicine_name));
+        if(!rows.length)throw new Error('No medicines could be read from this document. Enter them by hand, or take a clearer photo.');
+        setMeds(cur=>[...cur.filter(m=>String(m.medicine_name||'').trim()),...rows]);
+        setForm(cur=>({...cur,undergoing_prescribed_medication:'Yes'}));
+        setPrescriptionFiles(prev=>[...(prev||[]),...files]);keepDraftFiles(setPrescriptionFiles,files,false);
+        const failed=reading.failed.length?` Page ${reading.failed.join(', ')} could not be read (${reading.failReason}) — scan it again on its own.`:'';
+        setRxScan({busy:false,tone:failed?'error':'ok',metas,notes,
+          status:`${rows.length} medicine(s) read and added below.${failed} Check each one against the prescription, correct it with Edit if needed, then tick ✓ Verified. The prescription is also attached as a document.`});
+      }catch(e){setRxScan(s=>({...s,busy:false,tone:'error',status:e.message||'Could not read the prescription.'}))}
+    }
+    function verifyScannedMedicine(index){
+      const row=meds[index];
+      if(!medicineRowComplete(row)){setMsg('Complete Prescribed Doctor, Medicine, Strength (number and unit) and Time for this medicine first (use Edit).');return}
+      setMeds(meds.map((m,i)=>i===index?{...m,is_locked:true,scan:{...m.scan,verified:true}}:m));setMsg('');
+    }
+    function applyScanDoctor(){
+      const name=String(scanDoctor||'').trim();if(!name)return;
+      setMeds(meds.map(m=>m.scan&&!m.scan.verified&&!String(m.prescribed_by_doctor||'').trim()?{...m,prescribed_by_doctor:name}:m));setScanDoctor('');
+    }
+    async function scanIdFiles(files){
+      setIdScan(s=>({...s,busy:true,status:'Reading the ID card…',tone:''}));
+      try{
+        const r=await SAMARA_SCAN.withTimer(t=>setIdScan(s=>({...s,status:t})),'Reading the ID card…',()=>SAMARA_SCAN.readId(files));
+        const g=SAMARA_SCAN.idToGuest(r);
+        const filled=[],kept=[];
+        const label={full_name:'Name',date_of_birth:'Date of Birth',age:'Age',gender:'Gender',country:'Country',state:'State',district:'District',taluk:'Taluk',village_town:'Village / Town',locality_area:'Locality',street_name:'Street',house_no:'Door No.',apartment_name:'Apartment',pincode:'Pincode'};
+        const cur=form,patch={};
+        for(const [k,v] of Object.entries(g.fields)){
+          const now=String(cur[k]==null?'':cur[k]).trim();
+          const empty=!now||k==='gender'||(k==='country'&&now==='India'&&!String(cur.district||'').trim())||(k==='state'&&!String(cur.district||'').trim()); // gender starts with a default value, so the card decides
+          if(empty||now===v){patch[k]=v;if(now!==v)filled.push(`${label[k]||k}: ${k==='date_of_birth'?formatDateIN(v):v}${now&&k==='gender'?` (was ${now})`:''}`)}else kept.push(`${label[k]||k} on card "${k==='date_of_birth'?formatDateIN(v):v}" — kept "${now}"`);
+        }
+        if(patch.date_of_birth&&patch.date_of_birth!==cur.date_of_birth){const years=ageFromDateOfBirth(patch.date_of_birth);if(years!==null)patch.age=String(years)}
+        setForm(c=>({...c,...patch}));
+        setIdFiles(prev=>[...(prev||[]),...files]);keepDraftFiles(setIdFiles,files,false);
+        const lines=[...filled.map(x=>'Filled — '+x),...kept.map(x=>'Not changed — '+x),...g.notes,g.relation?`On the card: ${g.relation}`:'',g.documentType?`${g.documentType}${g.last4?` ending ${g.last4}`:''} (the full number is never read or stored)`:''].filter(Boolean);
+        setIdScan({busy:false,tone:'ok',lines,status:`ID card read. ${filled.length} field(s) filled — check each against the card. The card is also attached as the identity document.`});
+      }catch(e){setIdScan(s=>({...s,busy:false,tone:'error',status:e.message||'Could not read the ID card.'}))}
+    }
     function addMedicineEntry(){
       const editableIndex=meds.findIndex(row=>!row.is_locked);
       if(editableIndex>=0){
@@ -2054,6 +2103,8 @@ Please keep these login details confidential.`;
         setBusy(false);
         return;
       }
+      {const unverified=effectiveMeds.filter(m=>m.scan&&!m.scan.verified);
+       if(unverified.length){setMsg(`${unverified.length} scanned medicine(s) are not yet verified (${unverified.slice(0,3).map(m=>m.medicine_name).join(', ')}${unverified.length>3?' …':''}). Check each against the prescription and tick ✓ Verified in Section 3.`);setBusy(false);return;}}
       // 2.14.74: a medicine may start later (e.g. next weekly dose), but not more than 30 days ahead.
       {const tooFar=effectiveMeds.find(m=>{const t=new Date(medicationEffectiveValue(m)).getTime();return !Number.isFinite(t)||t>Date.now()+30*86400000;});
        if(tooFar){setMsg(`Check the Starts from date & time for ${tooFar.medicine_name||'a medicine'}: it must be a valid date within 30 days from now.`);setBusy(false);return;}}
@@ -2460,7 +2511,14 @@ Please keep these login details confidential.`;
           h('div',{style:{marginTop:'5px'}},`${formalName(returningPatient)||returningPatient.full_name} · ${returningPatient.patient_id}. Permanent personal details and existing documents will be retained.`)
         )
       ),
-      h('div',{className:'section-card'},h('h4',null,'1. Admission route and patient identity'),h('div',{className:'form-grid'},
+      h('div',{className:'section-card'},h('h4',null,'1. Admission route and patient identity'),
+        !returningPatient&&h('div',{className:'section-card',style:{background:'#fff4f9',borderColor:'#e7b6cf',margin:'0 0 10px'}},
+          h('strong',null,'Fill Guest details from the ID card'),
+          h('small',{className:'small-note',style:{display:'block',margin:'4px 0 8px'}},`Scan the ${guestIdLabel} (front and back). Name, Date of Birth, Gender and address are filled where still empty. Only the last 4 digits of the ID number are ever read.`),
+          h(SAMARA_SCAN.ScanButton,{label:'Scan ID card',busy:idScan.busy,status:idScan.status,tone:idScan.tone,onFiles:scanIdFiles,beforePick:saveAdmissionDraftBeforeDocumentPicker}),
+          idScan.lines.length?h('ul',{className:'small-note',style:{margin:'6px 0 0 18px'}},idScan.lines.map((x,k)=>h('li',{key:`idl-${k}`},x))):null
+        ),
+        h('div',{className:'form-grid'},
         selectField('Admission source','admission_type',form,setForm,[
           'Previous Hospital / Care Centre',
           'Direct Admission – Elderly Care',
@@ -2662,23 +2720,42 @@ Please keep these login details confidential.`;
             'No medicine entry is required. The consent form will record that no prescribed medication was declared at admission.'
           )
         ),
+        h('div',{className:'section-card',style:{background:'#fff4f9',borderColor:'#e7b6cf',margin:'8px 0'}},
+          h('strong',null,'Fill medicines from the prescription'),
+          h('small',{className:'small-note',style:{display:'block',margin:'4px 0 8px'}},'Photo or PDF, up to 8 pages. Each medicine is added below for you to check and tick ✓ Verified. Another doctor’s prescription? Scan it too — it is added to the list.'),
+          h(SAMARA_SCAN.ScanButton,{label:'Scan prescription',busy:rxScan.busy,status:rxScan.status,tone:rxScan.tone,onFiles:scanPrescriptionFiles,beforePick:saveAdmissionDraftBeforeDocumentPicker}),
+          rxScan.metas.filter(x=>x.patient||x.hospital||x.date||x.poor).map((x,k)=>h('small',{key:`rxm-${k}`,className:'small-note',style:{display:'block',marginTop:'4px'}},
+            [x.hospital&&`${x.hospital}`,x.date&&`dated ${x.date}`,x.patient&&`name on prescription: ${x.patient} — make sure this is the right Guest`,x.poor&&'pages hard to read — check very carefully'].filter(Boolean).join(' · '))),
+          rxScan.notes.length?h('small',{className:'small-note',style:{display:'block',marginTop:'4px'}},`Also on the prescription (not added as medicines): ${rxScan.notes.join('; ')}`):null,
+          scannedPending.some(m=>!String(m.prescribed_by_doctor||'').trim())&&h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'flex-end',marginTop:'8px'}},
+            h('div',{className:'field',style:{flex:'1 1 240px',margin:0}},h('label',null,`Prescribed Doctor for ${scannedPending.filter(m=>!String(m.prescribed_by_doctor||'').trim()).length} scanned medicine(s) — not printed`),
+              h('input',{value:scanDoctor,placeholder:'e.g. Dr. R. Kumar','data-scan-doctor':'1','data-samara-voice':'off',onChange:e=>setScanDoctor(e.target.value)})),
+            h('button',{type:'button',className:'btn btn-secondary',disabled:!String(scanDoctor).trim(),onClick:applyScanDoctor},'Fill for all of them')),
+          scannedPending.length?h('small',{style:{display:'block',marginTop:'6px',color:'#8a5a00',fontWeight:700}},`${scannedPending.length} scanned medicine(s) still to verify — the admission cannot be saved until each is ticked ✓ Verified.`):null
+        ),
         form.undergoing_prescribed_medication==='Yes'&&h(React.Fragment,null,
         meds.map((m,i)=>m.is_locked
-          ?h('div',{className:'admission-locked-row',key:`med-${i}`},
+          ?h('div',{className:'admission-locked-row',key:`med-${i}-locked`,style:m.scan&&!m.scan.verified?{background:'#fff8e1',borderColor:'#e0b84a'}:undefined},
             h('span',{className:'number'},i+1),
             h('div',{className:'summary'},
-              h('strong',null,`${m.medicine_name} ${m.strength}`),
+              m.scan&&!m.scan.verified&&h('small',{style:{color:'#8a5a00',fontWeight:700}},`⚠ Read from the prescription${m.scan.page?` (page ${m.scan.page})`:''} — check against it${m.scan.confidence==='low'?' carefully (hard to read)':''}`),
+              m.scan&&m.scan.raw&&!m.scan.verified&&h('small',{style:{fontFamily:'monospace',background:'#fff',padding:'2px 6px',borderRadius:'6px'}},`As written: ${m.scan.raw}`),
+              m.scan&&m.scan.verified&&h('small',{style:{color:'#1b7a43',fontWeight:700}},'✓ Verified against the prescription'),
+              h('strong',null,`${m.medicine_name||'Medicine name needed'} ${m.strength||''}`),
               h('small',null,`Prescribed by: ${m.prescribed_by_doctor||'Not recorded'}`),
               h('small',null,`${m.frequency} · ${m.route} · ${String(m.times||'').split(',').map(x=>medicationTimeLabel(x.trim())).join(', ')} · ${m.food_instruction} · ${m.duration}`),
               h('small',null,`Effective from: ${(()=>{const v=medicationEffectiveValue(m);return `${formatDateIN(v.slice(0,10))} ${medicationTimeLabel(v.slice(11,16))}`})()}`),
-              m.special_instruction&&h('small',null,`Instruction: ${m.special_instruction}`)
+              m.special_instruction&&h('small',null,`Instruction: ${m.special_instruction}`),
+              m.scan&&!m.scan.verified&&(m.scan.flags||[]).length?h('small',{style:{color:'#8a5a00'}},'Check: '+(m.scan.flags||[]).map(k=>`${SAMARA_SCAN.LABEL[k]||k}${m.scan.notes&&m.scan.notes[k]?` (${m.scan.notes[k]})`:''}`).join(' · ')):null,
+              m.scan&&!m.scan.verified&&!medicineRowComplete(m)?h('small',{className:'error-text'},'Still needed: '+[!String(m.prescribed_by_doctor||'').trim()&&'Prescribed Doctor',!String(m.medicine_name||'').trim()&&'Medicine',!medicationStrengthValid(m.strength)&&'Strength (number and unit)',!String(m.times||'').trim()&&'Time'].filter(Boolean).join(', ')+' — use Edit'):null
             ),
             h('div',{className:'admission-row-actions'},
+              m.scan&&!m.scan.verified&&h('button',{type:'button',className:'btn btn-primary',disabled:!medicineRowComplete(m),title:medicineRowComplete(m)?'I have checked this medicine against the prescription':'Complete the missing details first (Edit)',onClick:()=>verifyScannedMedicine(i)},'✓ Verified'),
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>editMedicineEntry(i)},'Edit'),
               h('button',{type:'button',className:'btn btn-danger',onClick:()=>removeMedicineEntry(i)},'Remove')
             )
           )
-          :h('div',{className:'repeat-row medicine-order-row admission-numbered-row',key:`med-${i}`},
+          :h('div',{className:'repeat-row medicine-order-row admission-numbered-row',key:`med-${i}-edit`},
             h('span',{className:'admission-row-number'},i+1),
             miniInput('Prescribed Doctor',m.prescribed_by_doctor,v=>updateRow(setMeds,meds,i,'prescribed_by_doctor',v),true),
             miniInput('Medicine',m.medicine_name,v=>updateRow(setMeds,meds,i,'medicine_name',v),true),
@@ -2703,6 +2780,8 @@ Please keep these login details confidential.`;
               );
             })(),
             miniInput('Special instruction',m.special_instruction,v=>updateRow(setMeds,meds,i,'special_instruction',v)),
+            m.scan&&m.scan.raw?h('small',{className:'small-note',style:{fontFamily:'monospace'}},`As written: ${m.scan.raw}`):null,
+            m.scan?h('button',{type:'button',className:'btn btn-primary',disabled:!medicineRowComplete(m),onClick:()=>verifyScannedMedicine(i)},'✓ Done & verified'):null,
             h('button',{type:'button',className:'btn btn-danger',onClick:()=>removeMedicineEntry(i),disabled:meds.length===1&&!m.medicine_name},'Remove')
           )
         ),

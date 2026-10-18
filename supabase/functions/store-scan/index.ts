@@ -1,4 +1,6 @@
-// Samara Care ERP — Scan Lab Stores stock-arrival trial · 1.1.1 · 18-10-2026
+// Samara Care ERP — Edge Function: store-scan (supplier bill → stock arrival) · 1.2.0 · 18-10-2026
+// 1.2.0: used by the live Stores "Receive from Vendor" form and Scan Lab — any active staff login
+//        (who can receive stock is decided by the Stores form).
 // 1.1.1 (real Sun Surgicals bill): dates like "30-Sep-26" / "30/09/2026" accepted (invoice date was dropped); invoice subtotal read.
 // Reads supplier invoices / delivery notes and returns an editable preview only.
 // It performs no database writes and stores no uploaded files.
@@ -99,8 +101,8 @@ Deno.serve(async (req) => {
   const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
   const { data: auth } = await admin.auth.getUser(token).catch(() => ({ data: null as any }));
   const user = auth?.user; if (!user) return out({ error: "Please log in to the ERP again.", code: "AUTH" }, 401);
-  const { data: prof } = await admin.from("profiles").select("role").or(`id.eq.${user.id},auth_user_id.eq.${user.id}`).limit(1).maybeSingle();
-  if (String(prof?.role || "") !== "Admin") return out({ error: "Stores Scan trial is Admin only.", code: "ROLE" }, 403);
+  const { data: prof } = await admin.from("profiles").select("role,is_active").or(`id.eq.${user.id},auth_user_id.eq.${user.id}`).limit(1).maybeSingle();
+  if (!prof || prof.is_active === false) return out({ error: "Your ERP staff account is not active.", code: "ROLE" }, 403);
   try {
     const body = await req.json().catch(() => null);
     const files = (Array.isArray(body?.files) ? body.files : []).filter((f: any) => f && typeof f.data === "string" && f.data.length > 100);
