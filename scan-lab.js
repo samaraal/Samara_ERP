@@ -1,4 +1,4 @@
-/* Samara Care ERP — Scan Lab (TRIAL) v1.0.7 · 18-10-2026 (1.0.7: night-dose fix, fixed insulin units, stock invoice score)
+/* Samara Care ERP — Scan Lab (TRIAL) v1.0.8 · 18-10-2026 (1.0.7: night-dose fix, fixed insulin units, stock invoice score; 1.0.8: date only on its own prescription)
  * Separate page, Admin only. Reads a prescription / ID card through the "prescription-scan" Edge Function
  * and fills Admission-form fields for checking. NOTHING is written to the database.
  * The only database read is the Pharmacy item list (for the spelling check).
@@ -252,12 +252,14 @@
     state.rxNotes = state.rxNotes.concat(r.other_notes || []);
     const readNo = ++state.readCount, offset = state.pageOffset;
     // 1.0.5: medicines are grouped by prescription (doctor, else page) — one doctor entry fills the whole group.
+    let groupsMade = 0;
     const perMedDoctor = (r.medicines || []).some((m) => String(m.doctor_name || '').trim());
     const groupFor = (m) => {
       const doc = perMedDoctor ? String(m.doctor_name || '').trim() : meta.doctor_name;
       const key = doc ? 'd:' + doc.toLowerCase().replace(/[^a-z]/g, '') : `r${readNo}:p${m.page || 1}`;
       let g = state.groups.find((x) => x.key === key);
-      if (!g) { g = { key, doctor: doc, aiDoctor: doc, pages: new Set(), count: 0, hospital: meta.hospital_or_clinic, date: meta.prescription_date }; state.groups.push(g); }
+      // 1.0.8: the reading returns ONE date / clinic (the main prescription) — show them only on the first group of this reading.
+      if (!g) { const first = !groupsMade++; g = { key, doctor: doc, aiDoctor: doc, pages: new Set(), count: 0, hospital: first ? meta.hospital_or_clinic : '', date: first ? meta.prescription_date : '' }; state.groups.push(g); }
       g.pages.add(Number(m.page || 1) + offset);
       g.count++;
       return g;
