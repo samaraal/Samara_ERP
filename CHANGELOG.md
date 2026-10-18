@@ -1,3 +1,8 @@
+## 2.18.3 — Supplier bill with Pharmacy and Consumables items together
+- Each scanned line is received into its OWN section (from the Stores Master, else as read from the bill), whichever Stores page the scan was opened from.
+- A line whose section is not clear on the bill takes the page's section but is marked **yellow** ("Section not clear — change it if this is a Pharmacy item").
+- The Receive confirmation shows the split, e.g. "Pharmacy: 3 line(s) · Consumables: 2 line(s)". No SQL.
+
 ## 2.18.2 — Scan: add several pages, Clear, yellow check boxes (as in the Scan Lab trial)
 - All three scans (ID card, prescription, supplier bill) now collect pages first: **+ Add more pages** / **+ Photo of page N** (e.g. Aadhaar front + back), thumbnails with ×, **Clear**, then **✨ Read & Fill…** reads them together.
 - After an ID scan, the fields it filled (to check) and the identity / address fields it could not fill are shown in **light yellow** until filled or changed, or **✓ Checked against the card** is pressed.

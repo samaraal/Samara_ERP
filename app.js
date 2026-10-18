@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.2';
+  const APP_VERSION = '2.18.3';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '18-Oct-2026 Scan pages tray and yellow check boxes';
+  const APP_BUILD_DATE = '18-Oct-2026 Mixed-section supplier bills';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -41174,7 +41174,11 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         const x=await SAMARA_SCAN.withTimer(setStatus,`Reading ${files.length} page(s)…`,()=>SAMARA_SCAN.readBill(files));
         setHead({vendor_name:String(x.vendor_name||'').trim(),invoice_no:String(x.invoice_no||'').trim(),invoice_date:billIso(x.invoice_date),received_date:todayISOIndia(),remarks:String(x.remarks||'').trim()});
         setSubtotal(String(x.subtotal||''));
-        const ls=billLines(x,activeItems).map(l=>({...l,section:l.section||(BILL_SCAN_SECTIONS.includes(defaultSection)?defaultSection:'')}));
+        // 2.18.3: one bill may mix Pharmacy, Consumables, Housekeeping … — each line keeps its OWN section (from the
+        // Stores Master, else as read from the bill). Only a line whose section is not clear takes this page's section,
+        // and it is marked yellow so staff confirm it.
+        const fallback=BILL_SCAN_SECTIONS.includes(defaultSection)?defaultSection:'';
+        const ls=billLines(x,activeItems).map(l=>l.section||!fallback?l:{...l,section:fallback,flags:[...new Set([...l.flags,'section'])],notes:{...l.notes,section:l.notes.section||`Section not clear on the bill — set to ${fallback} (this page). Change it if this is a ${fallback==='Pharmacy'?'Consumables / other':'Pharmacy / other'} item.`}});
         setLines(ls);setTone(ls.length?'ok':'error');
         setStatus(ls.length?`${ls.length} line(s) read. Check every yellow field against the bill, tick ✓ Verified on each line, then press Receive.`:'No stock lines could be read. Use the manual form below.');
       }catch(e){setTone('error');setStatus(e.message||'Could not read the bill.')}
@@ -41191,7 +41195,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       if(!billIso(head.received_date))return notify('error','Enter the Received date (the day the goods arrived).');
       if(!todo.length)return notify('error','Tick ✓ Verified on the lines to receive first.');
       const fresh=todo.filter(l=>l.match.kind!=='exact').length;
-      if(!confirm(`Receive ${todo.length} verified line(s) from ${head.vendor_name} into stock?${fresh?`\n\n${fresh} NEW item(s) will be added to the Stores Master (no price — Admin / Director fixes the Guest rate in Charge Master).`:''}`))return;
+      const bySection=BILL_SCAN_SECTIONS.map(sec=>[sec,todo.filter(l=>l.section===sec).length]).filter(([,n])=>n).map(([sec,n])=>`${sec}: ${n} line(s)`).join('\n');
+      if(!confirm(`Receive ${todo.length} verified line(s) from ${head.vendor_name} into stock?\n\n${bySection}${fresh?`\n\n${fresh} NEW item(s) will be added to the Stores Master (no price — Admin / Director fixes the Guest rate in Charge Master).`:''}`))return;
       setBusy(true);let ok=0,bad=0;
       for(const l of todo){
         const qty=Number(l.quantity)+(Number(l.free_quantity)||0);
