@@ -1,3 +1,8 @@
+## 2.18.1 — Sign-out on this device only
+- **Idle sign-out (30 minutes)** now signs out only the device that was left idle; the same staff member stays signed in on their other devices. Activity in any ERP tab of the same browser counts, so an idle second tab no longer signs out the tab being used.
+- **Sign Out** buttons (menu, mobile drawer, header) sign out this device only. A profile that fails to load because of a network problem also signs out this device only.
+- Unchanged — still sign out on **all** devices: inactive staff account, login not linked to an employee profile, security identity mismatch, and password change. No SQL.
+
 ## 2.18.0 — Document scan in the live ERP (from the Scan Lab trial)
 - **Admission → Section 1: 📷 Scan ID card** (Aadhaar / Passport / other ID). Fills Name, Date of Birth (age), Gender and address where still empty — Tamil Nadu district / taluk matched to the lists. Shows what was filled and what was kept. Only the last 4 digits of the ID number are ever read. The card is attached as the identity document.
 - **Admission → Section 3: 📷 Scan prescription** (photo / PDF, up to 8 pages, read in parallel). Each medicine is added as a row with doctor, strength, frequency, times (Samara meal times), route (incl. Nasal), food and duration; unclear values are marked. A doctor not printed is entered once for all. Every scanned medicine must be ticked **✓ Verified** (or Edit → ✓ Done & verified) before the admission can be saved. The prescription is attached as a document.

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.0';
+  const APP_VERSION = '2.18.1';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '18-Oct-2026 Document scan in Admission and Stores';
+  const APP_BUILD_DATE = '18-Oct-2026 Sign-out on this device only';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -13897,7 +13897,7 @@ https://samaraassistedliving.com/`;
           setAuthMessage('Unable to load your employee profile. Please sign in again.');
           setProfile(null);
           setSession(null);
-          await client.auth.signOut().catch(()=>{});
+          await client.auth.signOut({scope:'local'}).catch(()=>{}); // 2.18.1: a network hiccup on one device must not sign out the others
           return;
         }
 
@@ -14007,34 +14007,42 @@ https://samaraassistedliving.com/`;
       let timer;
       let signingOut=false;
       const INACTIVITY_MS=30*60*1000;
-      let lastActivityAt=Date.now();
+      // 2.18.1: activity in ANY ERP tab of this browser counts (shared timestamp), and the idle sign-out
+      // signs out THIS device only (scope 'local') — the same person stays signed in on their other devices.
+      const ACTIVITY_KEY='samara-last-activity-at';
+      const sharedActivity=()=>{try{return Number(localStorage.getItem(ACTIVITY_KEY))||0}catch(_){return 0}};
+      let lastActivityAt=Math.max(Date.now(),sharedActivity());
+      let lastShared=0;
+      const latestActivity=()=>Math.max(lastActivityAt,sharedActivity());
       const signOutForInactivity=async()=>{
         if(signingOut)return;
+        if(Date.now()-latestActivity()<INACTIVITY_MS){schedule();return} // another tab was in use
         signingOut=true;
         clearTimeout(timer);
-        await client.auth.signOut().catch(()=>{});
+        await client.auth.signOut({scope:'local'}).catch(()=>{});
         setAuthMessage('You were signed out after 30 minutes of inactivity for security.');
       };
       const schedule=()=>{
         if(signingOut)return;
         clearTimeout(timer);
-        const remaining=INACTIVITY_MS-(Date.now()-lastActivityAt);
+        const remaining=INACTIVITY_MS-(Date.now()-latestActivity());
         if(remaining<=0){signOutForInactivity();return}
         timer=setTimeout(()=>{
-          if(Date.now()-lastActivityAt>=INACTIVITY_MS)signOutForInactivity();
+          if(Date.now()-latestActivity()>=INACTIVITY_MS)signOutForInactivity();
           else schedule();
         },remaining);
       };
       const recordActivity=()=>{
         if(signingOut)return;
         lastActivityAt=Date.now();
+        if(lastActivityAt-lastShared>15000){lastShared=lastActivityAt;try{localStorage.setItem(ACTIVITY_KEY,String(lastActivityAt))}catch(_){}}
         schedule();
       };
       const events=['click','keydown','touchstart','pointerdown','input','change','scroll','wheel'];
       events.forEach(name=>window.addEventListener(name,recordActivity,{passive:true,capture:true}));
       const onVisibility=()=>{
         if(document.visibilityState!=='visible')return;
-        if(Date.now()-lastActivityAt>=INACTIVITY_MS)signOutForInactivity();
+        if(Date.now()-latestActivity()>=INACTIVITY_MS)signOutForInactivity();
         else schedule();
       };
       document.addEventListener('visibilitychange',onVisibility);
@@ -14084,7 +14092,7 @@ https://samaraassistedliving.com/`;
           (navDepth>0||page!==(homePageForProfile(profile)||allowed[0]))&&h('button',{type:'button',className:'btn btn-secondary global-back-button',onClick:goBackPage,title:'Go back to the previous page','aria-label':'Go back'},'‹ Back'),
           h('button',{type:'button',className:'btn btn-secondary mobile-global-home',onClick:()=>{pageEditedRef.current=false;setPage(homePageForProfile(profile)||allowed[0]);window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}})},title:'Go to Home','aria-label':'Go to Home'},'⌂ Home'),
           h('button',{type:'button',className:'btn btn-secondary',onClick:refreshCurrentPage,title:'Reload the current page data','aria-label':'Refresh current page'},'↻ Refresh'),
-          h('button',{type:'button',className:'btn btn-secondary mobile-global-signout',onClick:async()=>{if(!window.confirm('Are you sure you want to sign out?'))return;await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');await client.auth.signOut()},title:'Sign out of Samara Care','aria-label':'Sign out'},'⇥ Sign Out')),
+          h('button',{type:'button',className:'btn btn-secondary mobile-global-signout',onClick:async()=>{if(!window.confirm('Are you sure you want to sign out?'))return;await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');await client.auth.signOut({scope:'local'})},title:'Sign out of Samara Care on this device','aria-label':'Sign out'},'⇥ Sign Out')),
         h(NursingMobileQuickActions,{profile,page,onNavigate:setPage}),
         page==='Clinical Dashboard'&&allowed.includes('Talk to Guest')&&h('div',{style:{padding:'12px 16px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPage('Talk to Guest')},'🎙 Talk to Guest · 6 languages')),
         h(window.SamaraDutySwap.DailyNotice,dutyNotice),
@@ -14738,7 +14746,7 @@ https://samaraassistedliving.com/`;
       h('div',{className:'sidebar-footer'},
         h('button',{type:'button',className:'user-chip',onClick:()=>setPage('My Profile'),title:'Open My Profile',style:{width:'100%',textAlign:'left',cursor:'pointer'}},h('strong',null,formalName(profile)),h('small',null,`${profile.login_id} · ${profile.role}`)),
         h('button',{type:'button',className:'btn btn-secondary full',onClick:samaraOpenAppHelp},'App Help / Repair'),
-        h('button',{className:'btn btn-secondary full',onClick:async()=>{await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');await client.auth.signOut()}},'Sign out')
+        h('button',{className:'btn btn-secondary full',onClick:async()=>{await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');await client.auth.signOut({scope:'local'})}},'Sign out') /* 2.18.1: this device only */
       )
     );
   }
@@ -14816,7 +14824,7 @@ https://samaraassistedliving.com/`;
       if(!window.confirm('Are you sure you want to sign out?'))return;
       onClose();
       await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');
-      await client.auth.signOut();
+      await client.auth.signOut({scope:'local'}); // 2.18.1: this device only
     }
     return h('div',{className:'mobile-drawer-layer',role:'presentation',onClick:e=>{if(e.target===e.currentTarget)onClose()}},
       h('aside',{className:'mobile-nav-drawer elegant-mobile-drawer',role:'dialog','aria-modal':'true','aria-label':'Samara Care mobile menu'},
