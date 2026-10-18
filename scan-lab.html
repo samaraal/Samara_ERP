@@ -12,7 +12,7 @@
   <script src="./config.js?v=scanlab-1.0.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
   <script defer src="./scan-lab.js?v=1.0.10"></script>
-  <script defer src="./store-scan.js?v=1.2.0"></script>
+  <script defer src="./store-scan.js?v=1.3.0"></script>
 </head>
 <body>
   <header class="topbar">
@@ -30,7 +30,7 @@
     <div class="notice">
       <strong>Trial workspace.</strong>
       Upload a prescription or ID card and the system fills the Admission-form fields for you to check.
-      Nothing here is saved to the live ERP: no Guest, medicine, stock or document is created or changed — except a NEW Stores item you confirm with ➕ Add to Stores Master. Closing or refreshing the page clears everything.
+      Nothing here is saved to the live ERP: no Guest, medicine, stock or document is created or changed — except a NEW Stores item, which is added (without a price) when its stock line is ✓ Verified. Closing or refreshing the page clears everything.
     </div>
 
     <nav class="tabs" role="tablist">
@@ -95,7 +95,7 @@
 
     <!-- STORE ARRIVAL: TRIAL PREVIEW ONLY -->
     <section class="panel" data-panel="store" hidden>
-      <div class="notice store-notice"><strong>Trial preview only.</strong> Read a supplier invoice or delivery note, check and correct the extracted stock details, then use the existing ERP Stores form to enter them manually. Stock is not saved here. The one exception: a NEW item can be added to the Stores Master (Admin / Director) after you confirm it.</div>
+      <div class="notice store-notice"><strong>Trial preview only.</strong> Read a supplier invoice or delivery note, check and correct the extracted stock details, then use the existing ERP Stores form to enter them manually. Stock is not saved here. The one exception: a NEW item is added to the Stores Master when you tick ✓ Verified on its line — no price; the Guest charge rate is fixed only by Admin / Director in Charge Master.</div>
       <div class="split">
         <div class="docs">
           <h2>Supplier invoice / delivery note</h2>
@@ -125,7 +125,7 @@
     </section>
   </main>
 
-  <footer class="foot">Scan Lab trial · separate from the live ERP · v1.2.0</footer>
+  <footer class="foot">Scan Lab trial · separate from the live ERP · v1.3.0</footer>
 </body>
 </html>
 

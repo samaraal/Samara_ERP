@@ -1,10 +1,10 @@
-/* Scan Lab Stores stock-arrival trial · v1.2.0 · 18-10-2026 (1.2.0: a NEW item can be added to the Stores Master from here — the only database write, after a confirm step; 1.1.1: pack-size conversion check; 1.1.3: real-bill fixes — Each/bags units, 100.00 = 100, size-safe item match, subtotal check). Stock lines themselves are preview only.
+/* Scan Lab Stores stock-arrival trial · v1.3.0 · 18-10-2026 (1.3.0: a NEW item is added to the Stores Master automatically when its line is ✓ Verified — any staff, no price; the Guest charge rate is fixed only by Admin / Director in Charge Master; 1.1.1: pack-size conversion check; 1.1.3: real-bill fixes — Each/bags units, 100.00 = 100, size-safe item match, subtotal check). Stock lines themselves are preview only.
  * 1.1.0: each line is matched to the Stores / Charge Master item list (item code, section, unit) so the same
  *        item is never created twice; section and unit are dropdowns (ERP lists); whole-number quantity check;
  *        Free qty, MRP and GST % read; expiry printed as MM/YY becomes the last day of that month (flagged);
  *        all dates shown DD-MM-YYYY; per-line ✓ Verified and a Trial score for stock invoices.
- * Database: reads the Stores item list (consumable_store_items); writes ONLY through ➕ Add to Stores Master
- *   (admin_add_store_item RPC, Admin / Director; optional Guest charge rate via admin_set_store_item_charge_rate).
+ * Database: reads the Stores item list (consumable_store_items); the ONLY write is a NEW item on ✓ Verified
+ *   (store_add_item_from_invoice RPC, SQL 250 — no charge rate is ever set from here).
  */
 (function () {
   'use strict';
@@ -228,51 +228,34 @@
     if (m?.kind === 'near') return el('small', { class: 'spell near' }, `Same as ${m.item.item_code ? m.item.item_code + ' · ' : ''}${m.item.item_name}? `,
       el('button', { type: 'button', class: 'link', text: 'Use this item', onclick: () => { applyMaster(line, m.item, false); line.match = { kind: 'exact', item: m.item }; render(); } }));
     if (line.v.item_category === 'Biomedical Equipment') return el('small', { class: 'spell none', text: 'NEW item — Biomedical Equipment is added in the Biomedical Equipment register (BIO- code), not the Stores Master.' });
-    const ready = MASTER_SECTIONS.includes(line.v.item_category) && line.v.unit;
-    return el('small', { class: 'spell none' }, 'NEW item — not in the Stores / Charge Master list yet. ',
-      ready ? el('button', { type: 'button', class: 'link', text: '➕ Add to Stores Master', onclick: () => { line.adding = { rate: '' }; render(); } })
-        : el('b', { text: 'Choose its Section and Unit, then add it to the Stores Master from here.' }));
+    return el('small', { class: 'spell none' }, 'NEW item — not in the Stores Master yet. ',
+      el('b', { text: MASTER_SECTIONS.includes(line.v.item_category) && line.v.unit ? 'It is added automatically when you tick ✓ Verified (the ERP gives its code).' : 'Choose its Section and Unit; it is added automatically when you tick ✓ Verified.' }),
+      ' Its Guest charge rate is fixed later by Admin / Director in Charge Master.');
   }
-  // 1.2.0: confirm panel — the one place this page writes to the ERP.
-  function addPanel(line) {
-    const v = line.v, a = line.adding;
-    const row = (k, t) => el('div', null, el('span', { class: 'hint', text: k + ': ' }), el('b', { text: t || '—' }));
-    return el('div', { class: 'warn add-master' },
-      el('b', { text: 'Add this item to the Stores Master?' }),
-      row('Item name', v.item_name.trim()), row('Section', v.item_category), row('Unit (Stores counts in)', v.unit),
-      v.strength ? row('Strength', v.strength) : null, v.dosage_form ? row('Dosage form', v.dosage_form) : null,
-      el('div', null, el('label', { text: 'Guest charge rate ₹ per ' + v.unit + ' (optional — can be set later in Charge Master)' }),
-        el('input', { type: 'text', inputmode: 'decimal', value: a.rate, placeholder: v.mrp ? `MRP on bill ₹${v.mrp}` : '', oninput: (e) => { a.rate = e.target.value; } })),
-      el('small', { class: 'hint', text: 'The ERP gives it the next item code. Check the spelling first — the name is shown the same way in Indent, Stock and Bills.' }),
-      el('div', { class: 'med-actions' },
-        el('button', { type: 'button', class: 'btn primary', text: state.busy ? 'Adding…' : 'Yes, add to Stores Master', disabled: state.busy ? true : null, onclick: () => addToMaster(line) }),
-        el('button', { type: 'button', class: 'btn ghost', text: 'Cancel', onclick: () => { line.adding = null; render(); } })));
+  const needsMaster = (line) => state.itemsLoaded && line.v.item_name.trim() && MASTER_SECTIONS.includes(line.v.item_category) && (line.match || matchItem(line.v.item_name))?.kind === 'none';
+  async function verifyLine(line) {
+    if (needsMaster(line) && !(await addToMaster(line))) return;
+    line.verified = true; render();
   }
+  // 1.3.0: any staff may add the item (SQL 250); the price is never set here.
   async function addToMaster(line) {
-    const v = line.v, name = v.item_name.trim().replace(/\s+/g, ' '), rateText = String(line.adding?.rate || '').trim();
-    if (!name || !MASTER_SECTIONS.includes(v.item_category) || !UNITS.includes(v.unit)) return status('Item name, Section and Unit are needed first.', 'error');
-    if (rateText && !(Number(rateText) >= 0)) return status('Enter a valid charge rate (zero or more), or leave it blank.', 'error');
+    const v = line.v, name = v.item_name.trim().replace(/\s+/g, ' ');
+    if (!name || !MASTER_SECTIONS.includes(v.item_category) || !UNITS.includes(v.unit)) { status('Item name, Section and Unit are needed first.', 'error'); return false; }
     const again = matchItem(name);
-    if (again?.kind === 'exact' || again?.kind === 'near') { line.match = again; line.adding = null; render(); return status(`Not added — the Stores Master already has ${again.item.item_code || ''} ${again.item.item_name}. Use that item.`, 'error'); }
-    state.busy = true; render(); status('Adding to Stores Master…');
+    if (again?.kind === 'exact' || again?.kind === 'near') { line.match = again; render(); status(`Not added — the Stores Master already has ${again.item.item_code || ''} ${again.item.item_name}. Use that item if it is the same.`, 'error'); return false; }
+    state.busy = true; render(); status('Adding the new item to the Stores Master…', 'busy');
     try {
-      const r = await state.client.rpc('admin_add_store_item', { p_item_name: name, p_category: v.item_category, p_unit: v.unit, p_strength: v.strength.trim() || null, p_dosage_form: v.dosage_form.trim() || null });
-      if (r.error) throw r.error;
-      const id = r.data;
-      let rateNote = '';
-      if (rateText) {
-        const rr = await state.client.rpc('admin_set_store_item_charge_rate', { p_item_id: id, p_charge_rate: Number(rateText) });
-        rateNote = rr.error ? ` Charge rate NOT saved (${rr.error.message}) — set it in Charge Master.` : ` Guest charge rate ₹${Number(rateText)} saved.`;
-      }
-      const got = await state.client.from('consumable_store_items').select('id,item_code,item_name,item_category,unit,strength,dosage_form,active').eq('id', id).maybeSingle();
-      if (got.error || !got.data) throw new Error('The ERP did not confirm the new item. Check Stores Master before adding it again.');
+      const r = await state.client.rpc('store_add_item_from_invoice', { p_item_name: name, p_category: v.item_category, p_unit: v.unit, p_strength: v.strength.trim() || null, p_dosage_form: v.dosage_form.trim() || null });
+      if (r.error) throw new Error(/store_add_item_from_invoice/.test(r.error.message || '') ? 'Run SQL 250 (store_add_item_from_invoice) in Supabase first.' : r.error.message);
+      const got = await state.client.from('consumable_store_items').select('id,item_code,item_name,item_category,unit,strength,dosage_form,active').eq('id', r.data).maybeSingle();
+      if (got.error || !got.data) throw new Error('The ERP did not confirm the new item. Check the Stores Master before trying again.');
       const item = { ...got.data, base: baseName(got.data.item_name) };
       state.items.push(item);
-      applyMaster(line, item, false); line.match = { kind: 'exact', item }; line.adding = null;
-      status(`✓ Added to Stores Master: ${item.item_code || ''} · ${item.item_name} (${item.item_category}, ${item.unit}).${rateNote}`, rateNote.includes('NOT') ? 'error' : 'ok');
-    } catch (e) {
-      status('Not added: ' + (e.message || e) + (/admin|director/i.test(e.message || '') ? ' — only Admin / Director can add Stores Master items.' : ''), 'error');
-    } finally { state.busy = false; render(); }
+      applyMaster(line, item, false); line.match = { kind: 'exact', item };
+      status(`✓ Added to Stores Master: ${item.item_code || ''} · ${item.item_name} (${item.item_category}, ${item.unit}). Guest charge rate: to be fixed by Admin / Director in Charge Master.`, 'ok');
+      return true;
+    } catch (e) { status('New item not added: ' + (e.message || e), 'error'); return false; }
+    finally { state.busy = false; render(); }
   }
   function render() {
     const box = clear($('store-results')), d = state.data;
@@ -307,7 +290,7 @@
       const grid = el('div', { class: 'grid' });
       for (const [k, label, type, wide] of LINE) {
         const box2 = fieldBox(line, k, label, type, wide);
-        if (k === 'item_name') { box2.append(matchNote(line)); if (line.adding && line.match?.kind !== 'exact') box2.append(addPanel(line)); }
+        if (k === 'item_name') box2.append(matchNote(line));
         grid.append(box2);
       }
       card.append(grid);
@@ -331,14 +314,14 @@
         el('button', { type: 'button', class: 'btn ghost danger', text: 'Remove line', onclick: () => { if (!line.manual) d.removedAi++; d.lines.splice(i, 1); render(); } }),
         line.verified
           ? el('button', { type: 'button', class: 'btn secondary', text: 'Undo verify', onclick: () => { line.verified = false; render(); } })
-          : el('button', { type: 'button', class: 'btn primary', text: '✓ Verified', disabled: problems.length ? true : null, title: problems.length ? 'Complete the missing fields first' : 'I have checked this line against the invoice', onclick: () => { line.verified = true; render(); } })));
+          : el('button', { type: 'button', class: 'btn primary', text: state.busy ? 'Adding…' : needsMaster(line) ? '✓ Verified + add to Stores' : '✓ Verified', disabled: problems.length || state.busy ? true : null, title: problems.length ? 'Complete the missing fields first' : 'I have checked this line against the invoice', onclick: () => verifyLine(line) })));
       box.append(card);
     });
     const allDone = d.lines.length && d.lines.every((l) => l.verified);
     box.append(el('div', { class: 'med-actions' },
       el('button', { type: 'button', class: 'btn ghost', text: '+ Add line manually', onclick: () => { const v = Object.fromEntries(LINE.map(([k]) => [k, ''])); d.lines.push({ v, ai: null, flags: new Set(), notes: {}, edited: new Set(), raw: '', page: 0, confidence: 'manual', match: null, verified: false, manual: true }); render(); } }),
       allDone ? el('button', { type: 'button', class: 'btn primary', text: 'Record result in Trial score', onclick: recordScore }) : null,
-      el('span', { class: 'hint', text: 'Stock lines are a review preview only (no Save / Submit). Only ➕ Add to Stores Master writes to the ERP, after you confirm.' })));
+      el('span', { class: 'hint', text: 'Stock lines are a review preview only (no Save / Submit). The only ERP change: a NEW item is added to the Stores Master (without a price) when its line is ✓ Verified.' })));
   }
   function recordScore() {
     const d = state.data; let total = 0, correct = 0, missed = 0; const wrong = {};

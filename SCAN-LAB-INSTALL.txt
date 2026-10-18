@@ -1,3 +1,11 @@
+UPDATE 18-10-2026 (night) — Scan Lab v1.3.0 + SQL 250 (already run in Supabase by Claude)
+  Rule: adding an item to the Stores / Charge Master needs NO Admin / Director login or approval;
+        fixing its price (Guest charge rate) strictly stays Admin / Director only.
+  - A NEW stock line is added to the Stores Master automatically when you tick "✓ Verified + add to Stores"
+    (any active staff; store_add_item_from_invoice, SQL 250). The ERP gives the code. No price is set.
+  - The item then appears under "without a rate" in Charge Master until Admin / Director fixes the rate.
+  - The 1.2.0 confirm box and its charge-rate box are removed.
+
 UPDATE 18-10-2026 (night) — Scan Lab v1.2.0: ➕ Add to Stores Master on a NEW stock line.
   - Shown when an invoice item is not in the Stores Master and its Section + Unit are chosen.
   - A confirm box shows name, section, unit (+ optional Guest charge rate); "Yes" calls the same
