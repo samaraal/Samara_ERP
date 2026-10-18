@@ -205,7 +205,10 @@
       const isVitals=title.includes('vital');
       const isCare=title.includes('daily care')||title.includes('care');
       const isPhysio=title.includes('physio');
-      return {title,patient,room,details,overdue,isMedication,isVitals,isCare,isPhysio};
+      // 2.17.10: Food & Meals (SQL 249) — "Meal Due: Lunch" and "Poor Meal Intake: Lunch — Refused".
+      const isMealPoor=title.includes('poor meal intake')||String(a?.alert_type||'').toLowerCase()==='meal intake';
+      const isMeal=!isMealPoor&&(title.includes('meal due')||String(a?.alert_type||'').toLowerCase()==='meal');
+      return {title,patient,room,details,overdue,isMedication,isVitals,isCare,isPhysio,isMeal,isMealPoor};
     }
     function actualOverdueMinutes(a){
       const serverValue=Math.max(0,Number(a?.overdue_minutes||0));
@@ -547,6 +550,22 @@
       return staff?`டியர் ${staff}.`:'டியர்.';
     }
 
+    // 2.17.10: Tamil words for meal alerts.
+    function mealTamilName(title){
+      const t=String(title||'').toLowerCase();
+      if(t.includes('breakfast'))return 'காலை உணவு';
+      if(t.includes('lunch'))return 'மதிய உணவு';
+      if(t.includes('dinner'))return 'இரவு உணவு';
+      return 'உணவு';
+    }
+    function mealIntakeTamil(title){
+      const t=String(title||'').toLowerCase();
+      if(t.includes('refused'))return 'சாப்பிட மறுத்துவிட்டார்';
+      if(t.includes('vomited'))return 'சாப்பிட்ட பிறகு வாந்தி எடுத்தார்';
+      if(t.includes('tasted'))return 'சுவைத்து மட்டும் பார்த்தார்';
+      if(t.includes('partially'))return 'பாதி மட்டுமே சாப்பிட்டார்';
+      return 'சரியாக சாப்பிடவில்லை';
+    }
     function humanisedClinicalVoiceSegments(a){
       const d=clinicalVoiceData(a);
       // v2.9.45: continuous pure-Tamil clinical utterance with live overdue time.
@@ -584,6 +603,13 @@
       // v2.9.45: intentionally short non-medication announcements.
       // Staff only need the pending category, patient name and room number.
       const staffPrefix=staffVoicePrefix();
+      if(d.isMeal||d.isMealPoor){
+        const meal=mealTamilName(d.title);
+        if(d.isMealPoor){
+          return [{text:`${staffPrefix} கெஸ்ட் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. ${meal} ${mealIntakeTamil(d.title)}. தயவு செய்து கவனிக்கவும். நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
+        }
+        return [{text:`${staffPrefix} ${meal} இன்னும் பதிவு செய்யப்படவில்லை. கெஸ்ட் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. தயவு செய்து உணவு கொடுத்து பதிவு செய்யவும். நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
+      }
       if(d.isVitals){
         return [{text:`${staffPrefix} வைட்டல்ஸ் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
       }
@@ -605,6 +631,14 @@
         const medicine=[titleMedicine,String(d.details||'').trim()].filter(Boolean).join(' ')||'medicine';
         const overdue=d.overdue>0?` It is ${englishOverdueLabel(d.overdue)}.`:'';
         return [{text:`Samara urgent request. Patient ${patient}.${roomText} Medication ${medicine} is due.${overdue} Please attend immediately and record after giving the medicine. Thank you.`,lang:'en-IN',rate:.84,pause:0}];
+      }
+      if(d.isMealPoor){
+        const what=String(d.title||'').replace(/^\s*Poor Meal Intake\s*:\s*/i,'').replace(/\s*—\s*/,' ').trim()||'meal poor intake';
+        return [{text:`Dear staff. Poor meal intake for Guest ${patient}.${roomText} ${what}. Please review. Thank you.`,lang:'en-IN',rate:.84,pause:0}];
+      }
+      if(d.isMeal){
+        const meal=String(d.title||'').replace(/^\s*Meal Due\s*:\s*/i,'').trim()||'Meal';
+        return [{text:`Dear staff. ${meal} is not yet recorded for Guest ${patient}.${roomText} Please serve and record. Thank you.`,lang:'en-IN',rate:.84,pause:0}];
       }
       const label=d.isVitals?'Vitals':d.isCare?'Daily care':d.isPhysio?'Physiotherapy':'Clinical task';
       return [{text:`Dear staff. ${label} is pending for ${patient}.${roomText} Thank you.`,lang:'en-IN',rate:.84,pause:0}];
@@ -1064,7 +1098,7 @@
       // so the Nurse screen could remain "Overdue" until a later refresh.
       const thresholdCandidates=list.filter(a=>
         Number(a.overdue_minutes)>=(String(a.alert_type||'').toLowerCase()==='vital signs'?60:escalationMinutes) &&
-        !['regularisation','daily care'].includes(String(a.alert_type||'').toLowerCase()) &&
+        !['regularisation','daily care','meal intake'].includes(String(a.alert_type||'').toLowerCase()) &&
         !String(a.title||'').toLowerCase().includes('backlog regularisation')
       );
       if(thresholdCandidates.length){
@@ -1122,7 +1156,9 @@
       });
 
       const isEscalationViewer=['Admin','Manager'].includes(profile?.role);
-      const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list;
+      // 2.17.10: Poor Meal Intake goes only to Nursing Manager / Managers and Admin / Director
+      // (the nurse has just recorded it); everyone else keeps the normal list.
+      const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list.filter(a=>String(a.alert_type||'').toLowerCase()!=='meal intake');
       setAlerts(visibleList);
 
       // v2.9.45: rotating automatic alert queue.
@@ -1155,7 +1191,7 @@
           showSystemNotification(
             `${nextToAnnounce.title}${nextToAnnounce.description?` · ${nextToAnnounce.description}`:''}`,
             {
-              body:`${nextToAnnounce.description||nextToAnnounce.title||'Clinical task due'}\n${nextToAnnounce.patient_name||'Patient'} · ${nextToAnnounce.room_label||''}${String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?' · Pending for current shift':Number(nextToAnnounce.overdue_minutes||0)>0?` · ${englishOverdueLabel(nextToAnnounce.overdue_minutes)}`:' · Due now'}`,
+              body:`${nextToAnnounce.description||nextToAnnounce.title||'Clinical task due'}\n${nextToAnnounce.patient_name||'Patient'} · ${nextToAnnounce.room_label||''}${String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?' · Pending for current shift':String(nextToAnnounce.alert_type||'').toLowerCase()==='meal intake'?' · Please review':Number(nextToAnnounce.overdue_minutes||0)>0?` · ${englishOverdueLabel(nextToAnnounce.overdue_minutes)}`:' · Due now'}`,
               tag:nextToAnnounce.key,
               requireInteraction:nextToAnnounce.priority==='Critical',
               icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',
@@ -1175,7 +1211,7 @@
             room:nextToAnnounce.room_label||'',
             alertType:nextToAnnounce.title||'Clinical task due',
             details:nextToAnnounce.description||nextToAnnounce.title||'Clinical task due',
-            dueText:String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?'Pending for current shift':overdue>0?englishOverdueLabel(overdue):'Due now',
+            dueText:String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?'Pending for current shift':String(nextToAnnounce.alert_type||'').toLowerCase()==='meal intake'?'Please review':overdue>0?englishOverdueLabel(overdue):'Due now',
             message:nextToAnnounce.is_escalated?'Escalated — please attend and record immediately.':'Please attend and record immediately.',
             priority:nextToAnnounce.priority||'Routine'
           });

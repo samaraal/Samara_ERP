@@ -102,6 +102,7 @@
       if(t.includes('vital'))return 'Vital Signs';
       if(t.includes('care'))return 'Daily Care';
       if(t.includes('physio'))return 'Physiotherapy';
+      if(t.includes('meal'))return 'Food & Diet';
       return 'Clinical Alerts';
     };
 
@@ -126,6 +127,8 @@
         context.care_type=String(a.title||'').replace(/^Daily Care Due:\s*/i,'')||'Daily Care';
       }else if(page==='Physiotherapy'){
         context.plan_id=a.source_id||'';
+      }else if(page==='Food & Diet'){
+        Object.assign(context,mealTaskContext(a));
       }
       saveTaskNavigationContext(context);
       setPage(page);
@@ -398,6 +401,7 @@
       if(t.includes('care'))return 'Daily Care';
       if(t.includes('physio'))return 'Physiotherapy';
       if(t.includes('regular'))return 'Clinical Alerts';
+      if(t.includes('meal'))return 'Food & Diet';
       return 'Clinical Alerts';
     };
     async function load(){
@@ -435,6 +439,7 @@
     const visible=(rows.filter(r=>filter==='All'||(filter==='Open'?!r.resolved_at:!!r.resolved_at))).filter(r=>{
       if(dashboardEscalationFocus==='Critical')return !r.resolved_at&&String(r.priority||'').toLowerCase()==='critical';
       if(dashboardEscalationFocus==='Medication')return !r.resolved_at&&String(r.alert_type||'').toLowerCase().includes('med');
+      if(dashboardEscalationFocus==='Food & Meals')return !r.resolved_at&&String(r.alert_type||'').toLowerCase().startsWith('meal');
       if(dashboardEscalationFocus==='Regularisation')return !r.resolved_at&&String(r.alert_type||'').toLowerCase()==='regularisation';
       if(dashboardEscalationFocus==='Open escalations')return !r.resolved_at;
       return true;
@@ -442,6 +447,7 @@
     const critical=unresolved.filter(r=>String(r.priority||'').toLowerCase()==='critical').length;
     const medication=unresolved.filter(r=>String(r.alert_type||'').toLowerCase().includes('med')).length;
     const regularisation=unresolved.filter(r=>String(r.alert_type||'').toLowerCase()==='regularisation').length;
+    const meals=unresolved.filter(r=>String(r.alert_type||'').toLowerCase().startsWith('meal')).length;
     return h(React.Fragment,null,
       h(Section,{title:'Clinical Escalations',subtitle:'Manager / Administrator oversight of unresolved clinical alerts after escalation threshold',actions:h('button',{className:'btn btn-secondary',disabled:busy,onClick:load},busy?'Refreshing…':'Refresh')},
         message&&h('div',{className:'message error'},message),
@@ -449,6 +455,7 @@
           h('button',{type:'button',className:'card stat clinical-red',onClick:()=>setDashboardEscalationFocus('Open escalations')},h('span',null,'Open escalations'),h('strong',null,unresolved.length),h('small',null,'Requires management oversight')),
           h('button',{type:'button',className:'card stat clinical-red',onClick:()=>setDashboardEscalationFocus('Critical')},h('span',null,'Critical'),h('strong',null,critical),h('small',null,'Critical unresolved items')),
           h('button',{type:'button',className:'card stat clinical-amber',onClick:()=>setDashboardEscalationFocus('Medication')},h('span',null,'Medication'),h('strong',null,medication),h('small',null,'Medication escalations')),
+          h('button',{type:'button',className:'card stat clinical-amber',onClick:()=>setDashboardEscalationFocus('Food & Meals')},h('span',null,'Food & Meals'),h('strong',null,meals),h('small',null,'Meal not recorded / poor intake')),
           h('button',{type:'button',className:'card stat clinical-blue',onClick:()=>setDashboardEscalationFocus('Regularisation')},h('span',null,'Regularisation'),h('strong',null,regularisation),h('small',null,'One-time historical backlog'))
         ),
         h('div',{className:'field',style:{maxWidth:'260px',marginTop:'14px'}},h('label',null,'Status'),h('select',{value:filter,onChange:e=>setFilter(e.target.value)},['Open','Resolved','All'].map(x=>h('option',{key:x,value:x},x))))
@@ -466,7 +473,7 @@
             r.priority||'—',fmt(r.created_at),r.resolved_at?'—':`${elapsed} min`,r.escalation_reason||'—',
             r.resolved_at?`${r.resolution_action||'Resolved'} · ${r.resolution_remarks||'—'}${r.resolved_at?` · ${fmt(r.resolved_at)}`:''}`:'Pending management resolution',
             h('div',{className:'employee-actions'},
-              h('button',{className:'btn btn-secondary',onClick:()=>onNavigate(targetForType(r.alert_type))},'Open Source'),
+              h('button',{className:'btn btn-secondary',onClick:()=>{const target=targetForType(r.alert_type);if(target==='Food & Diet')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||'',...mealTaskContext(r)});onNavigate(target)}},'Open Source'),
               !r.resolved_at&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>resolve(r)},'Mark Resolved')
             )
           ];

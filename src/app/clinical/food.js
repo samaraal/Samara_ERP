@@ -8,6 +8,11 @@
   function foodViewPreference(profile){
     let saved='';try{saved=sessionStorage.getItem('samara_food_view')||''}catch(_error){}
     const views=foodViewsFor(profile);
+    // 2.17.10: a meal alert opens Resident Food Intake directly.
+    if(views.includes('Resident Food Intake')&&readTaskNavigationContext('Food & Diet')){
+      try{sessionStorage.setItem('samara_food_view','Resident Food Intake')}catch(_error){}
+      return 'Resident Food Intake';
+    }
     return views.includes(saved)?saved:views[0];
   }
   function FoodNavigationLinks({profile,page,onNavigate,mobile=false}){
@@ -223,6 +228,16 @@
       setRegRows(m.data||[]);
     }
     React.useEffect(()=>{load()},[]);
+    // 2.17.10: opened from a meal alert — choose the Guest (register follows), and for "Meal Due"
+    // also the meal and its date, so the nurse only adds the food items, time and intake.
+    React.useEffect(()=>{
+      const context=readTaskNavigationContext('Food & Diet');
+      if(!context)return;
+      clearTaskNavigationContext();
+      setEntryType('meal');
+      if(context.patient_id)setPatientId(context.patient_id);
+      if(!context.poor_intake&&context.meal_type)setForm(f=>({...f,meal_type:context.meal_type,meal_date:context.meal_date||f.meal_date}));
+    },[]);
     React.useEffect(()=>{loadRegister()},[RF.guest,RF.period,RF.from,RF.to]);
     // Items typed before (not in the standard list) are offered again under "Added earlier".
     const standardItems=new Set((foodList?foodList.map(r=>r.name):Object.values(FOOD_ITEMS).flatMap(g=>Object.values(g).flat())).map(x=>x.toLowerCase()));

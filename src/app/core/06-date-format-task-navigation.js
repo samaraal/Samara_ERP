@@ -86,6 +86,16 @@
       return null;
     }
   };
+  // 2.17.10: Meal alert -> Resident Food Intake with the Guest, meal and date already chosen.
+  const mealTaskContext = a => {
+    const title=String(a?.title||'').toLowerCase();
+    const meal_type=title.includes('breakfast')?'Tiffin':title.includes('lunch')?'Lunch':title.includes('dinner')?'Dinner':'';
+    let meal_date='',hour=null;
+    try{const d=new Date(a?.due_at);if(!Number.isNaN(d.getTime())){meal_date=d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});hour=Number(d.toLocaleString('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',hour12:false}))}}catch(_error){}
+    // Escalation register rows carry no title: Meal Due times are 8 AM / 1 PM / 8 PM.
+    const byHour=hour===8?'Tiffin':hour===13?'Lunch':hour===20?'Dinner':'';
+    return {meal_type:meal_type||(String(a?.alert_type||'').toLowerCase()==='meal'?byHour:''),meal_date,poor_intake:String(a?.alert_type||'').toLowerCase()==='meal intake'};
+  };
   const clearTaskNavigationContext = () => {
     try{sessionStorage.removeItem(TASK_NAVIGATION_KEY)}catch(_error){}
   };

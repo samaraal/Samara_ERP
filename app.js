@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.17.9';
+  const APP_VERSION = '2.17.10';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '18-Oct-2026 Emergency discharge with dues pending';
+  const APP_BUILD_DATE = '18-Oct-2026 Food & Meals alerts and escalations';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -2107,6 +2107,16 @@ function initSamaraInaugurationInvitation(){
       return null;
     }
   };
+  // 2.17.10: Meal alert -> Resident Food Intake with the Guest, meal and date already chosen.
+  const mealTaskContext = a => {
+    const title=String(a?.title||'').toLowerCase();
+    const meal_type=title.includes('breakfast')?'Tiffin':title.includes('lunch')?'Lunch':title.includes('dinner')?'Dinner':'';
+    let meal_date='',hour=null;
+    try{const d=new Date(a?.due_at);if(!Number.isNaN(d.getTime())){meal_date=d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});hour=Number(d.toLocaleString('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',hour12:false}))}}catch(_error){}
+    // Escalation register rows carry no title: Meal Due times are 8 AM / 1 PM / 8 PM.
+    const byHour=hour===8?'Tiffin':hour===13?'Lunch':hour===20?'Dinner':'';
+    return {meal_type:meal_type||(String(a?.alert_type||'').toLowerCase()==='meal'?byHour:''),meal_date,poor_intake:String(a?.alert_type||'').toLowerCase()==='meal intake'};
+  };
   const clearTaskNavigationContext = () => {
     try{sessionStorage.removeItem(TASK_NAVIGATION_KEY)}catch(_error){}
   };
@@ -3382,7 +3392,10 @@ https://samaraassistedliving.com/`;
       const isVitals=title.includes('vital');
       const isCare=title.includes('daily care')||title.includes('care');
       const isPhysio=title.includes('physio');
-      return {title,patient,room,details,overdue,isMedication,isVitals,isCare,isPhysio};
+      // 2.17.10: Food & Meals (SQL 249) — "Meal Due: Lunch" and "Poor Meal Intake: Lunch — Refused".
+      const isMealPoor=title.includes('poor meal intake')||String(a?.alert_type||'').toLowerCase()==='meal intake';
+      const isMeal=!isMealPoor&&(title.includes('meal due')||String(a?.alert_type||'').toLowerCase()==='meal');
+      return {title,patient,room,details,overdue,isMedication,isVitals,isCare,isPhysio,isMeal,isMealPoor};
     }
     function actualOverdueMinutes(a){
       const serverValue=Math.max(0,Number(a?.overdue_minutes||0));
@@ -3724,6 +3737,22 @@ https://samaraassistedliving.com/`;
       return staff?`டியர் ${staff}.`:'டியர்.';
     }
 
+    // 2.17.10: Tamil words for meal alerts.
+    function mealTamilName(title){
+      const t=String(title||'').toLowerCase();
+      if(t.includes('breakfast'))return 'காலை உணவு';
+      if(t.includes('lunch'))return 'மதிய உணவு';
+      if(t.includes('dinner'))return 'இரவு உணவு';
+      return 'உணவு';
+    }
+    function mealIntakeTamil(title){
+      const t=String(title||'').toLowerCase();
+      if(t.includes('refused'))return 'சாப்பிட மறுத்துவிட்டார்';
+      if(t.includes('vomited'))return 'சாப்பிட்ட பிறகு வாந்தி எடுத்தார்';
+      if(t.includes('tasted'))return 'சுவைத்து மட்டும் பார்த்தார்';
+      if(t.includes('partially'))return 'பாதி மட்டுமே சாப்பிட்டார்';
+      return 'சரியாக சாப்பிடவில்லை';
+    }
     function humanisedClinicalVoiceSegments(a){
       const d=clinicalVoiceData(a);
       // v2.9.45: continuous pure-Tamil clinical utterance with live overdue time.
@@ -3761,6 +3790,13 @@ https://samaraassistedliving.com/`;
       // v2.9.45: intentionally short non-medication announcements.
       // Staff only need the pending category, patient name and room number.
       const staffPrefix=staffVoicePrefix();
+      if(d.isMeal||d.isMealPoor){
+        const meal=mealTamilName(d.title);
+        if(d.isMealPoor){
+          return [{text:`${staffPrefix} கெஸ்ட் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. ${meal} ${mealIntakeTamil(d.title)}. தயவு செய்து கவனிக்கவும். நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
+        }
+        return [{text:`${staffPrefix} ${meal} இன்னும் பதிவு செய்யப்படவில்லை. கெஸ்ட் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. தயவு செய்து உணவு கொடுத்து பதிவு செய்யவும். நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
+      }
       if(d.isVitals){
         return [{text:`${staffPrefix} வைட்டல்ஸ் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
       }
@@ -3782,6 +3818,14 @@ https://samaraassistedliving.com/`;
         const medicine=[titleMedicine,String(d.details||'').trim()].filter(Boolean).join(' ')||'medicine';
         const overdue=d.overdue>0?` It is ${englishOverdueLabel(d.overdue)}.`:'';
         return [{text:`Samara urgent request. Patient ${patient}.${roomText} Medication ${medicine} is due.${overdue} Please attend immediately and record after giving the medicine. Thank you.`,lang:'en-IN',rate:.84,pause:0}];
+      }
+      if(d.isMealPoor){
+        const what=String(d.title||'').replace(/^\s*Poor Meal Intake\s*:\s*/i,'').replace(/\s*—\s*/,' ').trim()||'meal poor intake';
+        return [{text:`Dear staff. Poor meal intake for Guest ${patient}.${roomText} ${what}. Please review. Thank you.`,lang:'en-IN',rate:.84,pause:0}];
+      }
+      if(d.isMeal){
+        const meal=String(d.title||'').replace(/^\s*Meal Due\s*:\s*/i,'').trim()||'Meal';
+        return [{text:`Dear staff. ${meal} is not yet recorded for Guest ${patient}.${roomText} Please serve and record. Thank you.`,lang:'en-IN',rate:.84,pause:0}];
       }
       const label=d.isVitals?'Vitals':d.isCare?'Daily care':d.isPhysio?'Physiotherapy':'Clinical task';
       return [{text:`Dear staff. ${label} is pending for ${patient}.${roomText} Thank you.`,lang:'en-IN',rate:.84,pause:0}];
@@ -4241,7 +4285,7 @@ https://samaraassistedliving.com/`;
       // so the Nurse screen could remain "Overdue" until a later refresh.
       const thresholdCandidates=list.filter(a=>
         Number(a.overdue_minutes)>=(String(a.alert_type||'').toLowerCase()==='vital signs'?60:escalationMinutes) &&
-        !['regularisation','daily care'].includes(String(a.alert_type||'').toLowerCase()) &&
+        !['regularisation','daily care','meal intake'].includes(String(a.alert_type||'').toLowerCase()) &&
         !String(a.title||'').toLowerCase().includes('backlog regularisation')
       );
       if(thresholdCandidates.length){
@@ -4299,7 +4343,9 @@ https://samaraassistedliving.com/`;
       });
 
       const isEscalationViewer=['Admin','Manager'].includes(profile?.role);
-      const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list;
+      // 2.17.10: Poor Meal Intake goes only to Nursing Manager / Managers and Admin / Director
+      // (the nurse has just recorded it); everyone else keeps the normal list.
+      const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list.filter(a=>String(a.alert_type||'').toLowerCase()!=='meal intake');
       setAlerts(visibleList);
 
       // v2.9.45: rotating automatic alert queue.
@@ -4332,7 +4378,7 @@ https://samaraassistedliving.com/`;
           showSystemNotification(
             `${nextToAnnounce.title}${nextToAnnounce.description?` · ${nextToAnnounce.description}`:''}`,
             {
-              body:`${nextToAnnounce.description||nextToAnnounce.title||'Clinical task due'}\n${nextToAnnounce.patient_name||'Patient'} · ${nextToAnnounce.room_label||''}${String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?' · Pending for current shift':Number(nextToAnnounce.overdue_minutes||0)>0?` · ${englishOverdueLabel(nextToAnnounce.overdue_minutes)}`:' · Due now'}`,
+              body:`${nextToAnnounce.description||nextToAnnounce.title||'Clinical task due'}\n${nextToAnnounce.patient_name||'Patient'} · ${nextToAnnounce.room_label||''}${String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?' · Pending for current shift':String(nextToAnnounce.alert_type||'').toLowerCase()==='meal intake'?' · Please review':Number(nextToAnnounce.overdue_minutes||0)>0?` · ${englishOverdueLabel(nextToAnnounce.overdue_minutes)}`:' · Due now'}`,
               tag:nextToAnnounce.key,
               requireInteraction:nextToAnnounce.priority==='Critical',
               icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',
@@ -4352,7 +4398,7 @@ https://samaraassistedliving.com/`;
             room:nextToAnnounce.room_label||'',
             alertType:nextToAnnounce.title||'Clinical task due',
             details:nextToAnnounce.description||nextToAnnounce.title||'Clinical task due',
-            dueText:String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?'Pending for current shift':overdue>0?englishOverdueLabel(overdue):'Due now',
+            dueText:String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?'Pending for current shift':String(nextToAnnounce.alert_type||'').toLowerCase()==='meal intake'?'Please review':overdue>0?englishOverdueLabel(overdue):'Due now',
             message:nextToAnnounce.is_escalated?'Escalated — please attend and record immediately.':'Please attend and record immediately.',
             priority:nextToAnnounce.priority||'Routine'
           });
@@ -4489,6 +4535,7 @@ https://samaraassistedliving.com/`;
       if(t.includes('vital'))return 'Vital Signs';
       if(t.includes('care'))return 'Daily Care';
       if(t.includes('physio'))return 'Physiotherapy';
+      if(t.includes('meal'))return 'Food & Diet';
       return 'Clinical Alerts';
     };
 
@@ -4513,6 +4560,8 @@ https://samaraassistedliving.com/`;
         context.care_type=String(a.title||'').replace(/^Daily Care Due:\s*/i,'')||'Daily Care';
       }else if(page==='Physiotherapy'){
         context.plan_id=a.source_id||'';
+      }else if(page==='Food & Diet'){
+        Object.assign(context,mealTaskContext(a));
       }
       saveTaskNavigationContext(context);
       setPage(page);
@@ -4785,6 +4834,7 @@ https://samaraassistedliving.com/`;
       if(t.includes('care'))return 'Daily Care';
       if(t.includes('physio'))return 'Physiotherapy';
       if(t.includes('regular'))return 'Clinical Alerts';
+      if(t.includes('meal'))return 'Food & Diet';
       return 'Clinical Alerts';
     };
     async function load(){
@@ -4822,6 +4872,7 @@ https://samaraassistedliving.com/`;
     const visible=(rows.filter(r=>filter==='All'||(filter==='Open'?!r.resolved_at:!!r.resolved_at))).filter(r=>{
       if(dashboardEscalationFocus==='Critical')return !r.resolved_at&&String(r.priority||'').toLowerCase()==='critical';
       if(dashboardEscalationFocus==='Medication')return !r.resolved_at&&String(r.alert_type||'').toLowerCase().includes('med');
+      if(dashboardEscalationFocus==='Food & Meals')return !r.resolved_at&&String(r.alert_type||'').toLowerCase().startsWith('meal');
       if(dashboardEscalationFocus==='Regularisation')return !r.resolved_at&&String(r.alert_type||'').toLowerCase()==='regularisation';
       if(dashboardEscalationFocus==='Open escalations')return !r.resolved_at;
       return true;
@@ -4829,6 +4880,7 @@ https://samaraassistedliving.com/`;
     const critical=unresolved.filter(r=>String(r.priority||'').toLowerCase()==='critical').length;
     const medication=unresolved.filter(r=>String(r.alert_type||'').toLowerCase().includes('med')).length;
     const regularisation=unresolved.filter(r=>String(r.alert_type||'').toLowerCase()==='regularisation').length;
+    const meals=unresolved.filter(r=>String(r.alert_type||'').toLowerCase().startsWith('meal')).length;
     return h(React.Fragment,null,
       h(Section,{title:'Clinical Escalations',subtitle:'Manager / Administrator oversight of unresolved clinical alerts after escalation threshold',actions:h('button',{className:'btn btn-secondary',disabled:busy,onClick:load},busy?'Refreshing…':'Refresh')},
         message&&h('div',{className:'message error'},message),
@@ -4836,6 +4888,7 @@ https://samaraassistedliving.com/`;
           h('button',{type:'button',className:'card stat clinical-red',onClick:()=>setDashboardEscalationFocus('Open escalations')},h('span',null,'Open escalations'),h('strong',null,unresolved.length),h('small',null,'Requires management oversight')),
           h('button',{type:'button',className:'card stat clinical-red',onClick:()=>setDashboardEscalationFocus('Critical')},h('span',null,'Critical'),h('strong',null,critical),h('small',null,'Critical unresolved items')),
           h('button',{type:'button',className:'card stat clinical-amber',onClick:()=>setDashboardEscalationFocus('Medication')},h('span',null,'Medication'),h('strong',null,medication),h('small',null,'Medication escalations')),
+          h('button',{type:'button',className:'card stat clinical-amber',onClick:()=>setDashboardEscalationFocus('Food & Meals')},h('span',null,'Food & Meals'),h('strong',null,meals),h('small',null,'Meal not recorded / poor intake')),
           h('button',{type:'button',className:'card stat clinical-blue',onClick:()=>setDashboardEscalationFocus('Regularisation')},h('span',null,'Regularisation'),h('strong',null,regularisation),h('small',null,'One-time historical backlog'))
         ),
         h('div',{className:'field',style:{maxWidth:'260px',marginTop:'14px'}},h('label',null,'Status'),h('select',{value:filter,onChange:e=>setFilter(e.target.value)},['Open','Resolved','All'].map(x=>h('option',{key:x,value:x},x))))
@@ -4853,7 +4906,7 @@ https://samaraassistedliving.com/`;
             r.priority||'—',fmt(r.created_at),r.resolved_at?'—':`${elapsed} min`,r.escalation_reason||'—',
             r.resolved_at?`${r.resolution_action||'Resolved'} · ${r.resolution_remarks||'—'}${r.resolved_at?` · ${fmt(r.resolved_at)}`:''}`:'Pending management resolution',
             h('div',{className:'employee-actions'},
-              h('button',{className:'btn btn-secondary',onClick:()=>onNavigate(targetForType(r.alert_type))},'Open Source'),
+              h('button',{className:'btn btn-secondary',onClick:()=>{const target=targetForType(r.alert_type);if(target==='Food & Diet')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||'',...mealTaskContext(r)});onNavigate(target)}},'Open Source'),
               !r.resolved_at&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>resolve(r)},'Mark Resolved')
             )
           ];
@@ -13973,6 +14026,8 @@ https://samaraassistedliving.com/`;
                   context.care_type=String(liveAlert.title||'').replace(/^Daily Care Due:\s*/i,'')||'Daily Care';
                 }else if(target==='Physiotherapy'){
                   context.plan_id=liveAlert.source_id||'';
+                }else if(target==='Food & Diet'){
+                  Object.assign(context,mealTaskContext(liveAlert));
                 }
                 saveTaskNavigationContext(context);
               }
@@ -33220,6 +33275,11 @@ function RoomsBeds({profile,onNavigate}){
   function foodViewPreference(profile){
     let saved='';try{saved=sessionStorage.getItem('samara_food_view')||''}catch(_error){}
     const views=foodViewsFor(profile);
+    // 2.17.10: a meal alert opens Resident Food Intake directly.
+    if(views.includes('Resident Food Intake')&&readTaskNavigationContext('Food & Diet')){
+      try{sessionStorage.setItem('samara_food_view','Resident Food Intake')}catch(_error){}
+      return 'Resident Food Intake';
+    }
     return views.includes(saved)?saved:views[0];
   }
   function FoodNavigationLinks({profile,page,onNavigate,mobile=false}){
@@ -33435,6 +33495,16 @@ function RoomsBeds({profile,onNavigate}){
       setRegRows(m.data||[]);
     }
     React.useEffect(()=>{load()},[]);
+    // 2.17.10: opened from a meal alert — choose the Guest (register follows), and for "Meal Due"
+    // also the meal and its date, so the nurse only adds the food items, time and intake.
+    React.useEffect(()=>{
+      const context=readTaskNavigationContext('Food & Diet');
+      if(!context)return;
+      clearTaskNavigationContext();
+      setEntryType('meal');
+      if(context.patient_id)setPatientId(context.patient_id);
+      if(!context.poor_intake&&context.meal_type)setForm(f=>({...f,meal_type:context.meal_type,meal_date:context.meal_date||f.meal_date}));
+    },[]);
     React.useEffect(()=>{loadRegister()},[RF.guest,RF.period,RF.from,RF.to]);
     // Items typed before (not in the standard list) are offered again under "Added earlier".
     const standardItems=new Set((foodList?foodList.map(r=>r.name):Object.values(FOOD_ITEMS).flatMap(g=>Object.values(g).flat())).map(x=>x.toLowerCase()));

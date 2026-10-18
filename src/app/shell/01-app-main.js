@@ -796,6 +796,8 @@
                   context.care_type=String(liveAlert.title||'').replace(/^Daily Care Due:\s*/i,'')||'Daily Care';
                 }else if(target==='Physiotherapy'){
                   context.plan_id=liveAlert.source_id||'';
+                }else if(target==='Food & Diet'){
+                  Object.assign(context,mealTaskContext(liveAlert));
                 }
                 saveTaskNavigationContext(context);
               }

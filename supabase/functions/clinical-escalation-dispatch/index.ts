@@ -83,6 +83,12 @@ Deno.serve(async (req) => {
       const vital = String(a.alert_type || "").toLowerCase() === "vital signs";
       const out: Stage[] = [];
       if (String(a.alert_type || "").toLowerCase() === "regularisation") return out;
+      // ERP 2.17.10 (SQL 249): poor meal intake (Refused / Partly / Tasted only / Vomited) goes to
+      // Managers + Admins at once, one message only. Meal Due follows the normal 30 / 60 min rule below.
+      if (String(a.alert_type || "").toLowerCase() === "meal intake") {
+        out.push({ key: "MEAL_INTAKE_NOW", label: "Poor intake - please review", audience: "both" });
+        return out;
+      }
       if (vital) {
         if (overdue >= 60) out.push({ key: "VITALS_60_MANAGER", label: "Escalated", audience: "manager" });
         if (overdue >= 90) out.push({ key: "VITALS_90_ADMIN", label: "Critical pending", audience: "admin" });
