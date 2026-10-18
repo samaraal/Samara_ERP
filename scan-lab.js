@@ -1,4 +1,5 @@
-/* Samara Care ERP — Scan Lab (TRIAL) v1.0.8 · 18-10-2026 (1.0.7: night-dose fix, fixed insulin units, stock invoice score; 1.0.8: date only on its own prescription)
+/* Samara Care ERP — Scan Lab (TRIAL) v1.0.9 · 18-10-2026 (1.0.9: pages read in parallel, one request each; clear expired-login message)
+ * earlier: v1.0.8 · 18-10-2026 (1.0.7: night-dose fix, fixed insulin units, stock invoice score; 1.0.8: date only on its own prescription)
  * Separate page, Admin only. Reads a prescription / ID card through the "prescription-scan" Edge Function
  * and fills Admission-form fields for checking. NOTHING is written to the database.
  * The only database read is the Pharmacy item list (for the spelling check).
@@ -187,16 +188,29 @@
     try {
       const files = [];
       for (const p of pages) files.push(await toPayload(p));
-      const { data, error } = await state.client.functions.invoke('prescription-scan', { body: { kind: kind === 'rx' ? 'prescription' : 'id', files } });
-      if (error) {
-        let msg = 'Could not read the file just now. Please try again.';
-        try { const j = await error.context.json(); if (j?.error) msg = j.error; } catch (_) { /* keep default */ }
-        throw new Error(msg);
-      }
-      if (!data?.result) throw new Error(data?.error || 'No result returned.');
+      const call = async (fs) => {
+        const { data, error } = await state.client.functions.invoke('prescription-scan', { body: { kind: kind === 'rx' ? 'prescription' : 'id', files: fs } });
+        if (error) {
+          let msg = 'Could not read the file just now. Please try again.', code = '';
+          try { const j = await error.context.json(); if (j?.error) msg = j.error; code = j?.code || ''; } catch (_) { if (error.context?.status === 504) { msg = 'This page took too long to read. Please try again, or take a closer photo of fewer medicines.'; } }
+          if (code === 'AUTH') msg = 'Your ERP login has expired. Open the ERP, sign in again, then come back to Scan Lab (your pages stay here).';
+          throw new Error(msg);
+        }
+        if (!data?.result) throw new Error(data?.error || 'No result returned.');
+        return data.result;
+      };
+      // 1.0.9: several prescription pages are read AT THE SAME TIME, one request per page (one long request
+      // for dense hospital pages ran past the 150-second server limit). Results are added page by page.
+      const results = kind === 'rx' && files.length > 1
+        ? await Promise.allSettled(files.map((f) => call([f])))
+        : [{ status: 'fulfilled', value: await call(files) }];
+      const failed = results.map((r, i) => r.status === 'rejected' ? i + 1 : 0).filter(Boolean);
+      if (failed.length === results.length) throw results[0].reason;
       const secs = Math.round((Date.now() - t0) / 1000);
       if (kind === 'rx') {
-        const n = applyRx(data.result, pages.length, adding);
+        let n = 0, first = true;
+        for (const r of results) { if (r.status !== 'fulfilled') { state.pageOffset += 1; continue; } n += applyRx(r.value, files.length > 1 ? 1 : pages.length, adding || !first); first = false; }
+        if (failed.length) { setStatus('rx', `Read in ${secs} s — ${n} medicine(s) from ${results.length - failed.length} page(s). Page ${failed.join(', ')} could not be read (${results.find((r) => r.status === 'rejected').reason.message}) — remove the other pages and read it again.`, 'error'); return; }
         setStatus('rx', adding
           ? `Read in ${secs} s — ${n} medicine(s) ADDED; the list now has ${state.meds.length}. To add another doctor's prescription: Clear pages, upload it, and press Read & Add again.`
           : `Read in ${secs} s. Check every yellow row against the prescription, correct anything wrong, then tick ✓ Verified. Another doctor's prescription? Clear pages, upload it, and press Read & Add.`, 'ok');
