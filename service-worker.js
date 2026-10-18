@@ -1,5 +1,5 @@
-const APP_VERSION = '2.17.10';
-const CACHE = 'samara-erp-2.17.10-meal-alerts';
+const APP_VERSION = '2.17.11';
+const CACHE = 'samara-erp-2.17.11-nasal-route';
 const SHELL = [
   './',
   './index.html',

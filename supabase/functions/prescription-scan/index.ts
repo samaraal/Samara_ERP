@@ -1,5 +1,5 @@
 // Samara Care ERP — Scan Lab (TRIAL) · Edge Function: prescription-scan · 1.0.6 · 18-10-2026
-// 1.0.5: page + doctor per medicine · 1.0.6: "0-0-1" without bedtime words = OD after dinner, not HS
+// 1.0.7: "Nasal" route · 1.0.5: page + doctor per medicine · 1.0.6: "0-0-1" without bedtime words = OD after dinner, not HS
 // Reads an uploaded prescription (photo / PDF, several pages) or a Guest ID card (Aadhaar / Passport / other)
 // and returns the fields in the exact shape of the ERP Admission form, for staff to VERIFY.
 //
@@ -24,7 +24,7 @@ const out = (body: unknown, status = 200) =>
 
 // ---- ERP option lists (must match the Admission form exactly) ----
 const FREQUENCIES = ["Once Daily (OD)", "Twice Daily (BD)", "Three Times Daily (TDS)", "Four Times Daily (QID)", "HS", "STAT", "SOS / PRN", "Weekly", "Monthly"];
-const ROUTES = ["Oral", "IV", "IM", "Subcutaneous", "Topical", "Inhalation", "Other"];
+const ROUTES = ["Oral", "IV", "IM", "Subcutaneous", "Topical", "Inhalation", "Nasal", "Other"];
 const FOODS = ["Before food", "After food", "With food", "No restriction"];
 const DURATIONS = ["Single Dose", "1 Day", "3 Days", "5 Days", "7 Days", "10 Days", "14 Days", "21 Days", "30 Days", "Until Doctor Review", "Long Term", "Custom"];
 const UNITS = ["mg", "mcg", "g", "ml", "mg/ml", "mg/5 ml", "IU", "units", "%", "drops", "tablet", "capsule", "puff", "sachet", "patch"];
@@ -46,7 +46,7 @@ HOW TO MAP (use exactly these option values):
   frequency "HS" ONLY when the words HS / bedtime / at bed time are written. A pattern "0-0-1" (or "night", "after dinner") WITHOUT those words is frequency "Once Daily (OD)" with dose_pattern "0-0-1" (given after dinner, not at bedtime).
 - frequency: one of ${JSON.stringify(FREQUENCIES)}. SOS / PRN / "if needed" / "when required" → "SOS / PRN". Once a week → "Weekly". Once a month → "Monthly". STAT/immediately once → "STAT".
 - dose_per_time: amount given each time as written, e.g. "1 tablet", "½ tablet", "2 puffs", "10 ml", "1 capsule", "5 units". "" if not written.
-- route: one of ${JSON.stringify(ROUTES)}. Tab/Cap/Syrup/Susp/Drops-by-mouth = Oral. Ointment/cream/gel/eye or ear drops = Topical. Inhaler/rotacap/nebulisation = Inhalation. Inj: IV, IM or SC (Subcutaneous) when written, else "Other" and mark route unclear. Insulin = Subcutaneous.
+- route: one of ${JSON.stringify(ROUTES)}. Tab/Cap/Syrup/Susp/Drops-by-mouth = Oral. Ointment/cream/gel/eye or ear drops = Topical. Inhaler/rotacap/nebulisation = Inhalation. Nasal spray / nasal drops / route written as "Nasal" = Nasal. Inj: IV, IM or SC (Subcutaneous) when written, else "Other" and mark route unclear. Insulin = Subcutaneous.
 - food_instruction: one of ${JSON.stringify(FOODS)}. AC / before food / empty stomach = "Before food". PC / after food = "After food". With food = "With food". Not written → "" and add "food_instruction" to unclear_fields.
 - duration: one of ${JSON.stringify(DURATIONS)}. "x 5 days" → "5 Days". "x 1 week" → "7 Days". "x 2 weeks" → "14 Days". "x 1 month"/"30 days" → "30 Days". Any other number of days (e.g. 15 days, 2 months = 60) → "Custom" with custom_duration_days. "continue"/"to continue"/"lifelong" → "Long Term". "till review"/"until next visit" → "Until Doctor Review". Not written → "".
 - strength_unit: one of ${JSON.stringify(UNITS)} or "".

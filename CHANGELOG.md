@@ -1,3 +1,6 @@
+## 2.17.11 — "Nasal" medicine route
+- Medicine Route lists now include **Nasal** (nasal sprays / drops, e.g. Budecort nasal) in Admission, Spot Assessment and Medicines (Doctor Review / Modify). Scan Lab prescription reading fills Nasal when the prescription says so. No SQL.
+
 ## 2.17.10 — Food & Meals alerts and escalations (like medicines)
 - **Meal Due**: Breakfast 8 AM, Lunch 1 PM, Dinner 8 PM. If the meal is not recorded in Resident Food Intake, the nurse gets the alert at the meal time (pop-up, voice, Clinical Alerts); Nursing Manager + Admin / Director are escalated 30 min later (Clinical Escalations, phone notification, WhatsApp; "Critical pending" at 60 min). Saving the meal (any intake) closes it automatically. Not raised for Tube-feeding Guests or for a meal time before admission. Starts from the time SQL 249 is run.
 - **Poor Meal Intake**: saving a meal as Consumed partially / Tasted only / Refused / Vomited alerts Nursing Manager + Admin / Director at once (escalation, phone, one WhatsApp). Close it in Clinical Escalations with remarks; closes by itself if the entry is corrected.
