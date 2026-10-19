@@ -1,3 +1,7 @@
+## 2.18.17 — Screensaver: Care box scrolls the whole shift's care, one line each
+- Care is shift-based, so the **Care** box no longer flips. It lists **all pending care of the shift**, one line each — **care · room · Guest name** (plus the preferred window when one is set, e.g. 10:00–12:00) — scrolling slowly from bottom to top when there are more lines than fit. Late care is marked Late.
+- The Care box is always last and full width so each line has room. Box headers stay on one line on smaller screens. No SQL.
+
 ## 2.18.16 — Screensaver: every open Nursing Procedure request is shown
 - Fixed: a Nursing Procedure (e.g. **Nebulization** for Room 109-C) did not appear when it was scheduled more than 4 hours ahead, or was still waiting for the Nursing Manager's approval.
 - The Nursing Procedure box now shows **all open requests for the shift**, as in Approval Requests → Open Requests: **Approved** ("Ready to Start", with its scheduled time) and **Requested** (purple "Awaiting approval" mark). An unscheduled request still awaiting approval is never put in the Next Task box. Started / Declined requests are not shown. No SQL.

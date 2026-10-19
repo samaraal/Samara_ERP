@@ -85,6 +85,11 @@
 .nss-boxes.grid .nss-time b{font-size:clamp(19px,min(2.7vh,1.5vw),30px)}
 .nss-boxes.grid .nss-time span{font-size:12px}
 .nss-boxes.grid .nss-box:last-child:nth-child(odd){grid-column:1/-1}
+.nss-boxes.grid .nss-box-care,.nss-boxes.grid .nss-box.empty:last-child{grid-column:1/-1}
+.nss-boxes.grid .nss-box-head{flex-wrap:nowrap}
+.nss-boxes.grid .nss-box-head .nss-tag{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.nss-boxes.grid .nss-box-head .nss-flip-count{flex-shrink:0}
+@media (max-width:1500px){.nss-boxes.grid .nss-dots{display:none}.nss-boxes.grid .nss-box-head .nss-tag.nss-g{font-size:clamp(15px,1.45vw,26px);padding:5px 12px}}
 .nss-box-text{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 auto}
 .nss-box-detail{display:flex;align-items:center;gap:8px;font-size:clamp(16px,2.1vh,24px);font-weight:700;color:#382333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .nss-box-detail-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
@@ -113,6 +118,18 @@
 .nss-hero .nss-tag.nss-g svg{width:1em;height:1em}
 .nss-hero .nss-tag.nss-g-vitals{background:#0e7477}.nss-hero .nss-tag.nss-g-med{background:#b01264}.nss-hero .nss-tag.nss-g-proc{background:#5b2a86}.nss-hero .nss-tag.nss-g-care{background:#b8460b}.nss-hero .nss-tag.nss-g-meal{background:#2e7d32}
 .nss-box.empty .nss-tag.nss-g{opacity:.75}
+.nss-tick{position:relative;flex:1 1 auto;min-height:0;overflow:hidden}
+.nss-tick.run{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 14%,#000 86%,transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 14%,#000 86%,transparent 100%)}
+.nss-tick-track{display:flex;flex-direction:column;gap:6px}
+.nss-tick.run .nss-tick-track{animation:nssTicker linear infinite}
+.nss-tick-line{display:flex;align-items:baseline;gap:8px;white-space:nowrap;overflow:hidden;font-size:clamp(15px,min(2.1vh,1.2vw),23px);font-weight:600;color:#382333;padding:2px 0}
+.nss-tick-line.late .nss-tick-care{color:#b3341a}
+.nss-tick-care{font-weight:800;flex-shrink:0;max-width:40%;overflow:hidden;text-overflow:ellipsis}
+.nss-tick-room{color:#d0105f;font-weight:900;flex-shrink:0}
+.nss-tick-name{color:#5d1039;font-weight:700;overflow:hidden;text-overflow:ellipsis}
+.nss-tick-sep{color:#c98aa8}
+.nss-tick-when{margin-left:auto;flex-shrink:0;font-size:.8em;font-weight:700;color:#7a1247;background:#fff;border:1px solid #f0b3cd;border-radius:8px;padding:0 7px}
+@keyframes nssTicker{from{transform:translateY(0)}to{transform:translateY(calc(-50% - 3px))}}
 .nss-flip{animation:nssFlip .55s ease-out both;transform-origin:50% 0;backface-visibility:hidden}
 .nss-flip-count{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;font-weight:700;color:#7a1247}
 .nss-hero .nss-flip-count{align-self:flex-start;font-size:15px}
@@ -157,7 +174,7 @@
   .nss-tag{font-size:12px}
   .nss-overdue-more{margin-left:0}
 }
-@media (prefers-reduced-motion:reduce){.nss-inner,.nss-hero,.nss-overdue,.nss-colon,.nss-card,.nss-flip{animation:none!important}}
+@media (prefers-reduced-motion:reduce){.nss-inner,.nss-hero,.nss-overdue,.nss-colon,.nss-card,.nss-flip,.nss-tick-track{animation:none!important}}
 `;
     document.head.appendChild(s);
   }
@@ -345,7 +362,7 @@
     return {
       win,loadedAt:now,failed,
       overdue:open.filter(x=>x.state==='overdue').sort(order),
-      next:open.filter(x=>x.state!=='overdue'&&(x.anyTime||x.group==='proc'||x.at.getTime()<=now.getTime()+NURSE_SAVER_HORIZON_MS)).sort((a,b)=>(a.anyTime||(a.awaiting&&!a.atScheduled)?1:0)-(b.anyTime||(b.awaiting&&!b.atScheduled)?1:0)||order(a,b)),
+      next:open.filter(x=>x.state!=='overdue'&&(x.anyTime||x.group==='proc'||x.group==='care'||x.at.getTime()<=now.getTime()+NURSE_SAVER_HORIZON_MS)).sort((a,b)=>(a.anyTime||(a.awaiting&&!a.atScheduled)?1:0)-(b.anyTime||(b.awaiting&&!b.atScheduled)?1:0)||order(a,b)),
       total:tasks.length,done:tasks.filter(x=>x.done).length,
       byKind:{med:tasks.filter(x=>x.kind==='med').length,proc:tasks.filter(x=>x.kind==='proc').length,care:tasks.filter(x=>x.kind==='care').length}
     };
@@ -399,7 +416,9 @@
       b.first=b.entries[0].late?-Infinity:b.entries[0].sortAt;
       return b;
     }).sort((a,c)=>a.first-c.first||NSS_GROUP_ORDER.indexOf(a.group)-NSS_GROUP_ORDER.indexOf(c.group))
-      .concat(empty.sort((a,c)=>NSS_GROUP_ORDER.indexOf(a.group)-NSS_GROUP_ORDER.indexOf(c.group)));
+      .concat(empty.sort((a,c)=>NSS_GROUP_ORDER.indexOf(a.group)-NSS_GROUP_ORDER.indexOf(c.group)))
+      // 2.18.17: the Care list goes last, full width, so each line has room for care · room · name.
+      .sort((a,c)=>(a.group==='care'?1:0)-(c.group==='care'?1:0));
   }
   // 4 s per Guest; quicker (3 s) when a box holds many Guests, so a full house (19 Guests) still cycles in a reasonable time.
   function nssFlipPeriod(n){return n>8?3:NURSE_SAVER_FLIP_SEC}
@@ -538,6 +557,25 @@
                   h('div',{className:'nss-box-empty'},
                     h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2.4,strokeLinecap:'round',strokeLinejoin:'round','aria-hidden':'true'},h('path',{d:'M5 12.5l4.2 4.2L19 7'})),
                     inHero?'Shown in Next Task':'Nothing due in the next 4 hours'));
+              }
+              // 2.18.17: Care is shift-based — all care of the shift scrolls bottom-to-top, one line each: care · room · name.
+              if(b.group==='care'){
+                const lines=b.entries;const scroll=lines.length>(boxes.length>3?3:5);
+                const line=(e,k)=>h('div',{className:`nss-tick-line${e.late?' late':''}`,key:k},
+                  e.late&&h('span',{className:'nss-late'},'Late'),
+                  h('span',{className:'nss-tick-care'},e.detail),
+                  h('span',{className:'nss-tick-sep'},'·'),
+                  h('b',{className:'nss-tick-room'},e.room),
+                  h('span',{className:'nss-tick-sep'},'·'),
+                  h('span',{className:'nss-tick-name'},e.name),
+                  e.when&&e.when!=='Any time'&&h('span',{className:'nss-tick-when'},e.when));
+                return h('div',{className:`nss-box nss-box-care${lines.some(e=>e.late)?' late':''}`,key:b.group},
+                  h('div',{className:'nss-box-head'},nssTag(b.kind,b.label,b.group),h('span',{className:'nss-flip-count'},`${lines.length} this shift`)),
+                  h('div',{className:'nss-box-meta'},b.meta.replace(/^\d+ · /,'')||'this shift'),
+                  h('div',{className:`nss-tick${scroll?' run':''}`},
+                    h('div',{className:'nss-tick-track',key:`t-${lines.length}-${lines.map(e=>e.room+e.detail).join('|').length}`,style:scroll?{animationDuration:`${Math.max(12,lines.length*2.8)}s`}:null},
+                      lines.map((e,k)=>line(e,'a'+k)),
+                      scroll&&lines.map((e,k)=>line(e,'b'+k)))));
               }
               const i=nssFlipIndex(b.entries.length,now,bi);const e=b.entries[i];
               return h('div',{className:`nss-box${e.late?' late':e.due?' due':''}`,key:b.group},
