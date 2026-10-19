@@ -24,6 +24,7 @@
     const movementApply=useAppliedFilters({period:movementPeriod,item:movementItem,from:movementFrom,to:movementTo});const MA=movementApply.applied;
     const [rowDetail,setRowDetail]=React.useState(null);
     const [loadedOnce,setLoadedOnce]=React.useState(false);
+    const [storeResets,setStoreResets]=React.useState([]); // 2.18.37
     // 2.14.97: resident indents for the detail pop-ups (raised by, used / charged, returned, balance)
     const [indents,setIndents]=React.useState([]),[allocations,setAllocations]=React.useState([]),[storeReturns,setStoreReturns]=React.useState([]);
     // a unit saved as a number (e.g. "2") is a data error — show it clearly so it gets corrected
@@ -98,6 +99,7 @@
       if(!lRes.error)setLedger((lRes.data||[]).filter(r=>!r.voided_at));
       if(!pRes.error)setPatients(pRes.data||[]); if(!mRes.error)setItemMaster(mRes.data||[]);
       if(!iRes.error)setIndents(iRes.data||[]);if(!aRes.error)setAllocations(aRes.data||[]);if(!tRes.error)setStoreReturns(tRes.data||[]);
+      try{const rs=await loadStoreResets(20);setStoreResets(rs.rows||[])}catch(_){}
       setLoadedOnce(true);
     }
     React.useEffect(()=>{load()},[]);
@@ -259,7 +261,9 @@
     const ledgerList=section==='movement'?movementSelectedLedger:displayLedger;
     const expiryToday=todayISOIndia(),expirySoonLimit=addDaysISO(todayISOIndia(),90);
     const expiryStateOf=r=>!r.expiry_date?'missing':String(r.expiry_date).slice(0,10)<expiryToday?'expired':String(r.expiry_date).slice(0,10)<=expirySoonLimit?'soon':'ok';
-    const expiryWatch=displayReceipts.filter(r=>Number(itemById(r.item_id)?.balance_qty||0)>0).map(r=>({...r,_state:expiryStateOf(r)})).filter(r=>r._state!=='ok')
+    // 2.18.37: after a Stock Reset, receipts received BEFORE the reset belong to stock that was set to zero — not watched
+    const resetCutoff=r=>{const sec=masterById.get(r.item_id)?.item_category||'Consumables';const rs=(storeResets||[]).find(x=>(x.sections||[]).includes(sec));return rs?String(rs.reset_at):''};
+    const expiryWatch=displayReceipts.filter(r=>Number(itemById(r.item_id)?.balance_qty||0)>0).filter(r=>{const c=resetCutoff(r);return !c||String(r.received_at||'')>=c}).map(r=>({...r,_state:expiryStateOf(r)})).filter(r=>r._state!=='ok')
       .sort((a,b)=>({expired:0,soon:1,missing:2}[a._state]-{expired:0,soon:1,missing:2}[b._state])||String(a.expiry_date||a.received_date||'').localeCompare(String(b.expiry_date||b.received_date||'')));
     const [expiryWatchFilter,setExpiryWatchFilter]=React.useState('All');
     const expiryWatchVisible=expiryWatch.filter(r=>expiryWatchFilter==='All'||r._state===expiryWatchFilter);
@@ -504,7 +508,9 @@
             h('div',{className:'field'},h('label',null,'Add Item Manually'),h('input',{value:form.new_item_name,onChange:e=>setForm({...form,new_item_name:e.target.value,catalog_item:'',item_id:''}),placeholder:form.item_category==='Pharmacy'?'Enter medicine / pharmacy item':'Enter Stores item'})),
             h('div',{className:'field'},h('label',null,'Unit'),h('select',{value:form.unit,onChange:e=>setForm({...form,unit:e.target.value}),disabled:Boolean(form.item_id)},units.map(x=>h('option',{key:x,value:x},x)))),
             h('div',{className:'field'},h('label',null,'Quantity Received *'),h('input',{type:'number',min:'1',step:'1',value:form.quantity,onChange:e=>setForm({...form,quantity:e.target.value}),required:true})),
-            h('div',{className:'field'},h('label',null,'Vendor *'),h('input',{value:form.vendor_name,onChange:e=>setForm({...form,vendor_name:e.target.value}),required:true,placeholder:'Vendor / Supplier name'})),
+            h('div',{className:'field'},h('label',null,'Vendor *'),h('input',{value:form.vendor_name,list:'stores-manual-vendors',onChange:e=>setForm({...form,vendor_name:e.target.value}),required:true,placeholder:'Type the vendor / supplier name'}),
+              h('datalist',{id:'stores-manual-vendors'},[...new Map(receipts.map(r=>String(r.vendor_name||'').trim()).filter(v=>v&&v!==PHYSICAL_COUNT_VENDOR).map(v=>[v.toLowerCase(),v])).values()].sort((a,b)=>a.localeCompare(b)).map(v=>h('option',{key:v,value:v}))),
+              h('small',null,'Not printed on the bill? Type it, or choose a vendor used before.')),
             h('div',{className:'field'},h('label',null,'Invoice / Bill No.'),h('input',{value:form.invoice_no,onChange:e=>setForm({...form,invoice_no:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Invoice Date'),h(StrictDateInput,{value:form.invoice_date,onChange:e=>setForm({...form,invoice_date:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Received Date *'),h(StrictDateInput,{value:form.received_date,onChange:e=>setForm({...form,received_date:e.target.value}),required:true})),

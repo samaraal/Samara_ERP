@@ -58,12 +58,26 @@
     if(l.match.kind==='near')p.push('Choose: same as the Stores item, or a new item');
     return p;
   }
+  // 2.18.37: MRP on the bill vs the Charge Master (Stores Master) rate of the matched item. Returns a short note, or ''.
+  function billMrpGap(l){
+    const mrp=Number(String(l?.mrp??'').replace(/[^0-9.]/g,''));
+    if(!String(l?.mrp??'').trim()||!Number.isFinite(mrp)||mrp<=0)return '';
+    const it=l.match?.kind==='exact'?l.match.item:null,rate=Number(it?.charge_rate);
+    if(!it)return `Bill MRP ₹${mrp.toFixed(2)} · NEW item, no Charge Master rate yet`;
+    if(!Number.isFinite(rate)||rate<=0)return `Bill MRP ₹${mrp.toFixed(2)} · Charge Master has no rate yet`;
+    if(Math.abs(mrp-rate)<0.005)return '';
+    return `Bill MRP ₹${mrp.toFixed(2)} per ${l.pack_size||l.unit||'unit'} · Charge Master ₹${rate.toFixed(2)} per ${it.unit||'unit'}`;
+  }
   function StoreBillScan({items,defaultSection,onReceived,notify}){
     const [busy,setBusy]=React.useState(false),[status,setStatus]=React.useState(''),[tone,setTone]=React.useState('');
     // 2.18.4: Discard — throws away the scanned pages and every line not yet received (e.g. the wrong bill was scanned).
     const [scanKey,setScanKey]=React.useState(0);
     const [head,setHead]=React.useState(null),[lines,setLines]=React.useState([]),[subtotal,setSubtotal]=React.useState('');
     const activeItems=(items||[]).filter(i=>i.active!==false);
+    // 2.18.37: vendor name typed by hand when the bill has none — offer the vendors already used
+    const [vendors,setVendors]=React.useState([]);
+    React.useEffect(()=>{let live=true;client.from('consumable_store_receipts').select('vendor_name').order('received_at',{ascending:false}).limit(2000).then(r=>{if(!live||r.error)return;
+      const seen=new Map();(r.data||[]).forEach(x=>{const v=String(x.vendor_name||'').trim();if(v&&v!==PHYSICAL_COUNT_VENDOR&&!seen.has(v.toLowerCase()))seen.set(v.toLowerCase(),v)});setVendors([...seen.values()].sort((a,b)=>a.localeCompare(b)))});return()=>{live=false}},[]);
     async function read(files){
       if(lines.some(l=>l.verified&&!l.done)&&!confirm('Replace the checked lines below with this new bill?'))return;
       setBusy(true);setTone('');
@@ -102,7 +116,7 @@
       const fresh=todo.filter(l=>l.match.kind!=='exact').length;
       const bySection=BILL_SCAN_SECTIONS.map(sec=>[sec,todo.filter(l=>l.section===sec).length]).filter(([,n])=>n).map(([sec,n])=>`${sec}: ${n} line(s)`).join('\n');
       if(!confirm(`Receive ${todo.length} verified line(s) from ${head.vendor_name} into stock?\n\n${bySection}${fresh?`\n\n${fresh} NEW item(s) will be added to the Stores Master (no price — Admin / Director fixes the Guest rate in Charge Master).`:''}`))return;
-      setBusy(true);let ok=0,bad=0;
+      setBusy(true);let ok=0,bad=0,flagged=0;
       for(const l of todo){
         const qty=Number(l.quantity)+(Number(l.free_quantity)||0);
         const args={p_section:l.section,p_item_id:l.match.kind==='exact'?l.match.item.id:null,p_item_name:l.match.kind==='exact'?null:l.item_name.trim().replace(/\s+/g,' '),p_unit:l.unit,
@@ -113,10 +127,16 @@
         let res=await client.rpc('store_receive_into_section',args);
         if(res.error&&/store_receive_into_section|schema cache|could not find the function/i.test(res.error.message||'')&&['Consumables','Pharmacy'].includes(p_section))res=await client.rpc('receive_consumable_store_stock',legacy);
         if(res.error){bad++;setLines(ls=>ls.map(x=>x.key===l.key?{...x,error:res.error.message}:x))}
-        else{ok++;setLines(ls=>ls.map(x=>x.key===l.key?{...x,done:true,error:''}:x))}
+        else{ok++;setLines(ls=>ls.map(x=>x.key===l.key?{...x,done:true,error:''}:x));
+          // 2.18.37: bill MRP ≠ Charge Master rate (or a new item with no rate) → Charge Master rate is kept; Admin / Director reviews
+          const mrpGap=billMrpGap(l);
+          if(mrpGap){flagged++;const fr=await client.rpc('store_flag_mrp_difference',{p_item_id:l.match.kind==='exact'?l.match.item.id:null,p_item_name:l.item_name.trim().replace(/\s+/g,' '),p_bill_mrp:Number(l.mrp),
+            p_vendor_name:head.vendor_name.trim(),p_invoice_no:head.invoice_no.trim()||null,p_invoice_date:billIso(head.invoice_date)||null,p_pack_size:l.pack_size||null,p_remarks:mrpGap});
+            if(fr.error){flagged--;console.warn('MRP review not recorded',fr.error)}}
+        }
       }
       setBusy(false);
-      notify(bad?'error':'success',`${ok} line(s) received into stock from ${head.vendor_name}.${bad?` ${bad} line(s) not received — see the red message on each.`:''}`);
+      notify(bad?'error':'success',`${ok} line(s) received into stock from ${head.vendor_name}.${bad?` ${bad} line(s) not received — see the red message on each.`:''}${flagged?` ${flagged} MRP difference(s) sent to Admin / Director (MRP Review) — the Charge Master rate is kept.`:''}`);
       if(ok&&onReceived)onReceived();
     }
     // 2.18.4: colours as in the trial — light GREEN = read from the bill (check it), light YELLOW = not filled or
@@ -135,7 +155,10 @@
         h('span',null,h('span',{style:{...SCAN_YELLOW,display:'inline-block',width:'14px',height:'14px',padding:0,verticalAlign:'middle',marginRight:'6px'}}),'Yellow = not filled / not clear — fill or check')):null,
       head&&!(lines.length&&lines.every(l=>l.done))&&h('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:'8px'}},h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:discard},'🗑 Discard this bill')),
       head&&h('div',{className:'grid two',style:{marginTop:'10px'}},
-        h('div',{className:'field',style:String(head.vendor_name).trim()?SCAN_GREEN:SCAN_YELLOW},h('label',null,'Vendor *'),h('input',{value:head.vendor_name,onChange:e=>setHead({...head,vendor_name:e.target.value})})),
+        h('div',{className:'field',style:String(head.vendor_name).trim()?SCAN_GREEN:SCAN_YELLOW},h('label',null,'Vendor *'),
+          h('input',{value:head.vendor_name,list:'bill-scan-vendors',placeholder:'Type the vendor / supplier name',onChange:e=>setHead({...head,vendor_name:e.target.value})}),
+          h('datalist',{id:'bill-scan-vendors'},vendors.map(v=>h('option',{key:v,value:v}))),
+          !String(head.vendor_name).trim()&&h('small',{style:{color:'#8a5a00'}},'Vendor name not found on the bill — type it here, or choose a vendor used before.')),
         h('div',{className:'field',style:String(head.invoice_no).trim()?SCAN_GREEN:SCAN_YELLOW},h('label',null,'Invoice / Bill No.'),h('input',{value:head.invoice_no,onChange:e=>setHead({...head,invoice_no:e.target.value})})),
         h('div',{className:'field',style:head.invoice_date?SCAN_GREEN:SCAN_YELLOW},h('label',null,'Invoice Date'),h(StrictDateInput,{value:head.invoice_date,onChange:e=>setHead({...head,invoice_date:e.target.value})})),
         h('div',{className:'field'},h('label',null,'Received Date *'),h(StrictDateInput,{value:head.received_date,required:true,onChange:e=>setHead({...head,received_date:e.target.value})}),h('small',null,'The day the goods actually arrived'))),
@@ -168,6 +191,7 @@
             h('button',{type:'button',className:'btn btn-secondary',style:{padding:'2px 8px'},onClick:()=>setLines(ls=>ls.map(x=>x.key===l.key?{...x,converted:true,verified:false,quantity:String((Number(x.quantity)||0)*per),free_quantity:x.free_quantity?String((Number(x.free_quantity)||0)*per):'',unit_cost:x.unit_cost?String(Math.round(Number(x.unit_cost)/per*100)/100):'',mrp:x.mrp?String(Math.round(Number(x.mrp)/per*100)/100):''}:x))},`Convert to ${(Number(l.quantity)||0)*per} ${l.unit}`),' ',
             h('button',{type:'button',className:'btn btn-secondary',style:{padding:'2px 8px'},onClick:()=>setLines(ls=>ls.map(x=>x.key===l.key?{...x,converted:true}:x))},'Keep as packs')):null,
           h('small',{className:'small-note',style:{display:'block'}},`Stock to receive: ${qtyTotal||'—'} ${l.unit||''}${Number(l.free_quantity)?` (${l.quantity} billed + ${l.free_quantity} free)`:''}`),
+          billMrpGap(l)?h('small',{style:{display:'block',color:'#8a5a00',fontWeight:700}},`₹ ${billMrpGap(l)} — the Charge Master rate is kept; this goes to Admin / Director (MRP Review) when received.`):null,
           l.error?h('div',{style:SAMARA_SCAN.noteStyle('error')},`Not received: ${l.error}`):null,
           !l.done&&h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginTop:'8px'}},
             problems.length&&!l.verified?h('small',{className:'error-text',style:{flex:'1 1 200px'}},'Still needed: '+problems.join(', ')):h('span',{style:{flex:'1 1 200px'}}),

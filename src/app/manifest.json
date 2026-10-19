@@ -432,6 +432,10 @@
    "about": "2.18.0 Scan supplier bill in Receive from Vendor (verify each line, receive; new items without price)"
   },
   {
+   "file": "stores/stock-fresh-start.js",
+   "about": "2.18.37 Fresh start of stock: Excel backup, Stock Reset (Admin/Director), Opening Stock – Physical Count, MRP Review (SQL 256)"
+  },
+  {
    "file": "stores/consumables-stores.js",
    "about": "Consumables stores",
    "lines": 770
@@ -442,7 +446,9 @@
    "lines": 181
   },
   {
-   "file": "stores/housekeeping-workspace.js", "about": "Housekeeping STD indent workflow and consumption", "lines": 60
+   "file": "stores/housekeeping-workspace.js",
+   "about": "Housekeeping STD indent workflow and consumption",
+   "lines": 60
   },
   {
    "file": "stores/stores-dashboard.js",

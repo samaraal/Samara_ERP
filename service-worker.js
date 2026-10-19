@@ -1,5 +1,5 @@
-const APP_VERSION = '2.18.36';
-const CACHE = 'samara-erp-2.18.36-usage-register-inactive-tag';
+const APP_VERSION = '2.18.37';
+const CACHE = 'samara-erp-2.18.37-stock-fresh-start';
 const SHELL = [
   './',
   './index.html',

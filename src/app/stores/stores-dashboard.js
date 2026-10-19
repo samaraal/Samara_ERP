@@ -217,10 +217,12 @@
       )
     );
   }
-  function DashboardHero({kicker='PHARMACY & STORES',title,blurb,onRefresh}){
+  function DashboardHero({kicker='PHARMACY & STORES',title,blurb,onRefresh,extra=null}){
     return h('div',{className:'stores-dash-hero'},
       h('div',null,h('small',null,kicker),h('h2',null,title),h('p',null,blurb)),
-      onRefresh&&h('button',{type:'button',className:'stores-dash-refresh',onClick:onRefresh},'↻ Refresh')
+      (onRefresh||extra)&&h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}},
+        extra,
+        onRefresh&&h('button',{type:'button',className:'stores-dash-refresh',onClick:onRefresh},'↻ Refresh'))
     );
   }
   function DashboardTiles({tiles,onOpen}){
@@ -246,6 +248,20 @@
     const [refreshKey,setRefreshKey]=React.useState(0);
     const [usageItem,setUsageItem]=React.useState('');
     const [stats,setStats]=React.useState(null),[indents,setIndents]=React.useState(null);
+    // 2.18.37: Fresh start of stock (Pharmacy & Consumables) — last reset and open MRP reviews for the boxes
+    const freshSection=FRESH_START_SECTIONS.includes(categoryFilter);
+    const storeAdmin=isStoreAdminDirector(profile);
+    const [fresh,setFresh]=React.useState(null);
+    React.useEffect(()=>{
+      if(!freshSection){setFresh(null);return}
+      let live=true;
+      (async()=>{
+        const [rs,mrp]=await Promise.all([loadStoreResets(5),client.from('store_mrp_reviews').select('id,item_category',{count:'exact'}).eq('status','Open').limit(1000)]);
+        if(!live)return;
+        setFresh({last:lastResetFor(rs.rows,categoryFilter),missing:rs.missing,mrpOpen:mrp.error?null:(mrp.data||[]).filter(x=>!x.item_category||x.item_category===categoryFilter).length});
+      })();
+      return()=>{live=false};
+    },[categoryFilter,refreshKey]);
     const cat=categoryFilter||'Pharmacy & Stores';
     const isPharmacy=categoryFilter==='Pharmacy';
     const info=storeSectionInfo(categoryFilter||'Consumables');
@@ -266,6 +282,11 @@
       {key:'usage',icon:'▤',title:'Item Usage Register',value:ready?s.items:null,unit:'items',lines:['Patient-wise and Outside Nursing usage','Charged quantities, returns and store balances']},
       ...(info.departmentIssue?[{key:'issue',icon:'➜',title:'Issue to Department',value:ready?s.deptMonth:null,unit:'issues this month',lines:[`${n(s.deptToday)} issued today`,'Floor, kitchen / pantry, laundry and other departments']}]:[]),
       ...(s.controller?[{key:'receive',icon:'＋',title:'Receive from Vendor',value:null,valueText:'New',unit:'receipt',lines:['Enter stock received from a vendor, with batch and expiry']}]:[]),
+      ...(freshSection&&s.controller?[{key:'count',icon:'✓',title:'Opening Stock – Physical Count',value:null,valueText:'Count',unit:'shelf stock',lines:['Stock on the shelf without an invoice','One line per item / batch, with expiry']}]:[]),
+      ...(freshSection&&s.access?[{key:'fresh',icon:'⤓',title:'Backup & Fresh Start',value:null,valueText:fresh?.last?`RST-${String(fresh.last.reset_no).padStart(4,'0')}`:'Excel',unit:fresh?.last?'last reset':'backup',
+        lines:[fresh?.last?`Reset on ${formatDateIN(fresh.last.reset_at)} by ${fresh.last.reset_by_name||'—'}`:'Download the current entries as Excel',storeAdmin?'Stock Reset (Admin / Director)':'Stock Reset is done by Admin / Director']}]:[]),
+      ...(freshSection&&s.access?[{key:'mrp',icon:'₹',title:'MRP Review',value:fresh?fresh.mrpOpen:null,unit:'waiting for review',
+        lines:['Bill MRP different from the Charge Master rate','Charge Master rate is kept until Admin / Director decides'],alert:Number(fresh?.mrpOpen||0)>0&&storeAdmin}]:[]),
       {key:'receipts',icon:'🧾',title:'Vendor Receipt Register',value:ready?s.receipts:null,unit:'receipts',
         lines:[s.lastReceipt?`Last received ${formatDateIN(s.lastReceipt)}`:'No receipts yet']},
       {key:'movement',icon:'↕',title:'Stock Movement Register',value:ready?s.monthMoves:null,unit:'movements this month',
@@ -280,11 +301,15 @@
     if(stats&&stats.access===false)return h(ConsumablesStores,{profile,categoryFilter});
     return h('div',{className:'stores-dash-wrap'},
       !view&&h('div',{className:'stores-dash'},
-        h(DashboardHero,{title:cat,blurb:info.blurb,onRefresh:()=>{setStats(null);setIndents(null);setRefreshKey(k=>k+1)}}),
+        h(DashboardHero,{title:cat,blurb:info.blurb,onRefresh:()=>{setStats(null);setIndents(null);setRefreshKey(k=>k+1)},
+          extra:s.access?h(StoresExcelButton,{profile,sections:categoryFilter?[categoryFilter]:null,label:categoryFilter||'All',className:'stores-dash-refresh',text:'⤓ Excel'}):null}),
         h(DashboardTiles,{tiles,onOpen:openView})
       ),
       view&&h(DashboardBackBar,{title:cat,viewTitle,onBack:backToDashboard}),
       view==='usage'&&stats?.access&&h(StoreItemUsageRegister,{profile,categoryFilter,initialItem:usageItem}),
+      view==='fresh'&&stats?.access&&h(StoreFreshStart,{profile,categoryFilter,onChanged:()=>{setStats(null);setIndents(null);setRefreshKey(k=>k+1)}}),
+      view==='count'&&stats?.access&&h(StorePhysicalCount,{profile,categoryFilter,onChanged:()=>{setStats(null);setIndents(null);setRefreshKey(k=>k+1)}}),
+      view==='mrp'&&stats?.access&&h(StoreMrpReview,{profile,categoryFilter,onChanged:()=>setRefreshKey(k=>k+1)}),
       h(React.Fragment,{key:`stores-dash-data-${refreshKey}`},
         h(ConsumablesStores,{profile,categoryFilter,section:storeSection,onSummary:setStats,onOpenSection:openView,onOpenUsage:id=>{setUsageItem(id);openView('usage')}}),
         h(PatientConsumables,{profile,categoryFilter,section:indentSection,registerFilter,onSummary:setIndents})

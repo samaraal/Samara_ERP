@@ -1,3 +1,10 @@
+## 2.18.37 — Pharmacy & Consumables: fresh start of stock
+- **⤓ Excel** on every Pharmacy & Stores dashboard: downloads Current Stock, Vendor Receipts and Stock Movements of that section as one Excel file (backup of the present entries, any time).
+- New box **Backup & Fresh Start** (Pharmacy, Consumables): 1) download the Excel backup, 2) check items with a balance and open indents, 3) **Stock Reset** (Admin / Director only, type RESET) — every item's balance is set to 0 by ONE permanent "Stock Reset RST-nnnn" adjustment line. Nothing is deleted: item names, codes, units, Charge Master rates (MRP) and every Guest record (indents, charges, bills, Family Portal) stay as they are. A full snapshot of the old balances is kept in the ERP (tap a reset in Reset history → download it).
+- New box **Opening Stock – Physical Count** (Store In-charge): enter shelf stock that has no invoice, item by item / batch with expiry; new items are added without a price. Shown as an adjustment "Opening Stock – Physical Count", not a vendor purchase.
+- Receive from Vendor: if the bill has no vendor name, type it (or choose a vendor used before) — same in the manual form. Bill MRP different from the Charge Master rate (or a new item with no rate): the Charge Master rate is kept and the line goes to the new **MRP Review** box, where Admin / Director keeps the rate or sets a new one.
+- Expiry Watch ignores receipts of stock that was reset to zero. **SQL 256_stock_fresh_start.sql** (run once).
+
 ## 2.18.36 — Usage Register: discharged Guests tagged
 - Item Usage Register patient-wise search covers active AND inactive / discharged Guests (Patient status "All" by default; choose "Inactive / Discharged residents" for only them). Discharged Guests are now tagged "(Inactive / Discharged)" in the patient-wise list. No SQL.
 
