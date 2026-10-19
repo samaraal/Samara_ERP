@@ -77,7 +77,7 @@
         const fallback=BILL_SCAN_SECTIONS.includes(defaultSection)?defaultSection:'';
         const ls=billLines(x,activeItems).map(l=>l.section||!fallback?l:{...l,section:fallback,flags:[...new Set([...l.flags,'section'])],notes:{...l.notes,section:l.notes.section||`Section not clear on the bill — set to ${fallback} (this page). Change it if this is a ${fallback==='Pharmacy'?'Consumables / other':'Pharmacy / other'} item.`}});
         setLines(ls);setTone(ls.length?'ok':'error');
-        setStatus(ls.length?`${ls.length} line(s) read. Check the green fields against the bill, fill the yellow ones, tick ✓ Verified on each line, then press Receive.`:'No stock lines could be read. Use the manual form below.');
+        setStatus(ls.length?`${ls.length} line(s) read. Fill / check the yellow fields, tick ✓ Verified on each line, then press Receive.`:'No stock lines could be read. Use the manual form below.');
       }catch(e){setTone('error');setStatus(e.message||'Could not read the bill.')}
       finally{setBusy(false)}
     }
@@ -121,7 +121,7 @@
     }
     // 2.18.4: colours as in the trial — light GREEN = read from the bill (check it), light YELLOW = not filled or
     // not clear (fill / confirm it). No colour once the line is ✓ Verified or received.
-    const SCAN_GREEN={background:'#eaf7ee',borderRadius:'8px',padding:'4px',boxShadow:'0 0 0 1px #a7dcbc'},SCAN_YELLOW={background:'#fff8e1',borderRadius:'8px',padding:'4px',boxShadow:'0 0 0 1px #f2d27b'};
+    const SCAN_GREEN={} /* 2.18.6: read from the bill = stays white */,SCAN_YELLOW={background:'#fff8e1',borderRadius:'8px',padding:'4px',boxShadow:'0 0 0 1px #f2d27b'};
     const fld=(l,k,label,input)=>h('div',{className:'field',key:k,style:l.verified||l.done?undefined:(l.flags.includes(k)||!String(l[k]??'').trim())?SCAN_YELLOW:SCAN_GREEN},h('label',null,label),input,l.notes[k]&&!l.verified?h('small',{style:{color:'#8a5a00'}},l.notes[k]):null);
     const txt=(l,k,extra={})=>h('input',{value:l[k]||'',disabled:l.done,onChange:e=>setLine(l.key,{[k]:e.target.value}),...extra});
     const total=lines.reduce((a,l)=>a+(Number(l.quantity)||0)*(Number(l.unit_cost)||0),0);
@@ -131,8 +131,8 @@
       h('small',{className:'small-note',style:{display:'block',margin:'4px 0 8px'}},'Photo or PDF of the bill / delivery note, up to 8 pages. Every line is matched to the Stores Master. Check each line, tick ✓ Verified, then Receive. NEW items are added without a price.'),
       h(SAMARA_SCAN.ScanButton,{key:`bill-scan-${scanKey}`,label:'Scan supplier bill',readLabel:'Read & Fill Stock Arrival',busy,status,tone,onFiles:read}),
       lines.length?h('div',{style:{display:'flex',gap:'14px',flexWrap:'wrap',alignItems:'center',marginTop:'8px',fontSize:'13px'}},
-        h('span',null,h('span',{style:{...SCAN_GREEN,display:'inline-block',width:'14px',height:'14px',padding:0,verticalAlign:'middle',marginRight:'6px'}}),'Read from the bill — check'),
-        h('span',null,h('span',{style:{...SCAN_YELLOW,display:'inline-block',width:'14px',height:'14px',padding:0,verticalAlign:'middle',marginRight:'6px'}}),'Not filled / not clear — fill or confirm')):null,
+        h('span',null,h('span',{style:{background:'#fff',borderRadius:'4px',boxShadow:'0 0 0 1px #d8c3cf',display:'inline-block',width:'14px',height:'14px',padding:0,verticalAlign:'middle',marginRight:'6px'}}),'White = read from the bill'),
+        h('span',null,h('span',{style:{...SCAN_YELLOW,display:'inline-block',width:'14px',height:'14px',padding:0,verticalAlign:'middle',marginRight:'6px'}}),'Yellow = not filled / not clear — fill or check')):null,
       head&&!(lines.length&&lines.every(l=>l.done))&&h('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:'8px'}},h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:discard},'🗑 Discard this bill')),
       head&&h('div',{className:'grid two',style:{marginTop:'10px'}},
         h('div',{className:'field',style:String(head.vendor_name).trim()?SCAN_GREEN:SCAN_YELLOW},h('label',null,'Vendor *'),h('input',{value:head.vendor_name,onChange:e=>setHead({...head,vendor_name:e.target.value})})),

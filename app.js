@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.5';
+  const APP_VERSION = '2.18.6';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '19-Oct-2026 Prescription uploaded once';
+  const APP_BUILD_DATE = '19-Oct-2026 Yellow to-fill fields, Receive from Vendor menu';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -1722,7 +1722,7 @@ function initSamaraInaugurationInvitation(){
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Petty Cash'] }, // 2.16.19: Petty Cash = Nursing Manager's book (Admin + Nursing Manager)
     { title:'NURSING', items:['Outside Nursing Dashboard','Outside Samara Nursing Procedures','Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Approval Requests','Charge Register','Physiotherapy','Special Nurse','Shift Handover'] },
     { title:'PHYSIOTHERAPY', items:['Physiotherapy Dashboard'] },
-    { title:'PHARMACY & STORES', items:['Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'] },
+    { title:'PHARMACY & STORES', items:['Receive from Vendor','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Physiotherapist Accounts','Accounts Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Reports'] }, // keep in step with ACCOUNTS_NAV_GROUPS
     { title:'COMMUNICATION', items:['Talk to Guest','WhatsApp Inbox','WhatsApp Logs','Feedback','Mail Dashboard'] }, // 2.16.34: Talk to Guest here for Admin / STD (nurses & managers keep it in their nursing menu)
@@ -1777,7 +1777,7 @@ function initSamaraInaugurationInvitation(){
       'Clinical Dashboard','Talk to Guest','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiry Register','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Approval Requests','Charge Approvals','Charge Register', // 2.17.6: Bills & Charges (raise outside bills)
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
-      'Patient Consumables','Stores','Stores In-charge Assignment','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Petty Cash','Biomedical Equipment','Oxygen Cylinders','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
+      'Patient Consumables','Stores','Receive from Vendor','Stores In-charge Assignment','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Petty Cash','Biomedical Equipment','Oxygen Cylinders','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
     if(!pages.includes('Spot Assessment'))pages.push('Spot Assessment');
@@ -1785,6 +1785,7 @@ function initSamaraInaugurationInvitation(){
     if(profile?.role==='Manager'&&employeeDepartment(profile)&&!pages.includes('Employees'))pages.push('Employees');
     if(isNursingManagerProfile(profile)){ if(!pages.includes('My To-Do List'))pages.push('My To-Do List'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Consumables'))pages.push('Consumables'); if(!pages.includes('Pharmacy'))pages.push('Pharmacy'); STORE_SECTIONS.forEach(x=>{if(!pages.includes(x.page))pages.push(x.page)}); ['Biomedical Equipment','Oxygen Cylinders'].forEach(x=>{if(!pages.includes(x))pages.push(x)}); if(!pages.includes('Stores In-charge Assignment'))pages.push('Stores In-charge Assignment'); if(!pages.includes('Employees'))pages.push('Employees'); }
     if(pages.includes('Admissions')&&!pages.includes('Admission Register'))pages.push('Admission Register'); // 2.15.1
+    if(pages.includes('Stores')&&!pages.includes('Receive from Vendor'))pages.push('Receive from Vendor'); // 2.18.6: new stock entries (bill scan) straight from the menu
     return pages;
   };
   const CLINICAL_ROLES=['Nurse','Caregiver'];
@@ -1858,7 +1859,7 @@ function initSamaraInaugurationInvitation(){
         {title:'ADMISSION',items:['Spot Assessment','Admissions','Admission Register'].filter(item=>allowed.includes(item))},
         {title:'PATIENTS',items:['Patients','Discharge','Documents','Recovery Timeline','Intelligent Reports','Family Communication','Incidents','Medication Errors','Patient Ledger','Final Billing'].filter(item=>allowed.includes(item))},
         {title:'ROOMS & PACKAGES',items:['Rooms','Care Packages'].filter(item=>allowed.includes(item))},
-        {title:'PHARMACY & STORES',items:['Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'].filter(item=>allowed.includes(item))},
+        {title:'PHARMACY & STORES',items:['Receive from Vendor','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'].filter(item=>allowed.includes(item))},
         {title:'PETTY CASH',items:['Petty Cash'].filter(item=>allowed.includes(item))}, // 2.16.20: Nursing Manager's own petty cash book
         {title:'FOOD & DIET',items:['Food & Diet'].filter(item=>allowed.includes(item))},
         {title:'COMMUNICATION',items:['WhatsApp Inbox'].filter(item=>allowed.includes(item))},
@@ -14170,6 +14171,7 @@ https://samaraassistedliving.com/`;
           page==='Raise Indent'&&h(PatientConsumables,{profile,initialView:'raise'}),
           page==='Received Indents / Used Balance'&&h(PatientConsumables,{profile,initialView:'balance'}),
           page==='Stores'&&h(ConsumablesStores,{profile}),
+          page==='Receive from Vendor'&&h(ConsumablesStores,{profile,section:'receive'}), // 2.18.6: all sections; each scanned line keeps its own section
           page==='Consumables'&&h(StoresDashboard,{profile,categoryFilter:'Consumables'}),
           page==='Pharmacy'&&h(StoresDashboard,{profile,categoryFilter:'Pharmacy'}),
           page==='Housekeeping & General'&&h(StoresDashboard,{profile,categoryFilter:'Housekeeping & General'}),
@@ -14839,7 +14841,7 @@ https://samaraassistedliving.com/`;
     const [openSection,setOpenSection]=React.useState(activeSection);
     React.useEffect(()=>{const next=sections.find(section=>section.items.includes(page))?.title;if(next)setOpenSection(next)},[page]);
     const sectionIcon=title=>/OVERVIEW/.test(title)?'⌂':/HR|STAFF/.test(title)?'♙':/ADMISSION/.test(title)?'♥':/PATIENT/.test(title)?'⚕\uFE0E':/ROOM/.test(title)?'▦':/PHARMACY|STORE/.test(title)?'♨':/FOOD/.test(title)?'🍽\uFE0E':/CHARGE/.test(title)?'₹':/ACCOUNT.*BILL|BILLING|PAYMENT|FINANCE/.test(title)?'₹':/COMMUNICATION|WHATSAPP/.test(title)?'✉\uFE0E':/MY ACCOUNT|PROFILE/.test(title)?'☺\uFE0E':/DUTY|ROSTER|LEAVE/.test(title)?'◷':/DIRECTOR/.test(title)?'★':/CLINICAL|NURSING/.test(title)?'✚':'⚙\uFE0E';
-    const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Consumables'?'▤':item==='Pharmacy'?'✚':item==='Housekeeping & General'?'🧺\uFE0E':item==='Kitchen / Food Stores'?'🍽\uFE0E':item==='Biomedical Equipment'?'⚕\uFE0E':item==='Oxygen Cylinders'?'◉':item==='Stores'?'▥':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My To-Do List'?'✓':item==='Accounts Dashboard'?'◫':['Charge Approvals','Payments','Patient Ledger','Final Billing','Refunds'].includes(item)?'₹':item==='Discharge Clearance'?'⇥':item==='Package Expiry Dashboard'?'◷':['Payment Requests','Payments & Vouchers'].includes(item)?'↗':item==='Approved—Ready to Pay'?'✓':item==='Payment Vouchers'?'▤':item==='Payment Statements'?'≡':item==='Accounts Reports'?'▦':'›';
+    const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Consumables'?'▤':item==='Pharmacy'?'✚':item==='Housekeeping & General'?'🧺\uFE0E':item==='Kitchen / Food Stores'?'🍽\uFE0E':item==='Biomedical Equipment'?'⚕\uFE0E':item==='Oxygen Cylinders'?'◉':item==='Stores'?'▥':item==='Receive from Vendor'?'＋':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My To-Do List'?'✓':item==='Accounts Dashboard'?'◫':['Charge Approvals','Payments','Patient Ledger','Final Billing','Refunds'].includes(item)?'₹':item==='Discharge Clearance'?'⇥':item==='Package Expiry Dashboard'?'◷':['Payment Requests','Payments & Vouchers'].includes(item)?'↗':item==='Approved—Ready to Pay'?'✓':item==='Payment Vouchers'?'▤':item==='Payment Statements'?'≡':item==='Accounts Reports'?'▦':'›';
     React.useEffect(()=>{
       const onKey=e=>{if(e.key==='Escape')onClose()};
       document.addEventListener('keydown',onKey);
@@ -23060,12 +23062,12 @@ Thank you.`;
     const [idMarks,setIdMarks]=React.useState(null);
     const ID_MARK_LABEL={full_name:'Patient name',date_of_birth:'Date of Birth',age:'Age',gender:'Gender'};
     React.useEffect(()=>{
-      if(!document.getElementById('samara-scan-check-style')){const st=document.createElement('style');st.id='samara-scan-check-style';st.textContent='.samara-scan-check{background:#fff8e1!important;border-radius:10px;box-shadow:0 0 0 2px #f2d27b;padding:4px 6px!important}.samara-scan-check input,.samara-scan-check select{background:#fffbea!important}.samara-scan-filled{background:#eaf7ee!important;border-radius:10px;box-shadow:0 0 0 2px #a7dcbc;padding:4px 6px!important}.samara-scan-filled input,.samara-scan-filled select{background:#f3fbf5!important}';document.head.appendChild(st)}
+      if(!document.getElementById('samara-scan-check-style')){const st=document.createElement('style');st.id='samara-scan-check-style';st.textContent='.samara-scan-check{background:#fff8e1!important;border-radius:10px;box-shadow:0 0 0 2px #f2d27b;padding:4px 6px!important}.samara-scan-check input,.samara-scan-check select{background:#fffbea!important}';document.head.appendChild(st)}
       const card=document.getElementById('admission-identity-card');if(!card)return;
       card.querySelectorAll('.samara-scan-check,.samara-scan-filled').forEach(n=>n.classList.remove('samara-scan-check','samara-scan-filled'));
       if(!idMarks)return;
       const boxFor=k=>{const byId=document.getElementById(`admission-address-${k}`);if(byId)return byId.closest('.field');const lab=ID_MARK_LABEL[k];return lab?[...card.querySelectorAll('.field')].find(f=>String(f.querySelector('label')?.textContent||'').trim().startsWith(lab)):null};
-      for(const [k,v] of Object.entries(idMarks.filled))if(String(form[k]??'')===String(v))boxFor(k)?.classList.add('samara-scan-filled'); // 2.18.4: filled from the card = green
+      // 2.18.6: fields filled from the card stay white; only the ones still to fill are yellow
       for(const k of idMarks.missing)if(!String(form[k]??'').trim())boxFor(k)?.classList.add('samara-scan-check');
     });
     const [scanDoctor,setScanDoctor]=React.useState('');
@@ -24773,7 +24775,7 @@ Please keep these login details confidential.`;
           h(SAMARA_SCAN.ScanButton,{label:'Scan ID card',readLabel:'Read & Fill Guest Details',busy:idScan.busy,status:idScan.status,tone:idScan.tone,onFiles:scanIdFiles,beforePick:saveAdmissionDraftBeforeDocumentPicker,maxPages:4}),
           idScan.lines.length?h('ul',{className:'small-note',style:{margin:'6px 0 0 18px'}},idScan.lines.map((x,k)=>h('li',{key:`idl-${k}`},x))):null,
           idMarks&&h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginTop:'8px'}},
-            h('small',{style:{fontWeight:700}},h('span',{style:{color:'#14532d'}},'Green = filled from the card — check it.'),' ',h('span',{style:{color:'#8a5a00'}},'Yellow = not on the card — fill it.')),
+            h('small',{style:{fontWeight:700,color:'#8a5a00'}},'Filled fields stay white — check them. Yellow = not on the card — fill it.'),
             h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setIdMarks(null)},'✓ Checked against the card'))
         ),
         h('div',{className:'form-grid'},
@@ -25003,7 +25005,7 @@ Please keep these login details confidential.`;
         ),
         form.undergoing_prescribed_medication==='Yes'&&h('div',{id:'admission-medicine-rows'},
         meds.map((m,i)=>m.is_locked
-          ?h('div',{className:'admission-locked-row',key:`med-${i}-locked`,style:m.scan&&!m.scan.verified?{background:'#fff8e1',borderColor:'#e0b84a'}:undefined},
+          ?h('div',{className:'admission-locked-row',key:`med-${i}-locked`,style:m.scan&&!m.scan.verified&&!medicineRowComplete(m)?{background:'#fff8e1',borderColor:'#e0b84a'}:undefined},
             h('span',{className:'number'},i+1),
             h('div',{className:'summary'},
               m.scan&&!m.scan.verified&&h('small',{style:{color:'#8a5a00',fontWeight:700}},`⚠ Read from the prescription${m.scan.page?` (page ${m.scan.page})`:''} — check against it${m.scan.confidence==='low'?' carefully (hard to read)':''}`),
@@ -41232,7 +41234,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         const fallback=BILL_SCAN_SECTIONS.includes(defaultSection)?defaultSection:'';
         const ls=billLines(x,activeItems).map(l=>l.section||!fallback?l:{...l,section:fallback,flags:[...new Set([...l.flags,'section'])],notes:{...l.notes,section:l.notes.section||`Section not clear on the bill — set to ${fallback} (this page). Change it if this is a ${fallback==='Pharmacy'?'Consumables / other':'Pharmacy / other'} item.`}});
         setLines(ls);setTone(ls.length?'ok':'error');
-        setStatus(ls.length?`${ls.length} line(s) read. Check the green fields against the bill, fill the yellow ones, tick ✓ Verified on each line, then press Receive.`:'No stock lines could be read. Use the manual form below.');
+        setStatus(ls.length?`${ls.length} line(s) read. Fill / check the yellow fields, tick ✓ Verified on each line, then press Receive.`:'No stock lines could be read. Use the manual form below.');
       }catch(e){setTone('error');setStatus(e.message||'Could not read the bill.')}
       finally{setBusy(false)}
     }
@@ -41276,7 +41278,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     }
     // 2.18.4: colours as in the trial — light GREEN = read from the bill (check it), light YELLOW = not filled or
     // not clear (fill / confirm it). No colour once the line is ✓ Verified or received.
-    const SCAN_GREEN={background:'#eaf7ee',borderRadius:'8px',padding:'4px',boxShadow:'0 0 0 1px #a7dcbc'},SCAN_YELLOW={background:'#fff8e1',borderRadius:'8px',padding:'4px',boxShadow:'0 0 0 1px #f2d27b'};
+    const SCAN_GREEN={} /* 2.18.6: read from the bill = stays white */,SCAN_YELLOW={background:'#fff8e1',borderRadius:'8px',padding:'4px',boxShadow:'0 0 0 1px #f2d27b'};
     const fld=(l,k,label,input)=>h('div',{className:'field',key:k,style:l.verified||l.done?undefined:(l.flags.includes(k)||!String(l[k]??'').trim())?SCAN_YELLOW:SCAN_GREEN},h('label',null,label),input,l.notes[k]&&!l.verified?h('small',{style:{color:'#8a5a00'}},l.notes[k]):null);
     const txt=(l,k,extra={})=>h('input',{value:l[k]||'',disabled:l.done,onChange:e=>setLine(l.key,{[k]:e.target.value}),...extra});
     const total=lines.reduce((a,l)=>a+(Number(l.quantity)||0)*(Number(l.unit_cost)||0),0);
@@ -41286,8 +41288,8 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       h('small',{className:'small-note',style:{display:'block',margin:'4px 0 8px'}},'Photo or PDF of the bill / delivery note, up to 8 pages. Every line is matched to the Stores Master. Check each line, tick ✓ Verified, then Receive. NEW items are added without a price.'),
       h(SAMARA_SCAN.ScanButton,{key:`bill-scan-${scanKey}`,label:'Scan supplier bill',readLabel:'Read & Fill Stock Arrival',busy,status,tone,onFiles:read}),
       lines.length?h('div',{style:{display:'flex',gap:'14px',flexWrap:'wrap',alignItems:'center',marginTop:'8px',fontSize:'13px'}},
-        h('span',null,h('span',{style:{...SCAN_GREEN,display:'inline-block',width:'14px',height:'14px',padding:0,verticalAlign:'middle',marginRight:'6px'}}),'Read from the bill — check'),
-        h('span',null,h('span',{style:{...SCAN_YELLOW,display:'inline-block',width:'14px',height:'14px',padding:0,verticalAlign:'middle',marginRight:'6px'}}),'Not filled / not clear — fill or confirm')):null,
+        h('span',null,h('span',{style:{background:'#fff',borderRadius:'4px',boxShadow:'0 0 0 1px #d8c3cf',display:'inline-block',width:'14px',height:'14px',padding:0,verticalAlign:'middle',marginRight:'6px'}}),'White = read from the bill'),
+        h('span',null,h('span',{style:{...SCAN_YELLOW,display:'inline-block',width:'14px',height:'14px',padding:0,verticalAlign:'middle',marginRight:'6px'}}),'Yellow = not filled / not clear — fill or check')):null,
       head&&!(lines.length&&lines.every(l=>l.done))&&h('div',{style:{display:'flex',justifyContent:'flex-end',marginTop:'8px'}},h('button',{type:'button',className:'btn btn-danger',disabled:busy,onClick:discard},'🗑 Discard this bill')),
       head&&h('div',{className:'grid two',style:{marginTop:'10px'}},
         h('div',{className:'field',style:String(head.vendor_name).trim()?SCAN_GREEN:SCAN_YELLOW},h('label',null,'Vendor *'),h('input',{value:head.vendor_name,onChange:e=>setHead({...head,vendor_name:e.target.value})})),
@@ -41816,6 +41818,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const stockStatus=row=>Number(row.balance_qty)<=0?'OUT OF STOCK':(Number(row.reorder_level)>0&&Number(row.balance_qty)<=Number(row.reorder_level)?'LOW STOCK':'IN STOCK');
     const statusStyle=row=>({fontWeight:900,fontSize:'12px',padding:'5px 8px',borderRadius:'999px',display:'inline-block',background:Number(row.balance_qty)<=0?'#fdebec':(Number(row.reorder_level)>0&&Number(row.balance_qty)<=Number(row.reorder_level)?'#fff4dc':'#e7f6ef'),color:'#5d3146'});
     if(section==='none')return null;
+    if(section==='receive'&&!controller)return h(Section,{title:'Receive from Vendor'},h('p',null,authority.active?'Receiving stock is presently assigned to the STD.':'Receiving stock is done by the Nurse Manager (Store In-charge).'));
     if(!controller&&!oversight)return h('div',null,h(Section,{title:'Pharmacy & Stores'},h('p',null,authority.active?'Pharmacy & Stores is presently assigned to the STD.':'Pharmacy & Stores access is assigned to the Nurse Manager.')));
     return h('div',null,
       show('stock')&&h(Section,{title:categoryFilter||'Pharmacy & Stores',subtitle:`${categoryFilter==='Pharmacy'?'Medicines and pharmacy stock':categoryFilter==='Consumables'?'Patient consumables and general store stock':categoryFilter?`${categoryFilter} stock`:'Medicines, consumables, vendor receipts, stock issues and balances'}. Current In-charge: ${authority.active?'STD (temporary assignment)':'Nurse Manager'}.`},
@@ -41831,7 +41834,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>document.getElementById('stores-current-stock')?.scrollIntoView({behavior:'smooth',block:'start'})},'⌕ Search / Edit Stock')
       ),
       controller&&(section==='receive'||((!section||section==='stock')&&showReceive))&&h('div',{id:'stores-receive-form',style:{scrollMarginTop:'90px'}},h(Section,{title:'Receive from Vendor',subtitle:'Every pharmacy or Stores item received from a vendor must first be entered here before issue.'},
-        h(StoreBillScan,{items:itemMaster,defaultSection:formToSection(form.item_category),onReceived:load,notify:notifyStore}), // 2.18.0
+        h(StoreBillScan,{items:itemMaster,defaultSection:categoryFilter?formToSection(form.item_category):'',onReceived:load,notify:notifyStore}), // 2.18.0
         h('div',{className:'field',style:{marginBottom:'12px'}},h('label',null,'Find item to receive (minimum 3 characters)'),h('input',{value:stockSearch,onChange:e=>setStockSearch(e.target.value),placeholder:categoryFilter==='Pharmacy'?'Example: dispo, syr, para':categoryFilter==='Kitchen / Food Stores'?'Example: ric, tea, bis':categoryFilter==='Housekeeping & General'?'Example: lin, tis, cle':'Example: dia, glo, syr'}),h('small',null,stockSearch.trim().length>0&&stockSearch.trim().length<3?'Enter at least 3 characters.':'Matching items appear below — tap one to select.'),stockSearchText.length>=3&&h('div',{style:{marginTop:'8px',border:'1px solid #ead2dd',borderRadius:'10px',padding:'6px',maxHeight:'220px',overflowY:'auto',background:'#fff'}},(()=>{const master=catalogFor(formToSection(form.item_category)).filter(x=>String(x||'').toLowerCase().includes(stockSearchText)).map(x=>({kind:'catalog',name:x,label:x}));const existing=categoryStock.filter(x=>String(x.item_name||'').toLowerCase().includes(stockSearchText)).map(x=>({kind:'existing',id:x.item_id,name:x.item_name,label:`${masterById.get(x.item_id)?.item_code?`${masterById.get(x.item_id).item_code} · `:''}${displayStoreItemName(x.item_name)} · Balance ${x.balance_qty} ${x.unit}`}));const seen=new Set();const matches=[...existing,...master].filter(x=>{const k=String(x.name||'').toLowerCase();if(seen.has(k))return false;seen.add(k);return true}).slice(0,30);return matches.length?matches.map((x,i)=>h('button',{key:`search-${x.kind}-${x.id||i}`,type:'button',className:'btn btn-secondary',style:{display:'block',width:'100%',textAlign:'left',margin:'3px 0'},onClick:()=>{x.kind==='existing'?selectItem(x.id):selectCatalogItem(x.name);setStockSearch('')}},x.label)):h('div',{style:{padding:'8px',color:'#7b6570'}},'No matching item found in this section.');})())),
         h('form',{onSubmit:receiveStock},
           h('div',{className:'grid two'},

@@ -1,5 +1,5 @@
-const APP_VERSION = '2.18.5';
-const CACHE = 'samara-erp-2.18.5-rx-once';
+const APP_VERSION = '2.18.6';
+const CACHE = 'samara-erp-2.18.6-yellow-receive-menu';
 const SHELL = [
   './',
   './index.html',

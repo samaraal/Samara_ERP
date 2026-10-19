@@ -1,3 +1,7 @@
+## 2.18.6 — Scan colours simplified; Receive from Vendor in the left menu
+- Scan colours (Admission ID card, prescription medicines, Stores supplier bill): fields filled by the scan now **stay white**; only fields **not filled / not clear are yellow** (no more green). A scanned medicine row is yellow only while something is still missing.
+- New left-menu item **PHARMACY & STORES → Receive from Vendor** (for the Nurse Manager / Store In-charge, STD when assigned, and Admin): opens the supplier-bill scan and manual receive straight away, for all sections at once — each bill line keeps its own section; a line whose section is not clear is yellow until chosen. No SQL.
+
 ## 2.18.5 — Prescription uploaded once (Section 2), read in Section 3
 - Admission: the prescription is uploaded only once — in **Section 2 → Current Prescription / Medicine List**. Section 3 no longer has its own upload. It finds the uploaded pages by itself and shows **✨ Read & Auto Fill Medicines** or **✍ Enter Manually** (like the ID card in Section 1).
 - Pages already read are remembered with the draft (also after a reload), so they are never read or attached twice. A page added later in Section 2 shows as new and is read and added to the list. If nothing is uploaded yet, Section 3 says so with a **↑ Upload in Section 2** button. No SQL.
