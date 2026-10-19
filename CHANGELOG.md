@@ -1,3 +1,6 @@
+## 2.18.29 — Nursing procedure list layout
+- Patient file → Nursing → Nursing Procedures: each planned procedure shows the name on one line and the times underneath, with the Tamil button and **Stop** on the right (Stop was pushed out of view when an instruction was present). No SQL. (SQL 254 applied 19-10-2026; SQL 255 prepared, not yet run.)
+
 ## 2.18.28 — Nursing Procedures in the Family Portal
 - Family Portal (v1.0.42) now shows Nursing Procedures: planned procedures recorded by nurses (with scheduled time) and procedures started via Approval Requests; planned procedures no longer counted under Care. ERP "Preview Family Portal" sends the same data. **SQL 253 `family_portal_nursing_procedures`** (installed 19-10-2026).
 

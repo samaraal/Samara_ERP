@@ -228,11 +228,14 @@
           h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:save},busy?'Saving…':'Save Procedure'),
           h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>setAdding(false)},'Cancel')),
         h('p',{className:'small-note'},'Charges are not raised from here — a chargeable procedure is still charged through NURSING → Approval Requests.')),
-      active.length?active.map(o=>h('div',{className:'timeline-item',key:o.id},
-        h('strong',null,nursingProcedureLabel(o)),
-        h('span',null,`${nursingProcedureDetail(o)}${o.start_date?` · from ${formatDateIN(o.start_date)}`:''}`),
-        o.instruction&&typeof TamilAssist==='function'?h(TamilAssist,{text:o.instruction,context:'Nursing Procedure Instruction'}):null,
-        canManage?h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>stop(o)},'Stop'):null))
+      // 2.18.29: name, times and buttons on separate lines so the Stop button is always visible.
+      active.length?active.map(o=>h('div',{key:o.id,style:{display:'flex',flexWrap:'wrap',alignItems:'center',justifyContent:'space-between',gap:'8px 12px',padding:'10px 0 10px 14px',borderLeft:'3px solid #9fd3c7',margin:'6px 0'}},
+        h('div',{style:{flex:'1 1 280px',minWidth:0}},
+          h('strong',{style:{display:'block'}},nursingProcedureLabel(o)),
+          h('small',{style:{display:'block',color:'#5b4a55',marginTop:'2px'}},`${nursingProcedureDetail(o)}${o.start_date?` · from ${formatDateIN(o.start_date)}`:''}`)),
+        h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
+          o.instruction&&typeof TamilAssist==='function'?h(TamilAssist,{text:o.instruction,context:'Nursing Procedure Instruction'}):null,
+          canManage?h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>stop(o)},'Stop'):null)))
         :h('p',{className:'small-note'},'No nursing procedure planned for this Guest.'),
       stopped.length?h('details',{style:{marginTop:'8px'}},h('summary',null,`Stopped procedures (${stopped.length})`),
         stopped.map(o=>h('div',{className:'timeline-item',key:o.id},h('strong',null,nursingProcedureLabel(o)),h('span',null,`Stopped ${o.stopped_at?fmtWhen(o.stopped_at):''}${o.stop_reason?` · ${o.stop_reason}`:''}`)))):null,
