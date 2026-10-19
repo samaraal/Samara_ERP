@@ -1,3 +1,8 @@
+## 2.18.20 — Screensaver: the big left box is for Medicines only
+- The big left box now shows **Medication only**, one Guest at a time (flips every 7 seconds), **late doses first, then by time**: dose time, large room number, Guest name and the **full list of medicines with serial numbers** (strength, route / food instruction; sliding-scale insulin marked "check sugar first"). "1 of 3" dots, "4 late", and the next Guest's time and room are shown. When nothing is pending: "No medicines due".
+- The right side lists **Nursing Procedure, Meals, Vital Signs** as full-width boxes (more room for text), then the **Care** list scrolling bottom-to-top.
+- Care shift names are matched more tolerantly (e.g. "Day", "Day Shift", "Both"), and an empty Care box now says **"No care planned for this shift"** or **"All care done this shift"** instead of "Nothing due". The Overdue strip now shows only non-medicine tasks (late medicines are in the big box). No SQL.
+
 ## 2.18.19 — Version shown on the screensaver and in the window title
 - The screensaver footer shows the running version (e.g. "· v2.18.19"), and the browser window title / splash now show the current version instead of the old "2.15.13", so it is easy to see whether a PC has the latest update. No SQL.
 

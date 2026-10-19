@@ -139,6 +139,33 @@
 .nss-count.late{background:#b3341a}
 .nss-hero.nss-hero-late{border-color:#f36a4c;border-width:3px}
 .nss-ver{opacity:.6;font-size:.85em}
+.nss-boxes.grid.grid3{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:minmax(0,1fr) minmax(0,1.15fr)}
+.nss-boxes.grid.grid3 .nss-box-care{grid-column:1/-1}
+.nss-hero-med .nss-hero-top .nss-tag.nss-g{font-size:clamp(20px,min(3vh,1.8vw),30px);padding:7px 18px}
+.nss-med-meta{display:flex;align-items:center;gap:12px;font-size:clamp(14px,1.8vh,18px);font-weight:700;color:#7a1247}
+.nss-med-meta .nss-flip-count{margin-left:auto}
+.nss-med-card{display:flex;flex-direction:column;gap:14px;flex:1 1 auto;min-height:0}
+.nss-med-row{display:flex;align-items:center;gap:clamp(14px,2vw,28px);flex-wrap:wrap}
+.nss-med-row .nss-hero-time{font-size:clamp(48px,7vh,84px)}
+.nss-med-who{display:flex;flex-direction:column;gap:6px;min-width:0}
+.nss-hero-meds{max-height:none;flex:0 1 auto;overflow:hidden;font-size:clamp(18px,min(2.8vh,1.6vw),30px);gap:8px;background:rgba(255,255,255,.55);border:1px solid #f0b3cd;border-radius:16px;padding:12px 16px 12px 2.2em}
+.nss-hero-meds.many{font-size:clamp(15px,min(2.1vh,1.25vw),22px);gap:4px}
+.nss-hero-meds li b{color:#382333}
+.nss-boxes.stack{display:flex;flex-direction:column;gap:10px;flex:1 1 auto;min-height:0}
+.nss-boxes.stack .nss-box{flex:0 0 auto;max-height:none;padding:10px 16px;gap:6px}
+.nss-boxes.stack .nss-box.empty{flex-direction:row;align-items:center;gap:16px;padding:8px 16px}
+.nss-boxes.stack .nss-box.empty .nss-box-empty{font-size:clamp(14px,min(1.9vh,1.1vw),19px)}
+.nss-boxes.stack .nss-box-care{flex:1 1 auto;min-height:120px}
+.nss-boxes.stack .nss-box-head{flex-wrap:nowrap;gap:12px}
+.nss-boxes.stack .nss-box-head .nss-tag.nss-g{font-size:clamp(16px,min(2.3vh,1.35vw),24px);padding:5px 14px;flex-shrink:0}
+.nss-boxes.stack .nss-box-meta{flex:1 1 auto;min-width:0;font-size:clamp(13px,min(1.8vh,1vw),18px)}
+.nss-boxes.stack .nss-box-body{gap:14px}
+.nss-boxes.stack .nss-time{width:clamp(70px,min(8vh,5vw),96px);padding:5px 2px}
+.nss-boxes.stack .nss-time b{font-size:clamp(18px,min(2.6vh,1.5vw),28px)}
+.nss-boxes.stack .nss-box-text{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:12px;align-items:baseline}
+.nss-boxes.stack .nss-box-detail{grid-column:1/-1;font-size:clamp(14px,min(2vh,1.15vw),21px)}
+.nss-boxes.stack .nss-box-room{font-size:clamp(22px,min(3.4vh,1.9vw),38px)}
+.nss-boxes.stack .nss-box-name{font-size:clamp(15px,min(2.2vh,1.3vw),23px)}
 .nss-flip{animation:nssFlip .55s ease-out both;transform-origin:50% 0;backface-visibility:hidden}
 .nss-flip-count{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;font-weight:700;color:#7a1247}
 .nss-hero .nss-flip-count{align-self:flex-start;font-size:15px}
@@ -317,13 +344,17 @@
 
     // Daily care — preferred window when set, else any time in the shift (reminder 2 h before shift end).
     const careLogs=cl.data||[];
+    const careStats={planned:0,done:0};
     (c.data||[]).forEach(order=>{
       const p=order.patients;if(!nssGuestActive(p))return;
-      const shifts=order.shift==='Both shifts'?['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)']:[order.shift];
-      if(!shifts.includes(win.name))return;
+      const sh=String(order.shift||'Both shifts').toLowerCase();
+      const isDay=win.name.startsWith('Day');
+      if(!(sh.includes('both')||sh===''||(isDay?sh.includes('day'):sh.includes('night'))))return;
       const label=order.care_type||order.activity||'Care task';
-      const done=careLogs.some(x=>x.shift===win.name&&(!x.completed_at||new Date(x.completed_at)>=win.start)&&(
+      careStats.planned++;
+      const done=careLogs.some(x=>String(x.shift||'').toLowerCase().startsWith(win.name.slice(0,3).toLowerCase())&&(!x.completed_at||new Date(x.completed_at)>=win.start)&&(
         x.care_order_id===order.id||(!x.care_order_id&&x.patient_id===order.patient_id&&String(x.remarks||'').toLowerCase().startsWith(String(label).toLowerCase()))));
+      if(done)careStats.done++;
       const from=careTimeValue(order.preferred_from),to=careTimeValue(order.preferred_to);
       const fromAt=from?nssTimeInShift(win,from)?.at:null,toAt=to?nssTimeInShift(win,to)?.at:null;
       if(fromAt||toAt){
@@ -373,9 +404,9 @@
     const order=(a,b)=>a.at-b.at||nssRoomSort(a.patient).localeCompare(nssRoomSort(b.patient),undefined,{numeric:true});
     const open=tasks.filter(x=>x.state!=='done');
     return {
-      win,loadedAt:now,failed,
+      win,loadedAt:now,failed,careStats,
       overdue:open.filter(x=>x.state==='overdue').sort(order),
-      next:open.filter(x=>x.state!=='overdue'&&(x.anyTime||x.group==='proc'||x.group==='care'||x.at.getTime()<=now.getTime()+NURSE_SAVER_HORIZON_MS)).sort((a,b)=>(a.anyTime||(a.awaiting&&!a.atScheduled)?1:0)-(b.anyTime||(b.awaiting&&!b.atScheduled)?1:0)||order(a,b)),
+      next:open.filter(x=>x.state!=='overdue'&&(x.anyTime||x.group==='proc'||x.group==='care'||x.group==='med'||x.at.getTime()<=now.getTime()+NURSE_SAVER_HORIZON_MS)).sort((a,b)=>(a.anyTime||(a.awaiting&&!a.atScheduled)?1:0)-(b.anyTime||(b.awaiting&&!b.atScheduled)?1:0)||order(a,b)),
       total:tasks.length,done:tasks.filter(x=>x.done).length,
       byKind:{med:tasks.filter(x=>x.kind==='med').length,proc:tasks.filter(x=>x.kind==='proc').length,care:tasks.filter(x=>x.kind==='care').length}
     };
@@ -403,7 +434,7 @@
   // 2.18.10: right side = one box per task type; the Guests in a box flip one at a time.
   const NSS_GROUPS={vitals:{label:'Vital Signs',kind:'care',perGuest:true},med:{label:'Medication',kind:'med',perGuest:true},
     proc:{label:'Nursing Procedure',kind:'proc'},care:{label:'Care',kind:'care'},meal:{label:'Meals',kind:'care',perGuest:true}};
-  const NSS_GROUP_ORDER=['vitals','med','proc','care','meal'];
+  const NSS_GROUP_ORDER=['vitals','proc','meal','care']; // 2.18.20: Medication has the big left box
   function nssWhenText(x){if(x.awaiting&&!x.atScheduled)return 'Any time';if(x.ready)return 'Ready';if(x.anyTime)return 'Any time';if(x.windowText)return x.windowText;const t=nssTime12(x.at);return `${t.t} ${t.ap}`}
   function nssEntriesOf(x){
     const base={at:x.at,when:nssWhenText(x),late:x.state==='overdue',due:x.state==='due',awaiting:!!x.awaiting,sortAt:x.anyTime||(x.awaiting&&!x.atScheduled)?Infinity:x.at.getTime()};
@@ -512,21 +543,22 @@
     const win=data?.win||nssShiftWindow(now);
     const list=data?.next||[];
     const overdue=data?.overdue||[];
-    // 2.18.18: Next Task = the most immediate task of any type — a late one first, then due now, then the earliest coming up.
-    const hero=overdue.find(x=>!x.anyTime&&!x.awaiting&&x.group!=='care')||list[0]||null;
-    const boxes=nssBuildBoxes([...overdue,...list].filter(x=>x!==hero));
-    const heroPeople=hero&&hero.group==='meal'&&(hero.pendingGuests||[]).length>1?hero.pendingGuests:null;
-    const heroIdx=heroPeople?nssFlipIndex(heroPeople.length,now,0):0;
-    const heroRoom=heroPeople?nssRoomOf(heroPeople[heroIdx]):hero?.room;
-    const heroName=heroPeople?nssNameOf(heroPeople[heroIdx]):(hero?.name||hero?.who);
-    const overRest=overdue.filter(x=>x!==hero);
+    const all=[...overdue,...list];
+    // 2.18.20: the big left box is for MEDICINES only — one Guest at a time, late first, then by time.
+    const medQueue=all.filter(x=>x.kind==='med').sort((a,b)=>(b.state==='overdue'?1:0)-(a.state==='overdue'?1:0)||a.at-b.at||nssRoomSort(a.patient).localeCompare(nssRoomSort(b.patient),undefined,{numeric:true}));
+    const medIdx=medQueue.length>1?Math.floor(now.getTime()/1000/7)%medQueue.length:0;
+    const hero=medQueue[medIdx]||null;
+    const boxes=nssBuildBoxes(all.filter(x=>x.kind!=='med'));
+    const overRest=overdue.filter(x=>x.kind!=='med');
     const firstOver=overRest[0];
     const heroLate=hero&&hero.state==='overdue';
+    const fmtMins=n=>n>=60?`${Math.floor(n/60)}h ${n%60}m`:`${n} min`;
     const heroLateMins=heroLate?Math.max(1,Math.round((now-(hero.deadline||hero.at))/60000)):0;
     const overMins=firstOver?Math.max(1,Math.round((now-(firstOver.deadline||firstOver.at))/60000)):0;
-    const fmtMins=n=>n>=60?`${Math.floor(n/60)}h ${n%60}m`:`${n} min`;
     const signOutIn=Math.max(1,Math.round((30*60000-(Date.now()-lastActivity.current))/60000));
-    const soon=hero&&!hero.anyTime&&!hero.ready&&hero.at.getTime()-now.getTime()<=10*60000;
+    const soon=hero&&hero.at.getTime()-now.getTime()<=10*60000;
+    const medGuests=new Set(medQueue.map(x=>x.patient?.id)).size;
+    const medLateN=medQueue.filter(x=>x.state==='overdue').length;
     const kinds=data?.byKind||{med:0,proc:0,care:0};
 
     return h('div',{className:'nss-overlay',role:'dialog','aria-modal':'true','aria-label':'Upcoming tasks — touch to continue',
@@ -547,34 +579,38 @@
           h('span',{className:'nss-overdue-text'},h('strong',null,NSS_KIND_LABEL[firstOver.kind]),` · ${firstOver.title} · `,h('strong',null,firstOver.who)),
           overRest.length>1&&h('span',{className:'nss-overdue-more'},`+ ${overRest.length-1} more overdue`)),
         h('main',{className:'nss-main'},
-          hero?h('section',{className:`nss-hero${soon?' nss-soon':''}${heroLate?' nss-hero-late':''}`,key:`hero-${hero.kind}-${hero.at.getTime()}-${hero.title}`},
-            h('div',{className:'nss-hero-top'},h('span',{className:'nss-label'},'NEXT TASK'),h('span',{className:`nss-count${heroLate?' late':''}`},heroLate?`Late ${fmtMins(heroLateMins)}`:nssCountdown(hero,now))),
-            h('div',{className:'nss-hero-time'},hero.ready?'Now':hero.anyTime||(hero.awaiting&&!hero.atScheduled)?'Any time':hero.windowText||nssTime12(hero.at).t,
-              !hero.ready&&!hero.anyTime&&!(hero.awaiting&&!hero.atScheduled)&&!hero.windowText&&h('small',null,nssTime12(hero.at).ap)),
-            h('div',null,nssTag(hero.kind,hero.kind==='proc'&&hero.procCategory&&hero.procCategory!=='Nursing Procedures'?hero.procCategory:(NSS_GROUPS[hero.group]?.label||null),hero.group)),
-            h('div',{className:'nss-hero-title'},hero.title),
-            hero.kind==='med'&&hero.meds?.length>0&&h('ol',{className:'nss-hero-meds'},hero.meds.map((m,k)=>h('li',{key:k},h('b',null,m.name),m.sliding&&h('span',{className:'nss-med-warn'},'check sugar first'),(m.food||m.route)&&h('span',{className:'nss-med-food'},[m.route,m.food].filter(Boolean).join(' · '))))),
-            h('div',{className:'nss-flip nss-hero-flip',key:`hf-${heroIdx}`},
-              heroRoom&&h('div',{className:'nss-hero-room'},heroRoom),
-              h('div',{className:'nss-hero-who'},heroName)),
-            heroPeople&&nssDots(heroPeople.length,heroIdx),
-            h('div',{className:'nss-hero-foot'},h('span',null,hero.note||''),
-              boxes.length>0&&h('span',{style:{fontWeight:700}},`${boxes.reduce((n,b)=>n+b.entries.length,0)} more coming up`)))
-          :h('section',{className:'nss-hero'},
-            h('div',{className:'nss-hero-top'},h('span',{className:'nss-label'},'NEXT TASK')),
-            h('div',{className:'nss-hero-title',style:{marginTop:'auto'}},!data&&!error?'Loading tasks…':error?'Tasks could not be loaded — touch to continue':'All tasks are done for now'),
-            h('div',{className:'nss-hero-who'},error?'Please check the internet connection.':'Nothing more is due in the next 4 hours of this shift.')),
+          hero?h('section',{className:`nss-hero nss-hero-med${soon?' nss-soon':''}${heroLate?' nss-hero-late':''}`},
+            h('div',{className:'nss-hero-top'},
+              nssTag('med','Medication','med'),
+              h('span',{className:`nss-count${heroLate?' late':''}`},heroLate?`Late ${fmtMins(heroLateMins)}`:nssCountdown(hero,now))),
+            h('div',{className:'nss-med-meta'},[`${medGuests} Guest${medGuests===1?'':'s'} this shift`,medLateN?`${medLateN} late`:''].filter(Boolean).join(' · '),nssDots(medQueue.length,medIdx)),
+            h('div',{className:'nss-flip nss-med-card',key:`m-${medIdx}-${hero.patient?.id}-${hero.at.getTime()}`},
+              h('div',{className:'nss-med-row'},
+                h('div',{className:'nss-hero-time'},nssTime12(hero.at).t,h('small',null,nssTime12(hero.at).ap)),
+                h('div',{className:'nss-med-who'},
+                  hero.room&&h('div',{className:'nss-hero-room'},hero.room),
+                  h('div',{className:'nss-hero-who'},hero.name||hero.who))),
+              h('ol',{className:`nss-hero-meds${(hero.meds||[]).length>6?' many':''}`},(hero.meds||[]).map((m,k)=>h('li',{key:k},
+                h('b',null,m.name),
+                m.sliding&&h('span',{className:'nss-med-warn'},'check sugar first'),
+                (m.food||m.route)&&h('span',{className:'nss-med-food'},[m.route,m.food].filter(Boolean).join(' · ')))))),
+            h('div',{className:'nss-hero-foot'},h('span',null,`${(hero.meds||[]).length} medicine${(hero.meds||[]).length===1?'':'s'}`),
+              medQueue.length>1&&h('span',{style:{fontWeight:700}},`next: ${(()=>{const n=medQueue[(medIdx+1)%medQueue.length];return `${nssTime12(n.at).t} ${nssTime12(n.at).ap} · ${n.room||''}`})()}`)))
+          :h('section',{className:'nss-hero nss-hero-med'},
+            h('div',{className:'nss-hero-top'},nssTag('med','Medication','med')),
+            h('div',{className:'nss-hero-title',style:{marginTop:'auto'}},!data&&!error?'Loading tasks…':error?'Tasks could not be loaded — touch to continue':'No medicines due'),
+            h('div',{className:'nss-hero-who'},error?'Please check the internet connection.':'All medicines of this shift are given or none are scheduled.')),
           h('section',{className:'nss-list'},
-            h('div',{className:'nss-list-head'},h('span',{className:'nss-label'},'COMING UP'),h('span',null,'next 4 hours · by task')),
+            h('div',{className:'nss-list-head'},h('span',{className:'nss-label'},'COMING UP'),h('span',null,'by task')),
             data?.failed?.length>0&&h('div',{className:'nss-failed',role:'status'},`Could not read: ${data.failed.map(f=>`${f.name} (${String(f.message||'').slice(0,90)})`).join(', ')} — please check Shift Tasks.`),
-            boxes.length?h('div',{className:`nss-boxes${boxes.length>3?' grid':''}`},boxes.map((b,bi)=>{
+            boxes.length?h('div',{className:'nss-boxes stack'},boxes.map((b,bi)=>{
               if(b.empty){
-                const inHero=hero&&(hero.group||'')===b.group;
+                const inHero=false;
                 return h('div',{className:'nss-box empty',key:b.group},
                   h('div',{className:'nss-box-head'},nssTag(b.kind,b.label,b.group)),
                   h('div',{className:'nss-box-empty'},
                     h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2.4,strokeLinecap:'round',strokeLinejoin:'round','aria-hidden':'true'},h('path',{d:'M5 12.5l4.2 4.2L19 7'})),
-                    inHero?'Shown in Next Task':'Nothing due in the next 4 hours'));
+                    b.group==='care'?(!data?.careStats?.planned?'No care planned for this shift':'All care done this shift'):inHero?'Shown in Next Task':'Nothing due in the next 4 hours'));
               }
               // 2.18.17: Care is shift-based — all care of the shift scrolls bottom-to-top, one line each: care · room · name.
               if(b.group==='care'){
@@ -597,8 +633,7 @@
               }
               const i=nssFlipIndex(b.entries.length,now,bi);const e=b.entries[i];
               return h('div',{className:`nss-box${e.late?' late':e.due?' due':''}`,key:b.group},
-                h('div',{className:'nss-box-head'},nssTag(b.kind,b.label,b.group),nssDots(b.entries.length,i)),
-                h('div',{className:'nss-box-meta'},b.meta),
+                h('div',{className:'nss-box-head'},nssTag(b.kind,b.label,b.group),h('span',{className:'nss-box-meta'},b.meta),nssDots(b.entries.length,i)),
                 h('div',{className:'nss-flip nss-box-body',key:`${b.group}-${i}-${e.room}-${e.when}`},
                   h('div',{className:'nss-time'},h('b',null,e.when.replace(/\s?(AM|PM)$/,'')),h('span',null,(e.when.match(/(AM|PM)$/)||[''])[0]||(e.when==='Ready'?'now':''))),
                   h('div',{className:'nss-box-text'},
