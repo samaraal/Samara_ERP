@@ -132,11 +132,12 @@
           freshFetchAll('consumable_store_stock','item_id,balance_qty','item_id'),
           freshFetchAll('patient_consumable_indents','id,status,store_item_id,indent_no','id',q=>q.in('status',OPEN_INDENT_STATUSES)),
           loadStoreResets(),
-          freshFetchAll('consumable_store_ledger','id,item_id,movement_type,qty_in,qty_out','id')
+          // 2.18.39: recorded use summed on the server (reading the whole register in the browser timed out)
+          client.rpc('store_recorded_use_summary',{p_sections:FRESH_START_SECTIONS})
         ]);
         const used=new Map();
-        ledger.forEach(l=>{const q=l.movement_type==='Patient Issue'||l.movement_type==='Department Issue'?Number(l.qty_out||0)-Number(l.qty_in||0):l.movement_type==='Return to Store'?-(Number(l.qty_in||0)-Number(l.qty_out||0)):0;if(q)used.set(l.item_id,(used.get(l.item_id)||0)+q)});
-        setData({items,stock,indents,resets:resets.rows,resetsMissing:resets.missing,used});
+        if(!ledger.error)(ledger.data||[]).forEach(x=>used.set(x.item_id,Number(x.used_net||0)));
+        setData({items,stock,indents,resets:resets.rows,resetsMissing:resets.missing,used,usedMissing:!!ledger.error});
       }catch(e){setError(e.message||'Could not load the stock.')}
     }
     React.useEffect(()=>{load()},[]);
@@ -183,6 +184,7 @@
       h('strong',{style:{display:'block',marginBottom:'6px'}},`${done?'✓':n+'.'} ${title}`),body);
     return h(Section,{title:'Backup & Fresh Start of Stock',subtitle:'Pharmacy and Consumables. Nothing is deleted: item names, codes, MRP / Charge Master rates and every Guest record stay as they are.'},
       error&&h('p',{role:'alert',className:'message error'},error),
+      data?.usedMissing&&h('p',{className:'small-note',style:{color:'#8a5a00'}},'Recorded Guest use preview is not available yet (run supabase/sql/258_store_recorded_use_summary.sql once). The reset itself still works.'),
       data?.resetsMissing&&h('p',{role:'alert',className:'message error'},'The Fresh Start database update is not installed yet. Please run supabase/sql/256_stock_fresh_start.sql once in Supabase (Excel backup works already).'),
       !data&&!error&&h('p',{role:'status'},'Loading the current stock…'),
       data&&h(React.Fragment,null,
@@ -196,7 +198,7 @@
             h('tbody',null,perSection.map(p=>h('tr',{key:p.sec},
               h('td',null,h('input',{type:'checkbox','aria-label':`Reset ${p.sec}`,checked:sections.includes(p.sec),disabled:!admin||busy,onChange:e=>{setDownloaded(null);setSections(s=>e.target.checked?[...new Set([...s,p.sec])]:s.filter(x=>x!==p.sec))}})),
               h('td',null,h('strong',null,p.sec)),h('td',null,p.items),h('td',null,p.nonZero+(p.negative?` (${p.negative} below zero)`:'')),h('td',null,freshQty(p.qty)),
-              h('td',null,`${p.usedItems} item(s) · ${freshQty(p.usedQty)}`),
+              h('td',null,data.usedMissing?'—':`${p.usedItems} item(s) · ${freshQty(p.usedQty)}`),
               h('td',{style:p.openIndents?{color:'#a12f29',fontWeight:700}:null},p.openIndents),
               h('td',null,p.last?`RST-${String(p.last.reset_no).padStart(4,'0')} · ${formatDateTimeIN(p.last.reset_at)}`:'Never')))))),
           openIndents?h('p',{style:{color:'#a12f29',fontWeight:700,margin:'8px 0 0'}},`⚠ ${openIndents} indent(s) are still open (awaiting approval / handover / nurse receipt). Finish them first if possible — after the reset, a handover needs fresh stock entered.`):h('p',{className:'small-note',style:{margin:'8px 0 0'}},'No open indents. Please do not raise new indents until the fresh stock is entered.'),
@@ -282,6 +284,7 @@
     const itemLabel=i=>`${i.item_code?i.item_code+' · ':''}${displayStoreItemName(i.item_name)} (${i.unit||'—'})`;
     return h(Section,{title:`${section} — Opening Stock – Physical Count`,subtitle:'For stock already on the shelf that has no invoice to scan. Count each item and enter it here (one line per batch if the expiry differs). Stock bought with an invoice goes through Receive from Vendor. No price is set or changed here.'},
       error&&h('p',{role:'alert',className:'message error'},error),
+      data?.usedMissing&&h('p',{className:'small-note',style:{color:'#8a5a00'}},'Recorded Guest use preview is not available yet (run supabase/sql/258_store_recorded_use_summary.sql once). The reset itself still works.'),
       data?.resetsMissing&&h('p',{role:'alert',className:'message error'},'Please run supabase/sql/256_stock_fresh_start.sql once in Supabase first.'),
       data&&h('div',{style:SAMARA_SCAN.noteStyle(data.last?'ok':'')},data.last?`Counting after the stock reset RST-${String(data.last.reset_no).padStart(4,'0')} of ${formatDateTimeIN(data.last.reset_at)} · ${countedIds.size} of ${active.length} item(s) counted so far.`:`No stock reset has been done for ${section} yet. Counts entered now are ADDED to the present balances — normally Admin / Director resets first (Backup & Fresh Start).`),
       h('form',{onSubmit:save,style:{marginTop:'10px'}},

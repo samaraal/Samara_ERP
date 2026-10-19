@@ -1,3 +1,6 @@
+## 2.18.39 — Backup & Fresh Start opens without timing out
+- The step 2 check table no longer reads the whole Stock Movement register into the browser (it timed out: "statement timeout"). Recorded Guest use is now summed on the server, and an index on the register speeds up the reset. **SQL 258_store_recorded_use_summary.sql** (run once).
+
 ## 2.18.38 — Stock Reset: "Bills − recorded use" method
 - Backup & Fresh Start → step 3 now offers two methods. **Bills − recorded use (recommended)**: old purchase entries (vendor receipts and old adjustments) stop counting, while everything handed over to Guests / departments (less returns) stays — each item starts below zero by what was used; scanning ALL purchase bills (old and new) in Receive from Vendor then brings each item to purchased − used = what should be on the shelf. **Zero, then physical count** is still available. The check table shows the recorded Guest use per section; Reset history and the snapshot show the method, recorded use and balance after reset. **SQL 257_stock_reset_bills_minus_used.sql** (run once).
 
