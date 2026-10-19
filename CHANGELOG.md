@@ -1,3 +1,9 @@
+## 2.18.9 — Nurse screensaver: light pink Next Task, big room numbers, clock seconds
+- **Next Task** box is now a **light pink gradient** with dark text. The **room number is large and bright** (white badge, bright magenta) with the Guest's **full name** below it.
+- Coming Up boxes: room number larger and bright magenta, then the name.
+- Meal recording ("Lunch — record food intake") now shows the **room and name** of the Guest still to be recorded (up to 3 names, then "+ N more").
+- Clock shows **seconds**, so it is clear at a glance that the screen is live. No SQL.
+
 ## 2.18.8 — Nurse screensaver: Guest names, larger gradient pink boxes
 - Guests are shown with **Room + full name** (e.g. "Room 106 · Mr. Kumar Lakshman") instead of initials, in Next Task, Coming Up and Overdue.
 - **Coming Up** boxes are larger and easier to read from a distance — 3 per page (turning every 9 seconds), bigger time, task and name text, titles up to 2 lines — with a soft **gradient pink fill**. The Next Task box now has a **gradient magenta fill**. Medicines are still shown as a count. No SQL.
