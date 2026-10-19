@@ -79,8 +79,9 @@ test('Task-wise boxes: one box per type, late first, meal box lists each pending
   const d=await load({patients:g,
     medication_orders:[{id:'m1',patient_id:'g2',patients:G2,medicine_name:'X',strength:'5 mg',scheduled_times:['09:00','14:00'],is_active:true}],
     vital_signs:[],meal_records:[{patient_id:'g1',meal_date:'2026-10-19',meal_type:'Breakfast'},{patient_id:'g2',meal_date:'2026-10-19',meal_type:'Breakfast'},{patient_id:'g3',meal_date:'2026-10-19',meal_type:'Breakfast'}]});
-  const groups=d.boxes.map(b=>b.group);
-  assert.deepEqual(new Set(groups),new Set(['med','vitals','meal']));
+  assert.equal(d.boxes.length,5,'all five task types always shown');
+  assert.deepEqual(new Set(d.boxes.filter(b=>!b.empty).map(b=>b.group)),new Set(['med','vitals','meal']));
+  assert.equal(d.boxes.slice(-2).map(b=>b.group).join(','),'proc,care','empty boxes last');
   const med=d.boxes.find(b=>b.group==='med');
   assert.equal(med.entries[0].late,true);
   assert.equal(med.entries[0].room,'Room 102');assert.equal(med.entries[0].name,'Mr. Selvam Raja');

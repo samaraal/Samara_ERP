@@ -92,9 +92,13 @@
 .nss-box-name{font-size:clamp(16px,2.2vh,24px);font-weight:700;color:#5d1039;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nss-due{color:#b01264;font-size:14px;font-weight:800;flex-shrink:0}
 .nss-late{flex-shrink:0}
-.nss-boxes.grid .nss-box-room{font-size:clamp(22px,min(3.4vh,1.9vw),40px)}
+.nss-boxes.grid .nss-box-room{font-size:clamp(21px,min(3.4vh,1.75vw),40px)}
 .nss-boxes.grid .nss-box-detail{font-size:clamp(14px,min(1.9vh,1.1vw),21px)}
 .nss-boxes.grid .nss-box-name{font-size:clamp(14px,min(2vh,1.15vw),21px)}
+.nss-box.empty{background:#fff8fb;border-style:dashed;box-shadow:none;justify-content:flex-start}
+.nss-box-empty{display:flex;align-items:center;gap:10px;flex:1 1 auto;font-size:clamp(15px,min(2vh,1.2vw),20px);font-weight:600;color:#7a1247}
+.nss-box-empty svg{width:22px;height:22px;flex-shrink:0;color:#b01264}
+.nss-failed{background:#fde2dc;border:1px solid #f36a4c;color:#5a1a0c;border-radius:12px;padding:6px 12px;font-size:14px;font-weight:600}
 .nss-flip{animation:nssFlip .55s ease-out both;transform-origin:50% 0;backface-visibility:hidden}
 .nss-flip-count{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;font-weight:700;color:#7a1247}
 .nss-hero .nss-flip-count{align-self:flex-start;font-size:15px}
@@ -205,6 +209,9 @@
     ]);
     const firstError=[m,ml,c,cl,pr,pts,vs,mr].find(r=>r?.error);
     if(firstError&&!m.data&&!c.data)throw firstError.error;
+    // 2.18.11: a source that could not be read is named on screen and logged for System Health (never silently shown as "nothing due").
+    const failed=[['Medicines',m],['Medicine records',ml],['Care plan',c],['Care records',cl],['Approval Requests',pr],['Guests',pts],['Vital signs',vs],['Meal records',mr]].filter(([,r])=>r?.error).map(([n,r])=>({name:n,message:r.error.message||String(r.error)}));
+    if(failed.length){try{window.SamaraFault?.('nurse-screensaver','Screensaver could not read: '+failed.map(f=>f.name).join(', '),{errors:failed.map(f=>`${f.name}: ${f.message}`.slice(0,200))})}catch(_){}}
     const guests=(pts.data||[]).filter(nssGuestActive);
     const guestMap=new Map(guests.map(p=>[p.id,p]));
     const tasks=[];
@@ -309,7 +316,7 @@
     const order=(a,b)=>a.at-b.at||nssRoomSort(a.patient).localeCompare(nssRoomSort(b.patient),undefined,{numeric:true});
     const open=tasks.filter(x=>x.state!=='done');
     return {
-      win,loadedAt:now,
+      win,loadedAt:now,failed,
       overdue:open.filter(x=>x.state==='overdue').sort(order),
       next:open.filter(x=>x.state!=='overdue'&&(x.anyTime||x.at.getTime()<=now.getTime()+NURSE_SAVER_HORIZON_MS)).sort((a,b)=>(a.anyTime?1:0)-(b.anyTime?1:0)||order(a,b)),
       total:tasks.length,done:tasks.filter(x=>x.done).length,
@@ -353,6 +360,8 @@
       if(!boxes.has(g))boxes.set(g,{group:g,...NSS_GROUPS[g],entries:[]});
       boxes.get(g).entries.push(...nssEntriesOf(x));
     });
+    NSS_GROUP_ORDER.forEach(g=>{if(!boxes.has(g))boxes.set(g,{group:g,...NSS_GROUPS[g],entries:[]})});
+    const empty=[...boxes.values()].filter(b=>!b.entries.length).map(b=>({...b,empty:true,meta:'Nothing due',first:Infinity}));
     return [...boxes.values()].filter(b=>b.entries.length).map(b=>{
       b.entries.sort((a,c)=>(c.late?1:0)-(a.late?1:0)||a.sortAt-c.sortAt||String(a.room).localeCompare(String(c.room),undefined,{numeric:true}));
       const guests=new Set(b.entries.map(e=>`${e.room}|${e.name}`)).size;
@@ -361,9 +370,12 @@
       b.meta=[b.perGuest?`${guests} Guest${guests===1?'':'s'}`:`${b.entries.length}`,nextOne?`next ${nextOne.when}`:'',lateCount?`${lateCount} late`:''].filter(Boolean).join(' · ');
       b.first=b.entries[0].late?-Infinity:b.entries[0].sortAt;
       return b;
-    }).sort((a,c)=>a.first-c.first||NSS_GROUP_ORDER.indexOf(a.group)-NSS_GROUP_ORDER.indexOf(c.group));
+    }).sort((a,c)=>a.first-c.first||NSS_GROUP_ORDER.indexOf(a.group)-NSS_GROUP_ORDER.indexOf(c.group))
+      .concat(empty.sort((a,c)=>NSS_GROUP_ORDER.indexOf(a.group)-NSS_GROUP_ORDER.indexOf(c.group)));
   }
-  function nssFlipIndex(n,now,offset){return n<=1?0:Math.floor((Math.floor(now.getTime()/1000)+offset)/NURSE_SAVER_FLIP_SEC)%n}
+  // 4 s per Guest; quicker (3 s) when a box holds many Guests, so a full house (19 Guests) still cycles in a reasonable time.
+  function nssFlipPeriod(n){return n>8?3:NURSE_SAVER_FLIP_SEC}
+  function nssFlipIndex(n,now,offset){return n<=1?0:Math.floor((Math.floor(now.getTime()/1000)+offset)/nssFlipPeriod(n))%n}
   function nssDots(n,i){
     if(n<=1)return null;
     return h('span',{className:'nss-flip-count'},`${i+1} of ${n}`,n<=10&&h('span',{className:'nss-dots','aria-hidden':'true'},Array.from({length:n},(_,k)=>h('i',{key:k,className:k===i?'on':''}))));
@@ -473,7 +485,16 @@
             h('div',{className:'nss-hero-who'},error?'Please check the internet connection.':'Nothing more is due in the next 4 hours of this shift.')),
           h('section',{className:'nss-list'},
             h('div',{className:'nss-list-head'},h('span',{className:'nss-label'},'COMING UP'),h('span',null,'next 4 hours · by task')),
+            data?.failed?.length>0&&h('div',{className:'nss-failed',role:'status'},`Could not read: ${data.failed.map(f=>f.name).join(', ')} — please check Shift Tasks.`),
             boxes.length?h('div',{className:`nss-boxes${boxes.length>3?' grid':''}`},boxes.map((b,bi)=>{
+              if(b.empty){
+                const inHero=hero&&(hero.group||'')===b.group;
+                return h('div',{className:'nss-box empty',key:b.group},
+                  h('div',{className:'nss-box-head'},nssTag(b.kind,b.label)),
+                  h('div',{className:'nss-box-empty'},
+                    h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2.4,strokeLinecap:'round',strokeLinejoin:'round','aria-hidden':'true'},h('path',{d:'M5 12.5l4.2 4.2L19 7'})),
+                    inHero?'Shown in Next Task':'Nothing due in the next 4 hours'));
+              }
               const i=nssFlipIndex(b.entries.length,now,bi);const e=b.entries[i];
               return h('div',{className:`nss-box${e.late?' late':e.due?' due':''}`,key:b.group},
                 h('div',{className:'nss-box-head'},nssTag(b.kind,b.label),nssDots(b.entries.length,i)),

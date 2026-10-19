@@ -1,3 +1,8 @@
+## 2.18.11 — Nurse screensaver: all five task boxes always shown; ready for a full house
+- **Vital Signs, Medication, Nursing Procedure, Care and Meals** boxes are always shown. A type with nothing pending shows a dashed box with a tick — "Nothing due in the next 4 hours" (or "Shown in Next Task") — so the layout stays the same whether 1 or 19 Guests are in.
+- Tested with **19 Guests** (full capacity): boxes with more than 8 Guests flip every 3 seconds instead of 4, so a full cycle stays short; room numbers such as "104-C" fit on smaller screens.
+- If any record could not be read (internet / permission), the screen says so ("Could not read: Medicines — please check Shift Tasks") instead of showing "nothing due", and the fault is logged for Admin in System Health. No SQL.
+
 ## 2.18.10 — Nurse screensaver: task-wise boxes with flipping Guest cards
 - **Coming Up** is now one box per task type — **Vital Signs, Medication, Nursing Procedure, Care, Meals** (Meals kept separate) — with the task name at the top and a summary line (e.g. "6 Guests · next 2:00 PM · 1 late").
 - Inside each box the Guests **flip one at a time** (about every 4 seconds, boxes staggered so they never flip together): time, bright room number, full name, and what to do (medicine count / procedure / care item / meal). "2 of 6" with dots shows the position. Late Guests come first with a coral **Late** mark; a box whose task is due now gets a magenta border.
