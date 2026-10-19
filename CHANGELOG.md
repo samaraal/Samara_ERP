@@ -1,3 +1,6 @@
+## 2.18.30 — Charge request timestamps and full details
+- Bills & Charges Approval shows the request creation timestamp. Clicking a request row or mobile card opens its full recorded details, including patient, service, billing, provider and approval fields. Decision buttons do not open the detail view; Nursing still cannot see financial amounts. No SQL.
+
 ## 2.18.29 — Nursing procedure list layout
 - Patient file → Nursing → Nursing Procedures: each planned procedure shows the name on one line and the times underneath, with the Tamil button and **Stop** on the right (Stop was pushed out of view when an instruction was present). No SQL. (SQL 254 applied 19-10-2026; SQL 255 prepared, not yet run.)
 
