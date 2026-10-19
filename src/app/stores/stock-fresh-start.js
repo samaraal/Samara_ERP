@@ -122,16 +122,21 @@
     const [sections,setSections]=React.useState(FRESH_START_SECTIONS);
     const [reason,setReason]=React.useState('Fresh start: the stock entered earlier did not match the shelves. New stock from vendor invoices and physical count.');
     const [confirmText,setConfirmText]=React.useState(''),[result,setResult]=React.useState(null),[detail,setDetail]=React.useState(null);
+    // 2.18.38: reset method — 'bills_minus_used' (Boomi's choice: scan all purchase bills; recorded Guest use is deducted) or 'zero' (physical count)
+    const [mode,setMode]=React.useState('bills_minus_used');
     async function load(){
       setError('');
       try{
-        const [items,stock,indents,resets]=await Promise.all([
+        const [items,stock,indents,resets,ledger]=await Promise.all([
           freshFetchAll('consumable_store_items','id,item_code,item_name,item_category,unit,active','item_name'),
           freshFetchAll('consumable_store_stock','item_id,balance_qty','item_id'),
           freshFetchAll('patient_consumable_indents','id,status,store_item_id,indent_no','id',q=>q.in('status',OPEN_INDENT_STATUSES)),
-          loadStoreResets()
+          loadStoreResets(),
+          freshFetchAll('consumable_store_ledger','id,item_id,movement_type,qty_in,qty_out','id')
         ]);
-        setData({items,stock,indents,resets:resets.rows,resetsMissing:resets.missing});
+        const used=new Map();
+        ledger.forEach(l=>{const q=l.movement_type==='Patient Issue'||l.movement_type==='Department Issue'?Number(l.qty_out||0)-Number(l.qty_in||0):l.movement_type==='Return to Store'?-(Number(l.qty_in||0)-Number(l.qty_out||0)):0;if(q)used.set(l.item_id,(used.get(l.item_id)||0)+q)});
+        setData({items,stock,indents,resets:resets.rows,resetsMissing:resets.missing,used});
       }catch(e){setError(e.message||'Could not load the stock.')}
     }
     React.useEffect(()=>{load()},[]);
@@ -140,22 +145,24 @@
       const its=(data?.items||[]).filter(i=>(i.item_category||'Consumables')===sec);
       const nonZero=its.filter(i=>(stockById.get(i.id)||0)!==0);
       const ids=new Set(its.map(i=>i.id));
-      return {sec,items:its.length,nonZero:nonZero.length,qty:nonZero.reduce((n,i)=>n+(stockById.get(i.id)||0),0),negative:nonZero.filter(i=>(stockById.get(i.id)||0)<0).length,openIndents:(data?.indents||[]).filter(x=>ids.has(x.store_item_id)).length,last:lastResetFor(data?.resets,sec)};
+      const usedItems=its.filter(i=>(data?.used?.get(i.id)||0)!==0);
+      return {sec,usedItems:usedItems.length,usedQty:usedItems.reduce((n,i)=>n+(data.used.get(i.id)||0),0),items:its.length,nonZero:nonZero.length,qty:nonZero.reduce((n,i)=>n+(stockById.get(i.id)||0),0),negative:nonZero.filter(i=>(stockById.get(i.id)||0)<0).length,openIndents:(data?.indents||[]).filter(x=>ids.has(x.store_item_id)).length,last:lastResetFor(data?.resets,sec)};
     });
     const chosen=perSection.filter(p=>sections.includes(p.sec));
     const openIndents=chosen.reduce((n,p)=>n+p.openIndents,0);
     const ready=admin&&downloaded&&sections.length&&reason.trim().length>=5&&confirmText.trim().toUpperCase()==='RESET'&&!busy;
     async function reset(){
       if(!ready)return;
-      const lines=chosen.map(p=>`${p.sec}: ${p.nonZero} item(s) with a balance will be set to 0`).join('\n');
-      if(!confirm(`Reset the stock of ${sections.join(' & ')} to ZERO?\n\n${lines}${openIndents?`\n\n⚠ ${openIndents} indent(s) are still open — they can be handed over only after fresh stock is entered.`:''}\n\nItem names, codes, MRP / Charge Master rates and all Guest records stay as they are. Nothing is deleted.`))return;
+      const byUse=mode==='bills_minus_used';
+      const lines=chosen.map(p=>byUse?`${p.sec}: old purchases removed; ${p.usedItems} item(s) keep their recorded Guest use and start below zero`:`${p.sec}: ${p.nonZero} item(s) with a balance will be set to 0`).join('\n');
+      if(!confirm(`${byUse?'Reset by "Bills − recorded use"':'Reset to ZERO'} — ${sections.join(' & ')}?\n\n${lines}${byUse?'\n\nThen scan ALL purchase bills (old and new) in Receive from Vendor — each item ends at purchased − used.':''}${openIndents?`\n\n⚠ ${openIndents} indent(s) are still open — they can be handed over only after fresh stock is entered.`:''}\n\nItem names, codes, MRP / Charge Master rates and all Guest records stay as they are. Nothing is deleted.`))return;
       setBusy(true);
       try{
-        const r=await client.rpc('store_stock_reset',{p_sections:sections,p_reason:reason.trim(),p_backup_confirmed:true});
-        if(r.error)throw new Error(/store_stock_reset|schema cache|could not find the function/i.test(r.error.message||'')?'The Fresh Start database update is not installed yet. Please run supabase/sql/256_stock_fresh_start.sql once in Supabase.':r.error.message);
+        const r=await client.rpc('store_stock_reset',{p_sections:sections,p_reason:reason.trim(),p_backup_confirmed:true,p_mode:mode});
+        if(r.error)throw new Error(/store_stock_reset|schema cache|could not find the function/i.test(r.error.message||'')?'The database update is not installed yet. Please run supabase/sql/257_stock_reset_bills_minus_used.sql once in Supabase.':r.error.message);
         setResult(r.data);setConfirmText('');
         try{writeAuditEvent('Stores Stock Reset','ConsumableStore',r.data?.reset_id||null,{sections,reason:reason.trim(),...(r.data||{}),excel_downloaded_at:downloaded})}catch(_){}
-        showSamaraActionToast('success','Stock reset done',`RST-${String(r.data?.reset_no||'').padStart(4,'0')}: ${r.data?.items_adjusted||0} item(s) set to zero. Now enter the Physical Count and Receive from Vendor.`);
+        showSamaraActionToast('success','Stock reset done',mode==='bills_minus_used'?`RST-${String(r.data?.reset_no||'').padStart(4,'0')}: old purchases removed, recorded Guest use kept. Now scan all purchase bills in Receive from Vendor.`:`RST-${String(r.data?.reset_no||'').padStart(4,'0')}: ${r.data?.items_adjusted||0} item(s) set to zero. Now enter the Physical Count and Receive from Vendor.`);
         await load();if(onChanged)onChanged();
       }catch(e){showSamaraActionToast('error','Stock reset not done',e.message||'Please try again.')}
       finally{setBusy(false)}
@@ -166,8 +173,8 @@
       setDetail({reset:rs,rows:r.error?[]:r.data||[],error:r.error?.message});
     }
     function downloadSnapshot(rs,rows){
-      const sheet=[['Section','Item Code','Item Name','Unit','Charge Master Rate (₹)','Total In before reset','Total Out before reset','Balance before reset','Set to zero']];
-      rows.forEach(x=>sheet.push([x.item_category,x.item_code||'',displayStoreItemName(x.item_name),x.unit||'',x.charge_rate==null?'':Number(x.charge_rate),Number(x.total_in||0),Number(x.total_out||0),Number(x.old_balance||0),x.ledger_id?'Yes':'Already 0']));
+      const sheet=[['Section','Item Code','Item Name','Unit','Charge Master Rate (₹)','Total In before reset','Total Out before reset','Balance before reset','Recorded use (kept)','Balance after reset']];
+      rows.forEach(x=>sheet.push([x.item_category,x.item_code||'',displayStoreItemName(x.item_name),x.unit||'',x.charge_rate==null?'':Number(x.charge_rate),Number(x.total_in||0),Number(x.total_out||0),Number(x.old_balance||0),x.used_net==null?'':Number(x.used_net),x.new_balance==null?0:Number(x.new_balance)]));
       const name=`Samara_Stock_Reset_RST-${String(rs.reset_no).padStart(4,'0')}_snapshot`;
       loadXlsxLibrary().then(X=>{const wb=X.utils.book_new(),ws=X.utils.aoa_to_sheet(sheet);ws['!cols']=[14,11,38,9,12,12,12,12,10].map(w=>({wch:w}));X.utils.book_append_sheet(wb,ws,'Before reset');X.writeFile(wb,name+'.xlsx')})
         .catch(()=>freshSaveBlob(new Blob(['﻿'+freshCsv(sheet)],{type:'text/csv;charset=utf-8'}),name+'.csv'));
@@ -185,35 +192,41 @@
           downloaded&&h('small',{style:{display:'block',marginTop:'6px',color:'#1b7a43',fontWeight:700}},`✓ Backup downloaded at ${formatDateTimeIN(downloaded)}`)),!!downloaded),
         step(2,'Check before the reset',h('div',null,
           h('div',{className:'table-wrap'},h('table',{className:'table'},
-            h('thead',null,h('tr',null,['Reset?','Section','Items','Items with a balance now','Total balance now','Open indents','Last reset'].map(x=>h('th',{key:x},x)))),
+            h('thead',null,h('tr',null,['Reset?','Section','Items','Items with a balance now','Total balance now','Recorded Guest use (kept)','Open indents','Last reset'].map(x=>h('th',{key:x},x)))),
             h('tbody',null,perSection.map(p=>h('tr',{key:p.sec},
               h('td',null,h('input',{type:'checkbox','aria-label':`Reset ${p.sec}`,checked:sections.includes(p.sec),disabled:!admin||busy,onChange:e=>{setDownloaded(null);setSections(s=>e.target.checked?[...new Set([...s,p.sec])]:s.filter(x=>x!==p.sec))}})),
               h('td',null,h('strong',null,p.sec)),h('td',null,p.items),h('td',null,p.nonZero+(p.negative?` (${p.negative} below zero)`:'')),h('td',null,freshQty(p.qty)),
+              h('td',null,`${p.usedItems} item(s) · ${freshQty(p.usedQty)}`),
               h('td',{style:p.openIndents?{color:'#a12f29',fontWeight:700}:null},p.openIndents),
               h('td',null,p.last?`RST-${String(p.last.reset_no).padStart(4,'0')} · ${formatDateTimeIN(p.last.reset_at)}`:'Never')))))),
           openIndents?h('p',{style:{color:'#a12f29',fontWeight:700,margin:'8px 0 0'}},`⚠ ${openIndents} indent(s) are still open (awaiting approval / handover / nurse receipt). Finish them first if possible — after the reset, a handover needs fresh stock entered.`):h('p',{className:'small-note',style:{margin:'8px 0 0'}},'No open indents. Please do not raise new indents until the fresh stock is entered.'),
           h('p',{className:'small-note',style:{margin:'6px 0 0'}},'Changing the sections clears step 1 — download the backup again for the new choice.')),false),
-        step(3,'Reset the stock to zero',admin?h('div',null,
+        step(3,'Reset the stock',admin?h('div',null,
+          h('div',{className:'field'},h('label',null,'Method *'),
+            [['bills_minus_used','Bills − recorded use (recommended)','Old purchase entries are removed; everything already given to Guests stays. Each item starts BELOW ZERO by what was used. Then scan ALL purchase bills (old and new) — each item ends at purchased − used = what should be on the shelf.'],
+             ['zero','Zero, then physical count','Every item becomes 0. The Nursing Manager counts the shelf (Opening Stock – Physical Count); only NEW bills are scanned from now on.']].map(([v,l,d])=>
+              h('label',{key:v,style:{display:'flex',gap:'8px',alignItems:'flex-start',margin:'6px 0',padding:'8px',border:`1px solid ${mode===v?'#b30b5d':'#ead2dd'}`,borderRadius:'10px',background:mode===v?'#fff4f9':'#fff',cursor:'pointer',fontWeight:400}},
+                h('input',{type:'radio',name:'fresh-mode',checked:mode===v,onChange:()=>setMode(v),style:{marginTop:'3px'}}),h('span',null,h('strong',{style:{display:'block'}},l),h('small',null,d))))),
           h('div',{className:'field'},h('label',null,'Reason *'),h('textarea',{rows:2,value:reason,onChange:e=>setReason(e.target.value)})),
           h('div',{className:'field'},h('label',null,'Type RESET to confirm *'),h('input',{value:confirmText,onChange:e=>setConfirmText(e.target.value),placeholder:'RESET',autoComplete:'off',style:{maxWidth:'200px'}})),
           !downloaded&&h('small',{className:'error-text',style:{display:'block',marginBottom:'6px'}},'Download the Excel backup (step 1) first.'),
-          h('button',{type:'button',className:'btn btn-danger',disabled:!ready,onClick:reset},busy?'Resetting…':`Reset ${sections.join(' & ')} stock to zero`),
-          result&&h('div',{style:SAMARA_SCAN.noteStyle('ok')},`Done — RST-${String(result.reset_no||'').padStart(4,'0')}: ${result.items_adjusted} of ${result.items_total} item(s) set to zero (removed ${freshQty(result.qty_removed)}${Number(result.qty_added)?`, below-zero balances corrected by ${freshQty(result.qty_added)}`:''}). Next: Opening Stock – Physical Count, then Receive from Vendor.`))
+          h('button',{type:'button',className:'btn btn-danger',disabled:!ready,onClick:reset},busy?'Resetting…':`Reset ${sections.join(' & ')} stock${mode==='zero'?' to zero':' (bills − recorded use)'}`),
+          result&&h('div',{style:SAMARA_SCAN.noteStyle('ok')},result.mode==='bills_minus_used'?`Done — RST-${String(result.reset_no||'').padStart(4,'0')}: old purchases removed, recorded Guest use kept (${result.items_adjusted} of ${result.items_total} item(s) adjusted). Next: scan ALL purchase bills in Receive from Vendor — for each line choose "Yes, same item" when asked, so the bill joins the same item code.`:`Done — RST-${String(result.reset_no||'').padStart(4,'0')}: ${result.items_adjusted} of ${result.items_total} item(s) set to zero (removed ${freshQty(result.qty_removed)}${Number(result.qty_added)?`, below-zero balances corrected by ${freshQty(result.qty_added)}`:''}). Next: Opening Stock – Physical Count, then Receive from Vendor.`))
           :h('p',{className:'small-note'},'Only Admin / Director can reset the stock. Anyone with Stores access can download the Excel backup.'),!!result),
         h('h4',{style:{margin:'16px 0 6px'}},'Reset history'),
         (data.resets||[]).length?h('div',{className:'table-wrap'},h('table',{className:'table'},
-          h('thead',null,h('tr',null,['Reset','Date & time','Sections','Items set to zero','By','Reason'].map(x=>h('th',{key:x},x)))),
+          h('thead',null,h('tr',null,['Reset','Date & time','Sections','Method','Items adjusted','By','Reason'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,data.resets.map(rs=>h('tr',{key:rs.id,className:'row-clickable',tabIndex:0,onClick:()=>openReset(rs),onKeyDown:e=>{if(e.key==='Enter')openReset(rs)}},
-            h('td',null,`RST-${String(rs.reset_no).padStart(4,'0')}`),h('td',null,formatDateTimeIN(rs.reset_at)),h('td',null,(rs.sections||[]).join(', ')),
+            h('td',null,`RST-${String(rs.reset_no).padStart(4,'0')}`),h('td',null,formatDateTimeIN(rs.reset_at)),h('td',null,(rs.sections||[]).join(', ')),h('td',null,rs.mode==='bills_minus_used'?'Bills − recorded use':'Zero + physical count'),
             h('td',null,`${rs.items_adjusted} of ${rs.items_total}`),h('td',null,rs.reset_by_name||'—'),h('td',null,rs.reason)))))):h('p',{className:'small-note'},'No stock reset has been done yet.')
       ),
       detail&&h(RowDetailModal,{title:`RST-${String(detail.reset.reset_no).padStart(4,'0')} · Stock Reset`,subtitle:`${formatDateTimeIN(detail.reset.reset_at)} · ${(detail.reset.sections||[]).join(', ')}`,onClose:()=>setDetail(null),
-        fields:[['Done by',detail.reset.reset_by_name],['Reason',detail.reset.reason],['Items in sections',String(detail.reset.items_total)],['Items set to zero',String(detail.reset.items_adjusted)],['Quantity removed',freshQty(detail.reset.qty_removed)],['Below-zero corrected',freshQty(detail.reset.qty_added)],['Excel backup confirmed',detail.reset.backup_confirmed?'Yes':'No']]},
+        fields:[['Method',detail.reset.mode==='bills_minus_used'?'Bills − recorded use':'Zero + physical count'],['Done by',detail.reset.reset_by_name],['Reason',detail.reset.reason],['Items in sections',String(detail.reset.items_total)],['Items set to zero',String(detail.reset.items_adjusted)],['Quantity removed',freshQty(detail.reset.qty_removed)],['Below-zero corrected',freshQty(detail.reset.qty_added)],['Excel backup confirmed',detail.reset.backup_confirmed?'Yes':'No']]},
         detail.rows==null?h('p',null,'Loading the snapshot…'):h('div',null,
           detail.error&&h('p',{className:'message error'},detail.error),
           h('button',{type:'button',className:'btn btn-secondary',style:{margin:'4px 0 8px'},onClick:()=>downloadSnapshot(detail.reset,detail.rows)},'⤓ Download this snapshot (Excel)'),
-          h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Code','Item','Unit','Rate','Balance before reset'].map(x=>h('th',{key:x},x)))),
-            h('tbody',null,detail.rows.filter(x=>Number(x.old_balance)!==0).map(x=>h('tr',{key:x.id},h('td',null,x.item_code),h('td',null,displayStoreItemName(x.item_name)),h('td',null,x.unit),h('td',null,freshMoney(x.charge_rate)),h('td',null,freshQty(x.old_balance)))))))))
+          h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Code','Item','Unit','Rate','Balance before reset','Recorded use','Balance after reset'].map(x=>h('th',{key:x},x)))),
+            h('tbody',null,detail.rows.filter(x=>Number(x.old_balance)!==0||Number(x.used_net||0)!==0).map(x=>h('tr',{key:x.id},h('td',null,x.item_code),h('td',null,displayStoreItemName(x.item_name)),h('td',null,x.unit),h('td',null,freshMoney(x.charge_rate)),h('td',null,freshQty(x.old_balance)),h('td',null,x.used_net==null?'—':freshQty(x.used_net)),h('td',null,x.new_balance==null?'0':freshQty(x.new_balance)))))))))
     );
   }
 
