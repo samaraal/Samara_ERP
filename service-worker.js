@@ -1,5 +1,5 @@
-const APP_VERSION = '2.18.39';
-const CACHE = 'samara-erp-2.18.39-recorded-use-summary';
+const APP_VERSION = '2.18.40';
+const CACHE = 'samara-erp-2.18.40-reset-done-banner';
 const SHELL = [
   './',
   './index.html',

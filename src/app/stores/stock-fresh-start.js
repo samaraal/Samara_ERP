@@ -136,8 +136,8 @@
           client.rpc('store_recorded_use_summary',{p_sections:FRESH_START_SECTIONS})
         ]);
         const used=new Map();
-        if(!ledger.error)(ledger.data||[]).forEach(x=>used.set(x.item_id,Number(x.used_net||0)));
-        setData({items,stock,indents,resets:resets.rows,resetsMissing:resets.missing,used,usedMissing:!!ledger.error});
+        if(!ledger.error&&Array.isArray(ledger.data))ledger.data.forEach(x=>used.set(x.item_id,Number(x.used_net||0)));
+        setData({items,stock,indents,resets:resets.rows,resetsMissing:resets.missing,used,usedMissing:!!ledger.error||!Array.isArray(ledger.data)});
       }catch(e){setError(e.message||'Could not load the stock.')}
     }
     React.useEffect(()=>{load()},[]);
@@ -187,6 +187,13 @@
       data?.usedMissing&&h('p',{className:'small-note',style:{color:'#8a5a00'}},'Recorded Guest use preview is not available yet (run supabase/sql/258_store_recorded_use_summary.sql once). The reset itself still works.'),
       data?.resetsMissing&&h('p',{role:'alert',className:'message error'},'The Fresh Start database update is not installed yet. Please run supabase/sql/256_stock_fresh_start.sql once in Supabase (Excel backup works already).'),
       !data&&!error&&h('p',{role:'status'},'Loading the current stock…'),
+      // 2.18.40: a recent reset is shown clearly at the top, with the next steps, so it is not pressed again
+      data&&(()=>{const rs=(data.resets||[])[0];if(!rs||Date.now()-new Date(rs.reset_at).getTime()>24*3600*1000)return null;
+        const byUse=rs.mode==='bills_minus_used';
+        return h('div',{style:{background:'#e9f7ef',border:'1px solid #8fd1a8',borderRadius:'12px',padding:'12px 14px',margin:'0 0 12px'}},
+          h('strong',{style:{display:'block',color:'#1b7a43',fontSize:'15px'}},`✓ Stock reset done — RST-${String(rs.reset_no).padStart(4,'0')} · ${formatDateTimeIN(rs.reset_at)} · ${(rs.sections||[]).join(' & ')}`),
+          h('small',{style:{display:'block',marginTop:'4px'}},byUse?'Old purchase entries removed; recorded Guest use kept — items show below zero by what was used. Do NOT reset again.':'All items set to zero. Do NOT reset again.'),
+          h('small',{style:{display:'block',marginTop:'4px',fontWeight:700}},byUse?'Next: Receive from Vendor → scan ALL purchase bills (old and new). Press "Yes, same item" when asked, so each bill joins the same item code.':'Next: Opening Stock – Physical Count (Nursing Manager), then scan new bills in Receive from Vendor.'))})(),
       data&&h(React.Fragment,null,
         step(1,'Download the Excel backup of the current entries',h('div',null,
           h('p',{className:'small-note',style:{margin:'0 0 8px'}},'Current Stock, Vendor Receipts and Stock Movements of the chosen section(s), in one Excel file. Keep it safely before the reset.'),
@@ -207,8 +214,8 @@
           h('div',{className:'field'},h('label',null,'Method *'),
             [['bills_minus_used','Bills − recorded use (recommended)','Old purchase entries are removed; everything already given to Guests stays. Each item starts BELOW ZERO by what was used. Then scan ALL purchase bills (old and new) — each item ends at purchased − used = what should be on the shelf.'],
              ['zero','Zero, then physical count','Every item becomes 0. The Nursing Manager counts the shelf (Opening Stock – Physical Count); only NEW bills are scanned from now on.']].map(([v,l,d])=>
-              h('label',{key:v,style:{display:'flex',gap:'8px',alignItems:'flex-start',margin:'6px 0',padding:'8px',border:`1px solid ${mode===v?'#b30b5d':'#ead2dd'}`,borderRadius:'10px',background:mode===v?'#fff4f9':'#fff',cursor:'pointer',fontWeight:400}},
-                h('input',{type:'radio',name:'fresh-mode',checked:mode===v,onChange:()=>setMode(v),style:{marginTop:'3px'}}),h('span',null,h('strong',{style:{display:'block'}},l),h('small',null,d))))),
+              h('label',{key:v,style:{display:'flex',gap:'10px',alignItems:'flex-start',justifyContent:'flex-start',textAlign:'left',margin:'6px 0',padding:'8px',border:`1px solid ${mode===v?'#b30b5d':'#ead2dd'}`,borderRadius:'10px',background:mode===v?'#fff4f9':'#fff',cursor:'pointer',fontWeight:400}},
+                h('input',{type:'radio',name:'fresh-mode',checked:mode===v,onChange:()=>setMode(v),style:{marginTop:'3px',width:'18px',minWidth:'18px',height:'18px',flex:'0 0 18px',padding:0}}),h('span',{style:{flex:'1 1 auto',textAlign:'left'}},h('strong',{style:{display:'block'}},l),h('small',null,d))))),
           h('div',{className:'field'},h('label',null,'Reason *'),h('textarea',{rows:2,value:reason,onChange:e=>setReason(e.target.value)})),
           h('div',{className:'field'},h('label',null,'Type RESET to confirm *'),h('input',{value:confirmText,onChange:e=>setConfirmText(e.target.value),placeholder:'RESET',autoComplete:'off',style:{maxWidth:'200px'}})),
           !downloaded&&h('small',{className:'error-text',style:{display:'block',marginBottom:'6px'}},'Download the Excel backup (step 1) first.'),

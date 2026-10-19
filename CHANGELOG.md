@@ -1,3 +1,6 @@
+## 2.18.40 — Backup & Fresh Start stays open after the reset
+- After pressing Reset the section closed and reopened, so the result vanished and it looked as if the page went back. Now it stays open, and a green "✓ Stock reset done — RST-nnnn" banner with the next steps shows at the top for 24 hours. Method choice (radio buttons) laid out properly. No SQL.
+
 ## 2.18.39 — Backup & Fresh Start opens without timing out
 - The step 2 check table no longer reads the whole Stock Movement register into the browser (it timed out: "statement timeout"). Recorded Guest use is now summed on the server, and an index on the register speeds up the reset. **SQL 258_store_recorded_use_summary.sql** (run once).
 

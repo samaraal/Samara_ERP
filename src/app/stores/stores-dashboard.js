@@ -307,8 +307,10 @@
       ),
       view&&h(DashboardBackBar,{title:cat,viewTitle,onBack:backToDashboard}),
       view==='usage'&&stats?.access&&h(StoreItemUsageRegister,{profile,categoryFilter,initialItem:usageItem}),
-      view==='fresh'&&stats?.access&&h(StoreFreshStart,{profile,categoryFilter,onChanged:()=>{setStats(null);setIndents(null);setRefreshKey(k=>k+1)}}),
-      view==='count'&&stats?.access&&h(StorePhysicalCount,{profile,categoryFilter,onChanged:()=>{setStats(null);setIndents(null);setRefreshKey(k=>k+1)}}),
+      // 2.18.40: refresh the boxes WITHOUT clearing stats — clearing them closed and reopened this section, so the
+      // "reset done" result disappeared and the page looked as if it went back.
+      view==='fresh'&&stats?.access&&h(StoreFreshStart,{profile,categoryFilter,onChanged:()=>setRefreshKey(k=>k+1)}),
+      view==='count'&&stats?.access&&h(StorePhysicalCount,{profile,categoryFilter,onChanged:()=>setRefreshKey(k=>k+1)}),
       view==='mrp'&&stats?.access&&h(StoreMrpReview,{profile,categoryFilter,onChanged:()=>setRefreshKey(k=>k+1)}),
       h(React.Fragment,{key:`stores-dash-data-${refreshKey}`},
         h(ConsumablesStores,{profile,categoryFilter,section:storeSection,onSummary:setStats,onOpenSection:openView,onOpenUsage:id=>{setUsageItem(id);openView('usage')}}),
