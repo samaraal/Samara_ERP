@@ -93,7 +93,7 @@ function AuditTrail(){
     );
   }
 
-  function LogTable({title,subtitle,heads,rows,className=''}){
+  function LogTable({title,subtitle,heads,rows,className='',onRowClick}){
     const mobileCards=String(className||'').split(/\s+/).includes('samara-mobile-card-table');
     const wideMobileLabels=new Set(['Patient','Service','Action','Provider','Remarks']);
     return h(Section,{title,subtitle,className},
@@ -101,7 +101,7 @@ function AuditTrail(){
         h('table',{className:`table ${className}`.trim()},
           h('thead',null,h('tr',null,heads.map(x=>h('th',{key:x},x)))),
           h('tbody',null,
-            ...rows.map((r,i)=>h('tr',{key:i,className:mobileCards?'samara-mobile-card-row':''},...r.map((v,j)=>h('td',{key:j,'data-label':heads[j]||'','data-mobile-label':heads[j]||'',className:mobileCards&&wideMobileLabels.has(heads[j])?'samara-mobile-wide-cell':''},v)))),
+            ...rows.map((r,i)=>h('tr',{key:i,className:mobileCards?'samara-mobile-card-row':'',onClick:onRowClick?()=>onRowClick(i):undefined,onKeyDown:onRowClick?e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onRowClick(i)}}:undefined,tabIndex:onRowClick?0:undefined,title:onRowClick?'Click to open full details':undefined,style:onRowClick?{cursor:'pointer'}:undefined},...r.map((v,j)=>h('td',{key:j,'data-label':heads[j]||'','data-mobile-label':heads[j]||'',className:mobileCards&&wideMobileLabels.has(heads[j])?'samara-mobile-wide-cell':''},v)))),
             rows.length===0?h('tr',{className:mobileCards?'samara-mobile-card-row':''},h('td',{colSpan:heads.length,className:'empty','data-mobile-label':''},'No records found')):null
           )
         )

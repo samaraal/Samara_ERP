@@ -280,6 +280,7 @@
     const [period,setPeriod]=React.useState({mode:'All dates',date:todayISOIndia(),month:todayISOIndia().slice(0,7),from:todayISOIndia(),to:todayISOIndia()});
     const [quickView,setQuickView]=React.useState('All');
     const [workflowRequestId,setWorkflowRequestId]=React.useState('');
+    const [selectedChargeDetail,setSelectedChargeDetail]=React.useState(null);
     // v2.14.45: only an "Open & Take Action" click from the last 2 minutes focuses one request.
     // Opening Charge Approvals from the menu / tabs always shows every pending request.
     React.useEffect(()=>{
@@ -838,13 +839,14 @@
       navCard('Approved Value Today',money(approvedTodayValue),'Approved Today','Actual value approved today')
     );
 
-    const chargeMobileCard=r=>h('article',{key:r.id||`${r.patient_id}-${r.charge_date}-${r.service_name}`,className:'card',style:{padding:'14px',marginBottom:'10px',width:'100%',maxWidth:'100%',boxSizing:'border-box',overflow:'hidden'}},
+    const chargeMobileCard=r=>h('article',{key:r.id||`${r.patient_id}-${r.charge_date}-${r.service_name}`,className:'card',role:'button',tabIndex:0,title:'Open full request details',onClick:()=>setSelectedChargeDetail(r),onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelectedChargeDetail(r)}},style:{padding:'14px',marginBottom:'10px',width:'100%',maxWidth:'100%',boxSizing:'border-box',overflow:'hidden',cursor:'pointer'}},
       h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'flex-start'}},
         h('div',{style:{minWidth:0,flex:'1 1 auto'}},h('strong',{style:{display:'block',fontSize:'16px',overflowWrap:'anywhere'}},`${r.charge_item_code?`${r.charge_item_code} · `:''}${r.service_name||r.description||'Charge'}`),h('small',{style:{display:'block',marginTop:'3px',overflowWrap:'anywhere'}},pLabel(r.patient_id))),
         h('span',{className:'badge',style:{flex:'0 0 auto'}},r.approval_status||'Pending')
       ),
       h('div',{style:{display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1fr)',gap:'8px 12px',marginTop:'12px'}},
         h('div',{style:{minWidth:0}},h('small',null,'Date'),h('div',{style:{overflowWrap:'anywhere'}},formatDateIN(r.charge_date))),
+        h('div',{style:{minWidth:0}},h('small',null,'Requested At'),h('div',{style:{overflowWrap:'anywhere'}},formatDateTimeIN(r.created_at||r.raised_at))),
         h('div',{style:{minWidth:0}},h('small',null,'Quantity'),h('div',{style:{overflowWrap:'anywhere'}},`${r.quantity||1} ${r.unit||''}`)),
         h('div',{style:{minWidth:0}},h('small',null,'Category'),h('div',{style:{overflowWrap:'anywhere'}},r.category||'—')),
         h('div',{style:{minWidth:0}},h('small',null,'Provider'),h('div',{style:{overflowWrap:'anywhere'}},r.service_provider||r.hospital_name||r.laboratory_name||'—')),
@@ -856,23 +858,25 @@
         h('div',{style:{gridColumn:'1 / -1',minWidth:0}},h('small',null,'Remarks'),h('div',{style:{overflowWrap:'anywhere',wordBreak:'break-word'}},r.decision_remarks||r.approval_remarks||r.remarks||'—'))
       ),
       canApprove&&(r.approval_status||'Pending')==='Pending'&&h('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:'6px',marginTop:'12px'}},
-        h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>decide(r,'Approved')},'Approve'),
-        h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>decide(r,'Partially Approved')},'Partial'),
-        h('button',{className:'btn btn-danger',disabled:busy,onClick:()=>decide(r,'Rejected')},'Reject')
+        h('button',{className:'btn btn-primary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Approved')}},'Approve'),
+        h('button',{className:'btn btn-secondary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Partially Approved')}},'Partial'),
+        h('button',{className:'btn btn-danger',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Rejected')}},'Reject')
       )
     );
 
     const desktopRegister=h(LogTable,{
       title:`Bill & Charge Requests (${filtered.length})`,
-      heads:['Date','Patient','Category','Service','Qty','Decision','Action','Request Amount','Approved Amount','Provider','Decision By','Decision Time','Remarks'],
+      subtitle:'Click any request row to open its full details.',
+      onRowClick:i=>setSelectedChargeDetail(filtered[i]),
+      heads:['Service Date','Requested At','Patient','Category','Service','Qty','Decision','Action','Request Amount','Approved Amount','Provider','Decision By','Decision Time','Remarks'],
       rows:filtered.map(r=>[
-        formatDateIN(r.charge_date),pLabel(r.patient_id),r.category,`${r.charge_item_code?`${r.charge_item_code} · `:''}${r.service_name||r.description||'—'}`,
+        formatDateIN(r.charge_date),formatDateTimeIN(r.created_at||r.raised_at),pLabel(r.patient_id),r.category,`${r.charge_item_code?`${r.charge_item_code} · `:''}${r.service_name||r.description||'—'}`,
         `${r.quantity||1} ${r.unit||''}`,
         h('span',{className:'badge'},r.approval_status||'Pending'),
         h('div',{className:'employee-actions',style:{display:'flex',gap:'6px',flexWrap:'wrap',minWidth:canApprove?'235px':'80px'}},
-          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>decide(r,'Approved')},'Approve'),
-          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>decide(r,'Partially Approved')},'Partial'),
-          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-danger',disabled:busy,onClick:()=>decide(r,'Rejected')},'Reject'),
+          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-primary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Approved')}},'Approve'),
+          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-secondary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Partially Approved')}},'Partial'),
+          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-danger',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Rejected')}},'Reject'),
           !canApprove&&h('span',{style:{color:'#8b7780'}},'—')
         ),
         profile?.role==='Nurse'?'Hidden':(()=>{const store=currentStoreRequestAmount(r);return store.amount>0?h('span',null,money(store.amount),store.fromMaster?h('small',{style:{display:'block',color:'#7b6570',marginTop:'2px'}},`Store rate ₹${Number(store.rate).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})} × ${Number(r.quantity||1)}`):null):'—'})(),
@@ -900,6 +904,31 @@
         fmt(d.ordered_at),fmt(d.sample_collected_at),d.report_status||'—',fmt(d.report_received_at),money(d.bill_amount)
       ])
     });
+
+    const chargeDetailFields=selectedChargeDetail?Object.entries(selectedChargeDetail).filter(([key,value])=>{
+      if(value===null||value===undefined||value==='')return false;
+      if(profile?.role==='Nurse'&&/(amount|unit_cost|rate|cost|fee)/i.test(key))return false;
+      return true;
+    }).map(([key,value])=>{
+      const label=key.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+      let shown=value;
+      if(key==='patient_id')shown=pLabel(value);
+      else if(typeof value==='boolean')shown=value?'Yes':'No';
+      else if(value&&typeof value==='object')shown=JSON.stringify(value,null,2);
+      else if(/(_at|datetime)$/i.test(key))shown=formatDateTimeIN(value);
+      else if(/_date$/i.test(key))shown=formatDateIN(value);
+      else if(profile?.role!=='Nurse'&&/(amount|unit_cost|rate|cost|fee)/i.test(key)&&Number.isFinite(Number(value)))shown=money(value);
+      return [key,label,String(shown)];
+    }):[];
+    const chargeDetailModal=selectedChargeDetail&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setSelectedChargeDetail(null)}},
+      h('section',{className:'card modal',role:'dialog','aria-modal':'true','aria-labelledby':'charge-request-detail-title',style:{width:'min(900px,96vw)',maxHeight:'90vh',overflowY:'auto'}},
+        h('div',{className:'panel-head'},
+          h('div',null,h('h3',{id:'charge-request-detail-title',style:{margin:0}},'Charge Request Details'),h('small',null,`${selectedChargeDetail.service_name||selectedChargeDetail.description||'Charge request'} · Requested ${formatDateTimeIN(selectedChargeDetail.created_at||selectedChargeDetail.raised_at)}`)),
+          h('button',{type:'button',className:'close','aria-label':'Close details',onClick:()=>setSelectedChargeDetail(null)},'×')
+        ),
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:'10px',padding:'12px 0'}},chargeDetailFields.map(([key,label,value])=>h('div',{key,className:'card',style:{padding:'10px 12px',minWidth:0}},h('small',{style:{display:'block',color:'#7b6570',fontWeight:700,marginBottom:'4px'}},label),h('div',{style:{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}},value))))
+      )
+    );
 
     const outsideForm=form.category===OUTSIDE_CATEGORY;
     const basicFields=[
@@ -1064,6 +1093,7 @@
       ),
       ['Accounts','Admin'].includes(profile?.role)&&h(OutsideBillsRegister,{profile,patients,pLabel,refreshKey:rows.length+':'+rows.filter(r=>r.outside_paid_by&&(r.approval_status||'Pending')!=='Pending').length}),
       diagTable,
+      chargeDetailModal,
       modal,
       toast&&h('div',{className:`samara-toast ${toast.type}`},
         h('span',{className:'samara-toast-icon'},toast.type==='success'?'✓':'!'),
