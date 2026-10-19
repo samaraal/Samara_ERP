@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.11';
+  const APP_VERSION = '2.18.12';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '19-Oct-2026 Screensaver: all five task boxes always shown, full-house ready';
+  const APP_BUILD_DATE = '19-Oct-2026 Screensaver for Nursing Manager, 90-second idle';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -25661,7 +25661,7 @@ Please keep these login details confidential.`;
   // only closes it (it never presses a button underneath). The 30-minute idle sign-out is unchanged.
   // Guests are shown by Room + full name (2.18.8); medicines
   // as a count (the name only for sliding-scale insulin, which needs a sugar check first).
-  const NURSE_SAVER_IDLE_MS=3*60*1000;
+  const NURSE_SAVER_IDLE_MS=90*1000; // 2.18.12: 90 seconds (was 3 minutes)
   const NURSE_SAVER_HORIZON_MS=4*60*60*1000;
   const NURSE_SAVER_FLIP_SEC=4;
 
@@ -26039,7 +26039,8 @@ Please keep these login details confidential.`;
   }
 
   function NurseIdleScreensaver({profile,page,alertKey}){
-    const isNurse=profile?.role==='Nurse';
+    // 2.18.12: Nurse and Nursing Manager logins.
+    const isNurse=profile?.role==='Nurse'||(typeof isNursingManagerProfile==='function'&&isNursingManagerProfile(profile));
     const [visible,setVisible]=React.useState(false);
     const [data,setData]=React.useState(null);
     const [error,setError]=React.useState('');
@@ -26062,7 +26063,7 @@ Please keep these login details confidential.`;
         if(visibleRef.current||blockedRef.current||document.visibilityState!=='visible')return;
         if(Date.now()-lastActivity.current>=NURSE_SAVER_IDLE_MS&&!mediaBusy())setVisible(true);
       };
-      const timer=setInterval(check,15000);
+      const timer=setInterval(check,5000);
       return()=>{clearInterval(timer);events.forEach(n=>window.removeEventListener(n,mark,true))};
     },[isNurse]);
 

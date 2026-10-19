@@ -1,3 +1,7 @@
+## 2.18.12 — Screensaver for the Nursing Manager too; starts after 90 seconds
+- The idle task screensaver now also comes on for the **Nursing Manager** login (as well as Nurses).
+- It starts after **90 seconds** without activity (was 3 minutes). The 30-minute idle sign-out is unchanged. No SQL.
+
 ## 2.18.11 — Nurse screensaver: all five task boxes always shown; ready for a full house
 - **Vital Signs, Medication, Nursing Procedure, Care and Meals** boxes are always shown. A type with nothing pending shows a dashed box with a tick — "Nothing due in the next 4 hours" (or "Shown in Next Task") — so the layout stays the same whether 1 or 19 Guests are in.
 - Tested with **19 Guests** (full capacity): boxes with more than 8 Guests flip every 3 seconds instead of 4, so a full cycle stays short; room numbers such as "104-C" fit on smaller screens.

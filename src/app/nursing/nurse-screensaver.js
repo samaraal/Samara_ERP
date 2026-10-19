@@ -4,7 +4,7 @@
   // only closes it (it never presses a button underneath). The 30-minute idle sign-out is unchanged.
   // Guests are shown by Room + full name (2.18.8); medicines
   // as a count (the name only for sliding-scale insulin, which needs a sugar check first).
-  const NURSE_SAVER_IDLE_MS=3*60*1000;
+  const NURSE_SAVER_IDLE_MS=90*1000; // 2.18.12: 90 seconds (was 3 minutes)
   const NURSE_SAVER_HORIZON_MS=4*60*60*1000;
   const NURSE_SAVER_FLIP_SEC=4;
 
@@ -382,7 +382,8 @@
   }
 
   function NurseIdleScreensaver({profile,page,alertKey}){
-    const isNurse=profile?.role==='Nurse';
+    // 2.18.12: Nurse and Nursing Manager logins.
+    const isNurse=profile?.role==='Nurse'||(typeof isNursingManagerProfile==='function'&&isNursingManagerProfile(profile));
     const [visible,setVisible]=React.useState(false);
     const [data,setData]=React.useState(null);
     const [error,setError]=React.useState('');
@@ -405,7 +406,7 @@
         if(visibleRef.current||blockedRef.current||document.visibilityState!=='visible')return;
         if(Date.now()-lastActivity.current>=NURSE_SAVER_IDLE_MS&&!mediaBusy())setVisible(true);
       };
-      const timer=setInterval(check,15000);
+      const timer=setInterval(check,5000);
       return()=>{clearInterval(timer);events.forEach(n=>window.removeEventListener(n,mark,true))};
     },[isNurse]);
 
