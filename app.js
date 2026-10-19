@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.12';
+  const APP_VERSION = '2.18.13';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '19-Oct-2026 Screensaver for Nursing Manager, 90-second idle';
+  const APP_BUILD_DATE = '19-Oct-2026 Screensaver keeps the screen on';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -26085,6 +26085,21 @@ Please keep these login details confidential.`;
       const onKey=e=>{e.preventDefault();close()};
       window.addEventListener('keydown',onKey,true);
       return()=>{alive=false;clearInterval(clock);clearInterval(refresh);window.removeEventListener('keydown',onKey,true)};
+    },[visible]);
+
+    // 2.18.13: keep the monitor on while the screensaver is showing (Screen Wake Lock; Chrome / Edge).
+    // Without it Windows power settings turn the display black after a few minutes. Released as soon as it closes.
+    React.useEffect(()=>{
+      if(!visible||!navigator.wakeLock?.request)return;
+      let lock=null,alive=true;
+      const take=async()=>{
+        if(!alive||document.visibilityState!=='visible'||(lock&&!lock.released))return;
+        try{lock=await navigator.wakeLock.request('screen')}catch(e){try{window.SamaraFault?.('nurse-screensaver','Keep-screen-on not allowed',{error:String(e?.message||e).slice(0,160)})}catch(_){}}
+      };
+      take();
+      const onVis=()=>{if(document.visibilityState==='visible')take()};
+      document.addEventListener('visibilitychange',onVis);
+      return()=>{alive=false;document.removeEventListener('visibilitychange',onVis);try{lock?.release()}catch(_){}};
     },[visible]);
 
     function close(){lastActivity.current=Date.now();setVisible(false)}

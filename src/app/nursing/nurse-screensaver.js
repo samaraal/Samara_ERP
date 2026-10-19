@@ -430,6 +430,21 @@
       return()=>{alive=false;clearInterval(clock);clearInterval(refresh);window.removeEventListener('keydown',onKey,true)};
     },[visible]);
 
+    // 2.18.13: keep the monitor on while the screensaver is showing (Screen Wake Lock; Chrome / Edge).
+    // Without it Windows power settings turn the display black after a few minutes. Released as soon as it closes.
+    React.useEffect(()=>{
+      if(!visible||!navigator.wakeLock?.request)return;
+      let lock=null,alive=true;
+      const take=async()=>{
+        if(!alive||document.visibilityState!=='visible'||(lock&&!lock.released))return;
+        try{lock=await navigator.wakeLock.request('screen')}catch(e){try{window.SamaraFault?.('nurse-screensaver','Keep-screen-on not allowed',{error:String(e?.message||e).slice(0,160)})}catch(_){}}
+      };
+      take();
+      const onVis=()=>{if(document.visibilityState==='visible')take()};
+      document.addEventListener('visibilitychange',onVis);
+      return()=>{alive=false;document.removeEventListener('visibilitychange',onVis);try{lock?.release()}catch(_){}};
+    },[visible]);
+
     function close(){lastActivity.current=Date.now();setVisible(false)}
     if(!isNurse||!visible)return null;
 
