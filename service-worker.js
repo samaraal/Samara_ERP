@@ -1,5 +1,5 @@
-const APP_VERSION = '2.18.32';
-const CACHE = 'samara-erp-2.18.32-procedure-times-order';
+const APP_VERSION = '2.18.33';
+const CACHE = 'samara-erp-2.18.33-screensaver-short-screens';
 const SHELL = [
   './',
   './index.html',

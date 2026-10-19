@@ -1,3 +1,7 @@
+## 2.18.33 — Screensaver fits laptop screens (Edge)
+- On short screens (e.g. a 1366×768 laptop at 125% in Edge with toolbars) the screensaver now uses a compact layout: smaller header, one-line overdue bar, and "Nothing due" boxes (Vital Signs, Meals) shrink to one line so the Nursing Procedure and Care boxes get the room — no more text cut off. Large monitors are unchanged. No SQL.
+- SQL 255 applied 19-10-2026 (one care record per scheduled time for fixed-time procedures).
+
 ## 2.18.32 — Nursing procedure times in clock order
 - Procedure times are now listed in clock order everywhere (form chips, patient file, Shift Tasks): 6:00 AM, 7:00 AM … 10:00 PM. Before, they started from the 7 AM shift change, so 6:00 AM came last. 6:00 AM still shows "Night" — the Night shift is 7 PM–7 AM (the form says so). Family Portal v1.0.43 lists them the same way. No SQL.
 

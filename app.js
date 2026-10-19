@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.32';
+  const APP_VERSION = '2.18.33';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '19-Oct-2026 Procedure times in clock order';
+  const APP_BUILD_DATE = '19-Oct-2026 Screensaver compact layout for laptop screens';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -26184,6 +26184,46 @@ Please keep these login details confidential.`;
   .nss-card-who{font-size:15px}
   .nss-tag{font-size:12px}
   .nss-overdue-more{margin-left:0}
+}
+/* 2.18.33: short screens (laptops 1366x768 at 125% in Edge with toolbars) — compact, nothing cut off;
+   "Nothing due" boxes shrink to one line so boxes with real tasks get the room */
+@media (max-height:780px) and (min-width:761px){
+ .nss-inner{padding:10px 18px 8px;gap:8px}
+ .nss-logo{padding:3px 8px;border-radius:12px}.nss-logo img{height:38px}
+ .nss-clock{font-size:34px}.nss-date{font-size:13px;margin-top:2px}
+ .nss-shift{gap:4px}.nss-chip{font-size:13px;padding:4px 12px}.nss-onduty{font-size:13px}
+ .nss-overdue{padding:5px 12px;gap:10px;border-radius:12px;flex-wrap:nowrap;min-width:0}
+ .nss-overdue-tag{font-size:12px;padding:3px 8px;flex-shrink:0}
+ .nss-overdue-text{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+ .nss-overdue-more{font-size:13px;flex-shrink:0;white-space:nowrap}
+ .nss-main{gap:14px}
+ .nss-hero{padding:14px 18px;border-radius:20px;gap:8px}
+ .nss-hero-title{font-size:24px}.nss-hero-who{font-size:17px}
+ .nss-hero-med .nss-hero-top .nss-tag.nss-g{font-size:17px;padding:4px 12px}
+ .nss-med-row .nss-hero-time{font-size:44px}.nss-hero-room{font-size:30px;padding:3px 12px}
+ .nss-hero-meds{font-size:17px;gap:6px;padding:8px 12px 8px 2em}.nss-hero-meds li{padding:1px 0}
+ .nss-med-card{gap:10px}.nss-hero-foot{padding-top:6px;font-size:13px}
+ .nss-list{gap:6px}.nss-list-head .nss-label{font-size:12px}.nss-list-head span:last-child{font-size:13px}
+ .nss-boxes.stack{gap:7px}
+ .nss-boxes.stack .nss-box{padding:6px 12px;gap:4px;border-radius:14px}
+ .nss-boxes.stack .nss-box.empty{flex:0 0 auto;flex-direction:row;align-items:center;gap:12px;padding:5px 12px}
+ .nss-boxes.stack .nss-box.empty .nss-box-head{flex:0 0 auto}
+ .nss-boxes.stack .nss-box.empty .nss-box-empty{font-size:14px;justify-content:flex-start}
+ .nss-boxes.stack .nss-box-head .nss-tag.nss-g{font-size:15px;padding:3px 10px;border-radius:9px}
+ .nss-boxes.stack .nss-box-meta{font-size:13px}.nss-flip-count{font-size:12px}
+ .nss-boxes.stack .nss-box-body{gap:10px}
+ .nss-boxes.stack .nss-time{width:66px;padding:3px 2px;border-radius:10px}.nss-boxes.stack .nss-time b{font-size:18px}.nss-boxes.stack .nss-time span{font-size:11px}
+ .nss-boxes.stack .nss-box-detail{font-size:14px}.nss-late{font-size:12px;padding:1px 7px}
+ .nss-boxes.stack .nss-box-room{font-size:21px}.nss-boxes.stack .nss-box-name{font-size:14px}
+ .nss-boxes.stack .nss-box-care{min-height:70px}
+ .nss-tick-line{font-size:14px;padding:1px 0}.nss-tick-track{gap:3px}
+ .nss-foot{font-size:12px;gap:10px}.nss-touch{padding:4px 12px}
+}
+@media (max-height:600px) and (min-width:761px){
+ .nss-date,.nss-onduty{display:none}
+ .nss-clock{font-size:28px}.nss-logo img{height:30px}
+ .nss-foot>span:first-child{display:none}
+ .nss-boxes.stack .nss-box-room{font-size:18px}
 }
 @media (prefers-reduced-motion:reduce){.nss-inner,.nss-hero,.nss-overdue,.nss-colon,.nss-card,.nss-flip,.nss-tick-track{animation:none!important}}
 `;
