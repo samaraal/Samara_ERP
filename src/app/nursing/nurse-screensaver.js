@@ -92,6 +92,7 @@
 .nss-box-name{font-size:clamp(16px,2.2vh,24px);font-weight:700;color:#5d1039;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nss-due{color:#b01264;font-size:14px;font-weight:800;flex-shrink:0}
 .nss-late{flex-shrink:0}
+.nss-await{flex-shrink:0;background:#fff;border:1px solid #5b2a86;color:#5b2a86;border-radius:8px;padding:1px 8px;font-size:13px;font-weight:800}
 .nss-boxes.grid .nss-box-room{font-size:clamp(21px,min(3.4vh,1.75vw),40px)}
 .nss-boxes.grid .nss-box-detail{font-size:clamp(14px,min(1.9vh,1.1vw),21px)}
 .nss-boxes.grid .nss-box-name{font-size:clamp(14px,min(2vh,1.15vw),21px)}
@@ -223,7 +224,7 @@
       client.from('medication_administrations').select('order_id,scheduled_date,scheduled_time,status,rescheduled_time').in('scheduled_date',[dayBefore,...win.dates]),
       nssRead(()=>client.from('care_orders').select('*').eq('is_active',true),()=>client.from('care_orders').select('*')),
       client.from('care_logs').select('care_order_id,patient_id,care_date,shift,status,remarks,completed_at').in('care_date',win.dates),
-      client.from('nursing_procedure_requests').select('id,patient_id,procedure_name,procedure_code,category,status,scheduled_at').eq('status','Approved').limit(200),
+      client.from('nursing_procedure_requests').select('id,patient_id,procedure_name,procedure_code,category,status,scheduled_at').in('status',['Requested','Approved']).limit(300),
       client.from('patients').select(fields).eq('is_active',true),
       client.from('vital_signs').select('patient_id,recorded_at').gte('recorded_at',new Date(win.start.getTime()-2*3600000).toISOString()),
       client.from('meal_records').select('patient_id,meal_date,meal_type').in('meal_date',win.dates)
@@ -304,14 +305,17 @@
       }
     });
 
-    // Approved Nursing Procedures / items — "Ready to Start".
+    // Nursing Procedures / items — every OPEN request (as in Approval Requests → Open Requests):
+    // Approved = "Ready to Start"; Requested = "Awaiting approval" (2.18.16). Shown for the whole shift, not only 4 hours.
     (pr.data||[]).forEach(r=>{
       const p=guestMap.get(r.patient_id);if(!p)return;
       const at=r.scheduled_at?new Date(r.scheduled_at):null;
       if(at&&(Number.isNaN(at.getTime())||at>=win.end))return;
-      tasks.push({kind:'proc',group:'proc',at:at&&at>win.start?at:now,ready:!at,grace:30,patient:p,done:false,
+      const pending=r.status==='Requested';
+      const cat=r.category&&r.category!=='Nursing Procedures'?r.category:'';
+      tasks.push({kind:'proc',group:'proc',at:at&&at>win.start?at:now,atScheduled:!!at,ready:!at&&!pending,awaiting:pending,grace:pending?100000:30,patient:p,done:false,
         title:r.procedure_name||'Nursing procedure',
-        note:r.category&&r.category!=='Nursing Procedures'?r.category:'approved · Confirm & Start',
+        note:[cat,pending?'awaiting approval':'approved · Confirm & Start'].filter(Boolean).join(' · '),
         procCategory:r.category||''});
     });
 
@@ -330,7 +334,7 @@
 
     tasks.forEach(x=>{
       const limit=x.deadline?x.deadline.getTime():x.at.getTime()+x.grace*60000;
-      x.state=x.done?'done':now.getTime()>=limit&&!x.anyTime&&!x.ready?'overdue':now>=x.at?'due':'upcoming';
+      x.state=x.done?'done':x.awaiting?'upcoming':now.getTime()>=limit&&!x.anyTime&&!x.ready?'overdue':now>=x.at?'due':'upcoming';
       if(x.anyTime&&!x.done&&now.getTime()>=win.end.getTime()-60*60000)x.state='overdue';
       if(!x.who)x.who=x.patient?nssGuest(x.patient):'';
       if(x.patient){x.room=nssRoomOf(x.patient);x.name=nssNameOf(x.patient)}
@@ -341,13 +345,14 @@
     return {
       win,loadedAt:now,failed,
       overdue:open.filter(x=>x.state==='overdue').sort(order),
-      next:open.filter(x=>x.state!=='overdue'&&(x.anyTime||x.at.getTime()<=now.getTime()+NURSE_SAVER_HORIZON_MS)).sort((a,b)=>(a.anyTime?1:0)-(b.anyTime?1:0)||order(a,b)),
+      next:open.filter(x=>x.state!=='overdue'&&(x.anyTime||x.group==='proc'||x.at.getTime()<=now.getTime()+NURSE_SAVER_HORIZON_MS)).sort((a,b)=>(a.anyTime||(a.awaiting&&!a.atScheduled)?1:0)-(b.anyTime||(b.awaiting&&!b.atScheduled)?1:0)||order(a,b)),
       total:tasks.length,done:tasks.filter(x=>x.done).length,
       byKind:{med:tasks.filter(x=>x.kind==='med').length,proc:tasks.filter(x=>x.kind==='proc').length,care:tasks.filter(x=>x.kind==='care').length}
     };
   }
 
   function nssCountdown(task,now){
+    if(task.awaiting)return 'Awaiting approval';
     if(task.ready)return 'Ready to start';
     if(task.anyTime)return 'Any time this shift';
     const mins=Math.round((task.at.getTime()-now.getTime())/60000);
@@ -369,12 +374,12 @@
   const NSS_GROUPS={vitals:{label:'Vital Signs',kind:'care',perGuest:true},med:{label:'Medication',kind:'med',perGuest:true},
     proc:{label:'Nursing Procedure',kind:'proc'},care:{label:'Care',kind:'care'},meal:{label:'Meals',kind:'care',perGuest:true}};
   const NSS_GROUP_ORDER=['vitals','med','proc','care','meal'];
-  function nssWhenText(x){if(x.ready)return 'Ready';if(x.anyTime)return 'Any time';if(x.windowText)return x.windowText;const t=nssTime12(x.at);return `${t.t} ${t.ap}`}
+  function nssWhenText(x){if(x.awaiting&&!x.atScheduled)return 'Any time';if(x.ready)return 'Ready';if(x.anyTime)return 'Any time';if(x.windowText)return x.windowText;const t=nssTime12(x.at);return `${t.t} ${t.ap}`}
   function nssEntriesOf(x){
-    const base={at:x.at,when:nssWhenText(x),late:x.state==='overdue',due:x.state==='due',sortAt:x.anyTime?Infinity:x.at.getTime()};
+    const base={at:x.at,when:nssWhenText(x),late:x.state==='overdue',due:x.state==='due',awaiting:!!x.awaiting,sortAt:x.anyTime||(x.awaiting&&!x.atScheduled)?Infinity:x.at.getTime()};
     if(x.group==='meal')return (x.pendingGuests||[]).map(p=>({...base,room:nssRoomOf(p),name:nssNameOf(p),detail:`${x.mealLabel} — record food intake`}));
     const detail=x.group==='vitals'?'':x.title;
-    return [{...base,room:x.room||'',name:x.name||x.who||'',detail,note:x.group==='care'||x.group==='proc'?x.note:''}];
+    return [{...base,room:x.room||'',name:x.name||x.who||'',detail,note:x.group==='care'||(x.group==='proc'&&!x.awaiting)?x.note:''}];
   }
   function nssBuildBoxes(items){
     const boxes=new Map();
@@ -508,8 +513,8 @@
         h('main',{className:'nss-main'},
           hero?h('section',{className:`nss-hero${soon?' nss-soon':''}`,key:`hero-${hero.kind}-${hero.at.getTime()}-${hero.title}`},
             h('div',{className:'nss-hero-top'},h('span',{className:'nss-label'},'NEXT TASK'),h('span',{className:'nss-count'},nssCountdown(hero,now))),
-            h('div',{className:'nss-hero-time'},hero.ready?'Now':hero.anyTime?'Any time':hero.windowText||nssTime12(hero.at).t,
-              !hero.ready&&!hero.anyTime&&!hero.windowText&&h('small',null,nssTime12(hero.at).ap)),
+            h('div',{className:'nss-hero-time'},hero.ready?'Now':hero.anyTime||(hero.awaiting&&!hero.atScheduled)?'Any time':hero.windowText||nssTime12(hero.at).t,
+              !hero.ready&&!hero.anyTime&&!(hero.awaiting&&!hero.atScheduled)&&!hero.windowText&&h('small',null,nssTime12(hero.at).ap)),
             h('div',null,nssTag(hero.kind,hero.kind==='proc'&&hero.procCategory&&hero.procCategory!=='Nursing Procedures'?hero.procCategory:(NSS_GROUPS[hero.group]?.label||null),hero.group)),
             h('div',{className:'nss-hero-title'},hero.title),
             h('div',{className:'nss-flip nss-hero-flip',key:`hf-${heroIdx}`},
@@ -543,6 +548,7 @@
                   h('div',{className:'nss-box-text'},
                     (e.late||e.due||e.detail)&&h('div',{className:'nss-box-detail'},
                       e.late&&h('span',{className:'nss-late'},'Late'),
+                      e.awaiting&&h('span',{className:'nss-await'},'Awaiting approval'),
                       !e.late&&e.due&&h('span',{className:'nss-due'},'Due now'),
                       e.detail&&h('span',{className:'nss-box-detail-text'},e.detail)),
                     e.room&&h('div',{className:'nss-box-room'},e.room),

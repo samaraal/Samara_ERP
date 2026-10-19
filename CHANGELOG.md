@@ -1,3 +1,7 @@
+## 2.18.16 — Screensaver: every open Nursing Procedure request is shown
+- Fixed: a Nursing Procedure (e.g. **Nebulization** for Room 109-C) did not appear when it was scheduled more than 4 hours ahead, or was still waiting for the Nursing Manager's approval.
+- The Nursing Procedure box now shows **all open requests for the shift**, as in Approval Requests → Open Requests: **Approved** ("Ready to Start", with its scheduled time) and **Requested** (purple "Awaiting approval" mark). An unscheduled request still awaiting approval is never put in the Next Task box. Started / Declined requests are not shown. No SQL.
+
 ## 2.18.15 — Screensaver: larger, colour-coded task names
 - Each task type now has its own colour and a much larger name: **Vital Signs** teal, **Medication** magenta, **Nursing Procedure** purple, **Care** orange, **Meals** green — in the Coming Up boxes and in the Next Task box. No SQL.
 

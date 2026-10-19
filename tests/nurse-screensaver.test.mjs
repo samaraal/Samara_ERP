@@ -101,3 +101,16 @@ test('Medicines still read when the first query is refused (fallback), Guest joi
   const med=d.next.find(x=>x.kind==='med');
   assert.ok(med,'medicine found');assert.equal(med.room,'Room 102');assert.equal(med.name,'Mr. Selvam Raja');
 });
+
+test('Nursing procedures: Requested (awaiting approval) and Approved both shown for the whole shift',async()=>{
+  const d=await load({patients:[G1],vital_signs:[{patient_id:'g1',recorded_at:'2026-10-19T06:10:00+05:30'}],
+    nursing_procedure_requests:[
+      {id:'p1',patient_id:'g1',procedure_name:'Nebulization',category:'Nursing Procedures',status:'Requested',scheduled_at:null},
+      {id:'p2',patient_id:'g1',procedure_name:'Nebulization',category:'Nursing Procedures',status:'Approved',scheduled_at:'2026-10-19T17:00:00+05:30'}]});
+  const procs=d.next.filter(x=>x.kind==='proc');
+  assert.equal(procs.length,2,'5 PM procedure kept although beyond 4 hours');
+  assert.ok(procs.some(x=>x.awaiting&&x.note.includes('awaiting approval')));
+  assert.notEqual(d.next[0].awaiting,true,'an unscheduled request awaiting approval is never the Next Task');
+  const box=d.boxes.find(b=>b.group==='proc');
+  assert.equal(box.entries.length,2);
+});
