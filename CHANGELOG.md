@@ -1,3 +1,7 @@
+## 2.18.5 — Prescription uploaded once (Section 2), read in Section 3
+- Admission: the prescription is uploaded only once — in **Section 2 → Current Prescription / Medicine List**. Section 3 no longer has its own upload. It finds the uploaded pages by itself and shows **✨ Read & Auto Fill Medicines** or **✍ Enter Manually** (like the ID card in Section 1).
+- Pages already read are remembered with the draft (also after a reload), so they are never read or attached twice. A page added later in Section 2 shows as new and is read and added to the list. If nothing is uploaded yet, Section 3 says so with a **↑ Upload in Section 2** button. No SQL.
+
 ## 2.18.4 — Discard a scanned bill; filled / unfilled fields in two colours
 - Stores → Receive from Vendor: **🗑 Discard this bill** (top and bottom) throws away the scanned pages and every line not yet received — e.g. when the wrong bill was scanned. Nothing that was not received is saved. Lines already received stay in stock (the confirmation says so; correct them with Physical Tally).
 - Colours, as in the trial: **light green** = read from the document — check it; **light yellow** = not filled / not clear — fill or confirm it. Used on every scanned bill line and header, and after an ID scan in Admission. Colours go away when the line is ✓ Verified / received, or the field is changed. A small legend explains them. No SQL.

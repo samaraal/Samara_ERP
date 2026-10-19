@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.4';
+  const APP_VERSION = '2.18.5';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '18-Oct-2026 Discard bill, green and yellow fields';
+  const APP_BUILD_DATE = '19-Oct-2026 Prescription uploaded once';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -23070,19 +23070,59 @@ Thank you.`;
     });
     const [scanDoctor,setScanDoctor]=React.useState('');
     const scannedPending=meds.filter(m=>m.scan&&!m.scan.verified&&String(m.medicine_name||'').trim());
-    async function scanPrescriptionFiles(files){
-      setRxScan(s=>({...s,busy:true,status:'Reading the prescription…',tone:''}));
+    // 2.18.5: the prescription is uploaded ONCE — in Section 2 ("Current Prescription / Medicine List"). Section 3
+    // finds those pages by itself and offers "Read & Auto Fill Medicines" or "Enter Manually" (like the ID card in
+    // Section 1). Pages already read are remembered with the draft, so they are never read twice; a page added later
+    // in Section 2 shows up as new and can be read and added to the list.
+    const [rxMode,setRxMode]=React.useState('');
+    const rxReadStoreKey=()=>`samara-admission-rx-read-${draftIdRef.current||'new'}`;
+    const [rxReadKeys,setRxReadKeys]=React.useState([]);
+    React.useEffect(()=>{try{const v=JSON.parse(localStorage.getItem(rxReadStoreKey())||'[]');setRxReadKeys(Array.isArray(v)?v:[])}catch(_){setRxReadKeys([])}},[draftId]);
+    const rememberRxRead=keys=>setRxReadKeys(cur=>{const next=[...new Set([...cur,...keys])];try{localStorage.setItem(rxReadStoreKey(),JSON.stringify(next))}catch(_){}return next});
+    const rxLocalKey=f=>`local:${f.name||''}:${f.size||0}:${f.lastModified||0}`;
+    // every prescription page uploaded in Section 2: saved with the draft (survives a reload) + any still uploading
+    const rxPages=(()=>{
+      const out=[];const used=new Set();
+      for(const meta of draftFiles.filter(f=>f.kind==='prescription')){
+        const file=(prescriptionFiles||[]).find(f=>f.__draftPath===meta.path)||null;if(file)used.add(file);
+        out.push({key:meta.path,keys:[meta.path,file?rxLocalKey(file):''].filter(Boolean),name:meta.name,file,meta});
+      }
+      for(const f of prescriptionFiles||[])if(!used.has(f)&&!draftFiles.some(d=>d.path===f.__draftPath))out.push({key:rxLocalKey(f),keys:[rxLocalKey(f),f.__draftPath].filter(Boolean),name:f.name,file:f,meta:null});
+      return out.filter(x=>/\.(pdf|jpe?g|png|webp|heic|heif)$/i.test(x.name||'')||(x.file&&(/^image\//.test(x.file.type||'')||x.file.type==='application/pdf'))||(x.meta&&/^image\/|pdf/.test(x.meta.mime||'')));
+    })();
+    const rxUnread=rxPages.filter(x=>!x.keys.some(k=>rxReadKeys.includes(k)));
+    async function rxPageFile(x){
+      if(x.file)return x.file;
+      const {data,error}=await client.storage.from('patient-documents').download(x.meta.path);
+      if(error||!data)throw new Error(`Could not open ${x.name} from the draft. Remove it in Section 2 and upload it again.`);
+      return new File([data],x.name||'prescription',{type:x.meta.mime||data.type||'image/jpeg'});
+    }
+    async function readUploadedPrescription(){
+      if(draftUploadBusy){setRxScan(s=>({...s,tone:'',status:'The prescription is still being saved in Section 2 — wait a moment and press again.'}));return}
+      const batch=rxUnread.slice(0,8);if(!batch.length)return;
+      setRxMode('scan');
+      setRxScan(s=>({...s,busy:true,status:'Opening the prescription…',tone:''}));
       try{
+        const files=[];for(const x of batch)files.push(await rxPageFile(x));
         const reading=await SAMARA_SCAN.withTimer(t=>setRxScan(s=>({...s,status:t})),`Reading ${files.length} page(s)…`,()=>SAMARA_SCAN.readPrescription(files));
         const {rows,metas,notes}=SAMARA_SCAN.prescriptionToMedicines(reading,meds.map(m=>m.medicine_name));
-        if(!rows.length)throw new Error('No medicines could be read from this document. Enter them by hand, or take a clearer photo.');
+        const okKeys=batch.filter((_,i)=>!reading.failed.includes(i+1)).flatMap(x=>x.keys);
+        if(!rows.length){rememberRxRead(okKeys);throw new Error('No medicines could be read from this prescription. Use Enter Manually, or upload a clearer photo in Section 2.')}
         setMeds(cur=>[...cur.filter(m=>String(m.medicine_name||'').trim()),...rows]);
         setForm(cur=>({...cur,undergoing_prescribed_medication:'Yes'}));
-        setPrescriptionFiles(prev=>[...(prev||[]),...files]);keepDraftFiles(setPrescriptionFiles,files,false);
-        const failed=reading.failed.length?` Page ${reading.failed.join(', ')} could not be read (${reading.failReason}) — scan it again on its own.`:'';
-        setRxScan({busy:false,tone:failed?'error':'ok',metas,notes,
-          status:`${rows.length} medicine(s) read and added below.${failed} Check each one against the prescription, correct it with Edit if needed, then tick ✓ Verified. The prescription is also attached as a document.`});
+        rememberRxRead(okKeys);
+        const failed=reading.failed.length?` Page ${reading.failed.join(', ')} could not be read (${reading.failReason}) — press Read again to retry it.`:'';
+        const more=rxUnread.length>batch.length?` ${rxUnread.length-batch.length} more page(s) are waiting — press Read again.`:'';
+        setRxScan(s=>({busy:false,tone:failed?'error':'ok',metas:[...s.metas,...metas],notes:[...new Set([...s.notes,...notes])],
+          status:`${rows.length} medicine(s) read and added below.${failed}${more} Check each one against the prescription, correct it with Edit if needed, then tick ✓ Verified.`}));
       }catch(e){setRxScan(s=>({...s,busy:false,tone:'error',status:e.message||'Could not read the prescription.'}))}
+    }
+    function enterMedicinesManually(){
+      setRxMode('manual');setForm(cur=>({...cur,undergoing_prescribed_medication:'Yes'}));
+      setTimeout(()=>{const el=document.querySelector('#admission-medicine-rows input:not([disabled]), #admission-medicine-rows select');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});try{el.focus({preventScroll:true})}catch(_){}}},80);
+    }
+    function goToPrescriptionUpload(){
+      const el=document.getElementById('admission-rx-upload');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('samara-scan-check');setTimeout(()=>el.classList.remove('samara-scan-check'),2500)}
     }
     function verifyScannedMedicine(index){
       const row=meds[index];
@@ -24905,7 +24945,8 @@ Please keep these login details confidential.`;
         ),
         h('div',{className:'upload-grid'},
           needsHospital&&patientCaptureInput('Discharge / Transfer / Previous Medical Record (optional)',dischargeFiles,setDischargeFiles,'image/*,.pdf',false),
-          patientCaptureInput('Current Prescription / Medicine List (optional)',prescriptionFiles,setPrescriptionFiles,'image/*,.pdf',false),
+          h('div',{id:'admission-rx-upload'},patientCaptureInput('Current Prescription / Medicine List (optional)',prescriptionFiles,setPrescriptionFiles,'image/*,.pdf',false),
+            rxPages.length?h('small',{style:{display:'block',marginTop:'4px',color:'#7a1247',fontWeight:700}},'Uploaded once here is enough — in Section 3 press “Read & Auto Fill Medicines”.'):null),
           patientCaptureInput('Lab, Scan and Other Reports (optional)',reportFiles,setReportFiles,'image/*,.pdf',false)
         )
       ),
@@ -24940,8 +24981,17 @@ Please keep these login details confidential.`;
         ),
         h('div',{className:'section-card',style:{background:'#fff4f9',borderColor:'#e7b6cf',margin:'8px 0'}},
           h('strong',null,'Fill medicines from the prescription'),
-          h('small',{className:'small-note',style:{display:'block',margin:'4px 0 8px'}},'Photo or PDF, up to 8 pages. Each medicine is added below for you to check and tick ✓ Verified. Another doctor’s prescription? Scan it too — it is added to the list.'),
-          h(SAMARA_SCAN.ScanButton,{label:'Scan prescription',readLabel:meds.some(m=>m.scan)?'Read & Add to Medicines':'Read & Fill Medicines',busy:rxScan.busy,status:rxScan.status,tone:rxScan.tone,onFiles:scanPrescriptionFiles,beforePick:saveAdmissionDraftBeforeDocumentPicker}),
+          rxPages.length
+            ?h('small',{className:'small-note',style:{display:'block',margin:'4px 0 8px'}},rxUnread.length
+              ?`✓ ${rxPages.length} prescription page(s) uploaded in Section 2${rxPages.length>rxUnread.length?` · ${rxUnread.length} new page(s) not read yet`:''}. Read them to fill the medicines, or enter the medicines yourself.`
+              :`✓ All ${rxPages.length} prescription page(s) uploaded in Section 2 have been read. Another doctor’s prescription? Upload it in Section 2 — it will appear here to read and add.`)
+            :h('small',{className:'small-note',style:{display:'block',margin:'4px 0 8px'}},'No prescription uploaded yet. Upload it once in Section 2 (Current Prescription / Medicine List) — it will appear here to read. No need to upload it again here.'),
+          h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}},
+            rxUnread.length
+              ?h('button',{type:'button',className:'btn btn-primary',disabled:rxScan.busy,onClick:readUploadedPrescription},rxScan.busy?'Reading…':`✨ ${meds.some(m=>m.scan)?'Read & Add to Medicines':'Read & Auto Fill Medicines'}${Math.min(rxUnread.length,8)>1?` (${Math.min(rxUnread.length,8)} pages)`:''}`)
+              :!rxPages.length?h('button',{type:'button',className:'btn btn-secondary',onClick:goToPrescriptionUpload},'↑ Upload in Section 2'):null,
+            h('button',{type:'button',className:rxMode==='manual'?'btn btn-primary':'btn btn-secondary',disabled:rxScan.busy,onClick:enterMedicinesManually},'✍ Enter Manually')),
+          rxScan.status?h('div',{role:'status',style:SAMARA_SCAN.noteStyle(rxScan.tone)},rxScan.status):null,
           rxScan.metas.filter(x=>x.patient||x.hospital||x.date||x.poor).map((x,k)=>h('small',{key:`rxm-${k}`,className:'small-note',style:{display:'block',marginTop:'4px'}},
             [x.hospital&&`${x.hospital}`,x.date&&`dated ${x.date}`,x.patient&&`name on prescription: ${x.patient} — make sure this is the right Guest`,x.poor&&'pages hard to read — check very carefully'].filter(Boolean).join(' · '))),
           rxScan.notes.length?h('small',{className:'small-note',style:{display:'block',marginTop:'4px'}},`Also on the prescription (not added as medicines): ${rxScan.notes.join('; ')}`):null,
@@ -24951,7 +25001,7 @@ Please keep these login details confidential.`;
             h('button',{type:'button',className:'btn btn-secondary',disabled:!String(scanDoctor).trim(),onClick:applyScanDoctor},'Fill for all of them')),
           scannedPending.length?h('small',{style:{display:'block',marginTop:'6px',color:'#8a5a00',fontWeight:700}},`${scannedPending.length} scanned medicine(s) still to verify — the admission cannot be saved until each is ticked ✓ Verified.`):null
         ),
-        form.undergoing_prescribed_medication==='Yes'&&h(React.Fragment,null,
+        form.undergoing_prescribed_medication==='Yes'&&h('div',{id:'admission-medicine-rows'},
         meds.map((m,i)=>m.is_locked
           ?h('div',{className:'admission-locked-row',key:`med-${i}-locked`,style:m.scan&&!m.scan.verified?{background:'#fff8e1',borderColor:'#e0b84a'}:undefined},
             h('span',{className:'number'},i+1),
