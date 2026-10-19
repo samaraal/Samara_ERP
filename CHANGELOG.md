@@ -1,3 +1,6 @@
+## 2.18.28 — Nursing Procedures in the Family Portal
+- Family Portal (v1.0.42) now shows Nursing Procedures: planned procedures recorded by nurses (with scheduled time) and procedures started via Approval Requests; planned procedures no longer counted under Care. ERP "Preview Family Portal" sends the same data. **SQL 253 `family_portal_nursing_procedures`** (installed 19-10-2026).
+
 ## 2.18.27 — Nursing Procedures at fixed times (like medicines)
 - Nursing procedure form: new **Timing** — "Fixed times" (default) or "Any time in shift". With fixed times, add as many times as needed (e.g. 8:00 AM, 2:00 PM, 8:00 PM) or use a quick pick (Once / Twice / 3 times / Every 6 h / Every 4 h). The **Shift is locked** and set from the times (Day 7 AM–7 PM, Night 7 PM–7 AM, or Both); Frequency is set too (e.g. "3 times daily").
 - Each time is a **separate task**: screensaver Nursing Procedure box shows it at its time (late after 1 hour); Shift Tasks lists "2:00 PM · Nebulization" with Complete / Exception; Daily Care records which time was done (picked directly in Daily Care → the nearest time). Patient file → Nursing shows the times and each record's time.

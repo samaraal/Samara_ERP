@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.27';
+  const APP_VERSION = '2.18.28';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '19-Oct-2026 Nursing Procedures at fixed times (like medicines), Shift locked';
+  const APP_BUILD_DATE = '19-Oct-2026 Nursing Procedures in Family Portal (and Admin Preview)';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -27109,6 +27109,19 @@ Please keep these login details confidential.`;
         .gte('entry_at',new Date(Date.now()-120*86400000).toISOString()).order('entry_at',{ascending:false})
         .then(({data,error})=>{if(error){showPatientToast('error','Tube feeds could not be loaded for the Family Portal preview.');return}dashboard.tube_feeds=data||[];})
         .catch(()=>showPatientToast('error','Tube feeds could not be loaded for the Family Portal preview.'));
+      // 2.18.28: Nursing Procedures — same shape and fields as family_portal_nursing_procedures (SQL 253).
+      const procOrders=(details.care||[]).filter(isNursingProcedureOrder);
+      const procIds=new Set(procOrders.map(o=>o.id));
+      const procName=id=>procOrders.find(o=>o.id===id)?.care_type||'Nursing procedure';
+      const stripName=(remarks,name)=>{const r=String(remarks||'');return (name&&r.toLowerCase().startsWith(name.toLowerCase())?r.slice(name.length).replace(/^\s*:\s*/,''):r).trim()||null};
+      const procLogRecords=(details.careLogs||[]).filter(l=>procIds.has(l.care_order_id)).map(l=>({id:`log-${l.id}`,procedure_name:procName(l.care_order_id),status:l.status||'Recorded',completed_at:l.completed_at||l.created_at,care_date:l.care_date,shift:l.shift,scheduled_time:l.scheduled_time?String(l.scheduled_time).slice(0,5):null,details:stripName(l.remarks,procName(l.care_order_id))}));
+      dashboard.nursing_procedures_payload={proc_order_ids:[...procIds],
+        plan:procOrders.filter(o=>o.is_active!==false).map(o=>({id:o.id,procedure_name:o.care_type,shift:o.shift,frequency:o.frequency,scheduled_times:o.scheduled_times||null,instruction:o.instruction,start_date:o.start_date})),
+        records:procLogRecords};
+      const procRequestsReady=client.from('nursing_procedure_requests').select('id,procedure_name,category,status,started_at,scheduled_at,requested_at')
+        .eq('patient_id',selected.id).eq('status','Started').gte('requested_at',new Date(Date.now()-120*86400000).toISOString())
+        .then(({data,error})=>{if(error)return;dashboard.nursing_procedures_payload.records=[...procLogRecords,...(data||[]).filter(r=>(r.category||'Nursing Procedures')==='Nursing Procedures').map(r=>({id:`req-${r.id}`,procedure_name:r.procedure_name,status:'Done',completed_at:r.started_at||r.scheduled_at||r.requested_at,details:null}))];})
+        .catch(()=>{});
       const session={
         admin_preview:true,access_id:access.id||'admin-preview',patient_uuid:selected.id,
         patient_code:selected.patient_id||selected.patient_code||'',patient_name:formalName(selected)||selected.full_name||'Resident',
@@ -27119,7 +27132,7 @@ Please keep these login details confidential.`;
       const handler=async event=>{
         if(event.origin!==portalOrigin||event.source!==popup)return;
         if(event.data?.type!=='SAMARA_FAMILY_ADMIN_PREVIEW_REQUEST'||event.data?.preview_id!==previewId)return;
-        await tubeFeedsReady;
+        await tubeFeedsReady;await procRequestsReady;
         popup.postMessage({type:'SAMARA_FAMILY_ADMIN_PREVIEW_DATA',preview_id:previewId,session,dashboard},portalOrigin);
       };
       window.addEventListener('message',handler);
@@ -27130,7 +27143,7 @@ Please keep these login details confidential.`;
       // This avoids relying on window.opener, which some browsers/privacy settings sever
       // for cross-origin tabs. The Family Portal validates both origin and preview_id.
       const previewMessage={type:'SAMARA_FAMILY_ADMIN_PREVIEW_DATA',preview_id:previewId,session,dashboard};
-      const sendPreview=async()=>{await tubeFeedsReady;try{if(popup&&!popup.closed)popup.postMessage(previewMessage,portalOrigin)}catch(_){}};
+      const sendPreview=async()=>{await tubeFeedsReady;await procRequestsReady;try{if(popup&&!popup.closed)popup.postMessage(previewMessage,portalOrigin)}catch(_){}};
       [400,900,1600,2800,4500,7000].forEach(ms=>window.setTimeout(sendPreview,ms));
       window.setTimeout(()=>window.removeEventListener('message',handler),15000);
     }
