@@ -646,6 +646,7 @@
       h(GlobalMobileTableAdapter),
       h(GlobalFormRequirementManager,{page,profile}),
       h(GlobalNursingVoiceInput,{profile,page}),
+      h(NurseIdleScreensaver,{profile,page,alertKey:clinicalPopupVisible?topClinicalAlertKey:''}), // 2.18.7: idle screensaver with upcoming tasks (Nurse login)
       h(Sidebar,{profile,page:['Physiotherapy','Physiotherapist Accounts'].includes(page)?'Physiotherapy Dashboard':page,setPage,allowed}),
       h('main',{className:'main'},
         h('header',{className:'topbar'},

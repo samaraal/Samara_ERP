@@ -262,6 +262,10 @@
    "lines": 415
   },
   {
+   "file": "nursing/nurse-screensaver.js",
+   "about": "2.18.7 Nurse idle screensaver: upcoming Medication / Procedure / Care tasks in pink boxes (read only)"
+  },
+  {
    "file": "patients/discharge-summary.js",
    "about": "Discharge Summary PDF: open, WhatsApp API send, existing WhatsApp share (2.15.83)",
    "lines": 145

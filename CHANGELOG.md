@@ -1,3 +1,8 @@
+## 2.18.7 — Nurse idle screensaver: upcoming tasks in Samara pink boxes
+- **Nurse login only:** after **3 minutes** without activity the screen shows the current shift's tasks — big magenta **Next Task** box (time, countdown, type, Room + Guest initials), **Coming Up** boxes for the next 4 hours (5 at a time, turning every 9 seconds), and a coral **Overdue** strip when something is late. Types: **Medication** (count per Guest; sliding-scale insulin named with "check sugar first"), **Nursing Procedure** (approved, Ready to Start), **Care** (daily care with its preferred window, vital signs, meal recording).
+- Gentle motion only (soft glow on Next Task, pulsing overdue border, slow drift against screen burn-in); still on devices set to reduce motion. The first touch / key only closes it — nothing underneath is pressed. A new clinical alert pop-up closes it. Not shown on Talk to Guest or while a video plays. The 30-minute idle sign-out is unchanged.
+- Read only — uses the same tables as Shift Tasks; nothing is saved. No SQL.
+
 ## 2.18.6 — Scan colours simplified; Receive from Vendor in the left menu
 - Scan colours (Admission ID card, prescription medicines, Stores supplier bill): fields filled by the scan now **stay white**; only fields **not filled / not clear are yellow** (no more green). A scanned medicine row is yellow only while something is still missing.
 - New left-menu item **PHARMACY & STORES → Receive from Vendor** (for the Nurse Manager / Store In-charge, STD when assigned, and Admin): opens the supplier-bill scan and manual receive straight away, for all sections at once — each bill line keeps its own section; a line whose section is not clear is yellow until chosen. No SQL.
