@@ -152,7 +152,15 @@
     });
     medTasks.sort((a,b)=>a.time.localeCompare(b.time));
 
-    const currentCareTasks=care.filter(order=>order?.id&&order?.patient_id&&order?.patients).flatMap(order=>{
+    // 2.18.27: Nursing Procedures with fixed times (like medicines) → one task per time.
+    const procFixedTimes=order=>isNursingProcedureOrder(order)?nursingProcedureTimes(order):[];
+    const procTimeLog=(order,t)=>careLogs.find(x=>x.care_order_id===order.id&&(x.scheduled_time?String(x.scheduled_time).slice(0,5)===t:false));
+    const fixedProcTasks=(type,wantCurrent)=>care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&procFixedTimes(order).length).flatMap(order=>
+      procFixedTimes(order).filter(t=>(shiftForTime(t)===shift)===wantCurrent).map(t=>({
+        type,patient_id:order.patient_id,patient:order.patients,order,taskShift:shiftForTime(t),time:t,
+        label:order.care_type||'Nursing procedure',log:procTimeLog(order,t)}))).filter(x=>wantCurrent||!x.log);
+
+    const currentCareTasks=[...fixedProcTasks('Care',true),...care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length).flatMap(order=>{
       const taskShifts=order.shift==='Both shifts'
         ?['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)']
         :[order.shift];
@@ -172,9 +180,9 @@
             )
           )
         }));
-    });
+    })];
 
-    const upcomingCareTasks=care.filter(order=>order?.id&&order?.patient_id&&order?.patients).flatMap(order=>{
+    const upcomingCareTasks=[...fixedProcTasks('Upcoming Care',false),...care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length).flatMap(order=>{
       const taskShifts=order.shift==='Both shifts'
         ?['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)']
         :[order.shift];
@@ -195,7 +203,7 @@
           )
         }))
         .filter(x=>!x.log);
-    });
+    })];
 
     const physioTasks=physio
       .filter(order=>!order.preferred_time||shiftForTime(String(order.preferred_time).slice(0,5))===shift)
@@ -358,16 +366,16 @@
 
               h('div',{className:'patient-work-section'},
                 h('h4',null,`${group.care.some(x=>isNursingProcedureOrder(x.order))?'Basic Care & Nursing Procedures':'Basic Care'} (${group.care.filter(x=>!x.log).length} pending)`),
-                group.care.map((x,careIndex)=>h('div',{className:`patient-work-task-row numbered-task-row ${x.log?'done':''}`,key:`care-${x.order.id}`},
+                group.care.map((x,careIndex)=>h('div',{className:`patient-work-task-row numbered-task-row ${x.log?'done':''}`,key:`care-${x.order.id}${x.time?`-${x.time}`:''}`},
                   h('span',{className:'task-row-number'},careIndex+1),
-                  h('div',null,h('strong',null,x.label),isNursingProcedureOrder(x.order)?h('span',{className:'pill',style:{marginLeft:'6px',background:'#fde7f1',color:'#a91360'}},'Nursing Procedure'):null,h('small',null,`${x.order.frequency||'Daily'}${x.order.instruction?` · ${x.order.instruction}`:''}`)), // 2.18.26 tag
+                  h('div',null,h('strong',null,x.time?`${nprocTime12(x.time)} · ${x.label}`:x.label),isNursingProcedureOrder(x.order)?h('span',{className:'pill',style:{marginLeft:'6px',background:'#fde7f1',color:'#a91360'}},'Nursing Procedure'):null,h('small',null,`${x.order.frequency||'Daily'}${x.order.instruction?` · ${x.order.instruction}`:''}`)), // 2.18.26 tag
                   x.log?h('span',{className:'badge'},x.log.status):h('span',{className:'pill warning'},'Pending'),
                   x.log?h('button',{type:'button',className:'btn btn-secondary clinical-action-done',disabled:true},'Done ✓'):h('div',{className:'employee-actions'},
                     h('button',{className:'btn btn-primary',onClick:()=>openRegularTask('Daily Care',{
-                      patient_id:x.patient_id,care_order_id:x.order.id,care_type:x.label,shift:x.taskShift,status:'Completed'
+                      patient_id:x.patient_id,care_order_id:x.order.id,care_type:x.label,shift:x.taskShift,scheduled_time:x.time||null,status:'Completed'
                     })},'Complete'),
                     h('button',{className:'btn btn-danger',onClick:()=>openRegularTask('Daily Care',{
-                      patient_id:x.patient_id,care_order_id:x.order.id,care_type:x.label,shift:x.taskShift,status:'Refused'
+                      patient_id:x.patient_id,care_order_id:x.order.id,care_type:x.label,shift:x.taskShift,scheduled_time:x.time||null,status:'Refused'
                     })},'Exception')
                   )
                 )),
@@ -403,7 +411,7 @@
 
               group.upcomingCare.length>0&&h('details',{className:'patient-next-shift-summary'},
                 h('summary',null,`${group.upcomingCare.length} care task(s) scheduled for the next shift`),
-                h('p',null,group.upcomingCare.map(x=>x.label).join(', '))
+                h('p',null,group.upcomingCare.map(x=>x.time?`${x.label} (${nprocTime12(x.time)})`:x.label).join(', '))
               )
             )
           )

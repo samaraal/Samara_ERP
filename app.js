@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.26';
+  const APP_VERSION = '2.18.27';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '19-Oct-2026 Nursing Procedure plan (Admission Section 5, patient file Nursing tab, screensaver)';
+  const APP_BUILD_DATE = '19-Oct-2026 Nursing Procedures at fixed times (like medicines), Shift locked';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -22231,16 +22231,36 @@ Thank you.`;
   const NURSING_PROC_SHIFTS=['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Both shifts'];
   const NURSING_PROC_FREQUENCIES=['Daily','Each shift','Twice daily','As required'];
   const NURSING_PROC_OTHER='__other__';
-  const NURSING_PROC_SQL_HINT='Database update pending: run supabase/sql/251_nursing_procedure_plan.sql in Supabase, then try again.';
+  const NURSING_PROC_SQL_HINT='Database update pending: run supabase/sql/251_nursing_procedure_plan.sql and 252_nursing_procedure_fixed_times.sql in Supabase, then try again.';
+  const NURSING_PROC_TIMING_FIXED='Fixed times';
+  const NURSING_PROC_TIMING_ANY='Any time in shift';
+  // 2.18.27: fixed times (HH:MM), like medicines. Empty = any time in the shift.
+  const nprocHHMM=v=>{const m=String(v||'').match(/^(\d{1,2}):(\d{2})/);return m?`${m[1].padStart(2,'0')}:${m[2]}`:''};
+  function nursingProcedureTimes(o){return [...new Set((Array.isArray(o?.scheduled_times)?o.scheduled_times:[]).map(nprocHHMM).filter(Boolean))].sort((a,b)=>((Number(a.slice(0,2))+17)%24*60+Number(a.slice(3)))-((Number(b.slice(0,2))+17)%24*60+Number(b.slice(3))))}
+  function nprocTime12(t){const v=nprocHHMM(t);if(!v)return '';const [hh,mm]=v.split(':').map(Number);return `${hh%12||12}:${String(mm).padStart(2,'0')} ${hh>=12?'PM':'AM'}`}
+  const nprocShiftOfTime=t=>{const hh=Number(nprocHHMM(t).slice(0,2));return hh>=7&&hh<19?'Day Shift (7 AM–7 PM)':'Night Shift (7 PM–7 AM)'};
+  function nprocShiftForTimes(times){const s=new Set(times.map(nprocShiftOfTime));return s.size===1?[...s][0]:'Both shifts'}
+  function nprocFrequencyForTimes(times){return times.length===1?'Once daily':times.length===2?'Twice daily':`${times.length} times daily`}
   const isNursingProcedureOrder=o=>String(o?.order_kind||'')===NURSING_PROC_KIND;
   const isCareOnlyOrder=o=>!isNursingProcedureOrder(o);
   function blankNursingProcedure(){
-    return {tariff_id:'',procedure_code:'',care_type:'',custom:false,shift:'Both shifts',frequency:'Daily',instruction:'',preferred_from:'',preferred_to:'',is_locked:false};
+    return {tariff_id:'',procedure_code:'',care_type:'',custom:false,timing:NURSING_PROC_TIMING_FIXED,scheduled_times:[],shift:'Both shifts',frequency:'Daily',instruction:'',preferred_from:'',preferred_to:'',is_locked:false};
   }
-  function nursingProcedureRowComplete(row){return Boolean(String(row?.care_type||'').trim())}
+  const nprocIsFixed=row=>(row?.timing||(nursingProcedureTimes(row).length?NURSING_PROC_TIMING_FIXED:NURSING_PROC_TIMING_ANY))===NURSING_PROC_TIMING_FIXED;
+  function nursingProcedureRowComplete(row){return Boolean(String(row?.care_type||'').trim())&&(!nprocIsFixed(row)||nursingProcedureTimes(row).length>0)}
+  function nursingProcedureRowProblem(row){if(!String(row?.care_type||'').trim())return 'Select (or type) the nursing procedure.';if(nprocIsFixed(row)&&!nursingProcedureTimes(row).length)return 'Add at least one time (e.g. 8:00 AM), or choose "Any time in shift".';return ''}
   function nursingProcedureLabel(o){return `${o?.procedure_code?`${o.procedure_code} · `:''}${o?.care_type||'Nursing procedure'}`}
-  function nursingProcedureDetail(o){return [o?.shift,o?.frequency,careWindowLabel(o),o?.instruction].filter(Boolean).join(' · ')}
+  function nursingProcedureDetail(o){const t=nursingProcedureTimes(o);return (t.length?[`At ${t.map(nprocTime12).join(', ')}`,o?.frequency||nprocFrequencyForTimes(t),o?.instruction]:[o?.shift,o?.frequency,careWindowLabel(o),o?.instruction]).filter(Boolean).join(' · ')}
   function nursingProcedureOrderRow(row,patientId,userId){
+    const times=nprocIsFixed(row)?nursingProcedureTimes(row):[];
+    if(times.length)return {
+      patient_id:patientId,order_kind:NURSING_PROC_KIND,
+      care_type:String(row.care_type||'').trim(),
+      procedure_code:row.procedure_code||null,tariff_id:row.tariff_id||null,
+      scheduled_times:times,shift:nprocShiftForTimes(times),frequency:nprocFrequencyForTimes(times),
+      instruction:String(row.instruction||'').trim()||null,preferred_from:null,preferred_to:null,
+      start_date:row.start_date||todayISOIndia(),is_active:true,entered_by:userId||null
+    };
     return {
       patient_id:patientId,order_kind:NURSING_PROC_KIND,
       care_type:String(row.care_type||'').trim(),
@@ -22256,7 +22276,7 @@ Thank you.`;
   }
   // True once SQL 251 has been run (care_orders.order_kind exists).
   async function nursingProcedureColumnReady(){
-    const {error}=await client.from('care_orders').select('order_kind').limit(1);
+    const {error}=await client.from('care_orders').select('order_kind,scheduled_times').limit(1);
     return !error;
   }
   // Patient edit replaces the Master Care Plan: delete CARE rows only, never the planned procedures.
@@ -22290,6 +22310,10 @@ Thank you.`;
   // One editable procedure row (procedure from Charge Master, or typed when not in the list).
   function NursingProcedureRowFields({row,catalog,onChange,onRemove,removeLabel='Remove'}){
     const set=(patch)=>onChange({...row,...patch});
+    const fixed=nprocIsFixed(row);
+    const times=nursingProcedureTimes(row);
+    const [draftTime,setDraftTime]=React.useState('');
+    function addTime(){const t=nprocHHMM(draftTime);if(!t)return;set({timing:NURSING_PROC_TIMING_FIXED,scheduled_times:[...times.filter(x=>x!==t),t]});setDraftTime('')}
     const selectValue=row.custom?NURSING_PROC_OTHER:(row.tariff_id||'');
     return h('div',{className:'nproc-row',style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:'10px',alignItems:'end',padding:'8px 0'}},
       h('div',{className:'field',style:{gridColumn:'span 2'}},
@@ -22304,10 +22328,27 @@ Thank you.`;
           catalog.map(x=>h('option',{key:x.id,value:x.id},`${x.charge_code?`${x.charge_code} · `:''}${x.service_name}`)),
           h('option',{value:NURSING_PROC_OTHER},'Not in the list — type the name'))),
       row.custom?h('div',{className:'field'},h('label',null,'Procedure name *'),h('input',{type:'text',value:row.care_type||'',placeholder:'Type the procedure',onChange:e=>set({care_type:e.target.value})})):null,
-      miniSelect('Shift',row.shift,NURSING_PROC_SHIFTS,v=>set({shift:v})),
-      miniSelect('Frequency',row.frequency,NURSING_PROC_FREQUENCIES,v=>set({frequency:v})),
-      miniInput('Preferred from (optional)',careTimeValue(row.preferred_from),v=>set({preferred_from:v}),false,'time'),
-      miniInput('Preferred to (optional)',careTimeValue(row.preferred_to),v=>set({preferred_to:v}),false,'time'),
+      miniSelect('Timing',fixed?NURSING_PROC_TIMING_FIXED:NURSING_PROC_TIMING_ANY,[NURSING_PROC_TIMING_FIXED,NURSING_PROC_TIMING_ANY],v=>set({timing:v})),
+      // 2.18.27: with fixed times the Shift is locked — it is set from the times (Day / Night / Both).
+      fixed?h('div',{className:'field'},h('label',null,'Shift (set from the times)'),
+        h('select',{value:times.length?nprocShiftForTimes(times):'',disabled:true,title:'Set automatically from the times',style:{background:'#f3eef1',color:'#6b5560',cursor:'not-allowed'}},
+          h('option',{value:''},'— add a time —'),NURSING_PROC_SHIFTS.map(x=>h('option',{key:x,value:x},x)))):null,
+      fixed?h('div',{className:'field',style:{gridColumn:'1 / -1'}},
+        h('label',null,'Times * (like medicines — each time is a separate task)'),
+        h('div',{style:{display:'flex',flexWrap:'wrap',gap:'8px',alignItems:'center'}},
+          times.map(t=>h('span',{key:t,style:{display:'inline-flex',alignItems:'center',gap:'6px',padding:'6px 10px',borderRadius:'999px',background:'#fde7f1',color:'#7a1247',fontWeight:700}},
+            nprocTime12(t),h('small',{style:{fontWeight:500,color:'#8a5a70'}},nprocShiftOfTime(t).startsWith('Day')?'Day':'Night'),
+            h('button',{type:'button','aria-label':`Remove ${nprocTime12(t)}`,onClick:()=>set({scheduled_times:times.filter(x=>x!==t)}),style:{border:'none',background:'transparent',color:'#a91360',fontSize:'16px',cursor:'pointer',padding:0}},'×'))),
+          h('input',{type:'time',value:draftTime,onChange:e=>setDraftTime(e.target.value),style:{maxWidth:'150px'}}),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:addTime},'+ Add time')),
+        h('small',{style:{display:'block',marginTop:'6px',color:'#6b5560'}},times.length?`${nprocFrequencyForTimes(times)} · Day = 7 AM–7 PM, Night = 7 PM–7 AM`:'Pick a time and press "+ Add time". Add as many times as needed (e.g. 8:00 AM, 2:00 PM, 8:00 PM).'),
+        h('div',{style:{display:'flex',flexWrap:'wrap',gap:'6px',marginTop:'6px'}},h('small',{style:{color:'#6b5560',alignSelf:'center'}},'Quick:'),
+          [['Once','08:00'],['Twice','08:00,20:00'],['3 times','08:00,14:00,20:00'],['4 times','06:00,12:00,18:00,00:00'],['Every 6 h','06:00,12:00,18:00,00:00'],['Every 4 h','06:00,10:00,14:00,18:00,22:00,02:00']].filter((x,i,a)=>a.findIndex(y=>y[1]===x[1])===i).map(([l,v])=>h('button',{type:'button',key:l,className:'btn btn-secondary',style:{padding:'4px 10px',fontSize:'12px'},onClick:()=>set({scheduled_times:v.split(',')})},l)))
+      ):h(React.Fragment,null,
+        miniSelect('Shift',row.shift,NURSING_PROC_SHIFTS,v=>set({shift:v})),
+        miniSelect('Frequency',row.frequency,NURSING_PROC_FREQUENCIES,v=>set({frequency:v})),
+        miniInput('Preferred from (optional)',careTimeValue(row.preferred_from),v=>set({preferred_from:v}),false,'time'),
+        miniInput('Preferred to (optional)',careTimeValue(row.preferred_to),v=>set({preferred_to:v}),false,'time')),
       h('div',{className:'field',style:{gridColumn:'span 2'}},h('label',null,'Instruction (optional)'),h('input',{type:'text',value:row.instruction||'',placeholder:'e.g. 200 ml feed, flush with 30 ml water',onChange:e=>set({instruction:e.target.value})})),
       onRemove?h('button',{type:'button',className:'btn btn-danger',onClick:onRemove},removeLabel):null
     );
@@ -22320,7 +22361,7 @@ Thank you.`;
     function add(){
       const open=list.findIndex(r=>!r.is_locked);
       if(open>=0){
-        if(!nursingProcedureRowComplete(list[open])){setMsg&&setMsg('Select (or type) the nursing procedure before adding the next one.');return}
+        if(!nursingProcedureRowComplete(list[open])){setMsg&&setMsg(`Nursing procedure ${open+1}: ${nursingProcedureRowProblem(list[open])}`);return}
         setRows([...list.map((r,i)=>i===open?{...r,is_locked:true}:r),blankNursingProcedure()]);
       }else setRows([...list,blankNursingProcedure()]);
       setMsg&&setMsg('');
@@ -22361,20 +22402,21 @@ Thank you.`;
     const procIds=new Set(procOrders.map(o=>o.id));
     const fmtWhen=v=>{const d=v?new Date(v):null;return d&&!isNaN(d)?formatDateTimeIN(v):''};
     const records=[
-      ...(logs||[]).filter(x=>procIds.has(x.care_order_id)).map(x=>{const o=procOrders.find(p=>p.id===x.care_order_id)||{};return {id:`log-${x.id}`,at:x.completed_at||x.created_at||x.care_date,title:`${formatDateIN(x.care_date)} · ${x.shift||''} · ${x.status||'Recorded'}`,name:nursingProcedureLabel(o),note:x.remarks||'',source:'Plan'}}),
+      ...(logs||[]).filter(x=>procIds.has(x.care_order_id)).map(x=>{const o=procOrders.find(p=>p.id===x.care_order_id)||{};return {id:`log-${x.id}`,at:x.completed_at||x.created_at||x.care_date,title:`${formatDateIN(x.care_date)}${x.scheduled_time?` · ${nprocTime12(x.scheduled_time)}`:''} · ${x.shift||''} · ${x.status||'Recorded'}`,name:nursingProcedureLabel(o),note:x.remarks||'',source:'Plan'}}),
       ...(charges||[]).map(x=>({id:`chg-${x.id}`,at:x.service_datetime||x.raised_at||x.created_at||x.charge_date,title:`${x.service_datetime?fmtWhen(x.service_datetime):formatDateIN(x.charge_date||String(x.created_at||'').slice(0,10))} · ${x.status||'Recorded'}`,name:x.service_name||'Nursing procedure',note:[x.quantity?`Qty ${x.quantity}${x.unit?` ${x.unit}`:''}`:'',x.raised_by_name?`by ${x.raised_by_name}`:'',x.remarks||x.description||''].filter(Boolean).join(' · '),source:'Approval Request'}))
     ].sort((a,b)=>new Date(b.at||0)-new Date(a.at||0));
     async function save(){
       if(busy)return;
-      if(!nursingProcedureRowComplete(row))return showSamaraActionToast('error','Nursing Procedure','Select (or type) the nursing procedure.');
-      if(active.some(o=>String(o.care_type||'').trim().toLowerCase()===String(row.care_type).trim().toLowerCase()&&o.shift===row.shift))return showSamaraActionToast('error','Nursing Procedure','This procedure is already planned for the same shift. Stop the old one first if it changes.');
+      if(!nursingProcedureRowComplete(row))return showSamaraActionToast('error','Nursing Procedure',nursingProcedureRowProblem(row));
+      const newRow=nursingProcedureOrderRow(row,patient.id,null);
+      if(active.some(o=>String(o.care_type||'').trim().toLowerCase()===String(row.care_type).trim().toLowerCase()&&(nursingProcedureTimes(o).some(t=>(newRow.scheduled_times||[]).includes(t))||(!nursingProcedureTimes(o).length&&!(newRow.scheduled_times||[]).length&&o.shift===newRow.shift))))return showSamaraActionToast('error','Nursing Procedure','This procedure is already planned for the same shift. Stop the old one first if it changes.');
       setBusy(true);
       try{
         if(!(await nursingProcedureColumnReady()))throw new Error(NURSING_PROC_SQL_HINT);
         const {data:{user}}=await client.auth.getUser();
         const {data,error}=await client.from('care_orders').insert(nursingProcedureOrderRow(row,patient.id,user?.id)).select('id').single();
         if(error)throw error;
-        await writeAuditEvent('Add Nursing Procedure Plan','CareOrder',data?.id||null,{patient_id:patient.id,procedure:row.care_type,code:row.procedure_code||null,shift:row.shift,frequency:row.frequency});
+        await writeAuditEvent('Add Nursing Procedure Plan','CareOrder',data?.id||null,{patient_id:patient.id,procedure:row.care_type,code:row.procedure_code||null,shift:newRow.shift,frequency:newRow.frequency,times:newRow.scheduled_times||null});
         showSamaraActionToast('success','Nursing Procedure',`${row.care_type} added to the plan. It now shows in Shift Tasks and on the screensaver.`);
         setRow(blankNursingProcedure());setAdding(false);onChanged&&onChanged();
       }catch(error){showSamaraActionToast('error','Nursing Procedure',error.message||String(error))}
@@ -24581,6 +24623,7 @@ Please keep these login details confidential.`;
       const effectiveCare=care.filter(c=>String(c.care_type||'').trim());
       // 2.18.26: Section 5 Nursing procedures (saved as care_orders, order_kind 'Nursing Procedure' — SQL 251).
       const effectiveProcs=(procs||[]).filter(nursingProcedureRowComplete);
+      {const badProc=(procs||[]).findIndex(r=>String(r.care_type||'').trim()&&!nursingProcedureRowComplete(r));if(badProc>=0){setMsg(`Section 5, Nursing procedure ${badProc+1}: ${nursingProcedureRowProblem(procs[badProc])}`);setBusy(false);return}}
       if(effectiveProcs.length&&!(await nursingProcedureColumnReady())){setMsg(`Section 5 Nursing procedures: ${NURSING_PROC_SQL_HINT}`);setBusy(false);return}
       if(form.undergoing_prescribed_medication==='Yes'&&(!effectiveMeds.length||effectiveMeds.some(m=>!medicineRowComplete(m)))){
         setMsg('Enter and complete every prescribed medicine, including Prescribed Doctor, Strength (number and unit) and Time.');
@@ -25609,7 +25652,15 @@ Please keep these login details confidential.`;
     });
     medTasks.sort((a,b)=>a.time.localeCompare(b.time));
 
-    const currentCareTasks=care.filter(order=>order?.id&&order?.patient_id&&order?.patients).flatMap(order=>{
+    // 2.18.27: Nursing Procedures with fixed times (like medicines) → one task per time.
+    const procFixedTimes=order=>isNursingProcedureOrder(order)?nursingProcedureTimes(order):[];
+    const procTimeLog=(order,t)=>careLogs.find(x=>x.care_order_id===order.id&&(x.scheduled_time?String(x.scheduled_time).slice(0,5)===t:false));
+    const fixedProcTasks=(type,wantCurrent)=>care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&procFixedTimes(order).length).flatMap(order=>
+      procFixedTimes(order).filter(t=>(shiftForTime(t)===shift)===wantCurrent).map(t=>({
+        type,patient_id:order.patient_id,patient:order.patients,order,taskShift:shiftForTime(t),time:t,
+        label:order.care_type||'Nursing procedure',log:procTimeLog(order,t)}))).filter(x=>wantCurrent||!x.log);
+
+    const currentCareTasks=[...fixedProcTasks('Care',true),...care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length).flatMap(order=>{
       const taskShifts=order.shift==='Both shifts'
         ?['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)']
         :[order.shift];
@@ -25629,9 +25680,9 @@ Please keep these login details confidential.`;
             )
           )
         }));
-    });
+    })];
 
-    const upcomingCareTasks=care.filter(order=>order?.id&&order?.patient_id&&order?.patients).flatMap(order=>{
+    const upcomingCareTasks=[...fixedProcTasks('Upcoming Care',false),...care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length).flatMap(order=>{
       const taskShifts=order.shift==='Both shifts'
         ?['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)']
         :[order.shift];
@@ -25652,7 +25703,7 @@ Please keep these login details confidential.`;
           )
         }))
         .filter(x=>!x.log);
-    });
+    })];
 
     const physioTasks=physio
       .filter(order=>!order.preferred_time||shiftForTime(String(order.preferred_time).slice(0,5))===shift)
@@ -25815,16 +25866,16 @@ Please keep these login details confidential.`;
 
               h('div',{className:'patient-work-section'},
                 h('h4',null,`${group.care.some(x=>isNursingProcedureOrder(x.order))?'Basic Care & Nursing Procedures':'Basic Care'} (${group.care.filter(x=>!x.log).length} pending)`),
-                group.care.map((x,careIndex)=>h('div',{className:`patient-work-task-row numbered-task-row ${x.log?'done':''}`,key:`care-${x.order.id}`},
+                group.care.map((x,careIndex)=>h('div',{className:`patient-work-task-row numbered-task-row ${x.log?'done':''}`,key:`care-${x.order.id}${x.time?`-${x.time}`:''}`},
                   h('span',{className:'task-row-number'},careIndex+1),
-                  h('div',null,h('strong',null,x.label),isNursingProcedureOrder(x.order)?h('span',{className:'pill',style:{marginLeft:'6px',background:'#fde7f1',color:'#a91360'}},'Nursing Procedure'):null,h('small',null,`${x.order.frequency||'Daily'}${x.order.instruction?` · ${x.order.instruction}`:''}`)), // 2.18.26 tag
+                  h('div',null,h('strong',null,x.time?`${nprocTime12(x.time)} · ${x.label}`:x.label),isNursingProcedureOrder(x.order)?h('span',{className:'pill',style:{marginLeft:'6px',background:'#fde7f1',color:'#a91360'}},'Nursing Procedure'):null,h('small',null,`${x.order.frequency||'Daily'}${x.order.instruction?` · ${x.order.instruction}`:''}`)), // 2.18.26 tag
                   x.log?h('span',{className:'badge'},x.log.status):h('span',{className:'pill warning'},'Pending'),
                   x.log?h('button',{type:'button',className:'btn btn-secondary clinical-action-done',disabled:true},'Done ✓'):h('div',{className:'employee-actions'},
                     h('button',{className:'btn btn-primary',onClick:()=>openRegularTask('Daily Care',{
-                      patient_id:x.patient_id,care_order_id:x.order.id,care_type:x.label,shift:x.taskShift,status:'Completed'
+                      patient_id:x.patient_id,care_order_id:x.order.id,care_type:x.label,shift:x.taskShift,scheduled_time:x.time||null,status:'Completed'
                     })},'Complete'),
                     h('button',{className:'btn btn-danger',onClick:()=>openRegularTask('Daily Care',{
-                      patient_id:x.patient_id,care_order_id:x.order.id,care_type:x.label,shift:x.taskShift,status:'Refused'
+                      patient_id:x.patient_id,care_order_id:x.order.id,care_type:x.label,shift:x.taskShift,scheduled_time:x.time||null,status:'Refused'
                     })},'Exception')
                   )
                 )),
@@ -25860,7 +25911,7 @@ Please keep these login details confidential.`;
 
               group.upcomingCare.length>0&&h('details',{className:'patient-next-shift-summary'},
                 h('summary',null,`${group.upcomingCare.length} care task(s) scheduled for the next shift`),
-                h('p',null,group.upcomingCare.map(x=>x.label).join(', '))
+                h('p',null,group.upcomingCare.map(x=>x.time?`${x.label} (${nprocTime12(x.time)})`:x.label).join(', '))
               )
             )
           )
@@ -26171,7 +26222,7 @@ Please keep these login details confidential.`;
       client.from('medication_administrations').select('order_id,scheduled_date,scheduled_time,status,rescheduled_time').in('scheduled_date',[dayBefore,...win.dates]),
       nssRead(()=>client.from('care_orders').select('*').eq('is_active',true),()=>client.from('care_orders').select('*')),
       // 2.18.24: last 3 days of care records too, for Guests who have no care plan ("usual care").
-      client.from('care_logs').select('care_order_id,patient_id,care_date,shift,status,remarks,completed_at').gte('care_date',addDaysISODate(win.dates[0],-3)).lte('care_date',win.dates[1]),
+      nssRead(()=>client.from('care_logs').select('care_order_id,patient_id,care_date,shift,status,remarks,completed_at,scheduled_time').gte('care_date',addDaysISODate(win.dates[0],-3)).lte('care_date',win.dates[1]),()=>client.from('care_logs').select('care_order_id,patient_id,care_date,shift,status,remarks,completed_at').gte('care_date',addDaysISODate(win.dates[0],-3)).lte('care_date',win.dates[1])), // 2.18.27: scheduled_time (SQL 252)
       client.from('nursing_procedure_requests').select('id,patient_id,procedure_name,procedure_code,category,status,scheduled_at').in('status',['Requested','Approved']).limit(300),
       client.from('patients').select(fields).eq('is_active',true),
       client.from('vital_signs').select('patient_id,recorded_at').gte('recorded_at',new Date(win.start.getTime()-2*3600000).toISOString()),
@@ -26242,6 +26293,21 @@ Please keep these login details confidential.`;
     const careStats={planned:0,done:0};
     (c.data||[]).forEach(order=>{
       const p=order.patients;if(!nssGuestActive(p))return;
+      // 2.18.27: a Nursing Procedure with fixed times (like medicines) — one task per time in this shift;
+      // done when a record exists for that time (or, for a record without a time, given near that time).
+      const fixedTimes=String(order.order_kind||'')==='Nursing Procedure'&&Array.isArray(order.scheduled_times)?[...new Set(order.scheduled_times.map(t=>String(t||'').slice(0,5)).filter(t=>/^\d{2}:\d{2}$/.test(t)))]:[];
+      if(fixedTimes.length){
+        const label=order.care_type||'Nursing procedure';
+        fixedTimes.forEach(t=>{
+          const slot=nssTimeInShift(win,t);if(!slot)return;
+          if(order.start_date&&String(order.start_date).slice(0,10)>slot.date)return;
+          const done=careLogs.some(x=>x.care_order_id===order.id&&String(x.care_date).slice(0,10)===slot.date&&(
+            x.scheduled_time?String(x.scheduled_time).slice(0,5)===t:(x.completed_at&&Math.abs(new Date(x.completed_at).getTime()-slot.at.getTime())<=3*3600000)));
+          tasks.push({kind:'proc',group:'proc',at:slot.at,grace:60,patient:p,done,title:label,planned:true,fixedTime:t,
+            note:[order.procedure_code||'',order.frequency||''].filter(Boolean).join(' · ')});
+        });
+        return;
+      }
       const sh=String(order.shift||'Both shifts').toLowerCase();
       const isDay=win.name.startsWith('Day');
       if(!(sh.includes('both')||sh===''||(isDay?sh.includes('day'):sh.includes('night'))))return;
@@ -32857,6 +32923,7 @@ function RoomsBeds({profile,onNavigate}){
         ...current,
         patient_id:context.patient_id||current.patient_id,
         care_order_id:context.care_order_id||current.care_order_id,
+        scheduled_time:context.scheduled_time||'', // 2.18.27 fixed-time Nursing Procedure
         care_type:normaliseDailyCareActivity(context.care_type||current.care_type),
         shift:context.shift||activeShift,
         status:context.status||'Completed',
@@ -32882,14 +32949,22 @@ function RoomsBeds({profile,onNavigate}){
       // so the Clinical Alert clears. A link carried over from an alert is kept only if it is
       // for the same patient and the same activity (it was wrong when the nurse changed the activity).
       const chosenActivity=normaliseDailyCareActivity(form.care_type).toLowerCase();
-      let linkedOrderId=null;
+      let linkedOrderId=null,linkedTime=null;
       try{
         const {data:orders}=await client.from('care_orders')
-          .select('id,patient_id,care_type,shift,is_active')
+          .select('*') // 2.18.27: includes scheduled_times once SQL 252 is run
           .eq('patient_id',form.patient_id).eq('is_active',true);
         const sameActivity=(orders||[]).filter(o=>normaliseDailyCareActivity(o.care_type).toLowerCase()===chosenActivity);
         const forShift=sameActivity.filter(o=>o.shift===form.shift||o.shift==='Both shifts');
-        linkedOrderId=(sameActivity.find(o=>o.id===form.care_order_id)||forShift[0]||sameActivity[0]||{}).id||null;
+        const linked=sameActivity.find(o=>o.id===form.care_order_id)||forShift[0]||sameActivity[0]||null;
+        linkedOrderId=linked?.id||null;
+        // 2.18.27: a fixed-time procedure recorded without a time (picked here directly) → the nearest time.
+        const times=linked?nursingProcedureTimes(linked):[];
+        if(times.length&&!form.scheduled_time){
+          const nowMin=new Date().getHours()*60+new Date().getMinutes();
+          const dist=t=>{const d=Math.abs(Number(t.slice(0,2))*60+Number(t.slice(3))-nowMin);return Math.min(d,1440-d)};
+          linkedTime=[...times].sort((a,b)=>dist(a)-dist(b))[0];
+        }else if(times.length)linkedTime=String(form.scheduled_time).slice(0,5);
       }catch(linkError){
         console.warn('Daily Care order link:',linkError?.message||linkError);
       }
@@ -32904,7 +32979,9 @@ function RoomsBeds({profile,onNavigate}){
         completed_by:profile.id,
         remarks:`${normaliseDailyCareActivity(form.care_type)}${form.remarks?.trim()?`: ${form.remarks.trim()}`:''}`
       };
-      const {data,error}=await client.from('care_logs').insert(payload).select('id').single();
+      if(linkedTime)payload.scheduled_time=linkedTime;
+      let {data,error}=await client.from('care_logs').insert(payload).select('id').single();
+      if(error&&payload.scheduled_time&&/scheduled_time/i.test(String(error.message||''))){delete payload.scheduled_time;({data,error}=await client.from('care_logs').insert(payload).select('id').single())} // before SQL 252
       if(error){
         console.error('Daily Care save failed:',error);
         showToast('error',error.message||'Daily care record could not be saved.');
@@ -32942,12 +33019,12 @@ function RoomsBeds({profile,onNavigate}){
           `After saving, this care task will be marked against the current shift and the system will return automatically to ${returnPage}.`
         ),
         h('form',{className:'modal-grid',onSubmit:save},
-          patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v,care_order_id:v===form.patient_id?form.care_order_id:''})),
+          patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v,care_order_id:v===form.patient_id?form.care_order_id:'',scheduled_time:v===form.patient_id?form.scheduled_time:''})),
           h('div',{className:'field'},
             h('label',null,'Care activity'),
             h('select',{
               value:normaliseDailyCareActivity(form.care_type),
-              onChange:e=>setForm({...form,care_type:e.target.value,care_order_id:''})
+              onChange:e=>setForm({...form,care_type:e.target.value,care_order_id:'',scheduled_time:''})
             },
               [...new Set([
                 normaliseDailyCareActivity(form.care_type),
@@ -32956,7 +33033,7 @@ function RoomsBeds({profile,onNavigate}){
               ])].map(x=>h('option',{key:x,value:x},guestProcedures.includes(x)?`${x} (Nursing Procedure)`:x))
             ),
             form.care_order_id&&h('small',{className:'linked-task-note'},
-              `Linked to the selected Shift Task: ${normaliseDailyCareActivity(form.care_type)}`
+              `Linked to the selected Shift Task: ${normaliseDailyCareActivity(form.care_type)}${form.scheduled_time?` · ${nprocTime12(form.scheduled_time)}`:''}`
             )
           ),
           h('div',{className:'field'},h('label',null,'Shift'),h('select',{value:form.shift,onChange:e=>setForm({...form,shift:e.target.value})},

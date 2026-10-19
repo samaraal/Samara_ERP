@@ -148,3 +148,13 @@ test('2.18.26 Planned Nursing Procedures (care_orders order_kind) go to the Nurs
   assert.equal(neb.windowText,'11:00–12:00');
   assert.ok(d.boxes.find(b=>b.group==='proc').entries.length>=2);
 });
+
+test('2.18.27 Fixed-time Nursing Procedure: one task per time in the shift; recorded time drops off',async()=>{
+  const d=await load({patients:[G1],vital_signs:[{patient_id:'g1',recorded_at:'2026-10-19T06:10:00+05:30'}],
+    care_orders:[{id:'pf1',patient_id:'g1',care_type:'Nebulization',order_kind:'Nursing Procedure',shift:'Both shifts',scheduled_times:['08:00','14:00','20:00'],is_active:true}],
+    care_logs:[{care_order_id:'pf1',patient_id:'g1',care_date:'2026-10-19',shift:'Day Shift (7 AM–7 PM)',status:'Completed',scheduled_time:'08:00:00',completed_at:'2026-10-19T08:05:00+05:30'}]});
+  const neb=[...d.overdue,...d.next].filter(x=>x.title==='Nebulization');
+  assert.deepEqual(neb.map(x=>x.fixedTime),['14:00'],'08:00 done, 20:00 is the night shift');
+  assert.equal(neb[0].group,'proc');
+  assert.equal(neb[0].anyTime,undefined);
+});

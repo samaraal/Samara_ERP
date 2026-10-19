@@ -299,7 +299,7 @@
       client.from('medication_administrations').select('order_id,scheduled_date,scheduled_time,status,rescheduled_time').in('scheduled_date',[dayBefore,...win.dates]),
       nssRead(()=>client.from('care_orders').select('*').eq('is_active',true),()=>client.from('care_orders').select('*')),
       // 2.18.24: last 3 days of care records too, for Guests who have no care plan ("usual care").
-      client.from('care_logs').select('care_order_id,patient_id,care_date,shift,status,remarks,completed_at').gte('care_date',addDaysISODate(win.dates[0],-3)).lte('care_date',win.dates[1]),
+      nssRead(()=>client.from('care_logs').select('care_order_id,patient_id,care_date,shift,status,remarks,completed_at,scheduled_time').gte('care_date',addDaysISODate(win.dates[0],-3)).lte('care_date',win.dates[1]),()=>client.from('care_logs').select('care_order_id,patient_id,care_date,shift,status,remarks,completed_at').gte('care_date',addDaysISODate(win.dates[0],-3)).lte('care_date',win.dates[1])), // 2.18.27: scheduled_time (SQL 252)
       client.from('nursing_procedure_requests').select('id,patient_id,procedure_name,procedure_code,category,status,scheduled_at').in('status',['Requested','Approved']).limit(300),
       client.from('patients').select(fields).eq('is_active',true),
       client.from('vital_signs').select('patient_id,recorded_at').gte('recorded_at',new Date(win.start.getTime()-2*3600000).toISOString()),
@@ -370,6 +370,21 @@
     const careStats={planned:0,done:0};
     (c.data||[]).forEach(order=>{
       const p=order.patients;if(!nssGuestActive(p))return;
+      // 2.18.27: a Nursing Procedure with fixed times (like medicines) — one task per time in this shift;
+      // done when a record exists for that time (or, for a record without a time, given near that time).
+      const fixedTimes=String(order.order_kind||'')==='Nursing Procedure'&&Array.isArray(order.scheduled_times)?[...new Set(order.scheduled_times.map(t=>String(t||'').slice(0,5)).filter(t=>/^\d{2}:\d{2}$/.test(t)))]:[];
+      if(fixedTimes.length){
+        const label=order.care_type||'Nursing procedure';
+        fixedTimes.forEach(t=>{
+          const slot=nssTimeInShift(win,t);if(!slot)return;
+          if(order.start_date&&String(order.start_date).slice(0,10)>slot.date)return;
+          const done=careLogs.some(x=>x.care_order_id===order.id&&String(x.care_date).slice(0,10)===slot.date&&(
+            x.scheduled_time?String(x.scheduled_time).slice(0,5)===t:(x.completed_at&&Math.abs(new Date(x.completed_at).getTime()-slot.at.getTime())<=3*3600000)));
+          tasks.push({kind:'proc',group:'proc',at:slot.at,grace:60,patient:p,done,title:label,planned:true,fixedTime:t,
+            note:[order.procedure_code||'',order.frequency||''].filter(Boolean).join(' · ')});
+        });
+        return;
+      }
       const sh=String(order.shift||'Both shifts').toLowerCase();
       const isDay=win.name.startsWith('Day');
       if(!(sh.includes('both')||sh===''||(isDay?sh.includes('day'):sh.includes('night'))))return;

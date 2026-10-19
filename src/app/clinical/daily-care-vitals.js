@@ -73,6 +73,7 @@
         ...current,
         patient_id:context.patient_id||current.patient_id,
         care_order_id:context.care_order_id||current.care_order_id,
+        scheduled_time:context.scheduled_time||'', // 2.18.27 fixed-time Nursing Procedure
         care_type:normaliseDailyCareActivity(context.care_type||current.care_type),
         shift:context.shift||activeShift,
         status:context.status||'Completed',
@@ -98,14 +99,22 @@
       // so the Clinical Alert clears. A link carried over from an alert is kept only if it is
       // for the same patient and the same activity (it was wrong when the nurse changed the activity).
       const chosenActivity=normaliseDailyCareActivity(form.care_type).toLowerCase();
-      let linkedOrderId=null;
+      let linkedOrderId=null,linkedTime=null;
       try{
         const {data:orders}=await client.from('care_orders')
-          .select('id,patient_id,care_type,shift,is_active')
+          .select('*') // 2.18.27: includes scheduled_times once SQL 252 is run
           .eq('patient_id',form.patient_id).eq('is_active',true);
         const sameActivity=(orders||[]).filter(o=>normaliseDailyCareActivity(o.care_type).toLowerCase()===chosenActivity);
         const forShift=sameActivity.filter(o=>o.shift===form.shift||o.shift==='Both shifts');
-        linkedOrderId=(sameActivity.find(o=>o.id===form.care_order_id)||forShift[0]||sameActivity[0]||{}).id||null;
+        const linked=sameActivity.find(o=>o.id===form.care_order_id)||forShift[0]||sameActivity[0]||null;
+        linkedOrderId=linked?.id||null;
+        // 2.18.27: a fixed-time procedure recorded without a time (picked here directly) → the nearest time.
+        const times=linked?nursingProcedureTimes(linked):[];
+        if(times.length&&!form.scheduled_time){
+          const nowMin=new Date().getHours()*60+new Date().getMinutes();
+          const dist=t=>{const d=Math.abs(Number(t.slice(0,2))*60+Number(t.slice(3))-nowMin);return Math.min(d,1440-d)};
+          linkedTime=[...times].sort((a,b)=>dist(a)-dist(b))[0];
+        }else if(times.length)linkedTime=String(form.scheduled_time).slice(0,5);
       }catch(linkError){
         console.warn('Daily Care order link:',linkError?.message||linkError);
       }
@@ -120,7 +129,9 @@
         completed_by:profile.id,
         remarks:`${normaliseDailyCareActivity(form.care_type)}${form.remarks?.trim()?`: ${form.remarks.trim()}`:''}`
       };
-      const {data,error}=await client.from('care_logs').insert(payload).select('id').single();
+      if(linkedTime)payload.scheduled_time=linkedTime;
+      let {data,error}=await client.from('care_logs').insert(payload).select('id').single();
+      if(error&&payload.scheduled_time&&/scheduled_time/i.test(String(error.message||''))){delete payload.scheduled_time;({data,error}=await client.from('care_logs').insert(payload).select('id').single())} // before SQL 252
       if(error){
         console.error('Daily Care save failed:',error);
         showToast('error',error.message||'Daily care record could not be saved.');
@@ -158,12 +169,12 @@
           `After saving, this care task will be marked against the current shift and the system will return automatically to ${returnPage}.`
         ),
         h('form',{className:'modal-grid',onSubmit:save},
-          patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v,care_order_id:v===form.patient_id?form.care_order_id:''})),
+          patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v,care_order_id:v===form.patient_id?form.care_order_id:'',scheduled_time:v===form.patient_id?form.scheduled_time:''})),
           h('div',{className:'field'},
             h('label',null,'Care activity'),
             h('select',{
               value:normaliseDailyCareActivity(form.care_type),
-              onChange:e=>setForm({...form,care_type:e.target.value,care_order_id:''})
+              onChange:e=>setForm({...form,care_type:e.target.value,care_order_id:'',scheduled_time:''})
             },
               [...new Set([
                 normaliseDailyCareActivity(form.care_type),
@@ -172,7 +183,7 @@
               ])].map(x=>h('option',{key:x,value:x},guestProcedures.includes(x)?`${x} (Nursing Procedure)`:x))
             ),
             form.care_order_id&&h('small',{className:'linked-task-note'},
-              `Linked to the selected Shift Task: ${normaliseDailyCareActivity(form.care_type)}`
+              `Linked to the selected Shift Task: ${normaliseDailyCareActivity(form.care_type)}${form.scheduled_time?` · ${nprocTime12(form.scheduled_time)}`:''}`
             )
           ),
           h('div',{className:'field'},h('label',null,'Shift'),h('select',{value:form.shift,onChange:e=>setForm({...form,shift:e.target.value})},

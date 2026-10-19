@@ -2158,6 +2158,7 @@ Please keep these login details confidential.`;
       const effectiveCare=care.filter(c=>String(c.care_type||'').trim());
       // 2.18.26: Section 5 Nursing procedures (saved as care_orders, order_kind 'Nursing Procedure' — SQL 251).
       const effectiveProcs=(procs||[]).filter(nursingProcedureRowComplete);
+      {const badProc=(procs||[]).findIndex(r=>String(r.care_type||'').trim()&&!nursingProcedureRowComplete(r));if(badProc>=0){setMsg(`Section 5, Nursing procedure ${badProc+1}: ${nursingProcedureRowProblem(procs[badProc])}`);setBusy(false);return}}
       if(effectiveProcs.length&&!(await nursingProcedureColumnReady())){setMsg(`Section 5 Nursing procedures: ${NURSING_PROC_SQL_HINT}`);setBusy(false);return}
       if(form.undergoing_prescribed_medication==='Yes'&&(!effectiveMeds.length||effectiveMeds.some(m=>!medicineRowComplete(m)))){
         setMsg('Enter and complete every prescribed medicine, including Prescribed Doctor, Strength (number and unit) and Time.');
