@@ -1,5 +1,5 @@
 const APP_VERSION = '2.18.31';
-const CACHE = 'samara-erp-2.18.30-charge-request-details';
+const CACHE = 'samara-erp-2.18.31-edit-procedure-plan';
 const SHELL = [
   './',
   './index.html',
