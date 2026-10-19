@@ -45,7 +45,7 @@
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '19-Oct-2026 Nursing procedure list layout (Stop button visible)';
+  const APP_BUILD_DATE = '19-Oct-2026 Edit Nursing Procedure plan';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,

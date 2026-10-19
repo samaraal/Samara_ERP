@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '19-Oct-2026 Nursing procedure list layout (Stop button visible)';
+  const APP_BUILD_DATE = '19-Oct-2026 Edit Nursing Procedure plan';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -22394,6 +22394,7 @@ Thank you.`;
   function PatientNursingProcedurePanel({patient,orders,logs,charges,canManage,onChanged}){
     const [catalog,catalogError]=useNursingProcedureCatalog();
     const [adding,setAdding]=React.useState(false);
+    const [editing,setEditing]=React.useState(null); // 2.18.30: the planned procedure being edited
     const [row,setRow]=React.useState(blankNursingProcedure());
     const [busy,setBusy]=React.useState(false);
     const procOrders=(orders||[]).filter(isNursingProcedureOrder);
@@ -22409,8 +22410,22 @@ Thank you.`;
       if(busy)return;
       if(!nursingProcedureRowComplete(row))return showSamaraActionToast('error','Nursing Procedure',nursingProcedureRowProblem(row));
       const newRow=nursingProcedureOrderRow(row,patient.id,null);
-      if(active.some(o=>String(o.care_type||'').trim().toLowerCase()===String(row.care_type).trim().toLowerCase()&&(nursingProcedureTimes(o).some(t=>(newRow.scheduled_times||[]).includes(t))||(!nursingProcedureTimes(o).length&&!(newRow.scheduled_times||[]).length&&o.shift===newRow.shift))))return showSamaraActionToast('error','Nursing Procedure','This procedure is already planned for the same shift. Stop the old one first if it changes.');
+      if(active.some(o=>o.id!==editing?.id&&String(o.care_type||'').trim().toLowerCase()===String(row.care_type).trim().toLowerCase()&&(nursingProcedureTimes(o).some(t=>(newRow.scheduled_times||[]).includes(t))||(!nursingProcedureTimes(o).length&&!(newRow.scheduled_times||[]).length&&o.shift===newRow.shift))))return showSamaraActionToast('error','Nursing Procedure','This procedure is already planned for the same shift. Stop the old one first if it changes.');
       setBusy(true);
+      if(editing){
+        // 2.18.30: edit in place — records already made stay as they are (each keeps its own time).
+        try{
+          const {patient_id,entered_by,start_date,is_active,...changes}=newRow;
+          const before={procedure:editing.care_type,code:editing.procedure_code||null,shift:editing.shift,frequency:editing.frequency,times:editing.scheduled_times||null,window:[editing.preferred_from||null,editing.preferred_to||null],instruction:editing.instruction||null};
+          const {error}=await client.from('care_orders').update(changes).eq('id',editing.id);
+          if(error)throw error;
+          await writeAuditEvent('Edit Nursing Procedure Plan','CareOrder',editing.id,{patient_id:patient.id,before,after:{procedure:changes.care_type,code:changes.procedure_code||null,shift:changes.shift,frequency:changes.frequency,times:changes.scheduled_times||null,window:[changes.preferred_from||null,changes.preferred_to||null],instruction:changes.instruction||null}});
+          showSamaraActionToast('success','Nursing Procedure',`${changes.care_type} updated. Shift Tasks and the screensaver use the new plan from now on.`);
+          setEditing(null);setRow(blankNursingProcedure());onChanged&&onChanged();
+        }catch(error){showSamaraActionToast('error','Nursing Procedure',error.message||String(error))}
+        finally{setBusy(false)}
+        return;
+      }
       try{
         if(!(await nursingProcedureColumnReady()))throw new Error(NURSING_PROC_SQL_HINT);
         const {data:{user}}=await client.auth.getUser();
@@ -22421,6 +22436,15 @@ Thank you.`;
         setRow(blankNursingProcedure());setAdding(false);onChanged&&onChanged();
       }catch(error){showSamaraActionToast('error','Nursing Procedure',error.message||String(error))}
       finally{setBusy(false)}
+    }
+    function startEdit(o){
+      const times=nursingProcedureTimes(o);
+      const item=catalog.find(x=>(o.tariff_id&&String(x.id)===String(o.tariff_id))||(!o.tariff_id&&String(x.service_name||'').trim().toLowerCase()===String(o.care_type||'').trim().toLowerCase()));
+      setAdding(false);setEditing(o);
+      setRow({...blankNursingProcedure(),tariff_id:item?item.id:'',procedure_code:item?.charge_code||o.procedure_code||'',care_type:o.care_type||'',custom:!item,
+        timing:times.length?NURSING_PROC_TIMING_FIXED:NURSING_PROC_TIMING_ANY,scheduled_times:times,
+        shift:o.shift||'Both shifts',frequency:o.frequency||'Daily',instruction:o.instruction||'',
+        preferred_from:careTimeValue(o.preferred_from),preferred_to:careTimeValue(o.preferred_to)});
     }
     async function stop(o){
       if(busy)return;
@@ -22440,13 +22464,15 @@ Thank you.`;
     return h('div',{className:'section-card'},
       h('div',{className:'panel-head'},
         h('div',null,h('h4',null,`Nursing Procedures (${active.length} planned)`),h('small',null,'Planned at admission or added later. Recorded from Shift Tasks / Daily Care like care.')),
-        canManage&&!adding?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{setRow(blankNursingProcedure());setAdding(true)}},'＋ Add Nursing Procedure'):null),
-      canManage&&adding&&h('div',{style:{border:'1px solid #ecc6d8',borderRadius:'12px',padding:'10px 12px',margin:'8px 0',background:'#fff7fb'}},
+        canManage&&!adding&&!editing?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{setRow(blankNursingProcedure());setAdding(true)}},'＋ Add Nursing Procedure'):null),
+      canManage&&(adding||editing)&&h('div',{style:{border:'1px solid #ecc6d8',borderRadius:'12px',padding:'10px 12px',margin:'8px 0',background:'#fff7fb'}},
+        editing?h('h4',{style:{margin:'0 0 4px',color:'#7a1247'}},`Edit: ${nursingProcedureLabel(editing)}`):null,
+        editing?h('p',{className:'small-note',style:{margin:'0 0 6px'}},'Changes apply from now on. Records already made keep their own time.'):null,
         catalogError?h('p',{className:'small-note',style:{color:'#b42318'}},catalogError):null,
         h(NursingProcedureRowFields,{row,catalog,onChange:setRow}),
         h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
-          h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:save},busy?'Saving…':'Save Procedure'),
-          h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>setAdding(false)},'Cancel')),
+          h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:save},busy?'Saving…':editing?'Save Changes':'Save Procedure'),
+          h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>{setAdding(false);setEditing(null);setRow(blankNursingProcedure())}},'Cancel')),
         h('p',{className:'small-note'},'Charges are not raised from here — a chargeable procedure is still charged through NURSING → Approval Requests.')),
       // 2.18.29: name, times and buttons on separate lines so the Stop button is always visible.
       active.length?active.map(o=>h('div',{key:o.id,style:{display:'flex',flexWrap:'wrap',alignItems:'center',justifyContent:'space-between',gap:'8px 12px',padding:'10px 0 10px 14px',borderLeft:'3px solid #9fd3c7',margin:'6px 0'}},
@@ -22455,6 +22481,7 @@ Thank you.`;
           h('small',{style:{display:'block',color:'#5b4a55',marginTop:'2px'}},`${nursingProcedureDetail(o)}${o.start_date?` · from ${formatDateIN(o.start_date)}`:''}`)),
         h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
           o.instruction&&typeof TamilAssist==='function'?h(TamilAssist,{text:o.instruction,context:'Nursing Procedure Instruction'}):null,
+          canManage?h('button',{type:'button',className:'btn btn-primary',disabled:busy||!!editing,onClick:()=>startEdit(o)},'Edit'):null,
           canManage?h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>stop(o)},'Stop'):null)))
         :h('p',{className:'small-note'},'No nursing procedure planned for this Guest.'),
       stopped.length?h('details',{style:{marginTop:'8px'}},h('summary',null,`Stopped procedures (${stopped.length})`),

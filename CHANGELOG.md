@@ -1,3 +1,6 @@
+## 2.18.30 — Edit Nursing Procedure plan
+- Patient file → Nursing → Nursing Procedures: an **Edit** button beside Stop (Admin / Nursing Manager) opens the same form filled in — change the procedure, Timing, times (add / remove), instruction — then **Save Changes**. Shift and Frequency follow the times. Changes apply from now on; records already made keep their own time. Every edit is in the Audit Trail (before → after). No SQL.
+
 ## 2.18.30 — Charge request timestamps and full details
 - Bills & Charges Approval shows the request creation timestamp. Clicking a request row or mobile card opens its full recorded details, including patient, service, billing, provider and approval fields. Decision buttons do not open the detail view; Nursing still cannot see financial amounts. No SQL.
 
