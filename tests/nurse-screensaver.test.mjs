@@ -41,9 +41,9 @@ test('Medicines grouped per Guest and time; given doses drop out; overdue strip'
   assert.equal(d.overdue.length,1);
   assert.equal(d.overdue[0].who,'Room 102 · Mr. Selvam Raja');
   const titles=d.next.map(x=>x.title);
-  assert.ok(titles.some(t=>/Insulin Actrapid \(sliding scale\) — check sugar first/.test(t)));
-  assert.ok(titles.includes('Medicines due (2)'));
-  assert.ok(!titles.some(t=>/Pantoprazole|Metformin|Amlodipine/.test(t)),'medicine names stay hidden');
+  assert.ok(d.next.some(x=>x.kind==='med'&&/Insulin Actrapid \(check sugar first\)/.test(x.medLine)));
+  assert.ok(titles.includes('Medicines (2)'));
+  assert.ok(d.next.some(x=>x.kind==='med'&&x.medLine==='1. Metformin 500 mg   2. Amlodipine 5 mg'),'medicine names with serial numbers');
   assert.ok(titles.includes('Lunch — record food intake'));
   assert.ok(titles.includes('Vital signs'));
   assert.ok(d.next.every(x=>x.anyTime||x.at.getTime()<=NOW.getTime()+4*3600000));

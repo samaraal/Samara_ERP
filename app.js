@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.17';
+  const APP_VERSION = '2.18.18';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '19-Oct-2026 Screensaver: Care list scrolls for the whole shift';
+  const APP_BUILD_DATE = '19-Oct-2026 Screensaver: most immediate task first, medicine names';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -25750,6 +25750,7 @@ Please keep these login details confidential.`;
 .nss-box-text{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 auto}
 .nss-box-detail{display:flex;align-items:center;gap:8px;font-size:clamp(16px,2.1vh,24px);font-weight:700;color:#382333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .nss-box-detail-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.nss-box-detail-text.meds{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.2}
 .nss-box-room{font-weight:900;color:#d0105f;font-size:clamp(26px,4vh,46px);line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nss-box-name{font-size:clamp(16px,2.2vh,24px);font-weight:700;color:#5d1039;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nss-due{color:#b01264;font-size:14px;font-weight:800;flex-shrink:0}
@@ -25787,6 +25788,13 @@ Please keep these login details confidential.`;
 .nss-tick-sep{color:#c98aa8}
 .nss-tick-when{margin-left:auto;flex-shrink:0;font-size:.8em;font-weight:700;color:#7a1247;background:#fff;border:1px solid #f0b3cd;border-radius:8px;padding:0 7px}
 @keyframes nssTicker{from{transform:translateY(0)}to{transform:translateY(calc(-50% - 3px))}}
+.nss-hero-meds{margin:0;padding:0 0 0 1.6em;display:flex;flex-direction:column;gap:4px;font-size:clamp(17px,min(2.4vh,1.4vw),26px);color:#382333;max-height:30vh;overflow:hidden}
+.nss-hero-meds li{line-height:1.25}
+.nss-hero-meds li::marker{font-weight:800;color:#b01264}
+.nss-med-warn{margin-left:10px;background:#b3341a;color:#fff;border-radius:8px;padding:1px 9px;font-size:.7em;font-weight:800;vertical-align:middle}
+.nss-med-food{margin-left:10px;font-size:.75em;font-weight:600;color:#7a1247}
+.nss-count.late{background:#b3341a}
+.nss-hero.nss-hero-late{border-color:#f36a4c;border-width:3px}
 .nss-flip{animation:nssFlip .55s ease-out both;transform-origin:50% 0;backface-visibility:hidden}
 .nss-flip-count{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;font-weight:700;color:#7a1247}
 .nss-hero .nss-flip-count{align-self:flex-start;font-size:15px}
@@ -25942,8 +25950,12 @@ Please keep these login details confidential.`;
       const sliding=g.orders.find(nssIsSlidingScale);
       const foods=[...new Set(g.orders.map(o=>String(o.food_instruction||'').trim()).filter(Boolean))];
       const note=foods.length===1?foods[0]:'';
-      tasks.push({kind:'med',group:'med',at:g.at,grace:30,patient:g.patient,done:n===0,
-        title:sliding?`${sliding.medicine_name||'Insulin'} (sliding scale) — check sugar first${n>1?` + ${n-1} more`:''}`:`Medicines due (${n})`,
+      // 2.18.18: medicine names with serial numbers (sliding-scale insulin: check sugar first).
+      const meds=g.orders.map(o=>({name:[o.medicine_name||'Medicine',String(o.strength||'').trim()].filter(Boolean).join(' '),
+        sliding:nssIsSlidingScale(o),food:String(o.food_instruction||'').trim(),route:String(o.route||'').trim()}));
+      tasks.push({kind:'med',group:'med',at:g.at,grace:30,patient:g.patient,done:n===0,meds,
+        title:`Medicines (${n})`,
+        medLine:meds.map((m,i)=>`${i+1}. ${m.name}${m.sliding?' (check sugar first)':''}`).join('   '),
         note});
     });
 
@@ -26052,7 +26064,7 @@ Please keep these login details confidential.`;
   function nssEntriesOf(x){
     const base={at:x.at,when:nssWhenText(x),late:x.state==='overdue',due:x.state==='due',awaiting:!!x.awaiting,sortAt:x.anyTime||(x.awaiting&&!x.atScheduled)?Infinity:x.at.getTime()};
     if(x.group==='meal')return (x.pendingGuests||[]).map(p=>({...base,room:nssRoomOf(p),name:nssNameOf(p),detail:`${x.mealLabel} — record food intake`}));
-    const detail=x.group==='vitals'?'':x.title;
+    const detail=x.group==='vitals'?'':x.group==='med'&&x.medLine?x.medLine:x.title;
     return [{...base,room:x.room||'',name:x.name||x.who||'',detail,note:x.group==='care'||(x.group==='proc'&&!x.awaiting)?x.note:''}];
   }
   function nssBuildBoxes(items){
@@ -26155,14 +26167,18 @@ Please keep these login details confidential.`;
     const hh=now.getHours(),mm=String(now.getMinutes()).padStart(2,'0');
     const win=data?.win||nssShiftWindow(now);
     const list=data?.next||[];
-    const hero=list[0]||null;
     const overdue=data?.overdue||[];
-    const boxes=nssBuildBoxes([...overdue,...list.slice(1)]);
+    // 2.18.18: Next Task = the most immediate task of any type — a late one first, then due now, then the earliest coming up.
+    const hero=overdue.find(x=>!x.anyTime&&!x.awaiting&&x.group!=='care')||list[0]||null;
+    const boxes=nssBuildBoxes([...overdue,...list].filter(x=>x!==hero));
     const heroPeople=hero&&hero.group==='meal'&&(hero.pendingGuests||[]).length>1?hero.pendingGuests:null;
     const heroIdx=heroPeople?nssFlipIndex(heroPeople.length,now,0):0;
     const heroRoom=heroPeople?nssRoomOf(heroPeople[heroIdx]):hero?.room;
     const heroName=heroPeople?nssNameOf(heroPeople[heroIdx]):(hero?.name||hero?.who);
-    const firstOver=overdue[0];
+    const overRest=overdue.filter(x=>x!==hero);
+    const firstOver=overRest[0];
+    const heroLate=hero&&hero.state==='overdue';
+    const heroLateMins=heroLate?Math.max(1,Math.round((now-(hero.deadline||hero.at))/60000)):0;
     const overMins=firstOver?Math.max(1,Math.round((now-(firstOver.deadline||firstOver.at))/60000)):0;
     const fmtMins=n=>n>=60?`${Math.floor(n/60)}h ${n%60}m`:`${n} min`;
     const signOutIn=Math.max(1,Math.round((30*60000-(Date.now()-lastActivity.current))/60000));
@@ -26185,14 +26201,15 @@ Please keep these login details confidential.`;
         firstOver&&h('div',{className:'nss-overdue',role:'status'},
           h('span',{className:'nss-overdue-tag'},`OVERDUE ${fmtMins(overMins)}`),
           h('span',{className:'nss-overdue-text'},h('strong',null,NSS_KIND_LABEL[firstOver.kind]),` · ${firstOver.title} · `,h('strong',null,firstOver.who)),
-          overdue.length>1&&h('span',{className:'nss-overdue-more'},`+ ${overdue.length-1} more overdue`)),
+          overRest.length>1&&h('span',{className:'nss-overdue-more'},`+ ${overRest.length-1} more overdue`)),
         h('main',{className:'nss-main'},
-          hero?h('section',{className:`nss-hero${soon?' nss-soon':''}`,key:`hero-${hero.kind}-${hero.at.getTime()}-${hero.title}`},
-            h('div',{className:'nss-hero-top'},h('span',{className:'nss-label'},'NEXT TASK'),h('span',{className:'nss-count'},nssCountdown(hero,now))),
+          hero?h('section',{className:`nss-hero${soon?' nss-soon':''}${heroLate?' nss-hero-late':''}`,key:`hero-${hero.kind}-${hero.at.getTime()}-${hero.title}`},
+            h('div',{className:'nss-hero-top'},h('span',{className:'nss-label'},'NEXT TASK'),h('span',{className:`nss-count${heroLate?' late':''}`},heroLate?`Late ${fmtMins(heroLateMins)}`:nssCountdown(hero,now))),
             h('div',{className:'nss-hero-time'},hero.ready?'Now':hero.anyTime||(hero.awaiting&&!hero.atScheduled)?'Any time':hero.windowText||nssTime12(hero.at).t,
               !hero.ready&&!hero.anyTime&&!(hero.awaiting&&!hero.atScheduled)&&!hero.windowText&&h('small',null,nssTime12(hero.at).ap)),
             h('div',null,nssTag(hero.kind,hero.kind==='proc'&&hero.procCategory&&hero.procCategory!=='Nursing Procedures'?hero.procCategory:(NSS_GROUPS[hero.group]?.label||null),hero.group)),
             h('div',{className:'nss-hero-title'},hero.title),
+            hero.kind==='med'&&hero.meds?.length>0&&h('ol',{className:'nss-hero-meds'},hero.meds.map((m,k)=>h('li',{key:k},h('b',null,m.name),m.sliding&&h('span',{className:'nss-med-warn'},'check sugar first'),(m.food||m.route)&&h('span',{className:'nss-med-food'},[m.route,m.food].filter(Boolean).join(' · '))))),
             h('div',{className:'nss-flip nss-hero-flip',key:`hf-${heroIdx}`},
               heroRoom&&h('div',{className:'nss-hero-room'},heroRoom),
               h('div',{className:'nss-hero-who'},heroName)),
@@ -26245,7 +26262,7 @@ Please keep these login details confidential.`;
                       e.late&&h('span',{className:'nss-late'},'Late'),
                       e.awaiting&&h('span',{className:'nss-await'},'Awaiting approval'),
                       !e.late&&e.due&&h('span',{className:'nss-due'},'Due now'),
-                      e.detail&&h('span',{className:'nss-box-detail-text'},e.detail)),
+                      e.detail&&h('span',{className:`nss-box-detail-text${b.group==='med'?' meds':''}`},e.detail)),
                     e.room&&h('div',{className:'nss-box-room'},e.room),
                     e.name&&h('div',{className:'nss-box-name'},e.name))));
             }))

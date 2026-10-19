@@ -1,3 +1,7 @@
+## 2.18.18 — Screensaver: Next Task = the most immediate task; medicine names with serial numbers
+- The big **Next Task** box now always shows the most immediate task of any type — Medication, Vital Signs, Nursing Procedure, Meals or Care. A **late** task comes first (the countdown becomes a red "Late 1h 15m" and the box gets a coral border); otherwise the task due now / soonest. Shift-wide care without a time is listed in the Care box instead.
+- Medicines are shown **by name with serial numbers** instead of "Medicines due (3)": the Next Task box lists them one per line (1. Metformin 500 mg — After food, 2. …; sliding-scale insulin marked "check sugar first"); the Medication box shows them on up to two lines. No SQL.
+
 ## 2.18.17 — Screensaver: Care box scrolls the whole shift's care, one line each
 - Care is shift-based, so the **Care** box no longer flips. It lists **all pending care of the shift**, one line each — **care · room · Guest name** (plus the preferred window when one is set, e.g. 10:00–12:00) — scrolling slowly from bottom to top when there are more lines than fit. Late care is marked Late.
 - The Care box is always last and full width so each line has room. Box headers stay on one line on smaller screens. No SQL.
