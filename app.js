@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.31';
+  const APP_VERSION = '2.18.32';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '19-Oct-2026 Edit Nursing Procedure plan';
+  const APP_BUILD_DATE = '19-Oct-2026 Procedure times in clock order';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -22236,7 +22236,7 @@ Thank you.`;
   const NURSING_PROC_TIMING_ANY='Any time in shift';
   // 2.18.27: fixed times (HH:MM), like medicines. Empty = any time in the shift.
   const nprocHHMM=v=>{const m=String(v||'').match(/^(\d{1,2}):(\d{2})/);return m?`${m[1].padStart(2,'0')}:${m[2]}`:''};
-  function nursingProcedureTimes(o){return [...new Set((Array.isArray(o?.scheduled_times)?o.scheduled_times:[]).map(nprocHHMM).filter(Boolean))].sort((a,b)=>((Number(a.slice(0,2))+17)%24*60+Number(a.slice(3)))-((Number(b.slice(0,2))+17)%24*60+Number(b.slice(3))))}
+  function nursingProcedureTimes(o){return [...new Set((Array.isArray(o?.scheduled_times)?o.scheduled_times:[]).map(nprocHHMM).filter(Boolean))].sort() /* 2.18.32: plain clock order (6:00 AM … 10:00 PM) */}
   function nprocTime12(t){const v=nprocHHMM(t);if(!v)return '';const [hh,mm]=v.split(':').map(Number);return `${hh%12||12}:${String(mm).padStart(2,'0')} ${hh>=12?'PM':'AM'}`}
   const nprocShiftOfTime=t=>{const hh=Number(nprocHHMM(t).slice(0,2));return hh>=7&&hh<19?'Day Shift (7 AM–7 PM)':'Night Shift (7 PM–7 AM)'};
   function nprocShiftForTimes(times){const s=new Set(times.map(nprocShiftOfTime));return s.size===1?[...s][0]:'Both shifts'}
@@ -22341,7 +22341,7 @@ Thank you.`;
             h('button',{type:'button','aria-label':`Remove ${nprocTime12(t)}`,onClick:()=>set({scheduled_times:times.filter(x=>x!==t)}),style:{border:'none',background:'transparent',color:'#a91360',fontSize:'16px',cursor:'pointer',padding:0}},'×'))),
           h('input',{type:'time',value:draftTime,onChange:e=>setDraftTime(e.target.value),style:{maxWidth:'150px'}}),
           h('button',{type:'button',className:'btn btn-secondary',onClick:addTime},'+ Add time')),
-        h('small',{style:{display:'block',marginTop:'6px',color:'#6b5560'}},times.length?`${nprocFrequencyForTimes(times)} · Day = 7 AM–7 PM, Night = 7 PM–7 AM`:'Pick a time and press "+ Add time". Add as many times as needed (e.g. 8:00 AM, 2:00 PM, 8:00 PM).'),
+        h('small',{style:{display:'block',marginTop:'6px',color:'#6b5560'}},times.length?`${nprocFrequencyForTimes(times)} · Day shift = 7 AM–7 PM, Night shift = 7 PM–7 AM (so 6:00 AM is in the Night shift)`:'Pick a time and press "+ Add time". Add as many times as needed (e.g. 8:00 AM, 2:00 PM, 8:00 PM).'),
         h('div',{style:{display:'flex',flexWrap:'wrap',gap:'6px',marginTop:'6px'}},h('small',{style:{color:'#6b5560',alignSelf:'center'}},'Quick:'),
           [['Once','08:00'],['Twice','08:00,20:00'],['3 times','08:00,14:00,20:00'],['4 times','06:00,12:00,18:00,00:00'],['Every 6 h','06:00,12:00,18:00,00:00'],['Every 4 h','06:00,10:00,14:00,18:00,22:00,02:00']].filter((x,i,a)=>a.findIndex(y=>y[1]===x[1])===i).map(([l,v])=>h('button',{type:'button',key:l,className:'btn btn-secondary',style:{padding:'4px 10px',fontSize:'12px'},onClick:()=>set({scheduled_times:v.split(',')})},l)))
       ):h(React.Fragment,null,

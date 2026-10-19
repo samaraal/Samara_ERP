@@ -1,3 +1,6 @@
+## 2.18.32 — Nursing procedure times in clock order
+- Procedure times are now listed in clock order everywhere (form chips, patient file, Shift Tasks): 6:00 AM, 7:00 AM … 10:00 PM. Before, they started from the 7 AM shift change, so 6:00 AM came last. 6:00 AM still shows "Night" — the Night shift is 7 PM–7 AM (the form says so). Family Portal v1.0.43 lists them the same way. No SQL.
+
 ## 2.18.31 — Edit Nursing Procedure plan
 - Patient file → Nursing → Nursing Procedures: an **Edit** button beside Stop (Admin / Nursing Manager) opens the same form filled in — change the procedure, Timing, times (add / remove), instruction — then **Save Changes**. Shift and Frequency follow the times. Changes apply from now on; records already made keep their own time. Every edit is in the Audit Trail (before → after). No SQL.
 
