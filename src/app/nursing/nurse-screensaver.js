@@ -374,24 +374,29 @@
       const isDay=win.name.startsWith('Day');
       if(!(sh.includes('both')||sh===''||(isDay?sh.includes('day'):sh.includes('night'))))return;
       const label=order.care_type||order.activity||'Care task';
-      careStats.planned++;
+      // 2.18.26: a planned Nursing Procedure (Admission Section 5 / patient file → Nursing) goes to the
+      // Nursing Procedure box, not Care; it is recorded the same way (Shift Tasks / Daily Care).
+      const isProc=String(order.order_kind||'')==='Nursing Procedure';
+      const grp=isProc?'proc':'care';
+      if(!isProc)careStats.planned++;
       const done=careLogs.some(x=>String(x.shift||'').toLowerCase().startsWith(win.name.slice(0,3).toLowerCase())&&(!x.completed_at||new Date(x.completed_at)>=win.start)&&(
         x.care_order_id===order.id||(!x.care_order_id&&x.patient_id===order.patient_id&&String(x.remarks||'').toLowerCase().startsWith(String(label).toLowerCase()))));
-      if(done)careStats.done++;
+      if(done&&!isProc)careStats.done++;
       const from=careTimeValue(order.preferred_from),to=careTimeValue(order.preferred_to);
       const fromAt=from?nssTimeInShift(win,from)?.at:null,toAt=to?nssTimeInShift(win,to)?.at:null;
       if(fromAt||toAt){
-        tasks.push({kind:'care',group:'care',at:fromAt||toAt,deadline:toAt||null,grace:0,patient:p,done,title:label,
+        tasks.push({kind:isProc?'proc':'care',group:grp,at:fromAt||toAt,deadline:toAt||null,grace:0,patient:p,done,title:label,planned:isProc,
           windowText:fromAt&&toAt?`${nssTime12(fromAt).t}–${nssTime12(toAt).t}`:'',
-          note:toAt?`ends ${nssTime12(toAt).t} ${nssTime12(toAt).ap}`:''});
+          note:[isProc&&order.procedure_code?order.procedure_code:'',toAt?`ends ${nssTime12(toAt).t} ${nssTime12(toAt).ap}`:''].filter(Boolean).join(' · ')});
       }else{
-        tasks.push({kind:'care',group:'care',at:new Date(win.end.getTime()-2*3600000),anyTime:true,grace:120,patient:p,done,title:label,note:'any time this shift'});
+        tasks.push({kind:isProc?'proc':'care',group:grp,at:new Date(win.end.getTime()-2*3600000),anyTime:true,grace:120,patient:p,done,title:label,planned:isProc,
+          note:[isProc?(order.procedure_code||'planned'):'',order.frequency&&isProc?order.frequency:'','any time this shift'].filter(Boolean).join(' · ')});
       }
     });
 
     // 2.18.24: Guests with NO care plan — show their usual care for this shift from the last 3 days' records
     // (marked "usual — no care plan"), so the Care box is not empty; the Nursing Manager is reminded to fill the plan.
-    const withPlan=new Set((c.data||[]).filter(o=>o.is_active!==false).map(o=>o.patient_id));
+    const withPlan=new Set((c.data||[]).filter(o=>o.is_active!==false&&String(o.order_kind||'')!=='Nursing Procedure').map(o=>o.patient_id)); // 2.18.26: procedures alone are not a care plan
     const shiftKey=x=>String(x||'').toLowerCase().startsWith('day')?'day':String(x||'').toLowerCase().startsWith('night')?'night':'';
     const curKey=win.name.startsWith('Day')?'day':'night';
     const shiftDate=win.dates[0];

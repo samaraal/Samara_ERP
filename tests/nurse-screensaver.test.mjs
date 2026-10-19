@@ -127,3 +127,24 @@ test('No care plan: usual care from the last 3 days (same shift) is shown and ma
   assert.equal(care[0].usual,true);
   assert.equal(d.careStats.noPlan,1);assert.equal(d.careStats.planned,2);assert.equal(d.careStats.done,1);
 });
+
+test('2.18.26 Planned Nursing Procedures (care_orders order_kind) go to the Nursing Procedure box; done drops them; not counted as a care plan',async()=>{
+  const d=await load({patients:[G1,G2],vital_signs:[{patient_id:'g1',recorded_at:'2026-10-19T06:10:00+05:30'},{patient_id:'g2',recorded_at:'2026-10-19T06:10:00+05:30'}],
+    care_orders:[
+      {id:'pp1',patient_id:'g1',care_type:'Ryle’s Tube Feeding',order_kind:'Nursing Procedure',procedure_code:'NUR-021',shift:'Both shifts',frequency:'Each shift',is_active:true},
+      {id:'pp2',patient_id:'g1',care_type:'Nebulization - Samara Nebulizer',order_kind:'Nursing Procedure',shift:'Day Shift (7 AM–7 PM)',preferred_from:'11:00',preferred_to:'12:00',is_active:true},
+      {id:'pp3',patient_id:'g2',care_type:'Catheter care',order_kind:'Nursing Procedure',shift:'Both shifts',is_active:true},
+      {id:'c1',patient_id:'g1',care_type:'Oral hygiene',order_kind:'Care',shift:'Both shifts',is_active:true}],
+    care_logs:[{care_order_id:'pp3',patient_id:'g2',care_date:'2026-10-19',shift:'Day Shift (7 AM–7 PM)',status:'Completed',completed_at:'2026-10-19T09:00:00+05:30'}]});
+  const procs=d.next.filter(x=>x.group==='proc').map(x=>x.title);
+  assert.ok(procs.includes('Ryle’s Tube Feeding'));
+  assert.ok(procs.includes('Nebulization - Samara Nebulizer'));
+  assert.ok(!procs.includes('Catheter care'),'recorded procedure is done');
+  assert.ok(!d.next.some(x=>x.group==='care'&&/Ryle|Nebuli/.test(x.title)),'procedures not in the Care box');
+  assert.ok(d.next.some(x=>x.group==='care'&&x.title==='Oral hygiene'));
+  assert.equal(d.careStats.planned,1,'only care counted');
+  assert.equal(d.careStats.noPlan,1,'Guest with only procedures still has no care plan');
+  const neb=d.next.find(x=>x.title==='Nebulization - Samara Nebulizer');
+  assert.equal(neb.windowText,'11:00–12:00');
+  assert.ok(d.boxes.find(b=>b.group==='proc').entries.length>=2);
+});

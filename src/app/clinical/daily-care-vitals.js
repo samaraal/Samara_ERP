@@ -32,6 +32,15 @@
     const [toast,setToast]=React.useState(null);
     const [returnPage,setReturnPage]=React.useState('');
     const toastTimer=React.useRef(null);
+    // 2.18.26: the selected Guest's planned Nursing Procedures are offered as activities too.
+    const [guestProcedures,setGuestProcedures]=React.useState([]);
+    React.useEffect(()=>{
+      let live=true;setGuestProcedures([]);
+      if(!form.patient_id)return;
+      client.from('care_orders').select('id,care_type,order_kind,is_active').eq('patient_id',form.patient_id).eq('is_active',true)
+        .then(r=>{if(live&&!r.error)setGuestProcedures([...new Set((r.data||[]).filter(isNursingProcedureOrder).map(o=>String(o.care_type||'').trim()).filter(Boolean))])});
+      return()=>{live=false};
+    },[form.patient_id]);
 
     function showToast(type,text){
       const savedWithWarning=type==='success'&&/saved with warning|saved for review|warning/i.test(String(text));
@@ -158,8 +167,9 @@
             },
               [...new Set([
                 normaliseDailyCareActivity(form.care_type),
-                ...DAILY_CARE_ACTIVITY_OPTIONS
-              ])].map(x=>h('option',{key:x,value:x},x))
+                ...DAILY_CARE_ACTIVITY_OPTIONS,
+                ...guestProcedures
+              ])].map(x=>h('option',{key:x,value:x},guestProcedures.includes(x)?`${x} (Nursing Procedure)`:x))
             ),
             form.care_order_id&&h('small',{className:'linked-task-note'},
               `Linked to the selected Shift Task: ${normaliseDailyCareActivity(form.care_type)}`

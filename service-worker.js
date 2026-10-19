@@ -1,5 +1,5 @@
-const APP_VERSION = '2.18.25';
-const CACHE = 'samara-erp-2.18.25-yellow-receive-menu';
+const APP_VERSION = '2.18.26';
+const CACHE = 'samara-erp-2.18.26-nursing-procedure-plan';
 const SHELL = [
   './',
   './index.html',

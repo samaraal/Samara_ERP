@@ -357,10 +357,10 @@
               ),
 
               h('div',{className:'patient-work-section'},
-                h('h4',null,`Basic Care (${group.care.filter(x=>!x.log).length} pending)`),
+                h('h4',null,`${group.care.some(x=>isNursingProcedureOrder(x.order))?'Basic Care & Nursing Procedures':'Basic Care'} (${group.care.filter(x=>!x.log).length} pending)`),
                 group.care.map((x,careIndex)=>h('div',{className:`patient-work-task-row numbered-task-row ${x.log?'done':''}`,key:`care-${x.order.id}`},
                   h('span',{className:'task-row-number'},careIndex+1),
-                  h('div',null,h('strong',null,x.label),h('small',null,`${x.order.frequency||'Daily'}${x.order.instruction?` · ${x.order.instruction}`:''}`)),
+                  h('div',null,h('strong',null,x.label),isNursingProcedureOrder(x.order)?h('span',{className:'pill',style:{marginLeft:'6px',background:'#fde7f1',color:'#a91360'}},'Nursing Procedure'):null,h('small',null,`${x.order.frequency||'Daily'}${x.order.instruction?` · ${x.order.instruction}`:''}`)), // 2.18.26 tag
                   x.log?h('span',{className:'badge'},x.log.status):h('span',{className:'pill warning'},'Pending'),
                   x.log?h('button',{type:'button',className:'btn btn-secondary clinical-action-done',disabled:true},'Done ✓'):h('div',{className:'employee-actions'},
                     h('button',{className:'btn btn-primary',onClick:()=>openRegularTask('Daily Care',{

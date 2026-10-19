@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.25';
+  const APP_VERSION = '2.18.26';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '19-Oct-2026 Screensaver: medicine flip late + next 2 hours';
+  const APP_BUILD_DATE = '19-Oct-2026 Nursing Procedure plan (Admission Section 5, patient file Nursing tab, screensaver)';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -22218,6 +22218,209 @@ Thank you.`;
   }
   // 2.16.29: the same medicine-entry pieces are used by the Spot Assessment (spot-assessment.js)
   try{window.SamaraMedicationKit={MEDICATION_FREQUENCY_TIMES,normalizeMedicationTime,medicationTimeLabel,MedicationStrengthInput,MedicationTimeSelector,medicationStrengthValid,blankMedicine}}catch(_){}
+  // 2.18.26: Nursing Procedure plan (SQL 251).
+  // Planned procedures (e.g. Ryle's tube feeding, catheter care, nebulization, dressing) are kept in
+  // care_orders with order_kind = 'Nursing Procedure', next to the Master Care Plan, so that
+  // Shift Tasks / Daily Care recording, care reminders & escalations, the screensaver and the
+  // Daily Intelligent Report all see them. Items come from Charge Master → Nursing Procedures
+  // (same names and codes). Charging is NOT done here: a procedure is charged only through
+  // NURSING → Approval Requests, as before.
+  // Used by: Admissions (Section 5), Patient file → Nursing tab (add / stop after admission),
+  // Patient edit (care plan save keeps procedures), nurse screensaver, Shift Tasks, Daily Care.
+  const NURSING_PROC_KIND='Nursing Procedure';
+  const NURSING_PROC_SHIFTS=['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Both shifts'];
+  const NURSING_PROC_FREQUENCIES=['Daily','Each shift','Twice daily','As required'];
+  const NURSING_PROC_OTHER='__other__';
+  const NURSING_PROC_SQL_HINT='Database update pending: run supabase/sql/251_nursing_procedure_plan.sql in Supabase, then try again.';
+  const isNursingProcedureOrder=o=>String(o?.order_kind||'')===NURSING_PROC_KIND;
+  const isCareOnlyOrder=o=>!isNursingProcedureOrder(o);
+  function blankNursingProcedure(){
+    return {tariff_id:'',procedure_code:'',care_type:'',custom:false,shift:'Both shifts',frequency:'Daily',instruction:'',preferred_from:'',preferred_to:'',is_locked:false};
+  }
+  function nursingProcedureRowComplete(row){return Boolean(String(row?.care_type||'').trim())}
+  function nursingProcedureLabel(o){return `${o?.procedure_code?`${o.procedure_code} · `:''}${o?.care_type||'Nursing procedure'}`}
+  function nursingProcedureDetail(o){return [o?.shift,o?.frequency,careWindowLabel(o),o?.instruction].filter(Boolean).join(' · ')}
+  function nursingProcedureOrderRow(row,patientId,userId){
+    return {
+      patient_id:patientId,order_kind:NURSING_PROC_KIND,
+      care_type:String(row.care_type||'').trim(),
+      procedure_code:row.procedure_code||null,tariff_id:row.tariff_id||null,
+      shift:NURSING_PROC_SHIFTS.includes(row.shift)?row.shift:'Both shifts',
+      frequency:row.frequency||'Daily',
+      instruction:String(row.instruction||'').trim()||null,
+      preferred_from:careTimeValue(row.preferred_from)||null,
+      preferred_to:careTimeValue(row.preferred_to)||null,
+      start_date:row.start_date||todayISOIndia(),
+      is_active:true,entered_by:userId||null
+    };
+  }
+  // True once SQL 251 has been run (care_orders.order_kind exists).
+  async function nursingProcedureColumnReady(){
+    const {error}=await client.from('care_orders').select('order_kind').limit(1);
+    return !error;
+  }
+  // Patient edit replaces the Master Care Plan: delete CARE rows only, never the planned procedures.
+  async function deleteCareOnlyOrders(patientId){
+    let res=await client.from('care_orders').delete().eq('patient_id',patientId).or('order_kind.is.null,order_kind.neq."Nursing Procedure"');
+    if(res.error&&/order_kind/i.test(String(res.error.message||'')))res=await client.from('care_orders').delete().eq('patient_id',patientId); // before SQL 251: no procedures exist yet
+    return res;
+  }
+  // Charge Master → Nursing Procedures items (code + name only; nurses never see the rate).
+  function useNursingProcedureCatalog(){
+    const [items,setItems]=React.useState([]);
+    const [error,setError]=React.useState('');
+    React.useEffect(()=>{
+      let live=true;
+      (async()=>{
+        let rows=[],failed='';
+        const a=await client.rpc('get_approval_catalog');
+        if(!a.error)rows=(a.data||[]).filter(x=>x.category==='Nursing Procedures');else failed=a.error.message||'';
+        if(!rows.length){
+          const b=await client.from('charge_tariff_master').select('id,charge_code,service_name,category,is_active').eq('category','Nursing Procedures');
+          if(!b.error){rows=(b.data||[]).filter(x=>x.is_active!==false);failed=''}else if(!failed)failed=b.error.message||'';
+        }
+        const other=x=>/^other/i.test(String(x.service_name||'').trim());
+        rows=rows.filter(x=>String(x.service_name||'').trim()).sort((x,y)=>(other(x)?1:0)-(other(y)?1:0)||String(x.service_name).localeCompare(String(y.service_name),'en',{sensitivity:'base',numeric:true}));
+        if(live){setItems(rows);setError(rows.length?'':failed?`Procedure list could not be loaded (${failed}). You can still type the procedure name.`:'')}
+      })();
+      return()=>{live=false};
+    },[]);
+    return [items,error];
+  }
+  // One editable procedure row (procedure from Charge Master, or typed when not in the list).
+  function NursingProcedureRowFields({row,catalog,onChange,onRemove,removeLabel='Remove'}){
+    const set=(patch)=>onChange({...row,...patch});
+    const selectValue=row.custom?NURSING_PROC_OTHER:(row.tariff_id||'');
+    return h('div',{className:'nproc-row',style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:'10px',alignItems:'end',padding:'8px 0'}},
+      h('div',{className:'field',style:{gridColumn:'span 2'}},
+        h('label',null,'Nursing procedure *'),
+        h('select',{value:selectValue,onChange:e=>{
+          const v=e.target.value;
+          if(v===NURSING_PROC_OTHER)return set({custom:true,tariff_id:'',procedure_code:'',care_type:''});
+          const item=catalog.find(x=>String(x.id)===String(v));
+          set({custom:false,tariff_id:item?item.id:'',procedure_code:item?.charge_code||'',care_type:item?.service_name||''});
+        }},
+          h('option',{value:''},catalog.length?`Select procedure (${catalog.length})`:'Select procedure'),
+          catalog.map(x=>h('option',{key:x.id,value:x.id},`${x.charge_code?`${x.charge_code} · `:''}${x.service_name}`)),
+          h('option',{value:NURSING_PROC_OTHER},'Not in the list — type the name'))),
+      row.custom?h('div',{className:'field'},h('label',null,'Procedure name *'),h('input',{type:'text',value:row.care_type||'',placeholder:'Type the procedure',onChange:e=>set({care_type:e.target.value})})):null,
+      miniSelect('Shift',row.shift,NURSING_PROC_SHIFTS,v=>set({shift:v})),
+      miniSelect('Frequency',row.frequency,NURSING_PROC_FREQUENCIES,v=>set({frequency:v})),
+      miniInput('Preferred from (optional)',careTimeValue(row.preferred_from),v=>set({preferred_from:v}),false,'time'),
+      miniInput('Preferred to (optional)',careTimeValue(row.preferred_to),v=>set({preferred_to:v}),false,'time'),
+      h('div',{className:'field',style:{gridColumn:'span 2'}},h('label',null,'Instruction (optional)'),h('input',{type:'text',value:row.instruction||'',placeholder:'e.g. 200 ml feed, flush with 30 ml water',onChange:e=>set({instruction:e.target.value})})),
+      onRemove?h('button',{type:'button',className:'btn btn-danger',onClick:onRemove},removeLabel):null
+    );
+  }
+  // Admission form, Section 5. rows / setRows live in the Admission form (saved with the draft).
+  function AdmissionNursingProcedureSection({rows,setRows,setMsg}){
+    const [catalog,catalogError]=useNursingProcedureCatalog();
+    const list=Array.isArray(rows)?rows:[];
+    const filled=list.filter(nursingProcedureRowComplete).length;
+    function add(){
+      const open=list.findIndex(r=>!r.is_locked);
+      if(open>=0){
+        if(!nursingProcedureRowComplete(list[open])){setMsg&&setMsg('Select (or type) the nursing procedure before adding the next one.');return}
+        setRows([...list.map((r,i)=>i===open?{...r,is_locked:true}:r),blankNursingProcedure()]);
+      }else setRows([...list,blankNursingProcedure()]);
+      setMsg&&setMsg('');
+    }
+    function edit(index){
+      if(list.some((r,i)=>i!==index&&!r.is_locked)){setMsg&&setMsg('Complete or remove the open nursing-procedure row before editing another one.');return}
+      setRows(list.map((r,i)=>i===index?{...r,is_locked:false}:r));
+    }
+    const remove=index=>setRows(list.filter((_,i)=>i!==index));
+    return h('div',{className:'section-card',id:'admission-nursing-procedures'},
+      h('div',{className:'section-title'},h('div',null,
+        h('h4',null,'5. Nursing procedures'),
+        h('small',null,filled?`${filled} procedure(s) planned · shown in Shift Tasks, the screensaver and the patient file → Nursing`:'Optional · procedures this Guest needs regularly (e.g. Ryle’s tube feeding, catheter care, nebulization, dressing). More can be added after admission from the patient file → Nursing.'))),
+      catalogError?h('p',{className:'small-note',style:{color:'#b42318'}},catalogError):null,
+      list.map((r,i)=>r.is_locked
+        ?h('div',{className:'admission-locked-row',key:`nproc-${i}`},
+          h('span',{className:'number'},i+1),
+          h('div',{className:'summary'},h('strong',null,nursingProcedureLabel(r)),h('small',null,nursingProcedureDetail(r))),
+          h('div',{className:'admission-row-actions'},
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>edit(i)},'Edit'),
+            h('button',{type:'button',className:'btn btn-danger',onClick:()=>remove(i)},'Remove')))
+        :h('div',{key:`nproc-${i}`,style:{borderTop:i?'1px dashed #ecc6d8':'none'}},
+          h('strong',{style:{fontSize:'13px',color:'#7a1247'}},`Procedure ${i+1}`),
+          h(NursingProcedureRowFields,{row:r,catalog,onChange:next=>setRows(list.map((x,n)=>n===i?next:x)),onRemove:()=>remove(i)}))),
+      h('div',{className:'admission-add-bottom'},h('button',{type:'button',className:'btn btn-secondary',onClick:add},'+ Add Nursing Procedure')),
+      h('p',{className:'small-note'},'Charges are not raised from here. A chargeable procedure is still requested and charged through NURSING → Approval Requests.')
+    );
+  }
+  // Patient file → Nursing tab: planned procedures (add / stop after admission) + every procedure record.
+  function PatientNursingProcedurePanel({patient,orders,logs,charges,canManage,onChanged}){
+    const [catalog,catalogError]=useNursingProcedureCatalog();
+    const [adding,setAdding]=React.useState(false);
+    const [row,setRow]=React.useState(blankNursingProcedure());
+    const [busy,setBusy]=React.useState(false);
+    const procOrders=(orders||[]).filter(isNursingProcedureOrder);
+    const active=procOrders.filter(o=>o.is_active!==false);
+    const stopped=procOrders.filter(o=>o.is_active===false);
+    const procIds=new Set(procOrders.map(o=>o.id));
+    const fmtWhen=v=>{const d=v?new Date(v):null;return d&&!isNaN(d)?formatDateTimeIN(v):''};
+    const records=[
+      ...(logs||[]).filter(x=>procIds.has(x.care_order_id)).map(x=>{const o=procOrders.find(p=>p.id===x.care_order_id)||{};return {id:`log-${x.id}`,at:x.completed_at||x.created_at||x.care_date,title:`${formatDateIN(x.care_date)} · ${x.shift||''} · ${x.status||'Recorded'}`,name:nursingProcedureLabel(o),note:x.remarks||'',source:'Plan'}}),
+      ...(charges||[]).map(x=>({id:`chg-${x.id}`,at:x.service_datetime||x.raised_at||x.created_at||x.charge_date,title:`${x.service_datetime?fmtWhen(x.service_datetime):formatDateIN(x.charge_date||String(x.created_at||'').slice(0,10))} · ${x.status||'Recorded'}`,name:x.service_name||'Nursing procedure',note:[x.quantity?`Qty ${x.quantity}${x.unit?` ${x.unit}`:''}`:'',x.raised_by_name?`by ${x.raised_by_name}`:'',x.remarks||x.description||''].filter(Boolean).join(' · '),source:'Approval Request'}))
+    ].sort((a,b)=>new Date(b.at||0)-new Date(a.at||0));
+    async function save(){
+      if(busy)return;
+      if(!nursingProcedureRowComplete(row))return showSamaraActionToast('error','Nursing Procedure','Select (or type) the nursing procedure.');
+      if(active.some(o=>String(o.care_type||'').trim().toLowerCase()===String(row.care_type).trim().toLowerCase()&&o.shift===row.shift))return showSamaraActionToast('error','Nursing Procedure','This procedure is already planned for the same shift. Stop the old one first if it changes.');
+      setBusy(true);
+      try{
+        if(!(await nursingProcedureColumnReady()))throw new Error(NURSING_PROC_SQL_HINT);
+        const {data:{user}}=await client.auth.getUser();
+        const {data,error}=await client.from('care_orders').insert(nursingProcedureOrderRow(row,patient.id,user?.id)).select('id').single();
+        if(error)throw error;
+        await writeAuditEvent('Add Nursing Procedure Plan','CareOrder',data?.id||null,{patient_id:patient.id,procedure:row.care_type,code:row.procedure_code||null,shift:row.shift,frequency:row.frequency});
+        showSamaraActionToast('success','Nursing Procedure',`${row.care_type} added to the plan. It now shows in Shift Tasks and on the screensaver.`);
+        setRow(blankNursingProcedure());setAdding(false);onChanged&&onChanged();
+      }catch(error){showSamaraActionToast('error','Nursing Procedure',error.message||String(error))}
+      finally{setBusy(false)}
+    }
+    async function stop(o){
+      if(busy)return;
+      const reason=prompt(`Stop "${o.care_type}" for this Guest?\n\nReason (e.g. doctor advised, tube removed):`,'');
+      if(reason===null)return;
+      setBusy(true);
+      try{
+        const {data:{user}}=await client.auth.getUser();
+        const {error}=await client.from('care_orders').update({is_active:false,stopped_at:new Date().toISOString(),stopped_by:user?.id||null,stop_reason:reason.trim()||null}).eq('id',o.id);
+        if(error)throw error;
+        await writeAuditEvent('Stop Nursing Procedure Plan','CareOrder',o.id,{patient_id:patient.id,procedure:o.care_type,reason:reason.trim()||null});
+        showSamaraActionToast('success','Nursing Procedure',`${o.care_type} stopped.`);
+        onChanged&&onChanged();
+      }catch(error){showSamaraActionToast('error','Nursing Procedure',error.message||String(error))}
+      finally{setBusy(false)}
+    }
+    return h('div',{className:'section-card'},
+      h('div',{className:'panel-head'},
+        h('div',null,h('h4',null,`Nursing Procedures (${active.length} planned)`),h('small',null,'Planned at admission or added later. Recorded from Shift Tasks / Daily Care like care.')),
+        canManage&&!adding?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{setRow(blankNursingProcedure());setAdding(true)}},'＋ Add Nursing Procedure'):null),
+      canManage&&adding&&h('div',{style:{border:'1px solid #ecc6d8',borderRadius:'12px',padding:'10px 12px',margin:'8px 0',background:'#fff7fb'}},
+        catalogError?h('p',{className:'small-note',style:{color:'#b42318'}},catalogError):null,
+        h(NursingProcedureRowFields,{row,catalog,onChange:setRow}),
+        h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
+          h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:save},busy?'Saving…':'Save Procedure'),
+          h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>setAdding(false)},'Cancel')),
+        h('p',{className:'small-note'},'Charges are not raised from here — a chargeable procedure is still charged through NURSING → Approval Requests.')),
+      active.length?active.map(o=>h('div',{className:'timeline-item',key:o.id},
+        h('strong',null,nursingProcedureLabel(o)),
+        h('span',null,`${nursingProcedureDetail(o)}${o.start_date?` · from ${formatDateIN(o.start_date)}`:''}`),
+        o.instruction&&typeof TamilAssist==='function'?h(TamilAssist,{text:o.instruction,context:'Nursing Procedure Instruction'}):null,
+        canManage?h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>stop(o)},'Stop'):null))
+        :h('p',{className:'small-note'},'No nursing procedure planned for this Guest.'),
+      stopped.length?h('details',{style:{marginTop:'8px'}},h('summary',null,`Stopped procedures (${stopped.length})`),
+        stopped.map(o=>h('div',{className:'timeline-item',key:o.id},h('strong',null,nursingProcedureLabel(o)),h('span',null,`Stopped ${o.stopped_at?fmtWhen(o.stopped_at):''}${o.stop_reason?` · ${o.stop_reason}`:''}`)))):null,
+      h('h4',{style:{marginTop:'18px'}},`Nursing Procedure Records (${records.length})`),
+      records.length?records.slice(0,40).map(x=>h('div',{className:'timeline-item',key:x.id},
+        h('strong',null,`${x.title} · ${x.name}`),
+        h('span',{className:'patient-file-detail'},` · ${x.source==='Plan'?'Planned procedure':'Approval Request'}${x.note?` · ${x.note}`:''}`)))
+        :h('p',{className:'small-note'},'No nursing procedure recorded yet.')
+    );
+  }
   const ADMISSION_FEED_OPTIONS={
     route:['Oral','NG / Ryles tube','PEG','NJ tube','Jejunostomy','Other tube'],
     type:['Oral / self feeding','Assisted oral feeding','Bolus','Intermittent','Continuous'],
@@ -22368,7 +22571,7 @@ Thank you.`;
   function Admissions({profile,onNavigate}){
     const today=new Date().toISOString().slice(0,10);
     const initial={record_type:'',admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',date_of_birth:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',country:'India',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,admission_time:localDateTimeValue().slice(11,16),vitals_time_1:'06:00',vitals_time_2:'14:00',vitals_time_3:'22:00',hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_staying:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_plan:null,feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
-    const [form,setForm]=React.useState(initial),[meds,setMeds]=React.useState([blankMedicine()]),[care,setCare]=React.useState([blankCare()]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
+    const [form,setForm]=React.useState(initial),[meds,setMeds]=React.useState([blankMedicine()]),[care,setCare]=React.useState([blankCare()]),[procs,setProcs]=React.useState([]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [familyAccess,setFamilyAccess]=React.useState({delivery_mode:'Family Portal Access',enabled:true,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:true,daily_whatsapp_time:'20:00'});
     const [familyAccess2,setFamilyAccess2]=React.useState({enabled:false,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:false});
     // 2.16.45: empty phone boxes take the country code of the Guest's address country (e.g. +880 for Bangladesh);
@@ -22465,12 +22668,13 @@ Thank you.`;
     const admissionDevice=(()=>{const ua=navigator.userAgent||'';return /iPad|Tablet/i.test(ua)?'Tablet':/Mobi|Android|iPhone/i.test(ua)?'Phone':'Desktop'})();
     const newDraftUuid=()=>{try{if(crypto?.randomUUID)return crypto.randomUUID()}catch(_){}return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&0x3|0x8)).toString(16)})};
     function ensureDraftId(){if(!draftIdRef.current)setDraftId(newDraftUuid());return draftIdRef.current}
-    function draftSnapshot(){return {form,meds,care,familyAccess,familyAccess2,returningPatient,patient_id:draftPatientId||null}}
+    function draftSnapshot(){return {form,meds,care,procs,familyAccess,familyAccess2,returningPatient,patient_id:draftPatientId||null}}
     function applyDraftPayload(payload,{id='',no=null,files=[],lastField=null}={}){
       const d=payload||{};
       setForm({...initial,...(d.form||{})});setAllergyChoice('');
       setMeds(Array.isArray(d.meds)&&d.meds.length?d.meds:[blankMedicine()]);
       setCare(Array.isArray(d.care)&&d.care.length?d.care:[blankCare()]);
+      setProcs(Array.isArray(d.procs)?d.procs:[]); // 2.18.26 Section 5 Nursing procedures
       if(d.familyAccess)setFamilyAccess(current=>({...current,...d.familyAccess}));
       if(d.familyAccess2)setFamilyAccess2(current=>({...current,...d.familyAccess2}));
       setReturningPatient(d.returningPatient||null);
@@ -22501,7 +22705,7 @@ Thank you.`;
       setShowDraftList(false);
     }
     function startNewAdmission(){
-      setForm(initial);setAllergyChoice('');setMeds([blankMedicine()]);setCare([blankCare()]);setReturningPatient(null);setMatchList([]);setPatientSearch('');
+      setForm(initial);setAllergyChoice('');setMeds([blankMedicine()]);setCare([blankCare()]);setProcs([]);setReturningPatient(null);setMatchList([]);setPatientSearch('');
       setPhotoFiles([]);setIdFiles([]);setDischargeFiles([]);setPrescriptionFiles([]);setReportFiles([]);
       setDraftId('');setDraftNo(null);setDraftFiles([]);setDraftPatientId('');setDraftRestored(false);setLastAutoSavedAt(null);setServerDraftSaved(false);setServerDraftError('');
       try{localStorage.removeItem(ADMISSION_DRAFT_KEY);sessionStorage.removeItem(ADMISSION_DRAFT_SESSION_STATE)}catch(_){}
@@ -23459,6 +23663,7 @@ Thank you.`;
       setPatientSearch('');
       setMeds([blankMedicine()]);
       setCare([blankCare()]);
+      setProcs([]);
       setPhotoFiles([]);
       setIdFiles([]);
       setDischargeFiles([]);
@@ -24374,6 +24579,9 @@ Please keep these login details confidential.`;
       }
       const effectiveMeds=form.undergoing_prescribed_medication==='Yes'?meds.filter(m=>String(m.medicine_name||'').trim()||String(m.strength||'').trim()||String(m.prescribed_by_doctor||'').trim()):[];
       const effectiveCare=care.filter(c=>String(c.care_type||'').trim());
+      // 2.18.26: Section 5 Nursing procedures (saved as care_orders, order_kind 'Nursing Procedure' — SQL 251).
+      const effectiveProcs=(procs||[]).filter(nursingProcedureRowComplete);
+      if(effectiveProcs.length&&!(await nursingProcedureColumnReady())){setMsg(`Section 5 Nursing procedures: ${NURSING_PROC_SQL_HINT}`);setBusy(false);return}
       if(form.undergoing_prescribed_medication==='Yes'&&(!effectiveMeds.length||effectiveMeds.some(m=>!medicineRowComplete(m)))){
         setMsg('Enter and complete every prescribed medicine, including Prescribed Doctor, Strength (number and unit) and Time.');
         setBusy(false);
@@ -24541,6 +24749,10 @@ Please keep these login details confidential.`;
           if(medicationInsertError)throw medicationInsertError;
         }
         const careRows=effectiveCare.map(c=>({...c,is_locked:undefined,preferred_from:careTimeValue(c.preferred_from)||null,preferred_to:careTimeValue(c.preferred_to)||null,patient_id:patient.id,entered_by:user.id}));if(careRows.length&&!(await alreadySaved('care_orders',q=>q.eq('is_active',true))))await client.from('care_orders').insert(careRows);
+        if(effectiveProcs.length&&!(await alreadySaved('care_orders',q=>q.eq('is_active',true).eq('order_kind',NURSING_PROC_KIND)))){
+          const {error:procInsertError}=await client.from('care_orders').insert(effectiveProcs.map(r=>nursingProcedureOrderRow({...r,start_date:form.admission_date||todayISOIndia()},patient.id,user.id)));
+          if(procInsertError)throw procInsertError;
+        }
         if(form.physio_required&&form.therapy_type&&!(await alreadySaved('physiotherapy_plans',q=>q.eq('is_active',true))))await client.from('physiotherapy_plans').insert({patient_id:patient.id,advised_by:form.treating_doctor||form.referring_doctor,therapy_type:form.therapy_type,physiotherapist_name:form.physiotherapist_name||null,frequency:form.physio_frequency,preferred_time:form.physio_time,precautions:form.physio_precautions,start_date:form.admission_date,entered_by:user.id});
         // Final admission commit. For a NEW resident, only now allot the room and
         // activate the patient. This prevents validation/setup errors from leaving a
@@ -24592,7 +24804,7 @@ Please keep these login details confidential.`;
           patient,
           form:{...form},
           medicines:effectiveMeds.map(m=>({...m,is_locked:true})),
-          carePlan:effectiveCare.map(c=>({...c,is_locked:true})),
+          carePlan:[...effectiveCare,...effectiveProcs.map(p=>({...p,care_type:`Nursing procedure: ${nursingProcedureLabel(p)}`}))].map(c=>({...c,is_locked:true})),
           feeStructure:{
             billing_mode:noPackageSelected?'Daily Billing':'Fixed Care Package',
             package_name:selectedPackage?.package_name||null,
@@ -24684,7 +24896,7 @@ Please keep these login details confidential.`;
           :h('li',null,h('strong',null,'Current medicines'),' — enter each medicine in Section 3',
             spotPrefill.medicines?h('div',{style:{whiteSpace:'pre-wrap',marginTop:'4px',padding:'6px 8px',background:'#fff',border:'1px dashed #e0a9c4',borderRadius:'8px'}},`Noted at visit${spotPrefill.medicineSupport?` (${spotPrefill.medicineSupport})`:''}:\n${spotPrefill.medicines}`):null),
           h('li',null,h('strong',null,'Master care plan'),' (Section 4)'),
-          h('li',null,h('strong',null,'Package, room / bed'),' (Section 6)',[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).length?` — noted at visit: ${[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).join(' · ')}`:'')
+          h('li',null,h('strong',null,'Package, room / bed'),' (Section 7)',[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).length?` — noted at visit: ${[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).join(' · ')}`:'')
         ),
         spotPrefill.vitals?h('p',{className:'small-note'},`Vitals at visit: ${spotPrefill.vitals}`):null,
         spotPrefill.photos?h('p',{className:'small-note'},`${spotPrefill.photos} visit photo(s) (wounds, prescription, reports) are kept in the Spot Assessment.`):null,
@@ -25120,8 +25332,9 @@ Please keep these login details confidential.`;
           h(AdmissionDietFields,{form,setForm})
         )
       ),
-      h('div',{className:'section-card'},h('h4',null,'5. Risks, special nurse and physiotherapy'),h('div',{className:'check-grid'},riskItems.map(([key,label])=>h('label',{className:'check-card',key},h('input',{type:'checkbox',checked:!!form[key],onChange:e=>setForm({...form,[key]:e.target.checked})}),h('span',null,label))),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.oxygen_required,onChange:e=>setForm({...form,oxygen_required:e.target.checked})}),h('span',null,'Oxygen required')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.dressing_required,onChange:e=>setForm({...form,dressing_required:e.target.checked})}),h('span',null,'Wound dressing required')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.special_nurse_required,onChange:e=>setForm({...form,special_nurse_required:e.target.checked})}),h('span',null,'Special / dedicated nurse')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.physio_required,onChange:e=>setForm({...form,physio_required:e.target.checked})}),h('span',null,'Physiotherapy advised'))),form.special_nurse_required&&h('div',{className:'form-grid'},field('Special nurse name','special_nurse_name',form,setForm,true),selectField('Coverage','special_nurse_shift',form,setForm,['Day Shift','Night Shift','Both shifts / 24-hour coverage']),textareaField('Special nursing instructions','special_nurse_instructions',form,setForm,'span-2')),form.physio_required&&h('div',{className:'form-grid'},field('Therapy / exercise','therapy_type',form,setForm,true),field('Physiotherapist name','physiotherapist_name',form,setForm,false),field('Frequency','physio_frequency',form,setForm,false),field('Preferred time','physio_time',form,setForm,false,'time'),textareaField('Precautions','physio_precautions',form,setForm,'span-2'))),
-      h('div',{className:'section-card'},h('h4',null,'6. Package, room and activation'),
+      h(AdmissionNursingProcedureSection,{rows:procs,setRows:setProcs,setMsg}),
+      h('div',{className:'section-card'},h('h4',null,'6. Risks, special nurse and physiotherapy'),h('div',{className:'check-grid'},riskItems.map(([key,label])=>h('label',{className:'check-card',key},h('input',{type:'checkbox',checked:!!form[key],onChange:e=>setForm({...form,[key]:e.target.checked})}),h('span',null,label))),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.oxygen_required,onChange:e=>setForm({...form,oxygen_required:e.target.checked})}),h('span',null,'Oxygen required')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.dressing_required,onChange:e=>setForm({...form,dressing_required:e.target.checked})}),h('span',null,'Wound dressing required')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.special_nurse_required,onChange:e=>setForm({...form,special_nurse_required:e.target.checked})}),h('span',null,'Special / dedicated nurse')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.physio_required,onChange:e=>setForm({...form,physio_required:e.target.checked})}),h('span',null,'Physiotherapy advised'))),form.special_nurse_required&&h('div',{className:'form-grid'},field('Special nurse name','special_nurse_name',form,setForm,true),selectField('Coverage','special_nurse_shift',form,setForm,['Day Shift','Night Shift','Both shifts / 24-hour coverage']),textareaField('Special nursing instructions','special_nurse_instructions',form,setForm,'span-2')),form.physio_required&&h('div',{className:'form-grid'},field('Therapy / exercise','therapy_type',form,setForm,true),field('Physiotherapist name','physiotherapist_name',form,setForm,false),field('Frequency','physio_frequency',form,setForm,false),field('Preferred time','physio_time',form,setForm,false,'time'),textareaField('Precautions','physio_precautions',form,setForm,'span-2'))),
+      h('div',{className:'section-card'},h('h4',null,'7. Package, room and activation'),
         h('div',{className:'form-grid'},
           h('div',{className:'field'},h('label',null,'Billing Option'),h('select',{required:true,value:form.billing_package,onChange:e=>setForm({...form,billing_package:e.target.value})},
             h('option',{value:''},'Select billing option'),
@@ -25601,10 +25814,10 @@ Please keep these login details confidential.`;
               ),
 
               h('div',{className:'patient-work-section'},
-                h('h4',null,`Basic Care (${group.care.filter(x=>!x.log).length} pending)`),
+                h('h4',null,`${group.care.some(x=>isNursingProcedureOrder(x.order))?'Basic Care & Nursing Procedures':'Basic Care'} (${group.care.filter(x=>!x.log).length} pending)`),
                 group.care.map((x,careIndex)=>h('div',{className:`patient-work-task-row numbered-task-row ${x.log?'done':''}`,key:`care-${x.order.id}`},
                   h('span',{className:'task-row-number'},careIndex+1),
-                  h('div',null,h('strong',null,x.label),h('small',null,`${x.order.frequency||'Daily'}${x.order.instruction?` · ${x.order.instruction}`:''}`)),
+                  h('div',null,h('strong',null,x.label),isNursingProcedureOrder(x.order)?h('span',{className:'pill',style:{marginLeft:'6px',background:'#fde7f1',color:'#a91360'}},'Nursing Procedure'):null,h('small',null,`${x.order.frequency||'Daily'}${x.order.instruction?` · ${x.order.instruction}`:''}`)), // 2.18.26 tag
                   x.log?h('span',{className:'badge'},x.log.status):h('span',{className:'pill warning'},'Pending'),
                   x.log?h('button',{type:'button',className:'btn btn-secondary clinical-action-done',disabled:true},'Done ✓'):h('div',{className:'employee-actions'},
                     h('button',{className:'btn btn-primary',onClick:()=>openRegularTask('Daily Care',{
@@ -26033,24 +26246,29 @@ Please keep these login details confidential.`;
       const isDay=win.name.startsWith('Day');
       if(!(sh.includes('both')||sh===''||(isDay?sh.includes('day'):sh.includes('night'))))return;
       const label=order.care_type||order.activity||'Care task';
-      careStats.planned++;
+      // 2.18.26: a planned Nursing Procedure (Admission Section 5 / patient file → Nursing) goes to the
+      // Nursing Procedure box, not Care; it is recorded the same way (Shift Tasks / Daily Care).
+      const isProc=String(order.order_kind||'')==='Nursing Procedure';
+      const grp=isProc?'proc':'care';
+      if(!isProc)careStats.planned++;
       const done=careLogs.some(x=>String(x.shift||'').toLowerCase().startsWith(win.name.slice(0,3).toLowerCase())&&(!x.completed_at||new Date(x.completed_at)>=win.start)&&(
         x.care_order_id===order.id||(!x.care_order_id&&x.patient_id===order.patient_id&&String(x.remarks||'').toLowerCase().startsWith(String(label).toLowerCase()))));
-      if(done)careStats.done++;
+      if(done&&!isProc)careStats.done++;
       const from=careTimeValue(order.preferred_from),to=careTimeValue(order.preferred_to);
       const fromAt=from?nssTimeInShift(win,from)?.at:null,toAt=to?nssTimeInShift(win,to)?.at:null;
       if(fromAt||toAt){
-        tasks.push({kind:'care',group:'care',at:fromAt||toAt,deadline:toAt||null,grace:0,patient:p,done,title:label,
+        tasks.push({kind:isProc?'proc':'care',group:grp,at:fromAt||toAt,deadline:toAt||null,grace:0,patient:p,done,title:label,planned:isProc,
           windowText:fromAt&&toAt?`${nssTime12(fromAt).t}–${nssTime12(toAt).t}`:'',
-          note:toAt?`ends ${nssTime12(toAt).t} ${nssTime12(toAt).ap}`:''});
+          note:[isProc&&order.procedure_code?order.procedure_code:'',toAt?`ends ${nssTime12(toAt).t} ${nssTime12(toAt).ap}`:''].filter(Boolean).join(' · ')});
       }else{
-        tasks.push({kind:'care',group:'care',at:new Date(win.end.getTime()-2*3600000),anyTime:true,grace:120,patient:p,done,title:label,note:'any time this shift'});
+        tasks.push({kind:isProc?'proc':'care',group:grp,at:new Date(win.end.getTime()-2*3600000),anyTime:true,grace:120,patient:p,done,title:label,planned:isProc,
+          note:[isProc?(order.procedure_code||'planned'):'',order.frequency&&isProc?order.frequency:'','any time this shift'].filter(Boolean).join(' · ')});
       }
     });
 
     // 2.18.24: Guests with NO care plan — show their usual care for this shift from the last 3 days' records
     // (marked "usual — no care plan"), so the Care box is not empty; the Nursing Manager is reminded to fill the plan.
-    const withPlan=new Set((c.data||[]).filter(o=>o.is_active!==false).map(o=>o.patient_id));
+    const withPlan=new Set((c.data||[]).filter(o=>o.is_active!==false&&String(o.order_kind||'')!=='Nursing Procedure').map(o=>o.patient_id)); // 2.18.26: procedures alone are not a care plan
     const shiftKey=x=>String(x||'').toLowerCase().startsWith('day')?'day':String(x||'').toLowerCase().startsWith('night')?'night':'';
     const curKey=win.name.startsWith('Day')?'day':'night';
     const shiftDate=win.dates[0];
@@ -27145,7 +27363,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
       setEditDailyWhatsApp({enabled:!!existingComm?.daily_whatsapp_enabled,recipient_name:existingComm?.recipient_name||primaryFamily?.relative_name||row.attendant_name||'',relationship:existingComm?.relationship||primaryFamily?.relationship||'',mobile:keepFamilyMobile(existingComm?.recipient_mobile||primaryFamily?.mobile||row.attendant_phone||''),email:existingComm?.recipient_email||primaryFamily?.email||'',daily_report_time:String(existingComm?.daily_report_time||'20:00').slice(0,5)});
       setEditFamilyCredential(null);setEditFamilyCredential2(null);
       setEditMeds(currentUpcomingMedicineOrders(existingMeds||[]).map(m=>({...blankMedicine(),...m,times:Array.isArray(m.scheduled_times)?m.scheduled_times.join(', '):(m.times||''),custom_duration_days:m.duration_days||''})));
-      setEditCare((existingCare||[]).map(c=>({...blankCare(),...c})));
+      setEditCare((existingCare||[]).filter(isCareOnlyOrder).map(c=>({...blankCare(),...c}))); // 2.18.26: planned Nursing Procedures are edited in the patient file → Nursing, not here
       setEditPhysio(existingPhysio?{
         required:existingPhysio.is_active!==false,
         id:existingPhysio.id,
@@ -27410,7 +27628,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
         // Medication orders are intentionally NOT edited from the general Patient Edit form.
         // Prescription changes must go through Medicines → Doctor Review / Modify so the old
         // prescription, MAR, effective time, doctor instruction and audit history are preserved.
-        await client.from('care_orders').delete().eq('patient_id',editTarget.id);
+        await deleteCareOnlyOrders(editTarget.id); // 2.18.26: replace CARE rows only — planned Nursing Procedures are kept
         const careRows=editCare.filter(c=>c.care_type).map(c=>({patient_id:editTarget.id,care_type:c.care_type,shift:c.shift,frequency:c.frequency,instruction:c.instruction||null,preferred_from:careTimeValue(c.preferred_from)||null,preferred_to:careTimeValue(c.preferred_to)||null,entered_by:user?.id||null}));
         if(careRows.length){const {error:ce}=await client.from('care_orders').insert(careRows);if(ce)throw ce}
 
@@ -28946,7 +29164,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
             )),
             h('div',{className:'section-card'},h('h4',null,'Care Plan Summary'),h('div',{className:'patient-detail-fields'},
               patientDetailField('Medicine Orders',`${details.meds.length} active order(s)`),
-              patientDetailField('Master Care Tasks',`${details.care.length} task(s)`),
+              patientDetailField('Master Care Tasks',`${details.care.filter(isCareOnlyOrder).length} task(s)`),patientDetailField('Nursing Procedures',`${details.care.filter(o=>isNursingProcedureOrder(o)&&o.is_active!==false).length} planned`),
               patientDetailField('Physiotherapy',`${details.physio.length} order(s)`),
               patientDetailField('Diet',selected.diet_plan||'Not recorded')
             )),
@@ -29109,7 +29327,9 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
               )):sectionEmpty('No medication administration recorded today.')
             )
           ),
-          tab==='Nursing'&&h('div',{className:'section-card'},h('h4',null,'Master Care Plan'),details.care.length?details.care.map(c=>h('div',{className:'timeline-item',key:c.id},h('strong',null,c.care_type),h('span',null,`${c.shift} · ${c.frequency} · ${careWindowLabel(c)} · ${c.instruction||''}`),h(TamilAssist,{text:c.instruction,context:'Care Plan Instruction'}))):sectionEmpty('No care orders.'),h('h4',{style:{marginTop:'18px'}},'Recent Care Records'),details.careLogs.length?details.careLogs.slice(0,30).map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.care_date)} · ${x.shift} · ${x.status}`),h('span',{className:'patient-file-detail'},` · ${x.remarks||'—'}`),h(TamilAssist,{text:x.remarks,context:'Nursing Care Remark'}))):sectionEmpty('No care records.')),
+          tab==='Nursing'&&h('div',{className:'patient-nursing-card'},h('div',{className:'section-card'},h('h4',null,'Master Care Plan'),details.care.filter(isCareOnlyOrder).length?details.care.filter(isCareOnlyOrder).map(c=>h('div',{className:'timeline-item',key:c.id},h('strong',null,c.care_type),h('span',null,`${c.shift} · ${c.frequency} · ${careWindowLabel(c)} · ${c.instruction||''}`),h(TamilAssist,{text:c.instruction,context:'Care Plan Instruction'}))):sectionEmpty('No care orders.'),h('h4',{style:{marginTop:'18px'}},'Recent Care Records'),(()=>{const procIds=new Set(details.care.filter(isNursingProcedureOrder).map(o=>o.id));const careOnlyLogs=details.careLogs.filter(x=>!procIds.has(x.care_order_id));return careOnlyLogs.length?careOnlyLogs.slice(0,30).map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.care_date)} · ${x.shift} · ${x.status}`),h('span',{className:'patient-file-detail'},` · ${x.remarks||'—'}`),h(TamilAssist,{text:x.remarks,context:'Nursing Care Remark'}))):sectionEmpty('No care records.')})()),
+            // 2.18.26: Nursing Procedures — planned (add / stop after admission) + every procedure record
+            h(PatientNursingProcedurePanel,{key:`nproc-${selected.id}`,patient:selected,orders:details.care,logs:details.careLogs,charges:details.nursingProcedures||[],canManage:canEdit||nursingManagerView,onChanged:()=>openPatient(selected,'Nursing')})),
           tab==='Vitals'&&h('div',{className:'section-card'},h('h4',null,'Vital Signs History'),details.vitals.length?details.vitals.map(v=>h('div',{className:'timeline-item',key:v.id},h('strong',null,`${fmt(v.recorded_at)} · BP ${v.systolic||'—'}/${v.diastolic||'—'}`),h('span',{className:'patient-file-detail'},` · Pulse ${v.pulse||'—'} · SpO₂ ${v.spo2||'—'} · Temp ${v.temperature||'—'} · Sugar ${v.blood_sugar_type||'Not Taken'} ${v.blood_sugar||'—'} · ${v.alert_level||'Normal'}`))):sectionEmpty('No vital signs recorded.')),
           tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${x.preferred_time||'—'} · ${x.precautions||''}`),h(TamilAssist,{text:x.precautions,context:'Physiotherapy Precaution'}))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'),h(TamilAssist,{text:x.notes,context:'Physiotherapy Note'}))):sectionEmpty('No physiotherapy sessions.')),
           tab==='Diet'&&h('div',{className:'section-card'},h('h4',null,`Diet Plan: ${selected.diet_plan||'Not recorded'}`),canEdit?h('button',{type:'button',className:'btn btn-primary',onClick:()=>setDietEditPatient(selected)},'Edit diet plan'):null,h('p',{style:{whiteSpace:'pre-wrap'}},selected.feeding_plan?admissionFeedingSummary(selected.feeding_plan):(selected.feeding_instruction||'No special feeding instruction.')),h('h4',{style:{marginTop:'18px'}},'Food & Beverage Records'),(()=>{
@@ -29369,7 +29589,7 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
           ))):h('p',{className:'small-note'},'No current or upcoming medication is recorded.'),
           h('div',{className:'message',style:{marginTop:'10px'}},'Safety rule: modifying or stopping a medicine creates a new prescription version with doctor details and an effective date/time. The previous order is never overwritten.')
         ),
-        h('div',{className:'section-card'},h('h4',null,'4. Master care plan'),h('div',{className:'check-grid'},['Bathing assistance','Restroom/toileting assistance','Oral hygiene','Dressing assistance','Feeding assistance','Walking/mobility assistance','Diaper change','Position change / bedsore prevention','Fluid intake monitoring','Sleep assistance'].map(name=>h('label',{className:'check-card',key:name},h('input',{type:'checkbox',checked:editCare.some(x=>x.care_type===name),onChange:e=>e.target.checked?setEditCare([...editCare,{...blankCare(),care_type:name}]):setEditCare(editCare.filter(x=>x.care_type!==name))}),h('span',null,name)))),editCare.map((c,i)=>h('div',{className:'repeat-row care',key:c.id||c.care_type+i},miniInput('Care task',c.care_type,v=>updateEditCare(i,'care_type',v),true),miniSelect('Shift',c.shift,['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Both shifts'],v=>updateEditCare(i,'shift',v)),miniSelect('Frequency',c.frequency,['Daily','Each shift','Twice daily','As required'],v=>updateEditCare(i,'frequency',v)),miniInput('Instruction',c.instruction,v=>updateEditCare(i,'instruction',v)),miniInput('Preferred from (optional)',careTimeValue(c.preferred_from),v=>updateEditCare(i,'preferred_from',v),false,'time'),miniInput('Preferred to (optional)',careTimeValue(c.preferred_to),v=>updateEditCare(i,'preferred_to',v),false,'time'),h('button',{type:'button',className:'icon-btn',onClick:()=>setEditCare(editCare.filter((_,n)=>n!==i))},'Remove'))),h('div',{className:'form-grid'},h(AdmissionDietFields,{form:editForm,setForm:setEditForm}))),
+        h('div',{className:'section-card'},h('h4',null,'4. Master care plan'),h('p',{className:'small-note'},'Nursing procedures (e.g. Ryle’s tube feeding, catheter care) are added or stopped in the patient file → Nursing tab; saving here keeps them.'),h('div',{className:'check-grid'},['Bathing assistance','Restroom/toileting assistance','Oral hygiene','Dressing assistance','Feeding assistance','Walking/mobility assistance','Diaper change','Position change / bedsore prevention','Fluid intake monitoring','Sleep assistance'].map(name=>h('label',{className:'check-card',key:name},h('input',{type:'checkbox',checked:editCare.some(x=>x.care_type===name),onChange:e=>e.target.checked?setEditCare([...editCare,{...blankCare(),care_type:name}]):setEditCare(editCare.filter(x=>x.care_type!==name))}),h('span',null,name)))),editCare.map((c,i)=>h('div',{className:'repeat-row care',key:c.id||c.care_type+i},miniInput('Care task',c.care_type,v=>updateEditCare(i,'care_type',v),true),miniSelect('Shift',c.shift,['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Both shifts'],v=>updateEditCare(i,'shift',v)),miniSelect('Frequency',c.frequency,['Daily','Each shift','Twice daily','As required'],v=>updateEditCare(i,'frequency',v)),miniInput('Instruction',c.instruction,v=>updateEditCare(i,'instruction',v)),miniInput('Preferred from (optional)',careTimeValue(c.preferred_from),v=>updateEditCare(i,'preferred_from',v),false,'time'),miniInput('Preferred to (optional)',careTimeValue(c.preferred_to),v=>updateEditCare(i,'preferred_to',v),false,'time'),h('button',{type:'button',className:'icon-btn',onClick:()=>setEditCare(editCare.filter((_,n)=>n!==i))},'Remove'))),h('div',{className:'form-grid'},h(AdmissionDietFields,{form:editForm,setForm:setEditForm}))),
         h('div',{className:'section-card'},h('h4',null,'5. Risks and special nurse'),h('div',{className:'check-grid'},[['fall_risk','Fall risk'],['pressure_sore_risk','Pressure sore risk'],['aspiration_risk','Aspiration risk'],['wandering_risk','Wandering / confusion risk'],['infection_risk','Infection-control precautions'],['seizure_history','Seizure history']].map(([key,label])=>h('label',{className:'check-card',key},h('input',{type:'checkbox',checked:!!editForm[key],onChange:e=>setEditForm({...editForm,[key]:e.target.checked})}),h('span',null,label)))),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!editForm.special_nurse_required,onChange:e=>setEditForm({...editForm,special_nurse_required:e.target.checked})}),h('span',null,'Special nurse required')),editForm.special_nurse_required&&h('div',{className:'form-grid'},field('Special nurse name','special_nurse_name',editForm,setEditForm,false),selectField('Special nurse shift','special_nurse_shift',editForm,setEditForm,['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Both shifts']))),
 
         h('div',{className:'section-card'},
@@ -32596,6 +32816,15 @@ function RoomsBeds({profile,onNavigate}){
     const [toast,setToast]=React.useState(null);
     const [returnPage,setReturnPage]=React.useState('');
     const toastTimer=React.useRef(null);
+    // 2.18.26: the selected Guest's planned Nursing Procedures are offered as activities too.
+    const [guestProcedures,setGuestProcedures]=React.useState([]);
+    React.useEffect(()=>{
+      let live=true;setGuestProcedures([]);
+      if(!form.patient_id)return;
+      client.from('care_orders').select('id,care_type,order_kind,is_active').eq('patient_id',form.patient_id).eq('is_active',true)
+        .then(r=>{if(live&&!r.error)setGuestProcedures([...new Set((r.data||[]).filter(isNursingProcedureOrder).map(o=>String(o.care_type||'').trim()).filter(Boolean))])});
+      return()=>{live=false};
+    },[form.patient_id]);
 
     function showToast(type,text){
       const savedWithWarning=type==='success'&&/saved with warning|saved for review|warning/i.test(String(text));
@@ -32722,8 +32951,9 @@ function RoomsBeds({profile,onNavigate}){
             },
               [...new Set([
                 normaliseDailyCareActivity(form.care_type),
-                ...DAILY_CARE_ACTIVITY_OPTIONS
-              ])].map(x=>h('option',{key:x,value:x},x))
+                ...DAILY_CARE_ACTIVITY_OPTIONS,
+                ...guestProcedures
+              ])].map(x=>h('option',{key:x,value:x},guestProcedures.includes(x)?`${x} (Nursing Procedure)`:x))
             ),
             form.care_order_id&&h('small',{className:'linked-task-note'},
               `Linked to the selected Shift Task: ${normaliseDailyCareActivity(form.care_type)}`

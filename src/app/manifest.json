@@ -252,6 +252,10 @@
    "lines": 236
   },
   {
+   "file": "patients/nursing-procedure-plan.js",
+   "about": "2.18.26 Nursing Procedure plan (care_orders order_kind, SQL 251): Admission Section 5, patient file Nursing tab add/stop + records"
+  },
+  {
    "file": "patients/admissions.js",
    "about": "Admissions page (+ Tamil Nadu districts list)",
    "lines": 2385

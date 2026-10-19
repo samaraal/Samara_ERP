@@ -148,7 +148,7 @@
   function Admissions({profile,onNavigate}){
     const today=new Date().toISOString().slice(0,10);
     const initial={record_type:'',admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',date_of_birth:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',country:'India',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,admission_time:localDateTimeValue().slice(11,16),vitals_time_1:'06:00',vitals_time_2:'14:00',vitals_time_3:'22:00',hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_staying:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_plan:null,feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
-    const [form,setForm]=React.useState(initial),[meds,setMeds]=React.useState([blankMedicine()]),[care,setCare]=React.useState([blankCare()]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
+    const [form,setForm]=React.useState(initial),[meds,setMeds]=React.useState([blankMedicine()]),[care,setCare]=React.useState([blankCare()]),[procs,setProcs]=React.useState([]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [familyAccess,setFamilyAccess]=React.useState({delivery_mode:'Family Portal Access',enabled:true,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:true,daily_whatsapp_time:'20:00'});
     const [familyAccess2,setFamilyAccess2]=React.useState({enabled:false,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:false});
     // 2.16.45: empty phone boxes take the country code of the Guest's address country (e.g. +880 for Bangladesh);
@@ -245,12 +245,13 @@
     const admissionDevice=(()=>{const ua=navigator.userAgent||'';return /iPad|Tablet/i.test(ua)?'Tablet':/Mobi|Android|iPhone/i.test(ua)?'Phone':'Desktop'})();
     const newDraftUuid=()=>{try{if(crypto?.randomUUID)return crypto.randomUUID()}catch(_){}return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&0x3|0x8)).toString(16)})};
     function ensureDraftId(){if(!draftIdRef.current)setDraftId(newDraftUuid());return draftIdRef.current}
-    function draftSnapshot(){return {form,meds,care,familyAccess,familyAccess2,returningPatient,patient_id:draftPatientId||null}}
+    function draftSnapshot(){return {form,meds,care,procs,familyAccess,familyAccess2,returningPatient,patient_id:draftPatientId||null}}
     function applyDraftPayload(payload,{id='',no=null,files=[],lastField=null}={}){
       const d=payload||{};
       setForm({...initial,...(d.form||{})});setAllergyChoice('');
       setMeds(Array.isArray(d.meds)&&d.meds.length?d.meds:[blankMedicine()]);
       setCare(Array.isArray(d.care)&&d.care.length?d.care:[blankCare()]);
+      setProcs(Array.isArray(d.procs)?d.procs:[]); // 2.18.26 Section 5 Nursing procedures
       if(d.familyAccess)setFamilyAccess(current=>({...current,...d.familyAccess}));
       if(d.familyAccess2)setFamilyAccess2(current=>({...current,...d.familyAccess2}));
       setReturningPatient(d.returningPatient||null);
@@ -281,7 +282,7 @@
       setShowDraftList(false);
     }
     function startNewAdmission(){
-      setForm(initial);setAllergyChoice('');setMeds([blankMedicine()]);setCare([blankCare()]);setReturningPatient(null);setMatchList([]);setPatientSearch('');
+      setForm(initial);setAllergyChoice('');setMeds([blankMedicine()]);setCare([blankCare()]);setProcs([]);setReturningPatient(null);setMatchList([]);setPatientSearch('');
       setPhotoFiles([]);setIdFiles([]);setDischargeFiles([]);setPrescriptionFiles([]);setReportFiles([]);
       setDraftId('');setDraftNo(null);setDraftFiles([]);setDraftPatientId('');setDraftRestored(false);setLastAutoSavedAt(null);setServerDraftSaved(false);setServerDraftError('');
       try{localStorage.removeItem(ADMISSION_DRAFT_KEY);sessionStorage.removeItem(ADMISSION_DRAFT_SESSION_STATE)}catch(_){}
@@ -1239,6 +1240,7 @@
       setPatientSearch('');
       setMeds([blankMedicine()]);
       setCare([blankCare()]);
+      setProcs([]);
       setPhotoFiles([]);
       setIdFiles([]);
       setDischargeFiles([]);
@@ -2154,6 +2156,9 @@ Please keep these login details confidential.`;
       }
       const effectiveMeds=form.undergoing_prescribed_medication==='Yes'?meds.filter(m=>String(m.medicine_name||'').trim()||String(m.strength||'').trim()||String(m.prescribed_by_doctor||'').trim()):[];
       const effectiveCare=care.filter(c=>String(c.care_type||'').trim());
+      // 2.18.26: Section 5 Nursing procedures (saved as care_orders, order_kind 'Nursing Procedure' — SQL 251).
+      const effectiveProcs=(procs||[]).filter(nursingProcedureRowComplete);
+      if(effectiveProcs.length&&!(await nursingProcedureColumnReady())){setMsg(`Section 5 Nursing procedures: ${NURSING_PROC_SQL_HINT}`);setBusy(false);return}
       if(form.undergoing_prescribed_medication==='Yes'&&(!effectiveMeds.length||effectiveMeds.some(m=>!medicineRowComplete(m)))){
         setMsg('Enter and complete every prescribed medicine, including Prescribed Doctor, Strength (number and unit) and Time.');
         setBusy(false);
@@ -2321,6 +2326,10 @@ Please keep these login details confidential.`;
           if(medicationInsertError)throw medicationInsertError;
         }
         const careRows=effectiveCare.map(c=>({...c,is_locked:undefined,preferred_from:careTimeValue(c.preferred_from)||null,preferred_to:careTimeValue(c.preferred_to)||null,patient_id:patient.id,entered_by:user.id}));if(careRows.length&&!(await alreadySaved('care_orders',q=>q.eq('is_active',true))))await client.from('care_orders').insert(careRows);
+        if(effectiveProcs.length&&!(await alreadySaved('care_orders',q=>q.eq('is_active',true).eq('order_kind',NURSING_PROC_KIND)))){
+          const {error:procInsertError}=await client.from('care_orders').insert(effectiveProcs.map(r=>nursingProcedureOrderRow({...r,start_date:form.admission_date||todayISOIndia()},patient.id,user.id)));
+          if(procInsertError)throw procInsertError;
+        }
         if(form.physio_required&&form.therapy_type&&!(await alreadySaved('physiotherapy_plans',q=>q.eq('is_active',true))))await client.from('physiotherapy_plans').insert({patient_id:patient.id,advised_by:form.treating_doctor||form.referring_doctor,therapy_type:form.therapy_type,physiotherapist_name:form.physiotherapist_name||null,frequency:form.physio_frequency,preferred_time:form.physio_time,precautions:form.physio_precautions,start_date:form.admission_date,entered_by:user.id});
         // Final admission commit. For a NEW resident, only now allot the room and
         // activate the patient. This prevents validation/setup errors from leaving a
@@ -2372,7 +2381,7 @@ Please keep these login details confidential.`;
           patient,
           form:{...form},
           medicines:effectiveMeds.map(m=>({...m,is_locked:true})),
-          carePlan:effectiveCare.map(c=>({...c,is_locked:true})),
+          carePlan:[...effectiveCare,...effectiveProcs.map(p=>({...p,care_type:`Nursing procedure: ${nursingProcedureLabel(p)}`}))].map(c=>({...c,is_locked:true})),
           feeStructure:{
             billing_mode:noPackageSelected?'Daily Billing':'Fixed Care Package',
             package_name:selectedPackage?.package_name||null,
@@ -2464,7 +2473,7 @@ Please keep these login details confidential.`;
           :h('li',null,h('strong',null,'Current medicines'),' — enter each medicine in Section 3',
             spotPrefill.medicines?h('div',{style:{whiteSpace:'pre-wrap',marginTop:'4px',padding:'6px 8px',background:'#fff',border:'1px dashed #e0a9c4',borderRadius:'8px'}},`Noted at visit${spotPrefill.medicineSupport?` (${spotPrefill.medicineSupport})`:''}:\n${spotPrefill.medicines}`):null),
           h('li',null,h('strong',null,'Master care plan'),' (Section 4)'),
-          h('li',null,h('strong',null,'Package, room / bed'),' (Section 6)',[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).length?` — noted at visit: ${[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).join(' · ')}`:'')
+          h('li',null,h('strong',null,'Package, room / bed'),' (Section 7)',[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).length?` — noted at visit: ${[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).join(' · ')}`:'')
         ),
         spotPrefill.vitals?h('p',{className:'small-note'},`Vitals at visit: ${spotPrefill.vitals}`):null,
         spotPrefill.photos?h('p',{className:'small-note'},`${spotPrefill.photos} visit photo(s) (wounds, prescription, reports) are kept in the Spot Assessment.`):null,
@@ -2900,8 +2909,9 @@ Please keep these login details confidential.`;
           h(AdmissionDietFields,{form,setForm})
         )
       ),
-      h('div',{className:'section-card'},h('h4',null,'5. Risks, special nurse and physiotherapy'),h('div',{className:'check-grid'},riskItems.map(([key,label])=>h('label',{className:'check-card',key},h('input',{type:'checkbox',checked:!!form[key],onChange:e=>setForm({...form,[key]:e.target.checked})}),h('span',null,label))),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.oxygen_required,onChange:e=>setForm({...form,oxygen_required:e.target.checked})}),h('span',null,'Oxygen required')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.dressing_required,onChange:e=>setForm({...form,dressing_required:e.target.checked})}),h('span',null,'Wound dressing required')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.special_nurse_required,onChange:e=>setForm({...form,special_nurse_required:e.target.checked})}),h('span',null,'Special / dedicated nurse')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.physio_required,onChange:e=>setForm({...form,physio_required:e.target.checked})}),h('span',null,'Physiotherapy advised'))),form.special_nurse_required&&h('div',{className:'form-grid'},field('Special nurse name','special_nurse_name',form,setForm,true),selectField('Coverage','special_nurse_shift',form,setForm,['Day Shift','Night Shift','Both shifts / 24-hour coverage']),textareaField('Special nursing instructions','special_nurse_instructions',form,setForm,'span-2')),form.physio_required&&h('div',{className:'form-grid'},field('Therapy / exercise','therapy_type',form,setForm,true),field('Physiotherapist name','physiotherapist_name',form,setForm,false),field('Frequency','physio_frequency',form,setForm,false),field('Preferred time','physio_time',form,setForm,false,'time'),textareaField('Precautions','physio_precautions',form,setForm,'span-2'))),
-      h('div',{className:'section-card'},h('h4',null,'6. Package, room and activation'),
+      h(AdmissionNursingProcedureSection,{rows:procs,setRows:setProcs,setMsg}),
+      h('div',{className:'section-card'},h('h4',null,'6. Risks, special nurse and physiotherapy'),h('div',{className:'check-grid'},riskItems.map(([key,label])=>h('label',{className:'check-card',key},h('input',{type:'checkbox',checked:!!form[key],onChange:e=>setForm({...form,[key]:e.target.checked})}),h('span',null,label))),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.oxygen_required,onChange:e=>setForm({...form,oxygen_required:e.target.checked})}),h('span',null,'Oxygen required')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.dressing_required,onChange:e=>setForm({...form,dressing_required:e.target.checked})}),h('span',null,'Wound dressing required')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.special_nurse_required,onChange:e=>setForm({...form,special_nurse_required:e.target.checked})}),h('span',null,'Special / dedicated nurse')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.physio_required,onChange:e=>setForm({...form,physio_required:e.target.checked})}),h('span',null,'Physiotherapy advised'))),form.special_nurse_required&&h('div',{className:'form-grid'},field('Special nurse name','special_nurse_name',form,setForm,true),selectField('Coverage','special_nurse_shift',form,setForm,['Day Shift','Night Shift','Both shifts / 24-hour coverage']),textareaField('Special nursing instructions','special_nurse_instructions',form,setForm,'span-2')),form.physio_required&&h('div',{className:'form-grid'},field('Therapy / exercise','therapy_type',form,setForm,true),field('Physiotherapist name','physiotherapist_name',form,setForm,false),field('Frequency','physio_frequency',form,setForm,false),field('Preferred time','physio_time',form,setForm,false,'time'),textareaField('Precautions','physio_precautions',form,setForm,'span-2'))),
+      h('div',{className:'section-card'},h('h4',null,'7. Package, room and activation'),
         h('div',{className:'form-grid'},
           h('div',{className:'field'},h('label',null,'Billing Option'),h('select',{required:true,value:form.billing_package,onChange:e=>setForm({...form,billing_package:e.target.value})},
             h('option',{value:''},'Select billing option'),
