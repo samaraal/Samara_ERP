@@ -1,3 +1,6 @@
+## 2.18.21 — Screensaver: shift counts per task type
+- Fixed a misleading footer: "3 Care" counted Vital Signs and Meal recordings as Care. The footer now counts each type separately — e.g. "6 Medication · 1 Vital Signs · 0 Procedures · 2 Meals · 0 Care" — so "Care" means only care-plan items (bath, position change, oral hygiene …), the same items the scrolling Care box lists. No SQL.
+
 ## 2.18.20 — Screensaver: the big left box is for Medicines only
 - The big left box now shows **Medication only**, one Guest at a time (flips every 7 seconds), **late doses first, then by time**: dose time, large room number, Guest name and the **full list of medicines with serial numbers** (strength, route / food instruction; sliding-scale insulin marked "check sugar first"). "1 of 3" dots, "4 late", and the next Guest's time and room are shown. When nothing is pending: "No medicines due".
 - The right side lists **Nursing Procedure, Meals, Vital Signs** as full-width boxes (more room for text), then the **Care** list scrolling bottom-to-top.

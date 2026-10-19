@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.20';
+  const APP_VERSION = '2.18.21';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '19-Oct-2026 Screensaver: big box for medicines only';
+  const APP_BUILD_DATE = '19-Oct-2026 Screensaver shift counts per task type';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -26065,7 +26065,8 @@ Please keep these login details confidential.`;
       overdue:open.filter(x=>x.state==='overdue').sort(order),
       next:open.filter(x=>x.state!=='overdue'&&(x.anyTime||x.group==='proc'||x.group==='care'||x.group==='med'||x.at.getTime()<=now.getTime()+NURSE_SAVER_HORIZON_MS)).sort((a,b)=>(a.anyTime||(a.awaiting&&!a.atScheduled)?1:0)-(b.anyTime||(b.awaiting&&!b.atScheduled)?1:0)||order(a,b)),
       total:tasks.length,done:tasks.filter(x=>x.done).length,
-      byKind:{med:tasks.filter(x=>x.kind==='med').length,proc:tasks.filter(x=>x.kind==='proc').length,care:tasks.filter(x=>x.kind==='care').length}
+      // 2.18.21: counted per task type (before, Vital Signs and Meals were counted as "Care").
+      byKind:Object.fromEntries(['med','vitals','proc','meal','care'].map(g=>[g,tasks.filter(x=>x.group===g).length]))
     };
   }
 
@@ -26304,7 +26305,7 @@ Please keep these login details confidential.`;
             }))
             :h('div',{className:'nss-empty'},data?'No other tasks in the next 4 hours.':'…'))),
         h('footer',{className:'nss-foot'},
-          h('span',null,data?h(React.Fragment,null,'This shift: ',h('strong',null,`${data.done} of ${data.total}`),` tasks done · ${kinds.med} Medication · ${kinds.proc} Procedure${kinds.proc===1?'':'s'} · ${kinds.care} Care`):''),
+          h('span',null,data?h(React.Fragment,null,'This shift: ',h('strong',null,`${data.done} of ${data.total}`),` tasks done · ${kinds.med||0} Medication · ${kinds.vitals||0} Vital Signs · ${kinds.proc||0} Procedure${kinds.proc===1?'':'s'} · ${kinds.meal||0} Meals · ${kinds.care||0} Care`):''),
           h('span',{className:'nss-touch'},'Touch anywhere to continue'),
           h('span',null,`Auto sign-out in ${signOutIn} min`,h('small',{className:'nss-ver'},` · v${typeof APP_VERSION!=='undefined'?APP_VERSION:''}`)))));
   }
