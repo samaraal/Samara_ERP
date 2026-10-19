@@ -1,3 +1,6 @@
+## 2.18.35 — Item Usage Register: patient-wise search
+- Pharmacy & Stores → (Consumables / Pharmacy / Housekeeping / Kitchen) → Item Usage Register: **Search patient / ID** (3 characters), **Patient status** and **Patient / procedure** are now at the top. Searching a Guest lists only the items that Guest used — issued, received, actually used, charged, returned and remaining balance for that Guest — tap an item for its full history (the patient filter stays applied). Clear the search to see all items and store balances. No SQL.
+
 ## 2.18.34 — Screensaver: next-shift tasks within 4 hours
 - The screensaver now also shows tasks of the NEXT shift that are due within 4 hours, with a blue **Next shift** tag — e.g. at 4:20 PM the 7:00 PM Nebulization / Blood Glucose and the 8:00 PM Dinner (Night shift). Before, they were hidden and the box said "Nothing due in the next 4 hours". Applies to medicines, vital signs, nursing procedures and meals. The footer "This shift: N of N tasks done" still counts only the current shift. No SQL.
 

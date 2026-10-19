@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.34';
+  const APP_VERSION = '2.18.35';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '19-Oct-2026 Screensaver shows next-shift tasks within 4 hours';
+  const APP_BUILD_DATE = '19-Oct-2026 Item Usage Register: patient-wise search';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -43809,8 +43809,13 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     React.useEffect(()=>{setDetail(null)},[itemId,section,period,month,from,to,source,patientId,patientQuery,status]);
     const patientOptions=[...(data?.patients||[]).filter(p=>status==='all'||(status==='inactive'?p.is_active===false:p.is_active!==false)).map(p=>({id:p.id,label:`${formalName(p)||p.full_name} · ${p.patient_id||''}`})),
       ...(status==='all'||status==='outside'?(data?.visits||[]).map(v=>({id:'outside:'+v.id,label:`${v.snapshot?.full_name||(data?.indents||[]).find(i=>i.outside_visit_id===v.id)?.outside_patient_name||'Outside patient'} · ${v.procedure_name} · ${v.service_date}`})):[])].filter(p=>(status!=='outside'||p.id.startsWith('outside:'))&&(pq.length<3||p.label.toLowerCase().includes(pq)));
-    const groups=(report?.groups||[]).filter(g=>(source==='all'||g.kind===source)&&(!patientId||(g.kind==='Outside Nursing'?'outside:'+g.visit?.id:g.patientId)===patientId)&&
-      (status==='all'||(status==='outside'?g.kind==='Outside Nursing':g.kind==='Resident'&&((data.patients.find(p=>p.id===g.patientId)?.is_active===false)===(status==='inactive'))))&&(pq.length<3||g.label.toLowerCase().includes(pq)));
+    const matchGroup=g=>(source==='all'||g.kind===source)&&(!patientId||(g.kind==='Outside Nursing'?'outside:'+g.visit?.id:g.patientId)===patientId)&&
+      (status==='all'||(status==='outside'?g.kind==='Outside Nursing':g.kind==='Resident'&&((data.patients.find(p=>p.id===g.patientId)?.is_active===false)===(status==='inactive'))))&&(pq.length<3||g.label.toLowerCase().includes(pq));
+    const groups=(report?.groups||[]).filter(matchGroup);
+    // 2.18.35: patient-wise view on the item list — a Guest searched (3+ characters) or chosen shows only the items they used.
+    const patientMode=!itemId&&(!!patientId||pq.length>=3||status!=='all');
+    const patientRows=patientMode?reports.map(r=>({r,gs:r.groups.filter(matchGroup)})).filter(x=>x.gs.length):[];
+    const sumOf=(gs,k)=>gs.reduce((n,g)=>n+(Number(g[k])||0),0);
     const field=(label,control)=>h('div',{className:'field'},h('label',null,label),control);
     const select=(label,value,set,options)=>field(label,h('select',{'aria-label':label,value,onChange:e=>set(e.target.value)},options.map(([v,l])=>h('option',{key:v,value:v},l))));
     const qty=(v,u)=>`${Number(v||0).toLocaleString('en-IN',{maximumFractionDigits:20})} ${u||''}`;
@@ -43825,24 +43830,33 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         select('Store item',itemId,v=>{setItemId(v);setDetail(null)},[['','All items — tap a row'],...items.map(x=>[x.id,`${x.item_code||''} · ${displayStoreItemName(x.item_name)}${x.active===false?' · Inactive':''}`])]),
         select('Period',period,setPeriod,[['all','All recorded history'],['today','Today'],['week','This Week'],['month','Month'],['custom','Period (From–To)']]),
         period==='month'&&field('Month',h('input',{type:'month','aria-label':'Month',value:month,onChange:e=>setMonth(e.target.value)})),
-        period==='custom'&&field('From',h(StrictDateInput,{value:from,onChange:e=>setFrom(e.target.value)})),period==='custom'&&field('To',h(StrictDateInput,{value:to,onChange:e=>setTo(e.target.value)}))
+        period==='custom'&&field('From',h(StrictDateInput,{value:from,onChange:e=>setFrom(e.target.value)})),period==='custom'&&field('To',h(StrictDateInput,{value:to,onChange:e=>setTo(e.target.value)})),
+        // 2.18.35: patient-wise search at the top (also applies inside an opened item)
+        field('Search patient / ID',h('input',{'aria-label':'Search patient / ID',value:patientQuery,onChange:e=>{setPatientQuery(e.target.value);setPatientId('')},placeholder:'At least 3 characters — Guest name or Resident ID'})),
+        select('Patient status',status,v=>{setStatus(v);setPatientId('')},[['all','All patients / sources'],['active','Active residents'],['inactive','Inactive / Discharged residents'],['outside','Outside Nursing patients']]),
+        select('Patient / procedure',patientId,setPatientId,[['','All matching patients / procedures'],...patientOptions.map(p=>[p.id,p.label])])
       ),
       !valid&&h('p',{role:'alert',className:'message error'},'Enter valid From and To dates; From must not be after To.'),
       loading&&h('p',{role:'status'},'Loading complete stock and patient histories…'),error&&h('p',{role:'alert',className:'message error'},error),
       !loading&&!error&&valid&&h(React.Fragment,null,
         data?.outsideWarning&&h('p',{role:'alert',className:'message error'},data.outsideWarning),
         h('p',null,`${period==='all'?'All recorded history':formatDateIN(start)+' to '+formatDateIN(end)} · Store balances cover the whole organisation and are not changed by patient filters.`),
-        !itemId&&table(['Item / code','Unit','Brought forward before period','Stock in','Stock out','Closing stock','Current store balance'],reports.map(r=>row(r.item.id,[h('button',{type:'button',className:'btn btn-secondary',onClick:e=>{e.stopPropagation();setItemId(r.item.id)}},`${r.item.item_code||''} · ${displayStoreItemName(r.item.item_name)}`),r.item.unit,r.opening,r.incoming,r.outgoing,r.closing,r.stock?.balance_qty??'Unavailable'],()=>setItemId(r.item.id)))),
+        patientMode&&h(React.Fragment,null,
+          h('h3',null,`Patient-wise usage${patientId?` · ${(patientOptions.find(p=>p.id===patientId)||{}).label||''}`:pq.length>=3?` · “${patientQuery.trim()}”`:''}`),
+          table(['Item / code — tap for full details','Unit','Patient(s)','Issued in period','Received in period','Actual used quantity','Charged quantity','Confirmed returns','Remaining patient balance at To date'],
+            patientRows.map(({r,gs})=>row('p-'+r.item.id,[h('button',{type:'button',className:'btn btn-secondary',onClick:e=>{e.stopPropagation();setItemId(r.item.id)}},`${r.item.item_code||''} · ${displayStoreItemName(r.item.item_name)}`),r.item.unit,
+              gs.map(g=>g.label.split(' · ')[0]).filter((v,i,a)=>a.indexOf(v)===i).join(', '),sumOf(gs,'issued'),sumOf(gs,'received'),sumOf(gs,'used'),data.outsideWarning&&gs.some(g=>g.kind==='Outside Nursing')?'Unavailable':sumOf(gs,'charged'),sumOf(gs,'returned'),
+              gs.some(g=>g.kind==='Resident'||g.kind==='Housekeeping')?sumOf(gs.filter(g=>g.kind==='Resident'||g.kind==='Housekeeping'),'remaining'):'—'],()=>setItemId(r.item.id)))),
+          h('p',{className:'small-note'},'Only items this patient used are listed. Clear the patient search to see every item and the store balances.')),
+        !itemId&&!patientMode&&table(['Item / code','Unit','Brought forward before period','Stock in','Stock out','Closing stock','Current store balance'],reports.map(r=>row(r.item.id,[h('button',{type:'button',className:'btn btn-secondary',onClick:e=>{e.stopPropagation();setItemId(r.item.id)}},`${r.item.item_code||''} · ${displayStoreItemName(r.item.item_name)}`),r.item.unit,r.opening,r.incoming,r.outgoing,r.closing,r.stock?.balance_qty??'Unavailable'],()=>setItemId(r.item.id)))),
         report&&h(React.Fragment,null,
           h('h3',null,`${displayStoreItemName(report.item.item_name)} · ${report.item.unit}`),
           table(['Filtered actual resident use in period','Filtered actual Outside Nursing use in period','Filtered Housekeeping balance at To date','Filtered charged quantity in period (separate)'],[row('usage-summary',[...['Resident','Outside Nursing'].map(kind=>qty(groups.filter(g=>g.kind===kind).reduce((n,g)=>n+g.used,0),report.item.unit)),qty(groups.filter(g=>g.kind==='Housekeeping').reduce((n,g)=>n+g.remaining,0),report.item.unit),data.outsideWarning?'Outside charges unavailable':qty(groups.reduce((n,g)=>n+g.charged,0),report.item.unit)])]),
           h('p',null,`Total vendor receipts through To date: ${qty(report.vendorReceived,report.item.unit)}. Brought forward is the prior-period balance, not an extra receipt or opening-stock entry.`),
           table(['Brought forward before period','Stock in','Stock out','Closing store stock','Current store balance'],[row('stock',[report.opening,report.incoming,report.outgoing,report.closing,report.stock?.balance_qty??'Unavailable'])]),
           h('details',null,h('summary',null,'Store movements in period — receipts, issues, returns and adjustments'),table(['Date','Movement','In','Out','Reference','By'],report.periodMoves.map(m=>row(m.id,[formatDateTimeIN(m.movement_at),m.movement_type,m.qty_in,m.qty_out,m.reference_text,m.actor_name],()=>setDetail({movement:m}))))),
-          h('div',{className:'payment-filter-grid'},select('Usage source',source,setSource,[['all','All sources'],['Resident','Residents'],['Outside Nursing','Outside Nursing procedures'],['Department','Departments'],['Housekeeping','Housekeeping']]),
-            select('Patient status',status,v=>{setStatus(v);setPatientId('')},[['all','All patients / sources'],['active','Active residents'],['inactive','Inactive / Discharged residents'],['outside','Outside Nursing patients']]),
-            field('Search patient / ID',h('input',{'aria-label':'Search patient / ID',value:patientQuery,onChange:e=>{setPatientQuery(e.target.value);setPatientId('')},placeholder:'At least 3 characters'})),
-            select('Patient / procedure',patientId,setPatientId,[['','All matching patients / procedures'],...patientOptions.map(p=>[p.id,p.label])])),
+          h('div',{className:'payment-filter-grid'},select('Usage source',source,setSource,[['all','All sources'],['Resident','Residents'],['Outside Nursing','Outside Nursing procedures'],['Department','Departments'],['Housekeeping','Housekeeping']])),
+          (patientId||pq.length>=3||status!=='all')&&h('p',{className:'small-note'},'Patient filter from the top is applied to the rows below.'),
           h('p',{className:'small-note'},'Patient balance = received − recorded use − confirmed returns through the To date; billing does not reduce it. Historical consumption is not inferred from charges. Pending returns reserve current availability. Outside Nursing use and wastage come from approved used-item indents.'),
           table(['Patient / procedure — tap for full details','Source','Issued in period','Received in period','Actual used quantity','Wastage','Charged quantity','Confirmed returns','Pending returns (current, requested by To)','Remaining patient / Housekeeping balance at To date'],groups.map(g=>row(g.key,[g.label,g.kind,g.issued,g.kind==='Resident'||g.kind==='Housekeeping'?g.received:'—',['Outside Nursing','Resident','Housekeeping'].includes(g.kind)?g.used:'—',g.kind==='Outside Nursing'?g.waste:'—',g.kind==='Outside Nursing'&&data.outsideWarning?'Unavailable':g.charged,g.returned,g.pending,g.kind==='Resident'||g.kind==='Housekeeping'?g.remaining:'—'],()=>setDetail({group:g})))),
           table(['Filtered totals','Issued','Received','Actual used quantity','Outside wastage','Charged quantity','Confirmed returns','Pending returns'],[row('totals',[`${groups.length} patient / procedure / department row(s)`,...['issued','received','used','waste','charged','returned','pending'].map(k=>qty(groups.reduce((s,g)=>s+g[k],0),report.item.unit))])])
