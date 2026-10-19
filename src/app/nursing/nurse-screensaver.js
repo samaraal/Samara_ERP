@@ -191,6 +191,13 @@
   function nssGuestActive(p){return p&&p.is_active!==false&&p.admission_status!=='Discharged'}
   function nssMealKind(t){const s=String(t||'').toLowerCase();return /break|tiffin/.test(s)?'Breakfast':/lunch/.test(s)?'Lunch':/dinner|supper/.test(s)?'Dinner':''}
 
+  // One read with a simpler fallback query if the first is refused.
+  async function nssRead(primary,fallback){
+    const a=await primary();
+    if(!a?.error||!fallback)return a;
+    const b=await fallback();
+    return b?.error?a:b;
+  }
   // Builds every task of the current shift from the same tables Shift Tasks reads. Read only.
   async function loadNurseSaverTasks(){
     const now=new Date();
@@ -198,9 +205,10 @@
     const fields='id,title,full_name,room_no,bed_no,is_active,admission_status,admission_date,vitals_schedule,diet_plan';
     const dayBefore=addDaysISODate(win.dates[0],-1);
     const [m,ml,c,cl,pr,pts,vs,mr]=await Promise.all([
-      client.from('medication_orders').select(`*,patients(${fields})`).or(`is_active.eq.true,stopped_at.gt.${now.toISOString()}`),
+      // 2.18.14: plain reads (no embedded Guest lookup) with a fallback; Guests are joined here from the Guest list.
+      nssRead(()=>client.from('medication_orders').select('*').or(`is_active.eq.true,stopped_at.gt.${now.toISOString()}`),()=>client.from('medication_orders').select('*').eq('is_active',true)),
       client.from('medication_administrations').select('order_id,scheduled_date,scheduled_time,status,rescheduled_time').in('scheduled_date',[dayBefore,...win.dates]),
-      client.from('care_orders').select(`*,patients(${fields})`).eq('is_active',true),
+      nssRead(()=>client.from('care_orders').select('*').eq('is_active',true),()=>client.from('care_orders').select('*')),
       client.from('care_logs').select('care_order_id,patient_id,care_date,shift,status,remarks,completed_at').in('care_date',win.dates),
       client.from('nursing_procedure_requests').select('id,patient_id,procedure_name,procedure_code,category,status,scheduled_at').eq('status','Approved').limit(200),
       client.from('patients').select(fields).eq('is_active',true),
@@ -214,6 +222,8 @@
     if(failed.length){try{window.SamaraFault?.('nurse-screensaver','Screensaver could not read: '+failed.map(f=>f.name).join(', '),{errors:failed.map(f=>`${f.name}: ${f.message}`.slice(0,200))})}catch(_){}}
     const guests=(pts.data||[]).filter(nssGuestActive);
     const guestMap=new Map(guests.map(p=>[p.id,p]));
+    (m.data||[]).forEach(o=>{o.patients=guestMap.get(o.patient_id)||null});
+    (c.data||[]).forEach(o=>{if(o.is_active===false)o.patients=null;else o.patients=guestMap.get(o.patient_id)||null});
     const tasks=[];
 
     // Medicines — grouped per Guest per dose time (shown as a count).
@@ -501,7 +511,7 @@
             h('div',{className:'nss-hero-who'},error?'Please check the internet connection.':'Nothing more is due in the next 4 hours of this shift.')),
           h('section',{className:'nss-list'},
             h('div',{className:'nss-list-head'},h('span',{className:'nss-label'},'COMING UP'),h('span',null,'next 4 hours · by task')),
-            data?.failed?.length>0&&h('div',{className:'nss-failed',role:'status'},`Could not read: ${data.failed.map(f=>f.name).join(', ')} — please check Shift Tasks.`),
+            data?.failed?.length>0&&h('div',{className:'nss-failed',role:'status'},`Could not read: ${data.failed.map(f=>`${f.name} (${String(f.message||'').slice(0,90)})`).join(', ')} — please check Shift Tasks.`),
             boxes.length?h('div',{className:`nss-boxes${boxes.length>3?' grid':''}`},boxes.map((b,bi)=>{
               if(b.empty){
                 const inHero=hero&&(hero.group||'')===b.group;

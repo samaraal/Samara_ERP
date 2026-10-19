@@ -12,8 +12,9 @@ function load(tables){
   class FakeDate extends RealDate{constructor(...a){super(...(a.length?a:[NOW.getTime()]))}static now(){return NOW.getTime()}}
   const q=name=>{
     const rows=tables[name]||[];
-    const chain={select:()=>chain,or:()=>chain,eq:()=>chain,in:()=>chain,gte:()=>chain,limit:()=>chain,
-      then:(res,rej)=>Promise.resolve({data:rows,error:null}).then(res,rej)};
+    let usedOr=false;
+    const chain={select:()=>chain,or:()=>{usedOr=true;return chain},eq:()=>chain,in:()=>chain,gte:()=>chain,limit:()=>chain,
+      then:(res,rej)=>Promise.resolve(tables.__refuseOr&&usedOr?{data:null,error:{message:'refused'}}:{data:rows,error:null}).then(res,rej)};
     return chain;
   };
   const ctx={client:{from:q},h:()=>null,React:{useState:()=>[null,()=>{}]},document:{},window:{},console,Date:FakeDate,Promise,Map,Set,Math,String,Number,Array,JSON,Object,RegExp};
@@ -90,4 +91,13 @@ test('Task-wise boxes: one box per type, late first, meal box lists each pending
   assert.match(meal.meta,/3 Guests/);
   const vit=d.boxes.find(b=>b.group==='vitals');
   assert.ok(vit.entries.every(e=>e.detail===''));
+});
+
+test('Medicines still read when the first query is refused (fallback), Guest joined from the Guest list',async()=>{
+  const d=await load({__refuseOr:true,patients:[G2],
+    medication_orders:[{id:'m1',patient_id:'g2',medicine_name:'X',strength:'5 mg',scheduled_times:['14:00'],is_active:true}],
+    vital_signs:[{patient_id:'g2',recorded_at:'2026-10-19T06:10:00+05:30'}]});
+  assert.equal(d.failed.length,0);
+  const med=d.next.find(x=>x.kind==='med');
+  assert.ok(med,'medicine found');assert.equal(med.room,'Room 102');assert.equal(med.name,'Mr. Selvam Raja');
 });

@@ -1,3 +1,7 @@
+## 2.18.14 — Screensaver: medicines and care plan read reliably
+- Fixed: the screensaver showed "Could not read: Medicines" and so no medicine tasks. Medicines and the care plan are now read on their own (the Guest's room and name are joined from the Guest list), with a simpler second attempt if the first read is refused.
+- If anything still cannot be read, the on-screen notice now includes the exact reason, to help find it quickly. No SQL.
+
 ## 2.18.13 — Screensaver keeps the monitor on
 - While the task screensaver is showing, the ERP asks the browser to **keep the screen on** (Chrome / Edge "screen wake lock"), so Windows no longer turns the monitor black after a few minutes. Released as soon as the screensaver closes, and when the 30-minute idle sign-out happens, so normal power saving returns after that. If the browser refuses, it is logged in System Health. No SQL.
 
