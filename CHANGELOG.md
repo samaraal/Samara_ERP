@@ -1,3 +1,6 @@
+## 2.18.36 — Usage Register: discharged Guests tagged
+- Item Usage Register patient-wise search covers active AND inactive / discharged Guests (Patient status "All" by default; choose "Inactive / Discharged residents" for only them). Discharged Guests are now tagged "(Inactive / Discharged)" in the patient-wise list. No SQL.
+
 ## 2.18.35 — Item Usage Register: patient-wise search
 - Pharmacy & Stores → (Consumables / Pharmacy / Housekeeping / Kitchen) → Item Usage Register: **Search patient / ID** (3 characters), **Patient status** and **Patient / procedure** are now at the top. Searching a Guest lists only the items that Guest used — issued, received, actually used, charged, returned and remaining balance for that Guest — tap an item for its full history (the patient filter stays applied). Clear the search to see all items and store balances. No SQL.
 

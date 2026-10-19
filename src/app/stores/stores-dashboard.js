@@ -175,7 +175,7 @@
         period==='month'&&field('Month',h('input',{type:'month','aria-label':'Month',value:month,onChange:e=>setMonth(e.target.value)})),
         period==='custom'&&field('From',h(StrictDateInput,{value:from,onChange:e=>setFrom(e.target.value)})),period==='custom'&&field('To',h(StrictDateInput,{value:to,onChange:e=>setTo(e.target.value)})),
         // 2.18.35: patient-wise search at the top (also applies inside an opened item)
-        field('Search patient / ID',h('input',{'aria-label':'Search patient / ID',value:patientQuery,onChange:e=>{setPatientQuery(e.target.value);setPatientId('')},placeholder:'At least 3 characters — Guest name or Resident ID'})),
+        field('Search patient / ID',h('input',{'aria-label':'Search patient / ID',value:patientQuery,onChange:e=>{setPatientQuery(e.target.value);setPatientId('')},placeholder:'At least 3 characters — Guest name or Resident ID (active and discharged)'})),
         select('Patient status',status,v=>{setStatus(v);setPatientId('')},[['all','All patients / sources'],['active','Active residents'],['inactive','Inactive / Discharged residents'],['outside','Outside Nursing patients']]),
         select('Patient / procedure',patientId,setPatientId,[['','All matching patients / procedures'],...patientOptions.map(p=>[p.id,p.label])])
       ),
@@ -188,7 +188,7 @@
           h('h3',null,`Patient-wise usage${patientId?` · ${(patientOptions.find(p=>p.id===patientId)||{}).label||''}`:pq.length>=3?` · “${patientQuery.trim()}”`:''}`),
           table(['Item / code — tap for full details','Unit','Patient(s)','Issued in period','Received in period','Actual used quantity','Charged quantity','Confirmed returns','Remaining patient balance at To date'],
             patientRows.map(({r,gs})=>row('p-'+r.item.id,[h('button',{type:'button',className:'btn btn-secondary',onClick:e=>{e.stopPropagation();setItemId(r.item.id)}},`${r.item.item_code||''} · ${displayStoreItemName(r.item.item_name)}`),r.item.unit,
-              gs.map(g=>g.label.split(' · ')[0]).filter((v,i,a)=>a.indexOf(v)===i).join(', '),sumOf(gs,'issued'),sumOf(gs,'received'),sumOf(gs,'used'),data.outsideWarning&&gs.some(g=>g.kind==='Outside Nursing')?'Unavailable':sumOf(gs,'charged'),sumOf(gs,'returned'),
+              gs.map(g=>g.label.split(' · ')[0]+(/Inactive \/ Discharged/.test(g.label)?' (Inactive / Discharged)':'')).filter((v,i,a)=>a.indexOf(v)===i).join(', '),sumOf(gs,'issued'),sumOf(gs,'received'),sumOf(gs,'used'),data.outsideWarning&&gs.some(g=>g.kind==='Outside Nursing')?'Unavailable':sumOf(gs,'charged'),sumOf(gs,'returned'),
               gs.some(g=>g.kind==='Resident'||g.kind==='Housekeeping')?sumOf(gs.filter(g=>g.kind==='Resident'||g.kind==='Housekeeping'),'remaining'):'—'],()=>setItemId(r.item.id)))),
           h('p',{className:'small-note'},'Only items this patient used are listed. Clear the patient search to see every item and the store balances.')),
         !itemId&&!patientMode&&table(['Item / code','Unit','Brought forward before period','Stock in','Stock out','Closing stock','Current store balance'],reports.map(r=>row(r.item.id,[h('button',{type:'button',className:'btn btn-secondary',onClick:e=>{e.stopPropagation();setItemId(r.item.id)}},`${r.item.item_code||''} · ${displayStoreItemName(r.item.item_name)}`),r.item.unit,r.opening,r.incoming,r.outgoing,r.closing,r.stock?.balance_qty??'Unavailable'],()=>setItemId(r.item.id)))),

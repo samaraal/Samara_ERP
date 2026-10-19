@@ -1,5 +1,5 @@
-const APP_VERSION = '2.18.35';
-const CACHE = 'samara-erp-2.18.35-usage-register-patient-search';
+const APP_VERSION = '2.18.36';
+const CACHE = 'samara-erp-2.18.36-usage-register-inactive-tag';
 const SHELL = [
   './',
   './index.html',
