@@ -1,4 +1,4 @@
-const APP_VERSION = '2.18.30';
+const APP_VERSION = '2.18.31';
 const CACHE = 'samara-erp-2.18.30-charge-request-details';
 const SHELL = [
   './',
