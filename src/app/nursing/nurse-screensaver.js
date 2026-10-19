@@ -138,6 +138,7 @@
 .nss-med-food{margin-left:10px;font-size:.75em;font-weight:600;color:#7a1247}
 .nss-count.late{background:#b3341a}
 .nss-hero.nss-hero-late{border-color:#f36a4c;border-width:3px}
+.nss-ver{opacity:.6;font-size:.85em}
 .nss-flip{animation:nssFlip .55s ease-out both;transform-origin:50% 0;backface-visibility:hidden}
 .nss-flip-count{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;font-weight:700;color:#7a1247}
 .nss-hero .nss-flip-count{align-self:flex-start;font-size:15px}
@@ -613,5 +614,5 @@
         h('footer',{className:'nss-foot'},
           h('span',null,data?h(React.Fragment,null,'This shift: ',h('strong',null,`${data.done} of ${data.total}`),` tasks done · ${kinds.med} Medication · ${kinds.proc} Procedure${kinds.proc===1?'':'s'} · ${kinds.care} Care`):''),
           h('span',{className:'nss-touch'},'Touch anywhere to continue'),
-          h('span',null,`Auto sign-out in ${signOutIn} min`))));
+          h('span',null,`Auto sign-out in ${signOutIn} min`,h('small',{className:'nss-ver'},` · v${typeof APP_VERSION!=='undefined'?APP_VERSION:''}`)))));
   }

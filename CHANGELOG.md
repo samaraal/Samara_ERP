@@ -1,3 +1,6 @@
+## 2.18.19 — Version shown on the screensaver and in the window title
+- The screensaver footer shows the running version (e.g. "· v2.18.19"), and the browser window title / splash now show the current version instead of the old "2.15.13", so it is easy to see whether a PC has the latest update. No SQL.
+
 ## 2.18.18 — Screensaver: Next Task = the most immediate task; medicine names with serial numbers
 - The big **Next Task** box now always shows the most immediate task of any type — Medication, Vital Signs, Nursing Procedure, Meals or Care. A **late** task comes first (the countdown becomes a red "Late 1h 15m" and the box gets a coral border); otherwise the task due now / soonest. Shift-wide care without a time is listed in the Care box instead.
 - Medicines are shown **by name with serial numbers** instead of "Medicines due (3)": the Next Task box lists them one per line (1. Metformin 500 mg — After food, 2. …; sliding-scale insulin marked "check sugar first"); the Medication box shows them on up to two lines. No SQL.

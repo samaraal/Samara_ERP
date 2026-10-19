@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.18';
+  const APP_VERSION = '2.18.19';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '19-Oct-2026 Screensaver: most immediate task first, medicine names';
+  const APP_BUILD_DATE = '19-Oct-2026 Version shown on screensaver and window title';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -25795,6 +25795,7 @@ Please keep these login details confidential.`;
 .nss-med-food{margin-left:10px;font-size:.75em;font-weight:600;color:#7a1247}
 .nss-count.late{background:#b3341a}
 .nss-hero.nss-hero-late{border-color:#f36a4c;border-width:3px}
+.nss-ver{opacity:.6;font-size:.85em}
 .nss-flip{animation:nssFlip .55s ease-out both;transform-origin:50% 0;backface-visibility:hidden}
 .nss-flip-count{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;font-weight:700;color:#7a1247}
 .nss-hero .nss-flip-count{align-self:flex-start;font-size:15px}
@@ -26270,7 +26271,7 @@ Please keep these login details confidential.`;
         h('footer',{className:'nss-foot'},
           h('span',null,data?h(React.Fragment,null,'This shift: ',h('strong',null,`${data.done} of ${data.total}`),` tasks done · ${kinds.med} Medication · ${kinds.proc} Procedure${kinds.proc===1?'':'s'} · ${kinds.care} Care`):''),
           h('span',{className:'nss-touch'},'Touch anywhere to continue'),
-          h('span',null,`Auto sign-out in ${signOutIn} min`))));
+          h('span',null,`Auto sign-out in ${signOutIn} min`,h('small',{className:'nss-ver'},` · v${typeof APP_VERSION!=='undefined'?APP_VERSION:''}`)))));
   }
   // ---------------------------------------------------------------------------------------------
   // 2.15.83 Discharge Summary (PDF) — shared by the Patient card and the Discharge workflow.
