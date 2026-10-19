@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.21';
+  const APP_VERSION = '2.18.22';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '19-Oct-2026 Screensaver shift counts per task type';
+  const APP_BUILD_DATE = '19-Oct-2026 Screensaver: roomier medicine list, equal boxes';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -25823,6 +25823,21 @@ Please keep these login details confidential.`;
 .nss-boxes.stack .nss-box-detail{grid-column:1/-1;font-size:clamp(14px,min(2vh,1.15vw),21px)}
 .nss-boxes.stack .nss-box-room{font-size:clamp(22px,min(3.4vh,1.9vw),38px)}
 .nss-boxes.stack .nss-box-name{font-size:clamp(15px,min(2.2vh,1.3vw),23px)}
+/* 2.18.22: right-side boxes equal size, filling the height of the Medication box; medicine list with more line space */
+.nss-boxes.stack{gap:14px}
+.nss-boxes.stack .nss-box,.nss-boxes.stack .nss-box.empty,.nss-boxes.stack .nss-box-care{flex:1 1 0;min-height:0;max-height:none;justify-content:flex-start}
+.nss-boxes.stack .nss-box.empty{flex-direction:column;align-items:stretch;gap:6px}
+.nss-boxes.stack .nss-box.empty .nss-box-empty{justify-content:center}
+.nss-boxes.stack .nss-box-body{flex:1 1 auto;align-items:center}
+.nss-hero-med{gap:18px}
+.nss-med-card{gap:22px}
+.nss-hero-meds{gap:16px;padding:18px 22px 18px 2.4em;line-height:1.45}
+.nss-hero-meds li{line-height:1.45;padding:4px 0;border-bottom:1px dashed #f0c2d6}
+.nss-hero-meds li:last-child{border-bottom:0}
+.nss-hero-meds li .nss-med-food{display:block;margin:4px 0 0 0;font-size:.72em}
+.nss-hero-meds li .nss-med-warn{margin-left:12px}
+.nss-hero-meds.many{gap:8px}
+.nss-hero-meds.many li{padding:2px 0}
 .nss-flip{animation:nssFlip .55s ease-out both;transform-origin:50% 0;backface-visibility:hidden}
 .nss-flip-count{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;font-weight:700;color:#7a1247}
 .nss-hero .nss-flip-count{align-self:flex-start;font-size:15px}

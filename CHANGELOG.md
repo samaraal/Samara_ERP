@@ -1,3 +1,7 @@
+## 2.18.22 — Screensaver: roomier medicine list; right-side boxes equal size
+- Medication box: more line space between medicines — each medicine on its own line with the route / food instruction underneath and a light divider, more space between the time, room and the list.
+- The four right-side boxes (Nursing Procedure, Meals, Vital Signs, Care) are now **equal height** and together fill the same height as the Medication box; each keeps flipping Guests (Care keeps its scrolling list). No SQL.
+
 ## 2.18.21 — Screensaver: shift counts per task type
 - Fixed a misleading footer: "3 Care" counted Vital Signs and Meal recordings as Care. The footer now counts each type separately — e.g. "6 Medication · 1 Vital Signs · 0 Procedures · 2 Meals · 0 Care" — so "Care" means only care-plan items (bath, position change, oral hygiene …), the same items the scrolling Care box lists. No SQL.
 
