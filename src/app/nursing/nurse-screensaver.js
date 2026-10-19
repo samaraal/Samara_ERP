@@ -184,6 +184,9 @@
 .nss-start-btn{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#d42a74,#b01264)!important;color:#fff!important;border:0!important;border-radius:999px!important;padding:8px 16px!important;font-weight:800!important;font-size:14px!important;box-shadow:0 4px 12px rgba(176,18,100,.28);white-space:nowrap;cursor:pointer}
 .nss-start-btn:hover{filter:brightness(1.08)}
 @media (max-width:760px){.nss-start-btn{padding:7px 12px!important;font-size:13px!important}}
+.nss-tick-usual{flex-shrink:0;margin-left:auto;font-size:.68em;font-weight:800;color:#8a4a00;background:#fff3e0;border:1px dashed #e0a060;border-radius:8px;padding:1px 8px}
+.nss-tick-usual+.nss-tick-when{margin-left:8px}
+.nss-noplan{font-size:13px;font-weight:800;color:#8a4a00;background:#fff3e0;border:1px solid #e0a060;border-radius:999px;padding:2px 10px;white-space:nowrap}
 .nss-flip{animation:nssFlip .55s ease-out both;transform-origin:50% 0;backface-visibility:hidden}
 .nss-flip-count{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;font-weight:700;color:#7a1247}
 .nss-hero .nss-flip-count{align-self:flex-start;font-size:15px}
@@ -294,7 +297,8 @@
       nssRead(()=>client.from('medication_orders').select('*').or(`is_active.eq.true,stopped_at.gt.${now.toISOString()}`),()=>client.from('medication_orders').select('*').eq('is_active',true)),
       client.from('medication_administrations').select('order_id,scheduled_date,scheduled_time,status,rescheduled_time').in('scheduled_date',[dayBefore,...win.dates]),
       nssRead(()=>client.from('care_orders').select('*').eq('is_active',true),()=>client.from('care_orders').select('*')),
-      client.from('care_logs').select('care_order_id,patient_id,care_date,shift,status,remarks,completed_at').in('care_date',win.dates),
+      // 2.18.24: last 3 days of care records too, for Guests who have no care plan ("usual care").
+      client.from('care_logs').select('care_order_id,patient_id,care_date,shift,status,remarks,completed_at').gte('care_date',addDaysISODate(win.dates[0],-3)).lte('care_date',win.dates[1]),
       client.from('nursing_procedure_requests').select('id,patient_id,procedure_name,procedure_code,category,status,scheduled_at').in('status',['Requested','Approved']).limit(300),
       client.from('patients').select(fields).eq('is_active',true),
       client.from('vital_signs').select('patient_id,recorded_at').gte('recorded_at',new Date(win.start.getTime()-2*3600000).toISOString()),
@@ -384,6 +388,25 @@
       }
     });
 
+    // 2.18.24: Guests with NO care plan — show their usual care for this shift from the last 3 days' records
+    // (marked "usual — no care plan"), so the Care box is not empty; the Nursing Manager is reminded to fill the plan.
+    const withPlan=new Set((c.data||[]).filter(o=>o.is_active!==false).map(o=>o.patient_id));
+    const shiftKey=x=>String(x||'').toLowerCase().startsWith('day')?'day':String(x||'').toLowerCase().startsWith('night')?'night':'';
+    const curKey=win.name.startsWith('Day')?'day':'night';
+    const shiftDate=win.dates[0];
+    const noPlanGuests=guests.filter(p=>!withPlan.has(p.id));
+    noPlanGuests.forEach(p=>{
+      const logs=careLogs.filter(x=>x.patient_id===p.id&&!x.care_order_id&&String(x.status||'').toLowerCase()!=='refused'&&String(x.remarks||'').trim());
+      const usual=[...new Set(logs.filter(x=>shiftKey(x.shift)===curKey&&String(x.care_date).slice(0,10)<shiftDate).map(x=>String(x.remarks).trim().split(/\s*[—:–-]\s+/)[0]))];
+      usual.forEach(label=>{
+        careStats.planned++;
+        const done=logs.some(x=>shiftKey(x.shift)===curKey&&String(x.care_date).slice(0,10)===shiftDate&&String(x.remarks).trim().toLowerCase().startsWith(label.toLowerCase()));
+        if(done)careStats.done++;
+        tasks.push({kind:'care',group:'care',at:new Date(win.end.getTime()-2*3600000),anyTime:true,grace:120,patient:p,done,title:label,usual:true,note:'usual — no care plan'});
+      });
+    });
+    careStats.noPlan=noPlanGuests.length;
+
     // Nursing Procedures / items — every OPEN request (as in Approval Requests → Open Requests):
     // Approved = "Ready to Start"; Requested = "Awaiting approval" (2.18.16). Shown for the whole shift, not only 4 hours.
     (pr.data||[]).forEach(r=>{
@@ -459,7 +482,7 @@
     const base={at:x.at,when:nssWhenText(x),late:x.state==='overdue',due:x.state==='due',awaiting:!!x.awaiting,sortAt:x.anyTime||(x.awaiting&&!x.atScheduled)?Infinity:x.at.getTime()};
     if(x.group==='meal')return (x.pendingGuests||[]).map(p=>({...base,room:nssRoomOf(p),name:nssNameOf(p),detail:`${x.mealLabel} — record food intake`}));
     const detail=x.group==='vitals'?'':x.group==='med'&&x.medLine?x.medLine:x.title;
-    return [{...base,room:x.room||'',name:x.name||x.who||'',detail,note:x.group==='care'||(x.group==='proc'&&!x.awaiting)?x.note:''}];
+    return [{...base,usual:!!x.usual,room:x.room||'',name:x.name||x.who||'',detail,note:x.group==='care'||(x.group==='proc'&&!x.awaiting)?x.note:''}];
   }
   function nssBuildBoxes(items){
     const boxes=new Map();
@@ -649,10 +672,11 @@
                   h('b',{className:'nss-tick-room'},e.room),
                   h('span',{className:'nss-tick-sep'},'·'),
                   h('span',{className:'nss-tick-name'},e.name),
+                  e.usual&&h('span',{className:'nss-tick-usual'},'usual · no care plan'),
                   e.when&&e.when!=='Any time'&&h('span',{className:'nss-tick-when'},e.when));
                 return h('div',{className:`nss-box nss-box-care${lines.some(e=>e.late)?' late':''}`,key:b.group},
-                  h('div',{className:'nss-box-head'},nssTag(b.kind,b.label,b.group),h('span',{className:'nss-flip-count'},`${lines.length} this shift`)),
-                  h('div',{className:'nss-box-meta'},b.meta.replace(/^\d+ · /,'')||'this shift'),
+                  h('div',{className:'nss-box-head'},nssTag(b.kind,b.label,b.group),data?.careStats?.noPlan>0&&h('span',{className:'nss-noplan'},`${data.careStats.noPlan} Guest${data.careStats.noPlan===1?'':'s'} without care plan`),h('span',{className:'nss-flip-count'},`${lines.length} this shift`)),
+                  h('div',{className:'nss-box-meta'},b.meta.replace(/^\d+ · /,'').replace(/next Any time( · )?/,'')||'any time this shift'),
                   h('div',{className:`nss-tick${scroll?' run':''}`},
                     h('div',{className:'nss-tick-track',key:`t-${lines.length}-${lines.map(e=>e.room+e.detail).join('|').length}`,style:scroll?{animationDuration:`${Math.max(12,lines.length*2.8)}s`}:null},
                       lines.map((e,k)=>line(e,'a'+k)),

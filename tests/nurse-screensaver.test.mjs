@@ -13,7 +13,7 @@ function load(tables){
   const q=name=>{
     const rows=tables[name]||[];
     let usedOr=false;
-    const chain={select:()=>chain,or:()=>{usedOr=true;return chain},eq:()=>chain,in:()=>chain,gte:()=>chain,limit:()=>chain,
+    const chain={select:()=>chain,or:()=>{usedOr=true;return chain},eq:()=>chain,in:()=>chain,gte:()=>chain,lte:()=>chain,limit:()=>chain,
       then:(res,rej)=>Promise.resolve(tables.__refuseOr&&usedOr?{data:null,error:{message:'refused'}}:{data:rows,error:null}).then(res,rej)};
     return chain;
   };
@@ -113,4 +113,17 @@ test('Nursing procedures: Requested (awaiting approval) and Approved both shown 
   assert.notEqual(d.next[0].awaiting,true,'an unscheduled request awaiting approval is never the Next Task');
   const box=d.boxes.find(b=>b.group==='proc');
   assert.equal(box.entries.length,2);
+});
+
+test('No care plan: usual care from the last 3 days (same shift) is shown and marked; done today drops it',async()=>{
+  const d=await load({patients:[G1],vital_signs:[{patient_id:'g1',recorded_at:'2026-10-19T06:10:00+05:30'}],care_orders:[],
+    care_logs:[
+      {care_order_id:null,patient_id:'g1',care_date:'2026-10-18',shift:'Day Shift (7 AM–7 PM)',status:'Completed',remarks:'Bathing assistance'},
+      {care_order_id:null,patient_id:'g1',care_date:'2026-10-18',shift:'Day Shift (7 AM–7 PM)',status:'Completed',remarks:'Oral hygiene'},
+      {care_order_id:null,patient_id:'g1',care_date:'2026-10-18',shift:'Night Shift (7 PM–7 AM)',status:'Completed',remarks:'Sleep assistance'},
+      {care_order_id:null,patient_id:'g1',care_date:'2026-10-19',shift:'Day Shift (7 AM–7 PM)',status:'Completed',remarks:'Oral hygiene'}]});
+  const care=d.next.filter(x=>x.group==='care');
+  assert.equal(care.map(x=>x.title).join(','),'Bathing assistance');
+  assert.equal(care[0].usual,true);
+  assert.equal(d.careStats.noPlan,1);assert.equal(d.careStats.planned,2);assert.equal(d.careStats.done,1);
 });

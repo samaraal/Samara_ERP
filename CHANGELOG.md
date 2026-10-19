@@ -1,3 +1,7 @@
+## 2.18.24 — Screensaver: usual care for Guests without a care plan
+- For a Guest with **no Master Care Plan**, the Care box now shows their **usual care for this shift** — the care items recorded in Daily Care for the same shift (Day / Night) in the last 3 days (e.g. Bathing assistance, Oral hygiene) — each line marked **"usual · no care plan"**. Once recorded in this shift, the item drops off as done.
+- The Care box header shows **"N Guest(s) without care plan"** as a reminder to fill the Master Care Plan (Edit Patient → 4. Master care plan). Guests who have a care plan are shown from the plan only, as before. No SQL.
+
 ## 2.18.23 — "Start Screen Saver" button
 - A pink **Start Screen Saver** button in the top bar of every page (Nurse and Nursing Manager logins) opens the task screensaver at once, without waiting 90 seconds. Touch anywhere to return to work, as before. Tamil: "ஸ்கிரீன் சேவர் தொடங்கு". No SQL.
 
