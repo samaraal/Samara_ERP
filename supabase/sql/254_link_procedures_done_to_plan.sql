@@ -16,6 +16,23 @@
 -- linked once when this file runs. Safe to run more than once (a record is never linked twice).
 -- Run AFTER 251, 252. Charging is unchanged.
 
+
+-- The existing shift-time check (nurses may record Day care only in the Day shift, Night care only at night)
+-- stays for manual entries. Records written by samara_link_procedure_done carry the ACTUAL time the
+-- procedure was done (from the Approval Request / Vitals), so they are allowed through (flag set only inside it).
+create or replace function public.validate_care_log_shift_time()
+returns trigger language plpgsql set search_path to 'public' as $function$
+declare v_local_time time := (now() at time zone 'Asia/Kolkata')::time; v_local_date date := (now() at time zone 'Asia/Kolkata')::date;
+begin
+ if coalesce(current_setting('samara.system_link',true),'')='on' then return new; end if;
+ if new.care_date>v_local_date then raise exception 'Future care dates are not permitted.'; end if;
+ if new.care_date=v_local_date then
+  if new.shift='Day Shift (7 AM–7 PM)' and not (v_local_time>=time '07:00' and v_local_time<time '19:00') then raise exception 'Day Shift care can be recorded only between 7:00 AM and 7:00 PM.'; end if;
+  if new.shift='Night Shift (7 PM–7 AM)' and not (v_local_time>=time '19:00' or v_local_time<time '07:00') then raise exception 'Night Shift care can be recorded only between 7:00 PM and 7:00 AM.'; end if;
+ end if;
+ return new;
+end; $function$;
+
 create or replace function public.samara_norm_procedure_name(p text)
 returns text language sql immutable as $$ select lower(regexp_replace(coalesce(p,''),'[^A-Za-z0-9]+','','g')) $$;
 
@@ -58,9 +75,11 @@ begin
      if v_best is null then continue; end if; -- no open time near this moment
      v_hour := extract(hour from v_best_t::time);
      v_shift := case when v_hour >= 7 and v_hour < 19 then 'Day Shift (7 AM–7 PM)' else 'Night Shift (7 PM–7 AM)' end;
+     perform set_config('samara.system_link','on',true);
      insert into public.care_logs(care_order_id,patient_id,care_date,shift,status,completed_at,completed_by,remarks,scheduled_time)
        values (o.id,p_patient,v_best_date,v_shift,'Completed',p_at,p_by,o.care_type||': '||p_note,v_best_t::time)
        returning id into v_id;
+     perform set_config('samara.system_link','off',true);
      return v_id;
    else
      v_hour := extract(hour from v_local);
@@ -71,9 +90,11 @@ begin
        v_shift_start := ((case when v_hour >= 19 then v_local::date else v_local::date - 1 end) + time '19:00') at time zone 'Asia/Kolkata';
      end if;
      if exists (select 1 from public.care_logs l where l.care_order_id=o.id and l.completed_at >= v_shift_start and l.completed_at < v_shift_start + interval '12 hours') then continue; end if;
+     perform set_config('samara.system_link','on',true);
      insert into public.care_logs(care_order_id,patient_id,care_date,shift,status,completed_at,completed_by,remarks)
        values (o.id,p_patient,v_local::date,v_shift,'Completed',p_at,p_by,o.care_type||': '||p_note)
        returning id into v_id;
+     perform set_config('samara.system_link','off',true);
      return v_id;
    end if;
  end loop;
@@ -94,9 +115,11 @@ begin
  end if;
  return new;
 end $$;
-drop trigger if exists samara_procedure_request_started_link on public.nursing_procedure_requests;
-create trigger samara_procedure_request_started_link after insert or update of status on public.nursing_procedure_requests
-  for each row execute function public.samara_trg_procedure_request_started();
+do $t$ begin
+ if not exists (select 1 from pg_trigger where tgname='samara_procedure_request_started_link') then
+  create trigger samara_procedure_request_started_link after insert or update of status on public.nursing_procedure_requests
+    for each row execute function public.samara_trg_procedure_request_started();
+ end if; end $t$;
 
 -- Blood sugar in Vital Signs → planned Blood Glucose Monitoring done
 create or replace function public.samara_trg_vitals_sugar_link()
@@ -110,9 +133,11 @@ begin
  end if;
  return new;
 end $$;
-drop trigger if exists samara_vitals_sugar_link on public.vital_signs;
-create trigger samara_vitals_sugar_link after insert on public.vital_signs
-  for each row execute function public.samara_trg_vitals_sugar_link();
+do $t$ begin
+ if not exists (select 1 from pg_trigger where tgname='samara_vitals_sugar_link') then
+  create trigger samara_vitals_sugar_link after insert on public.vital_signs
+    for each row execute function public.samara_trg_vitals_sugar_link();
+ end if; end $t$;
 
 -- Family Portal: a request already shown through its linked plan record is not listed twice.
 do $$
@@ -135,11 +160,13 @@ begin
  for r in select * from public.nursing_procedure_requests
            where status='Started' and coalesce(category,'Nursing Procedures')='Nursing Procedures'
              and started_at >= now() - interval '2 days' order by started_at loop
-   perform public.samara_link_procedure_done(r.patient_id,r.started_at,r.tariff_id,r.procedure_code,r.procedure_name,false,r.started_by,'done through Approval Request');
+   begin perform public.samara_link_procedure_done(r.patient_id,r.started_at,r.tariff_id,r.procedure_code,r.procedure_name,false,r.started_by,'done through Approval Request');
+   exception when others then raise notice 'skipped request %: %', r.id, sqlerrm; end;
  end loop;
  for r in select * from public.vital_signs
            where coalesce(blood_sugar,blood_sugar_value) is not null and recorded_at >= now() - interval '2 days' order by recorded_at loop
-   perform public.samara_link_procedure_done(r.patient_id,r.recorded_at,null,null,null,true,r.recorded_by,'blood sugar recorded in Vital Signs');
+   begin perform public.samara_link_procedure_done(r.patient_id,r.recorded_at,null,null,null,true,r.recorded_by,'blood sugar recorded in Vital Signs');
+   exception when others then raise notice 'skipped vitals %: %', r.id, sqlerrm; end;
  end loop;
 end $$;
 
