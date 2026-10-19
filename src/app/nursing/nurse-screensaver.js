@@ -99,6 +99,19 @@
 .nss-box-empty{display:flex;align-items:center;gap:10px;flex:1 1 auto;font-size:clamp(15px,min(2vh,1.2vw),20px);font-weight:600;color:#7a1247}
 .nss-box-empty svg{width:22px;height:22px;flex-shrink:0;color:#b01264}
 .nss-failed{background:#fde2dc;border:1px solid #f36a4c;color:#5a1a0c;border-radius:12px;padding:6px 12px;font-size:14px;font-weight:600}
+/* 2.18.15: task names larger, one colour per task type */
+.nss-tag.nss-g{color:#fff;border:0;font-weight:800;letter-spacing:.01em}
+.nss-tag.nss-g-vitals{background:#0e7477}
+.nss-tag.nss-g-med{background:#b01264}
+.nss-tag.nss-g-proc{background:#5b2a86}
+.nss-tag.nss-g-care{background:#b8460b}
+.nss-tag.nss-g-meal{background:#2e7d32}
+.nss-box-head .nss-tag.nss-g,.nss-boxes.grid .nss-box-head .nss-tag.nss-g{font-size:clamp(17px,min(2.6vh,1.5vw),26px);padding:6px 16px;border-radius:12px}
+.nss-box-head .nss-tag.nss-g svg{width:1em;height:1em}
+.nss-hero .nss-tag.nss-g{font-size:clamp(17px,min(2.4vh,1.5vw),24px);padding:6px 16px;border-radius:12px;color:#fff;border:0}
+.nss-hero .nss-tag.nss-g svg{width:1em;height:1em}
+.nss-hero .nss-tag.nss-g-vitals{background:#0e7477}.nss-hero .nss-tag.nss-g-med{background:#b01264}.nss-hero .nss-tag.nss-g-proc{background:#5b2a86}.nss-hero .nss-tag.nss-g-care{background:#b8460b}.nss-hero .nss-tag.nss-g-meal{background:#2e7d32}
+.nss-box.empty .nss-tag.nss-g{opacity:.75}
 .nss-flip{animation:nssFlip .55s ease-out both;transform-origin:50% 0;backface-visibility:hidden}
 .nss-flip-count{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;font-weight:700;color:#7a1247}
 .nss-hero .nss-flip-count{align-self:flex-start;font-size:15px}
@@ -343,7 +356,7 @@
     const hrs=Math.floor(mins/60),rest=mins%60;
     return rest?`in ${hrs} h ${rest} min`:`in ${hrs} h`;
   }
-  function nssTag(kind,label){return h('span',{className:`nss-tag ${kind}`},NSS_ICON[kind],label||NSS_KIND_LABEL[kind])}
+  function nssTag(kind,label,group){return h('span',{className:`nss-tag ${kind}${group?` nss-g nss-g-${group}`:''}`},NSS_ICON[kind],label||NSS_KIND_LABEL[kind])}
   function nssTimeBox(task){
     if(task.ready)return h('div',{className:'nss-time'},h('b',null,'Now'),h('span',null,'ready'));
     if(task.anyTime)return h('div',{className:'nss-time'},h('b',null,'Any'),h('span',null,'time'));
@@ -497,7 +510,7 @@
             h('div',{className:'nss-hero-top'},h('span',{className:'nss-label'},'NEXT TASK'),h('span',{className:'nss-count'},nssCountdown(hero,now))),
             h('div',{className:'nss-hero-time'},hero.ready?'Now':hero.anyTime?'Any time':hero.windowText||nssTime12(hero.at).t,
               !hero.ready&&!hero.anyTime&&!hero.windowText&&h('small',null,nssTime12(hero.at).ap)),
-            h('div',null,nssTag(hero.kind,hero.kind==='proc'&&hero.procCategory&&hero.procCategory!=='Nursing Procedures'?hero.procCategory:null)),
+            h('div',null,nssTag(hero.kind,hero.kind==='proc'&&hero.procCategory&&hero.procCategory!=='Nursing Procedures'?hero.procCategory:(NSS_GROUPS[hero.group]?.label||null),hero.group)),
             h('div',{className:'nss-hero-title'},hero.title),
             h('div',{className:'nss-flip nss-hero-flip',key:`hf-${heroIdx}`},
               heroRoom&&h('div',{className:'nss-hero-room'},heroRoom),
@@ -516,14 +529,14 @@
               if(b.empty){
                 const inHero=hero&&(hero.group||'')===b.group;
                 return h('div',{className:'nss-box empty',key:b.group},
-                  h('div',{className:'nss-box-head'},nssTag(b.kind,b.label)),
+                  h('div',{className:'nss-box-head'},nssTag(b.kind,b.label,b.group)),
                   h('div',{className:'nss-box-empty'},
                     h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2.4,strokeLinecap:'round',strokeLinejoin:'round','aria-hidden':'true'},h('path',{d:'M5 12.5l4.2 4.2L19 7'})),
                     inHero?'Shown in Next Task':'Nothing due in the next 4 hours'));
               }
               const i=nssFlipIndex(b.entries.length,now,bi);const e=b.entries[i];
               return h('div',{className:`nss-box${e.late?' late':e.due?' due':''}`,key:b.group},
-                h('div',{className:'nss-box-head'},nssTag(b.kind,b.label),nssDots(b.entries.length,i)),
+                h('div',{className:'nss-box-head'},nssTag(b.kind,b.label,b.group),nssDots(b.entries.length,i)),
                 h('div',{className:'nss-box-meta'},b.meta),
                 h('div',{className:'nss-flip nss-box-body',key:`${b.group}-${i}-${e.room}-${e.when}`},
                   h('div',{className:'nss-time'},h('b',null,e.when.replace(/\s?(AM|PM)$/,'')),h('span',null,(e.when.match(/(AM|PM)$/)||[''])[0]||(e.when==='Ready'?'now':''))),

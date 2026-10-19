@@ -1,3 +1,6 @@
+## 2.18.15 — Screensaver: larger, colour-coded task names
+- Each task type now has its own colour and a much larger name: **Vital Signs** teal, **Medication** magenta, **Nursing Procedure** purple, **Care** orange, **Meals** green — in the Coming Up boxes and in the Next Task box. No SQL.
+
 ## 2.18.14 — Screensaver: medicines and care plan read reliably
 - Fixed: the screensaver showed "Could not read: Medicines" and so no medicine tasks. Medicines and the care plan are now read on their own (the Guest's room and name are joined from the Guest list), with a simpler second attempt if the first read is refused.
 - If anything still cannot be read, the on-screen notice now includes the exact reason, to help find it quickly. No SQL.
