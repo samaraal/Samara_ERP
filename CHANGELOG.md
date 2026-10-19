@@ -1,3 +1,6 @@
+## 2.18.34 — Screensaver: next-shift tasks within 4 hours
+- The screensaver now also shows tasks of the NEXT shift that are due within 4 hours, with a blue **Next shift** tag — e.g. at 4:20 PM the 7:00 PM Nebulization / Blood Glucose and the 8:00 PM Dinner (Night shift). Before, they were hidden and the box said "Nothing due in the next 4 hours". Applies to medicines, vital signs, nursing procedures and meals. The footer "This shift: N of N tasks done" still counts only the current shift. No SQL.
+
 ## 2.18.33 — Screensaver fits laptop screens (Edge)
 - On short screens (e.g. a 1366×768 laptop at 125% in Edge with toolbars) the screensaver now uses a compact layout: smaller header, one-line overdue bar, and "Nothing due" boxes (Vital Signs, Meals) shrink to one line so the Nursing Procedure and Care boxes get the room — no more text cut off. Large monitors are unchanged. No SQL.
 - SQL 255 applied 19-10-2026 (one care record per scheduled time for fixed-time procedures).

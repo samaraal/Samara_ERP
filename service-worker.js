@@ -1,5 +1,5 @@
-const APP_VERSION = '2.18.33';
-const CACHE = 'samara-erp-2.18.33-screensaver-short-screens';
+const APP_VERSION = '2.18.34';
+const CACHE = 'samara-erp-2.18.34-screensaver-next-shift';
 const SHELL = [
   './',
   './index.html',

@@ -272,6 +272,7 @@
  .nss-foot>span:first-child{display:none}
  .nss-boxes.stack .nss-box-room{font-size:18px}
 }
+/* 2.18.34 */.nss-next{flex-shrink:0;background:#fff;border:1px solid #2453d6;color:#2453d6;border-radius:8px;padding:1px 8px;font-size:13px;font-weight:800;white-space:nowrap}
 @media (prefers-reduced-motion:reduce){.nss-inner,.nss-hero,.nss-overdue,.nss-colon,.nss-card,.nss-flip,.nss-tick-track{animation:none!important}}
 `;
     document.head.appendChild(s);
@@ -301,6 +302,14 @@
   function nssTimeInShift(win,hhmm){
     for(const d of win.dates){const at=nssAt(d,hhmm);if(at&&at>=win.start&&at<win.end)return {at,date:d}}
     return null;
+  }
+  // 2.18.34: a time in THIS shift, or — when it is in the NEXT shift but within the next 4 hours — that slot,
+  // marked next:true (e.g. at 4:20 PM a 7:00 PM Nebulization or 8:00 PM Dinner of the Night shift).
+  function nssTimeAhead(win,hhmm,now){
+    const cur=nssTimeInShift(win,hhmm);if(cur)return cur;
+    const nextWin={start:win.end,end:new Date(win.end.getTime()+12*3600000),dates:[nssLocalISO(win.end),nssLocalISO(new Date(win.end.getTime()+86400000))]};
+    const nxt=nssTimeInShift(nextWin,hhmm);
+    return nxt&&nxt.at.getTime()<=now.getTime()+NURSE_SAVER_HORIZON_MS?{...nxt,next:true}:null;
   }
   function nssTime12(d){const hr=d.getHours(),m=d.getMinutes();return {t:`${hr%12||12}:${String(m).padStart(2,'0')}`,ap:hr<12?'AM':'PM'}}
   function nssGuest(p){
@@ -360,18 +369,18 @@
     const medLogs=ml.data||[];
     const doseDone=(orderId,date,time)=>medLogs.some(x=>x.order_id===orderId&&String(x.scheduled_date||'').slice(0,10)===date&&normalizeMedicationTime(x.scheduled_time).slice(0,5)===time);
     const groups=new Map();
-    const addDose=(order,date,time,at)=>{
+    const addDose=(order,date,time,at,next=false)=>{
       const p=order.patients;if(!nssGuestActive(p))return;
       const key=`${order.patient_id}|${at.getTime()}`;
-      if(!groups.has(key))groups.set(key,{patient:p,at,orders:[],done:0,pending:0});
+      if(!groups.has(key))groups.set(key,{patient:p,at,orders:[],done:0,pending:0,next});
       const g=groups.get(key);
       if(doseDone(order.id,date,time))g.done++;else{g.pending++;g.orders.push(order)}
     };
     (m.data||[]).forEach(order=>(order.scheduled_times||[]).forEach(raw=>{
       const time=normalizeMedicationTime(raw).slice(0,5);if(!/^\d{2}:\d{2}$/.test(time))return;
-      const slot=nssTimeInShift(win,time);if(!slot)return;
+      const slot=nssTimeAhead(win,time,now);if(!slot)return;
       if(!medicationOrderDoseEligible(order,slot.date,time))return;
-      addDose(order,slot.date,time,slot.at);
+      addDose(order,slot.date,time,slot.at,!!slot.next);
     }));
     medLogs.filter(x=>x.rescheduled_time).forEach(log=>{
       const order=(m.data||[]).find(o=>o.id===log.order_id);if(!order)return;
@@ -387,7 +396,7 @@
       // 2.18.18: medicine names with serial numbers (sliding-scale insulin: check sugar first).
       const meds=g.orders.map(o=>({name:[o.medicine_name||'Medicine',String(o.strength||'').trim()].filter(Boolean).join(' '),
         sliding:nssIsSlidingScale(o),food:String(o.food_instruction||'').trim(),route:String(o.route||'').trim()}));
-      tasks.push({kind:'med',group:'med',at:g.at,grace:30,patient:g.patient,done:n===0,meds,
+      tasks.push({kind:'med',group:'med',at:g.at,nextShift:!!g.next,grace:30,patient:g.patient,done:n===0,meds,
         title:`Medicines (${n})`,
         medLine:meds.map((m,i)=>`${i+1}. ${m.name}${m.sliding?' (check sugar first)':''}`).join('   '),
         note});
@@ -398,10 +407,10 @@
     guests.forEach(p=>{
       const times=(Array.isArray(p.vitals_schedule)&&p.vitals_schedule.length?p.vitals_schedule:['06:00','14:00','22:00']).map(t=>String(t).slice(0,5));
       times.forEach(t=>{
-        const slot=nssTimeInShift(win,t);if(!slot)return;
+        const slot=nssTimeAhead(win,t,now);if(!slot)return;
         if(p.admission_date&&String(p.admission_date).slice(0,10)>slot.date)return;
         const done=vit.some(v=>{if(v.patient_id!==p.id)return false;const r=new Date(v.recorded_at).getTime();return r>=slot.at.getTime()-90*60000&&r<slot.at.getTime()+4*3600000});
-        tasks.push({kind:'care',group:'vitals',at:slot.at,grace:60,patient:p,done,title:'Vital signs',note:''});
+        tasks.push({kind:'care',group:'vitals',at:slot.at,grace:60,patient:p,done,title:'Vital signs',note:'',nextShift:!!slot.next});
       });
     });
 
@@ -416,11 +425,11 @@
       if(fixedTimes.length){
         const label=order.care_type||'Nursing procedure';
         fixedTimes.forEach(t=>{
-          const slot=nssTimeInShift(win,t);if(!slot)return;
+          const slot=nssTimeAhead(win,t,now);if(!slot)return;
           if(order.start_date&&String(order.start_date).slice(0,10)>slot.date)return;
           const done=careLogs.some(x=>x.care_order_id===order.id&&String(x.care_date).slice(0,10)===slot.date&&(
             x.scheduled_time?String(x.scheduled_time).slice(0,5)===t:(x.completed_at&&Math.abs(new Date(x.completed_at).getTime()-slot.at.getTime())<=3*3600000)));
-          tasks.push({kind:'proc',group:'proc',at:slot.at,grace:60,patient:p,done,title:label,planned:true,fixedTime:t,
+          tasks.push({kind:'proc',group:'proc',at:slot.at,grace:60,patient:p,done,title:label,planned:true,fixedTime:t,nextShift:!!slot.next,
             note:[order.procedure_code||'',order.frequency||''].filter(Boolean).join(' · ')});
         });
         return;
@@ -485,11 +494,11 @@
     // Meals — one box for all Guests not yet recorded (Breakfast 8 AM, Lunch 1 PM, Dinner 8 PM).
     const meals=mr.data||[];
     [['08:00','Breakfast'],['13:00','Lunch'],['20:00','Dinner']].forEach(([t,label])=>{
-      const slot=nssTimeInShift(win,t);if(!slot)return;
+      const slot=nssTimeAhead(win,t,now);if(!slot)return;
       const eligible=guests.filter(p=>!/tube/i.test(String(p.diet_plan||''))&&!(p.admission_date&&String(p.admission_date).slice(0,10)>slot.date));
       const pending=eligible.filter(p=>!meals.some(r=>r.patient_id===p.id&&String(r.meal_date).slice(0,10)===slot.date&&nssMealKind(r.meal_type)===label));
       if(!eligible.length)return;
-      tasks.push({kind:'care',group:'meal',mealLabel:label,pendingGuests:pending,at:slot.at,grace:30,patient:null,done:pending.length===0,
+      tasks.push({kind:'care',group:'meal',mealLabel:label,pendingGuests:pending,at:slot.at,grace:30,patient:null,done:pending.length===0,nextShift:!!slot.next,
         title:`${label} — record food intake`,who:`${pending.length} of ${eligible.length} Guests`,note:'meal time',
         room:pending.length===1?nssRoomOf(pending[0]):`${pending.length} Guests`,
         name:pending.length===1?nssNameOf(pending[0]):pending.slice(0,3).map(p=>`${nssNameOf(p)} (${String(p.room_no||'').trim()||'—'})`).join(', ')+(pending.length>3?` + ${pending.length-3} more`:'')});
@@ -509,9 +518,9 @@
       win,loadedAt:now,failed,careStats,
       overdue:open.filter(x=>x.state==='overdue').sort(order),
       next:open.filter(x=>x.state!=='overdue'&&(x.anyTime||x.group==='proc'||x.group==='care'||x.group==='med'||x.at.getTime()<=now.getTime()+NURSE_SAVER_HORIZON_MS)).sort((a,b)=>(a.anyTime||(a.awaiting&&!a.atScheduled)?1:0)-(b.anyTime||(b.awaiting&&!b.atScheduled)?1:0)||order(a,b)),
-      total:tasks.length,done:tasks.filter(x=>x.done).length,
+      total:tasks.filter(x=>!x.nextShift).length,done:tasks.filter(x=>x.done&&!x.nextShift).length, // 2.18.34: next-shift tasks are shown but not counted in this shift
       // 2.18.21: counted per task type (before, Vital Signs and Meals were counted as "Care").
-      byKind:Object.fromEntries(['med','vitals','proc','meal','care'].map(g=>[g,tasks.filter(x=>x.group===g).length]))
+      byKind:Object.fromEntries(['med','vitals','proc','meal','care'].map(g=>[g,tasks.filter(x=>x.group===g&&!x.nextShift).length]))
     };
   }
 
@@ -540,7 +549,7 @@
   const NSS_GROUP_ORDER=['vitals','proc','meal','care']; // 2.18.20: Medication has the big left box
   function nssWhenText(x){if(x.awaiting&&!x.atScheduled)return 'Any time';if(x.ready)return 'Ready';if(x.anyTime)return 'Any time';if(x.windowText)return x.windowText;const t=nssTime12(x.at);return `${t.t} ${t.ap}`}
   function nssEntriesOf(x){
-    const base={at:x.at,when:nssWhenText(x),late:x.state==='overdue',due:x.state==='due',awaiting:!!x.awaiting,sortAt:x.anyTime||(x.awaiting&&!x.atScheduled)?Infinity:x.at.getTime()};
+    const base={at:x.at,when:nssWhenText(x),late:x.state==='overdue',due:x.state==='due',awaiting:!!x.awaiting,nextShift:!!x.nextShift,sortAt:x.anyTime||(x.awaiting&&!x.atScheduled)?Infinity:x.at.getTime()};
     if(x.group==='meal')return (x.pendingGuests||[]).map(p=>({...base,room:nssRoomOf(p),name:nssNameOf(p),detail:`${x.mealLabel} — record food intake`}));
     const detail=x.group==='vitals'?'':x.group==='med'&&x.medLine?x.medLine:x.title;
     return [{...base,usual:!!x.usual,room:x.room||'',name:x.name||x.who||'',detail,note:x.group==='care'||(x.group==='proc'&&!x.awaiting)?x.note:''}];
@@ -756,8 +765,9 @@
                 h('div',{className:'nss-flip nss-box-body',key:`${b.group}-${i}-${e.room}-${e.when}`},
                   h('div',{className:'nss-time'},h('b',null,e.when.replace(/\s?(AM|PM)$/,'')),h('span',null,(e.when.match(/(AM|PM)$/)||[''])[0]||(e.when==='Ready'?'now':''))),
                   h('div',{className:'nss-box-text'},
-                    (e.late||e.due||e.detail)&&h('div',{className:'nss-box-detail'},
+                    (e.late||e.due||e.detail||e.nextShift)&&h('div',{className:'nss-box-detail'},
                       e.late&&h('span',{className:'nss-late'},'Late'),
+                      e.nextShift&&!e.late&&h('span',{className:'nss-next'},'Next shift'),
                       e.awaiting&&h('span',{className:'nss-await'},'Awaiting approval'),
                       !e.late&&e.due&&h('span',{className:'nss-due'},'Due now'),
                       e.detail&&h('span',{className:`nss-box-detail-text${b.group==='med'?' meds':''}`},e.detail)),

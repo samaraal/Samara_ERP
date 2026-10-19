@@ -7,9 +7,9 @@ import vm from 'node:vm';
 const read=f=>fs.readFileSync(new URL(`../src/app/${f}`,import.meta.url),'utf8');
 const NOW=new Date('2026-10-19T10:15:00');
 
-function load(tables){
+function load(tables,AT=NOW){
   const RealDate=Date;
-  class FakeDate extends RealDate{constructor(...a){super(...(a.length?a:[NOW.getTime()]))}static now(){return NOW.getTime()}}
+  class FakeDate extends RealDate{constructor(...a){super(...(a.length?a:[AT.getTime()]))}static now(){return AT.getTime()}}
   const q=name=>{
     const rows=tables[name]||[];
     let usedOr=false;
@@ -157,4 +157,19 @@ test('2.18.27 Fixed-time Nursing Procedure: one task per time in the shift; reco
   assert.deepEqual(neb.map(x=>x.fixedTime),['14:00'],'08:00 done, 20:00 is the night shift');
   assert.equal(neb[0].group,'proc');
   assert.equal(neb[0].anyTime,undefined);
+});
+
+test('2.18.34 Next-shift tasks within 4 hours are shown (marked next shift) but not counted in this shift',async()=>{
+  const AT=new Date('2026-10-19T16:20:00');
+  const d=await load({patients:[G1],vital_signs:[{patient_id:'g1',recorded_at:'2026-10-19T14:05:00+05:30'}],
+    meal_records:[{patient_id:'g1',meal_date:'2026-10-19',meal_type:'Lunch'},{patient_id:'g1',meal_date:'2026-10-19',meal_type:'Breakfast'}],
+    care_orders:[{id:'n1',patient_id:'g1',care_type:'Nebulization',order_kind:'Nursing Procedure',shift:'Both shifts',scheduled_times:['07:00','19:00','22:00'],is_active:true}],
+    care_logs:[{care_order_id:'n1',patient_id:'g1',care_date:'2026-10-19',scheduled_time:'07:00:00',status:'Completed',completed_at:'2026-10-19T07:05:00+05:30',shift:'Day Shift (7 AM–7 PM)'}]},AT);
+  const neb=d.next.filter(x=>x.title==='Nebulization');
+  assert.equal(neb.map(x=>x.fixedTime).join(','),'19:00','7 PM shown, 10 PM is beyond 4 hours');
+  assert.equal(neb[0].nextShift,true);
+  assert.ok(d.next.some(x=>x.group==='meal'&&x.mealLabel==='Dinner'&&x.nextShift),'8 PM dinner shown as next shift');
+  assert.equal(d.byKind.proc,1,'only the 7 AM procedure of this shift is counted; 7 PM (next shift) is not');
+  const box=d.boxes.find(b=>b.group==='proc');
+  assert.equal(box.entries[0].nextShift,true);
 });
