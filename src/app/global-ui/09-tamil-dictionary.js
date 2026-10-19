@@ -3910,4 +3910,5 @@
 "On duty": "பணியில்",
 "meal time": "உணவு நேரம்",
 "Procedure": "சிகிச்சை",
+"Start Screen Saver": "ஸ்கிரீன் சேவர் தொடங்கு",
 };

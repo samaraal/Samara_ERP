@@ -1,3 +1,6 @@
+## 2.18.23 — "Start Screen Saver" button
+- A pink **Start Screen Saver** button in the top bar of every page (Nurse and Nursing Manager logins) opens the task screensaver at once, without waiting 90 seconds. Touch anywhere to return to work, as before. Tamil: "ஸ்கிரீன் சேவர் தொடங்கு". No SQL.
+
 ## 2.18.22 — Screensaver: roomier medicine list; right-side boxes equal size
 - Medication box: more line space between medicines — each medicine on its own line with the route / food instruction underneath and a light divider, more space between the time, room and the list.
 - The four right-side boxes (Nursing Procedure, Meals, Vital Signs, Care) are now **equal height** and together fill the same height as the Medication box; each keeps flipping Guests (Care keeps its scrolling list). No SQL.

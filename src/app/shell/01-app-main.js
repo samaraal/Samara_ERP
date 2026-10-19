@@ -657,6 +657,7 @@
           h('button',{type:'button',className:'mobile-home-button','aria-label':'Go to dashboard',title:'Dashboard',onClick:()=>setPage(homePageForProfile(profile)||allowed[0])},'⌂'),
           h('h2',null,displayNavLabel(page,profile.role)),
           h(GlobalSearch,{onNavigate:setPage,profile}),
+          h(StartScreensaverButton,{profile}), // 2.18.23
           h(StoreIndentAlerts,{profile,onNavigate:setPage}),
           profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
           h(PhysioApprovalNotification,{notifications:physioNotifications,onNavigate:setPage}),

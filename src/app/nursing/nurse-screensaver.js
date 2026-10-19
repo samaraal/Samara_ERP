@@ -181,6 +181,9 @@
 .nss-hero-meds li .nss-med-warn{margin-left:12px}
 .nss-hero-meds.many{gap:8px}
 .nss-hero-meds.many li{padding:2px 0}
+.nss-start-btn{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#d42a74,#b01264)!important;color:#fff!important;border:0!important;border-radius:999px!important;padding:8px 16px!important;font-weight:800!important;font-size:14px!important;box-shadow:0 4px 12px rgba(176,18,100,.28);white-space:nowrap;cursor:pointer}
+.nss-start-btn:hover{filter:brightness(1.08)}
+@media (max-width:760px){.nss-start-btn{padding:7px 12px!important;font-size:13px!important}}
 .nss-flip{animation:nssFlip .55s ease-out both;transform-origin:50% 0;backface-visibility:hidden}
 .nss-flip-count{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;font-weight:700;color:#7a1247}
 .nss-hero .nss-flip-count{align-self:flex-start;font-size:15px}
@@ -517,6 +520,14 @@
       return()=>{clearInterval(timer);events.forEach(n=>window.removeEventListener(n,mark,true))};
     },[isNurse]);
 
+    // 2.18.23: "Start Screen Saver" button in the top bar opens it at once.
+    React.useEffect(()=>{
+      if(!isNurse)return;
+      const open=()=>{ensureNurseSaverStyles();setVisible(true)};
+      window.addEventListener('samara-start-screensaver',open);
+      return()=>window.removeEventListener('samara-start-screensaver',open);
+    },[isNurse]);
+
     // A NEW clinical alert pop-up closes the screensaver so the pop-up is seen.
     const lastAlertKey=React.useRef(alertKey);
     React.useEffect(()=>{
@@ -666,4 +677,15 @@
           h('span',null,data?h(React.Fragment,null,'This shift: ',h('strong',null,`${data.done} of ${data.total}`),` tasks done · ${kinds.med||0} Medication · ${kinds.vitals||0} Vital Signs · ${kinds.proc||0} Procedure${kinds.proc===1?'':'s'} · ${kinds.meal||0} Meals · ${kinds.care||0} Care`):''),
           h('span',{className:'nss-touch'},'Touch anywhere to continue'),
           h('span',null,`Auto sign-out in ${signOutIn} min`,h('small',{className:'nss-ver'},` · v${typeof APP_VERSION!=='undefined'?APP_VERSION:''}`)))));
+  }
+
+  // 2.18.23: top-bar button (Nurse / Nursing Manager) to start the task screensaver now.
+  function StartScreensaverButton({profile}){
+    const allowed=profile?.role==='Nurse'||(typeof isNursingManagerProfile==='function'&&isNursingManagerProfile(profile));
+    if(!allowed)return null;
+    return h('button',{type:'button',className:'btn nss-start-btn',title:'Show upcoming tasks on screen',
+      onClick:e=>{e.stopPropagation();setTimeout(()=>window.dispatchEvent(new Event('samara-start-screensaver')),60)}},
+      h('svg',{viewBox:'0 0 24 24',width:18,height:18,fill:'none',stroke:'currentColor',strokeWidth:2.2,strokeLinecap:'round',strokeLinejoin:'round','aria-hidden':'true'},
+        h('rect',{x:3,y:4,width:18,height:12,rx:2}),h('path',{d:'M8 20h8M12 16v4'})),
+      'Start Screen Saver');
   }
