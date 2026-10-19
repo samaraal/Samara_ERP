@@ -187,6 +187,7 @@
 .nss-tick-usual{flex-shrink:0;margin-left:auto;font-size:.68em;font-weight:800;color:#8a4a00;background:#fff3e0;border:1px dashed #e0a060;border-radius:8px;padding:1px 8px}
 .nss-tick-usual+.nss-tick-when{margin-left:8px}
 .nss-noplan{font-size:13px;font-weight:800;color:#8a4a00;background:#fff3e0;border:1px solid #e0a060;border-radius:999px;padding:2px 10px;white-space:nowrap}
+.nss-med-later{display:block;font-weight:600;font-size:.9em;color:#7a1247;margin-top:2px}
 .nss-flip{animation:nssFlip .55s ease-out both;transform-origin:50% 0;backface-visibility:hidden}
 .nss-flip-count{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;font-weight:700;color:#7a1247}
 .nss-hero .nss-flip-count{align-self:flex-start;font-size:15px}
@@ -595,8 +596,13 @@
     const overdue=data?.overdue||[];
     const all=[...overdue,...list];
     // 2.18.20: the big left box is for MEDICINES only — one Guest at a time, late first, then by time.
-    const medQueue=all.filter(x=>x.kind==='med').sort((a,b)=>(b.state==='overdue'?1:0)-(a.state==='overdue'?1:0)||a.at-b.at||nssRoomSort(a.patient).localeCompare(nssRoomSort(b.patient),undefined,{numeric:true}));
-    const medIdx=medQueue.length>1?Math.floor(now.getTime()/1000/7)%medQueue.length:0;
+    // 2.18.25: flip only late doses + doses due within 2 hours (if none, the next dose time); 5 s per card above 6 cards.
+    const medAll=all.filter(x=>x.kind==='med').sort((a,b)=>(b.state==='overdue'?1:0)-(a.state==='overdue'?1:0)||a.at-b.at||nssRoomSort(a.patient).localeCompare(nssRoomSort(b.patient),undefined,{numeric:true}));
+    const medSoon=medAll.filter(x=>x.state==='overdue'||x.at.getTime()<=now.getTime()+2*3600000);
+    const medQueue=medSoon.length?medSoon:medAll.filter(x=>medAll[0]&&x.at.getTime()===medAll[0].at.getTime());
+    const medLater=medAll.length-medQueue.length;
+    const medSec=medQueue.length>6?5:7;
+    const medIdx=medQueue.length>1?Math.floor(now.getTime()/1000/medSec)%medQueue.length:0;
     const hero=medQueue[medIdx]||null;
     const boxes=nssBuildBoxes(all.filter(x=>x.kind!=='med'));
     const overRest=overdue.filter(x=>x.kind!=='med');
@@ -607,8 +613,8 @@
     const overMins=firstOver?Math.max(1,Math.round((now-(firstOver.deadline||firstOver.at))/60000)):0;
     const signOutIn=Math.max(1,Math.round((30*60000-(Date.now()-lastActivity.current))/60000));
     const soon=hero&&hero.at.getTime()-now.getTime()<=10*60000;
-    const medGuests=new Set(medQueue.map(x=>x.patient?.id)).size;
-    const medLateN=medQueue.filter(x=>x.state==='overdue').length;
+    const medGuests=new Set(medAll.map(x=>x.patient?.id)).size;
+    const medLateN=medAll.filter(x=>x.state==='overdue').length;
     const kinds=data?.byKind||{med:0,proc:0,care:0};
 
     return h('div',{className:'nss-overlay',role:'dialog','aria-modal':'true','aria-label':'Upcoming tasks — touch to continue',
@@ -645,7 +651,9 @@
                 m.sliding&&h('span',{className:'nss-med-warn'},'check sugar first'),
                 (m.food||m.route)&&h('span',{className:'nss-med-food'},[m.route,m.food].filter(Boolean).join(' · ')))))),
             h('div',{className:'nss-hero-foot'},h('span',null,`${(hero.meds||[]).length} medicine${(hero.meds||[]).length===1?'':'s'}`),
-              medQueue.length>1&&h('span',{style:{fontWeight:700}},`next: ${(()=>{const n=medQueue[(medIdx+1)%medQueue.length];return `${nssTime12(n.at).t} ${nssTime12(n.at).ap} · ${n.room||''}`})()}`)))
+              h('span',{style:{fontWeight:700,textAlign:'right'}},
+                medQueue.length>1?`next: ${(()=>{const n=medQueue[(medIdx+1)%medQueue.length];return `${nssTime12(n.at).t} ${nssTime12(n.at).ap} · ${n.room||''}`})()}`:'',
+                medLater>0&&h('span',{className:'nss-med-later'},`+ ${medLater} more dose${medLater===1?'':'s'} later this shift`))))
           :h('section',{className:'nss-hero nss-hero-med'},
             h('div',{className:'nss-hero-top'},nssTag('med','Medication','med')),
             h('div',{className:'nss-hero-title',style:{marginTop:'auto'}},!data&&!error?'Loading tasks…':error?'Tasks could not be loaded — touch to continue':'No medicines due'),

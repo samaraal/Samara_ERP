@@ -1,3 +1,7 @@
+## 2.18.25 — Screensaver: Medication box flips late doses + the next 2 hours
+- The Medication box now flips only **late doses and doses due within the next 2 hours** (if none, the next dose time), so with many Guests the round stays short. Later doses join automatically as their time comes near; the footer shows "+ N more doses later this shift".
+- Each card stays 7 seconds; when more than 6 cards are flipping, 5 seconds each. "N Guests this shift · N late" still counts the whole shift. No SQL.
+
 ## 2.18.24 — Screensaver: usual care for Guests without a care plan
 - For a Guest with **no Master Care Plan**, the Care box now shows their **usual care for this shift** — the care items recorded in Daily Care for the same shift (Day / Night) in the last 3 days (e.g. Bathing assistance, Oral hygiene) — each line marked **"usual · no care plan"**. Once recorded in this shift, the item drops off as done.
 - The Care box header shows **"N Guest(s) without care plan"** as a reminder to fill the Master Care Plan (Edit Patient → 4. Master care plan). Guests who have a care plan are shown from the plan only, as before. No SQL.
