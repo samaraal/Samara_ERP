@@ -17,8 +17,8 @@ function load(tables){
     return chain;
   };
   const ctx={client:{from:q},h:()=>null,React:{useState:()=>[null,()=>{}]},document:{},window:{},console,Date:FakeDate,Promise,Map,Set,Math,String,Number,Array,JSON,Object,RegExp};
-  vm.runInNewContext(read('patients/medication-helpers.js')+read('nursing/nurse-screensaver.js')+';this.__load=loadNurseSaverTasks;',ctx);
-  return ctx.__load();
+  vm.runInNewContext(read('patients/medication-helpers.js')+read('nursing/nurse-screensaver.js')+';this.__load=loadNurseSaverTasks;this.__boxes=nssBuildBoxes;',ctx);
+  return ctx.__load().then(d=>({...d,boxes:ctx.__boxes([...d.overdue,...d.next])}));
 }
 const guest=(id,name,room,extra={})=>({id,title:'Mr.',full_name:name,room_no:room,bed_no:null,is_active:true,admission_status:'Admitted',vitals_schedule:null,diet_plan:'',...extra});
 const G1=guest('g1','Kumar Lakshman','106'),G2=guest('g2','Selvam Raja','102'),G3=guest('g3','Anand Mohan','104');
@@ -72,4 +72,21 @@ test('Care windows, any-time care, approved procedures; discharged Guests skippe
   assert.equal(d.next[d.next.length-1].anyTime,true,'any-time care is listed last');
   const bath=d.next.find(x=>x.title==='Sponge bath');
   assert.equal(bath.state,'due');assert.equal(bath.windowText,'10:00–12:00');
+});
+
+test('Task-wise boxes: one box per type, late first, meal box lists each pending Guest',async()=>{
+  const g=[G1,G2,G3];
+  const d=await load({patients:g,
+    medication_orders:[{id:'m1',patient_id:'g2',patients:G2,medicine_name:'X',strength:'5 mg',scheduled_times:['09:00','14:00'],is_active:true}],
+    vital_signs:[],meal_records:[{patient_id:'g1',meal_date:'2026-10-19',meal_type:'Breakfast'},{patient_id:'g2',meal_date:'2026-10-19',meal_type:'Breakfast'},{patient_id:'g3',meal_date:'2026-10-19',meal_type:'Breakfast'}]});
+  const groups=d.boxes.map(b=>b.group);
+  assert.deepEqual(new Set(groups),new Set(['med','vitals','meal']));
+  const med=d.boxes.find(b=>b.group==='med');
+  assert.equal(med.entries[0].late,true);
+  assert.equal(med.entries[0].room,'Room 102');assert.equal(med.entries[0].name,'Mr. Selvam Raja');
+  const meal=d.boxes.find(b=>b.group==='meal');
+  assert.equal(meal.entries.length,3);
+  assert.match(meal.meta,/3 Guests/);
+  const vit=d.boxes.find(b=>b.group==='vitals');
+  assert.ok(vit.entries.every(e=>e.detail===''));
 });

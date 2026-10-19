@@ -1,3 +1,9 @@
+## 2.18.10 — Nurse screensaver: task-wise boxes with flipping Guest cards
+- **Coming Up** is now one box per task type — **Vital Signs, Medication, Nursing Procedure, Care, Meals** (Meals kept separate) — with the task name at the top and a summary line (e.g. "6 Guests · next 2:00 PM · 1 late").
+- Inside each box the Guests **flip one at a time** (about every 4 seconds, boxes staggered so they never flip together): time, bright room number, full name, and what to do (medicine count / procedure / care item / meal). "2 of 6" with dots shows the position. Late Guests come first with a coral **Late** mark; a box whose task is due now gets a magenta border.
+- Boxes are ordered by their earliest task; empty types are hidden. With 4–5 types the boxes sit in two columns. The Next Task box is not repeated on the right, and a meal Next Task flips through its pending Guests too.
+- Wider layout on large monitors. No SQL.
+
 ## 2.18.9 — Nurse screensaver: light pink Next Task, big room numbers, clock seconds
 - **Next Task** box is now a **light pink gradient** with dark text. The **room number is large and bright** (white badge, bright magenta) with the Guest's **full name** below it.
 - Coming Up boxes: room number larger and bright magenta, then the name.

@@ -6,7 +6,7 @@
   // as a count (the name only for sliding-scale insulin, which needs a sugar check first).
   const NURSE_SAVER_IDLE_MS=3*60*1000;
   const NURSE_SAVER_HORIZON_MS=4*60*60*1000;
-  const NURSE_SAVER_PAGE_SIZE=3;
+  const NURSE_SAVER_FLIP_SEC=4;
 
   function ensureNurseSaverStyles(){
     if(document.getElementById('samara-nurse-saver-css'))return;
@@ -14,7 +14,7 @@
     s.id='samara-nurse-saver-css';
     s.textContent=`
 .nss-overlay{position:fixed;inset:0;z-index:2147482500;background:#fff3f8;color:#382333;cursor:pointer;overflow:hidden;font-family:inherit;-webkit-tap-highlight-color:transparent}
-.nss-inner{box-sizing:border-box;height:100%;max-width:1440px;margin:0 auto;padding:clamp(14px,3vw,32px) clamp(14px,3.2vw,40px) clamp(12px,2.4vw,26px);display:flex;flex-direction:column;gap:clamp(12px,2vw,20px);animation:nssDrift 240s ease-in-out infinite}
+.nss-inner{box-sizing:border-box;height:100%;max-width:1760px;margin:0 auto;padding:clamp(14px,3vw,32px) clamp(14px,3.2vw,40px) clamp(12px,2.4vw,26px);display:flex;flex-direction:column;gap:clamp(12px,2vw,20px);animation:nssDrift 240s ease-in-out infinite}
 .nss-head{display:flex;align-items:center;justify-content:space-between;gap:18px}
 .nss-brand{display:flex;align-items:center;gap:clamp(12px,2.4vw,28px)}
 .nss-logo{background:#fff;border:1px solid #ead0de;border-radius:18px;padding:6px 12px;display:flex}
@@ -67,6 +67,42 @@
 .nss-card-title{font-size:clamp(19px,2.1vw,26px);color:#382333;font-weight:700;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .nss-card-who{font-size:clamp(16px,1.7vw,21px);font-weight:600;color:#5d1039;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nss-card-room{color:#d0105f;font-size:1.25em;font-weight:900}
+.nss-box{flex:1 1 0;min-height:0;max-height:210px;background:linear-gradient(120deg,#fff6fa 0%,#fde3ee 55%,#f8c9dc 100%);border:2px solid #f0b3cd;border-radius:22px;padding:10px 18px 10px;display:flex;flex-direction:column;gap:6px;box-shadow:0 4px 14px rgba(122,18,71,.08);overflow:hidden;position:relative}
+.nss-box.due{border-color:#b01264;border-width:3px}
+.nss-box.late{border-color:#f36a4c;border-width:3px}
+.nss-box-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.nss-box-head .nss-tag{font-size:16px;padding:5px 14px}
+.nss-box-meta{font-size:15px;font-weight:700;color:#7a1247;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nss-box-body{display:flex;align-items:center;gap:18px;flex:1 1 auto;min-height:0}
+.nss-hero-flip{display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+.nss-boxes{display:flex;flex-direction:column;gap:12px;flex:1 1 auto;min-height:0}
+.nss-boxes.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(0,1fr)}
+.nss-boxes.grid .nss-box{max-height:none;padding:10px 14px;gap:4px}
+.nss-boxes.grid .nss-box-head .nss-tag{font-size:14px;padding:4px 11px}
+.nss-boxes.grid .nss-box-meta{font-size:clamp(13px,1.6vh,17px)}
+.nss-boxes.grid .nss-box-body{gap:10px}
+.nss-boxes.grid .nss-time{width:clamp(74px,min(8vh,5vw),100px);padding:6px 2px;border-radius:12px}
+.nss-boxes.grid .nss-time b{font-size:clamp(19px,min(2.7vh,1.5vw),30px)}
+.nss-boxes.grid .nss-time span{font-size:12px}
+.nss-boxes.grid .nss-box:last-child:nth-child(odd){grid-column:1/-1}
+.nss-box-text{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 auto}
+.nss-box-detail{display:flex;align-items:center;gap:8px;font-size:clamp(16px,2.1vh,24px);font-weight:700;color:#382333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.nss-box-detail-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.nss-box-room{font-weight:900;color:#d0105f;font-size:clamp(26px,4vh,46px);line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nss-box-name{font-size:clamp(16px,2.2vh,24px);font-weight:700;color:#5d1039;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nss-due{color:#b01264;font-size:14px;font-weight:800;flex-shrink:0}
+.nss-late{flex-shrink:0}
+.nss-boxes.grid .nss-box-room{font-size:clamp(22px,min(3.4vh,1.9vw),40px)}
+.nss-boxes.grid .nss-box-detail{font-size:clamp(14px,min(1.9vh,1.1vw),21px)}
+.nss-boxes.grid .nss-box-name{font-size:clamp(14px,min(2vh,1.15vw),21px)}
+.nss-flip{animation:nssFlip .55s ease-out both;transform-origin:50% 0;backface-visibility:hidden}
+.nss-flip-count{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:13px;font-weight:700;color:#7a1247}
+.nss-hero .nss-flip-count{align-self:flex-start;font-size:15px}
+.nss-dots{display:flex;gap:4px}
+.nss-dots i{width:7px;height:7px;border-radius:50%;background:#f0b3cd;display:block}
+.nss-dots i.on{background:#b01264}
+.nss-late{background:#b3341a;color:#fff;border-radius:8px;padding:2px 10px;font-size:14px;font-weight:800}
+@keyframes nssFlip{from{opacity:0;transform:perspective(600px) rotateX(-75deg)}to{opacity:1;transform:none}}
 .nss-empty{background:#fff;border:2px dashed #f3bfd6;border-radius:18px;padding:18px;text-align:center;color:#7a1247;font-weight:600}
 .nss-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:clamp(13px,1.4vw,16px);color:#67143f}
 .nss-touch{background:#fff;border:1px solid #ead0de;border-radius:999px;padding:8px 18px;font-weight:700;color:#b01264}
@@ -89,6 +125,12 @@
   .nss-foot>span:not(.nss-touch){display:none}
   .nss-overdue{padding:10px 12px;gap:8px}
   .nss-card{flex:0 0 auto;padding:11px 13px;gap:12px}
+  .nss-box{flex:0 0 auto;padding:10px 12px}
+  .nss-boxes.grid{display:flex}
+      .nss-box-body{gap:12px}
+  .nss-box-meta{font-size:13px}
+  .nss-box-room{font-size:24px}
+  .nss-box-detail,.nss-box-name{font-size:15px}
   .nss-time{width:72px}
   .nss-time b{font-size:18px}
   .nss-time span{font-size:12px}
@@ -97,7 +139,7 @@
   .nss-tag{font-size:12px}
   .nss-overdue-more{margin-left:0}
 }
-@media (prefers-reduced-motion:reduce){.nss-inner,.nss-hero,.nss-overdue,.nss-colon,.nss-card{animation:none!important}}
+@media (prefers-reduced-motion:reduce){.nss-inner,.nss-hero,.nss-overdue,.nss-colon,.nss-card,.nss-flip{animation:none!important}}
 `;
     document.head.appendChild(s);
   }
@@ -195,7 +237,7 @@
       const sliding=g.orders.find(nssIsSlidingScale);
       const foods=[...new Set(g.orders.map(o=>String(o.food_instruction||'').trim()).filter(Boolean))];
       const note=foods.length===1?foods[0]:'';
-      tasks.push({kind:'med',at:g.at,grace:30,patient:g.patient,done:n===0,
+      tasks.push({kind:'med',group:'med',at:g.at,grace:30,patient:g.patient,done:n===0,
         title:sliding?`${sliding.medicine_name||'Insulin'} (sliding scale) — check sugar first${n>1?` + ${n-1} more`:''}`:`Medicines due (${n})`,
         note});
     });
@@ -208,7 +250,7 @@
         const slot=nssTimeInShift(win,t);if(!slot)return;
         if(p.admission_date&&String(p.admission_date).slice(0,10)>slot.date)return;
         const done=vit.some(v=>{if(v.patient_id!==p.id)return false;const r=new Date(v.recorded_at).getTime();return r>=slot.at.getTime()-90*60000&&r<slot.at.getTime()+4*3600000});
-        tasks.push({kind:'care',at:slot.at,grace:60,patient:p,done,title:'Vital signs',note:''});
+        tasks.push({kind:'care',group:'vitals',at:slot.at,grace:60,patient:p,done,title:'Vital signs',note:''});
       });
     });
 
@@ -224,11 +266,11 @@
       const from=careTimeValue(order.preferred_from),to=careTimeValue(order.preferred_to);
       const fromAt=from?nssTimeInShift(win,from)?.at:null,toAt=to?nssTimeInShift(win,to)?.at:null;
       if(fromAt||toAt){
-        tasks.push({kind:'care',at:fromAt||toAt,deadline:toAt||null,grace:0,patient:p,done,title:label,
+        tasks.push({kind:'care',group:'care',at:fromAt||toAt,deadline:toAt||null,grace:0,patient:p,done,title:label,
           windowText:fromAt&&toAt?`${nssTime12(fromAt).t}–${nssTime12(toAt).t}`:'',
           note:toAt?`ends ${nssTime12(toAt).t} ${nssTime12(toAt).ap}`:''});
       }else{
-        tasks.push({kind:'care',at:new Date(win.end.getTime()-2*3600000),anyTime:true,grace:120,patient:p,done,title:label,note:'any time this shift'});
+        tasks.push({kind:'care',group:'care',at:new Date(win.end.getTime()-2*3600000),anyTime:true,grace:120,patient:p,done,title:label,note:'any time this shift'});
       }
     });
 
@@ -237,7 +279,7 @@
       const p=guestMap.get(r.patient_id);if(!p)return;
       const at=r.scheduled_at?new Date(r.scheduled_at):null;
       if(at&&(Number.isNaN(at.getTime())||at>=win.end))return;
-      tasks.push({kind:'proc',at:at&&at>win.start?at:now,ready:!at,grace:30,patient:p,done:false,
+      tasks.push({kind:'proc',group:'proc',at:at&&at>win.start?at:now,ready:!at,grace:30,patient:p,done:false,
         title:r.procedure_name||'Nursing procedure',
         note:r.category&&r.category!=='Nursing Procedures'?r.category:'approved · Confirm & Start',
         procCategory:r.category||''});
@@ -250,7 +292,7 @@
       const eligible=guests.filter(p=>!/tube/i.test(String(p.diet_plan||''))&&!(p.admission_date&&String(p.admission_date).slice(0,10)>slot.date));
       const pending=eligible.filter(p=>!meals.some(r=>r.patient_id===p.id&&String(r.meal_date).slice(0,10)===slot.date&&nssMealKind(r.meal_type)===label));
       if(!eligible.length)return;
-      tasks.push({kind:'care',at:slot.at,grace:30,patient:null,done:pending.length===0,
+      tasks.push({kind:'care',group:'meal',mealLabel:label,pendingGuests:pending,at:slot.at,grace:30,patient:null,done:pending.length===0,
         title:`${label} — record food intake`,who:`${pending.length} of ${eligible.length} Guests`,note:'meal time',
         room:pending.length===1?nssRoomOf(pending[0]):`${pending.length} Guests`,
         name:pending.length===1?nssNameOf(pending[0]):pending.slice(0,3).map(p=>`${nssNameOf(p)} (${String(p.room_no||'').trim()||'—'})`).join(', ')+(pending.length>3?` + ${pending.length-3} more`:'')});
@@ -292,13 +334,47 @@
     const t=nssTime12(task.at);return h('div',{className:'nss-time'},h('b',null,t.t),h('span',null,t.ap));
   }
 
+
+  // 2.18.10: right side = one box per task type; the Guests in a box flip one at a time.
+  const NSS_GROUPS={vitals:{label:'Vital Signs',kind:'care',perGuest:true},med:{label:'Medication',kind:'med',perGuest:true},
+    proc:{label:'Nursing Procedure',kind:'proc'},care:{label:'Care',kind:'care'},meal:{label:'Meals',kind:'care',perGuest:true}};
+  const NSS_GROUP_ORDER=['vitals','med','proc','care','meal'];
+  function nssWhenText(x){if(x.ready)return 'Ready';if(x.anyTime)return 'Any time';if(x.windowText)return x.windowText;const t=nssTime12(x.at);return `${t.t} ${t.ap}`}
+  function nssEntriesOf(x){
+    const base={at:x.at,when:nssWhenText(x),late:x.state==='overdue',due:x.state==='due',sortAt:x.anyTime?Infinity:x.at.getTime()};
+    if(x.group==='meal')return (x.pendingGuests||[]).map(p=>({...base,room:nssRoomOf(p),name:nssNameOf(p),detail:`${x.mealLabel} — record food intake`}));
+    const detail=x.group==='vitals'?'':x.title;
+    return [{...base,room:x.room||'',name:x.name||x.who||'',detail,note:x.group==='care'||x.group==='proc'?x.note:''}];
+  }
+  function nssBuildBoxes(items){
+    const boxes=new Map();
+    items.forEach(x=>{
+      const g=x.group||(x.kind==='med'?'med':x.kind==='proc'?'proc':'care');
+      if(!boxes.has(g))boxes.set(g,{group:g,...NSS_GROUPS[g],entries:[]});
+      boxes.get(g).entries.push(...nssEntriesOf(x));
+    });
+    return [...boxes.values()].filter(b=>b.entries.length).map(b=>{
+      b.entries.sort((a,c)=>(c.late?1:0)-(a.late?1:0)||a.sortAt-c.sortAt||String(a.room).localeCompare(String(c.room),undefined,{numeric:true}));
+      const guests=new Set(b.entries.map(e=>`${e.room}|${e.name}`)).size;
+      const nextOne=b.entries.find(e=>!e.late);
+      const lateCount=b.entries.filter(e=>e.late).length;
+      b.meta=[b.perGuest?`${guests} Guest${guests===1?'':'s'}`:`${b.entries.length}`,nextOne?`next ${nextOne.when}`:'',lateCount?`${lateCount} late`:''].filter(Boolean).join(' · ');
+      b.first=b.entries[0].late?-Infinity:b.entries[0].sortAt;
+      return b;
+    }).sort((a,c)=>a.first-c.first||NSS_GROUP_ORDER.indexOf(a.group)-NSS_GROUP_ORDER.indexOf(c.group));
+  }
+  function nssFlipIndex(n,now,offset){return n<=1?0:Math.floor((Math.floor(now.getTime()/1000)+offset)/NURSE_SAVER_FLIP_SEC)%n}
+  function nssDots(n,i){
+    if(n<=1)return null;
+    return h('span',{className:'nss-flip-count'},`${i+1} of ${n}`,n<=10&&h('span',{className:'nss-dots','aria-hidden':'true'},Array.from({length:n},(_,k)=>h('i',{key:k,className:k===i?'on':''}))));
+  }
+
   function NurseIdleScreensaver({profile,page,alertKey}){
     const isNurse=profile?.role==='Nurse';
     const [visible,setVisible]=React.useState(false);
     const [data,setData]=React.useState(null);
     const [error,setError]=React.useState('');
     const [now,setNow]=React.useState(()=>new Date());
-    const [pageIdx,setPageIdx]=React.useState(0);
     const lastActivity=React.useRef(Date.now());
     const visibleRef=React.useRef(false);
     const blockedRef=React.useRef(false);
@@ -328,18 +404,17 @@
       lastAlertKey.current=alertKey;
     },[alertKey]);
 
-    // While shown: clock every 20 s, tasks every 60 s, list pages every 9 s.
+    // While shown: clock (and card flips) every second, tasks every 60 s.
     React.useEffect(()=>{
       if(!visible)return;
       let alive=true;
       const load=()=>loadNurseSaverTasks().then(d=>{if(alive){setData(d);setError('')}}).catch(e=>{if(alive)setError(e?.message||'Could not load tasks')});
-      load();setNow(new Date());setPageIdx(0);
+      load();setNow(new Date());
       const clock=setInterval(()=>setNow(new Date()),1000);
       const refresh=setInterval(load,60000);
-      const pager=setInterval(()=>setPageIdx(i=>i+1),9000);
       const onKey=e=>{e.preventDefault();close()};
       window.addEventListener('keydown',onKey,true);
-      return()=>{alive=false;clearInterval(clock);clearInterval(refresh);clearInterval(pager);window.removeEventListener('keydown',onKey,true)};
+      return()=>{alive=false;clearInterval(clock);clearInterval(refresh);window.removeEventListener('keydown',onKey,true)};
     },[visible]);
 
     function close(){lastActivity.current=Date.now();setVisible(false)}
@@ -349,11 +424,12 @@
     const win=data?.win||nssShiftWindow(now);
     const list=data?.next||[];
     const hero=list[0]||null;
-    const rest=list.slice(1);
-    const pages=Math.max(1,Math.ceil(rest.length/NURSE_SAVER_PAGE_SIZE));
-    const pg=pageIdx%pages;
-    const shown=rest.slice(pg*NURSE_SAVER_PAGE_SIZE,pg*NURSE_SAVER_PAGE_SIZE+NURSE_SAVER_PAGE_SIZE);
     const overdue=data?.overdue||[];
+    const boxes=nssBuildBoxes([...overdue,...list.slice(1)]);
+    const heroPeople=hero&&hero.group==='meal'&&(hero.pendingGuests||[]).length>1?hero.pendingGuests:null;
+    const heroIdx=heroPeople?nssFlipIndex(heroPeople.length,now,0):0;
+    const heroRoom=heroPeople?nssRoomOf(heroPeople[heroIdx]):hero?.room;
+    const heroName=heroPeople?nssNameOf(heroPeople[heroIdx]):(hero?.name||hero?.who);
     const firstOver=overdue[0];
     const overMins=firstOver?Math.max(1,Math.round((now-(firstOver.deadline||firstOver.at))/60000)):0;
     const fmtMins=n=>n>=60?`${Math.floor(n/60)}h ${n%60}m`:`${n} min`;
@@ -385,22 +461,33 @@
               !hero.ready&&!hero.anyTime&&!hero.windowText&&h('small',null,nssTime12(hero.at).ap)),
             h('div',null,nssTag(hero.kind,hero.kind==='proc'&&hero.procCategory&&hero.procCategory!=='Nursing Procedures'?hero.procCategory:null)),
             h('div',{className:'nss-hero-title'},hero.title),
-            hero.room&&h('div',{className:'nss-hero-room'},hero.room),
-            h('div',{className:'nss-hero-who'},hero.name||hero.who),
+            h('div',{className:'nss-flip nss-hero-flip',key:`hf-${heroIdx}`},
+              heroRoom&&h('div',{className:'nss-hero-room'},heroRoom),
+              h('div',{className:'nss-hero-who'},heroName)),
+            heroPeople&&nssDots(heroPeople.length,heroIdx),
             h('div',{className:'nss-hero-foot'},h('span',null,hero.note||''),
-              list.length>1&&h('span',{style:{fontWeight:700}},`${list.length-1} more coming up`)))
+              boxes.length>0&&h('span',{style:{fontWeight:700}},`${boxes.reduce((n,b)=>n+b.entries.length,0)} more coming up`)))
           :h('section',{className:'nss-hero'},
             h('div',{className:'nss-hero-top'},h('span',{className:'nss-label'},'NEXT TASK')),
             h('div',{className:'nss-hero-title',style:{marginTop:'auto'}},!data&&!error?'Loading tasks…':error?'Tasks could not be loaded — touch to continue':'All tasks are done for now'),
             h('div',{className:'nss-hero-who'},error?'Please check the internet connection.':'Nothing more is due in the next 4 hours of this shift.')),
           h('section',{className:'nss-list'},
-            h('div',{className:'nss-list-head'},h('span',{className:'nss-label'},'COMING UP'),h('span',null,pages>1?`next 4 hours · ${pg+1} / ${pages}`:'next 4 hours')),
-            shown.length?shown.map((x,i)=>h('div',{className:`nss-card${x.state==='due'?' due':''}`,key:`${pg}-${i}-${x.kind}-${x.title}-${x.who}`,style:{animationDelay:`${i*70}ms`}},
-              nssTimeBox(x),
-              h('div',{className:'nss-card-body'},
-                h('div',{className:'nss-card-row'},nssTag(x.kind,x.kind==='proc'?'Procedure':null),x.state==='due'&&h('strong',{style:{color:'#b01264',fontSize:15}},'Due now'),x.note&&h('span',{className:'nss-card-note'},x.note)),
-                h('span',{className:'nss-card-title'},x.title),
-                h('span',{className:'nss-card-who'},x.room&&h('b',{className:'nss-card-room'},x.room),x.room&&x.name?' · ':'',x.name||(!x.room?x.who:'')))))
+            h('div',{className:'nss-list-head'},h('span',{className:'nss-label'},'COMING UP'),h('span',null,'next 4 hours · by task')),
+            boxes.length?h('div',{className:`nss-boxes${boxes.length>3?' grid':''}`},boxes.map((b,bi)=>{
+              const i=nssFlipIndex(b.entries.length,now,bi);const e=b.entries[i];
+              return h('div',{className:`nss-box${e.late?' late':e.due?' due':''}`,key:b.group},
+                h('div',{className:'nss-box-head'},nssTag(b.kind,b.label),nssDots(b.entries.length,i)),
+                h('div',{className:'nss-box-meta'},b.meta),
+                h('div',{className:'nss-flip nss-box-body',key:`${b.group}-${i}-${e.room}-${e.when}`},
+                  h('div',{className:'nss-time'},h('b',null,e.when.replace(/\s?(AM|PM)$/,'')),h('span',null,(e.when.match(/(AM|PM)$/)||[''])[0]||(e.when==='Ready'?'now':''))),
+                  h('div',{className:'nss-box-text'},
+                    (e.late||e.due||e.detail)&&h('div',{className:'nss-box-detail'},
+                      e.late&&h('span',{className:'nss-late'},'Late'),
+                      !e.late&&e.due&&h('span',{className:'nss-due'},'Due now'),
+                      e.detail&&h('span',{className:'nss-box-detail-text'},e.detail)),
+                    e.room&&h('div',{className:'nss-box-room'},e.room),
+                    e.name&&h('div',{className:'nss-box-name'},e.name))));
+            }))
             :h('div',{className:'nss-empty'},data?'No other tasks in the next 4 hours.':'…'))),
         h('footer',{className:'nss-foot'},
           h('span',null,data?h(React.Fragment,null,'This shift: ',h('strong',null,`${data.done} of ${data.total}`),` tasks done · ${kinds.med} Medication · ${kinds.proc} Procedure${kinds.proc===1?'':'s'} · ${kinds.care} Care`):''),
