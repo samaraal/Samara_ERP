@@ -1,3 +1,7 @@
+## 2.18.8 — Nurse screensaver: Guest names, larger gradient pink boxes
+- Guests are shown with **Room + full name** (e.g. "Room 106 · Mr. Kumar Lakshman") instead of initials, in Next Task, Coming Up and Overdue.
+- **Coming Up** boxes are larger and easier to read from a distance — 3 per page (turning every 9 seconds), bigger time, task and name text, titles up to 2 lines — with a soft **gradient pink fill**. The Next Task box now has a **gradient magenta fill**. Medicines are still shown as a count. No SQL.
+
 ## 2.18.7 — Nurse idle screensaver: upcoming tasks in Samara pink boxes
 - **Nurse login only:** after **3 minutes** without activity the screen shows the current shift's tasks — big magenta **Next Task** box (time, countdown, type, Room + Guest initials), **Coming Up** boxes for the next 4 hours (5 at a time, turning every 9 seconds), and a coral **Overdue** strip when something is late. Types: **Medication** (count per Guest; sliding-scale insulin named with "check sugar first"), **Nursing Procedure** (approved, Ready to Start), **Care** (daily care with its preferred window, vital signs, meal recording).
 - Gentle motion only (soft glow on Next Task, pulsing overdue border, slow drift against screen burn-in); still on devices set to reduce motion. The first touch / key only closes it — nothing underneath is pressed. A new clinical alert pop-up closes it. Not shown on Talk to Guest or while a video plays. The 30-minute idle sign-out is unchanged.

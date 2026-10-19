@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.7';
+  const APP_VERSION = '2.18.8';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '19-Oct-2026 Nurse idle screensaver with upcoming tasks';
+  const APP_BUILD_DATE = '19-Oct-2026 Screensaver: Guest names, larger gradient pink boxes';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -25659,11 +25659,11 @@ Please keep these login details confidential.`;
   // upcoming tasks of the current shift in Samara pink boxes (Medication / Nursing Procedure / Care).
   // READ ONLY: it reads the same tables as Shift Tasks and never saves anything. The first touch / key
   // only closes it (it never presses a button underneath). The 30-minute idle sign-out is unchanged.
-  // Privacy: the screen can be seen by visitors, so Guests are shown as Room + initials, and medicines
+  // Guests are shown by Room + full name (2.18.8); medicines
   // as a count (the name only for sliding-scale insulin, which needs a sugar check first).
   const NURSE_SAVER_IDLE_MS=3*60*1000;
   const NURSE_SAVER_HORIZON_MS=4*60*60*1000;
-  const NURSE_SAVER_PAGE_SIZE=4;
+  const NURSE_SAVER_PAGE_SIZE=3;
 
   function ensureNurseSaverStyles(){
     if(document.getElementById('samara-nurse-saver-css'))return;
@@ -25688,7 +25688,7 @@ Please keep these login details confidential.`;
 .nss-overdue-text{font-size:clamp(15px,1.7vw,19px);color:#5a1a0c}
 .nss-overdue-more{margin-left:auto;font-size:15px;color:#7a2a14;font-weight:600}
 .nss-main{display:flex;gap:22px;flex:1 1 auto;min-height:0}
-.nss-hero{flex:1.05 1 0;background:#b01264;color:#fff;border-radius:28px;padding:clamp(20px,2.8vw,34px);display:flex;flex-direction:column;gap:14px;min-width:0;animation:nssBreathe 4s ease-in-out infinite}
+.nss-hero{flex:1.05 1 0;background:linear-gradient(140deg,#6e0f40 0%,#a8105c 45%,#d42a74 100%);color:#fff;border-radius:28px;padding:clamp(20px,2.8vw,34px);display:flex;flex-direction:column;gap:14px;min-width:0;animation:nssBreathe 4s ease-in-out infinite}
 .nss-hero.nss-soon .nss-count{font-weight:900;box-shadow:0 0 0 3px #f6b72d}
 .nss-hero-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .nss-label{font-size:clamp(13px,1.5vw,18px);font-weight:800;letter-spacing:.14em}
@@ -25698,8 +25698,8 @@ Please keep these login details confidential.`;
 .nss-hero-title{font-size:clamp(24px,3vw,38px);font-weight:700;line-height:1.15}
 .nss-hero-who{font-size:clamp(18px,2.1vw,26px);font-weight:600}
 .nss-hero-foot{margin-top:auto;border-top:1px solid rgba(255,255,255,.35);padding-top:14px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:clamp(13px,1.4vw,17px)}
-.nss-tag{display:inline-flex;align-items:center;gap:7px;border-radius:9px;padding:3px 11px;font-size:13px;font-weight:800;white-space:nowrap}
-.nss-tag svg{width:14px;height:14px}
+.nss-tag{display:inline-flex;align-items:center;gap:7px;border-radius:9px;padding:4px 12px;font-size:15px;font-weight:800;white-space:nowrap}
+.nss-tag svg{width:16px;height:16px}
 .nss-tag.med{background:#b01264;color:#fff}
 .nss-tag.proc{background:#5d1039;color:#fff}
 .nss-tag.care{background:#f9cfe0;color:#5d1039}
@@ -25708,19 +25708,19 @@ Please keep these login details confidential.`;
 .nss-hero .nss-tag.proc{background:#5d1039}
 .nss-hero .nss-tag.care{background:#f9cfe0}
 .nss-hero .nss-tag svg{width:18px;height:18px}
-.nss-list{flex:1 1 0;display:flex;flex-direction:column;gap:11px;min-width:0;overflow:hidden}
+.nss-list{flex:1 1 0;display:flex;flex-direction:column;gap:14px;min-width:0;overflow:hidden}
 .nss-list-head{display:flex;align-items:baseline;justify-content:space-between;color:#7a1247}
-.nss-list-head span:last-child{font-size:14px;color:#67143f;letter-spacing:0;font-weight:600}
-.nss-card{background:#fff;border:2px solid #f3bfd6;border-radius:18px;padding:11px 15px;display:flex;align-items:center;gap:15px;animation:nssSlideIn .6s ease-out both}
-.nss-card.due{border-color:#b01264}
-.nss-time{width:94px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;background:#fde7f0;border-radius:12px;padding:7px 4px;text-align:center}
-.nss-time b{font-size:21px;color:#5d1039;line-height:1.1}
-.nss-time span{font-size:12px;font-weight:700;color:#7a1247}
-.nss-card-body{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1 1 auto}
-.nss-card-row{display:flex;align-items:center;gap:8px;min-width:0}
-.nss-card-note{font-size:13px;color:#7a1247;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.nss-card-title{font-size:clamp(16px,1.6vw,19px);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.nss-card-who{font-size:15px;color:#5b4352}
+.nss-list-head span:last-child{font-size:16px;color:#67143f;letter-spacing:0;font-weight:600}
+.nss-card{flex:1 1 0;max-height:170px;min-height:0;background:linear-gradient(120deg,#fff6fa 0%,#fde3ee 55%,#f8c9dc 100%);border:2px solid #f0b3cd;border-radius:22px;padding:14px 20px;display:flex;align-items:center;gap:20px;box-shadow:0 4px 14px rgba(122,18,71,.08);animation:nssSlideIn .6s ease-out both}
+.nss-card.due{border-color:#b01264;border-width:3px}
+.nss-time{width:118px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;background:#fff;border:1px solid #f0b3cd;border-radius:16px;padding:10px 4px;text-align:center}
+.nss-time b{font-size:clamp(22px,2.4vw,30px);color:#5d1039;line-height:1.1}
+.nss-time span{font-size:15px;font-weight:700;color:#7a1247}
+.nss-card-body{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1 1 auto}
+.nss-card-row{display:flex;align-items:center;gap:10px;min-width:0}
+.nss-card-note{font-size:15px;color:#7a1247;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nss-card-title{font-size:clamp(19px,2.1vw,26px);color:#382333;font-weight:700;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.nss-card-who{font-size:clamp(16px,1.7vw,21px);font-weight:600;color:#5d1039}
 .nss-empty{background:#fff;border:2px dashed #f3bfd6;border-radius:18px;padding:18px;text-align:center;color:#7a1247;font-weight:600}
 .nss-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:clamp(13px,1.4vw,16px);color:#67143f}
 .nss-touch{background:#fff;border:1px solid #ead0de;border-radius:999px;padding:8px 18px;font-weight:700;color:#b01264}
@@ -25742,8 +25742,13 @@ Please keep these login details confidential.`;
   .nss-foot{justify-content:center}
   .nss-foot>span:not(.nss-touch){display:none}
   .nss-overdue{padding:10px 12px;gap:8px}
-  .nss-time{width:66px}
-  .nss-time b{font-size:17px}
+  .nss-card{flex:0 0 auto;padding:11px 13px;gap:12px}
+  .nss-time{width:72px}
+  .nss-time b{font-size:18px}
+  .nss-time span{font-size:12px}
+  .nss-card-title{font-size:17px}
+  .nss-card-who{font-size:15px}
+  .nss-tag{font-size:12px}
   .nss-overdue-more{margin-left:0}
 }
 @media (prefers-reduced-motion:reduce){.nss-inner,.nss-hero,.nss-overdue,.nss-colon,.nss-card{animation:none!important}}
@@ -25779,9 +25784,9 @@ Please keep these login details confidential.`;
   function nssTime12(d){const hr=d.getHours(),m=d.getMinutes();return {t:`${hr%12||12}:${String(m).padStart(2,'0')}`,ap:hr<12?'AM':'PM'}}
   function nssGuest(p){
     if(!p)return 'Guest';
-    const initials=String(p.full_name||'').trim().split(/\s+/).filter(Boolean).map(w=>w[0].toUpperCase()+'.').join(' ');
+    const name=String(p.full_name||'').trim();
     const room=[p.room_no,p.bed_no].filter(x=>x&&String(x).trim()).join('-');
-    return [room?`Room ${room}`:'',[p.title,initials].filter(Boolean).join(' ')].filter(Boolean).join(' · ')||'Guest';
+    return [room?`Room ${room}`:'',name?[p.title,name].filter(Boolean).join(' '):''].filter(Boolean).join(' · ')||'Guest';
   }
   function nssRoomSort(p){return String(p?.room_no||'')}
   function nssIsSlidingScale(o){
@@ -26040,7 +26045,7 @@ Please keep these login details confidential.`;
             shown.length?shown.map((x,i)=>h('div',{className:`nss-card${x.state==='due'?' due':''}`,key:`${pg}-${i}-${x.kind}-${x.title}-${x.who}`,style:{animationDelay:`${i*70}ms`}},
               nssTimeBox(x),
               h('div',{className:'nss-card-body'},
-                h('div',{className:'nss-card-row'},nssTag(x.kind,x.kind==='proc'?'Procedure':null),x.state==='due'&&h('strong',{style:{color:'#b01264',fontSize:13}},'Due now'),x.note&&h('span',{className:'nss-card-note'},x.note)),
+                h('div',{className:'nss-card-row'},nssTag(x.kind,x.kind==='proc'?'Procedure':null),x.state==='due'&&h('strong',{style:{color:'#b01264',fontSize:15}},'Due now'),x.note&&h('span',{className:'nss-card-note'},x.note)),
                 h('span',{className:'nss-card-title'},x.title),
                 h('span',{className:'nss-card-who'},x.who))))
             :h('div',{className:'nss-empty'},data?'No other tasks in the next 4 hours.':'…'))),

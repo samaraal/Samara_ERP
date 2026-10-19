@@ -38,7 +38,7 @@ test('Medicines grouped per Guest and time; given doses drop out; overdue strip'
   });
   assert.equal(d.win.name,'Day Shift (7 AM–7 PM)');
   assert.equal(d.overdue.length,1);
-  assert.equal(d.overdue[0].who,'Room 102 · Mr. S. R.');
+  assert.equal(d.overdue[0].who,'Room 102 · Mr. Selvam Raja');
   const titles=d.next.map(x=>x.title);
   assert.ok(titles.some(t=>/Insulin Actrapid \(sliding scale\) — check sugar first/.test(t)));
   assert.ok(titles.includes('Medicines due (2)'));
