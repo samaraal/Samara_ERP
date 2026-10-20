@@ -1,3 +1,8 @@
+## 2.18.48 — Kitchen & Food Stores: Nursing Manager can view / monitor
+- The STD now handles the Kitchen & Food Stores account. The **Nursing Manager** now sees the full **Kitchen & Pantry** workspace (PHARMACY & STORES → Kitchen / Food Stores): Overview, Purchase Register with receipts, Cash Requests, Kitchen Stock and usage history, In-charge & Handover, Cash Book & Reports (CSV), Ledger & Statement — instead of only the Hand Over Cash screen.
+- **View / monitor only**: a note at the top says so. She cannot record purchases, usage, cash counts, add items or do Admin steps; her only action stays **Hand Over Cash** (from her Petty Cash, as before).
+- **SQL 263_kitchen_nursing_manager_view.sql** (run once): gives the Nursing Manager read access in `kitchen_access()`. All action checks are unchanged. Until it is run she keeps the old Hand Over Cash screen.
+
 ## 2.18.47 — Stock Report: Date / Period filter for both reports
 - **Simple** report now has a Date / Period filter too: it shows the remaining quantity **as on the end of the chosen date** (Today, a Selected Date, or the last day of the chosen week / month / period).
 - Both reports: Today · Selected Date · This Week · This Month · Month (choose) · Selected Period (From – To), with Apply. Future dates are blocked. The Excel / PDF heading shows the date or period.

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.47';
+  const APP_VERSION = '2.18.48';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '20-Oct-2026 Stock Report date / period filter';
+  const APP_BUILD_DATE = '20-Oct-2026 Kitchen: Nursing Manager view';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -12769,6 +12769,8 @@ https://samaraassistedliving.com/`;
       }`),
       h('div',{className:'card panel dr-head'},h('div',{className:'dr-head-text'},h('h2',null,'Kitchen & Pantry — Cash Management'),h('small',null,'Cash only · Purchases reviewed afterward by Admin'),h('p',{className:'small-note'},`Primary: ${name(w.primary_staff)} · Current in-charge: ${name(w.custodian)}${w.cover_leave?' · Temporary leave cover':''}`)),h('button',{className:'btn btn-secondary',onClick:load},'Refresh')),
       error&&h('p',{className:'message error',role:'alert'},error),notice&&h('p',{className:'message success',role:'status'},notice),
+      // 2.18.48: Nursing Manager monitors the kitchen book (SQL 263) — view only; Hand Over Cash stays in Cash Requests.
+      data.access.monitor&&h('p',{className:'message',role:'status'},`👁 View / monitor only — ${name(w.custodian)} handles the Kitchen & Food Stores account. You can see the cash book, purchases and receipts, kitchen stock and usage, and reports. Your only action here is Hand Over Cash (in Cash Requests).`),
       data.access.return_ready&&h('p',{className:'message',role:'status'},'Return to Duty has been recorded. Spending is paused until Admin arranges cash/stock handback and the primary in-charge accepts it.'),
       data.access.frozen&&h('p',{className:'message',role:'status'},'Cash and stock handover in progress. Spending and stock usage are paused.'),
       h('div',{className:'dr-boxes'},[['Cash in Hand',money(data.balance),'cash'],['Expenses This Month',money(expense),'purchases'],['Cash Requests',data.funding.filter(x=>['Requested','Approved','Handed over'].includes(x.status)).length,'funding'],['Pending Review',data.purchases.filter(x=>['Pending review','Query'].includes(x.status)).length,'purchases'],['Low Stock',kitchenItems.filter(x=>Number(x.quantity)<=Number(x.low_level)).length,'stock']].map(([label,value,key])=>h('button',{key:label,className:'dr-box',onClick:()=>setTab(key)},h('span',{className:'dr-box-label'},label),h('b',{className:'dr-box-count'},value)))),
