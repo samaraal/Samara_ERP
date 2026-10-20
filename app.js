@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.41';
+  const APP_VERSION = '2.18.42';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '20-Oct-2026 Patient file Billing: Advance counted in Outstanding';
+  const APP_BUILD_DATE = '20-Oct-2026 Patient file Billing: coloured figures';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -28919,6 +28919,17 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
   line-height:1.15!important;
   white-space:nowrap!important;
 }
+/* 2.18.42: figure colours as on the Accounts pages */
+.patient-file-backdrop .patient-billing-stat.teal{background:#e6f7f5!important;border-top:4px solid #168f83!important}
+.patient-file-backdrop .patient-billing-stat.blue{background:#eaf3ff!important;border-top:4px solid #2d7dd2!important}
+.patient-file-backdrop .patient-billing-stat.green{background:#e8f8ef!important;border-top:4px solid #12a05c!important}
+.patient-file-backdrop .patient-billing-stat.purple{background:#f3ecff!important;border-top:4px solid #8655cf!important}
+.patient-file-backdrop .patient-billing-stat.red{background:#ffeded!important;border-top:4px solid #df493f!important}
+.patient-file-backdrop .patient-billing-stat.teal strong{color:#0e6f66!important}
+.patient-file-backdrop .patient-billing-stat.blue strong{color:#123f8c!important}
+.patient-file-backdrop .patient-billing-stat.green strong{color:#087c39!important}
+.patient-file-backdrop .patient-billing-stat.purple strong{color:#6b3fb0!important}
+.patient-file-backdrop .patient-billing-stat.red strong{color:#c62828!important}
 .patient-file-backdrop .patient-billing-ledger{
   padding:18px 20px!important;
 }
@@ -29551,7 +29562,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
                 patientDetailField('Nursing Tariff',bed?.nursing_daily_rate!=null?`₹${Number(bed.nursing_daily_rate).toLocaleString('en-IN')} per day`:'Not available')
               )
             ):null,
-            h('div',{className:'patient-billing-summary'},[['Charges',b.charges],['Advance',b.advances],['Payments',b.payments],['Discounts',b.discounts],due<0?['Advance Balance (Cr)',-due]:['Outstanding',due]].map(([k,v])=>h('div',{className:'patient-billing-stat',key:k},h('span',null,k),h('strong',null,`₹${v.toLocaleString('en-IN')}`)))),
+            h('div',{className:'patient-billing-summary'},[['Charges',b.charges,'teal'],['Advance',b.advances,'blue'],['Payments',b.payments,'green'],['Discounts',b.discounts,'purple'],due<0?['Advance Balance (Cr)',-due,'green']:['Outstanding',due,due>0?'red':'green']].map(([k,v,tone])=>h('div',{className:`patient-billing-stat ${tone}`,key:k},h('span',null,k),h('strong',null,`₹${v.toLocaleString('en-IN')}`)))),
             h('div',{className:'section-card patient-billing-ledger'},
               h('h4',null,nursingManagerView?'Recent Account Entries — View Only':'Patient Ledger'),
               details.billing.length?details.billing.map(x=>h('div',{className:'patient-billing-row',key:x.id},

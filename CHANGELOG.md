@@ -1,3 +1,6 @@
+## 2.18.42 — Patient file → Billing: coloured figures
+- The five Billing boxes now use the Accounts page colours: Charges teal, Advance blue, Payments green, Discounts purple, Outstanding red (green when nothing is due or when it shows Advance Balance (Cr)). No SQL.
+
 ## 2.18.41 — Patient file → Billing: Advance now counted
 - The Billing tab in the Guest's file left out Advance entries, so Payments showed ₹0 and Outstanding showed the full charges even when an advance was paid. Advance is now counted (same rule as Accounts and the Patient Ledger), shown in its own **Advance** box (not as Payment), and deducted from **Outstanding**. When the advance is more than the charges, the last box shows **Advance Balance (Cr)**.
 - Totals now use up to 1,000 ledger entries (was 200), so a long stay is not undercounted. No SQL.
