@@ -275,6 +275,27 @@
  .nss-boxes.stack .nss-box-room{font-size:18px}
 }
 /* 2.18.34 */.nss-next{flex-shrink:0;background:#fff;border:1px solid #2453d6;color:#2453d6;border-radius:8px;padding:1px 8px;font-size:13px;font-weight:800;white-space:nowrap}
+/* 2.18.52: phones — Vital Signs / Nursing Procedure / Meals / Care boxes were squeezed (24px) and overlapping:
+   the desktop rule shares the height between boxes (flex:1 1 0). On phones the screen scrolls, so each box takes its natural height. */
+@media (max-width:760px){
+  .nss-list{overflow:visible;flex:0 0 auto}
+  .nss-boxes.stack{flex:0 0 auto;min-height:auto}
+  .nss-boxes.stack .nss-box,.nss-boxes.stack .nss-box.empty{flex:0 0 auto;min-height:auto;max-height:none;overflow:visible}
+  .nss-boxes.stack .nss-box-care{flex:0 0 auto;height:190px;min-height:190px;overflow:hidden}
+  .nss-boxes.stack .nss-box-head{flex-wrap:wrap;gap:8px}
+  .nss-boxes.stack .nss-box-head .nss-tag.nss-g{font-size:16px;padding:5px 12px}
+  .nss-boxes.stack .nss-box-meta{font-size:13px}
+  .nss-boxes.stack .nss-box-body{flex:0 0 auto;align-items:center}
+  .nss-boxes.stack .nss-time{width:72px}
+  .nss-boxes.stack .nss-time b{font-size:20px}
+  .nss-boxes.stack .nss-box-room{font-size:24px}
+  .nss-boxes.stack .nss-box-name,.nss-boxes.stack .nss-box-detail{font-size:15px}
+  .nss-boxes.stack .nss-box-text{display:flex;flex-direction:column;gap:1px}
+  .nss-boxes.stack .nss-box-head{flex-wrap:nowrap}
+  .nss-boxes.stack .nss-box-meta{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .nss-boxes.stack .nss-box-head .nss-tag.nss-g{flex-shrink:0}
+  .nss-boxes.stack .nss-dots{flex-shrink:0}
+}
 @media (prefers-reduced-motion:reduce){.nss-inner,.nss-hero,.nss-overdue,.nss-colon,.nss-card,.nss-flip,.nss-tick-track{animation:none!important}}
 `;
     document.head.appendChild(s);

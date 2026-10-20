@@ -1,3 +1,6 @@
+## 2.18.52 — Phone: screensaver task boxes fully visible
+- On phones the screensaver's **Vital Signs, Nursing Procedure, Meals and Care** boxes were squeezed to a thin strip and overlapped each other (the Medicines box was fine). Each box now shows in full, one under the other, below the Medicines box: task name, next time, details, Room and the Guest's full name on its own line. Care keeps its scrolling list. Computer / tablet screens unchanged. No SQL.
+
 ## 2.18.51 — Phone: "Start Screen Saver" button fully visible
 - On phones (Nurse / Nursing Manager) the **Start Screen Saver** button was squeezed into the narrow ⌂ Home column of the header and showed only half ("Star…"). It now sits on its own row under the page title, full size, easy to tap. Desktop unchanged. No SQL.
 
