@@ -1,3 +1,6 @@
+## 2.18.49 — Stock Report: removed items no longer listed
+- An item that has been **removed** (switched off) from Stores and has **no stock left** no longer appears in the Stock Report (Simple or Detailed), even if it had a stock movement in the chosen period (e.g. the write-off when it was removed). A removed item that still shows stock is listed, so nothing is hidden by mistake. Current Stock already worked this way. No SQL.
+
 ## 2.18.48 — Kitchen & Food Stores: Nursing Manager can view / monitor
 - The STD now handles the Kitchen & Food Stores account. The **Nursing Manager** now sees the full **Kitchen & Pantry** workspace (PHARMACY & STORES → Kitchen / Food Stores): Overview, Purchase Register with receipts, Cash Requests, Kitchen Stock and usage history, In-charge & Handover, Cash Book & Reports (CSV), Ledger & Statement — instead of only the Hand Over Cash screen.
 - **View / monitor only**: a note at the top says so. She cannot record purchases, usage, cash counts, add items or do Admin steps; her only action stays **Hand Over Cash** (from her Petty Cash, as before).
