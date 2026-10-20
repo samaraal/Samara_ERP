@@ -33,7 +33,7 @@
     const [access,setAccess]=React.useState(null),[error,setError]=React.useState('');
     React.useEffect(()=>{
       let active=true;
-      async function refresh(){try{const res=await client.rpc('bme_access');if(!active)return;if(res.error||res.data?.version!==1)throw res.error||Error('Equipment permissions are updating.');setAccess(res.data);setError('')}catch(e){if(active){setAccess(null);setError('Unable to verify equipment access. Install SQL 184 before using this update. '+e.message)}}}
+      async function refresh(){try{const res=await client.rpc('bme_access');if(!active)return;if(res.error||res.data?.version!==1)throw res.error||Error('Equipment permissions are updating.');setAccess(profile?.__nurseMode?{...res.data,controller:false,nurse:true}:res.data);setError('')}catch(e){if(active){setAccess(null);setError('Unable to verify equipment access. Install SQL 184 before using this update. '+e.message)}}}
       refresh();const timer=setInterval(refresh,30000);window.addEventListener('focus',refresh);
       return()=>{active=false;clearInterval(timer);window.removeEventListener('focus',refresh)};
     },[profile?.id]);

@@ -1,3 +1,7 @@
+## 2.18.44 — Nurse mode is now exactly the Nurse login
+- In **Switch to Nurse**, the Nursing Manager now sees exactly what a Nurse sees — same menu, pages, Alerts page, alert bell and buttons. Removed what was still showing from her manager login: Enquiries and other extra menus (extra-duty / leave-cover / kitchen / food / payments menus), the manager sections of the Alerts page, the discharge banner, Store In-charge buttons on Patient Consumables and the Biomedical Equipment admin view. The role badge reads "Nurse".
+- Kept from 2.18.43: the Switch button itself and the approval pop-ups (store indents, charge / discharge approval requests) so nothing waits for her; opening one switches her back to Nursing Manager. No SQL.
+
 ## 2.18.43 — Nursing Manager: "Switch to Nurse" (one login)
 - The Nursing Manager gets a **🩺 Switch to Nurse** button at the top (beside her role badge). It changes her screens to exactly what a nurse sees (nurse menu, Clinical Dashboard, nurse task lists, screensaver); **↩ Back to Nursing Manager** returns her. Same login, same employee record, same name on every entry — no duplicate employee.
 - Manager alerts stay on while in Nurse mode (store indents, approval / charge pop-ups, discharge banner, clinical bell, Notifications). Opening a manager-only page from an alert switches her back automatically.

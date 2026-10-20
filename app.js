@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.43';
+  const APP_VERSION = '2.18.44';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '20-Oct-2026 Nursing Manager: Switch to Nurse';
+  const APP_BUILD_DATE = '20-Oct-2026 Nurse mode = exact Nurse login';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -13486,6 +13486,10 @@ https://samaraassistedliving.com/`;
     const [nurseMode,setNurseModeState]=React.useState(()=>{try{return localStorage.getItem(NURSE_MODE_KEY)||''}catch(_){return ''}});
     const setNurseMode=value=>{setNurseModeState(value);try{value?localStorage.setItem(NURSE_MODE_KEY,value):localStorage.removeItem(NURSE_MODE_KEY)}catch(_){}};
     const anyRoleNavRef=React.useRef(next=>setPage(next));
+    // 2.18.44: exact Nurse login — role/designation of a Staff Nurse and none of her personal extra menus.
+    const toNurseView=p=>({...p,role:'Nurse',designation:'Staff Nurse',department:'Nursing',__nurseMode:{role:p.role,designation:p.designation,department:p.department},__kitchen:undefined,__foodVendor:undefined,__paymentsTrial:undefined,__dutyContext:undefined});
+    const nurseModeOn=p=>Boolean(p)&&isNursingManagerProfile(p)&&(p.nurse_mode_on===undefined?nurseMode===String(p.id):p.nurse_mode_on===true);
+    const engineProfile=nurseModeOn(profile)?toNurseView(profile):profile;
     React.useEffect(()=>{try{SamaraLang.init(profile||{})}catch(_){}},[profile?.id,profile?.role,profile?.ui_language]); // 2.15.70: EN | தமிழ்
     const dutyContext=window.SamaraDutySwap.useContext({client,profile,setProfile,onChanged:next=>setPage(homePageForProfile(next))});
     const dutyNotice=window.SamaraDutySwap.useDailyNotice({client,profile,ready:dutyContext.ready});
@@ -13528,8 +13532,8 @@ https://samaraassistedliving.com/`;
     const [authMessage,setAuthMessage]=React.useState('');
     const [recoveryMode,setRecoveryMode]=React.useState(false);
     const [clinicalPopupSnooze,setClinicalPopupSnooze]=React.useState({key:'',until:0});
-    const alertEngine=useClinicalAlertEngine(profile,next=>anyRoleNavRef.current(next));
-    const physioNotifications=usePhysiotherapyApprovalNotifications(profile);
+    const alertEngine=useClinicalAlertEngine(engineProfile,next=>anyRoleNavRef.current(next));
+    const physioNotifications=usePhysiotherapyApprovalNotifications(engineProfile);
     const topClinicalAlert=alertEngine.alerts[0]||null;
     const topClinicalAlertKey=topClinicalAlert?.key||topClinicalAlert?.id||topClinicalAlert?.source_id||'';
     const clinicalPopupVisible=profile?.role!=='STD'&&Boolean(topClinicalAlert)&&!(
@@ -14115,7 +14119,7 @@ https://samaraassistedliving.com/`;
     const realProfile=profile;
     const canNurseMode=isNursingManagerProfile(realProfile);
     // Server flag (SQL 259) is the source of truth; before that SQL is run, the switch is screens-only (this device).
-    const nurseOn=canNurseMode&&(realProfile.nurse_mode_on===undefined?nurseMode===String(realProfile.id):realProfile.nurse_mode_on===true);
+    const nurseOn=nurseModeOn(realProfile);
     const applyNurseMode=async turnOn=>{
       const {error}=await client.rpc('set_nurse_mode',{p_on:turnOn});
       const missing=error&&(error.code==='PGRST202'||/set_nurse_mode|could not find the function/i.test(String(error.message||'')));
@@ -14124,7 +14128,7 @@ https://samaraassistedliving.com/`;
       if(!missing)setProfile(p=>p&&p.id===realProfile.id?{...p,nurse_mode_on:turnOn}:p);
       return true;
     };
-    const viewProfile=nurseOn?{...realProfile,role:'Nurse',designation:'Staff Nurse',department:'Nursing',__nurseMode:{role:realProfile.role,designation:realProfile.designation,department:realProfile.department}}:realProfile;
+    const viewProfile=nurseOn?toNurseView(realProfile):realProfile;
     const realAllowed=allowedPagesForProfile(realProfile);
     const allowed = allowedPagesForProfile(viewProfile);
     // A manager alert opened while in Nurse mode switches back to Nursing Manager so its page can open.
@@ -14135,7 +14139,7 @@ https://samaraassistedliving.com/`;
       const turnOn=!nurseOn;
       if(!(await applyNurseMode(turnOn)))return;
       pageEditedRef.current=false;
-      const nextView=turnOn?{...realProfile,role:'Nurse',designation:'Staff Nurse',department:'Nursing'}:realProfile;
+      const nextView=turnOn?toNurseView(realProfile):realProfile;
       setPage(homePageForProfile(nextView)||allowedPagesForProfile(nextView)[0]||'Notifications');
     };
     if(!allowed.includes(page)) setTimeout(()=>setPage(homePageForProfile(viewProfile)||allowed[0]||'Notifications'),0);
@@ -14158,11 +14162,11 @@ https://samaraassistedliving.com/`;
           h(GlobalSearch,{onNavigate:setPage,profile}),
           h(StartScreensaverButton,{profile}), // 2.18.23
           h(StoreIndentAlerts,{profile:realProfile,onNavigate:openAnyRole}),
-          profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:openAnyRole}),
+          profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
           h(PhysioApprovalNotification,{notifications:physioNotifications,onNavigate:setPage}),
           (SamaraLang.allowed(profile)||['Admin','Manager','STD','Nurse','Caregiver'].some(r=>hasDutyRole(profile,r)))&&h('div',{className:'topbar-quick-tools'},h(OnDutyToday,{profile}),h(LanguageSwitch,{profile})), // 2.15.72: one row on phones
           canNurseMode&&h('button',{type:'button',className:'btn nurse-mode-switch'+(nurseOn?' on':''),onClick:toggleNurseMode,title:nurseOn?'Return to your Nursing Manager screens':'Use the ERP as a Nurse (same login, manager alerts stay on)',style:{background:nurseOn?'#b01867':'#fff0f7',color:nurseOn?'#fff':'#b01867',border:'1.5px solid #b01867',borderRadius:'999px',padding:'6px 12px',fontWeight:700,whiteSpace:'nowrap'}},nurseOn?'↩ Back to Nursing Manager':'🩺 Switch to Nurse'),
-          h('span',{className:'badge'},nurseOn?'Nurse · Nursing Manager':profile.role)
+          h('span',{className:'badge'},profile.role)
         ),
         h(MobileMenu,{page,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
         h('div',{className:'global-page-tools'},
@@ -14173,7 +14177,7 @@ https://samaraassistedliving.com/`;
         h(NursingMobileQuickActions,{profile,page,onNavigate:setPage}),
         page==='Clinical Dashboard'&&allowed.includes('Talk to Guest')&&h('div',{style:{padding:'12px 16px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPage('Talk to Guest')},'🎙 Talk to Guest · 6 languages')),
         h(window.SamaraDutySwap.DailyNotice,dutyNotice),
-        h(window.SamaraDischargeWorkflow.Banner,{client,profile:realProfile,onNavigate:openAnyRole}),
+        h(window.SamaraDischargeWorkflow.Banner,{client,profile,onNavigate:setPage}),
         h(PageErrorBoundary,{page,resetKey:page+':'+pageRefreshKey,onHome:()=>setPage(homePageForProfile(profile)||allowed[0])},h('section',{className:'content',key:window.SamaraDutySwap.signature(profile)+':'+pageRefreshKey,onChangeCapture:()=>{pageEditedRef.current=true},onInputCapture:()=>{pageEditedRef.current=true}},
           profile.__dutyContext?.assignment&&h('div',{className:'message warning',role:'status'},
             `Temporary assignment: ${profile.__dutyContext.assignment.acting_as} duties until ${formatDateTimeIN(profile.__dutyContext.assignment.ends_at)}. Regular duties return automatically.`),
@@ -14262,7 +14266,7 @@ https://samaraassistedliving.com/`;
           page==='Reports'&&h(Reports,{profile,onNavigate:setPage}),
           page==='Intelligent Reports'&&h(IntelligentReports,{profile}),
           page==='Medication Errors'&&h(MedicationErrors,{profile,onNavigate:setPage}),
-          page==='Notifications'&&h(Notifications,{profile:realProfile,onNavigate:openAnyRole,engine:alertEngine,physioAlerts:physioNotifications.alerts}),
+          page==='Notifications'&&h(Notifications,{profile,onNavigate:setPage,engine:alertEngine,physioAlerts:physioNotifications.alerts}),
           page==='Audit Trail'&&h(AuditTrail),
           page==='Alert Settings'&&h(AlertSettings,{profile,engine:alertEngine}),
           ['Dashboard','HR Dashboard','Clinical Dashboard','Accounts Dashboard',"Director's Office"].includes(page)&&h(GeneralHandoverWorklist,{profile}),
@@ -42154,6 +42158,7 @@ Please access the Samara Family Portal for detailed account information.`;
     const scheduled=assignments.find(x=>x.status==='Active'&&new Date(x.effective_from).getTime()>now)||null;
     const delegated=Boolean(active),isSTD=profile?.role==='STD';
     const controller=(isNursingManagerProfile(profile)&&!delegated)||(isSTD&&delegated);
+    if(profile?.__nurseMode)return {assignments,active,scheduled,delegated,controller:false,canApprove:false,ready,reload}; // 2.18.44: Nurse view = Nurse login
     return {assignments,active,scheduled,delegated,controller,canApprove,ready,reload};
   }
 
@@ -44449,7 +44454,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const [access,setAccess]=React.useState(null),[error,setError]=React.useState('');
     React.useEffect(()=>{
       let active=true;
-      async function refresh(){try{const res=await client.rpc('bme_access');if(!active)return;if(res.error||res.data?.version!==1)throw res.error||Error('Equipment permissions are updating.');setAccess(res.data);setError('')}catch(e){if(active){setAccess(null);setError('Unable to verify equipment access. Install SQL 184 before using this update. '+e.message)}}}
+      async function refresh(){try{const res=await client.rpc('bme_access');if(!active)return;if(res.error||res.data?.version!==1)throw res.error||Error('Equipment permissions are updating.');setAccess(profile?.__nurseMode?{...res.data,controller:false,nurse:true}:res.data);setError('')}catch(e){if(active){setAccess(null);setError('Unable to verify equipment access. Install SQL 184 before using this update. '+e.message)}}}
       refresh();const timer=setInterval(refresh,30000);window.addEventListener('focus',refresh);
       return()=>{active=false;clearInterval(timer);window.removeEventListener('focus',refresh)};
     },[profile?.id]);
