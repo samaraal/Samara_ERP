@@ -1,5 +1,5 @@
-const APP_VERSION = '2.18.46';
-const CACHE = 'samara-erp-2.18.46-stock-report-menu';
+const APP_VERSION = '2.18.47';
+const CACHE = 'samara-erp-2.18.47-stock-report-period';
 const SHELL = [
   './',
   './index.html',

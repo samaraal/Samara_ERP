@@ -1,3 +1,8 @@
+## 2.18.47 — Stock Report: Date / Period filter for both reports
+- **Simple** report now has a Date / Period filter too: it shows the remaining quantity **as on the end of the chosen date** (Today, a Selected Date, or the last day of the chosen week / month / period).
+- Both reports: Today · Selected Date · This Week · This Month · Month (choose) · Selected Period (From – To), with Apply. Future dates are blocked. The Excel / PDF heading shows the date or period.
+- Compact layout: all filters on one row, smaller buttons beside the item count, slimmer table rows with the heading fixed while scrolling; the tick box sits beside its text. No SQL.
+
 ## 2.18.46 — Stock Report in the left menu
 - **PHARMACY & STORES → ⤓ Stock Report** is now its own left-menu item (below Receive from Vendor), for everyone who has Stores. Choose Simple / Detailed, the Section (or All sections) and the period, press Apply, then Download Excel or PDF. The dashboard box stays too.
 - Receive from Vendor also gets a proper menu icon (it showed a plain square). No SQL.
