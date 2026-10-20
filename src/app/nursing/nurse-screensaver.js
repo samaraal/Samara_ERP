@@ -183,7 +183,9 @@
 .nss-hero-meds.many li{padding:2px 0}
 .nss-start-btn{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#d42a74,#b01264)!important;color:#fff!important;border:0!important;border-radius:999px!important;padding:8px 16px!important;font-weight:800!important;font-size:14px!important;box-shadow:0 4px 12px rgba(176,18,100,.28);white-space:nowrap;cursor:pointer}
 .nss-start-btn:hover{filter:brightness(1.08)}
-@media (max-width:760px){.nss-start-btn{padding:7px 12px!important;font-size:13px!important}}
+@media (max-width:760px){.nss-start-btn{padding:7px 12px!important;font-size:13px!important}
+/* 2.18.51: on phones the header is a 3-column grid (42px Home column first) — the button fell into that narrow column and was clipped. Give it its own full row. */
+.topbar>.nss-start-btn{grid-column:1/-1!important;justify-self:start!important;width:auto!important;min-width:0!important;max-width:100%!important;height:auto!important;min-height:44px!important;padding:8px 16px!important;font-size:15px!important;overflow:visible!important}}
 .nss-tick-usual{flex-shrink:0;margin-left:auto;font-size:.68em;font-weight:800;color:#8a4a00;background:#fff3e0;border:1px dashed #e0a060;border-radius:8px;padding:1px 8px}
 .nss-tick-usual+.nss-tick-when{margin-left:8px}
 .nss-noplan{font-size:13px;font-weight:800;color:#8a4a00;background:#fff3e0;border:1px solid #e0a060;border-radius:999px;padding:2px 10px;white-space:nowrap}

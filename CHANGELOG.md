@@ -1,3 +1,6 @@
+## 2.18.51 — Phone: "Start Screen Saver" button fully visible
+- On phones (Nurse / Nursing Manager) the **Start Screen Saver** button was squeezed into the narrow ⌂ Home column of the header and showed only half ("Star…"). It now sits on its own row under the page title, full size, easy to tap. Desktop unchanged. No SQL.
+
 ## 2.18.50 — Pharmacy & Stores lists in alphabetical order
 - **Stock Report** (Simple and Detailed, screen, Excel and PDF) now lists items **A → Z by item name** within each section (Consumables, Pharmacy, Housekeeping, Kitchen), instead of by item code.
 - Same A → Z order (capital / small letters ignored, so "VENFLON" and "Vacuum" sit together) in: Current Stock of every Stores section, Stores Master, the issue / indent item lists, the Excel stock backup, Stock Reset history, Kitchen stock and Equipment types. Charge Master and Bills & Charges were already alphabetical. No SQL.
