@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.40';
+  const APP_VERSION = '2.18.41';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '19-Oct-2026 Fresh Start: stays open after reset, done banner';
+  const APP_BUILD_DATE = '20-Oct-2026 Patient file Billing: Advance counted in Outstanding';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -27058,7 +27058,7 @@ Please keep these login details confidential.`;
         client.from('patient_documents').select('*').eq('patient_id',p.id).order('created_at',{ascending:false}),
         client.from('meal_records').select('*').eq('patient_id',p.id).order('served_at',{ascending:false}).limit(100),
         client.from('beverage_records').select('*').eq('patient_id',p.id).order('given_at',{ascending:false}).limit(100).then(r=>r,()=>({data:[]})),
-        client.from('billing_transactions').select('*').eq('patient_id',p.id).order('transaction_date',{ascending:false}).limit(200),
+        client.from('billing_transactions').select('*').eq('patient_id',p.id).order('transaction_date',{ascending:false}).limit(1000),
         client.from('recovery_events').select('*').eq('patient_id',p.id).order('event_at',{ascending:false}).limit(100),
         client.from('incidents').select('*').eq('patient_id',p.id).order('incident_at',{ascending:false}).limit(100),
         canEdit?client.from('family_portal_access').select('id,family_user_id,relative_name,relationship,mobile,email,primary_contact,is_active,last_login_at,created_at,updated_at').eq('patient_id',p.id).order('primary_contact',{ascending:false}).order('created_at',{ascending:true}):Promise.resolve({data:[]}),
@@ -28518,7 +28518,8 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
     }
 
     function duplicateCount(row){return Math.max(0,duplicateMatches(row).length-1)}
-    function billingSummary(list){return (list||[]).reduce((a,x)=>{const n=Number(x.amount||0);if(x.transaction_type==='Charge')a.charges+=n;else if(x.transaction_type==='Payment')a.payments+=n;else if(x.transaction_type==='Discount')a.discounts+=n;else if(x.transaction_type==='Refund')a.refunds+=n;return a},{charges:0,payments:0,discounts:0,refunds:0})}
+    // 2.18.41: Advance entries count as received money (shown as Advance, not Payment), same as Accounts / Patient Ledger.
+    function billingSummary(list){return (list||[]).reduce((a,x)=>{const n=Number(x.amount||0);if(x.transaction_type==='Charge')a.charges+=n;else if(billIsAdvance(x))a.advances+=n;else if(x.transaction_type==='Payment')a.payments+=n;else if(x.transaction_type==='Discount')a.discounts+=n;else if(x.transaction_type==='Refund')a.refunds+=n;return a},{charges:0,advances:0,payments:0,discounts:0,refunds:0})}
     function tabButton(name,count,label=name){return h('button',{type:'button',className:`patient-tab ${tab===name?'active':''}`,onClick:()=>setTab(name)},label,count!=null?h('span',{className:'tab-count'},count):null)}
     function sectionEmpty(text){return h('p',{className:'small-note'},text)}
     const duplicateRows=rows.filter(r=>duplicateCount(r)>0);
@@ -28893,7 +28894,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
 }
 .patient-file-backdrop .patient-billing-summary{
   display:grid!important;
-  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
   gap:12px!important;
   width:100%!important;
   margin:4px 0 12px!important;
@@ -29536,7 +29537,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
                 :sectionEmpty('No Daily Moments uploaded for this resident yet.')
             )
           ),
-          !clinicalView&&tab==='Billing'&&(()=>{const b=billingSummary(details.billing),due=b.charges-b.payments-b.discounts+b.refunds;const bed=roomBeds.find(row=>String(row.id)===String(selected.room_bed_id||'')||(String(row.room_no)===String(selected.room_no||'')&&String(row.bed_no)===String(selected.bed_no||'')));const dailyBasis=/daily|no package/i.test(String(selected.billing_basis||selected.billing_package||''))||(!selected.billing_package&&!selected.package_id);const packageEnd=selected.package_end_date||selected.package_expiry_date||'';const packageExpired=packageEnd&&new Date(`${String(packageEnd).slice(0,10)}T23:59:59`).getTime()<Date.now();return h('div',{className:'patient-billing-tab'},
+          !clinicalView&&tab==='Billing'&&(()=>{const b=billingSummary(details.billing),due=Math.round((b.charges-b.advances-b.payments-b.discounts+b.refunds)*100)/100;const bed=roomBeds.find(row=>String(row.id)===String(selected.room_bed_id||'')||(String(row.room_no)===String(selected.room_no||'')&&String(row.bed_no)===String(selected.bed_no||'')));const dailyBasis=/daily|no package/i.test(String(selected.billing_basis||selected.billing_package||''))||(!selected.billing_package&&!selected.package_id);const packageEnd=selected.package_end_date||selected.package_expiry_date||'';const packageExpired=packageEnd&&new Date(`${String(packageEnd).slice(0,10)}T23:59:59`).getTime()<Date.now();return h('div',{className:'patient-billing-tab'},
             nursingManagerView?h('div',{className:'section-card'},
               h('div',{className:'panel-head'},h('div',null,h('h4',null,'Patient Pending Dues — View Only'),h('small',null,'Care package, accommodation tariff and current outstanding balance.')),h('span',{className:'badge'},'NO PAYMENT ACTIONS')),
               h('div',{className:'patient-detail-fields'},
@@ -29550,7 +29551,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
                 patientDetailField('Nursing Tariff',bed?.nursing_daily_rate!=null?`₹${Number(bed.nursing_daily_rate).toLocaleString('en-IN')} per day`:'Not available')
               )
             ):null,
-            h('div',{className:'patient-billing-summary'},[['Charges',b.charges],['Payments',b.payments],['Discounts',b.discounts],['Outstanding',due]].map(([k,v])=>h('div',{className:'patient-billing-stat',key:k},h('span',null,k),h('strong',null,`₹${v.toLocaleString('en-IN')}`)))),
+            h('div',{className:'patient-billing-summary'},[['Charges',b.charges],['Advance',b.advances],['Payments',b.payments],['Discounts',b.discounts],due<0?['Advance Balance (Cr)',-due]:['Outstanding',due]].map(([k,v])=>h('div',{className:'patient-billing-stat',key:k},h('span',null,k),h('strong',null,`₹${v.toLocaleString('en-IN')}`)))),
             h('div',{className:'section-card patient-billing-ledger'},
               h('h4',null,nursingManagerView?'Recent Account Entries — View Only':'Patient Ledger'),
               details.billing.length?details.billing.map(x=>h('div',{className:'patient-billing-row',key:x.id},

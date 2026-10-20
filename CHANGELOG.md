@@ -1,3 +1,7 @@
+## 2.18.41 — Patient file → Billing: Advance now counted
+- The Billing tab in the Guest's file left out Advance entries, so Payments showed ₹0 and Outstanding showed the full charges even when an advance was paid. Advance is now counted (same rule as Accounts and the Patient Ledger), shown in its own **Advance** box (not as Payment), and deducted from **Outstanding**. When the advance is more than the charges, the last box shows **Advance Balance (Cr)**.
+- Totals now use up to 1,000 ledger entries (was 200), so a long stay is not undercounted. No SQL.
+
 ## 2.18.40 — Backup & Fresh Start stays open after the reset
 - After pressing Reset the section closed and reopened, so the result vanished and it looked as if the page went back. Now it stays open, and a green "✓ Stock reset done — RST-nnnn" banner with the next steps shows at the top for 24 hours. Method choice (radio buttons) laid out properly. No SQL.
 
