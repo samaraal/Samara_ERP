@@ -1,3 +1,9 @@
+## 2.18.43 — Nursing Manager: "Switch to Nurse" (one login)
+- The Nursing Manager gets a **🩺 Switch to Nurse** button at the top (beside her role badge). It changes her screens to exactly what a nurse sees (nurse menu, Clinical Dashboard, nurse task lists, screensaver); **↩ Back to Nursing Manager** returns her. Same login, same employee record, same name on every entry — no duplicate employee.
+- Manager alerts stay on while in Nurse mode (store indents, approval / charge pop-ups, discharge banner, clinical bell, Notifications). Opening a manager-only page from an alert switches her back automatically.
+- Only Nurse Manager / Nursing Manager designations see the switch. Each switch is written to the audit log.
+- **SQL 259_nursing_manager_nurse_mode.sql** (run once): records the switch on the server and lets the Nursing Manager pass the nurse-only server checks ONLY while it is ON — Nursing Procedure request / Confirm & Start, approval requests, outside-procedure indents, Guest item use, unused-item returns, equipment start, final nursing discharge clearance. Switch OFF = exactly as before. Until the SQL is run, the switch changes the screens only.
+
 ## 2.18.42 — Patient file → Billing: coloured figures
 - The five Billing boxes now use the Accounts page colours: Charges teal, Advance blue, Payments green, Discounts purple, Outstanding red (green when nothing is due or when it shows Advance Balance (Cr)). No SQL.
 

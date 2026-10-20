@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.42';
+  const APP_VERSION = '2.18.43';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '20-Oct-2026 Patient file Billing: coloured figures';
+  const APP_BUILD_DATE = '20-Oct-2026 Nursing Manager: Switch to Nurse';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -13481,6 +13481,11 @@ https://samaraassistedliving.com/`;
     };
     const [session,setSession]=React.useState(null);
     const [profile,setProfile]=React.useState(null);
+    // 2.18.43: Nursing Manager "Switch to Nurse" — same login and employee record, nurse screens; manager alerts stay on.
+    const NURSE_MODE_KEY='samara_nurse_mode_v1';
+    const [nurseMode,setNurseModeState]=React.useState(()=>{try{return localStorage.getItem(NURSE_MODE_KEY)||''}catch(_){return ''}});
+    const setNurseMode=value=>{setNurseModeState(value);try{value?localStorage.setItem(NURSE_MODE_KEY,value):localStorage.removeItem(NURSE_MODE_KEY)}catch(_){}};
+    const anyRoleNavRef=React.useRef(next=>setPage(next));
     React.useEffect(()=>{try{SamaraLang.init(profile||{})}catch(_){}},[profile?.id,profile?.role,profile?.ui_language]); // 2.15.70: EN | தமிழ்
     const dutyContext=window.SamaraDutySwap.useContext({client,profile,setProfile,onChanged:next=>setPage(homePageForProfile(next))});
     const dutyNotice=window.SamaraDutySwap.useDailyNotice({client,profile,ready:dutyContext.ready});
@@ -13523,7 +13528,7 @@ https://samaraassistedliving.com/`;
     const [authMessage,setAuthMessage]=React.useState('');
     const [recoveryMode,setRecoveryMode]=React.useState(false);
     const [clinicalPopupSnooze,setClinicalPopupSnooze]=React.useState({key:'',until:0});
-    const alertEngine=useClinicalAlertEngine(profile,setPage);
+    const alertEngine=useClinicalAlertEngine(profile,next=>anyRoleNavRef.current(next));
     const physioNotifications=usePhysiotherapyApprovalNotifications(profile);
     const topClinicalAlert=alertEngine.alerts[0]||null;
     const topClinicalAlertKey=topClinicalAlert?.key||topClinicalAlert?.id||topClinicalAlert?.source_id||'';
@@ -14107,9 +14112,34 @@ https://samaraassistedliving.com/`;
       dutyContext.error&&h('button',{className:'btn btn-primary',onClick:dutyContext.refresh},'Retry duty check'));
     if(profile.must_change_password) return h(FirstLoginPasswordChange,{profile,onComplete:()=>setProfile({...profile,must_change_password:false})});
 
-    const allowed = allowedPagesForProfile(profile);
-    if(!allowed.includes(page)) setTimeout(()=>setPage(homePageForProfile(profile)||allowed[0]||'Notifications'),0);
-    return h('div',{className:`app mobile-role-${String(profile.role||'user').toLowerCase().replace(/[^a-z0-9]+/g,'-')}`},
+    const realProfile=profile;
+    const canNurseMode=isNursingManagerProfile(realProfile);
+    // Server flag (SQL 259) is the source of truth; before that SQL is run, the switch is screens-only (this device).
+    const nurseOn=canNurseMode&&(realProfile.nurse_mode_on===undefined?nurseMode===String(realProfile.id):realProfile.nurse_mode_on===true);
+    const applyNurseMode=async turnOn=>{
+      const {error}=await client.rpc('set_nurse_mode',{p_on:turnOn});
+      const missing=error&&(error.code==='PGRST202'||/set_nurse_mode|could not find the function/i.test(String(error.message||'')));
+      if(error&&!missing){window.alert('Could not switch: '+(error.message||error));return false}
+      setNurseMode(turnOn?String(realProfile.id):'');
+      if(!missing)setProfile(p=>p&&p.id===realProfile.id?{...p,nurse_mode_on:turnOn}:p);
+      return true;
+    };
+    const viewProfile=nurseOn?{...realProfile,role:'Nurse',designation:'Staff Nurse',department:'Nursing',__nurseMode:{role:realProfile.role,designation:realProfile.designation,department:realProfile.department}}:realProfile;
+    const realAllowed=allowedPagesForProfile(realProfile);
+    const allowed = allowedPagesForProfile(viewProfile);
+    // A manager alert opened while in Nurse mode switches back to Nursing Manager so its page can open.
+    anyRoleNavRef.current=next=>{if(nurseOn&&!allowed.includes(next)&&realAllowed.includes(next))applyNurseMode(false);setPage(next)};
+    const openAnyRole=next=>anyRoleNavRef.current(next);
+    const toggleNurseMode=async()=>{
+      if(pageEditedRef.current&&!window.confirm('Switch now? Any entries you have not saved on this page will be lost.'))return;
+      const turnOn=!nurseOn;
+      if(!(await applyNurseMode(turnOn)))return;
+      pageEditedRef.current=false;
+      const nextView=turnOn?{...realProfile,role:'Nurse',designation:'Staff Nurse',department:'Nursing'}:realProfile;
+      setPage(homePageForProfile(nextView)||allowedPagesForProfile(nextView)[0]||'Notifications');
+    };
+    if(!allowed.includes(page)) setTimeout(()=>setPage(homePageForProfile(viewProfile)||allowed[0]||'Notifications'),0);
+    return (profile=>h('div',{className:`app mobile-role-${String(profile.role||'user').toLowerCase().replace(/[^a-z0-9]+/g,'-')}`},
       h(GlobalSmartHover),
       h(GlobalNavigableSurfaces),
       h(GlobalMobileTableAdapter),
@@ -14127,11 +14157,12 @@ https://samaraassistedliving.com/`;
           h('h2',null,displayNavLabel(page,profile.role)),
           h(GlobalSearch,{onNavigate:setPage,profile}),
           h(StartScreensaverButton,{profile}), // 2.18.23
-          h(StoreIndentAlerts,{profile,onNavigate:setPage}),
-          profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
+          h(StoreIndentAlerts,{profile:realProfile,onNavigate:openAnyRole}),
+          profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:openAnyRole}),
           h(PhysioApprovalNotification,{notifications:physioNotifications,onNavigate:setPage}),
           (SamaraLang.allowed(profile)||['Admin','Manager','STD','Nurse','Caregiver'].some(r=>hasDutyRole(profile,r)))&&h('div',{className:'topbar-quick-tools'},h(OnDutyToday,{profile}),h(LanguageSwitch,{profile})), // 2.15.72: one row on phones
-          h('span',{className:'badge'},profile.role)
+          canNurseMode&&h('button',{type:'button',className:'btn nurse-mode-switch'+(nurseOn?' on':''),onClick:toggleNurseMode,title:nurseOn?'Return to your Nursing Manager screens':'Use the ERP as a Nurse (same login, manager alerts stay on)',style:{background:nurseOn?'#b01867':'#fff0f7',color:nurseOn?'#fff':'#b01867',border:'1.5px solid #b01867',borderRadius:'999px',padding:'6px 12px',fontWeight:700,whiteSpace:'nowrap'}},nurseOn?'↩ Back to Nursing Manager':'🩺 Switch to Nurse'),
+          h('span',{className:'badge'},nurseOn?'Nurse · Nursing Manager':profile.role)
         ),
         h(MobileMenu,{page,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
         h('div',{className:'global-page-tools'},
@@ -14142,7 +14173,7 @@ https://samaraassistedliving.com/`;
         h(NursingMobileQuickActions,{profile,page,onNavigate:setPage}),
         page==='Clinical Dashboard'&&allowed.includes('Talk to Guest')&&h('div',{style:{padding:'12px 16px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPage('Talk to Guest')},'🎙 Talk to Guest · 6 languages')),
         h(window.SamaraDutySwap.DailyNotice,dutyNotice),
-        h(window.SamaraDischargeWorkflow.Banner,{client,profile,onNavigate:setPage}),
+        h(window.SamaraDischargeWorkflow.Banner,{client,profile:realProfile,onNavigate:openAnyRole}),
         h(PageErrorBoundary,{page,resetKey:page+':'+pageRefreshKey,onHome:()=>setPage(homePageForProfile(profile)||allowed[0])},h('section',{className:'content',key:window.SamaraDutySwap.signature(profile)+':'+pageRefreshKey,onChangeCapture:()=>{pageEditedRef.current=true},onInputCapture:()=>{pageEditedRef.current=true}},
           profile.__dutyContext?.assignment&&h('div',{className:'message warning',role:'status'},
             `Temporary assignment: ${profile.__dutyContext.assignment.acting_as} duties until ${formatDateTimeIN(profile.__dutyContext.assignment.ends_at)}. Regular duties return automatically.`),
@@ -14154,7 +14185,7 @@ https://samaraassistedliving.com/`;
           page==='Dashboard'&&h(Dashboard,{profile,onNavigate:setPage,alertEngine}),
           page==='HR Dashboard'&&h(HRDashboard,{profile,onNavigate:setPage}),
           page==='Employees'&&h(Employees,{profile,onNavigate:setPage}),
-          page==='My Profile'&&h(MyProfile,{profile:window.SamaraDutySwap.regularProfile(profile),onProfileUpdate:p=>{setProfile({...p,...(profile.__dutyContext?{role:profile.role,designation:profile.designation,department:profile.department,__dutyContext:profile.__dutyContext}:{})});dutyContext.refresh()}}),
+          page==='My Profile'&&h(MyProfile,{profile:window.SamaraDutySwap.regularProfile(realProfile),onProfileUpdate:p=>{setProfile({...p,...(realProfile.__dutyContext?{role:realProfile.role,designation:realProfile.designation,department:realProfile.department,__dutyContext:realProfile.__dutyContext}:{})});dutyContext.refresh()}}),
           page==='My To-Do List'&&h(NursePersonalTodoList,{profile}),
           page==="Director's Office"&&h(DirectorOfficeDashboard,{profile,onNavigate:setPage}),
           page==='Enquiries & Feedback'&&h(DirectorEnquiries,{profile,onNavigate:setPage}),
@@ -14231,7 +14262,7 @@ https://samaraassistedliving.com/`;
           page==='Reports'&&h(Reports,{profile,onNavigate:setPage}),
           page==='Intelligent Reports'&&h(IntelligentReports,{profile}),
           page==='Medication Errors'&&h(MedicationErrors,{profile,onNavigate:setPage}),
-          page==='Notifications'&&h(Notifications,{profile,onNavigate:setPage,engine:alertEngine,physioAlerts:physioNotifications.alerts}),
+          page==='Notifications'&&h(Notifications,{profile:realProfile,onNavigate:openAnyRole,engine:alertEngine,physioAlerts:physioNotifications.alerts}),
           page==='Audit Trail'&&h(AuditTrail),
           page==='Alert Settings'&&h(AlertSettings,{profile,engine:alertEngine}),
           ['Dashboard','HR Dashboard','Clinical Dashboard','Accounts Dashboard',"Director's Office"].includes(page)&&h(GeneralHandoverWorklist,{profile}),
@@ -14293,11 +14324,11 @@ https://samaraassistedliving.com/`;
         // v2.14.38: workflow pop-ups (charge requests, discharge approvals) must render OUTSIDE the
         // header. On phones the header is hidden while any pop-up is open, which previously hid
         // this pop-up together with the header, menu and bottom bar (Accounts login froze).
-        h(WorkflowActionPopups,{profile,onNavigate:setPage}),
+        h(WorkflowActionPopups,{profile:realProfile,onNavigate:openAnyRole}),
         h(MobileBottomNav,{page,setPage,allowed,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
         mobileDrawerOpen&&h(MobileNavigationDrawer,{profile,allowed,page,onNavigate:(next)=>{setPage(next);setMobileDrawerOpen(false)},onClose:()=>setMobileDrawerOpen(false)})
       )
-    );
+    ))(viewProfile);
   }
 
   function FirstLoginPasswordChange({profile,onComplete}){
