@@ -756,6 +756,7 @@
           page==='Raise Indent'&&h(PatientConsumables,{profile,initialView:'raise'}),
           page==='Received Indents / Used Balance'&&h(PatientConsumables,{profile,initialView:'balance'}),
           page==='Stores'&&h(ConsumablesStores,{profile}),
+          page==='Stock Report'&&h(StoreStockReport,{profile}), // 2.18.46: all sections, choose section inside
           page==='Receive from Vendor'&&h(ConsumablesStores,{profile,section:'receive'}), // 2.18.6: all sections; each scanned line keeps its own section
           page==='Consumables'&&h(StoresDashboard,{profile,categoryFilter:'Consumables'}),
           page==='Pharmacy'&&h(StoresDashboard,{profile,categoryFilter:'Pharmacy'}),

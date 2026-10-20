@@ -1,3 +1,7 @@
+## 2.18.46 — Stock Report in the left menu
+- **PHARMACY & STORES → ⤓ Stock Report** is now its own left-menu item (below Receive from Vendor), for everyone who has Stores. Choose Simple / Detailed, the Section (or All sections) and the period, press Apply, then Download Excel or PDF. The dashboard box stays too.
+- Receive from Vendor also gets a proper menu icon (it showed a plain square). No SQL.
+
 ## 2.18.45 — Pharmacy & Stores: Stock Report download (Excel / PDF)
 - New box **⤓ Stock Report (Excel / PDF)** on every Pharmacy & Stores dashboard. Two reports, both with serial numbers (S.No.):
   - **Simple** — S.No., Item Code, Item Name, Unit, Remaining Quantity.

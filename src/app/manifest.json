@@ -437,7 +437,7 @@
   },
   {
    "file": "stores/stock-report.js",
-   "about": "2.18.45 Stock Report download: Simple (remaining qty) and Detailed (Opening / Received from Vendor / Used to Guests / Balance), Excel + PDF, with S.No."
+   "about": "2.18.45–46 Stock Report download (also left menu): Simple (remaining qty) and Detailed (Opening / Received from Vendor / Used to Guests / Balance), Excel + PDF, with S.No."
   },
   {
    "file": "stores/consumables-stores.js",

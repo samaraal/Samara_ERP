@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.45';
+  const APP_VERSION = '2.18.46';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '20-Oct-2026 Stock Report download';
+  const APP_BUILD_DATE = '20-Oct-2026 Stock Report in left menu';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -923,6 +923,8 @@ function initSamaraInaugurationInvitation(){
       .sidebar .nav-submenu button[data-nav='Leave Cover']::before{content:''!important;color:#e07a2f!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M8 3v4M16 3v4M3 10h18M8 15l2 2 5-5'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M8 3v4M16 3v4M3 10h18M8 15l2 2 5-5'/%3E%3C/svg%3E")!important}
       .sidebar .nav-submenu button[data-nav='Consumables']::before{content:''!important;color:#9b59d0!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 21V10a2 2 0 0 1 4 0v4-7a2 2 0 0 1 4 0v7-5a2 2 0 0 1 4 0v7c0 3-2 5-5 5H8Z'/%3E%3Cpath d='M8 13 5 9a2 2 0 0 0-3 2l4 7'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 21V10a2 2 0 0 1 4 0v4-7a2 2 0 0 1 4 0v7-5a2 2 0 0 1 4 0v7c0 3-2 5-5 5H8Z'/%3E%3Cpath d='M8 13 5 9a2 2 0 0 0-3 2l4 7'/%3E%3C/svg%3E")!important}
       .sidebar .nav-submenu button[data-nav='Pharmacy']::before{content:''!important;color:#25a98b!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m10.5 20.5 10-10a4.24 4.24 0 0 0-6-6l-10 10a4.24 4.24 0 0 0 6 6Z'/%3E%3Cpath d='m8.5 8.5 7 7'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m10.5 20.5 10-10a4.24 4.24 0 0 0-6-6l-10 10a4.24 4.24 0 0 0 6 6Z'/%3E%3Cpath d='m8.5 8.5 7 7'/%3E%3C/svg%3E")!important}
+      .sidebar .nav-submenu button[data-nav='Receive from Vendor']::before{content:''!important;color:#7a3fb0!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7h11v10H3z'/%3E%3Cpath d='M14 10h4l3 3v4h-7'/%3E%3Cpath d='M7 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z'/%3E%3Cpath d='M17 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 7h11v10H3z'/%3E%3Cpath d='M14 10h4l3 3v4h-7'/%3E%3Cpath d='M7 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z'/%3E%3Cpath d='M17 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z'/%3E%3C/svg%3E")!important}
+      .sidebar .nav-submenu button[data-nav='Stock Report']::before{content:''!important;color:#c21867!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z'/%3E%3Cpath d='M12 11v6'/%3E%3Cpath d='m9 14 3 3 3-3'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z'/%3E%3Cpath d='M12 11v6'/%3E%3Cpath d='m9 14 3 3 3-3'/%3E%3C/svg%3E")!important}
       .sidebar .nav-submenu button[data-nav='Housekeeping & General']::before{content:''!important;color:#c0508a!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 10h16l-1.6 9.2a2 2 0 0 1-2 1.8H7.6a2 2 0 0 1-2-1.8Z'/%3E%3Cpath d='M8 10l3-6'/%3E%3Cpath d='M16 10l-3-6'/%3E%3Cpath d='M9 14v3'/%3E%3Cpath d='M12 14v3'/%3E%3Cpath d='M15 14v3'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 10h16l-1.6 9.2a2 2 0 0 1-2 1.8H7.6a2 2 0 0 1-2-1.8Z'/%3E%3Cpath d='M8 10l3-6'/%3E%3Cpath d='M16 10l-3-6'/%3E%3Cpath d='M9 14v3'/%3E%3Cpath d='M12 14v3'/%3E%3Cpath d='M15 14v3'/%3E%3C/svg%3E")!important}
       .sidebar .nav-submenu button[data-nav='Kitchen / Food Stores']::before{content:''!important;color:#d98a1f!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2'/%3E%3Cpath d='M7 2v20'/%3E%3Cpath d='M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2'/%3E%3Cpath d='M7 2v20'/%3E%3Cpath d='M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7'/%3E%3C/svg%3E")!important}
       .sidebar .nav-submenu button[data-nav='Biomedical Equipment']::before{content:''!important;color:#2f7fb8!important;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12h4l3-8 4 16 3-8h4'/%3E%3C/svg%3E")!important;mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12h4l3-8 4 16 3-8h4'/%3E%3C/svg%3E")!important}
@@ -1722,7 +1724,7 @@ function initSamaraInaugurationInvitation(){
     { title:'MANAGER', items:['My To-Do & Follow-up','Clinical Escalations','Reports','Petty Cash'] }, // 2.16.19: Petty Cash = Nursing Manager's book (Admin + Nursing Manager)
     { title:'NURSING', items:['Outside Nursing Dashboard','Outside Samara Nursing Procedures','Clinical Dashboard','Clinical Alerts','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Approval Requests','Charge Register','Physiotherapy','Special Nurse','Shift Handover'] },
     { title:'PHYSIOTHERAPY', items:['Physiotherapy Dashboard'] },
-    { title:'PHARMACY & STORES', items:['Receive from Vendor','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'] },
+    { title:'PHARMACY & STORES', items:['Receive from Vendor','Stock Report','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
     { title:'ACCOUNTS / BILLING', items:['Physiotherapist Accounts','Accounts Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Reports'] }, // keep in step with ACCOUNTS_NAV_GROUPS
     { title:'COMMUNICATION', items:['Talk to Guest','WhatsApp Inbox','WhatsApp Logs','Feedback','Mail Dashboard'] }, // 2.16.34: Talk to Guest here for Admin / STD (nurses & managers keep it in their nursing menu)
@@ -1777,7 +1779,7 @@ function initSamaraInaugurationInvitation(){
       'Clinical Dashboard','Talk to Guest','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiry Register','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Approval Requests','Charge Approvals','Charge Register', // 2.17.6: Bills & Charges (raise outside bills)
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
-      'Patient Consumables','Stores','Receive from Vendor','Stores In-charge Assignment','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Petty Cash','Biomedical Equipment','Oxygen Cylinders','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
+      'Patient Consumables','Stores','Receive from Vendor','Stock Report','Stores In-charge Assignment','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Petty Cash','Biomedical Equipment','Oxygen Cylinders','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
     if(!pages.includes('Spot Assessment'))pages.push('Spot Assessment');
@@ -1786,6 +1788,7 @@ function initSamaraInaugurationInvitation(){
     if(isNursingManagerProfile(profile)){ if(!pages.includes('My To-Do List'))pages.push('My To-Do List'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Consumables'))pages.push('Consumables'); if(!pages.includes('Pharmacy'))pages.push('Pharmacy'); STORE_SECTIONS.forEach(x=>{if(!pages.includes(x.page))pages.push(x.page)}); ['Biomedical Equipment','Oxygen Cylinders'].forEach(x=>{if(!pages.includes(x))pages.push(x)}); if(!pages.includes('Stores In-charge Assignment'))pages.push('Stores In-charge Assignment'); if(!pages.includes('Employees'))pages.push('Employees'); }
     if(pages.includes('Admissions')&&!pages.includes('Admission Register'))pages.push('Admission Register'); // 2.15.1
     if(pages.includes('Stores')&&!pages.includes('Receive from Vendor'))pages.push('Receive from Vendor'); // 2.18.6: new stock entries (bill scan) straight from the menu
+    if(pages.includes('Stores')&&!pages.includes('Stock Report'))pages.push('Stock Report'); // 2.18.46: stock download (Simple / Detailed) straight from the menu
     return pages;
   };
   const CLINICAL_ROLES=['Nurse','Caregiver'];
@@ -1859,7 +1862,7 @@ function initSamaraInaugurationInvitation(){
         {title:'ADMISSION',items:['Spot Assessment','Admissions','Admission Register'].filter(item=>allowed.includes(item))},
         {title:'PATIENTS',items:['Patients','Discharge','Documents','Recovery Timeline','Intelligent Reports','Family Communication','Incidents','Medication Errors','Patient Ledger','Final Billing'].filter(item=>allowed.includes(item))},
         {title:'ROOMS & PACKAGES',items:['Rooms','Care Packages'].filter(item=>allowed.includes(item))},
-        {title:'PHARMACY & STORES',items:['Receive from Vendor','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'].filter(item=>allowed.includes(item))},
+        {title:'PHARMACY & STORES',items:['Receive from Vendor','Stock Report','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'].filter(item=>allowed.includes(item))},
         {title:'PETTY CASH',items:['Petty Cash'].filter(item=>allowed.includes(item))}, // 2.16.20: Nursing Manager's own petty cash book
         {title:'FOOD & DIET',items:['Food & Diet'].filter(item=>allowed.includes(item))},
         {title:'COMMUNICATION',items:['WhatsApp Inbox'].filter(item=>allowed.includes(item))},
@@ -9164,6 +9167,7 @@ https://samaraassistedliving.com/`;
 "Receive Stock": "ஸ்டாக் பெறு",
 "Receive a delivery": "டெலிவரியை பெறு",
 "Receive from Vendor": "வெண்டரிடமிருந்து பெறு",
+"Stock Report": "ஸ்டாக் ரிப்போர்ட்",
 "Receive into Stores": "ஸ்டோர்ஸில் பெறு",
 "Received": "பெறப்பட்டது",
 "Received By": "பெற்றவர்",
@@ -14225,6 +14229,7 @@ https://samaraassistedliving.com/`;
           page==='Raise Indent'&&h(PatientConsumables,{profile,initialView:'raise'}),
           page==='Received Indents / Used Balance'&&h(PatientConsumables,{profile,initialView:'balance'}),
           page==='Stores'&&h(ConsumablesStores,{profile}),
+          page==='Stock Report'&&h(StoreStockReport,{profile}), // 2.18.46: all sections, choose section inside
           page==='Receive from Vendor'&&h(ConsumablesStores,{profile,section:'receive'}), // 2.18.6: all sections; each scanned line keeps its own section
           page==='Consumables'&&h(StoresDashboard,{profile,categoryFilter:'Consumables'}),
           page==='Pharmacy'&&h(StoresDashboard,{profile,categoryFilter:'Pharmacy'}),
@@ -14895,7 +14900,7 @@ https://samaraassistedliving.com/`;
     const [openSection,setOpenSection]=React.useState(activeSection);
     React.useEffect(()=>{const next=sections.find(section=>section.items.includes(page))?.title;if(next)setOpenSection(next)},[page]);
     const sectionIcon=title=>/OVERVIEW/.test(title)?'⌂':/HR|STAFF/.test(title)?'♙':/ADMISSION/.test(title)?'♥':/PATIENT/.test(title)?'⚕\uFE0E':/ROOM/.test(title)?'▦':/PHARMACY|STORE/.test(title)?'♨':/FOOD/.test(title)?'🍽\uFE0E':/CHARGE/.test(title)?'₹':/ACCOUNT.*BILL|BILLING|PAYMENT|FINANCE/.test(title)?'₹':/COMMUNICATION|WHATSAPP/.test(title)?'✉\uFE0E':/MY ACCOUNT|PROFILE/.test(title)?'☺\uFE0E':/DUTY|ROSTER|LEAVE/.test(title)?'◷':/DIRECTOR/.test(title)?'★':/CLINICAL|NURSING/.test(title)?'✚':'⚙\uFE0E';
-    const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Consumables'?'▤':item==='Pharmacy'?'✚':item==='Housekeeping & General'?'🧺\uFE0E':item==='Kitchen / Food Stores'?'🍽\uFE0E':item==='Biomedical Equipment'?'⚕\uFE0E':item==='Oxygen Cylinders'?'◉':item==='Stores'?'▥':item==='Receive from Vendor'?'＋':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My To-Do List'?'✓':item==='Accounts Dashboard'?'◫':['Charge Approvals','Payments','Patient Ledger','Final Billing','Refunds'].includes(item)?'₹':item==='Discharge Clearance'?'⇥':item==='Package Expiry Dashboard'?'◷':['Payment Requests','Payments & Vouchers'].includes(item)?'↗':item==='Approved—Ready to Pay'?'✓':item==='Payment Vouchers'?'▤':item==='Payment Statements'?'≡':item==='Accounts Reports'?'▦':'›';
+    const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Consumables'?'▤':item==='Pharmacy'?'✚':item==='Housekeeping & General'?'🧺\uFE0E':item==='Kitchen / Food Stores'?'🍽\uFE0E':item==='Biomedical Equipment'?'⚕\uFE0E':item==='Oxygen Cylinders'?'◉':item==='Stores'?'▥':item==='Receive from Vendor'?'＋':item==='Stock Report'?'⤓':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My To-Do List'?'✓':item==='Accounts Dashboard'?'◫':['Charge Approvals','Payments','Patient Ledger','Final Billing','Refunds'].includes(item)?'₹':item==='Discharge Clearance'?'⇥':item==='Package Expiry Dashboard'?'◷':['Payment Requests','Payments & Vouchers'].includes(item)?'↗':item==='Approved—Ready to Pay'?'✓':item==='Payment Vouchers'?'▤':item==='Payment Statements'?'≡':item==='Accounts Reports'?'▦':'›';
     React.useEffect(()=>{
       const onKey=e=>{if(e.key==='Escape')onClose()};
       document.addEventListener('keydown',onKey);

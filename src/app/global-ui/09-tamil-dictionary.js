@@ -794,6 +794,7 @@
 "Receive Stock": "ஸ்டாக் பெறு",
 "Receive a delivery": "டெலிவரியை பெறு",
 "Receive from Vendor": "வெண்டரிடமிருந்து பெறு",
+"Stock Report": "ஸ்டாக் ரிப்போர்ட்",
 "Receive into Stores": "ஸ்டோர்ஸில் பெறு",
 "Received": "பெறப்பட்டது",
 "Received By": "பெற்றவர்",
