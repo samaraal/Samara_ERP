@@ -287,6 +287,8 @@
         lines:[fresh?.last?`Reset on ${formatDateIN(fresh.last.reset_at)} by ${fresh.last.reset_by_name||'—'}`:'Download the current entries as Excel',storeAdmin?'Stock Reset (Admin / Director)':'Stock Reset is done by Admin / Director']}]:[]),
       ...(freshSection&&s.access?[{key:'mrp',icon:'₹',title:'MRP Review',value:fresh?fresh.mrpOpen:null,unit:'waiting for review',
         lines:['Bill MRP different from the Charge Master rate','Charge Master rate is kept until Admin / Director decides'],alert:Number(fresh?.mrpOpen||0)>0&&storeAdmin}]:[]),
+      ...(s.access?[{key:'report',icon:'⤓',title:'Stock Report (Excel / PDF)',value:null,valueText:'Download',unit:'stock report',
+        lines:['Simple — remaining quantity only','Detailed — Opening · Received · Used to Guests · Balance']}]:[]),
       {key:'receipts',icon:'🧾',title:'Vendor Receipt Register',value:ready?s.receipts:null,unit:'receipts',
         lines:[s.lastReceipt?`Last received ${formatDateIN(s.lastReceipt)}`:'No receipts yet']},
       {key:'movement',icon:'↕',title:'Stock Movement Register',value:ready?s.monthMoves:null,unit:'movements this month',
@@ -309,6 +311,7 @@
       view==='usage'&&stats?.access&&h(StoreItemUsageRegister,{profile,categoryFilter,initialItem:usageItem}),
       // 2.18.40: refresh the boxes WITHOUT clearing stats — clearing them closed and reopened this section, so the
       // "reset done" result disappeared and the page looked as if it went back.
+      view==='report'&&stats?.access&&h(StoreStockReport,{profile,categoryFilter,onOpenItem:id=>{setUsageItem(id);openView('usage')}}),
       view==='fresh'&&stats?.access&&h(StoreFreshStart,{profile,categoryFilter,onChanged:()=>setRefreshKey(k=>k+1)}),
       view==='count'&&stats?.access&&h(StorePhysicalCount,{profile,categoryFilter,onChanged:()=>setRefreshKey(k=>k+1)}),
       view==='mrp'&&stats?.access&&h(StoreMrpReview,{profile,categoryFilter,onChanged:()=>setRefreshKey(k=>k+1)}),

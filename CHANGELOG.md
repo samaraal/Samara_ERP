@@ -1,3 +1,9 @@
+## 2.18.45 — Pharmacy & Stores: Stock Report download (Excel / PDF)
+- New box **⤓ Stock Report (Excel / PDF)** on every Pharmacy & Stores dashboard. Two reports, both with serial numbers (S.No.):
+  - **Simple** — S.No., Item Code, Item Name, Unit, Remaining Quantity.
+  - **Detailed** — S.No., Item Code, Item Name, Unit, Opening Stock, Received from Vendor, Used to Guests, Adjustments (±), Balance — for Today / This Week / This Month / Selected Period (with Apply).
+- Used to Guests = handed over to Guests minus unused items returned. Adjustments = Stock Reset, corrections, Department Issue, so Balance always adds up and matches Current Stock. Option to hide zero-stock items; tap a row to open that item's usage register. PDF opens the print page (A4, Samara logo) → Save as PDF. No SQL.
+
 ## 2.18.44 — Nurse mode is now exactly the Nurse login
 - In **Switch to Nurse**, the Nursing Manager now sees exactly what a Nurse sees — same menu, pages, Alerts page, alert bell and buttons. Removed what was still showing from her manager login: Enquiries and other extra menus (extra-duty / leave-cover / kitchen / food / payments menus), the manager sections of the Alerts page, the discharge banner, Store In-charge buttons on Patient Consumables and the Biomedical Equipment admin view. The role badge reads "Nurse".
 - Kept from 2.18.43: the Switch button itself and the approval pop-ups (store indents, charge / discharge approval requests) so nothing waits for her; opening one switches her back to Nursing Manager. No SQL.

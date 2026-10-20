@@ -436,6 +436,10 @@
    "about": "2.18.37 Fresh start of stock: Excel backup, Stock Reset (Admin/Director), Opening Stock – Physical Count, MRP Review (SQL 256)"
   },
   {
+   "file": "stores/stock-report.js",
+   "about": "2.18.45 Stock Report download: Simple (remaining qty) and Detailed (Opening / Received from Vendor / Used to Guests / Balance), Excel + PDF, with S.No."
+  },
+  {
    "file": "stores/consumables-stores.js",
    "about": "Consumables stores",
    "lines": 770
