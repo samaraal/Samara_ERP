@@ -94,10 +94,10 @@
         console.warn(stockRes.error);
         const missing=stockRes.error.code==='42P01'||/relation .* does not exist/i.test(stockRes.error.message||'');
         notifyStore('error',missing?'Stores database is not installed yet. Please run 91_consumables_store_inventory.sql once in Supabase.':`Stock list could not be loaded just now (${stockRes.error.message||stockRes.error.code||'network'}). Tap ↻ Refresh in a moment.`);
-      } else setStock(stockRes.data||[]);
+      } else setStock((stockRes.data||[]).slice().sort((x,y)=>String(x.item_name||'').trim().localeCompare(String(y.item_name||'').trim(),'en',{sensitivity:'base',numeric:true})));   // 2.18.50: A→Z, capitals ignored
       if(!rRes.error)setReceipts((rRes.data||[]).filter(r=>!r.voided_at));
       if(!lRes.error)setLedger((lRes.data||[]).filter(r=>!r.voided_at));
-      if(!pRes.error)setPatients(pRes.data||[]); if(!mRes.error)setItemMaster(mRes.data||[]);
+      if(!pRes.error)setPatients(pRes.data||[]); if(!mRes.error)setItemMaster((mRes.data||[]).slice().sort((x,y)=>String(x.item_name||'').trim().localeCompare(String(y.item_name||'').trim(),'en',{sensitivity:'base',numeric:true})));
       if(!iRes.error)setIndents(iRes.data||[]);if(!aRes.error)setAllocations(aRes.data||[]);if(!tRes.error)setStoreReturns(tRes.data||[]);
       try{const rs=await loadStoreResets(20);setStoreResets(rs.rows||[])}catch(_){}
       setLoadedOnce(true);

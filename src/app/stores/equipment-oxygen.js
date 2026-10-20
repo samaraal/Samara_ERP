@@ -135,7 +135,7 @@
         client.from('biomedical_equipment_movements').select('*').order('moved_at',{ascending:false}).limit(1000),
         client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').eq('is_active',true).order('full_name'),
         client.rpc('get_charge_service_catalog'),
-        client.from('biomedical_equipment_items').select('*').order('item_code'),
+        client.from('biomedical_equipment_items').select('*').order('item_name'),
         client.from('biomedical_equipment_purchases').select('*').order('received_at',{ascending:false}).limit(1000)
       ]);
       if(e.error){setError(equipmentErrorText(e.error));setRows([]);return}

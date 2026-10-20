@@ -60,7 +60,7 @@
     const list=[...rows.values()].map(r=>({...r,opening:srNum(r.opening),received:srNum(r.received),used:srNum(r.used),other:srNum(r.other),current:srNum(r.current)}))
       .map(r=>({...r,balance:srNum(r.opening+r.received-r.used+r.other)}))
       .filter(r=>includeInactive||r.item.active!==false||r.balance!==0||r.current!==0)   // 2.18.49: a removed (inactive) item with no stock left is not listed, even if it moved in the period
-      .sort((a,b)=>String(a.item.item_category||'').localeCompare(String(b.item.item_category||''))||String(a.item.item_code||'').localeCompare(String(b.item.item_code||''),undefined,{numeric:true})||String(a.item.item_name||'').localeCompare(String(b.item.item_name||'')));
+      .sort((a,b)=>String(a.item.item_category||'').localeCompare(String(b.item.item_category||''))||String(a.item.item_name||'').trim().localeCompare(String(b.item.item_name||'').trim(),'en',{sensitivity:'base',numeric:true})||String(a.item.item_code||'').localeCompare(String(b.item.item_code||''),undefined,{numeric:true}));   // 2.18.50: alphabetical by item name
     return list;
   }
 

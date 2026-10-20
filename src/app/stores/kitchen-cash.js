@@ -132,7 +132,7 @@
         x.status==='Handed over'&&x.recipient!==actor&&waitNote(`Waiting for ${name(x.recipient)} to confirm cash received.`))])));
     const field=(label,key,type='text',opts={})=>h('div',{className:'field'},h('label',null,label),h('input',{type,value:purchase[key],onChange:e=>setPurchase(v=>({...v,[key]:e.target.value})),...opts}));
     const lineChange=(i,key,value)=>setPurchase(v=>({...v,items:v.items.map((x,j)=>j===i?{...x,[key]:value}:x)}));
-    const kitchenItems=(data.stock||[]).filter(x=>x.active!==false).slice().sort((a,b)=>String(a.item_code||'').localeCompare(String(b.item_code||''),undefined,{numeric:true}));
+    const kitchenItems=(data.stock||[]).filter(x=>x.active!==false).slice().sort((a,b)=>String(a.item_name||'').trim().localeCompare(String(b.item_name||'').trim(),'en',{sensitivity:'base',numeric:true}));   // 2.18.50: alphabetical
     const itemLabel=x=>`${x.item_code?x.item_code+' · ':''}${x.name} · ${x.unit}`;
     const codeFor=(nm,unit)=>(data.stock||[]).find(x=>x.name===nm&&x.unit===unit)?.item_code;
     const pickItem=(i,value)=>setPurchase(v=>({...v,items:v.items.map((x,j)=>{if(j!==i)return x;if(value==='__other')return {...x,item_id:'__other',name:'',unit:'Nos',stock:false};const it=kitchenItems.find(k=>String(k.id)===String(value));if(!it)return {...x,item_id:'',name:'',unit:'',pack:''};const pk=kitchenPacksFor(it);return {...x,item_id:it.id,name:it.name,unit:it.unit,stock:true,pack:pk.packs.length?'':'loose',count:'1',quantity:'1'}})}));

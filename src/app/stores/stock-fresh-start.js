@@ -65,7 +65,7 @@
     ]);
     const inSec=items.filter(i=>secs.includes(i.item_category||'Consumables'));
     const byId=new Map(inSec.map(i=>[i.id,i])),stockById=new Map(stock.map(s=>[s.item_id,s]));
-    const sortItems=(a,b)=>String(a.item_category||'').localeCompare(String(b.item_category||''))||String(a.item_code||'').localeCompare(String(b.item_code||''))||String(a.item_name||'').localeCompare(String(b.item_name||''));
+    const sortItems=(a,b)=>String(a.item_category||'').localeCompare(String(b.item_category||''))||String(a.item_name||'').trim().localeCompare(String(b.item_name||'').trim(),'en',{sensitivity:'base',numeric:true})||String(a.item_code||'').localeCompare(String(b.item_code||''),undefined,{numeric:true});   // 2.18.50: alphabetical
     const stockSheet=[['Section','Item Code','Item Name','Standard Category','Unit','Strength','Dosage Form','Charge Master Rate (₹)','Reorder Level','Total In','Total Out','Current Balance','Status','Last Movement']];
     [...inSec].sort(sortItems).forEach(i=>{const s=stockById.get(i.id)||{};stockSheet.push([i.item_category||'Consumables',i.item_code||'',displayStoreItemName(i.item_name),i.standard_category||'',i.unit||'',i.strength||'',i.dosage_form||'',i.charge_rate==null?'':Number(i.charge_rate),Number(i.reorder_level||0),Number(s.total_in||0),Number(s.total_out||0),Number(s.balance_qty||0),i.active===false?'Inactive':'Active',s.last_movement_at?formatDateTimeIN(s.last_movement_at):''])});
     const recSheet=[['Receipt No.','Received Date','Entered At','Section','Item Code','Item Name','Quantity','Unit','Vendor','Invoice No.','Invoice Date','Batch No.','Expiry Date','Unit Cost (₹)','Received By','Remarks']];
@@ -170,7 +170,7 @@
     }
     async function openReset(rs){
       setDetail({reset:rs,rows:null});
-      const r=await client.from('store_stock_reset_items').select('*').eq('reset_id',rs.id).order('item_code');
+      const r=await client.from('store_stock_reset_items').select('*').eq('reset_id',rs.id).order('item_name');
       setDetail({reset:rs,rows:r.error?[]:r.data||[],error:r.error?.message});
     }
     function downloadSnapshot(rs,rows){

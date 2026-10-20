@@ -1,3 +1,7 @@
+## 2.18.50 — Pharmacy & Stores lists in alphabetical order
+- **Stock Report** (Simple and Detailed, screen, Excel and PDF) now lists items **A → Z by item name** within each section (Consumables, Pharmacy, Housekeeping, Kitchen), instead of by item code.
+- Same A → Z order (capital / small letters ignored, so "VENFLON" and "Vacuum" sit together) in: Current Stock of every Stores section, Stores Master, the issue / indent item lists, the Excel stock backup, Stock Reset history, Kitchen stock and Equipment types. Charge Master and Bills & Charges were already alphabetical. No SQL.
+
 ## 2.18.49 — Stock Report: removed items no longer listed
 - An item that has been **removed** (switched off) from Stores and has **no stock left** no longer appears in the Stock Report (Simple or Detailed), even if it had a stock movement in the chosen period (e.g. the write-off when it was removed). A removed item that still shows stock is listed, so nothing is hidden by mistake. Current Stock already worked this way. No SQL.
 

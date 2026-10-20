@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.49';
+  const APP_VERSION = '2.18.50';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -12679,7 +12679,7 @@ https://samaraassistedliving.com/`;
         x.status==='Handed over'&&x.recipient!==actor&&waitNote(`Waiting for ${name(x.recipient)} to confirm cash received.`))])));
     const field=(label,key,type='text',opts={})=>h('div',{className:'field'},h('label',null,label),h('input',{type,value:purchase[key],onChange:e=>setPurchase(v=>({...v,[key]:e.target.value})),...opts}));
     const lineChange=(i,key,value)=>setPurchase(v=>({...v,items:v.items.map((x,j)=>j===i?{...x,[key]:value}:x)}));
-    const kitchenItems=(data.stock||[]).filter(x=>x.active!==false).slice().sort((a,b)=>String(a.item_code||'').localeCompare(String(b.item_code||''),undefined,{numeric:true}));
+    const kitchenItems=(data.stock||[]).filter(x=>x.active!==false).slice().sort((a,b)=>String(a.item_name||'').trim().localeCompare(String(b.item_name||'').trim(),'en',{sensitivity:'base',numeric:true}));   // 2.18.50: alphabetical
     const itemLabel=x=>`${x.item_code?x.item_code+' · ':''}${x.name} · ${x.unit}`;
     const codeFor=(nm,unit)=>(data.stock||[]).find(x=>x.name===nm&&x.unit===unit)?.item_code;
     const pickItem=(i,value)=>setPurchase(v=>({...v,items:v.items.map((x,j)=>{if(j!==i)return x;if(value==='__other')return {...x,item_id:'__other',name:'',unit:'Nos',stock:false};const it=kitchenItems.find(k=>String(k.id)===String(value));if(!it)return {...x,item_id:'',name:'',unit:'',pack:''};const pk=kitchenPacksFor(it);return {...x,item_id:it.id,name:it.name,unit:it.unit,stock:true,pack:pk.packs.length?'':'loose',count:'1',quantity:'1'}})}));
@@ -42264,7 +42264,7 @@ function usePharmacyStock(){
       .select('item_id,item_name,unit,balance_qty,reorder_level,active')
       .eq('active',true).order('item_name');
     if(result.error){setState({loading:false,error:'Stock could not be refreshed. Check with Stores before issue.',checkedAt:null});return}
-    setItems(result.data||[]);
+    setItems((result.data||[]).slice().sort((x,y)=>String(x.item_name||'').trim().localeCompare(String(y.item_name||'').trim(),'en',{sensitivity:'base',numeric:true})));   // 2.18.50: A→Z
     setState({loading:false,error:'',checkedAt:new Date()});
   },[]);
   React.useEffect(()=>{
@@ -42301,7 +42301,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
 
   function StoreItemMaster({profile}){
     const [rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('All'),[search,setSearch]=React.useState(''),[editing,setEditing]=React.useState(null),[adding,setAdding]=React.useState(null),[moveTargets,setMoveTargets]=React.useState({}),[duplicateAlert,setDuplicateAlert]=React.useState(null);
-    const load=React.useCallback(async()=>{const r=await client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate').order('item_name');if(r.error)showSamaraActionToast('error','Stores Master','Run 132_store_item_master.sql first. '+r.error.message);else setRows(r.data||[])},[]);
+    const load=React.useCallback(async()=>{const r=await client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate').order('item_name');if(r.error)showSamaraActionToast('error','Stores Master','Run 132_store_item_master.sql first. '+r.error.message);else setRows((r.data||[]).slice().sort((x,y)=>String(x.item_name||'').trim().localeCompare(String(y.item_name||'').trim(),'en',{sensitivity:'base',numeric:true})))},[]);
     React.useEffect(()=>{load()},[load]);
     const visible=rows.filter(r=>{const c=r.item_category||'Consumables',q=search.trim().toLowerCase();return (filter==='All'||filter===c||(filter==='Inactive'&&r.active===false))&&(q.length<3||`${r.item_code||''} ${r.item_name||''}`.toLowerCase().includes(q))});
     const normalizeMasterName=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\b(ml|mg|gm|g|iu|fr)\b/g,' $1 ').replace(/\s+/g,' ').trim();
@@ -42626,7 +42626,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     ]);
     const inSec=items.filter(i=>secs.includes(i.item_category||'Consumables'));
     const byId=new Map(inSec.map(i=>[i.id,i])),stockById=new Map(stock.map(s=>[s.item_id,s]));
-    const sortItems=(a,b)=>String(a.item_category||'').localeCompare(String(b.item_category||''))||String(a.item_code||'').localeCompare(String(b.item_code||''))||String(a.item_name||'').localeCompare(String(b.item_name||''));
+    const sortItems=(a,b)=>String(a.item_category||'').localeCompare(String(b.item_category||''))||String(a.item_name||'').trim().localeCompare(String(b.item_name||'').trim(),'en',{sensitivity:'base',numeric:true})||String(a.item_code||'').localeCompare(String(b.item_code||''),undefined,{numeric:true});   // 2.18.50: alphabetical
     const stockSheet=[['Section','Item Code','Item Name','Standard Category','Unit','Strength','Dosage Form','Charge Master Rate (₹)','Reorder Level','Total In','Total Out','Current Balance','Status','Last Movement']];
     [...inSec].sort(sortItems).forEach(i=>{const s=stockById.get(i.id)||{};stockSheet.push([i.item_category||'Consumables',i.item_code||'',displayStoreItemName(i.item_name),i.standard_category||'',i.unit||'',i.strength||'',i.dosage_form||'',i.charge_rate==null?'':Number(i.charge_rate),Number(i.reorder_level||0),Number(s.total_in||0),Number(s.total_out||0),Number(s.balance_qty||0),i.active===false?'Inactive':'Active',s.last_movement_at?formatDateTimeIN(s.last_movement_at):''])});
     const recSheet=[['Receipt No.','Received Date','Entered At','Section','Item Code','Item Name','Quantity','Unit','Vendor','Invoice No.','Invoice Date','Batch No.','Expiry Date','Unit Cost (₹)','Received By','Remarks']];
@@ -42731,7 +42731,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     }
     async function openReset(rs){
       setDetail({reset:rs,rows:null});
-      const r=await client.from('store_stock_reset_items').select('*').eq('reset_id',rs.id).order('item_code');
+      const r=await client.from('store_stock_reset_items').select('*').eq('reset_id',rs.id).order('item_name');
       setDetail({reset:rs,rows:r.error?[]:r.data||[],error:r.error?.message});
     }
     function downloadSnapshot(rs,rows){
@@ -42987,7 +42987,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
     const list=[...rows.values()].map(r=>({...r,opening:srNum(r.opening),received:srNum(r.received),used:srNum(r.used),other:srNum(r.other),current:srNum(r.current)}))
       .map(r=>({...r,balance:srNum(r.opening+r.received-r.used+r.other)}))
       .filter(r=>includeInactive||r.item.active!==false||r.balance!==0||r.current!==0)   // 2.18.49: a removed (inactive) item with no stock left is not listed, even if it moved in the period
-      .sort((a,b)=>String(a.item.item_category||'').localeCompare(String(b.item.item_category||''))||String(a.item.item_code||'').localeCompare(String(b.item.item_code||''),undefined,{numeric:true})||String(a.item.item_name||'').localeCompare(String(b.item.item_name||'')));
+      .sort((a,b)=>String(a.item.item_category||'').localeCompare(String(b.item.item_category||''))||String(a.item.item_name||'').trim().localeCompare(String(b.item.item_name||'').trim(),'en',{sensitivity:'base',numeric:true})||String(a.item.item_code||'').localeCompare(String(b.item.item_code||''),undefined,{numeric:true}));   // 2.18.50: alphabetical by item name
     return list;
   }
 
@@ -43217,10 +43217,10 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         console.warn(stockRes.error);
         const missing=stockRes.error.code==='42P01'||/relation .* does not exist/i.test(stockRes.error.message||'');
         notifyStore('error',missing?'Stores database is not installed yet. Please run 91_consumables_store_inventory.sql once in Supabase.':`Stock list could not be loaded just now (${stockRes.error.message||stockRes.error.code||'network'}). Tap ↻ Refresh in a moment.`);
-      } else setStock(stockRes.data||[]);
+      } else setStock((stockRes.data||[]).slice().sort((x,y)=>String(x.item_name||'').trim().localeCompare(String(y.item_name||'').trim(),'en',{sensitivity:'base',numeric:true})));   // 2.18.50: A→Z, capitals ignored
       if(!rRes.error)setReceipts((rRes.data||[]).filter(r=>!r.voided_at));
       if(!lRes.error)setLedger((lRes.data||[]).filter(r=>!r.voided_at));
-      if(!pRes.error)setPatients(pRes.data||[]); if(!mRes.error)setItemMaster(mRes.data||[]);
+      if(!pRes.error)setPatients(pRes.data||[]); if(!mRes.error)setItemMaster((mRes.data||[]).slice().sort((x,y)=>String(x.item_name||'').trim().localeCompare(String(y.item_name||'').trim(),'en',{sensitivity:'base',numeric:true})));
       if(!iRes.error)setIndents(iRes.data||[]);if(!aRes.error)setAllocations(aRes.data||[]);if(!tRes.error)setStoreReturns(tRes.data||[]);
       try{const rs=await loadStoreResets(20);setStoreResets(rs.rows||[])}catch(_){}
       setLoadedOnce(true);
@@ -44762,7 +44762,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         client.from('biomedical_equipment_movements').select('*').order('moved_at',{ascending:false}).limit(1000),
         client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active').eq('is_active',true).order('full_name'),
         client.rpc('get_charge_service_catalog'),
-        client.from('biomedical_equipment_items').select('*').order('item_code'),
+        client.from('biomedical_equipment_items').select('*').order('item_name'),
         client.from('biomedical_equipment_purchases').select('*').order('received_at',{ascending:false}).limit(1000)
       ]);
       if(e.error){setError(equipmentErrorText(e.error));setRows([]);return}

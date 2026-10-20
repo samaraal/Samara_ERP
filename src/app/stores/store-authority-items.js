@@ -117,7 +117,7 @@ function usePharmacyStock(){
       .select('item_id,item_name,unit,balance_qty,reorder_level,active')
       .eq('active',true).order('item_name');
     if(result.error){setState({loading:false,error:'Stock could not be refreshed. Check with Stores before issue.',checkedAt:null});return}
-    setItems(result.data||[]);
+    setItems((result.data||[]).slice().sort((x,y)=>String(x.item_name||'').trim().localeCompare(String(y.item_name||'').trim(),'en',{sensitivity:'base',numeric:true})));   // 2.18.50: A→Z
     setState({loading:false,error:'',checkedAt:new Date()});
   },[]);
   React.useEffect(()=>{
@@ -154,7 +154,7 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
 
   function StoreItemMaster({profile}){
     const [rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('All'),[search,setSearch]=React.useState(''),[editing,setEditing]=React.useState(null),[adding,setAdding]=React.useState(null),[moveTargets,setMoveTargets]=React.useState({}),[duplicateAlert,setDuplicateAlert]=React.useState(null);
-    const load=React.useCallback(async()=>{const r=await client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate').order('item_name');if(r.error)showSamaraActionToast('error','Stores Master','Run 132_store_item_master.sql first. '+r.error.message);else setRows(r.data||[])},[]);
+    const load=React.useCallback(async()=>{const r=await client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate').order('item_name');if(r.error)showSamaraActionToast('error','Stores Master','Run 132_store_item_master.sql first. '+r.error.message);else setRows((r.data||[]).slice().sort((x,y)=>String(x.item_name||'').trim().localeCompare(String(y.item_name||'').trim(),'en',{sensitivity:'base',numeric:true})))},[]);
     React.useEffect(()=>{load()},[load]);
     const visible=rows.filter(r=>{const c=r.item_category||'Consumables',q=search.trim().toLowerCase();return (filter==='All'||filter===c||(filter==='Inactive'&&r.active===false))&&(q.length<3||`${r.item_code||''} ${r.item_name||''}`.toLowerCase().includes(q))});
     const normalizeMasterName=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\b(ml|mg|gm|g|iu|fr)\b/g,' $1 ').replace(/\s+/g,' ').trim();
