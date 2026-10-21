@@ -1,3 +1,7 @@
+## 2.18.53 — Discount no longer shows as "Cash"
+- In **Accounts → Billing & Payments**, a **Discount** entered right after a Cash payment was saved with that payment's mode and voucher number, so the Guest Ledger showed it as "Cash · CV-…". A Discount (and a manual Charge) is not money received: it is now always saved as **Not applicable** with no voucher / reference, and the Payment Mode and Reference boxes are hidden for these two types. Changing the Transaction type also clears any leftover voucher number. Cash totals and reports were never affected (they count only Payment / Advance / Refund).
+- **SQL onetime_265_fix_discount_shown_as_cash.sql** (run once): corrects the ₹6,587 Final Settlement discount of 21-10-2026 that was saved as Cash · CV-2026-000012. Amount and balance unchanged.
+
 ## 2.18.52 — Phone: screensaver task boxes fully visible
 - On phones the screensaver's **Vital Signs, Nursing Procedure, Meals and Care** boxes were squeezed to a thin strip and overlapped each other (the Medicines box was fine). Each box now shows in full, one under the other, below the Medicines box: task name, next time, details, Room and the Guest's full name on its own line. Care keeps its scrolling list. Computer / tablet screens unchanged. No SQL.
 

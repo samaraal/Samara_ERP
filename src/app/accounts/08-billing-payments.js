@@ -889,7 +889,10 @@ Please access the Samara Family Portal for detailed account information.`;
 
       let data=null;
       let error=null;
-      let actualReference=String(form.payment_reference||'').trim();
+      // 2.18.53: Charge and Discount are not money received, so they never carry a payment mode or a
+      // voucher / reference (earlier the previous Cash payment's "Cash · CV-…" was carried over).
+      const isNonMoneyTransaction=['Charge','Discount'].includes(form.transaction_type);
+      let actualReference=isNonMoneyTransaction?'':String(form.payment_reference||'').trim();
 
       if(isAutoVoucherTransaction){
         const voucherResult=await client.rpc('record_voucher_transaction',{
@@ -916,7 +919,7 @@ Please access the Samara Family Portal for detailed account information.`;
           transaction_type:form.transaction_type,
           category:form.category,
           amount,
-          payment_mode:form.transaction_type==='Charge'?'Not applicable':form.payment_mode,
+          payment_mode:isNonMoneyTransaction?'Not applicable':form.payment_mode,
           payment_reference:actualReference||null,
           description:[
             form.description,
@@ -1269,7 +1272,7 @@ Please access the Samara Family Portal for detailed account information.`;
             h('select',{
               value:form.transaction_type,
               disabled:!!dischargeTarget,
-              onChange:e=>{const t=e.target.value;setForm({...form,transaction_type:t,category:t==='Charge'&&!MANUAL_CHARGE_CATEGORIES.includes(form.category)?'Room Charges':form.category})}
+              onChange:e=>{const t=e.target.value;setLastVoucherNo('');setForm({...form,transaction_type:t,payment_reference:'',category:t==='Charge'&&!MANUAL_CHARGE_CATEGORIES.includes(form.category)?'Room Charges':form.category})}
             },
               (canDiscount?['Payment','Advance','Charge','Discount','Refund']:['Payment','Advance','Charge','Refund'])
                 .map(option=>h('option',{key:option,value:option},option))
@@ -1300,14 +1303,14 @@ Please access the Samara Family Portal for detailed account information.`;
               onChange:e=>{if(isAutoVoucherTransaction)setLastVoucherNo('');setForm({...form,amount:e.target.value,payment_reference:isAutoVoucherTransaction?'':form.payment_reference})}
             })
           ),
-          h('div',{className:'field'},
+          !['Charge','Discount'].includes(form.transaction_type)&&h('div',{className:'field'},
             h('label',null,'Payment Mode'),
             h('select',{value:form.payment_mode,onChange:e=>{const mode=e.target.value;setLastVoucherNo('');setForm({...form,payment_mode:mode,payment_reference:''})}},
               ['Cash','UPI','RTGS','Card Payment']
                 .map(option=>h('option',{key:option,value:option},option))
             )
           ),
-          h('div',{className:'field'},
+          !['Charge','Discount'].includes(form.transaction_type)&&h('div',{className:'field'},
             h('label',null,
               isAutoVoucherTransaction
                 ?`${form.payment_mode==='Cash'?'Cash':'Card'} Voucher / Payment Reference No.`
@@ -1332,7 +1335,7 @@ Please access the Samara Family Portal for detailed account information.`;
             h('label',null,'Description'),
             h('input',{
               value:form.description,
-              placeholder:'Payment particulars',
+              placeholder:form.transaction_type==='Discount'?'Reason for the discount':'Payment particulars',
               onChange:e=>setForm({...form,description:e.target.value})
             })
           ),
