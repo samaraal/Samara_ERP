@@ -1,5 +1,5 @@
-const APP_VERSION = '2.18.61';
-const CACHE = 'samara-erp-2.18.61-mar-time-buttons';
+const APP_VERSION = '2.18.62';
+const CACHE = 'samara-erp-2.18.62-mar-half-hours';
 const SHELL = [
   './',
   './index.html',

@@ -1,3 +1,7 @@
+## 2.18.62 — MAR: a button for every half-hour of the shift
+- **Today's MAR** time buttons now cover the **whole shift every 30 minutes** (Day 7:00 AM … 6:30 PM, Night 7:00 PM … 6:30 AM), whether or not medicines fall at that time. Empty times are greyed with "—"; the current half-hour is marked **NOW**. Tapping an empty time shows "No medicines at this time". Compact 4-per-row grid on phones.
+- Fixed: insulin with a **fixed dose** (e.g. "Inj. Human Actrapid 10 units") was wrongly flagged "Sliding scale" when its note mentioned GRBS / RBS. Now only insulin without a fixed strength, or a prescription saying sliding scale / as per sugar without a dose, gets "Sugar + units"; fixed doses get the normal green Administer now. No SQL.
+
 ## SQL 266 — Nursing Manager Nurse mode: full Nurse access on the server (no app change)
 - With **Switch to Nurse ON**, the Nursing Manager is now accepted by **every** server check that allows only Nurses (SQL 259 covered only 8 named functions). Fixes e.g. **Outside Samara Nursing Procedures** ("Only nurses can enter procedures and indents"), requesting a nursing procedure, confirming indent receipt, and the nursing discharge steps.
 - How: the shared role helper accepts Nurse mode wherever Nurse is allowed (duty-swap logic kept); nurse-only checks on the signed-in person's role are patched in every live function; two discharge checks patched by exact text. Checks that look up OTHER staff (e.g. lists of nurses to notify) are never changed. Switch OFF = exactly as before; her Manager rights are unchanged.

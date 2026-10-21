@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.61';
+  const APP_VERSION = '2.18.62';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '21-Oct-2026 MAR time buttons + Administer now';
+  const APP_BUILD_DATE = '21-Oct-2026 MAR: every half-hour button';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -33995,8 +33995,10 @@ function RoomsBeds({profile,onNavigate}){
   // "Give checked": the nurse checks the sugar first and records the reading + units given in the MAR form.
   function marIsVariableDose(order){
     const text=[order?.medicine_name,order?.strength,order?.dose,order?.special_instruction,order?.special_instructions,order?.instructions,order?.remarks].filter(Boolean).join(' ');
-    return /sliding\s*scale|as\s+per\s+(the\s+)?(blood\s*)?sugar|according\s+to\s+(the\s+)?(blood\s*)?sugar|depend(s|ing)?\s+on\s+(the\s+)?(blood\s*)?sugar|\b(grbs|cbg|rbs)\b/i.test(text)
-      ||(/insulin|actrapid|lantus|novorapid|mixtard|humulin|tresiba|basalog|glargine/i.test(String(order?.medicine_name||''))&&!String(order?.strength||order?.dose||'').trim());
+    // 2.18.62: a prescription with a fixed number (e.g. "10 units") is a fixed dose, even if the notes mention GRBS / sugar.
+    if(/\d/.test(String(order?.strength||order?.dose||'')))return false;
+    return /sliding\s*scale|as\s+per\s+(the\s+)?(blood\s*)?(sugar|grbs|cbg|rbs)|according\s+to\s+(the\s+)?(blood\s*)?(sugar|grbs|cbg|rbs)|depend(s|ing)?\s+on\s+(the\s+)?(blood\s*)?(sugar|grbs|cbg|rbs)/i.test(text)
+      ||/insulin|actrapid|lantus|novorapid|mixtard|humulin|tresiba|basalog|glargine/i.test(String(order?.medicine_name||''));
   }
   function DischargeMedicationReview(){
     const [rows,setRows]=React.useState([]),[target,setTarget]=React.useState(null),[note,setNote]=React.useState(''),[busy,setBusy]=React.useState(false),[error,setError]=React.useState('');
@@ -34692,8 +34694,10 @@ function RoomsBeds({profile,onNavigate}){
     const marDue=item=>!item.log&&marMinutes(item)>=-30;
     const marWaitingDoctor=item=>Boolean(item.log&&medicationWithholdOpen(item.log));
     const marSlotKey=item=>{const [hh,mm]=item.time.split(':');return `${item.date}|${hh}:${Number(mm)<30?'00':'30'}`};
+    // 2.18.62: EVERY half-hour of the shift gets a button (7:00, 7:30 … 6:30), with or without medicines.
     const marSlots=(()=>{
       const map=new Map();
+      marShift.segs.forEach(seg=>{for(let m=Number(seg.from.slice(0,2))*60;m<=Number(seg.to.slice(0,2))*60+Number(seg.to.slice(3,5));m+=30){map.set(`${seg.date}|${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`,[])}});
       marShiftRows.forEach(x=>{const k=marSlotKey(x);if(!map.has(k))map.set(k,[]);map.get(k).push(x)});
       return [...map.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([key,items])=>{
         const [date,time]=key.split('|');
@@ -34702,7 +34706,8 @@ function RoomsBeds({profile,onNavigate}){
           late:items.filter(marLate).length,due:items.filter(marDue).length,waiting:items.filter(marWaitingDoctor).length};
       });
     })();
-    const marDefaultSlot=marSlots.find(s=>s.late||s.due)||marSlots.find(s=>s.pending)||marSlots[marSlots.length-1];
+    const marNowKey=(()=>{const n=new Date(),hh=String(n.getHours()).padStart(2,'0'),mm=n.getMinutes()<30?'00':'30';const d=marShift.segs.find(x=>`${hh}:${mm}`>=x.from&&`${hh}:${mm}`<=x.to)?.date||today;return `${d}|${hh}:${mm}`})();
+    const marDefaultSlot=marSlots.find(s=>s.late||s.due)||marSlots.find(s=>s.key===marNowKey)||marSlots.find(s=>s.pending)||marSlots[0];
     const marSelected=marSlots.find(s=>s.key===selectedSlot)||marDefaultSlot||null;
     const marTotals={total:marShiftRows.length,given:marShiftRows.filter(x=>x.log&&!marIsException(x.log)).length,
       late:marShiftRows.filter(marLate).length,waiting:marShiftRows.filter(marWaitingDoctor).length};
@@ -34770,9 +34775,9 @@ function RoomsBeds({profile,onNavigate}){
     const MAR_SHIFT_CSS=`.mar-shift{margin-top:4px}.mar-top{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}.mar-top .mar-title{font-weight:800;font-size:16px;color:#321d28;margin-right:4px}
 .mar-pill{border:1px solid #e7c3d4;background:#fff;border-radius:999px;padding:4px 12px;font-size:13px;font-weight:800;color:#5d1039;cursor:pointer}.mar-pill.on{background:#b20b5d;border-color:#b20b5d;color:#fff}.mar-pill.static{cursor:default}.mar-pill.ok{border-color:#bfe5cf;color:#0a7a42;background:#f3fbf6}.mar-pill.bad{border-color:#f0b4b4;color:#b42318;background:#fff7f7}
 .mar-rooms{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}.mar-rooms .mar-pill{font-weight:700;padding:3px 10px}
-.mar-times{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}.mar-time{display:flex;flex-direction:column;align-items:center;min-width:86px;padding:7px 10px;border-radius:12px;border:1px solid #e2c9d5;background:#fff;color:#5d1039;font:inherit;cursor:pointer;line-height:1.2}
+.mar-times{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px;margin:0 0 12px}.mar-time{display:flex;flex-direction:column;align-items:center;min-width:0;padding:6px 6px;border-radius:12px;border:1px solid #e2c9d5;background:#fff;color:#5d1039;font:inherit;cursor:pointer;line-height:1.2}
 .mar-time b{font-size:15px}.mar-time small{font-size:11.5px;font-weight:800;margin-top:2px}.mar-time.done{background:#e8f6ee;border-color:#bfe5cf;color:#0a7a42}.mar-time.due{background:#fff4dd;border-color:#f0c75e;color:#7a4e00}.mar-time.late{background:#fdecec;border-color:#e8a0a0;color:#b42318}
-.mar-time.sel{outline:3px solid #b20b5d;outline-offset:1px}.mar-time .mar-day{font-size:10.5px;font-weight:700;opacity:.8}
+.mar-time.empty{background:#faf7f8;border-color:#eee3e8;color:#a6949d}.mar-time.empty b{font-weight:700}.mar-now{font-size:10px;font-weight:900;color:#b20b5d;text-transform:uppercase;letter-spacing:.04em}.mar-time.sel{outline:3px solid #b20b5d;outline-offset:1px}.mar-time .mar-day{font-size:10.5px;font-weight:700;opacity:.8}
 .mar-slot{border:1px solid #ecd3df;border-radius:12px;background:#fff;overflow:hidden}.mar-slot-head{display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:space-between;align-items:center;padding:9px 14px;background:#fbeef4;color:#5d1039}.mar-slot-head b{font-size:16px}.mar-slot-head small{font-weight:700}
 .mar-guest{padding:6px 14px 6px;border-top:1px solid #f3e3ea}.mar-guest-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin:4px 0}.mar-room{font-size:19px;font-weight:900;color:#b20b5d}.mar-guest-name{font-weight:800;color:#321d28;font-size:14.5px}.mar-guest-head small{color:#7b6670}
 .mar-line{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:7px 4px 7px 22px;border-top:1px dashed #f3e3ea}.mar-line.recorded{cursor:pointer}.mar-line.recorded:hover{background:#fff7fb}
@@ -34783,7 +34788,7 @@ function RoomsBeds({profile,onNavigate}){
 .mar-act.ghost{background:#fff;border-color:#e2c9d5;color:#5d1039;font-weight:700}.mar-act.done,.mar-act.done:disabled{background:#eceaeb;border-color:#e0dcde;color:#6d6468;cursor:not-allowed;opacity:1}
 .mar-chip{font-size:12px;font-weight:800;padding:4px 10px;border-radius:10px;white-space:nowrap}.mar-chip.warn{background:#fff4dd;color:#8a5a00}.mar-chip.held{background:#fdecec;color:#b42318}
 .mar-confirm h3{margin:0 0 4px}.mar-confirm .mar-confirm-med{font-size:18px;font-weight:800;color:#321d28;margin:8px 0 2px}.mar-confirm .mar-confirm-guest{font-size:15px;color:#5d1039;font-weight:700}
-@media(max-width:700px){.mar-line{flex-direction:column;align-items:stretch;padding-left:8px}.mar-actions{justify-content:flex-start}.mar-act{flex:1 1 auto}.mar-time{min-width:74px}}`;
+@media(max-width:700px){.mar-line{flex-direction:column;align-items:stretch;padding-left:8px}.mar-actions{justify-content:flex-start}.mar-act{flex:1 1 auto}.mar-times{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.mar-time{padding:5px 2px;border-radius:9px}.mar-time b{font-size:13px;white-space:nowrap}.mar-time small{font-size:10.5px;white-space:nowrap}.mar-time.empty small{display:none}}`;
     const marTodayView=h('div',{className:'card panel mar-shift','data-no-hover':'true'},h('style',null,MAR_SHIFT_CSS),
       h('div',{className:'mar-top'},
         h('span',{className:'mar-title'},marShift.label),
@@ -34797,15 +34802,17 @@ function RoomsBeds({profile,onNavigate}){
       marRooms.length>1&&h('div',{className:'mar-rooms'},
         h('button',{type:'button',className:`mar-pill ${!patientFilter?'on':''}`,onClick:()=>setPatientFilter('')},'All rooms'),
         marRooms.map(p=>h('button',{type:'button',key:p.id,className:`mar-pill ${patientFilter===p.id?'on':''}`,onClick:()=>setPatientFilter(patientFilter===p.id?'':p.id)},roomText(p)))),
-      !marSlots.length&&h('div',{className:'message'},'No medicines are scheduled in this shift.'),
+      !marShiftRows.length&&h('div',{className:'message'},'No medicines are scheduled in this shift.'),
       marSlots.length>0&&h('div',{className:'mar-times',role:'group','aria-label':'Medicine times in this shift'},
         marSlots.map(slot=>{
-          const tone=slot.late||slot.waiting?'late':slot.due?'due':!slot.pending?'done':'';
-          const sub=slot.late?`${slot.late} late`:slot.waiting?'awaiting doctor':slot.due?`${slot.due} due now`:!slot.pending?`✓ ${slot.given} given`:`${slot.pending} to give`;
+          const empty=!slot.items.length,isNow=slot.key===marNowKey;
+          const tone=empty?'empty':slot.late||slot.waiting?'late':slot.due?'due':!slot.pending?'done':'';
+          const sub=empty?(isNow?'now · —':'—'):slot.late?`${slot.late} late`:slot.waiting?'awaiting doctor':slot.due?`${slot.due} due now`:!slot.pending?`✓ ${slot.given} given`:`${slot.pending} to give`;
           return h('button',{type:'button',key:slot.key,className:`mar-time ${tone} ${marSelected&&marSelected.key===slot.key?'sel':''}`,'aria-pressed':marSelected&&marSelected.key===slot.key,onClick:()=>setSelectedSlot(slot.key)},
-            h('b',null,medicationTimeLabel(slot.time)),slot.date!==today&&h('span',{className:'mar-day'},formatDateIN(slot.date)),h('small',null,sub));
+            h('b',null,medicationTimeLabel(slot.time)),slot.date!==today&&h('span',{className:'mar-day'},formatDateIN(slot.date)),h('small',null,sub),isNow&&!empty&&h('span',{className:'mar-now'},'now'));
         })),
-      marSelected&&(()=>{
+      marSelected&&!marSelected.items.length&&h('div',{className:'mar-slot'},h('div',{className:'mar-slot-head'},h('b',null,`${medicationTimeLabel(marSelected.time)}${marDateNote(marSelected.date)}`),h('small',null,'No medicines at this time'))),
+      marSelected&&marSelected.items.length>0&&(()=>{
         const guests=new Map();
         marSelected.items.forEach(x=>{const p=patientFor(x.order);if(!guests.has(p.id))guests.set(p.id,{patient:p,items:[]});guests.get(p.id).items.push(x)});
         const list=[...guests.values()].sort((a,b)=>String(a.patient.room_no||'').localeCompare(String(b.patient.room_no||''),'en',{numeric:true})||String(a.patient.bed_no||'').localeCompare(String(b.patient.bed_no||'')));
